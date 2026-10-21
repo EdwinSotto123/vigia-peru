@@ -24,6 +24,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { publicar } from "../lib/privacidad.js";
+import { LECTURAS, casoLectura, lecturaSql } from "../lib/lectura.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { CONTEOS, RankingQuery, claveRanking, consultaGobiernos, consultaRanking } from "../lib/rankingPartidos.js";
@@ -85,9 +86,15 @@ const ProcesosQuery = z.object({
   q: z.string().trim().min(3).max(80).optional(),
   objeto: z.string().max(40).optional(),
   orden: z.enum(["fecha", "monto"]).default("fecha"),
+  // Las mismas tres preguntas que la lista de contratos: sólo responden los procesos que están en la base de Vigía
+  // (los que tienen ocid, ~la mitad; el resto no se leyó ni se cruzó).
+  lectura: z.enum(LECTURAS).optional(),
+  riesgo: z.enum(["alto", "medio", "bajo"]).optional(),
+  cruces: z.string().max(40).regex(/^[a-z_]+$/).optional(),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
+type PreguntaLectura = "lectura" | "riesgo" | "cruces";
 const procesosMemo = new Memo<Record<string, unknown>>({ nombre: "partidos:procesos", ttlMs: 120_000, staleMs: 120_000, max: 500 });
 
 partidosRouter.get("/:clave/procesos", async (c) => {
@@ -99,21 +106,38 @@ partidosRouter.get("/:clave/procesos", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
   const cuerpo = await procesosMemo.obtener(`procesos:${clave}:${JSON.stringify(q)}`, async () => {
-    const vals: unknown[] = [clave, q.anio];
-    const conds = ["pp.org_clave = $1", "pp.anio_eleccion = $2"];
-    if (q.nivel) { vals.push(q.nivel); conds.push(`pp.nivel = $${vals.length}`); }
-    if (q.region) { vals.push(q.region); conds.push(`left(pp.gobierno_ubigeo, 2) = $${vals.length}`); }
-    if (q.ubigeo) { vals.push(q.ubigeo); conds.push(`pp.gobierno_ubigeo = $${vals.length}`); }
-    if (q.objeto) { vals.push(q.objeto); conds.push(`pp.objeto = $${vals.length}`); }
-    if (q.q) {
-      // Objeto, nomenclatura, entidad y ganador; el nombre de una persona natural (RUC 10) no se busca (como en casos_cruce).
-      vals.push(q.q);
-      conds.push(`mef_norm(coalesce(pp.descripcion, '') || ' ' || coalesce(pp.nomenclatura, '') || ' ' || coalesce(pp.entidad, '') || ' ' ||
-                  CASE WHEN pp.ruc_proveedor LIKE '10%' THEN '' ELSE coalesce(pp.proveedor, '') END) LIKE '%' || mef_norm($${vals.length}) || '%'`);
-    }
-    const where = conds.join(" AND ");
+    // Las condiciones con sus parámetros; `sin` deja fuera esas preguntas (para contar cada una sin su propio filtro).
+    const armar = (sin: PreguntaLectura[] = []) => {
+      const vals: unknown[] = [clave, q.anio];
+      const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+      const conds = ["pp.org_clave = $1", "pp.anio_eleccion = $2"];
+      if (q.nivel) conds.push(`pp.nivel = ${add(q.nivel)}`);
+      if (q.region) conds.push(`left(pp.gobierno_ubigeo, 2) = ${add(q.region)}`);
+      if (q.ubigeo) conds.push(`pp.gobierno_ubigeo = ${add(q.ubigeo)}`);
+      if (q.objeto) conds.push(`pp.objeto = ${add(q.objeto)}`);
+      if (q.q) {
+        // Objeto, nomenclatura, entidad y ganador; el nombre de una persona natural (RUC 10) no se busca (como en casos_cruce).
+        conds.push(`mef_norm(coalesce(pp.descripcion, '') || ' ' || coalesce(pp.nomenclatura, '') || ' ' || coalesce(pp.entidad, '') || ' ' ||
+                    CASE WHEN pp.ruc_proveedor LIKE '10%' THEN '' ELSE coalesce(pp.proveedor, '') END) LIKE '%' || mef_norm(${add(q.q)}) || '%'`);
+      }
+      if (q.lectura && !sin.includes("lectura")) {
+        conds.push(`EXISTS (SELECT 1 FROM contrato_estado ce WHERE ce.ocid = pp.ocid AND ${lecturaSql(q.lectura, "ce.")})`);
+      }
+      if (q.riesgo && !sin.includes("riesgo")) {
+        conds.push(`EXISTS (SELECT 1 FROM contrato_estado ce WHERE ce.ocid = pp.ocid AND ce.riesgo = ${add(q.riesgo)})`);
+      }
+      if (q.cruces && !sin.includes("cruces")) {
+        const k = q.cruces === "alta" ? " AND k.n_alta > 0" : q.cruces === "con" ? "" : ` AND ${add(q.cruces)} = ANY(k.tipos)`;
+        conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE k.ocid = pp.ocid${k})`);
+      }
+      return { where: conds.join(" AND "), vals };
+    };
+    const { where, vals } = armar();
+    // Conteos de los desplegables: lectura y riesgo son la misma pregunta (se cuentan sin las dos); antecedentes, sin el suyo.
+    const fL = armar(["lectura", "riesgo"]);
+    const fC = armar(["cruces"]);
     const orden = q.orden === "monto" ? "pp.monto_adjudicado_pen DESC NULLS LAST, pp.fecha_convocatoria DESC" : "pp.fecha_convocatoria DESC, pp.monto_adjudicado_pen DESC NULLS LAST";
-    const [filas, total] = await Promise.all([
+    const [filas, total, lecturas, cruces] = await Promise.all([
       pool.query(
         `SELECT pp.codigo_convocatoria AS codigo, pp.nomenclatura, pp.descripcion, pp.objeto, pp.tipo_proceso AS "tipoProceso",
                 to_char(pp.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, pp.entidad, pp.entidad_ruc AS "entidadRuc", pp.nivel,
@@ -123,9 +147,30 @@ partidosRouter.get("/:clave/procesos", async (c) => {
           WHERE ${where} ORDER BY ${orden}, pp.codigo_convocatoria
           LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
       pool.query(`SELECT count(*)::int AS n, COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS monto FROM partido_proceso pp WHERE ${where}`, vals),
+      pool.query(
+        `SELECT ${casoLectura("ce.")} AS k, ce.riesgo, count(*)::int AS n
+           FROM partido_proceso pp JOIN contrato_estado ce ON ce.ocid = pp.ocid
+          WHERE ${fL.where} GROUP BY 1, 2`, fL.vals),
+      // Los distintos por GROUP BY (hash), como el resumen de contratos.
+      pool.query(
+        `WITH k AS MATERIALIZED (SELECT k.ocid, k.n_alta, k.tipos FROM partido_proceso pp JOIN casos_cruce k ON k.ocid = pp.ocid WHERE ${fC.where}),
+              o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+              t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
+         SELECT (SELECT count(*)::int FROM o) AS con, (SELECT count(*)::int FROM o WHERE alta) AS alta,
+                (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos`, fC.vals),
     ]);
+    const porLectura: Record<string, number> = {};
+    const porRiesgo: Record<string, number> = {};
+    for (const r of lecturas.rows) {
+      porLectura[r.k] = (porLectura[r.k] ?? 0) + r.n;
+      if (["alto", "medio", "bajo"].includes(r.riesgo)) porRiesgo[r.riesgo] = (porRiesgo[r.riesgo] ?? 0) + r.n;
+    }
     // El ganador puede ser una persona natural: publicar() la reconoce por su RUC 10 y tapa su nombre.
-    return publicar({ total: total.rows[0].n, montoAdjudicadoPen: total.rows[0].monto, page: q.page, size: q.size, data: filas.rows });
+    return publicar({
+      total: total.rows[0].n, montoAdjudicadoPen: total.rows[0].monto, page: q.page, size: q.size, data: filas.rows,
+      // Conteos de "¿Lo leyó Vigía?", "Riesgo" y "Antecedentes" (sólo los procesos que están en la base de Vigía).
+      facetas: { porLectura, porRiesgo, porCruces: cruces.rows[0] },
+    });
   });
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(cuerpo);

@@ -23,6 +23,10 @@ import {
   type Indicador,
   type Parametros,
 } from "@/components/listado";
+import { filtrosVisibles } from "@/components/contratos/filtros";
+import { InicioPartido } from "@/components/inicio/InicioPartido";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { LECTURAS } from "@/lib/contratos";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import {
   AVISO_PARTIDO,
@@ -68,11 +72,16 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
     nivel: ["regional", "provincial", "distrital"].includes(uno(searchParams?.nivel) ?? "") ? uno(searchParams?.nivel) : undefined,
     region: /^\d{2}$/.test(uno(searchParams?.region) ?? "") ? uno(searchParams?.region) : undefined,
     objeto: uno(searchParams?.objeto)?.slice(0, 40),
+    // Las preguntas de la lista de contratos: ¿lo leyó Vigía?, riesgo y antecedentes del ganador.
+    lectura: LECTURAS.some((l) => l.value === uno(searchParams?.lectura)) ? uno(searchParams?.lectura) : undefined,
+    riesgo: ["alto", "medio", "bajo"].includes(uno(searchParams?.riesgo) ?? "") ? uno(searchParams?.riesgo) : undefined,
+    cruces: /^[a-z_]{1,40}$/.test(uno(searchParams?.cruces) ?? "") ? uno(searchParams?.cruces) : undefined,
     orden: uno(searchParams?.orden) === "monto" ? ("monto" as const) : undefined,
   };
   // La búsqueda pide 3 letras (como la API): con menos, no filtra.
   if (filtros.q && filtros.q.length < 3) filtros.q = undefined;
-  const parametros: Parametros = { anio: String(anio), ...filtros };
+  // "Inicio" es la primera pestaña (sin `seccion`): la lista de procesos lleva la suya en sus enlaces (paginación).
+  const parametros: Parametros = { anio: String(anio), ...filtros, seccion: "procesos" };
 
   const procesosP = getProcesosPartido(params.clave, anio, { ...filtros, page, size: TAM });
   const d = await getDetallePartido(params.clave, anio);
@@ -135,10 +144,19 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
       <Indicadores items={indicadores(d, anio, totalGobiernos, ruta)} />
 
       <Pestanas
-        key={seccion ?? "procesos"}
+        key={seccion ?? "inicio"}
         etiqueta="Secciones del partido"
         activa={seccion}
         pestanas={[
+          {
+            clave: "inicio",
+            etiqueta: "Inicio",
+            contenido: (
+              <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
+                <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} />
+              </Suspense>
+            ),
+          },
           {
             clave: "procesos",
             // "Contratos", como en la ficha de una entidad: son los adjudicados por sus gobiernos.
@@ -154,6 +172,10 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                         uno en el día en que se convocó. Desde 2018 salen de CONOSCE; de 2015 a 2017, de Contrataciones
                         Abiertas, la API pública del mismo OECE.
                       </span>
+                      <span className="mt-2 block">
+                        «¿Lo leyó Vigía?», «Riesgo» y «Antecedentes» sólo responden por los procesos que también están en
+                        la base de Vigía (más o menos la mitad): el resto no se leyó ni se cruzó con otras fuentes.
+                      </span>
                       <span className="mt-2 block">{AVISO_PARTIDO}</span>
                     </Ayuda>
                   }
@@ -161,12 +183,10 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                   Todos los contratos adjudicados de sus gobiernos en {periodoTexto(anio)}, con su ganador y su monto.
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-                  <BarraFiltros
-                    busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus contratos", min: 3 }}
-                    visibles={visibles(d)}
-                    filtros={[]}
-                    orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
-                  />
+                  {/* Los conteos de lectura, riesgo y antecedentes llegan con la página: mientras, la barra sin números. */}
+                  <Suspense fallback={<BarraDeProcesos d={d} facetas={null} />}>
+                    <BarraProcesos pagina={procesosP} d={d} />
+                  </Suspense>
                   <ZonaResultados>
                     <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_SKELETON} filas={10} />}>
                       <Procesos pagina={procesosP} parametros={parametros} ruta={ruta} actual={page} />
@@ -218,6 +238,22 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
 
 async function Procesos({ pagina, parametros, ruta, actual }: { pagina: Promise<ProcesosPartido | null>; parametros: Parametros; ruta: string; actual: number }) {
   return <TablaProcesos pagina={await pagina} parametros={parametros} ruta={ruta} actual={actual} />;
+}
+
+async function BarraProcesos({ pagina, d }: { pagina: Promise<ProcesosPartido | null>; d: DetallePartido }) {
+  return <BarraDeProcesos d={d} facetas={(await pagina)?.facetas ?? null} />;
+}
+
+/** Búsqueda, las tres preguntas de Vigía (como en /app/contratos) y nivel, región y objeto. */
+function BarraDeProcesos({ d, facetas }: { d: DetallePartido; facetas: ProcesosPartido["facetas"] | null }) {
+  return (
+    <BarraFiltros
+      busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus contratos", min: 3 }}
+      visibles={[...filtrosVisibles(facetas ?? null), ...visibles(d)]}
+      filtros={[]}
+      orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
+    />
+  );
 }
 
 const COLUMNAS_SKELETON: Columna[] = [
@@ -276,7 +312,7 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
       valor: h ? numero(h.procesos) : null,
       etiqueta: "contratos adjudicados",
       contexto: h ? `de ${plural(h.entidades, "entidad", "entidades")}` : undefined,
-      href: ruta + `?anio=${anio}`,
+      href: ruta + `?anio=${anio}&seccion=procesos`,
     },
     {
       valor: h ? solesCompacto(h.montoAdjudicadoPen) : null,

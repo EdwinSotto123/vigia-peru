@@ -28,6 +28,7 @@ import { MIN_CONFIRMACIONES } from "./senales";
 import { conteosDeDepartamento, type AlertasMapa } from "./puntos";
 import { ContratosLista, useMapaContratos } from "@/components/contratos/ContratosLista";
 import { SeguirZonaBoton } from "./SeguirZonaBoton";
+import { InicioRegion } from "@/components/inicio/InicioRegion";
 
 export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias" | "presupuesto";
 
@@ -35,7 +36,7 @@ export const ORDEN_TABS: ZonaTab[] = ["resumen", "cola", "entidades", "alertas",
 
 /** Nombre humano de cada pestaña: es lo que lee el lector de pantalla, no el id interno. */
 export const TAB_LABEL: Record<ZonaTab, string> = {
-  resumen: "Resumen",
+  resumen: "Inicio",
   cola: "Cola",
   entidades: "Entidades",
   alertas: "Señales",
@@ -212,6 +213,8 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
         <div key={`${ubigeo || regionId}-${tab}`}>
           {tab === "resumen" && (
             <ResumenTab
+              ubigeo={ubigeo}
+              mefDept={REGION_TO_MEF_DEPT[regionId] ?? null}
               nombre={nombre}
               detalle={detalle}
               geo={geo}
@@ -256,6 +259,8 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
 // ─── Pestañas ────────────────────────────────────────────────────────────
 
 function ResumenTab({
+  ubigeo,
+  mefDept,
   nombre,
   detalle,
   geo,
@@ -267,6 +272,8 @@ function ResumenTab({
   enVivoHref,
   goTo,
 }: {
+  ubigeo: string;
+  mefDept: string | null;
   nombre: string;
   detalle: ZonaDetalle | null | undefined;
   geo: ContratoZona | null | undefined;
@@ -285,23 +292,37 @@ function ResumenTab({
   const leidoFinPct = zona ? pct(zona.procesados, zona.totalCola) : 0;
   const esperando = zona?.pendientes ?? 0;
 
+  // El Inicio de la región no depende del servicio de financiamiento: sale aunque la cola no cargue.
+  const inicio = (
+    <>
+      <InicioRegion ubigeo={ubigeo} nombre={nombre} mefDept={mefDept} />
+      <h3 className="pt-2 text-[15px] font-semibold text-ink">La cola de lectura de {nombre}</h3>
+    </>
+  );
+
   if (cargando) {
     return (
-      <div className="space-y-2" role="status" aria-busy>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-8" />
-        ))}
-        <span className="sr-only">Cargando el estado de la auditoría…</span>
-      </div>
+      <CuerpoDetalle>
+        {inicio}
+        <div className="space-y-2" role="status" aria-busy>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-8" />
+          ))}
+          <span className="sr-only">Cargando el estado de la auditoría…</span>
+        </div>
+      </CuerpoDetalle>
     );
   }
 
   if (!zona) {
     return (
-      <Vacio
-        titulo="No pudimos cargar el estado de la zona"
-        texto="El servicio de financiamiento no respondió; las cifras aparecen apenas vuelva."
-      />
+      <CuerpoDetalle>
+        {inicio}
+        <Vacio
+          titulo="No pudimos cargar el estado de la zona"
+          texto="El servicio de financiamiento no respondió; las cifras aparecen apenas vuelva."
+        />
+      </CuerpoDetalle>
     );
   }
 
@@ -317,9 +338,11 @@ function ResumenTab({
     ...datosAlcance(detalle?.alcance, zona.documentosListos ?? 0, zona.enRevision ?? 0),
   ];
 
-  // Formato de panel (§14.4): cifras → la barra de la cola → datos en filas → bloques.
+  // Inicio (lo de la región: gasto, contratos, banderas) y después la cola de lectura, en formato de panel (§14.4):
+  // cifras → la barra de la cola → datos en filas → bloques.
   return (
     <CuerpoDetalle>
+      {inicio}
       {zona.totalCola > 0 ? (
         <>
           <Indicadores

@@ -35,6 +35,7 @@ import { Memo, responderConEtag, responderJson, type Serializado } from "../lib/
 import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor } from "../lib/cursor.js";
 import { hayModelosLectura } from "../lib/esquema.js";
+import { casoLectura, lecturaSql } from "../lib/lectura.js";
 import { ListQuery, cuboAnterior, geoAnterior, listaAnterior } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
 
@@ -121,16 +122,6 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   return { conds, usaCe };
 }
 
-/** Condición de `lectura` sobre riesgo + estado_proc (columnas de contrato_estado y de contratos_agregado). */
-const LEYENDO = "('encolado', 'procesando')";
-function lecturaSql(l: NonNullable<Filtros["lectura"]>, p: string): string {
-  switch (l) {
-    case "sin_leer": return `(${p}riesgo = 'sin_analizar' AND ${p}estado_proc NOT IN ${LEYENDO})`;
-    case "leyendo": return `${p}estado_proc IN ${LEYENDO}`;
-    case "publicado": return `${p}riesgo IN ('alto', 'medio', 'bajo')`;
-    case "revision": return `${p}riesgo = 'en_revision'`;
-  }
-}
 
 // ─── ¿Sale del agregado? ─────────────────────────────────────────────────────
 const esPrimeroDeMes = (d: string) => d.endsWith("-01");
@@ -247,10 +238,7 @@ const lecturaMemo = new Memo<Record<string, number>>({ nombre: "contratos:resume
 async function contarLectura(q: z.infer<typeof ResumenQuery>): Promise<Record<string, number>> {
   const base = { ...q, lectura: undefined, riesgo: undefined };
   const vals: unknown[] = [];
-  const casos = (p: string) => `CASE WHEN ${p}estado_proc IN ${LEYENDO} THEN 'leyendo'
-                                    WHEN ${p}riesgo IN ('alto', 'medio', 'bajo') THEN 'publicado'
-                                    WHEN ${p}riesgo = 'en_revision' THEN 'revision'
-                                    WHEN ${p}riesgo = 'sin_analizar' THEN 'sin_leer' ELSE 'otro' END`;
+  const casos = casoLectura;
   const r = agregable(base)
     ? await pool.query(`SELECT ${casos("")} AS k, sum(n)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(base, vals)} GROUP BY 1`, vals)
     : await (async () => {

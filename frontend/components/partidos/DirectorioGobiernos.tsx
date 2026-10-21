@@ -748,12 +748,17 @@ function TodosLosPartidos({
             const k = contratos?.[c.clave];
             const orden = (actual - 1) * TAM + i + 1;
             return (
-              <li key={c.org} className="grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
+              // Toda la fila lleva a la ficha del partido (como en "Contratos por partido"): el nombre es el enlace y se
+              // estira sobre la fila; "Ver sus gobiernos" y el conteo quedan encima y siguen siendo sus propios enlaces.
+              <li key={c.org} className="relative grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors focus-within:bg-granate-50 hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
                 <span className="hidden font-mono text-[13px] tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="h-3 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="truncate text-[14.5px] font-semibold text-ink" title={c.o.n}>{c.o.n}</span>
+                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} title={c.o.n}
+                      className="truncate text-[14.5px] font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none">
+                      {c.o.n}
+                    </Link>
                   </span>
                   <span className="block pl-3.5 text-[12px] text-mute">
                     {TIPO_ORG_LABEL[c.o.t]}: {c.regional > 0 && `${c.regional} ${c.regional === 1 ? "región" : "regiones"}, `}
@@ -768,13 +773,13 @@ function TodosLosPartidos({
                   <span className="mt-0.5 block text-[12px] tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
                 </span>
                 <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] sm:justify-end">
-                  <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                  <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
                     Ver sus gobiernos <ChevronRight size={14} aria-hidden />
                   </Link>
                   {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
                     // Sus procesos del OECE (desde 2015); antes, sólo los contratos de la base de Vigía (2026), y los
                     // períodos anteriores decían "Sin contratos en la base".
-                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="inline-flex min-h-9 items-center gap-1 text-inkSoft underline-offset-4 hover:text-ink hover:underline">
+                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 text-inkSoft underline-offset-4 hover:text-ink hover:underline">
                       <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
                       {(k.montoAdjudicadoPen ?? 0) > 0 && <span className="text-mute">· {solesCompacto(k.montoAdjudicadoPen ?? 0)}</span>}
                     </Link>

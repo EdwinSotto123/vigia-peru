@@ -27,6 +27,8 @@ import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { InicioEntidad } from "@/components/inicio/InicioEntidad";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
@@ -92,6 +94,9 @@ export default async function EntidadProfile({
   const regionDenuncias = region ? REGIONES.find((r) => normalizar(r.nombre) === normalizar(region))?.nombre : undefined;
 
   const seccion = typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined;
+  // "Inicio" es la primera pestaña (sin `seccion` en la URL): la lista de contratos lleva la suya en sus enlaces
+  // (paginación, filtros), o volverían a Inicio.
+  const parametrosLista: Parametros = { ...parametros, seccion: "contratos" };
 
   return (
     <Pagina>
@@ -137,13 +142,22 @@ export default async function EntidadProfile({
       {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
       <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
 
-      {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Contratos | Cuánto gasta | Denuncias. `key`: un enlace
-          de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
+      {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
+          enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
       <Pestanas
-        key={seccion ?? "contratos"}
+        key={seccion ?? "inicio"}
         etiqueta="Secciones de la entidad"
         activa={seccion}
         pestanas={[
+          {
+            clave: "inicio",
+            etiqueta: "Inicio",
+            contenido: (
+              <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
+                <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} />
+              </Suspense>
+            ),
+          },
           {
             clave: "contratos",
             etiqueta: "Contratos",
@@ -167,13 +181,13 @@ export default async function EntidadProfile({
                 >
                   Todas sus convocatorias desde 2015, con su ganador, lo que leyó Vigía y los antecedentes de quien ganó.
                 </CabeceraPestana>
-                <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-                  <Suspense fallback={<BarraEntidad resumen={null} parametros={parametros} />}>
-                    <BarraConConteos resumen={resumenFiltrado} parametros={parametros} />
+                <Listado ruta={ruta} parametros={parametrosLista} paramPagina="page">
+                  <Suspense fallback={<BarraEntidad resumen={null} parametros={parametrosLista} />}>
+                    <BarraConConteos resumen={resumenFiltrado} parametros={parametrosLista} />
                   </Suspense>
                   <ZonaResultados>
                     <Suspense fallback={<TablaContratosSkeleton />}>
-                      <Resultados pagina={pagina} parametros={parametros} query={query} ruta={ruta} />
+                      <Resultados pagina={pagina} parametros={parametrosLista} query={query} ruta={ruta} />
                     </Suspense>
                   </ZonaResultados>
                 </Listado>
@@ -328,7 +342,7 @@ function indicadores({
           : // La misma medida que la lista de entidades ("Con dictamen 13 de 331"): con dictamen publicado.
             `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
         : porTipoTexto(resumen),
-      href: leidos > 0 ? `${ruta}?lectura=publicado` : ruta,
+      href: leidos > 0 ? `${ruta}?seccion=contratos&lectura=publicado` : `${ruta}?seccion=contratos`,
       ayuda: (
         <Ayuda titulo="¿Qué contratos puede leer Vigía?">
           <span className="block">
@@ -353,7 +367,7 @@ function indicadores({
           ? plural(cruces.alta, "con un antecedente grave", "con antecedentes graves")
           : `de ${numero(totalContratos)}, ninguno grave`
         : undefined,
-      href: cruces && cruces.con > 0 ? `${ruta}?cruces=con` : undefined,
+      href: cruces && cruces.con > 0 ? `${ruta}?seccion=contratos&cruces=con` : undefined,
       ayuda: (
         <Ayuda titulo="¿Qué son los antecedentes del ganador?">
           Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes de campaña, candidaturas,

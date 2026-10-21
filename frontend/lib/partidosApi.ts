@@ -166,6 +166,12 @@ export interface ProcesosPartido {
   page: number;
   size: number;
   data: ProcesoPartido[];
+  /** Conteos de "¿Lo leyó Vigía?", "Riesgo" y "Antecedentes" (sólo los procesos que están en la base de Vigía). */
+  facetas?: {
+    porLectura: Record<string, number>;
+    porRiesgo: Record<string, number>;
+    porCruces: { con: number; alta: number; tipos?: Record<string, number> } | null;
+  };
 }
 
 /** Los procesos de UNA entidad desde 2015 (GET /entidades/:ruc/procesos): `resumen`, sin filtros, para las cifras. */
@@ -186,6 +192,9 @@ export interface FiltrosProcesos {
   ubigeo?: string;
   q?: string;
   objeto?: string;
+  lectura?: string;
+  riesgo?: string;
+  cruces?: string;
   orden?: "fecha" | "monto";
   page?: number;
   size?: number;

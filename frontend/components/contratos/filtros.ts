@@ -24,7 +24,7 @@ const conteoDe = (resumen: ResumenContratos | null, m: Partial<Record<string, nu
  *   · Antecedentes del ganador: con uno grave, con alguno y cada tipo (aportes, sanciones, visitas, socios comunes…),
  *     agrupados en el mismo desplegable. Antes los tipos eran un panel de chips que se abría arriba de la lista.
  */
-export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecundario[] {
+export function filtrosVisibles(resumen: Pick<ResumenContratos, "porLectura" | "porRiesgo" | "porCruces"> | null): FiltroSecundario[] {
   const l = resumen?.porLectura;
   const r = resumen?.porRiesgo;
   const k = resumen?.porCruces;
