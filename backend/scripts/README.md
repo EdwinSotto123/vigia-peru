@@ -85,6 +85,11 @@ Ver [`README_datasets_peruanos.md`](README_datasets_peruanos.md) para fuentes, f
 | `opiniones_oece_normalize.py` | Normaliza el CSV de opiniones normativas OECE |
 | `build_rag_opiniones.py` | Embeddings de opiniones OECE (Vertex `text-embedding-005`) → Parquet en GCS |
 | `jsonl_to_parquet_and_upload.py` | Convierte el checkpoint JSONL de embeddings a Parquet y lo sube |
+| `cargar_contraloria_informes.py --entorno dev\|prod` | Informes de control de la Contraloría con responsabilidad (presunta) → `informes_control` y su cruce con entidades (migración 90). Desde una PC en el Perú: el buscador no responde a IPs extranjeras |
+| `cargar_ppedc_boletin.py --url <pdf> --entorno dev\|prod` | Boletín mensual de la Procuraduría Anticorrupción → `procuraduria_casos_sede` (migración 90) |
+
+Los dos de corrupción (ver [`docs/CORRUPCION.md`](../../docs/CORRUPCION.md)) entran por el túnel de Session Manager
+(`conexion()` de `infrastructure/aws/tunel_rds.py`), no por las variables `PG*`.
 
 Los datasets crudos (SEACE/OECE, RNP) **no** están en el repo por tamaño: se
 descargan del Drive del equipo a `dataset/` (gitignored).
