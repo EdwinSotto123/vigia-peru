@@ -111,7 +111,8 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
   brecha_cargo: {
     corto: "Gana el doble que su cargo",
     titulo: "Gana el doble o más que otros con su mismo cargo",
-    explica: "Cobra el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad, ese mes.",
+    explica:
+      "Cobra el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad, ese mes. El total del mes puede incluir pagos extraordinarios (gratificación, devengados, liquidación): revisa el detalle en el portal.",
   },
   apellidos_autoridad: {
     corto: "Apellidos de una autoridad",
