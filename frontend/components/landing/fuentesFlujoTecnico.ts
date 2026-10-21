@@ -13,7 +13,7 @@
  *    `backend/scripts/*.py`, con sus números de línea reales. El código está
  *    RECORTADO con "…", nunca reescrito.
  *  - horarios: `backend/cloud_functions/<fuente>/cloudbuild.yaml` (Cloud
- *    Scheduler, America/Lima) e `infrastructure/deploy/batch-nocturno.sh`.
+ *    Scheduler, America/Lima) e `infrastructure/deploy/gcp/batch-nocturno.sh`.
  *  - tablas y usos: migraciones, `backend/agent/tools/*` y docs/design/DATASETS.md.
  *
  * Cuando lo que llega a las revisiones no es lo que baja el job automático

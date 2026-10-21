@@ -2,7 +2,7 @@
 
 Servidor MCP en Python con 3 herramientas de solo lectura: `buscar_alertas`, `riesgo_convocatoria` y `empresa_sancionada`. Su réplica en Cloudflare es `backend/mcp-worker`.
 
-- **Desplegar:** `bash infrastructure/deploy/mcp.sh`, en el proyecto de la entrada (`ENTRADA_PROJECT_ID`).
+- **Desplegar:** `bash infrastructure/deploy/gcp/mcp.sh`, en el proyecto de la entrada (`ENTRADA_PROJECT_ID`).
 - **Rol de la base:** `vigia_mcp`, con 15 s por consulta y solo lectura.
 
 ## Cambiar de proyecto

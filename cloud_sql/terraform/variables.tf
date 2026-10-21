@@ -33,7 +33,7 @@ variable "almacenamiento_gb" {
 # el 2026-10-21) = la base NO es pública: los Workers entran por el proxy (grupo de seguridad con_proxy), las Lambdas
 # por la VPC, y para administrar desde una PC se usa infrastructure/aws/tunel_rds.py (Session Manager, sin IPs).
 # Sólo si se vuelve a correr algo en GCP (GCP_USE, docs/PROVEEDORES.md) va aquí su salida fija de Cloud Run
-# (infrastructure/deploy/egreso-fijo.sh): con alguna IP, la base pasa a publicly_accessible.
+# (infrastructure/deploy/gcp/egreso-fijo.sh): con alguna IP, la base pasa a publicly_accessible.
 variable "cidrs_permitidos" {
   type    = list(string)
   default = []

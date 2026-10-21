@@ -3,14 +3,14 @@
 #
 # Hay CUATRO servicios de agentes con el mismo código y distinto PIPELINE_PROFILE
 # (bienes/servicios/obras/otros): para desplegarlos todos (o uno) con una sola imagen
-# usá `bash infrastructure/deploy/agentes.sh [all|bienes|servicios|obras|otros]`.
+# usá `bash infrastructure/deploy/gcp/agentes.sh [all|bienes|servicios|obras|otros]`.
 # Este script conserva el camino histórico `--source` (buildpack/Dockerfile) SOLO para bienes.
 #
 # IMPORTANTE: usa --update-env-vars (mergea). NUNCA --set-env-vars: borra las
 # ~40 variables existentes, los secretos montados y la conexión a Cloud SQL.
-# Para cambiar una variable:  EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/agent.sh
+# Para cambiar una variable:  EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/gcp/agent.sh
 # La lista completa de variables está en infrastructure/README.md.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.6-flash}"
 GEMINI_MODEL_SMART="${GEMINI_MODEL_SMART:-gemini-3.6-flash}"

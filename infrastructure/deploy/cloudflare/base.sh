@@ -4,10 +4,10 @@
 # PgBouncer, conexión saliente: no se abre ningún puerto en GCP) → PgBouncer (TLS) → Cloud SQL.
 # Nada de GCP se apaga ni se borra.
 #
-#   bash infrastructure/deploy/cloudflare-base.sh tunel        # crea el túnel y guarda su token en Secret Manager
-#   bash infrastructure/deploy/pgbouncer.sh actualizar          # instala/arranca cloudflared en la VM
-#   bash infrastructure/deploy/cloudflare-base.sh hyperdrive   # servicio VPC + 4 Hyperdrive (api, api-admin, mcp, dispatcher)
-#   bash infrastructure/deploy/cloudflare-base.sh estado       # túnel, servicio VPC e Hyperdrive
+#   bash infrastructure/deploy/cloudflare/base.sh tunel        # crea el túnel y guarda su token en Secret Manager
+#   bash infrastructure/deploy/gcp/pgbouncer.sh actualizar          # instala/arranca cloudflared en la VM
+#   bash infrastructure/deploy/cloudflare/base.sh hyperdrive   # servicio VPC + 4 Hyperdrive (api, api-admin, mcp, dispatcher)
+#   bash infrastructure/deploy/cloudflare/base.sh estado       # túnel, servicio VPC e Hyperdrive
 #
 # Requiere `npx wrangler login` con la cuenta de Cloudflare de Vigía. Los ids de Hyperdrive no son secretos
 # y van en los wrangler.jsonc; las contraseñas de los roles se leen de Secret Manager y no se imprimen.
@@ -18,7 +18,7 @@
 # ubicación vieja, gcp:us-central1, ~177 ms (medido 2026-10-20). Usar esa ubicación en todo Worker que consulte
 # la base, y cambiarla si la base se muda.
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID: dónde viven la VM y los secretos
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"  # PROJECT_ID: dónde viven la VM y los secretos
 TUNEL="vigia-db"
 SERVICIO_VPC="vigia-pgbouncer"
 wr() { npx --yes wrangler "$@"; }
@@ -44,7 +44,7 @@ tunel() {
   fi
   gcloud secrets add-iam-policy-binding cloudflare-tunnel-token --project "$PROJECT_ID" \
     --member "serviceAccount:vigia-pgbouncer@${PROJECT_ID}.iam.gserviceaccount.com" --role roles/secretmanager.secretAccessor --quiet >/dev/null
-  echo "token en Secret Manager (cloudflare-tunnel-token). Siguiente: bash infrastructure/deploy/pgbouncer.sh actualizar"
+  echo "token en Secret Manager (cloudflare-tunnel-token). Siguiente: bash infrastructure/deploy/gcp/pgbouncer.sh actualizar"
 }
 
 hyperdrive() {

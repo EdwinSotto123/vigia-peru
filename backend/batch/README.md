@@ -23,7 +23,7 @@ descargar documentos ┘   (estado.sqlite)               lotes/<id>/manifest.jso
 | `subir.py` | Sube los ítems `completed` sin `subido_at` (paralelo, md5 verificado, no re-sube objetos idénticos) y escribe `lotes/<id>/manifest.jsonl` + `lote.json`. |
 | `ingestar.py` | Lee el manifiesto desde GCS y hace el upsert (misma normalización que `scrapers/oece_ocds`), clasifica tipo × etapa si `backend.core.clasificacion` existe y registra documentos en `documentos_gcs`. Idempotente por `(lote_id, clave)`. |
 | `muestreo.py` | Medición de volumen del SEACE (workstream V, ver `docs/design/VOLUMEN_SEACE.md`). |
-| `Dockerfile` | Imagen del job `vigia-ingest` (contexto mínimo armado por `infrastructure/deploy/ingest-job.sh`). |
+| `Dockerfile` | Imagen del job `vigia-ingest` (contexto mínimo armado por `infrastructure/deploy/gcp/ingest-job.sh`). |
 
 Migración: `backend/db/migrations/14_lotes.sql` (`lotes_ingesta`, `lotes_items`, `documentos_gcs`).
 
@@ -42,14 +42,14 @@ python -m backend.batch.subir --lote "$L1" --lote "$L2" --lote "$L3" --bucket vi
 gcloud run jobs execute vigia-ingest --region us-central1 --args=--lote,$L1,--lote,$L2,--lote,$L3 --wait
 ```
 
-Todo eso lo hace `infrastructure/deploy/batch-nocturno.sh` (variables `DIAS`, `DESDE/HASTA`,
+Todo eso lo hace `infrastructure/deploy/gcp/batch-nocturno.sh` (variables `DIAS`, `DESDE/HASTA`,
 `MAX_RECORDS`, `MAX_GB`, `POLITICA`, `SIN_DOCUMENTOS`, `SIN_INGESTA`).
 
 ### Programarlo
 
-- **VPS Lima (cron):** `30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1`
+- **VPS Lima (cron):** `30 1 * * *  /opt/vigia/infrastructure/deploy/gcp/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1`
 - **Windows (Task Scheduler, diario 01:30):**
-  `"C:\Program Files\Git\bin\bash.exe" -lc "/c/Users/usuario/Desktop/PROYECTOS/vigia-peru/infrastructure/deploy/batch-nocturno.sh"`
+  `"C:\Program Files\Git\bin\bash.exe" -lc "/c/Users/usuario/Desktop/PROYECTOS/vigia-peru/infrastructure/deploy/gcp/batch-nocturno.sh"`
 
 Requisitos del host: Python 3.12+ con `pip install -r backend/batch/requirements.txt`,
 `gcloud auth application-default login` (para `subir`) y `gcloud` autenticado (para ejecutar
@@ -60,7 +60,7 @@ y `PGHOST=<ip pública de vigia-db> PGSSLMODE=require`.
 
 ```bash
 # noche 1: releases de todo un año (ventanas de 7 d; reanudable con --lote <id>)
-DESDE=2016-01-01 HASTA=2016-12-31 MAX_RECORDS=20000 MAX_GB=10 bash infrastructure/deploy/batch-nocturno.sh
+DESDE=2016-01-01 HASTA=2016-12-31 MAX_RECORDS=20000 MAX_GB=10 bash infrastructure/deploy/gcp/batch-nocturno.sh
 # noches siguientes: mismo año hasta que `descargar records --lote <releases-…>` diga "nada nuevo que bajar";
 # el lote de releases NO se vuelve a bajar: reusá su id
 python -m backend.batch.descargar records --lote releases-2016… --max-por-noche 20000
@@ -122,8 +122,8 @@ un mismo record o PDF nunca se sube dos veces. Los manifiestos van en `batch/lot
 ## Deploy del job
 
 ```bash
-bash infrastructure/deploy/ingest-job.sh                # build (contexto mínimo) + deploy vigia-ingest
-bash infrastructure/deploy/ingest-job.sh --build-only   # sólo docker build local, para verificar
+bash infrastructure/deploy/gcp/ingest-job.sh                # build (contexto mínimo) + deploy vigia-ingest
+bash infrastructure/deploy/gcp/ingest-job.sh --build-only   # sólo docker build local, para verificar
 gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY=ingest
 ```
 
@@ -136,10 +136,10 @@ python -m compileall -q backend/batch
 
 ## Cambiar de proyecto
 
-`infrastructure/deploy/batch-nocturno.sh` toma todo de `PROJECT_ID` (`_common.sh`): la IP de la base y el job `vigia-ingest`.
+`infrastructure/deploy/gcp/batch-nocturno.sh` toma todo de `PROJECT_ID` (`_common.sh`): la IP de la base y el job `vigia-ingest`.
 
 - La IP de la PC tiene que estar en `authorized-networks` de la instancia.
 - `BUCKET_BATCH` (`vigia-peru-batch`) es un nombre global. Si el bucket se muda, `vigia-jobs@<PROJECT_ID>` necesita `roles/storage.objectAdmin` en él.
-- El job se despliega con `bash infrastructure/deploy/ingest-job.sh`.
+- El job se despliega con `bash infrastructure/deploy/gcp/ingest-job.sh`.
 
-Guía: `infrastructure/deploy/migracion/README.md`.
+Guía: `infrastructure/deploy/gcp/migracion/README.md`.

@@ -5,9 +5,9 @@
 #   obras     → agente-obras
 #   otros     → agente-otros             (consultoría · convenio · directa · otro)
 #
-# Uso:  bash infrastructure/deploy/agentes.sh [bienes|servicios|obras|otros|all]   (default: all)
-#       IMAGE=us-central1-docker.pkg.dev/…/agentes:abc123 bash infrastructure/deploy/agentes.sh obras  (reusar imagen)
-#       EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/agentes.sh all   (variables extra, mergeadas)
+# Uso:  bash infrastructure/deploy/gcp/agentes.sh [bienes|servicios|obras|otros|all]   (default: all)
+#       IMAGE=us-central1-docker.pkg.dev/…/agentes:abc123 bash infrastructure/deploy/gcp/agentes.sh obras  (reusar imagen)
+#       EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/gcp/agentes.sh all   (variables extra, mergeadas)
 #
 # Cómo funciona:
 #   1. La imagen se construye UNA vez con Cloud Build (Dockerfile de backend/agent) y se etiqueta
@@ -23,7 +23,7 @@
 #   4. Verifica GET / de cada servicio (devuelve {ok, perfil, modelos}) con un ID token de gcloud.
 #   DECOLECTA_API_KEY: bienes la monta desde Secret Manager (secretos_decolecta_flags, _common.sh);
 #   servicios/obras/otros la heredan al copiar el spec.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 QUE="${1:-all}"
 AR_REPO="${AR_REPO:-us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy}"

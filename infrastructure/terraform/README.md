@@ -16,7 +16,7 @@ Terraform no maneja:
 |---|---|
 | Los datos (base, 4 corpus del RAG, documentos de Vertex AI Search) | `infrastructure/deploy/migracion/` o `backend/db/snapshot/` |
 | Los servicios de Cloud Run | Por defecto los despliegan los scripts. Con `gestionar_servicios = true` también se declaran acá (`cloud_run.tf`) |
-| La VM de PgBouncer y el túnel | `infrastructure/deploy/pgbouncer.sh crear` genera el script de arranque |
+| La VM de PgBouncer y el túnel | `infrastructure/deploy/gcp/pgbouncer.sh crear` genera el script de arranque |
 | Cloudflare | `wrangler.jsonc` de cada Worker |
 
 ## Proyecto nuevo
@@ -30,7 +30,7 @@ terraform apply
 terraform output   # sql_connection_name, docai_processor_id, rag_bucket, agent_host_suffix, cuentas
 ```
 
-Después, las fases de datos y servicios: `infrastructure/deploy/migracion/README.md`.
+Después, las fases de datos y servicios: `infrastructure/deploy/gcp/migracion/README.md`.
 
 ## Adoptar lo que ya existe (lo que creó migrar-proyecto.sh)
 

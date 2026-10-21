@@ -73,7 +73,7 @@ chequeos) contra el proyecto `simplia-project` (que es donde están los user-ids
 
 ## Cambiar de proyecto
 
-**Cloud Run.** `bash infrastructure/deploy/api.sh` despliega en `ENTRADA_PROJECT_ID`, pero se conecta a la base de `PROJECT_ID`:
+**Cloud Run.** `bash infrastructure/deploy/gcp/api.sh` despliega en `ENTRADA_PROJECT_ID`, pero se conecta a la base de `PROJECT_ID`:
 
 - `PGHOST=/cloudsql/<PROJECT_ID>:us-central1:vigia-db`. La cuenta `vigia-api@` necesita `roles/cloudsql.client` en `PROJECT_ID`.
 - Las URLs de los agentes se arman con `AGENT_HOST_SUFFIX` (`<número de PROJECT_ID>.<región>.run.app`; `sufijo_run` en `_common.sh`).
@@ -84,4 +84,4 @@ chequeos) contra el proyecto `simplia-project` (que es donde están los user-ids
 - Secretos: `GCP_SA_KEY` (su cuenta necesita `run.invoker` en los agentes y lectura en los buckets) y `ADMIN_TOKEN`.
 - La base llega por Hyperdrive y el túnel `vigia-db`, que siguen a la VM de PgBouncer: al mudarse no se tocan.
 
-Guía completa: `infrastructure/deploy/migracion/README.md`.
+Guía completa: `infrastructure/deploy/gcp/migracion/README.md`.

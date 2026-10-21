@@ -69,7 +69,7 @@ export function AvisoDetenidos({
             <ol className="space-y-2 rounded-xl bg-paper/80 p-3 text-[13px] text-inkSoft">
               <li>
                 <strong className="text-ink">Ahora, desde tu computadora</strong> (conexión peruana), en la carpeta del proyecto:
-                <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-[12px] text-paper">bash infrastructure/deploy/batch-nocturno.sh</code>
+                <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-[12px] text-paper">bash infrastructure/deploy/gcp/batch-nocturno.sh</code>
                 Baja primero los contratos financiados; al terminar, se procesan solos.
               </li>
               <li>

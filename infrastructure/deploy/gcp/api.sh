@@ -2,7 +2,7 @@
 # Deploy de la API de lectura (Hono/TS) a Cloud Run: vigia-peru-api.
 # Roles de la migración 37: `vigia_api` (rutas públicas) y `vigia_api_admin` (panel), cada uno con su
 # secreto (`cloudsql-password-api`, `cloudsql-password-api-admin`). Volver atrás: PGUSER=postgres.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 # ALLOWED_ORIGINS lleva comas → se usa el delimitador alternativo `^|^` de gcloud.
 ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app}"

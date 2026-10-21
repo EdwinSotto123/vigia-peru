@@ -8,7 +8,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare-base.sh).
+  // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare/base.sh).
   "placement": { "region": "aws:us-east-2" },
   "minify": true,
   "upload_source_maps": true,

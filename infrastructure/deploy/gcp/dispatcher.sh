@@ -3,12 +3,12 @@
 # (backend/dispatcher). Lo dispara Cloud Scheduler `vigia-dispatcher-run` cada 5 min; cada
 # ejecución reclama contratos con SKIP LOCKED, así que las ejecuciones solapadas no se pisan.
 #
-# Enruta por tipo de contratación a los 4 servicios de agentes (infrastructure/deploy/agentes.sh):
+# Enruta por tipo de contratación a los 4 servicios de agentes (infrastructure/deploy/gcp/agentes.sh):
 #   AGENT_URL_BIENES=agent-orchestrator-adk · AGENT_URL_SERVICIOS=agente-servicios
 #   AGENT_URL_OBRAS=agente-obras · AGENT_URL_OTROS=agente-otros
 # Las URLs se leen de los servicios desplegados; se pueden forzar por env (AGENT_URL_OBRAS=…).
 # Un servicio no desplegado deja su URL vacía → los contratos de ese tipo quedan pendientes.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 url_de() { gcloud run services describe "$1" --region "$REGION" --format='value(status.url)' 2>/dev/null || true; }
 

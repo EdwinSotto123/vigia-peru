@@ -137,7 +137,7 @@ Consecuencia directa: el prompt exige "cubre TODAS las banderas" (`report_writer
 | embeddings RAG | `gemini-embedding-001` (`_core.py:91`) | — | — | — |
 
 Observaciones:
-- **Reintentos apilados**: el monkey-patch (`model_fallback.py:102-133`: 4 intentos con 10/20/40/80 s + hasta 3 saltos de modelo) envuelve `Models.generate_content`, y los raw calls además lo envuelven con `_gemini_call_with_retry` (6 intentos, backoff ≤60 s). Peor caso por llamada saturada: 6 × (≈150 s × 4 modelos) ≈ 1 h; el `http timeout 120 s` del parser acota cada intento pero no el total. Riesgo real de agotar el wall de 3 600 s (`infrastructure/deploy/agent.sh:21`).
+- **Reintentos apilados**: el monkey-patch (`model_fallback.py:102-133`: 4 intentos con 10/20/40/80 s + hasta 3 saltos de modelo) envuelve `Models.generate_content`, y los raw calls además lo envuelven con `_gemini_call_with_retry` (6 intentos, backoff ≤60 s). Peor caso por llamada saturada: 6 × (≈150 s × 4 modelos) ≈ 1 h; el `http timeout 120 s` del parser acota cada intento pero no el total. Riesgo real de agotar el wall de 3 600 s (`infrastructure/deploy/gcp/agent.sh:21`).
 - **Semáforo global de 2** para raw calls (`_core.py:45-48`) — el parser paralelo (4 workers, `documentos.py:174`) se serializa a 2; los workers de mercado lo evitan a propósito (`market.py:639-642`).
 - **Costo**: `_rate_for_model` clasifica por substring (`deterministic.py:97-107`); `usage_metadata.thoughts_token_count` no se suma (`deterministic.py:252-269`, `main.py:305-323`) → costo subreportado con modelos con thinking.
 - `requirements.txt:2-3` (`google-adk>=1.0.0`, `google-genai>=0.8.0`) sin pin: cada deploy puede resolver una versión distinta de ADK/genai (local hay 1.19.0 / 1.52.0).
@@ -214,7 +214,7 @@ Un único código con **perfil por tipo** (`PIPELINE_PROFILE=bienes|servicios|ob
 - `agents/_shared/profiles.py`: por perfil → lista/orden de agentes, schema del parser (base + bloque de tipo), vectores del legal (prompt parcial), estrategia de market (`goods_retail` | `historico_seace` | `presupuesto_obra` | `cotizaciones`), reglas de compliance activas y sus topes, secciones del dictamen, `_VALIDACION_TEXTO`.
 - `deterministic.py` consume el perfil (hoy solo `agentes_permitidos`, `:52-60`).
 - El dispatcher (`backend/dispatcher/main.py:262-270`) ya conoce `clasificacion.tipo` → enruta a la URL del servicio por tipo (`AGENT_URL_BIENES`, …).
-- Terraform: 4 `google_cloud_run_v2_service` con el mismo `--source` y `PIPELINE_PROFILE` distinto; `--concurrency 1` y `--timeout 3600` como hoy (`infrastructure/deploy/agent.sh:19-22`).
+- Terraform: 4 `google_cloud_run_v2_service` con el mismo `--source` y `PIPELINE_PROFILE` distinto; `--concurrency 1` y `--timeout 3600` como hoy (`infrastructure/deploy/gcp/agent.sh:19-22`).
 
 ---
 
@@ -285,7 +285,7 @@ Esfuerzo: S ≤ 1 día · M 2-4 días · L > 1 semana.
 | 3 | Market por perfil: `goods_retail` (actual), `historico_seace` (servicios/consultoría: query a `convocatorias`/`convocatoria_items` por CUBSO/objeto + tarifa mensual), `presupuesto_obra` (partidas vs referencias + INFOBRAS), `cotizaciones` (directa). Quitar la omisión ciega de `market` para no-bienes en la matriz. | `tools/market.py`, `backend/core/clasificacion.py:111-115,340-343` | L |
 | 4 | Legal por perfil: prompts parciales por tipo; obras con `contractAmendment`. | `agents/document_legal_analyst/prompt.py:135-201` | M |
 | 5 | Compliance por perfil: topes UIT por tipo, reglas nuevas (`adicional_acumulado`, `personal_clave_vinculado`, `fraccionamiento`, `directa_recurrente`). | `tools/compliance_rules.py` | M |
-| 6 | Dispatcher enruta por tipo a 4 servicios; Terraform 4 servicios mismo `--source`. | `backend/dispatcher/main.py:262-270`, `infrastructure/terraform/cloud_run.tf`, `infrastructure/deploy/agent.sh` | S |
+| 6 | Dispatcher enruta por tipo a 4 servicios; Terraform 4 servicios mismo `--source`. | `backend/dispatcher/main.py:262-270`, `infrastructure/terraform/cloud_run.tf`, `infrastructure/deploy/gcp/agent.sh` | S |
 
 ### 6.4 Modelos
 
@@ -334,7 +334,7 @@ Esfuerzo: S ≤ 1 día · M 2-4 días · L > 1 semana.
 | `_raw_text` fallback | 50 000 chars | `tools/persistence.py:589` |
 | Semáforo Gemini raw | 2, intervalo 0.25 s | `tools/_core.py:45-48` |
 | Reintentos | patch 4× (10/20/40/80 s) × 3 saltos; `_gemini_call_with_retry` 6× ≤60 s | `model_fallback.py:27-28`, `_core.py:101-132` |
-| Cloud Run | 8 Gi / 2 CPU / 3 600 s / concurrency 1 | `infrastructure/deploy/agent.sh:19-22` |
+| Cloud Run | 8 Gi / 2 CPU / 3 600 s / concurrency 1 | `infrastructure/deploy/gcp/agent.sh:19-22` |
 
 ## Anexo B — Cosas que no se pudieron determinar leyendo el código
 

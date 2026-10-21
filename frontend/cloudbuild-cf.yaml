@@ -1,5 +1,5 @@
 # Build de vigia-web (OpenNext para Cloudflare) en Cloud Build, para cuando la PC no tiene memoria
-# para `next build`. Lo usa infrastructure/deploy/web-cloudflare-remoto.sh, que sube el código
+# para `next build`. Lo usa infrastructure/deploy/cloudflare/web.sh, que sube el código
 # (git archive + .env.production) y después despliega desde la PC con el resultado.
 substitutions:
   _SALIDA: gs://vigia-migracion-${PROJECT_NUMBER}/web

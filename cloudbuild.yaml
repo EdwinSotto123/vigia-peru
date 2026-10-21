@@ -62,10 +62,10 @@ steps:
       - |
         [[ ",${_DEPLOY}," == *",agentes,"* ]] || { echo "skip agentes"; exit 0; }
         # Los 4 servicios de agentes (bienes/servicios/obras/otros) con UNA imagen:
-        # infrastructure/deploy/agentes.sh construye backend/agent con Cloud Build, actualiza
+        # infrastructure/deploy/gcp/agentes.sh construye backend/agent con Cloud Build, actualiza
         # agent-orchestrator-adk (--update-env-vars, nunca set) y replica el spec a los otros tres.
         pip3 install --quiet pyyaml
-        PYTHON=python3 AR_REPO=${_AR_REPO} bash infrastructure/deploy/agentes.sh all
+        PYTHON=python3 AR_REPO=${_AR_REPO} bash infrastructure/deploy/gcp/agentes.sh all
 
   - id: mcp
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -103,7 +103,7 @@ steps:
       - -c
       - |
         [[ ",${_DEPLOY}," == *",ingest,"* ]] || { echo "skip ingest"; exit 0; }
-        # Cloud Run JOB (no servicio): lo ejecuta infrastructure/deploy/batch-nocturno.sh desde la laptop/VPS
+        # Cloud Run JOB (no servicio): lo ejecuta infrastructure/deploy/gcp/batch-nocturno.sh desde la laptop/VPS
         # al terminar de subir los lotes a gs://vigia-peru-batch. Mismo contexto mínimo que ingest-job.sh.
         CTX="$$(mktemp -d)"
         mkdir -p "$$CTX/backend/scrapers"

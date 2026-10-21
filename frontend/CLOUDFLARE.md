@@ -2,7 +2,7 @@
 
 El mismo frontend (Next.js 14.2) corre también como worker `vigia-web`
 (`https://vigia-web.vigiaperu.workers.dev`) con OpenNext. Cloud Run no cambia:
-`infrastructure/deploy/frontend.sh` sigue siendo el deploy de siempre.
+`infrastructure/deploy/gcp/frontend.sh` sigue siendo el deploy de siempre.
 
 - Adaptador: `@opennextjs/cloudflare` **1.15.1**, fijo. Es el último que acepta Next 14
   (desde 1.16 exige Next 15). No subirlo sin migrar Next.
@@ -79,6 +79,6 @@ GCS a un emulador, como en `@google-cloud/storage`.
 
 ## Sin memoria para el build
 
-`bash infrastructure/deploy/web-cloudflare-remoto.sh` hace el `next build` en Cloud Build (`frontend/cloudbuild-cf.yaml`) y despliega desde la PC con una carpeta mínima (solo el adaptador y wrangler). No toca el `.next` de `next dev`.
+`bash infrastructure/deploy/cloudflare/web.sh` hace el `next build` en Cloud Build (`frontend/cloudbuild-cf.yaml`) y despliega desde la PC con una carpeta mínima (solo el adaptador y wrangler). No toca el `.next` de `next dev`.
 
 El build de Cloud Build importa `.wasm` con rutas absolutas `/workspace/frontend/...`; el script las reescribe antes de `opennextjs-cloudflare deploy`. Así se desplegó el 29/09/2026, con 0,9 GB libres en la PC.

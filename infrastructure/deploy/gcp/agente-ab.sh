@@ -6,13 +6,13 @@
 #   · USAR_WORKERS_AI=0|1 (+ lo que pase en EXTRA_ENV) → qué proveedor usan los agentes
 #   · nombre agente-ab-<variante>, hasta 3 instancias
 #
-#   IMAGE=us-central1-docker.pkg.dev/…/agentes:<sha> bash infrastructure/deploy/agente-ab.sh crear gemini 0
-#   IMAGE=… bash infrastructure/deploy/agente-ab.sh crear glm 1
+#   IMAGE=us-central1-docker.pkg.dev/…/agentes:<sha> bash infrastructure/deploy/gcp/agente-ab.sh crear gemini 0
+#   IMAGE=… bash infrastructure/deploy/gcp/agente-ab.sh crear glm 1
 #   EXTRA_ENV="USAR_WORKERS_AI_PERSON_NETWORK=0" bash …/agente-ab.sh crear glm-sin-red 1
 #   SECRETS_ENV="ANTHROPIC_API_KEY=anthropic-api-key" EXTRA_ENV="USAR_ANTHROPIC=1,ANTHROPIC_WORKSPACE_ID=wrkspc_…" bash …/agente-ab.sh crear haiku 0
-#   bash infrastructure/deploy/agente-ab.sh borrar gemini glm
+#   bash infrastructure/deploy/gcp/agente-ab.sh borrar gemini glm
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 BASE="agent-orchestrator-adk"
 CMD="${1:-}"; shift || true
 

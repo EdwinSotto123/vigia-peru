@@ -38,9 +38,9 @@ borra lo existente).
 | `deploy/dispatcher.sh` | **Job** `vigia-dispatcher` + Scheduler `vigia-dispatcher-run` | `backend/dispatcher/` |
 
 ```bash
-bash infrastructure/deploy/api.sh
-EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/agent.sh   # cambiar una variable del orquestador
-PROJECT_ID=otro-proyecto bash infrastructure/deploy/mcp.sh            # otro proyecto
+bash infrastructure/deploy/gcp/api.sh
+EXTRA_ENV="PARALLEL_RESEARCH=0" bash infrastructure/deploy/gcp/agent.sh   # cambiar una variable del orquestador
+PROJECT_ID=otro-proyecto bash infrastructure/deploy/gcp/mcp.sh            # otro proyecto
 ```
 
 **Frontend:** las variables `NEXT_PUBLIC_*` (config web de Firebase) se leen en
@@ -120,7 +120,7 @@ fase para que el público la vea en `/auditoria` (`GET /financiamiento/procesami
 Solo procesa lo que `asignar_contribucion()` ya asignó a un aporte pagado.
 
 ```bash
-bash infrastructure/deploy/dispatcher.sh                                   # deploy job + scheduler
+bash infrastructure/deploy/gcp/dispatcher.sh                                   # deploy job + scheduler
 gcloud run jobs execute vigia-dispatcher --region us-central1 --wait       # corrida manual
 gcloud run jobs executions list --job vigia-dispatcher --region us-central1
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="vigia-dispatcher"' --limit 30
@@ -181,5 +181,5 @@ actual antes.
 ## Cambiar de proyecto
 
 - `deploy/README.md`: qué despliega cada script y en qué proyecto (`PROJECT_ID`, `ENTRADA_PROJECT_ID`, `BUCKETS_PROJECT_ID` en `deploy/_common.sh`).
-- `infrastructure/deploy/migracion/README.md`: la mudanza completa, con tiempos y trampas.
+- `infrastructure/deploy/gcp/migracion/README.md`: la mudanza completa, con tiempos y trampas.
 - `terraform/README.md`: la base de la plataforma, declarada.

@@ -1,6 +1,6 @@
 """Proyecto de GCP y conexión de Cloud SQL, sin ningún proyecto fijo en el código.
 
-Mudarse a otro proyecto es cambiar variables, no código (infrastructure/deploy/migracion/README.md):
+Mudarse a otro proyecto es cambiar variables, no código (infrastructure/deploy/gcp/migracion/README.md):
   · VERTEX_PROJECT o GOOGLE_CLOUD_PROJECT: los despliegues (agentes.sh, servicio.yaml.tmpl) las fijan.
   · Sin ellas (p. ej. corriendo local), el proyecto de las credenciales por defecto (ADC).
   · CLOUD_SQL_CONNECTION (<proyecto>:<región>:<instancia>) o, sin ella, <proyecto>:us-central1:vigia-db.

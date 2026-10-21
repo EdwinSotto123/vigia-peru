@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prueba A/B de modelos sobre el pipeline REAL de agentes (Gemini vs Cloudflare Workers AI).
 
-Cada variante es un servicio sombra de Cloud Run (infrastructure/deploy/agente-ab.sh) con un rol de base de SOLO
+Cada variante es un servicio sombra de Cloud Run (infrastructure/deploy/gcp/agente-ab.sh) con un rol de base de SOLO
 LECTURA: corre el análisis completo pero no puede escribir en producción. Este script arma la misma entrada que el
 dispatcher (OCDS, documentos, clasificación) para cada contrato, la manda a cada variante y guarda la respuesta.
 

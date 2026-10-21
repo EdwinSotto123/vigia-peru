@@ -3,10 +3,10 @@
 # Para cuando `npm run cf:deploy` no entra en memoria (next build pide ~3 GB) o para no tocar el
 # `.next` del `next dev` de frontend/ (nunca buildear OpenNext ahí).
 #
-#   bash infrastructure/deploy/web-cloudflare-remoto.sh
+#   bash infrastructure/deploy/cloudflare/web.sh
 #
 # Necesita `wrangler login` (cuenta de Cloudflare) y gcloud con acceso a PROJECT_ID. Usado el 29/09/2026.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 cd "$W"

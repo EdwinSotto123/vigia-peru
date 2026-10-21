@@ -3,7 +3,7 @@
 # Es la receta que se usó el 29/09/2026 (vivid-spot → formulab), escrita para repetirla cambiando dos
 # variables. Paso a paso, tiempos y trampas: README.md de esta carpeta.
 #
-#   ORIGEN=<proyecto-actual> DESTINO=<proyecto-nuevo> bash infrastructure/deploy/migracion/migrar-proyecto.sh <fase>
+#   ORIGEN=<proyecto-actual> DESTINO=<proyecto-nuevo> bash infrastructure/deploy/gcp/migracion/migrar-proyecto.sh <fase>
 #
 # Fases, en orden (cada una se puede repetir; la de la base BORRA la base del destino):
 #   apis         habilita las APIs en el destino
@@ -23,7 +23,7 @@ set -euo pipefail
 REGION="${REGION:-us-central1}"
 TIER="${TIER:-db-custom-1-3840}"   # f1-micro (0,6 GB) no aguanta varios análisis a la vez
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RAIZ="$(cd "$AQUI/../../.." && pwd)"
+RAIZ="$(cd "$AQUI/../../../.." && pwd)"
 PY="${PYTHON:-python}"
 HERR="$PY $AQUI/herramientas.py"
 
@@ -176,11 +176,11 @@ agentes() {
   echo "URLs: https://<servicio>-$n.$REGION.run.app (AGENT_HOST_SUFFIX=$n.$REGION.run.app)"
 }
 
-pgbouncer() { PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/pgbouncer.sh" crear; }
+pgbouncer() { PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/gcp/pgbouncer.sh" crear; }
 
 jobs() {
-  PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/cloud-scrapers.sh"
-  PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/ingest-job.sh"
+  PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/gcp/cloud-scrapers.sh"
+  PROJECT_ID="$DESTINO" CUENTA="${CUENTA_DESTINO:-}" bash "$RAIZ/infrastructure/deploy/gcp/ingest-job.sh"
 }
 
 corte() {

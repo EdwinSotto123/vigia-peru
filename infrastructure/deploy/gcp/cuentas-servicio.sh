@@ -5,16 +5,16 @@
 # `run.admin` y acceso a TODOS los secretos del proyecto, y la comparten ~45 servicios de otros
 # productos. Este script CREA las cuentas y sus permisos (idempotente); NO cambia ningún servicio.
 # El cambio de cada servicio/job va aparte, uno por uno y verificando (ver `cambiar_*` al final,
-# o `bash infrastructure/deploy/cuentas-servicio.sh cambiar <componente>`).
+# o `bash infrastructure/deploy/gcp/cuentas-servicio.sh cambiar <componente>`).
 #
-#   bash infrastructure/deploy/cuentas-servicio.sh crear
-#   bash infrastructure/deploy/cuentas-servicio.sh cambiar api|frontend|mcp|dispatcher|jobs|scheduler
+#   bash infrastructure/deploy/gcp/cuentas-servicio.sh crear
+#   bash infrastructure/deploy/gcp/cuentas-servicio.sh cambiar api|frontend|mcp|dispatcher|jobs|scheduler
 #
 # Los agentes de IA (agent-orchestrator-adk, agente-*) siguen con la cuenta por defecto: necesitan
 # Vertex, Document AI y más; quedan para una etapa aparte.
 set -euo pipefail
 # Las cuentas de la entrada (api, frontend, mcp) van en su proyecto: PROJECT_ID=$ENTRADA_PROJECT_ID bash cuentas-servicio.sh
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 REGION="${REGION:-us-central1}"
 AGENTES=(agent-orchestrator-adk agente-servicios agente-obras agente-otros)
 JOBS_DATOS=(vigia-ingest scraper-jne-infogob scraper-mef-presupuesto scraper-oece-ocds scraper-onpe-claridad

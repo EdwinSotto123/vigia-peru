@@ -79,7 +79,7 @@ secreto configurado responden 401 a todo.
 
 ## Variables y secretos
 
-Las de `infrastructure/deploy/dispatcher.sh` con los mismos valores; las de conexión (`PG*`) las reemplaza el
+Las de `infrastructure/deploy/gcp/dispatcher.sh` con los mismos valores; las de conexión (`PG*`) las reemplaza el
 binding `HYPERDRIVE` (id `5616f9f3183941adb536f06fa2287bd3`, rol `vigia_dispatcher`).
 
 | Variable | Valor | Uso |
@@ -152,4 +152,4 @@ En `wrangler.jsonc`, las URLs de los agentes del proyecto nuevo (`AGENT_URL`, `A
 
 La cuenta de `GCP_SA_KEY` necesita `roles/run.invoker` en los 4 agentes (fase `agentes`, variable `INVOCADORES`). La base llega por Hyperdrive y el túnel: no cambia.
 
-Validar con `GET /simular?tokens=1`: debe dar `id_tokens: 4`. Guía: `infrastructure/deploy/migracion/README.md`.
+Validar con `GET /simular?tokens=1`: debe dar `id_tokens: 4`. Guía: `infrastructure/deploy/gcp/migracion/README.md`.

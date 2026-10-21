@@ -8,10 +8,10 @@
 # sus contraseñas se leen de Secret Manager AL ARRANCAR (nunca quedan en este repo ni en los metadatos).
 # Solo la subred de Cloud Run (Direct VPC egress, 10.128.0.0/20) llega al 6432; SSH solo por IAP.
 #
-#   bash infrastructure/deploy/pgbouncer.sh crear                 # cuenta, firewall y VM
-#   bash infrastructure/deploy/pgbouncer.sh actualizar            # re-aplica el arranque en la VM viva (sin cortar conexiones)
-#   bash infrastructure/deploy/pgbouncer.sh conectar api|mcp       # el servicio pasa a usar PgBouncer
-#   bash infrastructure/deploy/pgbouncer.sh volver api|mcp         # REVERSIÓN: vuelve al socket de Cloud SQL
+#   bash infrastructure/deploy/gcp/pgbouncer.sh crear                 # cuenta, firewall y VM
+#   bash infrastructure/deploy/gcp/pgbouncer.sh actualizar            # re-aplica el arranque en la VM viva (sin cortar conexiones)
+#   bash infrastructure/deploy/gcp/pgbouncer.sh conectar api|mcp       # el servicio pasa a usar PgBouncer
+#   bash infrastructure/deploy/gcp/pgbouncer.sh volver api|mcp         # REVERSIÓN: vuelve al socket de Cloud SQL
 #
 # Réplica en Cloudflare (2026-09-26): si existe el secreto `cloudflare-tunnel-token`, la VM corre
 # también `cloudflared` (túnel saliente `vigia-db`, sin abrir puertos) y Hyperdrive llega a PgBouncer
@@ -20,7 +20,7 @@
 #
 # Riesgo conocido: es un punto único de falla. La VM se reinicia sola (política de mantenimiento) y
 # systemd reinicia los procesos; la alerta de uptime de la API avisa si cae. `volver` deshace en 1 min.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID, REGION, SQL_CONNECTION, gcloud_entrada
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"  # PROJECT_ID, REGION, SQL_CONNECTION, gcloud_entrada
 ZONA="${ZONA:-us-central1-a}"
 VM="vigia-pgbouncer"
 SA="vigia-pgbouncer@${PROJECT_ID}.iam.gserviceaccount.com"

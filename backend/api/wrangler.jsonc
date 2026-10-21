@@ -26,7 +26,7 @@
   // Escrituras públicas: 10 por minuto por IP y ruta (lib/antibots.ts). Además del captcha (Turnstile).
   "ratelimits": [{ "name": "LIMITE_ESCRITURA", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
 
-  // Las mismas de infrastructure/deploy/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
+  // Las mismas de infrastructure/deploy/gcp/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY, DISPATCHER_TOKEN, TURNSTILE_SECRET_KEY (copia en
   // Secret Manager: turnstile-secret).
   "vars": {

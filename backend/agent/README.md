@@ -15,8 +15,8 @@ Los llaman el dispatcher y la web de Cloudflare, y el frontend y la API de la en
 
 | Caso | Comando |
 |---|---|
-| Actualizar el código en el proyecto actual | `bash infrastructure/deploy/agentes.sh [bienes\|servicios\|obras\|otros\|all]` |
-| Crear los 4 en un proyecto nuevo | `DOCAI=<id> INVOCADORES="<cuentas>" bash infrastructure/deploy/migracion/migrar-proyecto.sh agentes` |
+| Actualizar el código en el proyecto actual | `bash infrastructure/deploy/gcp/agentes.sh [bienes\|servicios\|obras\|otros\|all]` |
+| Crear los 4 en un proyecto nuevo | `DOCAI=<id> INVOCADORES="<cuentas>" bash infrastructure/deploy/gcp/migracion/migrar-proyecto.sh agentes` |
 
 `agentes.sh` construye la imagen una vez y copia el spec vivo de bienes a los otros tres.
 

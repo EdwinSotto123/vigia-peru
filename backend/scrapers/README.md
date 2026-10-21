@@ -88,7 +88,7 @@ los modos manuales (`--xlsx`, `--root`). `mef_presupuesto` de acá usa la API vi
 existe; el Worker lee el ZIP diario.
 
 Historia (2026-09-16 → 2026-10-14): 6 de los 8 pipelines corrían en GCP como Cloud Run Jobs
-agendados con Cloud Scheduler (`backend/cloud_functions/`, `infrastructure/deploy/cloud-scrapers.sh`):
+agendados con Cloud Scheduler (`backend/cloud_functions/`, `infrastructure/deploy/gcp/cloud-scrapers.sh`):
 se comprobó con un `Cloud Build` (IP de GCP) que la PNDA y el API del MEF responden sin WAF,
 así que no hace falta IP peruana para ellos. `oece_ocds` (API OCDS del OECE, WAF) y
 `onpe_claridad` (Cloudflare + navegador con ventana) sí la necesitan — 403 confirmado desde
@@ -103,13 +103,13 @@ IP de nube — y siguen agendados donde ya funcionaban. Detalle completo, matriz
 | `jne_infogob` | día 5 | ☁ Cloud Scheduler → `scraper-jne-infogob` | el JNE republica el reporte tras cada proclamación/vacancia |
 | `pnda_oece` | mensual (día 1) | ☁ Cloud Scheduler → `scraper-pnda-oece` | datasets pesados; `--discover` avisa si aparece uno nuevo |
 | `mef_presupuesto` | mensual, día 12 | ☁ Cloud Scheduler → `scraper-mef-presupuesto` | devengado cerrado |
-| `oece_ocds` | diario 06:00 | 🖥 VPS de Lima / laptop, `infrastructure/deploy/scrapers-job.sh` (o `docker run` con la imagen de `backend/cloud_functions/oece_ocds/`) | **403 desde IP de nube** (WAF) — ventana rodante de 7 días, upsert idempotente, todo el Perú |
+| `oece_ocds` | diario 06:00 | 🖥 VPS de Lima / laptop, `infrastructure/deploy/gcp/scrapers-job.sh` (o `docker run` con la imagen de `backend/cloud_functions/oece_ocds/`) | **403 desde IP de nube** (WAF) — ventana rodante de 7 días, upsert idempotente, todo el Perú |
 | `onpe_claridad` | mensual (`ONPE=1 bash batch-nocturno.sh`, día 10 sugerido); semanal en campaña | 🖥 VPS de Lima / laptop con sesión gráfica (o `docker run` con la imagen de `backend/cloud_functions/onpe_claridad/`, Xvfb) | **403 desde IP de nube** (Cloudflare) + necesita Chromium **con ventana** |
 
 `batch-nocturno.sh` (VPS/laptop) ya NO dispara `pnda_sancionados`/`pnda_visitas`/`pnda_dji`/
 `jne_infogob` por defecto (paso 6): correr esas cuatro ahí sería redundante con su Cloud
 Scheduler (`datasets_cargas` lo haría inofensivo igual, por sha256, pero es trabajo de más).
-Sigue disponible a mano con `DATASETS=<fuentes> bash infrastructure/deploy/batch-nocturno.sh`
+Sigue disponible a mano con `DATASETS=<fuentes> bash infrastructure/deploy/gcp/batch-nocturno.sh`
 si algún mes hay que forzar una recarga fuera de agenda.
 
 ## Cola real (`oece_ocds`) — de dónde salen los contratos que se financian
@@ -147,17 +147,17 @@ Detalles que importan:
 python -m backend.scrapers.oece_ocds.pipeline --since 2026-09-13 --max-pages 2 --dry-run  # lista tríos sin ubigeo
 python -m backend.scrapers.oece_ocds.pipeline --since 2026-06-15 --until 2026-07-31       # backfill (≈5 min / 45 días)
 python -m backend.scrapers.oece_ocds.pipeline                                             # diario: últimos 7 días
-bash infrastructure/deploy/scrapers-job.sh                                                # lo que corre el cron
+bash infrastructure/deploy/gcp/scrapers-job.sh                                                # lo que corre el cron
 ```
 
-**Dónde corre**: no en GCP. `infrastructure/deploy/scrapers-job.sh` está pensado para `crontab` en el
+**Dónde corre**: no en GCP. `infrastructure/deploy/gcp/scrapers-job.sh` está pensado para `crontab` en el
 VPS de Lima o Task Scheduler + Git Bash en una laptop. La IP pública del host tiene que estar en
 `authorized-networks` de Cloud SQL: `gcloud sql instances patch vigia-db --authorized-networks=<IP>/32`
 (la contraseña la lee de `.cloudsql-password` o `PGPASSWORD`).
 
 ## Datasets externos (Frente D) — cómo corren y cómo se verifican
 
-Todo lo que toca `.gob.pe` corre desde IP peruana (`infrastructure/deploy/batch-nocturno.sh`, paso 6):
+Todo lo que toca `.gob.pe` corre desde IP peruana (`infrastructure/deploy/gcp/batch-nocturno.sh`, paso 6):
 el crudo sube a `gs://vigia-peru-batch/raw/<fuente>/<clave>/` (`SCRAPER_GCS_BUCKET`), la carga va
 directa a Cloud SQL y cada archivo queda en `datasets_cargas (fuente, clave, sha256, filas, gcs_uri)`.
 La vista `datasets_cobertura` (una fila por fuente) es lo que puede leer `/admin/cobertura → Fuentes externas`.
@@ -170,7 +170,7 @@ python -m backend.scrapers.jne_infogob.pipeline --dry-run                       
 python -m backend.scrapers.onpe_claridad.pipeline --proceso EG2021 --max-orgs 2 --dry-run   # abre Chromium, baja 2 JSON, no escribe
 python -m backend.scrapers.onpe_claridad.pipeline --ifa && python -m backend.scrapers.onpe_claridad.pipeline --candidatos
 python -m backend.scrapers.pnda_dji.pipeline                                         # 700 MB, ~10 min
-DATASETS=pnda_visitas,jne_infogob SIN_PEDIDOS=1 SIN_DOCUMENTOS=1 bash infrastructure/deploy/batch-nocturno.sh   # lo que hace el cron
+DATASETS=pnda_visitas,jne_infogob SIN_PEDIDOS=1 SIN_DOCUMENTOS=1 bash infrastructure/deploy/gcp/batch-nocturno.sh   # lo que hace el cron
 ```
 
 Filas cargadas, últimas fechas, cruces con las reglas y bloqueos con evidencia: `docs/design/DATASETS.md`.

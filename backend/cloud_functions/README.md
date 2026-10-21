@@ -14,7 +14,7 @@ minutos (`pnda_dji` baja hasta 700 MB) y `onpe_claridad` necesita Chromium con p
 completo — Cloud Functions (1.ª y 2.ª gen) tiene límites de tiempo/tamaño de imagen poco
 cómodos para eso, y no permite un `Dockerfile` propio con dependencias del sistema
 (Xvfb, libgtk, etc.). Cloud Run Jobs sí, corre hasta 24 h, y es el mismo mecanismo que ya
-usa este repo para `vigia-ingest` (`infrastructure/deploy/ingest-job.sh`). Cloud Scheduler
+usa este repo para `vigia-ingest` (`infrastructure/deploy/gcp/ingest-job.sh`). Cloud Scheduler
 agenda ambos igual (`jobs create http … :run`), así que para el usuario es indistinguible.
 
 ## 1. Qué se puede agendar desde GCP y qué no (verificado, no supuesto)
@@ -42,7 +42,7 @@ PROBE 200 https://visitas.servicios.gob.pe                                      
 | `pnda_oece/` | PNDA | ✅ sí | ídem |
 | `jne_infogob/` | PNDA (reporte oficial JNE) | ✅ sí | ídem — el snapshot de Infogob (`--root`) sigue manual |
 | `mef_presupuesto/` | API MEF | ✅ sí | host abierto |
-| `oece_ocds/` | API OCDS del OECE | ❌ no | **403 confirmado** desde IP de nube (WAF) — la imagen se construye igual, para correr con `docker run` en el VPS de Lima o la laptop (mismo Dockerfile, IP peruana), igual que hoy con `infrastructure/deploy/scrapers-job.sh` |
+| `oece_ocds/` | API OCDS del OECE | ❌ no | **403 confirmado** desde IP de nube (WAF) — la imagen se construye igual, para correr con `docker run` en el VPS de Lima o la laptop (mismo Dockerfile, IP peruana), igual que hoy con `infrastructure/deploy/gcp/scrapers-job.sh` |
 | `onpe_claridad/` | ONPE Claridad | ❌ no | **403 confirmado** (Cloudflare) + necesita Chromium con ventana; imagen propia con Xvfb para correr en el VPS/laptop con `docker run`, alternativa a la instalación local de Playwright |
 
 **Consecuencia práctica:** cada carpeta decide sola si se agenda o no (dentro de su propio
@@ -89,7 +89,7 @@ gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbu
 
 Abrí `backend/cloud_functions/pnda_sancionados/cloudbuild.yaml` y ahí está TODO explícito:
 memoria, cpu, timeout, el cron exacto y por qué, la imagen, el Job, el Scheduler — nada
-escondido en un shell script aparte. `infrastructure/deploy/cloud-scrapers.sh` que queda es
+escondido en un shell script aparte. `infrastructure/deploy/gcp/cloud-scrapers.sh` que queda es
 un loop de 3 líneas por conveniencia ("desplegar las 8 de una"), no tiene lógica propia.
 
 Cada job corre `python -m backend.scrapers.<fuente>.pipeline` **sin argumentos** — el mismo
@@ -134,8 +134,8 @@ bucket es el siguiente paso natural.
 gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbuild.yaml
 
 # las 8 de una (loop de conveniencia, sin lógica propia):
-bash infrastructure/deploy/cloud-scrapers.sh
-bash infrastructure/deploy/cloud-scrapers.sh pnda_dji jne_infogob   # un subconjunto
+bash infrastructure/deploy/gcp/cloud-scrapers.sh
+bash infrastructure/deploy/gcp/cloud-scrapers.sh pnda_dji jne_infogob   # un subconjunto
 
 # probar el vendor/ en local sin gastar un build de Cloud Build:
 python backend/cloud_functions/_vendor.py pnda_sancionados
@@ -165,9 +165,9 @@ gcloud scheduler jobs list --location us-central1                              #
 
 Los `cloudbuild.yaml` toman imagen, Job, Scheduler, cuenta (`vigia-jobs@`) e instancia de `${PROJECT_ID}` (`options.dynamicSubstitutions`).
 
-- **Todos en el proyecto de `_common.sh`:** `bash infrastructure/deploy/cloud-scrapers.sh`.
+- **Todos en el proyecto de `_common.sh`:** `bash infrastructure/deploy/gcp/cloud-scrapers.sh`.
 - **Uno solo en otro proyecto:** `gcloud builds submit . --project <p> --config backend/cloud_functions/<fuente>/cloudbuild.yaml`.
 
 `_BUCKET` es un nombre global y `vigia-jobs@` necesita escritura en él. `oece_ocds` y `onpe_claridad` solo responden desde Perú: sus Jobs no tienen Scheduler.
 
-Guía: `infrastructure/deploy/migracion/README.md`.
+Guía: `infrastructure/deploy/gcp/migracion/README.md`.

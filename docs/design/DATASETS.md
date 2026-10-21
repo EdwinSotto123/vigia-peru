@@ -6,7 +6,7 @@
 
 ## Principios
 
-- **Todo lo que toca `.gob.pe` corre desde IP peruana** (laptop/VPS, paso 6 de `infrastructure/deploy/batch-nocturno.sh`). GCP recibe 403 de la PNDA, OECE, ONPE y JNE.
+- **Todo lo que toca `.gob.pe` corre desde IP peruana** (laptop/VPS, paso 6 de `infrastructure/deploy/gcp/batch-nocturno.sh`). GCP recibe 403 de la PNDA, OECE, ONPE y JNE.
 - El crudo se conserva tal cual en `gs://vigia-peru-batch/raw/<fuente>/<clave>/<archivo>` (`SCRAPER_GCS_BUCKET`) y localmente en `dataset/_raw/<fuente>/<clave>/`.
 - Cada carga queda en `datasets_cargas (fuente, clave, sha256, filas, gcs_uri, descargado_at, cargado_at)`; la vista `datasets_cobertura` (una fila por fuente) es la base de la sección "Fuentes externas" de `/admin/cobertura`.
 - **Idempotencia**: un archivo cuyo sha256 ya está registrado para esa clave no se recarga (salvo `--force`); si la fuente republica con otro sha256 se reemplaza la clave completa (periodo, proceso o foto). Nunca `INSERT` a ciegas.

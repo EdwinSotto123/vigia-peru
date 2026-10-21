@@ -2,24 +2,24 @@
 # Flujo nocturno del SEACE desde IP peruana (laptop o VPS de Lima). NO corre en GCP.
 #   pedidos (financiados sin docs) → releases (últimos N días) → records nuevos → documentos clave → subir a GCS → job vigia-ingest
 #
-#   bash infrastructure/deploy/batch-nocturno.sh                 # ventana: últimos 7 días
-#   DIAS=30 bash infrastructure/deploy/batch-nocturno.sh          # ventana más larga
-#   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/batch-nocturno.sh   # histórico por tramos
+#   bash infrastructure/deploy/gcp/batch-nocturno.sh                 # ventana: últimos 7 días
+#   DIAS=30 bash infrastructure/deploy/gcp/batch-nocturno.sh          # ventana más larga
+#   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/gcp/batch-nocturno.sh   # histórico por tramos
 #   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200 · REFRESCAR_RECORDS=1 (re-bajar records ya vistos)
 #   DATASETS=pnda_visitas,jne_infogob … (forzar una fuente externa fuera de agenda; las 4 automáticas
 #   ya corren solas por Cloud Scheduler, ver paso 6) · ONPE=1 … (correr ONPE Claridad: abre Chromium con ventana)
 #
 # Programación:
-#   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
+#   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/gcp/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
 #   Windows (Task Scheduler, diario 01:30):
-#     "C:\Program Files\Git\bin\bash.exe" -lc "/c/Users/usuario/Desktop/PROYECTOS/vigia-peru/infrastructure/deploy/batch-nocturno.sh"
+#     "C:\Program Files\Git\bin\bash.exe" -lc "/c/Users/usuario/Desktop/PROYECTOS/vigia-peru/infrastructure/deploy/gcp/batch-nocturno.sh"
 # Requisitos: python 3.12+ con `pip install -r backend/batch/requirements.txt`, ADC de GCP
 # (`gcloud auth application-default login`) y `gcloud` autenticado para ejecutar el job.
 # Todo es reanudable: si una noche se corta, la siguiente retoma (ítems `completed` se saltan;
 # `descargar <tipo> --lote <id>` reanuda un lote a medias).
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID (job vigia-ingest, IP de la base)
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"  # PROJECT_ID (job vigia-ingest, IP de la base)
 set +e -uo pipefail  # sin -e a propósito: una noche con fallos parciales sigue con lo que sí anduvo
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
 PY="${PYTHON:-python}"
 BUCKET_BATCH="${BUCKET_BATCH:-vigia-peru-batch}"

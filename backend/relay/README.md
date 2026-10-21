@@ -149,4 +149,4 @@ contenedor → descarga con IP peruana → sube a GCS → procesa. ✅
 
 ## Cambiar de proyecto
 
-`GCP_PROJECT` es opcional: sin ella se usa el proyecto de las credenciales. Lo que manda es `GCS_BUCKET`. Guía: `infrastructure/deploy/migracion/README.md`.
+`GCP_PROJECT` es opcional: sin ella se usa el proyecto de las credenciales. Lo que manda es `GCS_BUCKET`. Guía: `infrastructure/deploy/gcp/migracion/README.md`.

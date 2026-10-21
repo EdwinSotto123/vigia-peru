@@ -44,8 +44,8 @@ Fases visibles (en orden real del `deterministic.py`): `compliance`, `document_p
 
 | WS | Crea | Modifica |
 |---|---|---|
-| **A** | `backend/db/migrations/11_convocatorias_ubigeo.sql`, `backend/scrapers/_core/ubigeo.py`, `backend/scrapers/tests/test_ubigeo.py`, `backend/scrapers/oece_ocds/pipeline.py` (reescritura), `infrastructure/deploy/scrapers-job.sh` | `backend/db/apply_all.py` (ORDER), `backend/db/apply_all.sh`, `backend/scrapers/README.md` |
-| **B** | `backend/db/migrations/12_procesamientos.sql`, `backend/dispatcher/{main.py,requirements.txt,Dockerfile,README.md}`, `backend/dispatcher/tests/test_events.py`, `backend/api/src/routes/procesamientos.ts`, `infrastructure/deploy/dispatcher.sh` | `backend/api/src/index.ts` (montar router), `backend/api/src/routes/admin.ts` (endpoints de monitor), `backend/db/apply_all.py`, `backend/db/apply_all.sh`, `cloudbuild.yaml` (paso dispatcher) |
+| **A** | `backend/db/migrations/11_convocatorias_ubigeo.sql`, `backend/scrapers/_core/ubigeo.py`, `backend/scrapers/tests/test_ubigeo.py`, `backend/scrapers/oece_ocds/pipeline.py` (reescritura), `infrastructure/deploy/gcp/scrapers-job.sh` | `backend/db/apply_all.py` (ORDER), `backend/db/apply_all.sh`, `backend/scrapers/README.md` |
+| **B** | `backend/db/migrations/12_procesamientos.sql`, `backend/dispatcher/{main.py,requirements.txt,Dockerfile,README.md}`, `backend/dispatcher/tests/test_events.py`, `backend/api/src/routes/procesamientos.ts`, `infrastructure/deploy/gcp/dispatcher.sh` | `backend/api/src/index.ts` (montar router), `backend/api/src/routes/admin.ts` (endpoints de monitor), `backend/db/apply_all.py`, `backend/db/apply_all.sh`, `cloudbuild.yaml` (paso dispatcher) |
 | **C** | `frontend/lib/auditoria.ts`, `frontend/components/auditoria/{TableroAuditoria,ContratoEnVivo,FaseTimeline,EstadoPill}.tsx`, `frontend/components/aliados/{MuroAliados,TarjetaAliado}.tsx`, `frontend/app/(public)/auditoria/page.tsx`, `frontend/app/(public)/auditoria/[ocid]/page.tsx`, `frontend/app/(public)/aliados/page.tsx`, `frontend/app/(public)/impacto/[codigo]/opengraph-image.tsx` | `frontend/app/(public)/impacto/[codigo]/page.tsx` (usar `ContratoEnVivo` en lista), `frontend/app/(public)/financiar/[ubigeo]/page.tsx` (bloque "en vivo ahora") |
 | **D** | `frontend/app/admin/analisis/page.tsx`, `frontend/components/mapa/{ZonaHubPanel,EntidadesDeZona,AlertasDeZona}.tsx`, `frontend/components/landing/{MapaHubSection,AliadosSection}.tsx`, `frontend/lib/flags.ts` | `frontend/components/Header.tsx`, `frontend/components/dashboard/DashboardSidebar.tsx`, `frontend/app/(dashboard)/app/page.tsx` (→ redirect a `/app/mapa`), `frontend/app/(dashboard)/app/mapa/page.tsx`, `frontend/components/MapaWrapper.tsx`, `frontend/components/RegionDetailPanel.tsx`, `frontend/app/(public)/page.tsx`, `frontend/components/admin/AdminShell.tsx` (item "Análisis"), `frontend/app/(dashboard)/noticia/page.tsx` (flag) |
 
@@ -375,15 +375,15 @@ if __name__ == "__main__":
 ### Task A4: Corrida diaria desde fuera de GCP
 
 **Files:**
-- Create: `infrastructure/deploy/scrapers-job.sh` (documenta y programa la corrida; el host es la laptop o el VPS de Lima, no GCP)
+- Create: `infrastructure/deploy/gcp/scrapers-job.sh` (documenta y programa la corrida; el host es la laptop o el VPS de Lima, no GCP)
 - Modify: `backend/scrapers/README.md` (sección "Cola real")
 
-- [ ] **Step 1: Script** — `infrastructure/deploy/scrapers-job.sh`:
+- [ ] **Step 1: Script** — `infrastructure/deploy/gcp/scrapers-job.sh`:
 
 ```bash
 #!/usr/bin/env bash
 # Corre la ingesta diaria del OECE desde una IP peruana (la API bloquea GCP).
-# Programar en el VPS de Lima (crontab):  0 6 * * *  /opt/vigia/infrastructure/deploy/scrapers-job.sh >> /var/log/vigia-scrapers.log 2>&1
+# Programar en el VPS de Lima (crontab):  0 6 * * *  /opt/vigia/infrastructure/deploy/gcp/scrapers-job.sh >> /var/log/vigia-scrapers.log 2>&1
 # o en Windows (Task Scheduler) con Git Bash.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -658,7 +658,7 @@ CMD ["python", "-m", "backend.dispatcher.main"]
 ### Task B3: Deploy del dispatcher (Cloud Run Job + Scheduler)
 
 **Files:**
-- Create: `infrastructure/deploy/dispatcher.sh`
+- Create: `infrastructure/deploy/gcp/dispatcher.sh`
 - Modify: `cloudbuild.yaml` (paso `dispatcher`), `infrastructure/README.md`
 
 - [ ] **Step 1: Script**
@@ -684,7 +684,7 @@ gcloud scheduler jobs describe vigia-dispatcher-run --location "$REGION" >/dev/n
        --http-method POST --oauth-service-account-email "36169102688-compute@developer.gserviceaccount.com" --quiet
 ```
 
-- [ ] **Step 2: Deploy y ejecución manual** — `bash infrastructure/deploy/dispatcher.sh && gcloud run jobs execute vigia-dispatcher --region us-central1 --wait`. Ver logs: `gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="vigia-dispatcher"' --limit 30`.
+- [ ] **Step 2: Deploy y ejecución manual** — `bash infrastructure/deploy/gcp/dispatcher.sh && gcloud run jobs execute vigia-dispatcher --region us-central1 --wait`. Ver logs: `gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="vigia-dispatcher"' --limit 30`.
 - [ ] **Step 3: `cloudbuild.yaml`** — paso `dispatcher` idéntico en forma al de `mcp` pero con `gcloud run jobs deploy vigia-dispatcher --source backend/dispatcher …` (mismos flags del script).
 - [ ] **Step 4: README** — sección "Dispatcher" en `infrastructure/README.md` (qué es, cómo ver logs, cómo re-encolar: `UPDATE procesamientos SET estado='encolado', intentos=0 WHERE ocid=…`).
 - [ ] **Step 5: Commit** `git commit -m "infra: deploy dispatcher as Cloud Run Job triggered every 5 minutes"`
@@ -745,7 +745,7 @@ procesamientosRouter.get("/:ocid", async (c) => {
 ```
 
 - [ ] **Step 2: Admin** — en `admin.ts`: `GET /admin/procesamientos` (mismo `SELECT` sobre `procesamientos` + `worker`, `error`, `latido_at`, 200 filas) y `POST /admin/procesamientos/:ocid/reencolar` (`UPDATE procesamientos SET estado='encolado', intentos=0, error=NULL, worker=NULL WHERE ocid=$1` + `log(actor,'reencolar',…)`).
-- [ ] **Step 3: `npx tsc --noEmit` en `backend/api` → OK. Deploy: `bash infrastructure/deploy/api.sh`. Probar `curl $API/financiamiento/procesamientos/resumen`.**
+- [ ] **Step 3: `npx tsc --noEmit` en `backend/api` → OK. Deploy: `bash infrastructure/deploy/gcp/api.sh`. Probar `curl $API/financiamiento/procesamientos/resumen`.**
 - [ ] **Step 4: Commit** `git commit -m "api: public live processing endpoints and admin requeue"`
 
 ---
@@ -874,7 +874,7 @@ export const getResumenProcesamientos = () => getJson<{ porEstado: Record<string
 
 - [ ] Merge de los 4 worktrees a `main` (orden: A, B, D, C — C depende de la API de B y del `MuroAliados` que D importa; resolver conflictos en `backend/api/src/index.ts` y `AdminShell.tsx` si los hay).
 - [ ] `npx tsc --noEmit` (api, frontend), `npx next build`, `python -m compileall backend`, `python -m pytest backend/scrapers/tests backend/dispatcher/tests`.
-- [ ] Deploy: `bash infrastructure/deploy/api.sh && bash infrastructure/deploy/frontend.sh && bash infrastructure/deploy/dispatcher.sh`.
+- [ ] Deploy: `bash infrastructure/deploy/gcp/api.sh && bash infrastructure/deploy/gcp/frontend.sh && bash infrastructure/deploy/gcp/dispatcher.sh`.
 - [ ] Prueba end-to-end en prod con navegador: `/` → `/app/mapa` → región → "Financiar" → `/financiar/15xx` → aporte → `/admin` validar → `/auditoria` muestra el contrato en cola → dispatcher lo toma → `/auditoria/[ocid]` avanza de fase → procesado → dossier. Capturas de pantalla de cada paso.
 - [ ] Actualizar las notas operativas locales (mapa del repo, estado), `docs/design/FINANCIA_UNA_AUDITORIA.md` §8 (fases hechas), memoria.
 - [ ] Commit final y push.

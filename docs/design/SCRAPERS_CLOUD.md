@@ -53,7 +53,7 @@ PROBE 200 https://visitas.servicios.gob.pe                                  ← 
 
 **Corrección sobre la primera versión de esto:** al principio había una imagen base
 compartida (`_base/`) y toda la lógica de memoria/cpu/cron vivía en UN script externo
-(`infrastructure/deploy/cloud-scrapers.sh`). Señalaste, con razón, que eso no se sentía como
+(`infrastructure/deploy/gcp/cloud-scrapers.sh`). Señalaste, con razón, que eso no se sentía como
 "8 carpetas = 8 serverless" sino como un script grande con 8 carpetas colgando — cada carpeta
 no se podía entender ni desplegar mirando solo lo que había adentro. Se rehizo así:
 
@@ -84,7 +84,7 @@ pasar por ningún script intermedio:
 gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbuild.yaml
 ```
 
-`infrastructure/deploy/cloud-scrapers.sh` quedó como loop de conveniencia de 3 líneas ("las 8
+`infrastructure/deploy/gcp/cloud-scrapers.sh` quedó como loop de conveniencia de 3 líneas ("las 8
 de una"), sin memoria/cpu/cron adentro — esos datos viven solo en el `cloudbuild.yaml` de
 cada carpeta, una vez cada uno, no repetidos en un diccionario compartido.
 
@@ -202,7 +202,7 @@ gcloud run jobs executions list --job scraper-pnda-sancionados --region us-centr
 gcloud builds submit . --config backend/cloud_functions/pnda_dji/cloudbuild.yaml
 
 # desplegar las 8 de nuevo (loop de conveniencia, sin lógica propia):
-bash infrastructure/deploy/cloud-scrapers.sh
+bash infrastructure/deploy/gcp/cloud-scrapers.sh
 ```
 
 También queda visible desde la web: `/admin/cobertura → Fuentes externas` muestra, por

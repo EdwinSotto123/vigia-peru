@@ -6,9 +6,9 @@
 #
 #   gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbuild.yaml
 #
-#   bash infrastructure/deploy/cloud-scrapers.sh              # las 8 carpetas
-#   bash infrastructure/deploy/cloud-scrapers.sh pnda_dji      # una sola
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+#   bash infrastructure/deploy/gcp/cloud-scrapers.sh              # las 8 carpetas
+#   bash infrastructure/deploy/gcp/cloud-scrapers.sh pnda_dji      # una sola
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 cd "$REPO_ROOT"
 
 FUENTES=(pnda_sancionados pnda_visitas pnda_dji pnda_oece jne_infogob mef_presupuesto oece_ocds onpe_claridad)

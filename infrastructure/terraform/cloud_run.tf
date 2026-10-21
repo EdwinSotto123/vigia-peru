@@ -10,7 +10,7 @@
 # Agentes: hay CUATRO servicios con el MISMO código (backend/agent) y distinto
 # PIPELINE_PROFILE: agent-orchestrator-adk (bienes) + agente-servicios / agente-obras /
 # agente-otros (for_each sobre local.agent_profiles). El spec VIVO de los tres nuevos lo
-# gestiona `infrastructure/deploy/agentes.sh` (copia el spec del de bienes con
+# gestiona `infrastructure/deploy/gcp/agentes.sh` (copia el spec del de bienes con
 # `gcloud run services replace`: hereda ~40 variables operativas y secretos); acá se
 # declaran con la misma forma para que `terraform plan` los conozca e ignore image/env.
 
@@ -139,7 +139,7 @@ resource "google_cloud_run_v2_service" "agent" {
 }
 
 # ── Agentes por perfil: servicios / obras / otros (mismo código, PIPELINE_PROFILE distinto) ──
-# El spec vivo (imagen + variables operativas) lo aplica infrastructure/deploy/agentes.sh;
+# El spec vivo (imagen + variables operativas) lo aplica infrastructure/deploy/gcp/agentes.sh;
 # Terraform solo garantiza forma, recursos y secretos. Misma imagen que `agent`.
 resource "google_cloud_run_v2_service" "agente_perfil" {
   for_each = var.gestionar_servicios ? local.agent_profiles : {}

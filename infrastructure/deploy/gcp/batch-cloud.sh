@@ -2,8 +2,8 @@
 # Cloud Run JOB `vigia-batch` + Cloud Scheduler diario: baja en la nube los documentos de los contratos
 # financiados (backend/batch/nube.py), sin la laptop ni el VPS de Lima (que ya no existe).
 #
-#   bash infrastructure/deploy/batch-cloud.sh            # imagen + job + scheduler (todos los días 02:00 Lima)
-#   bash infrastructure/deploy/batch-cloud.sh --ahora    # además, una corrida ya y espera el resultado
+#   bash infrastructure/deploy/gcp/batch-cloud.sh            # imagen + job + scheduler (todos los días 02:00 Lima)
+#   bash infrastructure/deploy/gcp/batch-cloud.sh --ahora    # además, una corrida ya y espera el resultado
 #
 # Cómo sale de GCP: la API OCDS del OECE y prod1.seace.gob.pe dan 403 a las IP de GCP, así que todo GET va
 # por el Worker `vigia-relay` (backend/relay-worker, fijado en Zúrich): RELAY_URL + RELAY_TOKEN (secreto
@@ -14,7 +14,7 @@
 # Este trae los documentos que alguien pidió (`pedidos_descarga`, los crea `asignar_contribucion`).
 #
 # Memoria 8Gi porque el disco de Cloud Run es memoria: nube.py baja en tandas de ~2 GB y las sube antes de seguir.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 BUCKET_BATCH="${BUCKET_BATCH:-vigia-peru-batch}"
 JOB_SA="${JOB_SA:-vigia-jobs@${PROJECT_ID}.iam.gserviceaccount.com}"

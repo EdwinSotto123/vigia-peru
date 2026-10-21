@@ -34,7 +34,7 @@ def _proyecto_gcp() -> str:
 
 
 # Cloud SQL: PGHOST (IP de PgBouncer o /cloudsql/<conexión>); sin ella, CLOUD_SQL_CONNECTION o
-# <proyecto de las credenciales>:us-central1:vigia-db (infrastructure/deploy/migracion/README.md).
+# <proyecto de las credenciales>:us-central1:vigia-db (infrastructure/deploy/gcp/migracion/README.md).
 PG_HOST = os.getenv("PGHOST") or "/cloudsql/" + (os.getenv("CLOUD_SQL_CONNECTION") or f"{_proyecto_gcp()}:us-central1:vigia-db")
 PG_USER = os.getenv("PGUSER", "postgres")
 PG_PASS = os.getenv("PGPASSWORD", "")

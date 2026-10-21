@@ -36,11 +36,11 @@ Variables (`_comun.py`); ninguna tiene un proyecto fijo:
 | `RAG_BUCKET` | Hoy `vigia-rag-753067078557` |
 | `RAG_LOCATION` | `us-central1` |
 
-Pasos (la fase `ia` de `infrastructure/deploy/migracion/migrar-proyecto.sh` los hace todos):
+Pasos (la fase `ia` de `infrastructure/deploy/gcp/migracion/migrar-proyecto.sh` los hace todos):
 
 ```bash
 gcloud storage rsync -r gs://<bucket-viejo> gs://<bucket-nuevo> --exclude "_import/.*"
-python infrastructure/deploy/migracion/herramientas.py catalogo-rag --proyecto <p> --bucket-viejo <b> --bucket-nuevo <b2>
+python infrastructure/deploy/gcp/migracion/herramientas.py catalogo-rag --proyecto <p> --bucket-viejo <b> --bucket-nuevo <b2>
 export VERTEX_PROJECT=<p> RAG_BUCKET=<b2>
 python -m backend.rag.corpus config --serverless   # crea el agente de servicio de RAG Engine
 python -m backend.rag.corpus crear                 # imprime los RAG_CORPUS_* para los agentes

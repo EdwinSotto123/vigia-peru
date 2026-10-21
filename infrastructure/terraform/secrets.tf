@@ -1,5 +1,5 @@
 # Terraform crea los contenedores; el VALOR se carga fuera (no queda en el state):
-#   · al mudarse: python infrastructure/deploy/migracion/herramientas.py secretos --origen <viejo> --destino <nuevo> <nombres>
+#   · al mudarse: python infrastructure/deploy/gcp/migracion/herramientas.py secretos --origen <viejo> --destino <nuevo> <nombres>
 #   · a mano: printf '%s' "$VALOR" | gcloud secrets versions add <nombre> --data-file=-
 # Excepción: cloudsql-password la genera Terraform cuando gestionar_password_sql = true.
 # Un servicio que referencia un secreto sin versiones no arranca ("secret version not found").

@@ -4,9 +4,9 @@
 # cada noche con `gcloud run jobs execute vigia-ingest --args=--lote,<id>`; sin args procesa
 # todos los manifiestos que aún no estén `ok` en lotes_ingesta.
 #
-#   bash infrastructure/deploy/ingest-job.sh              # build + deploy
-#   bash infrastructure/deploy/ingest-job.sh --build-only # solo `docker build` local (verificación)
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+#   bash infrastructure/deploy/gcp/ingest-job.sh              # build + deploy
+#   bash infrastructure/deploy/gcp/ingest-job.sh --build-only # solo `docker build` local (verificación)
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 BUCKET_BATCH="${BUCKET_BATCH:-vigia-peru-batch}"
 # Cuenta propia (migracion/migrar-proyecto.sh identidades): cloudsql.client, secretos y el bucket de batch.

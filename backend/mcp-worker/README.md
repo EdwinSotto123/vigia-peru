@@ -61,4 +61,4 @@ de cada llamada (listados, 3 tools con argumentos válidos, inválidos y de bord
 
 ## Cambiar de proyecto
 
-Nada que cambiar. La base llega por Hyperdrive (`vigia-mcp`) y el túnel `vigia-db`, que sigue a la VM de PgBouncer donde esté (`infrastructure/deploy/pgbouncer.sh crear` en el proyecto nuevo). Guía: `infrastructure/deploy/migracion/README.md`.
+Nada que cambiar. La base llega por Hyperdrive (`vigia-mcp`) y el túnel `vigia-db`, que sigue a la VM de PgBouncer donde esté (`infrastructure/deploy/gcp/pgbouncer.sh crear` en el proyecto nuevo). Guía: `infrastructure/deploy/gcp/migracion/README.md`.

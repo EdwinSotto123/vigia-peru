@@ -19,7 +19,7 @@
 
 La instancia es `vigia-db`, en `PROJECT_ID` (`infrastructure/deploy/_common.sh`). Hoy es `project-a974c6e5-0cdf-4b11-a86` (IP pública: `ip_cloud_sql` en `_common.sh`).
 
-- **Crearla:** `terraform apply` (`infrastructure/terraform/cloud_sql.tf`) o la fase `base` de `infrastructure/deploy/migracion/migrar-proyecto.sh`. Esa fase también copia los datos, compara las dos bases y pone las contraseñas.
+- **Crearla:** `terraform apply` (`infrastructure/terraform/cloud_sql.tf`) o la fase `base` de `infrastructure/deploy/gcp/migracion/migrar-proyecto.sh`. Esa fase también copia los datos, compara las dos bases y pone las contraseñas.
 - **Quién se conecta y cómo:**
 
 | Quién | Cómo |

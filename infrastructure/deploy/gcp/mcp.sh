@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy del servidor MCP (read-only sobre Cloud SQL) a Cloud Run: vigia-mcp.
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 
 # Detrás de PgBouncer (pgbouncer.sh conectar mcp) la conexión es de ese script: acá no se toca.
 CONEXION="PGHOST=${DB_HOST},PGSSLMODE=no-verify,"

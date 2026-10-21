@@ -68,8 +68,8 @@ DISPATCHER_PARALLEL=1 DISPATCHER_MAX_MINUTES=15 python -m backend.dispatcher.mai
 ```
 
 Tests: `python -m pytest backend/dispatcher/tests -v` (`test_routing.py` cubre tipo → servicio).
-Deploy: `bash infrastructure/deploy/dispatcher.sh` (lee las 4 URLs de los servicios desplegados con
-`infrastructure/deploy/agentes.sh all`; las que no existan quedan vacías y su tipo espera).
+Deploy: `bash infrastructure/deploy/gcp/dispatcher.sh` (lee las 4 URLs de los servicios desplegados con
+`infrastructure/deploy/gcp/agentes.sh all`; las que no existan quedan vacías y su tipo espera).
 
 ## Operación
 
@@ -80,4 +80,4 @@ Deploy: `bash infrastructure/deploy/dispatcher.sh` (lee las 4 URLs de los servic
 
 ## Estado y cambio de proyecto
 
-Reemplazado por `backend/dispatcher-worker` (Cloudflare) desde el 27/09/2026. El job `vigia-dispatcher` y su Scheduler quedaron pausados en `vivid-spot-480905-a4`. Si se vuelve a usar, `infrastructure/deploy/dispatcher.sh` despliega en `PROJECT_ID`. Guía: `infrastructure/deploy/migracion/README.md`.
+Reemplazado por `backend/dispatcher-worker` (Cloudflare) desde el 27/09/2026. El job `vigia-dispatcher` y su Scheduler quedaron pausados en `vivid-spot-480905-a4`. Si se vuelve a usar, `infrastructure/deploy/gcp/dispatcher.sh` despliega en `PROJECT_ID`. Guía: `infrastructure/deploy/gcp/migracion/README.md`.

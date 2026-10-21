@@ -70,4 +70,4 @@ Para restaurar localmente en Docker: `infrastructure/docker/postgres.Dockerfile`
 
 ## Verificar
 
-`python infrastructure/deploy/migracion/herramientas.py comparar-bases` compara dos bases objeto por objeto: funciones, triggers, índices, restricciones, filas de cada tabla, dueños y permisos. Tras la mudanza del 29/09 dio 0 diferencias.
+`python infrastructure/deploy/gcp/migracion/herramientas.py comparar-bases` compara dos bases objeto por objeto: funciones, triggers, índices, restricciones, filas de cada tabla, dueños y permisos. Tras la mudanza del 29/09 dio 0 diferencias.

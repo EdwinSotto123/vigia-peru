@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Variables compartidas por los scripts de deploy. Sobreescribibles por entorno:
-#   PROJECT_ID=otro-proyecto bash infrastructure/deploy/agentes.sh
+#   PROJECT_ID=otro-proyecto bash infrastructure/deploy/gcp/agentes.sh
 #
 # MUDARSE A OTRO PROYECTO = cambiar PROJECT_ID acá (o exportarlo) y correr
-# infrastructure/deploy/migracion/migrar-proyecto.sh (paso a paso en migracion/README.md).
+# infrastructure/deploy/gcp/migracion/migrar-proyecto.sh (paso a paso en migracion/README.md).
 # Ningún script ni el código tienen otro proyecto fijo.
 set -euo pipefail
 

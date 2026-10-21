@@ -35,7 +35,7 @@ Fuera de GCP, sin cambios en una mudanza:
 export ORIGEN=<proyecto-actual> DESTINO=<proyecto-nuevo>
 # Si son cuentas distintas:
 export CUENTA_ORIGEN=<cuenta> CUENTA_DESTINO=<cuenta>
-M=infrastructure/deploy/migracion/migrar-proyecto.sh
+M=infrastructure/deploy/gcp/migracion/migrar-proyecto.sh
 bash $M apis
 bash $M identidades
 bash $M secretos

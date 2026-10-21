@@ -5,15 +5,15 @@
 # mundo. Con esto, TODO el tráfico de salida de los servicios/jobs elegidos sale por UNA IP reservada y el
 # grupo de seguridad de RDS solo la permite a ella (cloud_sql/terraform → cidrs_permitidos).
 #
-#   bash infrastructure/deploy/egreso-fijo.sh crear                    # IP + router + NAT en el proyecto
-#   bash infrastructure/deploy/egreso-fijo.sh ip                       # imprime la IP
-#   bash infrastructure/deploy/egreso-fijo.sh aplicar svc1 svc2 …      # servicios Cloud Run por la IP fija
-#   bash infrastructure/deploy/egreso-fijo.sh aplicar-job job1 job2 …  # jobs Cloud Run por la IP fija
+#   bash infrastructure/deploy/gcp/egreso-fijo.sh crear                    # IP + router + NAT en el proyecto
+#   bash infrastructure/deploy/gcp/egreso-fijo.sh ip                       # imprime la IP
+#   bash infrastructure/deploy/gcp/egreso-fijo.sh aplicar svc1 svc2 …      # servicios Cloud Run por la IP fija
+#   bash infrastructure/deploy/gcp/egreso-fijo.sh aplicar-job job1 job2 …  # jobs Cloud Run por la IP fija
 #
 # Otro proyecto: PROYECTO=vivid-spot-480905-a4 CLOUDSDK_CORE_ACCOUNT=hello@simplia.store bash …/egreso-fijo.sh crear
 # Costo: ~US$4-6/mes (IP reservada + NAT) + US$0,045/GB de salida.
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 PROYECTO="${PROYECTO:-$PROJECT_ID}"
 RED="${RED:-default}"
 IPNAME="vigia-egreso-ip"; ROUTER="vigia-router"; NAT="vigia-nat"

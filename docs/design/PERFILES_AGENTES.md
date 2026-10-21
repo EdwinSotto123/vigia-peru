@@ -149,10 +149,10 @@ Además ADK, con `output_schema`, hace `model_validate_json` sobre la respuesta 
 para bienes y para contratos sin clasificación. Sin URL para el tipo → `dejar_pendiente(ocid, "servicio de
 agentes para <tipo> no desplegado …")`. Un `409 tipo_no_aceptado` del servicio (URLs cruzadas) también deja
 pendiente sin consumir intento. Log del servicio elegido por contrato. Tests: `backend/dispatcher/tests/test_routing.py`.
-`infrastructure/deploy/dispatcher.sh` y el paso `dispatcher` de `cloudbuild.yaml` leen las 4 URLs de los
+`infrastructure/deploy/gcp/dispatcher.sh` y el paso `dispatcher` de `cloudbuild.yaml` leen las 4 URLs de los
 servicios desplegados (vacía si no existe).
 
-## 5. Despliegue (`infrastructure/deploy/agentes.sh [bienes|servicios|obras|otros|all]`)
+## 5. Despliegue (`infrastructure/deploy/gcp/agentes.sh [bienes|servicios|obras|otros|all]`)
 
 1. Imagen única: `gcloud builds submit backend/agent --tag
    us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy/agentes:<sha>` (repositorio ya
@@ -174,7 +174,7 @@ servicios/obras/otros, misma forma que `agent`, `ignore_changes` en image/env (e
 
 ### 5.1 Resultado del despliegue 2026-09-15
 
-`bash infrastructure/deploy/agentes.sh all` → build `agentes:17abfdf66ffd-083851` (2m49s), EXIT=0; los tres
+`bash infrastructure/deploy/gcp/agentes.sh all` → build `agentes:17abfdf66ffd-083851` (2m49s), EXIT=0; los tres
 servicios nuevos heredaron 36 variables (34 + `PIPELINE_PROFILE` + `GEMINI_MODEL_JUDGE`) y los 4 secretos.
 
 | Servicio | URL | `GET /` |
@@ -188,7 +188,7 @@ Gate verificado: `POST agente-obras` con `clasificacion.tipo=bienes` → HTTP 40
 update: `PIPELINE_PROFILE=bienes`, `GEMINI_MODEL=gemini-3.6-flash`, `GEMINI_MODEL_SMART=gemini-3.6-flash`,
 `GEMINI_MODEL_FAST=gemini-3.5-flash-lite`, `GEMINI_MODEL_JUDGE=gemini-3.5-flash`, `DETERMINISTIC_PIPELINE=1`.
 
-`bash infrastructure/deploy/dispatcher.sh` → job `vigia-dispatcher` con `AGENT_URL_BIENES/SERVICIOS/OBRAS/OTROS`
+`bash infrastructure/deploy/gcp/dispatcher.sh` → job `vigia-dispatcher` con `AGENT_URL_BIENES/SERVICIOS/OBRAS/OTROS`
 apuntando a las 4 URLs de arriba (+ `AGENT_URL` = bienes como fallback).
 
 ### 5.2 Cuota de memoria (hallazgo operativo)

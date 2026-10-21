@@ -4,7 +4,7 @@ Mismo pipeline real de agentes, mismos contratos y mismas entradas (OCDS, docume
 de **solo lectura** para que la prueba no pise análisis reales.
 
 ```
-infrastructure/deploy/agente-ab.sh crear <variante> 0|1   # servicio sombra (USAR_WORKERS_AI=0|1), rol vigia_ab (migración 44)
+infrastructure/deploy/gcp/agente-ab.sh crear <variante> 0|1   # servicio sombra (USAR_WORKERS_AI=0|1), rol vigia_ab (migración 44)
 backend/scripts/ab_modelos.py correr --n 20 --variante gemini=<url> --variante glm=<url>
 backend/scripts/ab_modelos.py correr --completar <carpeta> ...   # reintenta lo que falló (429 de cuota)
 backend/scripts/ab_modelos.py comparar <carpeta> --base gemini    # informe markdown

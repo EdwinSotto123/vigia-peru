@@ -2,15 +2,15 @@
 # Corre la ingesta diaria del OECE desde una IP peruana (la API OCDS bloquea GCP con 403).
 # NO es un servicio de Cloud Run: el host es el VPS de Lima o una laptop.
 #
-#   VPS Lima (crontab):   0 6 * * *  /opt/vigia/infrastructure/deploy/scrapers-job.sh >> /var/log/vigia-scrapers.log 2>&1
-#   Windows (Task Scheduler, Git Bash):  "C:\Program Files\Git\bin\bash.exe" -lc "/c/.../infrastructure/deploy/scrapers-job.sh"
+#   VPS Lima (crontab):   0 6 * * *  /opt/vigia/infrastructure/deploy/gcp/scrapers-job.sh >> /var/log/vigia-scrapers.log 2>&1
+#   Windows (Task Scheduler, Git Bash):  "C:\Program Files\Git\bin\bash.exe" -lc "/c/.../infrastructure/deploy/gcp/scrapers-job.sh"
 #
 # Requisitos en el host: python 3.12+ con `pip install -r backend/scrapers/requirements.txt`,
 # `.cloudsql-password` en la raíz del repo (o PGPASSWORD en el entorno) y la IP pública del
 # host autorizada en Cloud SQL:  gcloud sql instances patch vigia-db --authorized-networks=<IP>/32
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
+cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
 export PGHOST="${PGHOST:-$(ip_cloud_sql)}" PGSSLMODE="${PGSSLMODE:-require}"
 PY="${PYTHON:-python}"

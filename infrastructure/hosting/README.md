@@ -17,7 +17,7 @@ Detalles que condicionan el código:
 - **Tiempo máximo:** Hosting corta a los 60 s los pedidos a Cloud Run. El análisis en vivo del equipo
   (`/api/agent/*`, streaming largo) se usa desde la URL directa de Cloud Run.
 
-Desplegar: `bash infrastructure/deploy/hosting.sh` (solo publica la configuración; no toca los servicios).
+Desplegar: `bash infrastructure/deploy/gcp/hosting.sh` (solo publica la configuración; no toca los servicios).
 
 ## Modo pausa (Cloud Run apagado)
 
@@ -27,8 +27,8 @@ Se usa con `vigia-peru-frontend` y `vigia-peru-api` en `--ingress internal` (sin
 
 - Activar: `firebase deploy --only hosting:vigia-peru --project vivid-spot-480905-a4 --config firebase.pausa.json`
   desde esta carpeta, y `gcloud run services update <servicio> --ingress internal` en los dos servicios.
-- Volver: `--ingress all` en los dos servicios y `bash infrastructure/deploy/hosting.sh`.
+- Volver: `--ingress all` en los dos servicios y `bash infrastructure/deploy/gcp/hosting.sh`.
 
 ## Cambiar de proyecto
 
-El sitio `vigia-peru.web.app` es del proyecto de la entrada (`ENTRADA_PROJECT_ID`). `bash infrastructure/deploy/hosting.sh` publica ahí. Sus reescrituras apuntan a los servicios de Cloud Run de ese mismo proyecto. Guía: `infrastructure/deploy/migracion/README.md`.
+El sitio `vigia-peru.web.app` es del proyecto de la entrada (`ENTRADA_PROJECT_ID`). `bash infrastructure/deploy/gcp/hosting.sh` publica ahí. Sus reescrituras apuntan a los servicios de Cloud Run de ese mismo proyecto. Guía: `infrastructure/deploy/gcp/migracion/README.md`.

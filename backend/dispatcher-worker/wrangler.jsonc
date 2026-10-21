@@ -8,7 +8,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare-base.sh).
+  // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare/base.sh).
   "placement": { "region": "aws:us-east-2" },
   "minify": true,
   "upload_source_maps": true,
@@ -25,7 +25,7 @@
   // acá, y `gcloud scheduler jobs resume vigia-dispatcher-run --location us-central1`.
   "triggers": { "crons": ["*/5 * * * *"] },
 
-  // Las de infrastructure/deploy/dispatcher.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
+  // Las de infrastructure/deploy/gcp/dispatcher.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): GCP_SA_KEY (cuenta con roles/run.invoker en los 4 servicios de
   // agentes) y DISPATCHER_TOKEN (endpoints manuales).
   "vars": {

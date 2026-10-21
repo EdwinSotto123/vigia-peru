@@ -4,10 +4,10 @@
 # vigia-ingest → repetir hasta que el lote no tenga pendientes. Sirve para la carga inicial de los
 # 90 días y para el histórico por años. Reanudable: si se corta, se vuelve a lanzar con el mismo lote.
 #
-#   bash infrastructure/deploy/batch-documentos-loop.sh <records-lote-id> [politica=todo] [TRAMO_GB=20]
-#   TRAMO_GB=10 bash infrastructure/deploy/batch-documentos-loop.sh records-20260915-071500
+#   bash infrastructure/deploy/gcp/batch-documentos-loop.sh <records-lote-id> [politica=todo] [TRAMO_GB=20]
+#   TRAMO_GB=10 bash infrastructure/deploy/gcp/batch-documentos-loop.sh records-20260915-071500
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
 LOTE_REC="${1:?lote de records}"
 POLITICA="${2:-todo}"

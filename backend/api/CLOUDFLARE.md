@@ -40,7 +40,7 @@ npx wrangler hyperdrive create vigia-api-admin --caching-disabled --connection-s
 
 ## Variables (`vars` en `wrangler.jsonc`)
 
-Las de `infrastructure/deploy/api.sh`, sin las de conexión (`PGHOST`, `PGUSER`, `PGUSER_ADMIN`,
+Las de `infrastructure/deploy/gcp/api.sh`, sin las de conexión (`PGHOST`, `PGUSER`, `PGUSER_ADMIN`,
 `PGDATABASE`, `PG_POOLER`), que reemplaza Hyperdrive:
 
 | Variable | Valor |
