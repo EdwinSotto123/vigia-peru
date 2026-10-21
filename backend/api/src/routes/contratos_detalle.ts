@@ -6,6 +6,7 @@
  * Se monta al final de contratosRouter (las rutas fijas /resumen y /geo van antes que `/:ocid`).
  */
 
+import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
 import { Hono } from "hono";
 import { publicar } from "../lib/privacidad.js";
 import { OCID_CANDIDATOS, pool } from "../lib/db.js";
@@ -45,6 +46,20 @@ contratosDetalleRouter.get("/:ocid/documento", async (c) => {
   return c.json({ url: firmada, formato, bytes: d.bytes, expiraAt: d.expiraAt, previsualizable: formato === "pdf", venceEnSeg: 900 });
 });
 
+// ─── GET /contratos/:ocid/gobierno — el partido que gobernaba la entidad cuando se convocó ────────
+// Para el dossier de un contrato leído, que se arma con otra fuente (la alerta) y no trae este dato.
+contratosDetalleRouter.get("/:ocid/gobierno", async (c) => {
+  const ocid = c.req.param("ocid");
+  if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
+  const r = await pool.query(
+    `SELECT ${COL_GOBIERNO} FROM convocatorias c ${gobiernoDeFila("c.ocid")}
+      WHERE c.ocid = ANY(${OCID_CANDIDATOS("$1")}) AND ocid_corto(c.ocid) = ocid_corto($1) ORDER BY (c.ocid = $1) DESC LIMIT 1`,
+    [ocid],
+  );
+  cache(c, 3600);
+  return c.json({ gobierno: r.rows[0]?.gobierno ?? null });
+});
+
 contratosDetalleRouter.get("/:ocid", async (c) => {
   const ocid = c.req.param("ocid");
   if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
@@ -72,10 +87,13 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
             COALESCE(c.ocds_payload->'awards', c.adjudicaciones) AS awards_raw,
             a.id AS alerta_id, a.codigo AS "alertaCodigo",
             ${ex.motivo} AS "motivoNoProcesable", ${ex.agentes} AS "agentesAplicables", ${ex.validaciones} AS "validacionesPendientes",
-            ${col(cols, "clasificado_at", "timestamptz")} AS "clasificadoAt"
+            ${col(cols, "clasificado_at", "timestamptz")} AS "clasificadoAt",
+            -- El partido que gobernaba la entidad cuando se convocó (lib/gobiernoFila.ts).
+            ${COL_GOBIERNO}
      ${FROM_FILA}
      ${emp}
      ${JOIN_RESUMEN}
+     ${gobiernoDeFila("c.ocid")}
      WHERE c.ocid = ANY(${OCID_CANDIDATOS("$1")}) AND ocid_corto(c.ocid) = ocid_corto($1) AND ${convocatoriaNoDemo("c")}
      ORDER BY (c.ocid = $1) DESC LIMIT 1`,
     [ocid],

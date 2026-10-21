@@ -6,6 +6,7 @@
  * Son datos de registros oficiales, no conclusiones: cada uno dice de dónde sale.
  */
 
+import type { GobiernoContrato } from "@/lib/contratos";
 import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
@@ -122,7 +123,18 @@ function Despues({ n: k, uno, varios }: { n: number | null; uno: string; varios:
   return <span className="text-mute"> Después de este proceso, {numero(k)} {k === 1 ? uno : varios} más (marcadas en la evidencia).</span>;
 }
 
-function Texto({ c }: { c: CruceProveedor }) {
+/** Si el aporte fue al partido que gobernaba la entidad o a otro (con mayúsculas y tildes distintas en cada fuente). */
+const normal = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+function AQuien({ partido, gobierna }: { partido: string | null; gobierna?: GobiernoContrato | null }) {
+  if (!partido || !gobierna) return null;
+  return normal(partido) === normal(gobierna.nombre) ? (
+    <b> Es el partido que gobernaba la entidad cuando se convocó.</b>
+  ) : (
+    <span> No es el partido que gobernaba la entidad: la gobernaba <b>{gobierna.nombre}</b>.</span>
+  );
+}
+
+function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato | null }) {
   const d = c.detalle;
   switch (c.tipo) {
     case "aporte":
@@ -134,6 +146,7 @@ function Texto({ c }: { c: CruceProveedor }) {
           <b>{txt(d.partido) ?? "una organización política"}</b>
           {veces && veces > 1 ? ` en ${numero(veces)} aportes` : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
+          <AQuien partido={txt(d.partido)} gobierna={gobierna} />
           <Despues n={n(d.posteriores)} uno="aporte" varios="aportes" />
           <Gano c={c} />
         </>
@@ -349,18 +362,18 @@ function Texto({ c }: { c: CruceProveedor }) {
   }
 }
 
-function Fila({ c }: { c: CruceProveedor }) {
+function Fila({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato | null }) {
   return (
     <li className="text-[13px] leading-relaxed text-ink">
-      <FilaContenido c={c} />
+      <FilaContenido c={c} gobierna={gobierna} />
     </li>
   );
 }
 
-function FilaContenido({ c }: { c: CruceProveedor }) {
+function FilaContenido({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato | null }) {
   return (
     <>
-      <Texto c={c} />{" "}
+      <Texto c={c} gobierna={gobierna} />{" "}
       <span className="text-[12px] text-mute">
         Fuente:{" "}
         {c.fuenteUrl ? (
@@ -563,7 +576,7 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
   );
 }
 
-export function CrucesProveedor({ cruces: todos, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
+export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
   if (!todos.length) return null;
   // Un antecedente es lo que ya había pasado cuando se convocó el proceso (migración 83); lo de después va aparte.
   const cruces = todos.filter((c) => !c.posterior);
@@ -607,13 +620,13 @@ export function CrucesProveedor({ cruces: todos, varios }: { cruces: CruceProvee
               </div>
               {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
               <ul className="list-disc space-y-1.5 pl-5">
-                {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} />)}
+                {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
               </ul>
               {filas.length > VISIBLES && (
                 <details className="mt-1.5">
                   <summary className="cursor-pointer text-[13px] text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
                   <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
-                    {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} />)}
+                    {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
                   </ul>
                 </details>
               )}
@@ -638,7 +651,7 @@ export function CrucesProveedor({ cruces: todos, varios }: { cruces: CruceProvee
             <ul className="list-disc space-y-1.5 pl-5">
               {[...posteriores].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? "")).map((c, i) => (
                 <li key={i} className="text-[13px] leading-relaxed text-inkSoft">
-                  <span className="font-medium text-ink">{c.etiqueta}:</span> <FilaContenido c={c} />
+                  <span className="font-medium text-ink">{c.etiqueta}:</span> <FilaContenido c={c} gobierna={gobierna} />
                 </li>
               ))}
             </ul>

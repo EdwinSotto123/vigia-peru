@@ -33,6 +33,7 @@ import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
 import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
 import { CrucesProveedor } from "./CrucesProveedor";
+import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
@@ -156,7 +157,7 @@ export function ContratoDetalle({
 
           {/* 2b. El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. */}
           {cruces.length > 0 && (
-            <CrucesProveedor cruces={cruces} varios={new Set(cruces.map((x) => x.rucProveedor)).size > 1} />
+            <CrucesProveedor cruces={cruces} varios={new Set(cruces.map((x) => x.rucProveedor)).size > 1} gobierna={c.gobierno} />
           )}
 
           {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
@@ -236,6 +237,7 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
           <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {c.zona}
         </Link>
       )}
+      <PartidoQueGobierna g={c.gobierno} completo />
     </span>
   );
 }

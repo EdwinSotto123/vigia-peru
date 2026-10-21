@@ -37,6 +37,7 @@ import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, tota
 import { PersonName } from "@/components/Redact";
 import { DetalleContrato } from "./DetalleContrato";
 import { CrucesCelda } from "./CrucesCelda";
+import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
@@ -220,7 +221,11 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
       Ganó {esPersonaNatural(c.proveedorRuc) ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
     </span>
   ) : null;
-  const meta = deEntidad ? [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, ganador] : [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona];
+  // El partido que gobernaba la entidad cuando se convocó, con su ícono (sin él, las entidades nacionales).
+  const partido = c.gobierno ? <PartidoQueGobierna key="partido" g={c.gobierno} /> : null;
+  const meta = deEntidad
+    ? [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, partido, ganador]
+    : [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona, partido];
   return {
     id: c.ocid,
     celdas: {

@@ -34,6 +34,17 @@ export type GrupoResumen = RiesgoContrato | "en_revision" | "descartado";
 export type EstadoContrato = "sin_analizar" | "pendiente_de_procesamiento" | "esperando_documentos" | "encolado" | "procesando" | "procesado" | "error";
 export type OrdenContratos = "fecha" | "monto" | "score";
 
+/** El partido que gobernaba la entidad cuando se convocó (API: lib/gobiernoFila.ts). `anio` es el de la elección. */
+export interface GobiernoContrato {
+  clave: string;
+  nombre: string;
+  tipo: string | null;
+  anio: number;
+  nivel: "regional" | "provincial" | "distrital";
+  ubigeo: string;
+  lugar: string | null;
+}
+
 export interface ContratoResumen {
   ocid: string;
   codigo: string;
@@ -63,6 +74,8 @@ export interface ContratoResumen {
   proveedorRuc: string | null;
   /** Cruces de los ganadores con otros registros públicos (casos_cruce): cada tipo con su severidad más alta. */
   cruces?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
+  /** Null en las entidades sin gobierno electo (ministerios, organismos nacionales). */
+  gobierno?: GobiernoContrato | null;
 }
 
 export interface ContratoItem {

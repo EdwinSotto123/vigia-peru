@@ -12,6 +12,7 @@
  * (DESIGN_SYSTEM.md §10.4).
  */
 
+import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
@@ -44,6 +45,10 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
       ),
     },
     { etiqueta: "Zona", valor: c.zona ?? <Vacio>Sin ubigeo asignado</Vacio> },
+    {
+      etiqueta: "Gobernaba",
+      valor: c.gobierno ? <PartidoQueGobierna g={c.gobierno} completo /> : <Vacio>Entidad sin gobierno local electo</Vacio>,
+    },
     { etiqueta: "Tipo", valor: tipoLabel(c.tipo) ?? <Vacio>Sin clasificar</Vacio> },
     { etiqueta: "Etapa", valor: etapaLabel(c.etapa) ?? <Vacio>Sin clasificar</Vacio> },
     ...(c.modalidad ? [{ etiqueta: "Modalidad", valor: c.modalidad }] : []),

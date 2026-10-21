@@ -1,11 +1,14 @@
 "use client";
 
 import { rutaContrato } from "@/lib/rutas";
-import { useContext, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
 import { Migas, Volver } from "@/components/patrones";
+import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
+import { baseApiNavegador } from "@/lib/api-client";
+import type { GobiernoContrato } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
@@ -48,6 +51,17 @@ export function IdentidadDossier({
   // <h1> en la página pública; <h2> dentro de la vista previa del panel (ver ./nivelTitulo).
   const Titulo = useContext(NivelTituloDossier);
   const codigo: string = conv.codigo || conv.ocid || "";
+  const [gobierno, setGobierno] = useState<GobiernoContrato | null>(null);
+  useEffect(() => {
+    const id = conv.ocid || conv.codigo;
+    if (!id) return;
+    let vivo = true;
+    fetch(`${baseApiNavegador()}/contratos/${encodeURIComponent(id)}/gobierno`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => vivo && setGobierno(d?.gobierno ?? null))
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, [conv.ocid, conv.codigo]);
   const natural = esPersonaNatural(ganador?.ruc);
   const accion =
     "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep";
@@ -92,6 +106,7 @@ export function IdentidadDossier({
               <MapPin size={12} aria-hidden /> {conv.region}
             </span>
           )}
+          <PartidoQueGobierna g={gobierno} completo />
         </p>
         {/* Quién ganó: la persona natural va en vidrio (su apellido y su RUC 10). */}
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] text-inkSoft">
