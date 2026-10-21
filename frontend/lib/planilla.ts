@@ -6,7 +6,7 @@
 import { API_BASE } from "./api-client";
 import type { Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
 export type TipoPlaza = (typeof TIPOS_PLAZA)[number];
@@ -25,7 +25,12 @@ export interface PersonaPlanilla {
   regimen: number | null;
   cargo: string | null;
   dependencia: string | null;
+  /** Lo que cobró el último mes, con todo. */
   total: number | null;
+  /** Su sueldo: remuneraciones + honorarios (migración 98). */
+  base: number | null;
+  /** Fuera del sueldo: otros beneficios, gratificación, incentivo. */
+  extra: number | null;
   meses: number;
   primerMes: string | null;
   ultimoMes: string | null;
@@ -111,8 +116,13 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
   brecha_cargo: {
     corto: "Gana el doble que su cargo",
     titulo: "Gana el doble o más que otros con su mismo cargo",
+    explica: "Su sueldo (sin gratificaciones, liquidaciones ni otros beneficios del mes) es el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad.",
+  },
+  pago_extraordinario: {
+    corto: "Pago extraordinario",
+    titulo: "Recibió un pago grande fuera de su sueldo",
     explica:
-      "Cobra el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad, ese mes. El total del mes puede incluir pagos extraordinarios (gratificación, devengados, liquidación): revisa el detalle en el portal.",
+      "Ese mes cobró S/ 20,000 o más en otros beneficios, gratificación o incentivo, el triple de su sueldo o más: suele ser una liquidación, un retiro incentivado o un bono. No es irregular por sí mismo.",
   },
   apellidos_autoridad: {
     corto: "Apellidos de una autoridad",

@@ -128,7 +128,10 @@ export interface OrdenPersona {
   numero: string | null;
   orden: string | null;
   descripcion: string | null;
-  monto: number;
+  /** null si el monto es dudoso (migración 98). */
+  monto: number | null;
+  /** El monto que trae CONOSCE cuando no se puede creer (20 veces el tope de su modalidad…): se muestra, no se suma. */
+  montoDudoso: number | null;
   estado: string | null;
   servicio: string | null;
 }

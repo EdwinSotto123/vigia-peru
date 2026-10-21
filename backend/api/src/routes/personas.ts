@@ -260,7 +260,8 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
     const ruc = p.rows[0]?.ruc;
     if (!ruc) return null;
     const vals: unknown[] = [ruc];
-    const conds = [`o.ruc_contratista = $1`, `o.tipo_orden = 'Orden de Servicio'`, `o.moneda = 'Nuevos Soles'`, `o.monto > 0`];
+    // Con las de monto dudoso (migración 98): se muestran con su monto original, que no se suma.
+    const conds = [`o.ruc_contratista = $1`, `o.tipo_orden = 'Orden de Servicio'`, `o.moneda = 'Nuevos Soles'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`];
     if (q.entidad) { vals.push(q.entidad); conds.push(`o.entidad_ruc = $${vals.length}`); }
     if (q.anio) { vals.push(q.anio); conds.push(`o.fecha_emision >= make_date($${vals.length}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`); }
     // Una vez cada orden (un archivo mensual puede repetirla; vale la del más nuevo), como persona_orden_anual.
@@ -270,7 +271,7 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
            FROM conosce_ordenes o WHERE ${conds.join(" AND ")}
           ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
        SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero,
-              o.orden, o.descripcion, o.monto::float AS monto, o.estado, servicio_persona(o.descripcion) AS servicio,
+              o.orden, o.descripcion, o.monto::float AS monto, o.monto_dudoso::float AS "montoDudoso", o.estado, servicio_persona(o.descripcion) AS servicio,
               count(*) OVER ()::int AS total
          FROM o ORDER BY o.fecha_emision DESC, o.orden DESC
         LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals);

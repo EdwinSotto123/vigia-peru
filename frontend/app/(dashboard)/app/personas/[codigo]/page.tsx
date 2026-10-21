@@ -309,7 +309,16 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
         />
       ),
       estado: <span className="text-[13px] text-inkSoft">{o.estado ?? "Sin dato"}</span>,
-      monto: <CeldaNumero>{soles(o.monto)}</CeldaNumero>,
+      monto:
+        o.monto == null && o.montoDudoso != null ? (
+          <CeldaNumero sub="monto dudoso, no se suma">
+            <span className="text-mute line-through" title="CONOSCE trae este monto, imposible para la modalidad de la orden: se muestra, no se suma.">
+              {soles(o.montoDudoso)}
+            </span>
+          </CeldaNumero>
+        ) : (
+          <CeldaNumero>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>
+        ),
     },
   }));
   return (

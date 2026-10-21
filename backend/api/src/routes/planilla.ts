@@ -23,7 +23,7 @@ export const plazasRouter = new Hono();
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Record<string, unknown>>({ nombre: "planilla", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario"] as const;
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
 const SEV: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
@@ -51,7 +51,8 @@ const ListaPlanilla = {
   regimen: z.coerce.number().int().min(1).max(9).optional(),
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
-const ORDEN_PLANILLA = { senales: "p.sev DESC, p.n_senales DESC, p.total DESC NULLS LAST", sueldo: "p.total DESC NULLS LAST", meses: "p.meses DESC, p.total DESC NULLS LAST" };
+// "sueldo" ordena por el sueldo base (migración 98): el total del mes trae liquidaciones y retiros.
+const ORDEN_PLANILLA = { senales: "p.sev DESC, p.n_senales DESC, p.base DESC NULLS LAST", sueldo: "p.base DESC NULLS LAST", meses: "p.meses DESC, p.base DESC NULLS LAST" };
 
 planillaRouter.get("/", async (c) => {
   const parsed = leer(c, ListaPlanilla);
@@ -88,6 +89,7 @@ planillaRouter.get("/", async (c) => {
     const [filas, res] = await Promise.all([
       pool.query(
         `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
+                p.base::float AS base, p.extra::float AS extra,
                 p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
                 p.senales, p.n_senales AS "nSenales", p.codigo, count(*) OVER ()::int AS n
            FROM planilla_persona p WHERE ${conds.join(" AND ")}

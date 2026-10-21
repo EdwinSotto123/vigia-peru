@@ -137,7 +137,7 @@ const columnas = (deEntidad: boolean): Columna[] => [
     ),
   },
   { clave: "regimen", titulo: "Régimen", ancho: "112px", desde: "lg" },
-  { clave: "total", titulo: deEntidad ? "Sueldo del mes" : "Sueldo", ancho: "112px", alinear: "der" },
+  { clave: "total", titulo: "Sueldo", ancho: "112px", alinear: "der" },
 ];
 
 async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; parametros: Parametros; ruta: string; actual: number; deEntidad: boolean; filtrada: boolean }) {
@@ -188,7 +188,9 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
     { etiqueta: "Cargo", valor: p.cargo ? tituloNatural(p.cargo) : null },
     { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
     { etiqueta: "Régimen", valor: p.regimen ? REGIMEN[p.regimen] ?? String(p.regimen) : null },
-    { etiqueta: "Sueldo del último mes", valor: p.total != null ? soles(p.total) : null, mono: true },
+    { etiqueta: "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
+    { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
+    ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
     { etiqueta: "Meses en planilla", valor: `${numero(p.meses)} (${[p.primerMes, p.ultimoMes].filter(Boolean).join(" a ")})` },
     ...(!deEntidad && entidad ? [{ etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}`} className="text-granate hover:underline">{entidad}</Link> }] : []),
   ];
@@ -198,7 +200,11 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
       persona: <CeldaPrincipal titulo={p.nombre} meta={deEntidad ? [p.cargo ? tituloNatural(p.cargo) : null, p.dependencia ? tituloNatural(p.dependencia) : null] : [p.cargo ? tituloNatural(p.cargo) : null, entidad]} />,
       senales: <Chips senales={p.senales} />,
       regimen: <span className="text-[13px] text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
-      total: <CeldaNumero sub={p.ultimoMes ?? undefined}>{p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>,
+      total: (
+        <CeldaNumero sub={p.extra && p.total != null && p.total > (p.base ?? 0) ? `${solesCompacto(p.total)} con todo` : p.ultimoMes ?? undefined}>
+          {p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}
+        </CeldaNumero>
+      ),
     },
     detalle: {
       titulo: p.nombre,
@@ -239,11 +245,21 @@ const lista = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[
 
 function DetalleSenal({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
-  if (tipo === "brecha_cargo") {
+  if (tipo === "pago_extraordinario") {
+    items = [
+      { etiqueta: "Su sueldo", valor: n(d.base) != null ? soles(n(d.base)) : null, mono: true },
+      { etiqueta: "Fuera del sueldo", valor: n(d.extra) != null ? soles(n(d.extra)) : null, mono: true },
+      { etiqueta: "Total del mes", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
+    ];
+  } else if (tipo === "brecha_cargo") {
     items = [
       { etiqueta: "Su sueldo", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
       { etiqueta: "Mediana de su cargo", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.personas) ?? 0)} personas)` : null },
       { etiqueta: "Diferencia", valor: n(d.veces) != null ? `${String(n(d.veces)).replace(".", ",")} veces` : null },
+      // Tanta diferencia suele ser un pago acumulado (devengados de varios meses) cargado como sueldo.
+      ...((n(d.veces) ?? 0) >= 5
+        ? [{ etiqueta: "Ojo", valor: "Una diferencia así suele ser un pago acumulado de varios meses registrado como sueldo: verifícalo en el portal de la entidad." }]
+        : []),
     ];
   } else if (tipo === "tambien_ordenes") {
     items = [
