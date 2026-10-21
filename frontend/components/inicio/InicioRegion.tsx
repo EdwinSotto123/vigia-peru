@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { baseApiNavegador } from "@/lib/api-client";
+import { getCorrupcionRegion, type Corrupcion } from "@/lib/corrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import type { RegionBudgetSummary } from "@/lib/mef";
 import { Banderas, BarrasGasto, BloqueInicio, SinDato } from "./BloquesInicio";
+import { CasosCorrupcion } from "./CasosCorrupcion";
 
 /**
  * Inicio de una región en el mapa (pestaña "Inicio" del panel de zona): en qué gasta (MEF), sus contratos y las
@@ -19,16 +21,22 @@ export function InicioRegion({
   ubigeo,
   nombre,
   mefDept,
-  corrupcion,
 }: {
   ubigeo: string;
   nombre: string;
   /** Departamento como lo nombra el MEF ("PUNO"); sin él no hay presupuesto (provincias y distritos). */
   mefDept: string | null;
-  corrupcion?: ReactNode;
 }) {
   const [mef, setMef] = useState<RegionBudgetSummary | null | undefined>(mefDept ? undefined : null);
   const [resumen, setResumen] = useState<ResumenContratos | null | undefined>(undefined);
+  const [corrupcion, setCorrupcion] = useState<Corrupcion | null | undefined>(undefined);
+
+  useEffect(() => {
+    let vivo = true;
+    setCorrupcion(undefined);
+    getCorrupcionRegion(ubigeo).then((d) => vivo && setCorrupcion(d));
+    return () => { vivo = false; };
+  }, [ubigeo]);
 
   useEffect(() => {
     if (!mefDept) return;
@@ -111,7 +119,7 @@ export function InicioRegion({
         {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />}
       </BloqueInicio>
 
-      {corrupcion}
+      <CasosCorrupcion datos={corrupcion} ambito="region" nombreRegion={nombre} mostrarEntidad visibles={4} />
     </div>
   );
 }

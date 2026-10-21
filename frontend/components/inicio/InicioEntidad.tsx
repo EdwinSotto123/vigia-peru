@@ -1,14 +1,15 @@
-import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { getGastoEntidad } from "@/lib/api-client";
+import { getCorrupcionEntidad } from "@/lib/corrupcion";
+import { CasosCorrupcion } from "./CasosCorrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { Banderas, BarrasGasto, BloqueInicio, RejillaInicio, SinDato } from "./BloquesInicio";
 
 /**
  * Inicio de una entidad (/entidad/[ruc], primera pestaña): en qué gasta (MEF), sus contratos, las banderas levantadas
- * y los casos de corrupción, cada bloque con su enlace a la pestaña del detalle. `corrupcion` lo arma la página.
+ * y los casos de corrupción (Procuraduría Anticorrupción y Contraloría), cada bloque con su enlace al detalle.
  */
 export async function InicioEntidad({
   ruc,
@@ -16,16 +17,17 @@ export async function InicioEntidad({
   resumen,
   totalContratos,
   enCola,
-  corrupcion,
+  region,
 }: {
   ruc: string;
   ruta: string;
   resumen: ResumenContratos | null;
   totalContratos: number;
   enCola: number;
-  corrupcion?: ReactNode;
+  /** Su departamento, por nombre: las cifras de la Procuraduría son de la región, no de la entidad. */
+  region: string | null;
 }) {
-  const gasto = await getGastoEntidad(ruc);
+  const [gasto, corrupcion] = await Promise.all([getGastoEntidad(ruc), getCorrupcionEntidad(ruc)]);
   const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", ...f })}`;
   const totalGasto = (gasto?.funciones ?? []).reduce((s, f) => s + f.pim, 0);
   const devengado = (gasto?.funciones ?? []).reduce((s, f) => s + f.devengado, 0);
@@ -93,7 +95,7 @@ export async function InicioEntidad({
         <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />
       </BloqueInicio>
 
-      {corrupcion}
+      <CasosCorrupcion datos={corrupcion} ambito="entidad" nombreRegion={region} />
     </RejillaInicio>
   );
 }

@@ -1,30 +1,30 @@
-import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { AVISO_PARTIDO, getProcesosPartido, periodoTexto, type AnioGobierno, type DetallePartido } from "@/lib/partidosApi";
+import { getCorrupcionPartido } from "@/lib/corrupcion";
 import { Banderas, BarrasMonto, BloqueInicio, RejillaInicio, SinDato } from "./BloquesInicio";
+import { CasosCorrupcion } from "./CasosCorrupcion";
 
 /**
  * Inicio de un partido (/app/partidos/[clave], primera pestaña) en un período: en qué contrataron sus gobiernos,
  * dónde, sus contratos y las banderas levantadas. El MEF no se suma por partido (cada gobierno tiene su presupuesto):
- * "en qué" sale de lo adjudicado (OECE). `corrupcion` lo arma la página.
+ * "en qué" sale de lo adjudicado (OECE). Y los informes de control de la Contraloría sobre las entidades que gobernó.
  */
 export async function InicioPartido({
   clave,
   anio,
   ruta,
   d,
-  corrupcion,
 }: {
   clave: string;
   anio: AnioGobierno;
   ruta: string;
   d: DetallePartido;
-  corrupcion?: ReactNode;
 }) {
   // Los conteos de lectura y antecedentes de TODOS sus procesos del período (sin los filtros de la pestaña de procesos).
-  const facetas = (await getProcesosPartido(clave, anio, { size: 1 }))?.facetas ?? null;
+  const [procesosTodos, corrupcion] = await Promise.all([getProcesosPartido(clave, anio, { size: 1 }), getCorrupcionPartido(clave, anio)]);
+  const facetas = procesosTodos?.facetas ?? null;
   const procesos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "procesos", ...f })}`;
   const h = d.historia;
   const t = d.totales;
@@ -86,7 +86,12 @@ export async function InicioPartido({
         <Banderas porRiesgo={facetas?.porRiesgo} porCruces={facetas?.porCruces} href={procesos} />
       </BloqueInicio>
 
-      {corrupcion}
+      <CasosCorrupcion
+        datos={corrupcion}
+        ambito="partido"
+        mostrarEntidad
+        nota={`Informes sobre las entidades que gobernó, emitidos de ${periodoTexto(anio)}. No dicen que la responsabilidad sea de sus autoridades: el informe nombra a cada funcionario, de carrera o de confianza.`}
+      />
     </RejillaInicio>
   );
 }

@@ -156,7 +156,7 @@ export default async function EntidadProfile({
             etiqueta: "Inicio",
             contenido: (
               <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
-                <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} />
+                <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} />
               </Suspense>
             ),
           },
