@@ -94,7 +94,8 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   const h = d.historia;
   const gobiernos = d.gobiernos ?? [];
   const totalGobiernos = partido.gobiernos.regional + partido.gobiernos.provincial + partido.gobiernos.distrital;
-  const seccion = uno(searchParams?.seccion);
+  // Con filtros de la lista y sin pestaña (enlaces de otras páginas), se abren sus contratos, no el Inicio.
+  const seccion = uno(searchParams?.seccion) ?? (Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
 
   return (
     <Pagina>

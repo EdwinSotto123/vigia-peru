@@ -93,7 +93,9 @@ export default async function EntidadProfile({
   const totalContratos = resumenEntidad?.total ?? Number(e.contratos || 0);
   const regionDenuncias = region ? REGIONES.find((r) => normalizar(r.nombre) === normalizar(region))?.nombre : undefined;
 
-  const seccion = typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined;
+  // Un enlace con filtros de la lista y sin pestaña (`?mes=2016`, `?cruces=con` desde otras páginas) abre los contratos,
+  // no el Inicio.
+  const seccion = (typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined) ?? (filtrada ? "contratos" : undefined);
   // "Inicio" es la primera pestaña (sin `seccion` en la URL): la lista de contratos lleva la suya en sus enlaces
   // (paginación, filtros), o volverían a Inicio.
   const parametrosLista: Parametros = { ...parametros, seccion: "contratos" };
