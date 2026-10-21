@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { elegirId, mesesPte, parsearPlanilla, terminosDe } from "../src/fuentes/pte_personal.ts";
+import { elegirId, mesesPte, parsearDirectorio, parsearPlanilla, terminosDe } from "../src/fuentes/pte_personal.ts";
 
 const CSV = `PK_ID_PERSONAL,VC_PERSONAL_RUC_ENTIDAD,IN_PERSONAL_ANNO,IN_PERSONAL_MES,VC_PERSONAL_REGIMEN_LABORAL,VC_PERSONAL_PATERNO,VC_PERSONAL_MATERNO,VC_PERSONAL_NOMBRES,VC_PERSONAL_CARGO,VC_PERSONAL_DEPENDENCIA,MO_PERSONAL_REMUNERACIONES,MO_PERSONAL_HONORARIOS,MO_PERSONAL_INCENTIVO,MO_PERSONAL_GRATIFICACION,MO_PERSONAL_OTROS_BENEFICIOS,MO_PERSONAL_TOTAL,VC_PERSONAL_OBSERVACIONES,FEC_REG
 88696040,20131373237,2025,12,1,CALDERON,CAYLLAHUA,MAURO ROGER,ASIST. ADMINISTRATIVO/A,SECRETARIA GENERAL,4041.7100,0.0000,0.0000,0.0000,0.0000,4041.7100,,1/20/2026 11:10:09 AM
@@ -49,4 +49,15 @@ test("pte_personal: sin caracteres de control (un NUL rompía el JSON de la carg
   const f = parsearPlanilla(csv);
   assert.equal(f[0].dependencia, "SECRETARIA GENERAL");
   assert.doesNotMatch(JSON.stringify(f), /\\u0000/);
+});
+
+test("pte_personal: el directorio del PTE da id y nombre, sin la sigla", () => {
+  const html = `<a href="../enlaces/pte_transparencia_enlaces.aspx?id_entidad=18595&id_tema=1">CORTE SUPERIOR DE JUSTICIA DE LIMA (CSJ LIMA)</a>
+    <a href="pte_transparencia_enlaces.aspx?id_entidad=14286" class="x">UNIDAD EJECUTORA 305 EDUCACION UGEL HUAMALIES</a>
+    <a href="pte_transparencia_enlaces.aspx?id_entidad=102006">MUNICIPALIDAD DISTRITAL DE SANTO DOMINGO DE ANDA (MDSDA)</a>`;
+  assert.deepEqual(parsearDirectorio(html), [
+    { id: 18595, nombre: "CORTE SUPERIOR DE JUSTICIA DE LIMA" },
+    { id: 14286, nombre: "UNIDAD EJECUTORA 305 EDUCACION UGEL HUAMALIES" },
+    { id: 102006, nombre: "MUNICIPALIDAD DISTRITAL DE SANTO DOMINGO DE ANDA" },
+  ]);
 });

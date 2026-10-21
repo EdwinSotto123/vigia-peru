@@ -12,8 +12,13 @@
  *      sesión responde vacío). El CSV trae el RUC de la entidad: si no es el esperado, se carga con el que trae.
  *   3. Cada entidad y mes se borra y se vuelve a cargar en una transacción; si el CSV no cambió (sha256) no se toca.
  *
- * Por defecto los dos meses anteriores al actual (las entidades publican con atraso). Con `desde`/`hasta` (AAAA-MM),
- * ese rango. Al final: refrescar_planilla() y refrescar_personas_senales() (las órdenes ven la planilla).
+ * Además del nombre, el directorio del PTE (migración 99): sus listados por poder del Estado traen 2 344 entidades,
+ * muchas unidades ejecutoras (UGEL, redes de salud, hospitales) que CONOSCE nombra distinto. Se recorren también: el
+ * CSV dice su RUC.
+ *
+ * Por defecto los dos meses anteriores al actual (las entidades publican con atraso): se bajan siempre (una entidad
+ * corrige o completa lo publicado). Con `desde`/`hasta` (AAAA-MM), ese rango, y lo que ya está en la base no se vuelve
+ * a bajar (`forzar` sí). Al final: refrescar_planilla() y refrescar_personas_senales() (las órdenes ven la planilla).
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -79,6 +84,21 @@ async function buscar(term: string): Promise<{ id: number; nombre: string }[]> {
   if (!r.ok) throw new Error(`PTE buscador: HTTP ${r.status}`);
   const d = (await r.json().catch(() => [])) as unknown;
   return Array.isArray(d) ? d.filter((x) => x && typeof x.id === "number" && typeof x.nombre === "string") : [];
+}
+
+/** Los listados del directorio del PTE, por poder del Estado (los que enlaza su portada). */
+export const PODERES = [1, 2, 3, 4, 5, 7];
+
+/** Un listado del directorio → [{id, nombre}] (el nombre, sin la sigla entre paréntesis del final). */
+export function parsearDirectorio(html: string): { id: number; nombre: string }[] {
+  const out = new Map<number, string>();
+  for (const m of html.matchAll(/id_entidad=(\d+)[^>]*>([^<]{3,200})</g)) {
+    const nombre = m[2].replace(/&[a-z]+;|&#\d+;/gi, (x) => ({ "&amp;": "&", "&aacute;": "á", "&eacute;": "é", "&iacute;": "í", "&oacute;": "ó",
+      "&uacute;": "ú", "&ntilde;": "ñ", "&Aacute;": "Á", "&Eacute;": "É", "&Iacute;": "Í", "&Oacute;": "Ó", "&Uacute;": "Ú", "&Ntilde;": "Ñ" } as Record<string, string>)[x] ?? " ")
+      .replace(/\s*\([^()]*\)\s*$/, "").replace(/\s+/g, " ").trim();
+    if (nombre) out.set(Number(m[1]), nombre);
+  }
+  return [...out].map(([id, nombre]) => ({ id, nombre }));
 }
 
 /** La cookie de sesión de una respuesta (ASP.NET_SessionId y las del balanceador). */
@@ -230,10 +250,35 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
   }
   resumen.entidades = { buscadas, encontradas };
 
-  // 2. Cada mes, de a POR_PASO entidades.
+  // 1b. El directorio del PTE (migración 99): las entidades que no se hallan por nombre.
+  resumen.directorio = await step.do("directorio", PASO, async () => {
+    const todas = new Map<number, { nombre: string; poder: number }>();
+    for (const poder of PODERES) {
+      const r = await fetch(`${BASE}/buscador/pte_transparencia_listado_entidades_poder.aspx?Tipo_Pod=${poder}`, {
+        headers: { "User-Agent": UA }, signal: AbortSignal.timeout(60_000),
+      });
+      if (!r.ok) continue;
+      for (const e of parsearDirectorio(await r.text())) todas.set(e.id, { nombre: e.nombre, poder });
+    }
+    if (p.seco || !todas.size) return { entidades: todas.size };
+    const filas = [...todas].map(([id_pte, e]) => ({ id_pte, nombre: e.nombre, poder: e.poder }));
+    await conDb(env.HYPERDRIVE, (db) => db.ejecutar(
+      `INSERT INTO pte_directorio (id_pte, nombre, poder, visto_at)
+       SELECT id_pte, nombre, poder, now() FROM jsonb_to_recordset($1::jsonb) AS x (id_pte INT, nombre TEXT, poder SMALLINT)
+       ON CONFLICT (id_pte) DO UPDATE SET nombre = EXCLUDED.nombre, poder = EXCLUDED.poder, visto_at = now()`, [JSON.stringify(filas)]));
+    return { entidades: todas.size };
+  });
+
+  // 2. Cada mes, de a POR_PASO entidades: las halladas por nombre y las del directorio, cada id una vez (dos RUC pueden
+  //    dar con la misma entidad del PTE; el CSV trae el RUC de la que publica).
   const entidades = await step.do("entidades con id", CARGA, () => conDb(env.HYPERDRIVE, (db) =>
-    // Un id una vez: dos RUC pueden dar con la misma entidad del PTE (y el CSV trae el RUC de la que publica).
-    db.filas<{ ruc: string; id_pte: number }>(`SELECT DISTINCT ON (id_pte) ruc, id_pte FROM pte_entidad WHERE id_pte IS NOT NULL ORDER BY id_pte, ruc`)));
+    db.filas<{ ruc: string | null; id_pte: number }>(
+      `SELECT DISTINCT ON (id_pte) ruc, id_pte FROM (
+         SELECT id_pte, ruc FROM pte_entidad WHERE id_pte IS NOT NULL
+         UNION ALL SELECT id_pte, ruc FROM pte_directorio) x
+        ORDER BY id_pte, ruc NULLS LAST`)));
+  // En un relleno (desde/hasta) no se vuelve a bajar un mes que ya está en la base.
+  const relleno = !!(p.desde || p.hasta) && !p.forzar;
   let cargadas = 0;
   for (const [anio, mes] of mesesPte(p, fechaLima())) {
     const clave = `${anio}-${String(mes).padStart(2, "0")}`;
@@ -242,7 +287,13 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
       const lote = entidades.slice(i, i + POR_PASO);
       const x = await step.do(`planilla ${clave} ${i / POR_PASO + 1}`, PASO, async () => {
         const out = { conDatos: 0, filas: 0, sinCambios: 0, rucDistinto: 0, errores: 0 };
+        const yaEstan = relleno && !p.seco
+          ? new Set((await conDb(env.HYPERDRIVE, (db) => db.filas<{ entidad_ruc: string }>(
+              `SELECT DISTINCT entidad_ruc FROM planilla_pte WHERE anio = $1 AND mes = $2 AND entidad_ruc = ANY($3::text[])`,
+              [anio, mes, lote.map((e) => e.ruc).filter(Boolean)]))).map((x) => x.entidad_ruc))
+          : new Set<string>();
         for (const e of lote) {
+          if (e.ruc && yaEstan.has(e.ruc)) { out.sinCambios++; continue; }
           let csv: string | null = null;
           try {
             csv = await bajarMes(e.id_pte, anio, mes);
@@ -256,7 +307,11 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
           if (!filas.length) continue;
           out.conDatos++;
           const ruc = filas[0].entidad_ruc;
-          if (ruc !== e.ruc) out.rucDistinto++;
+          if (e.ruc && ruc !== e.ruc) out.rucDistinto++;
+          if (!p.seco && ruc !== e.ruc) {
+            await conDb(env.HYPERDRIVE, (db) => db.ejecutar(`UPDATE pte_directorio SET ruc = $2 WHERE id_pte = $1 AND ruc IS DISTINCT FROM $2`, [e.id_pte, ruc]))
+              .catch(() => undefined);
+          }
           if (p.seco) { out.filas += filas.length; continue; }
           const hash = await sha256(csv);
           const claveCarga = `${ruc}-${clave}`;
