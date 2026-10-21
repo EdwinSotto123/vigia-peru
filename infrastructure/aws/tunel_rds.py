@@ -18,6 +18,11 @@ Desde Python:
 
 Con sslmode=verify-full el nombre del certificado no coincide con 127.0.0.1: usar `require` (el tráfico ya va cifrado
 dentro de la sesión de SSM y además por TLS hasta RDS).
+
+Los scripts de carga del operador (backend/scripts/cargar_*.py) entran como `postgres` con la clave maestra de SSM:
+
+  with conexion("dev") as c:     # o "prod"
+      ...
 """
 
 from __future__ import annotations
@@ -35,6 +40,8 @@ REGION = "us-east-2"
 PERFIL = os.environ.get("AWS_PROFILE", "founder.edwin")
 PROXY = "vigia-db-proxy"
 BASES = {"prod": "vigia-db", "dev": "vigia-db-dev"}
+# Clave maestra (usuario postgres) de cada base en SSM Parameter Store.
+CLAVES = {"vigia-db": "/vigia/vigia-db/password", "vigia-db-dev": "/vigia/dev/db-admin"}
 ENTORNO = {**os.environ, "MSYS_NO_PATHCONV": "1"}
 
 
@@ -106,6 +113,21 @@ def tunel(base: str = "vigia-db", puerto: int | None = None, espera_s: int = 40)
         yield "127.0.0.1", puerto
     finally:
         _cerrar(proc)
+
+
+@contextlib.contextmanager
+def conexion(entorno: str):
+    """psycopg2 como `postgres` a la base del entorno ('prod' o 'dev') por el túnel, con la clave maestra de SSM."""
+    import psycopg2
+    base = BASES[entorno]
+    clave = _aws("ssm", "get-parameter", "--name", CLAVES[base], "--with-decryption", "--query", "Parameter.Value")
+    with tunel(base) as (host, puerto):
+        c = psycopg2.connect(host=host, port=puerto, dbname="vigia", user="postgres", password=clave, sslmode="require",
+                             connect_timeout=15, keepalives=1, keepalives_idle=30)
+        try:
+            yield c
+        finally:
+            c.close()
 
 
 def main() -> None:
