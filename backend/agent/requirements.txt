@@ -3,7 +3,7 @@ google-adk==1.19.0      # pin: cada deploy resolvía otra versión (thinking via
 google-genai==1.52.0    # pin: ThinkingConfig.thinking_level, thought signatures, grounding_metadata
 litellm>=1.50          # solo si USAR_WORKERS_AI=1 (agents/_shared/models.py: resolver_modelo)
 google-cloud-storage>=2.18
-google-cloud-documentai>=2.20
+google-cloud-documentai>=3.16.0
 pg8000==1.31.*
 requests==2.32.*
 pymupdf>=1.24,<2
