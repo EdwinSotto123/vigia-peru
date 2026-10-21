@@ -25,6 +25,8 @@ import {
 } from "@/components/listado";
 import { filtrosVisibles } from "@/components/contratos/filtros";
 import { InicioPartido } from "@/components/inicio/InicioPartido";
+import { ListaPersonas } from "@/components/personas/ListaPersonas";
+import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { LECTURAS } from "@/lib/contratos";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -95,7 +97,8 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   const gobiernos = d.gobiernos ?? [];
   const totalGobiernos = partido.gobiernos.regional + partido.gobiernos.provincial + partido.gobiernos.distrital;
   // Con filtros de la lista y sin pestaña (enlaces de otras páginas), se abren sus contratos, no el Inicio.
-  const seccion = uno(searchParams?.seccion) ?? (Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
+  const conPersonas = Object.values(PARAMS_EN_FICHA).some((k) => typeof searchParams?.[k] === "string");
+  const seccion = uno(searchParams?.seccion) ?? (conPersonas ? "personas" : Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
 
   return (
     <Pagina>
@@ -105,7 +108,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
           { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", gobiernos: "Gobiernos", meses: "Por mes", vigia: "Lo que leyó Vigía" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos", meses: "Por mes", vigia: "Lo que leyó Vigía" } }}
       />
 
       <EncabezadoPagina
@@ -201,6 +204,38 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                     </Suspense>
                   </ZonaResultados>
                 </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "personas",
+            etiqueta: "Personas contratadas",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Quiénes son?">
+                      <span className="block">
+                        Las personas a las que sus gobiernos pagaron por órdenes de servicio (OECE, CONOSCE) mientras este
+                        partido gobernaba. «Candidato del que gobierna» y «Aportó al que gobierna» marcan a quienes postularon
+                        o aportaron a este mismo partido.
+                      </span>
+                      <span className="mt-2 block">
+                        Por privacidad no se muestra su DNI ni su RUC y se tapa un apellido. Una señal no prueba nada.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  A quién contrataron sus gobiernos por órdenes de servicio en {periodoTexto(anio)}, y qué dicen de cada uno otros registros.
+                </CabeceraPestana>
+                <ListaPersonas
+                  alcance={{ partido: params.clave, periodo: anio }}
+                  sp={searchParams}
+                  P={PARAMS_EN_FICHA}
+                  ruta={ruta}
+                  base={{ anio: String(anio), seccion: "personas" }}
+                  conIndicadores
+                />
               </div>
             ),
           },

@@ -28,6 +28,10 @@ import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, P
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
+import { ListaPersonas } from "@/components/personas/ListaPersonas";
+import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
+import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
+import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -95,7 +99,10 @@ export default async function EntidadProfile({
 
   // Un enlace con filtros de la lista y sin pestaña (`?mes=2016`, `?cruces=con` desde otras páginas) abre los contratos,
   // no el Inicio.
-  const seccion = (typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined) ?? (filtrada ? "contratos" : undefined);
+  const con = (nombres: readonly string[]) => nombres.some((k) => typeof searchParams?.[k] === "string");
+  const seccion =
+    (typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined) ??
+    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_PLANILLA)) ? "planilla" : con(Object.values(P_PLAZAS)) ? "plazas" : filtrada ? "contratos" : undefined);
   // "Inicio" es la primera pestaña (sin `seccion` en la URL): la lista de contratos lleva la suya en sus enlaces
   // (paginación, filtros), o volverían a Inicio.
   const parametrosLista: Parametros = { ...parametros, seccion: "contratos" };
@@ -104,7 +111,7 @@ export default async function EntidadProfile({
     <Pagina>
       <Migas
         items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
       />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. */}
@@ -196,6 +203,74 @@ export default async function EntidadProfile({
                     </Suspense>
                   </ZonaResultados>
                 </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "personas",
+            etiqueta: "Personas contratadas",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Quiénes son?">
+                      <span className="block">
+                        Las personas a las que esta entidad pagó por órdenes de servicio de hasta 8 UIT, sin concurso:
+                        asistentes, asesores, choferes, profesionales (OECE, CONOSCE). Por privacidad no se muestra su DNI
+                        ni su RUC y se tapa un apellido.
+                      </span>
+                      <span className="mt-2 block">
+                        Las señales dicen qué otro registro público coincide con cada una. No prueban un delito ni un
+                        parentesco: son motivos para revisar.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  A quién le dio órdenes de servicio como persona, cuánto le pagó y qué dicen de cada una otros registros.
+                </CabeceraPestana>
+                <ListaPersonas alcance={{ entidad: e.ruc }} sp={searchParams} P={PARAMS_EN_FICHA} ruta={ruta} base={{ seccion: "personas" }} deEntidad conIndicadores />
+              </div>
+            ),
+          },
+          {
+            clave: "planilla",
+            etiqueta: "Planilla",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde sale la planilla?">
+                      <span className="block">
+                        Del Portal de Transparencia Estándar de la entidad, rubro Personal: cada mes publica a quienes trabajan
+                        en ella (CAS, 276, 728, funcionarios), con su cargo, su oficina y lo que cobran. No trae DNI: los cruces
+                        son por nombre completo. Se tapa un apellido.
+                      </span>
+                      <span className="mt-2 block">Las señales no prueban un delito ni un parentesco: son motivos para revisar.</span>
+                    </Ayuda>
+                  }
+                >
+                  Quiénes trabajan en la entidad, cuánto cobran y qué dicen de cada uno otros registros.
+                </CabeceraPestana>
+                <ListaPlanilla alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "planilla" }} deEntidad />
+              </div>
+            ),
+          },
+          {
+            clave: "plazas",
+            etiqueta: "Plazas CAS",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde salen las plazas?">
+                      De SERVIR Talento Perú: las convocatorias CAS que la entidad publicó, con sus requisitos y su sueldo. Las
+                      señales marcan rasgos de una plaza hecha a la medida de alguien; no prueban un direccionamiento.
+                    </Ayuda>
+                  }
+                >
+                  Las plazas CAS que convocó, con lo que pedían y lo que pagaban.
+                </CabeceraPestana>
+                <ListaPlazas alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "plazas" }} deEntidad />
               </div>
             ),
           },

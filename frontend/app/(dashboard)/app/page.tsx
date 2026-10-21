@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon, Users } from "lucide-react";
 import { Pagina } from "@/components/patrones";
 import { EnVivoInicio } from "@/components/home/EnVivoInicio";
 import { HeroInicio, type CifrasInicio } from "@/components/home/HeroInicio";
@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: "Inicio" };
  *
  *  1. La pregunta, el buscador y las cifras de hoy, cada una con su anillo (qué parte de qué).
  *  2. Rankings con pestañas (entidades, partidos, aliados, regiones) y, al lado, "se están analizando ahora".
- *  3. Siete caminos en palabras de persona y lo último que Vigía marcó.
+ *  3. Ocho caminos en palabras de persona y lo último que Vigía marcó.
  *
  * Toda cifra sale de las mismas lecturas que usa el resto de la app. Si una falla, su bloque (o su pestaña)
  * no se dibuja: nunca se rellena con un número plausible. Cada destino tiene UNA entrada.
@@ -35,6 +35,7 @@ const CAMINOS: { href: string; Icono: LucideIcon; titulo: string; texto: string 
   { href: "/app/contratos?cruces=alta", Icono: GitCompareArrows, titulo: "Ver ganadores con antecedentes", texto: "Aportes, sanciones, visitas, socios." },
   { href: "/app/entidades", Icono: Building2, titulo: "Buscar una empresa o entidad", texto: "Quién contrata y cuánto." },
   { href: "/app/partidos", Icono: Landmark, titulo: "Ver quién gobierna mi región", texto: "Y cuánto vigilamos en cada lugar." },
+  { href: "/app/personas?severidad=alta", Icono: Users, titulo: "Ver a quién contrata el Estado", texto: "Locadores, planilla y plazas CAS." },
   { href: "/app/financiar", Icono: Heart, titulo: "Financiar la lectura de contratos", texto: "Tu aporte paga que Vigía lea más." },
   { href: "/reporte/nuevo", Icono: Camera, titulo: "Denunciar una obra", texto: "Con una foto y la ubicación." },
 ];

@@ -13,6 +13,7 @@ import { correrJne } from "./fuentes/jne_infogob.ts";
 import { correrMef, correrMefCargarGasto, correrMefDetalle } from "./fuentes/mef_presupuesto.ts";
 import { correrConosce } from "./fuentes/conosce.ts";
 import { correrContraloria } from "./fuentes/contraloria_informes.ts";
+import { correrPte } from "./fuentes/pte_personal.ts";
 import { correrOrdenes } from "./fuentes/conosce_ordenes.ts";
 import { correrGastos } from "./fuentes/onpe_gastos.ts";
 import { correrOcds } from "./fuentes/oece_ocds.ts";
@@ -45,6 +46,7 @@ export const FUENTES: Record<string, Corredor> = {
   onpe_gastos: correrGastos,
   onpe_claridad: correrOnpe,
   contraloria_informes: correrContraloria,
+  pte_personal: correrPte,
 };
 
 /** Los pasos de la bitácora: cortos, y si fallan la corrida sigue (anotar nunca la corta). */

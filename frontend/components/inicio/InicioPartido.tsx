@@ -5,6 +5,7 @@ import { AVISO_PARTIDO, getGastoPartido, getProcesosPartido, periodoTexto, type 
 import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
 import { Banderas, BarrasMonto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
+import { BloquePersonas } from "./BloquePersonas";
 import { GastoGobiernos } from "./GastoGobiernos";
 
 /**
@@ -97,6 +98,12 @@ export async function InicioPartido({ clave, anio, ruta, d }: { clave: string; a
       >
         <Banderas porRiesgo={facetas?.porRiesgo} porCruces={facetas?.porCruces} href={procesos} />
       </BloqueInicio>
+
+      <BloquePersonas
+        alcance={{ partido: clave, periodo: anio }}
+        de="sus gobiernos"
+        href={(f) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "personas", ...f })}`}
+      />
 
       <CasosCorrupcion
         datos={corrupcion}

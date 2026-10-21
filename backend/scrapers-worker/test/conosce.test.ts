@@ -10,7 +10,7 @@ import { strToU8, zipSync } from "fflate";
 import { CRON_DATOS, fuentesDelCron } from "../src/calendario.ts";
 import { leerCsv } from "../src/csv.ts";
 import { CONJUNTOS, aniosConosce, normalizarCabecera, selectDestino, separarCabecera } from "../src/fuentes/conosce.ts";
-import { MAPA_ORDENES, mesesOrdenes, urlOrdenes } from "../src/fuentes/conosce_ordenes.ts";
+import { MAPA_ORDENES, desdeRefresco, mesesOrdenes, urlOrdenes } from "../src/fuentes/conosce_ordenes.ts";
 import { leerXlsx } from "../src/xlsx.ts";
 import { CortadorFilas, xlsxComoCsv } from "../src/xlsx_flujo.ts";
 
@@ -122,6 +122,13 @@ test("órdenes: meses por defecto y pedidos, URL del archivo y columnas fijas a�
   assert.deepEqual(mesesOrdenes({ desde: "2017-11", hasta: "2018-01" }, "2026-10-14"), [[2018, 1]]);
   assert.match(urlOrdenes(2026, 9), /\/ordenes\/2026\/CONOSCE_ORDENESCOMPRASEPTIEMBRE2026_0\.xlsx$/);
   const { cols, select } = selectDestino(MAPA_ORDENES.slice(0, 2), new Set(["entidad", "ruc_entidad"]), { anio: 2026, mes: 9 });
+
+test("conosce_ordenes: lo que sale de las órdenes se rehace desde 6 meses antes del primer mes cargado", () => {
+  assert.equal(desdeRefresco([2026, 8]), "2026-02-01");
+  assert.equal(desdeRefresco([2026, 3]), "2025-09-01");
+  assert.equal(desdeRefresco([2026, 6]), "2025-12-01");
+  assert.equal(desdeRefresco([2026, 7]), "2026-01-01");
+});
   assert.equal(cols, "anio, mes, entidad, entidad_ruc");
   assert.equal(select, `2026, 9, NULLIF(btrim("entidad"), ''), NULLIF(btrim("ruc_entidad"), '')`);
   assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-17T13:00:00Z")).includes("conosce_ordenes"));

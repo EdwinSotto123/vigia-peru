@@ -130,6 +130,28 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
       }
     });
   }
+  if (partes.has("pte")) {
+    // Portal de Transparencia Estándar, personal (planilla por entidad y mes) y SERVIR Talento Perú (plazas CAS):
+    // si responden desde Cloudflare, se cargan en el Worker; si no, desde una PC en el Perú, como la Contraloría.
+    const pte = "https://www.transparencia.gob.pe/personal/pte_transparencia_personal.aspx";
+    const cuerpo = "ch_tipo_busqueda=1&id_entidad=143&id_tema=31&in_anno_consulta=2025&ch_mes_consulta=12&vc_nombre_funcionario=&vc_dni_funcionario=&ch_tipo_regimen=1";
+    out.pte_directo = await medir(async () => {
+      const r = await fetch(pte, { method: "POST", body: cuerpo, signal: AbortSignal.timeout(25_000),
+                                   headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" } });
+      const t = await r.text();
+      return { status: r.status, bytes: t.length, conListado: t.includes("LISTADO DE PERSONAL") };
+    });
+    out.pte_relay = await medir(async () => {
+      const r = await obtener(env, `${pte}?id_entidad=143&id_tema=31&ver=`, { relay: true, sinReintentos: true, timeoutMs: 25_000 });
+      const t = await r.text();
+      return { status: r.status, bytes: t.length, conFormulario: t.includes("frm_busqueda") };
+    });
+    out.servir_directo = await medir(async () => {
+      const r = await obtener(env, "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml", { sinReintentos: true, timeoutMs: 25_000 });
+      const t = await r.text();
+      return { status: r.status, bytes: t.length, conOfertas: /cuadro-vacantes|Ofertas Laborales/.test(t) };
+    });
+  }
   if (todo || partes.has("r2")) {
     out.r2 = await medir(async () => {
       const l = await env.CRUDOS.list({ prefix: "raw/", limit: 5 });

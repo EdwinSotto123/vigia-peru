@@ -12,6 +12,8 @@ import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import type { RegionBudgetSummary } from "@/lib/mef";
 import { Banderas, BarrasGasto, BloqueInicio, Fichas, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
+import { ContenidoPersonas } from "./ContenidoPersonas";
+import { PARAMS_SOLOS, type PaginaPersonas, type ResumenPersonas } from "@/lib/personas";
 
 /**
  * Inicio de una región en el mapa (pestaña "Inicio" del panel de zona): en qué gasta (MEF), sus contratos y las
@@ -31,6 +33,19 @@ export function InicioRegion({
   const [mef, setMef] = useState<RegionBudgetSummary | null | undefined>(mefDept ? undefined : null);
   const [resumen, setResumen] = useState<ResumenContratos | null | undefined>(undefined);
   const [corrupcion, setCorrupcion] = useState<Corrupcion | null | undefined>(undefined);
+  const [personas, setPersonas] = useState<ResumenPersonas | null | undefined>(undefined);
+  const dep = ubigeo.length === 2 ? ubigeo : null;
+
+  useEffect(() => {
+    if (!dep) return;
+    let vivo = true;
+    setPersonas(undefined);
+    fetch(`${baseApiNavegador()}/personas?dep=${dep}&size=0`)
+      .then((r) => (r.ok ? (r.json() as Promise<PaginaPersonas>) : null))
+      .then((d) => vivo && setPersonas(d?.resumen ?? null))
+      .catch(() => vivo && setPersonas(null));
+    return () => { vivo = false; };
+  }, [dep]);
 
   useEffect(() => {
     let vivo = true;
@@ -131,6 +146,23 @@ export function InicioRegion({
       >
         {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />}
       </BloqueInicio>
+
+      {dep && (
+        <BloqueInicio
+          titulo="Personas contratadas"
+          ayuda={
+            <Ayuda titulo="¿Quiénes son?">
+              Las personas a las que las entidades de {nombre} pagaron por órdenes de servicio (OECE), con lo que otros registros
+              públicos dicen de cada una. Una señal no prueba nada.
+            </Ayuda>
+          }
+          enlace={{ href: `/app/personas?dep=${dep}`, texto: "Ver a las personas" }}
+        >
+          {personas === undefined ? cargando : (
+            <ContenidoPersonas r={personas} P={PARAMS_SOLOS} href={(f) => `/app/personas?${new URLSearchParams({ dep, ...f })}`} />
+          )}
+        </BloqueInicio>
+      )}
 
       <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.region(ubigeo)} ambito="region" nombreRegion={nombre} />
     </div>

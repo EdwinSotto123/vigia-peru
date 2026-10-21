@@ -251,3 +251,31 @@ test("no muta la entrada", () => {
   assert.equal(entrada.dni, "43960880");
   assert.equal(entrada.firmantes[0].nombre_completo, "JUAN PEREZ QUISPE");
 });
+
+test("personas contratadas (migración 91): RUC 10 → ref, un apellido tapado en la fila, sus candidaturas y su orden; la autoridad electa completa", () => {
+  const r = publicar({
+    persona: { ruc: "10439608801", nombre: "VARGAS ROJAS LUIS FERNANDO" },
+    entidades: [{
+      ruc: "10439608801", nombre: "VARGAS ROJAS LUIS FERNANDO", entidadRuc: "20131373237",
+      senalesDetalle: [
+        { tipo: "candidato", detalle: { candidaturas: [{ nombre: "VARGAS ROJAS LUIS FERNANDO", cargo: "REGIDOR DISTRITAL", partido: "X" }] } },
+        { tipo: "apellidos_autoridad", detalle: { autoridades: [{ nombre: "VARGAS ROJAS PEDRO", cargo: "ALCALDE DISTRITAL" }] } },
+      ],
+    }],
+    data: [{ descripcion: "SERVICIO DE ASISTENCIA ADMINISTRATIVA DNI 43960880" }],
+  });
+  const t = json(r);
+  assert.doesNotMatch(t, /10439608801|43960880/);
+  assert.equal(r.persona.ruc, refRuc10("10439608801"));
+  assert.doesNotMatch(t, /VARGAS ROJAS LUIS/);
+  assert.match(r.persona.nombre, new RegExp(`VARGAS ${TAPA_NOMBRE} LUIS FERNANDO`));
+  // La autoridad electa (otra persona) sale completa.
+  assert.match(t, /VARGAS ROJAS PEDRO/);
+});
+
+test("la Ñ escrita «¿» por el SEACE (NURE¿A) se repone y el apellido se tapa; el «¿» de una pregunta no se toca", () => {
+  const r = publicar({ ganador: { ruc: "10439608801", razon_social: "LEON NURE¿A MANUEL ALEXANDER" }, nota: "¿QUÉ PASÓ? LEON NURE¿A MANUEL ALEXANDER" });
+  assert.equal(r.ganador.razon_social, `LEON ${TAPA_NOMBRE} MANUEL ALEXANDER`);
+  assert.match(r.nota, /^¿QUÉ PASÓ\?/);
+  assert.doesNotMatch(json(r), /NURE/);
+});

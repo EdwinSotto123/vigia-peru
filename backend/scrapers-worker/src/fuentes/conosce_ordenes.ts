@@ -12,6 +12,11 @@
  *
  * Semanal (sábados): los últimos 3 meses (las entidades registran órdenes con atraso). Con `desde`/`hasta`
  * (AAAA o AAAA-MM), ese rango; hay datos desde 2018.
+ *
+ * Tras cargar se rehace, desde 6 meses antes del primer mes cargado (una orden se registra después de emitirse):
+ * el fraccionamiento y las personas contratadas (migración 91: órdenes por persona y año, y sus señales), y después
+ * los cruces. Con `relleno` (la historia, de a muchos meses) no se rehace nada: se corre una vez al terminar, fuera
+ * de Hyperdrive (rehacerlo todo pasa su corte de ~10 min).
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -78,11 +83,18 @@ export function mesesOrdenes(p: Pick<ParamsCorrida, "desde" | "hasta">, hoy: str
   return menor(h, d) ? [] : mesesEntre(d, h);
 }
 
+/** Seis meses antes del primer mes cargado, AAAA-MM-01: desde ahí se rehace lo que sale de las órdenes. */
+export function desdeRefresco([a, m]: [number, number]): string {
+  const total = a * 12 + (m - 1) - 6;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`;
+}
+
 const PASO = { retries: { limit: 1, delay: "2 minutes" }, timeout: "30 minutes" } as const;
 
 export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
   const resumen: Record<string, unknown> = {};
   let cargados = 0;
+  let primero: [number, number] | null = null;
   for (const [anio, mes] of mesesOrdenes(p, fechaLima())) {
     const clave = `${anio}-${String(mes).padStart(2, "0")}`;
     const r = await step.do(`órdenes ${clave}`, PASO, async () => {
@@ -134,11 +146,18 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
       });
     });
     resumen[clave] = r;
-    if (r && "segundos" in r) cargados++;
+    if (r && "segundos" in r) {
+      cargados++;
+      if (!primero) primero = [anio, mes];
+    }
   }
-  if (p.seco || !cargados) return resumen;
-  resumen.fraccionamiento = await step.do("refrescar_fraccionamiento", CARGA, () =>
-    conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_fraccionamiento() AS n"))[0]?.n ?? 0));
+  if (p.seco || !cargados || !primero || p.relleno) return resumen;
+  const desde = desdeRefresco(primero);
+  const uno = (nombre: string, sql: string, params: unknown[] = []) => step.do(nombre, CARGA, () =>
+    conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql, params))[0]?.n ?? 0)));
+  resumen.fraccionamiento = await uno("refrescar_fraccionamiento", "SELECT refrescar_fraccionamiento($1::date) AS n", [desde]);
+  resumen.personas_ordenes = await uno("refrescar_personas_ordenes", "SELECT refrescar_personas_ordenes($1::date) AS n", [desde]);
+  resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales() AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
   // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).

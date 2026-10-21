@@ -7,6 +7,7 @@ import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { Banderas, BarrasGasto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
+import { BloquePersonas } from "./BloquePersonas";
 
 /**
  * Inicio de una entidad (/entidad/[ruc], primera pestaña): en qué gasta (MEF), sus contratos, las banderas levantadas
@@ -100,6 +101,8 @@ export async function InicioEntidad({
       >
         <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />
       </BloqueInicio>
+
+      <BloquePersonas alcance={{ entidad: ruc }} de="esta entidad" href={(f) => `${ruta}?${new URLSearchParams({ seccion: "personas", ...f })}`} />
 
       <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" nombreRegion={region} />
     </RejillaInicio>

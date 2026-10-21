@@ -18,6 +18,9 @@
  *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
  *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
  *
+ *   pte_personal       día 20, 08:00: la planilla de los dos meses anteriores (Portal de Transparencia Estándar; las
+ *                      entidades la publican con atraso). Migración 92.
+ *
  *   contraloria_informes  SIN cron: el buscador de la Contraloría no responde fuera del Perú (522 desde Cloudflare,
  *                      también por el relay). Mensual, a mano desde una PC en el Perú:
  *                      backend/scripts/cargar_contraloria_informes.py (docs/CORRUPCION.md). Si un día llega,
@@ -43,5 +46,6 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");
+  if (dia === 20) out.push("pte_personal");
   return out;
 }

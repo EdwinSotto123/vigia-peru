@@ -1,0 +1,346 @@
+import Link from "next/link";
+import { ExternalLink, Landmark } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
+import { DatosClave, type DatoClave } from "@/components/patrones";
+import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
+import { fecha, numero, plural, soles } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import { FUENTE_TEXTO, SENAL, SEVERIDAD_TEXTO, type EntidadDePersona, type SenalDetalle } from "@/lib/personas";
+import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
+
+/**
+ * Las señales de una persona en cada entidad, enteras: qué registro coincide, con sus datos (la candidatura, el aporte,
+ * la autoridad, los meses, lo que cobra frente a la mediana…) y la fuente para verificarlo. Cada tipo trae su detalle
+ * de la migración 91; los nombres llegan tapados por la API salvo los de autoridades electas. Server-safe.
+ */
+export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[] }) {
+  const con = entidades.filter((e) => e.senalesDetalle.length > 0);
+  return (
+    <div className="space-y-5">
+      {con.map((e) => (
+        <section key={e.entidadRuc} className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h3 className="font-display text-[17px] font-bold text-ink">
+              <Link href={`/entidad/${e.entidadRuc}`} className="underline-offset-2 hover:text-granate hover:underline">
+                {e.entidad ? tituloNatural(e.entidad) : "Entidad"}
+              </Link>
+            </h3>
+            <GobiernosLinea e={e} />
+          </header>
+          <ul className="space-y-3">
+            {e.senalesDetalle.map((s) => (
+              <li key={s.tipo} className="space-y-2 rounded-xl border border-line/80 bg-paperSoft p-3.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
+                  <h4 className="text-[15px] font-semibold text-ink">{SENAL[s.tipo]?.titulo ?? s.tipo}</h4>
+                </div>
+                <p className="max-w-prose text-[13.5px] leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
+                <Detalle s={s} />
+                <Fuente s={s} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function GobiernosLinea({ e }: { e: EntidadDePersona }) {
+  const g = [...(e.gobiernos ?? [])].sort((a, b) => b.anio - a.anio);
+  if (!g.length) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-inkSoft">
+      <Landmark size={13} className="shrink-0 text-mute" aria-hidden />
+      <span className="text-mute">Gobernaba</span>
+      {g.map((x) => (
+        <Link key={`${x.clave}-${x.anio}`} href={`/app/partidos/${x.clave}?anio=${x.anio}`} className="font-semibold text-ink underline-offset-2 hover:text-granate hover:underline">
+          {x.nombre}
+        </Link>
+      ))}
+    </span>
+  );
+}
+
+function Fuente({ s }: { s: SenalDetalle }) {
+  const texto = (s.fuente && FUENTE_TEXTO[s.fuente]) ?? s.fuente ?? "Fuente oficial";
+  return (
+    <p className="text-[12px] text-mute">
+      Fuente:{" "}
+      {s.fuenteUrl ? (
+        <a href={s.fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-granate underline-offset-2 hover:underline">
+          {texto} <ExternalLink size={11} aria-hidden />
+        </a>
+      ) : (
+        texto
+      )}
+    </p>
+  );
+}
+
+type Obj = Record<string, unknown>;
+const lista = (v: unknown): Obj[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === "object") as Obj[]) : []);
+const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
+const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
+const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fecha(v.slice(0, 10)) : null);
+const porQue = (por: unknown) =>
+  por === "dni" ? "Coincide por el documento de identidad." : por === "nombre" ? "Coincide por el nombre completo y el departamento (la fuente no trae documento)." : null;
+
+/** Una tabla chica: la lista de un detalle (candidaturas, aportes, autoridades…). */
+function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila[]; etiqueta: string }) {
+  if (!filas.length) return null;
+  return <Tabla columnas={columnas} filas={filas} etiqueta={etiqueta} medida="contenedor" densidad="compacta" />;
+}
+
+function Detalle({ s }: { s: SenalDetalle }) {
+  const d = s.detalle ?? {};
+  switch (s.tipo) {
+    case "candidato_gobierna":
+    case "candidato": {
+      const filas = lista(d.candidaturas)
+        .sort((a, b) => (num(b.anio) ?? 0) - (num(a.anio) ?? 0))
+        .map((c, i) => ({
+          id: String(i),
+          celdas: {
+            anio: <span className="font-mono text-[13px] tabular-nums">{txt(c.anio) ?? "Sin año"}</span>,
+            cargo: <span className="text-[13px] text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo en la fuente"}</span>,
+            partido: <span className="text-[13px] text-inkSoft">{txt(c.partido) ?? "Sin dato"}</span>,
+            resultado: <span className="text-[13px] text-inkSoft">{c.resultado === "electo" ? "Electo" : c.resultado === "no_electo" ? "No electo" : "Sin dato"}</span>,
+          },
+        }));
+      return (
+        <div className="space-y-2">
+          {s.tipo === "candidato_gobierna" && txt(d.partido) && (
+            <DatosClave items={[{ etiqueta: "Partido que gobernaba", valor: txt(d.partido) }]} />
+          )}
+          <Lista
+            etiqueta="Candidaturas"
+            columnas={[
+              { clave: "anio", titulo: "Elección", ancho: "80px" },
+              { clave: "cargo", titulo: "Cargo", ancho: "minmax(0,1fr)" },
+              { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)", desde: "md" },
+              { clave: "resultado", titulo: "Resultado", ancho: "96px", desde: "md" },
+            ]}
+            filas={filas}
+          />
+          <Nota>{porQue(d.por)}</Nota>
+        </div>
+      );
+    }
+    case "aporte_gobierna":
+    case "aporte": {
+      const filas = lista(d.aportes).map((a, i) => ({
+        id: String(i),
+        celdas: {
+          fecha: <span className="text-[13px] tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
+          partido: <span className="text-[13px] text-ink">{txt(a.partido) ?? "Sin dato"}</span>,
+          monto: <CeldaNumero>{num(a.monto) != null ? soles(num(a.monto)) : "Sin dato"}</CeldaNumero>,
+        },
+      }));
+      return (
+        <div className="space-y-2">
+          <DatosClave
+            items={[
+              ...(s.tipo === "aporte_gobierna" && txt(d.partido) ? [{ etiqueta: "Partido que gobernaba", valor: txt(d.partido) }] : []),
+              ...(num(d.monto) != null ? [{ etiqueta: "Total aportado", valor: soles(num(d.monto)), mono: true }] : []),
+            ]}
+          />
+          <Lista
+            etiqueta="Aportes"
+            columnas={[
+              { clave: "fecha", titulo: "Fecha", ancho: "110px" },
+              { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)" },
+              { clave: "monto", titulo: "Monto", ancho: "110px", alinear: "der" },
+            ]}
+            filas={filas}
+          />
+        </div>
+      );
+    }
+    case "autoridad_contratada":
+    case "apellidos_autoridad": {
+      const filas = lista(d.autoridades).map((a, i) => ({
+        id: String(i),
+        celdas: {
+          nombre: <span className="text-[13px] font-medium text-ink">{txt(a.nombre) ?? "Sin nombre"}</span>,
+          cargo: <span className="text-[13px] text-inkSoft">{txt(a.cargo) ? tituloNatural(txt(a.cargo)!) : "Sin cargo"}</span>,
+          partido: <span className="text-[13px] text-inkSoft">{txt(a.partido) ?? "Sin dato"}</span>,
+          periodo: <span className="text-[13px] tabular-nums text-mute">{[txt(a.desde)?.slice(0, 4), txt(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
+        },
+      }));
+      const frec = num(d.frecuencia);
+      return (
+        <div className="space-y-2">
+          <Lista
+            etiqueta="Autoridades"
+            columnas={[
+              { clave: "nombre", titulo: s.tipo === "apellidos_autoridad" ? "Autoridad" : "Como", ancho: "minmax(0,1.2fr)" },
+              { clave: "cargo", titulo: "Cargo", ancho: "minmax(0,1fr)" },
+              { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)", desde: "md" },
+              { clave: "periodo", titulo: "Mandato", ancho: "96px", desde: "md" },
+            ]}
+            filas={filas}
+          />
+          {s.tipo === "autoridad_contratada" && <Nota>{d.mismo_gobierno ? "Es autoridad del mismo gobierno que le dio las órdenes." : "Es autoridad de otro gobierno, no del que le dio las órdenes."}</Nota>}
+          {s.tipo === "autoridad_contratada" && <Nota>{porQue(d.por)}</Nota>}
+          {s.tipo === "apellidos_autoridad" && frec != null && (
+            <Nota>{`${plural(frec, "persona contratada lleva", "personas contratadas llevan")} estos dos apellidos en todo el país.`}</Nota>
+          )}
+        </div>
+      );
+    }
+    case "apellidos_funcionario": {
+      const filas = lista(d.funcionarios_designados).map((f, i) => ({
+        id: String(i),
+        celdas: {
+          nombre: <span className="text-[13px] font-medium text-ink">{txt(f.nombre) ?? "Sin nombre"}</span>,
+          cargo: <span className="text-[13px] text-inkSoft">{txt(f.cargo) ? tituloNatural(txt(f.cargo)!) : "Sin cargo"}</span>,
+          anio: <span className="font-mono text-[13px] tabular-nums text-mute">{txt(f.anio) ?? "Sin año"}</span>,
+        },
+      }));
+      const frec = num(d.frecuencia);
+      return (
+        <div className="space-y-2">
+          <Lista
+            etiqueta="Funcionarios con los mismos apellidos"
+            columnas={[
+              { clave: "nombre", titulo: "Funcionario", ancho: "minmax(0,1.2fr)" },
+              { clave: "cargo", titulo: "Cargo declarado", ancho: "minmax(0,1fr)" },
+              { clave: "anio", titulo: "Declaración", ancho: "96px", desde: "md" },
+            ]}
+            filas={filas}
+          />
+          {frec != null && <Nota>{`${plural(frec, "persona contratada lleva", "personas contratadas llevan")} estos dos apellidos en todo el país.`}</Nota>}
+        </div>
+      );
+    }
+    case "funcionario_contratado": {
+      const filas = lista(d.cargos).map((c, i) => ({
+        id: String(i),
+        celdas: {
+          cargo: <span className="text-[13px] text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo"}</span>,
+          anio: <span className="font-mono text-[13px] tabular-nums text-mute">{txt(c.anio) ?? "Sin año"}</span>,
+          desde: <span className="text-[13px] tabular-nums text-mute">{dia(c.inicio) ?? "Sin dato"}</span>,
+        },
+      }));
+      return (
+        <Lista
+          etiqueta="Cargos declarados"
+          columnas={[
+            { clave: "cargo", titulo: "Cargo declarado", ancho: "minmax(0,1fr)" },
+            { clave: "anio", titulo: "Declaración", ancho: "96px" },
+            { clave: "desde", titulo: "Desde", ancho: "110px", desde: "md" },
+          ]}
+          filas={filas}
+        />
+      );
+    }
+    case "inhabilitado": {
+      const filas = lista(d.sanciones).map((x, i) => ({
+        id: String(i),
+        celdas: {
+          tipo: <span className="text-[13px] text-ink">{x.tipo === "definitivo" ? "Definitiva" : "Temporal"}</span>,
+          periodo: <span className="text-[13px] tabular-nums text-mute">{[dia(x.desde), dia(x.hasta)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
+          resolucion: <span className="font-mono text-[12.5px] text-inkSoft">{txt(x.resolucion) ?? "Sin dato"}</span>,
+        },
+      }));
+      return (
+        <div className="space-y-2">
+          <DatosClave
+            items={[
+              { etiqueta: "Órdenes durante la inhabilitación", valor: numero(num(d.ordenes) ?? 0), mono: true },
+              { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
+            ]}
+          />
+          <Lista
+            etiqueta="Inhabilitaciones"
+            columnas={[
+              { clave: "tipo", titulo: "Inhabilitación", ancho: "110px" },
+              { clave: "periodo", titulo: "Vigencia", ancho: "minmax(0,1fr)" },
+              { clave: "resolucion", titulo: "Resolución", ancho: "minmax(0,1fr)", desde: "md" },
+            ]}
+            filas={filas}
+          />
+        </div>
+      );
+    }
+    case "meses_seguidos": {
+      const filas = lista(d.anios).map((a, i) => ({
+        id: String(i),
+        celdas: {
+          anio: <span className="font-mono text-[13px] tabular-nums">{txt(a.anio)}</span>,
+          meses: <CeldaNumero>{`${txt(a.meses)} de 12`}</CeldaNumero>,
+          ordenes: <CeldaNumero>{numero(num(a.ordenes) ?? 0)}</CeldaNumero>,
+          monto: <CeldaNumero>{soles(num(a.monto) ?? 0)}</CeldaNumero>,
+        },
+      }));
+      return (
+        <Lista
+          etiqueta="Años con órdenes casi todos los meses"
+          columnas={[
+            { clave: "anio", titulo: "Año", ancho: "72px" },
+            { clave: "meses", titulo: "Meses con orden", ancho: "minmax(0,1fr)", alinear: "der" },
+            { clave: "ordenes", titulo: "Órdenes", ancho: "84px", alinear: "der" },
+            { clave: "monto", titulo: "Monto", ancho: "120px", alinear: "der" },
+          ]}
+          filas={filas}
+        />
+      );
+    }
+    case "pago_alto": {
+      const filas = lista(d.anios).map((a, i) => ({
+        id: String(i),
+        celdas: {
+          anio: <span className="font-mono text-[13px] tabular-nums">{txt(a.anio)}</span>,
+          servicio: <span className="text-[13px] text-inkSoft">{txt(a.servicio) ?? "Sin dato"}</span>,
+          suyo: <CeldaNumero>{soles(num(a.por_mes) ?? 0)}</CeldaNumero>,
+          mediana: <CeldaNumero sub={`de ${numero(num(a.personas) ?? 0)} personas`}>{soles(num(a.mediana_mes) ?? 0)}</CeldaNumero>,
+          veces: <CeldaNumero>{`${String(num(a.veces) ?? "").replace(".", ",")} veces`}</CeldaNumero>,
+        },
+      }));
+      return (
+        <Lista
+          etiqueta="Lo que cobra por mes frente a la mediana de la entidad"
+          columnas={[
+            { clave: "anio", titulo: "Año", ancho: "64px" },
+            { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)", desde: "md" },
+            { clave: "suyo", titulo: "Cobra por mes", ancho: "112px", alinear: "der" },
+            { clave: "mediana", titulo: "Mediana de la entidad", ancho: "140px", alinear: "der" },
+            { clave: "veces", titulo: "Diferencia", ancho: "92px", alinear: "der" },
+          ]}
+          filas={filas}
+        />
+      );
+    }
+    case "visita_previa": {
+      const filas = lista(d.visitas).map((v, i) => ({
+        id: String(i),
+        celdas: {
+          fecha: <span className="text-[13px] tabular-nums text-mute">{dia(v.fecha) ?? "Sin fecha"}</span>,
+          visitado: <span className="text-[13px] text-ink">{txt(v.cargo_visitado) ? tituloNatural(txt(v.cargo_visitado)!) : "Sin dato"}</span>,
+          motivo: <span className="text-[13px] text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,
+        },
+      }));
+      return (
+        <Lista
+          etiqueta="Visitas"
+          columnas={[
+            { clave: "fecha", titulo: "Fecha", ancho: "110px" },
+            { clave: "visitado", titulo: "A quién (cargo)", ancho: "minmax(0,1fr)" },
+            { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md" },
+          ]}
+          filas={filas}
+        />
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function Nota({ children }: { children: string | null | undefined }) {
+  if (!children) return null;
+  return <p className="text-[12.5px] text-mute">{children}</p>;
+}
+
+export type { DatoClave };

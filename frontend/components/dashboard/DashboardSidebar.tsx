@@ -3,26 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  MapPin,
-  FileText,
-  Sparkles,
-  ArrowRight,
-  Flag,
-  Building2,
-  Camera,
-  Menu,
-  X,
-  Lock,
-  Home,
-  Activity,
-  FileSearch,
-  Heart,
-  HelpCircle,
-  Crown,
-  Landmark,
-  LayoutGrid,
-} from "lucide-react";
+import { MapPin, FileText, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Home, Activity, FileSearch, Heart, HelpCircle, Crown, Landmark, LayoutGrid, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -111,6 +92,13 @@ const SECTIONS: Section[] = [
         icon: <Landmark size={16} />,
         hint: "Quién gobierna cada región",
         match: (p) => p.startsWith("/app/partidos"),
+      },
+      {
+        href: "/app/personas",
+        label: "Personas contratadas",
+        icon: <Users size={16} />,
+        hint: "Locadores y asesores del Estado",
+        match: (p) => p.startsWith("/app/personas"),
       },
     ],
   },
