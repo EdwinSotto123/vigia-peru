@@ -36,8 +36,23 @@ Son **indicios para revisar**. Ninguna prueba un delito ni un parentesco; la web
 | `paso_a_planilla` | baja | después de sus órdenes entró a la planilla de la entidad |
 
 **En planilla** (`planilla_persona`): `tambien_ordenes` (alta), `candidato_gobierna` (alta), `brecha_cargo` (media:
-el doble o más que la mediana de su mismo cargo en la entidad), `apellidos_autoridad`, `apellidos_directivo` (media:
-los apellidos, poco comunes, de un gerente o director de la misma planilla), `antes_locador` (baja).
+el sueldo, doble o más que la mediana de su mismo cargo en la entidad), `apellidos_autoridad`, `apellidos_directivo`
+(media: los apellidos, poco comunes, de un gerente o director de la misma planilla), `antes_locador` y
+`pago_extraordinario` (baja: S/ 20,000 o más fuera del sueldo, el triple o más; suele ser una liquidación o un bono).
+
+El sueldo (`base`, migración 98) es remuneraciones + honorarios; lo demás del mes (otros beneficios, gratificación,
+incentivo) va en `extra`. El total del mes no sirve para comparar: el 2026-08 un analista del Banco de la Nación
+figuraba con S/ 183,172 (S/ 5,500 de remuneración y S/ 177,672 de otros beneficios, así en el CSV del PTE).
+
+La lista es la del último mes que publicó cada entidad (migración 100): quienes trabajan hoy. La historia (desde
+2025-01) cuenta los meses de cada persona, desde cuándo está y lo que cruza meses (`tambien_ordenes`,
+`antes_locador`).
+
+**Montos dudosos de CONOSCE** (migración 98): `limpiar_montos_ordenes(anio, mes)`, después de cargar cada mes, pasa a
+`monto_dudoso` (y deja `monto` en NULL) los que no se pueden creer: más de S/ 100 M, igual al RUC o al número de la
+orden, más de 20 veces el tope de una orden "hasta N UIT", o más de S/ 1 M a un RUC 10 en "Otras contrataciones". La
+ficha los muestra tachados y no los suma. Ejemplo: la O/S 106-2026 de la Municipalidad Distrital de Huarochirí a una
+persona natural trae S/ 45,006,800 en el archivo oficial de CONOSCE (2026-06).
 
 **Plazas CAS** (`servir_convocatoria`): `pide_experiencia_propia` (pide experiencia en la misma entidad),
 `pide_poco` (S/ 6,000 o más sin pedir título ni grado), `plazo_corto` (3 días o menos), `ya_hay_locadores` (la entidad
@@ -76,6 +91,8 @@ RUC. No se busca por nombre. La planilla sale de la API ya con el apellido mater
   los cruces. El 2026-10-21 se cargó así (y el disco de la base pasó a 50 GB).
 - Rendimiento: `entidad_gobierno` es una vista con expresiones regulares; cruzada en vivo con millones de filas, el
   planificador la recalculaba por fila. Las funciones la materializan antes (`_eg`).
-- La planilla: `POST /correr {"fuente":"pte_personal"}` (los dos meses anteriores; `desde`/`hasta` AAAA-MM para otros).
-  Busca el id de cada entidad en el PTE la primera vez (`pte_entidad`) y después baja cada mes en CSV.
+- La planilla: `POST /correr {"fuente":"pte_personal"}` (los dos meses anteriores; `desde`/`hasta` AAAA-MM para otros,
+  sin volver a bajar lo que ya está; `forzar` sí). Busca el id de cada entidad en el PTE la primera vez
+  (`pte_entidad`), recorre además el directorio del PTE (`pte_directorio`, migración 99: 2 344 entidades, muchas UGEL,
+  redes de salud y hospitales que CONOSCE nombra distinto) y baja cada mes en CSV.
 - Las plazas: `python backend/scripts/cargar_servir_convocatorias.py --entorno prod` (primero `--seco --paginas 3`).
