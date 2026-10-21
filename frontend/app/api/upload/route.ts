@@ -47,7 +47,7 @@
  *    obras, QR de pago y logos de aliados, que se muestran en el sitio.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE_ADMIN, cookieAdmin, leerSesion } from "@/lib/admin-sesion";
+import { COOKIE_ADMIN, cookieAdmin, leerSesion, tokenFirebaseValido } from "@/lib/admin-sesion";
 import { guardarObjeto } from "@/lib/gcs";
 import { ipDelPedido, limitarPorIp, type Limite } from "@/lib/limite-ip";
 import { puede } from "@/lib/permisos";
@@ -63,6 +63,7 @@ const BUCKET_PRIVADO = process.env.GCS_BUCKET_PRIVADO || "vigia-peru-privado";
 
 /** 12 MB: holgado para una foto de celular o un PDF escaneado, lejos del tope de 32 MiB de Cloud Run. */
 const MAX_BYTES = 12 * 1024 * 1024;
+const MAX_LOGO = 2 * 1024 * 1024;
 
 type Formato = { mime: string; ext: string; tipo: "foto" | "documento" };
 
@@ -333,10 +334,9 @@ function sinMetadatos(b: Buffer, f: Formato): Buffer {
  *    una cookie con ese nombre, cualquiera fuera su valor.
  *  - `logo` (logo de un aliado en el muro público): una sesión de Firebase,
  *    enviada como `Authorization: Bearer <idToken>` (igual que lib/cuentas.ts), o
- *    el admin.
- * Es un control de presencia, no de validez: la firma del token la comprueba el
- * backend en cada acción real. Alcanza para que el bucket público deje de ser
- * un hosting anónimo con la marca del sitio.
+ *    el admin. El token se VERIFICA (firma, emisor, audiencia, vigencia, no anónimo):
+ *    antes bastaba con que hubiera uno, y cualquiera subía sin captcha al bucket
+ *    público con `Bearer x` (auditoría 2026-10-21). Sólo imágenes, hasta 2 MB.
  */
 async function autorizado(req: NextRequest, kind: string): Promise<boolean> {
   const sesion = await leerSesion(cookieAdmin(req));
@@ -344,7 +344,7 @@ async function autorizado(req: NextRequest, kind: string): Promise<boolean> {
   if (kind === "pago") return !!sesion && puede(sesion.rol, "subir_medios_pago");
   if (kind === "logo") {
     const bearer = /^Bearer\s+(\S+)/i.exec(req.headers.get("authorization") ?? "")?.[1];
-    return !!sesion || !!bearer;
+    return !!sesion || (!!bearer && (await tokenFirebaseValido(bearer)));
   }
   return true;
 }
@@ -392,6 +392,9 @@ export async function POST(req: NextRequest) {
   const formato = reconocer(original);
   if (formato === "heic") return fallar("heic_no_soportado");
   if (!formato) return fallar("tipo_no_permitido");
+  // Un logo es una imagen chica: ni PDF ni 12 MB en el bucket público.
+  if (kind === "logo" && formato.tipo === "documento") return fallar("tipo_no_permitido");
+  if (kind === "logo" && file.size > MAX_LOGO) return fallar("archivo_muy_grande");
 
   let buf: Buffer;
   try {

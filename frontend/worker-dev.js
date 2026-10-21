@@ -51,7 +51,10 @@ export default {
         headers: { "WWW-Authenticate": 'Basic realm="Vigia DEV", charset="UTF-8"', "X-Robots-Tag": "noindex, nofollow" },
       });
     }
-    const r = await abierto.fetch(req, env, ctx);
+    // Los estáticos también pasan por aquí (run_worker_first en wrangler.jsonc): antes Cloudflare los entregaba sin
+    // usuario ni clave y sin noindex. Primero el archivo; si no existe, la web.
+    const archivo = env.ASSETS ? await env.ASSETS.fetch(req) : null;
+    const r = archivo && archivo.status !== 404 ? archivo : await abierto.fetch(req, env, ctx);
     const res = new Response(r.body, r);
     res.headers.set("X-Robots-Tag", "noindex, nofollow");
     if ((res.headers.get("content-type") ?? "").includes("text/html")) {

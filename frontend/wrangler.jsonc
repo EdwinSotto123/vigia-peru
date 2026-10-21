@@ -41,7 +41,8 @@
   "env": {
     "dev": {
       "main": "worker-dev.js",
-      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      // run_worker_first: que los estáticos también pidan usuario y clave (worker-dev.js los busca en ASSETS).
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS", "run_worker_first": true },
       "images": { "binding": "IMAGES" },
       "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache-dev" }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web-dev" }],

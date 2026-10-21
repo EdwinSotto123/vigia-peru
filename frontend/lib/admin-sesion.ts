@@ -98,6 +98,26 @@ export async function verificarCuentaFirebase(idToken: string): Promise<Cuenta> 
 }
 
 /**
+ * Un ID token de Firebase válido (firma de Google, emisor y audiencia del proyecto, vigencia) de una cuenta que no sea
+ * anónima. Sin exigir correo verificado: es para lo que pide "una cuenta" (el logo de un aliado), no "un admin".
+ */
+export async function tokenFirebaseValido(idToken: string): Promise<boolean> {
+  const proyecto = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!proyecto) return false;
+  try {
+    const { payload } = await jwtVerify(idToken, LLAVES_FIREBASE, {
+      issuer: `https://securetoken.google.com/${proyecto}`,
+      audience: proyecto,
+      algorithms: ["RS256"],
+    });
+    const proveedor = (payload.firebase as { sign_in_provider?: string } | undefined)?.sign_in_provider;
+    return !!payload.sub && proveedor !== "anonymous";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * El perfil de un correo: su rol, `null` si el equipo CONFIRMA que no es miembro, o
  * `"sin_verificar"` si no se pudo preguntar (API lenta o caída). Los principales son admin sin
  * preguntar; el resto se consulta a la tabla `equipo` (vía API) y se recuerda 60 s por instancia:
