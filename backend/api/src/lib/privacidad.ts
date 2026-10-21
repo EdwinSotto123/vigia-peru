@@ -650,9 +650,27 @@ const SIN_NOMBRES: Contexto = { porPrimera: new Map(), slugs: [], documentos: ne
  */
 export function publicar<T>(valor: T, opts: { correos?: boolean; extra?: unknown } = {}): T {
   const r = new Recolector();
-  recolectar(valor, r);
-  if (opts.extra !== undefined) recolectar(opts.extra, r);
-  return transformar(valor, contexto(r, opts)) as T;
+  const v = conEnie(valor);
+  recolectar(v, r);
+  if (opts.extra !== undefined) recolectar(conEnie(opts.extra), r);
+  return transformar(v, contexto(r, opts)) as T;
+}
+
+/**
+ * La Ñ que el SEACE/CONOSCE escribe "¿" entre letras ("NURE¿A", 55 mil personas en las órdenes): sin reponerla, la
+ * palabra se partía en dos y el apellido quedaba sin tapar. Recorre todo el JSON (sin tocar fechas ni números).
+ */
+const ENIE = /(?<=\p{L})¿(?=\p{L})/gu;
+function conEnie<T>(v: T, profundidad = 0): T {
+  if (v == null || profundidad > 60 || v instanceof Date) return v;
+  if (typeof v === "string") return (v.includes("¿") ? v.replace(ENIE, "Ñ") : v) as T;
+  if (Array.isArray(v)) return v.map((x) => conEnie(x, profundidad + 1)) as T;
+  if (typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = conEnie(x, profundidad + 1);
+    return out as T;
+  }
+  return v;
 }
 
 /** Sólo texto, sin JSON alrededor (no hay papeles: tapa DNI, RUC 10, celulares, correos y nombres pegados a un DNI). */
