@@ -50,8 +50,9 @@ resource "aws_db_parameter_group" "pg16" {
   name   = "${var.nombre}-pg16"
   family = "postgres16"
   parameter {
-    name  = "rds.force_ssl"
-    value = "1"
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"   # como quedó en RDS: sin esto, cada plan quiere reescribirlo
   }
   parameter {
     name  = "log_min_duration_statement"
@@ -92,7 +93,7 @@ resource "aws_db_instance" "esta" {
   db_subnet_group_name         = aws_db_subnet_group.esta.name
   vpc_security_group_ids       = [aws_security_group.db.id]
   parameter_group_name         = aws_db_parameter_group.pg16.name
-  publicly_accessible          = true
+  publicly_accessible          = length(var.cidrs_permitidos) > 0   # sin IPs permitidas, sólo desde la VPC
   multi_az                     = false
   backup_retention_period      = 7
   backup_window                = "08:00-09:00"

@@ -29,14 +29,14 @@ variable "almacenamiento_gb" {
   default     = 20
 }
 
-# Quién puede llegar al puerto 5432 desde internet. SOLO IPs fijas (CIDR /32): nunca 0.0.0.0/0.
-#   · 34.121.145.52/32  salida fija de Cloud Run (proyecto de agentes/jobs)  — infrastructure/deploy/egreso-fijo.sh
-#   · 34.9.226.168/32   salida fija de Cloud Run (proyecto de la API/MCP de respaldo)
-# El proxy de la VPC no necesita IP: entra por grupo de seguridad (con_proxy). Para administrar desde tu
-# computadora agrega tu IP/32 (cambia: quítala al terminar).
+# Quién puede llegar al puerto 5432 desde internet. SOLO IPs fijas (CIDR /32): nunca 0.0.0.0/0. Vacío (lo normal desde
+# el 2026-10-21) = la base NO es pública: los Workers entran por el proxy (grupo de seguridad con_proxy), las Lambdas
+# por la VPC, y para administrar desde una PC se usa infrastructure/aws/tunel_rds.py (Session Manager, sin IPs).
+# Sólo si se vuelve a correr algo en GCP (GCP_USE, docs/PROVEEDORES.md) va aquí su salida fija de Cloud Run
+# (infrastructure/deploy/egreso-fijo.sh): con alguna IP, la base pasa a publicly_accessible.
 variable "cidrs_permitidos" {
   type    = list(string)
-  default = ["34.121.145.52/32", "34.9.226.168/32"]
+  default = []
   validation {
     condition     = !contains(var.cidrs_permitidos, "0.0.0.0/0")
     error_message = "No se permite 0.0.0.0/0: usa IPs fijas /32."
@@ -59,9 +59,9 @@ variable "aws_profile" {
   default = "founder.edwin"
 }
 variable "aws_clase" {
-  description = "db.t4g.micro (1 GB, ~US$12/mes) solo para pruebas; db.t4g.small (2 GB) soporta ~50 usuarios con PgBouncer."
+  description = "db.t4g.micro (1 GB, ~US$12/mes) solo para pruebas; db.t4g.small (2 GB) soporta ~50 usuarios con PgBouncer, pero con la historia desde 2015 (828 mil contratos) las consultas en frío tardaban 3-9 s: desde el 2026-10-20, db.t4g.large (8 GB)."
   type        = string
-  default     = "db.t4g.small"
+  default     = "db.t4g.large"
 }
 
 # ── GCP (solo si proveedor = gcp) ──

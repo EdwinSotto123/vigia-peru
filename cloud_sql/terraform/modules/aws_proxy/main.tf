@@ -103,6 +103,13 @@ resource "aws_instance" "proxy" {
     region   = data.aws_region.aqui.name
   })
   tags = { Name = "${var.nombre}-proxy" }
+
+  # La AMI sale de un parámetro SSM que AWS actualiza solo: sin esto, cualquier `terraform apply` reemplazaba el proxy
+  # (corte de la base para los Workers y se pierde la base `vigia_dev` de PgBouncer, ver docs/DEV.md). Para actualizar
+  # el sistema operativo: `terraform apply -replace=module.proxy[0].aws_instance.proxy` a propósito.
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
 
 output "sg_id" { value = aws_security_group.proxy.id }

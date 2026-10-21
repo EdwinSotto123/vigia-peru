@@ -18,6 +18,8 @@ Las credenciales de DEV (roles dev_*) existen sólo en vigia-db-dev: no sirven c
 
 from __future__ import annotations
 
+import atexit
+import contextlib
 import json
 import os
 import secrets
@@ -91,8 +93,26 @@ def host() -> str:
     return i["Endpoint"]["Address"]
 
 
+_TUNELES = contextlib.ExitStack()
+atexit.register(_TUNELES.close)
+_destino: tuple[str, int] | None = None
+
+
+def destino() -> tuple[str, int]:
+    """La base DEV no es pública (2026-10-21): se llega por un túnel de SSM a través del proxy
+    (infrastructure/aws/tunel_rds.py), uno por proceso, que se cierra al salir."""
+    global _destino
+    if _destino is None:
+        host()   # corta con un mensaje claro si la base no existe
+        sys.path.insert(0, os.path.join(RAIZ, "infrastructure", "aws"))
+        from tunel_rds import tunel
+        _destino = _TUNELES.enter_context(tunel(DEV))
+    return _destino
+
+
 def conectar(db: str = "vigia"):
-    c = psycopg2.connect(host=host(), dbname=db, user="postgres", password=secreto("db-admin"), sslmode="require",
+    h, puerto = destino()
+    c = psycopg2.connect(host=h, port=puerto, dbname=db, user="postgres", password=secreto("db-admin"), sslmode="require",
                          options="-c statement_timeout=0", keepalives=1, keepalives_idle=30, keepalives_interval=10,
                          keepalives_count=10, connect_timeout=15)
     c.autocommit = True
@@ -257,7 +277,7 @@ def clonar():
             SourceDBInstanceIdentifier=PROD, TargetDBInstanceIdentifier=nuevo, UseLatestRestorableTime=True,
             DBInstanceClass="db.t4g.micro", DBSubnetGroupName=p["DBSubnetGroup"]["DBSubnetGroupName"],
             VpcSecurityGroupIds=[g["VpcSecurityGroupId"] for g in p["VpcSecurityGroups"]],
-            DBParameterGroupName=p["DBParameterGroups"][0]["DBParameterGroupName"], PubliclyAccessible=True, MultiAZ=False,
+            DBParameterGroupName=p["DBParameterGroups"][0]["DBParameterGroupName"], PubliclyAccessible=False, MultiAZ=False,
             StorageType="gp3", BackupRetentionPeriod=1, DeletionProtection=False, EnableCloudwatchLogsExports=["postgresql"],
             Tags=[{"Key": "entorno", "Value": "dev"}, {"Key": "proyecto", "Value": "vigia"}])
     esperar(nuevo)

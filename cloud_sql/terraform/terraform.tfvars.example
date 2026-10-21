@@ -1,3 +1,3 @@
 proveedor   = "aws" # "aws" (RDS) o "gcp" (Cloud SQL)
 aws_profile = "founder.edwin"
-aws_clase   = "db.t4g.small"
+aws_clase   = "db.t4g.large"

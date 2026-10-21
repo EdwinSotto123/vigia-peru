@@ -46,7 +46,8 @@ terraform init && terraform apply -var proveedor=aws
 - La contraseña del admin la genera Terraform y queda en **SSM Parameter Store** (`/vigia/vigia-db/password`,
   AWS) o **Secret Manager** (`cloudsql-password`, GCP). No se imprime.
 - `deletion_protection = true` y snapshot final obligatorio: para destruir hay que quitarla a propósito.
-- El estado de Terraform (`*.tfstate`) es local y está ignorado por git. Guárdalo (contiene la contraseña).
+- El estado de Terraform vive en S3 (`vigia-terraform-estado-416689419419`, privado, cifrado, versionado; backend en
+  `terraform/versions.tf`) desde el 2026-10-21. Antes era un archivo local con la contraseña adentro.
 
 ### Tamaño y costo (AWS, us-east-2)
 
@@ -97,9 +98,10 @@ Workers (API, MCP, dispatcher, scrapers) → Hyperdrive → túnel ──┐
 Cloud Run (agentes, jobs, API/MCP de respaldo) ── salida por IP FIJA (Cloud NAT) ──TLS──────────► RDS
 ```
 
-- **Red:** el grupo de seguridad de RDS permite 5432 solo al proxy (por grupo de seguridad) y a 3 IPs /32: la salida fija
-  de Cloud Run de cada proyecto GCP (`infrastructure/deploy/egreso-fijo.sh`) y la IP de administración. Nada de `0.0.0.0/0`
-  (Terraform lo rechaza). Comprobado: desde una IP no permitida el puerto responde "bloqueado".
+- **Red (desde el 2026-10-21):** la base NO es pública (`publicly_accessible = false`, `cidrs_permitidos = []`). El grupo
+  de seguridad permite 5432 solo al proxy y a las Lambdas (por grupo de seguridad). Para administrar desde una PC:
+  `python infrastructure/aws/tunel_rds.py prod` (Session Manager por el proxy, sin IPs ni llaves SSH). Si algo vuelve a
+  correr en GCP (GCP_USE), su salida fija va en `cidrs_permitidos` y la base vuelve a ser pública solo para esas IPs.
 - **Cifrado:** disco cifrado, `rds.force_ssl=1`, y TLS **verificado** contra la CA de RDS (`certs/rds-global-bundle.pem`) en
   PgBouncer, agentes (`PGSSLMODE=verify-full`) y API de respaldo. El MCP de respaldo y los jobs usan `require`/`no-verify`.
 - **Mínimo privilegio:** los agentes ya no son `postgres`: usan `vigia_agentes` (migración 43; solo SELECT/INSERT/UPDATE/DELETE,
@@ -107,7 +109,9 @@ Cloud Run (agentes, jobs, API/MCP de respaldo) ── salida por IP FIJA (Cloud 
 - **Proxy sin SSH:** acceso solo por AWS Systems Manager, IMDSv2 obligatorio, secretos en SSM Parameter Store (no en Terraform).
 - **Auditoría:** `pgaudit` (DDL y roles), `log_connections/log_disconnections`, logs a CloudWatch; borrado protegido y snapshot final.
 - **Pendiente / límites conocidos:**
-  - Tu IP de administración está permitida en el SG: si cambia, actualiza `cidrs_permitidos` o usa una sesión SSM por el proxy.
+  - Administración: siempre por `infrastructure/aws/tunel_rds.py` (ya no hay IP de administración en el SG).
+  - El proxy ignora cambios de AMI (`lifecycle`): actualizarlo es un `terraform apply -replace=module.proxy[0].aws_instance.proxy`
+    a propósito, nunca un efecto de otro apply.
   - La primera petición de la API de respaldo tras un arranque en frío puede tardar ~5 s (asignación de puertos de Cloud NAT).
   - Contraseñas: rotarlas (admin, vigia_*) con `terraform apply -replace=random_password.db` + `crear_roles.py` es un paso manual.
   - La VM `vigia-pgbouncer` de GCP quedó **apagada** (no borrada) por si hay que volver atrás; ya nadie la usa.

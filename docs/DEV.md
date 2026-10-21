@@ -68,7 +68,8 @@ bash infrastructure/deploy/dev.sh clonar                                     # t
 ## Cómo está armado
 
 - `vigia-db-dev` es un restore *point in time* de `vigia-db`, en la misma VPC, subred y grupo de seguridad, con el mismo
-  grupo de parámetros. Tiene su propia clave maestra (SSM `/vigia/dev/db-admin`). Cuesta unos US$15 al mes encendida.
+  grupo de parámetros. No es pública (como producción, desde el 2026-10-21): `dev.py` entra por un túnel de Session
+  Manager a través del proxy (`infrastructure/aws/tunel_rds.py`, requiere `session-manager-plugin` en el PATH). Tiene su propia clave maestra (SSM `/vigia/dev/db-admin`). Cuesta unos US$15 al mes encendida.
   AWS la vuelve a encender sola a los 7 días de detenida.
 - Los Workers llegan a ella por el mismo camino que a producción: Hyperdrive → túnel → PgBouncer en `vigia-db-proxy`.
   PgBouncer tiene una base más, `vigia_dev`, que apunta a `vigia-db-dev`.
