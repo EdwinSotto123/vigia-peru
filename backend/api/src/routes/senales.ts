@@ -102,7 +102,8 @@ function universo(q: Q, vals: unknown[], t: string): string[] {
   if (q.q) {
     vals.push(`%${escaparLike(q.q)}%`);
     const p = `$${vals.length}`;
-    w.push(`(${t}.objeto ILIKE ${p} OR ${t}.entidad ILIKE ${p} OR ${t}.evidencia ILIKE ${p})`);
+    // Sin la evidencia: es el texto sin tapar y servía para preguntar si un DNI o un nombre aparece en alguna señal.
+    w.push(`(${t}.objeto ILIKE ${p} OR ${t}.entidad ILIKE ${p})`);
   }
   return w;
 }

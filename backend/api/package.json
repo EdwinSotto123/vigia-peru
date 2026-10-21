@@ -14,12 +14,12 @@
     "build:worker": "npx wrangler deploy --dry-run --outdir .wrangler-dist"
   },
   "dependencies": {
-    "hono": "^4.6.13",
-    "@hono/node-server": "^1.13.7",
-    "pg": "^8.13.1",
     "@google-cloud/storage": "^7.14.0",
+    "@hono/node-server": "^1.13.7",
     "firebase-admin": "^13.0.2",
+    "hono": "^4.13.13",
     "jose": "^6.2.12",
+    "pg": "^8.13.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -29,5 +29,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.5.3"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

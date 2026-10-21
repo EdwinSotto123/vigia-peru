@@ -141,21 +141,23 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
       entidad = { ruc: ent.ruc, nombre: ent.nombre };
     }
 
-    // Financiador: con sesión, el de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese uid;
-    // sin sesión, por (ruc|email) como invitado. Con sesión no hace falta repetir nombre/logo.
+    // Financiador: con sesión, el de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese uid. Sin sesión,
+    // siempre uno nuevo: emparejar por el RUC o el correo que manda el cliente (sin verificar) dejaba a cualquiera
+    // cambiar el nombre y el logo públicos de un financiador ajeno (auditoría 2026-10-21). Con sesión no hace falta
+    // repetir nombre/logo.
     let cuenta: { financiador_id: number | null; correo: string | null; nombre_publico: string | null } | null = null;
     if (uid) {
       cuenta = (await client.query(
         `SELECT financiador_id, correo, nombre_publico FROM usuarios WHERE firebase_uid = $1`, [uid])).rows[0] ?? null;
     }
     const emailEfectivo = f.email ?? cuenta?.correo ?? (uid ? `${uid}@cuenta.vigia.local` : null);
-    let fin = await client.query(
-      `SELECT id, visible FROM financiadores
-        WHERE ($5::bigint IS NOT NULL AND id = $5)
-           OR ($1::text IS NOT NULL AND firebase_uid = $1)
-           OR ($1::text IS NULL AND (($2::text IS NOT NULL AND ruc = $2) OR (email = $3 AND tipo = $4)))
-        ORDER BY (id = $5) DESC, (firebase_uid = $1) DESC LIMIT 1`,
-      [uid, f.ruc ?? null, emailEfectivo, f.tipo, cuenta?.financiador_id ?? null]);
+    const fin = uid
+      ? await client.query(
+          `SELECT id, visible FROM financiadores
+            WHERE ($2::bigint IS NOT NULL AND id = $2) OR firebase_uid = $1
+            ORDER BY (id = $2) DESC, (firebase_uid = $1) DESC LIMIT 1`,
+          [uid, cuenta?.financiador_id ?? null])
+      : { rows: [] as { id: number; visible: boolean }[] };
     let financiadorId: number;
     if (fin.rows.length) {
       financiadorId = fin.rows[0].id;

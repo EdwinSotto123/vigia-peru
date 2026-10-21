@@ -189,12 +189,9 @@ export function validarArgumentos(modelo: string, campos: Campo[], args: Record<
 
 // ─── Errores de Postgres como los imprime pg8000: dict de campos del protocolo ─
 
-const CAMPOS_ERROR_PG: [string, string][] = [
-  ["S", "severity"], ["V", "severity"], ["C", "code"], ["M", "message"], ["D", "detail"], ["H", "hint"],
-  ["P", "position"], ["p", "internalPosition"], ["q", "internalQuery"], ["W", "where"], ["s", "schema"],
-  ["t", "table"], ["c", "column"], ["d", "dataType"], ["n", "constraint"], ["F", "file"], ["L", "line"],
-  ["R", "routine"],
-];
+// Sólo severidad, código y mensaje: el resto (consulta interna, tabla, archivo y línea del servidor) no es para un
+// cliente público (auditoría 2026-10-21).
+const CAMPOS_ERROR_PG: [string, string][] = [["S", "severity"], ["C", "code"], ["M", "message"]];
 
 export function textoError(e: unknown): string {
   if (e instanceof Error && typeof (e as { severity?: unknown }).severity === "string") {

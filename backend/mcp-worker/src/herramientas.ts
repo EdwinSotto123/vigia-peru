@@ -195,8 +195,12 @@ async function empresaSancionada(env: Env, ctx: ExecutionContext, rucIn: string)
          FROM osce_sancionados_vigentes WHERE ruc = $1`,
       [ruc],
     );
+    // RUC 10 = persona natural ("10" + DNI): su nombre no sale (regla de privacidad; la API lo tapa). Con sólo un DNI se
+    // obtenía el nombre completo de quien estuviera sancionado (auditoría 2026-10-21).
+    const natural = ruc.startsWith("10");
     const sanciones = filas.map((r) => ({
-      razon_social: r[0], tipo: r[1], periodo: r[2], vence: r[3] ?? "DEFINITIVO", resolucion: r[4], infraccion: r[5],
+      razon_social: natural ? "(persona natural: nombre reservado)" : r[0], tipo: r[1], periodo: r[2],
+      vence: r[3] ?? "DEFINITIVO", resolucion: r[4], infraccion: r[5],
     }));
     return {
       ruc, tiene_sancion_vigente: sanciones.length > 0, n_sanciones: sanciones.length, sanciones,

@@ -89,8 +89,13 @@ export async function conCdn(req: Request, ctx: ExecutionContext, atender: () =>
   const cache = (caches as unknown as { default: Cache }).default;
   const guardada = await cache.match(k);
   if (guardada) {
-    // Vencida pero en el margen: se responde ya y se renueva detrás (si falla, queda la anterior hasta su TTL).
-    if (vencida(guardada)) ctx.waitUntil(atender().then((r) => guardar(ctx, cache, k, r)).catch(() => undefined));
+    // Vencida pero en el margen: se responde ya y se renueva detrás (si falla, queda la anterior hasta su TTL). Si ya no
+    // existe (404/410: una alerta retirada, un pedido de privacidad), se borra en vez de seguir sirviéndola horas.
+    if (vencida(guardada)) {
+      ctx.waitUntil(atender()
+        .then((r) => (r.status === 404 || r.status === 410 ? cache.delete(k).then(() => undefined) : guardar(ctx, cache, k, r)))
+        .catch(() => undefined));
+    }
     return desdeCache(req, guardada);
   }
   const r = await atender();

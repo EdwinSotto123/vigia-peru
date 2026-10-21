@@ -170,8 +170,11 @@ async function analizadas(q: z.infer<typeof AnalizadasQuery>) {
   if (q.q) {
     vals.push(`%${escaparLike(q.q)}%`);
     const p = `$${vals.length}`;
+    // El RUC del proveedor sólo por igualdad y nunca uno 10: con LIKE se reconstruía dígito a dígito el RUC 10 (y el DNI)
+    // de un proveedor persona natural, que la respuesta muestra como ref (auditoría 2026-10-21).
+    const ruc = /^\d{11}$/.test(q.q) && !q.q.startsWith("10") ? (vals.push(q.q), `OR a.proveedor_ruc = $${vals.length}`) : "";
     conds.push(`(a.codigo_convocatoria ILIKE ${p} OR a.ocid ILIKE ${p} OR a.objeto ILIKE ${p} OR e.nombre ILIKE ${p}
-                 OR a.entidad_ruc ILIKE ${p} OR a.proveedor_ruc ILIKE ${p})`);
+                 OR a.entidad_ruc ILIKE ${p} ${ruc})`);
   }
   if (q.zona) { vals.push(q.zona); conds.push(`a.region = $${vals.length}`); }
   const base = `WITH x AS (
