@@ -18,7 +18,8 @@
  *
  * Por defecto los dos meses anteriores al actual (las entidades publican con atraso): se bajan siempre (una entidad
  * corrige o completa lo publicado). Con `desde`/`hasta` (AAAA-MM), ese rango, y lo que ya está en la base no se vuelve
- * a bajar (`forzar` sí). Al final: refrescar_planilla() y refrescar_personas_senales() (las órdenes ven la planilla).
+ * a bajar (`forzar` sí). Al final: refrescar_planilla() y refrescar_personas_senales() (las órdenes ven la planilla);
+ * con `relleno`, nada.
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -340,7 +341,10 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
     resumen[clave] = r;
     cargadas += r.filas;
   }
-  if (p.seco || !cargadas) return resumen;
+  // Con `relleno` (la historia, en tramos que corren a la vez) no se rehace nada: refrescar_planilla() y
+  // refrescar_personas_senales(NULL) se corren una vez al terminar, desde la PC (las señales de toda la historia pasan
+  // los ~10 min de Hyperdrive).
+  if (p.seco || !cargadas || p.relleno) return resumen;
 
   // 3. Las señales de la planilla y las de las órdenes (que ven la planilla).
   const uno = (nombre: string, sql: string) =>

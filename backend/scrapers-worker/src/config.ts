@@ -21,7 +21,7 @@ export interface ParamsCorrida {
   /**
    * oece_ocds: relleno histórico. Cada día se carga solo (no se junta la ventana en memoria), su crudo queda en
    * raw/oece_ocds/relleno/<día>.ndjson y no se refresca nada al final (los tramos corren en paralelo; los
-   * refrescos se corren una vez, al terminar).
+   * refrescos se corren una vez, al terminar). conosce_ordenes y pte_personal: tampoco se refresca nada al final.
    */
   relleno?: boolean;
 }
