@@ -6,6 +6,10 @@
 -- último mes de cada entidad (~400 mil filas, no crece con la historia); `meses`, `primer_mes` y lo que cruza meses
 -- (tambien_ordenes, antes_locador) siguen mirando toda la historia de esas personas.
 --
+-- tambien_ordenes miraba las órdenes de cada par persona × entidad con órdenes alguna vez (93 mil, con la historia
+-- 2018-2024: 674 s de lecturas al azar en conosce_ordenes, para 3 mil coincidencias). Ahora sólo los pares con alguna
+-- orden desde el primer mes de planilla (~5 mil), y sólo esas órdenes.
+--
 -- Un refresco a la vez (candado de la transacción): dos corridas de pte_personal que terminan juntas borraban y volvían
 -- a llenar cargo_referencia a la vez, y la segunda chocaba con las filas que la primera acababa de insertar (su DELETE
 -- no las ve).
@@ -104,22 +108,22 @@ BEGIN
 
   -- tambien_ordenes / antes_locador: la misma persona (por nombre) recibe órdenes de servicio de la entidad.
   CREATE TEMP TABLE _plo ON COMMIT DROP AS
-  SELECT l.entidad_ruc, l.nombre_norm, a.ruc, m.lista_meses, m.primer_mes
+  SELECT l.entidad_ruc, l.nombre_norm, a.ruc, m.lista_meses, m.primer_mes, a.ultima_orden
     FROM _pl l
     JOIN _plm m ON m.entidad_ruc = l.entidad_ruc AND m.nombre_norm = l.nombre_norm
-    JOIN (SELECT DISTINCT entidad_ruc, ruc, nom_n FROM persona_orden_anual) a
+    JOIN (SELECT entidad_ruc, ruc, nom_n, max(ultima) AS ultima_orden FROM persona_orden_anual GROUP BY 1, 2, 3) a
       ON a.entidad_ruc = l.entidad_ruc AND a.nom_n = l.nombre_norm;
   ANALYZE _plo;
   RAISE NOTICE 'planilla: cruce con órdenes (% s)', round(extract(epoch FROM clock_timestamp() - t0));
   INSERT INTO _pls
   SELECT x.entidad_ruc, x.nombre_norm, 'tambien_ordenes', 'alta',
          jsonb_build_object('meses', jsonb_agg(DISTINCT to_char(o.mes, 'YYYY-MM')), 'ordenes', count(*), 'monto', sum(o.monto))
-    FROM _plo x
+    FROM (SELECT * FROM _plo WHERE ultima_orden >= primer_mes) x
     JOIN LATERAL (
       SELECT DISTINCT ON (c.orden, c.fecha_emision) date_trunc('month', c.fecha_emision)::date AS mes, c.monto
         FROM conosce_ordenes c
        WHERE c.ruc_contratista = x.ruc AND c.entidad_ruc = x.entidad_ruc AND c.tipo_orden = 'Orden de Servicio'
-         AND c.estado IS DISTINCT FROM 'Anulada' AND c.monto > 0
+         AND c.estado IS DISTINCT FROM 'Anulada' AND c.monto > 0 AND c.fecha_emision >= x.primer_mes
        ORDER BY c.orden, c.fecha_emision, c.anio DESC, c.mes DESC
     ) o ON o.mes = ANY (x.lista_meses)
    GROUP BY x.entidad_ruc, x.nombre_norm;
