@@ -6,6 +6,10 @@
 -- último mes de cada entidad (~400 mil filas, no crece con la historia); `meses`, `primer_mes` y lo que cruza meses
 -- (tambien_ordenes, antes_locador) siguen mirando toda la historia de esas personas.
 --
+-- Un refresco a la vez (candado de la transacción): dos corridas de pte_personal que terminan juntas borraban y volvían
+-- a llenar cargo_referencia a la vez, y la segunda chocaba con las filas que la primera acababa de insertar (su DELETE
+-- no las ve).
+--
 -- Cómo aplicarla: psql "$DSN" -v ON_ERROR_STOP=1 -f backend/db/migrations/100_planilla_ultimo_mes.sql (después de la 99)
 
 CREATE OR REPLACE FUNCTION refrescar_planilla() RETURNS integer
@@ -14,6 +18,7 @@ DECLARE
   n INT;
   t0 timestamptz := clock_timestamp();
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('refrescar_planilla'));
   SET LOCAL work_mem = '256MB';
 
   -- El último mes que publicó cada entidad: la planilla que se muestra es la de ese mes (quienes trabajan hoy); la
