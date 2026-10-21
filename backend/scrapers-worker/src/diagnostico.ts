@@ -1,8 +1,8 @@
 /**
  * Comprobaciones de lo que los scrapers necesitan desde Cloudflare, sin escribir nada:
  * base (Hyperdrive), COPY dentro de una transacción con tabla temporal, salida al OECE por el relay y
- * directa (la directa debe dar 403), la PNDA, el API del MEF y R2. `colo` es el punto de Cloudflare
- * por donde sale el pedido (de él depende que el WAF de cada sitio responda).
+ * directa (la directa debe dar 403), la PNDA, el API del MEF, R2 y (aparte, `cgr`) el buscador de la Contraloría.
+ * `colo` es el punto de Cloudflare por donde sale el pedido (de él depende que el WAF de cada sitio responda).
  */
 
 import type { Env } from "./config.ts";
@@ -99,6 +99,35 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
       const contador = new TransformStream<Uint8Array, Uint8Array>({ transform(t, c) { bytes += t.byteLength; c.enqueue(t); } });
       const a = await agregarZip(r.body!.pipeThrough(contador));
       return { filas: a.filas, ejecutoras: a.ejecutoras.size, desglose: a.desglose.size, mb: Math.round(bytes / 1e6), segundos: (Date.now() - t0) / 1000 };
+    });
+  }
+  if (partes.has("cgr")) {
+    // Buscador de la Contraloría (fuente contraloria_informes): directo, por el relay y con Browser Rendering. Su
+    // servidor no responde a IPs de fuera del Perú (2026-10-21: timeout desde AWS us-east-2 y 522 desde Zúrich).
+    const { urlPagina } = await import("./fuentes/contraloria_informes.ts");
+    const url = urlPagina(1).replace("PageSize=1000", "PageSize=1");
+    const filas = (t: string) => { try { return (JSON.parse(t) as unknown[]).length; } catch { return null; } };
+    out.cgr_directo = await medir(async () => {
+      const r = await obtener(env, url, { sinReintentos: true, timeoutMs: 25_000 });
+      const t = await r.text();
+      return { status: r.status, filas: filas(t) };
+    });
+    out.cgr_relay = await medir(async () => {
+      const r = await obtener(env, url, { relay: true, sinReintentos: true, timeoutMs: 25_000 });
+      const t = await r.text();
+      return { status: r.status, filas: filas(t) };
+    });
+    out.cgr_navegador = await medir(async () => {
+      const { default: puppeteer } = await import("@cloudflare/puppeteer");
+      const navegador = await puppeteer.launch(env.BROWSER);
+      try {
+        const pagina = await navegador.newPage();
+        const r = await pagina.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        const t = (await pagina.evaluate("document.body ? document.body.innerText : ''")) as string;
+        return { status: r?.status() ?? null, filas: filas(t) };
+      } finally {
+        await navegador.close().catch(() => undefined);
+      }
     });
   }
   if (todo || partes.has("r2")) {

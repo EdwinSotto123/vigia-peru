@@ -20,6 +20,7 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `onpe_gastos` | `onpe_gastos_proveedores`: a quién le compró cada organización política en campaña (RUC o DNI y monto), mismo portal | miércoles 08:00 |
 | `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` / `conosce_consorcios` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
 | `conosce_ordenes` | `conosce_ordenes`: órdenes de compra y de servicio por mes de registro (~275 000 al mes) → `refrescar_fraccionamiento()` (migración 51) | sábados 08:00 |
+| `contraloria_informes` | `informes_control`: informes de control de la Contraloría con responsabilidad penal, civil o administrativa (presunta), sin nombres ni DNI → `refrescar_informes_control_entidad()` (migración 90) | sin cron: hoy no llega (ver abajo) |
 
 Lo que no se pasó:
 - **`vigia-batch`**: baja documentos de los contratos financiados para los agentes, que siguen en GCP y están pausados.
@@ -45,6 +46,19 @@ Las órdenes (`conosce_ordenes`) vienen un XLSX por mes de registro (`ordenes/<a
 60–90 MB): cada mes se reemplaza en una transacción; por defecto los últimos 3 (`desde`/`hasta` en AAAA o AAAA-MM
 para otros). Con ellas `refrescar_fraccionamiento()` arma `ordenes_fraccionadas`: días en que una entidad le
 emitió a una misma empresa (RUC 20) varias órdenes "hasta 8 UIT" que juntas pasan el tope.
+
+### Contraloría
+
+`src/fuentes/contraloria_informes.ts` lee el Buscador de Informes de la Contraloría (`BusquedaInformesCGR.ashx`, JSON
+sin captcha): los ~14 100 informes con responsabilidad penal, civil, administrativa de la entidad o PAS, 15 páginas de
+1 000, una por paso, con upsert por código. Cada fila trae en `Text` el DNI y el nombre de los funcionarios: sólo se
+toma una lista cerrada de campos (ni la base ni el crudo en R2 los tienen). Al final, `refrescar_informes_control_entidad()`
+pone ubigeo y RUC (cruce por nombre con `entidades`; lo ambiguo queda sin RUC). Ver `docs/CORRUPCION.md`.
+
+**No llega desde Cloudflare:** el servidor de la Contraloría sólo responde a IPs del Perú (2026-10-21: 522 directo, 522
+por el relay de Zúrich, timeout con Browser Rendering y desde AWS us-east-2). Por eso no tiene cron y la carga mensual
+es `python backend/scripts/cargar_contraloria_informes.py --entorno prod` desde una PC en el Perú (mismos campos y mismo
+upsert). `GET /diagnostico?partes=cgr` dice si ya llega por alguna vía.
 
 ### Cruces
 
@@ -101,7 +115,7 @@ POST /correr ─────────────────┘   un Workflo
 |---|---|
 | `POST /correr` | `{fuente, seco?, forzar?, desde?, hasta?}` lanza una corrida ahora y devuelve `{instancia}`. `seco` parsea sin escribir; `forzar` recarga aunque el sha256 ya esté cargado; `desde`/`hasta` son `AAAA-MM-DD` en oece_ocds y `AAAA-MM` en pnda_visitas. |
 | `GET /instancias/<id>` | estado y resultado de una corrida (`<fuente>-<AAAAMMDD>-<HHMM>-<xxxx>`, hora de Lima) |
-| `GET /diagnostico[?partes=db,relay,oece,pnda,mef,r2,paso]` | prueba base (con un COPY a una tabla temporal), relay, OECE directo (debe dar 403), PNDA, MEF y R2. `paso` hace lo mismo dentro de un Workflow. |
+| `GET /diagnostico[?partes=db,relay,oece,pnda,mef,r2,paso]` | prueba base (con un COPY a una tabla temporal), relay, OECE directo (debe dar 403), PNDA, MEF y R2. `paso` hace lo mismo dentro de un Workflow. `cgr` (aparte) prueba el buscador de la Contraloría directo, por el relay y con Browser Rendering. |
 | `GET /salud` | `{ok, activo}`, sin autenticación |
 
 Todos menos `/salud` piden `Authorization: Bearer <SCRAPERS_TOKEN>`. El token está en SSM:

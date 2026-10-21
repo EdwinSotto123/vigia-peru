@@ -6,7 +6,7 @@
  *   GET  /salud                     → {ok, activo}
  *   POST /correr {fuente, seco?, forzar?, desde?, hasta?}  → una corrida ahora (Bearer SCRAPERS_TOKEN)
  *   GET  /instancias/:id            → estado de una corrida (Bearer SCRAPERS_TOKEN)
- *   GET  /diagnostico[?partes=db,relay,oece,pnda,mef,r2,paso]   (Bearer SCRAPERS_TOKEN)
+ *   GET  /diagnostico[?partes=db,relay,oece,pnda,mef,r2,paso,cgr]   (Bearer SCRAPERS_TOKEN)
  */
 
 import { autorizado } from "./auth.ts";

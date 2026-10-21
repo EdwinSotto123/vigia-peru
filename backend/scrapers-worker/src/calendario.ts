@@ -17,6 +17,11 @@
  *
  *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
  *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
+ *
+ *   contraloria_informes  SIN cron: el buscador de la Contraloría no responde fuera del Perú (522 desde Cloudflare,
+ *                      también por el relay). Mensual, a mano desde una PC en el Perú:
+ *                      backend/scripts/cargar_contraloria_informes.py (docs/CORRUPCION.md). Si un día llega,
+ *                      agregarlo acá (día 10) con `dia === 10`.
  */
 
 export const CRON_DIARIO = "0 11 * * *";
