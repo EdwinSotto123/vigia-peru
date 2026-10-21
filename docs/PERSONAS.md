@@ -67,10 +67,15 @@ RUC. No se busca por nombre. La planilla sale de la API ya con el apellido mater
 ## Operación
 
 - Las órdenes: tras cada carga de `conosce_ordenes` se rehacen, desde 6 meses antes del primer mes cargado,
-  `refrescar_fraccionamiento(desde)` y `refrescar_personas_ordenes(desde)`, y después `refrescar_personas_senales()`.
+  `refrescar_fraccionamiento(desde)` y `refrescar_personas_ordenes(desde)`; después `refrescar_personas_senales(desde)`
+  (sólo las personas con órdenes desde ese año, migración 94) y, en otro paso, `refrescar_personas_resumen()` (las cifras
+  de cada alcance). Cada uno en su sentencia: Hyperdrive corta a los ~10 min.
 - La historia (2018-2024): `POST /correr {"fuente":"conosce_ordenes","desde":"2018-01","hasta":"2024-12","relleno":true}`
   no rehace nada al final; después, desde la PC y fuera de Hyperdrive: `refrescar_fraccionamiento(NULL)`,
-  `refrescar_personas_ordenes(NULL)`, `refrescar_personas_senales()`.
+  `refrescar_personas_ordenes(NULL)`, `refrescar_personas_senales(NULL)`, `refrescar_personas_resumen()` y la cadena de
+  los cruces. El 2026-10-21 se cargó así (y el disco de la base pasó a 50 GB).
+- Rendimiento: `entidad_gobierno` es una vista con expresiones regulares; cruzada en vivo con millones de filas, el
+  planificador la recalculaba por fila. Las funciones la materializan antes (`_eg`).
 - La planilla: `POST /correr {"fuente":"pte_personal"}` (los dos meses anteriores; `desde`/`hasta` AAAA-MM para otros).
   Busca el id de cada entidad en el PTE la primera vez (`pte_entidad`) y después baja cada mes en CSV.
 - Las plazas: `python backend/scripts/cargar_servir_convocatorias.py --entorno prod` (primero `--seco --paginas 3`).

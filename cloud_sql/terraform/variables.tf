@@ -24,9 +24,9 @@ variable "db_usuario" {
 }
 
 variable "almacenamiento_gb" {
-  description = "Disco inicial. La base pesa ~2,2 GB (2026-10)."
+  description = "Disco. 50 GB desde el 2026-10-21 (relleno de las órdenes de CONOSCE 2018-2024, ~12 GB); crece solo hasta max_allocated_storage."
   type        = number
-  default     = 20
+  default     = 50
 }
 
 # Quién puede llegar al puerto 5432 desde internet. SOLO IPs fijas (CIDR /32): nunca 0.0.0.0/0. Vacío (lo normal desde

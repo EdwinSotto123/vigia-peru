@@ -275,6 +275,9 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
   const uno = (nombre: string, sql: string) =>
     step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0)));
   resumen.planilla = await uno("refrescar_planilla", "SELECT refrescar_planilla() AS n");
-  resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales() AS n");
+  // Las órdenes de los años de la planilla cargada (tambien_planilla, paso_a_planilla) y el resumen.
+  const [primerAnio] = mesesPte(p, fechaLima())[0];
+  resumen.personas = await uno("refrescar_personas_senales", `SELECT refrescar_personas_senales(make_date(${Number(primerAnio)}, 1, 1)) AS n`);
+  resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
   return resumen;
 }

@@ -157,7 +157,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql, params))[0]?.n ?? 0)));
   resumen.fraccionamiento = await uno("refrescar_fraccionamiento", "SELECT refrescar_fraccionamiento($1::date) AS n", [desde]);
   resumen.personas_ordenes = await uno("refrescar_personas_ordenes", "SELECT refrescar_personas_ordenes($1::date) AS n", [desde]);
-  resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales() AS n");
+  // Sólo las personas con órdenes desde ese año (migración 94) y, en otro paso, el resumen de cada alcance.
+  resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales($1::date) AS n", [desde]);
+  resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
   // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).
