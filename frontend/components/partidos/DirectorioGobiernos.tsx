@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, Search, SearchX, X } from "lucide-react";
 import { nombreDepartamento } from "@/components/mapa/region-match";
+import { rutaRegion } from "@/lib/regiones";
 import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
@@ -384,6 +385,8 @@ function Gobiernos({
     const color = colores.get(f.o) ?? COLOR_OTRAS;
     return {
       id: f.id,
+      // La región abre su ficha; una provincia o un distrito, la de su región con su nombre ya buscado.
+      href: nivel === "regional" ? rutaRegion(f.region) : rutaRegion(f.region, "territorio", f.lugar),
       celdas: {
         lugar: (
           <span className="block min-w-0">

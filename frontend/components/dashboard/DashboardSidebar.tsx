@@ -65,7 +65,7 @@ const SECTIONS: Section[] = [
         hint: "Elige tu región",
         // El mapa se marca activo sólo cuando es el mapa (o una región): estando dentro
         // de un dossier la navegación no puede decir "Mapa".
-        match: (p) => p.startsWith("/app/mapa") || p.startsWith("/region"),
+        match: (p) => p.startsWith("/app/mapa"),
       },
       {
         href: "/app/contratos",
@@ -91,7 +91,8 @@ const SECTIONS: Section[] = [
         label: "Partidos",
         icon: <Landmark size={16} />,
         hint: "Quién gobierna cada región",
-        match: (p) => p.startsWith("/app/partidos"),
+        // La ficha de una región (/region/<ubigeo>) se abre desde «Partidos y gobiernos».
+        match: (p) => p.startsWith("/app/partidos") || p.startsWith("/region"),
       },
       {
         href: "/app/personas",

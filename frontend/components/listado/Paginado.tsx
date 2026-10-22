@@ -41,6 +41,8 @@ export interface BuscarEnLista {
   placeholder: string;
   /** Para el lector de pantalla: "Buscar en las órdenes". */
   etiqueta?: string;
+  /** El texto con que llega (un enlace que ya trae qué buscar). */
+  inicial?: string;
 }
 
 export function TablaPaginada({
@@ -61,13 +63,14 @@ export function TablaPaginada({
   nombre: string;
   buscar?: BuscarEnLista;
 } & PropsTabla) {
-  const [consulta, setConsulta] = useState("");
+  const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
   const indice = useMemo(() => (buscar ? filas.map((f) => paraBuscar(f.buscable)) : []), [filas, buscar]);
   const q = paraBuscar(consulta);
   const vistas = useMemo(() => (buscar && q ? filas.filter((_, i) => coincide(indice[i], q)) : filas), [filas, indice, q, buscar]);
   const p = usePaginas(vistas.length, tam);
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
-  const barra = buscar && filas.length > MIN_BUSCAR && (
+  // Con un texto ya puesto, el buscador se ve siempre: si no, no habría cómo quitarlo.
+  const barra = buscar && (filas.length > MIN_BUSCAR || consulta !== "") && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <Buscador
         placeholder={buscar.placeholder}
