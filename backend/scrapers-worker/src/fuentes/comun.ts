@@ -40,5 +40,8 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   await uno("refrescar_contrato_partido", "SELECT refrescar_contrato_partido() AS n");
   await uno("refrescar_cruce_otro_postor", "SELECT refrescar_cruce_otro_postor() AS n");
   await uno("refrescar_adjudicado_vigente", "SELECT refrescar_adjudicado_vigente() AS n");
+  // Adjudicaciones de 20 veces su valor referencial o con un valor de S/ 1 (migración 102): la web las marca como
+  // posible error de carga. ~30 s en producción.
+  await uno("refrescar_contratos_dudosos", "SELECT refrescar_contratos_dudosos() AS n");
   return uno("refrescar_casos_cruce_base", "SELECT refrescar_casos_cruce_base() AS n");
 }

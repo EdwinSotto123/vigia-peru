@@ -27,7 +27,7 @@ const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:f
 
 export const TIPOS_SENAL = [
   "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
-  "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa",
+  "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
 const Lista = z.object({
@@ -39,6 +39,8 @@ const Lista = z.object({
   severidad: z.enum(["alta", "media", "baja", "con", "sin"]).optional(),
   servicio: z.string().trim().min(2).max(60).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
+  // El buscador: la entidad y el tipo de servicio, nunca el nombre de la persona (docs/PRIVACIDAD.md).
+  q: z.string().trim().min(2).max(80).optional(),
   orden: z.enum(["senales", "monto", "ordenes", "meses", "reciente"]).default("senales"),
   page: z.coerce.number().int().min(1).max(5000).default(1),
   // size=0: sólo el resumen (los bloques del Inicio).
@@ -54,6 +56,26 @@ const ORDEN: Record<ListaQ["orden"], string> = {
   reciente: "pe.ultima DESC NULLS LAST, pe.monto DESC",
 };
 const SEV: Record<string, number> = { alta: 3, media: 2, baja: 1 };
+
+/**
+ * Las palabras de una búsqueda como las deja `mef_norm` en la base (mayúsculas, sin tildes, sólo letras y cifras): cada
+ * una va a un `LIKE '%PALABRA%'` sobre el texto normalizado, que usa los índices de trigramas (migración 103). Hasta 5
+ * palabras de 3 letras o más (con menos el índice de trigramas no sirve); como no quedan `%` ni `_`, no hay que escaparlas.
+ */
+export function palabrasBusqueda(q: string | undefined): string[] {
+  if (!q) return [];
+  return q
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3)
+    .slice(0, 5);
+}
+
+/** La expresión indexada de persona_entidad (migración 103). */
+const TEXTO_PE = `mef_norm(COALESCE(pe.entidad, '') || ' ' || COALESCE(pe.servicio, ''))`;
 
 /** Lo que fija el alcance (entidad, región, partido): el resumen va sobre esto, sin los demás filtros. */
 function alcance(q: ListaQ): { conds: string[]; vals: unknown[] } {
@@ -73,6 +95,7 @@ function filtros(q: ListaQ, conds: string[], vals: unknown[]) {
   else if (q.severidad) { vals.push(SEV[q.severidad]); conds.push(`pe.sev = $${vals.length}`); }
   if (q.servicio) { vals.push(q.servicio); conds.push(`pe.servicio = $${vals.length}`); }
   if (q.anio) { vals.push(q.anio); conds.push(`$${vals.length}::smallint = ANY (pe.anios)`); }
+  for (const w of palabrasBusqueda(q.q)) { vals.push(`%${w}%`); conds.push(`${TEXTO_PE} LIKE $${vals.length}`); }
 }
 
 /** Partidos que gobernaban la entidad en esos años ('clave:anio' de persona_entidad.gobiernos), con su nombre. */
@@ -243,6 +266,8 @@ export function taparNombrePropio(texto: string | null, nombre: string | null): 
 const Ordenes = z.object({
   entidad: z.string().regex(/^\d{11}$/).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
+  // En la descripción, la entidad o el número de la orden.
+  q: z.string().trim().min(2).max(80).optional(),
   page: z.coerce.number().int().min(1).max(2000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -264,6 +289,10 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
     const conds = [`o.ruc_contratista = $1`, `o.tipo_orden = 'Orden de Servicio'`, `o.moneda = 'Nuevos Soles'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`];
     if (q.entidad) { vals.push(q.entidad); conds.push(`o.entidad_ruc = $${vals.length}`); }
     if (q.anio) { vals.push(q.anio); conds.push(`o.fecha_emision >= make_date($${vals.length}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`); }
+    for (const w of palabrasBusqueda(q.q)) {
+      vals.push(`%${w}%`);
+      conds.push(`mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE $${vals.length}`);
+    }
     // Una vez cada orden (un archivo mensual puede repetirla; vale la del más nuevo), como persona_orden_anual.
     const r = await pool.query(
       `WITH o AS (
@@ -271,7 +300,8 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
            FROM conosce_ordenes o WHERE ${conds.join(" AND ")}
           ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
        SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero,
-              o.orden, o.descripcion, o.monto::float AS monto, o.monto_dudoso::float AS "montoDudoso", o.estado, servicio_persona(o.descripcion) AS servicio,
+              o.orden, o.descripcion, o.monto::float AS monto, o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
+              o.tipo_contratacion AS "tipoContratacion", o.estado, servicio_persona(o.descripcion) AS servicio,
               count(*) OVER ()::int AS total
          FROM o ORDER BY o.fecha_emision DESC, o.orden DESC
         LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals);

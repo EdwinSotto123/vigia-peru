@@ -32,7 +32,7 @@ import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
-import { LISTA_JSON, pool } from "../lib/db.js";
+import { LISTA_JSON, escaparLike, pool } from "../lib/db.js";
 import { etiquetaRegla, reglasJson } from "../lib/reglas.js";
 import { motivosDesdeEval, umbralesSelfEval, type SelfEvalConfig } from "./admin_revision.js";
 import { procBanderasSql, procScoreSql, redactarResultado } from "../lib/publicacion.js";
@@ -120,6 +120,8 @@ const Q = z.object({
   ]).optional(),
   alerta: z.enum(["revision"]).optional(),
   financiador: z.string().min(1).max(120).optional(),
+  // Texto libre: qué se contrata, la entidad, la zona, el código de la alerta o el ocid.
+  q: z.string().trim().min(2).max(80).optional(),
   desde: fechaIso().optional(),
   hasta: fechaIso().optional(),
   limit: z.coerce.number().int().min(1).max(300).default(100),
@@ -136,12 +138,12 @@ procesamientosRouter.get("/", async (c) => {
   const p = Q.safeParse(parametros(c));
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
   const q = p.data;
-  const memo = q.financiador ? listaTextoMemo : listaMemo;
+  const memo = q.financiador || q.q ? listaTextoMemo : listaMemo;
   return responderJson(c, memo, JSON.stringify(q), () => listaProcesamientos(q).then(publicar), cachePublico(2, { maxAge: 0 }));
 });
 
 async function listaProcesamientos(q: z.infer<typeof Q>) {
-  const { ubigeo, codigo, estado, alerta, financiador, desde, hasta, limit, offset } = q;
+  const { ubigeo, codigo, estado, alerta, financiador, desde, hasta, limit, offset, q: texto } = q;
   const vals: unknown[] = [];
   const w: string[] = [];
   if (ubigeo) { vals.push(ubigeo); w.push(`ubigeo LIKE $${vals.length} || '%'`); }
@@ -152,6 +154,11 @@ async function listaProcesamientos(q: z.infer<typeof Q>) {
   // `financiador` (procesamientos_publico) ya sale como 'Anónimo' cuando financiador_visible es falso,
   // así que un ILIKE acá nunca expone a quien pidió no aparecer.
   if (financiador) { vals.push(`%${financiador}%`); w.push(`financiador ILIKE $${vals.length}`); }
+  if (texto) {
+    vals.push(`%${escaparLike(texto)}%`);
+    const p = `$${vals.length}`;
+    w.push(`(titulo ILIKE ${p} OR entidad ILIKE ${p} OR zona ILIKE ${p} OR alerta_codigo ILIKE ${p} OR ocid ILIKE ${p})`);
+  }
   // Rango sobre `encolado_at`: es el único timestamp que SIEMPRE existe (desde que entra a la cola),
   // a diferencia de iniciado_at/finalizado_at (null mientras no arranca o no termina).
   if (desde) { vals.push(desde); w.push(`encolado_at >= $${vals.length}::date`); }

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
@@ -14,7 +14,8 @@ import { PERIODOS_GOBIERNO } from "./partidos.js";
  * funcionarios) se enlazan, no se copian. Se cargan una vez al mes: caché larga.
  *
  * Cada ruta devuelve los conteos de TODOS los informes y una página de la lista (`page`, `size`), que se puede filtrar
- * por tipo de responsabilidad (`tipo`): la web muestra la lista entera, paginada, no sólo los más recientes.
+ * por tipo de responsabilidad (`tipo`) y buscar (`q`: asunto, número o entidad): la web muestra la lista entera,
+ * paginada, no sólo los más recientes.
  */
 export const corrupcionRouter = new Hono();
 
@@ -25,6 +26,7 @@ const Pagina = z.object({
   size: z.coerce.number().int().min(1).max(50).default(20),
   tipo: z.enum(["penal", "civil", "administrativa"]).optional(),
   anio: z.coerce.number().int().optional(),
+  q: z.string().trim().min(2).max(80).optional(),
 });
 type PaginaQ = z.infer<typeof Pagina>;
 
@@ -49,16 +51,23 @@ const POR_TIPO: Record<NonNullable<PaginaQ["tipo"]>, string> = {
 
 /** Conteos de todo lo que cumple `donde` y la página pedida (con su filtro de tipo y su total). */
 async function informes(donde: string, vals: unknown[], q: PaginaQ) {
-  const filtro = q.tipo ? `${donde} AND ${POR_TIPO[q.tipo]}` : donde;
+  let filtro = q.tipo ? `${donde} AND ${POR_TIPO[q.tipo]}` : donde;
+  // La búsqueda sólo acota la lista: los conteos de arriba son siempre los de todo el alcance.
+  const valsLista = [...vals];
+  if (q.q) {
+    valsLista.push(`%${escaparLike(q.q)}%`);
+    const p = `$${valsLista.length}`;
+    filtro += ` AND (ic.titulo ILIKE ${p} OR ic.numero ILIKE ${p} OR ic.entidad_nombre ILIKE ${p})`;
+  }
   const [conteos, lista] = await Promise.all([
     pool.query(`SELECT ${CONTEOS} FROM informes_control ic WHERE ${donde}`, vals),
     pool.query(
       `SELECT ${FILA}, count(*) OVER ()::int AS n FROM informes_control ic WHERE ${filtro}
-        ORDER BY ${ORDEN} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+        ORDER BY ${ORDEN} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, valsLista),
   ]);
   return {
     ...conteos.rows[0],
-    pagina: { page: q.page, size: q.size, tipo: q.tipo ?? null, total: lista.rows[0]?.n ?? 0, filas: lista.rows.map(({ n: _n, ...f }) => f) },
+    pagina: { page: q.page, size: q.size, tipo: q.tipo ?? null, q: q.q ?? null, total: lista.rows[0]?.n ?? 0, filas: lista.rows.map(({ n: _n, ...f }) => f) },
   };
 }
 

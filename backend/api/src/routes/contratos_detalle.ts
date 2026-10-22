@@ -102,7 +102,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const row = r.rows[0];
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
-  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios, datoDudoso] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     // Mismas columnas que el tablero (score/banderas en null si la alerta no está publicada).
@@ -116,6 +116,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     alerta_id ? pool.query(EXPEDIENTE_SQL, [alerta_id]).then((q) => q.rows[0] ?? null).catch(() => null) : Promise.resolve(null),
     // Migración 84: precio unitario de cada ítem y la referencia de su CUBSO y unidad (sin la migración, sin precios).
     pool.query(PRECIOS_SQL, [row.ocid]).then((q) => q.rows as FilaPrecio[]).catch(() => [] as FilaPrecio[]),
+    // Migración 102: posible error de carga del OECE (adjudicado 20 veces el referencial, referencial de S/ 1).
+    pool.query(`SELECT motivo, referencial::float AS referencial, adjudicado::float AS adjudicado FROM contrato_dudoso WHERE ocid = $1`, [row.ocid])
+      .then((q) => (q.rows[0] as { motivo: string; referencial: number | null; adjudicado: number | null } | undefined) ?? null).catch(() => null),
   ]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
@@ -224,6 +227,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     documentos,
     adjudicaciones,
     contratadoConosce: conosce.length ? conosce : null,
+    datoDudoso,
     cruces,
     postoresDetalle: postores,
     itemsAnalizados,

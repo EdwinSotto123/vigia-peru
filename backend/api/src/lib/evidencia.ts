@@ -43,7 +43,9 @@ export interface ProcesoCruce {
   fecha: string | null;
 }
 
-const TOPE = 60;
+// Registros por evidencia: la ficha los pagina de a 10 y los busca (components/contratos/TablaEvidencia.tsx). Con 60 decía
+// "los 60 más recientes de 400" en proveedores recurrentes.
+const TOPE = 250;
 const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.slice(0, 10) : null);
 const num = (v: unknown) => (v == null ? null : Number(v));
 /** ONPE trae algunas fechas de aporte mal digitadas (año 0217, 2916): fuera de 1995 → hoy no se muestran. */
@@ -88,7 +90,7 @@ async function gastosCampana(f: FilaCruce): Promise<Evidencia> {
       parte: Number(x.total_org) > 0 ? (100 * Number(x.monto)) / Number(x.total_org) : null,
     })),
     verificar: `En Claridad (ONPE): Gastos de campaña › ${org || "la organización"} › Proveedores, buscando ${comoBuscar(f)}. ONPE publica a quién le compró cada campaña y cuánto, pero no qué compró.`,
-    enlace: { texto: "ONPE · Claridad, gastos de campaña", url: CLARIDAD },
+    enlace: { texto: "Gastos de campaña en Claridad (ONPE)", url: CLARIDAD },
   };
 }
 
@@ -115,7 +117,7 @@ async function aportes(f: FilaCruce): Promise<Evidencia> {
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "En Claridad (ONPE): Aportes, buscando a la organización política y el aportante.",
-    enlace: { texto: "ONPE · Claridad, aportes", url: "https://claridad.onpe.gob.pe/" },
+    enlace: { texto: "Aportes en Claridad (ONPE)", url: "https://claridad.onpe.gob.pe/" },
   };
 }
 
@@ -131,7 +133,7 @@ async function candidaturas(f: FilaCruce): Promise<Evidencia> {
     ],
     filas: r.map((x) => ({ proceso: x.proceso, organizacion: x.organizacion, departamento: x.departamento, fuente: x.fuente_url ? { texto: "ONPE", url: x.fuente_url } : null })),
     verificar: "En Claridad (ONPE): Candidatos, por organización y elección.",
-    enlace: { texto: "ONPE · Claridad, candidatos", url: "https://claridad.onpe.gob.pe/" },
+    enlace: { texto: "Candidatos en Claridad (ONPE)", url: "https://claridad.onpe.gob.pe/" },
   };
 }
 
@@ -158,7 +160,7 @@ async function autoridad(f: FilaCruce): Promise<Evidencia> {
     columnas: COL_AUTORIDAD,
     filas: r.map(filaAutoridad),
     verificar: "En Infogob / Voto Informado (JNE), su hoja de vida.",
-    enlace: { texto: "JNE · Infogob", url: "https://infogob.jne.gob.pe/" },
+    enlace: { texto: "Infogob del JNE", url: "https://infogob.jne.gob.pe/" },
   };
 }
 
@@ -180,7 +182,7 @@ async function gobernante(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
     columnas: COL_AUTORIDAD,
     filas: r.map(filaAutoridad),
     verificar: "En Infogob (JNE): autoridades electas de la región, provincia o distrito de la entidad.",
-    enlace: { texto: "JNE · Infogob", url: "https://infogob.jne.gob.pe/" },
+    enlace: { texto: "Infogob del JNE", url: "https://infogob.jne.gob.pe/" },
   };
 }
 
@@ -203,7 +205,7 @@ async function penalidades(f: FilaCruce): Promise<Evidencia> {
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: `En el perfil del proveedor del OSCE (RUC ${f.ruc_empresa}), pestaña de penalidades.`,
-    enlace: { texto: "OSCE · perfil del proveedor", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -222,12 +224,12 @@ async function sanciones(f: FilaCruce): Promise<Evidencia> {
       { clave: "multa", titulo: "Multa", tipo: "soles" },
     ],
     filas: r.map((x) => ({
-      resolucion: x.resolucion, fecha: fecha(x.fecha_resolucion), tipo: [x.tipo, x.estado].filter(Boolean).join(" · "),
+      resolucion: x.resolucion, fecha: fecha(x.fecha_resolucion), tipo: [x.tipo, x.estado].filter(Boolean).join(", "),
       vigencia: x.fecha_desde ? `${fecha(x.fecha_desde)} → ${fecha(x.fecha_hasta) ?? "sin fin"}` : null,
       infraccion: [x.infraccion, x.norma].filter(Boolean).join(" — ") || null, multa: num(x.monto_multa_soles),
     })),
     verificar: `En el perfil del proveedor del OSCE (RUC ${f.ruc_empresa}), sanciones; o en el buscador de resoluciones del Tribunal.`,
-    enlace: { texto: "OSCE · perfil del proveedor", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -259,7 +261,7 @@ async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "Cada proceso abre su ficha en Vigía o, si no está en la base, su registro en el OECE (Contrataciones Abiertas).",
-    enlace: { texto: "OSCE · perfil del proveedor", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -299,11 +301,11 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
     filas: items.map((x) => ({
       item: x.descripcion, cantidad: x.cantidad != null ? `${Number(x.cantidad).toLocaleString("es-PE")} ${x.unidad ?? ""}`.trim() : null,
       unitario: num(x.unit_adj), mediana: num(x.mediana),
-      rango: `S/ ${Number(x.p25).toLocaleString("es-PE", { maximumFractionDigits: 2 })} – ${Number(x.p75).toLocaleString("es-PE", { maximumFractionDigits: 2 })} · ${x.entidades} entidades`,
+      rango: `S/ ${Number(x.p25).toLocaleString("es-PE", { maximumFractionDigits: 2 })} – ${Number(x.p75).toLocaleString("es-PE", { maximumFractionDigits: 2 })} en ${x.entidades} entidades`,
       exceso: x.exceso != null && Number(x.exceso) > 0 ? num(x.exceso) : null,
     })),
     verificar: "El precio por unidad es lo adjudicado del ítem (CONOSCE) entre su cantidad (OCDS). La referencia son las compras de otras entidades con el mismo código CUBSO y la misma unidad, ese año y el anterior.",
-    enlace: { texto: "OECE · Contrataciones Abiertas", url: "https://contratacionesabiertas.oece.gob.pe/" },
+    enlace: { texto: "Contrataciones Abiertas del OECE", url: "https://contratacionesabiertas.oece.gob.pe/" },
   }];
   if (otras.length) ev.push({
     titulo: `Lo que pagaron otras entidades por ${String(peor.descripcion ?? "el mismo ítem").toLowerCase().slice(0, 80)}`,

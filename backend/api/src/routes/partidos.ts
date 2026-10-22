@@ -213,7 +213,8 @@ partidosRouter.get("/:clave", async (c) => {
            LEFT JOIN zonas z ON z.ubigeo = cp.gobierno_ubigeo
           WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
           GROUP BY e.ruc, e.nombre, cp.nivel, z.nombre, cp.autoridad
-          ORDER BY count(*) DESC, e.nombre LIMIT 15`, [clave, anio]),
+          -- Todas (antes, las 15 con más contratos): la web las pagina y las busca.
+          ORDER BY count(*) DESC, e.nombre`, [clave, anio]),
       pool.query(
         `SELECT left(cp.gobierno_ubigeo, 2) AS ubigeo, z.nombre, ${CONTEOS}
            FROM contrato_partido cp

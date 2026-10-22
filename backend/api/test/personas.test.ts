@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conEnie, taparNombrePropio } from "../src/routes/personas.js";
+import { conEnie, palabrasBusqueda, taparNombrePropio } from "../src/routes/personas.js";
 import { publicar } from "../src/lib/privacidad.js";
 import { TAPA_NOMBRE } from "../src/lib/privacidad.js";
 
@@ -17,4 +17,12 @@ test("la Ñ que CONOSCE escribe «¿» se repone, y el apellido se tapa", () => 
   assert.equal(conEnie("¿QUÉ SERVICIO?"), "¿QUÉ SERVICIO?");
   const r = publicar({ data: [{ ruc: "10439608801", nombre: conEnie("LEON NURE¿A MANUEL ALEXANDER") }] });
   assert.equal(r.data[0].nombre, `LEON ${TAPA_NOMBRE} MANUEL ALEXANDER`);
+});
+
+test("el buscador deja las palabras como mef_norm: mayúsculas, sin tildes, de 3 letras o más y sin comodines", () => {
+  assert.deepEqual(palabrasBusqueda("Municipalidad de Huarochirí"), ["MUNICIPALIDAD", "HUAROCHIRI"]);
+  assert.deepEqual(palabrasBusqueda("  Niño   asesor%_legal "), ["NINO", "ASESOR", "LEGAL"]);
+  assert.deepEqual(palabrasBusqueda("a b"), []);
+  assert.deepEqual(palabrasBusqueda(undefined), []);
+  assert.equal(palabrasBusqueda("uno dos tres cuatro cinco seis siete").length, 5);
 });

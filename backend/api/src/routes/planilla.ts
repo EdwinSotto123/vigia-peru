@@ -4,6 +4,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { palabrasBusqueda } from "./personas.js";
 
 /**
  * Planilla (migración 92) y plazas CAS (migración 93).
@@ -31,6 +32,9 @@ const Alcance = {
   entidad: z.string().regex(/^\d{11}$/).optional(),
   dep: z.string().regex(/^\d{2}$/).optional(),
   severidad: z.enum(["alta", "media", "baja", "con", "sin"]).optional(),
+  // El buscador (migración 103): cargo, dependencia y entidad en la planilla; título, entidad y lugar en las plazas.
+  // Nunca el nombre de la persona (docs/PRIVACIDAD.md).
+  q: z.string().trim().min(2).max(80).optional(),
   page: z.coerce.number().int().min(1).max(5000).default(1),
   size: z.coerce.number().int().min(0).max(50).default(20),
 };
@@ -49,8 +53,13 @@ const ListaPlanilla = {
   ...Alcance,
   senal: z.enum(TIPOS_PLANILLA).optional(),
   regimen: z.coerce.number().int().min(1).max(9).optional(),
+  // Sólo las filas con un posible error de carga del Estado (migración 102).
+  dudoso: z.enum(["si"]).optional(),
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
+
+/** La expresión indexada de planilla_persona (migración 103). */
+const TEXTO_PLANILLA = `mef_norm(COALESCE(p.cargo, '') || ' ' || COALESCE(p.dependencia, '') || ' ' || COALESCE(p.entidad, ''))`;
 // "sueldo" ordena por el sueldo base (migración 98): el total del mes trae liquidaciones y retiros.
 const ORDEN_PLANILLA = { senales: "p.sev DESC, p.n_senales DESC, p.base DESC NULLS LAST", sueldo: "p.base DESC NULLS LAST", meses: "p.meses DESC, p.base DESC NULLS LAST" };
 
@@ -85,11 +94,13 @@ planillaRouter.get("/", async (c) => {
     const v2 = [...vals];
     if (q.senal) { v2.push([q.senal]); conds.push(`p.tipos @> $${v2.length}::text[]`); }
     if (q.regimen) { v2.push(q.regimen); conds.push(`p.regimen = $${v2.length}`); }
+    if (q.dudoso) conds.push(`p.dudoso IS NOT NULL`);
+    for (const w of palabrasBusqueda(q.q)) { v2.push(`%${w}%`); conds.push(`${TEXTO_PLANILLA} LIKE $${v2.length}`); }
     sevCond(q.severidad, conds, v2, "p");
     const [filas, res] = await Promise.all([
       pool.query(
         `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
-                p.base::float AS base, p.extra::float AS extra,
+                p.base::float AS base, p.extra::float AS extra, p.dudoso,
                 p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
                 p.senales, p.n_senales AS "nSenales", p.codigo, count(*) OVER ()::int AS n
            FROM planilla_persona p WHERE ${conds.join(" AND ")}
@@ -138,6 +149,10 @@ plazasRouter.get("/", async (c) => {
     const conds = [...alc];
     const v2 = [...vals];
     if (q.senal) { v2.push([q.senal]); conds.push(`s.tipos @> $${v2.length}::text[]`); }
+    for (const w of palabrasBusqueda(q.q)) {
+      v2.push(`%${w}%`);
+      conds.push(`mef_norm(COALESCE(s.titulo, '') || ' ' || COALESCE(s.entidad, '') || ' ' || COALESCE(s.ubicacion, '') || ' ' || COALESCE(s.servicio, '')) LIKE $${v2.length}`);
+    }
     sevCond(q.severidad, conds, v2, "s");
     const [filas, res] = await Promise.all([
       pool.query(

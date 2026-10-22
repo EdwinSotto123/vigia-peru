@@ -37,7 +37,11 @@ entidadesRouter.get("/", async (c) => {
 
   const conds: string[] = [];
   const vals: any[] = [];
-  if (q) {
+  if (q && /^\d{4,11}$/.test(q)) {
+    // Un RUC (o su comienzo): el placeholder dice "por nombre o RUC" y antes sólo miraba el nombre.
+    vals.push(`${q}%`);
+    conds.push(`${modelos ? "es" : "e"}.ruc::text LIKE $${vals.length}`);
+  } else if (q) {
     vals.push(`%${escaparLike(q.toLowerCase())}%`);
     conds.push(modelos ? `es.nombre_norm LIKE immutable_unaccent($${vals.length})` : `immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($${vals.length})`);
   }

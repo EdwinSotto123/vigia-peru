@@ -99,7 +99,8 @@ async function detalleZona(ubigeo: string, noGuardar: () => void): Promise<Recor
               SUM(co.contratos)::int AS contratos, MAX(co.pagada_at) AS "ultimoAporte"
        FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
        WHERE co.ubigeo LIKE $1 || '%' AND co.estado IN ('pagada','en_proceso','procesada') AND f.visible
-       GROUP BY f.id ORDER BY contratos DESC LIMIT 12`, [ubigeo]),
+       -- Todos (antes, los 12 primeros): la web los pagina y los busca.
+       GROUP BY f.id ORDER BY contratos DESC, f.id`, [ubigeo]),
     pool.query(
       `WITH RECURSIVE up AS (
          SELECT ubigeo, nombre, nivel, padre_ubigeo FROM zonas WHERE ubigeo = $1
@@ -127,13 +128,15 @@ const RankingQuery = z.object({
   region: z.string().regex(/^\d{2,6}$/).optional(),
   limit: z.coerce.number().int().min(1).max(60).default(60),
   offset: z.coerce.number().int().min(0).default(0),
+  // Busca por el nombre público (sólo aliados visibles); el puesto sigue siendo el del ranking entero.
+  q: z.string().trim().min(2).max(80).optional(),
 });
 
 // ─── GET /financiamiento/ranking ─────────────────────────────────────────────
 financiamientoRouter.get("/ranking", async (c) => {
   const parsed = RankingQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { periodo, region, limit, offset } = parsed.data;
+  const { periodo, region, limit, offset, q } = parsed.data;
   const since = periodo === "mes" ? "date_trunc('month', now())" : periodo === "anio" ? "date_trunc('year', now())" : "'1970-01-01'::timestamptz";
   const vals: any[] = [];
   let zonaCond = "";
@@ -144,11 +147,16 @@ financiamientoRouter.get("/ranking", async (c) => {
      JOIN contribuciones co ON co.financiador_id = f.id AND co.estado IN ('pagada','en_proceso','procesada')
           AND co.pagada_at >= ${since}${zonaCond}
      WHERE f.visible`;
+  // Con búsqueda, el puesto se cuenta sobre todos (row_number) y después se filtra por el nombre.
+  let busca = "";
+  if (q) { vals.push(`%${escaparLike(q)}%`); busca = `WHERE r.nombre_publico ILIKE $${vals.length}`; }
   const totalVals = [...vals];
   vals.push(limit, offset);
   const [r, total] = await Promise.all([
     pool.query(
-      `SELECT f.id, f.tipo, COALESCE(f.nombre_publico,'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl",
+      `SELECT * FROM (
+       SELECT row_number() OVER (ORDER BY SUM(co.contratos) DESC, MIN(co.pagada_at) ASC, f.id)::int AS posicion, f.nombre_publico,
+              f.id, f.tipo, COALESCE(f.nombre_publico,'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl",
               SUM(co.contratos)::int AS "contratosFinanciados",
               COUNT(DISTINCT co.ubigeo)::int AS zonas,
               (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
@@ -158,14 +166,17 @@ financiamientoRouter.get("/ranking", async (c) => {
                 WHERE s.contribucion_id = ANY(array_agg(co.id)) AND ${EN_REVISION})::int AS "enRevision",
               MIN(co.pagada_at) AS desde
        ${fromWhere}
-       GROUP BY f.id ORDER BY "contratosFinanciados" DESC, desde ASC LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
+       GROUP BY f.id) r ${busca}
+       ORDER BY r.posicion LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
     // DISTINCT f.id matching el mismo FROM/WHERE == número de grupos que produciría el GROUP BY de arriba.
-    pool.query(`SELECT COUNT(DISTINCT f.id)::int AS n ${fromWhere}`, totalVals),
+    q
+      ? pool.query(`SELECT COUNT(DISTINCT f.id)::int AS n ${fromWhere} AND f.nombre_publico ILIKE $${totalVals.length}`, totalVals)
+      : pool.query(`SELECT COUNT(DISTINCT f.id)::int AS n ${fromWhere}`, totalVals),
   ]);
   cache(c, 60);
   return c.json({
     periodo,
-    data: r.rows.map((row, i) => ({ posicion: offset + i + 1, ...row })),
+    data: r.rows.map(({ nombre_publico: _np, ...row }) => row),
     total: total.rows[0].n,
   });
 });
@@ -211,6 +222,14 @@ financiamientoRouter.get("/recientes", async (c) => {
   const pag = leerRecientes(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!pag) return c.json({ error: "invalid_query" }, 400);
   const conEntidad = await hayAporteEntidad();
+  // La búsqueda: el nombre público (sólo de aliados visibles, que eligieron aparecer), el código y dónde fue el aporte.
+  const busca = pag.q ? `%${escaparLike(pag.q)}%` : null;
+  const donde = busca
+    ? `AND (f.nombre_publico ILIKE $3 OR co.codigo ILIKE $3 OR z.nombre ILIKE $3${conEntidad
+        ? ` OR EXISTS (SELECT 1 FROM entidades en WHERE en.ruc = co.entidad_ruc AND (en.nombre ILIKE $3 OR en.ruc LIKE $3))
+            OR EXISTS (SELECT 1 FROM gobierno_periodo gp WHERE gp.org_clave = co.partido_clave AND gp.org_nombre ILIKE $3)`
+        : ""})`
+    : "";
   const [r, total] = await Promise.all([pool.query(
     `SELECT co.codigo, co.contratos, co.pagada_at AS "pagadaAt", co.estado, co.mensaje_publico AS "mensajePublico",
             z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
@@ -218,11 +237,12 @@ financiamientoRouter.get("/recientes", async (c) => {
      FROM contribuciones co
      JOIN financiadores f ON f.id = co.financiador_id
      JOIN zonas z ON z.ubigeo = co.ubigeo
-     WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible
-     ORDER BY co.pagada_at DESC, co.id DESC LIMIT $1 OFFSET $2`, [pag.limit, pag.offset]),
+     WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible ${donde}
+     ORDER BY co.pagada_at DESC, co.id DESC LIMIT $1 OFFSET $2`, busca ? [pag.limit, pag.offset, busca] : [pag.limit, pag.offset]),
     pool.query(
       `SELECT count(*)::int AS n FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
-        WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible`),
+         JOIN zonas z ON z.ubigeo = co.ubigeo
+        WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible ${donde.replaceAll("$3", "$1")}`, busca ? [busca] : []),
   ]);
   cache(c, 60);
   return c.json({ data: r.rows, total: total.rows[0].n as number, limit: pag.limit, offset: pag.offset });
@@ -490,15 +510,16 @@ async function detalleEntidad(ruc: string, noGuardar: () => void): Promise<Recor
               to_char(q.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, documentos_listos(q.ocid) AS "documentosListos"
          FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
         WHERE c.entidad_ruc = $1
-        ORDER BY q.fecha_convocatoria DESC NULLS LAST, q.ocid
-        LIMIT 50`, [ruc]),
+        -- Toda su cola (antes, los 50 más recientes): la web la pagina y la busca. documentos_listos() ya se calcula
+        -- para toda la cola en el resumen de arriba.
+        ORDER BY q.fecha_convocatoria DESC NULLS LAST, q.ocid`, [ruc]),
     conEntidad
       ? pool.query(
         `SELECT COALESCE(f.nombre_publico, 'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl", f.tipo,
                 SUM(co.contratos)::int AS contratos
            FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
           WHERE co.entidad_ruc = $1 AND co.estado IN ('pagada','en_proceso','procesada') AND f.visible
-          GROUP BY f.id ORDER BY contratos DESC, MAX(co.pagada_at) DESC NULLS LAST, f.id LIMIT 12`, [ruc])
+          GROUP BY f.id ORDER BY contratos DESC, MAX(co.pagada_at) DESC NULLS LAST, f.id`, [ruc])
       : vacio,
     tarifaVigente(pool),
     alcanceORespaldo(noGuardar),

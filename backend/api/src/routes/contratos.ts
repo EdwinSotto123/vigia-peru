@@ -36,7 +36,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor } from "../lib/cursor.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { casoLectura, lecturaSql } from "../lib/lectura.js";
-import { BANDERAS_DE_FILA, crucesDeFila } from "../lib/estadoFila.js";
+import { BANDERAS_DE_FILA, COL_DUDOSO, crucesDeFila, joinDudoso } from "../lib/estadoFila.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
 import { ListQuery, cuboAnterior, geoAnterior, listaAnterior } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
@@ -306,6 +306,8 @@ const COLS_FILA = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.
   COALESCE(emp.razon_social, COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'name') AS proveedor,
   COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')) AS "proveedorRuc",
   kc.cruces,
+  -- Posible error de carga del OECE (migración 102): adjudicado 20 veces el referencial o referencial de S/ 1.
+  ${COL_DUDOSO},
   -- El partido que gobernaba la entidad cuando se convocó (lib/gobiernoFila.ts).
   ${COL_GOBIERNO}`;
 
@@ -316,6 +318,7 @@ const JOIN_FILA = `JOIN convocatorias c ON c.ocid = pag.ocid
   LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc
   ${BANDERAS_DE_FILA}
   ${crucesDeFila("c.ocid")}
+  ${joinDudoso("c.ocid")}
   ${gobiernoDeFila("c.ocid")}`;
 
 interface Orden {

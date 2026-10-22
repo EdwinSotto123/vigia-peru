@@ -17,3 +17,9 @@ test("recientes: rechaza valores que no son números enteros no negativos", () =
   assert.equal(leerRecientes({ offset: "abc" }), null);
   assert.equal(leerRecientes({ limit: "2.5" }), null);
 });
+
+test("recientes: la búsqueda pide 2 a 80 caracteres y se recorta", () => {
+  assert.deepEqual(leerRecientes({ q: "  Cusco " }), { limit: 20, offset: 0, q: "Cusco" });
+  assert.equal(leerRecientes({ q: "a" }), null);
+  assert.equal(leerRecientes({ q: "x".repeat(81) }), null);
+});
