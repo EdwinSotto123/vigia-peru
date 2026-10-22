@@ -4,7 +4,9 @@ import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import {
+  ACTIVIDADES,
   CORTO_EMPRESA,
+  MONTOS_MIN,
   NIVEL,
   OBJETO_TEXTO,
   ORDENES_EMPRESAS,
@@ -29,17 +31,18 @@ export function ListaEmpresas({ sp, ruta }: { sp: Busqueda; ruta: string }) {
   const f = filtrosEmpresasDeUrl(sp);
   const paginaP = getEmpresas({ ...f, size: TAM });
   const parametros: Parametros = {
-    q: f.q, nivel: f.nivel, tipo: f.tipo, departamento: f.departamento, objeto: f.objeto, inhabilitada: f.inhabilitada, visitas: f.visitas, orden: f.orden,
+    q: f.q, nivel: f.nivel, tipo: f.tipo, departamento: f.departamento, objeto: f.objeto, inhabilitada: f.inhabilitada, visitas: f.visitas,
+    montoMin: f.montoMin, actividad: f.actividad, vinculadas: f.vinculadas, entidad: f.entidad, orden: f.orden,
   };
-  const filtrada = !!(f.q || f.nivel || f.tipo || f.departamento || f.objeto || f.inhabilitada || f.visitas);
+  const filtrada = !!(f.q || f.nivel || f.tipo || f.departamento || f.objeto || f.inhabilitada || f.visitas || f.montoMin || f.actividad || f.vinculadas || f.entidad);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <Cifras pagina={paginaP} ruta={ruta} f={f} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-        <Suspense fallback={<Barra resumen={null} />}>
-          <BarraConConteos pagina={paginaP} />
+        <Suspense fallback={<Barra resumen={null} entidad={f.entidad ? { ruc: f.entidad, nombre: null } : null} />}>
+          <BarraConConteos pagina={paginaP} entidad={f.entidad} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaEmpresasSkeleton />}>
@@ -55,11 +58,12 @@ async function Resultados(props: { pagina: Promise<PaginaEmpresas | null>; param
   return <TablaEmpresas pagina={await props.pagina} parametros={props.parametros} ruta={props.ruta} actual={props.actual} filtrada={props.filtrada} />;
 }
 
-async function BarraConConteos({ pagina }: { pagina: Promise<PaginaEmpresas | null> }) {
-  return <Barra resumen={(await pagina)?.resumen ?? null} />;
+async function BarraConConteos({ pagina, entidad }: { pagina: Promise<PaginaEmpresas | null>; entidad?: string }) {
+  const pg = await pagina;
+  return <Barra resumen={pg?.resumen ?? null} entidad={entidad ? { ruc: entidad, nombre: pg?.entidad ?? null } : null} />;
 }
 
-function Barra({ resumen: r }: { resumen: ResumenEmpresas | null }) {
+function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entidad: { ruc: string; nombre: string | null } | null }) {
   const n = (k: keyof typeof NIVEL) => r?.porNivel?.[k] ?? (r ? 0 : null);
   const visibles: FiltroSecundario[] = [
     {
@@ -89,6 +93,13 @@ function Barra({ resumen: r }: { resumen: ResumenEmpresas | null }) {
   const filtros: FiltroSecundario[] = [
     { param: "inhabilitada", etiqueta: "Tribunal de Contrataciones", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Inhabilitadas hoy", conteo: r?.inhabilitadas ?? null }] },
     { param: "visitas", etiqueta: "Registro de visitas", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Con visitas de su gente", conteo: r?.conVisitas ?? null }] },
+    { param: "montoMin", etiqueta: "Lo que recibió del Estado", todas: "Cualquier monto", opciones: MONTOS_MIN.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
+    { param: "actividad", etiqueta: "Cómo le vende al Estado", todas: "De cualquier forma", opciones: ACTIVIDADES.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
+    { param: "vinculadas", etiqueta: "Empresas vinculadas", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Comparte socio o representante con otra" }] },
+    // Desde la ficha de una entidad (?entidad=<RUC>): el chip «Le vendió a…» y cómo quitarlo.
+    ...(entidad
+      ? [{ param: "entidad", etiqueta: "Le vendió a", todas: "Cualquier entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+      : []),
   ];
   return (
     <BarraFiltros

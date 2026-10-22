@@ -153,6 +153,27 @@ export const esErrorPg = (e: unknown, ...codigos: string[]) => codigos.includes(
 export const escaparLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /**
+ * Una lectura que puede pasar los 10 s del rol vigia_api la primera vez (con la caché de la base fría: las 54 mil órdenes
+ * de un gran proveedor, esparcidas por conosce_ordenes): en su propia transacción de sólo lectura con otro plazo. Sólo
+ * para lecturas acotadas a una ficha; el plazo del rol sigue protegiendo todo lo demás.
+ */
+export async function consultaConPlazo<T extends pg.QueryResultRow = any>(sql: string, vals: unknown[], plazoMs = 20_000): Promise<pg.QueryResult<T>> {
+  const cliente = await pool.connect();
+  try {
+    await cliente.query("BEGIN READ ONLY");
+    await cliente.query(`SET LOCAL statement_timeout = ${Math.max(1_000, Math.min(60_000, Math.round(plazoMs)))}`);
+    const r = await cliente.query<T>(sql, vals);
+    await cliente.query("COMMIT");
+    return r;
+  } catch (e) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    cliente.release();
+  }
+}
+
+/**
  * `SELECT 1` con plazo propio (2 s por defecto): para /health. `ok: false` si la base no responde
  * a tiempo o da error (el motivo se registra en el log, no se devuelve).
  */

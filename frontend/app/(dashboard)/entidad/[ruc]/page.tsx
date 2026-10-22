@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, Flag, Hash, MapPin } from "lucide-react";
+import { Briefcase, Building2, Flag, Hash, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -138,6 +138,10 @@ export default async function EntidadProfile({
         acciones={
           <>
             <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
+            {/* Las empresas que le vendieron, con su puntaje de antecedentes (/app/empresas?entidad=). */}
+            <EnlaceAccion href={`/app/empresas?entidad=${e.ruc}`} variante="secundario">
+              <Briefcase size={14} aria-hidden /> Sus proveedores
+            </EnlaceAccion>
             <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario">
               <Flag size={14} aria-hidden /> Denunciar
             </EnlaceAccion>

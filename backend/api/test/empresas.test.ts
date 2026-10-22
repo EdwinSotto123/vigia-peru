@@ -38,3 +38,12 @@ test("sólo un RUC 20 abre la ficha de empresa (las personas naturales van en /p
   assert.ok(!RUC_EMPRESA.test("10439608801"));
   assert.ok(!RUC_EMPRESA.test("2051103700"));
 });
+
+test("quien le ganó una postulación, si es una persona (RUC 10), sale con un apellido tapado y su RUC como ref", () => {
+  const r = publicar({ data: [{ codigo: "1", ganadores: [{ ruc: "10439608801", nombre: "CANO VILCA BRISEIDA" }, { ruc: "20532950610", nombre: "GASOLIBER S.A.C." }] }] });
+  const [persona, empresa] = r.data[0].ganadores;
+  assert.equal(persona.nombre, `CANO ${TAPA_NOMBRE} BRISEIDA`);
+  assert.match(persona.ruc, /^10·ref·/);
+  assert.equal(empresa.nombre, "GASOLIBER S.A.C.");
+  assert.equal(empresa.ruc, "20532950610");
+});

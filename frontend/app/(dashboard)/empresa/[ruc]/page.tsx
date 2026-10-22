@@ -9,11 +9,16 @@ import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, ty
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { DesglosePuntaje, MedidorPuntaje, TablaReglas } from "@/components/empresas/PuntajeEmpresa";
+import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana } from "@/components/empresas/InicioEmpresa";
 import {
   AntecedentesEmpresa,
   BarraContratos,
+  BarraContratosConConteos,
   BarraOrdenes,
+  BarraOrdenesConConteos,
   BarraPostulaciones,
+  BarraPostulacionesConConteos,
+  P_ANTECEDENTES,
   ClientesEmpresa,
   ContratosEmpresa,
   OrdenesEmpresa,
@@ -27,6 +32,7 @@ import {
 import { fecha, fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import {
+  OBJETOS,
   OBJETO_TEXTO,
   esRucEmpresa,
   getAntecedentesEmpresa,
@@ -79,16 +85,47 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const e = f.empresa;
   const ruta = rutaEmpresa(e.ruc);
 
-  const fc = { q: texto(sp?.[P_CONTRATOS.q]), anio: anio(sp?.[P_CONTRATOS.anio]), como: ["sola", "consorcio"].includes(uno(sp?.[P_CONTRATOS.como]) ?? "") ? uno(sp?.[P_CONTRATOS.como]) : undefined, page: pagina(sp?.[P_CONTRATOS.page]) };
-  const fo = { q: texto(sp?.[P_ORDENES.q]), anio: anio(sp?.[P_ORDENES.anio]), tipo: ["compra", "servicio"].includes(uno(sp?.[P_ORDENES.tipo]) ?? "") ? uno(sp?.[P_ORDENES.tipo]) : undefined, dudosa: uno(sp?.[P_ORDENES.dudosa]) === "si" ? "si" : undefined, page: pagina(sp?.[P_ORDENES.page]) };
-  const fp = { q: texto(sp?.[P_POSTULACIONES.q]), resultado: ["gano", "perdio"].includes(uno(sp?.[P_POSTULACIONES.resultado]) ?? "") ? uno(sp?.[P_POSTULACIONES.resultado]) : undefined, page: pagina(sp?.[P_POSTULACIONES.page]) };
-  const pc: Parametros = { seccion: "contratos", [P_CONTRATOS.q]: fc.q, [P_CONTRATOS.anio]: fc.anio ? String(fc.anio) : undefined, [P_CONTRATOS.como]: fc.como };
-  const po: Parametros = { seccion: "ordenes", [P_ORDENES.q]: fo.q, [P_ORDENES.anio]: fo.anio ? String(fo.anio) : undefined, [P_ORDENES.tipo]: fo.tipo, [P_ORDENES.dudosa]: fo.dudosa };
-  const pp: Parametros = { seccion: "postulaciones", [P_POSTULACIONES.q]: fp.q, [P_POSTULACIONES.resultado]: fp.resultado };
-  const enContratos = !!(fc.q || fc.anio || fc.como || fc.page > 1);
-  const enOrdenes = !!(fo.q || fo.anio || fo.tipo || fo.dudosa || fo.page > 1);
-  const enPostulaciones = !!(fp.q || fp.resultado || fp.page > 1);
-  const seccion = uno(sp?.seccion) ?? (enContratos ? "contratos" : enOrdenes ? "ordenes" : enPostulaciones ? "postulaciones" : undefined);
+  // Los filtros de cada pestaña, validados como la API (lo que no vale, se ignora).
+  const de = <T extends string>(v: string | string[] | undefined, validos: readonly T[]) => (validos.includes(uno(v) as T) ? (uno(v) as T) : undefined);
+  const ruc11 = (v: string | string[] | undefined) => (/^\d{11}$/.test(uno(v) ?? "") ? uno(v) : undefined);
+  const corto = (v: string | string[] | undefined) => uno(v)?.slice(0, 60);
+  const fc = {
+    q: texto(sp?.[P_CONTRATOS.q]), anio: anio(sp?.[P_CONTRATOS.anio]), como: de(sp?.[P_CONTRATOS.como], ["sola", "consorcio"] as const),
+    entidad: ruc11(sp?.[P_CONTRATOS.entidad]), objeto: de(sp?.[P_CONTRATOS.objeto], OBJETOS), familia: corto(sp?.[P_CONTRATOS.familia]),
+    departamento: corto(sp?.[P_CONTRATOS.departamento]),
+    bandera: de(sp?.[P_CONTRATOS.bandera], ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const),
+    orden: de(sp?.[P_CONTRATOS.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
+    page: pagina(sp?.[P_CONTRATOS.page]),
+  };
+  const fo = {
+    q: texto(sp?.[P_ORDENES.q]), anio: anio(sp?.[P_ORDENES.anio]), tipo: de(sp?.[P_ORDENES.tipo], ["compra", "servicio"] as const),
+    dudosa: uno(sp?.[P_ORDENES.dudosa]) === "si" ? "si" : undefined, entidad: ruc11(sp?.[P_ORDENES.entidad]),
+    departamento: corto(sp?.[P_ORDENES.departamento]), estado: de(sp?.[P_ORDENES.estado], ["Emitida", "Comprometida", "Devengada"] as const),
+    orden: de(sp?.[P_ORDENES.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
+    page: pagina(sp?.[P_ORDENES.page]),
+  };
+  const fp = {
+    q: texto(sp?.[P_POSTULACIONES.q]), resultado: de(sp?.[P_POSTULACIONES.resultado], ["gano", "perdio", "sin"] as const),
+    anio: anio(sp?.[P_POSTULACIONES.anio]), objeto: de(sp?.[P_POSTULACIONES.objeto], OBJETOS), entidad: ruc11(sp?.[P_POSTULACIONES.entidad]),
+    ganador: /^20\d{9}$/.test(uno(sp?.[P_POSTULACIONES.ganador]) ?? "") ? uno(sp?.[P_POSTULACIONES.ganador]) : undefined,
+    orden: de(sp?.[P_POSTULACIONES.orden], ["reciente", "antiguo", "monto"] as const),
+    page: pagina(sp?.[P_POSTULACIONES.page]),
+  };
+  const fa = { tipo: uno(sp?.[P_ANTECEDENTES.tipo])?.match(/^[a-z_]{2,40}$/)?.[0], gravedad: de(sp?.[P_ANTECEDENTES.gravedad], ["alta", "media", "baja"] as const) };
+  // Los parámetros que conserva cada lista en sus enlaces (los suyos y la pestaña), con los nombres de P_*.
+  const conservar = <K extends string>(seccion: string, P: Record<K, string>, f: Partial<Record<K, string | number | undefined>>): Parametros => {
+    const out: Parametros = { seccion };
+    for (const k of Object.keys(P) as K[]) if (k !== ("page" as K) && f[k] != null) out[P[k]] = String(f[k]);
+    return out;
+  };
+  const pc = conservar("contratos", P_CONTRATOS, fc);
+  const po = conservar("ordenes", P_ORDENES, fo);
+  const pp = conservar("postulaciones", P_POSTULACIONES, fp);
+  const pa = conservar("antecedentes", P_ANTECEDENTES, fa);
+  const algo = (p: Parametros, pag: number) => Object.keys(p).length > 1 || pag > 1;
+  const seccion =
+    uno(sp?.seccion) ??
+    (algo(pc, fc.page) ? "contratos" : algo(po, fo.page) ? "ordenes" : algo(pp, fp.page) ? "postulaciones" : algo(pa, 1) ? "antecedentes" : undefined);
 
   const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
   const ordenesP = getOrdenesEmpresa(e.ruc, { ...fo, size: TAM });
@@ -182,7 +219,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           {
             clave: "inicio",
             etiqueta: "Inicio",
-            contenido: <Inicio f={f} ruta={ruta} reglas={reglas} />,
+            contenido: <Inicio f={f} ruta={ruta} reglas={reglas} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
           },
           {
             clave: "contratos",
@@ -192,7 +229,9 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
               <div className="space-y-4">
                 <CabeceraPestana>Los procesos que ganó, sola o en consorcio, del más reciente al más antiguo.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={pc} paramPagina={P_CONTRATOS.page}>
-                  <BarraContratos desde={e.primera} hasta={e.ultima} />
+                  <Suspense fallback={<BarraContratos facetas={null} />}>
+                    <BarraContratosConConteos pagina={contratosP} />
+                  </Suspense>
                   <ZonaResultados>
                     <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Proceso", ancho: "1fr" }]} filas={8} />}>
                       <ContratosEmpresa pagina={contratosP} ruta={ruta} parametros={pc} actual={fc.page} />
@@ -210,7 +249,9 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
               <div className="space-y-4">
                 <CabeceraPestana>Sus órdenes de compra y de servicio, sin proceso de selección, de la más reciente a la más antigua.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={po} paramPagina={P_ORDENES.page}>
-                  <BarraOrdenes desde={e.primera} hasta={e.ultima} dudosas={e.ordDudosas} />
+                  <Suspense fallback={<BarraOrdenes facetas={null} />}>
+                    <BarraOrdenesConConteos pagina={ordenesP} />
+                  </Suspense>
                   <ZonaResultados>
                     <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Orden", ancho: "1fr" }]} filas={8} />}>
                       <OrdenesEmpresa pagina={ordenesP} ruta={ruta} parametros={po} actual={fo.page} />
@@ -241,7 +282,9 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
               <div className="space-y-4">
                 <CabeceraPestana>Los procesos en que fue postor, sola o en consorcio, y quién ganó cada uno.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={pp} paramPagina={P_POSTULACIONES.page}>
-                  <BarraPostulaciones />
+                  <Suspense fallback={<BarraPostulaciones facetas={null} />}>
+                    <BarraPostulacionesConConteos pagina={postulacionesP} />
+                  </Suspense>
                   <ZonaResultados>
                     <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Proceso", ancho: "1fr" }]} filas={8} />}>
                       <PostulacionesEmpresa pagina={postulacionesP} ruta={ruta} parametros={pp} actual={fp.page} ruc={e.ruc} />
@@ -258,9 +301,11 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             contenido: (
               <div className="space-y-4">
                 <CabeceraPestana>Lo que dicen de la empresa otros registros públicos, de lo más grave a lo más leve, cada uno con su fuente.</CabeceraPestana>
-                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
-                  <AntecedentesEmpresa datos={antecedentesP} />
-                </Suspense>
+                <Listado ruta={ruta} parametros={pa} paramPagina="apag">
+                  <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
+                    <AntecedentesEmpresa datos={antecedentesP} tipo={fa.tipo} gravedad={fa.gravedad} />
+                  </Suspense>
+                </Listado>
               </div>
             ),
           },
@@ -328,7 +373,21 @@ function indicadores(f: FichaEmpresa, ruta: string): Indicador[] {
   ];
 }
 
-async function Inicio({ f, ruta, reglas }: { f: FichaEmpresa; ruta: string; reglas: Awaited<ReturnType<typeof getReglasPuntaje>> }) {
+async function Inicio({
+  f,
+  ruta,
+  reglas,
+  contratos,
+  clientes,
+  postulaciones,
+}: {
+  f: FichaEmpresa;
+  ruta: string;
+  reglas: Awaited<ReturnType<typeof getReglasPuntaje>>;
+  contratos: ReturnType<typeof getContratosEmpresa>;
+  clientes: ReturnType<typeof getClientesEmpresa>;
+  postulaciones: ReturnType<typeof getPostulacionesEmpresa>;
+}) {
   const e = f.empresa;
   return (
     <div className="space-y-5">
@@ -349,6 +408,12 @@ async function Inicio({ f, ruta, reglas }: { f: FichaEmpresa; ruta: string; regl
       </div>
       <TablaReglas reglas={reglas} />
       <AniosEmpresa anual={f.anual} nombre={e.nombre} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruta={ruta} /></Suspense>
+        <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruta={ruta} /></Suspense>
+        <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruta={ruta} /></Suspense>
+        <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruta={ruta} /></Suspense>
+      </div>
       <section className="space-y-2">
         <h3 className="font-display text-[15px] font-bold text-ink">Sus datos</h3>
         <DatosClave
@@ -376,6 +441,15 @@ async function Inicio({ f, ruta, reglas }: { f: FichaEmpresa; ruta: string; regl
         />
       </section>
     </div>
+  );
+}
+
+function BloqueCargando({ titulo }: { titulo: string }) {
+  return (
+    <section className="space-y-2 rounded-2xl border border-line bg-paper p-4" aria-busy="true">
+      <h3 className="font-display text-[15px] font-bold text-ink">{titulo}</h3>
+      <div className="h-24 animate-pulse rounded-xl bg-paperDeep" />
+    </section>
   );
 }
 

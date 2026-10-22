@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { aCruce, ETIQUETA_CRUCE } from "../lib/cruces.js";
@@ -51,6 +51,12 @@ const Lista = z.object({
   objeto: z.enum(OBJETOS).optional(),
   inhabilitada: z.enum(["si"]).optional(),
   visitas: z.enum(["si"]).optional(),
+  // Lo que recibió (contratos sola + órdenes), desde: 100 mil, 1 M, 10 M, 100 M.
+  montoMin: z.coerce.number().refine((n) => [1e5, 1e6, 1e7, 1e8].includes(n)).optional(),
+  actividad: z.enum(["contratos", "ordenes", "solo_postula", "consorcios"]).optional(),
+  vinculadas: z.enum(["si"]).optional(),
+  // Las que le vendieron a esta entidad (contratos u órdenes): lo pide la ficha de la entidad.
+  entidad: z.string().regex(/^\d{11}$/).optional(),
   orden: z.enum(["puntaje", "monto", "contratos", "ordenes", "reciente", "nombre"]).default("puntaje"),
   page: z.coerce.number().int().min(1).max(5000).default(1),
   size: z.coerce.number().int().min(0).max(50).default(20),
@@ -87,6 +93,17 @@ function filtros(q: ListaQ): { conds: string[]; vals: unknown[] } {
   if (q.objeto) conds.push(`e.objeto = ${p(q.objeto)}`);
   if (q.inhabilitada) conds.push(`e.inhabilitada IS NOT NULL`);
   if (q.visitas) conds.push(`e.visitas > 0`);
+  if (q.montoMin) conds.push(`${MONTO} >= ${p(q.montoMin)}`);
+  if (q.actividad === "contratos") conds.push(`e.adj_procesos > 0`);
+  else if (q.actividad === "ordenes") conds.push(`e.ord_n > 0 AND e.adj_procesos = 0 AND e.cons_procesos = 0`);
+  else if (q.actividad === "solo_postula") conds.push(`e.postulaciones > 0 AND e.adj_procesos = 0 AND e.cons_procesos = 0 AND e.ord_n = 0`);
+  else if (q.actividad === "consorcios") conds.push(`e.cons_procesos > 0`);
+  if (q.vinculadas) conds.push(`e.vinculadas > 0`);
+  if (q.entidad) {
+    const ent = p(q.entidad);
+    conds.push(`e.ruc IN (SELECT ruc FROM empresa_orden_anual WHERE entidad_ruc = ${ent}
+                          UNION SELECT ruc_proveedor FROM conosce_adjudicaciones WHERE entidad_ruc = ${ent} AND ruc_proveedor ~ '^20[0-9]{9}$')`);
+  }
   return { conds, vals };
 }
 
@@ -137,7 +154,10 @@ empresasRouter.get("/", async (c) => {
           ORDER BY ${ORDEN[q.orden]}, e.ruc LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
       resumen(conds, vals),
     ]);
-    return publicar({ total: rs.empresas, page: q.page, size: q.size, data: filas?.rows.map(conNombre) ?? [], resumen: rs });
+    const entidad = q.entidad
+      ? (await pool.query<{ nombre: string }>(`SELECT nombre FROM entidades WHERE ruc = $1`, [q.entidad])).rows[0]?.nombre ?? null
+      : null;
+    return publicar({ total: rs.empresas, page: q.page, size: q.size, data: filas?.rows.map(conNombre) ?? [], resumen: rs, entidad });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
@@ -241,16 +261,6 @@ const DUDOSO_ADJ = (t: string) => `EXISTS (
                           GROUP BY x.n_item) i) p
    WHERE p.ref > 0 AND ((p.ref <= 1 AND p.adj > 100000) OR (p.ref > 1 AND p.adj >= 20 * p.ref AND p.adj > 1000000)))`;
 
-/** El motivo, si el proceso tiene un monto que parece mal cargado (la misma regla que DUDOSO_ADJ); null si no. */
-const MOTIVO_ADJ = (t: string) => `(
-  SELECT CASE WHEN p.ref <= 1 THEN 'referencial_simbolico' ELSE 'adjudicado_20x' END
-    FROM (SELECT sum(ref) AS ref, max(adj) AS adj
-            FROM (SELECT x.n_item, max(x.monto_referencial) AS ref, max(x.monto_adjudicado) AS adj
-                    FROM conosce_adjudicaciones x
-                   WHERE x.codigo_convocatoria = ${t}.codigo_convocatoria AND x.entidad_ruc = ${t}.entidad_ruc AND x.moneda IN ${SOLES}
-                   GROUP BY x.n_item) i) p
-   WHERE p.ref > 0 AND ((p.ref <= 1 AND p.adj > 100000) OR (p.ref > 1 AND p.adj >= 20 * p.ref AND p.adj > 1000000)))`;
-
 /** La empresa existe en el resumen (las subrutas responden 404 si no). */
 async function existe(ruc: string): Promise<{ nombre: string } | null> {
   if (!RUC_EMPRESA.test(ruc)) return null;
@@ -259,14 +269,56 @@ async function existe(ruc: string): Promise<{ nombre: string } | null> {
 }
 
 // ─── GET /empresas/:ruc/contratos ───────────────────────────────────────────────────────────────
+/** Las 25 variantes de `tipo_proceso` de CONOSCE en familias legibles (las leyes y decretos de urgencia, juntos). */
+const FAMILIA_PROCESO = (c: string) => `CASE
+  WHEN ${c} ILIKE 'Adjudicación Simplificada%' THEN 'Adjudicación simplificada'
+  WHEN ${c} ILIKE 'Subasta Inversa%' THEN 'Subasta inversa'
+  WHEN ${c} ILIKE 'Contratación Directa%' THEN 'Contratación directa'
+  WHEN ${c} ILIKE 'Licitación Pública Abreviada%' THEN 'Licitación pública abreviada'
+  WHEN ${c} ILIKE 'Licitación Pública%' THEN 'Licitación pública'
+  WHEN ${c} ILIKE 'Comparación de Precios%' THEN 'Comparación de precios'
+  WHEN ${c} ILIKE 'R_gimen Especial%' THEN 'Régimen especial'
+  WHEN ${c} ILIKE 'Concurso Público Abreviado%' THEN 'Concurso público abreviado'
+  WHEN ${c} ILIKE 'Concurso Público%' THEN 'Concurso público'
+  WHEN ${c} ILIKE 'Convenio%' THEN 'Convenio'
+  WHEN ${c} ILIKE 'Contratación Internacional%' THEN 'Contratación internacional'
+  WHEN ${c} ILIKE 'Procedimiento Especial%' THEN 'Procedimiento especial'
+  WHEN ${c} ILIKE 'Adjudicación Selectiva%' OR ${c} ILIKE 'Adjudicación Abreviada%' THEN 'Adjudicación selectiva o abreviada'
+  WHEN ${c} IS NULL THEN 'Sin dato'
+  ELSE 'Otro' END`;
+
+export const BANDERAS_CONTRATO = ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const;
+
 const Contratos = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   anio: z.coerce.number().int().min(2015).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
   como: z.enum(["sola", "consorcio"]).optional(),
+  objeto: z.enum(OBJETOS).optional(),
+  familia: z.string().trim().min(3).max(60).optional(),
+  departamento: z.string().trim().min(2).max(40).optional(),
+  bandera: z.enum(BANDERAS_CONTRATO).optional(),
+  orden: z.enum(["reciente", "antiguo", "monto", "monto_asc"]).default("reciente"),
   page: z.coerce.number().int().min(1).max(2000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
+
+const ORDEN_CONTRATOS: Record<z.infer<typeof Contratos>["orden"], string> = {
+  reciente: "x.fecha DESC NULLS LAST, x.codigo DESC",
+  antiguo: "x.fecha ASC NULLS LAST, x.codigo",
+  monto: "x.monto DESC NULLS LAST, x.fecha DESC NULLS LAST",
+  monto_asc: "x.monto ASC NULLS LAST, x.fecha DESC NULLS LAST",
+};
+
+/** Las banderas de un proceso ya calculadas en `x` (ver la consulta): para filtrar y para contar. */
+const BANDERA_SQL: Record<(typeof BANDERAS_CONTRATO)[number], string> = {
+  inhabilitada: `x.al_ganar IS NOT NULL`,
+  sancionada_antes: `x.al_ganar IS NULL AND x.s_antes > 0`,
+  sancionada_despues: `x.s_despues > 0`,
+  antecedentes: `x.n_antecedentes > 0`,
+  dudoso: `x.dudoso IS NOT NULL`,
+  sin: `x.al_ganar IS NULL AND COALESCE(x.s_antes, 0) = 0 AND x.n_antecedentes = 0 AND x.dudoso IS NULL`,
+};
 
 empresasRouter.get("/:ruc/contratos", async (c) => {
   const ruc = c.req.param("ruc");
@@ -276,63 +328,108 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
   const cuerpo = await fichaMemo.obtener(`contratos:${ruc}:${JSON.stringify(q)}`, async () => {
     if (!(await existe(ruc))) return null;
     const vals: unknown[] = [ruc];
+    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     const conds: string[] = [];
-    if (q.anio) { vals.push(q.anio); conds.push(`extract(year FROM p.fecha) = $${vals.length}`); }
-    if (q.entidad) { vals.push(q.entidad); conds.push(`p.entidad_ruc = $${vals.length}`); }
-    if (q.como) conds.push(q.como === "consorcio" ? `p.consorcio IS NOT NULL` : `p.consorcio IS NULL`);
+    if (q.anio) conds.push(`extract(year FROM x.fecha) = ${p(q.anio)}`);
+    if (q.entidad) conds.push(`x.entidad_ruc = ${p(q.entidad)}`);
+    if (q.como) conds.push(q.como === "consorcio" ? `x.consorcio IS NOT NULL` : `x.consorcio IS NULL`);
+    if (q.objeto) conds.push(`x.objeto = ${p(q.objeto)}`);
+    if (q.familia) conds.push(`x.familia = ${p(q.familia)}`);
+    if (q.departamento) conds.push(`mef_norm(x.departamento) = ${p(norm(q.departamento))}`);
+    if (q.bandera) conds.push(BANDERA_SQL[q.bandera]);
     for (const w of palabrasBusqueda(q.q)) {
-      vals.push(`%${w}%`);
-      conds.push(`mef_norm(concat_ws(' ', p.descripcion, p.entidad, p.nomenclatura, p.codigo, p.consorcio)) LIKE $${vals.length}`);
+      conds.push(`mef_norm(concat_ws(' ', x.descripcion, x.entidad, x.nomenclatura, x.codigo, x.consorcio)) LIKE ${p(`%${w}%`)}`);
     }
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-    // Cada proceso una vez, con sus ítems sumados; el monto en soles (otra moneda, aparte). Después, sólo para la página:
-    // si el monto parece mal cargado, el OCID para abrir su ficha y los antecedentes de la empresa en ese proceso.
+    // Cada proceso una vez con sus ítems sumados (en soles; otra moneda, aparte) y, para TODOS (los filtros y los conteos
+    // los usan): si el monto parece mal cargado, su OCID, sus antecedentes en casos_cruce y sus sanciones frente a la
+    // buena pro. Los conteos de cada filtro van sobre todos los procesos de la empresa; la página, sobre los filtrados.
     const r = await pool.query(
       `WITH a AS (
-         SELECT a.*, NULL::text AS consorcio, NULL::text AS ruc_consorcio FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1
+         SELECT a.*, NULL::text AS consorcio FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1
          UNION ALL
-         SELECT a.*, a.proveedor, a.ruc_proveedor FROM conosce_adjudicaciones a
+         SELECT a.*, a.proveedor FROM conosce_adjudicaciones a
           WHERE a.ruc_proveedor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1) AND a.ruc_proveedor !~ '^(10|20)[0-9]{9}$'
-       ), p AS (
+       ), pr AS (
          SELECT a.codigo_convocatoria AS codigo, a.entidad_ruc, max(a.entidad) AS entidad, max(a.entidad_departamento) AS departamento,
-                max(a.objeto) AS objeto, max(a.tipo_proceso) AS "tipoProceso", max(a.nomenclatura) AS nomenclatura,
-                max(a.descripcion_proceso) AS descripcion, max(a.fecha_buenapro) AS fecha, count(*)::int AS items,
+                max(a.objeto) AS objeto, max(a.tipo_proceso) AS tipo_proceso, ${FAMILIA_PROCESO("max(a.tipo_proceso)")} AS familia,
+                max(a.nomenclatura) AS nomenclatura, max(a.descripcion_proceso) AS descripcion, max(a.fecha_buenapro) AS fecha,
+                count(*)::int AS items,
                 sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES}) AS monto,
-                sum(a.monto_adjudicado) FILTER (WHERE a.moneda NOT IN ${SOLES}) AS "montoOtraMoneda",
-                max(a.moneda) FILTER (WHERE a.moneda NOT IN ${SOLES}) AS "otraMoneda",
-                max(a.consorcio) AS consorcio, max(a.ruc_consorcio) AS ruc_consorcio
+                sum(a.monto_adjudicado) FILTER (WHERE a.moneda NOT IN ${SOLES}) AS monto_otra,
+                max(a.moneda) FILTER (WHERE a.moneda NOT IN ${SOLES}) AS otra_moneda,
+                max(a.consorcio) AS consorcio
            FROM a GROUP BY a.codigo_convocatoria, a.entidad_ruc
-       ), pag AS (
-         SELECT p.*, count(*) OVER ()::int AS total FROM p ${donde}
-          ORDER BY p.fecha DESC NULLS LAST, p.codigo DESC LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}
+       ), dud AS (
+         -- La regla de DUDOSO_ADJ (con su motivo) para todos los procesos de una vez (no una subconsulta por fila).
+         SELECT codigo_convocatoria, entidad_ruc, CASE WHEN sum(ref) <= 1 THEN 'referencial_simbolico' ELSE 'adjudicado_20x' END AS motivo
+           FROM (SELECT x.codigo_convocatoria, x.entidad_ruc, x.n_item, max(x.monto_referencial) AS ref, max(x.monto_adjudicado) AS adj
+                   FROM conosce_adjudicaciones x
+                  WHERE x.codigo_convocatoria IN (SELECT codigo FROM pr) AND x.moneda IN ${SOLES}
+                  GROUP BY 1, 2, 3) i
+          GROUP BY 1, 2
+         HAVING sum(ref) > 0 AND ((sum(ref) <= 1 AND max(adj) > 100000) OR (sum(ref) > 1 AND max(adj) >= 20 * sum(ref) AND max(adj) > 1000000))
+       ), cv AS (
+         SELECT DISTINCT ON (c.codigo, c.entidad_ruc) c.codigo, c.entidad_ruc, c.ocid
+           FROM convocatorias c WHERE c.codigo IN (SELECT codigo FROM pr)
+          ORDER BY c.codigo, c.entidad_ruc, c.ocid
+       ), s AS (
+         SELECT tipo, fecha_desde, fecha_hasta, fecha_resolucion, resolucion FROM osce_sancionados WHERE ruc = $1
+       ), x AS MATERIALIZED (
+         SELECT pr.*, d.motivo AS dudoso, cv.ocid, k.cruces,
+                (SELECT count(*) FROM jsonb_array_elements(COALESCE(k.cruces, '[]')) e
+                  WHERE e->>'tipo' NOT IN ('sancion', 'sancion_vigente'))::int AS n_antecedentes,
+                sx.al_ganar, sx.s_antes, sx.s_antes_hasta, sx.s_despues, sx.s_despues_desde
+           FROM pr
+           LEFT JOIN dud d ON d.codigo_convocatoria = pr.codigo AND d.entidad_ruc = pr.entidad_ruc
+           LEFT JOIN cv ON cv.codigo = pr.codigo AND cv.entidad_ruc = pr.entidad_ruc
+           LEFT JOIN casos_cruce k ON k.ocid = cv.ocid AND k.ruc = $1
+           -- Las sanciones del Tribunal frente a la buena pro (la regla de sancion_vigente, migración 56).
+           LEFT JOIN LATERAL (
+             SELECT (array_agg(jsonb_build_object('tipo', s.tipo, 'desde', s.fecha_desde, 'hasta', s.fecha_hasta, 'resolucion', s.resolucion)
+                               ORDER BY s.fecha_desde DESC)
+                       FILTER (WHERE s.tipo IN ('temporal', 'definitivo') AND pr.fecha >= s.fecha_desde
+                                     AND (s.fecha_hasta IS NULL OR pr.fecha <= s.fecha_hasta)))[1] AS al_ganar,
+                    count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pr.fecha)::int AS s_antes,
+                    max(s.fecha_hasta) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pr.fecha) AS s_antes_hasta,
+                    count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pr.fecha)::int AS s_despues,
+                    min(COALESCE(s.fecha_desde, s.fecha_resolucion)) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pr.fecha) AS s_despues_desde
+               FROM s WHERE pr.fecha IS NOT NULL
+             HAVING count(*) > 0) sx ON true
+       ), fac AS (
+         SELECT jsonb_build_object(
+           'anios', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', y, 'n', n) ORDER BY y DESC)
+                                FROM (SELECT extract(year FROM fecha)::int AS y, count(*) AS n FROM x WHERE fecha IS NOT NULL GROUP BY 1) t), '[]'),
+           'entidades', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', entidad_ruc, 'etiqueta', entidad, 'n', n) ORDER BY n DESC, entidad)
+                                    FROM (SELECT entidad_ruc, max(entidad) AS entidad, count(*) AS n FROM x WHERE entidad_ruc IS NOT NULL
+                                           GROUP BY 1 ORDER BY 3 DESC LIMIT 300) t), '[]'),
+           'objetos', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', objeto, 'n', n) ORDER BY n DESC)
+                                  FROM (SELECT objeto, count(*) AS n FROM x WHERE objeto IS NOT NULL GROUP BY 1) t), '[]'),
+           'familias', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', familia, 'n', n, 'monto', m) ORDER BY n DESC)
+                                   FROM (SELECT familia, count(*) AS n, COALESCE(sum(monto) FILTER (WHERE dudoso IS NULL), 0)::float AS m
+                                           FROM x GROUP BY 1) t), '[]'),
+           'departamentos', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', d, 'n', n) ORDER BY d)
+                                        FROM (SELECT mef_norm(departamento) AS d, count(*) AS n FROM x WHERE departamento IS NOT NULL GROUP BY 1) t), '[]'),
+           'como', jsonb_build_object('sola', (SELECT count(*) FROM x WHERE consorcio IS NULL), 'consorcio', (SELECT count(*) FROM x WHERE consorcio IS NOT NULL)),
+           'banderas', jsonb_build_object(${BANDERAS_CONTRATO.map((b) => `'${b}', (SELECT count(*) FROM x WHERE ${BANDERA_SQL[b]})`).join(", ")})
+         ) AS facetas
+       ), f AS (
+         SELECT x.*, count(*) OVER ()::int AS total FROM x ${donde}
+          ORDER BY ${ORDEN_CONTRATOS[q.orden]} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}
        )
-       SELECT pag.codigo, pag.entidad_ruc AS "entidadRuc", pag.entidad, pag.departamento, pag.objeto, pag."tipoProceso", pag.nomenclatura,
-              pag.descripcion, to_char(pag.fecha, 'YYYY-MM-DD') AS fecha, pag.items, pag.monto::float AS monto,
-              pag."montoOtraMoneda"::float AS "montoOtraMoneda", pag."otraMoneda", pag.consorcio, pag.total,
-              ${MOTIVO_ADJ("pag2")} AS dudoso, cv.ocid, k.cruces AS antecedentes,
-              to_jsonb(sx) AS sancion
-         FROM pag
-         CROSS JOIN LATERAL (SELECT pag.codigo AS codigo_convocatoria, pag.entidad_ruc) pag2
-         -- Las sanciones del Tribunal frente a la fecha de la buena pro (la regla de sancion_vigente, migración 56): si
-         -- estaba inhabilitada al ganar, cuántas tenía antes (y cuándo terminó la última) y cuántas recibió después.
-         LEFT JOIN LATERAL (
-           SELECT (array_agg(jsonb_build_object('tipo', s.tipo, 'desde', s.fecha_desde, 'hasta', s.fecha_hasta, 'resolucion', s.resolucion)
-                             ORDER BY s.fecha_desde DESC)
-                     FILTER (WHERE s.tipo IN ('temporal', 'definitivo') AND pag.fecha >= s.fecha_desde
-                                   AND (s.fecha_hasta IS NULL OR pag.fecha <= s.fecha_hasta)))[1] AS "alGanar",
-                  count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pag.fecha)::int AS antes,
-                  max(s.fecha_hasta) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pag.fecha) AS "antesHasta",
-                  count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pag.fecha)::int AS despues,
-                  min(COALESCE(s.fecha_desde, s.fecha_resolucion)) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pag.fecha) AS "despuesDesde"
-             FROM osce_sancionados s WHERE s.ruc = $1 AND pag.fecha IS NOT NULL
-           HAVING count(*) > 0) sx ON true
-         LEFT JOIN LATERAL (SELECT c.ocid FROM convocatorias c WHERE c.codigo = pag.codigo AND c.entidad_ruc = pag.entidad_ruc LIMIT 1) cv ON true
-         LEFT JOIN casos_cruce k ON k.ocid = cv.ocid AND k.ruc = $1
-        ORDER BY pag.fecha DESC NULLS LAST, pag.codigo DESC`, vals);
-    const total = r.rows[0]?.total ?? 0;
+       SELECT fac.facetas, f.codigo, f.entidad_ruc AS "entidadRuc", f.entidad, f.departamento, f.objeto, f.tipo_proceso AS "tipoProceso",
+              f.familia, f.nomenclatura, f.descripcion, to_char(f.fecha, 'YYYY-MM-DD') AS fecha, f.items, f.monto::float AS monto,
+              f.monto_otra::float AS "montoOtraMoneda", f.otra_moneda AS "otraMoneda", f.consorcio, f.total, f.dudoso, f.ocid,
+              f.cruces AS antecedentes,
+              CASE WHEN f.s_antes IS NULL THEN NULL ELSE jsonb_build_object('alGanar', f.al_ganar, 'antes', f.s_antes, 'antesHasta', f.s_antes_hasta,
+                                                                          'despues', f.s_despues, 'despuesDesde', f.s_despues_desde) END AS sancion
+         FROM fac LEFT JOIN f ON true
+        ORDER BY ${ORDEN_CONTRATOS[q.orden].replace(/x\./g, "f.")}`, vals);
+    const filas = r.rows.filter((x) => x.codigo != null);
     return publicar({
-      total, page: q.page, size: q.size,
-      data: r.rows.map(({ total: _t, antecedentes, sancion, ...f }) => ({
+      total: filas[0]?.total ?? 0, page: q.page, size: q.size,
+      facetas: r.rows[0]?.facetas ?? null,
+      data: filas.map(({ total: _t, facetas: _f, antecedentes, sancion, ...f }) => ({
         ...f,
         sancion: sancion ?? null,
         // casos_cruce.cruces: [{tipo, severidad, n}] (migración 57), los graves primero. Las sanciones van aparte, en
@@ -354,11 +451,22 @@ const Ordenes = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
+  departamento: z.string().trim().min(2).max(40).optional(),
   tipo: z.enum(["compra", "servicio"]).optional(),
+  estado: z.string().trim().min(3).max(30).optional(),
   dudosa: z.enum(["si"]).optional(),
+  orden: z.enum(["reciente", "antiguo", "monto", "monto_asc"]).default("reciente"),
   page: z.coerce.number().int().min(1).max(2000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
+
+const ORDEN_ORDENES: Record<z.infer<typeof Ordenes>["orden"], string> = {
+  reciente: "o.fecha_emision DESC, o.orden DESC",
+  antiguo: "o.fecha_emision ASC, o.orden",
+  // Las de monto dudoso (monto NULL) al final: si no, un RUC escrito como monto encabezaría la lista.
+  monto: "o.monto DESC NULLS LAST, o.fecha_emision DESC",
+  monto_asc: "o.monto ASC NULLS LAST, o.fecha_emision DESC",
+};
 
 empresasRouter.get("/:ruc/ordenes", async (c) => {
   const ruc = c.req.param("ruc");
@@ -368,29 +476,61 @@ empresasRouter.get("/:ruc/ordenes", async (c) => {
   const cuerpo = await fichaMemo.obtener(`ordenes:${ruc}:${JSON.stringify(q)}`, async () => {
     if (!(await existe(ruc))) return null;
     const vals: unknown[] = [ruc];
+    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     // Como empresa_orden_anual: en soles, sin las anuladas; las de monto dudoso se muestran con su monto original.
-    const conds = [`o.ruc_contratista = $1`, `o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`];
-    if (q.entidad) { vals.push(q.entidad); conds.push(`o.entidad_ruc = $${vals.length}`); }
-    if (q.anio) { vals.push(q.anio); conds.push(`o.fecha_emision >= make_date($${vals.length}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`); }
+    const base = [`o.ruc_contratista = $1`, `o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`];
+    const conds: string[] = [];
+    if (q.entidad) conds.push(`o.entidad_ruc = ${p(q.entidad)}`);
+    if (q.departamento) conds.push(`mef_norm(o.departamento) = ${p(norm(q.departamento))}`);
+    if (q.anio) conds.push(`o.fecha_emision >= make_date(${p(q.anio)}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`);
     if (q.tipo) conds.push(q.tipo === "compra" ? `o.tipo_orden ILIKE '%compra%'` : `o.tipo_orden NOT ILIKE '%compra%'`);
+    if (q.estado) conds.push(`o.estado = ${p(q.estado)}`);
     if (q.dudosa) conds.push(`o.monto_dudoso IS NOT NULL`);
     for (const w of palabrasBusqueda(q.q)) {
-      vals.push(`%${w}%`);
-      conds.push(`mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE $${vals.length}`);
+      conds.push(`mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
     }
-    const r = await pool.query(
-      `WITH o AS (
-         SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
-           FROM conosce_ordenes o WHERE ${conds.join(" AND ")}
-          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
-       SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero,
-              o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto,
-              o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo", o.tipo_contratacion AS "tipoContratacion",
-              o.estado, count(*) OVER ()::int AS total
-         FROM o ORDER BY o.fecha_emision DESC, o.orden DESC
-        LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals);
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    const [r, fac] = await Promise.all([
+      // La página: cada orden una vez (dedup sobre TODAS las de la empresa). Con la caché fría, un gran proveedor pasa
+      // los 10 s del rol: plazo propio.
+      consultaConPlazo(
+        `WITH o AS MATERIALIZED (
+           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
+             FROM conosce_ordenes o WHERE ${base.join(" AND ")}
+            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+         SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento, o.nro_orden AS numero,
+                o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto,
+                o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo", o.tipo_contratacion AS "tipoContratacion",
+                o.estado, count(*) OVER ()::int AS total
+           FROM o ${donde}
+          ORDER BY ${ORDEN_ORDENES[q.orden]}
+          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+      // Los conteos de cada filtro, sobre todas sus órdenes, ya contados en empresa_orden_anual (migración 110: también
+      // por estado): no vuelven a recorrer sus órdenes.
+      fichaMemo.obtener(`ordenes-facetas:${ruc}`, async () => {
+        const anual = await pool.query(
+            `SELECT jsonb_build_object(
+               'anios', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', anio, 'n', n) ORDER BY anio DESC)
+                                    FROM (SELECT anio, sum(ordenes)::int AS n FROM empresa_orden_anual WHERE ruc = $1 GROUP BY 1) t), '[]'),
+               'entidades', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', entidad_ruc, 'etiqueta', entidad, 'n', n) ORDER BY n DESC, entidad)
+                                        FROM (SELECT entidad_ruc, max(entidad) AS entidad, sum(ordenes)::int AS n FROM empresa_orden_anual
+                                               WHERE ruc = $1 GROUP BY 1 ORDER BY 3 DESC LIMIT 300) t), '[]'),
+               'departamentos', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', d, 'n', n) ORDER BY d)
+                                            FROM (SELECT mef_norm(departamento) AS d, sum(ordenes)::int AS n FROM empresa_orden_anual
+                                                   WHERE ruc = $1 AND departamento IS NOT NULL GROUP BY 1) t), '[]'),
+               'dudosas', (SELECT COALESCE(sum(dudosas), 0)::int FROM empresa_orden_anual WHERE ruc = $1),
+               'estados', (SELECT jsonb_build_array(
+                                    jsonb_build_object('valor', 'Emitida', 'n', COALESCE(sum(emitidas), 0)),
+                                    jsonb_build_object('valor', 'Comprometida', 'n', COALESCE(sum(comprometidas), 0)),
+                                    jsonb_build_object('valor', 'Devengada', 'n', COALESCE(sum(devengadas), 0)))
+                             FROM empresa_orden_anual WHERE ruc = $1),
+               'tipos', (SELECT jsonb_build_object('compra', COALESCE(sum(compras), 0), 'servicio', COALESCE(sum(ordenes - compras), 0))
+                           FROM empresa_orden_anual WHERE ruc = $1)) AS f`, [ruc]);
+        return anual.rows[0]?.f ?? null;
+      }),
+    ]);
     const total = r.rows[0]?.total ?? 0;
-    return publicar({ total, page: q.page, size: q.size, data: r.rows.map(({ total: _t, ...f }) => f) });
+    return publicar({ total, page: q.page, size: q.size, facetas: fac, data: r.rows.map(({ total: _t, ...f }) => f) });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
@@ -445,10 +585,22 @@ empresasRouter.get("/:ruc/clientes", async (c) => {
 // ─── GET /empresas/:ruc/postulaciones ───────────────────────────────────────────────────────────
 const Postulaciones = z.object({
   q: z.string().trim().min(2).max(80).optional(),
-  resultado: z.enum(["gano", "perdio"]).optional(),
+  resultado: z.enum(["gano", "perdio", "sin"]).optional(),
+  anio: z.coerce.number().int().min(2015).max(2100).optional(),
+  objeto: z.enum(OBJETOS).optional(),
+  entidad: z.string().regex(/^\d{11}$/).optional(),
+  // Quién le ganó: el RUC de la empresa que se llevó la buena pro.
+  ganador: z.string().regex(/^20\d{9}$/).optional(),
+  orden: z.enum(["reciente", "antiguo", "monto"]).default("reciente"),
   page: z.coerce.number().int().min(1).max(2000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
+
+const ORDEN_POSTULACIONES: Record<z.infer<typeof Postulaciones>["orden"], string> = {
+  reciente: "COALESCE(g.fecha, g.convocatoria) DESC NULLS LAST, g.codigo DESC",
+  antiguo: "COALESCE(g.fecha, g.convocatoria) ASC NULLS LAST, g.codigo",
+  monto: "g.monto DESC NULLS LAST, g.codigo DESC",
+};
 
 empresasRouter.get("/:ruc/postulaciones", async (c) => {
   const ruc = c.req.param("ruc");
@@ -458,14 +610,21 @@ empresasRouter.get("/:ruc/postulaciones", async (c) => {
   const cuerpo = await fichaMemo.obtener(`postulaciones:${ruc}:${JSON.stringify(q)}`, async () => {
     if (!(await existe(ruc))) return null;
     const vals: unknown[] = [ruc];
+    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     const conds: string[] = [];
-    if (q.resultado) conds.push(q.resultado === "gano" ? `g.gano` : `NOT g.gano`);
+    if (q.resultado === "gano") conds.push(`g.gano`);
+    else if (q.resultado === "perdio") conds.push(`NOT g.gano AND g.hay_ganador`);
+    else if (q.resultado === "sin") conds.push(`NOT g.hay_ganador`);
+    if (q.anio) conds.push(`extract(year FROM COALESCE(g.fecha, g.convocatoria)) = ${p(q.anio)}`);
+    if (q.objeto) conds.push(`g.objeto = ${p(q.objeto)}`);
+    if (q.entidad) conds.push(`g.entidad_ruc = ${p(q.entidad)}`);
+    if (q.ganador) conds.push(`${p(q.ganador)} = ANY (g.rucs_ganadores)`);
     for (const w of palabrasBusqueda(q.q)) {
-      vals.push(`%${w}%`);
-      conds.push(`mef_norm(concat_ws(' ', g.descripcion, g.entidad, g.codigo, g.consorcio)) LIKE $${vals.length}`);
+      conds.push(`mef_norm(concat_ws(' ', g.descripcion, g.entidad, g.codigo, g.consorcio)) LIKE ${p(`%${w}%`)}`);
     }
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // Los procesos en que fue postor (sola o en un consorcio) y, de cada uno, quién ganó: con su RUC si es una empresa.
+    // Los conteos de cada filtro (años, rubros, entidades y quién le ganó más veces) van sobre todas sus postulaciones.
     const r = await pool.query(
       `WITH p AS (
          SELECT p.codigo_convocatoria AS codigo, min(p.fecha_propuesta) AS fecha, max(p.fecha_convocatoria) AS convocatoria,
@@ -475,27 +634,55 @@ empresasRouter.get("/:ruc/postulaciones", async (c) => {
           WHERE p.ruc_postor = $1
              OR (p.ruc_postor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1) AND p.ruc_postor !~ '^(10|20)[0-9]{9}$')
           GROUP BY p.codigo_convocatoria
-       ), g AS (
-         SELECT p.*, w.entidad, w.entidad_ruc, w.descripcion, w.objeto, w.ganadores, w.monto, COALESCE(w.gano, false) AS gano
+       ), g AS MATERIALIZED (
+         SELECT p.*, w.entidad, w.entidad_ruc, w.descripcion, w.objeto, w.ganadores, w.rucs_ganadores, w.monto,
+                COALESCE(w.gano, false) AS gano, w.ganadores IS NOT NULL AS hay_ganador
            FROM p
            LEFT JOIN LATERAL (
              SELECT max(a.entidad) AS entidad, max(a.entidad_ruc) AS entidad_ruc, max(a.descripcion_proceso) AS descripcion, max(a.objeto) AS objeto,
-                    jsonb_agg(DISTINCT jsonb_build_object('ruc', CASE WHEN a.ruc_proveedor ~ '^20[0-9]{9}$' THEN a.ruc_proveedor END,
+                    -- Con su RUC también si es una persona (RUC 10): así publicar() la reconoce, le tapa un apellido y
+                    -- cambia el RUC por su ref (sin él, el nombre de una persona salía entero).
+                    jsonb_agg(DISTINCT jsonb_build_object('ruc', CASE WHEN a.ruc_proveedor ~ '^(10|20)[0-9]{9}$' THEN a.ruc_proveedor END,
                                                           'nombre', a.proveedor)) AS ganadores,
+                    array_agg(DISTINCT a.ruc_proveedor) FILTER (WHERE a.ruc_proveedor ~ '^20[0-9]{9}$' AND a.ruc_proveedor <> ALL (p.postores)) AS rucs_ganadores,
                     sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES}) AS monto,
                     bool_or(a.ruc_proveedor = ANY (p.postores)) AS gano
                FROM conosce_adjudicaciones a WHERE a.codigo_convocatoria = p.codigo) w ON true
+       ), fac AS (
+         SELECT jsonb_build_object(
+           'resultado', jsonb_build_object('gano', (SELECT count(*) FROM g WHERE gano), 'perdio', (SELECT count(*) FROM g WHERE NOT gano AND hay_ganador),
+                                           'sin', (SELECT count(*) FROM g WHERE NOT hay_ganador)),
+           'anios', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', y, 'n', n) ORDER BY y DESC)
+                                FROM (SELECT extract(year FROM COALESCE(fecha, convocatoria))::int AS y, count(*) AS n FROM g
+                                       WHERE COALESCE(fecha, convocatoria) IS NOT NULL GROUP BY 1) t), '[]'),
+           'objetos', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', objeto, 'n', n) ORDER BY n DESC)
+                                  FROM (SELECT objeto, count(*) AS n FROM g WHERE objeto IS NOT NULL GROUP BY 1) t), '[]'),
+           'entidades', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', entidad_ruc, 'etiqueta', entidad, 'n', n) ORDER BY n DESC, entidad)
+                                    FROM (SELECT entidad_ruc, max(entidad) AS entidad, count(*) AS n FROM g WHERE entidad_ruc IS NOT NULL
+                                           GROUP BY 1 ORDER BY 3 DESC LIMIT 300) t), '[]'),
+           -- Quién le ganó más veces (sólo empresas con RUC): sus competidores.
+           'ganadores', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', t.ruc, 'etiqueta', COALESCE(e.nombre, t.ruc), 'n', t.n) ORDER BY t.n DESC)
+                                    FROM (SELECT r AS ruc, count(*) AS n FROM g, unnest(g.rucs_ganadores) r WHERE NOT g.gano
+                                           GROUP BY 1 ORDER BY 2 DESC LIMIT 50) t
+                                    LEFT JOIN empresa_resumen e ON e.ruc = t.ruc), '[]')
+         ) AS facetas
+       ), f AS (
+         SELECT g.*, count(*) OVER ()::int AS total, count(*) FILTER (WHERE g.gano) OVER ()::int AS ganadas_f
+           FROM g ${donde}
+          ORDER BY ${ORDEN_POSTULACIONES[q.orden]}
+          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}
        )
-       SELECT g.codigo, to_char(COALESCE(g.fecha, g.convocatoria), 'YYYY-MM-DD') AS fecha, g.entidad, g.entidad_ruc AS "entidadRuc",
-              g.descripcion, g.objeto, g.consorcio, g.gano, g.ganadores, g.monto::float AS monto, count(*) OVER ()::int AS total,
-              count(*) FILTER (WHERE g.gano) OVER ()::int AS ganadas
-         FROM g ${donde}
-        ORDER BY COALESCE(g.fecha, g.convocatoria) DESC NULLS LAST, g.codigo DESC
-        LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals);
-    const total = r.rows[0]?.total ?? 0;
+       SELECT fac.facetas, f.codigo, to_char(COALESCE(f.fecha, f.convocatoria), 'YYYY-MM-DD') AS fecha, f.entidad, f.entidad_ruc AS "entidadRuc",
+              f.descripcion, f.objeto, f.consorcio, f.gano, f.ganadores, f.monto::float AS monto, f.total, f.ganadas_f
+         FROM fac LEFT JOIN f ON true
+        ORDER BY ${ORDEN_POSTULACIONES[q.orden].replace(/g\./g, "f.")}`, vals);
+    const filas = r.rows.filter((x) => x.codigo != null);
+    const facetas = r.rows[0]?.facetas ?? null;
     return publicar({
-      total, ganadas: r.rows[0]?.ganadas ?? 0, page: q.page, size: q.size,
-      data: r.rows.map(({ total: _t, ganadas: _g, ganadores, ...f }) => ({
+      total: filas[0]?.total ?? 0,
+      ganadas: facetas?.resultado?.gano ?? 0,
+      page: q.page, size: q.size, facetas,
+      data: filas.map(({ total: _t, ganadas_f: _g, facetas: _f, ganadores, ...f }) => ({
         ...f,
         // Un ganador sin nada (el proceso no tiene adjudicación cargada) no se lista.
         ganadores: ((ganadores as { ruc: string | null; nombre: string | null }[] | null) ?? []).filter((x) => x.nombre || x.ruc),

@@ -76,6 +76,8 @@ export interface PaginaEmpresas {
   size: number;
   data: EmpresaFila[];
   resumen: ResumenEmpresas;
+  /** Con ?entidad=: el nombre de esa entidad. */
+  entidad?: string | null;
 }
 
 export interface GrupoPuntaje {
@@ -125,6 +127,43 @@ export interface ReglasPuntaje {
   grupos: { grupo: string; titulo: string; explica: string; tope: number; reglas: { tipo: string; severidad: Severidad; puntos: number; etiqueta: string }[] }[];
 }
 
+/** Una opción de filtro con cuántos la tienen (sobre todo lo de la empresa). */
+export interface Faceta {
+  valor: string | number;
+  etiqueta?: string | null;
+  n: number;
+  /** Lo adjudicado (familias de proceso). */
+  monto?: number;
+}
+
+export interface FacetasContratos {
+  anios: Faceta[];
+  entidades: Faceta[];
+  objetos: Faceta[];
+  familias: Faceta[];
+  departamentos: Faceta[];
+  como: { sola: number; consorcio: number };
+  banderas: Record<"inhabilitada" | "sancionada_antes" | "sancionada_despues" | "antecedentes" | "dudoso" | "sin", number>;
+}
+
+export interface FacetasOrdenes {
+  anios: Faceta[];
+  entidades: Faceta[];
+  departamentos: Faceta[];
+  estados: Faceta[];
+  tipos: { compra: number; servicio: number };
+  dudosas: number;
+}
+
+export interface FacetasPostulaciones {
+  resultado: { gano: number; perdio: number; sin: number };
+  anios: Faceta[];
+  objetos: Faceta[];
+  entidades: Faceta[];
+  /** Quién le ganó más veces (empresas con RUC). */
+  ganadores: Faceta[];
+}
+
 export interface ContratoEmpresa {
   codigo: string;
   entidadRuc: string | null;
@@ -132,6 +171,8 @@ export interface ContratoEmpresa {
   departamento: string | null;
   objeto: string | null;
   tipoProceso: string | null;
+  /** La familia del tipo de proceso: «Adjudicación simplificada», «Contratación directa»… */
+  familia: string | null;
   nomenclatura: string | null;
   descripcion: string | null;
   fecha: string | null;
@@ -164,6 +205,7 @@ export interface OrdenEmpresa {
   fecha: string | null;
   entidad: string | null;
   entidadRuc: string | null;
+  departamento: string | null;
   numero: string | null;
   orden: string | null;
   tipoOrden: string | null;
@@ -287,10 +329,28 @@ export interface FiltrosEmpresas {
   objeto?: string;
   inhabilitada?: string;
   visitas?: string;
+  montoMin?: string;
+  actividad?: string;
+  vinculadas?: string;
+  entidad?: string;
   orden?: string;
   page?: number;
   size?: number;
 }
+
+export const MONTOS_MIN = [
+  { valor: "100000", etiqueta: "Más de S/ 100 mil" },
+  { valor: "1000000", etiqueta: "Más de S/ 1 millón" },
+  { valor: "10000000", etiqueta: "Más de S/ 10 millones" },
+  { valor: "100000000", etiqueta: "Más de S/ 100 millones" },
+] as const;
+
+export const ACTIVIDADES = [
+  { valor: "contratos", etiqueta: "Ganó contratos" },
+  { valor: "consorcios", etiqueta: "Ganó en consorcio" },
+  { valor: "ordenes", etiqueta: "Sólo órdenes, sin contratos" },
+  { valor: "solo_postula", etiqueta: "Sólo postuló, nunca ganó" },
+] as const;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
@@ -310,6 +370,10 @@ export function filtrosEmpresasDeUrl(sp: Busqueda): FiltrosEmpresas {
     objeto: objeto && (OBJETOS as readonly string[]).includes(objeto) ? objeto : undefined,
     inhabilitada: uno(sp?.inhabilitada) === "si" ? "si" : undefined,
     visitas: uno(sp?.visitas) === "si" ? "si" : undefined,
+    montoMin: MONTOS_MIN.some((m) => m.valor === uno(sp?.montoMin)) ? uno(sp?.montoMin) : undefined,
+    actividad: ACTIVIDADES.some((m) => m.valor === uno(sp?.actividad)) ? uno(sp?.actividad) : undefined,
+    vinculadas: uno(sp?.vinculadas) === "si" ? "si" : undefined,
+    entidad: /^\d{11}$/.test(uno(sp?.entidad) ?? "") ? uno(sp?.entidad) : undefined,
     orden: orden && ORDENES_EMPRESAS.some((o) => o.valor === orden) ? orden : undefined,
     page: Math.max(1, Number(uno(sp?.page)) || 1),
   };
@@ -336,14 +400,20 @@ export const getEmpresas = (f: FiltrosEmpresas) => leer<PaginaEmpresas>(`/empres
 export const getReglasPuntaje = () => leer<ReglasPuntaje>(`/empresas/reglas`, 3600);
 export const getFichaEmpresa = (ruc: string) => (esRucEmpresa(ruc) ? leer<FichaEmpresa>(`/empresas/${ruc}`) : Promise.resolve(null));
 
-export function getContratosEmpresa(ruc: string, f: { q?: string; anio?: number; entidad?: string; como?: string; page?: number; size?: number }) {
-  return esRucEmpresa(ruc) ? leer<Pagina<ContratoEmpresa>>(`/empresas/${ruc}/contratos?${consulta(f)}`) : Promise.resolve(null);
+export type FiltrosContratosEmpresa = { q?: string; anio?: number; entidad?: string; como?: string; objeto?: string; familia?: string; departamento?: string; bandera?: string; orden?: string; page?: number; size?: number };
+export type FiltrosOrdenesEmpresa = { q?: string; anio?: number; entidad?: string; departamento?: string; tipo?: string; estado?: string; dudosa?: string; orden?: string; page?: number; size?: number };
+export type FiltrosPostulacionesEmpresa = { q?: string; resultado?: string; anio?: number; objeto?: string; entidad?: string; ganador?: string; orden?: string; page?: number; size?: number };
+
+export function getContratosEmpresa(ruc: string, f: FiltrosContratosEmpresa) {
+  return esRucEmpresa(ruc) ? leer<Pagina<ContratoEmpresa> & { facetas: FacetasContratos | null }>(`/empresas/${ruc}/contratos?${consulta(f)}`) : Promise.resolve(null);
 }
-export function getOrdenesEmpresa(ruc: string, f: { q?: string; anio?: number; entidad?: string; tipo?: string; dudosa?: string; page?: number; size?: number }) {
-  return esRucEmpresa(ruc) ? leer<Pagina<OrdenEmpresa>>(`/empresas/${ruc}/ordenes?${consulta(f)}`) : Promise.resolve(null);
+export function getOrdenesEmpresa(ruc: string, f: FiltrosOrdenesEmpresa) {
+  return esRucEmpresa(ruc) ? leer<Pagina<OrdenEmpresa> & { facetas: FacetasOrdenes | null }>(`/empresas/${ruc}/ordenes?${consulta(f)}`) : Promise.resolve(null);
 }
-export function getPostulacionesEmpresa(ruc: string, f: { q?: string; resultado?: string; page?: number; size?: number }) {
-  return esRucEmpresa(ruc) ? leer<Pagina<PostulacionEmpresa> & { ganadas: number }>(`/empresas/${ruc}/postulaciones?${consulta(f)}`) : Promise.resolve(null);
+export function getPostulacionesEmpresa(ruc: string, f: FiltrosPostulacionesEmpresa) {
+  return esRucEmpresa(ruc)
+    ? leer<Pagina<PostulacionEmpresa> & { ganadas: number; facetas: FacetasPostulaciones | null }>(`/empresas/${ruc}/postulaciones?${consulta(f)}`)
+    : Promise.resolve(null);
 }
 export const getClientesEmpresa = (ruc: string) =>
   esRucEmpresa(ruc) ? leer<{ total: number; data: ClienteEmpresa[] }>(`/empresas/${ruc}/clientes`) : Promise.resolve(null);

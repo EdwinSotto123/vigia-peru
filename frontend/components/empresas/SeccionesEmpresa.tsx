@@ -7,8 +7,10 @@ import {
   CeldaNumero,
   CeldaPrincipal,
   Tabla,
+  TablaFiltrable,
   TablaPaginada,
   type Columna,
+  type FilaFiltrable,
   type FiltroSecundario,
   type Fila,
   type Parametros,
@@ -25,12 +27,18 @@ import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion } from "@/lib/personas";
 import { rutaContrato } from "@/lib/rutas";
 import {
+  CORTO_EMPRESA,
   NIVEL,
   OBJETO_TEXTO,
+  esRucEmpresa,
   rutaEmpresa,
   type AntecedenteEmpresa,
   type ClienteEmpresa,
   type ContratoEmpresa,
+  type Faceta,
+  type FacetasContratos,
+  type FacetasOrdenes,
+  type FacetasPostulaciones,
   type OrdenEmpresa,
   type Pagina,
   type PostulacionEmpresa,
@@ -83,7 +91,7 @@ const anios = (desde: string | null, hasta: string | null): FiltroSecundario["op
 
 // ─── Contratos ────────────────────────────────────────────────────────────────
 
-export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", page: "cpag" } as const;
+export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", orden: "cord", page: "cpag" } as const;
 
 const COLUMNAS_CONTRATOS: Columna[] = [
   { clave: "fecha", titulo: "Buena pro", ancho: "92px", desde: "md", apilar: true },
@@ -101,19 +109,64 @@ const COLUMNAS_CONTRATOS: Columna[] = [
   { clave: "monto", titulo: "Adjudicado", ancho: "120px", alinear: "der" },
 ];
 
-export function BarraContratos({ desde, hasta }: { desde: string | null; hasta: string | null }) {
+/** Las opciones de un filtro con su conteo; `etiqueta` arma el texto (si no, el valor). */
+const opcionesDe = (f: Faceta[] | undefined, etiqueta?: (x: Faceta) => string) =>
+  (f ?? []).map((x) => ({ valor: String(x.valor), etiqueta: etiqueta ? etiqueta(x) : String(x.etiqueta ?? x.valor), conteo: x.n }));
+const entidadEtq = (x: Faceta) => (x.etiqueta ? tituloNatural(String(x.etiqueta)) : String(x.valor));
+
+const ORDEN_LISTA = [
+  { valor: "reciente", etiqueta: "Más recientes" },
+  { valor: "antiguo", etiqueta: "Más antiguos" },
+  { valor: "monto", etiqueta: "Mayor monto" },
+  { valor: "monto_asc", etiqueta: "Menor monto" },
+];
+
+/**
+ * Los filtros de sus contratos, con cuántos procesos tiene cada opción: las banderas a la vista (inhabilitada al ganar,
+ * sancionada antes, con antecedentes, posible error de carga), año, entidad y tipo de proceso; detrás de «Filtros», el
+ * rubro, la región y si la ganó sola o en consorcio. `facetas` null mientras carga: los mismos filtros sin conteos.
+ */
+export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | null }) {
+  const b = f?.banderas;
   return (
     <BarraFiltros
       busqueda={{ param: P_CONTRATOS.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus contratos", min: 3 }}
+      faceta={{
+        param: P_CONTRATOS.bandera,
+        etiqueta: "Banderas",
+        todas: "Todos",
+        conteoTodas: f ? f.como.sola + f.como.consorcio : null,
+        nombreEnChip: false,
+        opciones: [
+          { valor: "inhabilitada", etiqueta: "Inhabilitada al ganar", conteo: b?.inhabilitada ?? null, tono: "alta" as const, icono: "alerta" as const },
+          { valor: "sancionada_antes", etiqueta: "Sancionada antes", conteo: b?.sancionada_antes ?? null, tono: "media" as const, icono: "atencion" as const },
+          { valor: "antecedentes", etiqueta: "Con antecedentes", conteo: b?.antecedentes ?? null, tono: "media" as const },
+          { valor: "dudoso", etiqueta: "Posible error de carga", conteo: b?.dudoso ?? null },
+          { valor: "sancionada_despues", etiqueta: "Sancionada después", conteo: b?.sancionada_despues ?? null },
+          { valor: "sin", etiqueta: "Sin banderas", conteo: b?.sin ?? null },
+        ].filter((o) => o.conteo == null || o.conteo > 0),
+      }}
       visibles={[
-        { param: P_CONTRATOS.anio, etiqueta: "Año de la buena pro", corta: "Año", todas: "Todos los años", opciones: anios(desde, hasta) },
+        { param: P_CONTRATOS.anio, etiqueta: "Año de la buena pro", corta: "Año", todas: "Todos los años", opciones: opcionesDe(f?.anios) },
+        { param: P_CONTRATOS.entidad, etiqueta: "Entidad que contrató", corta: "Entidad", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq) },
+        { param: P_CONTRATOS.familia, etiqueta: "Tipo de proceso", corta: "Proceso", todas: "Todo tipo de proceso", opciones: opcionesDe(f?.familias) },
+      ]}
+      filtros={[
+        { param: P_CONTRATOS.objeto, etiqueta: "Rubro", todas: "Todo rubro", opciones: opcionesDe(f?.objetos, (x) => OBJETO_TEXTO[String(x.valor)] ?? String(x.valor)) },
+        { param: P_CONTRATOS.departamento, etiqueta: "Región de la entidad", todas: "Todo el Perú", opciones: opcionesDe(f?.departamentos, (x) => tituloNatural(String(x.valor))) },
         {
-          param: P_CONTRATOS.como, etiqueta: "Cómo la ganó", corta: "Cómo", todas: "Sola y en consorcio",
-          opciones: [{ valor: "sola", etiqueta: "Sola" }, { valor: "consorcio", etiqueta: "En consorcio" }],
+          param: P_CONTRATOS.como, etiqueta: "Cómo la ganó", todas: "Sola y en consorcio",
+          opciones: [{ valor: "sola", etiqueta: "Sola", conteo: f?.como.sola ?? null }, { valor: "consorcio", etiqueta: "En consorcio", conteo: f?.como.consorcio ?? null }],
         },
       ]}
+      orden={{ param: P_CONTRATOS.orden, porDefecto: "reciente", opciones: ORDEN_LISTA }}
     />
   );
+}
+
+/** La barra con los conteos de la página ya pedida (espera la misma promesa que la tabla). */
+export async function BarraContratosConConteos({ pagina }: { pagina: Promise<(Pagina<ContratoEmpresa> & { facetas: FacetasContratos | null }) | null> }) {
+  return <BarraContratos facetas={(await pagina)?.facetas ?? null} />;
 }
 
 export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: { pagina: Promise<Pagina<ContratoEmpresa> | null>; ruta: string; parametros: Parametros; actual: number }) {
@@ -135,6 +188,7 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
             meta={[
               <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
               c.objeto && <Dato key="tipo" tipo="tipo">{OBJETO_TEXTO[c.objeto] ?? c.objeto}</Dato>,
+              c.familia && c.familia !== "Sin dato" && <Dato key="proceso" tipo="documento" nombre="Tipo de proceso">{c.familia}</Dato>,
               c.nomenclatura && <Dato key="codigo" tipo="codigo" mono>{c.nomenclatura}</Dato>,
               c.consorcio && <Dato key="consorcio" tipo="personas" nombre="Ganó en consorcio">{`En ${tituloNatural(c.consorcio)}`}</Dato>,
             ]}
@@ -173,6 +227,12 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
  * (no sólo en el `title`: en el celular no hay cursor). Pedido del usuario (2026-10-22): «Sancionado» no decía si lo
  * estaba cuando contrató o antes.
  */
+/** "13 may. 2026" siempre con el año: al lado de un contrato de 2022, «desde el 13 may.» no dice de qué año. */
+const conAnio = (d: string) => {
+  const f = fechaCorta(d);
+  return /\d{4}/.test(f) ? f : `${f} ${d.slice(0, 4)}`;
+};
+
 function SancionAlGanar({ s }: { s: NonNullable<ContratoEmpresa["sancion"]> }) {
   const cual = (t: string) => (t === "definitivo" ? "definitiva" : t === "temporal" ? "temporal" : "");
   return (
@@ -180,26 +240,28 @@ function SancionAlGanar({ s }: { s: NonNullable<ContratoEmpresa["sancion"]> }) {
       {s.alGanar ? (
         <span
           className="flex flex-wrap items-center gap-1"
-          title={`Ganó con una inhabilitación ${cual(s.alGanar.tipo)} vigente${s.alGanar.desde ? ` desde el ${fechaCorta(s.alGanar.desde)}` : ""}${s.alGanar.hasta ? ` hasta el ${fechaCorta(s.alGanar.hasta)}` : ""}${s.alGanar.resolucion ? ` (Res. ${s.alGanar.resolucion})` : ""}: no podía contratar con el Estado.`}
+          title={`Ganó con una inhabilitación ${cual(s.alGanar.tipo)} vigente${s.alGanar.desde ? ` desde el ${conAnio(s.alGanar.desde)}` : ""}${s.alGanar.hasta ? ` hasta el ${conAnio(s.alGanar.hasta)}` : ""}${s.alGanar.resolucion ? ` (Res. ${s.alGanar.resolucion})` : ""}: no podía contratar con el Estado.`}
         >
           <Badge variant="crimson">Inhabilitada al ganar</Badge>
           <span className="text-[12px] text-crimsonTexto">
-            {s.alGanar.hasta ? `hasta el ${fechaCorta(s.alGanar.hasta)}` : `inhabilitación ${cual(s.alGanar.tipo)}`}
+            {s.alGanar.hasta ? `hasta el ${conAnio(s.alGanar.hasta)}` : `inhabilitación ${cual(s.alGanar.tipo)}`}
           </span>
         </span>
       ) : s.antes > 0 ? (
         <span
           className="flex flex-wrap items-center gap-1"
-          title={`${plural(s.antes, "sanción anterior", "sanciones anteriores")} a la buena pro; ninguna inhabilitación vigente al ganar${s.antesHasta ? `: la última terminó el ${fechaCorta(s.antesHasta)}` : ""}.`}
+          title={`${plural(s.antes, "sanción anterior", "sanciones anteriores")} a la buena pro; ninguna inhabilitación vigente al ganar${s.antesHasta ? `: la última terminó el ${conAnio(s.antesHasta)}` : ""}.`}
         >
           <Badge variant="amber">Sancionada antes</Badge>
-          <span className="text-[12px] text-inkSoft">{s.antesHasta ? `ya cumplida el ${fechaCorta(s.antesHasta)}` : "sin vigencia al ganar"}</span>
+          <span className="text-[12px] text-inkSoft">
+            {s.antesHasta ? `ya cumplida el ${conAnio(s.antesHasta)}` : `${plural(s.antes, "sanción", "sanciones")}, ninguna vigente al ganar`}
+          </span>
         </span>
       ) : null}
       {s.despues > 0 && (
-        <span className="flex flex-wrap items-center gap-1" title={`${plural(s.despues, "sanción", "sanciones")} posteriores a la buena pro${s.despuesDesde ? `, desde el ${fechaCorta(s.despuesDesde)}` : ""}: al ganar no las tenía.`}>
+        <span className="flex flex-wrap items-center gap-1" title={`${plural(s.despues, "sanción", "sanciones")} posteriores a la buena pro${s.despuesDesde ? `, desde el ${conAnio(s.despuesDesde)}` : ""}: al ganar no las tenía.`}>
           <Badge variant="neutral">Sancionada después</Badge>
-          {s.despuesDesde && <span className="text-[12px] text-mute">{`desde el ${fechaCorta(s.despuesDesde)}`}</span>}
+          {s.despuesDesde && <span className="text-[12px] text-mute">{`desde el ${conAnio(s.despuesDesde)}`}</span>}
         </span>
       )}
     </span>
@@ -208,7 +270,7 @@ function SancionAlGanar({ s }: { s: NonNullable<ContratoEmpresa["sancion"]> }) {
 
 // ─── Órdenes ──────────────────────────────────────────────────────────────────
 
-export const P_ORDENES = { q: "oq", anio: "oanio", tipo: "otipo", dudosa: "odud", page: "opag" } as const;
+export const P_ORDENES = { q: "oq", anio: "oanio", tipo: "otipo", dudosa: "odud", entidad: "oent", departamento: "odep", estado: "oest", orden: "oord", page: "opag" } as const;
 
 const COLUMNAS_ORDENES: Columna[] = [
   { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
@@ -217,20 +279,36 @@ const COLUMNAS_ORDENES: Columna[] = [
   { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der" },
 ];
 
-export function BarraOrdenes({ desde, hasta, dudosas }: { desde: string | null; hasta: string | null; dudosas: number }) {
+/** Los filtros de sus órdenes, con su conteo: año, entidad y tipo a la vista; región, estado y posible error, detrás. */
+export function BarraOrdenes({ facetas: f }: { facetas: FacetasOrdenes | null }) {
   return (
     <BarraFiltros
       busqueda={{ param: P_ORDENES.q, placeholder: "Buscar en la descripción, la entidad o el número…", etiqueta: "Buscar en sus órdenes", min: 3 }}
       visibles={[
-        { param: P_ORDENES.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: anios(desde, hasta) },
+        { param: P_ORDENES.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: opcionesDe(f?.anios) },
+        { param: P_ORDENES.entidad, etiqueta: "Entidad que compró", corta: "Entidad", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq) },
         {
           param: P_ORDENES.tipo, etiqueta: "Tipo de orden", corta: "Tipo", todas: "Compra y servicio",
-          opciones: [{ valor: "compra", etiqueta: "Órdenes de compra" }, { valor: "servicio", etiqueta: "Órdenes de servicio" }],
+          opciones: [
+            { valor: "compra", etiqueta: "Órdenes de compra", conteo: f?.tipos.compra ?? null },
+            { valor: "servicio", etiqueta: "Órdenes de servicio", conteo: f?.tipos.servicio ?? null },
+          ].filter((o) => o.conteo == null || o.conteo > 0),
         },
       ]}
-      filtros={dudosas ? [{ param: P_ORDENES.dudosa, etiqueta: "Posible error de carga", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Sólo con posible error", conteo: dudosas }] }] : []}
+      filtros={[
+        { param: P_ORDENES.departamento, etiqueta: "Región de la entidad", todas: "Todo el Perú", opciones: opcionesDe(f?.departamentos, (x) => tituloNatural(String(x.valor))) },
+        { param: P_ORDENES.estado, etiqueta: "Estado de la orden", todas: "Todo estado", opciones: opcionesDe(f?.estados?.filter((x) => x.n > 0)) },
+        ...(f?.dudosas
+          ? [{ param: P_ORDENES.dudosa, etiqueta: "Posible error de carga", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Sólo con posible error", conteo: f.dudosas }] }]
+          : []),
+      ]}
+      orden={{ param: P_ORDENES.orden, porDefecto: "reciente", opciones: ORDEN_LISTA }}
     />
   );
+}
+
+export async function BarraOrdenesConConteos({ pagina }: { pagina: Promise<(Pagina<OrdenEmpresa> & { facetas: FacetasOrdenes | null }) | null> }) {
+  return <BarraOrdenes facetas={(await pagina)?.facetas ?? null} />;
 }
 
 export async function OrdenesEmpresa({ pagina: p, ruta, parametros, actual }: { pagina: Promise<Pagina<OrdenEmpresa> | null>; ruta: string; parametros: Parametros; actual: number }) {
@@ -312,13 +390,20 @@ const COLUMNAS_CLIENTES: Columna[] = [
   { clave: "ultima", titulo: "Última", ancho: "92px", desde: "xl" },
 ];
 
-export function filasClientes(data: ClienteEmpresa[]): Fila[] {
+export function filasClientes(data: ClienteEmpresa[]): FilaFiltrable[] {
   return data.map((c) => {
     const entidad = entidadTexto(c.entidad, c.entidadRuc);
     return {
       id: c.entidadRuc,
       href: `/entidad/${c.entidadRuc}`,
       buscable: `${entidad} ${c.entidadRuc} ${c.departamento ?? ""}`,
+      valores: {
+        region: c.departamento ? paraClave(c.departamento) : null,
+        relacion: [c.contratos ? "contratos" : "", c.ordenes ? "ordenes" : "", c.visitas ? "visitas" : "", c.dudosas ? "dudosas" : ""].filter(Boolean),
+      },
+      claves: {
+        pagado: c.adjudicado + c.ordenado, contratos: c.contratos, ordenes: c.ordenes, ultima: c.ultima, primera: c.primera, nombre: entidad,
+      },
       celdas: {
         entidad: (
           <CeldaPrincipal
@@ -351,25 +436,52 @@ export function filasClientes(data: ClienteEmpresa[]): Fila[] {
   });
 }
 
+/** "MUNICIPALIDAD …" o "Lima" → la clave de un filtro (sin tildes ni mayúsculas). */
+const paraClave = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().trim();
+/** Las opciones de un filtro local a partir de los valores de las filas: cada valor distinto con su etiqueta. */
+const opcionesLocales = (valores: (string | null | undefined)[], etiqueta: (v: string) => string) =>
+  [...new Set(valores.filter((v): v is string => !!v))].sort((a, b) => etiqueta(a).localeCompare(etiqueta(b), "es")).map((v) => ({ valor: v, etiqueta: etiqueta(v) }));
+
 export async function ClientesEmpresa({ datos }: { datos: Promise<{ total: number; data: ClienteEmpresa[] } | null> }) {
   const d = await datos;
   if (!d) return <NoCargo que="sus clientes" />;
   if (!d.total) return <EstadoVacio compacto titulo="Ninguna entidad le adjudicó ni le compró">Sólo figura como postor.</EstadoVacio>;
+  const filas = filasClientes(d.data);
   return (
-    <TablaPaginada
+    <TablaFiltrable
       columnas={COLUMNAS_CLIENTES}
-      filas={filasClientes(d.data)}
+      filas={filas}
       etiqueta="Entidades que le adjudicaron o le compraron"
       tam={20}
       nombre="entidades"
-      buscar={{ placeholder: "Buscar entidad o región…", etiqueta: "Buscar en sus clientes" }}
+      buscar={{ placeholder: "Buscar entidad o RUC…", etiqueta: "Buscar en sus clientes" }}
+      filtros={[
+        { clave: "region", etiqueta: "Región de la entidad", corta: "Región", opciones: opcionesLocales(filas.map((f) => f.valores?.region as string | null), (v) => tituloNatural(v)) },
+        {
+          clave: "relacion", etiqueta: "Qué le dio", corta: "Qué le dio",
+          opciones: [
+            { valor: "contratos", etiqueta: "Le adjudicó contratos" },
+            { valor: "ordenes", etiqueta: "Le compró por órdenes" },
+            { valor: "visitas", etiqueta: "Su gente la visitó" },
+            { valor: "dudosas", etiqueta: "Órdenes con posible error" },
+          ],
+        },
+      ]}
+      ordenes={[
+        { valor: "pagado", etiqueta: "La que más le pagó", clave: "pagado", dir: "desc" },
+        { valor: "contratos", etiqueta: "Más contratos", clave: "contratos", dir: "desc" },
+        { valor: "ordenes", etiqueta: "Más órdenes", clave: "ordenes", dir: "desc" },
+        { valor: "reciente", etiqueta: "Venta más reciente", clave: "ultima", dir: "desc" },
+        { valor: "antigua", etiqueta: "Relación más antigua", clave: "primera", dir: "asc" },
+        { valor: "nombre", etiqueta: "Por nombre", clave: "nombre", dir: "asc" },
+      ]}
     />
   );
 }
 
 // ─── Postulaciones ────────────────────────────────────────────────────────────
 
-export const P_POSTULACIONES = { q: "pq", resultado: "pres", page: "ppag" } as const;
+export const P_POSTULACIONES = { q: "pq", resultado: "pres", anio: "panio", objeto: "pobj", entidad: "pent", ganador: "pgan", orden: "pord", page: "ppag" } as const;
 
 const COLUMNAS_POSTULACIONES: Columna[] = [
   { clave: "fecha", titulo: "Propuesta", ancho: "92px", desde: "md", apilar: true },
@@ -378,18 +490,41 @@ const COLUMNAS_POSTULACIONES: Columna[] = [
   { clave: "monto", titulo: "Adjudicado", ancho: "116px", alinear: "der", desde: "lg" },
 ];
 
-export function BarraPostulaciones() {
+/**
+ * Los filtros de sus postulaciones, con su conteo: el resultado a la vista; año, entidad y quién le ganó (sus
+ * competidores, de los que más veces le ganaron a los que menos); detrás, el rubro.
+ */
+export function BarraPostulaciones({ facetas: f }: { facetas: FacetasPostulaciones | null }) {
   return (
     <BarraFiltros
       busqueda={{ param: P_POSTULACIONES.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus postulaciones", min: 3 }}
+      faceta={{
+        param: P_POSTULACIONES.resultado,
+        etiqueta: "Resultado",
+        todas: "Todas",
+        conteoTodas: f ? f.resultado.gano + f.resultado.perdio + f.resultado.sin : null,
+        nombreEnChip: false,
+        opciones: [
+          { valor: "gano", etiqueta: "Ganó", conteo: f?.resultado.gano ?? null, tono: "positivo" as const },
+          { valor: "perdio", etiqueta: "Ganó otro postor", conteo: f?.resultado.perdio ?? null },
+          { valor: "sin", etiqueta: "Sin adjudicación publicada", conteo: f?.resultado.sin ?? null },
+        ].filter((o) => o.conteo == null || o.conteo > 0),
+      }}
       visibles={[
-        {
-          param: P_POSTULACIONES.resultado, etiqueta: "Resultado", corta: "Resultado", todas: "Ganadas y perdidas",
-          opciones: [{ valor: "gano", etiqueta: "Las que ganó" }, { valor: "perdio", etiqueta: "Las que no ganó" }],
-        },
+        { param: P_POSTULACIONES.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: opcionesDe(f?.anios) },
+        { param: P_POSTULACIONES.entidad, etiqueta: "Entidad que convocó", corta: "Entidad", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq) },
+        { param: P_POSTULACIONES.ganador, etiqueta: "Quién le ganó", corta: "Quién le ganó", todas: "Cualquier ganador", opciones: opcionesDe(f?.ganadores) },
       ]}
+      filtros={[
+        { param: P_POSTULACIONES.objeto, etiqueta: "Rubro", todas: "Todo rubro", opciones: opcionesDe(f?.objetos, (x) => OBJETO_TEXTO[String(x.valor)] ?? String(x.valor)) },
+      ]}
+      orden={{ param: P_POSTULACIONES.orden, porDefecto: "reciente", opciones: ORDEN_LISTA.filter((o) => o.valor !== "monto_asc") }}
     />
   );
+}
+
+export async function BarraPostulacionesConConteos({ pagina }: { pagina: Promise<(Pagina<PostulacionEmpresa> & { facetas: FacetasPostulaciones | null }) | null> }) {
+  return <BarraPostulaciones facetas={(await pagina)?.facetas ?? null} />;
 }
 
 export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual, ruc }: { pagina: Promise<(Pagina<PostulacionEmpresa> & { ganadas: number }) | null>; ruta: string; parametros: Parametros; actual: number; ruc: string }) {
@@ -423,7 +558,7 @@ export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual
                 <ul className="space-y-1 text-[13px]">
                   {otros.map((g, i) => (
                     <li key={`${g.ruc ?? g.nombre}-${i}`}>
-                      {g.ruc ? <Link href={rutaEmpresa(g.ruc)} className="font-semibold text-granate underline-offset-2 hover:underline">{g.nombre ?? g.ruc}</Link> : <b>{g.nombre}</b>}
+                      {g.ruc && esRucEmpresa(g.ruc) ? <Link href={rutaEmpresa(g.ruc)} className="font-semibold text-granate underline-offset-2 hover:underline">{g.nombre ?? g.ruc}</Link> : <b>{g.nombre ?? "Una persona natural"}</b>}
                     </li>
                   ))}
                 </ul>
@@ -570,7 +705,17 @@ const COLUMNAS_CASOS: Columna[] = [
  * gravedad, qué quiere decir y, debajo, cada caso en una tabla paginada (lo que dice el registro, el proceso en que pesa
  * con su evidencia, la fuente). Antes iba un caso por tarjeta: 160 tarjetas casi iguales.
  */
-export async function AntecedentesEmpresa({ datos }: { datos: Promise<{ total: number; data: AntecedenteEmpresa[] } | null> }) {
+export const P_ANTECEDENTES = { tipo: "atipo", gravedad: "agrav" } as const;
+
+export async function AntecedentesEmpresa({
+  datos,
+  tipo: tipoElegido,
+  gravedad,
+}: {
+  datos: Promise<{ total: number; data: AntecedenteEmpresa[] } | null>;
+  tipo?: string;
+  gravedad?: string;
+}) {
   const d = await datos;
   if (!d) return <NoCargo que="sus antecedentes" />;
   if (!d.total) {
@@ -582,12 +727,48 @@ export async function AntecedentesEmpresa({ datos }: { datos: Promise<{ total: n
     );
   }
   const RANGO = { alta: 0, media: 1, baja: 2 } as const;
+  // Los conteos de cada opción, sobre el otro filtro (como en las listas del servidor).
+  const porGravedad = d.data.filter((a) => !tipoElegido || a.tipo === tipoElegido);
+  const porTipo = d.data.filter((a) => !gravedad || a.severidad === gravedad);
+  const tiposConteo = [...porTipo.reduce((m, a) => m.set(a.tipo, { n: (m.get(a.tipo)?.n ?? 0) + 1, etiqueta: a.etiqueta }), new Map<string, { n: number; etiqueta: string }>())]
+    .sort((a, b) => b[1].n - a[1].n);
+  const barra = (
+    <BarraFiltros
+      faceta={{
+        param: P_ANTECEDENTES.gravedad,
+        etiqueta: "Gravedad",
+        todas: "Todas",
+        conteoTodas: porGravedad.length,
+        nombreEnChip: false,
+        opciones: (["alta", "media", "baja"] as const)
+          .map((sv) => ({ valor: sv, etiqueta: SEV[sv], conteo: porGravedad.filter((a) => a.severidad === sv).length, ...(sv === "alta" ? { tono: "alta" as const, icono: "alerta" as const } : sv === "media" ? { tono: "media" as const, icono: "atencion" as const } : {}) }))
+          .filter((o) => o.conteo > 0 || gravedad === o.valor),
+      }}
+      visibles={[
+        {
+          param: P_ANTECEDENTES.tipo, etiqueta: "Tipo de antecedente", corta: "Tipo", todas: "Todo tipo",
+          opciones: tiposConteo.map(([t, x]) => ({ valor: t, etiqueta: CORTO_EMPRESA[t] ?? TIPO_CRUCE[t]?.corto ?? x.etiqueta, conteo: x.n })),
+        },
+      ]}
+    />
+  );
+  const vistos = d.data.filter((a) => (!tipoElegido || a.tipo === tipoElegido) && (!gravedad || a.severidad === gravedad));
+  if (!vistos.length) {
+    return (
+      <div className="space-y-3">
+        {barra}
+        <EstadoVacio compacto titulo="Ningún antecedente con estos filtros">Quita el filtro de tipo o de gravedad.</EstadoVacio>
+      </div>
+    );
+  }
   const grupos = new Map<string, AntecedenteEmpresa[]>();
-  for (const a of d.data) grupos.set(a.tipo, [...(grupos.get(a.tipo) ?? []), a]);
+  for (const a of vistos) grupos.set(a.tipo, [...(grupos.get(a.tipo) ?? []), a]);
   const tipos = [...grupos.entries()].sort(
     ([, a], [, b]) => Math.min(...a.map((x) => RANGO[x.severidad])) - Math.min(...b.map((x) => RANGO[x.severidad])) || b.length - a.length,
   );
   return (
+    <div className="space-y-3">
+    {barra}
     <ol className="space-y-3">
       {tipos.map(([tipo, casos], i) => {
         const porSev = (["alta", "media", "baja"] as const).map((sv) => ({ sv, n: casos.filter((c) => c.severidad === sv).length })).filter((x) => x.n);
@@ -662,6 +843,7 @@ export async function AntecedentesEmpresa({ datos }: { datos: Promise<{ total: n
         );
       })}
     </ol>
+    </div>
   );
 }
 
@@ -715,10 +897,17 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
       },
     })),
   ];
-  const filasVinculadas: Fila[] = d.vinculadas.map((v) => ({
+  const filasVinculadas: FilaFiltrable[] = d.vinculadas.map((v) => ({
     id: v.ruc,
     href: rutaEmpresa(v.ruc),
     buscable: `${v.nombre ?? ""} ${v.ruc}`,
+    valores: {
+      nivel: v.nivel ?? "no_vende",
+      vende: v.monto > 0 || v.contratos > 0 ? "si" : "no",
+      inhabilitada: v.inhabilitada ? "si" : "no",
+      papel: [...new Set(v.socios.flatMap((s) => s.roles))],
+    },
+    claves: { puntaje: v.puntaje ?? -1, monto: v.monto, nombre: v.nombre ?? v.ruc, personas: v.socios.length },
     celdas: {
       empresa: (
         <CeldaPrincipal
@@ -786,13 +975,30 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
             Otras empresas con un mismo socio, representante o directivo. Si compitieron en un mismo proceso, eso figura en sus
             antecedentes («comparte socio con otro postor»).
           </p>
-          <TablaPaginada
+          <TablaFiltrable
             columnas={COLUMNAS_VINCULADAS}
             filas={filasVinculadas}
             etiqueta="Empresas vinculadas"
             tam={15}
             nombre="empresas"
             buscar={{ placeholder: "Buscar empresa por nombre o RUC…", etiqueta: "Buscar en las empresas vinculadas" }}
+            filtros={[
+              {
+                clave: "nivel", etiqueta: "Su puntaje", corta: "Puntaje",
+                opciones: [
+                  { valor: "alto", etiqueta: "Muchos antecedentes" }, { valor: "medio", etiqueta: "Para revisar" },
+                  { valor: "bajo", etiqueta: "Pocos" }, { valor: "sin", etiqueta: "Sin antecedentes" }, { valor: "no_vende", etiqueta: "No le vende al Estado" },
+                ],
+              },
+              { clave: "papel", etiqueta: "Papel de la persona en común", corta: "Papel en común", opciones: [{ valor: "socio", etiqueta: "Socio" }, { valor: "representante legal", etiqueta: "Representante legal" }, { valor: "directivo", etiqueta: "Directivo" }] },
+              { clave: "inhabilitada", etiqueta: "Inhabilitada hoy", corta: "Inhabilitada", opciones: [{ valor: "si", etiqueta: "Inhabilitada hoy" }, { valor: "no", etiqueta: "No inhabilitada" }] },
+            ]}
+            ordenes={[
+              { valor: "puntaje", etiqueta: "Más antecedentes", clave: "puntaje", dir: "desc" },
+              { valor: "monto", etiqueta: "Más dinero recibido", clave: "monto", dir: "desc" },
+              { valor: "personas", etiqueta: "Más personas en común", clave: "personas", dir: "desc" },
+              { valor: "nombre", etiqueta: "Por nombre", clave: "nombre", dir: "asc" },
+            ]}
           />
         </section>
       )}
@@ -828,7 +1034,7 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
       </EstadoVacio>
     );
   }
-  const filas: Fila[] = d.visitas.map((v, i) => {
+  const filas: FilaFiltrable[] = d.visitas.map((v, i) => {
     const entidad = entidadTexto(v.entidad);
     const despues = v.despues ? (
       <span className="text-[13px] text-ink">
@@ -843,6 +1049,13 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
     return {
       id: `${v.fecha}-${i}`,
       buscable: `${entidad} ${v.cargoFuncionario ?? ""} ${v.area ?? ""} ${v.motivo ?? ""} ${v.via}`,
+      valores: {
+        entidad: v.entidad ? paraClave(v.entidad) : null,
+        via: v.via,
+        despues: v.despues ? (v.despuesTipo ?? "contrato") : v.entidadRuc ? "antes" : "no_cliente",
+        anio: v.fecha?.slice(0, 4) ?? null,
+      },
+      claves: { fecha: v.fecha, dias: v.diasDespues },
       celdas: {
         fecha: <CeldaFecha fecha={v.fecha} />,
         entidad: (
@@ -898,13 +1111,30 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
         {aClientes ? `; ${numero(aClientes)} a entidades que le adjudicaron o le compraron` : ""}
         {despues ? `, y tras ${plural(despues, "visita", "visitas")} esa entidad le dio algo después.` : "."}
       </p>
-      <TablaPaginada
+      <TablaFiltrable
         columnas={COLUMNAS_VISITAS}
         filas={filas}
         etiqueta="Visitas registradas de su gente"
         tam={20}
         nombre="visitas"
         buscar={{ placeholder: "Buscar entidad, cargo o motivo…", etiqueta: "Buscar en sus visitas" }}
+        filtros={[
+          { clave: "entidad", etiqueta: "Entidad visitada", corta: "Entidad", opciones: opcionesLocales(filas.map((f) => f.valores?.entidad as string | null), (v) => tituloNatural(v)) },
+          { clave: "via", etiqueta: "Quién fue", corta: "Quién fue", opciones: opcionesLocales(filas.map((f) => f.valores?.via as string), (v) => v.charAt(0).toUpperCase() + v.slice(1)) },
+          {
+            clave: "despues", etiqueta: "Después de la visita", corta: "Después",
+            opciones: [
+              { valor: "contrato", etiqueta: "Le adjudicó un contrato" }, { valor: "orden", etiqueta: "Le dio una orden" },
+              { valor: "antes", etiqueta: "Le vendió antes, no después" }, { valor: "no_cliente", etiqueta: "No le vende" },
+            ],
+          },
+          { clave: "anio", etiqueta: "Año de la visita", corta: "Año", opciones: opcionesLocales(filas.map((f) => f.valores?.anio as string | null), (v) => v).reverse() },
+        ]}
+        ordenes={[
+          { valor: "reciente", etiqueta: "Más recientes", clave: "fecha", dir: "desc" },
+          { valor: "antigua", etiqueta: "Más antiguas", clave: "fecha", dir: "asc" },
+          { valor: "rapido", etiqueta: "Lo que le dieron más pronto", clave: "dias", dir: "asc" },
+        ]}
       />
     </div>
   );
