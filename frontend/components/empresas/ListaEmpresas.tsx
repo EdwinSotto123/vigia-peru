@@ -4,6 +4,7 @@ import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import {
+  CORTO_EMPRESA,
   NIVEL,
   OBJETO_TEXTO,
   ORDENES_EMPRESAS,
@@ -66,7 +67,7 @@ function Barra({ resumen: r }: { resumen: ResumenEmpresas | null }) {
       etiqueta: "Antecedente",
       corta: "Antecedente",
       todas: "Todo antecedente",
-      opciones: (r?.porTipo ?? []).map((t) => ({ valor: t.tipo, etiqueta: TIPO_CRUCE[t.tipo]?.corto ?? t.etiqueta, conteo: t.n })),
+      opciones: (r?.porTipo ?? []).map((t) => ({ valor: t.tipo, etiqueta: CORTO_EMPRESA[t.tipo] ?? TIPO_CRUCE[t.tipo]?.corto ?? t.etiqueta, conteo: t.n })),
     },
     {
       param: "objeto",

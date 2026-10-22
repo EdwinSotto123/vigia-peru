@@ -27,9 +27,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "14": datos dudosos con su motivo en órdenes, planilla y contratos, y buscador en las listas, migraciones 102-103;
  * "15": el monto dudoso se devuelve tal como lo publicó CONOSCE, la ficha y el resumen nombran lo que va aparte, y la
  * planilla se busca también por el nombre; "16": línea de tiempo de sueldos en la planilla y de órdenes en la ficha;
- * "17": empresas con su puntaje de antecedentes, migración 109, y la razón social sin el objeto del contrato).
+ * "17": empresas con su puntaje de antecedentes, migración 109, y la razón social sin el objeto del contrato; "18": cada
+ * contrato de una empresa dice si estaba inhabilitada al ganar, sancionada antes o después).
  */
-const VERSION_CACHE = "17";
+const VERSION_CACHE = "18";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

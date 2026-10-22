@@ -2,7 +2,7 @@ import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { numero, plural } from "@/lib/formato";
 import { TIPO_CRUCE } from "@/lib/cruces";
-import { NIVEL, type GrupoPuntaje, type Nivel, type ReglasPuntaje } from "@/lib/empresas";
+import { CORTO_EMPRESA, NIVEL, type GrupoPuntaje, type Nivel, type ReglasPuntaje } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 
 /**
@@ -111,7 +111,7 @@ export function TablaReglas({ reglas }: { reglas: ReglasPuntaje | null }) {
                 return tipos.map((t, k) => (
                   <tr key={`${g.grupo}-${t}`}>
                     {k === 0 && <td rowSpan={tipos.length} className="px-3 py-2 align-top font-semibold text-ink">{g.titulo}</td>}
-                    <td className="px-3 py-2 text-inkSoft">{TIPO_CRUCE[t]?.corto ?? g.reglas.find((r) => r.tipo === t)?.etiqueta ?? t}</td>
+                    <td className="px-3 py-2 text-inkSoft">{CORTO_EMPRESA[t] ?? TIPO_CRUCE[t]?.corto ?? g.reglas.find((r) => r.tipo === t)?.etiqueta ?? t}</td>
                     {(["alta", "media", "baja"] as const).map((sev) => (
                       <td key={sev} className="px-3 py-2 text-right font-mono tabular-nums">{String(pts(g, t, sev)).replace(".", ",")}</td>
                     ))}
@@ -156,7 +156,7 @@ export function DesglosePuntaje({ grupos, verTodo }: { grupos: GrupoPuntaje[]; v
               {g.cruces.map((c) => (
                 <li key={`${c.tipo}-${c.severidad}`}>
                   <Badge variant={VARIANTE_SEV[c.severidad]}>
-                    {`${TIPO_CRUCE[c.tipo]?.corto ?? c.etiqueta}: ${plural(c.n, "vez", "veces")}, ${SEV[c.severidad].toLowerCase()}`}
+                    {`${CORTO_EMPRESA[c.tipo] ?? TIPO_CRUCE[c.tipo]?.corto ?? c.etiqueta}: ${plural(c.n, "vez", "veces")}, ${SEV[c.severidad].toLowerCase()}`}
                   </Badge>
                 </li>
               ))}

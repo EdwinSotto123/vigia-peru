@@ -145,8 +145,19 @@ export interface ContratoEmpresa {
   dudoso: "adjudicado_20x" | "referencial_simbolico" | null;
   /** Para abrir la ficha del contrato, si el proceso está en el SEACE. */
   ocid: string | null;
-  /** Los antecedentes de la empresa que pesan sobre ESTE proceso (casos_cruce), con su gravedad. */
+  /** Los antecedentes de la empresa que pesan sobre ESTE proceso (casos_cruce), con su gravedad; sin las sanciones. */
   antecedentes: { tipo: string; severidad: Severidad; etiqueta: string }[];
+  /**
+   * Sus sanciones del Tribunal frente a la fecha de la buena pro: la inhabilitación que la cubría (si ganó estando
+   * inhabilitada), cuántas tenía antes y cuándo terminó la última, cuántas recibió después. null si no tiene ninguna.
+   */
+  sancion: {
+    alGanar: { tipo: string; desde: string | null; hasta: string | null; resolucion: string | null } | null;
+    antes: number;
+    antesHasta: string | null;
+    despues: number;
+    despuesDesde: string | null;
+  } | null;
 }
 
 export interface OrdenEmpresa {
@@ -341,6 +352,15 @@ export const getAntecedentesEmpresa = (ruc: string) =>
 export const getSociosEmpresa = (ruc: string) => (esRucEmpresa(ruc) ? leer<SociosEmpresa>(`/empresas/${ruc}/socios`) : Promise.resolve(null));
 export const getVisitasEmpresa = (ruc: string) =>
   esRucEmpresa(ruc) ? leer<{ total: number; visitas: VisitaEmpresa[] }>(`/empresas/${ruc}/visitas`) : Promise.resolve(null);
+
+/**
+ * Las etiquetas cortas de un antecedente cuando se habla de la empresa y no de un proceso: «Sancionado antes» (de un
+ * proceso) es aquí «Sancionada por el Tribunal». Lo demás, como en lib/cruces.
+ */
+export const CORTO_EMPRESA: Record<string, string> = {
+  sancion: "Sancionada por el Tribunal",
+  sancion_vigente: "Ganó inhabilitada",
+};
 
 export type SeccionEmpresa = "inicio" | "contratos" | "ordenes" | "clientes" | "postulaciones" | "antecedentes" | "socios" | "visitas";
 

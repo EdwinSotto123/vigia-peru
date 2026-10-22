@@ -6,7 +6,7 @@ import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { OBJETO_TEXTO, rutaEmpresa, type EmpresaFila, type PaginaEmpresas } from "@/lib/empresas";
+import { CORTO_EMPRESA, OBJETO_TEXTO, rutaEmpresa, type EmpresaFila, type PaginaEmpresas } from "@/lib/empresas";
 import { PuntajeCelda } from "./PuntajeEmpresa";
 
 /**
@@ -113,7 +113,7 @@ export function filaDe(e: EmpresaFila): Fila {
         />
       ),
       puntaje: <PuntajeCelda puntaje={e.puntaje} nivel={e.nivel} />,
-      antecedentes: <CrucesCelda cruces={e.cruces} />,
+      antecedentes: <CrucesCelda cruces={e.cruces} etiquetas={CORTO_EMPRESA} />,
       // Lo que ganó sola; lo de consorcio es de todo el consorcio y sólo se cuenta.
       contratos: (
         <CeldaNumero

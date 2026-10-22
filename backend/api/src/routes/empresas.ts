@@ -309,18 +309,36 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
        SELECT pag.codigo, pag.entidad_ruc AS "entidadRuc", pag.entidad, pag.departamento, pag.objeto, pag."tipoProceso", pag.nomenclatura,
               pag.descripcion, to_char(pag.fecha, 'YYYY-MM-DD') AS fecha, pag.items, pag.monto::float AS monto,
               pag."montoOtraMoneda"::float AS "montoOtraMoneda", pag."otraMoneda", pag.consorcio, pag.total,
-              ${MOTIVO_ADJ("pag2")} AS dudoso, cv.ocid, k.cruces AS antecedentes
+              ${MOTIVO_ADJ("pag2")} AS dudoso, cv.ocid, k.cruces AS antecedentes,
+              to_jsonb(sx) AS sancion
          FROM pag
          CROSS JOIN LATERAL (SELECT pag.codigo AS codigo_convocatoria, pag.entidad_ruc) pag2
+         -- Las sanciones del Tribunal frente a la fecha de la buena pro (la regla de sancion_vigente, migración 56): si
+         -- estaba inhabilitada al ganar, cuántas tenía antes (y cuándo terminó la última) y cuántas recibió después.
+         LEFT JOIN LATERAL (
+           SELECT (array_agg(jsonb_build_object('tipo', s.tipo, 'desde', s.fecha_desde, 'hasta', s.fecha_hasta, 'resolucion', s.resolucion)
+                             ORDER BY s.fecha_desde DESC)
+                     FILTER (WHERE s.tipo IN ('temporal', 'definitivo') AND pag.fecha >= s.fecha_desde
+                                   AND (s.fecha_hasta IS NULL OR pag.fecha <= s.fecha_hasta)))[1] AS "alGanar",
+                  count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pag.fecha)::int AS antes,
+                  max(s.fecha_hasta) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) < pag.fecha) AS "antesHasta",
+                  count(*) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pag.fecha)::int AS despues,
+                  min(COALESCE(s.fecha_desde, s.fecha_resolucion)) FILTER (WHERE COALESCE(s.fecha_desde, s.fecha_resolucion) > pag.fecha) AS "despuesDesde"
+             FROM osce_sancionados s WHERE s.ruc = $1 AND pag.fecha IS NOT NULL
+           HAVING count(*) > 0) sx ON true
          LEFT JOIN LATERAL (SELECT c.ocid FROM convocatorias c WHERE c.codigo = pag.codigo AND c.entidad_ruc = pag.entidad_ruc LIMIT 1) cv ON true
          LEFT JOIN casos_cruce k ON k.ocid = cv.ocid AND k.ruc = $1
         ORDER BY pag.fecha DESC NULLS LAST, pag.codigo DESC`, vals);
     const total = r.rows[0]?.total ?? 0;
     return publicar({
       total, page: q.page, size: q.size,
-      data: r.rows.map(({ total: _t, antecedentes, ...f }) => ({
-        // casos_cruce.cruces: [{tipo, severidad, n}] (migración 57), los graves primero.
-        ...f, antecedentes: ((antecedentes as { tipo: string; severidad: string }[] | null) ?? [])
+      data: r.rows.map(({ total: _t, antecedentes, sancion, ...f }) => ({
+        ...f,
+        sancion: sancion ?? null,
+        // casos_cruce.cruces: [{tipo, severidad, n}] (migración 57), los graves primero. Las sanciones van aparte, en
+        // `sancion`, con su momento frente a la buena pro (al ganar, antes o después).
+        antecedentes: ((antecedentes as { tipo: string; severidad: string }[] | null) ?? [])
+          .filter((t) => t.tipo !== "sancion" && t.tipo !== "sancion_vigente")
           .map((t) => ({ tipo: t.tipo, severidad: t.severidad, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
           .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),
       })),

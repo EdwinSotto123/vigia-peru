@@ -92,8 +92,9 @@ const COLUMNAS_CONTRATOS: Columna[] = [
     clave: "banderas", titulo: "Banderas", ancho: "minmax(0,0.8fr)", desde: "lg", apilar: true,
     ayuda: (
       <Ayuda titulo="¿Qué son estas banderas?">
-        Los antecedentes de la empresa que pesan sobre ese proceso (visitas antes de la buena pro, postores con el mismo socio,
-        el partido que gobierna la entidad…) y, en ámbar, un monto que parece mal cargado: se muestra tal como vino y no se suma.
+        Las sanciones del Tribunal frente a la fecha de la buena pro: «Inhabilitada al ganar» (no podía contratar), «Sancionada
+        antes» (ya no estaban vigentes al ganar) o «Sancionada después». Luego, los demás antecedentes que pesan sobre ese proceso
+        (visitas, postores con el mismo socio, el partido que gobierna…) y un monto con posible error de carga, que no se suma.
       </Ayuda>
     ),
   },
@@ -141,9 +142,10 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
         ),
         banderas: (
           <span className="flex flex-wrap gap-1">
+            {c.sancion && <SancionAlGanar s={c.sancion} />}
             {c.dudoso && <BanderaDato motivo={motivoDudoso(c.dudoso) ?? "adjudicado_20x"} fuente="conosce_ordenes" />}
             {c.antecedentes.length > 0 && <CrucesCelda cruces={c.antecedentes} />}
-            {!c.dudoso && !c.antecedentes.length && <span className="text-[12.5px] text-mute">—</span>}
+            {!c.sancion && !c.dudoso && !c.antecedentes.length && <span className="text-[12.5px] text-mute">—</span>}
           </span>
         ),
         monto: (
@@ -163,6 +165,44 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
       <Tabla columnas={COLUMNAS_CONTRATOS} filas={filas} etiqueta="Contratos que ganó" />
       <Paginas total={pagina.total} size={pagina.size} actual={actual} ruta={ruta} parametros={parametros} param={P_CONTRATOS.page} nombre="contratos" />
     </div>
+  );
+}
+
+/**
+ * Las sanciones del Tribunal frente a la fecha de la buena pro de un contrato, con la fecha que importa escrita al lado
+ * (no sólo en el `title`: en el celular no hay cursor). Pedido del usuario (2026-10-22): «Sancionado» no decía si lo
+ * estaba cuando contrató o antes.
+ */
+function SancionAlGanar({ s }: { s: NonNullable<ContratoEmpresa["sancion"]> }) {
+  const cual = (t: string) => (t === "definitivo" ? "definitiva" : t === "temporal" ? "temporal" : "");
+  return (
+    <span className="flex w-full flex-col gap-1">
+      {s.alGanar ? (
+        <span
+          className="flex flex-wrap items-center gap-1"
+          title={`Ganó con una inhabilitación ${cual(s.alGanar.tipo)} vigente${s.alGanar.desde ? ` desde el ${fechaCorta(s.alGanar.desde)}` : ""}${s.alGanar.hasta ? ` hasta el ${fechaCorta(s.alGanar.hasta)}` : ""}${s.alGanar.resolucion ? ` (Res. ${s.alGanar.resolucion})` : ""}: no podía contratar con el Estado.`}
+        >
+          <Badge variant="crimson">Inhabilitada al ganar</Badge>
+          <span className="text-[12px] text-crimsonTexto">
+            {s.alGanar.hasta ? `hasta el ${fechaCorta(s.alGanar.hasta)}` : `inhabilitación ${cual(s.alGanar.tipo)}`}
+          </span>
+        </span>
+      ) : s.antes > 0 ? (
+        <span
+          className="flex flex-wrap items-center gap-1"
+          title={`${plural(s.antes, "sanción anterior", "sanciones anteriores")} a la buena pro; ninguna inhabilitación vigente al ganar${s.antesHasta ? `: la última terminó el ${fechaCorta(s.antesHasta)}` : ""}.`}
+        >
+          <Badge variant="amber">Sancionada antes</Badge>
+          <span className="text-[12px] text-inkSoft">{s.antesHasta ? `ya cumplida el ${fechaCorta(s.antesHasta)}` : "sin vigencia al ganar"}</span>
+        </span>
+      ) : null}
+      {s.despues > 0 && (
+        <span className="flex flex-wrap items-center gap-1" title={`${plural(s.despues, "sanción", "sanciones")} posteriores a la buena pro${s.despuesDesde ? `, desde el ${fechaCorta(s.despuesDesde)}` : ""}: al ganar no las tenía.`}>
+          <Badge variant="neutral">Sancionada después</Badge>
+          {s.despuesDesde && <span className="text-[12px] text-mute">{`desde el ${fechaCorta(s.despuesDesde)}`}</span>}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -452,6 +492,14 @@ const FUENTE: Record<string, string> = {
 
 const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
 
+/** Si una sanción sigue hoy: por su fecha de fin y, sin ella, por el estado que publica el Tribunal. */
+function hoySancion(tipo: string | null, hasta: string | null, estado: string | null): string | null {
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (hasta) return hasta >= hoy ? "Vigente" : `Ya terminó (el ${fechaCorta(hasta)})`;
+  if (estado) return estado.toUpperCase() === "VIGENTE" ? "Vigente" : "No vigente, según el Tribunal";
+  return tipo === "definitivo" ? "Definitiva, sin fecha de fin" : null;
+}
+
 /** Lo que dice cada antecedente en pares rótulo/valor, según su tipo (los campos de `detalle` de cruces_proveedor). */
 function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | null; mono?: boolean }[] {
   const d = a.detalle;
@@ -472,6 +520,7 @@ function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | nul
     items.push(
       { etiqueta: "Sanción", valor: txt(d.tipo) ? oracion(txt(d.tipo)!) : null },
       { etiqueta: "Vigencia", valor: [f(d.desde), f(d.hasta)].filter(Boolean).join(" a ") || null },
+      { etiqueta: "Hoy", valor: hoySancion(txt(d.tipo), txt(d.hasta), txt(d.estado)) },
       { etiqueta: "Infracción", valor: txt(d.infraccion)?.replace(/^[-\s]*[a-z]\)\s*/i, "") ?? null },
       { etiqueta: "Resolución", valor: txt(d.resolucion), mono: true },
     );

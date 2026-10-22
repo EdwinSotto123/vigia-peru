@@ -38,6 +38,38 @@ const FUENTE: Record<string, string> = {
   conosce_ordenes: "Órdenes de compra y de servicio de CONOSCE",
   precio_item: "Ítems del OCDS (OECE) y CONOSCE",
 };
+/**
+ * Una sanción frente a la buena pro de este proceso (pedido del usuario, 2026-10-22: «Sancionado» no decía si lo estaba
+ * cuando contrató o antes): si ya había terminado o si seguía vigente al ganar. Una multa no tiene esa vigencia.
+ */
+const vigenteEl = (tipo: string | null, desde: string | null, hasta: string | null, fecha: string) =>
+  tipo !== "multa" && !!desde && desde <= fecha && (!hasta || hasta >= fecha);
+
+function AlGanar({ tipo, desde, hasta, buenaPro }: { tipo: string | null; desde: string | null; hasta: string | null; buenaPro: string | null }) {
+  if (!buenaPro || tipo === "multa" || !desde) return null;
+  if (vigenteEl(tipo, desde, hasta, buenaPro)) return <b className="text-crimsonTexto"> Seguía vigente cuando ganó este proceso.</b>;
+  if (hasta && hasta < buenaPro) return <span className="text-inkSoft"> Ya había terminado cuando ganó este proceso.</span>;
+  return null;
+}
+
+/** El resumen del grupo de sanciones: al ganar este proceso, ¿alguna inhabilitación seguía vigente? Si no, cuándo terminó la última. */
+function SancionesAlGanar({ grupo }: { grupo: CruceProveedor[] }) {
+  const fecha = grupo.find((c) => c.buenaPro?.fecha)?.buenaPro?.fecha ?? null;
+  if (!fecha) return null;
+  const vigentes = grupo.filter((c) => vigenteEl(txt(c.detalle.tipo), txt(c.detalle.desde), txt(c.detalle.hasta), fecha)).length;
+  const hastas = grupo.map((c) => txt(c.detalle.hasta)).filter((h): h is string => !!h && h < fecha).sort();
+  return vigentes > 0 ? (
+    <p className="mb-2 rounded-lg bg-crimson-soft/60 px-2.5 py-1.5 text-[13px] text-crimsonTexto">
+      Cuando ganó este proceso ({fechaCorta(fecha)}) seguía inhabilitado: {vigentes === 1 ? "una de estas sanciones cubría" : `${numero(vigentes)} de estas sanciones cubrían`} esa fecha.
+    </p>
+  ) : (
+    <p className="mb-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-[13px] text-ink">
+      Cuando ganó este proceso ({fechaCorta(fecha)}) ninguna inhabilitación estaba vigente
+      {hastas.length ? <>: la última había terminado el <b>{fechaCorta(hastas[hastas.length - 1])}</b></> : ""}. Son antecedentes, no un impedimento.
+    </p>
+  );
+}
+
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
 
@@ -206,6 +238,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
           {txt(d.infraccion) ? `, por ${recortar(txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, ""), 260).toLowerCase()}` : ""}
           {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
+          {c.tipo === "sancion" && <AlGanar tipo={tipo} desde={txt(d.desde)} hasta={txt(d.hasta)} buenaPro={c.buenaPro?.fecha ?? null} />}
         </>
       );
     }
@@ -565,6 +598,7 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
                 </h3>
               </div>
               {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
+              {grupo[0].tipo === "sancion" && <SancionesAlGanar grupo={grupo} />}
               <ul className="list-disc space-y-1.5 pl-5">
                 {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
               </ul>

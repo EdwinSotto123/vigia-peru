@@ -24,14 +24,14 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "socio_comun", corto: "Socio común entre postores", explica: "Dos postores del mismo proceso comparten socio o representante (RNP): competencia aparente." },
       { tipo: "visita_previa", corto: "Visita antes de la buena pro", explica: "Un socio o representante visitó una entidad pública en los 180 días previos a la buena pro (registro de visitas)." },
       { tipo: "otro_postor", corto: "Buena pro de otro postor", explica: "La buena pro fue primero de otro postor y se le adjudicó después a este, con su propia oferta (OCDS × CONOSCE): suele costar más." },
-      { tipo: "sancion_vigente", corto: "Ganó inhabilitado", explica: "Ganó mientras tenía una inhabilitación vigente del Tribunal de Contrataciones." },
+      { tipo: "sancion_vigente", corto: "Inhabilitado al ganar", explica: "Ganó la buena pro mientras tenía una inhabilitación vigente del Tribunal de Contrataciones: no podía contratar con el Estado." },
       { tipo: "sobreprecio", corto: "Pagó más que otras entidades", explica: "El precio por unidad de un bien pasa 1.5 veces la mediana de lo que pagaron otras entidades por el mismo CUBSO y unidad (OCDS × CONOSCE)." },
     ],
   },
   {
     titulo: "Historial del proveedor",
     tipos: [
-      { tipo: "sancion", corto: "Sancionado", explica: "Tiene sanciones del Tribunal de Contrataciones del Estado (OSCE)." },
+      { tipo: "sancion", corto: "Sancionado antes", explica: "Tenía sanciones del Tribunal de Contrataciones anteriores a este proceso. Si además seguía inhabilitado al ganar, también dice «Inhabilitado al ganar»." },
       { tipo: "penalidad", corto: "Penalidades", explica: "Le aplicaron penalidades en contratos anteriores." },
       { tipo: "adicional", corto: "Adicionales o prórrogas", explica: "El contrato tuvo adicionales o prórrogas (CONOSCE)." },
     ],
