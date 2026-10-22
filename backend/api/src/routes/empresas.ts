@@ -489,22 +489,55 @@ empresasRouter.get("/:ruc/ordenes", async (c) => {
     for (const w of palabrasBusqueda(q.q)) {
       conds.push(`mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
     }
-    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-    const [r, fac] = await Promise.all([
-      // La página: cada orden una vez (dedup sobre TODAS las de la empresa). Con la caché fría, un gran proveedor pasa
-      // los 10 s del rol: plazo propio.
-      consultaConPlazo(
-        `WITH o AS MATERIALIZED (
-           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
-             FROM conosce_ordenes o WHERE ${base.join(" AND ")}
-            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
-         SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento, o.nro_orden AS numero,
-                o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto,
-                o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo", o.tipo_contratacion AS "tipoContratacion",
-                o.estado, count(*) OVER ()::int AS total
-           FROM o ${donde}
-          ORDER BY ${ORDEN_ORDENES[q.orden]}
-          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+    const donde = conds.length ? `AND ${conds.join(" AND ")}` : "";
+    const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento, o.nro_orden AS numero,
+                  o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto,
+                  o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo", o.tipo_contratacion AS "tipoContratacion", o.estado`;
+    const DEDUP = `DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)`;
+    const DEDUP_ORDEN = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+    // El total sin recorrer sus órdenes: exacto desde empresa_orden_anual (cada orden ya contada una vez, por entidad, año
+    // y región, con sus columnas de tipo, estado y monto dudoso) mientras no se busque texto ni se crucen dos de esos.
+    const ESTADO_COL: Record<string, string> = { Emitida: "emitidas", Comprometida: "comprometidas", Devengada: "devengadas" };
+    const desdeAnual = !q.q && [q.tipo, q.estado, q.dudosa].filter(Boolean).length <= 1;
+    const totalAnual = async () => {
+      const v: unknown[] = [ruc];
+      const c2 = [`ruc = $1`];
+      if (q.entidad) { v.push(q.entidad); c2.push(`entidad_ruc = $${v.length}`); }
+      if (q.anio) { v.push(q.anio); c2.push(`anio = $${v.length}`); }
+      if (q.departamento) { v.push(norm(q.departamento)); c2.push(`mef_norm(departamento) = $${v.length}`); }
+      const col = q.dudosa ? "dudosas" : q.estado ? ESTADO_COL[q.estado] ?? "ordenes" : q.tipo === "compra" ? "compras" : q.tipo === "servicio" ? "(ordenes - compras)" : "ordenes";
+      const t = await pool.query<{ n: number }>(`SELECT COALESCE(sum(${col}), 0)::int AS n FROM empresa_orden_anual WHERE ${c2.join(" AND ")}`, v);
+      return t.rows[0]?.n ?? 0;
+    };
+    // La página por fecha: con el índice (ruc_contratista, fecha_emision) de la migración 111 se leen sólo las primeras
+    // órdenes por fecha (una ventana holgada: un archivo mensual repite a veces una orden) y se deduplican ésas. Por monto
+    // o con texto, todas sus órdenes (con plazo propio: un gran proveedor pasa los 10 s del rol con la caché fría).
+    const porFecha = q.orden === "reciente" || q.orden === "antiguo";
+    const dir = q.orden === "antiguo" ? "ASC" : "DESC";
+    const offset = (q.page - 1) * q.size;
+    const ventana = (offset + q.size) * 3 + 200;
+    const pagina = porFecha
+      ? consultaConPlazo(
+          `WITH c AS (
+             SELECT o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")} ${donde}
+              ORDER BY o.fecha_emision ${dir}, ${DEDUP_ORDEN} LIMIT ${ventana}
+           ), d AS (SELECT ${DEDUP} o.* FROM c o ORDER BY ${DEDUP_ORDEN})
+           SELECT ${COLS} FROM d o ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${q.size} OFFSET ${offset}`, vals)
+      : consultaConPlazo(
+          `WITH o AS MATERIALIZED (
+             SELECT ${DEDUP} o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")} ${donde} ORDER BY ${DEDUP_ORDEN})
+           SELECT ${COLS}, count(*) OVER ()::int AS total FROM o
+            ORDER BY ${ORDEN_ORDENES[q.orden]} LIMIT ${q.size} OFFSET ${offset}`, vals);
+    // El total en vivo, sólo si no sale de empresa_orden_anual (texto, o dos filtros cruzados).
+    const totalVivo = async () => {
+      if (!porFecha) return null; // la consulta por monto ya lo trae
+      const t = await consultaConPlazo<{ n: number }>(
+        `SELECT count(*)::int AS n FROM (SELECT ${DEDUP} o.entidad_ruc FROM conosce_ordenes o WHERE ${base.join(" AND ")} ${donde} ORDER BY ${DEDUP_ORDEN}) x`, vals);
+      return t.rows[0]?.n ?? 0;
+    };
+    const [r, total0, fac] = await Promise.all([
+      pagina,
+      desdeAnual ? totalAnual() : totalVivo(),
       // Los conteos de cada filtro, sobre todas sus órdenes, ya contados en empresa_orden_anual (migración 110: también
       // por estado): no vuelven a recorrer sus órdenes.
       fichaMemo.obtener(`ordenes-facetas:${ruc}`, async () => {
@@ -529,7 +562,7 @@ empresasRouter.get("/:ruc/ordenes", async (c) => {
         return anual.rows[0]?.f ?? null;
       }),
     ]);
-    const total = r.rows[0]?.total ?? 0;
+    const total = total0 ?? r.rows[0]?.total ?? 0;
     return publicar({ total, page: q.page, size: q.size, facetas: fac, data: r.rows.map(({ total: _t, ...f }) => f) });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

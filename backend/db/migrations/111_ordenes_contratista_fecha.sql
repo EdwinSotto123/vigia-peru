@@ -1,0 +1,13 @@
+-- 111 · Las órdenes de un proveedor por fecha, sin recorrer todas.
+--
+-- La pestaña Órdenes de /empresa/<RUC> lista las órdenes de la más reciente a la más antigua. Sin este índice había que
+-- leer y deduplicar TODAS las órdenes de la empresa para mostrar 20 (54 mil en un gran proveedor: más de 20 s con la
+-- caché fría, justo después de cada refresco). Con él, la API lee sólo las primeras por fecha (una ventana de la página)
+-- y el total sale de empresa_orden_anual (migraciones 109 y 110).
+--
+-- CONCURRENTLY: no bloquea las cargas de CONOSCE mientras se construye (~1 GB, unos minutos). Por eso este archivo tiene
+-- una sola sentencia: CREATE INDEX CONCURRENTLY no puede ir dentro de una transacción.
+--
+-- Cómo aplicarla: psql "$DSN" -v ON_ERROR_STOP=1 -f backend/db/migrations/111_ordenes_contratista_fecha.sql
+-- (no con `dev.sh migrar`, que envuelve el archivo en una transacción: en DEV, la sentencia sola en autocommit).
+CREATE INDEX CONCURRENTLY IF NOT EXISTS conosce_ordenes_contratista_fecha ON conosce_ordenes (ruc_contratista, fecha_emision DESC);
