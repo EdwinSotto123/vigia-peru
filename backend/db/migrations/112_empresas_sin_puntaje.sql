@@ -135,7 +135,8 @@ BEGIN
 
   -- Cada tipo de antecedente una vez, con su gravedad más alta y cuántos registros: lo que la ficha y la lista muestran.
   CREATE TEMP TABLE _ect ON COMMIT DROP AS
-    SELECT ruc, tipo, min(CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS r, count(*)::int AS n
+    -- `cuantos`, no `n`: la función ya tiene una variable `n` (sería ambigua).
+    SELECT ruc, tipo, min(CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS r, count(*)::int AS cuantos
       FROM _ecp GROUP BY ruc, tipo;
   CREATE TEMP TABLE _ecs ON COMMIT DROP AS
     SELECT t.ruc, t.tipos, t.n_alta, t.n_media, t.n_baja, c.cruces
@@ -144,8 +145,8 @@ BEGIN
                    count(*) FILTER (WHERE severidad = 'media')::int AS n_media,
                    count(*) FILTER (WHERE severidad = 'baja')::int AS n_baja
               FROM _ecp GROUP BY ruc) t
-      JOIN (SELECT ruc, jsonb_agg(jsonb_build_object('tipo', tipo, 'severidad', (ARRAY['alta', 'media', 'baja'])[r + 1], 'n', n)
-                                  ORDER BY r, n DESC, tipo) AS cruces
+      JOIN (SELECT ruc, jsonb_agg(jsonb_build_object('tipo', tipo, 'severidad', (ARRAY['alta', 'media', 'baja'])[r + 1], 'n', cuantos)
+                                  ORDER BY r, cuantos DESC, tipo) AS cruces
               FROM _ect GROUP BY ruc) c ON c.ruc = t.ruc;
   CREATE INDEX ON _ecs (ruc);
   RAISE NOTICE 'empresas: antecedentes (% s)', round(extract(epoch FROM clock_timestamp() - t0));
