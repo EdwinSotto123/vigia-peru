@@ -23,17 +23,20 @@ import { rutaContrato } from "@/lib/rutas";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, FileSearch, Building2, MapPin, Heart, Flag, Loader2, CornerDownLeft, X } from "lucide-react";
+import { Search, FileSearch, Building2, Briefcase, MapPin, Heart, Flag, Loader2, CornerDownLeft, X } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { numero, plural, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { tituloNatural } from "@/lib/landing";
 import { Partes } from "@/components/ui/Partes";
 
 interface Resultados {
   q: string;
   contratos: { ocid: string; codigo: string; titulo: string | null; entidad: string | null; montoPen: number | null; zona: string | null }[];
   entidades: { ruc: string; nombre: string; tipo: string | null; region: string | null; contratos: number }[];
+  /** Empresas (RUC 20) que le venden al Estado. Una API anterior no lo trae. */
+  empresas?: { ruc: string; nombre: string; departamento: string | null; contratos: number; ordenes: number }[];
   zonas: { ubigeo: string; nombre: string; nivel: string; totalCola: number; financiados: number }[];
   aportes: { codigo: string; estado: string; contratos: number; zona: string; financiador: string }[];
   alertas: { codigo: string; ocid: string | null; score: number | null; objeto: string | null; region: string | null; banderas: number }[];
@@ -42,7 +45,7 @@ interface Resultados {
 /** `detalle`: datos sueltos (código, entidad, zona, monto); se muestran separados por aire, sin comas: "S/ 45,000" ya lleva una. */
 interface Item { key: string; href: string; titulo: string; detalle: (string | null)[]; grupo: string; icon: React.ReactNode }
 
-const vacio: Resultados = { q: "", contratos: [], entidades: [], zonas: [], aportes: [], alertas: [] };
+const vacio: Resultados = { q: "", contratos: [], entidades: [], empresas: [], zonas: [], aportes: [], alertas: [] };
 
 /**
  * Tres búsquedas de ejemplo, una por tipo de objeto. Son reales: verificadas contra
@@ -166,6 +169,7 @@ export function BuscarGlobal({
     for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null], icon: <FileSearch size={14} aria-hidden /> });
     for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: rutaContrato(a.codigo.replace(/^OECE-/, ""), "dictamen"), titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> });
     for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")], icon: <Building2 size={14} aria-hidden /> });
+    for (const e of res.empresas ?? []) out.push({ key: `m-${e.ruc}`, grupo: "Empresas", href: `/empresa/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.departamento ? tituloNatural(e.departamento) : null, e.contratos ? plural(e.contratos, "contrato", "contratos") : e.ordenes ? plural(e.ordenes, "orden", "órdenes") : null], icon: <Briefcase size={14} aria-hidden /> });
     for (const z of res.zonas) {
       const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
       const href = z.nivel === "departamento" && regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;

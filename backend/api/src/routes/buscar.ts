@@ -1,7 +1,7 @@
 /**
  * Búsqueda global (⌘K / campo de la cabecera del dashboard).
  *
- *   GET /buscar?q=<texto>  → { q, contratos[], entidades[], zonas[], aportes[], alertas[], parcial } (LIMIT 5 cada grupo)
+ *   GET /buscar?q=<texto>  → { q, contratos[], entidades[], empresas[], zonas[], aportes[], alertas[], parcial } (LIMIT 5 cada grupo)
  *
  * Reconoce: OCID (1249514 / ocds-dgv273-seacev3-1249514), código de alerta (OECE-1249514),
  * código de aporte (VIG-2026-00004), RUC (11 dígitos), nombre de entidad, nombre de zona
@@ -21,6 +21,7 @@ import { cachePublico } from "../lib/http.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { registrar } from "../lib/registro.js";
 import { alertaPublica, convocatoriaNoDemo } from "../lib/publicacion.js";
+import { palabrasBusqueda } from "./personas.js";
 
 export const buscarRouter = new Hono();
 
@@ -33,7 +34,7 @@ const TOPE_RAMA = 100;
 buscarRouter.get("/", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 120);
   c.header("Cache-Control", cachePublico(30, { swr: 60 }));
-  if (q.length < 2) return c.json({ q, contratos: [], entidades: [], zonas: [], aportes: [], alertas: [], parcial: false });
+  if (q.length < 2) return c.json({ q, contratos: [], entidades: [], empresas: [], zonas: [], aportes: [], alertas: [], parcial: false });
 
   const like = `%${escaparLike(q.toLowerCase())}%`;
   const esCodigo = /^[\w.-]+$/.test(q) && /\d/.test(q);
@@ -48,7 +49,8 @@ buscarRouter.get("/", async (c) => {
   };
 
   const COLS_CONTRATO = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.cuantia_referencial::float AS "montoPen", z.nombre AS zona`;
-  const [contratos, entidades, zonas, aportes, alertas] = await Promise.all([
+  const palabras = palabrasBusqueda(q);
+  const [contratos, entidades, empresas, zonas, aportes, alertas] = await Promise.all([
     // Contratos: por código/OCID (exacto o prefijo) o por texto del objeto.
     esCodigo
       ? (modelos
@@ -97,6 +99,16 @@ buscarRouter.get("/", async (c) => {
             WHERE ($2::boolean AND e.ruc = $1) OR (NOT $2::boolean AND immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($3))
             ORDER BY contratos DESC, e.nombre LIMIT 5`, [q, esRuc, like])
     ).catch(vacio("entidades")),
+    // Empresas (RUC 20, migración 109): RUC exacto o las palabras del nombre (trigramas sobre `texto`). Sin puntaje: no se
+    // muestra sin el desglose que lo explica.
+    /^20\d{9}$/.test(q) || palabras.length
+      ? pool.query(
+          `SELECT e.ruc, e.nombre, e.departamento, (e.adj_procesos + e.cons_procesos)::int AS contratos, e.ord_n AS ordenes
+             FROM empresa_resumen e
+            WHERE ${/^20\d{9}$/.test(q) ? "e.ruc = $1" : palabras.map((_, i) => `e.texto LIKE $${i + 1}`).join(" AND ")}
+            ORDER BY (e.adj_monto + e.cons_monto + e.ord_monto) DESC, e.ruc LIMIT 5`,
+          /^20\d{9}$/.test(q) ? [q] : palabras.map((w) => `%${w}%`)).catch(vacio("empresas"))
+      : Promise.resolve({ rows: [] as any[] }),
     // Zonas: departamentos primero, luego provincias/distritos con cola.
     pool.query(
       `SELECT z.ubigeo, z.nombre, z.nivel, COALESCE(ze.total_cola, 0)::int AS "totalCola", COALESCE(ze.financiados, 0)::int AS financiados
@@ -124,5 +136,5 @@ buscarRouter.get("/", async (c) => {
       : Promise.resolve({ rows: [] as any[] }),
   ]);
 
-  return c.json({ q, contratos: contratos.rows, entidades: entidades.rows, zonas: zonas.rows, aportes: aportes.rows, alertas: alertas.rows, parcial });
+  return c.json({ q, contratos: contratos.rows, entidades: entidades.rows, empresas: empresas.rows, zonas: zonas.rows, aportes: aportes.rows, alertas: alertas.rows, parcial });
 });

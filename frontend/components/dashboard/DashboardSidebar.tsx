@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MapPin, FileText, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Home, Activity, FileSearch, Heart, HelpCircle, Crown, Landmark, LayoutGrid, Users } from "lucide-react";
+import { Briefcase, MapPin, FileText, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Home, Activity, FileSearch, Heart, HelpCircle, Crown, Landmark, LayoutGrid, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -85,6 +85,14 @@ const SECTIONS: Section[] = [
         icon: <Building2 size={16} />,
         hint: "Quién contrata, y cuánto",
         match: (p) => p.startsWith("/app/entidades") || p.startsWith("/entidad"),
+      },
+      {
+        href: "/app/empresas",
+        label: "Empresas",
+        icon: <Briefcase size={16} />,
+        hint: "Quién le vende al Estado",
+        // La ficha de una empresa (/empresa/<RUC>) también marca acá.
+        match: (p) => p.startsWith("/app/empresas") || p.startsWith("/empresa/"),
       },
       {
         href: "/app/partidos",

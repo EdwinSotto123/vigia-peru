@@ -303,7 +303,7 @@ const COLS_FILA = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.
   CASE WHEN ce.alerta_id IS NULL OR alerta_publicada(ce.alerta_estado) THEN COALESCE(b.n, 0)::int END AS banderas,
   COALESCE(ce.alerta_estado = 'revision', false) AS "enRevision",
   -- Sin record completo, las adjudicaciones recortadas de oece_ocds (migración 71).
-  COALESCE(emp.razon_social, COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'name') AS proveedor,
+  COALESCE(razon_social_de(emp.razon_social), COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'name') AS proveedor,
   COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')) AS "proveedorRuc",
   kc.cruces,
   -- Posible error de carga del OECE (migración 102): adjudicado 20 veces el referencial o referencial de S/ 1.

@@ -18,6 +18,7 @@ import { ArrowRight } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { PersonName, Ruc } from "@/components/Redact";
+import { enlaceProveedor } from "@/lib/empresas";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { plural } from "@/lib/formato";
 import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, type ContratoResumen } from "@/lib/contratos";
@@ -63,7 +64,19 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
       // Orden SUNAT (apellidos primero): se tapa el apellido materno, no el nombre de pila.
       valor: c.proveedor ? (natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor) : <Vacio>Sin adjudicar todavía</Vacio>,
     },
-    ...(c.proveedor && c.proveedorRuc ? [{ etiqueta: "RUC del proveedor", valor: <Ruc value={c.proveedorRuc} />, mono: true }] : []),
+    ...(c.proveedor && c.proveedorRuc
+      ? [{
+          etiqueta: "RUC del proveedor",
+          valor: enlaceProveedor(c.proveedorRuc) ? (
+            <Link href={enlaceProveedor(c.proveedorRuc)!} className="text-granate underline-offset-2 hover:underline">
+              <Ruc value={c.proveedorRuc} />
+            </Link>
+          ) : (
+            <Ruc value={c.proveedorRuc} />
+          ),
+          mono: true,
+        }]
+      : []),
     { etiqueta: "Código SEACE", valor: c.codigo, mono: true },
     { etiqueta: "OCID", valor: <span className="break-all">{c.ocid}</span>, mono: true },
   ];

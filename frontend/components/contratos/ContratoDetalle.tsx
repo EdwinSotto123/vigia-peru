@@ -48,6 +48,7 @@ import {
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 import { tituloNatural } from "@/lib/landing";
+import { enlaceProveedor } from "@/lib/empresas";
 
 /** Qué se analiza hoy, tal como lo informa la API (`procesamientoActivo` del resumen de procesamientos). */
 export interface AlcanceActivo {
@@ -316,6 +317,11 @@ function DatosProceso({ c }: { c: Detalle }) {
                 </span>
               )}
               {queda && <span className="block text-[12px] text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
+              {enlaceProveedor(proveedorRuc) && (
+                <Link href={enlaceProveedor(proveedorRuc)!} className="mt-1 inline-block text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+                  Ver la ficha de la empresa
+                </Link>
+              )}
             </>
           ) : (
             <span className="text-mute">Sin adjudicar todavía</span>

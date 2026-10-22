@@ -151,7 +151,7 @@ alertasDetalleRouter.get("/:id", async (c) => {
      SELECT
        ${COLS_FICHA},
        e.nombre AS entidad_nombre,
-       emp.razon_social AS proveedor_nombre,
+       razon_social_de(emp.razon_social) AS proveedor_nombre,
        ST_Y(a.ubicacion_geo::geometry) AS lat,
        ST_X(a.ubicacion_geo::geometry) AS lon,
        COALESCE(

@@ -62,7 +62,7 @@ alertasRouter.get("/", async (c) => {
          a.entidad_ruc      AS "rucEntidad",
          COALESCE(e.nombre, '—')        AS entidad,
          a.proveedor_ruc    AS "rucProveedor",
-         COALESCE(emp.razon_social, '—') AS proveedor,
+         COALESCE(razon_social_de(emp.razon_social), '—') AS proveedor,
          a.monto_adjudicado::float AS "montoSoles",
          to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS "fechaBuenaPro",
          a.region, a.provincia, a.distrito,

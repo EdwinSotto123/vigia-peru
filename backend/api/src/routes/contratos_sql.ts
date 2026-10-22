@@ -111,7 +111,7 @@ export function exprs(cols: Set<string>, alcance?: { tipos: string[]; etapas: st
     agentes: col(cols, "agentes_aplicables", "text[]"),
     validaciones: col(cols, "validaciones_pendientes", "text[]"),
     proveedorRuc,
-    proveedorNombre: `COALESCE(emp.razon_social, ${supplier}->>'name')`,
+    proveedorNombre: `COALESCE(razon_social_de(emp.razon_social), ${supplier}->>'name')`,
     // p = procesamientos (cola financiada) · a = alertas (también las del análisis a demanda del admin)
     estadoProc: `CASE WHEN p.estado IS NOT NULL THEN p.estado
                       WHEN a.id IS NOT NULL THEN 'procesado'
