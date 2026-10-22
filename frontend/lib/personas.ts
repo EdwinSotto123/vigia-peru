@@ -57,6 +57,8 @@ export interface ResumenPersonas {
   porSenal: { tipo: TipoSenal; n: number }[];
   porServicio: { servicio: string; n: number; monto: number }[];
   porAnio: { anio: number; n: number }[];
+  /** En el país o una entidad: órdenes con un monto que puede ser un error de CONOSCE (aparte del total). */
+  dudosas?: { ordenes: number; monto: number } | null;
 }
 
 export interface PaginaPersonas {
@@ -116,6 +118,8 @@ export interface FichaPersona {
     primera: string | null;
     ultima: string | null;
     nSenales: number;
+    /** Sus órdenes con un monto que puede ser un error de CONOSCE: se muestran, van aparte de sus sumas. */
+    dudosas?: { ordenes: number; monto: number | null; motivos: string[] | null } | null;
   };
   entidades: EntidadDePersona[];
   anual: AnioDePersona[];
@@ -128,9 +132,9 @@ export interface OrdenPersona {
   numero: string | null;
   orden: string | null;
   descripcion: string | null;
-  /** null si el monto es dudoso (migración 98). */
+  /** El monto tal como lo publicó CONOSCE (también el dudoso: nunca se borra). */
   monto: number | null;
-  /** El monto que trae CONOSCE cuando no se puede creer (20 veces el tope de su modalidad…): se muestra, no se suma. */
+  /** Si el monto puede ser un error de CONOSCE (20 veces el tope de su modalidad…): el mismo monto, que va aparte de las sumas. */
   montoDudoso: number | null;
   /** Por qué no se puede creer (migración 102): `MOTIVO_DUDOSO` de lib/datoDudoso. */
   dudosoMotivo: string | null;

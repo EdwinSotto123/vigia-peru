@@ -149,7 +149,7 @@ export function ContratoDetalle({
               <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
               {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
               <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
-              {motivoDudoso(c.datoDudoso?.motivo) && <li><BanderaDato motivo={motivoDudoso(c.datoDudoso?.motivo)!} /></li>}
+              {motivoDudoso(c.datoDudoso?.motivo) && <li><BanderaDato motivo={motivoDudoso(c.datoDudoso?.motivo)!} fuente="oece_ocds" /></li>}
             </ul>
           </div>
 

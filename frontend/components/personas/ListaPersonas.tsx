@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { numero, solesCompacto } from "@/lib/formato";
+import { numero, plural, solesCompacto } from "@/lib/formato";
 import {
   ORDENES_PERSONAS,
   SENAL,
@@ -160,7 +160,14 @@ export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: Pa
   const periodo = anios.length ? (anios[0] === anios[anios.length - 1] ? `en ${anios[0]}` : `de ${anios[0]} a ${anios[anios.length - 1]}`) : undefined;
   return [
     { valor: numero(r.personas), etiqueta: "personas contratadas", contexto: `con ${numero(r.ordenes)} órdenes de servicio` },
-    { valor: solesCompacto(r.monto), etiqueta: "pagados por órdenes", contexto: periodo },
+    {
+      valor: solesCompacto(r.monto),
+      etiqueta: "pagados por órdenes",
+      // Lo que CONOSCE publicó con posibles errores (el RUC escrito como monto…) no se borra: se nombra, aparte.
+      contexto: r.dudosas?.ordenes
+        ? `${periodo ? `${periodo}; ` : ""}aparte, ${solesCompacto(r.dudosas.monto)} en ${plural(r.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
+        : periodo,
+    },
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "lo que dicen otros registros", href: href({ [P.severidad]: "con" }) },
     { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: "candidatos del que gobierna, autoridades, inhabilitados", tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P.severidad]: "alta" }) },
   ];

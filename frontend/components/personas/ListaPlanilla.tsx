@@ -88,7 +88,9 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
     {
       valor: solesCompacto(r.totalMes),
       etiqueta: "al mes",
-      contexto: r.dudosos ? `suma de su último mes publicado, sin ${plural(r.dudosos, "dato dudoso", "datos dudosos")}` : "suma de su último mes publicado",
+      contexto: r.dudosos
+        ? `suma de su último mes publicado; aparte, ${plural(r.dudosos, "sueldo", "sueldos")} con posible error de la entidad`
+        : "suma de su último mes publicado",
     },
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "lo que dicen otros registros" },
     { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: "cobran también por órdenes, candidatos del que gobierna", tono: r.alta > 0 ? "alta" : "neutro" },
@@ -104,7 +106,7 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
   const P = P_PLANILLA;
   return (
     <BarraFiltros
-      busqueda={{ param: P.q, placeholder: "Buscar por cargo, oficina o entidad…", etiqueta: "Buscar en la planilla", min: 3 }}
+      busqueda={{ param: P.q, placeholder: "Buscar por nombre, cargo, oficina o entidad…", etiqueta: "Buscar en la planilla", min: 3 }}
       faceta={{
         param: P.severidad,
         etiqueta: "Señales",
@@ -197,7 +199,7 @@ function Chips({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudos
     <ul className="flex flex-wrap gap-1">
       {motivo && (
         <li>
-          <BanderaDato motivo={motivo} />
+          <BanderaDato motivo={motivo} fuente="pte_personal" />
         </li>
       )}
       {senales.slice(0, 3).map((s) => (
@@ -237,9 +239,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
       senales: <Chips senales={p.senales} dudoso={p.dudoso} />,
       regimen: <span className="text-[13px] text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
-        <CeldaNumero sub="no se suma">
-          <span className="text-amberTexto">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</span>
-        </CeldaNumero>
+        <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>
       ) : (
         <CeldaNumero sub={p.extra && p.total != null && p.total > (p.base ?? 0) ? `${solesCompacto(p.total)} con todo` : p.ultimoMes ?? undefined}>
           {p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}

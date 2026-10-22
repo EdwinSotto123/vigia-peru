@@ -37,7 +37,14 @@ export const motivoDudoso = (m: unknown): MotivoDudoso | null =>
 /** Quién publicó el dato, para el aviso. */
 export const FUENTE_DUDOSO = {
   conosce_ordenes: "CONOSCE del OECE",
-  pte_personal: "el Portal de Transparencia Estándar de la entidad",
+  pte_personal: "la entidad en su Portal de Transparencia",
   oece_ocds: "el SEACE del OECE",
 } as const;
 export type FuenteDudoso = keyof typeof FUENTE_DUDOSO;
+
+/** Quién cargó el dato, en la bandera y el aviso: «Posible error de CONOSCE», «Puede ser un error de la entidad…». */
+export const QUIEN_CARGA: Record<FuenteDudoso, string> = {
+  conosce_ordenes: "de CONOSCE",
+  pte_personal: "de la entidad",
+  oece_ocds: "del SEACE",
+};

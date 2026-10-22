@@ -129,6 +129,28 @@ async function resumenDe(q: ListaQ, conds: string[], vals: unknown[]) {
   return resumen(conds, vals);
 }
 
+/**
+ * Las órdenes de servicio a personas que CONOSCE publicó con un monto que no se puede creer (migración 102), en el país
+ * o en una entidad: se nombran junto al total, que no las suma. Índice parcial: son ~1 mil de 29 M. Para una región o
+ * un partido, null (CONOSCE no trae el ubigeo de la entidad).
+ */
+async function dudosasDe(q: ListaQ): Promise<{ ordenes: number; monto: number } | null> {
+  if (q.dep || q.partido) return null;
+  const vals: unknown[] = [];
+  let ent = "";
+  if (q.entidad) { vals.push(q.entidad); ent = `AND o.entidad_ruc = $1`; }
+  const r = await pool.query<{ ordenes: number; monto: number | null }>(
+    `WITH d AS (
+       SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision, o.ruc_contratista) o.monto_dudoso
+         FROM conosce_ordenes o
+        WHERE o.monto_dudoso IS NOT NULL AND o.ruc_contratista LIKE '10%' AND length(o.ruc_contratista) = 11 AND o.tipo_orden = 'Orden de Servicio'
+          AND o.moneda = 'Nuevos Soles' ${ent}
+        ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.ruc_contratista, o.anio DESC, o.mes DESC)
+     SELECT count(*)::int AS ordenes, COALESCE(sum(monto_dudoso), 0)::float AS monto FROM d`, vals);
+  const d = r.rows[0];
+  return d && d.ordenes > 0 ? { ordenes: d.ordenes, monto: Number(d.monto) } : null;
+}
+
 async function resumen(conds: string[], vals: unknown[]) {
   const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const r = await pool.query(
@@ -157,7 +179,7 @@ personasRouter.get("/", async (c) => {
   const q = parsed.data;
   const cuerpo = await listaMemo.obtener(JSON.stringify(q), async () => {
     const { conds, vals } = alcance(q);
-    const res = resumenDe(q, [...conds], [...vals]);
+    const res = Promise.all([resumenDe(q, [...conds], [...vals]), dudosasDe(q)]).then(([r, dudosas]) => ({ ...r, dudosas }));
     if (q.size === 0) return publicar({ total: 0, page: 1, size: 0, data: [], resumen: await res });
     const sinFiltros = conds.length;
     filtros(q, conds, vals);
@@ -192,7 +214,7 @@ personasRouter.get("/:codigo", async (c) => {
     const p = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [codigo]);
     const ruc = p.rows[0]?.ruc;
     if (!ruc) return null;
-    const [ent, senales, anual] = await Promise.all([
+    const [ent, senales, anual, dudosas] = await Promise.all([
       pool.query(
         `SELECT ${FILA}, ${GOBIERNOS("pe.gobiernos")} AS gobiernos, z.nombre AS "depNombre"
            FROM persona_entidad pe LEFT JOIN zonas z ON z.ubigeo = pe.dep
@@ -213,6 +235,14 @@ personasRouter.get("/:codigo", async (c) => {
            LEFT JOIN servicio_referencia re ON re.entidad_ruc = a.entidad_ruc AND re.anio = a.anio AND re.servicio = a.servicio
            LEFT JOIN servicio_referencia rp ON rp.entidad_ruc = '' AND rp.anio = a.anio AND rp.servicio = a.servicio
           WHERE a.ruc = $1 ORDER BY a.anio DESC, a.monto DESC`, [ruc]),
+      // Sus órdenes con un monto que puede ser un error de CONOSCE (migración 102): se muestran, no entran en sus sumas.
+      pool.query<{ ordenes: number; monto: number | null; motivos: string[] | null }>(
+        `WITH d AS (
+           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.monto_dudoso, o.dudoso_motivo
+             FROM conosce_ordenes o
+            WHERE o.ruc_contratista = $1 AND o.tipo_orden = 'Orden de Servicio' AND o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NOT NULL
+            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+         SELECT count(*)::int AS ordenes, sum(monto_dudoso)::float AS monto, array_agg(DISTINCT dudoso_motivo) AS motivos FROM d`, [ruc]),
     ]);
     if (!ent.rows.length) return null;
     const porEntidad = new Map<string, unknown[]>();
@@ -229,6 +259,7 @@ personasRouter.get("/:codigo", async (c) => {
         codigo, ruc, nombre: entidades[0].nombre, entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
         meses: sum("meses"), primera: fechas("primera")[0] ?? null, ultima: fechas("ultima").at(-1) ?? null,
         nSenales: senales.rows.length,
+        dudosas: dudosas.rows[0]?.ordenes ? dudosas.rows[0] : null,
       },
       entidades,
       anual: anual.rows,
@@ -300,7 +331,8 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
            FROM conosce_ordenes o WHERE ${conds.join(" AND ")}
           ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
        SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero,
-              o.orden, o.descripcion, o.monto::float AS monto, o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
+              o.orden, o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto, o.monto_dudoso::float AS "montoDudoso",
+              o.dudoso_motivo AS "dudosoMotivo",
               o.tipo_contratacion AS "tipoContratacion", o.estado, servicio_persona(o.descripcion) AS servicio,
               count(*) OVER ()::int AS total
          FROM o ORDER BY o.fecha_emision DESC, o.orden DESC

@@ -60,7 +60,7 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
               por mes con lo que la misma entidad paga a quienes hacen el mismo tipo de servicio.
             </span>
             <span className="mt-2 block">
-              Por privacidad no se muestra el DNI ni el RUC y se tapa un apellido. No se busca por nombre.{" "}
+              Por privacidad no se muestra el DNI ni el RUC y se tapa un apellido. A quien sólo recibe órdenes de servicio no se le busca por nombre; en la planilla, que es de servidores públicos, sí (por el apellido paterno y los nombres).{" "}
               <Link href="/privacidad" className="text-granate underline-offset-2 hover:underline">¿Apareces aquí?</Link>
             </span>
           </Ayuda>

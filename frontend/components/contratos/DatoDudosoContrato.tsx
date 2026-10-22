@@ -16,7 +16,7 @@ export function ConBanderaDato({ dato, children }: { dato: DatoDudosoContrato | 
   return (
     <span className="flex flex-col items-start gap-1">
       {children}
-      <BanderaDato motivo={motivo} />
+      <BanderaDato motivo={motivo} fuente="oece_ocds" />
     </span>
   );
 }

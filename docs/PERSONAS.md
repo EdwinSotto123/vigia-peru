@@ -49,11 +49,16 @@ La lista es la del último mes que publicó cada entidad (migración 100): quien
 2025-01) cuenta los meses de cada persona, desde cuándo está y lo que cruza meses (`tambien_ordenes`,
 `antes_locador`). `antes_locador` sólo si entró después del primer mes que tenemos de su entidad (migración 101).
 
-**Montos dudosos de CONOSCE** (migración 98): `limpiar_montos_ordenes(anio, mes)`, después de cargar cada mes, pasa a
-`monto_dudoso` (y deja `monto` en NULL) los que no se pueden creer: más de S/ 100 M, igual al RUC o al número de la
-orden, más de 20 veces el tope de una orden "hasta N UIT", o más de S/ 1 M a un RUC 10 en "Otras contrataciones". La
-ficha los muestra tachados y no los suma. Ejemplo: la O/S 106-2026 de la Municipalidad Distrital de Huarochirí a una
-persona natural trae S/ 45,006,800 en el archivo oficial de CONOSCE (2026-06).
+**Montos dudosos de CONOSCE** (migraciones 98 y 102): `limpiar_montos_ordenes(anio, mes)`, después de cargar cada mes,
+marca los que no se pueden creer: más de S/ 100 M, igual al RUC o al número de la orden, más de 20 veces el tope de una
+orden "hasta N UIT", o más de S/ 1 M a un RUC 10 en "Otras contrataciones". **Nada se borra** (pedido del usuario,
+2026-10-22): el monto publicado queda en `monto_dudoso` con su `dudoso_motivo` (`monto`, la columna que suman los
+refrescos, queda en NULL para que las sumas no lo tomen). La API devuelve siempre el monto tal como lo publicó CONOSCE y
+la web lo muestra con la bandera «Posible error de CONOSCE» y el aviso «puede ser un error de CONOSCE al subir el dato»;
+cada total nombra aparte lo que no suma (en el país, S/ 1,5 billones en órdenes a personas: el RUC escrito como monto).
+Ejemplo: la O/S 106-2026 de la Municipalidad Distrital de Huarochirí a una persona natural trae S/ 45,006,800 en el
+archivo oficial de CONOSCE (2026-06). Las 321 que la migración 97 había dejado en NULL sin guardarlas se recuperaron de
+los archivos oficiales el 2026-10-21 (320; falta una de 2026-09, que llega con la próxima carga).
 
 **Plazas CAS** (`servir_convocatoria`): `pide_experiencia_propia` (pide experiencia en la misma entidad),
 `pide_poco` (S/ 6,000 o más sin pedir título ni grado), `plazo_corto` (3 días o menos), `ya_hay_locadores` (la entidad
@@ -78,7 +83,8 @@ lo que cobra con lo que se paga por lo mismo y cruza registros.
 
 La regla de siempre (docs/PRIVACIDAD.md): nunca un DNI ni un RUC 10 (sale como `10·ref·…`), un apellido tapado (el
 materno), las autoridades electas completas. La ficha se abre por un **código al azar** (`persona_codigo`), nunca por
-RUC. No se busca por nombre. La planilla sale de la API ya con el apellido materno tapado. La ficha no se indexa.
+RUC. A quien sólo recibe órdenes (RUC 10) no se le busca por nombre. La planilla, de servidores públicos, se busca por
+el apellido paterno y los nombres (migración 105), nunca por el materno, que la API tapa. La ficha no se indexa.
 
 ## Operación
 

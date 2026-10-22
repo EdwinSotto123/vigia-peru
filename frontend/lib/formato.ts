@@ -38,6 +38,11 @@ export function soles(n: number | null | undefined): string {
 export function solesCompacto(n: number | null | undefined): string {
   if (!esNumero(n)) return "Sin dato";
   const a = Math.abs(n);
+  // Un billón en español es un millón de millones (los montos imposibles que publica el Estado llegan ahí).
+  if (a >= 1_000_000_000_000) {
+    const t = NUM_1.format(n / 1_000_000_000_000);
+    return `S/ ${t} ${t === NUM_1.format(1) ? "billón" : "billones"}`;
+  }
   if (a >= 1_000_000_000) return `S/ ${NUM_1.format(n / 1_000_000_000)} mil M`;
   if (a >= 1_000_000) return `S/ ${NUM_1.format(n / 1_000_000)} M`;
   if (a >= 1_000) return `S/ ${NUM.format(Math.round(n / 1_000))} mil`;

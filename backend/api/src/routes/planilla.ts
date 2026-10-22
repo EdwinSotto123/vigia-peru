@@ -32,8 +32,8 @@ const Alcance = {
   entidad: z.string().regex(/^\d{11}$/).optional(),
   dep: z.string().regex(/^\d{2}$/).optional(),
   severidad: z.enum(["alta", "media", "baja", "con", "sin"]).optional(),
-  // El buscador (migración 103): cargo, dependencia y entidad en la planilla; título, entidad y lugar en las plazas.
-  // Nunca el nombre de la persona (docs/PRIVACIDAD.md).
+  // El buscador (migraciones 103 y 105): nombre (paterno y nombres), cargo, dependencia y entidad en la planilla; título,
+  // entidad y lugar en las plazas.
   q: z.string().trim().min(2).max(80).optional(),
   page: z.coerce.number().int().min(1).max(5000).default(1),
   size: z.coerce.number().int().min(0).max(50).default(20),
@@ -58,8 +58,10 @@ const ListaPlanilla = {
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
 
-/** La expresión indexada de planilla_persona (migración 103). */
+/** Las expresiones indexadas de planilla_persona: cargo, oficina y entidad (migración 103); paterno y nombres (105). */
 const TEXTO_PLANILLA = `mef_norm(COALESCE(p.cargo, '') || ' ' || COALESCE(p.dependencia, '') || ' ' || COALESCE(p.entidad, ''))`;
+// Servidores públicos: el PTE publica su nombre. Nunca el materno, que la API tapa (buscarlo diría quién lo lleva).
+const NOMBRE_PLANILLA = `mef_norm(COALESCE(p.paterno, '') || ' ' || COALESCE(p.nombres, ''))`;
 // "sueldo" ordena por el sueldo base (migración 98): el total del mes trae liquidaciones y retiros.
 const ORDEN_PLANILLA = { senales: "p.sev DESC, p.n_senales DESC, p.base DESC NULLS LAST", sueldo: "p.base DESC NULLS LAST", meses: "p.meses DESC, p.base DESC NULLS LAST" };
 
@@ -95,7 +97,7 @@ planillaRouter.get("/", async (c) => {
     if (q.senal) { v2.push([q.senal]); conds.push(`p.tipos @> $${v2.length}::text[]`); }
     if (q.regimen) { v2.push(q.regimen); conds.push(`p.regimen = $${v2.length}`); }
     if (q.dudoso) conds.push(`p.dudoso IS NOT NULL`);
-    for (const w of palabrasBusqueda(q.q)) { v2.push(`%${w}%`); conds.push(`${TEXTO_PLANILLA} LIKE $${v2.length}`); }
+    for (const w of palabrasBusqueda(q.q)) { v2.push(`%${w}%`); conds.push(`(${NOMBRE_PLANILLA} LIKE $${v2.length} OR ${TEXTO_PLANILLA} LIKE $${v2.length})`); }
     sevCond(q.severidad, conds, v2, "p");
     const [filas, res] = await Promise.all([
       pool.query(

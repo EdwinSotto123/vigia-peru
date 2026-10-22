@@ -117,6 +117,17 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
         }
       />
       <Indicadores items={indicadores(f, graves, ruta)} />
+      {p.dudosas?.ordenes ? (
+        <AvisoDato motivo={motivoDudoso(p.dudosas.motivos?.[0]) ?? "mayor_100m"} fuente="conosce_ordenes">
+          {p.dudosas.ordenes === 1
+            ? `Una de sus órdenes trae ${soles(p.dudosas.monto ?? 0)}. `
+            : `${p.dudosas.ordenes} de sus órdenes traen ${soles(p.dudosas.monto ?? 0)} en total. `}
+          <Link href={`${ruta}?seccion=ordenes`} className="font-semibold text-granate underline-offset-2 hover:underline">
+            Están en la pestaña Órdenes, con su bandera
+          </Link>
+          .
+        </AvisoDato>
+      ) : null}
 
       <Pestanas
         key={seccion ?? "senales"}
@@ -210,7 +221,14 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
 function indicadores(f: FichaPersona, graves: number, ruta: string): Indicador[] {
   const p = f.persona;
   return [
-    { valor: solesCompacto(p.monto), etiqueta: "cobrados por órdenes", contexto: `en ${plural(p.ordenes, "orden", "órdenes")}`, href: `${ruta}?seccion=ordenes` },
+    {
+      valor: solesCompacto(p.monto),
+      etiqueta: "cobrados por órdenes",
+      contexto: p.dudosas?.ordenes
+        ? `en ${plural(p.ordenes, "orden", "órdenes")}; aparte, ${soles(p.dudosas.monto ?? 0)} en ${plural(p.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
+        : `en ${plural(p.ordenes, "orden", "órdenes")}`,
+      href: `${ruta}?seccion=ordenes`,
+    },
     { valor: numero(p.meses), etiqueta: "meses con órdenes", contexto: "sumados por año y entidad", href: `${ruta}?seccion=pagos` },
     { valor: numero(p.entidades), etiqueta: p.entidades === 1 ? "entidad" : "entidades", contexto: "que lo contrataron", href: `${ruta}?seccion=entidades` },
     { valor: numero(p.nSenales), etiqueta: "señales", contexto: graves > 0 ? plural(graves, "grave", "graves") : "ninguna grave", tono: graves > 0 ? "alta" : "neutro", href: ruta },
@@ -326,7 +344,8 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
     />
   );
   const filas: Fila[] = pagina.data.map((o, i) => {
-    const motivo = o.monto == null && o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
+    // El monto es siempre el que publicó CONOSCE; si puede ser un error suyo, la fila lo dice y va aparte de las sumas.
+    const motivo = o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
     const tipo = tipoContratacion(o.tipoContratacion);
     const entidad = o.entidad ? tituloNatural(o.entidad) : null;
     const descripcion = o.descripcion ? oracion(o.descripcion) : "Sin descripción";
@@ -348,13 +367,11 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
         estado: (
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="text-[13px] text-inkSoft">{o.estado ?? "Sin estado"}</span>
-            {motivo && <BanderaDato motivo={motivo} />}
+            {motivo && <BanderaDato motivo={motivo} fuente="conosce_ordenes" />}
           </span>
         ),
         monto: motivo ? (
-          <CeldaNumero sub="no se suma">
-            <span className="text-amberTexto">{soles(o.montoDudoso)}</span>
-          </CeldaNumero>
+          <CeldaNumero sub="posible error de CONOSCE">{soles(o.monto)}</CeldaNumero>
         ) : (
           <CeldaNumero sub={tipo?.corto}>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>
         ),
@@ -367,7 +384,7 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
           <div className="space-y-4">
             {motivo && (
               <AvisoDato motivo={motivo} fuente="conosce_ordenes">
-                {`La orden trae ${soles(o.montoDudoso)} en el archivo de CONOSCE.`}
+                {`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}
               </AvisoDato>
             )}
             <DatosClave
@@ -376,7 +393,7 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
                 { etiqueta: "Entidad", valor: entidad },
                 { etiqueta: "Emitida", valor: o.fecha ? fechaCorta(o.fecha) : null, mono: true },
                 { etiqueta: "Estado", valor: o.estado },
-                { etiqueta: "Monto", valor: motivo ? `${soles(o.montoDudoso)} (posible error de carga, no se suma)` : o.monto != null ? soles(o.monto) : null, mono: true },
+                { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
                 { etiqueta: "Tipo de servicio", valor: o.servicio },
                 { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
                 { etiqueta: "¿Tuvo convocatoria?", valor: tipo?.convocatoria || null },

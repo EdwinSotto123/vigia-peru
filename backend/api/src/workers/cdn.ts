@@ -24,9 +24,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * 2026-10-13: DNI y RUC 10 como referencias, apellidos tapados en el servidor, traza pública sin datos;
  * "4": una candidatura del JNE ya no vuelve pública a una persona; "5": las fechas ya no salen como `{}`; "6": las señales del dossier traen agente, puntua y verificada; "7": /entidades/:ruc/gasto con específicas, fuentes, meses y programas);
  * "13": montos dudosos de CONOSCE fuera de los totales y planilla con sueldo base, migraciones 98-100;
- * "14": datos dudosos con su motivo en órdenes, planilla y contratos, y buscador en las listas, migraciones 102-103).
+ * "14": datos dudosos con su motivo en órdenes, planilla y contratos, y buscador en las listas, migraciones 102-103;
+ * "15": el monto dudoso se devuelve tal como lo publicó CONOSCE, la ficha y el resumen nombran lo que va aparte, y la
+ * planilla se busca también por el nombre).
  */
-const VERSION_CACHE = "14";
+const VERSION_CACHE = "15";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
