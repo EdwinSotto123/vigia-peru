@@ -52,6 +52,11 @@ export interface Fila {
   detalle?: { titulo: string; etiqueta?: string; descripcion?: ReactNode; contenido: ReactNode; pie?: ReactNode };
   /** Marca de "elegida" o "en curso": barra granate a la izquierda. */
   resaltada?: boolean;
+  /**
+   * El texto en que busca el buscador de `TablaPaginada` (las celdas son nodos, no texto): lo que se ve en la fila y
+   * se puede buscar (qué es, entidad, lugar, código…). Nunca el nombre de una persona natural (docs/PRIVACIDAD.md).
+   */
+  buscable?: string;
 }
 
 const ORDEN: (Desde | undefined)[] = [undefined, "md", "lg", "xl"];

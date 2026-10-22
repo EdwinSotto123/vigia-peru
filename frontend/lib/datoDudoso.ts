@@ -1,0 +1,43 @@
+/**
+ * Datos que el Estado publicó y no se pueden creer (migración 102): Vigía los guarda y los muestra tal como vienen, con
+ * una bandera de «posible error de carga», y no los suma ni los usa para comparar. Cada uno trae su motivo.
+ */
+
+export const MOTIVOS_DUDOSO = [
+  "igual_ruc", "igual_numero", "mayor_100m", "tope_uit", "persona_sin_proceso",
+  "negativo", "total_no_cuadra", "mes_1m", "sueldo_100k",
+  "referencial_simbolico", "adjudicado_20x",
+] as const;
+export type MotivoDudoso = (typeof MOTIVOS_DUDOSO)[number];
+
+export const MOTIVO_DUDOSO: Record<MotivoDudoso, { corto: string; explica: string }> = {
+  igual_ruc: { corto: "El monto es un RUC", explica: "En la casilla del monto la entidad escribió el RUC del proveedor." },
+  igual_numero: { corto: "El monto es el número de la orden", explica: "En la casilla del monto la entidad escribió el número de la orden." },
+  mayor_100m: { corto: "Más de S/ 100 millones", explica: "Pasa de S/ 100 millones: ninguna orden de compra o de servicio llega a tanto." },
+  tope_uit: { corto: "20 veces su tope", explica: "Es una contratación «hasta 8 UIT» y el monto pasa 20 veces ese tope." },
+  persona_sin_proceso: { corto: "S/ 1 M a una persona", explica: "Más de S/ 1 millón a una persona natural en una orden sin proceso de selección." },
+  negativo: { corto: "Montos negativos", explica: "La planilla de ese mes trae montos negativos." },
+  total_no_cuadra: { corto: "El total no cuadra", explica: "El total del mes no sale de la suma de sus partes (remuneración, honorarios, beneficios)." },
+  mes_1m: { corto: "Más de S/ 1 millón en un mes", explica: "La planilla trae más de S/ 1 millón para una persona en un solo mes." },
+  sueldo_100k: {
+    corto: "Sueldo de S/ 100 mil o más",
+    explica: "Un sueldo de S/ 100 mil o más en un mes: el más alto del Estado no llega a S/ 40 mil. Es un error o un pago acumulado de varios meses.",
+  },
+  referencial_simbolico: { corto: "Valor referencial de S/ 1", explica: "El valor referencial publicado es S/ 1 o menos: no se publicó el real." },
+  adjudicado_20x: {
+    corto: "20 veces el valor referencial",
+    explica: "Lo adjudicado es 20 veces o más el valor referencial de todo el proceso: suelen ser decimales corridos o un valor mal escrito.",
+  },
+};
+
+/** El motivo, si la API manda uno que la web conoce. */
+export const motivoDudoso = (m: unknown): MotivoDudoso | null =>
+  typeof m === "string" && (MOTIVOS_DUDOSO as readonly string[]).includes(m) ? (m as MotivoDudoso) : null;
+
+/** Quién publicó el dato, para el aviso. */
+export const FUENTE_DUDOSO = {
+  conosce_ordenes: "CONOSCE del OECE",
+  pte_personal: "el Portal de Transparencia Estándar de la entidad",
+  oece_ocds: "el SEACE del OECE",
+} as const;
+export type FuenteDudoso = keyof typeof FUENTE_DUDOSO;

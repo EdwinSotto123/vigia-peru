@@ -4,12 +4,13 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
- * Franja de cifras: 1 a 4 indicadores en UNA fila baja, sin una caja con borde por cifra.
+ * Las cifras de cabecera de una vista: 1 a 4 tarjetas iguales, cada una con lo que ES arriba (una línea), el número
+ * grande y su contexto pequeño debajo (DESIGN_SYSTEM.md §10.7: número, qué es, contexto).
  *
- * Reemplaza la cuadrícula de tarjetas de KPI (dos líneas de texto dentro de cajas de 270 x 110 px,
- * 60 % vacías). Cada cifra es: número grande, a su lado lo que ES (una línea) y debajo su contexto
- * pequeño. Entre cifras, un filete fino; sin fondo, sin borde, sin altura mínima: la fila mide lo
- * que mide su texto (unos 48 px). En móvil baja a 2 por fila con un filete a la izquierda.
+ * Historia: primero eran cajas de 270 x 110 px con dos líneas de texto (60 % vacías); después una franja sin cajas,
+ * con la etiqueta AL LADO del número, que en 4 columnas partía "personas contratadas con 16,268,389 órdenes de
+ * servicio" en cuatro renglones apretados. Ahora la tarjeta apila sus tres niveles y mide lo que mide su texto; las
+ * tarjetas llenan la fila según cuántas son (2, 3 o 4 columnas; una sola ocupa un cuarto). En el celular, 2 por fila.
  *
  * Server-safe (sin estado): `href` usa <Link>, y `ayuda` recibe un <Ayuda/> ya armado.
  *
@@ -19,10 +20,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
  *   contexto  denominador, fuente o fecha, en tercer nivel ("de 18,393 publicados").
  *   ayuda     <Ayuda/> junto a la etiqueta (el ⓘ).
  *   tono      "neutro" | "alta" | "media" | "positivo": solo severidad y lo positivo colorean el número.
- *   href      la cifra entera es el enlace a su lista filtrada.
+ *   href      la tarjeta entera es el enlace a su lista filtrada.
  *   marca     clase de relleno de un punto junto a la etiqueta (une la cifra con su tramo en `pie`).
- * Props de la franja: `chico` (tamaño discreto: cifras de apoyo que no son el foco de la página), `items` (máx. 4), `pie` (una barra opcional debajo, p. ej. el reparto), `className` y `apilado`
- * (el número arriba y la etiqueta debajo en todos los anchos: para una columna angosta, p. ej. una ficha con barra lateral).
+ * Props del grupo: `chico` (cifras de apoyo que no son el foco de la página), `items` (máx. 4), `pie` (una barra
+ * opcional debajo, p. ej. el reparto), `className` y `apilado` (dos por fila en todos los anchos: para una columna
+ * angosta, p. ej. una ficha con barra lateral).
  */
 
 export interface Cifra {
@@ -48,27 +50,17 @@ const tieneLetras = (v: ReactNode | null) => typeof v === "string" && /[a-zá-ú
 export function CifrasEnFila({ items, pie, className, apilado = false, chico = false }: { items: Cifra[]; pie?: ReactNode; className?: string; apilado?: boolean; chico?: boolean }) {
   const visibles = items.slice(0, 4);
   const fila = (
-    <dl className={cn("grid grid-cols-2 gap-x-4 gap-y-3", apilado ? "sm:grid-cols-4" : "sm:flex sm:flex-wrap sm:gap-y-3")}>
+    <dl className={cn("grid grid-cols-2 gap-2.5", !apilado && COLUMNAS[visibles.length])}>
       {visibles.map((it) => (
         <div
           key={it.etiqueta}
           className={cn(
-            // Móvil: filete a la izquierda. Desde sm: filete entre cifras; la primera sin filete.
-            "relative grid min-w-0 grid-cols-1 gap-y-0.5 border-l-2 border-line pl-3",
-            apilado
-              ? "sm:border-l sm:pl-4 sm:first:border-l-0 sm:first:pl-0"
-              : "sm:grid-cols-[auto_1fr] sm:items-center sm:gap-x-3 sm:gap-y-0 sm:min-w-[9.5rem] sm:flex-1 sm:border-l sm:pl-4 sm:first:border-l-0 sm:first:pl-0",
-            it.href && "rounded-md transition-colors duration-rapido hover:bg-paperSoft focus-within:ring-2 focus-within:ring-granate",
+            "relative flex min-w-0 flex-col rounded-2xl border border-line bg-paper",
+            chico ? "gap-1 px-3 py-2.5" : "gap-1.5 px-4 py-3.5",
+            it.href && "transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft focus-within:ring-2 focus-within:ring-granate",
           )}
         >
-          <dt
-            className={cn(
-              "order-2 flex min-w-0 items-center gap-1 font-medium leading-tight text-inkSoft", chico ? "text-[12px]" : "text-[13px]",
-              !apilado && "sm:order-none sm:col-start-2 sm:row-start-1",
-              // Sin contexto la etiqueta se centra junto al número.
-              !apilado && (it.contexto != null ? "sm:self-end" : "sm:row-span-2 sm:self-center"),
-            )}
-          >
+          <dt className={cn("flex min-w-0 items-center gap-1 font-medium leading-tight text-inkSoft", chico ? "text-[12px]" : "text-[12.5px]")}>
             {it.marca && <span className={cn("mr-0.5 h-2 w-2 shrink-0 rounded-full", it.marca)} aria-hidden />}
             <span className="min-w-0">{it.etiqueta}</span>
             {/* El ⓘ queda por encima del enlace estirado para poder tocarlo. */}
@@ -76,9 +68,8 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
           </dt>
           <dd
             className={cn(
-              "order-1 font-display font-bold leading-none tracking-tight tabular-nums",
-              !apilado && "sm:order-none sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-center",
-              tieneLetras(it.valor) ? (chico ? "text-[15px]" : "text-[19px]") : chico ? "text-[18px]" : "text-[26px]",
+              "font-display font-bold leading-none tracking-tight tabular-nums",
+              tieneLetras(it.valor) ? (chico ? "text-[15px]" : "text-[19px]") : chico ? "text-[19px]" : "text-[27px]",
               TONO[it.tono ?? "neutro"],
             )}
           >
@@ -86,7 +77,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
               <span className="text-[16px] font-semibold text-mute">Sin dato</span>
             ) : it.href ? (
               // Sin prefetch: el enlace de una cifra filtra el listado; se pide al hacer clic.
-              <Link href={it.href} prefetch={false} className="after:absolute after:inset-0 focus-visible:outline-none">
+              <Link href={it.href} prefetch={false} className="after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none">
                 {it.valor}
               </Link>
             ) : (
@@ -94,7 +85,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
             )}
           </dd>
           {it.contexto != null && (
-            <dd className={cn("order-3 leading-tight text-mute tabular-nums", chico ? "text-[11px]" : "text-[12px]", !apilado && "sm:order-none sm:col-start-2 sm:row-start-2 sm:self-start")}>{it.contexto}</dd>
+            <dd className={cn("leading-snug text-mute tabular-nums", chico ? "text-[11px]" : "text-[12px]")}>{it.contexto}</dd>
           )}
         </div>
       ))}
@@ -109,18 +100,24 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
   );
 }
 
-/** La misma franja mientras llegan los datos: números en esqueleto, nunca un 0 provisional. */
+/** Columnas desde `sm` según cuántas cifras hay: llenan la fila (clases literales para Tailwind). */
+const COLUMNAS: Record<number, string> = {
+  1: "sm:grid-cols-2 sm:gap-3 lg:grid-cols-4",
+  2: "sm:gap-3",
+  3: "sm:grid-cols-3 sm:gap-3",
+  4: "sm:gap-3 lg:grid-cols-4",
+};
+
+/** Las mismas tarjetas mientras llegan los datos: números en esqueleto, nunca un 0 provisional. */
 export function CifrasEnFilaSkeleton({ n = 4, className }: { n?: number; className?: string }) {
   const k = Math.min(4, Math.max(1, n));
   return (
-    <div className={cn("grid grid-cols-2 gap-x-4 gap-y-3 sm:flex sm:flex-wrap", className)} aria-hidden>
+    <div className={cn("grid grid-cols-2 gap-2.5", COLUMNAS[k], className)} aria-hidden>
       {Array.from({ length: k }).map((_, i) => (
-        <div key={i} className="flex min-w-0 items-center gap-3 border-l-2 border-line pl-3 sm:min-w-[11rem] sm:flex-1 sm:border-l sm:pl-5 sm:first:border-l-0 sm:first:pl-0">
-          <Skeleton className="h-7 w-14" />
-          <div className="space-y-1.5">
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-3 w-16" />
-          </div>
+        <div key={i} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-line bg-paper px-4 py-3.5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-3 w-20" />
         </div>
       ))}
     </div>

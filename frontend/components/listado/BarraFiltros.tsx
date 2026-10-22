@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowDownUp, Clock, Eye, FileText, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import { Popover } from "@/components/ui/Flotante";
@@ -320,22 +320,25 @@ function Conteo({ n }: { n: number }) {
 
 /**
  * Búsqueda que filtra al dejar de escribir (350 ms) o con Enter; se sincroniza si la URL cambia
- * desde otro lado. Con `min`, un texto más corto no busca: lo dice dentro del campo.
+ * desde otro lado. Con `min`, un texto más corto no busca: lo dice dentro del campo. También la usa
+ * `TablaPaginada` para las listas que llegan enteras (filtra en el navegador). Los ids salen de
+ * `useId`: una página puede tener varias listas con su buscador.
  */
-function Buscador({
+export function Buscador({
   placeholder,
   etiqueta,
   valor,
   min = 0,
   onBuscar,
 }: {
-  param: string;
+  param?: string;
   placeholder: string;
   etiqueta: string;
   valor: string;
   min?: number;
   onBuscar: (v: string) => void;
 }) {
+  const id = useId();
   const [texto, setTexto] = useState(valor);
   const ultimo = useRef(valor);
   // Vacío sí se aplica (quita la búsqueda); 1 a `min - 1` caracteres, no.
@@ -357,7 +360,7 @@ function Buscador({
   return (
     <form
       role="search"
-      className="relative w-full sm:w-auto sm:min-w-[12rem] sm:flex-1 lg:max-w-sm"
+      className="relative w-full sm:w-auto sm:min-w-[17rem] sm:flex-1 lg:max-w-sm"
       onSubmit={(e) => {
         e.preventDefault();
         const t = texto.trim();
@@ -366,23 +369,23 @@ function Buscador({
         onBuscar(t);
       }}
     >
-      <label className="sr-only" htmlFor="buscar-listado">
+      <label className="sr-only" htmlFor={`${id}-campo`}>
         {etiqueta}
       </label>
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
       <input
-        id="buscar-listado"
+        id={`${id}-campo`}
         type="search"
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
-        aria-describedby={faltan ? "buscar-listado-minimo" : undefined}
+        aria-describedby={faltan ? `${id}-minimo` : undefined}
         className={cn(CAMPO, "pl-9")}
       />
       {/* Dentro del campo, a la derecha (el texto corto nunca llega hasta acá): sin mover la barra. */}
       <span
-        id="buscar-listado-minimo"
+        id={`${id}-minimo`}
         aria-live="polite"
         className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 text-[12px] text-mute"
       >

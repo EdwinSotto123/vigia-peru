@@ -132,3 +132,22 @@ export function severidadColor(s: "alta" | "media" | "baja"): string {
   if (s === "media") return "text-amberTexto bg-amber-soft border-amber/20";
   return "text-inkSoft bg-line border-mute/20";
 }
+
+/**
+ * Un texto listo para buscar dentro de él: sin tildes, en minúsculas y con los espacios juntos ("Ñ" queda "n").
+ * Lo usan los buscadores de las listas que llegan enteras al navegador (`TablaPaginada`).
+ */
+export function paraBuscar(t: string | null | undefined): string {
+  return (t ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Si `texto` tiene todas las palabras de `consulta` (en cualquier orden), ya pasadas por `paraBuscar`. */
+export function coincide(texto: string, consulta: string): boolean {
+  if (!consulta) return true;
+  return consulta.split(" ").every((p) => texto.includes(p));
+}

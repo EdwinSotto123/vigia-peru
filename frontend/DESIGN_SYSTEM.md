@@ -533,6 +533,9 @@ y la prosa del dictamen. `Ayuda` lleva texto o `<span className="block">`, nunca
 | `Tooltip` / `Popover` | (`Flotante.tsx`) ayuda breve; nunca la única vía a un dato |
 | `Skeleton` | forma del contenido; nunca `opacity: 0` inicial |
 | `PulseDot` | punto "en vivo"; quieto con movimiento reducido |
+| `Dato` | un dato de la línea de contexto con su ícono delante (`tipo`: `entidad`, `lugar`, `ruc`, `codigo`, `servicio`, `tipo`, `cargo`, `dependencia`, `regimen`, `fecha`, `personas`, `partido`, `documento`; o `icono`); texto en línea, se recorta como texto. Toda meta de fila o tarjeta va con `Dato` (octubre 2026: el usuario no distinguía la entidad del servicio ni el cargo de la oficina separados sólo por aire) |
+| `BanderaDato` / `AvisoDato` | un dato que el Estado publicó y no se puede creer (migración 102): pastilla ámbar «Posible error de carga» en la fila (motivo en `title`) y aviso con la explicación en la ficha o el panel. El dato se muestra tal como vino y no se suma |
+| `CifrasEnFila` (`Indicadores`) | 1 a 4 tarjetas iguales: qué es arriba, el número grande, el contexto abajo; llenan la fila según cuántas son (2, 3 o 4 columnas), 2 por fila en el celular |
 
 Pendientes de extraer (hoy cada vista los arma con clases; al tocarlos, extraer aquí):
 `Card` (`interactiva`, `acento` con franja textil), `Campo` (label visible, ayuda,
@@ -744,6 +747,9 @@ con los tres primeros destacados.
 | "Señal alta" con ícono | Sólo un punto rojo |
 | "53 de 100 financiados" | "53" suelto |
 | "Sin dato" | Un cero inventado |
+| Cada dato de la meta con su ícono (`Dato`) | Datos sueltos separados por "·" o sólo por aire |
+| Un buscador en cada lista (`BarraFiltros busqueda`, `TablaPaginada buscar`) | Una lista larga que sólo se recorre página por página |
+| Un dato imposible del Estado con su bandera («Posible error de carga») | Esconderlo, tacharlo o sumarlo |
 | Montserrat en títulos, Inter en texto | Una tercera familia "para variar" |
 | Rojo Perú en la franja de la bandera | Rojo Perú en botones o alertas |
 
