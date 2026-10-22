@@ -25,8 +25,8 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, type PaginaPlanilla, type PersonaPlanilla, type TipoPlanilla } from "@/lib/planilla";
-import { SEVERIDAD_TEXTO } from "@/lib/personas";
+import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, rutaPlanilla, type PaginaPlanilla, type PersonaPlanilla } from "@/lib/planilla";
+import { SenalesPlanillaLista } from "./SenalesPlanilla";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
 
 const TAM = 20;
@@ -230,6 +230,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
   ];
   return {
     id: `${p.entidadRuc}-${p.nombre}-${p.ultimoMes}`,
+    ...(p.ficha ? { href: rutaPlanilla(p.ficha) } : {}),
     celdas: {
       persona: (
         <CeldaPrincipal
@@ -247,7 +248,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
         </CeldaNumero>
       ),
     },
-    detalle: {
+    detalle: p.ficha ? undefined : {
       titulo: p.nombre,
       etiqueta: `Ver el detalle de ${p.nombre}`,
       descripcion: p.cargo ? tituloNatural(p.cargo) : undefined,
@@ -268,16 +269,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
               />
             </section>
           )}
-          {p.senales.map((s) => (
-            <div key={s.tipo} className="space-y-1.5 rounded-xl border border-line bg-paperSoft p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-                <span className="text-[14px] font-semibold text-ink">{SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo}</span>
-              </div>
-              <p className="text-[13px] text-inkSoft">{SENAL_PLANILLA[s.tipo]?.explica}</p>
-              <DetalleSenal tipo={s.tipo} d={s.detalle} />
-            </div>
-          ))}
+          {p.senales.length > 0 && <SenalesPlanillaLista senales={p.senales} />}
         </div>
       ),
       pie: (
@@ -292,52 +284,4 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
       ),
     },
   };
-}
-
-const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() && !Number.isNaN(Number(v)) ? Number(v) : null);
-const t = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
-const lista = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
-
-function DetalleSenal({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
-  let items: DatoClave[] = [];
-  if (tipo === "pago_extraordinario") {
-    items = [
-      { etiqueta: "Su sueldo", valor: n(d.base) != null ? soles(n(d.base)) : null, mono: true },
-      { etiqueta: "Fuera del sueldo", valor: n(d.extra) != null ? soles(n(d.extra)) : null, mono: true },
-      { etiqueta: "Total del mes", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
-    ];
-  } else if (tipo === "brecha_cargo") {
-    items = [
-      { etiqueta: "Su sueldo", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
-      { etiqueta: "Mediana de su cargo", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.personas) ?? 0)} personas)` : null },
-      { etiqueta: "Diferencia", valor: n(d.veces) != null ? `${String(n(d.veces)).replace(".", ",")} veces` : null },
-      ...(n(d.ganan_tanto) != null
-        ? [{ etiqueta: "Con su cargo ganan tanto", valor: n(d.ganan_tanto) === 1 ? "Sólo esta persona" : `${numero(n(d.ganan_tanto) ?? 0)} personas` }]
-        : []),
-      // Tanta diferencia suele ser un pago acumulado (devengados de varios meses) cargado como sueldo.
-      ...((n(d.veces) ?? 0) >= 5
-        ? [{ etiqueta: "Ojo", valor: "Una diferencia así suele ser un pago acumulado de varios meses registrado como sueldo: verifícalo en el portal de la entidad." }]
-        : []),
-    ];
-  } else if (tipo === "tambien_ordenes") {
-    items = [
-      { etiqueta: "Meses con las dos cosas", valor: lista(d.meses).map(String).join(", ") || null },
-      { etiqueta: "Órdenes esos meses", valor: n(d.ordenes) != null ? `${numero(n(d.ordenes) ?? 0)} por ${soles(n(d.monto) ?? 0)}` : null },
-    ];
-  } else if (tipo === "antes_locador") {
-    items = [
-      { etiqueta: "Primera orden", valor: t(d.primera_orden)?.slice(0, 10) ?? null },
-      { etiqueta: "Entró a la planilla", valor: t(d.primer_mes_planilla)?.slice(0, 7) ?? null },
-    ];
-  } else if (tipo === "apellidos_autoridad") {
-    items = lista(d.autoridades).map((a, i) => ({ etiqueta: t(a.cargo) ? tituloNatural(t(a.cargo)!) : `Autoridad ${i + 1}`, valor: [t(a.nombre), t(a.partido)].filter(Boolean).join(", ") }));
-  } else if (tipo === "apellidos_directivo") {
-    items = lista(d.funcionarios_designados).map((f, i) => ({ etiqueta: t(f.cargo) ? tituloNatural(t(f.cargo)!) : `Directivo ${i + 1}`, valor: t(f.nombre) }));
-  } else if (tipo === "candidato_gobierna") {
-    items = [
-      { etiqueta: "Partido que gobierna", valor: t(d.partido) },
-      ...lista(d.candidaturas).map((c, i) => ({ etiqueta: `Candidatura ${i + 1}`, valor: [t(c.anio), t(c.cargo) ? tituloNatural(t(c.cargo)!) : null, t(c.partido)].filter(Boolean).join(", ") })),
-    ];
-  }
-  return items.length ? <DatosClave items={items} /> : null;
 }

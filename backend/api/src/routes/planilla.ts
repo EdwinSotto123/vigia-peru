@@ -12,6 +12,8 @@ import { palabrasBusqueda } from "./personas.js";
  *   GET /planilla[?entidad=|dep=] el personal que la entidad publica en su Portal de Transparencia, con sus señales
  *                                 (también recibe órdenes, gana el doble que su cargo, apellidos de una autoridad o de un
  *                                 directivo, candidato del que gobierna, fue locador antes). Paginado, con su resumen.
+ *   GET /planilla/ficha/:codigo   la ficha de una persona de la planilla (migración 107): sus datos, señales con detalle,
+ *                                 lo que cobró cada mes cargado y la misma persona en la planilla de otras entidades.
  *   GET /plazas[?entidad=|dep=]   las plazas CAS que publicó en SERVIR, con sus señales (pide experiencia en la propia
  *                                 entidad, paga mucho y pide poco, plazo corto, sueldo alto, ya hay locadores).
  *
@@ -23,8 +25,9 @@ export const plazasRouter = new Hono();
 
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Record<string, unknown>>({ nombre: "planilla", ttlMs: 600_000, staleMs: 600_000, max: 400 });
+const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "planilla:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
 const SEV: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
@@ -104,7 +107,7 @@ planillaRouter.get("/", async (c) => {
         `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
                 p.base::float AS base, p.extra::float AS extra, p.dudoso,
                 p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
-                p.senales, p.n_senales AS "nSenales", p.codigo, p.nombre_norm AS "_nn", count(*) OVER ()::int AS n
+                p.senales, p.n_senales AS "nSenales", p.codigo, p.ficha, p.nombre_norm AS "_nn", count(*) OVER ()::int AS n
            FROM planilla_persona p WHERE ${conds.join(" AND ")}
           ORDER BY ${ORDEN_PLANILLA[q.orden]}, p.nombre_norm
           LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, v2),
@@ -142,6 +145,54 @@ planillaRouter.get("/", async (c) => {
     }));
     return publicar({ total: filas.rows[0]?.n ?? 0, page: q.page, size: q.size, data, resumen: res.rows[0] });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /planilla/ficha/:codigo ────────────────────────────────────────────────────────────────
+const FICHA = /^[0-9a-f]{12}$/;
+
+/** Lo que cobró cada mes cargado una persona en una entidad (la misma suma que la línea de tiempo de la lista). */
+const HISTORIA_SQL = `SELECT to_char(make_date(p.anio, p.mes, 1), 'YYYY-MM') AS mes,
+       sum(CASE WHEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0) > 0 THEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0)
+                WHEN COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0) = 0 THEN p.total END)::float AS base,
+       sum(COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0))::float AS extra,
+       sum(p.total)::float AS total,
+       bool_or(motivo_planilla_dudosa(p.remuneraciones, p.honorarios, p.incentivo, p.gratificacion, p.otros, p.total) IS NOT NULL) AS dudoso,
+       count(*)::int AS filas, max(p.cargo) AS cargo
+  FROM planilla_pte p WHERE p.entidad_ruc = $1 AND p.nombre_norm = $2
+ GROUP BY 1 ORDER BY 1`;
+
+planillaRouter.get("/ficha/:codigo", async (c) => {
+  const codigo = c.req.param("codigo");
+  if (!FICHA.test(codigo)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await fichaMemo.obtener(codigo, async () => {
+    const r = await pool.query(
+      `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
+              p.base::float AS base, p.extra::float AS extra, p.dudoso, p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes",
+              to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes", p.senales, p.n_senales AS "nSenales", p.codigo, p.ficha, p.dep,
+              z.nombre AS "depNombre", p.nombre_norm AS "_nn"
+         FROM planilla_persona p LEFT JOIN zonas z ON z.ubigeo = p.dep
+        WHERE p.ficha = $1`, [codigo]);
+    const f = r.rows[0];
+    if (!f) return null;
+    const [historia, otras] = await Promise.all([
+      pool.query(HISTORIA_SQL, [f.entidadRuc, f._nn]),
+      // El mismo nombre completo (con el materno) en la planilla de otra entidad: suele ser la misma persona.
+      pool.query(
+        `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.cargo, p.regimen, p.base::float AS base, to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
+                p.n_senales AS "nSenales", p.ficha
+           FROM planilla_persona p WHERE p.nombre_norm = $1 AND p.entidad_ruc <> $2 ORDER BY p.ultimo_mes DESC, p.base DESC NULLS LAST LIMIT 50`,
+        [f._nn, f.entidadRuc]),
+    ]);
+    const { _nn, paterno, nombres, ...resto } = f;
+    return publicar({
+      persona: { ...resto, nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") },
+      historia: historia.rows,
+      otras: otras.rows,
+    });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

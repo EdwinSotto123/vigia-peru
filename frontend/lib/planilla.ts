@@ -6,7 +6,7 @@
 import { API_BASE } from "./api-client";
 import type { Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
 export type TipoPlaza = (typeof TIPOS_PLAZA)[number];
@@ -38,6 +38,8 @@ export interface PersonaPlanilla {
   nSenales: number;
   /** Su ficha de persona contratada, si también recibe órdenes de servicio. */
   codigo: string | null;
+  /** Su ficha de planilla (migración 107): /app/personas/planilla/<ficha>. */
+  ficha?: string | null;
   /** Lo que cobró cada mes cargado (línea de tiempo de sueldos): sueldo, fuera del sueldo, total y si es un posible error. */
   historia?: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }[];
   /** Un posible error de carga del Estado en su último mes (migración 102): no entra en sumas, medianas ni señales. */
@@ -125,6 +127,12 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     explica:
       "Su sueldo (sin gratificaciones, liquidaciones ni otros beneficios del mes) es el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad, y muy pocos con ese cargo ganan tanto (10 o menos): no es otro nivel de la escala.",
   },
+  es_autoridad: {
+    corto: "Autoridad electa de la entidad",
+    titulo: "Es autoridad electa de esta entidad",
+    explica:
+      "Es el alcalde, un regidor, el gobernador o un consejero del gobierno de la entidad (JNE), en su mandato: por eso figura en su planilla. Es un dato, no una falta.",
+  },
   pago_extraordinario: {
     corto: "Pago extraordinario",
     titulo: "Recibió un pago grande fuera de su sueldo",
@@ -193,6 +201,18 @@ const qs = (f: Record<string, unknown>) => {
 
 export const getPlanilla = (f: { entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string; page?: number; size?: number }) =>
   leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
+
+/** La ficha de una persona de la planilla: sus datos, lo que cobró cada mes y la misma persona en otras planillas. */
+export interface FichaPlanilla {
+  persona: PersonaPlanilla & { dep: string | null; depNombre: string | null };
+  historia: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number; cargo: string | null }[];
+  otras: { entidadRuc: string; entidad: string | null; cargo: string | null; regimen: number | null; base: number | null; ultimoMes: string | null; nSenales: number; ficha: string | null }[];
+}
+
+export const rutaPlanilla = (ficha: string, seccion?: string) => `/app/personas/planilla/${ficha}${seccion ? `?seccion=${seccion}` : ""}`;
+
+export const getFichaPlanilla = (ficha: string) =>
+  /^[0-9a-f]{12}$/.test(ficha) ? leer<FichaPlanilla>(`/planilla/ficha/${ficha}`) : Promise.resolve(null);
 
 export const getPlazas = (f: { entidad?: string; dep?: string; senal?: string; severidad?: string; orden?: string; q?: string; page?: number; size?: number }) =>
   leer<PaginaPlazas>(`/plazas?${qs(f)}`);

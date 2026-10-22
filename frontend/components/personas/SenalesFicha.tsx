@@ -3,7 +3,7 @@ import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { DatosClave, type DatoClave } from "@/components/patrones";
 import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
-import { fecha, numero, plural, soles } from "@/lib/formato";
+import { fecha, listaY, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { REGIMEN } from "@/lib/planilla";
 import { FUENTE_TEXTO, SENAL, SEVERIDAD_TEXTO, type EntidadDePersona, type SenalDetalle } from "@/lib/personas";
@@ -16,34 +16,129 @@ import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
  */
 export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[] }) {
   const con = entidades.filter((e) => e.senalesDetalle.length > 0);
+  // Lo que es de la persona y no de una entidad (un aporte, una candidatura, ser autoridad de otro gobierno) llega
+  // igual en cada entidad: va una vez, arriba, con las entidades en que aplica. Lo demás, en su entidad, numerado.
+  const clave = (s: SenalDetalle) => `${s.tipo}|${s.severidad}|${JSON.stringify(s.detalle ?? {})}`;
+  const veces = new Map<string, number>();
+  for (const e of con) for (const k of new Set(e.senalesDetalle.map(clave))) veces.set(k, (veces.get(k) ?? 0) + 1);
+  const repetida = (s: SenalDetalle) => con.length > 1 && (veces.get(clave(s)) ?? 0) > 1;
+  const comunes: { s: SenalDetalle; en: string[] }[] = [];
+  const vistas = new Set<string>();
+  for (const e of con) {
+    for (const s of e.senalesDetalle) {
+      if (!repetida(s) || vistas.has(clave(s))) continue;
+      vistas.add(clave(s));
+      comunes.push({ s, en: con.filter((x) => x.senalesDetalle.some((y) => clave(y) === clave(s))).map((x) => (x.entidad ? tituloNatural(x.entidad) : x.entidadRuc)) });
+    }
+  }
+  const propias = (e: EntidadDePersona) => e.senalesDetalle.filter((s) => !repetida(s));
   return (
     <div className="space-y-5">
-      {con.map((e) => (
-        <section key={e.entidadRuc} className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h3 className="font-display text-[17px] font-bold text-ink">
-              <Link href={`/entidad/${e.entidadRuc}`} className="underline-offset-2 hover:text-granate hover:underline">
-                {e.entidad ? tituloNatural(e.entidad) : "Entidad"}
-              </Link>
-            </h3>
-            <GobiernosLinea e={e} />
+      {con.length > 1 && (
+        <nav aria-label="Entidades con señales" className="rounded-2xl border border-line bg-paper p-4">
+          <p className="mb-2 text-[13.5px] font-semibold text-ink">Tiene señales en {numero(con.length)} entidades</p>
+          <ol className="space-y-1.5">
+            {con.map((e, i) => {
+              const graves = e.senalesDetalle.filter((s) => s.severidad === "alta").length;
+              return (
+                <li key={e.entidadRuc} className="flex items-baseline gap-2 text-[13.5px]">
+                  <Numero n={i + 1} />
+                  <a href={`#entidad-${i + 1}`} className="min-w-0 font-medium text-ink underline-offset-2 hover:text-granate hover:underline">
+                    {e.entidad ? tituloNatural(e.entidad) : e.entidadRuc}
+                  </a>
+                  <span className="shrink-0 text-[12.5px] text-mute">
+                    {plural(e.senalesDetalle.length, "señal", "señales")}
+                    {graves > 0 ? `, ${plural(graves, "grave", "graves")}` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      )}
+      {comunes.length > 0 && (
+        <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <header className="space-y-0.5">
+            <h3 className="font-display text-[17px] font-bold text-ink">Sobre la persona</h3>
+            <p className="text-[13px] text-mute">Lo que otros registros dicen de ella y vale igual en varias de las entidades que la contrataron: va una sola vez.</p>
           </header>
-          <ul className="space-y-3">
-            {e.senalesDetalle.map((s) => (
-              <li key={s.tipo} className="space-y-2 rounded-xl border border-line/80 bg-paperSoft p-3.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-                  <h4 className="text-[15px] font-semibold text-ink">{SENAL[s.tipo]?.titulo ?? s.tipo}</h4>
-                </div>
-                <p className="max-w-prose text-[13.5px] leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
-                <Detalle s={s} />
-                <Fuente s={s} />
-              </li>
+          <ol className="space-y-3">
+            {comunes.map(({ s, en }, i) => (
+              <Senal key={clave(s)} s={s} numero={String(i + 1)} en={en} />
             ))}
-          </ul>
+          </ol>
         </section>
-      ))}
+      )}
+      {con.map((e, i) => {
+        const lista = propias(e);
+        return (
+          <section key={e.entidadRuc} id={`entidad-${i + 1}`} className="scroll-mt-24 space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+              <div className="flex min-w-0 items-start gap-2.5">
+                {con.length > 1 && <Numero n={i + 1} grande />}
+                <div className="min-w-0">
+                  {con.length > 1 && <p className="text-[12px] font-medium text-mute">Entidad {i + 1} de {con.length}</p>}
+                  <h3 className="font-display text-[17px] font-bold text-ink">
+                    <Link href={`/entidad/${e.entidadRuc}`} className="underline-offset-2 hover:text-granate hover:underline">
+                      {e.entidad ? tituloNatural(e.entidad) : "Entidad"}
+                    </Link>
+                  </h3>
+                </div>
+              </div>
+              <GobiernosLinea e={e} />
+            </header>
+            {lista.length ? (
+              <ol className="space-y-3">
+                {lista.map((s, k) => (
+                  <Senal key={s.tipo} s={s} numero={con.length > 1 ? `${i + 1}.${k + 1}` : String(k + 1)} />
+                ))}
+              </ol>
+            ) : (
+              <p className="text-[13px] text-mute">Ninguna señal propia de esta entidad: las suyas son las de la persona, arriba.</p>
+            )}
+          </section>
+        );
+      })}
     </div>
+  );
+}
+
+function Numero({ n, grande = false }: { n: number; grande?: boolean }) {
+  return (
+    <span
+      className={
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-granate font-mono font-semibold tabular-nums text-paper " +
+        (grande ? "mt-0.5 h-7 min-w-7 px-2 text-[13px]" : "h-5 min-w-5 px-1.5 text-[11.5px]")
+      }
+      aria-hidden
+    >
+      {n}
+    </span>
+  );
+}
+
+function Senal({ s, numero: num, en }: { s: SenalDetalle; numero: string; en?: string[] }) {
+  return (
+    <li className="flex gap-3 rounded-xl border border-line/80 bg-paperSoft p-3.5">
+      <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-[12px] font-semibold tabular-nums text-ink" aria-hidden>
+        {num}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
+          <h4 className="text-[15px] font-semibold text-ink">{SENAL[s.tipo]?.titulo ?? s.tipo}</h4>
+        </div>
+        <p className="max-w-prose text-[13.5px] leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
+        {en && en.length > 0 && (
+          <p className="text-[12.5px] text-inkSoft">
+            <span className="text-mute">Vale en: </span>
+            {listaY(en)}
+          </p>
+        )}
+        <Detalle s={s} />
+        <Fuente s={s} />
+      </div>
+    </li>
   );
 }
 
