@@ -1,7 +1,8 @@
 /**
  * Empresas (GET /empresas*, migración 109): cada empresa (RUC 20) que ganó, postuló o recibió órdenes del Estado, con lo
- * que le adjudicaron y le compraron, su gente en el RNP, sus visitas a entidades y su PUNTAJE DE ANTECEDENTES (0 a 100):
- * cuánto pesa lo que otros registros públicos dicen de ella, con su desglose. No es una acusación.
+ * que le adjudicaron y le compraron, su gente en el RNP, sus visitas a entidades y lo que otros registros públicos dicen
+ * de ella (sus antecedentes, como hechos: qué registro, cuántas veces, con qué gravedad y su fuente). Sin puntaje: el
+ * usuario lo sacó (2026-10-22: «tiene mucho sesgo y parece acusación»; migración 112).
  *
  * Las personas (socios, representantes, visitantes, funcionarios) llegan con un apellido tapado y sin documento. Las
  * personas naturales que le venden al Estado (RUC 10) no están acá: van en /app/personas.
@@ -11,14 +12,6 @@
 import { API_BASE } from "./api-client";
 
 export type Severidad = "alta" | "media" | "baja";
-export type Nivel = "alto" | "medio" | "bajo" | "sin";
-
-export const NIVEL: Record<Nivel, { corto: string; titulo: string; explica: string; variante: "crimson" | "amber" | "neutral" | "ink" }> = {
-  alto: { corto: "Alto", titulo: "Muchos antecedentes", explica: "50 puntos o más: varios registros públicos pesan sobre la empresa.", variante: "crimson" },
-  medio: { corto: "Medio", titulo: "Antecedentes para revisar", explica: "De 20 a 49 puntos.", variante: "amber" },
-  bajo: { corto: "Bajo", titulo: "Pocos antecedentes", explica: "De 1 a 19 puntos.", variante: "neutral" },
-  sin: { corto: "Sin antecedentes", titulo: "Sin antecedentes", explica: "Ningún otro registro cruzado la nombra.", variante: "neutral" },
-};
 
 /** Una empresa en la lista (y la cabecera de su ficha). Montos en soles; lo dudoso, aparte. */
 export interface EmpresaFila {
@@ -46,14 +39,12 @@ export interface EmpresaFila {
   visitas: number;
   inhabilitada: "temporal" | "definitiva" | null;
   inhabilitadaHasta: string | null;
-  puntaje: number;
-  nivel: Nivel;
   tipos: string[];
   nAlta: number;
   nMedia: number;
   nBaja: number;
-  /** Sus antecedentes, de los que más pesan a los que menos (para la celda de banderas). */
-  cruces: { tipo: string; severidad: Severidad }[];
+  /** Cada tipo de antecedente con su gravedad más alta y cuántos registros, los graves primero (la celda de banderas). */
+  cruces: { tipo: string; severidad: Severidad; n: number }[];
 }
 
 export interface ResumenEmpresas {
@@ -64,7 +55,9 @@ export interface ResumenEmpresas {
   inhabilitadas: number;
   conVisitas: number;
   dudosos: { procesos: number; monto: number; ordenes: number; montoOrdenes: number };
-  porNivel: Partial<Record<Nivel, number>>;
+  conAntecedentes: number;
+  /** Con algún antecedente grave (inhabilitación, partido que gobierna, socio común entre postores…). */
+  conGrave: number;
   porTipo: { tipo: string; n: number; etiqueta: string }[];
   porDepartamento: { departamento: string; n: number }[];
   porObjeto: { objeto: string; n: number }[];
@@ -80,13 +73,12 @@ export interface PaginaEmpresas {
   entidad?: string | null;
 }
 
-export interface GrupoPuntaje {
-  grupo: string;
-  titulo: string;
-  explica: string | null;
-  puntos: number;
-  tope: number;
-  cruces: { tipo: string; severidad: Severidad; n: number; puntos: number; etiqueta: string }[];
+/** Un tipo de antecedente de la empresa: cuántos registros y su gravedad más alta. */
+export interface AntecedentePorTipo {
+  tipo: string;
+  severidad: Severidad;
+  n: number;
+  etiqueta: string;
 }
 
 export interface AnioEmpresa {
@@ -118,13 +110,8 @@ export interface FichaEmpresa {
     visitasClientes: number;
     actualizado: string | null;
   };
-  antecedentes: GrupoPuntaje[];
+  antecedentes: AntecedentePorTipo[];
   anual: AnioEmpresa[];
-}
-
-export interface ReglasPuntaje {
-  niveles: { nivel: Nivel; desde: number }[];
-  grupos: { grupo: string; titulo: string; explica: string; tope: number; reglas: { tipo: string; severidad: Severidad; puntos: number; etiqueta: string }[] }[];
 }
 
 /** Una opción de filtro con cuántos la tienen (sobre todo lo de la empresa). */
@@ -266,13 +253,16 @@ export interface AntecedenteEmpresa {
 export interface SociosEmpresa {
   socios: { nombre: string; roles: string[]; desde: string | null; otrasEmpresas: number }[];
   empresasSocias: { ruc: string | null; nombre: string; roles: string[]; desde: string | null }[];
-  sociaDe: { ruc: string; nombre: string | null; puntaje: number | null; nivel: Nivel | null; roles: string[] }[];
+  sociaDe: { ruc: string; nombre: string | null; roles: string[] }[];
   corte: string | null;
   vinculadas: {
     ruc: string;
     nombre: string | null;
-    puntaje: number | null;
-    nivel: Nivel | null;
+    /** Le vende al Estado (está en el resumen de empresas). */
+    vende: boolean;
+    /** Cuántos tipos de antecedentes tiene, y cuántos registros graves. */
+    antecedentes: number;
+    graves: number;
     inhabilitada: string | null;
     monto: number;
     contratos: number;
@@ -310,7 +300,6 @@ export interface Pagina<T> {
 // ─── Parámetros de la lista ─────────────────────────────────────────────────────────────────────
 
 export const ORDENES_EMPRESAS = [
-  { valor: "puntaje", etiqueta: "Más antecedentes" },
   { valor: "monto", etiqueta: "Más dinero recibido" },
   { valor: "contratos", etiqueta: "Más contratos" },
   { valor: "ordenes", etiqueta: "Más órdenes" },
@@ -323,7 +312,7 @@ export const OBJETO_TEXTO: Record<string, string> = { Bien: "Bienes", Servicio: 
 
 export interface FiltrosEmpresas {
   q?: string;
-  nivel?: string;
+  antecedentes?: string;
   tipo?: string;
   departamento?: string;
   objeto?: string;
@@ -357,14 +346,14 @@ const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.tr
 
 /** Lee de la URL los filtros de la lista, validados como la API. */
 export function filtrosEmpresasDeUrl(sp: Busqueda): FiltrosEmpresas {
-  const nivel = uno(sp?.nivel);
+  const antecedentes = uno(sp?.antecedentes);
   const tipo = uno(sp?.tipo);
   const objeto = uno(sp?.objeto);
   const orden = uno(sp?.orden);
   const q = uno(sp?.q)?.slice(0, 80);
   return {
     q: q && q.length >= 2 ? q : undefined,
-    nivel: nivel && ["alto", "medio", "bajo", "sin", "con"].includes(nivel) ? nivel : undefined,
+    antecedentes: antecedentes && ["con", "grave", "sin"].includes(antecedentes) ? antecedentes : undefined,
     tipo: tipo && /^[a-z_]{2,40}$/.test(tipo) ? tipo : undefined,
     departamento: uno(sp?.departamento)?.slice(0, 40),
     objeto: objeto && (OBJETOS as readonly string[]).includes(objeto) ? objeto : undefined,
@@ -397,7 +386,6 @@ const consulta = (f: Record<string, unknown>) => {
 export const esRucEmpresa = (ruc: string) => /^20\d{9}$/.test(ruc);
 
 export const getEmpresas = (f: FiltrosEmpresas) => leer<PaginaEmpresas>(`/empresas?${consulta({ ...f })}`);
-export const getReglasPuntaje = () => leer<ReglasPuntaje>(`/empresas/reglas`, 3600);
 export const getFichaEmpresa = (ruc: string) => (esRucEmpresa(ruc) ? leer<FichaEmpresa>(`/empresas/${ruc}`) : Promise.resolve(null));
 
 export type FiltrosContratosEmpresa = { q?: string; anio?: number; entidad?: string; como?: string; objeto?: string; familia?: string; departamento?: string; bandera?: string; orden?: string; page?: number; size?: number };

@@ -28,7 +28,6 @@ import { tipoContratacion } from "@/lib/personas";
 import { rutaContrato } from "@/lib/rutas";
 import {
   CORTO_EMPRESA,
-  NIVEL,
   OBJETO_TEXTO,
   esRucEmpresa,
   rutaEmpresa,
@@ -859,7 +858,7 @@ const COLUMNAS_SOCIOS: Columna[] = [
 const COLUMNAS_VINCULADAS: Columna[] = [
   { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1.4fr)" },
   { clave: "comun", titulo: "En común", ancho: "minmax(0,1.2fr)", desde: "md", apilar: true },
-  { clave: "puntaje", titulo: "Puntaje", ancho: "104px" },
+  { clave: "antecedentes", titulo: "Antecedentes", ancho: "132px" },
   { clave: "monto", titulo: "Recibió", ancho: "104px", alinear: "der", desde: "lg" },
 ];
 
@@ -902,12 +901,12 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
     href: rutaEmpresa(v.ruc),
     buscable: `${v.nombre ?? ""} ${v.ruc}`,
     valores: {
-      nivel: v.nivel ?? "no_vende",
+      antecedentes: !v.vende ? "no_vende" : v.graves > 0 ? "grave" : v.antecedentes > 0 ? "con" : "sin",
       vende: v.monto > 0 || v.contratos > 0 ? "si" : "no",
       inhabilitada: v.inhabilitada ? "si" : "no",
       papel: [...new Set(v.socios.flatMap((s) => s.roles))],
     },
-    claves: { puntaje: v.puntaje ?? -1, monto: v.monto, nombre: v.nombre ?? v.ruc, personas: v.socios.length },
+    claves: { monto: v.monto, nombre: v.nombre ?? v.ruc, personas: v.socios.length },
     celdas: {
       empresa: (
         <CeldaPrincipal
@@ -933,10 +932,15 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
           {v.socios.length > 3 && <li className="text-mute">{`y ${v.socios.length - 3} más`}</li>}
         </ul>
       ),
-      puntaje: v.puntaje != null && v.nivel ? (
-        <span className="text-[13px]"><b className="font-mono tabular-nums">{v.puntaje}</b> <span className="text-mute">{NIVEL[v.nivel].corto.toLowerCase()}</span></span>
-      ) : (
+      antecedentes: !v.vende ? (
         <span className="text-[13px] text-mute">No le vende al Estado</span>
+      ) : v.antecedentes ? (
+        <span className="flex flex-wrap items-center gap-1 text-[13px] text-ink">
+          {plural(v.antecedentes, "tipo", "tipos")}
+          {v.graves > 0 && <Badge variant="crimson">Alguno grave</Badge>}
+        </span>
+      ) : (
+        <span className="text-[13px] text-mute">Ninguno</span>
       ),
       monto: <CeldaNumero sub={v.contratos ? plural(v.contratos, "contrato", "contratos") : undefined}>{v.monto ? solesCompacto(v.monto) : <span className="font-sans text-mute">Nada</span>}</CeldaNumero>,
     },
@@ -984,17 +988,16 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
             buscar={{ placeholder: "Buscar empresa por nombre o RUC…", etiqueta: "Buscar en las empresas vinculadas" }}
             filtros={[
               {
-                clave: "nivel", etiqueta: "Su puntaje", corta: "Puntaje",
+                clave: "antecedentes", etiqueta: "Sus antecedentes", corta: "Antecedentes",
                 opciones: [
-                  { valor: "alto", etiqueta: "Muchos antecedentes" }, { valor: "medio", etiqueta: "Para revisar" },
-                  { valor: "bajo", etiqueta: "Pocos" }, { valor: "sin", etiqueta: "Sin antecedentes" }, { valor: "no_vende", etiqueta: "No le vende al Estado" },
+                  { valor: "grave", etiqueta: "Con alguno grave" }, { valor: "con", etiqueta: "Con antecedentes, ninguno grave" },
+                  { valor: "sin", etiqueta: "Sin antecedentes" }, { valor: "no_vende", etiqueta: "No le vende al Estado" },
                 ],
               },
               { clave: "papel", etiqueta: "Papel de la persona en común", corta: "Papel en común", opciones: [{ valor: "socio", etiqueta: "Socio" }, { valor: "representante legal", etiqueta: "Representante legal" }, { valor: "directivo", etiqueta: "Directivo" }] },
               { clave: "inhabilitada", etiqueta: "Inhabilitada hoy", corta: "Inhabilitada", opciones: [{ valor: "si", etiqueta: "Inhabilitada hoy" }, { valor: "no", etiqueta: "No inhabilitada" }] },
             ]}
             ordenes={[
-              { valor: "puntaje", etiqueta: "Más antecedentes", clave: "puntaje", dir: "desc" },
               { valor: "monto", etiqueta: "Más dinero recibido", clave: "monto", dir: "desc" },
               { valor: "personas", etiqueta: "Más personas en común", clave: "personas", dir: "desc" },
               { valor: "nombre", etiqueta: "Por nombre", clave: "nombre", dir: "asc" },

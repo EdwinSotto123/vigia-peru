@@ -2,21 +2,18 @@ import type { Metadata } from "next";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { ListaEmpresas } from "@/components/empresas/ListaEmpresas";
-import { TablaReglas } from "@/components/empresas/PuntajeEmpresa";
-import { getReglasPuntaje } from "@/lib/empresas";
 
 export const metadata: Metadata = { title: "Empresas" };
 export const revalidate = 600;
 
 /**
  * /app/empresas — las empresas (RUC 20) que le venden al Estado: lo que ganaron en contratos (solas y en consorcio), lo
- * que les compraron por órdenes, a cuántas entidades, y su puntaje de antecedentes (0 a 100) con lo que dicen otros
- * registros públicos. Buscador por nombre o RUC; filtros por nivel, antecedente, rubro, región, inhabilitadas y visitas.
+ * que les compraron por órdenes, a cuántas entidades, y lo que dicen de cada una otros registros públicos (sus
+ * antecedentes). Buscador por nombre o RUC; filtros por antecedentes, rubro, región, monto, inhabilitadas y visitas.
  * Cada fila abre /empresa/<RUC>.
  */
-export default async function EmpresasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default function EmpresasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const ruta = "/app/empresas";
-  const reglas = await getReglasPuntaje();
   return (
     <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Empresas", href: ruta }]} />
@@ -39,10 +36,9 @@ export default async function EmpresasPage({ searchParams }: { searchParams?: Re
         }
       />
       <ListaEmpresas sp={searchParams} ruta={ruta} />
-      <TablaReglas reglas={reglas} />
       <Aviso tono="neutro">
-        El puntaje no es una acusación ni prueba una falta: suma lo que otros registros públicos dicen de la empresa, para
-        saber qué revisar primero. Un dato con posible error de carga se muestra tal como lo publicó el Estado y no se suma.
+        Un antecedente no es una acusación ni prueba una falta: dice qué registro público nombra a la empresa, con su fuente.
+        Un dato con posible error de carga se muestra tal como lo publicó el Estado y no se suma.
       </Aviso>
     </Pagina>
   );

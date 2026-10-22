@@ -7,27 +7,25 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { CORTO_EMPRESA, OBJETO_TEXTO, rutaEmpresa, type EmpresaFila, type PaginaEmpresas } from "@/lib/empresas";
-import { PuntajeCelda } from "./PuntajeEmpresa";
 
 /**
- * Empresas en la `Tabla` del kit, una fila por empresa: quién es (RUC, dónde vende, qué vende), su puntaje de
- * antecedentes, sus antecedentes más pesados (banderas), lo que ganó en contratos y lo que le compraron por órdenes.
+ * Empresas en la `Tabla` del kit, una fila por empresa: quién es (RUC, dónde vende, qué vende), sus antecedentes en
+ * otros registros (banderas, los graves primero), lo que ganó en contratos y lo que le compraron por órdenes.
  * Cada fila abre la ficha de la empresa. Paginado por URL. Server-safe.
  */
 
 const COLUMNAS: Columna[] = [
   { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1.5fr)" },
   {
-    clave: "puntaje", titulo: "Puntaje", ancho: "112px",
+    clave: "antecedentes", titulo: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
     ayuda: (
-      <Ayuda titulo="¿Qué es el puntaje?">
-        De 0 a 100, cuánto pesa lo que otros registros públicos dicen de la empresa (sanciones, penalidades, vínculos con el
-        partido que gobierna, postores con el mismo socio, visitas antes de la buena pro…). Cada grupo tiene un tope. No es una
-        acusación.
+      <Ayuda titulo="¿Qué son los antecedentes?">
+        Lo que otros registros públicos dicen de la empresa: sanciones del Tribunal, penalidades, aportes y ventas a campañas,
+        socios que son autoridades, postores con el mismo socio, visitas antes de la buena pro. Son datos con su fuente, no
+        acusaciones: en la ficha, cada uno con su registro.
       </Ayuda>
     ),
   },
-  { clave: "antecedentes", titulo: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
   { clave: "contratos", titulo: "Contratos", ancho: "112px", alinear: "der", desde: "lg" },
   { clave: "ordenes", titulo: "Órdenes", ancho: "112px", alinear: "der" },
   { clave: "ultima", titulo: "Última", ancho: "92px", desde: "xl" },
@@ -112,7 +110,6 @@ export function filaDe(e: EmpresaFila): Fila {
           ]}
         />
       ),
-      puntaje: <PuntajeCelda puntaje={e.puntaje} nivel={e.nivel} />,
       antecedentes: <CrucesCelda cruces={e.cruces} etiquetas={CORTO_EMPRESA} />,
       // Lo que ganó sola; lo de consorcio es de todo el consorcio y sólo se cuenta.
       contratos: (

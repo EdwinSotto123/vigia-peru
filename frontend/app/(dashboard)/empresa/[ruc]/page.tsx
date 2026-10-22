@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
-import { DesglosePuntaje, MedidorPuntaje, TablaReglas } from "@/components/empresas/PuntajeEmpresa";
+import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana } from "@/components/empresas/InicioEmpresa";
 import {
   AntecedentesEmpresa,
@@ -41,7 +41,6 @@ import {
   getFichaEmpresa,
   getOrdenesEmpresa,
   getPostulacionesEmpresa,
-  getReglasPuntaje,
   getSociosEmpresa,
   getVisitasEmpresa,
   rutaEmpresa,
@@ -69,7 +68,8 @@ const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) 
 
 /**
  * /empresa/[RUC] — una empresa que le vende al Estado (migración 109). Pestañas (?seccion=):
- *   · Inicio: su puntaje de antecedentes con el desglose, lo que recibió año por año, sus datos y sus clientes principales.
+ *   · Inicio: lo que dicen de ella otros registros (por tipo), lo que recibió año por año, cómo gana, sus clientes, quién le
+ *     gana, dónde gana y sus datos.
  *   · Contratos: los procesos que ganó, sola o en consorcio, con banderas por fila (CONOSCE).
  *   · Órdenes: sus órdenes de compra y de servicio (CONOSCE).
  *   · Clientes: las entidades que le adjudicaron o le compraron.
@@ -80,7 +80,7 @@ const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) 
  */
 export default async function EmpresaPage({ params, searchParams: sp }: { params: { ruc: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   if (!esRucEmpresa(params.ruc)) notFound();
-  const [f, reglas] = await Promise.all([getFichaEmpresa(params.ruc), getReglasPuntaje()]);
+  const f = await getFichaEmpresa(params.ruc);
   if (!f) return <NoSePudoLeer ruc={params.ruc} />;
   const e = f.empresa;
   const ruta = rutaEmpresa(e.ruc);
@@ -219,7 +219,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           {
             clave: "inicio",
             etiqueta: "Inicio",
-            contenido: <Inicio f={f} ruta={ruta} reglas={reglas} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
+            contenido: <Inicio f={f} ruta={ruta} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
           },
           {
             clave: "contratos",
@@ -338,8 +338,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         ]}
       />
       <Aviso tono="neutro">
-        El puntaje y los antecedentes no son una acusación ni prueban una falta: dicen qué registros públicos coinciden con la
-        empresa, para que alguien lo revise. Un dato con posible error de carga se muestra tal como lo publicó el Estado.
+        Los antecedentes no son una acusación ni prueban una falta: dicen qué registros públicos coinciden con la empresa,
+        para que alguien lo revise. Un dato con posible error de carga se muestra tal como lo publicó el Estado.
       </Aviso>
     </Pagina>
   );
@@ -376,14 +376,12 @@ function indicadores(f: FichaEmpresa, ruta: string): Indicador[] {
 async function Inicio({
   f,
   ruta,
-  reglas,
   contratos,
   clientes,
   postulaciones,
 }: {
   f: FichaEmpresa;
   ruta: string;
-  reglas: Awaited<ReturnType<typeof getReglasPuntaje>>;
   contratos: ReturnType<typeof getContratosEmpresa>;
   clientes: ReturnType<typeof getClientesEmpresa>;
   postulaciones: ReturnType<typeof getPostulacionesEmpresa>;
@@ -391,22 +389,18 @@ async function Inicio({
   const e = f.empresa;
   return (
     <div className="space-y-5">
-      <CabeceraPestana>Su puntaje de antecedentes, lo que recibió del Estado cada año y sus datos.</CabeceraPestana>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <MedidorPuntaje puntaje={e.puntaje} nivel={e.nivel} reglas={reglas} />
-        <section className="min-w-0 space-y-3" aria-labelledby="desglose-titulo">
-          <h3 id="desglose-titulo" className="font-display text-[15px] font-bold text-ink">De dónde salen sus puntos</h3>
-          {f.antecedentes.length ? (
-            <DesglosePuntaje grupos={f.antecedentes} verTodo={`${ruta}?seccion=antecedentes`} />
-          ) : (
-            <EstadoVacio compacto titulo="Ningún otro registro la nombra">
-              No figura en las sanciones del Tribunal, las penalidades, los aportes y gastos de campaña, las autoridades y
-              candidatos, ni en los demás cruces de Vigía.
-            </EstadoVacio>
+      <CabeceraPestana>Lo que dicen de ella otros registros públicos, lo que recibió del Estado cada año y sus datos.</CabeceraPestana>
+      <section className="space-y-2.5" aria-labelledby="antecedentes-titulo">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 id="antecedentes-titulo" className="font-display text-[15px] font-bold text-ink">Lo que dicen otros registros</h3>
+          {f.antecedentes.length > 0 && (
+            <Link href={`${ruta}?seccion=antecedentes`} className="text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+              Ver cada antecedente con su fuente
+            </Link>
           )}
-        </section>
-      </div>
-      <TablaReglas reglas={reglas} />
+        </div>
+        <ResumenAntecedentes antecedentes={f.antecedentes} ruta={ruta} />
+      </section>
       <AniosEmpresa anual={f.anual} nombre={e.nombre} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruta={ruta} /></Suspense>

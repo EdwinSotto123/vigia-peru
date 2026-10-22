@@ -7,7 +7,6 @@ import {
   ACTIVIDADES,
   CORTO_EMPRESA,
   MONTOS_MIN,
-  NIVEL,
   OBJETO_TEXTO,
   ORDENES_EMPRESAS,
   filtrosEmpresasDeUrl,
@@ -23,7 +22,7 @@ const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /**
- * El directorio de empresas: cifras, barra de filtros (buscador por nombre o RUC, nivel del puntaje, antecedente, lo que
+ * El directorio de empresas: cifras, barra de filtros (buscador por nombre o RUC, si tiene antecedentes, cuál, lo que
  * vende, región, inhabilitadas, con visitas) y la tabla. Los filtros van en la URL. Server component: cifras, barra y
  * tabla esperan la misma página (`Suspense`).
  */
@@ -31,10 +30,10 @@ export function ListaEmpresas({ sp, ruta }: { sp: Busqueda; ruta: string }) {
   const f = filtrosEmpresasDeUrl(sp);
   const paginaP = getEmpresas({ ...f, size: TAM });
   const parametros: Parametros = {
-    q: f.q, nivel: f.nivel, tipo: f.tipo, departamento: f.departamento, objeto: f.objeto, inhabilitada: f.inhabilitada, visitas: f.visitas,
+    q: f.q, antecedentes: f.antecedentes, tipo: f.tipo, departamento: f.departamento, objeto: f.objeto, inhabilitada: f.inhabilitada, visitas: f.visitas,
     montoMin: f.montoMin, actividad: f.actividad, vinculadas: f.vinculadas, entidad: f.entidad, orden: f.orden,
   };
-  const filtrada = !!(f.q || f.nivel || f.tipo || f.departamento || f.objeto || f.inhabilitada || f.visitas || f.montoMin || f.actividad || f.vinculadas || f.entidad);
+  const filtrada = !!(f.q || f.antecedentes || f.tipo || f.departamento || f.objeto || f.inhabilitada || f.visitas || f.montoMin || f.actividad || f.vinculadas || f.entidad);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
@@ -64,7 +63,6 @@ async function BarraConConteos({ pagina, entidad }: { pagina: Promise<PaginaEmpr
 }
 
 function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entidad: { ruc: string; nombre: string | null } | null }) {
-  const n = (k: keyof typeof NIVEL) => r?.porNivel?.[k] ?? (r ? 0 : null);
   const visibles: FiltroSecundario[] = [
     {
       param: "tipo",
@@ -105,21 +103,20 @@ function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entid
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar por nombre o RUC…", etiqueta: "Buscar empresas por nombre o RUC", min: 3 }}
       faceta={{
-        param: "nivel",
-        etiqueta: "Puntaje",
+        param: "antecedentes",
+        etiqueta: "Antecedentes",
         todas: "Todas",
         conteoTodas: r?.empresas ?? null,
         nombreEnChip: false,
         opciones: [
-          { valor: "alto", etiqueta: "Muchos antecedentes", conteo: n("alto"), tono: "alta", icono: "alerta" },
-          { valor: "medio", etiqueta: "Para revisar", conteo: n("medio"), tono: "media", icono: "atencion" },
-          { valor: "bajo", etiqueta: "Pocos", conteo: n("bajo") },
-          { valor: "sin", etiqueta: "Sin antecedentes", conteo: n("sin") },
+          { valor: "con", etiqueta: "Con antecedentes", conteo: r?.conAntecedentes ?? null },
+          { valor: "grave", etiqueta: "Con alguno grave", conteo: r?.conGrave ?? null, tono: "alta", icono: "alerta" },
+          { valor: "sin", etiqueta: "Sin antecedentes", conteo: r ? r.empresas - r.conAntecedentes : null },
         ],
       }}
       visibles={visibles}
       filtros={filtros}
-      orden={{ param: "orden", porDefecto: "puntaje", opciones: ORDENES_EMPRESAS.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
+      orden={{ param: "orden", porDefecto: "monto", opciones: ORDENES_EMPRESAS.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
     />
   );
 }
@@ -149,11 +146,10 @@ function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador
         : "en contratos y órdenes",
     },
     {
-      valor: numero(r.porNivel.alto ?? 0),
-      etiqueta: "con muchos antecedentes",
-      contexto: `50 puntos o más; ${numero(r.porNivel.medio ?? 0)} más para revisar`,
-      tono: (r.porNivel.alto ?? 0) > 0 ? "alta" : "neutro",
-      href: href({ nivel: "alto" }),
+      valor: numero(r.conAntecedentes),
+      etiqueta: "con antecedentes",
+      contexto: `en otros registros públicos; ${numero(r.conGrave)} con alguno grave`,
+      href: href({ antecedentes: "con" }),
     },
     {
       valor: numero(r.inhabilitadas),

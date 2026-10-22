@@ -8,16 +8,17 @@ import { publicar } from "../lib/privacidad.js";
 import { conEnie, palabrasBusqueda } from "./personas.js";
 
 /**
- * Empresas (migración 109): cada RUC 20 que ganó, postuló o recibió órdenes del Estado, con su puntaje de antecedentes
- * (0 a 100, con su desglose y sus reglas). Las personas naturales (RUC 10) no están acá: van en /personas.
+ * Empresas (migraciones 109 y 112): cada RUC 20 que ganó, postuló o recibió órdenes del Estado, y lo que otros registros
+ * públicos dicen de ella (sus antecedentes, como hechos: qué registro, cuántas veces, con qué gravedad, y su fuente). Sin
+ * puntaje: el usuario lo sacó (2026-10-22, «tiene mucho sesgo y parece acusación»). Las personas naturales (RUC 10) no
+ * están acá: van en /personas.
  *
  * Privacidad (docs/PRIVACIDAD.md): la razón social y el RUC de una empresa son públicos y se buscan. Sus socios,
  * representantes y directivos son personas: salen bajo `socios` y `visitas` (papeles que publicar() reconoce y les
  * tapa un apellido) y nunca con su documento.
  *
  *   GET /empresas                       lista paginada: buscador (nombre o RUC), filtros, orden y el resumen
- *   GET /empresas/reglas                las reglas del puntaje (grupos, topes y puntos por antecedente)
- *   GET /empresas/:ruc                  la ficha: resumen, desglose del puntaje, año por año
+ *   GET /empresas/:ruc                  la ficha: resumen, sus antecedentes por tipo, año por año
  *   GET /empresas/:ruc/contratos        procesos que ganó, sola o en consorcio (CONOSCE)
  *   GET /empresas/:ruc/ordenes          órdenes de compra y de servicio (CONOSCE)
  *   GET /empresas/:ruc/clientes         las entidades que le adjudicaron o le compraron
@@ -33,7 +34,6 @@ const listaMemo = new Memo<Record<string, unknown>>({ nombre: "empresas:lista", 
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "empresas:ficha", ttlMs: 600_000, staleMs: 600_000, max: 600 });
 
 export const RUC_EMPRESA = /^20\d{9}$/;
-export const NIVELES = ["alto", "medio", "bajo", "sin"] as const;
 export const OBJETOS = ["Bien", "Servicio", "Obra", "Consultoría de Obra"] as const;
 /** Soles en CONOSCE: "Soles" y, en los años viejos, "Nuevos Soles". */
 const SOLES = `('Soles', 'Nuevos Soles')`;
@@ -45,7 +45,8 @@ const sinVacios = (c: Parameters<typeof parametros>[0]) =>
 const Lista = z.object({
   // El nombre (palabras) o el RUC (sus primeras cifras).
   q: z.string().trim().min(2).max(80).optional(),
-  nivel: z.enum([...NIVELES, "con"]).optional(),
+  // Con antecedentes en otros registros, con alguno grave (inhabilitación, partido que gobierna…) o sin ninguno.
+  antecedentes: z.enum(["con", "grave", "sin"]).optional(),
   tipo: z.string().regex(/^[a-z_]{2,40}$/).optional(),
   departamento: z.string().trim().min(2).max(40).optional(),
   objeto: z.enum(OBJETOS).optional(),
@@ -57,7 +58,7 @@ const Lista = z.object({
   vinculadas: z.enum(["si"]).optional(),
   // Las que le vendieron a esta entidad (contratos u órdenes): lo pide la ficha de la entidad.
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  orden: z.enum(["puntaje", "monto", "contratos", "ordenes", "reciente", "nombre"]).default("puntaje"),
+  orden: z.enum(["monto", "contratos", "ordenes", "reciente", "nombre"]).default("monto"),
   page: z.coerce.number().int().min(1).max(5000).default(1),
   size: z.coerce.number().int().min(0).max(50).default(20),
 });
@@ -66,7 +67,6 @@ type ListaQ = z.infer<typeof Lista>;
 /** Lo que recibió: contratos que ganó sola y órdenes. Lo ganado en consorcio es de todo el consorcio: no se suma (índice de la migración 109). */
 const MONTO = `(e.adj_monto + e.ord_monto)`;
 const ORDEN: Record<ListaQ["orden"], string> = {
-  puntaje: `e.puntaje DESC, ${MONTO} DESC`,
   monto: `${MONTO} DESC`,
   contratos: `(e.adj_procesos + e.cons_procesos) DESC, ${MONTO} DESC`,
   ordenes: `e.ord_n DESC, ${MONTO} DESC`,
@@ -86,8 +86,9 @@ function filtros(q: ListaQ): { conds: string[]; vals: unknown[] } {
     if (/^\d{3,11}$/.test(cifras)) conds.push(`e.ruc LIKE ${p(`${cifras}%`)}`);
     else for (const w of palabrasBusqueda(q.q)) conds.push(`e.texto LIKE ${p(`%${w}%`)}`);
   }
-  if (q.nivel === "con") conds.push(`e.puntaje > 0`);
-  else if (q.nivel) conds.push(`e.nivel = ${p(q.nivel)}`);
+  if (q.antecedentes === "con") conds.push(`cardinality(e.tipos) > 0`);
+  else if (q.antecedentes === "grave") conds.push(`e.n_alta > 0`);
+  else if (q.antecedentes === "sin") conds.push(`cardinality(e.tipos) = 0`);
   if (q.tipo) conds.push(`e.tipos @> ${p([q.tipo])}::text[]`);
   if (q.departamento) conds.push(`e.departamento = ${p(norm(q.departamento))}`);
   if (q.objeto) conds.push(`e.objeto = ${p(q.objeto)}`);
@@ -112,16 +113,13 @@ export const FILA_EMPRESA = `e.ruc, e.nombre, e.departamento, e.objeto, e.estado
   e.adj_dudosos AS "adjDudosos", e.ord_n AS "ordN", e.ord_monto::float AS "ordMonto", e.ord_dudosas AS "ordDudosas",
   e.entidades, e.postulaciones, e.ganadas, to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.ultima, 'YYYY-MM-DD') AS ultima,
   e.visitas, e.inhabilitada, to_char(e.inhabilitada_hasta, 'YYYY-MM-DD') AS "inhabilitadaHasta",
-  e.puntaje, e.nivel, e.tipos, e.n_alta AS "nAlta", e.n_media AS "nMedia", e.n_baja AS "nBaja",
-  COALESCE((SELECT jsonb_agg(jsonb_build_object('tipo', t.tipo, 'severidad', (ARRAY['alta', 'media', 'baja'])[t.r + 1]) ORDER BY t.r, t.pts DESC)
-              FROM (SELECT c->>'tipo' AS tipo, min(CASE c->>'severidad' WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS r,
-                           sum((c->>'puntos')::numeric) AS pts
-                      FROM jsonb_array_elements(e.antecedentes) g, jsonb_array_elements(g->'cruces') c GROUP BY 1) t), '[]') AS cruces`;
+  e.tipos, e.n_alta AS "nAlta", e.n_media AS "nMedia", e.n_baja AS "nBaja",
+  e.cruces`;  // [{tipo, severidad, n}]: cada tipo de antecedente con su gravedad más alta y cuántos registros (migración 112)
 
 async function resumen(conds: string[], vals: unknown[]) {
   const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const r = await pool.query(
-    `WITH s AS MATERIALIZED (SELECT e.ruc, e.nivel, e.tipos, e.departamento, e.objeto, e.inhabilitada, e.visitas, e.adj_monto, e.cons_monto,
+    `WITH s AS MATERIALIZED (SELECT e.ruc, e.n_alta, e.tipos, e.departamento, e.objeto, e.inhabilitada, e.visitas, e.adj_monto, e.cons_monto,
                                     e.ord_monto, e.adj_dudosos, e.adj_monto_dudoso, e.ord_dudosas, e.ord_monto_dudoso
                                FROM empresa_resumen e ${donde})
      SELECT (SELECT count(*) FROM s)::int AS empresas,
@@ -132,7 +130,8 @@ async function resumen(conds: string[], vals: unknown[]) {
             (SELECT count(*) FROM s WHERE visitas > 0)::int AS "conVisitas",
             (SELECT jsonb_build_object('procesos', COALESCE(sum(adj_dudosos), 0), 'monto', COALESCE(sum(adj_monto_dudoso), 0),
                                        'ordenes', COALESCE(sum(ord_dudosas), 0), 'montoOrdenes', COALESCE(sum(ord_monto_dudoso), 0)) FROM s) AS dudosos,
-            COALESCE((SELECT jsonb_object_agg(nivel, n) FROM (SELECT nivel, count(*)::int AS n FROM s GROUP BY 1) x), '{}') AS "porNivel",
+            (SELECT count(*) FROM s WHERE cardinality(tipos) > 0)::int AS "conAntecedentes",
+            (SELECT count(*) FROM s WHERE n_alta > 0)::int AS "conGrave",
             COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT t AS tipo, count(*)::int AS n FROM s, unnest(s.tipos) t GROUP BY t) x), '[]') AS "porTipo",
             COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT departamento, count(*)::int AS n FROM s WHERE departamento IS NOT NULL GROUP BY 1) x), '[]') AS "porDepartamento",
             COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT objeto, count(*)::int AS n FROM s WHERE objeto IS NOT NULL GROUP BY 1) x), '[]') AS "porObjeto"`,
@@ -165,41 +164,18 @@ empresasRouter.get("/", async (c) => {
 
 const conNombre = <T extends { nombre?: string | null }>(f: T): T => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre });
 
-// ─── GET /empresas/reglas ───────────────────────────────────────────────────────────────────────
-empresasRouter.get("/reglas", async (c) => {
-  const cuerpo = await fichaMemo.obtener("reglas", async () => {
-    const [g, r] = await Promise.all([
-      pool.query(`SELECT grupo, titulo, explica, tope FROM empresa_puntaje_grupo ORDER BY orden`),
-      pool.query(`SELECT tipo, severidad, grupo, puntos::float AS puntos FROM empresa_puntaje_regla ORDER BY grupo, tipo,
-                         CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`),
-    ]);
-    return {
-      niveles: [
-        { nivel: "alto", desde: 50 }, { nivel: "medio", desde: 20 }, { nivel: "bajo", desde: 1 }, { nivel: "sin", desde: 0 },
-      ],
-      grupos: g.rows.map((x) => ({
-        ...x,
-        reglas: r.rows.filter((y) => y.grupo === x.grupo).map((y) => ({ tipo: y.tipo, severidad: y.severidad, puntos: y.puntos, etiqueta: ETIQUETA_CRUCE[y.tipo] ?? y.tipo })),
-      })),
-    };
-  });
-  c.header("Cache-Control", CACHE);
-  return c.json(cuerpo);
-});
-
 // ─── GET /empresas/:ruc ─────────────────────────────────────────────────────────────────────────
 empresasRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!RUC_EMPRESA.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await fichaMemo.obtener(`ficha:${ruc}`, async () => {
-    const [e, grupos, anual] = await Promise.all([
+    const [e, anual] = await Promise.all([
       pool.query(
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
                 e.actividad, e.socios, e.representantes, e.directivos, e.vinculadas, e.visitas_clientes AS "visitasClientes",
-                e.antecedentes, to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado
+                to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado
            FROM empresa_resumen e WHERE e.ruc = $1`, [ruc]),
-      pool.query(`SELECT grupo, titulo, explica, tope FROM empresa_puntaje_grupo ORDER BY orden`),
       // Año por año: lo adjudicado (sola y en consorcio, en soles y sin lo dudoso) y lo pagado por órdenes.
       pool.query(
         `WITH a AS (
@@ -235,13 +211,10 @@ empresasRouter.get("/:ruc", async (c) => {
     ]);
     const fila = e.rows[0];
     if (!fila) return null;
-    const titulo = new Map(grupos.rows.map((g) => [g.grupo, g]));
-    const antecedentes = (fila.antecedentes as { grupo: string; puntos: number; tope: number; cruces: { tipo: string; severidad: string; n: number; puntos: number }[] }[])
-      .map((g) => ({
-        ...g, puntos: Number(g.puntos), titulo: titulo.get(g.grupo)?.titulo ?? g.grupo, explica: titulo.get(g.grupo)?.explica ?? null,
-        cruces: g.cruces.map((x) => ({ ...x, puntos: Number(x.puntos), etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo })),
-      }));
-    return publicar({ empresa: conNombre({ ...fila, antecedentes: undefined }), antecedentes, anual: anual.rows });
+    // Sus antecedentes por tipo: qué registro la nombra, cuántas veces y con qué gravedad (sin puntos ni puntaje).
+    const antecedentes = ((fila.cruces as { tipo: string; severidad: string; n: number }[] | null) ?? [])
+      .map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo }));
+    return publicar({ empresa: conNombre(fila), antecedentes, anual: anual.rows });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
@@ -735,9 +708,8 @@ empresasRouter.get("/:ruc/antecedentes", async (c) => {
     // Cada cruce con su fuente; si es de un proceso, el código y la entidad para abrir su ficha (allí está la evidencia).
     const r = await pool.query(
       `SELECT p.tipo, p.ruc_empresa, p.ocid, p.severidad, p.fecha, p.monto, p.persona_nombre, p.persona_rol, p.detalle, p.fuente, p.fuente_url,
-              r.grupo, r.puntos::float AS puntos, cv.codigo, cv.entidad
+              cv.codigo, cv.entidad
          FROM cruces_proveedor p
-         LEFT JOIN empresa_puntaje_regla r ON r.tipo = p.tipo AND r.severidad = p.severidad
          LEFT JOIN LATERAL (SELECT c.codigo, e.nombre AS entidad FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
                              WHERE p.ocid IS NOT NULL AND c.ocid = p.ocid LIMIT 1) cv ON true
         WHERE p.ruc_empresa = $1
@@ -745,7 +717,7 @@ empresasRouter.get("/:ruc/antecedentes", async (c) => {
         LIMIT 2000`, [ruc]);
     return publicar({
       total: r.rows.length,
-      data: r.rows.map((x) => ({ ...aCruce(x), grupo: x.grupo ?? null, puntos: x.puntos ?? 0, codigo: x.codigo ?? null, entidad: x.entidad ?? null })),
+      data: r.rows.map((x) => ({ ...aCruce(x), codigo: x.codigo ?? null, entidad: x.entidad ?? null })),
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
@@ -786,18 +758,19 @@ empresasRouter.get("/:ruc/socios", async (c) => {
              JOIN rnp_conformacion_juridica r2 ON r2.numero_documento = r1.numero_documento AND r2.ruc_empresa <> r1.ruc_empresa
             WHERE r1.ruc_empresa = $1 AND r2.ruc_empresa LIKE '20%'
             GROUP BY 1, 2)
-         SELECT par.ruc, e.nombre, e.puntaje, e.nivel, e.inhabilitada, (e.adj_monto + e.ord_monto)::float AS monto,
+         SELECT par.ruc, e.nombre, cardinality(e.tipos) AS antecedentes, e.n_alta AS graves, e.inhabilitada, (e.adj_monto + e.ord_monto)::float AS monto,
+                e.ruc IS NOT NULL AS vende,
                 (e.adj_procesos + e.cons_procesos) AS contratos,
                 jsonb_agg(jsonb_build_object('nombre', par.nombre, 'aqui', par.aqui, 'alla', par.alla) ORDER BY par.nombre) AS socios
            FROM par LEFT JOIN empresa_resumen e ON e.ruc = par.ruc
-          GROUP BY par.ruc, e.nombre, e.puntaje, e.nivel, e.inhabilitada, e.adj_monto, e.ord_monto, e.adj_procesos, e.cons_procesos
-          ORDER BY COALESCE(e.puntaje, 0) DESC, COALESCE(e.adj_monto + e.ord_monto, 0) DESC
+          GROUP BY par.ruc, e.ruc, e.nombre, e.tipos, e.n_alta, e.inhabilitada, e.adj_monto, e.ord_monto, e.adj_procesos, e.cons_procesos
+          ORDER BY COALESCE(e.adj_monto + e.ord_monto, 0) DESC, par.ruc
           LIMIT 500`, [ruc]),
       // Las empresas de las que esta es socia.
       pool.query(
-        `SELECT r.ruc_empresa::text AS ruc, e.nombre, e.puntaje, e.nivel, array_agg(DISTINCT r.tipo_rol) AS roles
+        `SELECT r.ruc_empresa::text AS ruc, e.nombre, array_agg(DISTINCT r.tipo_rol) AS roles
            FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen e ON e.ruc = r.ruc_empresa::text
-          WHERE r.numero_documento = $1 GROUP BY r.ruc_empresa, e.nombre, e.puntaje, e.nivel ORDER BY e.nombre`, [ruc]),
+          WHERE r.numero_documento = $1 GROUP BY r.ruc_empresa, e.nombre ORDER BY e.nombre`, [ruc]),
     ]);
     const roles = (rs: string[] | null) => (rs ?? []).map((x) => ROL[x] ?? x.toLowerCase().replace(/_/g, " "));
     return publicar({
@@ -807,7 +780,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
       sociaDe: sociaDe.rows.map((s) => ({ ...s, roles: roles(s.roles) })),
       corte: socios.rows[0]?.corte ?? null,
       vinculadas: vinculadas.rows.map((v) => ({
-        ruc: v.ruc, nombre: v.nombre ?? null, puntaje: v.puntaje ?? null, nivel: v.nivel ?? null, inhabilitada: v.inhabilitada ?? null,
+        ruc: v.ruc, nombre: v.nombre ?? null, vende: v.vende === true, antecedentes: v.antecedentes ?? 0, graves: v.graves ?? 0, inhabilitada: v.inhabilitada ?? null,
         monto: v.monto ?? 0, contratos: v.contratos ?? 0,
         socios: (v.socios as { nombre: string; aqui: string[]; alla: string[] }[]).map((s) => ({ nombre: s.nombre, roles: roles(s.aqui), rolesAlla: roles(s.alla) })),
       })),

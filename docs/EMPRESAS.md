@@ -1,8 +1,8 @@
-# Empresas y su puntaje de antecedentes
+# Empresas y sus antecedentes
 
 Cada empresa (RUC 20) que **ganó, postuló o recibió órdenes** del Estado desde 2018 tiene su ficha: lo que le
 adjudicaron y le compraron, a qué entidades, en qué procesos compitió, quién está detrás (RNP), las visitas de su gente
-a entidades públicas y su **puntaje de antecedentes** (0 a 100). Las personas naturales que le venden al Estado (RUC 10)
+a entidades públicas y lo que otros registros públicos dicen de ella (sus **antecedentes**, cada uno con su fuente). Las personas naturales que le venden al Estado (RUC 10)
 no están acá: van en «Personas contratadas» ([PERSONAS.md](PERSONAS.md)) con sus reglas de privacidad.
 
 En la web: `/app/empresas` (directorio con buscador por nombre o RUC y filtros) y `/empresa/<RUC>` (la ficha, con
@@ -18,7 +18,7 @@ Cada lista tiene buscador y filtros con cuántos registros tiene cada opción, y
 | Contratos | banderas (inhabilitada al ganar, sancionada antes o después, con antecedentes, posible error de carga, sin banderas), año, entidad, tipo de proceso (en familias), rubro, región, sola o en consorcio | API |
 | Órdenes | año, entidad, tipo, región, estado, posible error de carga | API |
 | Postulaciones | resultado, año, entidad, quién le ganó, rubro | API |
-| Clientes, Visitas, Empresas vinculadas | región, qué le dio, entidad visitada, quién fue, qué pasó después, puntaje, papel en común… | en la página (`TablaFiltrable`) |
+| Clientes, Visitas, Empresas vinculadas | región, qué le dio, entidad visitada, quién fue, qué pasó después, sus antecedentes, papel en común… | en la página (`TablaFiltrable`) |
 | Antecedentes | tipo y gravedad | en el servidor de la web |
 
 La lista de empresas filtra además por lo que recibió (desde S/ 100 mil hasta S/ 100 millones), cómo le vende al
@@ -63,32 +63,14 @@ Todo queda en `empresa_resumen` (una fila por empresa), migración 109.
   la ficha dice además qué le dio después de la visita y cuántos días después.
 - **Empresas vinculadas**: otras empresas con un mismo socio, representante o directivo en el RNP.
 
-## El puntaje de antecedentes
+## Antecedentes, sin puntaje
 
-No es una acusación: dice cuánto pesa lo que otros registros públicos dicen de la empresa, para saber qué revisar
-primero. Cada antecedente suma puntos según su gravedad (`empresa_puntaje_regla`), los antecedentes se juntan en grupos
-y **cada grupo tiene un tope** (`empresa_puntaje_grupo`): diez penalidades no pesan lo que una inhabilitación. El total
-llega como máximo a 100. La misma venta o aporte no cuenta dos veces (si ya está como «partido que gobierna», la
-genérica no suma).
-
-| Grupo | Tope | Antecedentes (grave / para revisar / leve) |
-|---|---|---|
-| Ganó estando inhabilitada | 40 | `sancion_vigente` 40 / 20 / 10 |
-| Sanciones del Tribunal | 24 | `sancion` 12 / 6 / 2 |
-| Penalidades | 12 | `penalidad` 4 / 3 / 1 |
-| Vínculo con el partido que gobierna la entidad | 30 | `partido_gobernante` 15 / 8 / 3, `vendio_gobernante` 10 / 6 / 2 |
-| Autoridades y candidatos | 20 | `autoridad` 15 / 8 / 3, `candidato` 6 / 4 / 1 |
-| Aportes y ventas a campañas | 8 | `aporte` y `aporte_empresa` 4 / 3 / 1, `proveedor_campana` 3 / 2 / 1 |
-| Postores relacionados | 25 | `socio_comun` y `otro_postor` 10 / 5 / 2 |
-| Visitas antes de la buena pro | 16 | `visita_previa` 10 / 4 / 1 |
-| Órdenes partidas | 15 | `fraccionamiento` 6 / 3 / 1 |
-| Precios altos | 15 | `sobreprecio` 6 / 3 / 1 |
-| Adicionales y prórrogas | 8 | `adicional` 4 / 2 / 1 |
-| Proveedor frecuente | 4 | `recurrente` 2 / 1 / 0 |
-
-Niveles: **50 o más**, muchos antecedentes; **20 a 49**, para revisar; **1 a 19**, pocos; **0**, sin antecedentes.
-Cambiar un peso o un tope es un `UPDATE` en esas dos tablas y un `refrescar_empresas()`: la web lee las reglas de la API
-(`GET /empresas/reglas`) y las muestra en «¿Cómo se calcula?».
+Hasta el 2026-10-22 la ficha tenía un «puntaje de antecedentes» de 0 a 100 (migración 109): puntos por tipo de
+antecedente con topes elegidos por Vigía. El usuario lo sacó («tiene mucho sesgo y parece acusación»; migraciones 112 y
+113). Queda lo que es un dato: cada tipo de antecedente (`empresa_resumen.cruces`) con su gravedad más alta, cuántos
+registros y, en la pestaña Antecedentes, cada caso con su fuente. La lista se ordena por lo recibido (no por
+antecedentes) y filtra por «con antecedentes», «con alguno grave» o «sin antecedentes». La gravedad es la del registro
+(una inhabilitación es grave), no un juicio sobre la empresa.
 
 ## Privacidad
 
@@ -102,15 +84,14 @@ Dos funciones, cada una por debajo de los 10 minutos de Hyperdrive, que el Worke
 casos cruzados (`refrescarCasosCruce` en `backend/scrapers-worker/src/fuentes/comun.ts`):
 
 1. `refrescar_empresa_ordenes()`: las órdenes a RUC 20 desde 2018, agrupadas por empresa, entidad y año.
-2. `refrescar_empresas()`: el resumen, el puntaje y las visitas.
+2. `refrescar_empresas()`: el resumen, sus antecedentes por tipo y las visitas.
 
 A mano: `SELECT refrescar_empresa_ordenes(); SELECT refrescar_empresas();` como `vigia_jobs`.
 
 ## API
 
 ```
-GET /empresas?q=&nivel=alto|medio|bajo|sin|con&tipo=<cruce>&departamento=&objeto=&inhabilitada=si&visitas=si&orden=&page=&size=
-GET /empresas/reglas
+GET /empresas?q=&antecedentes=con|grave|sin&tipo=<cruce>&departamento=&objeto=&inhabilitada=si&visitas=si&orden=&page=&size=
 GET /empresas/:ruc
 GET /empresas/:ruc/contratos?q=&anio=&entidad=&como=sola|consorcio&page=&size=
 GET /empresas/:ruc/ordenes?q=&anio=&entidad=&tipo=compra|servicio&dudosa=si&page=&size=
