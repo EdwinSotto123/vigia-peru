@@ -15,7 +15,9 @@
 import type { ReactNode } from "react";
 import { PersonName, Ruc } from "@/components/Redact";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, ListaPaginada, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
@@ -26,7 +28,7 @@ import {
   type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
-import { Partes, Separador } from "@/components/ui/Partes";
+import { Partes } from "@/components/ui/Partes";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
@@ -146,28 +148,16 @@ function SeccionItems({ c }: { c: Detalle }) {
           <CeldaPrincipal
             titulo={it.descripcion ?? "Sin descripción"}
             meta={
-              <>
-                <Partes partes={[`Ítem ${it.posicion}`, it.cubso && `CUBSO ${it.cubso}`]} />
-                {/* Debajo de lg la columna Cantidad no entra (con precios, nunca): la cantidad va en la meta. */}
-                {cantidad && (
-                  <span className={conPrecio ? undefined : "lg:hidden"}>
-                    <Separador />
-                    {cantidad}
-                  </span>
-                )}
-                {conPrecio && it.montoPen != null && (
-                  <span>
-                    <Separador />
-                    {monto(it.montoPen, c.moneda)} referencial
-                  </span>
-                )}
-                {conPrecio && it.estado && (
-                  <span>
-                    <Separador />
-                    {humanizarCodigo(it.estado)}
-                  </span>
-                )}
-              </>
+              <Partes
+                partes={[
+                  <Dato key="n" icono={ListOrdered} nombre="Número de ítem">Ítem {it.posicion}</Dato>,
+                  it.cubso && <Dato key="cubso" icono={Tag} nombre="Código CUBSO">CUBSO <span className="font-mono tabular-nums">{it.cubso}</span></Dato>,
+                  // Debajo de lg la columna Cantidad no entra (con precios, nunca): la cantidad va en la meta.
+                  cantidad && <Dato key="cant" icono={Package} nombre="Cantidad" className={conPrecio ? undefined : "lg:hidden"}>{cantidad}</Dato>,
+                  conPrecio && it.montoPen != null && <Dato key="ref" icono={Coins} nombre="Valor referencial">{monto(it.montoPen, c.moneda)} referencial</Dato>,
+                  conPrecio && it.estado && <Dato key="estado" icono={CircleDot} nombre="Estado">{humanizarCodigo(it.estado)}</Dato>,
+                ]}
+              />
             }
           />
         ),
@@ -176,12 +166,20 @@ function SeccionItems({ c }: { c: Detalle }) {
         unitario: it.precio ? <PrecioUnidad p={it.precio} unidad={it.unidad} /> : undefined,
         frente: it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-[12px] text-mute">Sin con qué comparar</span> : undefined,
       },
+      buscable: [it.descripcion, `item ${it.posicion}`, it.cubso && `cubso ${it.cubso}`, it.estado && humanizarCodigo(it.estado)].filter(Boolean).join(" "),
     };
   });
   return (
     <>
       {c.items.length ? (
-        <Tabla columnas={columnas} filas={filas} etiqueta="Ítems del proceso según el registro OCDS" />
+        <TablaPaginada
+          columnas={columnas}
+          filas={filas}
+          etiqueta="Ítems del proceso según el registro OCDS"
+          nombre="ítems"
+          tam={20}
+          buscar={{ placeholder: "Buscar en los ítems por descripción o CUBSO…", etiqueta: "Buscar en los ítems del proceso" }}
+        />
       ) : (
         <Vacio>El registro OCDS no trae ítems para este proceso.</Vacio>
       )}
@@ -224,7 +222,7 @@ function FrenteOtras({ p }: { p: NonNullable<Detalle["items"][number]["precio"]>
         <circle cx={x(precio)} cy={7} r={4.5} className={`${tono} stroke-paper`} strokeWidth={1.5} />
       </svg>
       <span className="mt-0.5 block text-[11.5px] text-mute">
-        {texto} · {k.base === "adjudicado" ? "pagado" : "presupuestado"} en {numero(k.entidades)} entidades
+        {texto} de lo {k.base === "adjudicado" ? "pagado" : "presupuestado"} en {numero(k.entidades)} entidades
       </span>
     </span>
   );
@@ -290,21 +288,14 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         postor: (
           <CeldaTexto
             sub={
-              <>
-                <Partes
-                  partes={[
-                    p.ordenPrelacion != null && `Puesto ${p.ordenPrelacion}`,
-                    p.ruc && <>RUC <Ruc value={p.ruc} /></>,
-                    humanizarCodigo(p.motivoEstado),
-                  ]}
-                />
-                {oferta && (
-                  <span className="md:hidden">
-                    <Separador />
-                    {oferta}
-                  </span>
-                )}
-              </>
+              <Partes
+                partes={[
+                  p.ordenPrelacion != null && <Dato key="puesto" icono={ListOrdered} nombre="Orden de prelación">Puesto {p.ordenPrelacion}</Dato>,
+                  p.ruc && <Dato key="ruc" tipo="ruc">RUC <Ruc value={p.ruc} /></Dato>,
+                  humanizarCodigo(p.motivoEstado) && <Dato key="motivo" icono={Info} nombre="Motivo">{humanizarCodigo(p.motivoEstado)}</Dato>,
+                  oferta && <Dato key="oferta" icono={Coins} nombre="Oferta" className="md:hidden">{oferta}</Dato>,
+                ]}
+              />
             }
           >
             <span className="font-semibold text-ink">{nombre}</span>
@@ -314,11 +305,20 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         oferta: oferta ? <CeldaNumero sub={dif != null ? `${diferencia(dif)} vs. referencia` : undefined}>{oferta}</CeldaNumero> : undefined,
         fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[12px] text-mute">Sin cita</span>,
       },
+      // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por su estado.
+      buscable: [esPersonaNatural(p.ruc) ? null : p.razonSocial, esPersonaNatural(p.ruc) ? null : p.ruc, estado, humanizarCodigo(p.motivoEstado)].filter(Boolean).join(" "),
     };
   });
   return (
     <>
-      <Tabla columnas={columnas} filas={filas} etiqueta="Postores con su oferta económica, leídos de las actas del expediente" />
+      <TablaPaginada
+        columnas={columnas}
+        filas={filas}
+        etiqueta="Postores con su oferta económica, leídos de las actas del expediente"
+        nombre="postores"
+        tam={20}
+        buscar={{ placeholder: "Buscar un postor por razón social, RUC o estado…", etiqueta: "Buscar en los postores" }}
+      />
       <FuenteDato fuente="actas y cuadros comparativos del expediente" className="mt-2" />
     </>
   );
@@ -367,15 +367,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
     // En el celular la columna Diferencia no entra: va debajo del precio.
     const sub =
       origen || d != null ? (
-        <>
-          {origen}
-          {d != null && (
-            <span className="md:hidden">
-              {origen && <Separador />}
-              {diferencia(d)}
-            </span>
-          )}
-        </>
+        <Partes partes={[origen, d != null && <span key="dif" className="md:hidden">{diferencia(d)}</span>]} />
       ) : undefined;
     return {
       id: `${it.numero}-${i}`,
@@ -386,9 +378,9 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
             meta={
               <Partes
                 partes={[
-                  `Ítem ${it.numero}`,
-                  it.cantidad != null && `${numero(it.cantidad)}${it.unidad ? ` ${it.unidad}` : ""}`,
-                  it.marca && `marca ofertada: ${it.marca}`,
+                  <Dato key="n" icono={ListOrdered} nombre="Número de ítem">Ítem {it.numero}</Dato>,
+                  it.cantidad != null && <Dato key="cant" icono={Package} nombre="Cantidad">{`${numero(it.cantidad)}${it.unidad ? ` ${it.unidad}` : ""}`}</Dato>,
+                  it.marca && <Dato key="marca" icono={Tag} nombre="Marca ofertada">Marca {it.marca}</Dato>,
                 ]}
               />
             }
@@ -399,11 +391,19 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
         diferencia: d != null ? <CeldaNumero>{diferencia(d)}</CeldaNumero> : undefined,
         fuente: it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[12px] text-mute">Sin cita</span>,
       },
+      buscable: [it.descripcion, `item ${it.numero}`, it.marca].filter(Boolean).join(" "),
     };
   });
   return (
     <>
-      <Tabla columnas={columnas} filas={filas} etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial" />
+      <TablaPaginada
+        columnas={columnas}
+        filas={filas}
+        etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial"
+        nombre="ítems"
+        tam={20}
+        buscar={{ placeholder: "Buscar en los ítems por descripción o marca…", etiqueta: "Buscar en los precios por ítem" }}
+      />
       <FuenteDato fuente="registro OCDS (referencia), CONOSCE (contratado) y el expediente leído" className="mt-2" />
     </>
   );
@@ -414,21 +414,30 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
   const personas = personasNaturalesDe(c);
   return (
     <>
-      <ul className="divide-y divide-line rounded-2xl border border-line bg-paper" aria-label="Señales con la página del expediente que las respalda">
-        {senales.map((b, i) => (
-          <li key={`${b.regla}-${i}`} className="px-4 py-3 text-sm">
-            <div className="text-[14px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
-            {b.evidencia && (
-              <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
-                <TextoRedactado texto={b.evidencia} personas={personas} />
-              </p>
-            )}
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
+      {/* Se busca por la señal, no por la evidencia: trae nombres de personas que la página tapa. */}
+      <ListaPaginada
+        nombre="señales"
+        tam={10}
+        className="divide-y divide-line rounded-2xl border border-line bg-paper"
+        buscar={{ placeholder: "Buscar una señal…", etiqueta: "Buscar en las señales con su página" }}
+        items={senales.map((b, i) => ({
+          id: `${b.regla}-${i}`,
+          buscable: etiquetaRegla(b.regla, catalogo),
+          contenido: (
+            <div className="px-4 py-3 text-sm">
+              <div className="text-[14px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
+              {b.evidencia && (
+                <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
+                  <TextoRedactado texto={b.evidencia} personas={personas} />
+                </p>
+              )}
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
+              </div>
             </div>
-          </li>
-        ))}
-      </ul>
+          ),
+        }))}
+      />
       <FuenteDato fuente="documentos del expediente, página por página" className="mt-2" />
     </>
   );
@@ -464,7 +473,14 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
       celdas: {
         tipo: <Chip>{tipoDocLabel(d.tipo)}</Chip>,
         documento: (
-          <CeldaPrincipal titulo={titulo} meta={[seccion, formatoDoc(d.formato)?.toUpperCase(), d.enVigia && "copia en Vigía"]} />
+          <CeldaPrincipal
+            titulo={titulo}
+            meta={[
+              seccion && <Dato key="parte" icono={FolderOpen} nombre="Parte del expediente">{seccion === "contrato" ? "Del contrato" : `De la ${seccion}`}</Dato>,
+              formatoDoc(d.formato) && <Dato key="formato" tipo="documento" nombre="Formato">{formatoDoc(d.formato)!.toUpperCase()}</Dato>,
+              d.enVigia && <Dato key="copia" icono={HardDrive} nombre="Copia">Copia en Vigía</Dato>,
+            ]}
+          />
         ),
         fecha: <CeldaFecha fecha={dia(d.fecha)} />,
       },
@@ -474,13 +490,21 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
         descripcion: tipoDocLabel(d.tipo),
         contenido: <DetalleDocumento c={c} d={d} parte={seccion} />,
       },
+      buscable: [titulo, tipoDocLabel(d.tipo), formatoDoc(d.formato), seccion].filter(Boolean).join(" "),
     };
   });
   return (
     <>
       {nota && <p className="mb-3 text-sm text-inkSoft">{nota}</p>}
       {docs.length ? (
-        <Tabla columnas={columnas} filas={filas} etiqueta="Documentos oficiales del proceso" />
+        <TablaPaginada
+          columnas={columnas}
+          filas={filas}
+          etiqueta="Documentos oficiales del proceso"
+          nombre="documentos"
+          tam={20}
+          buscar={{ placeholder: "Buscar un documento por nombre o tipo…", etiqueta: "Buscar en los documentos del proceso" }}
+        />
       ) : (
         <Vacio>El registro no publica documentos para este proceso.</Vacio>
       )}

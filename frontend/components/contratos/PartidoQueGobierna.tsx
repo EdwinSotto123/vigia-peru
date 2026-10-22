@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Landmark } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
 import type { GobiernoContrato } from "@/lib/contratos";
 import { periodoTexto, type AnioGobierno } from "@/lib/partidosApi";
 
@@ -17,10 +18,10 @@ export function PartidoQueGobierna({ g, completo = false }: { g: GobiernoContrat
   if (!g) return null;
   const href = `/app/partidos/${g.clave}?anio=${g.anio}`;
   if (!completo) {
+    // Como todo dato de una línea de contexto: texto en línea con su ícono (`Dato`), que se recorta al final.
     return (
-      <span className="inline-flex items-center gap-1" title={`Gobernaba la entidad: ${g.nombre}`}>
-        <Landmark size={12} className="shrink-0" aria-hidden />
-        {g.nombre}
+      <span title={`Gobernaba la entidad: ${g.nombre}`}>
+        <Dato tipo="partido" nombre="Partido que gobernaba">{g.nombre}</Dato>
       </span>
     );
   }

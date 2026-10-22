@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Buscador } from "@/components/listado/BarraFiltros";
+import { coincide, paraBuscar } from "@/lib/formato";
 import { MapPin } from "lucide-react";
 import type { RegionGeo } from "@/lib/peru-data";
 import type { ContratoZona } from "@/lib/contratos";
@@ -88,8 +90,12 @@ const FILAS_INICIALES = 12;
  */
 function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | null; medidaTitulo: string; onElegir?: (ubigeo: string) => void }) {
   const [todas, setTodas] = useState(false);
+  const [consulta, setConsulta] = useState("");
   const max = Math.max(1, ...(ranking ?? []).map((f) => f.valor));
-  const filas = ranking ? (todas ? ranking : ranking.slice(0, FILAS_INICIALES)) : [];
+  const q = paraBuscar(consulta);
+  // Con búsqueda, todas las que coinciden (el puesto sigue siendo el del ranking entero).
+  const conPuesto = (ranking ?? []).map((f, i) => ({ f, puesto: i + 1 }));
+  const filas = q ? conPuesto.filter((x) => coincide(paraBuscar(x.f.nombre), q)) : todas ? conPuesto : conPuesto.slice(0, FILAS_INICIALES);
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-paperSoft px-5 py-5">
       <h2 className="flex items-center gap-2 font-display text-lg font-bold leading-tight text-ink">
@@ -107,15 +113,19 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
         </div>
       ) : (
         <>
+          <div className="mt-3">
+            <Buscador placeholder="Buscar un departamento…" etiqueta="Buscar un departamento" valor={consulta} onBuscar={setConsulta} />
+          </div>
+          {q && filas.length === 0 && <p className="mt-2 text-[13px] text-mute">Ningún departamento coincide con “{consulta}”.</p>}
           <ol className="mt-3 divide-y divide-line border-y border-line">
-            {filas.map((f, i) => (
+            {filas.map(({ f, puesto }) => (
               <li key={f.ubigeo}>
                 <button
                   type="button"
                   onClick={() => onElegir?.(f.ubigeo)}
                   className="group flex w-full items-center gap-2.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
                 >
-                  <span aria-hidden className="w-5 shrink-0 text-right font-mono text-[12px] tabular-nums text-mute">{i + 1}</span>
+                  <span aria-hidden className="w-5 shrink-0 text-right font-mono text-[12px] tabular-nums text-mute">{puesto}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-[14px] font-semibold text-ink group-hover:text-granate">{f.nombre}</span>
@@ -133,7 +143,7 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
               </li>
             ))}
           </ol>
-          {ranking.length > FILAS_INICIALES && (
+          {!q && ranking.length > FILAS_INICIALES && (
             <button
               type="button"
               onClick={() => setTodas((v) => !v)}

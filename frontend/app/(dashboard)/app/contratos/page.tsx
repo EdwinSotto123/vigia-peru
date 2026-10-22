@@ -266,7 +266,8 @@ function filtros({
       etiqueta: "Partido que gobierna la entidad",
       todas: "Cualquiera",
       // Conteo: contratos de sus gobiernos en el período (no cruzado con los demás filtros).
-      opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: `${p.nombre} · ${numero(p.contratos)}` })),
+      // El conteo entre paréntesis, como en todo desplegable de la barra.
+      opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: p.nombre, conteo: p.contratos })),
     },
     // La entidad llega por enlace (su ficha, un dictamen): sólo aparece si está puesta, para poder quitarla.
     ...(parametros.entidad

@@ -211,6 +211,8 @@ export interface RankingQuery {
   region?: string;
   limit?: number;
   offset?: number;
+  /** Busca por el nombre público; el puesto (`posicion`) es el del ranking entero. */
+  q?: string;
 }
 
 export interface RankingPagina {
@@ -226,6 +228,7 @@ function rankingQueryString(q: RankingQuery): string {
   if (q.region) params.set("region", q.region);
   if (q.limit != null) params.set("limit", String(q.limit));
   if (q.offset) params.set("offset", String(q.offset));
+  if (q.q) params.set("q", q.q);
   return params.toString();
 }
 
@@ -242,10 +245,14 @@ export const getRecientes = () =>
 
 /**
  * Una página de los aportes confirmados (la de /app/aliados/aportes): `limit` de a 25 por defecto. El API
- * viejo no pagina ni trae `total`: entonces vuelve lo que haya y el total es lo recibido.
+ * viejo no pagina ni trae `total`: entonces vuelve lo que haya y el total es lo recibido. `q` busca en el
+ * aliado (nombre público), el comprobante y la zona, la entidad o el partido del aporte.
  */
-export const getRecientesPagina = (limit = 25, offset = 0) =>
-  getJson<{ data: ContribucionReciente[]; total?: number }>(`/financiamiento/recientes?limit=${limit}&offset=${offset}`, 60).then((r) =>
+export const getRecientesPagina = (limit = 25, offset = 0, q?: string) =>
+  getJson<{ data: ContribucionReciente[]; total?: number }>(
+    `/financiamiento/recientes?limit=${limit}&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+    60,
+  ).then((r) =>
     r?.data ? { data: r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })), total: r.total ?? r.data.length } : null,
   );
 

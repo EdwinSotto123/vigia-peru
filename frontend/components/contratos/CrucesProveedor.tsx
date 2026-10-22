@@ -10,30 +10,33 @@ import type { GobiernoContrato } from "@/lib/contratos";
 import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
-import { ListaPaginada } from "@/components/listado";
-import Link from "next/link";
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { CuentaGrupo, ListaPaginada } from "@/components/listado";
+import { Partes } from "@/components/ui/Partes";
+import { Dato } from "@/components/ui/Dato";
+import { ArrowUpRight, ChevronDown, CircleDot, Coins, Receipt } from "lucide-react";
+import { TablaEvidencia } from "./TablaEvidencia";
 import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
 import { tituloNatural } from "@/lib/landing";
-import { fecha, fechaCorta, numero, oracion, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { recortar } from "./recortar";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
 const ORDEN = { alta: 0, media: 1, baja: 2 } as const;
+/** El nombre de cada fuente, en palabras (antes "ONPE · Claridad": el punto medio no va en la interfaz). */
 const FUENTE: Record<string, string> = {
-  onpe_aportantes: "ONPE · Claridad",
-  onpe_candidatos: "ONPE · Claridad",
-  jne_autoridades: "JNE · autoridades electas",
-  penalidades: "OECE · penalidades",
-  osce_sancionados: "Tribunal de Contrataciones · sancionados",
+  onpe_aportantes: "Claridad de la ONPE",
+  onpe_candidatos: "Claridad de la ONPE",
+  jne_autoridades: "Autoridades electas del JNE",
+  penalidades: "Penalidades del OECE",
+  osce_sancionados: "Sancionados del Tribunal de Contrataciones",
   visitas_entidades: "Registro de visitas",
-  rnp_conformacion_juridica: "RNP · conformación jurídica",
-  onpe_gastos_proveedores: "ONPE · gastos de campaña",
-  conosce_adjudicaciones: "CONOSCE · adjudicaciones",
-  conosce_contratos: "CONOSCE · contratos",
-  conosce_ordenes: "CONOSCE · órdenes de compra y servicio",
-  precio_item: "OECE · ítems (OCDS) y CONOSCE",
+  rnp_conformacion_juridica: "Conformación jurídica del RNP",
+  onpe_gastos_proveedores: "Gastos de campaña de la ONPE",
+  conosce_adjudicaciones: "Adjudicaciones de CONOSCE",
+  conosce_contratos: "Contratos de CONOSCE",
+  conosce_ordenes: "Órdenes de compra y de servicio de CONOSCE",
+  precio_item: "Ítems del OCDS (OECE) y CONOSCE",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -400,65 +403,26 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
   return (
     <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-        <span>
-          Ver la evidencia · {n === 1 ? "1 registro" : `${numero(n)} registros`}
-          {despues > 0 && <span className="font-normal text-mute"> · {numero(despues)} después de este proceso</span>}
+        <span className="flex flex-wrap items-center gap-1.5">
+          Ver la evidencia
+          <CuentaGrupo>{n === 1 ? "1 registro" : `${numero(n)} registros`}</CuentaGrupo>
+          {despues > 0 && <span className="text-[12px] font-normal text-mute">{numero(despues)} después de este proceso</span>}
         </span>
         <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="space-y-4 border-t border-line px-3 py-3">
         {evidencia.map((e) => (
           <section key={e.titulo} className="space-y-2">
-            <h4 className="text-[13px] font-semibold text-ink">
+            <h4 className="flex flex-wrap items-center gap-1.5 text-[13px] font-semibold text-ink">
               {e.titulo}
-              {e.total != null && e.total > e.filas.length && (
-                <span className="font-normal text-mute"> · los {numero(e.filas.length)} más recientes de {numero(e.total)}</span>
-              )}
+              <CuentaGrupo>{numero(e.total ?? e.filas.length)}</CuentaGrupo>
             </h4>
-            {/* Escritorio: tabla. */}
-            <div className="hidden overflow-x-auto rounded-lg border border-line bg-paper sm:block">
-              <table className="w-full text-left text-[12.5px]">
-                <thead className="bg-paperDeep/60 text-[11.5px] text-mute">
-                  <tr>
-                    {e.columnas.map((col) => (
-                      <th key={col.clave} scope="col" className={`px-3 py-1.5 font-medium ${col.tipo === "soles" || col.tipo === "pct" ? "text-right" : ""}`}>
-                        {col.titulo}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {e.filas.map((f, i) => (
-                    <tr key={i} className={`align-top ${f.posterior ? "opacity-55" : ""}`}>
-                      {e.columnas.map((col) => (
-                        <td key={col.clave} className={`px-3 py-1.5 text-ink ${col.tipo === "soles" || col.tipo === "pct" ? "whitespace-nowrap text-right font-mono tabular-nums" : ""} ${col.tipo === "fecha" ? "whitespace-nowrap" : ""}`}>
-                          <Celda tipo={col.tipo} valor={f[col.clave]} />
-                          {col.tipo === "fecha" && f.posterior === true && <MarcaDespues />}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Teléfono: un registro por tarjeta. */}
-            <ul className="space-y-2 sm:hidden">
-              {e.filas.map((f, i) => (
-                <li key={i} className={`rounded-lg border border-line bg-paper px-3 py-2 ${f.posterior ? "opacity-55" : ""}`}>
-                  <dl className="space-y-1 text-[12.5px]">
-                    {e.columnas.map((col) => (
-                      <div key={col.clave} className="flex items-baseline justify-between gap-3">
-                        <dt className="shrink-0 text-mute">{col.titulo}</dt>
-                        <dd className="min-w-0 text-right text-ink">
-                          <Celda tipo={col.tipo} valor={f[col.clave]} />
-                          {col.tipo === "fecha" && f.posterior === true && <MarcaDespues />}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </li>
-              ))}
-            </ul>
+            {e.total != null && e.total > e.filas.length && (
+              <p className="text-[12px] text-mute">
+                Aquí van los {numero(e.filas.length)} más recientes; la fuente tiene los {numero(e.total)}.
+              </p>
+            )}
+            <TablaEvidencia columnas={e.columnas} filas={e.filas} />
             {(e.verificar || e.enlace) && (
               <p className="text-[12px] leading-relaxed text-mute">
                 {e.verificar}{" "}
@@ -476,37 +440,6 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
   );
 }
 
-/** Junto a la fecha de un registro posterior a la convocatoria: no era un antecedente cuando se adjudicó. */
-function MarcaDespues() {
-  return <span className="ml-1.5 whitespace-nowrap rounded bg-paperDeep px-1.5 py-px text-[10.5px] font-medium text-inkSoft">después</span>;
-}
-
-/** Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. */
-function Celda({ tipo, valor }: { tipo?: EvidenciaCruce["columnas"][number]["tipo"]; valor: unknown }) {
-  if (valor == null || valor === "") return <span className="text-mute">—</span>;
-  if (tipo === "fecha") return <>{fechaCorta(String(valor))}</>;
-  if (tipo === "soles") return <>{soles(Number(valor))}</>;
-  if (tipo === "pct") {
-    const v = Number(valor);
-    // S/ 4 mil de una campaña de S/ 127 M es 0,0035 %: decir "0 %" haría pensar que no hubo nada.
-    if (v > 0 && v < 0.01) return <>menos de 0.01 %</>;
-    return <>{porcentaje(v, { decimales: v < 1 ? 2 : 1 })}</>;
-  }
-  if (tipo === "enlace" && typeof valor === "object") {
-    const { texto, url } = valor as { texto: string; url: string };
-    const etiqueta = texto.length > 30 ? oracion(texto) : texto;
-    // Las descripciones del SEACE llegan a 600 caracteres: tres líneas y el resto en el title.
-    return url.startsWith("/") ? (
-      <Link href={url} title={etiqueta} className="line-clamp-3 text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta}</Link>
-    ) : (
-      <a href={url} target="_blank" rel="noopener noreferrer" title={etiqueta} className="line-clamp-3 text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" /></a>
-    );
-  }
-  const t = String(valor);
-  // Los textos de las fuentes vienen en mayúsculas: nombres cortos a título, descripciones como oración.
-  return <>{t === t.toUpperCase() ? (t.length > 60 ? oracion(t) : tituloNatural(t)) : t}</>;
-}
-
 /**
  * Fraccionamiento: las órdenes de cada día, que el texto sólo cuenta. Plegado debajo del cruce; cada día con lo que
  * suman contra el tope (una barra con la marca del tope) y sus órdenes: descripción, número, estado y monto. Con más
@@ -514,7 +447,11 @@ function Celda({ tipo, valor }: { tipo?: EvidenciaCruce["columnas"][number]["tip
  */
 function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
   const total = dias.reduce((s, d) => s + d.ordenes, 0);
-  const bloques = dias.map((d, i) => ({ id: `${d.fecha}-${i}`, contenido: <DiaOrdenes d={d} /> }));
+  const bloques = dias.map((d, i) => ({
+    id: `${d.fecha}-${i}`,
+    contenido: <DiaOrdenes d={d} />,
+    buscable: [fecha(d.fecha), ...d.detalle.map((o) => `${o.orden} ${o.descripcion ?? ""}`)].join(" "),
+  }));
   return (
     <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
@@ -529,7 +466,7 @@ function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
           Cada barra es lo que suman las órdenes de ese día; la marca, el tope de 8 UIT de ese año.
         </p>
         {bloques.length > 4 ? (
-          <ListaPaginada items={bloques} tam={4} nombre="días" className="space-y-4" />
+          <ListaPaginada items={bloques} tam={4} nombre="días" className="space-y-4" buscar={{ placeholder: "Buscar por descripción u orden…", etiqueta: "Buscar en las órdenes de esos días" }} />
         ) : (
           <ul className="space-y-4">
             {bloques.map((b) => (
@@ -547,12 +484,15 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
   const marca = d.totalSoles > 0 ? Math.min(100, (d.topeSoles / d.totalSoles) * 100) : 100;
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[13px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[13px]">
         <span className="font-semibold text-ink">{fecha(d.fecha)}</span>
-        <span className="text-inkSoft">
-          {numero(d.ordenes)} órdenes · <b className="font-mono tabular-nums text-ink">{soles(d.totalSoles)}</b>
-          <span className="text-mute"> · tope {solesCompacto(d.topeSoles)}</span>
-          {d.mismaDescripcion && <span className="text-amberTexto"> · misma descripción</span>}
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-inkSoft">
+          <Dato icono={Receipt} nombre="Órdenes">{numero(d.ordenes)} órdenes</Dato>
+          <Dato icono={Coins} nombre="Suman">
+            Suman <b className="font-mono tabular-nums text-ink">{soles(d.totalSoles)}</b>
+          </Dato>
+          <span className="text-mute">Tope {solesCompacto(d.topeSoles)}</span>
+          {d.mismaDescripcion && <Badge variant="amber">Misma descripción</Badge>}
         </span>
       </div>
       <div className="relative h-2 w-full rounded-full bg-granate/70" role="img" aria-label={`Suman ${soles(d.totalSoles)}; el tope es ${soles(d.topeSoles)}`}>
@@ -563,9 +503,15 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
           <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-[13px]">
             <div className="min-w-0">
               <p className="text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</p>
-              <p className="mt-0.5 font-mono text-[11px] text-mute" translate="no">
-                {o.orden}
-                {o.estado ? <span className="font-sans"> · {o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</span> : null}
+              <p className="mt-0.5 text-[11.5px] text-mute">
+                <Partes
+                  partes={[
+                    <Dato key="orden" tipo="codigo" nombre="Orden" mono>
+                      <span translate="no">{o.orden}</span>
+                    </Dato>,
+                    o.estado && <Dato key="estado" icono={CircleDot} nombre="Estado">{o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</Dato>,
+                  ]}
+                />
               </p>
             </div>
             <span className="font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
@@ -613,9 +559,9 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
             <li key={grupo[0].tipo} className="py-3">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
                 <Badge variant={VARIANTE[sev]}>{SEVERIDAD[sev]}</Badge>
-                <h3 className="text-[14px] font-semibold text-ink">
+                <h3 className="flex flex-wrap items-center gap-1.5 text-[14px] font-semibold text-ink">
                   {grupo[0].etiqueta}
-                  {grupo.length > 1 && <span className="font-normal text-mute"> · {grupo.length}</span>}
+                  {grupo.length > 1 && <CuentaGrupo>{grupo.length}</CuentaGrupo>}
                 </h3>
               </div>
               {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
@@ -638,8 +584,10 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
         <details className="group border-t border-line">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
             <span className="text-[13px] text-inkSoft">
-              <span className="font-semibold text-ink">Después de este proceso · {numero(posteriores.length)}</span> — no eran antecedentes
-              cuando se convocó
+              <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
+                Después de este proceso <CuentaGrupo>{numero(posteriores.length)}</CuentaGrupo>
+              </span>{" "}
+              No eran antecedentes cuando se convocó.
             </span>
             <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
           </summary>

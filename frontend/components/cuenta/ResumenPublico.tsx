@@ -54,7 +54,13 @@ export function RecientesDelPais({ cuantos = 6, titulo = "Lo que ya financiaron 
   if (!r || r.length === 0) return null;
   return (
     <section aria-label={titulo} className="space-y-2">
-      <h2 className="font-display text-[17px] font-bold text-ink">{titulo}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <h2 className="font-display text-[17px] font-bold text-ink">{titulo}</h2>
+        {/* Los más recientes; la lista entera, con buscador, en /app/aliados/aportes. */}
+        <Link href="/app/aliados/aportes" className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline">
+          Ver todos los aportes
+        </Link>
+      </div>
       <RecientesFeed items={r.slice(0, cuantos)} />
     </section>
   );

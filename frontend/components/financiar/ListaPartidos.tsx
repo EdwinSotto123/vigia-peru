@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { alcanceCorto, type AlcanceProcesamiento } from "@/lib/financiamiento";
@@ -131,7 +132,12 @@ function fila(f: FilaPartido, anio: AnioGobierno, precioPen: number | null, mayo
           enLinea
           titulo={f.nombre}
           textoCompleto={f.nombre}
-          meta={[TIPO[f.tipo ?? ""] ?? null, `${numero(f.contratos)} ${f.contratos === 1 ? "contrato" : "contratos"} en ${plural(f.gobiernosConContratos, "gobierno", "gobiernos")}`]}
+          meta={[
+            TIPO[f.tipo ?? ""] && <Dato key="t" tipo="tipo">{TIPO[f.tipo ?? ""]}</Dato>,
+            <Dato key="c" tipo="documento" nombre="Contratos">
+              {numero(f.contratos)} {f.contratos === 1 ? "contrato" : "contratos"} en {plural(f.gobiernosConContratos, "gobierno", "gobiernos")}
+            </Dato>,
+          ]}
         />
       ),
       barra: <CeldaBarra parte={f.enCola / mayor} resumen={`${numero(f.enCola)} contratos en cola, de ${numero(mayor)} en el partido con más`} />,

@@ -10,6 +10,7 @@ import {
   PERIODO_LABEL,
   TAM_PAGINA,
   armarRanking,
+  buscarEnRanking,
   parseOrden,
   parsePeriodo,
   type ClaveOrden,
@@ -51,12 +52,14 @@ export const revalidate = 300;
 export default async function AliadosPage({
   searchParams,
 }: {
-  searchParams?: { ubigeo?: string; pagina?: string; orden?: string; periodo?: string };
+  searchParams?: { ubigeo?: string; pagina?: string; orden?: string; periodo?: string; q?: string };
 }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   const orden = parseOrden(searchParams?.orden);
   const periodo = parsePeriodo(searchParams?.periodo);
+  // Buscar un aliado por su nombre público: sólo figuran los visibles, que eligieron aparecer.
+  const q = typeof searchParams?.q === "string" && searchParams.q.trim().length >= 2 ? searchParams.q.trim().slice(0, 80) : undefined;
 
   const [estado, zonas, resumenPais, resumenZona, muestra, recientesPag] = await Promise.all([
     getEstadoGlobal(),
@@ -68,13 +71,14 @@ export default async function AliadosPage({
     // Con pocos nombres, el ranking es corto: los últimos aportes llenan la pantalla con lo que sí pasó.
     getRecientesPagina(20, 0).catch(() => null),
   ]);
-  // Pasados los 60 aliados, la página del ranking la trae el API.
+  // Pasados los 60 aliados, la página del ranking la trae el API (también la búsqueda).
   const paginaApi =
     muestra && muestra.total > MUESTRA_RANKING
-      ? await getRankingPaginado({ periodo, region: ubigeo, limit: TAM_PAGINA, offset: (pagina - 1) * TAM_PAGINA })
+      ? await getRankingPaginado({ periodo, region: ubigeo, limit: TAM_PAGINA, offset: (pagina - 1) * TAM_PAGINA, q })
       : null;
 
-  const ranking = muestra ? armarRanking({ muestra, pagina: paginaApi, orden, paginaActual: pagina }) : null;
+  const rankingBase = muestra ? armarRanking({ muestra, pagina: q ? null : paginaApi, orden, paginaActual: pagina }) : null;
+  const ranking = muestra && rankingBase && q ? buscarEnRanking({ muestra, pagina: paginaApi, q, base: rankingBase }) : rankingBase;
 
   // El filtro lista toda región con cola, también las que nadie financia: una región con
   // cola y sin aliados es justo la que hay que poder mirar.
@@ -85,17 +89,17 @@ export default async function AliadosPage({
 
   // Con un solo nombre un orden sugiere una competencia que no existe; pasados los 60, el
   // orden lo pone el API y un selector que no ordena sería mentira.
-  const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 1;
+  const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 1 && !q;
 
   const financiadosTodo = zona ? zona.financiados : estado?.contratosFinanciados ?? 0;
   // Con periodo, el ámbito es lo financiado en ese periodo: sale del propio ranking.
-  const financiadosAmbito = periodo === "todo" ? financiadosTodo : ranking?.sumas.financiados ?? 0;
+  const financiadosAmbito = periodo === "todo" ? financiadosTodo : rankingBase?.sumas.financiados ?? 0;
 
   const partes = partesTarifa(estado?.tarifa?.nota);
 
   let indicadores: Indicador[] | null = null;
   if (periodo !== "todo") {
-    indicadores = ranking ? indicadoresPeriodo(ranking, periodo) : null;
+    indicadores = rankingBase ? indicadoresPeriodo(rankingBase, periodo) : null;
   } else if (estado) {
     indicadores = indicadoresAmbito({
       estado,
@@ -137,10 +141,12 @@ export default async function AliadosPage({
           ubigeo,
           periodo: periodo !== "todo" ? periodo : undefined,
           orden: orden !== "financiados" ? orden : undefined,
+          q,
         }}
       >
         <div className="space-y-4">
           <BarraFiltros
+            busqueda={{ param: "q", placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado", min: 2 }}
             faceta={{
               param: "periodo",
               etiqueta: "Periodo",
@@ -181,6 +187,7 @@ export default async function AliadosPage({
                 nombreRegion={zona?.nombre}
                 precio={estado?.tarifa?.precioPen ?? null}
                 desglose={frasePartesTarifa(partes)}
+                busqueda={q}
                 recientes={recientesPag?.data ?? null}
                 totalRecientes={recientesPag?.total}
                 // Si el API cae, se dice: no se dibujan ceros que parezcan dato.

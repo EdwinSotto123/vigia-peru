@@ -1,6 +1,8 @@
 "use client";
 
-import { WifiOff } from "lucide-react";
+import Link from "next/link";
+import { Flag, WifiOff } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { Seccion } from "@/components/patrones";
@@ -73,7 +75,16 @@ export function SenalesRecientes({
         celdas: {
           riesgo: <Severidad score={a.score} />,
           // Recortado en una palabra: el objeto entero va en el dossier.
-          contrato: <CeldaPrincipal titulo={recortar(objeto, 140)} meta={[plural(n, "señal", "señales"), a.entidad, a.region]} />,
+          contrato: (
+            <CeldaPrincipal
+              titulo={recortar(objeto, 140)}
+              meta={[
+                <Dato key="s" icono={Flag} nombre="Señales">{plural(n, "señal", "señales")}</Dato>,
+                a.entidad && <Dato key="e" tipo="entidad">{a.entidad}</Dato>,
+                a.region && <Dato key="r" tipo="lugar">{a.region}</Dato>,
+              ]}
+            />
+          ),
           monto: (
             <CeldaNumero>
               {typeof a.montoSoles === "number" && a.montoSoles > 0 ? soles(a.montoSoles) : <span className="font-sans text-mute">Sin dato</span>}
@@ -98,7 +109,13 @@ export function SenalesRecientes({
           <span className="sr-only">Cargando las señales publicadas…</span>
         </div>
       ) : (
-        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
+        <div className="space-y-2">
+          <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
+          {/* Los de mayor peso; todas las señales, con buscador y filtros, en /app/hallazgos. */}
+          <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-[12.5px] font-medium text-granate underline-offset-2 hover:underline">
+            Ver todas las señales publicadas
+          </Link>
+        </div>
       )}
     </Seccion>
   );

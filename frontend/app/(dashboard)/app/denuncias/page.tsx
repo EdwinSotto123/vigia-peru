@@ -224,7 +224,7 @@ export default async function DenunciasPage({
               <Franja titulo="Todavía no hay denuncias de vecinos publicadas" className="sm:w-full">
                 Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio.
               </Franja>
-              {obrasZonas && obrasZonas.length > 0 && <ObrasPorRegion zonas={obrasZonas} cuantas={16} />}
+              {obrasZonas && obrasZonas.length > 0 && <ObrasPorRegion zonas={obrasZonas} />}
             </div>
             <div className="space-y-4">
             <section aria-labelledby="como-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">

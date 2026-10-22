@@ -8,7 +8,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { CORTE_ALTA, CORTE_MEDIA, ETIQUETA_PESO } from "@/lib/severidad";
 import { numero, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { Separador } from "@/components/ui/Partes";
+import { Dato } from "@/components/ui/Dato";
 import {
   analisisQueryParams,
   codigoDe,
@@ -217,28 +217,13 @@ function filaDe(it: AnalisisPublicado, resaltada: boolean): Fila {
       contrato: (
         <CeldaPrincipal
           titulo={titulo}
-          meta={
-            <>
-              <span className="font-mono tabular-nums text-inkSoft">{codigo}</span>
-              {/* Zona y tipo tienen columna desde xl; antes, van en esta línea para no perderse. */}
-              <span className="xl:hidden">
-                {zona && (
-                  <>
-                    <Separador />
-                    {zona}
-                  </>
-                )}
-                {tipo !== "sin_tipo" && (
-                  <>
-                    <Separador />
-                    {ETIQUETA_TIPO[tipo]}
-                  </>
-                )}
-              </span>
-              <Separador />
-              {it.entidad || "Entidad sin dato"}
-            </>
-          }
+          meta={[
+            <Dato key="codigo" tipo="codigo" nombre="Código" mono>{codigo}</Dato>,
+            // Zona y tipo tienen columna desde xl; antes, van en esta línea para no perderse.
+            zona && <Dato key="zona" tipo="lugar" className="xl:hidden">{zona}</Dato>,
+            tipo !== "sin_tipo" && <Dato key="tipo" tipo="tipo" className="xl:hidden">{ETIQUETA_TIPO[tipo]}</Dato>,
+            <Dato key="entidad" tipo="entidad">{it.entidad || "Entidad sin dato"}</Dato>,
+          ]}
         />
       ),
       zona: (

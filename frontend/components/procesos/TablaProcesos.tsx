@@ -10,6 +10,12 @@ import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
+import type { DatoDudosoContrato } from "@/lib/contratos";
+import { Dato } from "@/components/ui/Dato";
+import { AvisoContrato, ConBanderaDato } from "@/components/contratos/DatoDudosoContrato";
+
+/** La fila trae además el posible error de carga del OECE (migración 102, lib/estadoFila.ts de la API). */
+type Proceso = ProcesoPartido & { datoDudoso?: DatoDudosoContrato | null };
 
 /**
  * Procesos adjudicados de CONOSCE en la `Tabla` del kit: convocado, estado en Vigía (leído o no y su peso del riesgo),
@@ -49,8 +55,8 @@ const COLUMNAS: Columna[] = [
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
 
-const enSoles = (p: ProcesoPartido) => !p.moneda || /soles/i.test(p.moneda);
-const monto = (v: number | null, p: ProcesoPartido) =>
+const enSoles = (p: Proceso) => !p.moneda || /soles/i.test(p.moneda);
+const monto = (v: number | null, p: Proceso) =>
   v == null ? "Sin dato" : enSoles(p) ? soles(v) : `${numero(Math.round(v))} ${p.moneda ?? ""}`.trim();
 
 export function TablaProcesos({
@@ -118,7 +124,7 @@ export function TablaProcesos({
   );
 }
 
-function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
+function filaDe(p: Proceso, deEntidad: boolean): Fila {
   // Sin los "¿" que el SEACE deja donde iban comillas y en oración, como la lista de contratos.
   const titulo = p.descripcion ? oracion(limpiarObjeto(p.descripcion)) : p.nomenclatura ?? `Proceso ${p.codigo}`;
   const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
@@ -138,16 +144,34 @@ function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
     id: `${p.codigo}-${p.entidadRuc}`,
     celdas: {
       fecha: <CeldaFecha fecha={p.fecha} />,
-      estado: p.ocid && p.estadoProcesamiento ? (
-        <EstadoContratoChip
-          c={{ estadoProcesamiento: p.estadoProcesamiento as never, estadoOperativo: p.estadoOperativo as never, enRevision: !!p.enRevision, score: p.score ?? null, banderas: p.banderas ?? 0 }}
-        />
-      ) : (
-        <span className="text-[12px] text-mute">No está en Vigía</span>
+      estado: (
+        <ConBanderaDato dato={p.datoDudoso}>
+          {p.ocid && p.estadoProcesamiento ? (
+            <EstadoContratoChip
+              c={{ estadoProcesamiento: p.estadoProcesamiento as never, estadoOperativo: p.estadoOperativo as never, enRevision: !!p.enRevision, score: p.score ?? null, banderas: p.banderas ?? 0 }}
+            />
+          ) : (
+            <span className="text-[12px] text-mute">No está en Vigía</span>
+          )}
+        </ConBanderaDato>
       ),
       cruces: <CrucesCelda cruces={p.cruces} />,
       // En la ficha de una entidad la entidad es la misma en todas las filas: va la nomenclatura.
-      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={deEntidad ? [p.objeto, p.nomenclatura] : [p.objeto, entidad, p.lugar]} />,
+      proceso: (
+        <CeldaPrincipal
+          titulo={titulo}
+          dosLineas
+          meta={
+            deEntidad
+              ? [p.objeto && <Dato key="objeto" tipo="tipo" nombre="Objeto">{p.objeto}</Dato>, p.nomenclatura && <Dato key="nom" tipo="codigo" nombre="Nomenclatura" mono>{p.nomenclatura}</Dato>]
+              : [
+                  p.objeto && <Dato key="objeto" tipo="tipo" nombre="Objeto">{p.objeto}</Dato>,
+                  <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
+                  p.lugar && <Dato key="lugar" tipo="lugar">{p.lugar}</Dato>,
+                ]
+          }
+        />
+      ),
       monto: <CeldaNumero>{p.montoAdjudicado == null ? <span className="font-sans text-mute">Sin dato</span> : enSoles(p) ? solesCompacto(p.montoAdjudicado) : monto(p.montoAdjudicado, p)}</CeldaNumero>,
       ganador: (
         <span className="line-clamp-2 text-[13px] text-inkSoft" title={p.proveedor ?? undefined}>
@@ -165,7 +189,12 @@ function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
           <span>{entidad}</span>
         </span>
       ),
-      contenido: <DatosClave items={datos} />,
+      contenido: (
+        <div className="space-y-4">
+          <AvisoContrato dato={p.datoDudoso} />
+          <DatosClave items={datos} />
+        </div>
+      ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[12px] text-mute">Fuente: OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados</span>

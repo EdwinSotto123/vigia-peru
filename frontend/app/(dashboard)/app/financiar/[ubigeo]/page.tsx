@@ -9,7 +9,8 @@ import { TablaAliados } from "@/components/financiar/TablaAliados";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Revelar } from "@/components/ui/Revelar";
 import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, type Pestana } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
@@ -141,6 +142,7 @@ export default async function ZonaPage({
                 zonas={d.hijas}
                 precioPen={zona.precioPen}
                 etiqueta={`${zona.nivel === "departamento" ? "Provincias" : "Distritos"} de ${zona.nombre}`}
+                buscar={zona.nivel === "departamento" ? "Buscar una provincia…" : "Buscar un distrito…"}
               />
             </section>
           )}
@@ -359,9 +361,9 @@ const COLUMNAS_VIVO: Columna[] = [
 ];
 
 /**
- * Vista previa del "en vivo" con la anatomía de fila de todo listado —estado (chip) ·
- * el contrato y su entidad · el valor · ›—. El tablero completo (hasta 60 contratos que
- * se refrescan solos) vive en el panel "Ver en vivo".
+ * El "en vivo" con la anatomía de fila de todo listado: estado (chip), el contrato y su entidad, el
+ * valor y la flecha. Lo que se mueve primero; de a FILAS_VIVO, con buscador, sobre lo que trajo la
+ * consulta (hasta 60). El tablero que se refresca solo vive en el panel "Ver en vivo".
  */
 function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
   if (!items) {
@@ -370,15 +372,25 @@ function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
   if (items.length === 0) {
     return <p className="text-sm text-inkSoft">Todavía no hay contratos asignados en esta zona.</p>;
   }
-  const visibles = [...items].sort((a, b) => PRIORIDAD[estadoVisible(a)] - PRIORIDAD[estadoVisible(b)]).slice(0, FILAS_VIVO);
-  const filas: Fila[] = visibles.map((p) => ({
+  const ordenados = [...items].sort((a, b) => PRIORIDAD[estadoVisible(a)] - PRIORIDAD[estadoVisible(b)]);
+  const filas: Fila[] = ordenados.map((p) => ({
     id: p.ocid,
     href: rutaContrato(p.ocid, "vivo"),
+    buscable: [p.titulo, p.entidad, p.ocid].filter(Boolean).join(" "),
     celdas: {
       estado: <EstadoPill estado={estadoVisible(p)} intentos={p.intentos} />,
-      contrato: <CeldaPrincipal titulo={p.titulo ?? p.ocid} meta={p.entidad ?? "Entidad no identificada"} />,
+      contrato: <CeldaPrincipal titulo={p.titulo ?? p.ocid} meta={[<Dato key="e" tipo="entidad">{p.entidad ?? "Entidad no identificada"}</Dato>]} />,
       monto: <CeldaNumero>{p.montoPen != null && p.montoPen > 0 ? soles(p.montoPen) : "Sin dato"}</CeldaNumero>,
     },
   }));
-  return <Tabla columnas={COLUMNAS_VIVO} filas={filas} etiqueta="Contratos que se mueven ahora" />;
+  return (
+    <TablaPaginada
+      columnas={COLUMNAS_VIVO}
+      filas={filas}
+      tam={FILAS_VIVO}
+      nombre="contratos"
+      etiqueta="Contratos que se mueven ahora"
+      buscar={{ placeholder: "Buscar un contrato o una entidad…", etiqueta: "Buscar en lo que se mueve ahora" }}
+    />
+  );
 }

@@ -10,6 +10,7 @@ import { maskDnis } from "@/lib/privacidad";
 import { cn } from "@/lib/utils";
 import { MiniaturaDenuncia } from "./MiniaturaDenuncia";
 import { diaDeDenuncia } from "./fechaDenuncia";
+import { Dato } from "@/components/ui/Dato";
 import { Separador } from "@/components/ui/Partes";
 
 /**
@@ -101,15 +102,15 @@ export function ListaDenuncias({ reportes, total, pagina, tam, parametros, q, fa
                 <>
                   {/* En el celular la categoría no tiene columna: va aquí. */}
                   <span className="md:hidden">
-                    {etiqueta}
+                    <Dato tipo="tipo" nombre="Categoría">{etiqueta}</Dato>
                     <Separador />
                   </span>
-                  {r.region || "Sin región"}
+                  <Dato tipo="lugar">{r.region || "Sin región"}</Dato>
                   <span className="hidden md:inline">
                     <Separador />
-                    <span className="font-mono" translate="no">
-                      {r.id}
-                    </span>
+                    <Dato tipo="codigo" nombre="Código de la denuncia" mono>
+                      <span translate="no">{r.id}</span>
+                    </Dato>
                   </span>
                 </>
               }

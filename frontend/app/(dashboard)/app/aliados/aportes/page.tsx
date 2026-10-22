@@ -1,7 +1,8 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
-import { CeldaBarra, CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { SearchX } from "lucide-react";
+import { EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
+import { BarraFiltros, CeldaBarra, CeldaFecha, CeldaNumero, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
+import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
+import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
@@ -59,7 +60,7 @@ function fila(c: ContribucionReciente, mayor: number): Fila {
           <span aria-hidden className="hidden shrink-0 sm:inline-flex">
             <AvatarAliado tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} size="sm" />
           </span>
-          <CeldaPrincipal titulo={c.financiador} meta={TIPO_FINANCIADOR_LABEL[c.tipo]} enLinea />
+          <CeldaPrincipal titulo={c.financiador} meta={[<Dato key="t" tipo="tipo">{TIPO_FINANCIADOR_LABEL[c.tipo]}</Dato>]} enLinea />
         </span>
       ),
       contratos: (
@@ -79,48 +80,57 @@ function fila(c: ContribucionReciente, mayor: number): Fila {
  * lleva a su comprobante público. Se cuenta en contratos, nunca en soles, y solo aparecen los aliados visibles.
  * Es la página de "Ver todos los aportes" de la cinta de /app/aliados.
  */
-export default async function AportesPage({ searchParams }: { searchParams?: { pagina?: string } }) {
+export default async function AportesPage({ searchParams }: { searchParams?: { pagina?: string; q?: string } }) {
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
-  const [datos, estado] = await Promise.all([getRecientesPagina(TAM, (pagina - 1) * TAM).catch(() => null), getEstadoGlobal()]);
+  const q = typeof searchParams?.q === "string" && searchParams.q.trim().length >= 2 ? searchParams.q.trim().slice(0, 80) : undefined;
+  const [datos, estado] = await Promise.all([getRecientesPagina(TAM, (pagina - 1) * TAM, q).catch(() => null), getEstadoGlobal()]);
   const paginas = datos ? Math.max(1, Math.ceil(datos.total / TAM)) : 1;
 
   return (
     <Pagina className="space-y-4">
-      <Link href="/app/aliados" className="inline-flex min-h-[44px] items-center gap-1.5 text-[13.5px] font-medium text-inkSoft hover:text-ink">
-        <ArrowLeft size={14} aria-hidden /> Ranking de aliados
-      </Link>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Aliados", href: "/app/aliados" }, { etiqueta: "Todos los aportes" }]} />
       <EncabezadoPagina
         titulo="Todos los aportes"
         bajada="Cada aporte confirmado paga la lectura de contratos públicos. Toca uno para ver su comprobante."
       />
 
-      {!datos ? (
-        <EstadoError titulo="No pudimos leer los aportes">Es una falla de esta página: los aportes siguen registrados.</EstadoError>
-      ) : datos.data.length === 0 ? (
-        <EstadoVacio
-          titulo="Todavía no hay aportes confirmados"
-          accion={
-            <EnlaceAccion variante="secundario" href="/app/financiar">
-              Ser el primero
-            </EnlaceAccion>
-          }
-        >
-          Cuando se confirme el primero, aparece acá con su comprobante público.
-        </EstadoVacio>
-      ) : (
-        <section aria-label="Aportes" className="space-y-3">
-          <div className="rounded-2xl bg-granate-50 px-4 py-2.5 text-[13px] text-inkSoft">
-            <strong className="font-semibold text-ink">{numero(datos.total)}</strong> {datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}.
-            Mostrando {numero((pagina - 1) * TAM + 1)} a {numero((pagina - 1) * TAM + datos.data.length)}.
-          </div>
-          <Tabla columnas={COLUMNAS} filas={datos.data.map((c) => fila(c, Math.max(1, ...datos.data.map((x) => x.contratos))))} etiqueta="Aportes confirmados, del más reciente al más antiguo" densidad="compacta" />
-          {paginas > 1 && (
-            <div className="flex justify-end">
-              <Paginacion actual={pagina} paginas={paginas} total={datos.total} tam={TAM} navegacion="url" hrefBase="/app/aliados/aportes" query={{}} cargando={false} nombre="aportes" />
-            </div>
-          )}
-        </section>
-      )}
+      <Listado ruta="/app/aliados/aportes" parametros={{ q }}>
+        <div className="space-y-3">
+          <BarraFiltros busqueda={{ param: "q", placeholder: "Buscar un aliado, una zona, una entidad, un partido o un comprobante…", etiqueta: "Buscar en los aportes", min: 2 }} />
+          <ZonaResultados>
+            {!datos ? (
+              <EstadoError titulo="No pudimos leer los aportes">Es una falla de esta página: los aportes siguen registrados.</EstadoError>
+            ) : datos.data.length === 0 && q ? (
+              <VacioEnLinea icono={<SearchX size={16} />}>Ningún aporte coincide con “{q}”.</VacioEnLinea>
+            ) : datos.data.length === 0 ? (
+              <EstadoVacio
+                titulo="Todavía no hay aportes confirmados"
+                accion={
+                  <EnlaceAccion variante="secundario" href="/app/financiar">
+                    Ser el primero
+                  </EnlaceAccion>
+                }
+              >
+                Cuando se confirme el primero, aparece acá con su comprobante público.
+              </EstadoVacio>
+            ) : (
+              <section aria-label="Aportes" className="space-y-3">
+                <div className="rounded-2xl bg-granate-50 px-4 py-2.5 text-[13px] text-inkSoft">
+                  <strong className="font-semibold text-ink">{numero(datos.total)}</strong>{" "}
+                  {q ? (datos.total === 1 ? `aporte coincide con “${q}”` : `aportes coinciden con “${q}”`) : datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}.
+                  Mostrando {numero((pagina - 1) * TAM + 1)} a {numero((pagina - 1) * TAM + datos.data.length)}.
+                </div>
+                <Tabla columnas={COLUMNAS} filas={datos.data.map((c) => fila(c, Math.max(1, ...datos.data.map((x) => x.contratos))))} etiqueta="Aportes confirmados, del más reciente al más antiguo" densidad="compacta" />
+                {paginas > 1 && (
+                  <div className="flex justify-end">
+                    <Paginacion actual={pagina} paginas={paginas} total={datos.total} tam={TAM} navegacion="url" hrefBase="/app/aliados/aportes" query={{ q }} cargando={false} nombre="aportes" />
+                  </div>
+                )}
+              </section>
+            )}
+          </ZonaResultados>
+        </div>
+      </Listado>
 
       {/* La invitación al pie, con color: una lista corta no deja la pantalla vacía. */}
       <LlamadaPodio precio={estado?.tarifa?.precioPen ?? null} desglose={frasePartesTarifa(partesTarifa(estado?.tarifa?.nota))} />

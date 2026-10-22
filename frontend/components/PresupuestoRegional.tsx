@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Buscador } from "@/components/listado/BarraFiltros";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -16,7 +17,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { ejecucionPct, sinAnioRepetido, type BreakdownRow, type MefBudgetRow, type RegionBudgetSummary } from "@/lib/mef";
-import { fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { coincide, fechaCorta, numero, paraBuscar, porcentaje, solesCompacto } from "@/lib/formato";
 import { Ayuda, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
 import { cn } from "@/lib/utils";
 
@@ -552,9 +553,12 @@ function Desglose({
   items: BreakdownRow[];
 }) {
   // El MEF deja el nombre en blanco para parte del gasto: se nombra, no se imprime vacío.
-  const filas = items.map((it) => ({ ...it, nombre: it.nombre.trim() || "Sin nombre en el MEF" }));
-  if (filas.length === 0) return null;
-  const max = Math.max(...filas.map((i) => i.pim), 1);
+  const todas = items.map((it) => ({ ...it, nombre: it.nombre.trim() || "Sin nombre en el MEF" }));
+  const [consulta, setConsulta] = useState("");
+  if (todas.length === 0) return null;
+  const max = Math.max(...todas.map((i) => i.pim), 1);
+  const q = paraBuscar(consulta);
+  const filas = q ? todas.filter((it) => coincide(paraBuscar(it.nombre), q)) : todas;
 
   return (
     <div>
@@ -564,7 +568,13 @@ function Desglose({
         </p>
         <p className="text-[11px] text-mute">{bajada}</p>
       </div>
-      <ul className="space-y-2 rounded-xl border border-line bg-paperSoft p-3">
+      {todas.length > 6 && (
+        <div className="mb-2">
+          <Buscador placeholder="Buscar por nombre…" etiqueta={`Buscar en ${titulo.toLowerCase()}`} valor={consulta} onBuscar={setConsulta} />
+        </div>
+      )}
+      {q && filas.length === 0 && <p className="text-[12px] text-mute">Ninguno coincide con “{consulta}”.</p>}
+      <ul className={cn("space-y-2 rounded-xl border border-line bg-paperSoft p-3", filas.length === 0 && "hidden")}>
         {filas.map((it, i) => (
           <li key={i}>
             <div className="mb-0.5 flex items-center justify-between gap-2 text-[12px]">

@@ -73,12 +73,13 @@ export const rutaCorrupcion = {
 };
 
 /** Una página: `ruta` de rutaCorrupcion, más la página y el tipo. */
-export function urlCorrupcion(ruta: string, page = 1, tipo: TipoInforme | null = null): string {
+export function urlCorrupcion(ruta: string, page = 1, tipo: TipoInforme | null = null, q: string | null = null): string {
   const [base, qs] = ruta.split("?");
   const p = new URLSearchParams(qs);
   p.set("page", String(page));
   p.set("size", String(TAM_INFORMES));
   if (tipo) p.set("tipo", tipo);
+  if (q && q.trim().length >= 2) p.set("q", q.trim());
   return `${base}?${p.toString()}`;
 }
 
@@ -96,10 +97,10 @@ export const getCorrupcionPartido = (clave: string, anio: number) => leer(rutaCo
 /** Desde el navegador (el panel de la región es de cliente). */
 export const getCorrupcionRegion = (ubigeo: string) => leer(rutaCorrupcion.region(ubigeo), baseApiNavegador());
 
-/** Otra página u otro filtro, desde el navegador. */
-export async function paginaCorrupcion(ruta: string, page: number, tipo: TipoInforme | null): Promise<PaginaInformes | null> {
+/** Otra página, otro filtro u otra búsqueda (asunto, número o entidad), desde el navegador. */
+export async function paginaCorrupcion(ruta: string, page: number, tipo: TipoInforme | null, q: string | null = null): Promise<PaginaInformes | null> {
   try {
-    const r = await fetch(`${baseApiNavegador()}${urlCorrupcion(ruta, page, tipo)}`);
+    const r = await fetch(`${baseApiNavegador()}${urlCorrupcion(ruta, page, tipo, q)}`);
     return r.ok ? ((await r.json()) as Corrupcion).informes.pagina : null;
   } catch {
     return null;

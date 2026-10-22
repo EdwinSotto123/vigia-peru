@@ -1,6 +1,8 @@
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { HandCoins } from "lucide-react";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
 import { numero, oracion, plural } from "@/lib/formato";
 import { pctProporcion } from "./proporcion";
@@ -72,7 +74,8 @@ const COLUMNAS_REGIONES: Columna[] = [
 
 /**
  * Las zonas donde cayeron sus aportes: cada fila va a la ficha de la zona, donde se ve
- * su cola y se puede financiar. `limite` para el resumen (las primeras, por contratos).
+ * su cola y se puede financiar. `limite` para el resumen (las primeras, por contratos); sin
+ * él, todas, de a 15 y con buscador.
  */
 export function RegionesDeAliado({
   regiones,
@@ -90,14 +93,32 @@ export function RegionesDeAliado({
   const filas: Fila[] = (limite ? regiones.slice(0, limite) : regiones).map((r) => ({
     id: r.ubigeo,
     href: `/app/financiar/${r.ubigeo}`,
+    buscable: r.zona,
     celdas: {
-      zona: <CeldaPrincipal titulo={r.zona} meta={plural(r.aportes, "aporte", "aportes")} />,
+      zona: (
+        <CeldaPrincipal
+          titulo={r.zona}
+          meta={[<Dato key="a" icono={HandCoins} nombre="Aportes">{plural(r.aportes, "aporte", "aportes")}</Dato>]}
+        />
+      ),
       financiados: <CeldaNumero sub={pctProporcion(r.contratos, financiados) ?? undefined}>{num(r.contratos)}</CeldaNumero>,
       leidos: <CeldaNumero sub={`de ${num(r.contratos)}`}>{num(r.procesados)}</CeldaNumero>,
       senales: <CeldaNumero>{num(r.senales)}</CeldaNumero>,
     },
   }));
-  return <Tabla columnas={COLUMNAS_REGIONES} filas={filas} etiqueta="Zonas donde cayeron sus contratos" className={className} />;
+  if (limite) return <Tabla columnas={COLUMNAS_REGIONES} filas={filas} etiqueta="Zonas donde cayeron sus contratos" className={className} />;
+  return (
+    <div className={className}>
+      <TablaPaginada
+        columnas={COLUMNAS_REGIONES}
+        filas={filas}
+        etiqueta="Zonas donde cayeron sus contratos"
+        tam={15}
+        nombre="zonas"
+        buscar={{ placeholder: "Buscar una zona…", etiqueta: "Buscar en sus zonas" }}
+      />
+    </div>
+  );
 }
 
 export interface SenalDeAliado extends ComprobanteContrato {
@@ -155,7 +176,8 @@ const COLUMNAS_SENALES_COMPACTAS: Columna[] = [
 ];
 
 /**
- * Lo que salió en los contratos de este aliado. Cada fila va al contrato.
+ * Lo que salió en los contratos de este aliado. Cada fila va al contrato. `compacta` para el
+ * resumen (las más recientes); si no, todas, de a 15 y con buscador.
  */
 export function TablaSenales({
   senales,
@@ -169,12 +191,13 @@ export function TablaSenales({
   const filas: Fila[] = senales.map((s) => ({
     id: `${s.codigoAporte}-${s.ocid}`,
     href: `/app/contratos/${encodeURIComponent(s.ocid)}`,
+    buscable: [s.titulo, s.entidad, s.zona, s.codigoAporte].filter(Boolean).join(" "),
     celdas: {
       severidad: <Severidad bandera={s.severidad as "alta" | "media" | "baja"} />,
       contrato: (
         <CeldaPrincipal
           titulo={s.titulo ? oracion(s.titulo) : "Sin objeto declarado en el expediente"}
-          meta={[s.entidad, s.zona].filter(Boolean).join(", ")}
+          meta={[s.entidad && <Dato key="e" tipo="entidad">{s.entidad}</Dato>, s.zona && <Dato key="z" tipo="lugar">{s.zona}</Dato>]}
         />
       ),
       senales: <CeldaNumero>{num(s.banderas)}</CeldaNumero>,
@@ -186,11 +209,17 @@ export function TablaSenales({
       ),
     },
   }));
+  if (compacta) {
+    return <Tabla columnas={COLUMNAS_SENALES_COMPACTAS} filas={filas} etiqueta={`Contratos con señales financiados por ${nombre}`} />;
+  }
   return (
-    <Tabla
-      columnas={compacta ? COLUMNAS_SENALES_COMPACTAS : COLUMNAS_SENALES}
+    <TablaPaginada
+      columnas={COLUMNAS_SENALES}
       filas={filas}
       etiqueta={`Contratos con señales financiados por ${nombre}`}
+      tam={15}
+      nombre="contratos con señales"
+      buscar={{ placeholder: "Buscar un contrato, una entidad o una zona…", etiqueta: "Buscar en sus señales" }}
     />
   );
 }

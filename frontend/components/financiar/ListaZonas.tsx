@@ -1,5 +1,7 @@
+import { CircleDot, HandCoins } from "lucide-react";
 import { Ayuda } from "@/components/patrones";
-import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { ESTADO_LABEL, ESTADO_PUNTO, type Zona } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,9 @@ import { cn } from "@/lib/utils";
  *
  * Cada fila es el enlace a /app/financiar/[ubigeo]. Las provincias de una región se ven
  * en su ficha: antes se desplegaban dentro de la lista con un segundo botón por fila.
+ *
+ * `buscar`: la lista llega entera (las provincias o distritos de una zona) y se pagina y se busca en el navegador.
+ * Sin `buscar`, la página la pagina y la busca el servidor (/app/financiar).
  */
 
 export type ZonaListada = Pick<Zona, "ubigeo" | "nombre" | "pendientes" | "financiados" | "estado"> & {
@@ -60,13 +65,18 @@ function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
   return zonas.map((z) => ({
     id: z.ubigeo,
     href: `/app/financiar/${z.ubigeo}`,
+    buscable: [z.nombre, z.lugar, ESTADO_LABEL[z.estado]].filter(Boolean).join(" "),
     celdas: {
       estado: <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", ESTADO_PUNTO[z.estado])} aria-hidden />,
       zona: (
         <CeldaPrincipal
           enLinea
           titulo={z.nombre}
-          meta={[z.lugar, ESTADO_LABEL[z.estado], z.financiados > 0 ? `${numero(z.financiados)} financiados` : null]}
+          meta={[
+            z.lugar && <Dato key="l" tipo="lugar">{z.lugar}</Dato>,
+            <Dato key="e" icono={CircleDot} nombre="Estado">{ESTADO_LABEL[z.estado]}</Dato>,
+            z.financiados > 0 && <Dato key="f" icono={HandCoins} nombre="Financiados">{numero(z.financiados)} financiados</Dato>,
+          ]}
         />
       ),
       barra: <CeldaBarra parte={z.pendientes / mayor} resumen={`${numero(z.pendientes)} contratos en cola, de ${numero(mayor)} en la zona con más`} />,
@@ -80,11 +90,28 @@ export function ListaZonas({
   zonas,
   precioPen,
   etiqueta,
+  buscar,
 }: {
   zonas: ZonaListada[];
   /** Tarifa por contrato. Sin tarifa, el costo dice "Sin dato" (nunca S/ 0). */
   precioPen: number | null;
   etiqueta: string;
+  /** La lista llega entera: se pagina y se busca acá (el texto del buscador). */
+  buscar?: string;
 }) {
+  if (buscar) {
+    return (
+      <TablaPaginada
+        columnas={columnas(precioPen)}
+        filas={filas(zonas, precioPen)}
+        etiqueta={etiqueta}
+        tam={15}
+        nombre="zonas"
+        buscar={{ placeholder: buscar, etiqueta: `Buscar en ${etiqueta.toLowerCase()}` }}
+        densidad="compacta"
+        medida="contenedor"
+      />
+    );
+  }
   return <Tabla columnas={columnas(precioPen)} filas={filas(zonas, precioPen)} etiqueta={etiqueta} densidad="compacta" medida="contenedor" />;
 }

@@ -7,10 +7,12 @@ import { ChevronDown, ChevronRight, Search, SearchX, X } from "lucide-react";
 import { nombreDepartamento } from "@/components/mapa/region-match";
 import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { Partes } from "@/components/ui/Partes";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { numero, solesCompacto } from "@/lib/formato";
+import { listaY, numero, solesCompacto } from "@/lib/formato";
 import {
   COLOR_OTRAS,
   PALETA_ORG,
@@ -386,7 +388,11 @@ function Gobiernos({
         lugar: (
           <span className="block min-w-0">
             <span className="block truncate text-[14.5px] font-semibold text-ink">{f.lugar}</span>
-            {f.sub && <span className="block truncate text-[12px] text-mute">{f.sub}</span>}
+            {f.sub && (
+              <span className="block truncate text-[12px] text-mute">
+                <Dato tipo="lugar">{f.sub}</Dato>
+              </span>
+            )}
             {/* En el celular la autoridad baja bajo el lugar: la columna propia solo aparece desde md. */}
             <span className="block truncate text-[12.5px] text-inkSoft md:hidden">{f.autoridad}</span>
           </span>
@@ -760,10 +766,19 @@ function TodosLosPartidos({
                       {c.o.n}
                     </Link>
                   </span>
-                  <span className="block pl-3.5 text-[12px] text-mute">
-                    {TIPO_ORG_LABEL[c.o.t]}: {c.regional > 0 && `${c.regional} ${c.regional === 1 ? "región" : "regiones"}, `}
-                    {c.provincial > 0 && `${c.provincial} ${c.provincial === 1 ? "provincia" : "provincias"}, `}
-                    {numero(c.distrital)} {c.distrital === 1 ? "distrito" : "distritos"}
+                  <span className="block truncate pl-3.5 text-[12px] text-mute">
+                    <Partes
+                      partes={[
+                        <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
+                        <Dato key="g" tipo="lugar" nombre="Gobierna">
+                          {listaY([
+                            ...(c.regional > 0 ? [`${numero(c.regional)} ${c.regional === 1 ? "región" : "regiones"}`] : []),
+                            ...(c.provincial > 0 ? [`${numero(c.provincial)} ${c.provincial === 1 ? "provincia" : "provincias"}`] : []),
+                            ...(c.distrital > 0 ? [`${numero(c.distrital)} ${c.distrital === 1 ? "distrito" : "distritos"}`] : []),
+                          ])}
+                        </Dato>,
+                      ]}
+                    />
                   </span>
                 </span>
                 <span className="min-w-0" role="img" aria-label={`${c.total} gobiernos, frente a ${maximo} de la organización con más`}>
@@ -779,9 +794,13 @@ function TodosLosPartidos({
                   {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
                     // Sus procesos del OECE (desde 2015); antes, sólo los contratos de la base de Vigía (2026), y los
                     // períodos anteriores decían "Sin contratos en la base".
-                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 text-inkSoft underline-offset-4 hover:text-ink hover:underline">
-                      <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
-                      {(k.montoAdjudicadoPen ?? 0) > 0 && <span className="text-mute">· {solesCompacto(k.montoAdjudicadoPen ?? 0)}</span>}
+                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 flex-col items-end justify-center text-right leading-tight text-inkSoft underline-offset-4 hover:text-ink hover:underline">
+                      <span>
+                        <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
+                      </span>
+                      {(k.montoAdjudicadoPen ?? 0) > 0 && (
+                        <span className="font-mono text-[12px] tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
+                      )}
                     </Link>
                   ) : (
                     contratos && <span className="text-mute">Sin procesos registrados</span>

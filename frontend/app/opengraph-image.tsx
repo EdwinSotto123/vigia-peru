@@ -60,7 +60,8 @@ export default async function Image() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 22 }}>
-              <span style={{ color: PAPER_75 }}>Sin fines de lucro · Código abierto</span>
+              <span style={{ color: PAPER_75 }}>Sin fines de lucro</span>
+              <span style={{ color: PAPER_75 }}>Código abierto</span>
               <span style={{ color: COLOR.maiz, fontFamily: MONO }}>{dominio}</span>
             </div>
           </div>

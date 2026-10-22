@@ -15,6 +15,9 @@ import {
 } from "@/lib/financiamiento";
 import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ListaPaginada } from "@/components/listado/Paginado";
+import { Dato } from "@/components/ui/Dato";
+import { maskDnis } from "@/lib/privacidad";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Indicadores } from "@/components/listado/Indicadores";
@@ -567,38 +570,54 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
           titulo="Provincias con cola"
           acciones={<span className="shrink-0 text-[12px] tabular-nums text-mute">{provinciasConCola.length} de {hijas.length}</span>}
         >
-          <ul className="divide-y divide-line border-y border-line">
-            {provinciasConCola.slice(0, 8).map((h) => (
-              <li key={h.ubigeo}>
-                <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-baseline justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
+          <ListaPaginada
+            tam={8}
+            nombre="provincias"
+            className="divide-y divide-line border-y border-line"
+            buscar={{ placeholder: "Buscar una provincia…", etiqueta: `Buscar en las provincias de ${nombre}` }}
+            items={provinciasConCola.map((h) => ({
+              id: h.ubigeo,
+              buscable: h.nombre,
+              contenido: (
+                <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-center justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
                   <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-granate">{h.nombre}</span>
-                  <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">
-                    <span className="font-semibold text-ink">{enteros(h.totalCola)}</span> en cola
-                    {h.financiados > 0 && <> · {enteros(h.financiados)} financiados</>}
+                  <span className="shrink-0 text-right font-mono text-[12px] leading-tight text-mute tabular-nums">
+                    <span className="block">
+                      <span className="font-semibold text-ink">{enteros(h.totalCola)}</span> en cola
+                    </span>
+                    {h.financiados > 0 && <span className="block text-[11px]">{enteros(h.financiados)} financiados</span>}
                   </span>
                 </Link>
-              </li>
-            ))}
-          </ul>
+              ),
+            }))}
+          />
         </BloqueDetalle>
       )}
 
       {aliados.length > 0 && (
         <BloqueDetalle titulo="Quién pagó estas lecturas">
-          <ul className="divide-y divide-line border-y border-line">
-            {aliados.slice(0, 6).map((a, i) => (
-              <li key={`${a.nombre}-${i}`} className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
-                {a.slug ? (
-                  <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-granate hover:underline">
-                    {a.nombre}
-                  </Link>
-                ) : (
-                  <span className="min-w-0 truncate text-ink">{a.nombre}</span>
-                )}
-                <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">{enteros(a.contratos)} contratos leídos</span>
-              </li>
-            ))}
-          </ul>
+          <ListaPaginada
+            tam={6}
+            nombre="aliados"
+            className="divide-y divide-line border-y border-line"
+            buscar={{ placeholder: "Buscar un aliado…", etiqueta: `Buscar quién pagó lecturas en ${nombre}` }}
+            items={aliados.map((a, i) => ({
+              id: `${a.nombre}-${i}`,
+              buscable: a.nombre,
+              contenido: (
+                <span className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
+                  {a.slug ? (
+                    <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-granate hover:underline">
+                      {a.nombre}
+                    </Link>
+                  ) : (
+                    <span className="min-w-0 truncate text-ink">{a.nombre}</span>
+                  )}
+                  <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">{enteros(a.contratos)} contratos leídos</span>
+                </span>
+              ),
+            }))}
+          />
         </BloqueDetalle>
       )}
     </CuerpoDetalle>
@@ -625,21 +644,29 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
           texto={`Con foto y ubicación; se confirma cuando ${MIN_CONFIRMACIONES} personas reportan el mismo punto en 30 días.`}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
-          {rows.slice(0, 20).map((r) => {
+        <ListaPaginada
+          tam={10}
+          nombre="denuncias"
+          className="divide-y divide-line border-y border-line"
+          buscar={{ placeholder: "Buscar en el relato o la categoría…", etiqueta: `Buscar en las denuncias de ${nombre}` }}
+          items={rows.map((r) => {
             const meta = CATEGORIA_META[r.categoria as CategoriaDenuncia];
             const Icon = meta?.icon ?? MessageSquareWarning;
             const n = Number(r.confirmaciones ?? 0);
             const confirmada = estaConfirmada(r);
-            return (
-              <li key={r.id}>
+            // El relato con los DNI tapados, como en /app/denuncias (§10.6).
+            const relato = maskDnis(r.descripcion);
+            return {
+              id: String(r.id),
+              buscable: [relato, meta?.label].filter(Boolean).join(" "),
+              contenido: (
                 <Link href={`/app/denuncias/${r.id}`} className="group flex items-start gap-2.5 py-2.5 transition-colors duration-rapido hover:bg-paper">
                   <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", meta?.tone ?? "border-line bg-paperDeep text-mute")}>
                     <Icon size={13} aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-mute">
-                      <span>{meta?.label ?? "Reporte"}</span>
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                      <Dato tipo="tipo" nombre="Categoría">{meta?.label ?? "Reporte"}</Dato>
                       {confirmada ? (
                         <span className="inline-flex items-center gap-0.5 text-mossTexto">
                           <CheckCircle2 size={10} aria-hidden /> confirmada por {n} personas
@@ -649,16 +676,16 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
                           en validación, {n} de {MIN_CONFIRMACIONES} reportes
                         </span>
                       )}
-                      {r.fecha && <span className="tabular-nums">{fechaCorta(String(r.fecha).slice(0, 10))}</span>}
+                      {r.fecha && <Dato tipo="fecha" className="tabular-nums">{fechaCorta(String(r.fecha).slice(0, 10))}</Dato>}
                     </span>
-                    <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{r.descripcion}</span>
+                    <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{relato}</span>
                   </span>
                   <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
                 </Link>
-              </li>
-            );
+              ),
+            };
           })}
-        </ul>
+        />
       )}
       <div className="flex flex-col gap-2">
         <Link

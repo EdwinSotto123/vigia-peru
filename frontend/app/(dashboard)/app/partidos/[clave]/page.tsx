@@ -6,6 +6,7 @@ import { Aviso } from "@/components/partidos/AvisoPartido";
 import { GobiernosPartido } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
+import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver } from "@/components/patrones";
 import {
@@ -14,7 +15,7 @@ import {
   CeldaPrincipal,
   Indicadores,
   Listado,
-  Tabla,
+  TablaPaginada,
   TablaSkeleton,
   ZonaResultados,
   type Columna,
@@ -397,8 +398,20 @@ function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
   const filas: Fila[] = d.entidades.map((e) => ({
     id: e.ruc,
     href: `/entidad/${e.ruc}`,
+    buscable: [e.nombre, e.ruc, NIVEL[e.nivel], e.lugar, e.autoridad].filter(Boolean).join(" "),
     celdas: {
-      entidad: <CeldaPrincipal titulo={e.nombre} textoCompleto={e.nombre} meta={[NIVEL[e.nivel] ?? null, e.lugar, e.autoridad ? `Autoridad: ${e.autoridad}` : null]} />,
+      entidad: (
+        <CeldaPrincipal
+          titulo={e.nombre}
+          textoCompleto={e.nombre}
+          meta={[
+            NIVEL[e.nivel] && <Dato key="n" tipo="tipo">{NIVEL[e.nivel]}</Dato>,
+            e.lugar && <Dato key="l" tipo="lugar">{e.lugar}</Dato>,
+            // Autoridad electa: completa (docs/PRIVACIDAD.md).
+            e.autoridad && <Dato key="a" tipo="cargo" nombre="Autoridad">{e.autoridad}</Dato>,
+          ]}
+        />
+      ),
       contratos: <CeldaNumero>{numero(e.contratos)}</CeldaNumero>,
       leidos: <CeldaNumero>{numero(e.leidos)}</CeldaNumero>,
       senales: <CeldaNumero>{numero(e.conSenales)}</CeldaNumero>,
@@ -412,8 +425,15 @@ function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
       <GraficoMeses porMes={d.porMes} etiqueta={`Contratos de la base de Vigía por mes, ${periodoTexto(anio)}`} />
       {filas.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-[16px] font-semibold text-ink">Sus entidades con más contratos en la base</h3>
-          <Tabla columnas={columnas} filas={filas} etiqueta="Entidades con más contratos en la base de Vigía" />
+          <h3 className="text-[16px] font-semibold text-ink">Sus entidades con contratos en la base, de la que más tiene a la que menos</h3>
+          <TablaPaginada
+            columnas={columnas}
+            filas={filas}
+            tam={15}
+            nombre="entidades"
+            etiqueta="Entidades de sus gobiernos con contratos en la base de Vigía"
+            buscar={{ placeholder: "Buscar una entidad, un lugar o un RUC…", etiqueta: "Buscar en sus entidades" }}
+          />
         </div>
       )}
     </div>

@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Search, ArrowUpRight } from "lucide-react";
+import { Building2, Search, ArrowUpRight, Eye } from "lucide-react";
 import type { ApiEntidad } from "@/lib/api-client";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { numero, plural } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Dato } from "@/components/ui/Dato";
+import { Paginacion } from "@/components/ui/Paginacion";
 
 const TIPO_LABEL: Record<string, string> = {
   municipal_distrital: "Mun. distrital",
@@ -56,8 +58,8 @@ const REGION_EN_BASE: Record<string, string> = {
 };
 
 /** La API corta en 100 por página. */
-const POR_PAGINA = 100;
-const VISIBLES = 40;
+/** De a 20, con páginas (antes se veían 40 de las 100 primeras, sin poder pasar de ahí). */
+const POR_PAGINA = 20;
 
 interface Pagina {
   data: ApiEntidad[];
@@ -79,10 +81,14 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
   const [error, setError] = useState(false);
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
+  const [numPagina, setNumPagina] = useState(1);
   const region = REGION_EN_BASE[ubigeo] ?? nombre;
 
   useEffect(() => {
-    const t = window.setTimeout(() => setQDebounced(q.trim()), 300);
+    const t = window.setTimeout(() => {
+      setQDebounced(q.trim());
+      setNumPagina(1);
+    }, 300);
     return () => window.clearTimeout(t);
   }, [q]);
 
@@ -90,7 +96,7 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
     const ctrl = new AbortController();
     setError(false);
     setPagina(null);
-    const qs = new URLSearchParams({ region, limit: String(POR_PAGINA) });
+    const qs = new URLSearchParams({ region, limit: String(POR_PAGINA), offset: String((numPagina - 1) * POR_PAGINA) });
     if (qDebounced) qs.set("q", qDebounced);
     fetch(`${PUBLIC_API_BASE}/entidades?${qs}`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -105,9 +111,10 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
         setError(true);
       });
     return () => ctrl.abort();
-  }, [region, qDebounced]);
+  }, [region, qDebounced, numPagina]);
 
-  const visibles = pagina?.data.slice(0, VISIBLES) ?? [];
+  const visibles = pagina?.data ?? [];
+  const paginas = pagina ? Math.max(1, Math.ceil(pagina.total / POR_PAGINA)) : 1;
 
   return (
     <div className="space-y-3">
@@ -127,7 +134,6 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
       {pagina && pagina.total > 0 && (
         <p className="flex items-center gap-1 text-[12px] tabular-nums text-inkSoft" aria-live="polite">
           <span>
-            <strong className="font-semibold text-ink">{numero(visibles.length)}</strong> de{" "}
             <strong className="font-semibold text-ink">{numero(pagina.total)}</strong> {qDebounced ? "que coinciden" : "entidades"}
           </span>
           <Ayuda titulo="¿En qué orden van?">
@@ -171,12 +177,16 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{tituloNatural(e.nombre)}</span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-mute">
-                    {TIPO_LABEL[e.tipo] && <span>{TIPO_LABEL[e.tipo]}</span>}
-                    {e.provincia && <span>{e.provincia}</span>}
-                    {(e.contratos ?? 0) > 0 && <span className="tabular-nums text-inkSoft">{plural(e.contratos!, "contrato", "contratos")}</span>}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                    {TIPO_LABEL[e.tipo] && <Dato tipo="tipo">{TIPO_LABEL[e.tipo]}</Dato>}
+                    {e.provincia && <Dato tipo="lugar">{e.provincia}</Dato>}
+                    {(e.contratos ?? 0) > 0 && (
+                      <Dato tipo="documento" nombre="Contratos" className="tabular-nums text-inkSoft">{plural(e.contratos!, "contrato", "contratos")}</Dato>
+                    )}
                     {e.alertas > 0 && (
-                      <span className="font-medium tabular-nums text-granate">{plural(e.alertas, "dictamen", "dictámenes")}</span>
+                      <Dato icono={Eye} nombre="Dictámenes publicados" className="font-medium tabular-nums text-granate">
+                        {plural(e.alertas, "dictamen", "dictámenes")}
+                      </Dato>
                     )}
                   </span>
                 </span>
@@ -185,6 +195,19 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
             </li>
           ))}
         </ul>
+      )}
+
+      {pagina && paginas > 1 && (
+        <Paginacion
+          actual={numPagina}
+          paginas={paginas}
+          total={pagina.total}
+          tam={POR_PAGINA}
+          navegacion="interna"
+          onChange={setNumPagina}
+          cargando={false}
+          nombre="entidades"
+        />
       )}
 
       <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">

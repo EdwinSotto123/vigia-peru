@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
 import { Ayuda, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Dato } from "@/components/ui/Dato";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -31,7 +32,7 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Los filtros de las plazas en la URL, con `z` delante. */
-export const P_PLAZAS = { senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag" } as const;
+export const P_PLAZAS = { senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag", q: "zq" } as const;
 
 /**
  * Las plazas CAS de un alcance (una entidad, una región o todo el país), de SERVIR Talento Perú, con sus señales de
@@ -42,15 +43,17 @@ export function ListaPlazas({ alcance, sp, ruta, base, deEntidad = false }: { al
   const senal = uno(sp?.[P.senal]);
   const sev = uno(sp?.[P.severidad]);
   const orden = uno(sp?.[P.orden]);
+  const q = uno(sp?.[P.q])?.slice(0, 80);
   const f = {
     senal: senal && (TIPOS_PLAZA as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
     orden: orden && ["senales", "reciente", "sueldo"].includes(orden) ? orden : undefined,
+    q: q && q.length >= 2 ? q : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlazas({ ...alcance, ...f, size: TAM });
-  const parametros: Parametros = { ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.orden]: f.orden };
-  const filtrada = !!(f.senal || f.severidad);
+  const parametros: Parametros = { ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.orden]: f.orden, [P.q]: f.q };
+  const filtrada = !!(f.senal || f.severidad || f.q);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
@@ -90,6 +93,7 @@ function Barra({ r }: { r: PaginaPlazas["resumen"] | null }) {
   const P = P_PLAZAS;
   return (
     <BarraFiltros
+      busqueda={{ param: P.q, placeholder: "Buscar por puesto, entidad o lugar…", etiqueta: "Buscar en las plazas CAS", min: 3 }}
       faceta={{
         param: P.severidad,
         etiqueta: "Señales",
@@ -174,7 +178,18 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
     id: String(p.aviso),
     celdas: {
       fecha: <CeldaFecha fecha={p.fechaInicio} />,
-      plaza: <CeldaPrincipal titulo={titulo} dosLineas meta={deEntidad ? [p.servicio, p.ubicacion] : [tituloNatural(p.entidad), p.ubicacion]} />,
+      plaza: (
+        <CeldaPrincipal
+          titulo={titulo}
+          dosLineas
+          meta={[
+            deEntidad
+              ? p.servicio && <Dato key="servicio" tipo="servicio">{p.servicio}</Dato>
+              : <Dato key="entidad" tipo="entidad">{tituloNatural(p.entidad)}</Dato>,
+            p.ubicacion && <Dato key="lugar" tipo="lugar">{tituloNatural(p.ubicacion)}</Dato>,
+          ]}
+        />
+      ),
       senales: p.senales.length ? (
         <ul className="flex flex-wrap gap-1">
           {p.senales.slice(0, 3).map((s) => (

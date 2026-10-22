@@ -5,11 +5,12 @@ import { ChevronRight, Landmark, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Volver } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Ayuda, EncabezadoPagina, EstadoError, Migas, Pagina, Volver } from "@/components/patrones";
+import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { getEstadoGlobal, getPago, tiposEnPalabras } from "@/lib/financiamiento";
-import { numero, plural, soles } from "@/lib/formato";
+import { listaY, numero, plural, soles } from "@/lib/formato";
 import { EXPLICACION_PARTIDO, anioDeUrl, getDetallePartido, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 
 export const revalidate = 60;
@@ -83,11 +84,23 @@ export default async function FinanciarPartidoPage({
     { clave: "contratos", titulo: "Contratos", ancho: "96px", alinear: "der" },
     { clave: "cola", titulo: "En cola", ancho: "84px", alinear: "der", desde: "md" },
   ];
-  const filas: Fila[] = (detalle?.entidades ?? []).slice(0, 8).map((e) => ({
+  // Todas las entidades que gobernó con contratos en la base (antes, las 8 primeras), de la que más tiene a la que menos.
+  const filas: Fila[] = (detalle?.entidades ?? []).map((e) => ({
     id: e.ruc,
     href: `/app/financiar/entidad/${e.ruc}`,
+    buscable: [e.nombre, e.ruc, e.lugar, e.autoridad].filter(Boolean).join(" "),
     celdas: {
-      entidad: <CeldaPrincipal titulo={e.nombre} textoCompleto={e.nombre} meta={[e.lugar, e.autoridad ? `Autoridad: ${e.autoridad}` : null]} />,
+      entidad: (
+        <CeldaPrincipal
+          titulo={e.nombre}
+          textoCompleto={e.nombre}
+          meta={[
+            e.lugar && <Dato key="l" tipo="lugar">{e.lugar}</Dato>,
+            // Autoridad electa: completa (docs/PRIVACIDAD.md).
+            e.autoridad && <Dato key="a" tipo="cargo" nombre="Autoridad">{e.autoridad}</Dato>,
+          ]}
+        />
+      ),
       contratos: <CeldaNumero>{numero(e.contratos)}</CeldaNumero>,
       cola: <CeldaNumero>{numero(e.enCola)}</CeldaNumero>,
     },
@@ -95,7 +108,14 @@ export default async function FinanciarPartidoPage({
 
   return (
     <Pagina className="space-y-6">
-      <Volver href={`/app/financiar?por=partido&anio=${anio}`}>Financiar por partido</Volver>
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Financiar", href: "/app/financiar" },
+          { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` },
+          { etiqueta: nombre },
+        ]}
+      />
 
       <div className="space-y-4">
         <EncabezadoPagina
@@ -106,11 +126,13 @@ export default async function FinanciarPartidoPage({
                 <Landmark size={14} className="shrink-0 text-mute" aria-hidden /> Período {periodoTexto(anio)}
               </span>
               {gobiernos && (
-                <span>
-                  {numero(gobiernos.regional)} {gobiernos.regional === 1 ? "región" : "regiones"}, {numero(gobiernos.provincial)}{" "}
-                  {gobiernos.provincial === 1 ? "provincia" : "provincias"}, {numero(gobiernos.distrital)}{" "}
-                  {gobiernos.distrital === 1 ? "distrito" : "distritos"}
-                </span>
+                <Dato tipo="lugar" nombre="Gobernó">
+                  {listaY([
+                    `${numero(gobiernos.regional)} ${gobiernos.regional === 1 ? "región" : "regiones"}`,
+                    `${numero(gobiernos.provincial)} ${gobiernos.provincial === 1 ? "provincia" : "provincias"}`,
+                    `${numero(gobiernos.distrital)} ${gobiernos.distrital === 1 ? "distrito" : "distritos"}`,
+                  ])}
+                </Dato>
               )}
               <Link
                 href={`/app/partidos/${params.clave}?anio=${anio}`}
@@ -131,8 +153,17 @@ export default async function FinanciarPartidoPage({
 
           {filas.length > 0 && (
             <section aria-labelledby="entidades-partido" className="space-y-2">
-              <h2 id="entidades-partido" className="font-display text-lg font-bold text-ink">Las entidades con más contratos</h2>
-              <Tabla columnas={columnas} filas={filas} etiqueta={`Entidades que gobernó ${nombre} con más contratos`} />
+              <h2 id="entidades-partido" className="font-display text-lg font-bold text-ink">
+                Las entidades que gobernó, de la que más contratos tiene a la que menos
+              </h2>
+              <TablaPaginada
+                columnas={columnas}
+                filas={filas}
+                tam={10}
+                nombre="entidades"
+                etiqueta={`Entidades que gobernó ${nombre}`}
+                buscar={{ placeholder: "Buscar una entidad, un lugar o un RUC…", etiqueta: "Buscar en sus entidades" }}
+              />
             </section>
           )}
 

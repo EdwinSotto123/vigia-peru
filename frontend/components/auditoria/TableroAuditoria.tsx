@@ -239,6 +239,8 @@ interface Props {
   desde?: string;
   hasta?: string;
   financiador?: string;
+  /** Texto libre, como en lo leído: qué se contrata, la entidad, la zona, el código. */
+  q?: string;
   titulo?: string;
   autoRefreshMs?: number;
   /** Filas por consulta (el API acepta hasta 300). */
@@ -298,6 +300,7 @@ export function TableroAuditoria({
   desde,
   hasta,
   financiador,
+  q,
   titulo,
   autoRefreshMs = 5000,
   limit = 300,
@@ -334,8 +337,8 @@ export function TableroAuditoria({
   const menosMovimiento = useRef(false);
 
   const filtros: ProcesamientosQuery = useMemo(
-    () => ({ ubigeo, codigo, desde, hasta, financiador, estado: soloActivos ? ("activos" as const) : undefined }),
-    [ubigeo, codigo, desde, hasta, financiador, soloActivos],
+    () => ({ ubigeo, codigo, desde, hasta, financiador, q, estado: soloActivos ? ("activos" as const) : undefined }),
+    [ubigeo, codigo, desde, hasta, financiador, q, soloActivos],
   );
 
   useEffect(() => {
@@ -573,7 +576,7 @@ export function TableroAuditoria({
   });
   const sinFilas = cargado && grupos.every((g) => g.filas.length === 0);
   const columnas = compacto ? COLUMNAS_VIVO_COMPACTO : COLUMNAS_VIVO;
-  const filtrado = !!(desde || hasta || financiador);
+  const filtrado = !!(desde || hasta || financiador || q);
   // En pestañas y sin avisos, nada va arriba de la tabla: sin margen suelto bajo la barra.
   const sinCabecera = enPestanas && !truncado && !sinConexion;
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, Flag, MapPin } from "lucide-react";
+import { Building2, Flag, Hash, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -122,8 +122,8 @@ export default async function EntidadProfile({
             <span className="inline-flex items-center gap-1.5">
               <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, e.nombre)}
             </span>
-            <span>
-              RUC{" "}
+            <span className="inline-flex items-center gap-1.5">
+              <Hash size={14} className="shrink-0 text-mute" aria-hidden /> RUC{" "}
               <span className="font-mono text-ink" translate="no">
                 {e.ruc}
               </span>
@@ -368,16 +368,6 @@ async function Resultados({
 
 // ─── Las cuatro cifras ───────────────────────────────────────────────────────
 
-/** Los tipos con más contratos, de mayor a menor: "Bienes 221 · Servicios 37 · Consultoría 12". */
-function porTipoTexto(resumen: ResumenContratos | null): string | undefined {
-  const t = resumen?.porTipo;
-  if (!t) return undefined;
-  const filas = TIPOS.map((x) => [x.label, t[x.value] ?? 0] as const)
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1]);
-  return filas.length > 0 ? filas.slice(0, 3).map(([l, n]) => `${l} ${numero(n)}`).join(" · ") : undefined;
-}
-
 /** El último año del MEF con datos propios (sin el que repite al anterior). */
 function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | null | undefined): MefBudgetRow | null {
   if (!mef || mef.kind !== "ok" || !mef.by_year?.length) return null;
@@ -421,7 +411,7 @@ function indicadores({
             : "ninguno leído todavía"
           : // La misma medida que la lista de entidades ("Con dictamen 13 de 331"): con dictamen publicado.
             `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
-        : porTipoTexto(resumen),
+        : undefined,
       href: leidos > 0 ? `${ruta}?seccion=contratos&lectura=publicado` : `${ruta}?seccion=contratos`,
       ayuda: (
         <Ayuda titulo="¿Qué contratos puede leer Vigía?">

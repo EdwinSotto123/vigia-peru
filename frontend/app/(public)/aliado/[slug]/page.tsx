@@ -32,8 +32,6 @@ export const revalidate = 30;
 
 /** Aportes cuyo comprobante se trae para abrir en el panel. Más allá, se enlaza. */
 const MAX_DETALLE = 12;
-/** Filas de la pestaña Señales. */
-const MAX_SENALES = 60;
 const SECCIONES = ["resumen", "senales", "zonas", "aportes"] as const;
 type Seccion = (typeof SECCIONES)[number];
 
@@ -165,18 +163,13 @@ export default async function AliadoPage({
                   </Ayuda>
                 </p>
                 {senales.length > 0 ? (
-                  <TablaSenales senales={senales.slice(0, MAX_SENALES)} nombre={aliado.nombre} />
+                  <TablaSenales senales={senales} nombre={aliado.nombre} />
                 ) : (
                   <EstadoVacio compacto conLlamita={false} titulo={r.leidos > 0 ? "Sin señales publicadas" : "Todavía sin contratos leídos"}>
                     {r.leidos > 0
                       ? `Ninguno de sus ${numero(r.leidos)} contratos leídos tiene una señal publicada.`
                       : "Cada contrato aparece aquí en cuanto su dictamen se publica."}
                   </EstadoVacio>
-                )}
-                {senales.length > MAX_SENALES && (
-                  <p className="text-[12.5px] text-mute">
-                    Mostrando {numero(MAX_SENALES)} de {numero(senales.length)}: el resto, dentro del aporte que pagó cada una.
-                  </p>
                 )}
                 {avisoParcial}
               </div>

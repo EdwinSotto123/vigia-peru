@@ -5,6 +5,7 @@ import { DatosClave, type DatoClave } from "@/components/patrones";
 import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
 import { fecha, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { REGIMEN } from "@/lib/planilla";
 import { FUENTE_TEXTO, SENAL, SEVERIDAD_TEXTO, type EntidadDePersona, type SenalDetalle } from "@/lib/personas";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
 
@@ -309,6 +310,34 @@ function Detalle({ s }: { s: SenalDetalle }) {
             { clave: "veces", titulo: "Diferencia", ancho: "92px", alinear: "der" },
           ]}
           filas={filas}
+        />
+      );
+    }
+    case "tambien_planilla": {
+      const meses = Array.isArray(d.meses) ? (d.meses as unknown[]).map((m) => txt(m)).filter((m): m is string => !!m).sort() : [];
+      const regimen = num(d.regimen);
+      return (
+        <DatosClave
+          items={[
+            { etiqueta: "Meses con órdenes y planilla", valor: meses.length ? meses.join(", ") : null, mono: true },
+            { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
+            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null },
+            { etiqueta: "Lo que cobró en planilla", valor: num(d.sueldo) != null ? soles(num(d.sueldo)!) : null, mono: true },
+          ]}
+        />
+      );
+    }
+    case "paso_a_planilla": {
+      const regimen = num(d.regimen);
+      const mes = txt(d.primer_mes_planilla);
+      return (
+        <DatosClave
+          items={[
+            { etiqueta: "Primera orden", valor: dia(d.primera_orden), mono: true },
+            { etiqueta: "Entró a la planilla", valor: mes ? mes.slice(0, 7) : null, mono: true },
+            { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
+            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null },
+          ]}
         />
       );
     }

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon, Users } from "lucide-react";
 import { Pagina } from "@/components/patrones";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { EnVivoInicio } from "@/components/home/EnVivoInicio";
 import { HeroInicio, type CifrasInicio } from "@/components/home/HeroInicio";
 import { RankingsInicio, type PestanaRank } from "@/components/home/RankingsInicio";
@@ -222,7 +224,12 @@ export default async function InicioApp() {
                       <span className="min-w-0">
                         <span className="block truncate text-[15px] font-semibold text-ink">{a.objeto ? tituloNatural(a.objeto) : "Contrato sin título"}</span>
                         <span className="block truncate text-[13px] text-mute">
-                          {[a.entidad && tituloNatural(a.entidad), a.region].filter(Boolean).join(", ")}
+                          <Partes
+                            partes={[
+                              a.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(a.entidad)}</Dato>,
+                              a.region && <Dato key="region" tipo="lugar">{a.region}</Dato>,
+                            ]}
+                          />
                         </span>
                       </span>
                       <span className="shrink-0 text-right text-[13px] leading-snug text-mute">

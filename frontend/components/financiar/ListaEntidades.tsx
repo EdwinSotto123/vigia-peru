@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { alcanceCorto, type AlcanceProcesamiento, type EntidadFinanciable, type EntidadesFinanciables } from "@/lib/financiamiento";
@@ -102,7 +103,7 @@ function fila(e: EntidadFinanciable, precioPen: number | null, mayor: number): F
           enLinea
           titulo={<NombreEntidad ruc={e.ruc} nombre={e.nombre} />}
           textoCompleto={persona ? undefined : e.nombre}
-          meta={[t ? etiquetaTipoEntidad(t, e.nombre) : null, e.region]}
+          meta={[t && <Dato key="t" tipo="tipo">{etiquetaTipoEntidad(t, e.nombre)}</Dato>, e.region && <Dato key="r" tipo="lugar">{e.region}</Dato>]}
         />
       ),
       barra: <CeldaBarra parte={e.enCola / mayor} resumen={`${numero(e.enCola)} contratos en cola, de ${numero(mayor)} en la entidad con más`} />,

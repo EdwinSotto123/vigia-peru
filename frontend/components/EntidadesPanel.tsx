@@ -6,6 +6,7 @@ import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import type { ApiEntidad, EntidadesPagina } from "@/lib/api-client";
 import { numero, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { Dato } from "@/components/ui/Dato";
 
 /**
  * El ranking de entidades sobre la plantilla Listado (§14.1): la `Tabla` compartida
@@ -53,7 +54,7 @@ interface Props {
   orden: OrdenEntidades;
   /** Parámetros de la URL sin la página, para armar los enlaces de la paginación. */
   parametros: Record<string, string | undefined>;
-  /** Búsqueda activa (por nombre). */
+  /** Búsqueda activa (por nombre o por el comienzo del RUC). */
   q?: string;
   /** Enlace a esta misma vista, para reintentar. */
   aqui: string;
@@ -84,7 +85,7 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
     return (
       <EstadoVacio
         compacto
-        titulo={qRuc ? "La búsqueda mira el nombre, no el RUC" : q ? `Ninguna entidad coincide con «${q}»` : "No hay entidades para mostrar"}
+        titulo={qRuc ? `Ninguna entidad de la lista tiene el RUC ${qRuc}` : q ? `Ninguna entidad coincide con «${q}»` : "No hay entidades para mostrar"}
         accion={
           q ? (
             <span className="flex flex-wrap items-center justify-center gap-2">
@@ -100,7 +101,7 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
           ) : undefined
         }
       >
-        {qRuc ? "Con el RUC se llega directo a su ficha." : "Prueba con otra palabra del nombre oficial, o pega el RUC de 11 dígitos."}
+        {qRuc ? "Puede tener ficha aunque no tenga contratos en la lista: ábrela con su RUC." : "Prueba con otra palabra del nombre oficial, o pega el RUC (11 dígitos o su comienzo)."}
       </EstadoVacio>
     );
   }
@@ -161,11 +162,11 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
           titulo={tituloNatural(e.nombre)}
           meta={[
-            tipo,
-            e.region,
-            <span className="font-mono" translate="no">
-              RUC {e.ruc}
-            </span>,
+            <Dato key="tipo" tipo="tipo" nombre="Tipo de entidad">{tipo}</Dato>,
+            e.region && <Dato key="region" tipo="lugar">{e.region}</Dato>,
+            <Dato key="ruc" tipo="ruc">
+              RUC <span className="font-mono tabular-nums" translate="no">{e.ruc}</span>
+            </Dato>,
           ]}
         />
       ),

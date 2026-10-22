@@ -38,6 +38,8 @@ export interface PersonaPlanilla {
   nSenales: number;
   /** Su ficha de persona contratada, si también recibe órdenes de servicio. */
   codigo: string | null;
+  /** Un posible error de carga del Estado en su último mes (migración 102): no entra en sumas, medianas ni señales. */
+  dudoso: { motivo: string; base: number | null; extra: number | null; total: number | null; anio: number; mes: number } | null;
 }
 
 export interface ResumenPlanilla {
@@ -49,6 +51,8 @@ export interface ResumenPlanilla {
   ultimoMes: string | null;
   porSenal: { tipo: TipoPlanilla; n: number }[];
   porRegimen: { regimen: number | null; n: number }[];
+  /** Cuántos con un posible error de carga (no se suman en `totalMes`). */
+  dudosos?: number;
 }
 
 export interface PaginaPlanilla {
@@ -185,8 +189,8 @@ const qs = (f: Record<string, unknown>) => {
   return p.toString();
 };
 
-export const getPlanilla = (f: { entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; page?: number; size?: number }) =>
+export const getPlanilla = (f: { entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string; page?: number; size?: number }) =>
   leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
 
-export const getPlazas = (f: { entidad?: string; dep?: string; senal?: string; severidad?: string; orden?: string; page?: number; size?: number }) =>
+export const getPlazas = (f: { entidad?: string; dep?: string; senal?: string; severidad?: string; orden?: string; q?: string; page?: number; size?: number }) =>
   leer<PaginaPlazas>(`/plazas?${qs(f)}`);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Ayuda } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { periodoTexto, type GastoPartido } from "@/lib/partidosApi";
@@ -79,14 +80,28 @@ export function GastoGobiernos({ gasto, ruta, anio }: { gasto: GastoPartido | nu
           {(gasto.proyectos?.length ?? 0) > 0 && (
             <div>
               <h4 className="mb-3 text-[14px] font-semibold text-ink">Proyectos con más presupuesto</h4>
-              <TablaPaginada columnas={COLUMNAS_PROYECTOS} filas={filasProyectos(gasto)} etiqueta="Proyectos de inversión con más presupuesto" tam={8} nombre="proyectos" />
+              <TablaPaginada
+                columnas={COLUMNAS_PROYECTOS}
+                filas={filasProyectos(gasto)}
+                etiqueta="Proyectos de inversión con más presupuesto"
+                tam={8}
+                nombre="proyectos"
+                buscar={{ placeholder: "Buscar un proyecto, su CUI o el gobierno…", etiqueta: "Buscar en los proyectos" }}
+              />
             </div>
           )}
 
           {(gasto.gobiernos?.length ?? 0) > 0 && (
             <div>
               <h4 className="mb-3 text-[14px] font-semibold text-ink">Cada gobierno, por presupuesto</h4>
-              <TablaPaginada columnas={COLUMNAS_GOBIERNOS} filas={filasGobiernos(gasto)} etiqueta="Gobiernos del partido por presupuesto" tam={10} nombre="gobiernos" />
+              <TablaPaginada
+                columnas={COLUMNAS_GOBIERNOS}
+                filas={filasGobiernos(gasto)}
+                etiqueta="Gobiernos del partido por presupuesto"
+                tam={10}
+                nombre="gobiernos"
+                buscar={{ placeholder: "Buscar un gobierno o una región…", etiqueta: "Buscar en sus gobiernos" }}
+              />
             </div>
           )}
         </div>
@@ -105,9 +120,16 @@ const COLUMNAS_PROYECTOS: Columna[] = [
 function filasProyectos(g: GastoPartido): Fila[] {
   return (g.proyectos ?? []).map((p) => ({
     id: `${p.codigo}-${p.ubigeo}`,
+    buscable: [p.nombre, p.codigo, p.lugar, NIVEL[p.nivel]].filter(Boolean).join(" "),
     celdas: {
-      proyecto: <CeldaPrincipal titulo={tituloNatural(p.nombre)} dosLineas meta={[`CUI ${p.codigo}`]} />,
-      gobierno: <CeldaTexto sub={NIVEL[p.nivel]}>{p.lugar ?? p.ubigeo}</CeldaTexto>,
+      proyecto: (
+        <CeldaPrincipal
+          titulo={tituloNatural(p.nombre)}
+          dosLineas
+          meta={[<Dato key="c" tipo="codigo" nombre="Código único de inversión" mono>CUI {p.codigo}</Dato>]}
+        />
+      ),
+      gobierno: <CeldaTexto sub={<Dato tipo="tipo">{NIVEL[p.nivel]}</Dato>}><Dato tipo="lugar">{p.lugar ?? p.ubigeo}</Dato></CeldaTexto>,
       pim: <CeldaNumero>{solesCompacto(p.pim)}</CeldaNumero>,
       gastado: <CeldaNumero>{porcentaje(gastado(p.pim, p.devengado))}</CeldaNumero>,
     },
@@ -127,6 +149,7 @@ function filasGobiernos(g: GastoPartido): Fila[] {
     const pct = gastado(x.pim, x.devengado);
     return {
       id: `${x.nivel}-${x.ubigeo}`,
+      buscable: [x.lugar, x.region, NIVEL[x.nivel]].filter(Boolean).join(" "),
       celdas: {
         gobierno: (
           <CeldaPrincipal
@@ -139,7 +162,7 @@ function filasGobiernos(g: GastoPartido): Fila[] {
                 x.lugar ?? x.ubigeo
               )
             }
-            meta={[NIVEL[x.nivel]]}
+            meta={[<Dato key="n" tipo="tipo">{NIVEL[x.nivel]}</Dato>]}
           />
         ),
         region: <CeldaTexto>{x.region ?? "Sin dato"}</CeldaTexto>,

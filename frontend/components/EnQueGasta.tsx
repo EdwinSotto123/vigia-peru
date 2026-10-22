@@ -247,7 +247,12 @@ function Barras({ filas, total }: { filas: DatoGasto[]; total: number }) {
         tam={12}
         nombre="rubros"
         className="space-y-3 px-2"
-        items={filas.map((f) => ({ id: f.codigo, contenido: <Fila nombre={oracion(f.nombre)} pim={f.pim} devengado={f.devengado} total={total} /> }))}
+        buscar={filas.length > 12 ? { placeholder: "Buscar un rubro…", etiqueta: "Buscar en los rubros del gasto" } : undefined}
+        items={filas.map((f) => ({
+          id: f.codigo,
+          buscable: `${f.nombre} ${f.codigo}`,
+          contenido: <Fila nombre={oracion(f.nombre)} pim={f.pim} devengado={f.devengado} total={total} />,
+        }))}
       />
     </div>
   );
@@ -270,8 +275,10 @@ function Proyectos({ p, total }: { p: GastoEntidad["proyectos"]; total: number }
         tam={10}
         nombre="proyectos"
         className="space-y-3 px-2"
+        buscar={{ placeholder: "Buscar un proyecto por nombre o CUI…", etiqueta: "Buscar en los proyectos de inversión" }}
         items={p.lista.map((x) => ({
           id: x.codigo,
+          buscable: `${x.nombre} ${x.codigo !== SIN_PROYECTO ? `cui ${x.codigo}` : ""}`,
           contenido: (
             <Fila
               nombre={tituloNatural(x.nombre)}

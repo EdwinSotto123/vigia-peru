@@ -1,5 +1,5 @@
-import { Landmark } from "lucide-react";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Dato } from "@/components/ui/Dato";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { numero, plural, solesCompacto } from "@/lib/formato";
@@ -107,11 +107,11 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
   // El partido que gobernaba la entidad en el último de esos años (las entidades nacionales no tienen).
   const gob = [...(p.gobiernos ?? [])].sort((a, b) => b.anio - a.anio)[0];
   const partido = gob ? (
-    <span key="partido" className="inline-flex items-center gap-1" title={`Gobernaba la entidad: ${gob.nombre}`}>
-      <Landmark size={12} className="shrink-0" aria-hidden />
+    <Dato key="partido" tipo="partido" nombre="Gobernaba la entidad">
       {gob.nombre}
-    </span>
+    </Dato>
   ) : null;
+  const servicio = p.servicio ? <Dato key="servicio" tipo="servicio">{p.servicio}</Dato> : null;
   return {
     id: `${p.codigo}-${p.entidadRuc}`,
     href: rutaPersona(p.codigo),
@@ -119,7 +119,7 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
       persona: (
         <CeldaPrincipal
           titulo={p.nombre ?? "Persona sin nombre"}
-          meta={deEntidad ? [p.servicio, partido] : [p.servicio, entidad, partido]}
+          meta={deEntidad ? [servicio, partido] : [servicio, <Dato key="entidad" tipo="entidad">{entidad}</Dato>, partido]}
         />
       ),
       senales: <SenalesCelda senales={p.senales} />,

@@ -1,3 +1,4 @@
+import { Dato } from "@/components/ui/Dato";
 import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -283,7 +284,11 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                         <div className="min-w-0 flex-1">
                           {/* Dentro de un enlace no cabe el vidrio revelable (sería un botón dentro de un <a>): DNI tapado sin más. */}
                           <div className="line-clamp-1 text-xs font-medium text-ink">{maskDnis(c.descripcion)}</div>
-                          <div className="font-mono text-[11px] text-mute" translate="no">{c.id}</div>
+                          <div className="text-[11px] text-mute">
+                            <Dato tipo="codigo" nombre="Código de la denuncia" mono>
+                              <span translate="no">{c.id}</span>
+                            </Dato>
+                          </div>
                         </div>
                         <ChevronRight size={12} className="shrink-0 text-mute" aria-hidden />
                       </Link>
@@ -291,6 +296,15 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                   );
                 })}
               </ul>
+              {/* Las más recientes; la lista entera de la región, con buscador, en /app/denuncias. */}
+              <div className="border-t border-line px-4 py-2.5">
+                <Link
+                  href={`/app/denuncias?region=${encodeURIComponent(rep.region)}`}
+                  className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
+                >
+                  Ver todas las denuncias de {rep.region} <ChevronRight size={13} aria-hidden />
+                </Link>
+              </div>
             </div>
           )}
         </aside>

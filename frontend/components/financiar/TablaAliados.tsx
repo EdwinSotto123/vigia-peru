@@ -1,11 +1,13 @@
 import { Avatar } from "@/components/financiar/RankingTable";
-import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { TIPO_FINANCIADOR_LABEL, type Aliado } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 
 /**
  * "Quién financió" en la ficha de una zona y en la de una entidad: reconocimiento en
- * contratos, nunca en soles. La fila va a la ficha del aliado cuando tiene una.
+ * contratos, nunca en soles. La fila va a la ficha del aliado cuando tiene una. Todos (antes, los
+ * 12 primeros), de a 15 y con buscador por su nombre público (sólo aparecen aliados visibles).
  * Server-safe: sólo datos planos.
  */
 
@@ -31,13 +33,20 @@ export function TablaAliados({ aliados, etiqueta }: { aliados: AliadoFila[]; eti
     return {
       id: `${a.slug ?? a.nombre}-${a.contratos}`,
       href: a.slug ? `/aliado/${a.slug}` : undefined,
+      buscable: [a.nombre, esTipo(a.tipo) ? TIPO_FINANCIADOR_LABEL[a.tipo] : null].filter(Boolean).join(" "),
       celdas: {
         aliado: (
           <span className="flex w-full min-w-0 items-center gap-3">
             <Avatar tipo={tipo} logoUrl={a.logoUrl} nombre={a.nombre} />
             <CeldaPrincipal
               titulo={a.nombre}
-              meta={a.slug === "vigia-peru" ? "La propia plataforma" : esTipo(a.tipo) ? TIPO_FINANCIADOR_LABEL[a.tipo] : undefined}
+              meta={[
+                a.slug === "vigia-peru" ? (
+                  <Dato key="t" tipo="tipo">La propia plataforma</Dato>
+                ) : (
+                  esTipo(a.tipo) && <Dato key="t" tipo="tipo">{TIPO_FINANCIADOR_LABEL[a.tipo]}</Dato>
+                ),
+              ]}
             />
           </span>
         ),
@@ -45,5 +54,14 @@ export function TablaAliados({ aliados, etiqueta }: { aliados: AliadoFila[]; eti
       },
     };
   });
-  return <Tabla columnas={COLUMNAS} filas={filas} etiqueta={etiqueta} />;
+  return (
+    <TablaPaginada
+      columnas={COLUMNAS}
+      filas={filas}
+      etiqueta={etiqueta}
+      tam={15}
+      nombre="aliados"
+      buscar={{ placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado" }}
+    />
+  );
 }

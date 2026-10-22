@@ -2,7 +2,8 @@ import Link from "next/link";
 import { FileText } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { ChipAporte } from "@/components/financiar/EstadoAporte";
 import { indicadoresAporte } from "@/components/financiar/indicadoresAporte";
@@ -15,8 +16,8 @@ import { fecha, numero, oracion } from "@/lib/formato";
  * quien paga: no es un agradecimiento, es la trazabilidad de en qué se convirtió
  * cada aporte.
  *
- * Una fila por aporte —estado (chip) · zona y código · leídos · con señales · fecha · ›—
- * y el aporte abierto en el panel lateral con el formato de todo panel (DESIGN_SYSTEM.md
+ * Una fila por aporte (estado en chip, zona y código, leídos, con señales, fecha), de a 10 y con
+ * buscador, y el aporte abierto en el panel lateral con el formato de todo panel (DESIGN_SYSTEM.md
  * §14.4): chips → cifras → datos clave → bloques. Sin montos en soles (§14.6): ni el del
  * aporte ni el valor de cada contrato; ése está en la ficha del contrato.
  */
@@ -58,9 +59,15 @@ export function CadenaAliado({
     const enRevision = c.enRevision ?? 0;
     const fila: Fila = {
       id: c.codigo,
+      buscable: [c.zona, c.codigo].join(" "),
       celdas: {
         estado: <ChipAporte estado={c.estado} />,
-        aporte: <CeldaPrincipal titulo={c.zona} meta={<span className="font-mono">{c.codigo}</span>} />,
+        aporte: (
+          <CeldaPrincipal
+            titulo={c.zona}
+            meta={[<Dato key="c" tipo="codigo" nombre="Código del aporte" mono>{c.codigo}</Dato>]}
+          />
+        ),
         leidos: <CeldaNumero sub={`de ${num(c.contratos)}`}>{num(c.procesados)}</CeldaNumero>,
         senales: (
           <CeldaNumero sub={enRevision > 0 ? `${num(enRevision)} en revisión` : undefined}>{num(c.senales)}</CeldaNumero>
@@ -90,7 +97,16 @@ export function CadenaAliado({
     }
     return fila;
   });
-  return <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Aportes de ${nombre}`} />;
+  return (
+    <TablaPaginada
+      columnas={COLUMNAS}
+      filas={filas}
+      etiqueta={`Aportes de ${nombre}`}
+      tam={10}
+      nombre="aportes"
+      buscar={{ placeholder: "Buscar una zona o el código de un aporte…", etiqueta: "Buscar en sus aportes" }}
+    />
+  );
 }
 
 /** El panel de un aporte (§14.4): qué es, sus cifras, sus datos y qué contratos pagó. */
@@ -137,11 +153,14 @@ function DetalleAporte({
       <BloqueDetalle titulo={r.asignados > 0 ? `Contratos que pagó (${num(comprobante.detalle.length)})` : "Contratos que pagó"}>
         {comprobante.detalle.length > 0 ? (
           // Dentro del panel (~670 px): las columnas se deciden por el ancho de la tabla, no de la pantalla.
-          <Tabla
-            medida="contenedor"
+          <TablaPaginada
             columnas={COLUMNAS_CONTRATOS}
             filas={comprobante.detalle.map(filaContrato)}
             etiqueta={`Contratos del aporte ${comprobante.codigo}`}
+            tam={10}
+            nombre="contratos"
+            buscar={{ placeholder: "Buscar un contrato o una entidad…", etiqueta: "Buscar en los contratos del aporte" }}
+            medida="contenedor"
           />
         ) : (
           <p className="text-[13px] text-mute">Todavía sin contratos asignados: la cola de {c.zona} los entrega por antigüedad.</p>
@@ -177,9 +196,15 @@ function filaContrato(d: ComprobanteContrato): Fila {
   return {
     id: d.ocid,
     href: `/app/contratos/${encodeURIComponent(d.ocid)}`,
+    buscable: [d.titulo, d.entidad].filter(Boolean).join(" "),
     celdas: {
       estado,
-      contrato: <CeldaPrincipal titulo={d.titulo ? oracion(d.titulo) : "Sin objeto declarado en el expediente"} meta={d.entidad ?? undefined} />,
+      contrato: (
+        <CeldaPrincipal
+          titulo={d.titulo ? oracion(d.titulo) : "Sin objeto declarado en el expediente"}
+          meta={[d.entidad && <Dato key="e" tipo="entidad">{d.entidad}</Dato>]}
+        />
+      ),
       // Sin leer o en revisión todavía no hay señales publicadas: "Sin dato", no un 0.
       senales: leido && !enRevision ? <CeldaNumero>{num(sev ? d.banderas : 0)}</CeldaNumero> : undefined,
     },

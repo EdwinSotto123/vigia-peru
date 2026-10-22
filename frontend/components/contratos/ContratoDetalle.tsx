@@ -17,7 +17,7 @@
 
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
-import { Building2, Clock, MapPin, ShieldAlert } from "lucide-react";
+import { Building2, Clock, Hash, MapPin, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
@@ -34,6 +34,9 @@ import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
 import { CrucesProveedor } from "./CrucesProveedor";
 import { PartidoQueGobierna } from "./PartidoQueGobierna";
+import { AvisoContrato } from "./DatoDudosoContrato";
+import { BanderaDato } from "@/components/ui/BanderaDato";
+import { motivoDudoso } from "@/lib/datoDudoso";
 import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
@@ -146,11 +149,15 @@ export function ContratoDetalle({
               <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
               {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
               <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
+              {motivoDudoso(c.datoDudoso?.motivo) && <li><BanderaDato motivo={motivoDudoso(c.datoDudoso?.motivo)!} /></li>}
             </ul>
           </div>
 
           {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
           <Indicadores items={indicadoresDe(c, adjudicado)} apilado />
+
+          {/* 2'. El OECE publicó un valor que no se puede creer (migración 102): se muestra tal cual, con su aviso. */}
+          <AvisoContrato dato={c.datoDudoso} />
 
           {/* 2a. La buena pro pasó a otro postor (OCDS + CONOSCE): lo que explica cifras que no cuadran. */}
           {cambio && <CambioGanador c={c} cambio={cambio} />}
@@ -217,8 +224,8 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
   const enlace = "inline-flex min-h-6 items-center gap-1.5 text-ink underline-offset-2 hover:text-granate hover:underline";
   return (
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span>
-        Código SEACE{" "}
+      <span className="inline-flex items-center gap-1.5">
+        <Hash size={14} className="shrink-0 text-mute" aria-hidden /> Código SEACE{" "}
         <span className="font-mono text-ink" translate="no">
           {c.codigo}
         </span>
@@ -595,7 +602,7 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
         )}
         .
       </p>
-      <p className="mt-1.5 text-[12px] text-mute">Fuente: registro OCDS del OECE y CONOSCE · adjudicaciones</p>
+      <p className="mt-1.5 text-[12px] text-mute">Fuente: registro OCDS del OECE y las adjudicaciones de CONOSCE</p>
     </section>
   );
 }

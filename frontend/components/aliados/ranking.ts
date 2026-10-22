@@ -148,6 +148,40 @@ export function armarRanking({
 }
 
 /**
+ * El ranking filtrado por el nombre público (`q`): sin podio, los que coinciden con su puesto de siempre. Con la
+ * muestra entera (≤ 60) se filtra acá; pasados los 60, `pagina` es la búsqueda del API (su `posicion` ya es el puesto
+ * en el ranking entero). Las sumas siguen siendo las del ámbito, no las de la búsqueda.
+ */
+export function buscarEnRanking({
+  muestra,
+  pagina,
+  q,
+  base,
+}: {
+  muestra: RankingPagina;
+  pagina: RankingPagina | null;
+  q: string;
+  /** El ranking sin búsqueda: de ahí salen las sumas y los anónimos. */
+  base: Ranking;
+}): Ranking {
+  const completa = (muestra.total ?? 0) <= MUESTRA_RANKING;
+  const norm = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const palabras = norm(q).split(/\s+/).filter(Boolean);
+  const tabla = completa
+    ? clasificar(muestra.data ?? []).filter((f) => palabras.every((p) => norm(f.nombre).includes(p)))
+    : (pagina?.data ?? []).filter((r) => !esAnonimo(r)).map((r) => ({ ...r, puesto: r.posicion }));
+  const total = completa ? tabla.length : pagina?.total ?? tabla.length;
+  return {
+    ...base,
+    podio: [],
+    tabla,
+    totalNombres: total,
+    completa,
+    paginas: completa ? 1 : Math.max(1, Math.ceil(total / TAM_PAGINA)),
+  };
+}
+
+/**
  * El puesto de un aliado en el ranking de todo el Perú, desde el inicio: "#3 de 12".
  * `null` si no se puede saber (el API no responde, o el aliado queda fuera de la muestra).
  */

@@ -326,14 +326,14 @@ function BarraAnio({ row, growth, alerta }: { row: MefBudgetRow; growth: number 
       <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
         <span className="font-display text-[28px] font-bold leading-tight tabular-nums text-ink sm:text-[32px]">{solesCompacto(pim)}</span>
         <span className="text-[13px] text-inkSoft">
-          presupuesto vigente ·{" "}
+          de presupuesto vigente
           {pim > 0 ? (
             <>
-              <span className="font-semibold text-ink">{solesCompacto(row.devengado)}</span> gastado (devengado),{" "}
+              , del que ya gastó (devengado) <span className="font-semibold text-ink">{solesCompacto(row.devengado)}</span>:{" "}
               <span className={cn("font-semibold", alerta ? "text-amberTexto" : "text-ink")}>{porcentaje((row.devengado / pim) * 100, { decimales: 1 })}</span>
             </>
           ) : (
-            "sin PIM con qué comparar"
+            ", sin PIM con qué comparar"
           )}
         </span>
       </p>

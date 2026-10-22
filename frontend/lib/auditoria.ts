@@ -288,6 +288,8 @@ export interface ProcesamientosQuery {
   /** `activos`: todo lo que aún no terminó bien (en análisis, en cola, esperando documentos, con error…). */
   estado?: Exclude<EstadoProc, "revision"> | "activos";
   financiador?: string;
+  /** Texto libre: qué se contrata, la entidad, la zona, el código de la alerta o el ocid. */
+  q?: string;
   /** YYYY-MM-DD, sobre `encolado_at` (el único timestamp que siempre existe). */
   desde?: string;
   hasta?: string;

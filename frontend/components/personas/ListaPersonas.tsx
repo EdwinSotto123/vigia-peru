@@ -47,7 +47,7 @@ export function ListaPersonas({
   const f = filtrosDeUrl(sp, P);
   const paginaP = getPersonas({ ...alcance, ...f, page: f.page, size: TAM });
   const parametros: Parametros = { ...base, ...parametrosDe(f, P) };
-  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio) || filtrosExtra.some((x) => !!base[x.param]);
+  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.q) || filtrosExtra.some((x) => !!base[x.param]);
   return (
     <div className="space-y-4">
       {conIndicadores && (
@@ -122,6 +122,7 @@ function Barra({ resumen: r, P, filtrosExtra }: { resumen: ResumenPersonas | nul
   ];
   return (
     <BarraFiltros
+      busqueda={{ param: P.q, placeholder: "Buscar por entidad o tipo de servicio…", etiqueta: "Buscar en las personas contratadas", min: 3 }}
       faceta={{
         param: P.severidad,
         etiqueta: "Señales",

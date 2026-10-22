@@ -5,6 +5,7 @@ import { mensajePublicoVisible, type ContribucionReciente } from "@/lib/financia
 import { Avatar } from "./RankingTable";
 import { NombreEntidad } from "./NombreEntidad";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Dato } from "@/components/ui/Dato";
 
 /**
  * Los últimos aportes confirmados. Cada uno se cuenta en contratos, nunca en soles
@@ -71,9 +72,9 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
               </p>
               {mensaje && <p className="mt-0.5 line-clamp-2 text-[13px] italic text-inkSoft" title={mensaje}>“{mensaje}”</p>}
               <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-mute">
-                <span>{relativo(c.pagadaAt)}</span>
-                <Link href={`/impacto/${c.codigo}`} className="font-mono underline-offset-2 hover:text-ink hover:underline">
-                  {c.codigo}
+                <Dato tipo="fecha" nombre="Confirmado">{relativo(c.pagadaAt)}</Dato>
+                <Link href={`/impacto/${c.codigo}`} className="underline-offset-2 hover:text-ink hover:underline">
+                  <Dato tipo="codigo" nombre="Comprobante" mono>{c.codigo}</Dato>
                 </Link>
               </p>
             </div>

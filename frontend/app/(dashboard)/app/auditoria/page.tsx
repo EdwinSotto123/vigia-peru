@@ -104,11 +104,13 @@ export default async function AuditoriaPage({
   const desde = leer("desde") && FECHA_RX.test(leer("desde")!) ? leer("desde") : undefined;
   const hasta = leer("hasta") && FECHA_RX.test(leer("hasta")!) ? leer("hasta") : undefined;
   const financiador = leer("financiador")?.trim().slice(0, 120) || undefined;
+  const qTexto = leer("q")?.trim();
+  const q = qTexto && qTexto.length >= 2 ? qTexto.slice(0, 80) : undefined;
   const paginaActual = Math.max(1, Number.parseInt(leer("pagina") ?? "1", 10) || 1);
   const pedida = leer("seccion");
   // Un enlace viejo con `?pagina=` (antes lo leído iba abajo, sin pestañas) abre en Ya leídos.
   const seccion: SeccionAuditoria = esSeccion(pedida) ? pedida : paginaActual > 1 ? "leidos" : "curso";
-  const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador };
+  const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador, q };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
   const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, ritmo, nombreSubzona] = await Promise.all([
@@ -131,7 +133,7 @@ export default async function AuditoriaPage({
   ]);
   const initial = initialCompleto ? sinFasesInactivas(initialCompleto) : null;
   const historico = historicoCompleto ? { ...historicoCompleto, data: sinFasesInactivas(historicoCompleto.data ?? []) } : null;
-  const hayFiltros = !!(ubigeo || desde || hasta || financiador);
+  const hayFiltros = !!(ubigeo || desde || hasta || financiador || q);
   const departamento = ubigeo && ubigeo.length === 2 ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
   const zonaNombre = ubigeo ? departamento?.nombre ?? nombreSubzona ?? undefined : undefined;
   const donde = zonaNombre ? `en ${zonaNombre}` : "en todo el Perú";
@@ -153,7 +155,7 @@ export default async function AuditoriaPage({
 
   // ── Faceta principal: la zona. Sólo las que tienen financiados (las demás llevan a cero);
   // el conteo es de financiados, cola + leídos, y sólo vale sin los otros filtros puestos.
-  const sinOtros = !desde && !hasta && !financiador;
+  const sinOtros = !desde && !hasta && !financiador && !q;
   const conFinanciados = (zonas ?? [])
     .filter((z) => z.financiados > 0)
     .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"));
@@ -224,6 +226,7 @@ export default async function AuditoriaPage({
           >
             <div className="space-y-4">
               <BarraFiltros
+                busqueda={{ param: "q", placeholder: "Buscar qué se contrata, una entidad o un código…", etiqueta: "Buscar en la auditoría", min: 2 }}
                 faceta={{ param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", conteoTodas, opciones: opcionesZona }}
                 filtros={filtrosSecundarios}
               />
@@ -253,11 +256,12 @@ export default async function AuditoriaPage({
                         {/* Cada pestaña se ve sola: el vacío de esta lleva su llamita (§2.4, una por pantalla). */}
                         <ZonaResultados>
                           <TableroAuditoria
-                            key={[ubigeo, desde, hasta, financiador].map((v) => v ?? "").join("|")}
+                            key={[ubigeo, desde, hasta, financiador, q].map((v) => v ?? "").join("|")}
                             ubigeo={ubigeo}
                             desde={desde}
                             hasta={hasta}
                             financiador={financiador}
+                            q={q}
                             initial={initial}
                             initialVersion={resumen?.version ?? null}
                             autoRefreshMs={5000}

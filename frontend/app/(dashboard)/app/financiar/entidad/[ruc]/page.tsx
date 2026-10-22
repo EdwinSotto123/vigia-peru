@@ -9,8 +9,9 @@ import { TablaAliados } from "@/components/financiar/TablaAliados";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { Ruc } from "@/components/Redact";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver, type Pestana } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver, type Pestana } from "@/components/patrones";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { getEntidadFinanciable, getPago, tiposEnPalabras, type EntidadFinanciableDetalle } from "@/lib/financiamiento";
 import { numero, oracion, plural, soles } from "@/lib/formato";
@@ -61,7 +62,15 @@ export default async function FinanciarEntidadPage({
 
   return (
     <Pagina className="space-y-6">
-      <Volver href="/app/financiar?por=entidad">Financiar por entidad</Volver>
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Financiar", href: "/app/financiar" },
+          { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" },
+          // Una entidad con RUC 10 es una persona: su nombre no va en la ruta (docs/PRIVACIDAD.md).
+          { etiqueta: esRucPersona(entidad.ruc) ? "Entidad" : entidad.nombre },
+        ]}
+      />
 
       <div className="space-y-4">
         <EncabezadoPagina
@@ -242,7 +251,7 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
             }
           >
             {parcial
-              ? `Los ${numero(enCola.length)} más recientes, de ${numero(cola.contratos)} en cola.`
+              ? `${numero(enCola.length)} de ${numero(cola.contratos)} en cola: el resto entró después de cargar esta página.`
               : "Se asignan al azar, primero los que ya tienen documentos."}
             <Ayuda titulo="¿Quién elige qué se lee?">
               Los contratos son públicos y puedes verlos, pero quien financia elige la entidad, no los contratos: se asignan al
@@ -250,7 +259,14 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
             </Ayuda>
           </CabeceraPestana>
           {enCola.length > 0 ? (
-            <Tabla columnas={COLUMNAS_COLA} filas={filasCola(d)} etiqueta={`Contratos de ${nombre} en cola`} />
+            <TablaPaginada
+              columnas={COLUMNAS_COLA}
+              filas={filasCola(d)}
+              tam={15}
+              nombre="contratos en cola"
+              etiqueta={`Contratos de ${nombre} en cola`}
+              buscar={{ placeholder: "Buscar qué se compra o el código del proceso…", etiqueta: "Buscar en los contratos en cola" }}
+            />
           ) : cola.contratos > 0 ? (
             // La cifra dice que hay contratos en cola pero la lista no llegó: se dice, no se inventa una tabla vacía.
             <p className="text-sm text-inkSoft">La lista de estos contratos no llegó. Vuelve a cargar la página en un momento.</p>
@@ -274,7 +290,7 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
   ];
 }
 
-/** Una fila por contrato en cola: objeto, y debajo el código y el estado de sus documentos · valor · fecha · ›. */
+/** Una fila por contrato en cola: objeto, y debajo el código y el estado de sus documentos; valor, fecha y la flecha. */
 function filasCola(d: EntidadFinanciableDetalle): Fila[] {
   return d.enCola.map((c) => {
     const monto = c.montoReferencial != null && c.montoReferencial > 0 ? soles(c.montoReferencial) : null;
@@ -290,6 +306,7 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
     return {
       id: c.ocid,
       href: `/app/contratos/${encodeURIComponent(c.ocid)}`,
+      buscable: [c.objeto, c.codigo, c.documentosListos ? "listo para leerse" : "por descargar"].filter(Boolean).join(" "),
       celdas: {
         contrato: (
           <CeldaPrincipal
@@ -297,9 +314,9 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
             titulo={c.objeto ? oracion(c.objeto) : "Contrato sin objeto registrado"}
             meta={[
               c.codigo ? (
-                <span key="codigo" className="font-mono" translate="no">
-                  {c.codigo}
-                </span>
+                <Dato key="codigo" tipo="codigo" nombre="Código del proceso" mono>
+                  <span translate="no">{c.codigo}</span>
+                </Dato>
               ) : null,
               documentos,
             ]}

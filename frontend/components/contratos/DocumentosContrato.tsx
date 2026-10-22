@@ -8,7 +8,8 @@
  */
 
 import { useState } from "react";
-import { Eye, ExternalLink, FileText, Loader2, X, Download } from "lucide-react";
+import { Eye, ExternalLink, FileText, FileType, FolderOpen, HardDrive, Loader2, X, Download } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { esPdf, formatoDoc, tipoDocLabel, type ContratoDocumento } from "@/lib/contratos";
 import { fechaCorta, numero } from "@/lib/formato";
@@ -67,16 +68,15 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
             <FileText size={14} className="shrink-0 text-mute" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink">{d.titulo ?? tipoDocLabel(d.tipo)}</span>
-              {/* Cinco atributos del documento, antes encadenados con puntos
-                  medios en un renglón de 10 px. Son una lista: se dibuja como
-                  lista, separada por espacio. */}
-              <span className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-[11px] text-mute">
-                <span>{tipoDocLabel(d.tipo)}</span>
-                {d.seccion === "award" && <span>adjudicación</span>}
-                {d.seccion === "contract" && <span>contrato</span>}
-                {formatoDoc(d.formato) && <span className="font-mono">{formatoDoc(d.formato)!.toUpperCase()}</span>}
-                {d.fecha && <span>{fechaCorta(d.fecha.slice(0, 10))}</span>}
-                {d.enVigia && <span>copia en Vigía</span>}
+              {/* Los atributos del documento, cada uno con su ícono (antes encadenados con puntos medios en un
+                  renglón de 10 px, después sólo separados por aire). */}
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11.5px] text-mute">
+                <Dato tipo="documento" nombre="Tipo">{tipoDocLabel(d.tipo)}</Dato>
+                {d.seccion === "award" && <Dato icono={FolderOpen} nombre="Parte del expediente">De la adjudicación</Dato>}
+                {d.seccion === "contract" && <Dato icono={FolderOpen} nombre="Parte del expediente">Del contrato</Dato>}
+                {formatoDoc(d.formato) && <Dato icono={FileType} nombre="Formato" mono>{formatoDoc(d.formato)!.toUpperCase()}</Dato>}
+                {d.fecha && <Dato tipo="fecha" nombre="Publicado">{fechaCorta(d.fecha.slice(0, 10))}</Dato>}
+                {d.enVigia && <Dato icono={HardDrive} nombre="Copia">Copia en Vigía</Dato>}
               </span>
             </span>
             {d.enVigia && (

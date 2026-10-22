@@ -36,6 +36,8 @@ export type FiltrosAuditoria = {
   desde?: string;
   hasta?: string;
   financiador?: string;
+  /** Texto libre (qué se contrata, entidad, zona, código). */
+  q?: string;
 };
 
 /** Señales publicadas. En revisión (§10.4) o con el dictamen publicándose: nada, ni un cero. */
@@ -61,7 +63,7 @@ export function HistoricoProcesados({
   /** La primera línea de la pestaña (una oración + ⓘ); la paginación va a su derecha. */
   cabecera?: { texto: ReactNode; ayuda?: ReactNode };
 }) {
-  const hayFiltros = !!(filtros.ubigeo || filtros.desde || filtros.hasta || filtros.financiador);
+  const hayFiltros = !!(filtros.ubigeo || filtros.desde || filtros.hasta || filtros.financiador || filtros.q);
   // La pestaña viaja en cada enlace, con los filtros o sin ellos.
   const query: FiltrosAuditoria & { seccion?: string } = { ...filtros, seccion };
   const href = (q: Record<string, string | undefined>) => {

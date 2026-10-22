@@ -19,13 +19,16 @@
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Flag } from "lucide-react";
 import Link from "next/link";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal } from "@/components/listado";
+import { Buscador } from "@/components/listado/BarraFiltros";
+import { Dato } from "@/components/ui/Dato";
+import { ConBanderaDato } from "./DatoDudosoContrato";
 import { numero, oracion, plural } from "@/lib/formato";
 import {
   contratosQueryString,
@@ -86,7 +89,10 @@ interface Props {
   onCargada?: (p: ContratosPagina) => void;
 }
 
-export function ContratosLista({ query, size = 20, selectedOcid = null, onSelect, onHover, onCargada }: Props) {
+export function ContratosLista({ query: base, size = 20, selectedOcid = null, onSelect, onHover, onCargada }: Props) {
+  // El buscador propio de la lista (objeto, código o entidad, como /app/contratos): se suma a los filtros del mapa.
+  const [texto, setTexto] = useState("");
+  const query = useMemo(() => (texto ? { ...base, q: texto } : base), [base, texto]);
   const [pagina, setPagina] = useState<ContratosPagina | null>(null);
   const [page, setPage] = useState<number>(query.page ?? 1);
   const [cargando, setCargando] = useState(true);
@@ -130,6 +136,8 @@ export function ContratosLista({ query, size = 20, selectedOcid = null, onSelect
 
   return (
     <div className="space-y-2">
+      {/* 1 o 2 caracteres no buscan (como en /app/contratos): cada búsqueda es una consulta al API. */}
+      <Buscador placeholder="Buscar por objeto, código o entidad…" etiqueta="Buscar en los contratos de la zona" valor={texto} min={3} onBuscar={setTexto} />
       {!fueraDeRango && !(fallo && !rows.length) && pag}
       {fallo && !rows.length ? (
         <EstadoError
@@ -216,7 +224,11 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4).
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
   // La entidad como en la tabla de contratos (tituloNatural): el SEACE la manda en mayúsculas.
-  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada", c.zona];
+  const meta = [
+    nSenales > 0 ? <Dato key="senales" icono={Flag} nombre="Señales">{plural(nSenales, "señal", "señales")}</Dato> : null,
+    <Dato key="entidad" tipo="entidad">{c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada"}</Dato>,
+    c.zona ? <Dato key="zona" tipo="lugar">{c.zona}</Dato> : null,
+  ];
   return (
     <li
       ref={ref}
@@ -234,8 +246,10 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
           <span className="block min-w-0">
             {/* Recortado en una palabra: el objeto entero va en el dossier. */}
             <CeldaPrincipal titulo={recortar(titulo, 140)} meta={meta} />
-            <span className="mt-1.5 flex min-w-0 items-center gap-2">
-              <EstadoContratoChip c={c} />
+            <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <ConBanderaDato dato={c.datoDudoso}>
+                <EstadoContratoChip c={c} />
+              </ConBanderaDato>
               <span className="truncate text-[12px] text-mute">{tipoEtapa}</span>
             </span>
           </span>

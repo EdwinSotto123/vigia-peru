@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Building2, CalendarRange } from "lucide-react";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import {
   BarraFiltros,
@@ -22,10 +22,13 @@ import {
 } from "@/components/listado";
 import { SenalesCelda } from "@/components/personas/SenalesPersona";
 import { SenalesPorEntidad } from "@/components/personas/SenalesFicha";
+import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
+import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { motivoDudoso } from "@/lib/datoDudoso";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { getFichaPersona, getOrdenesPersona, type AnioDePersona, type FichaPersona, type OrdenesPersona } from "@/lib/personas";
+import { getFichaPersona, getOrdenesPersona, tipoContratacion, type AnioDePersona, type FichaPersona, type OrdenesPersona } from "@/lib/personas";
 
 export const revalidate = 600;
 
@@ -62,11 +65,18 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const filtrosOrdenes = {
     entidad: /^\d{11}$/.test(uno(searchParams?.oent) ?? "") ? uno(searchParams?.oent) : undefined,
     anio: Number(uno(searchParams?.oanio)) >= 2018 ? Number(uno(searchParams?.oanio)) : undefined,
+    q: (uno(searchParams?.oq)?.length ?? 0) >= 2 ? uno(searchParams?.oq)!.slice(0, 80) : undefined,
     page: Math.max(1, Number(uno(searchParams?.opag)) || 1),
   };
-  const seccion = uno(searchParams?.seccion) ?? (filtrosOrdenes.entidad || filtrosOrdenes.anio || filtrosOrdenes.page > 1 ? "ordenes" : undefined);
+  const seccion =
+    uno(searchParams?.seccion) ?? (filtrosOrdenes.entidad || filtrosOrdenes.anio || filtrosOrdenes.q || filtrosOrdenes.page > 1 ? "ordenes" : undefined);
   const ordenesP = getOrdenesPersona(params.codigo, { ...filtrosOrdenes, size: TAM_ORDENES });
-  const parametrosOrdenes: Parametros = { seccion: "ordenes", oent: filtrosOrdenes.entidad, oanio: filtrosOrdenes.anio ? String(filtrosOrdenes.anio) : undefined };
+  const parametrosOrdenes: Parametros = {
+    seccion: "ordenes",
+    oent: filtrosOrdenes.entidad,
+    oanio: filtrosOrdenes.anio ? String(filtrosOrdenes.anio) : undefined,
+    oq: filtrosOrdenes.q,
+  };
 
   return (
     <Pagina>
@@ -145,6 +155,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
                 <CabeceraPestana>Todas sus órdenes de servicio, de la más reciente a la más antigua.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametrosOrdenes} paramPagina="opag">
                   <BarraFiltros
+                    busqueda={{ param: "oq", placeholder: "Buscar en la descripción, la entidad o el número…", etiqueta: "Buscar en sus órdenes", min: 3 }}
                     visibles={[
                       {
                         param: "oent",
@@ -234,7 +245,15 @@ function Pagos({ anual }: { anual: AnioDePersona[] }) {
       id: `${a.anio}-${a.entidadRuc}`,
       celdas: {
         anio: <span className="font-mono text-[13px] tabular-nums">{a.anio}</span>,
-        entidad: <CeldaPrincipal titulo={a.entidad ? tituloNatural(a.entidad) : a.entidadRuc} meta={[a.servicio, plural(a.ordenes, "orden", "órdenes")]} />,
+        entidad: (
+          <CeldaPrincipal
+            titulo={a.entidad ? tituloNatural(a.entidad) : a.entidadRuc}
+            meta={[
+              a.servicio && <Dato key="servicio" tipo="servicio">{a.servicio}</Dato>,
+              <Dato key="ordenes" tipo="documento" nombre="Órdenes">{plural(a.ordenes, "orden", "órdenes")}</Dato>,
+            ]}
+          />
+        ),
         meses: <CeldaNumero>{numero(a.meses)}</CeldaNumero>,
         pormes: <CeldaNumero sub={`${soles(a.monto)} en el año`}>{a.porMes != null ? soles(a.porMes) : "Sin dato"}</CeldaNumero>,
         entidadMed: (
@@ -272,11 +291,20 @@ function Pagos({ anual }: { anual: AnioDePersona[] }) {
 
 // ─── Órdenes ──────────────────────────────────────────────────────────────────
 
+// En el celular la fecha y el estado (con sus banderas) se apilan bajo la descripción, no bajo la fecha angosta.
 const COLUMNAS_ORDENES: Columna[] = [
-  { clave: "fecha", titulo: "Emitida", ancho: "92px" },
+  { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
   { clave: "orden", titulo: "Orden", ancho: "minmax(0,1.8fr)" },
-  { clave: "estado", titulo: "Estado", ancho: "104px", desde: "lg" },
-  { clave: "monto", titulo: "Monto", ancho: "108px", alinear: "der" },
+  {
+    clave: "estado", titulo: "Estado y banderas", ancho: "minmax(0,0.7fr)", desde: "lg", apilar: true,
+    ayuda: (
+      <Ayuda titulo="¿Qué es «posible error de carga»?">
+        Un monto que el Estado publicó y no se puede creer: el RUC del proveedor escrito como monto, una orden de hasta 8 UIT
+        que pasa 20 veces su tope. Vigía lo guarda y lo muestra tal como vino, pero no lo suma en los totales.
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der" },
 ];
 
 async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promise<OrdenesPersona | null>; parametros: Parametros; ruta: string; actual: number }) {
@@ -297,30 +325,69 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
       nombre="órdenes"
     />
   );
-  const filas: Fila[] = pagina.data.map((o, i) => ({
-    id: `${o.orden ?? i}-${o.fecha}`,
-    celdas: {
-      fecha: <CeldaFecha fecha={o.fecha} />,
-      orden: (
-        <CeldaPrincipal
-          titulo={o.descripcion ? oracion(o.descripcion) : "Sin descripción"}
-          dosLineas
-          meta={[o.entidad ? tituloNatural(o.entidad) : null, o.servicio, o.numero ? `N.° ${o.numero}` : null]}
-        />
-      ),
-      estado: <span className="text-[13px] text-inkSoft">{o.estado ?? "Sin dato"}</span>,
-      monto:
-        o.monto == null && o.montoDudoso != null ? (
-          <CeldaNumero sub="monto dudoso, no se suma">
-            <span className="text-mute line-through" title="CONOSCE trae este monto, imposible para la modalidad de la orden: se muestra, no se suma.">
-              {soles(o.montoDudoso)}
-            </span>
+  const filas: Fila[] = pagina.data.map((o, i) => {
+    const motivo = o.monto == null && o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
+    const tipo = tipoContratacion(o.tipoContratacion);
+    const entidad = o.entidad ? tituloNatural(o.entidad) : null;
+    const descripcion = o.descripcion ? oracion(o.descripcion) : "Sin descripción";
+    return {
+      id: `${o.orden ?? i}-${o.fecha}`,
+      celdas: {
+        fecha: <CeldaFecha fecha={o.fecha} />,
+        orden: (
+          <CeldaPrincipal
+            titulo={descripcion}
+            dosLineas
+            meta={[
+              entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
+              o.servicio && <Dato key="servicio" tipo="servicio">{o.servicio}</Dato>,
+              o.numero && <Dato key="numero" tipo="codigo" nombre="Número de orden" mono>{`N.° ${o.numero}`}</Dato>,
+            ]}
+          />
+        ),
+        estado: (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[13px] text-inkSoft">{o.estado ?? "Sin estado"}</span>
+            {motivo && <BanderaDato motivo={motivo} />}
+          </span>
+        ),
+        monto: motivo ? (
+          <CeldaNumero sub="no se suma">
+            <span className="text-amberTexto">{soles(o.montoDudoso)}</span>
           </CeldaNumero>
         ) : (
-          <CeldaNumero>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>
+          <CeldaNumero sub={tipo?.corto}>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>
         ),
-    },
-  }));
+      },
+      detalle: {
+        titulo: o.numero ? `Orden de servicio N.° ${o.numero}` : "Orden de servicio",
+        etiqueta: `Ver el detalle de la orden ${o.numero ?? ""}`.trim(),
+        descripcion: entidad ?? undefined,
+        contenido: (
+          <div className="space-y-4">
+            {motivo && (
+              <AvisoDato motivo={motivo} fuente="conosce_ordenes">
+                {`La orden trae ${soles(o.montoDudoso)} en el archivo de CONOSCE.`}
+              </AvisoDato>
+            )}
+            <DatosClave
+              items={[
+                { etiqueta: "Qué se pagó", valor: descripcion },
+                { etiqueta: "Entidad", valor: entidad },
+                { etiqueta: "Emitida", valor: o.fecha ? fechaCorta(o.fecha) : null, mono: true },
+                { etiqueta: "Estado", valor: o.estado },
+                { etiqueta: "Monto", valor: motivo ? `${soles(o.montoDudoso)} (posible error de carga, no se suma)` : o.monto != null ? soles(o.monto) : null, mono: true },
+                { etiqueta: "Tipo de servicio", valor: o.servicio },
+                { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
+                { etiqueta: "¿Tuvo convocatoria?", valor: tipo?.convocatoria || null },
+              ]}
+            />
+          </div>
+        ),
+        pie: <span className="text-[12px] text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+      },
+    };
+  });
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag}</div>
@@ -344,7 +411,20 @@ function filasEntidades(f: FichaPersona): Fila[] {
     id: e.entidadRuc,
     href: `/entidad/${e.entidadRuc}`,
     celdas: {
-      entidad: <CeldaPrincipal titulo={e.entidad ? tituloNatural(e.entidad) : e.entidadRuc} meta={[e.servicio, e.depNombre, e.anios.length > 1 ? `${e.anios[0]} a ${e.anios[e.anios.length - 1]}` : String(e.anios[0] ?? "")]} />,
+      entidad: (
+        <CeldaPrincipal
+          titulo={e.entidad ? tituloNatural(e.entidad) : e.entidadRuc}
+          meta={[
+            e.servicio && <Dato key="servicio" tipo="servicio">{e.servicio}</Dato>,
+            e.depNombre && <Dato key="lugar" tipo="lugar">{e.depNombre}</Dato>,
+            e.anios.length > 0 && (
+              <Dato key="anios" tipo="fecha" nombre="Años">
+                {e.anios.length > 1 ? `${e.anios[0]} a ${e.anios[e.anios.length - 1]}` : String(e.anios[0])}
+              </Dato>
+            ),
+          ]}
+        />
+      ),
       senales: <SenalesCelda senales={e.senales} />,
       ordenes: <CeldaNumero>{numero(e.ordenes)}</CeldaNumero>,
       monto: <CeldaNumero>{solesCompacto(e.monto)}</CeldaNumero>,

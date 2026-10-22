@@ -8,9 +8,10 @@ import type { ContratoZona } from "@/lib/contratos";
  * región. No dice que ninguna obra esté parada: es el registro oficial, región por región.
  *
  * Server component: recibe ya las zonas de la API (datos planos). La región es la sede de la entidad que contrata.
+ * Todas las regiones con obras (antes, las 8 o 16 primeras), de la que más tiene a la que menos.
  */
-export function ObrasPorRegion({ zonas, cuantas = 8 }: { zonas: ContratoZona[]; cuantas?: number }) {
-  const filas = [...zonas].filter((z) => z.total > 0).sort((a, b) => b.total - a.total).slice(0, cuantas);
+export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
+  const filas = [...zonas].filter((z) => z.total > 0).sort((a, b) => b.total - a.total);
   if (filas.length === 0) return null;
   const max = Math.max(1, ...filas.map((z) => z.total));
   return (
@@ -35,8 +36,9 @@ export function ObrasPorRegion({ zonas, cuantas = 8 }: { zonas: ContratoZona[]; 
               <rect width="100" height="8" className="fill-paperDeep" />
               <rect width={Math.max(3, (z.total / max) * 100)} height="8" className="fill-granate" />
             </svg>
-            <span className="shrink-0 text-right font-mono text-[12.5px] tabular-nums text-ink">
-              {numero(z.total)} <span className="text-mute">{z.montoPen != null ? solesCompacto(z.montoPen) : ""}</span>
+            <span className="w-24 shrink-0 text-right leading-tight">
+              <span className="block font-mono text-[12.5px] tabular-nums text-ink">{numero(z.total)} {z.total === 1 ? "obra" : "obras"}</span>
+              {z.montoPen != null && <span className="block font-mono text-[11.5px] tabular-nums text-mute">{solesCompacto(z.montoPen)}</span>}
             </span>
           </li>
         ))}

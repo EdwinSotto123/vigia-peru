@@ -26,7 +26,8 @@
 
 import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Eye, Play } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Coins, Eye, HandCoins, Play } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
 import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones";
@@ -121,11 +122,13 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
           {titulo}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-mute">
-          <span className="min-w-0 truncate">{p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</span>
-          <span>{p.zona}</span>
-          {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{solesCompacto(p.montoPen)}</span>}
+          <Dato tipo="entidad" className="min-w-0 truncate">{p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</Dato>
+          {p.zona && <Dato tipo="lugar">{p.zona}</Dato>}
+          {p.montoPen != null && p.montoPen > 0 && <Dato icono={Coins} nombre="Valor" mono>{solesCompacto(p.montoPen)}</Dato>}
           <span title={p.contribucionCodigo ? `Aporte ${p.contribucionCodigo}` : undefined}>
-            lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+            <Dato icono={HandCoins} nombre="Quién lo pagó">
+              lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+            </Dato>
           </span>
           <span className="inline-flex items-center gap-0.5 font-medium text-granate">
             {enRevision ? "Ver su estado" : "Ver el dictamen"} <ArrowUpRight size={12} aria-hidden />

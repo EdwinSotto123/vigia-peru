@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Eye } from "lucide-react";
 import { EstadoError } from "@/components/patrones";
 import { ListaPaginada } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { numero, solesCompacto } from "@/lib/formato";
 import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type RankingPartidos } from "@/lib/partidosApi";
 import { Aviso } from "./AvisoPartido";
@@ -67,7 +69,8 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
             tam={20}
             nombre="partidos"
             className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper"
-            items={filas.map((f, i) => ({ id: f.clave, contenido: <FilaPartidoEnlace f={f} i={i} anio={anio} maximo={maximo} /> }))}
+            buscar={{ placeholder: "Buscar un partido, movimiento o alianza…", etiqueta: "Buscar un partido en los contratos por partido" }}
+            items={filas.map((f, i) => ({ id: f.clave, buscable: f.nombre, contenido: <FilaPartidoEnlace f={f} i={i} anio={anio} maximo={maximo} /> }))}
           />
         </>
       )}
@@ -92,8 +95,17 @@ function FilaPartidoEnlace({ f, i, anio, maximo }: { f: FilaPartido; i: number; 
       <span className="min-w-0">
         <span className="block truncate text-[14.5px] font-semibold text-ink" title={f.nombre}>{f.nombre}</span>
         <span className="block truncate text-[12.5px] text-mute">
-          {numero(gobiernos)} {gobiernos === 1 ? "gobierno" : "gobiernos"}, {numero(procesos)} {procesos === 1 ? "proceso" : "procesos"}
-          {f.contratos > 0 ? ` · ${numero(f.contratos)} en Vigía, ${numero(f.leidos)} leídos` : ""}
+          <Partes
+            partes={[
+              <Dato key="g" tipo="partido" nombre="Gobiernos">{numero(gobiernos)} {gobiernos === 1 ? "gobierno" : "gobiernos"}</Dato>,
+              <Dato key="p" tipo="documento" nombre="Procesos">{numero(procesos)} {procesos === 1 ? "proceso" : "procesos"}</Dato>,
+              f.contratos > 0 && (
+                <Dato key="v" icono={Eye} nombre="En la base de Vigía">
+                  {numero(f.contratos)} en Vigía, {numero(f.leidos)} leídos
+                </Dato>
+              ),
+            ]}
+          />
         </span>
       </span>
       <span className="min-w-0" role="img" aria-label={`${solesCompacto(monto)} adjudicados, frente a ${solesCompacto(maximo)} del partido con más`}>

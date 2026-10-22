@@ -76,6 +76,20 @@ export interface ContratoResumen {
   cruces?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
   /** Null en las entidades sin gobierno electo (ministerios, organismos nacionales). */
   gobierno?: GobiernoContrato | null;
+  /** Posible error de carga del OECE (migración 102); null o ausente si el dato se puede creer. */
+  datoDudoso?: DatoDudosoContrato | null;
+}
+
+/**
+ * Un contrato cuyo registro en el OECE no se puede creer (migración 102, `contrato_dudoso`): lo adjudicado es 20 veces
+ * o más el valor referencial de todo el proceso, o el referencial publicado es S/ 1 o menos. Se muestra tal cual, con
+ * la bandera de «posible error de carga».
+ */
+export interface DatoDudosoContrato {
+  motivo: "referencial_simbolico" | "adjudicado_20x" | string;
+  referencial: number | null;
+  /** La adjudicación más grande del proceso, en soles. */
+  adjudicado: number | null;
 }
 
 export interface ContratoItem {

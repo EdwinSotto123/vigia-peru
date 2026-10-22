@@ -4,7 +4,9 @@ import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { Buscador } from "@/components/listado/BarraFiltros";
 import { Badge } from "@/components/ui/Badge";
+import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
@@ -148,21 +150,26 @@ const VARIANTE: Record<string, "crimson" | "amber" | "neutral"> = { penal: "crim
 function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string }) {
   const inf = datos.informes;
   const [tipo, setTipo] = useState<TipoInforme | null>(null);
+  const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState<PaginaInformes>(inf.pagina);
   const [cargando, setCargando] = useState(false);
   const [fallo, setFallo] = useState(false);
 
-  const pedir = async (page: number, t: TipoInforme | null) => {
+  const pedir = async (page: number, t: TipoInforme | null, q: string) => {
     setCargando(true);
     setFallo(false);
-    const r = await paginaCorrupcion(ruta, page, t);
+    const r = await paginaCorrupcion(ruta, page, t, q || null);
     if (r) setPagina(r);
     else setFallo(true);
     setCargando(false);
   };
   const filtrar = (t: TipoInforme | null) => {
     setTipo(t);
-    void pedir(1, t);
+    void pedir(1, t, busca);
+  };
+  const buscar = (q: string) => {
+    setBusca(q);
+    void pedir(1, tipo, q);
   };
 
   const conEntidad = ambito !== "entidad";
@@ -180,7 +187,13 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
     celdas: {
       fecha: <CeldaFecha fecha={i.fecha} />,
       numero: <span className="font-mono text-[12.5px] text-inkSoft">{i.numero}</span>,
-      asunto: <CeldaPrincipal titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"} dosLineas meta={[i.funcionarios ? `${numero(i.funcionarios)} funcionarios comprendidos` : null]} />,
+      asunto: (
+        <CeldaPrincipal
+          titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"}
+          dosLineas
+          meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
+        />
+      ),
       entidad: <span className="line-clamp-2 text-[13px] text-inkSoft" title={i.entidad ?? undefined}>{i.entidad ? tituloNatural(i.entidad) : "Sin dato"}</span>,
       tipo: (
         <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
@@ -216,6 +229,13 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
             ]}
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
+            <Buscador
+              placeholder="Buscar un asunto, un número de informe o una entidad…"
+              etiqueta="Buscar en los informes de la Contraloría"
+              valor={busca}
+              min={2}
+              onBuscar={buscar}
+            />
             <div role="group" aria-label="Filtrar por tipo de responsabilidad" className="inline-flex flex-wrap gap-1.5">
               {opciones.map((o) => (
                 <button
@@ -239,13 +259,15 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
               total={pagina.total}
               tam={TAM_INFORMES}
               navegacion="interna"
-              onChange={(n) => void pedir(n, tipo)}
+              onChange={(n) => void pedir(n, tipo, busca)}
               cargando={cargando}
               nombre="informes"
             />
           </div>
           {fallo ? (
             <SinDato>No pudimos traer esa página. Vuelve a intentarlo.</SinDato>
+          ) : busca && pagina.total === 0 ? (
+            <SinDato>Ningún informe coincide con “{busca}”.</SinDato>
           ) : (
             <div className={cargando ? "opacity-60 transition-opacity" : undefined} aria-busy={cargando}>
               <Tabla columnas={columnas} filas={filas} etiqueta="Informes de control de la Contraloría" medida="contenedor" />

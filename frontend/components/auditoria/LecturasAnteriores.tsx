@@ -1,9 +1,11 @@
 import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Coins } from "lucide-react";
 import { fechaLima, type Procesamiento } from "@/lib/auditoria";
 import { oracion, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 
 /**
  * Las lecturas que vinieron antes de "Lo último que se leyó": hasta cinco filas de una línea (objeto, entidad y zona,
@@ -38,8 +40,14 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
               >
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-1 text-[13.5px] font-medium text-ink group-hover:text-granate">{p.titulo ? oracion(p.titulo) : p.ocid}</span>
-                  <span className="line-clamp-1 text-[12px] text-mute">
-                    {[p.entidad ? tituloNatural(p.entidad) : null, p.zona, p.montoPen ? solesCompacto(p.montoPen) : null].filter(Boolean).join(", ")}
+                  <span className="block truncate text-[12px] text-mute">
+                    <Partes
+                      partes={[
+                        p.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(p.entidad)}</Dato>,
+                        p.zona && <Dato key="zona" tipo="lugar">{p.zona}</Dato>,
+                        p.montoPen ? <Dato key="monto" icono={Coins} nombre="Valor" mono>{solesCompacto(p.montoPen)}</Dato> : null,
+                      ]}
+                    />
                   </span>
                 </span>
                 <span className="hidden shrink-0 text-right text-[12px] tabular-nums text-mute sm:block">

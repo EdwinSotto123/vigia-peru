@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Bell, Filter, Loader2, MessageSquareWarning, SearchX, SlidersHorizontal, WifiOff, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Filter, Loader2, MessageSquareWarning, Palette, SearchX, SlidersHorizontal, WifiOff, X } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
 import { Ayuda } from "@/components/patrones/Ayuda";
@@ -351,7 +353,14 @@ function LoQueVes({
           </span>
         ) : nContratos != null ? (
           <span className="text-inkSoft">
-            <strong className="font-semibold tabular-nums text-ink">{numero(nContratos)}</strong> {nContratos === 1 ? "contrato" : "contratos"} · color: {medida.toLowerCase()}
+            <Partes
+              partes={[
+                <span key="n">
+                  <strong className="font-semibold tabular-nums text-ink">{numero(nContratos)}</strong> {nContratos === 1 ? "contrato" : "contratos"}
+                </span>,
+                <Dato key="c" icono={Palette} nombre="Color del mapa">color por {medida.toLowerCase()}</Dato>,
+              ]}
+            />
           </span>
         ) : null}
         {quitarTodo && (

@@ -5,7 +5,8 @@
  * paginación arriba a la derecha y abajo, la `Tabla` del kit y los estados vacío y
  * error. Anatomía de fila, la de todos los listados:
  *
- *   estado (chip) · objeto + entidad y zona · tipo y etapa · valor referencial · convocada · ›
+ *   estado (chip y, si lo hay, «posible error de carga») | objeto + entidad, zona y partido con su ícono | tipo y
+ *   etapa | valor referencial | convocada | ›
  *
  * La fila abre el resumen del contrato en el panel lateral (`detalle`) y no navega: el
  * panel dice su estado de lectura, qué falta y cómo financiarlo con los datos que la
@@ -26,7 +27,7 @@
  */
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Award, Flag } from "lucide-react";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
@@ -41,6 +42,8 @@ import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
+import { Dato } from "@/components/ui/Dato";
+import { AvisoContrato, ConBanderaDato } from "./DatoDudosoContrato";
 
 const RUTA = "/app/contratos";
 
@@ -217,19 +220,25 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
   // En la ficha de una entidad, la entidad y su zona son las mismas en todas las filas: va quién ganó.
   const ganador = c.proveedor ? (
-    <span key="ganador">
+    <Dato key="ganador" icono={Award} nombre="Ganador">
       Ganó {esPersonaNatural(c.proveedorRuc) ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
-    </span>
+    </Dato>
   ) : null;
   // El partido que gobernaba la entidad cuando se convocó, con su ícono (sin él, las entidades nacionales).
   const partido = c.gobierno ? <PartidoQueGobierna key="partido" g={c.gobierno} /> : null;
+  const senales = nSenales > 0 ? <Dato key="senales" icono={Flag} nombre="Señales">{plural(nSenales, "señal", "señales")}</Dato> : null;
+  // Cada dato con su ícono: la entidad, el lugar y el partido no se confunden entre sí.
   const meta = deEntidad
-    ? [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, partido, ganador]
-    : [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona, partido];
+    ? [senales, partido, ganador]
+    : [senales, <Dato key="entidad" tipo="entidad">{entidad}</Dato>, c.zona ? <Dato key="zona" tipo="lugar">{c.zona}</Dato> : null, partido];
   return {
     id: c.ocid,
     celdas: {
-      estado: <EstadoContratoChip c={c} />,
+      estado: (
+        <ConBanderaDato dato={c.datoDudoso}>
+          <EstadoContratoChip c={c} />
+        </ConBanderaDato>
+      ),
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM).
       // En la ficha de una entidad la fila no repite la entidad: el objeto puede ocupar dos líneas.
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas={deEntidad} />,
@@ -253,7 +262,12 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
           {c.zona && <span>{c.zona}</span>}
         </span>
       ),
-      contenido: <DetalleContrato c={c} />,
+      contenido: (
+        <div className="space-y-4">
+          <AvisoContrato dato={c.datoDudoso} />
+          <DetalleContrato c={c} />
+        </div>
+      ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[12px] text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>

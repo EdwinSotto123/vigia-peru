@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { EstadoVacio } from "@/components/patrones";
+import { Dato } from "@/components/ui/Dato";
 import { numero, solesCompacto } from "@/lib/formato";
 import { normalizar } from "@/lib/partidos";
 import type { GobiernoDePartido } from "@/lib/partidosApi";
@@ -110,7 +111,12 @@ function filaDe(g: GobiernoDePartido): Fila {
       gobierno: (
         <CeldaPrincipal
           titulo={g.lugar ?? g.ubigeo}
-          meta={[NIVEL[g.nivel], donde.filter(Boolean).join(", ") || null, g.autoridad ? `Autoridad: ${g.autoridad}` : null]}
+          meta={[
+            <Dato key="n" tipo="tipo">{NIVEL[g.nivel]}</Dato>,
+            donde.filter(Boolean).length > 0 && <Dato key="l" tipo="lugar">{donde.filter(Boolean).join(", ")}</Dato>,
+            // Autoridad electa: se muestra completa (docs/PRIVACIDAD.md).
+            g.autoridad && <Dato key="a" tipo="cargo" nombre="Autoridad">{g.autoridad}</Dato>,
+          ]}
         />
       ),
       procesos: <CeldaNumero>{g.procesos > 0 ? numero(g.procesos) : <span className="font-sans text-mute">0</span>}</CeldaNumero>,

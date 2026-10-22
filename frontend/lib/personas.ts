@@ -132,8 +132,33 @@ export interface OrdenPersona {
   monto: number | null;
   /** El monto que trae CONOSCE cuando no se puede creer (20 veces el tope de su modalidad…): se muestra, no se suma. */
   montoDudoso: number | null;
+  /** Por qué no se puede creer (migración 102): `MOTIVO_DUDOSO` de lib/datoDudoso. */
+  dudosoMotivo: string | null;
+  /** Cómo se contrató, tal como lo escribe CONOSCE ("Contrataciones hasta 8 UIT…", "Deviene de Procesos de Selección"). */
+  tipoContratacion: string | null;
   estado: string | null;
   servicio: string | null;
+}
+
+/**
+ * Cómo se contrató una orden, en corto, y si detrás hubo una convocatoria pública. Las órdenes de hasta 8 UIT y las
+ * demás "sin proceso de selección" no tienen convocatoria: la ley las permite sin concurso y la entidad no publica ni
+ * la convocatoria ni sus términos de referencia. Las que "devienen de procesos de selección" sí: su convocatoria está en
+ * el SEACE (la orden no trae su código).
+ */
+export function tipoContratacion(t: string | null | undefined): { corto: string; convocatoria: string } | null {
+  if (!t) return null;
+  const uit = /hasta (\d+) UIT/i.exec(t);
+  if (uit) return { corto: `Hasta ${uit[1]} UIT, sin concurso`, convocatoria: "No tuvo convocatoria: la ley permite contratar hasta ese monto sin proceso de selección, y la entidad no publica una convocatoria ni sus términos de referencia." };
+  if (/sin proceso de selecci/i.test(t)) return { corto: "Sin proceso de selección", convocatoria: "No tuvo convocatoria: es una contratación sin proceso de selección previo." };
+  if (/procesos de selecci/i.test(t)) return { corto: "De un proceso de selección", convocatoria: "Viene de un proceso de selección con convocatoria pública en el SEACE. La orden no trae el código del proceso." };
+  if (/exoneraci|directa/i.test(t)) return { corto: "Contratación directa", convocatoria: "Viene de una contratación directa: sin concurso, con su sustento publicado en el SEACE." };
+  if (/cat[aá]logo/i.test(t)) return { corto: "Catálogo electrónico", convocatoria: "Viene de los catálogos electrónicos de Perú Compras, sin convocatoria propia." };
+  if (/servicio p[uú]blico/i.test(t)) return { corto: "Servicio público", convocatoria: "Es el pago de un servicio público (agua, luz, teléfono): no tiene convocatoria." };
+  if (/convenio/i.test(t)) return { corto: "Convenio entre entidades", convocatoria: "Viene de un convenio entre entidades del Estado: no tiene convocatoria." };
+  if (/r[eé]gimen|especial/i.test(t)) return { corto: "Régimen especial", convocatoria: "Viene de un régimen especial de contratación." };
+  if (/urgencia/i.test(t)) return { corto: "Decreto de urgencia", convocatoria: "Viene de una contratación por decreto de urgencia." };
+  return { corto: t, convocatoria: "" };
 }
 
 export interface OrdenesPersona {
@@ -147,7 +172,7 @@ export interface OrdenesPersona {
 
 export const TIPOS_SENAL = [
   "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
-  "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa",
+  "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
 
@@ -221,6 +246,18 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     titulo: "Visitó la entidad antes de ser contratado",
     explica: "El registro de visitas lo muestra en la entidad en los 180 días antes de su primera orden del año.",
   },
+  tambien_planilla: {
+    corto: "También en planilla",
+    titulo: "Recibió órdenes el mismo mes en que figura en la planilla",
+    explica:
+      "La entidad le dio órdenes de servicio en meses en que también figura en su planilla (Portal de Transparencia): cobra por los dos lados. Coincide por el nombre completo dentro de la misma entidad.",
+  },
+  paso_a_planilla: {
+    corto: "Pasó a planilla",
+    titulo: "Después de sus órdenes entró a la planilla de la entidad",
+    explica:
+      "Primero recibió órdenes de servicio y después apareció en la planilla de la misma entidad, en un mes en que esta ya publicaba su planilla. Es común al pasar de locador a CAS: es un dato, no una falta.",
+  },
 };
 
 export const SEVERIDAD_TEXTO: Record<Severidad, string> = { alta: "Grave", media: "Para revisar", baja: "Dato" };
@@ -233,6 +270,7 @@ export const FUENTE_TEXTO: Record<string, string> = {
   dji_contraloria: "Contraloría, declaraciones juradas de intereses",
   osce_sancionados: "Tribunal de Contrataciones del Estado, sancionados",
   conosce_ordenes: "OECE, CONOSCE: órdenes de compra y de servicio",
+  pte_personal: "Portal de Transparencia Estándar, personal",
   visitas_entidades: "Registro de visitas a entidades",
 };
 
@@ -246,9 +284,11 @@ export interface ParamsPersonas {
   anio: string;
   orden: string;
   page: string;
+  /** El buscador: la entidad y el tipo de servicio (nunca el nombre de la persona). */
+  q: string;
 }
-export const PARAMS_SOLOS: ParamsPersonas = { senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", orden: "orden", page: "page" };
-export const PARAMS_EN_FICHA: ParamsPersonas = { senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", orden: "pord", page: "ppag" };
+export const PARAMS_SOLOS: ParamsPersonas = { senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", orden: "orden", page: "page", q: "q" };
+export const PARAMS_EN_FICHA: ParamsPersonas = { senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", orden: "pord", page: "ppag", q: "pq" };
 
 export const ORDENES_PERSONAS = [
   { valor: "senales", etiqueta: "Más señales" },
@@ -268,6 +308,7 @@ export interface FiltrosPersonas {
   servicio?: string;
   anio?: number;
   orden?: string;
+  q?: string;
   page?: number;
   size?: number;
 }
@@ -281,12 +322,14 @@ export function filtrosDeUrl(sp: Busqueda, P: ParamsPersonas): FiltrosPersonas {
   const sev = uno(sp?.[P.severidad]);
   const anio = Number(uno(sp?.[P.anio]));
   const orden = uno(sp?.[P.orden]);
+  const q = uno(sp?.[P.q])?.slice(0, 80);
   return {
     senal: senal && (TIPOS_SENAL as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
     servicio: uno(sp?.[P.servicio])?.slice(0, 60),
     anio: anio >= 2018 && anio <= 2100 ? anio : undefined,
     orden: orden && ORDENES_PERSONAS.some((o) => o.valor === orden) ? orden : undefined,
+    q: q && q.length >= 2 ? q : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
 }
@@ -299,6 +342,7 @@ export function parametrosDe(f: FiltrosPersonas, P: ParamsPersonas): Record<stri
     [P.servicio]: f.servicio,
     [P.anio]: f.anio ? String(f.anio) : undefined,
     [P.orden]: f.orden,
+    [P.q]: f.q,
   };
 }
 
@@ -320,7 +364,7 @@ export function getPersonas(f: FiltrosPersonas): Promise<PaginaPersonas | null> 
 export const getFichaPersona = (codigo: string) =>
   /^[0-9a-f]{12}$/.test(codigo) ? leer<FichaPersona>(`/personas/${codigo}`) : Promise.resolve(null);
 
-export function getOrdenesPersona(codigo: string, f: { entidad?: string; anio?: number; page?: number; size?: number }) {
+export function getOrdenesPersona(codigo: string, f: { entidad?: string; anio?: number; q?: string; page?: number; size?: number }) {
   if (!/^[0-9a-f]{12}$/.test(codigo)) return Promise.resolve(null);
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v));

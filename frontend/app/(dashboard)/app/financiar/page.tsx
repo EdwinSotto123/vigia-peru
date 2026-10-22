@@ -377,9 +377,15 @@ export default async function FinanciarPage({
           titulo="Últimos aportes"
           descripcion="Contados en contratos, no en soles, con su comprobante público."
           acciones={
-            <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm font-semibold text-granate underline-offset-2 hover:underline">
-              Muro de aliados <ArrowRight size={14} aria-hidden />
-            </Link>
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {/* La lista entera, con buscador: aquí van los más recientes. */}
+              <Link href="/app/aliados/aportes" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm font-semibold text-granate underline-offset-2 hover:underline">
+                Todos los aportes <ArrowRight size={14} aria-hidden />
+              </Link>
+              <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm font-semibold text-granate underline-offset-2 hover:underline">
+                Muro de aliados <ArrowRight size={14} aria-hidden />
+              </Link>
+            </span>
           }
         >
           {recientes ? (

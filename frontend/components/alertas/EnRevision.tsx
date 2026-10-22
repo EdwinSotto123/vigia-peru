@@ -2,7 +2,9 @@ import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoVacio } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaPaginada, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { fecha, numero, porcentaje, soles } from "@/lib/formato";
 import type { AnalisisEnRevision, RevisionMotivo } from "@/lib/revision";
@@ -85,8 +87,14 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
     const titulo = p.titulo ?? "Contrato sin título en el registro";
     return {
       id: p.ocid,
+      buscable: [titulo, p.entidad, p.zona, p.alertaCodigo, ...motivos.map((m) => m.titulo)].filter(Boolean).join(" "),
       celdas: {
-        contrato: <CeldaPrincipal titulo={titulo} meta={[p.entidad ?? "Entidad no registrada", p.zona]} />,
+        contrato: (
+          <CeldaPrincipal
+            titulo={titulo}
+            meta={[<Dato key="e" tipo="entidad">{p.entidad ?? "Entidad no registrada"}</Dato>, p.zona && <Dato key="z" tipo="lugar">{p.zona}</Dato>]}
+          />
+        ),
         motivo: (
           <span className="flex min-w-0 flex-wrap gap-1.5">
             {motivos.length === 0 ? (
@@ -108,10 +116,12 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
         titulo,
         etiqueta: `Ver por qué está en revisión: ${titulo}`,
         descripcion: (
-          <span className="flex flex-wrap gap-x-3">
-            <span>{p.entidad ?? "Entidad no registrada"}</span>
-            <span className="font-mono">{p.alertaCodigo ?? p.ocid}</span>
-          </span>
+          <Partes
+            partes={[
+              <Dato key="e" tipo="entidad">{p.entidad ?? "Entidad no registrada"}</Dato>,
+              <Dato key="c" tipo="codigo" nombre="Código" mono>{p.alertaCodigo ?? p.ocid}</Dato>,
+            ]}
+          />
         ),
         contenido: <DetalleMotivos item={{ procesamiento: p, revision }} titulo={titulo} />,
         pie: (
@@ -125,7 +135,14 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
   const parcial = total != null && total > items.length;
   return (
     <div className="space-y-2">
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Financiados en revisión" />
+      <TablaPaginada
+        columnas={COLUMNAS}
+        filas={filas}
+        etiqueta="Financiados en revisión"
+        tam={20}
+        nombre="contratos en revisión"
+        buscar={{ placeholder: "Buscar un contrato, una entidad, una zona o un motivo…", etiqueta: "Buscar en los financiados en revisión" }}
+      />
       {/* §10.5, parcial: la lista trae menos filas que el conteo del resumen. */}
       {parcial && (
         <p className="text-right text-[12.5px] tabular-nums text-mute">

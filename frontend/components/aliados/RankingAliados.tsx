@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { EyeOff } from "lucide-react";
 import { TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
+import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
@@ -63,7 +64,7 @@ function filaRanking(f: FilaRanking, financiadosAmbito: number): Fila {
           <span aria-hidden className="hidden shrink-0 sm:inline-flex">
             <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="sm" />
           </span>
-          <CeldaPrincipal titulo={f.nombre} meta={tipo} />
+          <CeldaPrincipal titulo={f.nombre} meta={[<Dato key="t" tipo="tipo">{tipo}</Dato>]} />
         </span>
       ),
       financiados: (
@@ -92,6 +93,7 @@ export function RankingAliados({
   recientes = null,
   totalRecientes,
   franja,
+  busqueda,
 }: {
   ranking: Ranking;
   /** Contratos financiados en el ámbito (región y periodo): denominador de cada fila. */
@@ -111,8 +113,18 @@ export function RankingAliados({
   totalRecientes?: number;
   /** Las cifras de apoyo, en tamaño discreto, justo debajo del podio. */
   franja?: ReactNode;
+  /** El nombre buscado: la tabla son los que coinciden, con su puesto de siempre, sin podio. */
+  busqueda?: string;
 }) {
   const { podio, tabla, anonimos, totalNombres, completa, paginas } = ranking;
+
+  if (busqueda && tabla.length === 0) {
+    return (
+      <EstadoVacio compacto conLlamita={false} titulo={`Ningún aliado visible coincide con “${busqueda}”`}>
+        {nombreRegion ? `Se buscó en ${nombreRegion}. ` : ""}Los que aportan sin nombre no se pueden buscar.
+      </EstadoVacio>
+    );
+  }
 
   if (totalNombres === 0) {
     return (
@@ -135,7 +147,7 @@ export function RankingAliados({
         tam={TAM_PAGINA}
         navegacion="url"
         hrefBase="/app/aliados"
-        query={{ ubigeo: region, periodo: periodo !== "todo" ? periodo : undefined }}
+        query={{ ubigeo: region, periodo: periodo !== "todo" ? periodo : undefined, q: busqueda }}
         cargando={false}
         nombre="aliados"
       />
@@ -169,12 +181,16 @@ export function RankingAliados({
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             {/* Con podio, la tabla es "el resto"; sin él, es el ranking entero y el h1 ya lo dice. */}
-            <h2 id="ranking-titulo" className={podio.length ? "font-display text-[17px] font-bold text-ink" : "sr-only"}>
-              {podio.length ? "Del cuarto puesto en adelante" : "Ranking de aliados"}
+            <h2 id="ranking-titulo" className={podio.length || busqueda ? "font-display text-[17px] font-bold text-ink" : "sr-only"}>
+              {busqueda
+                ? `${numero(totalNombres)} ${totalNombres === 1 ? "aliado coincide" : "aliados coinciden"} con “${busqueda}”`
+                : podio.length
+                  ? "Del cuarto puesto en adelante"
+                  : "Ranking de aliados"}
             </h2>
             {paginacion}
           </div>
-          {!completa && (
+          {!completa && !busqueda && (
             <p className="text-[12.5px] text-mute">Con tantos aliados, el ranking se ordena sólo por contratos financiados.</p>
           )}
           <Tabla

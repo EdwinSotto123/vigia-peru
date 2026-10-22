@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Flag } from "lucide-react";
 import { getAlertas } from "@/lib/api-client";
 import { formatSoles, oracion, plural } from "@/lib/formato";
 import { nivelDeScore, type NivelSeveridad } from "@/lib/severidad";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Dato } from "@/components/ui/Dato";
+import { ListaPaginada } from "@/components/listado/Paginado";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { cn } from "@/lib/utils";
 import { alertaHref, departamentoDeAlerta, esSenal, esSenalDeBajoPeso } from "./senales";
@@ -80,7 +82,8 @@ export function AlertasDeZona({
     const bajas = deZona.filter(esSenalDeBajoPeso).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     // El conteo sale del ubigeo del contrato y las filas del nombre de su provincia: si alguna
     // vez difieren, nunca se dice un total menor que las filas que se ven.
-    return { rows: senales.slice(0, limit), total: Math.max(conteos?.senales ?? 0, senales.length), bajas };
+    // Todas las de la zona que trajo la lista (no sólo las `limit` primeras): se paginan y se buscan.
+    return { rows: senales, total: Math.max(conteos?.senales ?? 0, senales.length), bajas };
   }, [source, ubigeo, limit, conteos]);
   // Las de bajo peso: el conteo total si se conoce; si no, las filas que llegaron.
   const nBajas = Math.max(conteos?.bajas ?? 0, bajas.length);
@@ -113,18 +116,24 @@ export function AlertasDeZona({
           <p className="flex flex-wrap items-center gap-x-1 text-[12px] tabular-nums text-inkSoft">
             <span>
               <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio
-              o alto{total > rows.length ? `; los ${rows.length} de mayor peso` : ""}
+              o alto{total > rows.length ? `; aquí los ${rows.length} de mayor peso del país en la zona` : ""}
             </span>
             {/* Lo que antes era una nota al pie abierta, a un clic (§10.7). */}
             <Ayuda titulo="¿Qué es una señal de riesgo?">
               Un indicio, no una acusación. Cada una cita la norma y enlaza a la fuente oficial.
             </Ayuda>
           </p>
-          <ul className="space-y-1.5">
-            {rows.map((a) => (
-              <FilaSenal key={a.id ?? a.codigo} a={a} />
-            ))}
-          </ul>
+          <ListaPaginada
+            tam={limit}
+            nombre="contratos"
+            className="space-y-1.5"
+            buscar={{ placeholder: "Buscar un contrato o una entidad…", etiqueta: `Buscar en las señales de ${nombre}` }}
+            items={rows.map((a) => ({
+              id: String(a.id ?? a.codigo),
+              buscable: [a.objeto, a.entidad, a.region].filter(Boolean).join(" "),
+              contenido: <FilaSenal a={a} />,
+            }))}
+          />
         </>
       )}
 
@@ -137,11 +146,19 @@ export function AlertasDeZona({
             Tienen señales publicadas, pero su peso del riesgo suma menos de 40.
           </p>
           {bajas.length > 0 && (
-            <ul className="mt-2 space-y-1.5">
-              {bajas.slice(0, limit).map((a) => (
-                <FilaSenal key={a.id ?? a.codigo} a={a} />
-              ))}
-            </ul>
+            <div className="mt-2">
+              <ListaPaginada
+                tam={limit}
+                nombre="contratos"
+                className="space-y-1.5"
+                buscar={{ placeholder: "Buscar un contrato o una entidad…", etiqueta: `Buscar en las señales de riesgo bajo de ${nombre}` }}
+                items={bajas.map((a) => ({
+                  id: String(a.id ?? a.codigo),
+                  buscable: [a.objeto, a.entidad, a.region].filter(Boolean).join(" "),
+                  contenido: <FilaSenal a={a} />,
+                }))}
+              />
+            </div>
           )}
         </details>
       )}
@@ -158,30 +175,28 @@ function FilaSenal({ a }: { a: any }) {
   const nivel = nivelDeScore(score);
   const nBanderas = Array.isArray(a.banderas) ? a.banderas.length : 0;
   return (
-    <li>
-      <Link
-        href={alertaHref(a)}
-        className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft"
+    <Link
+      href={alertaHref(a)}
+      className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft"
+    >
+      <span
+        className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg", CAJA[nivel])}
+        title={`Puntaje ${score} de 100`}
       >
-        <span
-          className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg", CAJA[nivel])}
-          title={`Puntaje ${score} de 100`}
-        >
-          <span className="text-sm font-bold leading-none tabular-nums">{score}</span>
-          <span className="mt-0.5 text-[10px] leading-none">de 100</span>
+        <span className="text-sm font-bold leading-none tabular-nums">{score}</span>
+        <span className="mt-0.5 text-[10px] leading-none">de 100</span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto ? oracion(a.objeto) : null}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+          <PesoRiesgo score={score} banderas={nBanderas} className="text-[11px]" />
+          {nBanderas > 0 && <Dato icono={Flag} nombre="Señales" className="tabular-nums text-inkSoft">{plural(nBanderas, "señal", "señales")}</Dato>}
+          {a.region && <Dato tipo="lugar">{a.region}</Dato>}
+          {a.entidad && a.entidad !== "—" && <Dato tipo="entidad" className="line-clamp-1 max-w-[180px]">{a.entidad}</Dato>}
+          {a.montoSoles > 0 && <span className="font-mono tabular-nums text-inkSoft">{formatSoles(a.montoSoles)}</span>}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto ? oracion(a.objeto) : null}</span>
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
-            <PesoRiesgo score={score} banderas={nBanderas} className="text-[11px]" />
-            {nBanderas > 0 && <span className="tabular-nums text-inkSoft">{plural(nBanderas, "señal", "señales")}</span>}
-            {a.region && <span>{a.region}</span>}
-            {a.entidad && a.entidad !== "—" && <span className="line-clamp-1 max-w-[180px]">{a.entidad}</span>}
-            {a.montoSoles > 0 && <span className="font-mono tabular-nums text-inkSoft">{formatSoles(a.montoSoles)}</span>}
-          </span>
-        </span>
-        <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
-      </Link>
-    </li>
+      </span>
+      <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
+    </Link>
   );
 }

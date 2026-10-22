@@ -17,6 +17,7 @@ import { rutaContrato } from "@/lib/rutas";
 import { CeldaNumero, CeldaPrincipal, type Columna } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
+import { Dato } from "@/components/ui/Dato";
 import { soles } from "@/lib/formato";
 import {
   estadoVisible,
@@ -117,7 +118,7 @@ export function EstadoProcesamiento({ p }: { p: Procesamiento }) {
  */
 export function CeldaContrato({ p }: { p: Procesamiento }) {
   const titulo = p.titulo ?? "Contrato sin título en el registro";
-  const meta = [p.entidad ?? "Entidad no identificada", p.zona];
+  const meta = [<Dato key="e" tipo="entidad">{p.entidad ?? "Entidad no identificada"}</Dato>, p.zona && <Dato key="z" tipo="lugar">{p.zona}</Dato>];
   if (p.estado !== "procesando") {
     return (
       <span data-fila={p.ocid} className="block w-full min-w-0">

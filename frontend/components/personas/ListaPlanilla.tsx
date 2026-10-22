@@ -18,7 +18,10 @@ import {
   type Parametros,
 } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
+import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
+import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, type PaginaPlanilla, type PersonaPlanilla, type TipoPlanilla } from "@/lib/planilla";
@@ -30,7 +33,7 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
-export const P_PLANILLA = { senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag" } as const;
+export const P_PLANILLA = { senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud" } as const;
 
 /**
  * La planilla de un alcance (una entidad, una región o todo el país): el personal que publican las entidades en su
@@ -42,16 +45,22 @@ export function ListaPlanilla({ alcance, sp, ruta, base, deEntidad = false }: { 
   const sev = uno(sp?.[P.severidad]);
   const reg = Number(uno(sp?.[P.regimen]));
   const orden = uno(sp?.[P.orden]);
+  const q = uno(sp?.[P.q])?.slice(0, 80);
   const f = {
     senal: senal && (TIPOS_PLANILLA as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
     regimen: REGIMEN[reg] ? reg : undefined,
     orden: orden && ["senales", "sueldo", "meses"].includes(orden) ? orden : undefined,
+    q: q && q.length >= 2 ? q : undefined,
+    dudoso: uno(sp?.[P.dudoso]) === "si" ? "si" : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlanilla({ ...alcance, ...f, size: TAM });
-  const parametros: Parametros = { ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden };
-  const filtrada = !!(f.senal || f.severidad || f.regimen);
+  const parametros: Parametros = {
+    ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
+    [P.q]: f.q, [P.dudoso]: f.dudoso,
+  };
+  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
@@ -76,7 +85,11 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
   if (!r) return null;
   const items: Indicador[] = [
     { valor: numero(r.personas), etiqueta: "personas en planilla", contexto: r.ultimoMes ? `hasta ${r.ultimoMes}` : undefined },
-    { valor: solesCompacto(r.totalMes), etiqueta: "al mes", contexto: "suma de su último mes publicado" },
+    {
+      valor: solesCompacto(r.totalMes),
+      etiqueta: "al mes",
+      contexto: r.dudosos ? `suma de su último mes publicado, sin ${plural(r.dudosos, "dato dudoso", "datos dudosos")}` : "suma de su último mes publicado",
+    },
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "lo que dicen otros registros" },
     { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: "cobran también por órdenes, candidatos del que gobierna", tono: r.alta > 0 ? "alta" : "neutro" },
   ];
@@ -91,6 +104,7 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
   const P = P_PLANILLA;
   return (
     <BarraFiltros
+      busqueda={{ param: P.q, placeholder: "Buscar por cargo, oficina o entidad…", etiqueta: "Buscar en la planilla", min: 3 }}
       faceta={{
         param: P.severidad,
         etiqueta: "Señales",
@@ -117,6 +131,14 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
           corta: "Régimen",
           todas: "Todo régimen",
           opciones: (r?.porRegimen ?? []).filter((x) => x.regimen != null).map((x) => ({ valor: String(x.regimen), etiqueta: REGIMEN[x.regimen!] ?? String(x.regimen), conteo: x.n })),
+        },
+      ]}
+      filtros={[
+        {
+          param: P.dudoso,
+          etiqueta: "Calidad del dato",
+          todas: "Todos los datos",
+          opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: r?.dudosos ?? null }],
         },
       ]}
       orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }}
@@ -168,10 +190,16 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
   );
 }
 
-function Chips({ senales }: { senales: PersonaPlanilla["senales"] }) {
-  if (!senales?.length) return <span className="text-[12.5px] text-mute">—</span>;
+function Chips({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"] }) {
+  const motivo = motivoDudoso(dudoso?.motivo);
+  if (!senales?.length && !motivo) return <span className="text-[12.5px] text-mute">—</span>;
   return (
     <ul className="flex flex-wrap gap-1">
+      {motivo && (
+        <li>
+          <BanderaDato motivo={motivo} />
+        </li>
+      )}
       {senales.slice(0, 3).map((s) => (
         <li key={s.tipo} title={SENAL_PLANILLA[s.tipo]?.explica}>
           <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SENAL_PLANILLA[s.tipo]?.corto ?? s.tipo}</Badge>
@@ -184,6 +212,9 @@ function Chips({ senales }: { senales: PersonaPlanilla["senales"] }) {
 
 function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
   const entidad = p.entidad ? tituloNatural(p.entidad) : null;
+  const motivo = motivoDudoso(p.dudoso?.motivo);
+  const cargo = p.cargo ? <Dato key="cargo" tipo="cargo">{tituloNatural(p.cargo)}</Dato> : null;
+  const oficina = p.dependencia ? <Dato key="oficina" tipo="dependencia" nombre="Oficina">{tituloNatural(p.dependencia)}</Dato> : null;
   const datos: DatoClave[] = [
     { etiqueta: "Cargo", valor: p.cargo ? tituloNatural(p.cargo) : null },
     { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
@@ -197,10 +228,19 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
   return {
     id: `${p.entidadRuc}-${p.nombre}-${p.ultimoMes}`,
     celdas: {
-      persona: <CeldaPrincipal titulo={p.nombre} meta={deEntidad ? [p.cargo ? tituloNatural(p.cargo) : null, p.dependencia ? tituloNatural(p.dependencia) : null] : [p.cargo ? tituloNatural(p.cargo) : null, entidad]} />,
-      senales: <Chips senales={p.senales} />,
+      persona: (
+        <CeldaPrincipal
+          titulo={p.nombre}
+          meta={deEntidad ? [cargo, oficina] : [cargo, entidad ? <Dato key="entidad" tipo="entidad">{entidad}</Dato> : null]}
+        />
+      ),
+      senales: <Chips senales={p.senales} dudoso={p.dudoso} />,
       regimen: <span className="text-[13px] text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
-      total: (
+      total: motivo ? (
+        <CeldaNumero sub="no se suma">
+          <span className="text-amberTexto">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</span>
+        </CeldaNumero>
+      ) : (
         <CeldaNumero sub={p.extra && p.total != null && p.total > (p.base ?? 0) ? `${solesCompacto(p.total)} con todo` : p.ultimoMes ?? undefined}>
           {p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}
         </CeldaNumero>
@@ -212,6 +252,11 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
       descripcion: p.cargo ? tituloNatural(p.cargo) : undefined,
       contenido: (
         <div className="space-y-4">
+          {motivo && (
+            <AvisoDato motivo={motivo} fuente="pte_personal">
+              {`Su planilla de ${p.ultimoMes ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total.`}
+            </AvisoDato>
+          )}
           <DatosClave items={datos} />
           {p.senales.map((s) => (
             <div key={s.tipo} className="space-y-1.5 rounded-xl border border-line bg-paperSoft p-3">

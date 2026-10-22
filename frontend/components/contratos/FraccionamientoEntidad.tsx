@@ -6,7 +6,8 @@
 
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
-import { Separador } from "@/components/ui/Partes";
+import { Dato } from "@/components/ui/Dato";
+import { Receipt } from "lucide-react";
 import type { FraccionamientoEntidad } from "@/lib/contratos";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 
@@ -26,17 +27,14 @@ export function FraccionamientoEntidadTabla({ casos, nombre }: { casos: Fraccion
       empresa: (
         <CeldaPrincipal
           titulo={c.proveedor ?? c.rucProveedor}
-          meta={
-            <>
-              <span>
-                {numero(c.ordenes)} órdenes {c.objeto ? `de ${c.objeto.toLowerCase()}` : ""}
-              </span>
-              <Separador />
-              <span className="font-mono" translate="no">
-                RUC {c.rucProveedor}
-              </span>
-            </>
-          }
+          meta={[
+            <Dato key="ordenes" icono={Receipt} nombre="Órdenes">
+              {numero(c.ordenes)} órdenes {c.objeto ? `de ${c.objeto.toLowerCase()}` : ""}
+            </Dato>,
+            <Dato key="ruc" tipo="ruc">
+              RUC <span className="font-mono tabular-nums" translate="no">{c.rucProveedor}</span>
+            </Dato>,
+          ]}
         />
       ),
       patron: (
@@ -84,13 +82,25 @@ export function FraccionamientoEntidadTabla({ casos, nombre }: { casos: Fraccion
         <p className="text-[12px] text-mute">
           Fuente:{" "}
           <a href="https://conosce.osce.gob.pe/buscador/" target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
-            CONOSCE · órdenes de compra y servicio
+            Órdenes de compra y de servicio de CONOSCE
           </a>
           . Es un patrón en los registros, no la prueba de un fraccionamiento.
         </p>
       ),
     },
+    // La empresa y lo que se compró; un RUC 10 (persona natural) no se busca (docs/PRIVACIDAD.md).
+    buscable: [c.rucProveedor.startsWith("10") ? null : c.proveedor, c.rucProveedor.startsWith("10") ? null : c.rucProveedor, c.objeto, ...c.detalle.map((o) => o.descripcion)]
+      .filter(Boolean)
+      .join(" "),
   }));
   // Todas, de a 10: antes eran "Ver más / Ver menos" sobre las 50 primeras.
-  return <TablaPaginada columnas={COLUMNAS} filas={filas} etiqueta={`Órdenes menores del mismo día de ${nombre} que juntas pasan 8 UIT`} nombre="días" />;
+  return (
+    <TablaPaginada
+      columnas={COLUMNAS}
+      filas={filas}
+      etiqueta={`Órdenes menores del mismo día de ${nombre} que juntas pasan 8 UIT`}
+      nombre="días"
+      buscar={{ placeholder: "Buscar por empresa, RUC o lo que se compró…", etiqueta: "Buscar en las órdenes del mismo día" }}
+    />
+  );
 }

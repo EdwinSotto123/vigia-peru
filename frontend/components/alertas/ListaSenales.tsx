@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { Tabla, TablaSkeleton, CeldaNumero, CeldaPrincipal, CeldaTexto, type Columna, type Fila } from "@/components/listado";
 import { SelloCotejo } from "@/components/alertas/SelloCotejo";
@@ -90,7 +92,11 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
           meta={s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={s.personasPrivadas} /> : "Sin evidencia registrada"}
         />
       ),
-      contrato: <CeldaTexto sub={<span className="font-mono">{s.ocid}</span>}>{s.entidad ? tituloNatural(s.entidad) : null}</CeldaTexto>,
+      contrato: (
+        <CeldaTexto sub={<Dato tipo="codigo" nombre="Contrato" mono>{s.ocid}</Dato>}>
+          {s.entidad ? <Dato tipo="entidad">{tituloNatural(s.entidad)}</Dato> : null}
+        </CeldaTexto>
+      ),
       monto: <CeldaNumero>{s.montoSoles > 0 ? soles(s.montoSoles) : "Sin dato"}</CeldaNumero>,
       cotejo: <SelloCotejo verificada={s.verificada} />,
     },
@@ -98,10 +104,12 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
       titulo: s.etiqueta,
       etiqueta: `Ver la señal ${s.etiqueta} del contrato ${s.ocid}`,
       descripcion: (
-        <span className="flex flex-wrap gap-x-3">
-          <span>{s.entidad ? tituloNatural(s.entidad) : null}</span>
-          <span className="font-mono">{s.ocid}</span>
-        </span>
+        <Partes
+          partes={[
+            s.entidad && <Dato key="e" tipo="entidad">{tituloNatural(s.entidad)}</Dato>,
+            <Dato key="o" tipo="codigo" nombre="Contrato" mono>{s.ocid}</Dato>,
+          ]}
+        />
       ),
       contenido: <SenalDetalle s={s} />,
       pie: (

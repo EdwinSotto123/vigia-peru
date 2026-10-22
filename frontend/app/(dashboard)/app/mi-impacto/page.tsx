@@ -20,12 +20,13 @@ import { rutaContrato } from "@/lib/rutas";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, type LucideIcon } from "lucide-react";
+import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, CircleDot, HandCoins, type LucideIcon } from "lucide-react";
 import { PieDetalle, CabeceraPestana,
   Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, Franja, Beneficios,
   Pagina, Pestanas, type DatoClave,
 } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
 import { ChipAporte, EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { SubirComprobante } from "@/components/financiar/SubirComprobante";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -160,7 +161,14 @@ function Contenido() {
                     <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Elegir una zona en el mapa <ArrowRight size={14} aria-hidden /></Link>
                   </VacioSeccion>
                 ) : (
-                  <Tabla columnas={COLUMNAS_APORTES} filas={aportes.map((a) => filaAporte(a, cargar))} etiqueta="Mis aportes" />
+                  <TablaPaginada
+                    columnas={COLUMNAS_APORTES}
+                    filas={aportes.map((a) => filaAporte(a, cargar))}
+                    etiqueta="Mis aportes"
+                    tam={10}
+                    nombre="aportes"
+                    buscar={{ placeholder: "Buscar una zona o el código de un aporte…", etiqueta: "Buscar en mis aportes" }}
+                  />
                 )}
               </>
             ),
@@ -180,7 +188,14 @@ function Contenido() {
                     <Link href="/reporte/nuevo" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Enviar tu primera denuncia <ArrowRight size={14} aria-hidden /></Link>
                   </VacioSeccion>
                 ) : (
-                  <Tabla columnas={COLUMNAS_DENUNCIAS} filas={denuncias.map(filaDenuncia)} etiqueta="Mis denuncias" />
+                  <TablaPaginada
+                    columnas={COLUMNAS_DENUNCIAS}
+                    filas={denuncias.map(filaDenuncia)}
+                    etiqueta="Mis denuncias"
+                    tam={10}
+                    nombre="denuncias"
+                    buscar={{ placeholder: "Buscar en lo que escribiste, la categoría o la zona…", etiqueta: "Buscar en mis denuncias" }}
+                  />
                 )}
               </>
             ),
@@ -200,7 +215,14 @@ function Contenido() {
                     <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Abrir el mapa <ArrowRight size={14} aria-hidden /></Link>
                   </VacioSeccion>
                 ) : (
-                  <Tabla columnas={COLUMNAS_ZONAS} filas={zonasSeguidas.map((z) => filaZona(z, cargar))} etiqueta="Zonas que sigo" />
+                  <TablaPaginada
+                    columnas={COLUMNAS_ZONAS}
+                    filas={zonasSeguidas.map((z) => filaZona(z, cargar))}
+                    etiqueta="Zonas que sigo"
+                    tam={10}
+                    nombre="zonas"
+                    buscar={{ placeholder: "Buscar una zona…", etiqueta: "Buscar en las zonas que sigo" }}
+                  />
                 )}
               </>
             ),
@@ -216,7 +238,14 @@ function Contenido() {
                   <Link href="/app/entidades" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Ver entidades <ArrowRight size={14} aria-hidden /></Link>
                 </VacioSeccion>
               ) : (
-                <Tabla columnas={COLUMNAS_ENTIDADES} filas={entidadesSeguidas.map((e) => filaEntidad(e, cargar))} etiqueta="Entidades que sigo" />
+                <TablaPaginada
+                  columnas={COLUMNAS_ENTIDADES}
+                  filas={entidadesSeguidas.map((e) => filaEntidad(e, cargar))}
+                  etiqueta="Entidades que sigo"
+                  tam={10}
+                  nombre="entidades"
+                  buscar={{ placeholder: "Buscar una entidad o su RUC…", etiqueta: "Buscar en las entidades que sigo" }}
+                />
               ),
           },
         ]}
@@ -288,14 +317,21 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
   const cantidad = `${plural(a.contratos, "contrato", "contratos")} por ${soles(a.montoPen)}`;
   return {
     id: a.codigo,
+    buscable: [a.zona, a.codigo].join(" "),
     celdas: {
       estado: <ChipAporte estado={a.estado} />,
       aporte: (
         <CeldaPrincipal
           titulo={a.zona}
           meta={[
-            <span className="font-mono" translate="no">{a.codigo}</span>,
-            falta ? <span className="font-medium text-granate">Falta enviar tu comprobante</span> : cantidad,
+            <Dato key="c" tipo="codigo" nombre="Código del aporte" mono>
+              <span translate="no">{a.codigo}</span>
+            </Dato>,
+            falta ? (
+              <span key="f" className="font-medium text-granate">Falta enviar tu comprobante</span>
+            ) : (
+              <Dato key="n" icono={HandCoins} nombre="Lo que financia">{cantidad}</Dato>
+            ),
           ]}
         />
       ),
@@ -392,6 +428,8 @@ function filaDenuncia(d: DenunciaMia): Fila {
   return {
     id: d.id,
     href: reservada ? undefined : `/app/denuncias/${d.id}`,
+    // Lo que el usuario escribió es suyo: lo puede buscar en su propia cuenta.
+    buscable: [titulo, meta?.label ?? d.categoria, zona, e.label].filter(Boolean).join(" "),
     celdas: {
       estado: <ChipDenuncia e={e} />,
       denuncia: (
@@ -403,7 +441,12 @@ function filaDenuncia(d: DenunciaMia): Fila {
                 {e.label}
                 <Separador />
               </span>
-              <Partes partes={[meta?.label ?? d.categoria, zona]} />
+              <Partes
+                partes={[
+                  <Dato key="c" tipo="tipo" nombre="Categoría">{meta?.label ?? d.categoria}</Dato>,
+                  <Dato key="z" tipo="lugar">{zona}</Dato>,
+                ]}
+              />
             </>
           }
         />
@@ -497,9 +540,18 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
   const etiquetaEstado = ESTADO_LABEL[estado] ?? z.estado;
   return {
     id: z.ubigeo,
+    buscable: [z.nombre, NIVEL[z.nivel] ?? z.nivel, etiquetaEstado].join(" "),
     celdas: {
       estado: <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", ESTADO_PUNTO[estado] ?? ESTADO_PUNTO.sin_datos)} aria-hidden />,
-      zona: <CeldaPrincipal titulo={z.nombre} meta={[NIVEL[z.nivel] ?? z.nivel, etiquetaEstado]} />,
+      zona: (
+        <CeldaPrincipal
+          titulo={z.nombre}
+          meta={[
+            <Dato key="n" tipo="tipo" nombre="Nivel">{NIVEL[z.nivel] ?? z.nivel}</Dato>,
+            <Dato key="e" icono={CircleDot} nombre="Estado">{etiquetaEstado}</Dato>,
+          ]}
+        />
+      ),
       cola: <CeldaNumero>{numero(z.pendientes)}</CeldaNumero>,
       financiados: <CeldaNumero sub={`${numero(z.procesados)} leídos`}>{numero(z.financiados)}</CeldaNumero>,
       senales: <CeldaNumero>{numero(z.senales)}</CeldaNumero>,
@@ -556,7 +608,10 @@ const COLUMNAS_ENTIDADES: Columna[] = [{ clave: "entidad", titulo: "Entidad", an
 function filaEntidad(e: Impacto["entidadesSeguidas"][number], recargar: () => void): Fila {
   return {
     id: e.ruc,
-    celdas: { entidad: <CeldaPrincipal titulo={e.nombre} meta={`RUC ${e.ruc}`} /> },
+    buscable: [e.nombre, e.ruc].join(" "),
+    celdas: {
+      entidad: <CeldaPrincipal titulo={e.nombre} meta={[<Dato key="r" tipo="ruc" mono>RUC {e.ruc}</Dato>]} />,
+    },
     detalle: {
       titulo: e.nombre,
       etiqueta: `Ver ${e.nombre}`,

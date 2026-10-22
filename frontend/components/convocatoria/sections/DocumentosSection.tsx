@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Download, ExternalLink, FileText, Scale } from "lucide-react";
+import { AlertTriangle, ArrowRight, Download, ExternalLink, FileText, FileType, Scale } from "lucide-react";
+import { Buscador } from "@/components/listado/BarraFiltros";
+import { Dato } from "@/components/ui/Dato";
+import { coincide, paraBuscar } from "@/lib/formato";
 import { tipoDocLabel } from "@/lib/contratos";
 import { plural } from "@/lib/formato";
 import { fechaDossier } from "../dossier";
@@ -40,7 +43,11 @@ export function DocumentosSection({
   ocid?: string | null;
 }) {
   const [normasOpen, setNormasOpen] = useState(false);
+  const [consulta, setConsulta] = useState("");
   const parserByUrl = new Map(parserDocs.map((d: any) => [d.url, d]));
+  // El buscador mira el nombre y el tipo del documento (no lo leído: puede nombrar a personas).
+  const q = paraBuscar(consulta);
+  const vistos = q ? documentos.filter((d) => coincide(paraBuscar(`${d.titulo ?? ""} ${d.tipo_ocds ? tipoDocLabel(d.tipo_ocds) : ""}`), q)) : documentos;
   const normas = (fundamento || []).filter((f) => typeof f === "string" && f.trim());
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
@@ -83,8 +90,19 @@ export function DocumentosSection({
           </div>
         )}
       </div>
+      {documentos.length > 5 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-3">
+          <Buscador placeholder="Buscar un documento por nombre o tipo…" etiqueta="Buscar en los documentos del expediente" valor={consulta} onBuscar={setConsulta} />
+          {q && (
+            <span className="text-[13px] tabular-nums text-mute" aria-live="polite">
+              {vistos.length} de {documentos.length}
+            </span>
+          )}
+        </div>
+      )}
+      {q && vistos.length === 0 && <p className="px-5 py-3 text-[13px] text-mute">Ningún documento coincide con “{consulta}”.</p>}
       <ul className="divide-y divide-line">
-        {documentos.map((d, i) => {
+        {vistos.map((d, i) => {
           const parsed: any = parserByUrl.get(d.url);
           const formato = formatoNormalizado(d.formato);
           const esPdf = formato === "pdf";
@@ -97,9 +115,9 @@ export function DocumentosSection({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-ink">{d.titulo || "Documento sin título"}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
-                    {d.tipo_ocds && <span>{tipoDocLabel(d.tipo_ocds)}</span>}
-                    {formato && <span>{ETIQUETA_FORMATO[formato] ?? formato.toUpperCase()}</span>}
-                    {d.fecha && <span>{fechaDossier(d.fecha, true)}</span>}
+                    {d.tipo_ocds && <Dato tipo="documento" nombre="Tipo">{tipoDocLabel(d.tipo_ocds)}</Dato>}
+                    {formato && <Dato icono={FileType} nombre="Formato">{ETIQUETA_FORMATO[formato] ?? formato.toUpperCase()}</Dato>}
+                    {d.fecha && <Dato tipo="fecha" nombre="Publicado">{fechaDossier(d.fecha, true)}</Dato>}
                     {parsed?.n_pdfs_internos && parsed.n_pdfs_internos > 1 && (
                       <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-semibold text-inkSoft">
                         {parsed.n_pdfs_internos} PDF adentro

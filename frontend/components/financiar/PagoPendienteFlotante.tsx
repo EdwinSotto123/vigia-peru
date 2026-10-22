@@ -17,6 +17,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronUp, Clock, X } from "lucide-react";
 import { soles, plural } from "@/lib/formato";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
 import { EVENTO_BORRADOR, borrarBorrador, hrefDeBorrador, listarPagosPendientes, type BorradorFinanciar } from "@/lib/cuentas";
 import { PaymentMethods, type PagoPublico } from "./PaymentMethods";
 import { SubirComprobante } from "./SubirComprobante";
@@ -70,11 +72,17 @@ export function PagoPendienteFlotante() {
             aria-expanded={!minimizado}
             className="min-w-0 flex-1 text-left"
           >
-            <span className="block truncate text-[13px] font-semibold text-ink">
-              Pago pendiente · {soles(c.montoPen)}
+            <span className="flex items-baseline justify-between gap-2 text-[13px] font-semibold text-ink">
+              <span className="truncate">Pago pendiente</span>
+              <span className="shrink-0 font-mono tabular-nums">{soles(c.montoPen)}</span>
             </span>
-            <span className="block truncate font-mono text-[11px] text-mute">
-              {c.codigo}{visibles.length > 1 ? ` · +${visibles.length - 1} más` : ""}
+            <span className="block truncate text-[11px] text-mute">
+              <Partes
+                partes={[
+                  <Dato key="c" tipo="codigo" nombre="Código del aporte" mono>{c.codigo}</Dato>,
+                  visibles.length > 1 && plural(visibles.length - 1, "otro pendiente", "otros pendientes"),
+                ]}
+              />
             </span>
           </button>
           <button
@@ -98,7 +106,7 @@ export function PagoPendienteFlotante() {
                   className="mt-1 w-full rounded-xl border border-line bg-paper px-2 py-1.5 text-sm text-ink"
                 >
                   {visibles.map((v, i) => (
-                    <option key={v.creada.codigo} value={i}>{v.creada.codigo} · {soles(v.creada.montoPen)}</option>
+                    <option key={v.creada.codigo} value={i}>{v.creada.codigo} ({soles(v.creada.montoPen)})</option>
                   ))}
                 </select>
               </label>
