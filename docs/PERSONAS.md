@@ -33,7 +33,7 @@ Son **indicios para revisar**. Ninguna prueba un delito ni un parentesco; la web
 | `pago_alto` | media | cobra por mes 2,5 veces o más la mediana de su tipo de servicio en la entidad (y más de S/ 6,000) |
 | `candidato`, `aporte` | baja | candidato o aportante de otro partido |
 | `visita_previa` | baja | visitó la entidad en los 180 días antes de su primera orden del año |
-| `paso_a_planilla` | baja | después de sus órdenes entró a la planilla de la entidad |
+| `paso_a_planilla` | baja | después de sus órdenes entró a la planilla de la entidad (dentro de los meses cargados: quien figura desde el primero pudo estar desde antes, migración 101) |
 
 **En planilla** (`planilla_persona`): `tambien_ordenes` (alta), `candidato_gobierna` (alta), `brecha_cargo` (media:
 el sueldo, doble o más que la mediana de su mismo cargo en la entidad, y a lo más 10 con ese cargo ganan tanto: si son
@@ -47,7 +47,7 @@ figuraba con S/ 183,172 (S/ 5,500 de remuneración y S/ 177,672 de otros benefic
 
 La lista es la del último mes que publicó cada entidad (migración 100): quienes trabajan hoy. La historia (desde
 2025-01) cuenta los meses de cada persona, desde cuándo está y lo que cruza meses (`tambien_ordenes`,
-`antes_locador`).
+`antes_locador`). `antes_locador` sólo si entró después del primer mes que tenemos de su entidad (migración 101).
 
 **Montos dudosos de CONOSCE** (migración 98): `limpiar_montos_ordenes(anio, mes)`, después de cargar cada mes, pasa a
 `monto_dudoso` (y deja `monto` en NULL) los que no se pueden creer: más de S/ 100 M, igual al RUC o al número de la
