@@ -18,6 +18,7 @@ import {
   type Parametros,
 } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
+import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
@@ -258,6 +259,15 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
             </AvisoDato>
           )}
           <DatosClave items={datos} />
+          {(p.historia?.length ?? 0) > 1 && (
+            <section className="space-y-2">
+              <h3 className="font-display text-[15px] font-bold text-ink">Sueldo mes a mes</h3>
+              <LineaMeses
+                puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
+                etiqueta={`Sueldo mes a mes de ${p.nombre}`}
+              />
+            </section>
+          )}
           {p.senales.map((s) => (
             <div key={s.tipo} className="space-y-1.5 rounded-xl border border-line bg-paperSoft p-3">
               <div className="flex flex-wrap items-center gap-2">

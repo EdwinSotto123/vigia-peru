@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Buscador } from "@/components/listado/BarraFiltros";
@@ -21,6 +21,10 @@ import { BloqueInicio, SinDato } from "./BloquesInicio";
  *   · Contraloría: sus cifras y TODOS los informes con responsabilidad PRESUNTA en una tabla paginada, filtrable por
  *     tipo; cada fila abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia).
  * `ruta` es la de la API (lib/corrupcion.ts, rutaCorrupcion): la tabla pide ahí las páginas siguientes.
+ *
+ * En la ficha de una ENTIDAD va primero la Contraloría (sus informes son de esa entidad) y después la Procuraduría,
+ * rotulada como lo que es: las cifras de TODO el departamento. La Procuraduría publica por sede (distrito fiscal), no
+ * por entidad agraviada; el usuario leyó las de Lima en la ficha de la UNI como si fueran de la UNI (2026-10-22).
  */
 export function CasosCorrupcion({
   datos,
@@ -63,8 +67,17 @@ export function CasosCorrupcion({
         <SinDato>Sin dato: el servicio no respondió.</SinDato>
       ) : (
         <div className="space-y-6">
-          {ambito !== "partido" && <Procuraduria datos={datos} ambito={ambito} nombreRegion={nombreRegion} />}
-          <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} />
+          {ambito === "entidad" ? (
+            <>
+              <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} />
+              <Procuraduria datos={datos} ambito={ambito} nombreRegion={nombreRegion} />
+            </>
+          ) : (
+            <>
+              {ambito !== "partido" && <Procuraduria datos={datos} ambito={ambito} nombreRegion={nombreRegion} />}
+              <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} />
+            </>
+          )}
         </div>
       )}
     </BloqueInicio>
@@ -82,20 +95,32 @@ function Subtitulo({ titulo, bajada }: { titulo: string; bajada: string }) {
 
 function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambito: "entidad" | "region"; nombreRegion?: string | null }) {
   const pp = datos.procuraduria;
-  const bajada = ambito === "entidad" && nombreRegion
-    ? `Lo comprobado en ${nombreRegion}: la Procuraduría publica cifras por sede, no por entidad.`
-    : "Lo comprobado: casos con sentencia firme.";
+  const deEntidad = ambito === "entidad";
+  const donde = nombreRegion ?? "su departamento";
   return (
     <section>
-      <Subtitulo titulo="Procuraduría Anticorrupción" bajada={bajada} />
+      <Subtitulo
+        titulo={deEntidad ? `Procuraduría Anticorrupción en todo ${donde}` : "Procuraduría Anticorrupción"}
+        bajada={deEntidad ? `De todas las entidades públicas de ${donde} juntas, no sólo de esta.` : "Lo comprobado: casos con sentencia firme."}
+      />
+      {deEntidad && (
+        <p role="note" className="mb-3 flex max-w-3xl gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <Info size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+          <span>
+            Estas cifras no son de esta entidad: son de todas las entidades públicas de {donde} (ministerios, municipalidades,
+            universidades, hospitales…). La Procuraduría publica sus casos por sede y no por entidad agraviada, así que no se
+            puede saber cuántos son de esta entidad. Lo que sí es de esta entidad son los informes de la Contraloría, arriba.
+          </span>
+        </p>
+      )}
       {!pp ? (
         <SinDato>La Procuraduría no publica una sede para este departamento en su último boletín.</SinDato>
       ) : (
         <div className="space-y-3">
           <Indicadores
             items={[
-              { valor: numero(pp.en_ejecucion), etiqueta: "con sentencia firme", contexto: "en ejecución de sentencia", tono: "alta" },
-              { valor: numero(pp.en_tramite), etiqueta: "casos en trámite", contexto: "incluye los de sentencia firme" },
+              { valor: numero(pp.en_ejecucion), etiqueta: deEntidad ? `con sentencia firme en ${donde}` : "con sentencia firme", contexto: "en ejecución de sentencia", tono: "alta" },
+              { valor: numero(pp.en_tramite), etiqueta: deEntidad ? `casos en trámite en ${donde}` : "casos en trámite", contexto: "incluye los de sentencia firme" },
               { valor: pp.sentencias != null ? numero(pp.sentencias) : null, etiqueta: "sentencias en el año", contexto: "condenas o decisiones firmes nuevas" },
               { valor: pp.reparacion_civil != null ? solesCompacto(pp.reparacion_civil) : null, etiqueta: "reparación cobrada", contexto: "en el año" },
             ]}
@@ -214,10 +239,17 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
 
   return (
     <section>
-      <Subtitulo titulo="Contraloría" bajada="Presunta responsabilidad de funcionarios: no es una condena." />
+      <Subtitulo
+        titulo={ambito === "entidad" ? "Contraloría: informes sobre esta entidad" : "Contraloría"}
+        bajada={ambito === "entidad" ? "Presunta responsabilidad de sus funcionarios: no es una condena." : "Presunta responsabilidad de funcionarios: no es una condena."}
+      />
       {nota && <p className="-mt-1 mb-3 max-w-3xl text-[12.5px] text-mute">{nota}</p>}
       {inf.total === 0 ? (
-        <SinDato>La Contraloría no tiene informes con responsabilidad en su buscador para este alcance.</SinDato>
+        <SinDato>
+          {ambito === "entidad"
+            ? "La Contraloría no tiene informes con responsabilidad sobre esta entidad en su buscador."
+            : "La Contraloría no tiene informes con responsabilidad en su buscador para este alcance."}
+        </SinDato>
       ) : (
         <div className="space-y-4">
           <Indicadores

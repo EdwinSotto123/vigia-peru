@@ -123,6 +123,8 @@ export interface FichaPersona {
   };
   entidades: EntidadDePersona[];
   anual: AnioDePersona[];
+  /** Lo cobrado cada mes por órdenes (línea de tiempo); `dudoso`, lo que puede ser un error de CONOSCE, aparte. */
+  mensual?: { mes: string; monto: number; dudoso: number; ordenes: number }[];
 }
 
 export interface OrdenPersona {

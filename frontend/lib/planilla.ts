@@ -38,6 +38,8 @@ export interface PersonaPlanilla {
   nSenales: number;
   /** Su ficha de persona contratada, si también recibe órdenes de servicio. */
   codigo: string | null;
+  /** Lo que cobró cada mes cargado (línea de tiempo de sueldos): sueldo, fuera del sueldo, total y si es un posible error. */
+  historia?: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }[];
   /** Un posible error de carga del Estado en su último mes (migración 102): no entra en sumas, medianas ni señales. */
   dudoso: { motivo: string; base: number | null; extra: number | null; total: number | null; anio: number; mes: number } | null;
 }

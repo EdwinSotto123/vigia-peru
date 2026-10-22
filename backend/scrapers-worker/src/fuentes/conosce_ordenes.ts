@@ -153,7 +153,11 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
       if (!primero) primero = [anio, mes];
     }
   }
-  if (p.seco || !cargados || !primero || p.relleno) return resumen;
+  if (p.seco || !cargados) return resumen;
+  // Las estadísticas de los montos dudosos (migración 102): con las viejas, el planificador dejaba de usar el índice
+  // parcial y la API recorría los 29 M de órdenes para contarlos (106 s, el 2026-10-22). Unos segundos (muestra).
+  await step.do("analizar montos dudosos", CARGA, () => conDb(env.HYPERDRIVE, (db) => db.ejecutar("ANALYZE conosce_ordenes (monto_dudoso, monto)")));
+  if (!primero || p.relleno) return resumen;
   const desde = desdeRefresco(primero);
   const uno = (nombre: string, sql: string, params: unknown[] = []) => step.do(nombre, CARGA, () =>
     conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql, params))[0]?.n ?? 0)));

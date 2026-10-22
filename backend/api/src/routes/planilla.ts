@@ -104,16 +104,41 @@ planillaRouter.get("/", async (c) => {
         `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
                 p.base::float AS base, p.extra::float AS extra, p.dudoso,
                 p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
-                p.senales, p.n_senales AS "nSenales", p.codigo, count(*) OVER ()::int AS n
+                p.senales, p.n_senales AS "nSenales", p.codigo, p.nombre_norm AS "_nn", count(*) OVER ()::int AS n
            FROM planilla_persona p WHERE ${conds.join(" AND ")}
           ORDER BY ${ORDEN_PLANILLA[q.orden]}, p.nombre_norm
           LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, v2),
       resumenP,
     ]);
-    const data = filas.rows.map(({ n: _n, paterno, nombres, ...f }) => ({
+    // Lo que cobró cada mes cargado (línea de tiempo de sueldos): así se ve si un monto raro es de un solo mes (un pago
+    // acumulado, un error de carga) o su sueldo de siempre. Una consulta para las filas de la página, por el índice del
+    // nombre; nombre_norm (con el materno) nunca sale de la API.
+    const historia = new Map<string, unknown[]>();
+    if (filas.rows.length) {
+      const h = await pool.query<{ e: string; nn: string; mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }>(
+        `SELECT p.entidad_ruc AS e, p.nombre_norm AS nn, to_char(make_date(p.anio, p.mes, 1), 'YYYY-MM') AS mes,
+                sum(CASE WHEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0) > 0 THEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0)
+                         WHEN COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0) = 0 THEN p.total END)::float AS base,
+                sum(COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0))::float AS extra,
+                sum(p.total)::float AS total,
+                bool_or(motivo_planilla_dudosa(p.remuneraciones, p.honorarios, p.incentivo, p.gratificacion, p.otros, p.total) IS NOT NULL) AS dudoso,
+                count(*)::int AS filas
+           FROM planilla_pte p
+           JOIN unnest($1::text[], $2::text[]) AS t(e, nn) ON t.e = p.entidad_ruc AND t.nn = p.nombre_norm
+          GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`,
+        [filas.rows.map((f) => f.entidadRuc), filas.rows.map((f) => f._nn)]);
+      for (const r of h.rows) {
+        const k = `${r.e}|${r.nn}`;
+        const l = historia.get(k) ?? [];
+        l.push({ mes: r.mes, base: r.base, extra: r.extra, total: r.total, dudoso: r.dudoso, filas: r.filas });
+        historia.set(k, l);
+      }
+    }
+    const data = filas.rows.map(({ n: _n, _nn, paterno, nombres, ...f }) => ({
       ...f,
       // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
       nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" "),
+      historia: historia.get(`${f.entidadRuc}|${_nn}`) ?? [],
     }));
     return publicar({ total: filas.rows[0]?.n ?? 0, page: q.page, size: q.size, data, resumen: res.rows[0] });
   });

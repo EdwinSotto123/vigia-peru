@@ -214,7 +214,7 @@ personasRouter.get("/:codigo", async (c) => {
     const p = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [codigo]);
     const ruc = p.rows[0]?.ruc;
     if (!ruc) return null;
-    const [ent, senales, anual, dudosas] = await Promise.all([
+    const [ent, senales, anual, mensual, dudosas] = await Promise.all([
       pool.query(
         `SELECT ${FILA}, ${GOBIERNOS("pe.gobiernos")} AS gobiernos, z.nombre AS "depNombre"
            FROM persona_entidad pe LEFT JOIN zonas z ON z.ubigeo = pe.dep
@@ -235,6 +235,18 @@ personasRouter.get("/:codigo", async (c) => {
            LEFT JOIN servicio_referencia re ON re.entidad_ruc = a.entidad_ruc AND re.anio = a.anio AND re.servicio = a.servicio
            LEFT JOIN servicio_referencia rp ON rp.entidad_ruc = '' AND rp.anio = a.anio AND rp.servicio = a.servicio
           WHERE a.ruc = $1 ORDER BY a.anio DESC, a.monto DESC`, [ruc]),
+      // Lo que cobró cada mes (línea de tiempo): el monto de cada orden tal como lo publicó CONOSCE; lo que puede ser un
+      // error suyo, aparte (`dudoso`).
+      pool.query<{ mes: string; monto: number; dudoso: number; ordenes: number }>(
+        `WITH o AS (
+           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.fecha_emision, o.monto, o.monto_dudoso
+             FROM conosce_ordenes o
+            WHERE o.ruc_contratista = $1 AND o.tipo_orden = 'Orden de Servicio' AND o.moneda = 'Nuevos Soles'
+              AND o.estado IS DISTINCT FROM 'Anulada' AND (o.monto > 0 OR o.monto_dudoso IS NOT NULL) AND o.fecha_emision IS NOT NULL
+            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+         SELECT to_char(date_trunc('month', fecha_emision), 'YYYY-MM') AS mes, COALESCE(sum(monto), 0)::float AS monto,
+                COALESCE(sum(monto_dudoso), 0)::float AS dudoso, count(*)::int AS ordenes
+           FROM o GROUP BY 1 ORDER BY 1`, [ruc]),
       // Sus órdenes con un monto que puede ser un error de CONOSCE (migración 102): se muestran, no entran en sus sumas.
       pool.query<{ ordenes: number; monto: number | null; motivos: string[] | null }>(
         `WITH d AS (
@@ -263,6 +275,7 @@ personasRouter.get("/:codigo", async (c) => {
       },
       entidades,
       anual: anual.rows,
+      mensual: mensual.rows,
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

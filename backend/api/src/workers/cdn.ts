@@ -26,9 +26,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "13": montos dudosos de CONOSCE fuera de los totales y planilla con sueldo base, migraciones 98-100;
  * "14": datos dudosos con su motivo en órdenes, planilla y contratos, y buscador en las listas, migraciones 102-103;
  * "15": el monto dudoso se devuelve tal como lo publicó CONOSCE, la ficha y el resumen nombran lo que va aparte, y la
- * planilla se busca también por el nombre).
+ * planilla se busca también por el nombre; "16": línea de tiempo de sueldos en la planilla y de órdenes en la ficha).
  */
-const VERSION_CACHE = "15";
+const VERSION_CACHE = "16";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

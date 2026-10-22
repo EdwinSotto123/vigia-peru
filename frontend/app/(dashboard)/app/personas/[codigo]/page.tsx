@@ -22,6 +22,7 @@ import {
 } from "@/components/listado";
 import { SenalesCelda } from "@/components/personas/SenalesPersona";
 import { SenalesPorEntidad } from "@/components/personas/SenalesFicha";
+import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
@@ -155,7 +156,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
           {
             clave: "pagos",
             etiqueta: "Lo que cobró",
-            contenido: <Pagos anual={f.anual} />,
+            contenido: <Pagos anual={f.anual} mensual={f.mensual ?? []} nombre={nombre} />,
           },
           {
             clave: "ordenes",
@@ -255,7 +256,7 @@ const COLUMNAS_PAGOS: Columna[] = [
   { clave: "veces", titulo: "Diferencia", ancho: "104px", alinear: "der", desde: "md" },
 ];
 
-function Pagos({ anual }: { anual: AnioDePersona[] }) {
+function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: NonNullable<FichaPersona["mensual"]>; nombre: string }) {
   const filas: Fila[] = anual.map((a) => {
     const med = a.enLaEntidad?.mediana ?? null;
     const veces = a.personal && a.porMes != null && med ? a.porMes / med : null;
@@ -298,6 +299,18 @@ function Pagos({ anual }: { anual: AnioDePersona[] }) {
         Lo que cobró por mes cada año, junto a lo que la misma entidad y todo el país pagan a quienes hacen el mismo tipo de
         servicio.
       </CabeceraPestana>
+      {mensual.length > 1 && (
+        <section className="space-y-2 rounded-2xl border border-line bg-paper p-4">
+          <h3 className="font-display text-[15px] font-bold text-ink">Mes a mes</h3>
+          <LineaMeses
+            puntos={mensual.map((m) => ({ mes: m.mes, base: m.monto, aparte: m.dudoso || null }))}
+            nombres={{ base: "Cobrado por órdenes" }}
+            huecos="cero"
+            quienCarga="de CONOSCE"
+            etiqueta={`Lo que cobró por órdenes mes a mes, ${nombre}`}
+          />
+        </section>
+      )}
       <Tabla columnas={COLUMNAS_PAGOS} filas={filas} etiqueta="Lo que cobró por año y entidad" />
       <p className="max-w-prose text-[12.5px] text-mute">
         El tipo de servicio sale de las palabras de la descripción de sus órdenes. No se compara lo que no es el trabajo de una
