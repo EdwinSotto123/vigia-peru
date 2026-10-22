@@ -9,6 +9,30 @@ En la web: `/app/empresas` (directorio con buscador por nombre o RUC y filtros) 
 pestañas Inicio, Contratos, Órdenes, Clientes, Postulaciones, Antecedentes, Socios y Visitas). El ganador de cada
 contrato enlaza a su ficha, y el buscador de la cabecera también encuentra empresas.
 
+## Filtros de la ficha
+
+Cada lista tiene buscador y filtros con cuántos registros tiene cada opción, y se ordena por fecha o por monto:
+
+| Pestaña | Filtros | Dónde se filtra |
+|---|---|---|
+| Contratos | banderas (inhabilitada al ganar, sancionada antes o después, con antecedentes, posible error de carga, sin banderas), año, entidad, tipo de proceso (en familias), rubro, región, sola o en consorcio | API |
+| Órdenes | año, entidad, tipo, región, estado, posible error de carga | API |
+| Postulaciones | resultado, año, entidad, quién le ganó, rubro | API |
+| Clientes, Visitas, Empresas vinculadas | región, qué le dio, entidad visitada, quién fue, qué pasó después, puntaje, papel en común… | en la página (`TablaFiltrable`) |
+| Antecedentes | tipo y gravedad | en el servidor de la web |
+
+La lista de empresas filtra además por lo que recibió (desde S/ 100 mil hasta S/ 100 millones), cómo le vende al
+Estado (contratos, consorcio, sólo órdenes, sólo postula), empresas vinculadas y por entidad: la ficha de cada entidad
+enlaza a «Sus proveedores» (`/app/empresas?entidad=<RUC>`).
+
+Las sanciones de cada contrato se miden contra la fecha de su buena pro: **inhabilitada al ganar** (una inhabilitación
+temporal o definitiva cubría esa fecha), **sancionada antes** (ya cumplida, con la fecha en que terminó la última) o
+**sancionada después**.
+
+Órdenes (migraciones 110 y 111): la página por fecha lee una ventana por el índice `(ruc_contratista, fecha_emision)` y
+el total sale de `empresa_orden_anual`; el estado, el tipo, el texto y el monto dudoso se filtran sobre la versión más
+nueva de cada orden (un archivo mensual puede repetirla con otro estado). Mismo rango que el resumen: emitidas desde 2018.
+
 ## De dónde sale
 
 | Qué | Fuente | Tabla |
