@@ -477,8 +477,11 @@ empresasRouter.get("/:ruc/ordenes", async (c) => {
     if (!(await existe(ruc))) return null;
     const vals: unknown[] = [ruc];
     const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    // Como empresa_orden_anual: en soles, sin las anuladas; las de monto dudoso se muestran con su monto original.
-    const base = [`o.ruc_contratista = $1`, `o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`];
+    // Como empresa_orden_anual (refrescar_empresa_ordenes): en soles, sin las anuladas, emitidas desde 2018 (los archivos
+    // de 2018 traen algunas de 2014 a 2017) y hasta un mes adelante; las de monto dudoso, con su monto original. Así el
+    // total y los conteos de los filtros son los mismos números.
+    const base = [`o.ruc_contratista = $1`, `o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`,
+                  `o.fecha_emision >= DATE '2018-01-01'`, `o.fecha_emision <= current_date + 31`, `o.entidad_ruc ~ '^[0-9]{11}$'`];
     // Lo que no cambia entre las versiones de una orden (entidad, región, fecha) se filtra antes de deduplicar; lo que sí
     // puede cambiar de un archivo mensual al siguiente (estado, monto, descripción), después: vale la versión más nueva,
     // como en empresa_orden_anual (antes, «devengadas» contaba también las que en su última versión ya no lo eran).
