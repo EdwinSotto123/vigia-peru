@@ -638,6 +638,8 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
                 descripcion: o.estado ? o.estado.charAt(0) + o.estado.slice(1).toLowerCase() : undefined,
                 filas: [
                   { k: "Descripción", v: o.descripcion ? oracion(o.descripcion) : "Sin descripción" },
+                  ...(d.entidad ? [{ k: "Entidad", v: tituloNatural(d.entidad) }] : []),
+                  ...(d.objeto ? [{ k: "Rubro", v: d.objeto }] : []),
                   { k: "Monto", v: soles(o.montoSoles) },
                   { k: "Fecha", v: fecha(d.fecha) },
                 ],

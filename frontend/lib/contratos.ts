@@ -227,6 +227,9 @@ export interface EvidenciaCruce {
 /** Un día en que una entidad le emitió a una empresa varias órdenes "hasta 8 UIT" que juntas pasan el tope. */
 export interface DiaFraccionado {
   fecha: string | null;
+  /** La entidad que emitió las órdenes de ese día y el rubro (objeto), de `ordenes_fraccionadas`. */
+  entidad: string | null;
+  objeto: string | null;
   ordenes: number;
   totalSoles: number;
   topeSoles: number;

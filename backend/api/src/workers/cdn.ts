@@ -37,9 +37,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "25": el número de orden ya no se tapa como DNI —esCodigoLargo cruza guiones y barras—; "26": dos cruces nuevos,
  * único postor y socio del proveedor contratado por la entidad, migración 122; "27": dos cruces más —domicilio fiscal
  * compartido y proveedor cautivo, migración 123— y la atribución de "financió al que gobierna" por jurisdicción real
- * (entidad_gobierno_amplia), migración 124).
+ * (entidad_gobierno_amplia), migración 124; "28": el detalle de una orden del fraccionamiento trae su entidad y rubro).
  */
-const VERSION_CACHE = "27";
+const VERSION_CACHE = "28";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

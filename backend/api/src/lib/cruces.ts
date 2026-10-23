@@ -144,6 +144,8 @@ export function aCruce(r: Record<string, any>): Cruce {
 
 export interface DiaFraccionado {
   fecha: string | null;
+  entidad: string | null;
+  objeto: string | null;
   ordenes: number;
   totalSoles: number;
   topeSoles: number;
@@ -155,7 +157,8 @@ export interface DiaFraccionado {
 /** Una fila de ordenes_fraccionadas para la API (la ficha del contrato y la de la entidad). */
 function aDia(r: Record<string, any>): DiaFraccionado {
   return {
-    fecha: fecha(r.fecha), ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,
+    fecha: fecha(r.fecha), entidad: r.entidad ?? null, objeto: r.objeto ?? null,
+    ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,
     severidad: r.severidad,
     detalle: (r.detalle as { orden: string; monto: number; descripcion: string | null; estado: string | null }[])
       .map((o) => ({ orden: o.orden, montoSoles: Number(o.monto), descripcion: o.descripcion, estado: o.estado })),
