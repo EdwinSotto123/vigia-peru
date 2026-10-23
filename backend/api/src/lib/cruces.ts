@@ -28,6 +28,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   sancion_vigente: "Ganó con una inhabilitación vigente",
   visita_previa: "Visitó una entidad antes de la buena pro",
   socio_comun: "Comparte socio o representante con otro postor",
+  // Competencia y conflicto en el proceso (migración 122).
+  unico_postor: "Único postor del proceso",
+  socio_en_entidad: "Un socio del proveedor trabaja en la entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",
   vendio_gobernante: "Le vendió a la campaña del partido que gobierna la entidad",
   proveedor_campana: "Le vendió a una campaña electoral",

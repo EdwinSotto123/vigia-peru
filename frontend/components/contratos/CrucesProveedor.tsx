@@ -17,6 +17,7 @@ import { ArrowUpRight, ChevronDown, CircleDot, Coins, Receipt } from "lucide-rea
 import { TablaEvidencia } from "./TablaEvidencia";
 import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
 import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import { recortar } from "./recortar";
 import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
 import { txt } from "@/lib/utils";
@@ -151,6 +152,8 @@ const POR_QUE: Record<string, string> = {
   adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
+  unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
+  socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
   recien_fundada: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_medio_ano: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_un_ano: RECIEN_FUNDADA_POR_QUE,
@@ -434,6 +437,31 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
             ""
           )}
           .
+        </>
+      );
+    }
+    case "unico_postor": {
+      const razon = n(d.razon);
+      return (
+        <>
+          <Emp c={c} /> fue el <b>único postor</b> de este proceso: no hubo competencia. Ganó
+          {c.montoSoles != null ? <> por <b>{solesCompacto(c.montoSoles)}</b></> : ""}
+          {d.al_tope && razon != null ? (
+            <>, al <b>{(razon * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })}%</b> del valor referencial</>
+          ) : (
+            ""
+          )}
+          .
+        </>
+      );
+    }
+    case "socio_en_entidad": {
+      const ent = txt(d.entidad);
+      return (
+        <>
+          {quien(c)} es, además, <b>persona contratada por {ent ? tituloNatural(ent) : "esta entidad"}</b>
+          {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
+          {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
         </>
       );
     }
