@@ -31,9 +31,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * contrato de una empresa dice si estaba inhabilitada al ganar, sancionada antes o después; "19": filtros con conteos y
  * orden en los contratos, órdenes y postulaciones de una empresa, migración 110; "20": empresas sin puntaje, sus
  * antecedentes como hechos, migración 112; "21": señales SUNAT en empresas, migración 116, y los contratos de la empresa
- * desglosan el antecedente del ganador por tipo —no sólo "Con antecedentes"—).
+ * desglosan el antecedente del ganador por tipo —no sólo "Con antecedentes"—; "22": "recién fundada" como cruce del
+ * contrato con etiqueta propia, migración 118).
  */
-const VERSION_CACHE = "21";
+const VERSION_CACHE = "22";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

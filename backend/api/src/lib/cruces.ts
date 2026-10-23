@@ -32,6 +32,11 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
   otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
   sobreprecio: "Pagó más que otras entidades por lo mismo",
+  // Señales de la ficha RUC de la SUNAT (migraciones 116-118).
+  recien_fundada: "Ganó recién fundada",
+  dada_de_baja: "Dada de baja en la SUNAT",
+  suspendida: "Suspendida en la SUNAT",
+  no_habida: "No habida en la SUNAT",
 };
 
 /** La etiqueta de un cruce posterior a la convocatoria, donde la de siempre diría "anteriores". */
