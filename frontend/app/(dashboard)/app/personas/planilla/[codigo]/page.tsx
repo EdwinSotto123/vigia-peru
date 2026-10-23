@@ -44,6 +44,10 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
   const cargo = p.cargo ? tituloNatural(p.cargo) : null;
   const graves = p.senales.filter((s) => s.severidad === "alta").length;
   const motivo = motivoDudoso(p.dudoso?.motivo);
+  // Meses en que además cobró por órdenes de servicio (señal tambien_ordenes), para marcarlos en el cuadro mes a mes.
+  const detOrden = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
+  const mesesOrden = Array.isArray(detOrden?.meses) ? (detOrden!.meses as unknown[]).map(String) : [];
+  const montoOrden = typeof detOrden?.monto === "number" ? (detOrden!.monto as number) : null;
 
   return (
     <Pagina>
@@ -54,7 +58,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
           { etiqueta: "Planilla", href: "/app/personas?seccion=planilla" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { sueldo: "Sueldo mes a mes", datos: "Datos" } }}
+        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { sueldo: "Cobros al Estado", datos: "Datos" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}
@@ -112,16 +116,17 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
           },
           {
             clave: "sueldo",
-            etiqueta: "Sueldo mes a mes",
+            etiqueta: "Cobros al Estado",
             conteo: f.historia.length,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Lo que cobró cada mes que la entidad publicó su planilla, desde enero de 2025.</CabeceraPestana>
+                <CabeceraPestana>Lo que cobró de la planilla cada mes que la entidad la publicó.{mesesOrden.length ? " El ◆ marca los meses en que además cobró por órdenes de servicio." : ""}</CabeceraPestana>
                 {f.historia.length > 1 ? (
                   <section className="rounded-2xl border border-line bg-paper p-4">
                     <LineaMeses
                       puntos={f.historia.map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
-                      etiqueta={`Sueldo mes a mes de ${p.nombre}`}
+                      etiqueta={`Cobros al Estado mes a mes de ${p.nombre}`}
+                      ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
                     />
                   </section>
                 ) : (
