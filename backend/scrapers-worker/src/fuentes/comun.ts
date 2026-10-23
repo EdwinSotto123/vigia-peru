@@ -48,5 +48,8 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // antecedentes, que lee los cruces y los casos recién rehechos.
   await uno("refrescar_empresa_ordenes", "SELECT refrescar_empresa_ordenes() AS n");
   await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
+  // Señales de la empresa desde la ficha RUC de la SUNAT (migración 116): van DESPUÉS de refrescar_empresas, que
+  // reconstruye empresa_resumen (si no, las borraría). Recién fundada, dada de baja, suspendida, no habida.
+  await uno("refrescar_senales_sunat", "SELECT refrescar_senales_sunat() AS n");
   return n;
 }
