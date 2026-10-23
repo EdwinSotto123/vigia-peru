@@ -62,6 +62,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     entidad: ruc11(sp?.[P_CONTRATOS.entidad]), objeto: de(sp?.[P_CONTRATOS.objeto], OBJETOS), familia: corto(sp?.[P_CONTRATOS.familia]),
     departamento: corto(sp?.[P_CONTRATOS.departamento]),
     bandera: de(sp?.[P_CONTRATOS.bandera], ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const),
+    cruce: uno(sp?.[P_CONTRATOS.cruce])?.match(/^[a-z_]{2,40}$/)?.[0],
     orden: de(sp?.[P_CONTRATOS.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
     page: pagina(sp?.[P_CONTRATOS.page]),
   };

@@ -15,6 +15,7 @@ import { Dato } from "@/components/ui/Dato";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { fecha, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
+import { GRUPOS_CRUCE } from "@/lib/cruces";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { OBJETO_TEXTO, type ContratoEmpresa, type FacetasContratos, type Pagina } from "@/lib/empresas";
@@ -24,7 +25,7 @@ import { entidadEtq, entidadTexto, NoCargo, opcionesDe, ORDEN_LISTA, Paginas } f
 
 // ─── Contratos ────────────────────────────────────────────────────────────────
 
-export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", orden: "cord", page: "cpag" } as const;
+export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", cruce: "ccruce", orden: "cord", page: "cpag" } as const;
 
 const COLUMNAS_CONTRATOS: Columna[] = [
   { clave: "fecha", titulo: "Buena pro", ancho: "92px", desde: "md", apilar: true },
@@ -49,10 +50,13 @@ const COLUMNAS_CONTRATOS: Columna[] = [
  */
 export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | null }) {
   const b = f?.banderas;
+  const k = f?.cruces;
   return (
     <BarraFiltros
       busqueda={{ param: P_CONTRATOS.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus contratos", min: 3 }}
       faceta={{
+        // La faceta guarda sólo las banderas propias del PROCESO (sanción del Tribunal frente a la buena pro, monto
+        // dudoso, sin nada). El "Con antecedentes" agrupado se abrió en el desplegable "Antecedentes del ganador".
         param: P_CONTRATOS.bandera,
         etiqueta: "Banderas",
         todas: "Todos",
@@ -61,13 +65,30 @@ export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | nul
         opciones: [
           { valor: "inhabilitada", etiqueta: "Inhabilitada al ganar", conteo: b?.inhabilitada ?? null, tono: "alta" as const, icono: "alerta" as const },
           { valor: "sancionada_antes", etiqueta: "Sancionada antes", conteo: b?.sancionada_antes ?? null, tono: "media" as const, icono: "atencion" as const },
-          { valor: "antecedentes", etiqueta: "Con antecedentes", conteo: b?.antecedentes ?? null, tono: "media" as const },
           { valor: "dudoso", etiqueta: "Posible error de carga", conteo: b?.dudoso ?? null },
           { valor: "sancionada_despues", etiqueta: "Sancionada después", conteo: b?.sancionada_despues ?? null },
           { valor: "sin", etiqueta: "Sin banderas", conteo: b?.sin ?? null },
         ].filter((o) => o.conteo == null || o.conteo > 0),
       }}
       visibles={[
+        {
+          // Cada antecedente del ganador sobre estos procesos, segmentado por familia (Política, En el proceso, Registro
+          // SUNAT…), como en /app/contratos. Sólo los tipos que aparecen en sus contratos.
+          param: P_CONTRATOS.cruce,
+          etiqueta: "Antecedentes del ganador",
+          corta: "Antecedentes",
+          todas: "Todos",
+          opciones: [
+            { valor: "con", etiqueta: "Con alguno", conteo: k?.con ?? null },
+            { valor: "alta", etiqueta: "Con uno grave", conteo: k?.alta ?? null },
+            ...(k
+              ? GRUPOS_CRUCE.flatMap((g) =>
+                  g.tipos
+                    .filter((t) => (k.tipos?.[t.tipo] ?? 0) > 0)
+                    .map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo, conteo: k.tipos[t.tipo] })))
+              : []),
+          ],
+        },
         { param: P_CONTRATOS.anio, etiqueta: "Año de la buena pro", corta: "Año", todas: "Todos los años", opciones: opcionesDe(f?.anios) },
         { param: P_CONTRATOS.entidad, etiqueta: "Entidad que contrató", corta: "Entidad", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq) },
         { param: P_CONTRATOS.familia, etiqueta: "Tipo de proceso", corta: "Proceso", todas: "Todo tipo de proceso", opciones: opcionesDe(f?.familias) },

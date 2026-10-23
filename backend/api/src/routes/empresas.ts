@@ -271,6 +271,9 @@ const Contratos = z.object({
   familia: z.string().trim().min(3).max(60).optional(),
   departamento: z.string().trim().min(2).max(40).optional(),
   bandera: z.enum(BANDERAS_CONTRATO).optional(),
+  // Un antecedente concreto del ganador sobre ESTE proceso (casos_cruce): "con" (cualquiera), "alta" (alguno grave) o un
+  // tipo (penalidad, visita_previa, partido_gobernante…). Desglosa la vieja bandera "Con antecedentes" en la lista completa.
+  cruce: z.string().trim().min(2).max(40).regex(/^[a-z_]+$/).optional(),
   orden: z.enum(["reciente", "antiguo", "monto", "monto_asc"]).default("reciente"),
   page: z.coerce.number().int().min(1).max(2000).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -310,6 +313,9 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
     if (q.familia) conds.push(`x.familia = ${p(q.familia)}`);
     if (q.departamento) conds.push(`mef_norm(x.departamento) = ${p(norm(q.departamento))}`);
     if (q.bandera) conds.push(BANDERA_SQL[q.bandera]);
+    if (q.cruce === "con") conds.push(`x.n_antecedentes > 0`);
+    else if (q.cruce === "alta") conds.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(x.cruces, '[]')) e WHERE e->>'severidad' = 'alta' AND e->>'tipo' NOT IN ('sancion', 'sancion_vigente'))`);
+    else if (q.cruce) conds.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(x.cruces, '[]')) e WHERE e->>'tipo' = ${p(q.cruce)})`);
     for (const w of palabrasBusqueda(q.q)) {
       conds.push(`mef_norm(concat_ws(' ', x.descripcion, x.entidad, x.nomenclatura, x.codigo, x.consorcio)) LIKE ${p(`%${w}%`)}`);
     }
@@ -384,7 +390,16 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
            'departamentos', COALESCE((SELECT jsonb_agg(jsonb_build_object('valor', d, 'n', n) ORDER BY d)
                                         FROM (SELECT mef_norm(departamento) AS d, count(*) AS n FROM x WHERE departamento IS NOT NULL GROUP BY 1) t), '[]'),
            'como', jsonb_build_object('sola', (SELECT count(*) FROM x WHERE consorcio IS NULL), 'consorcio', (SELECT count(*) FROM x WHERE consorcio IS NOT NULL)),
-           'banderas', jsonb_build_object(${BANDERAS_CONTRATO.map((b) => `'${b}', (SELECT count(*) FROM x WHERE ${BANDERA_SQL[b]})`).join(", ")})
+           'banderas', jsonb_build_object(${BANDERAS_CONTRATO.map((b) => `'${b}', (SELECT count(*) FROM x WHERE ${BANDERA_SQL[b]})`).join(", ")}),
+           -- Cada tipo de antecedente del ganador y cuantos de sus procesos lo tienen, para el desplegable segmentado por
+           -- familia (como /app/contratos). con = con alguno; alta = con alguno grave. Sin las sanciones (van en banderas).
+           'cruces', jsonb_build_object(
+             'con', (SELECT count(*) FROM x WHERE n_antecedentes > 0),
+             'alta', (SELECT count(*) FROM x WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(x.cruces, '[]')) e
+                                                            WHERE e->>'severidad' = 'alta' AND e->>'tipo' NOT IN ('sancion', 'sancion_vigente'))),
+             'tipos', COALESCE((SELECT jsonb_object_agg(tipo, n) FROM (
+                        SELECT e->>'tipo' AS tipo, count(*) AS n FROM x, jsonb_array_elements(COALESCE(x.cruces, '[]')) e
+                         WHERE e->>'tipo' NOT IN ('sancion', 'sancion_vigente') GROUP BY 1) t), '{}'::jsonb))
          ) AS facetas
        ), f AS (
          SELECT x.*, count(*) OVER ()::int AS total FROM x ${donde}

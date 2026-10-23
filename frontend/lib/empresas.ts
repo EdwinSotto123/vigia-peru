@@ -132,6 +132,8 @@ export interface FacetasContratos {
   departamentos: Faceta[];
   como: { sola: number; consorcio: number };
   banderas: Record<"inhabilitada" | "sancionada_antes" | "sancionada_despues" | "antecedentes" | "dudoso" | "sin", number>;
+  /** Cada tipo de antecedente del ganador y en cuántos de sus procesos aparece, para el desplegable por familia. */
+  cruces: { con: number; alta: number; tipos: Record<string, number> };
 }
 
 export interface FacetasOrdenes {
@@ -388,7 +390,7 @@ export const esRucEmpresa = (ruc: string) => /^20\d{9}$/.test(ruc);
 export const getEmpresas = (f: FiltrosEmpresas) => leer<PaginaEmpresas>(`/empresas?${consulta({ ...f })}`);
 export const getFichaEmpresa = (ruc: string) => (esRucEmpresa(ruc) ? leer<FichaEmpresa>(`/empresas/${ruc}`) : Promise.resolve(null));
 
-export type FiltrosContratosEmpresa = { q?: string; anio?: number; entidad?: string; como?: string; objeto?: string; familia?: string; departamento?: string; bandera?: string; orden?: string; page?: number; size?: number };
+export type FiltrosContratosEmpresa = { q?: string; anio?: number; entidad?: string; como?: string; objeto?: string; familia?: string; departamento?: string; bandera?: string; cruce?: string; orden?: string; page?: number; size?: number };
 export type FiltrosOrdenesEmpresa = { q?: string; anio?: number; entidad?: string; departamento?: string; tipo?: string; estado?: string; dudosa?: string; orden?: string; page?: number; size?: number };
 export type FiltrosPostulacionesEmpresa = { q?: string; resultado?: string; anio?: number; objeto?: string; entidad?: string; ganador?: string; orden?: string; page?: number; size?: number };
 
