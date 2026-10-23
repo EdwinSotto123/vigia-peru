@@ -39,6 +39,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   await uno("refrescar_precio_item", "SELECT refrescar_precio_item() AS n");
   await uno("refrescar_contrato_partido", "SELECT refrescar_contrato_partido() AS n");
   await uno("refrescar_cruce_otro_postor", "SELECT refrescar_cruce_otro_postor() AS n");
+  // "Ganó recién fundada" como cruce del contrato (migración 118): la brecha entre la fecha de alta en la SUNAT y la
+  // buena pro de ese proceso. Va con los otros post-pasos de cruces_proveedor, antes de casos_cruce_base.
+  await uno("refrescar_cruce_recien_fundada", "SELECT refrescar_cruce_recien_fundada() AS n");
   await uno("refrescar_adjudicado_vigente", "SELECT refrescar_adjudicado_vigente() AS n");
   // Adjudicaciones de 20 veces su valor referencial o con un valor de S/ 1 (migración 102): la web las marca como
   // posible error de carga. ~30 s en producción.
@@ -47,9 +50,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // Empresas (migración 109): sus órdenes por entidad y año (~3 min en producción) y después el resumen con el puntaje de
   // antecedentes, que lee los cruces y los casos recién rehechos.
   await uno("refrescar_empresa_ordenes", "SELECT refrescar_empresa_ordenes() AS n");
+  // refrescar_empresas reconstruye empresa_resumen y, al final (migración 117), vuelve a calcular las señales SUNAT de
+  // estado (dada de baja, suspendida, no habida); así nunca quedan sin ellas. "Recién fundada" ya llega como cruce del
+  // contrato (migración 118), por cruces_proveedor.
   await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
-  // Señales de la empresa desde la ficha RUC de la SUNAT (migración 116): van DESPUÉS de refrescar_empresas, que
-  // reconstruye empresa_resumen (si no, las borraría). Recién fundada, dada de baja, suspendida, no habida.
-  await uno("refrescar_senales_sunat", "SELECT refrescar_senales_sunat() AS n");
   return n;
 }

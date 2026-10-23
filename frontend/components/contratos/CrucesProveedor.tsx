@@ -148,6 +148,7 @@ const POR_QUE: Record<string, string> = {
   adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
+  recien_fundada: "Una empresa que gana contratos del Estado a los pocos meses de existir puede haberse creado para eso. No prueba nada por sí solo —hay empresas nuevas legítimas—, pero vale mirar quién está detrás y cómo fue la adjudicación, sobre todo si el monto es alto.",
 };
 
 /** Una línea de texto por cruce, con los datos del registro: quién, de qué empresa, qué hizo y qué ganó después. */
@@ -387,6 +388,27 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
               {" "}
               (<b>{pct > 0 ? "+" : "−"}{numero(Math.abs(pct))} %</b>)
             </>
+          )}
+          .
+        </>
+      );
+    }
+    case "recien_fundada": {
+      // El texto lo escribe el dato: "con solo 6 meses de fundación", "con menos de 1 año", y "millonario" si pasa S/ 1 M.
+      const meses = Math.max(0, Math.round(n(d.meses) ?? 0));
+      const fund = txt(d.fundada);
+      const tiempo =
+        meses < 1 ? "menos de un mes" : meses === 1 ? "solo 1 mes" : meses < 12 ? `solo ${meses} meses` : meses < 24 ? "menos de 2 años" : `${Math.round(meses / 12)} años`;
+      return (
+        <>
+          <Emp c={c} /> ganó este proceso con <b>{tiempo} de fundada</b>
+          {fund ? ` (figura de alta en la SUNAT desde el ${fechaCorta(fund)})` : ""}
+          {d.millonario && c.montoSoles != null ? (
+            <>, y por <b>{solesCompacto(c.montoSoles)}</b>: un contrato millonario para una empresa tan nueva</>
+          ) : c.montoSoles != null ? (
+            <>, por <b>{solesCompacto(c.montoSoles)}</b></>
+          ) : (
+            ""
           )}
           .
         </>
