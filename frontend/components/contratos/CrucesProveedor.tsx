@@ -15,6 +15,7 @@ import { Partes } from "@/components/ui/Partes";
 import { Dato } from "@/components/ui/Dato";
 import { ArrowUpRight, ChevronDown, CircleDot, Coins, Receipt } from "lucide-react";
 import { TablaEvidencia } from "./TablaEvidencia";
+import { AbrirDetalle } from "./AbrirDetalle";
 import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
 import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -627,21 +628,36 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
       </div>
       <ol className="divide-y divide-line rounded-lg border border-line bg-paper">
         {d.detalle.map((o, i) => (
-          <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-meta">
-            <div className="min-w-0">
-              <p className="text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</p>
-              <p className="mt-0.5 text-rotulo text-mute">
-                <Partes
-                  partes={[
-                    <Dato key="orden" tipo="codigo" nombre="Orden" mono>
-                      <span translate="no">{o.orden}</span>
-                    </Dato>,
-                    o.estado && <Dato key="estado" icono={CircleDot} nombre="Estado">{o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</Dato>,
-                  ]}
-                />
-              </p>
-            </div>
-            <span className="font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
+          <li key={`${o.orden}-${i}`}>
+            {/* La orden no tiene ficha propia, pero al hacer clic se abre el drawer con su detalle en la misma pestaña. */}
+            <AbrirDetalle
+              etiqueta={`Ver la orden ${o.orden}`}
+              className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-left text-meta transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+              detalle={{
+                titulo: `Orden ${o.orden}`,
+                descripcion: o.estado ? o.estado.charAt(0) + o.estado.slice(1).toLowerCase() : undefined,
+                filas: [
+                  { k: "Descripción", v: o.descripcion ? oracion(o.descripcion) : "Sin descripción" },
+                  { k: "Monto", v: soles(o.montoSoles) },
+                  { k: "Fecha", v: fecha(d.fecha) },
+                ],
+              }}
+            >
+              <span className="min-w-0">
+                <span className="block text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</span>
+                <span className="mt-0.5 block text-rotulo text-mute">
+                  <Partes
+                    partes={[
+                      <Dato key="orden" tipo="codigo" nombre="Orden" mono>
+                        <span translate="no">{o.orden}</span>
+                      </Dato>,
+                      o.estado && <Dato key="estado" icono={CircleDot} nombre="Estado">{o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</Dato>,
+                    ]}
+                  />
+                </span>
+              </span>
+              <span className="self-start font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
+            </AbrirDetalle>
           </li>
         ))}
       </ol>

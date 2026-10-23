@@ -35,9 +35,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * contrato con etiqueta propia, migración 118; "23": "recién fundada" en 3 bandas por tiempo, migración 119, y cruces
  * sin duplicados, migración 120; "24": recurrente/sanción/adicional/sobreprecio segmentados por intensidad, migr. 121;
  * "25": el número de orden ya no se tapa como DNI —esCodigoLargo cruza guiones y barras—; "26": dos cruces nuevos,
- * único postor y socio del proveedor contratado por la entidad, migración 122).
+ * único postor y socio del proveedor contratado por la entidad, migración 122; "27": dos cruces más —domicilio fiscal
+ * compartido y proveedor cautivo, migración 123— y la atribución de "financió al que gobierna" por jurisdicción real
+ * (entidad_gobierno_amplia), migración 124).
  */
-const VERSION_CACHE = "26";
+const VERSION_CACHE = "27";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
