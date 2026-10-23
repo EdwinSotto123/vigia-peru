@@ -92,8 +92,10 @@ const DNI_SUELTO = /(?<!(?:S\/\.?|US\$|\$|€)\s{0,2})(?<![\d.,/])\d{8}(?!\d|[.,
 function esCodigoLargo(s: string, desde: number, largo: number): boolean {
   let i = desde;
   let f = desde + largo;
-  while (i > 0 && /[\p{L}\d]/u.test(s[i - 1])) i--;
-  while (f < s.length && /[\p{L}\d]/u.test(s[f])) f++;
+  // Cruza letras, dígitos y los separadores de un código (guion y barra): así "O/C-01234567-2026-…" o
+  // "AS-SM-3-2025-…" se ven como UN código público, no como un DNI suelto de 8 dígitos (que sí hay que tapar).
+  while (i > 0 && /[\p{L}\d/-]/u.test(s[i - 1])) i--;
+  while (f < s.length && /[\p{L}\d/-]/u.test(s[f])) f++;
   return f - i >= 12;
 }
 /** El formato viejo de este módulo ("43****80") y del saneado del agente: ya no se muestra ni eso. */

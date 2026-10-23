@@ -33,9 +33,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * antecedentes como hechos, migración 112; "21": señales SUNAT en empresas, migración 116, y los contratos de la empresa
  * desglosan el antecedente del ganador por tipo —no sólo "Con antecedentes"—; "22": "recién fundada" como cruce del
  * contrato con etiqueta propia, migración 118; "23": "recién fundada" en 3 bandas por tiempo, migración 119, y cruces
- * sin duplicados, migración 120; "24": recurrente/sanción/adicional/sobreprecio segmentados por intensidad, migr. 121).
+ * sin duplicados, migración 120; "24": recurrente/sanción/adicional/sobreprecio segmentados por intensidad, migr. 121;
+ * "25": el número de orden ya no se tapa como DNI —esCodigoLargo cruza guiones y barras—).
  */
-const VERSION_CACHE = "24";
+const VERSION_CACHE = "25";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
