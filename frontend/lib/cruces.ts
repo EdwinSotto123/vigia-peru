@@ -25,22 +25,34 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "visita_previa", corto: "Visita antes de la buena pro", explica: "Un socio o representante visitó una entidad pública en los 180 días previos a la buena pro (registro de visitas)." },
       { tipo: "otro_postor", corto: "Buena pro de otro postor", explica: "La buena pro fue primero de otro postor y se le adjudicó después a este, con su propia oferta (OCDS × CONOSCE): suele costar más." },
       { tipo: "sancion_vigente", corto: "Inhabilitado al ganar", explica: "Ganó la buena pro mientras tenía una inhabilitación vigente del Tribunal de Contrataciones: no podía contratar con el Estado." },
-      { tipo: "sobreprecio", corto: "Pagó más que otras entidades", explica: "El precio por unidad de un bien pasa 1.5 veces la mediana de lo que pagaron otras entidades por el mismo CUBSO y unidad (OCDS × CONOSCE)." },
+      // Sobreprecio en bandas por cuánto pasa la mediana (migración 121).
+      { tipo: "sobreprecio_extremo", corto: "Precio 3 veces o más la mediana", explica: "El precio por unidad de un bien pasa 3 veces o más la mediana de lo que pagaron otras entidades por el mismo CUBSO y unidad (OCDS × CONOSCE): un sobreprecio extremo." },
+      { tipo: "sobreprecio_alto", corto: "Precio 2 a 3 veces la mediana", explica: "El precio por unidad pasa de 2 a 3 veces la mediana de otras entidades por el mismo CUBSO y unidad." },
+      { tipo: "sobreprecio", corto: "Precio 1.5 a 2 veces la mediana", explica: "El precio por unidad pasa de 1.5 a 2 veces la mediana de otras entidades. Puede tener explicación (poca cantidad, transporte, otra calidad)." },
     ],
   },
   {
     titulo: "Historial del proveedor",
     tipos: [
-      { tipo: "sancion", corto: "Sancionado antes", explica: "Tenía sanciones del Tribunal de Contrataciones anteriores a este proceso. Si además seguía inhabilitado al ganar, también dice «Inhabilitado al ganar»." },
+      // Sanción en bandas por el tipo de sanción del Tribunal (migración 121).
+      { tipo: "sancion_definitiva", corto: "Inhabilitación definitiva antes", explica: "Tuvo una inhabilitación DEFINITIVA del Tribunal de Contrataciones antes de este proceso: la sanción más grave." },
+      { tipo: "sancion_temporal", corto: "Inhabilitación temporal antes", explica: "Tuvo una inhabilitación temporal del Tribunal antes de este proceso. Si además seguía vigente al ganar, también dice «Inhabilitado al ganar»." },
+      { tipo: "sancion_multa", corto: "Multa del Tribunal antes", explica: "El Tribunal le puso una multa antes de este proceso (sin inhabilitación)." },
       { tipo: "penalidad", corto: "Penalidades", explica: "Le aplicaron penalidades en contratos anteriores." },
-      { tipo: "adicional", corto: "Adicionales o prórrogas", explica: "El contrato tuvo adicionales o prórrogas (CONOSCE)." },
+      // Adicionales en bandas por cuánto pasan el tope legal (25% bienes y servicios) (migración 121).
+      { tipo: "adicional_sobre_tope", corto: "Adicionales sobre el tope legal", explica: "El contrato sumó adicionales por más del 25% de lo contratado, el tope legal en bienes y servicios sin autorización de la Contraloría (CONOSCE)." },
+      { tipo: "adicional_alto", corto: "Adicionales cerca del tope", explica: "El contrato sumó adicionales por entre 15% y 25% de lo contratado: cerca del tope legal." },
+      { tipo: "adicional", corto: "Adicionales o prórrogas", explica: "El contrato tuvo adicionales (menos del 15%) o prórrogas (CONOSCE)." },
     ],
   },
   {
     titulo: "Patrón de compras",
     tipos: [
       { tipo: "fraccionamiento", corto: "Órdenes que pasan 8 UIT", explica: "Recibió de la misma entidad, el mismo día, varias órdenes menores que juntas pasan el tope de 8 UIT (CONOSCE)." },
-      { tipo: "recurrente", corto: "Proveedor frecuente", explica: "Ganó varios procesos de la misma entidad (CONOSCE)." },
+      // Proveedor recurrente en bandas por cuánto del gasto de la entidad concentra (migración 121).
+      { tipo: "recurrente_dominante", corto: "Concentra el gasto de la entidad", explica: "Se llevó la mitad o más de todo lo que esa entidad adjudicó desde 2018 (CONOSCE): un proveedor que domina sus compras." },
+      { tipo: "recurrente_frecuente", corto: "Le ganó muchos procesos a la entidad", explica: "Le ganó 10 o más procesos a la misma entidad, o se llevó una parte importante (≥25%) de su gasto (CONOSCE)." },
+      { tipo: "recurrente", corto: "Proveedor frecuente", explica: "Le ganó entre 3 y 9 procesos a la misma entidad (CONOSCE)." },
     ],
   },
   {

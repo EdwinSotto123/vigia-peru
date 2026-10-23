@@ -156,6 +156,11 @@ const POR_QUE: Record<string, string> = {
   recien_fundada_un_ano: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_dos_anos: RECIEN_FUNDADA_POR_QUE,
 };
+// Las bandas de un cruce comparten el "por qué" de su tipo padre (migración 121).
+POR_QUE.recurrente_dominante = POR_QUE.recurrente_frecuente = POR_QUE.recurrente;
+POR_QUE.sancion_definitiva = POR_QUE.sancion_temporal = POR_QUE.sancion_multa = POR_QUE.sancion;
+POR_QUE.adicional_sobre_tope = POR_QUE.adicional_alto = POR_QUE.adicional;
+POR_QUE.sobreprecio_extremo = POR_QUE.sobreprecio_alto = POR_QUE.sobreprecio;
 
 /** Una línea de texto por cruce, con los datos del registro: quién, de qué empresa, qué hizo y qué ganó después. */
 /** Lo que la empresa sumó después de que se convocó este proceso (no cuenta como antecedente): sólo se menciona. */
@@ -225,6 +230,9 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     case "sancion":
+    case "sancion_definitiva":
+    case "sancion_temporal":
+    case "sancion_multa":
     case "sancion_vigente": {
       const tipo = txt(d.tipo);
       const que = tipo === "multa" ? "una multa" : tipo === "definitivo" ? "una inhabilitación definitiva" : "una inhabilitación temporal";
@@ -244,7 +252,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
           {txt(d.infraccion) ? `, por ${recortar(txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, ""), 260).toLowerCase()}` : ""}
           {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
-          {c.tipo === "sancion" && <AlGanar tipo={tipo} desde={txt(d.desde)} hasta={txt(d.hasta)} buenaPro={c.buenaPro?.fecha ?? null} />}
+          {c.tipo !== "sancion_vigente" && <AlGanar tipo={tipo} desde={txt(d.desde)} hasta={txt(d.hasta)} buenaPro={c.buenaPro?.fecha ?? null} />}
         </>
       );
     }
@@ -309,6 +317,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
+    case "recurrente_dominante":
+    case "recurrente_frecuente":
     case "recurrente": {
       const part = n(d.participacion);
       return (
@@ -327,6 +337,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
+    case "sobreprecio_extremo":
+    case "sobreprecio_alto":
     case "sobreprecio": {
       const p = (d.peor ?? {}) as Record<string, unknown>;
       const items = n(d.items) ?? 1;
@@ -343,6 +355,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
+    case "adicional_sobre_tope":
+    case "adicional_alto":
     case "adicional": {
       const pct = n(d.porcentaje);
       const prorroga = n(d.prorroga);
@@ -622,7 +636,7 @@ function GruposCruces({ lista, gobierna }: { lista: CruceProveedor[]; gobierna?:
               </h3>
             </div>
             {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
-            {grupo[0].tipo === "sancion" && <SancionesAlGanar grupo={grupo} />}
+            {["sancion", "sancion_definitiva", "sancion_temporal", "sancion_multa"].includes(grupo[0].tipo) && <SancionesAlGanar grupo={grupo} />}
             <ul className="list-disc space-y-1.5 pl-5">
               {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
             </ul>

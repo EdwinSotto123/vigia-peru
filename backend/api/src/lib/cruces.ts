@@ -21,6 +21,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   autoridad: "Es autoridad electa",
   penalidad: "Penalidades en contratos anteriores",
   sancion: "Sanción del Tribunal de Contrataciones",
+  // Sanción en bandas por tipo (migración 121).
+  sancion_definitiva: "Inhabilitación definitiva antes de este proceso",
+  sancion_temporal: "Inhabilitación temporal antes de este proceso",
+  sancion_multa: "Multa del Tribunal antes de este proceso",
   sancion_vigente: "Ganó con una inhabilitación vigente",
   visita_previa: "Visitó una entidad antes de la buena pro",
   socio_comun: "Comparte socio o representante con otro postor",
@@ -28,10 +32,19 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   vendio_gobernante: "Le vendió a la campaña del partido que gobierna la entidad",
   proveedor_campana: "Le vendió a una campaña electoral",
   recurrente: "Proveedor frecuente de esta entidad",
+  // Recurrente en bandas por dominancia (migración 121).
+  recurrente_dominante: "Concentra el gasto de la entidad",
+  recurrente_frecuente: "Le ganó muchos procesos a la misma entidad",
   adicional: "Contrato con adicionales o prórrogas",
+  // Adicionales en bandas por % sobre el tope legal (migración 121).
+  adicional_sobre_tope: "Adicionales por encima del tope legal (25%)",
+  adicional_alto: "Adicionales cerca del tope legal",
   fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
   otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
-  sobreprecio: "Pagó más que otras entidades por lo mismo",
+  sobreprecio: "Precio 1.5 a 2 veces la mediana de otras entidades",
+  // Sobreprecio en bandas por magnitud (migración 121).
+  sobreprecio_extremo: "Precio 3 veces o más la mediana de otras entidades",
+  sobreprecio_alto: "Precio 2 a 3 veces la mediana de otras entidades",
   // Señales de la ficha RUC de la SUNAT (migraciones 116-119). "Recién fundada" en tres bandas por tiempo de fundación.
   recien_fundada: "Ganó recién fundada",
   recien_fundada_medio_ano: "Ganó con 6 meses o menos de fundada",
