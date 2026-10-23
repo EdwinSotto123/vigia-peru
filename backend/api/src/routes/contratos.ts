@@ -219,11 +219,16 @@ const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, n
 async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number; tipos: Record<string, number> }> {
   const vals: unknown[] = [];
   const { conds } = filtros({ ...q, cruces: undefined }, vals, MAPA_CE);
-  // Sin otros filtros (sólo el de las convocatorias de demo), casos_cruce alcanza: sin juntarlo con los 828 mil de
-  // contrato_estado (2,8 s en frío).
-  const base = conds.length === 1
-    ? `SELECT k.ocid, k.n_alta, k.tipos FROM casos_cruce k WHERE k.ocid NOT LIKE 'ocds-vigia-%'`
-    : `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
+  // Sin filtros de usuario (sólo el de las convocatorias de demo) la faceta es la de TODOS los contratos, que sólo
+  // cambia con casos_cruce: está precomputada en casos_cruce_totales (migración 114) y se lee en O(1). Antes recorría
+  // los 174 mil casos (seq scan + unnest + agregados con volcado a disco): ~0,9-1,2 s en frío, la consulta de usuario
+  // más cara del camino caliente.
+  if (conds.length === 1) {
+    const r = await pool.query<{ con: number; alta: number; tipos: Record<string, number> }>(
+      `SELECT con, alta, tipos FROM casos_cruce_totales`);
+    return r.rows[0] ?? { con: 0, alta: 0, tipos: {} };
+  }
+  const base = `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(
     `WITH k AS MATERIALIZED (${base}),
           o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
