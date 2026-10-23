@@ -154,6 +154,8 @@ const POR_QUE: Record<string, string> = {
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
+  domicilio_compartido: "Dos postores que comparten la dirección fiscal pueden ser la misma mano detrás de las dos: la competencia sería solo aparente. No prueba vínculo por sí solo —puede ser un centro de oficinas—, por eso se excluyen las direcciones con muchas empresas.",
+  proveedor_cautivo: "Una empresa que vive casi por completo de una sola entidad es muy dependiente de ella: vale ver si se creó para servirla o si hay una relación demasiado estrecha. No es una irregularidad por sí misma.",
   recien_fundada: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_medio_ano: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_un_ano: RECIEN_FUNDADA_POR_QUE,
@@ -462,6 +464,26 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {quien(c)} es, además, <b>persona contratada por {ent ? tituloNatural(ent) : "esta entidad"}</b>
           {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
           {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
+        </>
+      );
+    }
+    case "domicilio_compartido": {
+      const nEmp = n(d.empresas_en_domicilio);
+      const otros = n(d.otros_postores) ?? 1;
+      return (
+        <>
+          <Emp c={c} /> comparte su <b>domicilio fiscal en la SUNAT</b> con {otros === 1 ? "otro postor" : <><b>{numero(otros)}</b> postores</>} de este proceso
+          {nEmp ? <> (en esa dirección hay <b>{numero(nEmp)}</b> empresas)</> : ""}: la competencia pudo ser solo aparente.
+        </>
+      );
+    }
+    case "proveedor_cautivo": {
+      const parte = n(d.parte);
+      const ent = txt(d.entidad);
+      return (
+        <>
+          <Emp c={c} /> recibe {parte != null ? <>el <b>{(parte * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })}%</b></> : "casi todo"} de lo que le compra el Estado de <b>{ent ? tituloNatural(ent) : "esta entidad"}</b>
+          {n(d.total_empresa) ? <> (<b>{solesCompacto(n(d.total_empresa))}</b> en {numero(n(d.procesos) ?? 0)} procesos)</> : ""}: depende casi por completo de ella.
         </>
       );
     }

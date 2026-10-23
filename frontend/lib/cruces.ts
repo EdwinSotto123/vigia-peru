@@ -24,6 +24,7 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "socio_comun", corto: "Socio común entre postores", explica: "Dos postores del mismo proceso comparten socio o representante (RNP): competencia aparente." },
       { tipo: "unico_postor", corto: "Único postor", explica: "El proceso tuvo un solo postor (OCDS): no hubo competencia real. Pesa más si además se adjudicó pegado al valor referencial o es millonario: posible direccionamiento." },
       { tipo: "socio_en_entidad", corto: "Socio del proveedor trabaja en la entidad", explica: "Un socio o representante del ganador es, además, una persona contratada por la MISMA entidad que le dio el contrato (RNP × registro de contratados): conflicto de interés directo." },
+      { tipo: "domicilio_compartido", corto: "Mismo domicilio que otro postor", explica: "El ganador comparte su domicilio fiscal en la SUNAT con otro postor del mismo proceso: posible competencia aparente o empresas vinculadas. Se excluyen las direcciones con muchas empresas (centros de oficinas)." },
       { tipo: "visita_previa", corto: "Visita antes de la buena pro", explica: "Un socio o representante visitó una entidad pública en los 180 días previos a la buena pro (registro de visitas)." },
       { tipo: "otro_postor", corto: "Buena pro de otro postor", explica: "La buena pro fue primero de otro postor y se le adjudicó después a este, con su propia oferta (OCDS × CONOSCE): suele costar más." },
       { tipo: "sancion_vigente", corto: "Inhabilitado al ganar", explica: "Ganó la buena pro mientras tenía una inhabilitación vigente del Tribunal de Contrataciones: no podía contratar con el Estado." },
@@ -55,6 +56,7 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "recurrente_dominante", corto: "Concentra el gasto de la entidad", explica: "Se llevó la mitad o más de todo lo que esa entidad adjudicó desde 2018 (CONOSCE): un proveedor que domina sus compras." },
       { tipo: "recurrente_frecuente", corto: "Le ganó muchos procesos a la entidad", explica: "Le ganó 10 o más procesos a la misma entidad, o se llevó una parte importante (≥25%) de su gasto (CONOSCE)." },
       { tipo: "recurrente", corto: "Proveedor frecuente", explica: "Le ganó entre 3 y 9 procesos a la misma entidad (CONOSCE)." },
+      { tipo: "proveedor_cautivo", corto: "Casi solo le vende a esta entidad", explica: "La empresa recibe la gran mayoría (≥75%) de todo lo que le compra el Estado de UNA sola entidad: dependencia fuerte. Distinto de «Concentra el gasto»: aquí es el proveedor el que depende de la entidad." },
     ],
   },
   {
