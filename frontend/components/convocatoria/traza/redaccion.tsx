@@ -280,16 +280,16 @@ export function JsonSeguro({ valor }: { valor: unknown }) {
     s = String(valor);
   }
   if (!s || s === "{}" || s === "null") {
-    return <span className="block text-[12px] text-mute">Sin datos: la traza pública no guarda lo que entra ni lo que sale de cada herramienta.</span>;
+    return <span className="block text-rotulo text-mute">Sin datos: la traza pública no guarda lo que entra ni lo que sale de cada herramienta.</span>;
   }
   const recortado = s.length > TOPE_CRUDO;
   return (
     <>
-      <pre className="scrollbar-warm max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-paperSoft p-3 font-mono text-[11px] leading-relaxed text-ink">
+      <pre className="scrollbar-warm max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-paperSoft p-3 font-mono text-micro leading-relaxed text-ink">
         <TextoSeguro texto={recortado ? s.slice(0, TOPE_CRUDO) : s} />
       </pre>
       {recortado && (
-        <span className="mt-1 block text-[11px] text-mute">
+        <span className="mt-1 block text-micro text-mute">
           Se muestran los primeros {TOPE_CRUDO.toLocaleString("es-PE")} caracteres de {s.length.toLocaleString("es-PE")}.
         </span>
       )}

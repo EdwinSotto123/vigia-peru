@@ -52,18 +52,18 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
 
   return (
     <section aria-labelledby="porque" className="rounded-2xl border border-line bg-paperSoft p-3.5 sm:p-4">
-      <h2 id="porque" className="text-[11px] font-semibold uppercase tracking-wide text-mute">Por qué se bloqueó</h2>
-      <p className="mt-0.5 max-w-3xl text-[12.5px] leading-snug text-inkSoft">
+      <h2 id="porque" className="text-micro font-semibold uppercase tracking-wide text-mute">Por qué se bloqueó</h2>
+      <p className="mt-0.5 max-w-3xl text-meta leading-snug text-inkSoft">
         Un evaluador automático releyó cada señal contra el expediente y el registro oficial. Úsalo como guía: la decisión es tuya.
       </p>
 
       {!ae ? (
-        <p className="mt-3 rounded-lg bg-paperSoft px-3 py-2 text-[13px] text-mute">Este análisis no guardó su autoevaluación.</p>
+        <p className="mt-3 rounded-lg bg-paperSoft px-3 py-2 text-meta text-mute">Este análisis no guardó su autoevaluación.</p>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h3 className="text-sm font-semibold text-ink">¿La evidencia respalda cada señal?</h3>
-            <span className="text-[12px] text-mute">
+            <h3 className="text-dato leading-5 font-semibold text-ink">¿La evidencia respalda cada señal?</h3>
+            <span className="text-rotulo text-mute">
               {juzgadas.length ? `${respaldadas} de ${juzgadas.length} ${juzgadas.length === 1 ? "respaldada" : "respaldadas"}` : "Sin señales juzgadas"}, mínimo {pct(d.umbrales.min_respaldo)}
             </span>
           </div>
@@ -73,14 +73,14 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
                 <Veredicto ok={f.juicio ? !!f.juicio.respaldada : null} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-semibold text-ink">{etiquetaDeRegla(f.regla, reglas)}</span>
+                    <span className="text-dato leading-5 font-semibold text-ink">{etiquetaDeRegla(f.regla, reglas)}</span>
                     {f.severidad && <Badge tono={SEVERIDAD_UI[f.severidad]?.tono ?? SEVERIDAD_UI.baja.tono}>{SEVERIDAD_UI[f.severidad]?.label ?? f.severidad}</Badge>}
                     <Badge tono={f.juicio ? (f.juicio.respaldada ? "ok" : "danger") : "muted"}>
                       {f.juicio ? (f.juicio.respaldada ? "Respaldada" : "No respaldada") : "Sin juicio"}
                     </Badge>
                   </div>
-                  {f.evidencia && <p className="mt-1 line-clamp-3 break-words text-[12px] leading-relaxed text-mute">{redactDnis(f.evidencia)}</p>}
-                  <p className="mt-1.5 break-words text-[13px] leading-relaxed text-ink">
+                  {f.evidencia && <p className="mt-1 line-clamp-3 break-words text-rotulo leading-relaxed text-mute">{redactDnis(f.evidencia)}</p>}
+                  <p className="mt-1.5 break-words text-meta leading-relaxed text-ink">
                     {!f.juicio
                       ? <span className="text-mute">El evaluador no juzgó esta señal.</span>
                       : motivoDe(f.juicio.reason)
@@ -90,10 +90,10 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
                 </div>
               </li>
             ))}
-            {!filas.length && <li className="px-4 py-2.5 text-[13px] text-mute">No quedaron señales guardadas: la verificación las descartó todas.</li>}
+            {!filas.length && <li className="px-4 py-2.5 text-meta text-mute">No quedaron señales guardadas: la verificación las descartó todas.</li>}
           </ul>
 
-          <h3 className="mt-4 text-sm font-semibold text-ink">Otras comprobaciones</h3>
+          <h3 className="mt-4 text-dato leading-5 font-semibold text-ink">Otras comprobaciones</h3>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <Comprobacion titulo="Norma y fuente citadas" conteo={ae.cita} umbral={d.umbrales.min_cita} nombre={["señal con cita", "señales con cita"]} />
             <Comprobacion titulo="Precios comparables con el mercado" conteo={ae.precio} umbral={d.umbrales.min_precio} nombre={["comparación razonable", "comparaciones razonables"]} />
@@ -113,14 +113,14 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
 
           {ae.perPrecio.length > 0 && (
             <>
-              <h3 className="mt-4 text-sm font-semibold text-ink">Precio por ítem</h3>
+              <h3 className="mt-4 text-dato leading-5 font-semibold text-ink">Precio por ítem</h3>
               <ul className="mt-2 space-y-1.5">
                 {ae.perPrecio.map((p, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[13px]">
+                  <li key={i} className="flex items-start gap-2 text-meta">
                     <Veredicto ok={typeof p.plausible === "boolean" ? p.plausible : null} chico />
                     <div className="min-w-0 flex-1">
                       <span className="line-clamp-2 break-words font-medium text-ink">{p.item?.trim() || "Ítem sin nombre"}</span>
-                      <span className="text-[12px] text-mute">
+                      <span className="text-rotulo text-mute">
                         {p.plausible === false ? "Comparación dudosa" : p.plausible ? "Comparación razonable" : "Sin juicio"}
                         {motivoDe(p.reason) ? <>: {redactDnis(motivoDe(p.reason))}</> : ", sin motivo del evaluador"}
                       </span>
@@ -168,12 +168,12 @@ function Comprobacion({
       <div className="flex items-start gap-2">
         <Veredicto ok={estado} chico />
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-semibold text-ink">{titulo}</div>
-          <div className="text-[13px] text-ink">
+          <div className="text-rotulo font-semibold text-ink">{titulo}</div>
+          <div className="text-meta text-ink">
             {texto}
-            {umbral != null && <span className="text-[11px] text-mute">, mínimo {pct(umbral)}</span>}
+            {umbral != null && <span className="text-micro text-mute">, mínimo {pct(umbral)}</span>}
           </div>
-          {motivoDe(motivo) && <p className="mt-1 line-clamp-3 break-words text-[12px] leading-snug text-mute">{redactDnis(motivoDe(motivo))}</p>}
+          {motivoDe(motivo) && <p className="mt-1 line-clamp-3 break-words text-rotulo leading-snug text-mute">{redactDnis(motivoDe(motivo))}</p>}
         </div>
       </div>
     </div>

@@ -69,7 +69,7 @@ function filaRanking(f: FilaRanking, financiadosAmbito: number): Fila {
       ),
       financiados: (
         <CeldaNumero sub={pctProporcion(f.contratosFinanciados, financiadosAmbito) ?? undefined}>
-          <span className="font-display text-[15px] font-bold text-ink">{num(f.contratosFinanciados)}</span>
+          <span className="font-display text-bloque font-bold text-ink">{num(f.contratosFinanciados)}</span>
         </CeldaNumero>
       ),
       leidos: <CeldaNumero sub={`de ${num(f.contratosFinanciados)}`}>{num(f.contratosProcesados)}</CeldaNumero>,
@@ -181,7 +181,7 @@ export function RankingAliados({
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             {/* Con podio, la tabla es "el resto"; sin él, es el ranking entero y el h1 ya lo dice. */}
-            <h2 id="ranking-titulo" className={podio.length || busqueda ? "font-display text-[17px] font-bold text-ink" : "sr-only"}>
+            <h2 id="ranking-titulo" className={podio.length || busqueda ? "font-display text-bloque font-bold text-ink" : "sr-only"}>
               {busqueda
                 ? `${numero(totalNombres)} ${totalNombres === 1 ? "aliado coincide" : "aliados coinciden"} con “${busqueda}”`
                 : podio.length
@@ -191,7 +191,7 @@ export function RankingAliados({
             {paginacion}
           </div>
           {!completa && !busqueda && (
-            <p className="text-[12.5px] text-mute">Con tantos aliados, el ranking se ordena sólo por contratos financiados.</p>
+            <p className="text-meta text-mute">Con tantos aliados, el ranking se ordena sólo por contratos financiados.</p>
           )}
           <Tabla
             columnas={COLUMNAS}
@@ -256,7 +256,7 @@ function RankingVacio({
 function Anonimos({ cantidad, contratos }: { cantidad: number; contratos: number }) {
   if (cantidad === 0) return null;
   return (
-    <p className="inline-flex items-start gap-1.5 text-[12.5px] leading-relaxed text-mute">
+    <p className="inline-flex items-start gap-1.5 text-meta leading-relaxed text-mute">
       <EyeOff size={13} className="mt-0.5 shrink-0" aria-hidden />
       <span>
         {cantidad === 1 ? "1 persona aportó" : `${num(cantidad)} personas aportaron`} sin nombre y{" "}

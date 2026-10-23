@@ -60,27 +60,27 @@ export function NoticiasSection({ news }: { news: any }) {
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
         <h2 className="font-display text-xl font-bold text-ink">Noticias y prensa</h2>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <p className="mt-0.5 text-rotulo text-mute">
           Cobertura periodística sobre el proveedor, la entidad y lo que se compró
           {resumenSev.length > 0 && <>: {resumenSev.join(", ")}</>}.
         </p>
-        {sintesis && <p className="mt-2 max-w-[68ch] text-sm leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>}
+        {sintesis && <p className="mt-2 max-w-[68ch] text-dato leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>}
       </div>
 
       {/* Señales que el agente de prensa sacó de las notas */}
       {banderasPrensa.length > 0 && (
         <div className="border-b border-line px-5 py-3">
-          <h3 className="text-[13px] font-semibold text-ink">Señales en la prensa ({banderasPrensa.length})</h3>
+          <h3 className="text-cuerpo font-semibold text-ink">Señales en la prensa ({banderasPrensa.length})</h3>
           <ul className="mt-2 space-y-2">
             {banderasPrensa.map((b: any, i: number) => (
-              <li key={i} className="rounded-xl border border-line bg-paperSoft px-3 py-2 text-[13px]">
+              <li key={i} className="rounded-xl border border-line bg-paperSoft px-3 py-2 text-meta">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <SeveridadNota s={b.severidad} />
                   <strong className="font-semibold text-ink">{redactDnis(b.titulo)}</strong>
                 </div>
                 <p className="mt-1 text-inkSoft">{redactDnis(b.descripcion)}</p>
                 {b.url && (
-                  <a href={b.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-[12px] font-medium text-granate hover:underline">
+                  <a href={b.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-rotulo font-medium text-granate hover:underline">
                     Abrir la nota <ExternalLink size={11} aria-hidden />
                   </a>
                 )}
@@ -91,13 +91,13 @@ export function NoticiasSection({ news }: { news: any }) {
       )}
 
       {sinMenciones || ordenadas.length === 0 ? (
-        <div className="px-5 py-6 text-sm text-inkSoft">
+        <div className="px-5 py-6 text-dato leading-5 text-inkSoft">
           {/* La síntesis ya va en la cabecera: acá no se repite. */}
           <p className="flex items-start gap-2">
             <Newspaper size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
             Sin menciones relevantes en prensa peruana para los actores investigados.
           </p>
-          <p className="mt-1 pl-6 text-[12px] text-mute">
+          <p className="mt-1 pl-6 text-rotulo text-mute">
             Que no haya cobertura no significa que no haya riesgo: sólo que no hubo notas indexadas sobre estos actores en el
             período consultado.
           </p>
@@ -106,19 +106,19 @@ export function NoticiasSection({ news }: { news: any }) {
         <ol className="divide-y divide-line">
           {ordenadas.map((n, i) => (
             <li key={i} className="px-5 py-3.5">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo">
                 <time className="tabular-nums text-mute">{n.fecha ? fechaDossier(n.fecha, true) : "Sin fecha"}</time>
                 <SeveridadNota s={n.severidad} />
                 {n.categoria && (
-                  <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-inkSoft">
+                  <span className="rounded-full bg-paperDeep px-2 py-0.5 text-micro text-inkSoft">
                     {CATEGORIA[n.categoria] || String(n.categoria).replace(/_/g, " ")}
                   </span>
                 )}
                 {n.fuente && <span className="ml-auto font-semibold text-ink">{n.fuente}</span>}
               </div>
-              {n.titulo && <h3 className="mt-1.5 text-sm font-semibold leading-snug text-ink">{redactDnis(n.titulo)}</h3>}
-              <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-inkSoft">{redactDnis(n.resumen)}</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+              {n.titulo && <h3 className="mt-1.5 text-cuerpo font-semibold leading-snug text-ink">{redactDnis(n.titulo)}</h3>}
+              <p className="mt-1 max-w-[68ch] text-meta leading-relaxed text-inkSoft">{redactDnis(n.resumen)}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo">
                 {n.actor_principal && (
                   <span className="text-mute">
                     sobre <strong className="font-semibold text-ink">{redactDnis(n.actor_principal)}</strong>
@@ -143,10 +143,10 @@ export function NoticiasSection({ news }: { news: any }) {
       {/* Desglose por actor */}
       {Object.keys(porActor).length > 0 && (
         <div className="border-t border-line bg-paperSoft px-5 py-3">
-          <h3 className="text-[12px] font-semibold text-inkSoft">Cobertura por actor</h3>
+          <h3 className="text-cuerpo font-semibold text-inkSoft">Cobertura por actor</h3>
           <div className="mt-1.5 flex flex-wrap gap-2">
             {Object.entries(porActor).map(([actor, n]: any) => (
-              <span key={actor} className="inline-flex items-center gap-1.5 rounded-full bg-paper px-2.5 py-0.5 text-[12px] text-ink">
+              <span key={actor} className="inline-flex items-center gap-1.5 rounded-full bg-paper px-2.5 py-0.5 text-rotulo text-ink">
                 <strong className="font-semibold">{redactDnis(actor)}</strong>
                 <span className="tabular-nums text-mute">{plural(Number(n) || 0, "nota", "notas")}</span>
               </span>

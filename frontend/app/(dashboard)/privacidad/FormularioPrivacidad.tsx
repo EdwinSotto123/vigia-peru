@@ -72,7 +72,8 @@ export function FormularioPrivacidad({ enlaceInicial }: { enlaceInicial: string 
         );
         return;
       }
-      setCodigo(j?.codigo ?? "—");
+      // Sin número en la respuesta igual se recibió: se confirma sin él.
+      setCodigo(j?.codigo ?? "");
     } catch (err) {
       setErrorEnvio(err instanceof ErrorTurnstile ? err.message : "No hay conexión. Revisa tu internet e inténtalo otra vez.");
     } finally {
@@ -80,14 +81,19 @@ export function FormularioPrivacidad({ enlaceInicial }: { enlaceInicial: string 
     }
   };
 
-  if (codigo) {
+  if (codigo !== null) {
     return (
       <div role="status" className="flex items-start gap-3 rounded-2xl border border-moss/35 bg-moss/10 p-5">
         <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
-        <div className="text-sm leading-relaxed text-inkSoft">
-          <p className="font-display text-base font-bold text-ink">Recibimos tu pedido</p>
+        <div className="text-dato leading-relaxed text-inkSoft">
+          <p className="font-display text-destacado leading-6 font-bold text-ink">Recibimos tu pedido</p>
           <p className="mt-1">
-            Su número es <span className="font-mono font-semibold text-ink">{codigo}</span>. Te escribimos a{" "}
+            {codigo && (
+              <>
+                Su número es <span className="font-mono font-semibold text-ink">{codigo}</span>.{" "}
+              </>
+            )}
+            Te escribimos a{" "}
             <span className="font-medium text-ink">{email.trim()}</span> en un plazo máximo de 10 días hábiles.
           </p>
         </div>
@@ -104,7 +110,7 @@ export function FormularioPrivacidad({ enlaceInicial }: { enlaceInicial: string 
             <label
               key={t.valor}
               className={cn(
-                "flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border px-3.5 py-2 text-sm transition-colors duration-rapido",
+                "flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border px-3.5 py-2 text-dato leading-5 transition-colors duration-rapido",
                 tipo === t.valor ? "border-granate bg-granate-soft font-semibold text-ink" : "border-line bg-paper text-ink hover:border-granate/40",
               )}
             >
@@ -145,14 +151,14 @@ export function FormularioPrivacidad({ enlaceInicial }: { enlaceInicial: string 
           aria-invalid={!!errores.mensaje}
           aria-describedby="priv-mensaje-ayuda"
         />
-        <p id="priv-mensaje-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
+        <p id="priv-mensaje-ayuda" className="mt-1 flex justify-between gap-2 text-micro text-mute">
           <span>No escribas tu DNI: no lo necesitamos.</span>
           <span className="shrink-0 font-mono tabular-nums">{mensaje.length}/{MENSAJE_MAX}</span>
         </p>
         {errores.mensaje && <ErrorCampo>{errores.mensaje}</ErrorCampo>}
       </div>
 
-      <p className="text-[12px] leading-relaxed text-mute">
+      <p className="text-rotulo leading-relaxed text-mute">
         Usamos tu nombre y tu correo sólo para atender este pedido. No se publican.
       </p>
 

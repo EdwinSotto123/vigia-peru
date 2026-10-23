@@ -6,6 +6,7 @@ import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPersona, type PaginaPersonas, type PersonaEntidad } from "@/lib/personas";
 import { SenalesCelda } from "./SenalesPersona";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * Personas contratadas por órdenes de servicio en la `Tabla` del kit, una fila por persona y entidad: quién (con un
@@ -90,7 +91,7 @@ export function TablaPersonas({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           {deEntidad ? plural(pagina.total, "persona", "personas") : plural(pagina.total, "contratación (una persona en una entidad)", "contrataciones (una persona en una entidad)")}
           {filtrada ? " con estos filtros" : ""}
         </p>
@@ -131,5 +132,4 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
   };
 }
 
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;

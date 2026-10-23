@@ -151,9 +151,9 @@ export function DataTable<T>({
         <div className={cn("transition-opacity duration-rapido", cargando && "opacity-60")}>
           {/* Escritorio */}
           <div className={cn("overflow-x-auto", APILAR[apilarHasta].tabla)}>
-            <table className={cn("w-full text-sm", anchoMinimo)}>
+            <table className={cn("w-full text-dato leading-5", anchoMinimo)}>
               <caption className="sr-only">{etiqueta}</caption>
-              <thead className="bg-paperDeep/50 text-left text-[12px] text-mute">
+              <thead className="bg-paperDeep/50 text-left text-rotulo text-mute">
                 <tr>
                   {columnas.map((c, i) => (
                     <th
@@ -225,8 +225,8 @@ export function DataTable<T>({
                     <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
                       {resto.map((c) => (
                         <div key={c.clave} className={cn("min-w-0", c.anchoCompletoMovil && "col-span-2")}>
-                          <dt className="text-[11px] text-mute">{etiquetaDe(c)}</dt>
-                          <dd className={cn("mt-0.5 break-words text-[13px] text-ink", c.alinear === "derecha" && "font-mono tabular-nums")}>{c.celda(f)}</dd>
+                          <dt className="text-micro text-mute">{etiquetaDe(c)}</dt>
+                          <dd className={cn("mt-0.5 break-words text-meta text-ink", c.alinear === "derecha" && "font-mono tabular-nums")}>{c.celda(f)}</dd>
                         </div>
                       ))}
                     </dl>
@@ -237,7 +237,7 @@ export function DataTable<T>({
             })}
           </ul>
           {faltan > 0 && (
-            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2 text-[12.5px] text-inkSoft">
+            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2 text-meta text-inkSoft">
               <span>
                 Se muestran {pintadas.toLocaleString("es-PE")} de {filas!.length.toLocaleString("es-PE")}
               </span>

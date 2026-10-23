@@ -30,7 +30,7 @@ export function ExpansionSection() {
             <Globe2 size={17} className="mr-2 inline-block -translate-y-0.5 text-granate" aria-hidden />
             Perú es el primero, <span className="text-granate">no el único</span>.
           </h2>
-          <p className="mt-1.5 text-[14px] leading-relaxed text-inkSoft">
+          <p className="mt-1.5 text-dato leading-relaxed text-inkSoft">
             El Perú publica sus contratos en un formato abierto que también usan otros gobiernos de la
             región. Por eso Vigía podría leer los suyos con las mismas revisiones.
           </p>
@@ -44,7 +44,7 @@ export function ExpansionSection() {
                   size={26}
                   className="rounded ring-1 ring-ink/10 grayscale transition-[filter] duration-normal group-hover:grayscale-0"
                 />
-                <span className="text-[11px] font-medium text-mute">{nombre}</span>
+                <span className="text-micro font-medium text-mute">{nombre}</span>
               </li>
             ))}
           </ul>
@@ -53,7 +53,7 @@ export function ExpansionSection() {
             href="https://github.com/EdwinSotto123/vigia-peru/issues"
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+            className="group inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             ¿Tu país publica contrataciones abiertas?
             <ArrowRight size={14} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />

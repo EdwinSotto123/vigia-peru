@@ -87,7 +87,7 @@ export function EstadoAporte({
 }) {
   if (estado === "rechazada" || estado === "reembolsada") {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-1 text-[12px] font-medium text-crimsonTexto">
+      <div className="inline-flex items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-1 text-rotulo font-medium text-crimsonTexto">
         <XCircle size={13} aria-hidden /> {estado === "rechazada" ? "Aporte rechazado" : "Aporte reembolsado"}
       </div>
     );
@@ -135,14 +135,14 @@ export function EstadoAporte({
             className={`rounded-xl border px-2.5 py-2 ${active ? "border-granate bg-granate text-paper" : done ? "border-moss/30 bg-moss/10 text-ink" : "border-line bg-paper text-mute"}`}
             aria-current={active ? "step" : undefined}
           >
-            <div className="flex items-center gap-1.5 text-[12px] font-semibold">
+            <div className="flex items-center gap-1.5 text-rotulo font-semibold">
               <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${done ? "bg-moss text-paper" : active ? "bg-paper text-granate" : "border border-line"}`} aria-hidden>
                 {done ? <Check size={10} strokeWidth={3} /> : active ? <Clock size={10} /> : null}
               </span>
               <span className="leading-tight">{p.label}</span>
               {done && <span className="sr-only">(hecho)</span>}
             </div>
-            {!compacto && <div className={`mt-1 text-[11px] leading-snug ${active ? "text-paper/80" : "text-mute"}`}>{p.hint}</div>}
+            {!compacto && <div className={`mt-1 text-micro leading-snug ${active ? "text-paper/80" : "text-mute"}`}>{p.hint}</div>}
           </li>
         );
       })}

@@ -54,14 +54,14 @@ function Cotejo({ raw }: { raw: string }) {
   return (
     <li className="break-words">
       <span className="text-ink">{TIPO_COTEJO[tipo] ?? legible(tipo)}</span>{" "}
-      <span className="font-mono text-[11px] text-ink">{redactDnis(valor)}</span>
+      <span className="font-mono text-micro text-ink">{redactDnis(valor)}</span>
       <span>, {ESTADO_COTEJO[estado] ?? legible(estado)}</span>
     </li>
   );
 }
 
 export function SenalesCrudas({ banderas, alertaId }: { banderas: BanderaRevision[]; alertaId?: string }) {
-  if (!banderas.length) return <p className="text-[12px] text-mute">Sin señales guardadas.</p>;
+  if (!banderas.length) return <p className="text-rotulo text-mute">Sin señales guardadas.</p>;
   return (
     <ul className="space-y-2">
       {banderas.map((b) => <Senal key={b.id} b={b} alertaId={alertaId} />)}
@@ -93,7 +93,7 @@ function Decision({ b, alertaId }: { b: BanderaRevision; alertaId: string }) {
     }
   }
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-micro">
       <span className="text-mute">¿Esta señal es correcta?</span>
       {DECISIONES.map(({ clave, texto }) => (
         <button
@@ -118,16 +118,16 @@ function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
   const url = urlSegura(b.fuenteUrl);
   return (
     <li className="rounded-xl border border-line bg-paperSoft p-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo">
         <span className="font-mono text-ink">{b.regla}</span>
         <Badge tono={SEVERIDAD_UI[b.severidad]?.tono ?? SEVERIDAD_UI.baja.tono}>{b.severidad}</Badge>
         {b.puntua === false && <Badge tono="neutral">contexto, sin puntaje</Badge>}
         <span className="text-mute">
-          {b.agente ? <>{nombreDeAgente(b.agente)} <span className="font-mono text-[11px]">({b.agente})</span></> : "Sin agente registrado"}
+          {b.agente ? <>{nombreDeAgente(b.agente)} <span className="font-mono text-micro">({b.agente})</span></> : "Sin agente registrado"}
         </span>
       </div>
-      {b.evidencia && <p className="mt-2 break-words text-[12px] leading-relaxed text-ink">{redactDnis(b.evidencia)}</p>}
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-mute">
+      {b.evidencia && <p className="mt-2 break-words text-rotulo leading-relaxed text-ink">{redactDnis(b.evidencia)}</p>}
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-micro text-mute">
         {b.norma && <span>Norma: <span className="text-ink">{b.norma}</span></span>}
         {url ? (
           <a href={url} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 break-all hover:text-ink hover:underline">
@@ -138,7 +138,7 @@ function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
         )}
       </div>
       {b.verificacion ? (
-        <div className="mt-2 rounded-lg bg-paperSoft px-2.5 py-2 text-[11px] text-mute">
+        <div className="mt-2 rounded-lg bg-paperSoft px-2.5 py-2 text-micro text-mute">
           <div className={`inline-flex items-center gap-1 font-medium ${b.verificacion.ok ? "text-mossTexto" : "text-crimsonTexto"}`}>
             {b.verificacion.ok ? <ShieldCheck size={12} aria-hidden /> : <ShieldAlert size={12} aria-hidden />}
             Verificación automática {b.verificacion.ok ? "superada" : "fallida"}
@@ -151,7 +151,7 @@ function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
           )}
         </div>
       ) : (
-        <p className="mt-2 text-[11px] text-mute">Sin verificación automática registrada.</p>
+        <p className="mt-2 text-micro text-mute">Sin verificación automática registrada.</p>
       )}
       {alertaId && <Decision b={b} alertaId={alertaId} />}
     </li>

@@ -147,7 +147,7 @@ export function PasosEnColumnas({ pasos, etiqueta }: { pasos: Paso[]; etiqueta: 
                 )}
               >
                 {/* Encabezado: en el teléfono es el botón que abre o pliega el paso. */}
-                <h2 id={idTitulo} className="m-0 text-[15px]">
+                <h2 id={idTitulo} className="m-0 font-display text-bloque">
                   <button
                     type="button"
                     onClick={() => !p.bloqueado && setAbierto(i)}
@@ -161,7 +161,7 @@ export function PasosEnColumnas({ pasos, etiqueta }: { pasos: Paso[]; etiqueta: 
                   >
                     <span
                       className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums transition-colors duration-rapido",
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-rotulo leading-4 font-bold tabular-nums transition-colors duration-rapido",
                         p.completa ? "bg-moss text-paper" : p.bloqueado ? "bg-paperDeep text-mute" : "bg-granate text-paper",
                       )}
                       aria-hidden
@@ -176,7 +176,7 @@ export function PasosEnColumnas({ pasos, etiqueta }: { pasos: Paso[]; etiqueta: 
                       {p.titulo}
                     </span>
                     {p.completa && !abiertoMovil && (
-                      <span className="min-w-0 flex-1 truncate text-right text-xs font-normal text-mute lg:hidden">{p.resumen}</span>
+                      <span className="min-w-0 flex-1 truncate text-right text-rotulo leading-4 font-normal text-mute lg:hidden">{p.resumen}</span>
                     )}
                     {!p.bloqueado && (
                       <ChevronDown
@@ -197,7 +197,7 @@ export function PasosEnColumnas({ pasos, etiqueta }: { pasos: Paso[]; etiqueta: 
                   )}
                 >
                   {p.bloqueado && (
-                    <p id={idMotivo} className="flex items-center gap-1.5 rounded-lg bg-paperDeep px-3 py-2 text-xs font-medium text-inkSoft">
+                    <p id={idMotivo} className="flex items-center gap-1.5 rounded-lg bg-paperDeep px-3 py-2 text-rotulo leading-4 font-medium text-inkSoft">
                       <Lock size={12} className="shrink-0" aria-hidden /> {p.motivo}
                     </p>
                   )}
@@ -206,7 +206,7 @@ export function PasosEnColumnas({ pasos, etiqueta }: { pasos: Paso[]; etiqueta: 
                     <button
                       type="button"
                       onClick={() => irA(i + 1)}
-                      className="mt-auto inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-4 text-[13px] font-semibold text-granate transition-colors duration-rapido hover:bg-granate-soft"
+                      className="mt-auto inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-4 text-meta font-semibold text-granate transition-colors duration-rapido hover:bg-granate-soft"
                     >
                       Seguir con {siguiente.titulo.toLowerCase()} <ArrowRight size={14} aria-hidden />
                     </button>

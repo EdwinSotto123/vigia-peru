@@ -51,7 +51,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
 
   if (!user) {
     return variant === "sidebar" ? (
-      <Link href={`/login${next}`} prefetch={false} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
+      <Link href={`/login${next}`} prefetch={false} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
         <LogIn size={14} aria-hidden /> Entrar
       </Link>
     ) : (
@@ -61,7 +61,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
         prefetch={false}
         aria-label="Entrar"
         className={cn(
-          "inline-flex h-11 min-w-11 sm:h-9 sm:min-w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:px-3.5",
+          "inline-flex h-11 min-w-11 sm:h-9 sm:min-w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-dato leading-5 font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:px-3.5",
           sobreCabeceraOscura,
         )}
       >
@@ -80,7 +80,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
   // El menú es blanco aunque la cabecera esté oscura: su foco vuelve a granate
   // (dentro de `sobre-oscuro` el anillo global pasa a maíz, ilegible sobre blanco).
   const itemMenu =
-    "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-granate";
+    "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-dato leading-5 text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-granate";
 
   const menu = open && (
     <div
@@ -92,8 +92,8 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
       )}
     >
       <div className="border-b border-line px-3 py-2">
-        <div className="text-[11px] text-mute">Sesión activa</div>
-        <div className="truncate font-mono text-sm font-medium text-ink">{userId}</div>
+        <div className="text-micro text-mute">Sesión activa</div>
+        <div className="truncate font-mono text-dato leading-5 font-medium text-ink">{userId}</div>
       </div>
       {ITEMS.map((it) => {
         const actual = pathname.startsWith(it.href);
@@ -109,7 +109,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
             <it.icon size={14} className="shrink-0 text-granate" aria-hidden />
             <span className="leading-tight">
               <span className={cn("block", actual && "font-semibold")}>{it.label}</span>
-              <span className="block text-[11px] text-mute">{it.hint}</span>
+              <span className="block text-micro text-mute">{it.hint}</span>
             </span>
           </Link>
         );
@@ -130,16 +130,16 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
         aria-label={`Cuenta de ${userId ?? "usuario"}`}
         className={cn(
           variant === "sidebar"
-            ? "flex min-h-10 w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-sm text-ink transition-colors duration-rapido hover:bg-paperDeep"
+            ? "flex min-h-10 w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-dato leading-5 text-ink transition-colors duration-rapido hover:bg-paperDeep"
             : cn(
-                "inline-flex h-9 items-center gap-2 rounded-full border border-line bg-paperSoft pl-1.5 pr-1.5 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:pr-3",
+                "inline-flex h-9 items-center gap-2 rounded-full border border-line bg-paperSoft pl-1.5 pr-1.5 text-dato leading-5 font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:pr-3",
                 sobreCabeceraOscura,
               ),
           open && "bg-paperDeep",
         )}
       >
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-granate text-paper"><UserIcon size={12} aria-hidden /></span>
-        <span className={cn("truncate font-mono text-xs", variant === "sidebar" ? "flex-1" : "hidden max-w-[120px] sm:inline")}>{userId}</span>
+        <span className={cn("truncate font-mono text-rotulo leading-4", variant === "sidebar" ? "flex-1" : "hidden max-w-[120px] sm:inline")}>{userId}</span>
         <ChevronDown
           size={13}
           aria-hidden

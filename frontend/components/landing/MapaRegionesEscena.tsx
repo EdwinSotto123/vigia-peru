@@ -250,7 +250,7 @@ export function MapaRegionesEscena({
                 </>
               }
             >
-              <div className="hidden items-center gap-3 text-[13px] text-mute group-[.apilado]:flex">
+              <div className="hidden items-center gap-3 text-meta text-mute group-[.apilado]:flex">
                 <span>menos</span>
                 <span className="flex h-2.5 w-40 overflow-hidden rounded-full" aria-hidden>
                   {coloresMonto.map((c) => (
@@ -265,7 +265,7 @@ export function MapaRegionesEscena({
               titulo={`Vigía ya leyó contratos en ${resumen.conLectura} de ellas.`}
               texto={`Son ${plural(resumen.leidosTotal, "contrato leído", "contratos leídos")}, uno por uno. En azul oscuro, las regiones donde ya hay al menos uno.`}
             >
-              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-inkSoft">
+              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-inkSoft">
                 <li className="flex items-center gap-2">
                   <span aria-hidden className="h-3 w-3 rounded-sm" style={{ background: colorLeido }} />
                   con contratos leídos
@@ -285,7 +285,7 @@ export function MapaRegionesEscena({
                   : "Cuanto más grande el círculo, más contratos con riesgo medio o alto."
               }
             >
-              <p className="flex items-center gap-2 text-[13px] text-inkSoft">
+              <p className="flex items-center gap-2 text-meta text-inkSoft">
                 <span aria-hidden className="h-3 w-3 rounded-full bg-rust ring-2 ring-paper" />
                 contratos con riesgo medio o alto
               </p>
@@ -293,18 +293,18 @@ export function MapaRegionesEscena({
 
             <div className="paso-mapa">
               <h3 className="text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">¿Y en tu región?</h3>
-              <p className="mt-3 max-w-[44ch] text-base leading-relaxed text-inkSoft">
+              <p className="mt-3 max-w-[44ch] text-destacado leading-relaxed text-inkSoft">
                 Elige una para ver cuánto se contrata, cuánto se leyó y cuánto espera todavía.
               </p>
 
-              <label htmlFor={idSelector} className="mt-5 block text-[13px] font-medium text-inkSoft">
+              <label htmlFor={idSelector} className="mt-5 block text-meta font-medium text-inkSoft">
                 Tu región
               </label>
               <select
                 id={idSelector}
                 value={elegida ?? ""}
                 onChange={(e) => setElegida(e.target.value || null)}
-                className="mt-1.5 min-h-[44px] w-full max-w-xs rounded-xl border border-line bg-paperDeep px-3.5 py-2.5 text-[15px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+                className="mt-1.5 min-h-[44px] w-full max-w-xs rounded-xl border border-line bg-paperDeep px-3.5 py-2.5 text-cuerpo text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-granate"
               >
                 <option value="">Todo el Perú</option>
                 {[...regiones]
@@ -317,8 +317,8 @@ export function MapaRegionesEscena({
               </select>
 
               <div aria-live="polite" className="mt-4">
-                <div className="max-w-md rounded-2xl border border-line bg-paperSoft p-4 text-[13px]">
-                  <p className="font-display text-lg font-bold text-ink">{ficha.nombre}</p>
+                <div className="max-w-md rounded-2xl border border-line bg-paperSoft p-4 text-meta">
+                  <p className="font-display text-bloque leading-7 font-bold text-ink">{ficha.nombre}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
                     <Cifra t="Contratos publicados" v={numero(ficha.contratos)} />
                     <Cifra t="Monto contratado" v={ficha.monto} />
@@ -329,7 +329,7 @@ export function MapaRegionesEscena({
                     <span className="font-mono font-semibold text-ink">{numero(ficha.enCola)}</span> en cola:{" "}
                     {ficha.enCola === 1 ? "espera" : "esperan"} que alguien financie su lectura.
                   </p>
-                  <p className="mt-2 text-[12px] text-mute">Fuente: convocatorias del SEACE en la base de Vigía.</p>
+                  <p className="mt-2 text-rotulo text-mute">Fuente: convocatorias del SEACE en la base de Vigía.</p>
                 </div>
               </div>
 
@@ -338,7 +338,7 @@ export function MapaRegionesEscena({
                 {region && region.enCola > 0 && (
                   <Link
                     href={`/app/financiar/${region.codigo}`}
-                    className="inline-flex min-h-[48px] items-center rounded-full px-4 py-3 text-[15px] font-semibold text-granate underline-offset-4 hover:underline"
+                    className="inline-flex min-h-[48px] items-center rounded-full px-4 py-3 text-cuerpo font-semibold text-granate underline-offset-4 hover:underline"
                   >
                     Financiar la lectura de {region.nombre}
                   </Link>
@@ -398,7 +398,7 @@ export function MapaRegionesEscena({
                           y={r.cy}
                           dy="0.35em"
                           textAnchor="middle"
-                          className="fill-paper font-sans text-[12px] font-bold"
+                          className="fill-paper font-sans text-rotulo font-bold"
                         >
                           {r.conSenales}
                         </text>
@@ -406,7 +406,7 @@ export function MapaRegionesEscena({
                     ))}
               </g>
             </svg>
-            <figcaption className="mt-2 min-h-[1.5rem] text-center text-[13px] text-inkSoft">
+            <figcaption className="mt-2 min-h-[1.5rem] text-center text-meta text-inkSoft">
               {resaltada ? (
                 <>
                   <span className="font-semibold text-ink">{resaltada.nombre}</span>: {resaltada.monto} en{" "}
@@ -429,7 +429,7 @@ function Paso({ titulo, texto, children }: { titulo: string; texto: React.ReactN
       <h3 className="max-w-[22ch] text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
         {titulo}
       </h3>
-      <p className="mt-3 max-w-[46ch] text-base leading-relaxed text-inkSoft">{texto}</p>
+      <p className="mt-3 max-w-[46ch] text-destacado leading-relaxed text-inkSoft">{texto}</p>
       <div className="mt-4">{children}</div>
     </div>
   );
@@ -439,7 +439,7 @@ function Cifra({ t, v, fuerte = false }: { t: string; v: string; fuerte?: boolea
   return (
     <div>
       <dt className="text-mute">{t}</dt>
-      <dd className={`mt-0.5 font-mono text-[15px] font-semibold ${fuerte ? "text-rust" : "text-ink"}`}>{v}</dd>
+      <dd className={`mt-0.5 font-mono text-cuerpo font-semibold ${fuerte ? "text-rust" : "text-ink"}`}>{v}</dd>
     </div>
   );
 }

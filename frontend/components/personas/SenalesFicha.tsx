@@ -8,6 +8,7 @@ import { tituloNatural } from "@/lib/landing";
 import { REGIMEN } from "@/lib/planilla";
 import { FUENTE_TEXTO, SENAL, SEVERIDAD_TEXTO, type EntidadDePersona, type SenalDetalle } from "@/lib/personas";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
+import { txtONumero } from "@/lib/utils";
 
 /**
  * Las señales de una persona en cada entidad, enteras: qué registro coincide, con sus datos (la candidatura, el aporte,
@@ -36,17 +37,17 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
     <div className="space-y-5">
       {con.length > 1 && (
         <nav aria-label="Entidades con señales" className="rounded-2xl border border-line bg-paper p-4">
-          <p className="mb-2 text-[13.5px] font-semibold text-ink">Tiene señales en {numero(con.length)} entidades</p>
+          <p className="mb-2 text-dato font-semibold text-ink">Tiene señales en {numero(con.length)} entidades</p>
           <ol className="space-y-1.5">
             {con.map((e, i) => {
               const graves = e.senalesDetalle.filter((s) => s.severidad === "alta").length;
               return (
-                <li key={e.entidadRuc} className="flex items-baseline gap-2 text-[13.5px]">
+                <li key={e.entidadRuc} className="flex items-baseline gap-2 text-dato">
                   <Numero n={i + 1} />
                   <a href={`#entidad-${i + 1}`} className="min-w-0 font-medium text-ink underline-offset-2 hover:text-granate hover:underline">
                     {e.entidad ? tituloNatural(e.entidad) : e.entidadRuc}
                   </a>
-                  <span className="shrink-0 text-[12.5px] text-mute">
+                  <span className="shrink-0 text-meta text-mute">
                     {plural(e.senalesDetalle.length, "señal", "señales")}
                     {graves > 0 ? `, ${plural(graves, "grave", "graves")}` : ""}
                   </span>
@@ -59,8 +60,8 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
       {comunes.length > 0 && (
         <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
           <header className="space-y-0.5">
-            <h3 className="font-display text-[17px] font-bold text-ink">Sobre la persona</h3>
-            <p className="text-[13px] text-mute">Lo que otros registros dicen de ella y vale igual en varias de las entidades que la contrataron: va una sola vez.</p>
+            <h3 className="font-display text-bloque font-bold text-ink">Sobre la persona</h3>
+            <p className="text-meta text-mute">Lo que otros registros dicen de ella y vale igual en varias de las entidades que la contrataron: va una sola vez.</p>
           </header>
           <ol className="space-y-3">
             {comunes.map(({ s, en }, i) => (
@@ -77,8 +78,8 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
               <div className="flex min-w-0 items-start gap-2.5">
                 {con.length > 1 && <Numero n={i + 1} grande />}
                 <div className="min-w-0">
-                  {con.length > 1 && <p className="text-[12px] font-medium text-mute">Entidad {i + 1} de {con.length}</p>}
-                  <h3 className="font-display text-[17px] font-bold text-ink">
+                  {con.length > 1 && <p className="text-rotulo font-medium text-mute">Entidad {i + 1} de {con.length}</p>}
+                  <h3 className="font-display text-bloque font-bold text-ink">
                     <Link href={`/entidad/${e.entidadRuc}`} className="underline-offset-2 hover:text-granate hover:underline">
                       {e.entidad ? tituloNatural(e.entidad) : "Entidad"}
                     </Link>
@@ -94,7 +95,7 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
                 ))}
               </ol>
             ) : (
-              <p className="text-[13px] text-mute">Ninguna señal propia de esta entidad: las suyas son las de la persona, arriba.</p>
+              <p className="text-meta text-mute">Ninguna señal propia de esta entidad: las suyas son las de la persona, arriba.</p>
             )}
           </section>
         );
@@ -108,7 +109,7 @@ function Numero({ n, grande = false }: { n: number; grande?: boolean }) {
     <span
       className={
         "inline-flex shrink-0 items-center justify-center rounded-full bg-granate font-mono font-semibold tabular-nums text-paper " +
-        (grande ? "mt-0.5 h-7 min-w-7 px-2 text-[13px]" : "h-5 min-w-5 px-1.5 text-[11.5px]")
+        (grande ? "mt-0.5 h-7 min-w-7 px-2 text-meta" : "h-5 min-w-5 px-1.5 text-rotulo")
       }
       aria-hidden
     >
@@ -120,17 +121,17 @@ function Numero({ n, grande = false }: { n: number; grande?: boolean }) {
 function Senal({ s, numero: num, en }: { s: SenalDetalle; numero: string; en?: string[] }) {
   return (
     <li className="flex gap-3 rounded-xl border border-line/80 bg-paperSoft p-3.5">
-      <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-[12px] font-semibold tabular-nums text-ink" aria-hidden>
+      <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold tabular-nums text-ink" aria-hidden>
         {num}
       </span>
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-          <h4 className="text-[15px] font-semibold text-ink">{SENAL[s.tipo]?.titulo ?? s.tipo}</h4>
+          <h4 className="text-cuerpo font-semibold text-ink">{SENAL[s.tipo]?.titulo ?? s.tipo}</h4>
         </div>
-        <p className="max-w-prose text-[13.5px] leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
+        <p className="max-w-prose text-dato leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
         {en && en.length > 0 && (
-          <p className="text-[12.5px] text-inkSoft">
+          <p className="text-meta text-inkSoft">
             <span className="text-mute">Vale en: </span>
             {listaY(en)}
           </p>
@@ -146,7 +147,7 @@ function GobiernosLinea({ e }: { e: EntidadDePersona }) {
   const g = [...(e.gobiernos ?? [])].sort((a, b) => b.anio - a.anio);
   if (!g.length) return null;
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-inkSoft">
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-inkSoft">
       <Landmark size={13} className="shrink-0 text-mute" aria-hidden />
       <span className="text-mute">Gobernaba</span>
       {g.map((x) => (
@@ -161,7 +162,7 @@ function GobiernosLinea({ e }: { e: EntidadDePersona }) {
 function Fuente({ s }: { s: SenalDetalle }) {
   const texto = (s.fuente && FUENTE_TEXTO[s.fuente]) ?? s.fuente ?? "Fuente oficial";
   return (
-    <p className="text-[12px] text-mute">
+    <p className="text-rotulo text-mute">
       Fuente:{" "}
       {s.fuenteUrl ? (
         <a href={s.fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-granate underline-offset-2 hover:underline">
@@ -176,7 +177,7 @@ function Fuente({ s }: { s: SenalDetalle }) {
 
 type Obj = Record<string, unknown>;
 const lista = (v: unknown): Obj[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === "object") as Obj[]) : []);
-const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
+const txt = txtONumero;
 const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
 const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fecha(v.slice(0, 10)) : null);
 const porQue = (por: unknown) =>
@@ -198,10 +199,10 @@ function Detalle({ s }: { s: SenalDetalle }) {
         .map((c, i) => ({
           id: String(i),
           celdas: {
-            anio: <span className="font-mono text-[13px] tabular-nums">{txt(c.anio) ?? "Sin año"}</span>,
-            cargo: <span className="text-[13px] text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo en la fuente"}</span>,
-            partido: <span className="text-[13px] text-inkSoft">{txt(c.partido) ?? "Sin dato"}</span>,
-            resultado: <span className="text-[13px] text-inkSoft">{c.resultado === "electo" ? "Electo" : c.resultado === "no_electo" ? "No electo" : "Sin dato"}</span>,
+            anio: <span className="font-mono text-meta tabular-nums">{txt(c.anio) ?? "Sin año"}</span>,
+            cargo: <span className="text-meta text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo en la fuente"}</span>,
+            partido: <span className="text-meta text-inkSoft">{txt(c.partido) ?? "Sin dato"}</span>,
+            resultado: <span className="text-meta text-inkSoft">{c.resultado === "electo" ? "Electo" : c.resultado === "no_electo" ? "No electo" : "Sin dato"}</span>,
           },
         }));
       return (
@@ -228,8 +229,8 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.aportes).map((a, i) => ({
         id: String(i),
         celdas: {
-          fecha: <span className="text-[13px] tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
-          partido: <span className="text-[13px] text-ink">{txt(a.partido) ?? "Sin dato"}</span>,
+          fecha: <span className="text-meta tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
+          partido: <span className="text-meta text-ink">{txt(a.partido) ?? "Sin dato"}</span>,
           monto: <CeldaNumero>{num(a.monto) != null ? soles(num(a.monto)) : "Sin dato"}</CeldaNumero>,
         },
       }));
@@ -258,10 +259,10 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.autoridades).map((a, i) => ({
         id: String(i),
         celdas: {
-          nombre: <span className="text-[13px] font-medium text-ink">{txt(a.nombre) ?? "Sin nombre"}</span>,
-          cargo: <span className="text-[13px] text-inkSoft">{txt(a.cargo) ? tituloNatural(txt(a.cargo)!) : "Sin cargo"}</span>,
-          partido: <span className="text-[13px] text-inkSoft">{txt(a.partido) ?? "Sin dato"}</span>,
-          periodo: <span className="text-[13px] tabular-nums text-mute">{[txt(a.desde)?.slice(0, 4), txt(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
+          nombre: <span className="text-meta font-medium text-ink">{txt(a.nombre) ?? "Sin nombre"}</span>,
+          cargo: <span className="text-meta text-inkSoft">{txt(a.cargo) ? tituloNatural(txt(a.cargo)!) : "Sin cargo"}</span>,
+          partido: <span className="text-meta text-inkSoft">{txt(a.partido) ?? "Sin dato"}</span>,
+          periodo: <span className="text-meta tabular-nums text-mute">{[txt(a.desde)?.slice(0, 4), txt(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
         },
       }));
       const frec = num(d.frecuencia);
@@ -289,9 +290,9 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.funcionarios_designados).map((f, i) => ({
         id: String(i),
         celdas: {
-          nombre: <span className="text-[13px] font-medium text-ink">{txt(f.nombre) ?? "Sin nombre"}</span>,
-          cargo: <span className="text-[13px] text-inkSoft">{txt(f.cargo) ? tituloNatural(txt(f.cargo)!) : "Sin cargo"}</span>,
-          anio: <span className="font-mono text-[13px] tabular-nums text-mute">{txt(f.anio) ?? "Sin año"}</span>,
+          nombre: <span className="text-meta font-medium text-ink">{txt(f.nombre) ?? "Sin nombre"}</span>,
+          cargo: <span className="text-meta text-inkSoft">{txt(f.cargo) ? tituloNatural(txt(f.cargo)!) : "Sin cargo"}</span>,
+          anio: <span className="font-mono text-meta tabular-nums text-mute">{txt(f.anio) ?? "Sin año"}</span>,
         },
       }));
       const frec = num(d.frecuencia);
@@ -314,9 +315,9 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.cargos).map((c, i) => ({
         id: String(i),
         celdas: {
-          cargo: <span className="text-[13px] text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo"}</span>,
-          anio: <span className="font-mono text-[13px] tabular-nums text-mute">{txt(c.anio) ?? "Sin año"}</span>,
-          desde: <span className="text-[13px] tabular-nums text-mute">{dia(c.inicio) ?? "Sin dato"}</span>,
+          cargo: <span className="text-meta text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo"}</span>,
+          anio: <span className="font-mono text-meta tabular-nums text-mute">{txt(c.anio) ?? "Sin año"}</span>,
+          desde: <span className="text-meta tabular-nums text-mute">{dia(c.inicio) ?? "Sin dato"}</span>,
         },
       }));
       return (
@@ -335,9 +336,9 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.sanciones).map((x, i) => ({
         id: String(i),
         celdas: {
-          tipo: <span className="text-[13px] text-ink">{x.tipo === "definitivo" ? "Definitiva" : "Temporal"}</span>,
-          periodo: <span className="text-[13px] tabular-nums text-mute">{[dia(x.desde), dia(x.hasta)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
-          resolucion: <span className="font-mono text-[12.5px] text-inkSoft">{txt(x.resolucion) ?? "Sin dato"}</span>,
+          tipo: <span className="text-meta text-ink">{x.tipo === "definitivo" ? "Definitiva" : "Temporal"}</span>,
+          periodo: <span className="text-meta tabular-nums text-mute">{[dia(x.desde), dia(x.hasta)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
+          resolucion: <span className="font-mono text-meta text-inkSoft">{txt(x.resolucion) ?? "Sin dato"}</span>,
         },
       }));
       return (
@@ -364,7 +365,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.anios).map((a, i) => ({
         id: String(i),
         celdas: {
-          anio: <span className="font-mono text-[13px] tabular-nums">{txt(a.anio)}</span>,
+          anio: <span className="font-mono text-meta tabular-nums">{txt(a.anio)}</span>,
           meses: <CeldaNumero>{`${txt(a.meses)} de 12`}</CeldaNumero>,
           ordenes: <CeldaNumero>{numero(num(a.ordenes) ?? 0)}</CeldaNumero>,
           monto: <CeldaNumero>{soles(num(a.monto) ?? 0)}</CeldaNumero>,
@@ -387,8 +388,8 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.anios).map((a, i) => ({
         id: String(i),
         celdas: {
-          anio: <span className="font-mono text-[13px] tabular-nums">{txt(a.anio)}</span>,
-          servicio: <span className="text-[13px] text-inkSoft">{txt(a.servicio) ?? "Sin dato"}</span>,
+          anio: <span className="font-mono text-meta tabular-nums">{txt(a.anio)}</span>,
+          servicio: <span className="text-meta text-inkSoft">{txt(a.servicio) ?? "Sin dato"}</span>,
           suyo: <CeldaNumero>{soles(num(a.por_mes) ?? 0)}</CeldaNumero>,
           mediana: <CeldaNumero sub={`de ${numero(num(a.personas) ?? 0)} personas`}>{soles(num(a.mediana_mes) ?? 0)}</CeldaNumero>,
           veces: <CeldaNumero>{`${String(num(a.veces) ?? "").replace(".", ",")} veces`}</CeldaNumero>,
@@ -440,9 +441,9 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const filas = lista(d.visitas).map((v, i) => ({
         id: String(i),
         celdas: {
-          fecha: <span className="text-[13px] tabular-nums text-mute">{dia(v.fecha) ?? "Sin fecha"}</span>,
-          visitado: <span className="text-[13px] text-ink">{txt(v.cargo_visitado) ? tituloNatural(txt(v.cargo_visitado)!) : "Sin dato"}</span>,
-          motivo: <span className="text-[13px] text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,
+          fecha: <span className="text-meta tabular-nums text-mute">{dia(v.fecha) ?? "Sin fecha"}</span>,
+          visitado: <span className="text-meta text-ink">{txt(v.cargo_visitado) ? tituloNatural(txt(v.cargo_visitado)!) : "Sin dato"}</span>,
+          motivo: <span className="text-meta text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,
         },
       }));
       return (
@@ -464,7 +465,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
 
 function Nota({ children }: { children: string | null | undefined }) {
   if (!children) return null;
-  return <p className="text-[12.5px] text-mute">{children}</p>;
+  return <p className="text-meta text-mute">{children}</p>;
 }
 
 export type { DatoClave };

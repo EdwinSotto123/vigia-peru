@@ -647,7 +647,7 @@ export function MapaWrapper({
               <button
                 type="button"
                 onClick={() => elegirRegion(null)}
-                className="inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+                className="inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 py-1.5 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
               >
                 <ArrowLeft size={14} aria-hidden /> Volver al Perú
               </button>
@@ -717,7 +717,7 @@ export function MapaWrapper({
                     lo dice encima del mapa (antes quedaba gris sin explicación). */}
                 {(cargandoVista && (mes || hayFiltros)) || (!cargandoVista && nContratos === 0) ? (
                   <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-paper/55 pt-10 backdrop-blur-[1px]">
-                    <span className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-4 py-2 text-[13px] font-semibold text-ink shadow-sm">
+                    <span className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-4 py-2 text-meta font-semibold text-ink shadow-sm">
                       {cargandoVista ? (
                         <>
                           <Loader2 size={15} className="animate-spin text-granate" aria-hidden /> Actualizando el mapa…
@@ -763,7 +763,7 @@ export function MapaWrapper({
 
               {/* Arriba y no abajo: abajo lo tapaba el botón flotante de navegación. */}
               {!regionUb && (
-                <p className="pointer-events-none absolute inset-x-4 top-3 text-center text-[12px] text-inkSoft lg:hidden">
+                <p className="pointer-events-none absolute inset-x-4 top-3 text-center text-rotulo text-inkSoft lg:hidden">
                   Toca un departamento para abrirlo
                 </p>
               )}
@@ -820,7 +820,7 @@ function MapaEsqueleto() {
   return (
     <div className="flex h-full min-h-[320px] w-full flex-col items-center justify-center gap-3 bg-paperSoft" role="status">
       <Llamita caminando className="w-12 text-granate/70" />
-      <span className="text-sm text-mute">Cargando el mapa del Perú…</span>
+      <span className="text-dato leading-5 text-mute">Cargando el mapa del Perú…</span>
     </div>
   );
 }

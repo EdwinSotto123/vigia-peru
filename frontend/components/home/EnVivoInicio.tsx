@@ -106,11 +106,11 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
   return (
     <section aria-labelledby="vivo-titulo" className="rounded-2xl border border-line bg-paper">
       <div className="border-b border-line px-4 py-3 sm:px-5">
-        <h2 id="vivo-titulo" className="flex items-center gap-2 font-display text-[20px] font-bold leading-tight text-ink">
+        <h2 id="vivo-titulo" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
           <PulseDot color={vivo ? "moss" : "amber"} size={8} />
           {vivo ? "Se están analizando ahora" : "Lo último que se leyó"}
         </h2>
-        <p className="mt-1 text-[13.5px] leading-snug text-mute">
+        <p className="mt-1 text-dato leading-snug text-mute">
           {vivo
             ? "Cada contrato pasa por los agentes de Vigía. Toca uno para ver."
             : "Ahora no se está analizando ninguno. Estos son los últimos contratos que terminaron de leerse."}
@@ -123,8 +123,8 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
           ? foto.enAnalisis.map((f) => (
               <li key={f.ocid}>
                 <button type="button" onClick={() => setSel({ tipo: "vivo", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
-                  <span className="mt-0.5 flex items-center justify-between gap-3 text-[13px] text-mute">
+                  <span className="block truncate text-cuerpo font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
+                  <span className="mt-0.5 flex items-center justify-between gap-3 text-meta text-mute">
                     <span className="truncate">{faseDe(f)}</span>
                     <span className="shrink-0 tabular-nums">{duracion(f.desdeSeg + extra)}</span>
                   </span>
@@ -134,11 +134,12 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
                 </button>
               </li>
             ))
+          // recorte: los últimos leídos; la lista entera, en «Ver la auditoría en vivo»
           : foto.ultimosLeidos.slice(0, MAX_FILAS).map((f) => (
               <li key={f.ocid}>
                 <button type="button" onClick={() => setSel({ tipo: "leido", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
-                  <span className="mt-0.5 flex items-center justify-between gap-3 text-[13px] text-mute">
+                  <span className="block truncate text-cuerpo font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
+                  <span className="mt-0.5 flex items-center justify-between gap-3 text-meta text-mute">
                     <span className="truncate">{f.zona ?? "Sin zona"}</span>
                     <span className="shrink-0">{f.finalizadoAt ? relativo(f.finalizadoAt) : "Sin fecha"}</span>
                   </span>
@@ -148,10 +149,10 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
       </ul>
 
       {vivo && foto.totalEnAnalisis > foto.enAnalisis.length && (
-        <p className="border-t border-line px-4 py-2.5 text-[13px] text-mute sm:px-5">y {foto.totalEnAnalisis - foto.enAnalisis.length} más en análisis.</p>
+        <p className="border-t border-line px-4 py-2.5 text-meta text-mute sm:px-5">y {foto.totalEnAnalisis - foto.enAnalisis.length} más en análisis.</p>
       )}
       <div className="border-t border-line px-4 py-3 sm:px-5">
-        <Link href="/app/auditoria" className="inline-flex min-h-10 items-center gap-1.5 text-[14px] font-semibold text-granate underline-offset-4 hover:underline">
+        <Link href="/app/auditoria" className="inline-flex min-h-10 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline">
           Ver la auditoría en vivo <ArrowRight size={14} aria-hidden />
         </Link>
       </div>
@@ -167,12 +168,12 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href={selVivo ? rutaContrato(sel.ocid, "vivo") : `/app/contratos/${encodeURIComponent(sel.ocid)}`}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-[15px] font-semibold text-paper hover:bg-granate-deep"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-cuerpo font-semibold text-paper hover:bg-granate-deep"
               >
                 {selVivo ? "Ver el análisis en vivo" : "Ver el dictamen"} <ArrowRight size={16} aria-hidden />
               </Link>
               {selVivo && (
-                <Link href={`/app/contratos/${encodeURIComponent(sel.ocid)}`} className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-5 text-[15px] font-semibold text-ink hover:bg-paperSoft">
+                <Link href={`/app/contratos/${encodeURIComponent(sel.ocid)}`} className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-5 text-cuerpo font-semibold text-ink hover:bg-paperSoft">
                   Ver la ficha del contrato
                 </Link>
               )}
@@ -190,8 +191,8 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-line bg-paperSoft p-3.5">
-      <dt className="text-[12.5px] text-mute">{etiqueta}</dt>
-      <dd className="mt-0.5 text-[15px] font-semibold text-ink">{children}</dd>
+      <dt className="text-meta text-mute">{etiqueta}</dt>
+      <dd className="mt-0.5 text-cuerpo font-semibold text-ink">{children}</dd>
     </div>
   );
 }
@@ -201,18 +202,18 @@ function PanelVivo({ f, extra }: { f: FilaVivo; extra: number }) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="flex items-center gap-2 text-[15px] font-semibold text-ink"><PulseDot size={8} /> {faseDe(f)}</p>
+        <p className="flex items-center gap-2 text-cuerpo font-semibold text-ink"><PulseDot size={8} /> {faseDe(f)}</p>
         <div aria-hidden className="mt-3 h-2 overflow-hidden rounded-full bg-paperDeep">
           <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(4, pct)}%` }} />
         </div>
-        <p className="mt-1.5 text-[13px] text-mute">{Math.round(pct)} % del recorrido de los agentes</p>
+        <p className="mt-1.5 text-meta text-mute">{Math.round(pct)} % del recorrido de los agentes</p>
       </div>
       <dl className="grid grid-cols-2 gap-3">
         <Dato etiqueta="Lleva">{duracion(f.desdeSeg + extra)}</Dato>
         <Dato etiqueta="Zona">{f.zona ?? "Sin dato"}</Dato>
         <Dato etiqueta="Lo financia">{f.financiador || "Anónimo"}</Dato>
       </dl>
-      <p className="text-[13px] leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación. El resultado aparece cuando terminan los agentes.</p>
+      <p className="text-meta leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación. El resultado aparece cuando terminan los agentes.</p>
     </div>
   );
 }
@@ -228,7 +229,7 @@ function PanelLeido({ f }: { f: FilaLeida }) {
         {f.montoPen ? <Dato etiqueta="Valor referencial">{soles(f.montoPen)}</Dato> : null}
         <Dato etiqueta="Lo financió">{f.financiador || "Anónimo"}</Dato>
       </dl>
-      <p className="text-[13px] leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación.</p>
+      <p className="text-meta leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación.</p>
     </div>
   );
 }

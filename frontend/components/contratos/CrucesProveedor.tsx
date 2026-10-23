@@ -16,13 +16,13 @@ import { Dato } from "@/components/ui/Dato";
 import { ArrowUpRight, ChevronDown, CircleDot, Coins, Receipt } from "lucide-react";
 import { TablaEvidencia } from "./TablaEvidencia";
 import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
-import { tituloNatural } from "@/lib/landing";
 import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { recortar } from "./recortar";
+import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
+import { txt } from "@/lib/utils";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
-const ORDEN = { alta: 0, media: 1, baja: 2 } as const;
 /** El nombre de cada fuente, en palabras (antes "ONPE · Claridad": el punto medio no va en la interfaz). */
 const FUENTE: Record<string, string> = {
   onpe_aportantes: "Claridad de la ONPE",
@@ -59,11 +59,11 @@ function SancionesAlGanar({ grupo }: { grupo: CruceProveedor[] }) {
   const vigentes = grupo.filter((c) => vigenteEl(txt(c.detalle.tipo), txt(c.detalle.desde), txt(c.detalle.hasta), fecha)).length;
   const hastas = grupo.map((c) => txt(c.detalle.hasta)).filter((h): h is string => !!h && h < fecha).sort();
   return vigentes > 0 ? (
-    <p className="mb-2 rounded-lg bg-crimson-soft/60 px-2.5 py-1.5 text-[13px] text-crimsonTexto">
+    <p className="mb-2 rounded-lg bg-crimson-soft/60 px-2.5 py-1.5 text-meta text-crimsonTexto">
       Cuando ganó este proceso ({fechaCorta(fecha)}) seguía inhabilitado: {vigentes === 1 ? "una de estas sanciones cubría" : `${numero(vigentes)} de estas sanciones cubrían`} esa fecha.
     </p>
   ) : (
-    <p className="mb-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-[13px] text-ink">
+    <p className="mb-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-meta text-ink">
       Cuando ganó este proceso ({fechaCorta(fecha)}) ninguna inhabilitación estaba vigente
       {hastas.length ? <>: la última había terminado el <b>{fechaCorta(hastas[hastas.length - 1])}</b></> : ""}. Son antecedentes, no un impedimento.
     </p>
@@ -73,7 +73,6 @@ function SancionesAlGanar({ grupo }: { grupo: CruceProveedor[] }) {
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
 
-const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v ? Number(v) : null);
 const rango = (a: unknown, b: unknown) => {
   const x = txt(String(a ?? "")), y = txt(String(b ?? ""));
@@ -273,7 +272,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {otros.map((o, i) => (
             <span key={o.ruc}>
               {i > 0 && ", "}
-              {o.nombre ? <b>{o.nombre}</b> : null} <span className="font-mono text-[12px]">(RUC {o.ruc})</span>
+              {o.nombre ? <b>{o.nombre}</b> : null} <span className="font-mono text-rotulo">(RUC {o.ruc})</span>
             </span>
           ))}
           .<Gano c={c} />
@@ -400,7 +399,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
 
 function Fila({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato | null }) {
   return (
-    <li className="text-[13px] leading-relaxed text-ink">
+    <li className="text-meta leading-relaxed text-ink">
       <FilaContenido c={c} gobierna={gobierna} />
     </li>
   );
@@ -410,7 +409,7 @@ function FilaContenido({ c, gobierna }: { c: CruceProveedor; gobierna?: Gobierno
   return (
     <>
       <Texto c={c} gobierna={gobierna} />{" "}
-      <span className="text-[12px] text-mute">
+      <span className="text-rotulo text-mute">
         Fuente:{" "}
         {c.fuenteUrl ? (
           <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
@@ -435,29 +434,29 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
   const despues = evidencia.reduce((s, e) => s + e.filas.filter((f) => f.posterior).length, 0);
   return (
     <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-meta font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
         <span className="flex flex-wrap items-center gap-1.5">
           Ver la evidencia
           <CuentaGrupo>{n === 1 ? "1 registro" : `${numero(n)} registros`}</CuentaGrupo>
-          {despues > 0 && <span className="text-[12px] font-normal text-mute">{numero(despues)} después de este proceso</span>}
+          {despues > 0 && <span className="text-rotulo font-normal text-mute">{numero(despues)} después de este proceso</span>}
         </span>
         <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="space-y-4 border-t border-line px-3 py-3">
         {evidencia.map((e) => (
           <section key={e.titulo} className="space-y-2">
-            <h4 className="flex flex-wrap items-center gap-1.5 text-[13px] font-semibold text-ink">
+            <h4 className="flex flex-wrap items-center gap-1.5 text-meta font-semibold text-ink">
               {e.titulo}
               <CuentaGrupo>{numero(e.total ?? e.filas.length)}</CuentaGrupo>
             </h4>
             {e.total != null && e.total > e.filas.length && (
-              <p className="text-[12px] text-mute">
+              <p className="text-rotulo text-mute">
                 Aquí van los {numero(e.filas.length)} más recientes; la fuente tiene los {numero(e.total)}.
               </p>
             )}
             <TablaEvidencia columnas={e.columnas} filas={e.filas} />
             {(e.verificar || e.enlace) && (
-              <p className="text-[12px] leading-relaxed text-mute">
+              <p className="text-rotulo leading-relaxed text-mute">
                 {e.verificar}{" "}
                 {e.enlace && (
                   <a href={e.enlace.url} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
@@ -487,7 +486,7 @@ function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
   }));
   return (
     <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-meta font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
         <span>
           Ver {total === 1 ? "la orden" : `las ${numero(total)} órdenes`}
           {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días`}
@@ -495,7 +494,7 @@ function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
         <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="space-y-3 border-t border-line px-3 py-3">
-        <p className="text-[12px] text-mute">
+        <p className="text-rotulo text-mute">
           Cada barra es lo que suman las órdenes de ese día; la marca, el tope de 8 UIT de ese año.
         </p>
         {bloques.length > 4 ? (
@@ -517,7 +516,7 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
   const marca = d.totalSoles > 0 ? Math.min(100, (d.topeSoles / d.totalSoles) * 100) : 100;
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[13px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta">
         <span className="font-semibold text-ink">{fecha(d.fecha)}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-inkSoft">
           <Dato icono={Receipt} nombre="Órdenes">{numero(d.ordenes)} órdenes</Dato>
@@ -533,10 +532,10 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
       </div>
       <ol className="divide-y divide-line rounded-lg border border-line bg-paper">
         {d.detalle.map((o, i) => (
-          <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-[13px]">
+          <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-meta">
             <div className="min-w-0">
               <p className="text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</p>
-              <p className="mt-0.5 text-[11.5px] text-mute">
+              <p className="mt-0.5 text-rotulo text-mute">
                 <Partes
                   partes={[
                     <Dato key="orden" tipo="codigo" nombre="Orden" mono>
@@ -564,12 +563,12 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
   const grupos = new Map<string, CruceProveedor[]>();
   for (const c of cruces) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
   const orden = [...grupos.values()].sort((a, b) =>
-    Math.min(...a.map((x) => ORDEN[x.severidad])) - Math.min(...b.map((x) => ORDEN[x.severidad])) || b.length - a.length);
+    RANGO_SEVERIDAD[peorSeveridad(a) ?? "baja"] - RANGO_SEVERIDAD[peorSeveridad(b) ?? "baja"] || b.length - a.length);
 
   return (
     <section aria-labelledby="cruces-proveedor" className="rounded-2xl border border-line bg-paper">
       <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
-        <h2 id="cruces-proveedor" className="text-[15px] font-semibold text-ink">
+        <h2 id="cruces-proveedor" className="font-display text-bloque font-bold text-ink">
           {varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó"}
         </h2>
         <Ayuda titulo="¿De dónde salen estos cruces?">
@@ -580,31 +579,31 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
         </Ayuda>
       </div>
       {!cruces.length && (
-        <p className="px-4 pb-3 pt-2 text-[13px] leading-relaxed text-inkSoft">
+        <p className="px-4 pb-3 pt-2 text-meta leading-relaxed text-inkSoft">
           Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes en estos registros.
         </p>
       )}
       <ul className="divide-y divide-line px-4 pb-1">
         {orden.map((grupo) => {
-          const sev = grupo.reduce((m, x) => (ORDEN[x.severidad] < ORDEN[m] ? x.severidad : m), grupo[0].severidad);
-          const filas = [...grupo].sort((a, b) => ORDEN[a.severidad] - ORDEN[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+          const sev = peorSeveridad(grupo) ?? grupo[0].severidad;
+          const filas = [...grupo].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
           return (
             <li key={grupo[0].tipo} className="py-3">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
                 <Badge variant={VARIANTE[sev]}>{SEVERIDAD[sev]}</Badge>
-                <h3 className="flex flex-wrap items-center gap-1.5 text-[14px] font-semibold text-ink">
+                <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
                   {grupo[0].etiqueta}
                   {grupo.length > 1 && <CuentaGrupo>{grupo.length}</CuentaGrupo>}
                 </h3>
               </div>
-              {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
+              {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
               {grupo[0].tipo === "sancion" && <SancionesAlGanar grupo={grupo} />}
               <ul className="list-disc space-y-1.5 pl-5">
                 {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
               </ul>
               {filas.length > VISIBLES && (
                 <details className="mt-1.5">
-                  <summary className="cursor-pointer text-[13px] text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
+                  <summary className="cursor-pointer text-meta text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
                   <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
                     {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
                   </ul>
@@ -617,7 +616,7 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
       {posteriores.length > 0 && (
         <details className="group border-t border-line">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-            <span className="text-[13px] text-inkSoft">
+            <span className="text-meta text-inkSoft">
               <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
                 Después de este proceso <CuentaGrupo>{numero(posteriores.length)}</CuentaGrupo>
               </span>{" "}
@@ -626,13 +625,13 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
             <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
           </summary>
           <div className="px-4 pb-3">
-            <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">
+            <p className="mb-2 text-meta leading-relaxed text-inkSoft">
               Pasó después de la convocatoria: quien adjudicó no podía saberlo. Se muestra como contexto de la empresa, no como señal sobre
               este proceso.
             </p>
             <ul className="list-disc space-y-1.5 pl-5">
               {[...posteriores].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? "")).map((c, i) => (
-                <li key={i} className="text-[13px] leading-relaxed text-inkSoft">
+                <li key={i} className="text-meta leading-relaxed text-inkSoft">
                   <span className="font-medium text-ink">{c.etiqueta}:</span> <FilaContenido c={c} gobierna={gobierna} />
                 </li>
               ))}

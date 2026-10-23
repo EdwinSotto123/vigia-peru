@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Camera, Map as MapIcon, MessageSquareWarning } from "lucide-react";
-import { Ayuda, EncabezadoPagina, Franja, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Franja, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type OpcionFaceta } from "@/components/listado";
 import { ListaDenuncias, hrefDenuncias } from "@/components/denuncias/ListaDenuncias";
 import { getReportesPagina, type ApiReporte, type ReportesPagina } from "@/lib/api-client";
@@ -29,9 +29,9 @@ const CATEGORIAS_OBRA = new Set<string>(["obra_paralizada", "obra_fantasma", "fu
 const REGIONES_ORDENADAS = [...REGIONES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
 const BOTON_DENUNCIAR =
-  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
+  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
 const BOTON_SECUNDARIO =
-  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 // Sin tildes: NFD separa la letra de su marca diacrítica y la marca se quita.
@@ -177,6 +177,7 @@ export default async function DenunciasPage({
 
   return (
     <Pagina className="space-y-5">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Denuncias", href: "/app/denuncias" }]} />
       <EncabezadoPagina
         titulo="Denuncias ciudadanas"
         bajada="Testimonios de vecinos, no hallazgos de Vigía: obras paralizadas, obras fantasma e irregularidades, con foto y lugar."
@@ -228,7 +229,7 @@ export default async function DenunciasPage({
             </div>
             <div className="space-y-4">
             <section aria-labelledby="como-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-              <h2 id="como-denunciar" className="font-display text-[16px] font-bold text-ink">Cómo funciona una denuncia</h2>
+              <h2 id="como-denunciar" className="font-display text-bloque font-bold text-ink">Cómo funciona una denuncia</h2>
               <ol className="mt-3 space-y-3">
                 {[
                   { icono: <Camera size={16} />, titulo: "Foto y lugar", texto: "Se publica al instante, tal como llegó, en esta lista y en el mapa. Nadie la revisa antes." },
@@ -238,18 +239,18 @@ export default async function DenunciasPage({
                   <li key={p.titulo} className="flex items-start gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden>{p.icono}</span>
                     <span className="min-w-0">
-                      <span className="block text-[14.5px] font-semibold leading-snug text-ink"><span className="font-mono text-mute">{i + 1}.</span> {p.titulo}</span>
-                      <span className="mt-0.5 block text-[13px] leading-snug text-mute">{p.texto}</span>
+                      <span className="block text-dato font-semibold leading-snug text-ink"><span className="font-mono text-mute">{i + 1}.</span> {p.titulo}</span>
+                      <span className="mt-0.5 block text-meta leading-snug text-mute">{p.texto}</span>
                     </span>
                   </li>
                 ))}
               </ol>
-              <p className="mt-3 border-t border-line pt-3 text-[13px] leading-snug text-inkSoft">
+              <p className="mt-3 border-t border-line pt-3 text-meta leading-snug text-inkSoft">
                 Puedes denunciar sin tu nombre: no se publica tu DNI ni tu nombre. Entra al formulario con el botón de arriba.
               </p>
             </section>
               <section aria-labelledby="que-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-                <h2 id="que-denunciar" className="font-display text-[16px] font-bold text-ink">Qué se puede denunciar</h2>
+                <h2 id="que-denunciar" className="font-display text-bloque font-bold text-ink">Qué se puede denunciar</h2>
                 <ul className="mt-3 space-y-3">
                   {Array.from(CATEGORIAS_OBRA).map((c) => {
                     const m = CATEGORIA_META[c as CategoriaDenuncia];
@@ -258,8 +259,8 @@ export default async function DenunciasPage({
                       <li key={c} className="flex items-start gap-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden><Icono size={16} /></span>
                         <span className="min-w-0">
-                          <span className="block text-[14.5px] font-semibold leading-snug text-ink">{m.label}</span>
-                          <span className="mt-0.5 block text-[13px] leading-snug text-mute">{m.descripcion}</span>
+                          <span className="block text-dato font-semibold leading-snug text-ink">{m.label}</span>
+                          <span className="mt-0.5 block text-meta leading-snug text-mute">{m.descripcion}</span>
                         </span>
                       </li>
                     );
@@ -267,13 +268,13 @@ export default async function DenunciasPage({
                 </ul>
               </section>
               <section aria-labelledby="que-se-ve" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-                <h2 id="que-se-ve" className="font-display text-[16px] font-bold text-ink">Qué se ve en cada denuncia</h2>
+                <h2 id="que-se-ve" className="font-display text-bloque font-bold text-ink">Qué se ve en cada denuncia</h2>
                 <ul className="mt-2.5 flex flex-wrap gap-2">
                   {["Foto de la obra", "Lugar en el mapa", "Categoría", "Relato del vecino", "Si está confirmada"].map((t) => (
-                    <li key={t} className="rounded-full border border-line bg-paperSoft px-3 py-1 text-[13px] font-medium text-ink">{t}</li>
+                    <li key={t} className="rounded-full border border-line bg-paperSoft px-3 py-1 text-meta font-medium text-ink">{t}</li>
                   ))}
                 </ul>
-                <p className="mt-2.5 text-[13px] leading-snug text-mute">
+                <p className="mt-2.5 text-meta leading-snug text-mute">
                   No se publica el DNI ni el nombre de quien denuncia.
                 </p>
               </section>

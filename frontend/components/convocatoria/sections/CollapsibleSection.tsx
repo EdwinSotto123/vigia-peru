@@ -27,8 +27,8 @@ export function CollapsibleSection({
       <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-paperSoft [&::-webkit-details-marker]:hidden">
         {icon && <span className="shrink-0 text-mute">{icon}</span>}
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-ink">{title}</div>
-          {subtitle && <div className="text-[12px] text-mute">{subtitle}</div>}
+          <div className="text-dato leading-5 font-semibold text-ink">{title}</div>
+          {subtitle && <div className="text-rotulo text-mute">{subtitle}</div>}
         </div>
         <ChevronRight
           size={14}

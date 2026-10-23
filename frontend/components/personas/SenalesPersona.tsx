@@ -9,7 +9,7 @@ const MAX = 3;
  * y "+n"; un guion si no tiene ninguna. Como CrucesCelda en las listas de contratos.
  */
 export function SenalesCelda({ senales }: { senales: SenalResumen[] | null | undefined }) {
-  if (!senales?.length) return <span className="text-[12.5px] text-mute">—</span>;
+  if (!senales?.length) return <span className="text-meta text-mute">Ninguna</span>;
   const resto = senales.length - MAX;
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Lo que dicen otros registros de esta persona">

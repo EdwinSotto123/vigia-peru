@@ -33,11 +33,11 @@ export class SeccionSegura extends React.Component<Props, State> {
     // también falla, la atrapa este límite, como siempre.
     if (!this.state.error) return <React.Suspense fallback={null}>{this.props.children}</React.Suspense>;
     return (
-      <div role="alert" className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 text-[13px] text-inkSoft">
+      <div role="alert" className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 text-meta text-inkSoft">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink">No pudimos mostrar {this.props.nombre}.</p>
-          <p className="mt-0.5 text-[12px] text-mute">
+          <p className="mt-0.5 text-rotulo text-mute">
             El resto del dossier sigue disponible. Si vuelve a pasar, el dato llegó con una forma que esta vista todavía no
             sabe leer.
           </p>
@@ -45,7 +45,7 @@ export class SeccionSegura extends React.Component<Props, State> {
         <button
           type="button"
           onClick={() => this.setState({ error: null })}
-          className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-medium text-ink hover:bg-paperDeep"
+          className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-medium text-ink hover:bg-paperDeep"
         >
           <RotateCcw size={12} aria-hidden /> Reintentar
         </button>

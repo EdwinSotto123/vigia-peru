@@ -53,16 +53,16 @@ export function PedidosDescarga({ onChange }: { onChange: () => void }) {
       className: "max-w-md",
       celda: (p) => (
         <>
-          <span className="block font-mono text-xs text-ink">{p.ocid}</span>
-          <span className="block truncate text-[12px] text-mute" title={p.titulo ?? ""}>
+          <span className="block font-mono text-rotulo leading-4 text-ink">{p.ocid}</span>
+          <span className="block truncate text-rotulo text-mute" title={p.titulo ?? ""}>
             {p.titulo ?? "Sin título"}
           </span>
-          {p.error && <span className="block text-[11px] text-crimsonTexto">{p.error}</span>}
+          {p.error && <span className="block text-micro text-crimsonTexto">{p.error}</span>}
         </>
       ),
     },
     { clave: "estado", titulo: "Estado", celda: (p) => <Badge tono={PEDIDO_UI[p.estado].tono}>{PEDIDO_UI[p.estado].label}</Badge> },
-    { clave: "pedido", titulo: "Pedido", className: "whitespace-nowrap text-[12px] text-mute", celda: (p) => hace(p.solicitadoAt) ?? "Sin fecha" },
+    { clave: "pedido", titulo: "Pedido", className: "whitespace-nowrap text-rotulo text-mute", celda: (p) => hace(p.solicitadoAt) ?? "Sin fecha" },
     { clave: "intentos", titulo: "Intentos", alinear: "derecha", celda: (p) => p.intentos },
     {
       clave: "acciones",

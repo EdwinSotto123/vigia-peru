@@ -6,7 +6,7 @@ export function MapaEsqueleto() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-paperSoft" role="status">
       <Llamita caminando className="w-12 text-granate/70" />
-      <span className="text-sm text-mute">Cargando el mapa del Perú…</span>
+      <span className="text-dato leading-5 text-mute">Cargando el mapa del Perú…</span>
     </div>
   );
 }
@@ -20,7 +20,7 @@ export function ErrorMapa({ faltaArchivo }: { faltaArchivo: boolean }) {
         titulo="No pudimos dibujar el mapa"
         className="max-w-md"
         accion={
-          <a href="/app/contratos" className="text-sm font-semibold text-granate underline-offset-2 hover:underline">
+          <a href="/app/contratos" className="text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
             Ver los contratos en lista
           </a>
         }

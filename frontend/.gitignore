@@ -10,3 +10,6 @@ next-env.d.ts
 .open-next/
 .wrangler/
 .dev.vars*
+
+# Capturas e informes del recorrido visual (e2e/visual/recorrer.py)
+e2e/visual/salida/

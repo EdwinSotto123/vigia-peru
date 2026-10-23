@@ -53,7 +53,7 @@ export function useDialog(): Ctx {
 }
 
 // Los campos hundidos del sitio (DESIGN_SYSTEM.md §5): radio xl, fondo paperDeep, foco en lima.
-const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60";
+const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute focus:border-granate/60";
 
 export function DialogProvider({ children }: { children: React.ReactNode }) {
   const [spec, setSpec] = useState<DialogSpec | null>(null);
@@ -144,17 +144,17 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         {spec && (
           <div className="p-5">
             <div className="flex items-start justify-between gap-3">
-              <h3 id={idTitulo} className="font-display text-lg font-bold text-ink">{spec.title}</h3>
+              <h3 id={idTitulo} className="font-display text-bloque leading-7 font-bold text-ink">{spec.title}</h3>
               <button type="button" onClick={() => !busy && cerrar()} className="-mr-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink" aria-label="Cerrar"><X size={16} aria-hidden /></button>
             </div>
-            {spec.body && <div id={idCuerpo} className="mt-2 text-sm leading-relaxed text-inkSoft">{spec.body}</div>}
+            {spec.body && <div id={idCuerpo} className="mt-2 text-dato leading-relaxed text-inkSoft">{spec.body}</div>}
             {campos.map((f, i) => {
               const valor = values[f.name] ?? "";
               // Sólo el primero se enfoca al abrir (ver el efecto de arriba).
               const inicial = i === 0 ? "" : undefined;
               const cambiar = (v: string) => setValues((vs) => ({ ...vs, [f.name]: v }));
               return (
-                <label key={f.name} className="mt-3 block text-sm">
+                <label key={f.name} className="mt-3 block text-dato leading-5">
                   <span className="font-medium text-inkSoft">{f.label}{f.required && " *"}</span>
                   {f.type === "textarea" ? (
                     <textarea rows={3} value={valor} data-foco-inicial={inicial} onChange={(e) => cambiar(e.target.value)} placeholder={f.placeholder} required={f.required} className={CAMPO} />
@@ -165,11 +165,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                   ) : (
                     <input value={valor} data-foco-inicial={inicial} onChange={(e) => cambiar(e.target.value)} placeholder={f.placeholder} required={f.required} className={CAMPO} />
                   )}
-                  {f.hint && <span className="mt-1 block text-[11px] text-mute">{f.hint}</span>}
+                  {f.hint && <span className="mt-1 block text-micro text-mute">{f.hint}</span>}
                 </label>
               );
             })}
-            {error && <p role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-crimsonTexto"><AlertTriangle size={14} className="shrink-0" aria-hidden />{error}</p>}
+            {error && <p role="alert" className="mt-3 flex items-center gap-1.5 text-dato leading-5 text-crimsonTexto"><AlertTriangle size={14} className="shrink-0" aria-hidden />{error}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={cerrar} disabled={busy} className={claseBoton("secundario", "md")}>Cancelar</button>
               <button
@@ -177,7 +177,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                 onClick={confirm}
                 disabled={busy}
                 data-foco-inicial={campos.length ? undefined : ""}
-                className={cn("inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-5 text-sm font-semibold transition-colors duration-rapido active:translate-y-px disabled:opacity-60", toneBtn)}
+                className={cn("inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-5 text-dato leading-5 font-semibold transition-colors duration-rapido active:translate-y-px disabled:opacity-60", toneBtn)}
               >
                 {busy && <Loader2 size={14} className="animate-spin" aria-hidden />}{spec.confirmLabel ?? "Confirmar"}
               </button>
@@ -188,7 +188,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
       {/* Siempre montada: una región viva tiene que existir antes de que llegue el aviso. */}
       <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map((t) => (
-          <div key={t.id} className={cn("pointer-events-auto flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm shadow-pop", t.tone === "ok" ? "border-moss/35 bg-paperDeep text-ink" : "border-rust/40 bg-crimson-soft text-crimsonTexto")}>
+          <div key={t.id} className={cn("pointer-events-auto flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-dato leading-5 shadow-pop", t.tone === "ok" ? "border-moss/35 bg-paperDeep text-ink" : "border-rust/40 bg-crimson-soft text-crimsonTexto")}>
             {t.tone === "ok" ? <CheckCircle2 size={15} className="shrink-0 text-mossTexto" aria-hidden /> : <AlertTriangle size={15} className="shrink-0" aria-hidden />}{t.text}
           </div>
         ))}

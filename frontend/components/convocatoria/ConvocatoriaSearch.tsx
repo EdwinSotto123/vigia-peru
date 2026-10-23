@@ -79,7 +79,7 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
       {esAdmin && (
         <section aria-labelledby="despacho-titulo" className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
           <div className="flex items-center gap-1.5">
-            <h2 id="despacho-titulo" className="font-display text-[20px] font-bold leading-tight text-ink">
+            <h2 id="despacho-titulo" className="font-display text-seccion font-bold leading-tight text-ink">
               Analiza un contrato del SEACE
             </h2>
             <Ayuda titulo="¿Qué hace despachar?">
@@ -108,12 +108,12 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
                 placeholder="Código de convocatoria u OCID"
                 autoComplete="off"
                 inputMode="search"
-                className="h-12 w-full rounded-xl border border-line bg-paperSoft pl-11 pr-44 font-mono text-[15px] placeholder:font-sans placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+                className="h-12 w-full rounded-xl border border-line bg-paperSoft pl-11 pr-44 font-mono text-cuerpo placeholder:font-sans placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
               />
               <button
                 type="submit"
                 disabled={!id.trim()}
-                className="absolute right-1.5 top-1/2 inline-flex min-h-[40px] -translate-y-1/2 items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50"
+                className="absolute right-1.5 top-1/2 inline-flex min-h-[40px] -translate-y-1/2 items-center gap-2 rounded-full bg-granate px-4 py-2 text-dato leading-5 font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50"
               >
                 Despachar agentes <ArrowRight size={15} aria-hidden />
               </button>
@@ -121,7 +121,7 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
               {/* Autocompletado con los análisis ya publicados: abrir en vez de volver a pagar. */}
               {sugerencias.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-dialog">
-                  <p className="border-b border-line bg-paperSoft px-4 py-2 text-[12px] font-semibold text-inkSoft">
+                  <p className="border-b border-line bg-paperSoft px-4 py-2 text-rotulo font-semibold text-inkSoft">
                     {sugerencias.length === 1
                       ? "1 ya analizado: ábrelo sin volver a procesarlo"
                       : `${sugerencias.length} ya analizados: ábrelos sin volver a procesarlos`}
@@ -139,8 +139,8 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
                         >
                           <ChipNivel it={it} />
                           <span className="min-w-0">
-                            <span className="block truncate text-[13px] font-medium text-ink">{it.objeto}</span>
-                            <span className="block truncate text-[12px] text-mute">
+                            <span className="block truncate text-meta font-medium text-ink">{it.objeto}</span>
+                            <span className="block truncate text-rotulo text-mute">
                               <span className="font-mono">{codigoCorto(it.codigo_convocatoria || it.ocid)}</span> {it.entidad || "Entidad sin dato"}
                             </span>
                           </span>
@@ -162,7 +162,7 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
           </div>
 
           {d.error && (
-            <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[13px] text-crimsonTexto">
+            <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-meta text-crimsonTexto">
               <AlertTriangle size={14} aria-hidden className="mt-0.5 shrink-0" />
               <span>{d.error}</span>
             </div>

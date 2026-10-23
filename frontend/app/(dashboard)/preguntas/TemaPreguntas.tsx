@@ -39,14 +39,14 @@ export function TemaPreguntas({ tema }: { tema: TemaFAQ }) {
           <li key={p.slug}>
             <details id={p.slug} className="group/pregunta scroll-mt-20">
               <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft focus-visible:[outline-offset:-2px] sm:px-5 [&::-webkit-details-marker]:hidden">
-                <span className="font-display text-[16px] font-semibold leading-snug text-ink text-balance">{p.q}</span>
+                <span className="font-display text-bloque font-semibold leading-snug text-ink text-balance">{p.q}</span>
                 <ChevronDown
                   size={20}
                   aria-hidden
                   className="shrink-0 text-mute transition-transform duration-normal ease-salida group-open/pregunta:rotate-180"
                 />
               </summary>
-              <div className="max-w-[68ch] px-4 pb-4 text-[15px] leading-relaxed text-inkSoft text-pretty sm:px-5">{p.a}</div>
+              <div className="max-w-[68ch] px-4 pb-4 text-cuerpo leading-relaxed text-inkSoft text-pretty sm:px-5">{p.a}</div>
             </details>
           </li>
         ))}

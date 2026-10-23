@@ -14,6 +14,7 @@ import { TOTAL_FASES } from "@/lib/auditoria";
 import { plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { hayFiltrosSenales, type Senal, type SenalesQuery } from "@/lib/revision";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * El índice de señales sobre la plantilla Listado (§14.1): la `Tabla` compartida,
@@ -113,7 +114,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
       ),
       contenido: <SenalDetalle s={s} />,
       pie: (
-        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta">
           <Link href={rutaContrato(s.ocid, "dictamen")} className="font-medium text-granate hover:underline">
             Abrir el informe del contrato
           </Link>
@@ -133,7 +134,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
       <Tabla columnas={COLUMNAS_SENALES} filas={filas} etiqueta="Señales publicadas" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {contratosSinDetalle > 0 ? (
-          <p className="inline-flex items-center gap-1 text-[12.5px] text-mute">
+          <p className="inline-flex items-center gap-1 text-meta text-mute">
             {plural(contratosSinDetalle, "contrato ya no figura", "contratos ya no figuran")} en el OECE
             <Ayuda titulo="¿Qué pasa con esas señales?">
               Se listan igual, con la norma y la evidencia que se guardaron, pero sin saber qué agente las encontró:
@@ -149,9 +150,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
   );
 }
 
-/** La acción de un estado vacío o de error: un enlace con forma de píldora secundaria. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 
 export function ListaSenalesSkeleton() {
   return <TablaSkeleton columnas={COLUMNAS_SENALES} filas={10} />;

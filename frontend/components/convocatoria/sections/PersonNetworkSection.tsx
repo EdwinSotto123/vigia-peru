@@ -44,11 +44,11 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
         <h2 className="font-display text-xl font-bold text-ink">
           Personas clave y red empresarial
         </h2>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <p className="mt-0.5 text-rotulo text-mute">
           Quién está detrás del proveedor y con qué otras empresas se conecta
         </p>
         {sintesis && (
-          <p className="mt-2 text-sm leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>
+          <p className="mt-2 text-dato leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>
         )}
       </div>
 
@@ -62,20 +62,20 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
               <Users size={18} />
             </div>
             <div>
-              <div className="text-[12px] font-semibold text-ink">
+              <div className="text-rotulo font-semibold text-ink">
                 Persona principal
               </div>
-              <h3 className="font-display text-base font-bold text-ink">
+              <h3 className="font-display text-destacado leading-6 font-bold text-ink">
                 {hasGerente ? <PersonName name={p.nombre_completo} orden={ordenPersona} /> : "Gerente no identificado"}
               </h3>
               {p.cargo_actual && (
-                <p className="text-xs text-inkSoft">{p.cargo_actual}</p>
+                <p className="text-rotulo leading-4 text-inkSoft">{p.cargo_actual}</p>
               )}
             </div>
           </div>
 
           {!hasGerente && (
-            <p className="rounded-md bg-amber-soft px-3 py-2 text-[11px] text-amberTexto">
+            <p className="rounded-md bg-amber-soft px-3 py-2 text-micro text-amberTexto">
               {p.sintesis_personal
                 ? redactDnis(p.sintesis_personal)
                 : "No se pudo identificar al gerente ni al representante legal en las búsquedas realizadas."}
@@ -83,12 +83,12 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           )}
 
           {p.sintesis_personal && hasGerente && (
-            <p className="text-xs leading-relaxed text-inkSoft">{redactDnis(p.sintesis_personal)}</p>
+            <p className="text-rotulo leading-relaxed text-inkSoft">{redactDnis(p.sintesis_personal)}</p>
           )}
 
           {/* Identificadores */}
           {(p.dni || p.linkedin || p.datosperu_url) && (
-            <div className="flex flex-wrap gap-1.5 text-[11px]">
+            <div className="flex flex-wrap gap-1.5 text-micro">
               {p.dni && (
                 <span className="rounded-md bg-paperDeep px-2 py-0.5 font-mono text-mute">DNI <Dni value={p.dni} /></span>
               )}
@@ -110,15 +110,15 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Otros cargos actuales */}
           {otrosCargos.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold text-inkSoft">
+              <h4 className="text-rotulo font-semibold text-inkSoft">
                 Otros cargos actuales
               </h4>
               <ul className="mt-1 space-y-1">
                 {otrosCargos.map((c: any, i: number) => (
-                  <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-ink">
+                  <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-rotulo leading-4 text-ink">
                     <strong>{c.cargo}</strong>
                     {c.empresa && <span>en <RazonSocial ruc={c.ruc} nombre={c.empresa} /></span>}
-                    {c.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={c.ruc} /></span>}
+                    {c.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={c.ruc} /></span>}
                   </li>
                 ))}
               </ul>
@@ -128,12 +128,12 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Cargos pasados */}
           {cargosPasados.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold text-inkSoft">
+              <h4 className="text-rotulo font-semibold text-inkSoft">
                 Cargos pasados (públicos)
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {cargosPasados.map((c: any, i: number) => (
-                  <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5 text-xs">
+                  <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5 text-rotulo leading-4">
                     <div className="font-semibold text-ink">{c.cargo}</div>
                     <div className="flex flex-wrap gap-x-2 text-mute">
                       {c.institucion && <span>{c.institucion}</span>}
@@ -141,7 +141,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     </div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-micro text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -154,12 +154,12 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Candidaturas */}
           {candidaturas.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold text-rust">
+              <h4 className="text-rotulo font-semibold text-rust">
                 Candidaturas políticas
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {candidaturas.map((c: any, i: number) => (
-                  <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5 text-xs">
+                  <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5 text-rotulo leading-4">
                     <div className="font-semibold text-ink">
                       {c.cargo}{c.año ? ` (${c.año})` : ""}
                     </div>
@@ -169,7 +169,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     </div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-micro text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -182,18 +182,18 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Aportes ONPE */}
           {aportes.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold text-rust">
+              <h4 className="text-rotulo font-semibold text-rust">
                 Aportes a campañas (ONPE)
               </h4>
               <ul className="mt-1 space-y-1">
                 {aportes.map((a: any, i: number) => (
-                  <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink">
+                  <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-rotulo leading-4 text-ink">
                     {a.año && <strong>{a.año}</strong>}
                     {a.partido && <span>{a.partido}</span>}
                     {a.monto != null && <span className="font-mono tabular-nums">{montoDossier(a.monto)}</span>}
                     {a.fuente_url && (
                       <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                         className="inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
+                         className="inline-flex items-center gap-1 text-micro text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -206,12 +206,12 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Menciones prensa */}
           {menciones.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold text-inkSoft">
+              <h4 className="text-rotulo font-semibold text-inkSoft">
                 Menciones en prensa
               </h4>
               <ul className="mt-1 space-y-1">
                 {menciones.map((m: any, i: number) => (
-                  <li key={i} className="text-xs text-ink">
+                  <li key={i} className="text-rotulo leading-4 text-ink">
                     <a href={m.url} target="_blank" rel="noreferrer"
                        className="text-granate hover:underline">
                       {m.medio}{m.fecha ? `, ${fechaDossier(m.fecha, true)}` : ""}
@@ -231,14 +231,14 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
               <Network size={18} />
             </div>
             <div>
-              <div className="text-[12px] font-semibold text-ink">
+              <div className="text-rotulo font-semibold text-ink">
                 Red empresarial
               </div>
-              <h3 className="font-display text-base font-bold text-ink">
+              <h3 className="font-display text-destacado leading-6 font-bold text-ink">
                 Empresas vinculadas
               </h3>
               {red.observaciones && (
-                <p className="mt-0.5 text-[11px] text-inkSoft">{redactDnis(red.observaciones)}</p>
+                <p className="mt-0.5 text-micro text-inkSoft">{redactDnis(red.observaciones)}</p>
               )}
             </div>
           </div>
@@ -246,50 +246,50 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Empresas mismo titular */}
           {empresasMismoTitular.length > 0 ? (
             <div>
-              <h4 className="text-[12px] font-semibold text-inkSoft">
+              <h4 className="text-rotulo font-semibold text-inkSoft">
                 Mismo titular ({empresasMismoTitular.length})
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {empresasMismoTitular.map((e: any, i: number) => (
                   <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5">
                     <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={e.ruc} /></span>}
+                      {e.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={e.ruc} /></span>}
                       {e.rol_del_gerente && (
-                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[11px] text-amberTexto">
+                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-micro text-amberTexto">
                           {legible(e.rol_del_gerente)}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
+                    <div className="text-rotulo leading-4 font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            <p className="text-[11px] text-mute">No se detectaron empresas con el mismo titular.</p>
+            <p className="text-micro text-mute">No se detectaron empresas con el mismo titular.</p>
           )}
 
           {/* Empresas misma dirección */}
           {empresasMismaDir.length > 0 ? (
             <div>
-              <h4 className="text-[12px] font-semibold text-rust">
+              <h4 className="text-rotulo font-semibold text-rust">
                 Mismo domicilio fiscal ({empresasMismaDir.length})
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {empresasMismaDir.map((e: any, i: number) => (
                   <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5">
                     <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={e.ruc} /></span>}
+                      {e.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={e.ruc} /></span>}
                     </div>
-                    <div className="text-xs font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
-                    {e.direccion && <div className="text-[11px] text-mute">{e.direccion}</div>}
-                    {e.observacion && <div className="mt-0.5 text-[11px] italic text-rust">{redactDnis(e.observacion)}</div>}
+                    <div className="text-rotulo leading-4 font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
+                    {e.direccion && <div className="text-micro text-mute">{e.direccion}</div>}
+                    {e.observacion && <div className="mt-0.5 text-micro italic text-rust">{redactDnis(e.observacion)}</div>}
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            <p className="text-[11px] text-mute">No se detectaron empresas en el mismo domicilio fiscal.</p>
+            <p className="text-micro text-mute">No se detectaron empresas en el mismo domicilio fiscal.</p>
           )}
         </article>
       </div>
@@ -297,7 +297,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
       {/* BANDERAS DE RED */}
       {banderas.length > 0 && (
         <div className="border-t border-line bg-paperSoft px-5 py-4">
-          <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+          <h3 className="inline-flex items-center gap-1.5 text-cuerpo font-semibold text-ink">
             <ShieldAlert size={13} className="text-mute" aria-hidden />
             Señales en la red de personas ({banderas.length})
           </h3>
@@ -306,10 +306,10 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
               <li key={i} className="rounded-xl border border-line bg-paper px-3 py-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Severidad bandera={severidadDe(b)} />
-                  <strong className="text-sm text-ink">{redactDnis(b.titulo)}</strong>
+                  <strong className="text-dato leading-5 text-ink">{redactDnis(b.titulo)}</strong>
                 </div>
-                <p className="mt-1 text-xs text-inkSoft">{redactDnis(b.descripcion)}</p>
-                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1.5 text-[11px] text-inkSoft" />}
+                <p className="mt-1 text-rotulo leading-4 text-inkSoft">{redactDnis(b.descripcion)}</p>
+                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1.5 text-micro text-inkSoft" />}
               </li>
             ))}
           </ul>

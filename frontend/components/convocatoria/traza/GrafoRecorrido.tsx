@@ -175,7 +175,7 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
   };
   const grupo = (g: GrupoParalelo) => (
     <div data-nodo={`g-${g}`} className="relative rounded-2xl border border-dashed border-paperEdge bg-paperSoft/70 p-1 pt-6">
-      <span className="absolute left-2.5 top-1.5 text-[11px] font-medium text-mute">{recorrido.paralelo[g] ? "A la vez" : "Después, uno tras otro"}</span>
+      <span className="absolute left-2.5 top-1.5 text-micro font-medium text-mute">{recorrido.paralelo[g] ? "A la vez" : "Después, uno tras otro"}</span>
       <div className="grid grid-cols-2 gap-1 [@container(min-width:44rem)]:flex">
         {GRUPOS_PARALELOS[g].map((k) => tarjeta(k, "[@container(min-width:44rem)]:flex-1"))}
       </div>
@@ -184,7 +184,7 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
   /** Una rama: en la vista angosta lleva su nombre arriba (en la ancha lo dicen las columnas). */
   const rama = (titulo: string, children: ReactNode) => (
     <div className="flex min-w-0 flex-col gap-8">
-      <span className="-mb-6 text-[12px] font-semibold text-inkSoft [@container(min-width:44rem)]:hidden">Rama: {titulo}</span>
+      <span className="-mb-6 text-rotulo font-semibold text-inkSoft [@container(min-width:44rem)]:hidden">Rama: {titulo}</span>
       {children}
     </div>
   );
@@ -224,7 +224,7 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
 
           <div className="relative">
             <Etiqueta className="-top-6 hidden [@container(min-width:44rem)]:block">{recorrido.paralelo.ramas ? "Tres ramas a la vez" : "Tres ramas"}</Etiqueta>
-            <span className="-mt-4 mb-4 block pl-6 text-[11px] font-medium text-mute [@container(min-width:44rem)]:hidden">
+            <span className="-mt-4 mb-4 block pl-6 text-micro font-medium text-mute [@container(min-width:44rem)]:hidden">
               {recorrido.paralelo.ramas ? "Tres ramas a la vez" : "Tres ramas"}
             </span>
             <div className="grid gap-8 pl-6 [@container(min-width:44rem)]:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)_minmax(0,3.2fr)] [@container(min-width:44rem)]:items-start [@container(min-width:44rem)]:gap-3 [@container(min-width:44rem)]:pl-0">
@@ -260,7 +260,7 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
         </div>
       </div>
 
-      <figcaption className="mt-4 border-t border-line pt-3 text-[12px] text-mute">
+      <figcaption className="mt-4 border-t border-line pt-3 text-rotulo text-mute">
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <Leyenda icono={<Bot size={12} aria-hidden />}>Agente de IA</Leyenda>
           <Leyenda icono={<Cog size={12} aria-hidden />}>Código del coordinador, sin IA</Leyenda>
@@ -281,7 +281,7 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
 
 function Etiqueta({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn("pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap bg-paper px-2 text-[11px] font-medium text-mute", className)}>
+    <span className={cn("pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap bg-paper px-2 text-micro font-medium text-mute", className)}>
       {children}
     </span>
   );
@@ -338,9 +338,9 @@ function NodoGrafo({
     >
       <span className="flex min-w-0 items-start gap-1.5">
         <Icono size={13} className={cn("mt-px shrink-0", tenue ? "text-mute" : "text-inkSoft")} aria-hidden />
-        <span className={cn("min-w-0 hyphens-auto text-[12.5px] font-semibold leading-tight", tenue ? "text-mute" : "text-ink")}>{nodo.nombre}</span>
+        <span className={cn("min-w-0 hyphens-auto text-meta font-semibold leading-tight", tenue ? "text-mute" : "text-ink")}>{nodo.nombre}</span>
       </span>
-      <span className={cn("mt-1 line-clamp-3 text-[12px] leading-snug", tenue ? "text-mute" : "text-inkSoft")}>
+      <span className={cn("mt-1 line-clamp-3 text-rotulo leading-snug", tenue ? "text-mute" : "text-inkSoft")}>
         <TextoSeguro texto={resumen} plano />
       </span>
       <CifrasNodo nodo={nodo} className="mt-auto pt-1.5" />

@@ -35,7 +35,7 @@ export function EstadoAuditoria({
 
   if (!data) {
     return fallo ? (
-      <p className="inline-flex items-center gap-1.5 rounded-xl bg-crimson-soft/60 px-3 py-2 text-[13px] text-crimsonTexto">
+      <p className="inline-flex items-center gap-1.5 rounded-xl bg-crimson-soft/60 px-3 py-2 text-meta text-crimsonTexto">
         <WifiOff size={13} aria-hidden /> No pudimos leer el estado de la auditoría; se vuelve a intentar solo.
       </p>
     ) : (
@@ -85,13 +85,13 @@ export function EstadoAuditoria({
   return (
     <section aria-label="Estado de la auditoría" className="space-y-2.5">
       {c.financiados === 0 ? (
-        <p className="text-[13px] text-mute">Todavía no hay ningún contrato financiado {alcance}.</p>
+        <p className="text-meta text-mute">Todavía no hay ningún contrato financiado {alcance}.</p>
       ) : (
         <Indicadores items={items} pie={<Avance c={c} />} />
       )}
 
       {/* Ahora: una línea. Lo que ya dicen las cifras no se repite. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-paperSoft px-3 py-2 text-[13px] text-inkSoft">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-paperSoft px-3 py-2 text-meta text-inkSoft">
         <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
           {c.procesando > 0 ? <PulseDot color="amber" size={7} /> : <span className="h-[7px] w-[7px] rounded-full bg-paperEdge" aria-hidden />}
           Ahora
@@ -127,7 +127,7 @@ function Avance({ c }: { c: CuentasAuditoria }) {
     { clave: "espera", n: c.enEspera, color: "bg-mute", label: "en espera" },
   ].filter((t) => t.n > 0);
   return (
-    <div className="flex items-center gap-3 text-[12.5px]">
+    <div className="flex items-center gap-3 text-meta">
       <span className="inline-flex shrink-0 items-center gap-1 text-mute">
         Avance
         <Ayuda titulo="¿Qué es cada etapa?" ancho="w-[22rem]">

@@ -34,6 +34,7 @@ export async function InicioEntidad({
   const totalGasto = (gasto?.funciones ?? []).reduce((s, f) => s + f.pim, 0);
   const devengado = (gasto?.funciones ?? []).reduce((s, f) => s + f.devengado, 0);
   const l = resumen?.porLectura;
+  const hayGasto = !!gasto && totalGasto > 0;
 
   const datosContratos: DatoClave[] = [
     { etiqueta: "Desde 2015", valor: plural(totalContratos, "contrato", "contratos") },
@@ -67,9 +68,10 @@ export async function InicioEntidad({
             (devengado). {gasto?.cruce === "pliego" ? "Es el de todo el gobierno regional, no sólo esta sede." : ""}
           </Ayuda>
         }
-        enlace={{ href: `${ruta}?seccion=presupuesto`, texto: "Todo el presupuesto" }}
+        enlace={hayGasto ? { href: `${ruta}?seccion=presupuesto`, texto: "Todo el presupuesto" } : undefined}
+        className={hayGasto ? undefined : "lg:self-start"}
       >
-        {gasto && totalGasto > 0 ? (
+        {gasto && hayGasto ? (
           <div className="space-y-4">
             <Indicadores
               items={[
@@ -80,7 +82,7 @@ export async function InicioEntidad({
             <BarrasGasto rubros={gasto.funciones} total={totalGasto} />
           </div>
         ) : (
-          <SinDato>Sin dato del MEF para esta entidad.</SinDato>
+          <SinDato>Vigía no encontró su presupuesto en el MEF (Consulta Amigable).</SinDato>
         )}
       </BloqueInicio>
 

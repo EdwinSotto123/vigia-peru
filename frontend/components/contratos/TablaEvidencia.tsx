@@ -52,7 +52,7 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
             }}
           />
           {q && (
-            <span className="text-[13px] tabular-nums text-mute" aria-live="polite">
+            <span className="text-meta tabular-nums text-mute" aria-live="polite">
               {numero(vistas.length)} de {numero(filas.length)}
             </span>
           )}
@@ -65,8 +65,8 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
           {control}
           {/* Escritorio: tabla. */}
           <div className="hidden overflow-x-auto rounded-lg border border-line bg-paper sm:block">
-            <table className="w-full text-left text-[12.5px]">
-              <thead className="bg-paperDeep/60 text-[11.5px] text-mute">
+            <table className="w-full text-left text-meta">
+              <thead className="bg-paperDeep/60 text-rotulo text-mute">
                 <tr>
                   {columnas.map((col) => (
                     <th key={col.clave} scope="col" className={`px-3 py-1.5 font-medium ${col.tipo === "soles" || col.tipo === "pct" ? "text-right" : ""}`}>
@@ -96,7 +96,7 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
           <ul className="space-y-2 sm:hidden">
             {pagina_.map((f, i) => (
               <li key={i} className={`rounded-lg border border-line bg-paper px-3 py-2 ${f.posterior ? "opacity-55" : ""}`}>
-                <dl className="space-y-1 text-[12.5px]">
+                <dl className="space-y-1 text-meta">
                   {columnas.map((col) => (
                     <div key={col.clave} className="flex items-baseline justify-between gap-3">
                       <dt className="shrink-0 text-mute">{col.titulo}</dt>
@@ -127,7 +127,7 @@ function textoDe(tipo: EvidenciaCruce["columnas"][number]["tipo"], valor: unknow
 
 /** Junto a la fecha de un registro posterior a la convocatoria: no era un antecedente cuando se adjudicó. */
 function MarcaDespues() {
-  return <span className="ml-1.5 whitespace-nowrap rounded bg-paperDeep px-1.5 py-px text-[10.5px] font-medium text-inkSoft">después</span>;
+  return <span className="ml-1.5 whitespace-nowrap rounded bg-paperDeep px-1.5 py-px text-micro font-medium text-inkSoft">después</span>;
 }
 
 /** Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. */

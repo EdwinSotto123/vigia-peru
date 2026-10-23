@@ -57,14 +57,14 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
           {compromisos.map(({ Icono, t, d, href }) => (
             <li key={t} className="border-t border-line pt-5">
               <Icono size={20} className="text-granate" aria-hidden />
-              <h3 className="mt-3 font-display text-lg font-bold text-ink">{t}</h3>
-              <p className="mt-1.5 text-[15px] leading-relaxed text-inkSoft">{d}</p>
+              <h3 className="mt-3 font-display text-bloque leading-7 font-bold text-ink">{t}</h3>
+              <p className="mt-1.5 text-cuerpo leading-relaxed text-inkSoft">{d}</p>
               {href && (
                 <a
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex min-h-11 sm:min-h-8 items-center gap-1 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
+                  className="mt-2 inline-flex min-h-11 sm:min-h-8 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
                 >
                   Ver el código <ArrowUpRight size={13} aria-hidden />
                   <span className="sr-only">(se abre en una pestaña nueva)</span>

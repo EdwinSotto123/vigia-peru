@@ -58,7 +58,7 @@ export function SelloVerificada({ verificada, className }: { verificada: boolean
       trigger={
         <span
           className={cn(
-            "pill border text-[11px] font-medium hover:brightness-95",
+            "pill border text-micro font-medium hover:brightness-95",
             s.clase,
           )}
         >
@@ -81,7 +81,7 @@ export function SelloVerificada({ verificada, className }: { verificada: boolean
 export function LeyendaCotejo({ verificadas, conCotejo, total }: { verificadas: number; conCotejo: number; total: number }) {
   if (conCotejo === 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-[13px] text-mute">
+      <span className="inline-flex items-center gap-1 text-meta text-mute">
         <ShieldQuestion size={13} className="shrink-0" aria-hidden />
         Sin cotejo registrado
         <Ayuda titulo="¿Por qué sin cotejo?">
@@ -92,7 +92,7 @@ export function LeyendaCotejo({ verificadas, conCotejo, total }: { verificadas: 
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] text-inkSoft">
+    <span className="inline-flex items-center gap-1 text-meta text-inkSoft">
       <ShieldCheck size={13} className="shrink-0 text-mossTexto" aria-hidden />
       <span className="tabular-nums">
         <strong className="font-semibold text-ink">{verificadas}</strong> de {total} cotejadas

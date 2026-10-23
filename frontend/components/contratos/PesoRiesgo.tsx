@@ -58,7 +58,7 @@ export function PesoRiesgo({
 
   if (formato === "linea") {
     return (
-      <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-[12px] font-medium", s.texto, className)}>
+      <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-rotulo font-medium", s.texto, className)}>
         <Icono size={13} className="shrink-0" aria-hidden />
         <span className="truncate">{s.etiqueta}</span>
       </span>

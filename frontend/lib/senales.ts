@@ -156,10 +156,10 @@ function aSenal(r: Crudo, i: number, cat: CatalogoReglas): Senal {
     citas,
     ocid,
     alertaCodigo,
-    objeto: txt(r.objeto, conv?.objeto, alerta?.objeto) ?? "—",
-    entidad: txt(typeof r.entidad === "string" ? r.entidad : null, ent?.nombre, r.entidadNombre) ?? "—",
+    objeto: txt(r.objeto, conv?.objeto, alerta?.objeto) ?? "Sin dato",
+    entidad: txt(typeof r.entidad === "string" ? r.entidad : null, ent?.nombre, r.entidadNombre) ?? "Sin dato",
     rucEntidad: txt(r.rucEntidad, r.entidadRuc, r.entidad_ruc, ent?.ruc) ?? "",
-    proveedor: proveedor ?? "—",
+    proveedor: proveedor ?? "Sin dato",
     rucProveedor,
     // Los nombres privados se calculan acá, en el servidor, y cruzan como datos planos al
     // vidrio del cliente (components/alertas/Protegido.tsx): la política no cambia.

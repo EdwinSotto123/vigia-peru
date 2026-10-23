@@ -119,7 +119,7 @@ function paramsCortos(p: Record<string, unknown> | null | undefined): string {
   if (p.seco) partes.push("en seco");
   if (p.forzar) partes.push("forzada");
   if (p.paso) partes.push(`paso ${p.paso}`);
-  return partes.join(" · ");
+  return partes.join(", ");
 }
 
 /** El resumen que devolvió la fuente: sus números en una línea, sin listas largas. */
@@ -133,12 +133,12 @@ function resumenCorto(r: unknown): string {
     if (typeof v === "number") out.push(`${k} ${fmtNum(v)}`);
     else if (v && typeof v === "object" && typeof (v as Record<string, unknown>).convocatorias === "number") out.push(`cargadas ${fmtNum((v as Record<string, number>).convocatorias)}`);
   }
-  return out.slice(0, 4).join(" · ");
+  return out.slice(0, 4).join(", ");
 }
 
 function Json({ valor }: { valor: unknown }) {
   return (
-    <pre className="max-h-80 overflow-auto rounded-lg bg-paperDeep px-3 py-2 font-mono text-[11.5px] leading-relaxed text-inkSoft">
+    <pre className="max-h-80 overflow-auto rounded-lg bg-paperDeep px-3 py-2 font-mono text-rotulo leading-relaxed text-inkSoft">
       {JSON.stringify(valor, null, 2)}
     </pre>
   );
@@ -168,18 +168,18 @@ export default function FuentesPage() {
       celda: (a) => (
         <span>
           <span className="block font-medium text-ink">{a.nombre}</span>
-          <span className="block font-mono text-[11px] text-mute">{a.fuente}{a.lanza?.length ? ` → ${a.lanza.join(", ")}` : ""}</span>
+          <span className="block font-mono text-micro text-mute">{a.fuente}{a.lanza?.length ? ` → ${a.lanza.join(", ")}` : ""}</span>
         </span>
       ),
     },
-    { clave: "agenda", titulo: "Cuándo corre", className: "whitespace-nowrap text-[12px] text-inkSoft", celda: (a) => a.agenda },
+    { clave: "agenda", titulo: "Cuándo corre", className: "whitespace-nowrap text-rotulo text-inkSoft", celda: (a) => a.agenda },
     {
       clave: "ultima",
       titulo: "Última corrida",
       celda: (a) => (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <EstadoBadge e={a.ultima?.estado} />
-          {a.ultima?.inicio && <span className="text-[12px] text-mute">{hace(a.ultima.inicio)}{a.ultima.segundos != null ? ` · ${duracion(a.ultima.segundos)}` : ""}</span>}
+          {a.ultima?.inicio && <span className="text-rotulo text-mute">{hace(a.ultima.inicio)}{a.ultima.segundos != null ? `, ${duracion(a.ultima.segundos)}` : ""}</span>}
         </span>
       ),
     },
@@ -189,15 +189,15 @@ export default function FuentesPage() {
       alinear: "derecha",
       celda: (a) =>
         a.ultima ? (
-          <span className="text-[12px]">
+          <span className="text-rotulo">
             <span className="font-mono text-ink">{fmtNum(a.ultima.ok30 ?? 0)}</span> bien
-            {a.ultima.error30 ? <span className="text-crimsonTexto"> · {fmtNum(a.ultima.error30)} fallaron</span> : null}
+            {a.ultima.error30 ? <span className="text-crimsonTexto">, {fmtNum(a.ultima.error30)} fallaron</span> : null}
           </span>
         ) : (
-          <span className="text-[12px] text-mute">—</span>
+          <span className="text-rotulo text-mute">—</span>
         ),
     },
-    { clave: "que", titulo: "Qué hace", soloEscritorio: true, className: "max-w-md text-[12px] text-inkSoft", celda: (a) => a.que },
+    { clave: "que", titulo: "Qué hace", soloEscritorio: true, className: "max-w-md text-rotulo text-inkSoft", celda: (a) => a.que },
   ];
 
   const colCorridas: Columna<Corrida>[] = [
@@ -208,18 +208,18 @@ export default function FuentesPage() {
       celda: (c) => (
         <span>
           <span className="block font-medium text-ink">{c.fuente}</span>
-          <span className="block text-[11px] text-mute">{fmtFechaHora(c.inicio)} · {c.origen === "manual" ? "a mano" : c.origen ?? "sin origen"}</span>
+          <span className="block text-micro text-mute">{fmtFechaHora(c.inicio)}, {c.origen === "manual" ? "a mano" : c.origen ?? "sin origen"}</span>
         </span>
       ),
     },
-    { clave: "params", titulo: "Parámetros", className: "text-[12px] text-inkSoft", celda: (c) => paramsCortos(c.params) || <span className="text-mute">—</span> },
+    { clave: "params", titulo: "Parámetros", className: "text-rotulo text-inkSoft", celda: (c) => paramsCortos(c.params) || <span className="text-mute">—</span> },
     { clave: "estado", titulo: "Estado", celda: (c) => <EstadoBadge e={c.estado} /> },
-    { clave: "dur", titulo: "Duración", alinear: "derecha", className: "whitespace-nowrap text-[12px]", celda: (c) => duracion(c.segundos) ?? (c.estado === "corriendo" ? hace(c.inicio) : "—") },
+    { clave: "dur", titulo: "Duración", alinear: "derecha", className: "whitespace-nowrap text-rotulo", celda: (c) => duracion(c.segundos) ?? (c.estado === "corriendo" ? hace(c.inicio) : "—") },
     {
       clave: "res",
       titulo: "Resultado",
       soloEscritorio: true,
-      className: "max-w-sm text-[12px] text-inkSoft",
+      className: "max-w-sm text-rotulo text-inkSoft",
       celda: (c) => (c.error ? <span className="text-crimsonTexto">{c.error.slice(0, 120)}</span> : resumenCorto(c.resumen) || "—"),
     },
   ];
@@ -234,7 +234,7 @@ export default function FuentesPage() {
       clave: "ganador",
       titulo: "Con ganador",
       alinear: "derecha",
-      celda: (a) => <span className="font-mono">{fmtNum(a.conGanador ?? 0)} <span className="font-sans text-[11px] text-mute">({pct(a.conGanador ?? 0, a.contratos)} %)</span></span>,
+      celda: (a) => <span className="font-mono">{fmtNum(a.conGanador ?? 0)} <span className="font-sans text-micro text-mute">({pct(a.conGanador ?? 0, a.contratos)} %)</span></span>,
     },
     {
       clave: "procesos",
@@ -242,7 +242,7 @@ export default function FuentesPage() {
       alinear: "derecha",
       celda: (a) => {
         const p = procesosPorAnio.get(a.anio!);
-        return p ? <span title={`según ${p.fuente}`}>{fmtNum(p.procesos)} <span className="text-[11px] text-mute">{p.fuente}</span></span> : "—";
+        return p ? <span title={`según ${p.fuente}`}>{fmtNum(p.procesos)} <span className="text-micro text-mute">{p.fuente}</span></span> : "—";
       },
     },
     { clave: "cola", titulo: "En la cola", alinear: "derecha", celda: (a) => fmtNum(a.enCola) },
@@ -252,19 +252,19 @@ export default function FuentesPage() {
   const pedidos = d?.documentos.pedidos ?? [];
   const contar = (estado: string) => pedidos.filter((p) => p.estado === estado).reduce((s, p) => s + p.n, 0);
   const colLotes: Columna<Lote>[] = [
-    { clave: "lote", titulo: "Corrida de documentos", principal: true, celda: (l) => <span className="text-[12px] text-ink">{fmtFechaHora(l.iniciadoAt) ?? l.id}</span> },
+    { clave: "lote", titulo: "Corrida de documentos", principal: true, celda: (l) => <span className="text-rotulo text-ink">{fmtFechaHora(l.iniciadoAt) ?? l.id}</span> },
     {
       clave: "res",
       titulo: "Contratos",
       celda: (l) => (
-        <span className="text-[12px] text-inkSoft">
+        <span className="text-rotulo text-inkSoft">
           <span className="font-mono text-ink">{fmtNum(l.ok)}</span> de {fmtNum(l.total)}
           {l.fallidos ? <span className="text-crimsonTexto">, {fmtNum(l.fallidos)} sin bajar</span> : null}
         </span>
       ),
     },
     { clave: "estado", titulo: "Estado", celda: (l) => { const e = estadoLote(l.estado); return <Badge tono={e.tono}>{e.label}</Badge>; } },
-    { clave: "err", titulo: "Detalle", soloEscritorio: true, className: "text-[12px] text-mute", celda: (l) => l.error ?? "—" },
+    { clave: "err", titulo: "Detalle", soloEscritorio: true, className: "text-rotulo text-mute", celda: (l) => l.error ?? "—" },
   ];
 
   return (
@@ -295,7 +295,7 @@ export default function FuentesPage() {
         <PageSection
           titulo="Corridas"
           descripcion="Las últimas 150, de la bitácora corridas_fuente. Toca una para ver sus parámetros, lo que devolvió o el error."
-          meta={d ? `${fmtNum(d.corridas.length)} corridas${conError ? ` · ${conError} fallaron` : ""}` : undefined}
+          meta={d ? `${fmtNum(d.corridas.length)} corridas${conError ? `, ${conError} fallaron` : ""}` : undefined}
         >
           {d?.sinBitacora && <EmptyState titulo="Sin bitácora" descripcion="La base todavía no tiene corridas_fuente (migración 74)." />}
           {d && !d.sinBitacora && (
@@ -321,7 +321,7 @@ export default function FuentesPage() {
                 vacio={<EmptyState titulo="Ninguna corrida con ese estado" />}
               />
               {paginas > 1 && (
-                <nav aria-label="Páginas de corridas" className="flex items-center justify-end gap-2 text-[12px] text-mute">
+                <nav aria-label="Páginas de corridas" className="flex items-center justify-end gap-2 text-rotulo text-mute">
                   <span className="font-mono tabular-nums">
                     {fmtNum((actual - 1) * POR_PAGINA + 1)}–{fmtNum(Math.min(actual * POR_PAGINA, corridas.length))} de {fmtNum(corridas.length)}
                   </span>
@@ -337,7 +337,7 @@ export default function FuentesPage() {
               {detalle && (
                 <Card>
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="text-sm font-semibold text-ink">{detalle.fuente}</p>
+                    <p className="text-dato leading-5 font-semibold text-ink">{detalle.fuente}</p>
                     <EstadoBadge e={detalle.estado} />
                   </div>
                   <KeyValue
@@ -352,10 +352,10 @@ export default function FuentesPage() {
                       { etiqueta: "Parámetros", valor: paramsCortos(detalle.params) || "los de su agenda" },
                     ]}
                   />
-                  {detalle.error && <p className="mt-3 rounded-lg bg-crimson/10 px-3 py-2 text-[13px] text-crimsonTexto">{detalle.error}</p>}
+                  {detalle.error && <p className="mt-3 rounded-lg bg-crimson/10 px-3 py-2 text-meta text-crimsonTexto">{detalle.error}</p>}
                   {detalle.resumen != null && (
                     <div className="mt-3">
-                      <p className="mb-1 text-[11px] font-medium text-mute">Lo que devolvió</p>
+                      <p className="mb-1 text-micro font-medium text-mute">Lo que devolvió</p>
                       <Json valor={detalle.resumen} />
                     </div>
                   )}
@@ -374,16 +374,16 @@ export default function FuentesPage() {
           ) : (
             <div className="space-y-3">
               <StatGrid columnas={4}>
-                <StatCard etiqueta="Documentos en el almacén" valor={fmtNum(d.documentos.almacen?.vigentes) ?? "—"} pista={`${fmtBytes(d.documentos.almacen?.bytes) ?? "sin dato"} · vencen a los 90 días`} />
+                <StatCard etiqueta="Documentos en el almacén" valor={fmtNum(d.documentos.almacen?.vigentes) ?? "—"} pista={`${fmtBytes(d.documentos.almacen?.bytes) ?? "sin dato"}, vencen a los 90 días`} />
                 <StatCard etiqueta="Contratos con documentos" valor={fmtNum(d.documentos.almacen?.contratos) ?? "—"} tono="ok" />
                 <StatCard etiqueta="Esperan su descarga" valor={fmtNum(contar("pendiente") + contar("descargando")) ?? "0"} tono={contar("pendiente") + contar("descargando") ? "pending" : "neutral"} pista="pedidos de financiados abiertos" />
                 <StatCard etiqueta="No se pudieron bajar" valor={fmtNum(contar("fallido")) ?? "0"} tono={contar("fallido") ? "danger" : "neutral"} pista="tras 3 intentos" href="/admin/procesamientos" />
               </StatGrid>
               {pedidos.length > 0 && (
-                <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-inkSoft">
+                <ul className="flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-inkSoft">
                   {pedidos.map((p) => (
                     <li key={`${p.estado}-${p.motivo}`}>
-                      <span className="font-mono text-ink">{fmtNum(p.n)}</span> {p.estado} · {MOTIVO[p.motivo] ?? p.motivo}
+                      <span className="font-mono text-ink">{fmtNum(p.n)}</span> {p.estado}, {MOTIVO[p.motivo] ?? p.motivo}
                     </li>
                   ))}
                 </ul>
@@ -420,20 +420,20 @@ export default function FuentesPage() {
 
         <PageSection titulo="Vistas derivadas" descripcion="Las vistas del mapa, el financiamiento y los contratos se refrescan solas cada 10 minutos cuando hay cambios.">
           {d && (
-            <ul className="divide-y divide-line rounded-xl border border-line bg-paper text-[13px]">
+            <ul className="divide-y divide-line rounded-xl border border-line bg-paper text-meta">
               {d.derivados.map((v) => (
                 <li key={v.nombre} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2">
                   <span className="text-ink">{NOMBRE_DERIVADO[v.nombre] ?? v.nombre}</span>
-                  <span className="text-[12px] text-mute">
+                  <span className="text-rotulo text-mute">
                     {hace(v.refrescadoAt) ?? "nunca"}
-                    {v.duracionMs != null ? ` · ${(v.duracionMs / 1000).toFixed(1)} s` : ""} · {fmtNum(v.refrescos)} refrescos
+                    {v.duracionMs != null ? `, ${(v.duracionMs / 1000).toFixed(1)} s` : ""}, {fmtNum(v.refrescos)} refrescos
                   </span>
                 </li>
               ))}
             </ul>
           )}
           {d && (
-            <p className="mt-2 text-[11.5px] text-mute">
+            <p className="mt-2 text-rotulo text-mute">
               Actualizado {fmtFechaHora(d.generadoAt)}. Las cargas de cada fuente externa (filas, último archivo) están en{" "}
               <Link href="/admin/cobertura" className="underline underline-offset-2">Cobertura</Link>.
             </p>

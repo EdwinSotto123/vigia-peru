@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Info } from "lucide-react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
@@ -22,6 +22,7 @@ export function BloqueInicio({
   ayuda,
   enlace,
   ancho = false,
+  className,
   children,
 }: {
   titulo: string;
@@ -29,17 +30,19 @@ export function BloqueInicio({
   enlace?: { href: string; texto: string };
   /** Ocupa las dos columnas de la rejilla. */
   ancho?: boolean;
+  /** Un bloque sin dato va con `lg:self-start`: no se estira al alto del vecino (una tarjeta grande y vacía). */
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className={`min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5${ancho ? " lg:col-span-2" : ""}`}>
+    <section className={`min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5${ancho ? " lg:col-span-2" : ""}${className ? ` ${className}` : ""}`}>
       <header className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        <h3 className="flex items-center gap-1.5 font-display text-bloque font-bold text-ink">
           {titulo}
           {ayuda}
         </h3>
         {enlace && (
-          <Link href={enlace.href} prefetch={false} className="inline-flex min-h-8 shrink-0 items-center gap-0.5 text-[13px] font-semibold text-granate underline-offset-4 hover:underline">
+          <Link href={enlace.href} prefetch={false} className="inline-flex min-h-8 shrink-0 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
             {enlace.texto} <ChevronRight size={14} aria-hidden />
           </Link>
         )}
@@ -51,7 +54,13 @@ export function BloqueInicio({
 
 /** Texto en gris cuando no hay dato: nunca un 0 inventado. */
 export function SinDato({ children }: { children: ReactNode }) {
-  return <p className="text-[13.5px] text-mute">{children}</p>;
+  // Un estado, no un párrafo suelto: una línea en su caja suave, con su ícono.
+  return (
+    <p className="flex items-start gap-2 rounded-xl bg-paperSoft px-3 py-2.5 text-dato text-mute">
+      <Info size={15} className="mt-0.5 shrink-0" aria-hidden />
+      <span className="min-w-0">{children}</span>
+    </p>
+  );
 }
 
 export interface RubroGasto {
@@ -73,7 +82,7 @@ export function BarrasGasto({ rubros, total, maximo = 5 }: { rubros: RubroGasto[
         const gastado = r.pim > 0 ? (r.devengado / r.pim) * 100 : 0;
         return (
           <li key={r.nombre}>
-            <div className="flex items-baseline justify-between gap-3 text-[13.5px]">
+            <div className="flex items-baseline justify-between gap-3 text-dato">
               <span className="min-w-0 truncate text-ink" title={r.nombre}>{tituloNatural(r.nombre)}</span>
               <span className="shrink-0 font-mono tabular-nums text-inkSoft">{solesCompacto(r.pim)}</span>
             </div>
@@ -86,7 +95,7 @@ export function BarrasGasto({ rubros, total, maximo = 5 }: { rubros: RubroGasto[
                 <div className="h-full rounded-full bg-granate" style={{ width: `${Math.min(100, gastado)}%` }} />
               </div>
             </div>
-            <dl className="mt-1 flex flex-wrap gap-x-5 text-[12px]">
+            <dl className="mt-1 flex flex-wrap gap-x-5 text-rotulo">
               <div className="flex gap-1">
                 <dt className="text-mute">Gastado</dt>
                 <dd className="font-mono tabular-nums text-ink">{porcentaje(gastado)}</dd>
@@ -111,10 +120,10 @@ export function ListaConteos({ filas }: { filas: { etiqueta: string; n: number; 
         const cuerpo = (
           <>
             <span className="min-w-0">
-              <span className={`block truncate text-[13.5px] ${f.grave ? "font-semibold text-ink" : "text-ink"}`}>{f.etiqueta}</span>
-              {f.detalle && <span className="block truncate text-[12px] text-mute">{f.detalle}</span>}
+              <span className={`block truncate text-dato ${f.grave ? "font-semibold text-ink" : "text-ink"}`}>{f.etiqueta}</span>
+              {f.detalle && <span className="block truncate text-rotulo text-mute">{f.detalle}</span>}
             </span>
-            <span className="shrink-0 font-mono text-[13.5px] tabular-nums text-ink">{numero(f.n)}</span>
+            <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(f.n)}</span>
           </>
         );
         return (
@@ -179,14 +188,14 @@ export function BarrasMonto({ items, maximo = 6 }: { items: { nombre: string; mo
       {lista.map((i) => {
         const fila = (
           <>
-            <span className="flex items-baseline justify-between gap-3 text-[13.5px]">
+            <span className="flex items-baseline justify-between gap-3 text-dato">
               <span className="min-w-0 truncate text-ink" title={i.nombre}>{tituloNatural(i.nombre)}</span>
               <span className="shrink-0 font-mono tabular-nums text-inkSoft">{solesCompacto(i.monto)}</span>
             </span>
             <span className="mt-1 block h-2 overflow-hidden rounded-full bg-paperDeep" role="img" aria-label={`${solesCompacto(i.monto)}`}>
               <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, (i.monto / mayor) * 100)}%` }} />
             </span>
-            {i.detalle && <span className="mt-0.5 block text-[12px] text-mute">{i.detalle}</span>}
+            {i.detalle && <span className="mt-0.5 block text-rotulo text-mute">{i.detalle}</span>}
           </>
         );
         return (
@@ -216,10 +225,10 @@ export function Fichas({ items }: { items: { etiqueta: string; n: number; href?:
         const cuerpo = (
           <>
             <span className={i.destacada ? "font-semibold text-ink" : "text-inkSoft"}>{i.etiqueta}</span>
-            <span className="font-mono text-[12.5px] tabular-nums text-ink">{numero(i.n)}</span>
+            <span className="font-mono text-meta tabular-nums text-ink">{numero(i.n)}</span>
           </>
         );
-        const clase = "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[13px]";
+        const clase = "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-meta";
         return (
           <li key={i.etiqueta}>
             {i.href ? (

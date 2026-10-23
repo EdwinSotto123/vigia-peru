@@ -9,7 +9,9 @@
     "lint": "next lint",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview -- --port 8788",
-    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "auditar:estilo": "node scripts/auditar-estilo.mjs",
+    "e2e:visual": "python e2e/visual/recorrer.py"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",

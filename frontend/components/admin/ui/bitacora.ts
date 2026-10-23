@@ -9,6 +9,7 @@ import { rutaContrato } from "@/lib/rutas";
 import { humanizar, plural } from "./formato";
 import { MOTIVO_NO_VISIBLE } from "./estados";
 import type { Tone } from "./tono";
+import { txt } from "@/lib/utils";
 
 export type CategoriaBitacora = "aportes" | "procesamiento" | "revision" | "ajustes" | "otras";
 
@@ -63,7 +64,6 @@ const esNum = (v: unknown): v is number | string => typeof v === "number" || (ty
 const n = (v: unknown) => (esNum(v) ? Number(v).toLocaleString("es-PE") : null);
 /** "1 contrato asignado", "3 contratos asignados"; sin número → null. */
 const cuenta = (v: unknown, uno: string, varios: string) => (esNum(v) ? plural(v, uno, varios) : null);
-const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 /** Las partes de un resumen, separadas por coma; si alguna ya lleva comas (una lista), por punto y coma. */
 const unir = (partes: (string | null | false | undefined)[], sep = ", ") => partes.filter(Boolean).join(sep) || null;
 

@@ -94,7 +94,7 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
           <strong className="font-mono tabular-nums text-ink">{numero(procesado.asignados)}</strong> de{" "}
           {porZona ? <>{numero(procesado.solicitados)} contratos asignados en {nombre}.</> : <>{numero(procesado.solicitados)} contratos de {nombre} asignados.</>}
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-[13px]">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-meta">
           <li>
             {numero(procesado.listosParaProcesar)} ya tenían documentos{" "}
             {procesado.dispatcherDisparado ? "y su lectura empezó ahora mismo." : "y se leen en el próximo ciclo (hasta 5 min)."}
@@ -113,7 +113,7 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
       <h2 className="mt-4 font-display text-xl font-bold leading-snug text-ink text-balance">
         ¿Cuántos contratos de {nombre} quieres procesar?
       </h2>
-      <p className="mt-1 text-sm text-inkSoft">
+      <p className="mt-1 text-dato leading-5 text-inkSoft">
         {soles(precioPen)} por contrato (referencial).{" "}
         {porZona ? `Quedan ${numero(restantes)} sin financiar.` : `${plural(restantes, "contrato", "contratos")} en cola.`}
       </p>
@@ -131,7 +131,7 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
             error={cantidadTocada ? errCantidad : null}
             onBlur={() => setCantidadTocada(true)}
           />
-          {error && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{error}</p>}
+          {error && <p className="mt-4 text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
           <Button type="button" full onClick={procesarAhora} disabled={loading || !!errCantidad} className="mt-5 py-3">
             {loading ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Zap size={14} aria-hidden />}
             {errCantidad
@@ -140,14 +140,14 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
           </Button>
         </>
       ) : (
-        <p className="mt-4 rounded-xl bg-paperDeep px-3 py-2 text-[13px] text-inkSoft">
+        <p className="mt-4 rounded-xl bg-paperDeep px-3 py-2 text-meta text-inkSoft">
           {restantes === 0
             ? porZona ? "No quedan contratos sin financiar en esta zona." : alcance.tipo === "partido" ? "Este partido no tiene contratos en cola en ese período." : "Esta entidad no tiene contratos en cola."
             : `Quedan ${numero(restantes)}, menos que el mínimo de ${minimo} por lote.`}
           {porZona && padre && <> Procesa <Link href={`/app/financiar/${padre.ubigeo}`} className="font-semibold text-granate underline underline-offset-2">{padre.nombre}</Link> en su lugar.</>}
         </p>
       )}
-      <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-[12px] text-mute">
+      <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-rotulo text-mute">
         {porZona
           ? "Se asignan por antigüedad: nadie elige contratos, ni el admin."
           : alcance.tipo === "partido"

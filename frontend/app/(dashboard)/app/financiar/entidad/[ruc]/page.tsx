@@ -9,7 +9,7 @@ import { TablaAliados } from "@/components/financiar/TablaAliados";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { Ruc } from "@/components/Redact";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver, type Pestana } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, type Pestana, Pestanas } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
@@ -115,7 +115,7 @@ export default async function FinanciarEntidadPage({
           />
 
           {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>Financias capacidad de lectura, no resultados.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
@@ -221,7 +221,7 @@ function indicadoresEntidad(d: EntidadFinanciableDetalle, tipos: string): Indica
   ];
 }
 
-const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
+const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline";
 
 // El objeto del contrato ES lo que la página responde ("¿en qué gasta?"): se lleva el ancho. El estado de
 // sus documentos va en la línea de abajo, junto al código, en vez de una columna de 148 px.
@@ -269,9 +269,9 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
             />
           ) : cola.contratos > 0 ? (
             // La cifra dice que hay contratos en cola pero la lista no llegó: se dice, no se inventa una tabla vacía.
-            <p className="text-sm text-inkSoft">La lista de estos contratos no llegó. Vuelve a cargar la página en un momento.</p>
+            <p className="text-dato leading-5 text-inkSoft">La lista de estos contratos no llegó. Vuelve a cargar la página en un momento.</p>
           ) : (
-            <p className="text-sm text-inkSoft">Ningún contrato de esta entidad espera en la cola hoy.</p>
+            <p className="text-dato leading-5 text-inkSoft">Ningún contrato de esta entidad espera en la cola hoy.</p>
           )}
         </>
       ),
@@ -284,7 +284,7 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
       contenido: aliados.length ? (
         <TablaAliados aliados={aliados} etiqueta={`Quién financió la lectura de ${nombre}`} />
       ) : (
-        <p className="text-sm text-inkSoft">Nadie ha financiado la lectura de esta entidad todavía.</p>
+        <p className="text-dato leading-5 text-inkSoft">Nadie ha financiado la lectura de esta entidad todavía.</p>
       ),
     },
   ];
@@ -331,15 +331,11 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
-    <Pagina>
-      <Volver href="/app/financiar?por=entidad">Financiar por entidad</Volver>
-      <EncabezadoPagina titulo="¿En qué gasta tu dinero esta entidad?" />
-      <EstadoError
-        titulo="No pudimos leer la cola de esta entidad"
-        accion={<EnlaceAccion href={`/app/financiar/entidad/${encodeURIComponent(ruc)}`}>Reintentar</EnlaceAccion>}
-      >
-        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }, { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" }]}
+      titulo="¿En qué gasta tu dinero esta entidad?"
+      error="No pudimos leer la cola de esta entidad"
+      reintentar={{ href: `/app/financiar/entidad/${encodeURIComponent(ruc)}` }}
+    />
   );
 }

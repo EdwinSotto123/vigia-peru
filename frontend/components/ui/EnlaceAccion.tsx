@@ -30,10 +30,17 @@ const VARIANTE = {
 } as const;
 
 const TAMANO = {
-  sm: "min-h-[40px] px-5 py-2.5 text-sm",
-  md: "min-h-[48px] px-6 py-3 text-[15px] motion-safe:hover:-translate-y-0.5",
-  lg: "min-h-[52px] px-7 py-3.5 text-base motion-safe:hover:-translate-y-0.5",
+  sm: "min-h-[40px] px-5 py-2.5 text-dato",
+  md: "min-h-[48px] px-6 py-3 text-cuerpo motion-safe:hover:-translate-y-0.5",
+  lg: "min-h-[52px] px-7 py-3.5 text-destacado motion-safe:hover:-translate-y-0.5",
 } as const;
+
+/**
+ * La acción chica de una lista o de su estado vacío («Reintentar», «Quitar búsqueda y filtros», «Ver todo»): píldora
+ * con borde y texto de marca. Era la misma cadena copiada en 11 listas.
+ */
+export const CLASE_ACCION_LISTA =
+  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-dato font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 export type VarianteAccion = keyof typeof VARIANTE;
 export type TamanoAccion = keyof typeof TAMANO;

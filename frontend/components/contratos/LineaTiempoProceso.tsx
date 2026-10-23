@@ -47,11 +47,11 @@ export function LineaTiempoProceso({ c }: { c: ContratoDetalle }) {
   return (
     <section aria-labelledby="linea-tiempo" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="linea-tiempo" className="text-[15px] font-semibold text-ink">
+        <h2 id="linea-tiempo" className="font-display text-bloque font-bold text-ink">
           Línea de tiempo
         </h2>
         {hastaBuenaPro !== null && (
-          <span className="text-[12px] text-mute">
+          <span className="text-rotulo text-mute">
             {hastaBuenaPro === 0 ? "buena pro el mismo día" : `${plural(hastaBuenaPro, "día", "días")} hasta la buena pro`}
           </span>
         )}
@@ -73,14 +73,14 @@ export function LineaTiempoProceso({ c }: { c: ContratoDetalle }) {
                 {!ultimo && <span className="absolute bottom-0 top-4 w-0.5 bg-line" />}
               </span>
               <div className={cn("min-w-0", !ultimo && "pb-3")}>
-                <div className="flex items-baseline justify-between gap-3 text-[13px]">
+                <div className="flex items-baseline justify-between gap-3 text-meta">
                   <span className={cn("font-medium", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
-                  <time dateTime={h.fecha} className="shrink-0 font-mono text-[12px] tabular-nums text-inkSoft">
+                  <time dateTime={h.fecha} className="shrink-0 font-mono text-rotulo tabular-nums text-inkSoft">
                     {fechaCorta(h.fecha)}
                   </time>
                 </div>
                 {salto !== null && salto > 0 && (
-                  <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-mute">
+                  <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-micro text-mute">
                     {plural(salto, "día", "días")} después
                   </span>
                 )}

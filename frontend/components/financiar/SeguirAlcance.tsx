@@ -26,9 +26,9 @@ export function SeguirAlcance({ alcance }: { alcance: AlcanceAporte }) {
     );
   }
   return alcance.tipo === "zona" ? (
-    <SeguirZonaBoton ubigeo={alcance.ubigeo} nombre={alcance.nombre} className="min-h-[40px] text-[13px]" />
+    <SeguirZonaBoton ubigeo={alcance.ubigeo} nombre={alcance.nombre} className="min-h-[40px] text-meta" />
   ) : (
-    <SeguirEntidadBoton ruc={alcance.ruc} nombre={alcance.nombre} className="min-h-[40px] text-[13px]" />
+    <SeguirEntidadBoton ruc={alcance.ruc} nombre={alcance.nombre} className="min-h-[40px] text-meta" />
   );
 }
 

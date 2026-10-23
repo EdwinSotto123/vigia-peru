@@ -53,8 +53,8 @@ export function VistaPreviaPerfil({
   return (
     <section aria-label="Vista previa de tu página de aliado" className={cn("overflow-hidden rounded-2xl border border-line bg-paper", className)}>
       <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <h2 className="font-display text-[15px] font-bold text-ink">Vista previa de tu página</h2>
-        <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]", e.clase)}>
+        <h2 className="font-display text-bloque font-bold text-ink">Vista previa de tu página</h2>
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-micro", e.clase)}>
           <e.Icono size={11} aria-hidden /> {e.texto}
         </span>
       </div>
@@ -74,12 +74,12 @@ export function VistaPreviaPerfil({
         <div className="relative z-[1] -mt-7 w-fit rounded-2xl bg-paper p-1 shadow-card">
           <AvatarAliado tipo={tipo} logoUrl={logoUrl} nombre={n || "Tu logo"} size="lg" />
         </div>
-        <p className={cn("mt-2 truncate font-display text-lg font-bold", n ? "text-ink" : "italic text-mute")}>{n || "Aún sin nombre"}</p>
+        <p className={cn("mt-2 truncate font-display text-bloque leading-7 font-bold", n ? "text-ink" : "italic text-mute")}>{n || "Aún sin nombre"}</p>
         {TIPO[tipo] && <IdentidadAliado datos={[{ icono: TIPO[tipo].icono, texto: TIPO[tipo].texto }]} tam="sm" className="mt-1" />}
-        {pub.descripcion && <p className="mt-2 text-[13px] leading-relaxed text-inkSoft text-pretty">{pub.descripcion}</p>}
+        {pub.descripcion && <p className="mt-2 text-meta leading-relaxed text-inkSoft text-pretty">{pub.descripcion}</p>}
         <ContactoAliado web={pub.web} email={pub.email} redes={pub.redes} telefono={pub.telefono} ubicacion={pub.ubicacion} enlaces={pub.enlaces} className="mt-3" />
 
-        <p className="mt-3 border-t border-line pt-3 text-xs text-mute">
+        <p className="mt-3 border-t border-line pt-3 text-rotulo leading-4 text-mute">
           {estado === "oculto" ? (
             "Nadie ve esta página mientras el equipo de Vigía la tenga oculta."
           ) : estado === "anonimo" ? (

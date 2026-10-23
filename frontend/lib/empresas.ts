@@ -10,6 +10,7 @@
  * Los GET devuelven `null` si la API no responde: quien llama no dibuja lo que no pudo leer.
  */
 import { API_BASE } from "./api-client";
+import { uno } from "@/lib/utils";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -342,7 +343,6 @@ export const ACTIVIDADES = [
 ] as const;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Lee de la URL los filtros de la lista, validados como la API. */
 export function filtrosEmpresasDeUrl(sp: Busqueda): FiltrosEmpresas {

@@ -16,7 +16,7 @@ export default function ContratoNoEncontrado() {
     <Pagina>
       <Link
         href="/app/contratos"
-        className="inline-flex min-h-6 items-center gap-1.5 rounded-full text-sm text-mute transition-colors duration-rapido hover:text-granate"
+        className="inline-flex min-h-6 items-center gap-1.5 rounded-full text-dato leading-5 text-mute transition-colors duration-rapido hover:text-granate"
       >
         <ArrowLeft size={14} aria-hidden /> Contratos
       </Link>

@@ -26,7 +26,7 @@ export function SeguirEntidadBoton({ ruc, nombre, className }: { ruc: string; no
       aria-pressed={activo}
       title={activo ? `Dejar de seguir ${nombre}` : `Seguir ${nombre}: aparece en Mi impacto`}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-rapido disabled:opacity-60",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-rotulo leading-4 font-medium transition-colors duration-rapido disabled:opacity-60",
         activo ? "border-granate/40 bg-granate-soft text-granate" : "border-line bg-paperSoft text-inkSoft hover:bg-paper hover:text-ink",
         className,
       )}

@@ -37,7 +37,7 @@ export function GraficoMeses({
   conLectura?: boolean;
 }) {
   const todos = completar(porMes);
-  if (todos.length === 0) return <p className="text-sm text-inkSoft">Este partido no tiene {unidad.plural} convocados en este período.</p>;
+  if (todos.length === 0) return <p className="text-dato leading-5 text-inkSoft">Este partido no tiene {unidad.plural} convocados en este período.</p>;
   // Los primeros meses de la base tienen unos pocos contratos sueltos: dibujarlos deja media figura vacía.
   // Se parte del primer mes con al menos el 4 % del mes más cargado (con un mes de margen) y lo anterior se
   // resume en una línea, con su número: no se esconde, se cuenta aparte.
@@ -81,7 +81,7 @@ export function GraficoMeses({
         ))}
         <text x="0" y="10" className="fill-mute font-mono" fontSize="11">{`máx. ${numero(maximo)} al mes`}</text>
       </svg>
-      <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-inkSoft">
+      <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
         <span className="inline-flex items-center gap-1.5"><span aria-hidden className={`h-2.5 w-2.5 rounded-sm ${conLectura ? "bg-granate/25" : "bg-granate"}`} /> {unidad.plural.charAt(0).toUpperCase() + unidad.plural.slice(1)} convocados en el mes</span>
         {conLectura && <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-granate" /> Los que Vigía ya leyó</span>}
         {antes.length > 0 && (
@@ -90,12 +90,12 @@ export function GraficoMeses({
           </span>
         )}
       </figcaption>
-      <details className="text-[13px] text-inkSoft">
+      <details className="text-meta text-inkSoft">
         <summary className="min-h-[24px] cursor-pointer font-medium text-granate">Ver la tabla de meses</summary>
         <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-line [details:not([open])>&]:hidden">
           <table className="w-full text-left">
             <caption className="sr-only">{etiqueta}</caption>
-            <thead className="sticky top-0 bg-paperSoft text-[12px] text-mute">
+            <thead className="sticky top-0 bg-paperSoft text-rotulo text-mute">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Mes</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">{unidad.plural.charAt(0).toUpperCase() + unidad.plural.slice(1)}</th>

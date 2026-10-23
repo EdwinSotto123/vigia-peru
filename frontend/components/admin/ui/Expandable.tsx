@@ -31,7 +31,7 @@ export function Expandable({
   );
   if (variante === "linea")
     return (
-      <details open={abierto} className={cn("text-[12px]", className)}>
+      <details open={abierto} className={cn("text-rotulo", className)}>
         <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded text-inkSoft hover:text-ink [&::-webkit-details-marker]:hidden">
           {resumen}
           {flecha}
@@ -42,8 +42,8 @@ export function Expandable({
   return (
     <details open={abierto} className={cn("rounded-2xl border border-line bg-paperSoft", className)}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-2xl px-4 py-3 hover:bg-paperDeep/50 sm:px-5 [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0 flex-1 basis-56 text-sm font-semibold text-ink">{resumen}</span>
-        <span className="flex shrink-0 items-center gap-2 text-[12px] text-mute">
+        <span className="min-w-0 flex-1 basis-56 text-dato leading-5 font-semibold text-ink">{resumen}</span>
+        <span className="flex shrink-0 items-center gap-2 text-rotulo text-mute">
           {meta}
           {flecha}
         </span>

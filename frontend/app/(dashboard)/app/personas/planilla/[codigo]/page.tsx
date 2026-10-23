@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { LineaMeses } from "@/components/charts/LineaMeses";
@@ -12,6 +12,7 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { REGIMEN, getFichaPlanilla, rutaPlanilla, type FichaPlanilla } from "@/lib/planilla";
+import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
 
@@ -20,7 +21,6 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
   return { title: f?.persona.nombre ? `${f.persona.nombre}, en planilla` : "Persona en planilla", robots: { index: false } };
 }
 
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
  * /app/personas/planilla/[codigo] — una persona de la planilla de una entidad (Portal de Transparencia), con la misma
@@ -159,14 +159,14 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                 />
                 {f.otras.length > 0 && (
                   <section className="space-y-2">
-                    <h3 className="font-display text-[15px] font-bold text-ink">
+                    <h3 className="font-display text-bloque font-bold text-ink">
                       {plural(f.otras.length, "otra planilla", "otras planillas")} con su mismo nombre completo
                     </h3>
-                    <p className="text-[12.5px] text-mute">Con los dos apellidos y los nombres iguales: casi siempre es la misma persona.</p>
+                    <p className="text-meta text-mute">Con los dos apellidos y los nombres iguales: casi siempre es la misma persona.</p>
                     <Tabla columnas={COLUMNAS_OTRAS} filas={filasOtras(f)} etiqueta="La misma persona en otras planillas" />
                   </section>
                 )}
-                <p className="text-[12px] text-mute">Fuente: Portal de Transparencia Estándar de cada entidad, rubro Personal.</p>
+                <p className="text-rotulo text-mute">Fuente: Portal de Transparencia Estándar de cada entidad, rubro Personal.</p>
               </div>
             ),
           },
@@ -217,7 +217,7 @@ function filasOtras(f: FichaPlanilla): Fila[] {
           meta={[o.cargo && <Dato key="cargo" tipo="cargo">{tituloNatural(o.cargo)}</Dato>, o.ultimoMes && <Dato key="mes" tipo="fecha" nombre="Último mes">{o.ultimoMes}</Dato>]}
         />
       ),
-      regimen: <span className="text-[13px] text-inkSoft">{o.regimen != null ? REGIMEN[o.regimen] ?? `Régimen ${o.regimen}` : "Sin dato"}</span>,
+      regimen: <span className="text-meta text-inkSoft">{o.regimen != null ? REGIMEN[o.regimen] ?? `Régimen ${o.regimen}` : "Sin dato"}</span>,
       sueldo: <CeldaNumero>{o.base != null ? soles(o.base) : "Sin dato"}</CeldaNumero>,
     },
   }));
@@ -225,12 +225,13 @@ function filasOtras(f: FichaPlanilla): Fila[] {
 
 function NoSePudoLeer({ codigo }: { codigo: string }) {
   return (
-    <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Personas contratadas", href: "/app/personas" }, { etiqueta: "Planilla", href: "/app/personas?seccion=planilla" }]} />
-      <EncabezadoPagina titulo="Persona en planilla" />
-      <EstadoError titulo="No pudimos leer esta ficha" accion={<Link href={rutaPlanilla(codigo)} className="text-granate hover:underline">Reintentar</Link>}>
-        Puede que el código no exista o que el servidor no respondiera. No mostramos nada en su lugar.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Personas contratadas", href: "/app/personas" }, { etiqueta: "Planilla", href: "/app/personas?seccion=planilla" }]}
+      titulo="Persona en planilla"
+      error="No pudimos leer esta ficha"
+      reintentar={{ href: rutaPlanilla(codigo) }}
+    >
+      Puede que el código no exista o que el servidor no respondiera. No mostramos nada en su lugar.
+    </FichaNoLeida>
   );
 }

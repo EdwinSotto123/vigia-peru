@@ -42,7 +42,7 @@ export function AnalisisPublicadosPanel() {
 
   return (
     <section aria-labelledby="publicados-titulo" className="space-y-3">
-      <h2 id="publicados-titulo" className="font-display text-[20px] font-bold leading-tight text-ink">
+      <h2 id="publicados-titulo" className="font-display text-seccion font-bold leading-tight text-ink">
         Análisis publicados
       </h2>
       {!items && !fallo ? (

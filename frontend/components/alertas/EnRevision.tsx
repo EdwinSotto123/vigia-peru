@@ -125,7 +125,7 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
         ),
         contenido: <DetalleMotivos item={{ procesamiento: p, revision }} titulo={titulo} />,
         pie: (
-          <Link href={rutaContrato(p.ocid, "vivo")} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
+          <Link href={rutaContrato(p.ocid, "vivo")} className="inline-flex items-center gap-1 text-meta font-medium text-granate hover:underline">
             Ver el análisis completo, fase por fase <ArrowRight size={13} aria-hidden />
           </Link>
         ),
@@ -145,7 +145,7 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
       />
       {/* §10.5, parcial: la lista trae menos filas que el conteo del resumen. */}
       {parcial && (
-        <p className="text-right text-[12.5px] tabular-nums text-mute">
+        <p className="text-right text-meta tabular-nums text-mute">
           Mostrando {numero(items.length)} de {numero(total)}
         </p>
       )}
@@ -204,7 +204,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
       titulo={m.titulo}
       acciones={
         tieneMedida ? (
-          <span className="shrink-0 text-[12.5px] tabular-nums text-mute">
+          <span className="shrink-0 text-meta tabular-nums text-mute">
             <span className="font-semibold text-ink">{pct(m.valor)}</span>, mínimo {pct(m.umbral)}
           </span>
         ) : undefined

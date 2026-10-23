@@ -224,7 +224,7 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
 
         {/* ── Fuentes ── */}
         <div className="relative">
-          <p className="mb-3 text-[12px] font-semibold text-paper/75">Fuentes públicas</p>
+          <p className="mb-3 text-rotulo font-semibold text-paper/75">Fuentes públicas</p>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col">
             {FUENTES.map((f) => {
               const abierto = sel?.tipo === "fuente" && sel.clave === f.clave;
@@ -255,13 +255,13 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
         <div className="relative flex flex-col items-center justify-center gap-3 py-2 lg:justify-start lg:py-0 lg:pt-[9.5rem]">
           <ArrowDown size={18} className="text-paper/40 lg:hidden" aria-hidden />
           <NodoVigia refNodo={vigia} elegido={sel?.tipo === "vigia"} onClick={() => alternar({ tipo: "vigia" })} />
-          <p className="max-w-[15rem] text-center text-[12px] leading-snug text-paper/75">Toca una fuente o un resultado para ver qué hay detrás.</p>
+          <p className="max-w-[15rem] text-center text-rotulo leading-snug text-paper/75">Toca una fuente o un resultado para ver qué hay detrás.</p>
           <ArrowDown size={18} className="text-paper/40 lg:hidden" aria-hidden />
         </div>
 
         {/* ── Resultados ── */}
         <div className="relative lg:pt-[3.25rem]">
-          <p className="mb-3 text-[12px] font-semibold text-paper/75">Lo que obtiene</p>
+          <p className="mb-3 text-rotulo font-semibold text-paper/75">Lo que obtiene</p>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col lg:gap-2.5">
             {RESULTADOS.map((r) => {
               const abierto = sel?.tipo === "resultado" && sel.clave === r.clave;
@@ -402,7 +402,7 @@ function Nodo({
         >
           <Icono size={15} aria-hidden />
         </span>
-        <span className="min-w-0 flex-1 text-[13.5px] font-semibold leading-tight">{titulo}</span>
+        <span className="min-w-0 flex-1 text-dato font-semibold leading-tight">{titulo}</span>
         <ChevronDown size={15} className={cn("shrink-0 text-paper/60 transition-transform duration-normal", abierto && "rotate-180 text-maiz")} aria-hidden />
       </button>
       {abierto && <div className="border-t border-paper/10 px-3.5 pb-4 pt-3 motion-safe:animate-fadeIn">{children}</div>}
@@ -427,7 +427,7 @@ function NodoVigia({ refNodo, elegido, onClick }: { refNodo: React.RefObject<HTM
       <span aria-hidden className="absolute -inset-3 rounded-full border border-dashed border-paper/15 motion-safe:animate-[spin_48s_linear_infinite]" />
       <span className="relative px-6 text-center">
         <span className="block font-display text-3xl font-extrabold leading-none">Vigía</span>
-        <span className="mt-2 block text-[12px] leading-snug text-paper/75">Integra, procesa y relaciona información pública</span>
+        <span className="mt-2 block text-rotulo leading-snug text-paper/75">Integra, procesa y relaciona información pública</span>
       </span>
     </button>
   );
@@ -445,7 +445,7 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
   const proxima = f.estado === "caida" ? null : proximaDescarga(f.agenda, ahora);
   const sitio = f.url ? new URL(f.url).hostname.replace(/^www\./, "") : null;
   return (
-    <div className="space-y-3.5 text-[13px]">
+    <div className="space-y-3.5 text-meta">
       <p className="leading-relaxed text-paper/80">{f.aporta}</p>
 
       <dl className="space-y-2.5">
@@ -471,16 +471,16 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
         <Dato Icono={RefreshCw} etiqueta="Se actualiza">
           <span className="text-paper/85">
             {f.frecuencia}
-            {proxima && <span className="block text-[12px] text-paper/75">Próxima vez: {proxima}</span>}
+            {proxima && <span className="block text-rotulo text-paper/75">Próxima vez: {proxima}</span>}
           </span>
         </Dato>
       </dl>
 
       <div>
-        <p className="text-[12px] font-semibold text-paper/75">Lo que tomamos de ahí</p>
+        <p className="text-rotulo font-semibold text-paper/75">Lo que tomamos de ahí</p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {f.tomamos.map((t) => (
-            <li key={t} className="rounded-full bg-maiz/15 px-2.5 py-1 text-[12px] text-maiz">
+            <li key={t} className="rounded-full bg-maiz/15 px-2.5 py-1 text-rotulo text-maiz">
               {t}
             </li>
           ))}
@@ -495,7 +495,7 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
 
       {f.alimenta.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-paper/10 pt-3">
-          <span className="text-[12px] text-paper/75">Llega a</span>
+          <span className="text-rotulo text-paper/75">Llega a</span>
           {f.alimenta.map((k) => (
             <Ficha key={k} Icono={ICONO_RESULTADO[k]} onClick={() => ir({ tipo: "resultado", clave: k })}>
               {RESULTADOS.find((r) => r.clave === k)!.nombre}
@@ -512,7 +512,7 @@ function Dato({ Icono, etiqueta, children }: { Icono: LucideIcon; etiqueta: stri
     <div className="flex items-start gap-2.5">
       <Icono size={15} className="mt-0.5 shrink-0 text-maiz" aria-hidden />
       <div className="min-w-0">
-        <dt className="text-[12px] text-paper/75">{etiqueta}</dt>
+        <dt className="text-rotulo text-paper/75">{etiqueta}</dt>
         <dd className="leading-snug">{children}</dd>
       </div>
     </div>
@@ -524,13 +524,13 @@ function Dato({ Icono, etiqueta, children }: { Icono: LucideIcon; etiqueta: stri
 function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo | null; ir: (s: Eleccion) => void }) {
   const fuentes = fuentesDe(r.clave);
   return (
-    <div className="space-y-4 text-[13px]">
+    <div className="space-y-4 text-meta">
       <p className="leading-relaxed text-paper/80">{r.que}</p>
 
       <Visual clave={r.clave} cifras={cifras} />
 
       <div>
-        <p className="text-[12px] font-semibold text-paper/75">Sale de {plural(fuentes.length, "fuente", "fuentes")}</p>
+        <p className="text-rotulo font-semibold text-paper/75">Sale de {plural(fuentes.length, "fuente", "fuentes")}</p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {fuentes.map((f) => {
             const F = ICONO_FORMATO[f.formato];
@@ -538,7 +538,7 @@ function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo
               <li key={f.clave}>
                 <Ficha Icono={ICONO_FUENTE[f.clave] ?? FileText} onClick={() => ir({ tipo: "fuente", clave: f.clave })}>
                   {f.corto}
-                  <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-paper/10 px-1 text-[11px] text-paper/75">
+                  <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-paper/10 px-1 text-micro text-paper/75">
                     <F size={10} aria-hidden />
                     {f.formato}
                   </span>
@@ -551,7 +551,7 @@ function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo
 
       <Link
         href={r.donde.href}
-        className="group inline-flex min-h-[36px] items-center gap-2 rounded-full border border-paper/20 px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido hover:border-maiz hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
+        className="group inline-flex min-h-[36px] items-center gap-2 rounded-full border border-paper/20 px-3.5 py-1.5 text-meta font-medium transition-colors duration-rapido hover:border-maiz hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
       >
         {r.donde.texto}
         <ArrowRight size={14} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
@@ -577,7 +577,7 @@ function QueHaceVigia() {
   return (
     <div>
       <p className="font-display text-2xl font-bold leading-tight">Qué hace Vigía con los datos</p>
-      <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-paper/75">
+      <p className="mt-2 max-w-[62ch] text-cuerpo leading-relaxed text-paper/75">
         Cada fuente escribe las cosas a su manera. Vigía las junta en un solo lugar y las pone a conversar.
       </p>
       <ol className="relative mt-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -587,8 +587,8 @@ function QueHaceVigia() {
             <span className="grid h-10 w-10 place-items-center rounded-full border border-maiz/50 bg-ink text-maiz">
               <Icono size={18} aria-hidden />
             </span>
-            <p className="mt-3 text-[15px] font-semibold">{verbo}</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-paper/75">{que}</p>
+            <p className="mt-3 text-cuerpo font-semibold">{verbo}</p>
+            <p className="mt-1 text-meta leading-relaxed text-paper/75">{que}</p>
           </li>
         ))}
       </ol>
@@ -601,7 +601,7 @@ function Ficha({ Icono, onClick, children }: { Icono: LucideIcon; onClick: () =>
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-paper/15 bg-paper/[0.04] px-2.5 py-1 text-[12px] text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
+      className="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-paper/15 bg-paper/[0.04] px-2.5 py-1 text-rotulo text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
     >
       <Icono size={13} aria-hidden />
       {children}

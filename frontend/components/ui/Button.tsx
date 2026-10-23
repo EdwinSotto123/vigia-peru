@@ -9,7 +9,7 @@ export const Button = forwardRef<
   React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; full?: boolean }
 >(function Button({ variant = "primary", full, className, children, ...rest }, ref) {
   const base =
-    "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-dato font-semibold transition-colors duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50";
   const styles: Record<Variant, string> = {
     primary: "bg-granate text-paper hover:bg-granate-deep",
     secondary: "border border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",

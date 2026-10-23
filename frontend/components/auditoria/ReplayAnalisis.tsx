@@ -75,7 +75,7 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
 
   return (
     <div className={compacto ? "space-y-3" : "space-y-4"}>
-      <div className="flex items-center justify-between gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2 text-[11px]">
+      <div className="flex items-center justify-between gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2 text-micro">
         <span className="flex items-center gap-1.5 font-medium text-ink">
           <span className="relative flex h-1.5 w-1.5" aria-hidden>
             <span className={`absolute inline-flex h-full w-full rounded-full bg-amber opacity-70 ${reproduciendo ? "animate-ping" : ""}`} />
@@ -122,7 +122,7 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
       <BloqueDetalle
         titulo="Bitácora repetida"
         acciones={
-          <span className="shrink-0 font-mono text-[11px] tabular-nums text-mute">
+          <span className="shrink-0 font-mono text-micro tabular-nums text-mute">
             {visibles.length}/{ordenados.length} eventos
           </span>
         }

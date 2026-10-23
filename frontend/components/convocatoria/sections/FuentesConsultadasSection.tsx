@@ -28,7 +28,7 @@ export function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
           <ScanSearch size={16} className="mr-1.5 inline text-mute" aria-hidden />
           Cruce contra fuentes oficiales
         </h2>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <p className="mt-0.5 text-rotulo text-mute">
           {hallazgos.length} fuente{hallazgos.length === 1 ? "" : "s"} cruzada{hallazgos.length === 1 ? "" : "s"}, {conHallazgos} con hallazgos, {sinMenciones} sin coincidencia
         </p>
       </div>
@@ -38,19 +38,19 @@ export function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
           if (sources.length === 0) return null;
           return (
             <div key={g.label}>
-              <div className="mb-1 text-[11px] font-semibold text-inkSoft">{g.label}</div>
+              <div className="mb-1 text-micro font-semibold text-inkSoft">{g.label}</div>
               <ul className="space-y-0.5">
                 {sources.map((h: any, i: number) => {
                   const e = ESTADO[h.estado] ?? SIN_ESTADO;
                   return (
-                    <li key={i} className="flex items-start gap-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-[12px]">
+                    <li key={i} className="flex items-start gap-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-rotulo">
                       <e.Icono size={13} className={cn("mt-0.5 shrink-0", e.clase)} aria-hidden />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           <span className="font-medium text-ink">{h.fuente}</span>
-                          <span className={cn("text-[11px]", e.clase)}>{e.texto}</span>
+                          <span className={cn("text-micro", e.clase)}>{e.texto}</span>
                         </div>
-                        <div className="text-[11px] leading-snug text-mute">{redactDnis(h.mensaje)}</div>
+                        <div className="text-micro leading-snug text-mute">{redactDnis(h.mensaje)}</div>
                       </div>
                       {h.url && (
                         <a href={h.url} target="_blank" rel="noreferrer" className="inline-flex min-h-[24px] min-w-[24px] shrink-0 items-center justify-center text-granate hover:underline"

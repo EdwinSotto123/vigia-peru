@@ -135,25 +135,25 @@ function Page() {
       principal: true,
       celda: (c) => (
         <>
-          <span className="font-mono text-xs font-medium text-ink">{c.codigo}</span>
-          <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink">
+          <span className="font-mono text-rotulo leading-4 font-medium text-ink">{c.codigo}</span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-meta text-ink">
             {c.nombrePublico ?? <span className="text-mute">Anónimo</span>}
             {!c.visible && <EyeOff size={12} className="text-rust" aria-label="Sin reconocimiento público" />}
-            <span className="text-[11px] text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
+            <span className="text-micro text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
           </span>
         </>
       ),
     },
-    { clave: "zona", titulo: "Zona", celda: (c) => <>{c.zona} <span className="text-[11px] text-mute">{nivelLabel(c.nivel)}</span></> },
+    { clave: "zona", titulo: "Zona", celda: (c) => <>{c.zona} <span className="text-micro text-mute">{nivelLabel(c.nivel)}</span></> },
     {
       clave: "avance",
       titulo: "Contratos leídos",
       className: "w-40",
       celda: (c) => (
         <div className="w-full max-w-[160px]">
-          <span className="text-[12px] text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos}</span>
+          <span className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos}</span>
           <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} alto="sm" className="mt-1" />
-          {c.asignados < c.contratos && c.estado !== "pendiente_pago" && c.estado !== "rechazada" && <span className="text-[11px] text-clayTexto">{c.contratos - c.asignados} sin asignar</span>}
+          {c.asignados < c.contratos && c.estado !== "pendiente_pago" && c.estado !== "rechazada" && <span className="text-micro text-clayTexto">{c.contratos - c.asignados} sin asignar</span>}
         </div>
       ),
     },
@@ -161,10 +161,10 @@ function Page() {
     {
       clave: "comprobante",
       titulo: "Comprobante",
-      celda: (c) => (c.tieneComprobante ? <span className="inline-flex items-center gap-1 text-[12px] text-mossTexto"><FileImage size={13} aria-hidden /> Subido</span> : <span className="text-[12px] text-mute">No subió</span>),
+      celda: (c) => (c.tieneComprobante ? <span className="inline-flex items-center gap-1 text-rotulo text-mossTexto"><FileImage size={13} aria-hidden /> Subido</span> : <span className="text-rotulo text-mute">No subió</span>),
     },
     { clave: "estado", titulo: "Estado", celda: (c) => { const e = estadoAporte(c.estado); return <Badge tono={e.tono}>{e.label}</Badge>; } },
-    { clave: "fecha", titulo: "Fecha", className: "whitespace-nowrap text-[12px] text-mute", celda: (c) => <span title={fmtFechaHora(c.pagadaAt ?? c.createdAt) ?? undefined}>{hace(c.pagadaAt ?? c.createdAt)}</span> },
+    { clave: "fecha", titulo: "Fecha", className: "whitespace-nowrap text-rotulo text-mute", celda: (c) => <span title={fmtFechaHora(c.pagadaAt ?? c.createdAt) ?? undefined}>{hace(c.pagadaAt ?? c.createdAt)}</span> },
   ];
 
   return (
@@ -182,14 +182,14 @@ function Page() {
           <FilterChips etiqueta="Estado del aporte" valor={estado} onCambiar={setEstado} opciones={TABS} />
           <label className="relative w-full sm:ml-auto sm:w-72">
             <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código, nombre, RUC, correo o zona" aria-label="Buscar aporte" className="min-h-[34px] w-full rounded-full border border-line bg-paperDeep py-1.5 pl-8 pr-3 text-[13px] text-ink placeholder:text-mute focus:border-granate/60" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código, nombre, RUC, correo o zona" aria-label="Buscar aporte" className="min-h-[34px] w-full rounded-full border border-line bg-paperDeep py-1.5 pl-8 pr-3 text-meta text-ink placeholder:text-mute focus:border-granate/60" />
           </label>
         </div>
 
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
         {mostrandoRecientes && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-snug text-inkSoft">
             <Check size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             <span>
               <strong className="font-semibold text-ink">No hay pagos por validar.</strong> Estos son los últimos {recientes.length} aportes: elige uno para ver su comprobante y
@@ -227,7 +227,7 @@ function Page() {
           )}
         </div>
         {!sel && !!rows?.length && (
-          <p className="flex items-center gap-2 text-[12.5px] text-inkSoft">
+          <p className="flex items-center gap-2 text-meta text-inkSoft">
             <MousePointerClick size={14} className="shrink-0" aria-hidden />
             <span><strong className="font-semibold text-ink">Elige un aporte</strong> para ver su comprobante, a quién pertenece y confirmar el pago o rechazarlo.</span>
           </p>
@@ -254,7 +254,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
     <section className="rounded-2xl border border-line bg-paperSoft">
       <header className="flex items-start justify-between gap-3 px-4 pt-3 sm:px-5">
         <div>
-          <p className="font-mono text-lg font-bold text-ink">{c.codigo}</p>
+          <p className="font-mono text-bloque leading-7 font-bold text-ink">{c.codigo}</p>
           <div className="mt-1"><Badge tono={e.tono} punto>{e.label}</Badge></div>
         </div>
         <button type="button" onClick={onClose} aria-label="Cerrar detalle" className="-mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
@@ -262,7 +262,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
 
       <div className="space-y-3 px-4 pb-4 pt-2.5 sm:px-5">
         <div>
-          <p className="text-[12px] text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
+          <p className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
           <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} className="mt-1.5" />
         </div>
 
@@ -284,25 +284,25 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
             {motivoNoVisibleLabel(c.motivoNoVisible) ?? "Sin motivo registrado"}. El aporte procesa contratos igual.
           </Aviso>
         )}
-        {c.mensajePublico && <p className="border-l-2 border-paperEdge pl-2.5 text-[13px] italic text-inkSoft">“{c.mensajePublico}”</p>}
+        {c.mensajePublico && <p className="border-l-2 border-paperEdge pl-2.5 text-meta italic text-inkSoft">“{c.mensajePublico}”</p>}
 
         <div>
-          <p className="text-[11px] font-medium text-mute">Comprobante</p>
+          <p className="text-micro font-medium text-mute">Comprobante</p>
           {c.tieneComprobante ? (
             <a href={`/api/admin/contribuciones/${c.codigo}/comprobante`} target="_blank" className="mt-1 block overflow-hidden rounded-xl border border-line transition-colors duration-rapido hover:border-paperEdge">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/api/admin/contribuciones/${c.codigo}/comprobante`} alt={`Comprobante del aporte ${c.codigo}`} className="max-h-64 w-full bg-paperDeep object-contain" />
-              <span className="flex items-center gap-1 px-2 py-1 text-[11px] text-inkSoft"><ExternalLink size={11} aria-hidden /> Abrir en pestaña nueva</span>
+              <span className="flex items-center gap-1 px-2 py-1 text-micro text-inkSoft"><ExternalLink size={11} aria-hidden /> Abrir en pestaña nueva</span>
             </a>
           ) : (
-            <p className="mt-1 text-sm text-mute">El financiador aún no subió comprobante.</p>
+            <p className="mt-1 text-dato leading-5 text-mute">El financiador aún no subió comprobante.</p>
           )}
         </div>
 
-        <label className="block text-sm">
-          <span className="text-[11px] font-medium text-mute">Nota interna</span>
-          <textarea value={nota} onChange={(ev) => { setNota(ev.target.value); setGuardada(null); }} onBlur={guardarNota} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60" placeholder="Ej. verificado en el extracto del 14/09" />
-          {guardada && <span className={guardada === "ok" ? "text-[11px] text-mossTexto" : "text-[11px] text-crimsonTexto"}>{guardada === "ok" ? "Nota guardada" : "No se pudo guardar la nota"}</span>}
+        <label className="block text-dato leading-5">
+          <span className="text-micro font-medium text-mute">Nota interna</span>
+          <textarea value={nota} onChange={(ev) => { setNota(ev.target.value); setGuardada(null); }} onBlur={guardarNota} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute focus:border-granate/60" placeholder="Ej. verificado en el extracto del 14/09" />
+          {guardada && <span className={guardada === "ok" ? "text-micro text-mossTexto" : "text-micro text-crimsonTexto"}>{guardada === "ok" ? "Nota guardada" : "No se pudo guardar la nota"}</span>}
         </label>
 
         {c.estado === "pendiente_pago" && (
@@ -313,7 +313,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
         )}
 
         <div className="space-y-2 border-t border-line pt-3">
-          <Link href={`/impacto/${c.codigo}`} target="_blank" className="inline-flex items-center gap-1 text-[12px] text-inkSoft hover:text-ink"><ExternalLink size={11} aria-hidden /> Comprobante de impacto público</Link>
+          <Link href={`/impacto/${c.codigo}`} target="_blank" className="inline-flex items-center gap-1 text-rotulo text-inkSoft hover:text-ink"><ExternalLink size={11} aria-hidden /> Comprobante de impacto público</Link>
           <Expandable variante="linea" resumen="Datos técnicos">
             <KeyValue
               columnas={1}

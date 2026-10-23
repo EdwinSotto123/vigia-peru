@@ -278,7 +278,7 @@ export function DashboardSidebar() {
             onClick={() => setOpen(true)}
             aria-expanded={open}
             aria-controls="menu-lateral"
-            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 text-[13px] font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 text-meta font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
           >
             <Menu size={15} aria-hidden /> Menú
           </button>
@@ -361,7 +361,7 @@ export function DashboardSidebar() {
                   className="flex flex-col gap-0.5"
                 >
                   {section.title && (
-                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-acento-texto">
+                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-acento-texto">
                       <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-acento" />
                       {section.title}
                     </p>
@@ -395,17 +395,17 @@ export function DashboardSidebar() {
           <div className="mt-auto space-y-2 pt-6">
             {FLAGS.editorial && !loading && !user && (
               <div className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amberTexto">
+                <p className="flex items-center gap-1.5 text-micro font-semibold text-amberTexto">
                   <Lock size={12} aria-hidden /> Acceso limitado
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-ink">
+                <p className="mt-1 text-rotulo leading-relaxed text-ink">
                   Algunas secciones (como el generador con IA) requieren cuenta para
                   evitar abusos.
                 </p>
                 <Link
                   href="/signup"
                   prefetch={false}
-                  className="mt-2 inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-1.5 text-xs font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+                  className="mt-2 inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-1.5 text-rotulo leading-4 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
                 >
                   Crear cuenta gratis
                 </Link>
@@ -419,7 +419,7 @@ export function DashboardSidebar() {
                 href="/preguntas"
                 aria-current={faqActiva ? "page" : undefined}
                 className={cn(
-                  "flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] transition-colors duration-rapido",
+                  "flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-meta transition-colors duration-rapido",
                   faqActiva ? "bg-granate-50 font-semibold text-granate" : "text-mute hover:bg-paper hover:text-ink",
                 )}
               >
@@ -428,7 +428,7 @@ export function DashboardSidebar() {
               <Link
                 href="/"
                 prefetch={false}
-                className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
+                className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-meta text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
               >
                 <Home size={14} aria-hidden /> Portada de Vigía
               </Link>
@@ -471,7 +471,7 @@ function SidebarLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex min-h-11 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-sm transition-colors duration-rapido",
+        "group flex min-h-11 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-dato leading-5 transition-colors duration-rapido",
         featured
           ? active
             ? "border-granate bg-granate text-paper"
@@ -506,8 +506,9 @@ function SidebarLink({
           {hint && (
             <span
               className={cn(
-                "truncate text-[11px]",
-                featured && active ? "text-paper/80" : active || featured ? "text-acento-texto/80" : "text-mute",
+                "truncate text-micro",
+                // Sin transparencia: el /80 sobre el fondo de acento quedaba en 4,4:1 (el piso es 4,5).
+                featured && active ? "text-paper/90" : active || featured ? "text-acento-texto" : "text-mute",
               )}
             >
               {hint}

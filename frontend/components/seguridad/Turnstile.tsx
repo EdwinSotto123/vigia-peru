@@ -172,7 +172,7 @@ export function useTurnstile(accion: string, className?: string): Verificacion {
 
   const widget = activo ? (
     <div role="group" aria-label="Verificación contra robots" className={cn(interactivo && "my-3", className)}>
-      <p aria-live="polite" className={interactivo ? "mb-2 flex items-center gap-1.5 text-[12px] text-inkSoft" : "sr-only"}>
+      <p aria-live="polite" className={interactivo ? "mb-2 flex items-center gap-1.5 text-rotulo text-inkSoft" : "sr-only"}>
         {interactivo && (
           <>
             <ShieldCheck size={13} className="shrink-0 text-granate" aria-hidden />

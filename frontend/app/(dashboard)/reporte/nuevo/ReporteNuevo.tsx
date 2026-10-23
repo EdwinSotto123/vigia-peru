@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Building2, HardHat, UserX, MapPin, Eye, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { REGIONES } from "@/lib/peru-data";
-import { EncabezadoPagina, Pagina } from "@/components/patrones";
+import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Confirmacion } from "@/components/reporte/Confirmacion";
 import { FormObra } from "@/components/reporte/FormObra";
 import { FormEntidad } from "@/components/reporte/FormEntidad";
@@ -61,8 +61,9 @@ export function ReporteNuevo() {
   // habilitan una tras otra; en el teléfono se apilan como un acordeón de pasos.
   return (
     <Pagina>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Denunciar", href: "/reporte/nuevo" }]} />
       <div className="space-y-3">
-        <Link href="/app/denuncias" className="inline-flex min-h-[44px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
+        <Link href="/app/denuncias" className="inline-flex min-h-[44px] items-center gap-2 text-meta font-medium text-inkSoft hover:text-ink">
           <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
         </Link>
 
@@ -84,7 +85,7 @@ export function ReporteNuevo() {
           />
           <ul className="flex flex-wrap gap-2" aria-label="Qué pasa con tu denuncia">
             {PROMESAS[modo].map((p) => (
-              <li key={p.texto} className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs font-medium text-inkSoft">
+              <li key={p.texto} className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo leading-4 font-medium text-inkSoft">
                 <span className="text-granate" aria-hidden>
                   {p.icono}
                 </span>
@@ -147,7 +148,7 @@ function TabBig({
       aria-pressed={active}
       title={subtitle}
       className={cn(
-        "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido",
+        "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 py-2 text-dato leading-5 font-semibold transition-colors duration-rapido",
         // Granate = la opción elegida (selección de marca), no una advertencia.
         active ? "bg-granate text-paper" : "bg-transparent text-inkSoft hover:bg-paper hover:text-ink",
       )}

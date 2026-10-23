@@ -117,7 +117,7 @@ export function ActividadAuditoria() {
             </Ayuda>
           }
         >
-          {ritmo?.length ? <Ritmo ritmo={ritmo} ultimoFin={ultimoFin} ahora={ahora} parcial={ritmoParcial} /> : <p className="text-[13px] text-mute">Sin dato</p>}
+          {ritmo?.length ? <Ritmo ritmo={ritmo} ultimoFin={ultimoFin} ahora={ahora} parcial={ritmoParcial} /> : <p className="text-meta text-mute">Sin dato</p>}
         </Tarjeta>
 
         <Tarjeta
@@ -133,7 +133,7 @@ export function ActividadAuditoria() {
           <Indicadores items={descargas} className="lg:grid-cols-2" />
           {lote && <Lote lote={lote} />}
           {tipos.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[13px]">
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-meta">
               <span className="text-mute">Se analizan hoy</span>
               {tipos.map((t) => (
                 <span key={t} className="pill border-line bg-paperSoft text-inkSoft">
@@ -154,11 +154,11 @@ function Tarjeta({ titulo, meta, ayuda, children }: { titulo: string; meta?: Rea
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <h3 className="flex items-center gap-1 font-display text-[15px] font-bold text-ink">
+        <h3 className="flex items-center gap-1 font-display text-bloque font-bold text-ink">
           {titulo}
           {ayuda}
         </h3>
-        {meta && <span className="text-[12.5px] tabular-nums text-mute">{meta}</span>}
+        {meta && <span className="text-meta tabular-nums text-mute">{meta}</span>}
       </div>
       {children}
     </section>
@@ -170,7 +170,7 @@ function Lote({ lote }: { lote: LoteIngesta }) {
   const hechos = lote.completados ?? 0;
   const pct = lote.total ? Math.min(100, (hechos / lote.total) * 100) : null;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
       <span className="text-mute">Lote de documentos</span>
       {pct != null && (
         <span className="h-2 w-32 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
@@ -212,10 +212,10 @@ function Ritmo({
   return (
     <figure className="m-0">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-        {parcial && <span className="text-[13px] text-inkSoft">al menos</span>}
-        <span className="font-display text-[24px] font-bold leading-none tabular-nums text-ink">{numero(total)}</span>
-        <span className="text-[13px] text-inkSoft">{total === 1 ? "análisis terminado" : "análisis terminados"}</span>
-        <span className="text-[12px] text-mute" suppressHydrationWarning>
+        {parcial && <span className="text-meta text-inkSoft">al menos</span>}
+        <span className="font-display text-seccion font-bold leading-none tabular-nums text-ink">{numero(total)}</span>
+        <span className="text-meta text-inkSoft">{total === 1 ? "análisis terminado" : "análisis terminados"}</span>
+        <span className="text-rotulo text-mute" suppressHydrationWarning>
           {ultimoFin == null ? "ninguno todavía" : `último ${ahora > 0 ? haceCuanto(ahora - ultimoFin) : `el ${fechaLima(ultimoFin, { hora: true })}`}`}
         </span>
       </div>
@@ -232,7 +232,7 @@ function Ritmo({
               />
               {rotulo && (
                 <span
-                  className="absolute inset-x-0 text-center text-[11px] font-semibold tabular-nums text-ink"
+                  className="absolute inset-x-0 text-center text-micro font-semibold tabular-nums text-ink"
                   style={{ bottom: `calc(${Math.max(8, (d.n / max) * 100)}% + 2px)` }}
                   aria-hidden
                 >
@@ -243,7 +243,7 @@ function Ritmo({
           );
         })}
       </div>
-      <figcaption className="mt-1 flex justify-between text-[11px] text-mute" aria-hidden>
+      <figcaption className="mt-1 flex justify-between text-micro text-mute" aria-hidden>
         <span>{diaCorto(ritmo[0].dia)}</span>
         <span>hoy</span>
       </figcaption>

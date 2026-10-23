@@ -26,9 +26,9 @@ export function KeyValue({ items, columnas = 2, className }: { items: ParClave[]
     <dl className={cn("grid gap-x-4 gap-y-3", COLUMNAS[columnas], className)}>
       {items.map((it) => (
         <div key={it.etiqueta} className={cn("min-w-0", it.completo && "col-span-full")}>
-          <dt className="text-[11px] font-medium text-mute">{it.etiqueta}</dt>
-          <dd className={cn("mt-0.5 break-words text-sm text-ink", it.mono && !vacio(it.valor) && "font-mono text-[13px]")}>{vacio(it.valor) ? <SinDato /> : it.valor}</dd>
-          {it.pista && <dd className="text-[11.5px] leading-snug text-mute">{it.pista}</dd>}
+          <dt className="text-micro font-medium text-mute">{it.etiqueta}</dt>
+          <dd className={cn("mt-0.5 break-words text-dato leading-5 text-ink", it.mono && !vacio(it.valor) && "font-mono text-meta")}>{vacio(it.valor) ? <SinDato /> : it.valor}</dd>
+          {it.pista && <dd className="text-rotulo leading-snug text-mute">{it.pista}</dd>}
         </div>
       ))}
     </dl>

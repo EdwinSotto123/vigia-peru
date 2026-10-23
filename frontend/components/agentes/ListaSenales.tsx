@@ -130,12 +130,12 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
       {senal.citas.length > 0 && (
         <BloqueDetalle
           titulo="Evidencia en el expediente"
-          acciones={<span className="shrink-0 text-[12px] tabular-nums text-mute">{plural(senal.citas.length, "página", "páginas")}</span>}
+          acciones={<span className="shrink-0 text-rotulo tabular-nums text-mute">{plural(senal.citas.length, "página", "páginas")}</span>}
         >
           <ul className="space-y-2">
             {senal.citas.map((c, i) => {
               const fuente = (
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo text-mute">
                   <FileText size={12} aria-hidden />
                   <span className="font-medium text-inkSoft">{c.documentoTitulo ?? "Documento del expediente"}</span>
                   {c.pagina != null && <span className="font-mono tabular-nums text-ink">pág. {c.pagina}</span>}
@@ -166,7 +166,7 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
 /** La opinión del OECE que respalda la norma: el extracto como cita, si se guardó; si no, sólo su número y enlace. */
 function OpinionOece({ opinion }: { opinion: NonNullable<SenalAgente["opinion"]> }) {
   const fuente = (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo text-mute">
       <span>
         Opinión del OECE <span className="font-mono">{opinion.num}</span>
       </span>

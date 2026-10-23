@@ -38,7 +38,7 @@ const COLUMNAS: Columna[] = [
 ];
 
 const CAMPO =
-  "h-10 rounded-full border border-line bg-paper px-3.5 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate";
+  "h-10 rounded-full border border-line bg-paper px-3.5 text-dato text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate";
 
 export function GobiernosPartido({ gobiernos, partido }: { gobiernos: GobiernoDePartido[]; partido: string }) {
   const [q, setQ] = useState("");
@@ -120,10 +120,10 @@ function filaDe(g: GobiernoDePartido): Fila {
         />
       ),
       procesos: <CeldaNumero>{g.procesos > 0 ? numero(g.procesos) : <span className="font-sans text-mute">0</span>}</CeldaNumero>,
-      monto: <CeldaNumero>{g.montoAdjudicadoPen > 0 ? solesCompacto(g.montoAdjudicadoPen) : <span className="font-sans text-mute">—</span>}</CeldaNumero>,
+      monto: <CeldaNumero>{g.montoAdjudicadoPen > 0 ? solesCompacto(g.montoAdjudicadoPen) : <span className="font-sans text-mute">Nada</span>}</CeldaNumero>,
       vigia: (
         <CeldaNumero sub={g.contratos > 0 ? `${numero(g.leidos)} leídos` : undefined}>
-          {g.contratos > 0 ? `${numero(g.contratos)} contratos` : <span className="font-sans text-mute">—</span>}
+          {g.contratos > 0 ? `${numero(g.contratos)} contratos` : <span className="font-sans text-mute">Ninguno</span>}
         </CeldaNumero>
       ),
     },

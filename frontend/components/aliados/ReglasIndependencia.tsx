@@ -15,7 +15,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
  */
 export function PruebaIndependencia({ nombre }: { nombre: string }) {
   return (
-    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-2xl border border-granate/20 bg-granate-50 px-4 py-2.5 text-[13px] text-inkSoft sm:px-5">
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-2xl border border-granate/20 bg-granate-50 px-4 py-2.5 text-meta text-inkSoft sm:px-5">
       <Scale size={15} className="shrink-0 text-granate" aria-hidden />
       <strong className="font-semibold text-ink">{nombre} no eligió estos contratos.</strong>
       <span>Salen de la cola por antigüedad.</span>

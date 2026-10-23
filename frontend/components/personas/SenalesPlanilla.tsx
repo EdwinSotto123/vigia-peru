@@ -17,17 +17,17 @@ export function SenalesPlanillaLista({ senales }: { senales: SenalConDetalle<Tip
     <ol className="space-y-3">
       {senales.map((s, i) => (
         <li key={s.tipo} className="flex gap-3 rounded-xl border border-line/80 bg-paperSoft p-3.5">
-          <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-[12px] font-semibold tabular-nums text-ink" aria-hidden>
+          <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold tabular-nums text-ink" aria-hidden>
             {i + 1}
           </span>
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-              <h4 className="text-[15px] font-semibold text-ink">{SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo}</h4>
+              <h4 className="text-cuerpo font-semibold text-ink">{SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo}</h4>
             </div>
-            <p className="max-w-prose text-[13.5px] leading-relaxed text-inkSoft">{SENAL_PLANILLA[s.tipo]?.explica}</p>
+            <p className="max-w-prose text-dato leading-relaxed text-inkSoft">{SENAL_PLANILLA[s.tipo]?.explica}</p>
             <DetalleSenalPlanilla tipo={s.tipo} d={s.detalle} />
-            <p className="text-[12px] text-mute">
+            <p className="text-rotulo text-mute">
               Fuente: {s.tipo === "candidato_gobierna" ? "JNE, candidaturas" : s.tipo === "apellidos_autoridad" || s.tipo === "es_autoridad" ? "JNE, autoridades electas" : s.tipo === "tambien_ordenes" || s.tipo === "antes_locador" ? "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)" : "Portal de Transparencia Estándar, personal"}
             </p>
           </div>
@@ -48,7 +48,7 @@ function TablaChica({ columnas, filas, etiqueta }: { columnas: Columna[]; filas:
   return <Tabla columnas={columnas} filas={filas} etiqueta={etiqueta} medida="contenedor" densidad="compacta" />;
 }
 
-const texto = (v: string | null) => <span className="text-[13px] text-ink">{v ?? "Sin dato"}</span>;
+const texto = (v: string | null) => <span className="text-meta text-ink">{v ?? "Sin dato"}</span>;
 
 export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
@@ -99,7 +99,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           }))}
         />
         {n(d.frecuencia) != null && (
-          <p className="text-[12.5px] text-mute">
+          <p className="text-meta text-mute">
             {n(d.frecuencia) === 1
               ? "Es la única persona de las planillas cargadas con estos dos apellidos."
               : `${numero(n(d.frecuencia) ?? 0)} personas de las planillas cargadas llevan estos dos apellidos.`}

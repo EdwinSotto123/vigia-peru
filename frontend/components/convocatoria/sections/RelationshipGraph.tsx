@@ -7,6 +7,21 @@ import { Network, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
 import type { GraphNode, GraphEdge } from "../types";
+
+/** Los vínculos que nombra la leyenda, en este orden (los demás se explican al pasar sobre la línea). */
+const LEYENDA: [GraphEdge["kind"], string][] = [
+  ["titular", "titular"],
+  ["domicilio", "mismo domicilio"],
+  ["aporte", "aporte ONPE"],
+  ["cargo", "cargo público"],
+  ["contrato", "contrato"],
+  ["pareja", "pareja o familia"],
+  ["autoridad", "autoridad pública"],
+  ["firma_conflicto", "firmante en conflicto"],
+  ["adjudicacion", "adjudicación"],
+  ["socio_de", "socio"],
+  ["visito", "visita"],
+];
 import { wrapText } from "../utils";
 import { NodeDetailPanel } from "./NodeDetailPanel";
 import { buildRelationshipGraphData } from "./RelationshipGraph.layout";
@@ -274,8 +289,8 @@ export function RelationshipGraph({
         {summaryCards.map((c) => (
           <div key={c.key} className={cn("rounded-xl border border-line bg-paper px-3 py-2", c.color)}>
             <div className="font-mono text-xl font-semibold leading-none tabular-nums text-ink">{c.count}</div>
-            <div className="mt-1 text-[12px] font-medium text-ink">{c.label}</div>
-            <div className="mt-0.5 text-[11px] text-mute">{c.hint}</div>
+            <div className="mt-1 text-rotulo font-medium text-ink">{c.label}</div>
+            <div className="mt-0.5 text-micro text-mute">{c.hint}</div>
           </div>
         ))}
       </div>
@@ -283,21 +298,21 @@ export function RelationshipGraph({
       {/* HALLAZGOS DE RED — bullets clave */}
       {banderasRed.length > 0 && (
         <div className="mb-4 rounded-lg border border-line bg-paper px-3 py-2.5">
-          <h3 className="mb-1.5 text-[13px] font-semibold text-ink">Lo que más pesa en la red empresarial</h3>
+          <h3 className="mb-1.5 text-cuerpo font-semibold text-ink">Lo que más pesa en la red empresarial</h3>
           <ul className="space-y-1">
             {banderasRed.slice(0, 6).map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px]">
+              <li key={i} className="flex items-start gap-2 text-rotulo">
                 <span className="mt-0.5 shrink-0">
                   {b.severidad === "alta" || b.severidad === "media" || b.severidad === "baja" ? (
                     <Severidad bandera={b.severidad} formato="punto" />
                   ) : (
-                    <span className="text-[11px] text-mute">info</span>
+                    <span className="text-micro text-mute">info</span>
                   )}
                 </span>
                 <div>
                   <span className="font-semibold text-ink">{redactDnis(String(b.titulo || b.tipo || "Hallazgo"))}</span>
                   {b.requiere_verificacion && (
-                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0 text-[11px] font-medium text-inkSoft">requiere verificación</span>
+                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0 text-micro font-medium text-inkSoft">requiere verificación</span>
                   )}
                   {b.descripcion && (
                     <div className="text-inkSoft">{redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</div>
@@ -311,55 +326,36 @@ export function RelationshipGraph({
 
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-[13px] font-semibold text-ink">
+          <h3 className="text-cuerpo font-semibold text-ink">
             <Network size={13} className="mr-1 inline text-mute" aria-hidden />
             Grafo de relaciones
           </h3>
-          <p className="text-[12px] text-mute">Arrastra los nodos para reorganizarlos.</p>
+          <p className="text-rotulo text-mute">Arrastra los nodos para reorganizarlos.</p>
         </div>
         {Object.keys(posOverride).length > 0 && (
           <button
             type="button"
             onClick={() => setPosOverride({})}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink hover:bg-paperDeep"
           >
             <RotateCcw size={12} aria-hidden /> Volver al orden automático
           </button>
         )}
-        <div className="flex flex-wrap gap-2 text-[9px] text-mute">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#BE7B26" }} />
-            titular
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12", backgroundImage: "repeating-linear-gradient(90deg,#A81E12 0 2px,transparent 2px 4px)" }} />
-            mismo domicilio
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12" }} />
-            aporte ONPE
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#8FA3A0", backgroundImage: "repeating-linear-gradient(90deg,#6B6166 0 1px,transparent 1px 3px)" }} />
-            cargo público
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#95612C" }} />
-            contrato
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#8E2A45" }} />
-            pareja / familia
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#C47F3E", backgroundImage: "repeating-linear-gradient(90deg,#C47F3E 0 3px,transparent 3px 5px)" }} />
-            autoridad pública
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12", height: 4 }} />
-            firmante en conflicto
-          </span>
-        </div>
+        {/* La leyenda sale del mismo styleEdge que dibuja las líneas (antes tenía colores viejos, que el grafo ya no
+            usaba) y sólo nombra los vínculos que hay en este grafo. */}
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-micro text-mute" aria-label="Leyenda de los vínculos">
+          {LEYENDA.filter(([k]) => edgesByKind[k]).map(([k, etiqueta]) => {
+            const e = styleEdge(k)!;
+            return (
+              <li key={k} className="inline-flex items-center gap-1.5">
+                <svg width="18" height="6" aria-hidden>
+                  <line x1="1" y1="3" x2="17" y2="3" stroke={e.color} strokeWidth={Math.min(e.width, 3)} strokeDasharray={e.dash || undefined} />
+                </svg>
+                {etiqueta}
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       <div className="relative overflow-hidden rounded-md border border-line bg-paper">
@@ -372,7 +368,7 @@ export function RelationshipGraph({
             title="Acercar"
             aria-label="Acercar el grafo"
           >
-            <span className="text-base font-bold leading-none">+</span>
+            <span className="text-destacado font-bold leading-none">+</span>
           </button>
           <button
             type="button"
@@ -381,7 +377,7 @@ export function RelationshipGraph({
             title="Alejar"
             aria-label="Alejar el grafo"
           >
-            <span className="text-base font-bold leading-none">−</span>
+            <span className="text-destacado font-bold leading-none">−</span>
           </button>
           <button
             type="button"
@@ -392,13 +388,13 @@ export function RelationshipGraph({
           >
             <RotateCcw size={12} />
           </button>
-          <div className="text-center text-[8px] font-mono text-mute">
+          <div className="text-center text-micro font-mono text-mute">
             {Math.round(1440 / viewBox.w * 100)}%
           </div>
         </div>
 
         {/* Hint sutil */}
-        <div className="absolute left-2 top-2 z-10 rounded-md bg-paperDeep/80 px-2 py-0.5 text-[9px] text-mute backdrop-blur-sm">
+        <div className="absolute left-2 top-2 z-10 rounded-md bg-paperDeep/80 px-2 py-0.5 text-micro text-mute backdrop-blur-sm">
           Rueda para acercar. Arrastra el fondo para moverte. Clic en un nodo para ver el detalle.
         </div>
 
@@ -457,6 +453,7 @@ export function RelationshipGraph({
             const hRect = baseH + lines.length * lineH;
 
             if (n.kind === "person") {
+              // recorte: las iniciales de un nombre
               const initials = (n.label || "?").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
               return (
                 <g key={n.id} onClick={handleNodeClick(n.id)} onMouseDown={handleNodeMouseDown(n.id)} style={{ cursor: "grab" }}>
@@ -544,7 +541,7 @@ export function RelationshipGraph({
       })()}
 
       {/* Cómo leer el grafo: qué es un hecho, qué es contexto y qué NO significa un trazo */}
-      <details className="mt-2 rounded-md border border-line bg-paperSoft px-3 py-2 text-xs text-inkSoft">
+      <details className="mt-2 rounded-md border border-line bg-paperSoft px-3 py-2 text-rotulo leading-4 text-inkSoft">
         <summary className="cursor-pointer font-medium text-ink">Cómo leer este grafo</summary>
         <ul className="mt-2 space-y-1">
           <li><b>Trazo continuo y grueso:</b> relación documentada en un registro oficial (RNP, JNE, ONPE, contrato).</li>

@@ -137,10 +137,10 @@ export default function PrivacidadAdmin() {
               <li key={s.id}>
                 <Card>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[13px] font-semibold text-ink">{s.codigo}</span>
+                    <span className="font-mono text-meta font-semibold text-ink">{s.codigo}</span>
                     <Badge tono={ESTADO[s.estado].tono} punto>{ESTADO[s.estado].etiqueta}</Badge>
                     <Badge>{TIPO[s.tipo]}</Badge>
-                    <span className="text-[12px] text-mute" title={fmtFechaHora(s.createdAt) ?? undefined}>
+                    <span className="text-rotulo text-mute" title={fmtFechaHora(s.createdAt) ?? undefined}>
                       Llegó {hace(s.createdAt)}
                     </span>
                     {abierta && dias >= 7 && (
@@ -149,13 +149,13 @@ export default function PrivacidadAdmin() {
                   </div>
 
                   <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                    <dl className="space-y-1.5 text-[13px]">
+                    <dl className="space-y-1.5 text-meta">
                       <div>
-                        <dt className="text-[12px] text-mute">Quién escribe</dt>
+                        <dt className="text-rotulo text-mute">Quién escribe</dt>
                         <dd className="font-medium text-ink">{s.nombre}</dd>
                       </div>
                       <div>
-                        <dt className="text-[12px] text-mute">Correo</dt>
+                        <dt className="text-rotulo text-mute">Correo</dt>
                         <dd>
                           <a
                             href={`mailto:${s.email}?subject=${encodeURIComponent(`Vigía Perú · tu pedido ${s.codigo}`)}`}
@@ -167,7 +167,7 @@ export default function PrivacidadAdmin() {
                       </div>
                       {s.enlace && (
                         <div>
-                          <dt className="text-[12px] text-mute">Dónde aparece</dt>
+                          <dt className="text-rotulo text-mute">Dónde aparece</dt>
                           <dd>
                             <a
                               href={s.enlace}
@@ -182,12 +182,12 @@ export default function PrivacidadAdmin() {
                       )}
                     </dl>
                     <div className="min-w-0">
-                      <p className="text-[12px] text-mute">Su pedido</p>
-                      <p className="mt-1 whitespace-pre-wrap break-words rounded-xl border border-line bg-paperDeep px-3 py-2 text-[13.5px] leading-relaxed text-ink">
+                      <p className="text-rotulo text-mute">Su pedido</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words rounded-xl border border-line bg-paperDeep px-3 py-2 text-dato leading-relaxed text-ink">
                         {s.mensaje}
                       </p>
                       {s.respuesta && (
-                        <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
+                        <p className="mt-2 text-meta leading-relaxed text-inkSoft">
                           <span className="font-semibold text-ink">Qué se hizo: </span>
                           {s.respuesta}
                           {s.atendidaPor && <span className="text-mute"> · {s.atendidaPor}{s.atendidaAt ? `, ${fmtFechaHora(s.atendidaAt)}` : ""}</span>}

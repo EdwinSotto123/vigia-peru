@@ -327,7 +327,7 @@ export function PeruChoropleth({
   const fs = {
     deptAlto: px(14),
     deptMedio: px(12),
-    deptBajo: px(10),
+    deptBajo: px(11), // el mínimo de la escala (era 10: los nombres de las regiones chicas quedaban en 10,3 px)
     deptSelected: px(15),
     prov: px(11),
   };

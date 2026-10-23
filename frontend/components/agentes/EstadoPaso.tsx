@@ -34,7 +34,7 @@ export function IconoEstado({ estado, size = 12, className }: { estado: EstadoFa
 export function EstadoTexto({ estado, className }: { estado: EstadoFase; className?: string }) {
   const e = ESTADO_PASO[estado];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[12px] font-medium", e.texto, className)}>
+    <span className={cn("inline-flex items-center gap-1.5 text-rotulo font-medium", e.texto, className)}>
       <IconoEstado estado={estado} />
       {e.label}
     </span>

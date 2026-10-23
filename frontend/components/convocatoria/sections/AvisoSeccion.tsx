@@ -13,8 +13,8 @@ export function AvisoSeccion({ titulo, children, icono }: { titulo: string; chil
     <div className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5">
       <span className="mt-0.5 shrink-0 text-mute">{icono ?? <Info size={16} aria-hidden />}</span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-ink">{titulo}</p>
-        {children && <div className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-inkSoft text-pretty">{children}</div>}
+        <p className="text-dato leading-5 font-semibold text-ink">{titulo}</p>
+        {children && <div className="mt-1 max-w-[68ch] text-meta leading-relaxed text-inkSoft text-pretty">{children}</div>}
       </div>
     </div>
   );

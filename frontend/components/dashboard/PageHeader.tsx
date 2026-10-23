@@ -37,7 +37,7 @@ export function PageHeader({
   const acciones =
     contexto || actions ? (
       <>
-        {contexto && <div className="text-[13px] leading-snug text-mute">{contexto}</div>}
+        {contexto && <div className="text-meta leading-snug text-mute">{contexto}</div>}
         {actions}
       </>
     ) : undefined;

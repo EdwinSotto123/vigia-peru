@@ -147,7 +147,7 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
           <p className="text-mute">Nadie ha leído este expediente todavía.</p>
           <Link
             href={c.ubigeo ? `/app/financiar/${c.ubigeo}` : "/app/financiar"}
-            className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
+            className="mt-2 inline-flex items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline"
           >
             Financiar la lectura de {c.zona ?? "esta zona"} <ArrowRight size={13} aria-hidden />
           </Link>

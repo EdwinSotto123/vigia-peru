@@ -64,13 +64,13 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
     <>
       <ul className="divide-y divide-line rounded-2xl border border-line bg-paper">
         {documentos.map((d, i) => (
-          <li key={`${d.url}-${i}`} className={cn("flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-paperSoft", abierto?.doc.url === d.url && "bg-paperSoft")}>
+          <li key={`${d.url}-${i}`} className={cn("flex items-center gap-2 px-3 py-2 text-dato leading-5 transition-colors hover:bg-paperSoft", abierto?.doc.url === d.url && "bg-paperSoft")}>
             <FileText size={14} className="shrink-0 text-mute" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink">{d.titulo ?? tipoDocLabel(d.tipo)}</span>
               {/* Los atributos del documento, cada uno con su ícono (antes encadenados con puntos medios en un
                   renglón de 10 px, después sólo separados por aire). */}
-              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11.5px] text-mute">
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-rotulo text-mute">
                 <Dato tipo="documento" nombre="Tipo">{tipoDocLabel(d.tipo)}</Dato>
                 {d.seccion === "award" && <Dato icono={FolderOpen} nombre="Parte del expediente">De la adjudicación</Dato>}
                 {d.seccion === "contract" && <Dato icono={FolderOpen} nombre="Parte del expediente">Del contrato</Dato>}
@@ -84,7 +84,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
                 type="button"
                 onClick={() => ver(d)}
                 disabled={cargando === d.url}
-                className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-medium text-ink hover:bg-paperDeep disabled:opacity-60"
+                className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-medium text-ink hover:bg-paperDeep disabled:opacity-60"
                 aria-label={`${esPdf(d.formato) ? "Ver la copia de Vigía de" : "Bajar la copia de Vigía de"} ${d.titulo ?? tipoDocLabel(d.tipo)}`}
               >
                 {cargando === d.url ? <Loader2 size={12} className="animate-spin" aria-hidden /> : esPdf(d.formato) ? <Eye size={12} aria-hidden /> : <Download size={12} aria-hidden />}
@@ -95,7 +95,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
               href={d.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[32px] items-center gap-1 rounded-full px-2 py-1 text-[12px] font-medium text-granate hover:underline"
+              className="inline-flex min-h-[32px] items-center gap-1 rounded-full px-2 py-1 text-rotulo font-medium text-granate hover:underline"
               aria-label={`Abrir ${d.titulo ?? tipoDocLabel(d.tipo)} en el SEACE (fuente oficial)`}
             >
               SEACE <ExternalLink size={11} aria-hidden />
@@ -103,9 +103,9 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
           </li>
         ))}
       </ul>
-      {error && <p role="alert" className="mt-2 text-[12px] text-crimsonTexto">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-rotulo text-crimsonTexto">{error}</p>}
       {enlace && (
-        <p className="mt-2 text-[12px] text-ink">
+        <p className="mt-2 text-rotulo text-ink">
           Documento listo:{" "}
           <a href={enlace.url} target="_blank" rel="noopener noreferrer" className="font-medium text-granate underline underline-offset-2">
             abrir {enlace.titulo}
@@ -115,14 +115,14 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
       )}
       {abierto && (
         <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper">
-          <div className="flex items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-[12px] text-mute">
+          <div className="flex items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-rotulo text-mute">
             <span className="min-w-0 flex-1 truncate text-ink">{abierto.doc.titulo ?? tipoDocLabel(abierto.doc.tipo)}</span>
             {abierto.f.bytes ? <span className="font-mono tabular-nums">{numero(Math.max(1, Math.round(abierto.f.bytes / 1e5)) / 10)} MB</span> : null}
             <a href={abierto.f.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[28px] items-center gap-1 hover:text-ink"><Download size={12} aria-hidden /> Abrir</a>
             <button type="button" onClick={() => setAbierto(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-paperDeep hover:text-ink" aria-label="Cerrar la vista previa"><X size={14} aria-hidden /></button>
           </div>
           <iframe src={`${abierto.f.url}#toolbar=1&view=FitH`} title="Vista previa del documento" className="h-[70vh] w-full bg-paperDeep" />
-          <p className="px-3 py-1.5 text-[11px] text-mute">Copia del documento publicado en el SEACE, guardada por Vigía. El enlace vence en {numero(Math.round(abierto.f.venceEnSeg / 60))} min.</p>
+          <p className="px-3 py-1.5 text-micro text-mute">Copia del documento publicado en el SEACE, guardada por Vigía. El enlace vence en {numero(Math.round(abierto.f.venceEnSeg / 60))} min.</p>
         </div>
       )}
     </>

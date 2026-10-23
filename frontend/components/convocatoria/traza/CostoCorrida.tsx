@@ -101,7 +101,7 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
 
       {agentes.length > 0 && (
         <section>
-          <h3 className="mb-2 flex items-center gap-1 font-display text-[15px] font-bold text-ink">
+          <h3 className="mb-2 flex items-center gap-1 font-display text-bloque font-bold text-ink">
             Quién consumió qué
             <Ayuda titulo="¿Cómo se reparte?">
               Cada agente anota lo que consumió al terminar su parte. Sumado, da el total de arriba.
@@ -114,26 +114,26 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
               return (
                 <li key={n.clave} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto]">
                   <span className="min-w-0">
-                    <span className="block truncate text-[13.5px] font-medium text-ink">{n.titulo}</span>
-                    <span className="block text-[12px] tabular-nums text-mute">
+                    <span className="block truncate text-dato font-medium text-ink">{n.titulo}</span>
+                    <span className="block text-rotulo tabular-nums text-mute">
                       {plural(c.llamadas, "llamada", "llamadas")}, {numero(c.tokens)} tokens
                     </span>
                   </span>
                   <span className="col-span-2 row-start-2 h-2 overflow-hidden rounded-full bg-paperDeep sm:col-span-1 sm:row-start-auto" aria-hidden>
                     <span className="block h-full rounded-full bg-textil-anil" style={{ width: `${pct}%` }} />
                   </span>
-                  <span className="text-right font-mono text-[13px] tabular-nums text-ink">{usd(c.costo)}</span>
+                  <span className="text-right font-mono text-meta tabular-nums text-ink">{usd(c.costo)}</span>
                 </li>
               );
             })}
           </ol>
           {Math.abs(sinAsignar) > 0.001 && (
-            <p className="mt-2 text-[12.5px] text-mute">
+            <p className="mt-2 text-meta text-mute">
               La suma por agente da {usd(suma)}: {usd(Math.abs(sinAsignar))} del total no quedaron asignados a un agente en la traza.
             </p>
           )}
           {sinConsumo.length > 0 && (
-            <p className="mt-2 text-[12.5px] text-mute">
+            <p className="mt-2 text-meta text-mute">
               Sin consumo del modelo registrado: {listaY(sinConsumo.map((n) => n.titulo))}.
             </p>
           )}

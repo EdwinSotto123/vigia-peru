@@ -231,12 +231,12 @@ function Procesamientos() {
       celda: (p) => (
         <>
           <span className="flex items-baseline gap-2">
-            <span className="shrink-0 font-mono text-xs text-ink">{p.ocid}</span>
-            <span className="truncate text-[11px] text-mute">
+            <span className="shrink-0 font-mono text-rotulo leading-4 text-ink">{p.ocid}</span>
+            <span className="truncate text-micro text-mute">
               <Partes partes={[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo]} />
             </span>
           </span>
-          {p.titulo && <span className="block truncate text-[12px] text-inkSoft" title={p.titulo}>{p.titulo}</span>}
+          {p.titulo && <span className="block truncate text-rotulo text-inkSoft" title={p.titulo}>{p.titulo}</span>}
         </>
       ),
     },
@@ -254,10 +254,10 @@ function Procesamientos() {
     {
       clave: "movimiento",
       titulo: "Último movimiento",
-      className: "whitespace-nowrap text-[12px] text-mute",
+      className: "whitespace-nowrap text-rotulo text-mute",
       celda: (p) => hace(p.latidoAt ?? p.finalizadoAt ?? p.encoladoAt) ?? "sin movimiento",
     },
-    { clave: "detalle", titulo: "Detalle", className: "max-w-[240px] text-[12px]", anchoCompletoMovil: true, celda: (p) => <Detalle p={p} /> },
+    { clave: "detalle", titulo: "Detalle", className: "max-w-[240px] text-rotulo", anchoCompletoMovil: true, celda: (p) => <Detalle p={p} /> },
     {
       clave: "acciones",
       titulo: "Acciones",
@@ -347,7 +347,7 @@ function Procesamientos() {
         {/* ── Filtros de la tabla ── */}
         <div className="flex flex-wrap items-center gap-2">
           {lote && (
-            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-medium ${TONO.brand.badge}`}>
+            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-meta font-medium ${TONO.brand.badge}`}>
               Lote {lote}
               <button onClick={() => filtrar({ lote: null })} aria-label="Quitar filtro de lote" className="rounded-full p-0.5 hover:bg-granate/10">
                 <X size={11} aria-hidden />
@@ -355,7 +355,7 @@ function Procesamientos() {
             </span>
           )}
           {estado !== "todos" && (
-            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-medium ${ESTADO_UI[estado].badge}`}>
+            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-meta font-medium ${ESTADO_UI[estado].badge}`}>
               {ESTADO_UI[estado].label}
               <button onClick={() => filtrar({ estado: "todos" })} aria-label="Quitar filtro de estado" className="rounded-full p-0.5 transition-colors duration-rapido hover:bg-paper/40">
                 <X size={11} aria-hidden />
@@ -366,7 +366,7 @@ function Procesamientos() {
             value={perfil}
             onChange={(e) => filtrar({ perfil: e.target.value as Perfil | "todos" })}
             aria-label="Tipo de contrato"
-            className="min-h-[34px] rounded-full border border-line bg-paperDeep px-3 text-[13px] text-ink focus:border-granate/60"
+            className="min-h-[34px] rounded-full border border-line bg-paperDeep px-3 text-meta text-ink focus:border-granate/60"
           >
             <option value="todos">Todos los tipos</option>
             {/* Con la lista cortada, contar ahí daría de menos: sin número. */}
@@ -383,7 +383,7 @@ function Procesamientos() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Código, objeto o entidad"
               aria-label="Buscar contrato"
-              className="min-h-[34px] w-60 rounded-full border border-line bg-paperDeep py-1 pl-8 pr-3 text-[13px] text-ink placeholder:text-mute focus:border-granate/60"
+              className="min-h-[34px] w-60 rounded-full border border-line bg-paperDeep py-1 pl-8 pr-3 text-meta text-ink placeholder:text-mute focus:border-granate/60"
             />
           </label>
           <Link href="/app/auditoria" target="_blank" className={claseBoton("fantasma")}>
@@ -392,7 +392,7 @@ function Procesamientos() {
         </div>
 
         {capada && (
-          <p className="mt-2 text-[12px] text-inkSoft">
+          <p className="mt-2 text-rotulo text-inkSoft">
             La lista trae los {TOPE_LISTA} contratos con movimiento más reciente
             {totalExacto != null ? ` de ${plural(totalExacto, "contrato", "contratos")} en total` : ""}.{" "}
             {exactos ? "Los totales de arriba sí cuentan todos." : "No se pudo leer el estado del sistema: los totales de arriba cuentan sólo esta lista."}
@@ -435,7 +435,7 @@ function Avance({ p }: { p: ProcAdmin }) {
     const i = p.faseIndex ?? 0;
     return (
       <div className="w-40">
-        <div className="flex justify-between text-[11px] text-inkSoft">
+        <div className="flex justify-between text-micro text-inkSoft">
           <span className="truncate">{p.faseActual ? faseLabel(p.faseActual) : "Iniciando"}</span>
           <span className="font-mono">{i}/{TOTAL_FASES}</span>
         </div>
@@ -446,14 +446,14 @@ function Avance({ p }: { p: ProcAdmin }) {
   if (p.estado === "procesado") {
     const seg = p.iniciadoAt && p.finalizadoAt ? (new Date(p.finalizadoAt).getTime() - new Date(p.iniciadoAt).getTime()) / 1000 : null;
     return (
-      <span className="text-[12px] text-inkSoft">
+      <span className="text-rotulo text-inkSoft">
         {seg != null && seg > 0 ? `leído en ${seg < 90 ? `${Math.round(seg)} s` : `${Math.round(seg / 60)} min`}` : "terminado"}
         {p.score != null && <span className="text-mute">, puntaje {p.score}</span>}
       </span>
     );
   }
-  if (p.intentos > 0) return <span className="text-[12px] text-mute">{p.intentos} {p.intentos === 1 ? "intento" : "intentos"}</span>;
-  return <span className="text-[12px] text-mute">sin empezar</span>;
+  if (p.intentos > 0) return <span className="text-rotulo text-mute">{p.intentos} {p.intentos === 1 ? "intento" : "intentos"}</span>;
+  return <span className="text-rotulo text-mute">sin empezar</span>;
 }
 
 /** El motivo, con el color que corresponde: esperar documentos no es un error. */

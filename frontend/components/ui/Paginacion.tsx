@@ -64,7 +64,7 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
   const prev = Math.max(1, pagina - 1);
   const next = Math.min(ultima, pagina + 1);
   return (
-    <div className="flex items-center justify-between gap-2 text-[12px] text-mute">
+    <div className="flex items-center justify-between gap-2 text-rotulo text-mute">
       {/* Sin aria-live: varias páginas muestran dos paginadores (arriba y abajo) y el
           lector de pantalla anunciaba el mismo rango dos veces en cada cambio. */}
       <span className="font-mono tabular-nums">

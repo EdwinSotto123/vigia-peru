@@ -24,7 +24,7 @@ export interface OpcionSelect {
 }
 
 const CAMPO =
-  "h-10 rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 /** Espera tras la última tecla antes de buscar: una búsqueda por letra pedía una página por letra. */
 const ESPERA_MS = 400;
@@ -145,7 +145,7 @@ export function FiltrosFinanciar({
         <button
           type="button"
           onClick={() => navegar({ q: undefined, region: undefined, orden: undefined })}
-          className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-[13.5px] font-semibold text-granate underline-offset-2 hover:underline"
+          className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-dato font-semibold text-granate underline-offset-2 hover:underline"
         >
           Quitar filtros
         </button>

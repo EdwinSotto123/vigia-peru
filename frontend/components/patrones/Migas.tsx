@@ -42,7 +42,7 @@ export function Migas({
 
   return (
     <nav aria-label="Ruta de navegación">
-      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13.5px]">
+      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-dato">
         {todas.map((m, i) => {
           const ultima = i === todas.length - 1;
           return (

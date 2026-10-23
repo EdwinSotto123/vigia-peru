@@ -125,7 +125,7 @@ export function Tooltip({
         popover="manual"
         style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}
         className={cn(
-          "pointer-events-none fixed z-overlay m-0 max-w-[16rem] rounded-xl border border-line bg-ink px-2.5 py-1.5 text-[12px] leading-snug text-paper shadow-pop",
+          "pointer-events-none fixed z-overlay m-0 max-w-[16rem] rounded-xl border border-line bg-ink px-2.5 py-1.5 text-rotulo leading-snug text-paper shadow-pop",
           "transition-opacity duration-rapido ease-salida",
           abierto && pos ? "opacity-100" : "opacity-0",
         )}
@@ -221,9 +221,9 @@ export function Popover({
         )}
       >
         {titulo && (
-          <span className="block border-b border-line bg-paperSoft px-3 py-2 text-[13px] font-semibold text-ink">{titulo}</span>
+          <span className="block border-b border-line bg-paperSoft px-3 py-2 text-meta font-semibold text-ink">{titulo}</span>
         )}
-        <span className="block px-3 py-2.5 text-[13px] leading-relaxed">{children}</span>
+        <span className="block px-3 py-2.5 text-meta leading-relaxed">{children}</span>
       </span>
     </>
   );

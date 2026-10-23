@@ -40,17 +40,17 @@ export function EnRevisionDossier({ conv, ganador, nGanadores }: { conv: any; ga
       />
       <Indicadores items={indicadoresDossier({ conv, ganador })} />
       <section aria-labelledby="en-revision-titulo" className="rounded-2xl border border-line bg-paperSoft px-4 py-3.5 sm:px-5">
-        <h2 id="en-revision-titulo" className="inline-flex items-center gap-2 font-display text-[19px] font-bold text-ink">
+        <h2 id="en-revision-titulo" className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
           <Icono size={18} className={cn("shrink-0", EN_REVISION.texto)} aria-hidden />
           El análisis terminó y está en revisión
         </h2>
-        <p className="mt-1 text-sm leading-snug text-inkSoft">
+        <p className="mt-1 text-dato leading-snug text-inkSoft">
           Una persona del equipo lo revisa antes de publicarlo. Hasta entonces no se muestra lo que encontró.
         </p>
         {ocid && (
           <Link
             href={`/app/contratos/${encodeURIComponent(ocid)}`}
-            className="mt-2 inline-flex min-h-[32px] items-center gap-1 text-[13px] font-semibold text-granate hover:underline"
+            className="mt-2 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline"
           >
             Ver el contrato y sus documentos oficiales <ArrowRight size={14} aria-hidden />
           </Link>

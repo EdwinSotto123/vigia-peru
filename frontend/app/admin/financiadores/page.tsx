@@ -109,11 +109,11 @@ export default function FinanciadoresPage() {
           )}
           <span className="min-w-0">
             <span className="block font-medium text-ink">{f.nombrePublico ?? <span className="text-mute">Anónimo</span>}</span>
-            <span className="block max-w-[280px] truncate text-[11px] text-mute" title={perfilDisponible && f.slug && resumenPerfil(f) ? `Publicó ${resumenPerfil(f)}` : undefined}>
+            <span className="block max-w-[280px] truncate text-micro text-mute" title={perfilDisponible && f.slug && resumenPerfil(f) ? `Publicó ${resumenPerfil(f)}` : undefined}>
               {[tipoFinanciadorLabel(f.tipo), perfilDisponible && f.slug ? (resumenPerfil(f) ? `publicó ${resumenPerfil(f)}` : "perfil sin completar") : null].filter(Boolean).join(", ")}
             </span>
             {(f.sancionVigente || f.alertasActivas) && (
-              <span className="flex items-center gap-1 text-[11px] text-crimsonTexto">
+              <span className="flex items-center gap-1 text-micro text-crimsonTexto">
                 <AlertTriangle size={11} aria-hidden />{f.sancionVigente ? "Sanción OSCE vigente" : "Proveedor con alertas activas"}
               </span>
             )}
@@ -124,11 +124,11 @@ export default function FinanciadoresPage() {
     {
       clave: "contacto",
       titulo: "Contacto",
-      className: "max-w-[230px] text-[12px]",
+      className: "max-w-[230px] text-rotulo",
       celda: (f) => (
         <>
           <span className="block truncate text-ink" title={f.email}>{f.email}</span>
-          <span className="block truncate font-mono text-[11px] text-mute">{f.ruc ? <>RUC <Ruc value={f.ruc} /></> : "Sin RUC"}</span>
+          <span className="block truncate font-mono text-micro text-mute">{f.ruc ? <>RUC <Ruc value={f.ruc} /></> : "Sin RUC"}</span>
         </>
       ),
     },
@@ -144,11 +144,11 @@ export default function FinanciadoresPage() {
         ) : (
           <span className="inline-flex flex-col items-start gap-0.5">
             <Badge tono="danger" punto>Oculto</Badge>
-            <span className="text-[11px] text-mute">{motivoNoVisibleLabel(f.motivoNoVisible) ?? "sin motivo registrado"}</span>
+            <span className="text-micro text-mute">{motivoNoVisibleLabel(f.motivoNoVisible) ?? "sin motivo registrado"}</span>
           </span>
         ),
     },
-    { clave: "alta", titulo: "Alta", className: "whitespace-nowrap text-[12px] text-mute", celda: (f) => fmtDia(f.createdAt) },
+    { clave: "alta", titulo: "Alta", className: "whitespace-nowrap text-rotulo text-mute", celda: (f) => fmtDia(f.createdAt) },
     {
       clave: "acciones",
       titulo: "Acciones",
@@ -207,7 +207,7 @@ export default function FinanciadoresPage() {
                 <DetalleFinanciador key={sel.id} f={sel} perfilDisponible={perfilDisponible} onModerar={() => toggle(sel)} onCerrar={() => setElegidoId(null)} />
               </aside>
             ) : rows?.length ? (
-              <p className="flex items-center gap-2 text-[12.5px] text-inkSoft">
+              <p className="flex items-center gap-2 text-meta text-inkSoft">
                 <MousePointerClick size={14} className="shrink-0" aria-hidden />
                 <span><strong className="font-semibold text-ink">Elige un financiador</strong> para ver lo que publicó, sus cifras y ocultarlo o mostrarlo.</span>
               </p>

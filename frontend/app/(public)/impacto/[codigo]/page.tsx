@@ -163,11 +163,11 @@ export default async function ImpactoPage({
           {/* Identidad del recibo: su código, qué es y en qué estado está. Quien financió, al costado. */}
           <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
             <div className="min-w-0">
-              <h1 className="break-all font-mono text-[28px] font-bold leading-tight text-ink sm:text-[32px]">
+              <h1 className="break-all font-mono text-cifra font-bold leading-tight text-ink sm:text-titulo">
                 <span className="sr-only">Comprobante de impacto </span>
                 {c.codigo}
               </h1>
-              <p className="mt-1 text-sm text-inkSoft">
+              <p className="mt-1 text-dato leading-5 text-inkSoft">
                 Comprobante de impacto: lectura de {plural(c.contratos, "contrato", "contratos")}{" "}
                 {c.partido ? (
                   <>
@@ -188,7 +188,7 @@ export default async function ImpactoPage({
                   <>en {c.zona}</>
                 )}
               </p>
-              <p className={`mt-2 inline-flex items-start gap-1.5 text-sm font-medium ${tonoEstado}`}>
+              <p className={`mt-2 inline-flex items-start gap-1.5 text-dato leading-5 font-medium ${tonoEstado}`}>
                 {institucional ? <Sprout size={15} className="mt-0.5 shrink-0" aria-hidden /> : <IconoEstado size={15} className="mt-0.5 shrink-0" aria-hidden />}
                 {est.label}
               </p>
@@ -196,22 +196,22 @@ export default async function ImpactoPage({
             <div className="flex items-center gap-3">
               <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">
+                <p className="text-dato leading-5 font-semibold text-ink">
                   {c.slug ? <Link href={`/aliado/${c.slug}`} className="underline-offset-2 hover:underline">{c.financiador}</Link> : c.financiador}
                 </p>
-                <p className="text-[12px] text-mute">{c.slug === "vigia-peru" ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[c.tipo] ?? c.tipo}</p>
+                <p className="text-rotulo text-mute">{c.slug === "vigia-peru" ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[c.tipo] ?? c.tipo}</p>
               </div>
             </div>
           </header>
 
-          <p className="mt-4 text-sm text-inkSoft">
+          <p className="mt-4 text-dato leading-5 text-inkSoft">
             {institucional
               ? `Asignado el ${fecha(asignadaAt ?? c.createdAt)} con capital semilla de Vigía Perú.`
               : c.pagadaAt
                 ? `Pago confirmado el ${fecha(c.pagadaAt)}.`
                 : `Registrado el ${fecha(c.createdAt)}.`}
           </p>
-          {mensaje && <blockquote className="mt-3 border-l-2 border-granate-200 pl-3 text-sm italic text-inkSoft">“{mensaje}”</blockquote>}
+          {mensaje && <blockquote className="mt-3 border-l-2 border-granate-200 pl-3 text-dato leading-5 italic text-inkSoft">“{mensaje}”</blockquote>}
 
           {/* Cada cifra con su denominador (§10.2), número → qué es → contexto. */}
           <Indicadores className="mt-6" items={indicadoresAporte(c, esperandoDocumentos)} />
@@ -245,12 +245,12 @@ export default async function ImpactoPage({
                     {primero && (
                       <Link
                         href={rutaContrato(primero.ocid, "vivo")}
-                        className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+                        className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 text-dato leading-5 text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
                       >
                         <span className="min-w-0">
-                          <span className="block text-[12px] font-semibold text-mute">Primer contrato leído con este aporte</span>
+                          <span className="block text-rotulo font-semibold text-mute">Primer contrato leído con este aporte</span>
                           <span className="mt-0.5 block truncate font-medium">{primero.titulo ?? primero.ocid}</span>
-                          <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[12px] text-inkSoft">
+                          <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-rotulo text-inkSoft">
                             <span className="truncate">{primero.entidad ?? "Entidad no identificada"}</span>
                             <span className="shrink-0">
                               {primero.alertaEstado === "revision"
@@ -275,7 +275,7 @@ export default async function ImpactoPage({
                 conteo: c.resumen.asignados,
                 contenido: (
                   <>
-                    <p className="mb-3 text-sm text-inkSoft">
+                    <p className="mb-3 text-dato leading-5 text-inkSoft">
                       {c.estado === "pendiente_pago"
                         ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
                         : "Toca uno para ver su lectura paso por paso."}
@@ -293,7 +293,7 @@ export default async function ImpactoPage({
             ]}
           />
 
-          <p className="mt-8 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+          <p className="mt-8 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>{institucional ? "Este lote" : "Este aporte"} financió capacidad de lectura, no resultados.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
@@ -356,7 +356,7 @@ function EnUnaFrase({ c, leidos, valorAsignado, esperandoDocumentos }: {
 
   return (
     <div className="rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
-      <p className="font-display text-lg leading-snug text-ink text-pretty sm:text-xl">
+      <p className="font-display text-bloque leading-snug text-ink text-pretty sm:text-xl">
         {n === 1 ? "El contrato" : <>Los <strong className="font-mono">{numero(n)}</strong> contratos</>} de{" "}
         {c.entidad ? <NombreEntidad ruc={c.entidad.ruc} nombre={c.entidad.nombre} /> : c.zona}{" "}
         {n === 1 ? "vale" : "suman"} <strong className="whitespace-nowrap">{solesCompacto(valorAsignado)}</strong> de valor referencial
@@ -367,16 +367,16 @@ function EnUnaFrase({ c, leidos, valorAsignado, esperandoDocumentos }: {
       {fuerte && (
         <Link
           href={`/app/contratos/${encodeURIComponent(fuerte.ocid)}`}
-          className="group mt-3 flex items-start justify-between gap-3 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-sm transition-colors duration-150 hover:border-ink/30"
+          className="group mt-3 flex items-start justify-between gap-3 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-dato leading-5 transition-colors duration-150 hover:border-ink/30"
         >
           <span className="min-w-0">
-            <span className="flex flex-wrap items-center gap-2 text-[12px] font-semibold text-inkSoft">
+            <span className="flex flex-wrap items-center gap-2 text-rotulo font-semibold text-inkSoft">
               La señal más fuerte
               {sevFuerte && <Severidad bandera={sevFuerte} formato="pastilla" />}
               {fuerte.score != null && <span className="font-normal text-mute">puntaje {numero(fuerte.score)} de 100</span>}
             </span>
             <span className="mt-1 line-clamp-2 font-medium text-ink">{fuerte.titulo ?? fuerte.ocid}</span>
-            {fuerte.entidad && <span className="mt-0.5 block truncate text-[12px] text-inkSoft">{fuerte.entidad}</span>}
+            {fuerte.entidad && <span className="mt-0.5 block truncate text-rotulo text-inkSoft">{fuerte.entidad}</span>}
           </span>
           <ArrowRight size={16} className="mt-1 shrink-0 text-inkSoft transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
         </Link>

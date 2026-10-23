@@ -58,16 +58,16 @@ export function GastoGobiernos({ gasto, ruta, anio }: { gasto: GastoPartido | nu
 
           <div className="grid gap-6 [container-type:inline-size] lg:grid-cols-2">
             <div className="min-w-0">
-              <h4 className="mb-3 text-[14px] font-semibold text-ink">Por función</h4>
+              <h4 className="mb-3 text-dato font-semibold text-ink">Por función</h4>
               <BarrasGasto rubros={gasto.funciones ?? []} total={t.pim} maximo={8} />
             </div>
             <div className="min-w-0 space-y-6">
               <div>
-                <h4 className="mb-3 text-[14px] font-semibold text-ink">Por tipo de gasto</h4>
+                <h4 className="mb-3 text-dato font-semibold text-ink">Por tipo de gasto</h4>
                 <BarrasGasto rubros={gasto.genericas ?? []} total={t.pim} maximo={5} />
               </div>
               <div>
-                <h4 className="mb-3 text-[14px] font-semibold text-ink">Por nivel de gobierno</h4>
+                <h4 className="mb-3 text-dato font-semibold text-ink">Por nivel de gobierno</h4>
                 <BarrasGasto
                   rubros={(gasto.porNivel ?? []).map((n) => ({ nombre: `${NIVELES[n.nivel]} (${numero(n.gobiernos)})`, pim: n.pim, devengado: n.devengado }))}
                   total={t.pim}
@@ -79,7 +79,7 @@ export function GastoGobiernos({ gasto, ruta, anio }: { gasto: GastoPartido | nu
 
           {(gasto.proyectos?.length ?? 0) > 0 && (
             <div>
-              <h4 className="mb-3 text-[14px] font-semibold text-ink">Proyectos con más presupuesto</h4>
+              <h4 className="mb-3 text-dato font-semibold text-ink">Proyectos con más presupuesto</h4>
               <TablaPaginada
                 columnas={COLUMNAS_PROYECTOS}
                 filas={filasProyectos(gasto)}
@@ -93,7 +93,7 @@ export function GastoGobiernos({ gasto, ruta, anio }: { gasto: GastoPartido | nu
 
           {(gasto.gobiernos?.length ?? 0) > 0 && (
             <div>
-              <h4 className="mb-3 text-[14px] font-semibold text-ink">Cada gobierno, por presupuesto</h4>
+              <h4 className="mb-3 text-dato font-semibold text-ink">Cada gobierno, por presupuesto</h4>
               <TablaPaginada
                 columnas={COLUMNAS_GOBIERNOS}
                 filas={filasGobiernos(gasto)}
@@ -168,7 +168,7 @@ function filasGobiernos(g: GastoPartido): Fila[] {
         region: <CeldaTexto>{x.region ?? "Sin dato"}</CeldaTexto>,
         barra: <CeldaBarra parte={pct / 100} resumen={`${porcentaje(pct)} gastado`} />,
         pim: <CeldaNumero>{x.pim > 0 ? solesCompacto(x.pim) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
-        gastado: <CeldaNumero>{x.pim > 0 ? porcentaje(pct) : "—"}</CeldaNumero>,
+        gastado: <CeldaNumero>{x.pim > 0 ? porcentaje(pct) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       },
     };
   });

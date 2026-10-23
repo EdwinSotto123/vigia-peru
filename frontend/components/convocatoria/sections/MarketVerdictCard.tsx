@@ -26,10 +26,10 @@ import { observacionesLegibles } from "../dossier";
 function Cifra({ etiqueta, valor, nota }: { etiqueta: string; valor: string; nota?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line/60 py-1.5">
-      <dt className="text-[11px] text-mute">{etiqueta}</dt>
+      <dt className="text-micro text-mute">{etiqueta}</dt>
       <dd className="text-right">
-        <span className="font-mono text-[13px] font-semibold text-ink">{valor}</span>
-        {nota && <span className="ml-1.5 text-[11px] text-mute">{nota}</span>}
+        <span className="font-mono text-meta font-semibold text-ink">{valor}</span>
+        {nota && <span className="ml-1.5 text-micro text-mute">{nota}</span>}
       </dd>
     </div>
   );
@@ -53,8 +53,8 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
           pastilla con color, ícono y palabra. */}
       <div className={cn("border-l pl-4", r.veredicto.ui.borde)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] font-medium text-mute">Precio ofertado contra el mercado</span>
-          <span className={cn("pill px-2 py-0 text-[11px]", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
+          <span className="text-rotulo font-medium text-mute">Precio ofertado contra el mercado</span>
+          <span className={cn("pill px-2 py-0 text-micro", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
             <Icono size={11} aria-hidden />
             {r.veredicto.etiqueta}
           </span>
@@ -70,7 +70,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
               </span>{" "}
               {r.pct >= 0 ? "sobre" : "bajo"} la mediana de mercado
             </h2>
-            <p className="mt-1 text-[13px] leading-snug text-inkSoft">
+            <p className="mt-1 text-meta leading-snug text-inkSoft">
               {r.abs !== null && (
                 <>
                   <strong className="font-semibold">
@@ -99,7 +99,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
             <h2 className="mt-1 font-display text-2xl font-bold leading-tight text-ink">
               No se pudo determinar el sobreprecio de este contrato
             </h2>
-            <p className="mt-1 text-[13px] leading-snug text-inkSoft">
+            <p className="mt-1 text-meta leading-snug text-inkSoft">
               {r.motivo ? `${r.motivo.charAt(0).toUpperCase()}${r.motivo.slice(1)}. ` : ""}
               {conteo}
               {cobertura !== null && ` (${porcentaje(cobertura)} del valor)`}
@@ -159,7 +159,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       )}
 
       {!r.comparable && r.estimadoVsMercadoPct !== null && (r.nConMediana ?? 0) > 0 && (
-        <p className="mt-3 border-l-2 border-line pl-3 text-[12px] text-mute">
+        <p className="mt-3 border-l-2 border-line pl-3 text-rotulo text-mute">
           La cuantía que estimó la entidad está{" "}
           <strong className="font-semibold text-ink">
             {r.estimadoVsMercadoPct > 0 ? "+" : r.estimadoVsMercadoPct < 0 ? "−" : ""}
@@ -171,7 +171,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       )}
 
       {observaciones.length > 0 && (
-        <ul className="mt-3 space-y-1 text-[13px] text-ink">
+        <ul className="mt-3 space-y-1 text-meta text-ink">
           {observaciones.map((o: string, i: number) => (
             <li key={i} className="flex items-start gap-2">
               <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-mute" aria-hidden />
@@ -182,7 +182,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       )}
 
       {market?.recomendacion && (
-        <p className="mt-3 flex items-start gap-1.5 border-t border-line pt-3 text-[12px] text-inkSoft">
+        <p className="mt-3 flex items-start gap-1.5 border-t border-line pt-3 text-rotulo text-inkSoft">
           <Info size={13} className="mt-0.5 shrink-0 text-mute" aria-hidden />
           <span>{market.recomendacion}</span>
         </p>

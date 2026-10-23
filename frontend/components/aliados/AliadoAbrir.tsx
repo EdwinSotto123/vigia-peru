@@ -122,14 +122,14 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
             {href && (
               <Link
                 href={href}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-[15px] font-semibold text-paper hover:bg-granate-deep"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-cuerpo font-semibold text-paper hover:bg-granate-deep"
               >
                 Ver perfil completo <ArrowRight size={16} aria-hidden />
               </Link>
             )}
             <Link
               href="/app/financiar"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-paperEdge px-5 text-[15px] font-semibold text-ink hover:bg-paperSoft"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-paperEdge px-5 text-cuerpo font-semibold text-ink hover:bg-paperSoft"
             >
               Financiar una auditoría
             </Link>
@@ -140,7 +140,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
           <AvatarAliado tipo={fila.tipo} logoUrl={fila.logoUrl} nombre={fila.nombre} size="xl" />
           <div className="min-w-0">
             <p className="etiqueta-mono">{fundador ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[fila.tipo]}</p>
-            <p className="mt-1 text-[15px] leading-snug text-inkSoft">{desde ? `Aliado desde ${desde}` : "Aliado de Vigía"}</p>
+            <p className="mt-1 text-cuerpo leading-snug text-inkSoft">{desde ? `Aliado desde ${desde}` : "Aliado de Vigía"}</p>
           </div>
         </div>
 
@@ -148,30 +148,30 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
           {cifras.map((c) => (
             <li key={c.etiqueta} className="bg-paperSoft p-4">
               <span className="block font-display text-3xl font-bold leading-none tabular-nums text-granate">{numero(c.valor)}</span>
-              <span className="mt-1.5 block text-[13px] leading-snug text-mute">{c.etiqueta}</span>
+              <span className="mt-1.5 block text-meta leading-snug text-mute">{c.etiqueta}</span>
             </li>
           ))}
         </ul>
 
         <section className="mt-6">
-          <h3 className="etiqueta-mono">Quién es</h3>
+          <h3 className="font-display text-bloque font-bold text-ink">Quién es</h3>
           {a?.descripcion ? (
-            <p className="mt-2 text-[15px] leading-relaxed text-ink">{a.descripcion}</p>
+            <p className="mt-2 text-cuerpo leading-relaxed text-ink">{a.descripcion}</p>
           ) : estado === "cargando" ? (
             <div className="mt-3 space-y-2" aria-hidden>
               <div className="h-3 w-11/12 animate-pulseSoft rounded bg-paperDeep" />
               <div className="h-3 w-8/12 animate-pulseSoft rounded bg-paperDeep" />
             </div>
           ) : fundador ? (
-            <p className="mt-2 text-[15px] leading-relaxed text-ink">
+            <p className="mt-2 text-cuerpo leading-relaxed text-ink">
               Vigía Perú financia con capital semilla las primeras lecturas y aparece en su propio ranking, igual que cualquier
               otro aliado.
             </p>
           ) : (
-            <p className="mt-2 text-[15px] leading-relaxed text-mute">Todavía no publicó una descripción de sí.</p>
+            <p className="mt-2 text-cuerpo leading-relaxed text-mute">Todavía no publicó una descripción de sí.</p>
           )}
           {a?.ubicacion && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-[14px] text-inkSoft">
+            <p className="mt-2 inline-flex items-center gap-1.5 text-dato text-inkSoft">
               <MapPin size={14} aria-hidden /> {a.ubicacion}
             </p>
           )}
@@ -183,7 +183,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                     href={linkedin}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-dato font-medium text-ink hover:bg-paperSoft"
                   >
                     <Linkedin size={14} aria-hidden /> LinkedIn <ArrowUpRight size={13} aria-hidden />
                   </a>
@@ -193,7 +193,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                 <li>
                   <a
                     href={`tel:${telefono.replace(/[^+\d]/g, "")}`}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-dato font-medium text-ink hover:bg-paperSoft"
                   >
                     <Phone size={14} aria-hidden /> <span className="tabular-nums">{telefono}</span>
                   </a>
@@ -205,7 +205,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                     href={a.web}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-dato font-medium text-ink hover:bg-paperSoft"
                   >
                     <Globe size={14} aria-hidden /> Sitio web <ArrowUpRight size={13} aria-hidden />
                   </a>
@@ -215,7 +215,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                 <li>
                   <a
                     href={`mailto:${a.email}`}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-dato font-medium text-ink hover:bg-paperSoft"
                   >
                     <Mail size={14} aria-hidden /> {a.email}
                   </a>
@@ -227,7 +227,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-dato font-medium text-ink hover:bg-paperSoft"
                   >
                     {NOMBRE_RED[red] ?? red} <ArrowUpRight size={13} aria-hidden />
                   </a>
@@ -237,7 +237,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
           )}
           {enlaces.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-[13px] font-semibold text-inkSoft">Enlaces relevantes</h4>
+              <h4 className="text-meta font-semibold text-inkSoft">Enlaces relevantes</h4>
               <ul className="mt-2 space-y-1.5">
                 {enlaces.map((e) => (
                   <li key={e.url}>
@@ -245,7 +245,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                       href={e.url}
                       target="_blank"
                       rel="noopener noreferrer nofollow"
-                      className="inline-flex items-center gap-1.5 text-[14.5px] font-medium text-granate underline-offset-4 hover:underline"
+                      className="inline-flex items-center gap-1.5 text-dato font-medium text-granate underline-offset-4 hover:underline"
                     >
                       <Link2 size={14} aria-hidden /> {e.titulo} <ArrowUpRight size={13} aria-hidden />
                     </a>
@@ -255,7 +255,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
             </div>
           )}
           {sinContacto && !fundador && (
-            <p className="mt-3 text-[13px] leading-snug text-mute">
+            <p className="mt-3 text-meta leading-snug text-mute">
               Todavía no publicó datos de contacto.{" "}
               <Link href="/app/configuracion" className="text-granate underline-offset-4 hover:underline">
                 ¿Es tu empresa? Completa su perfil
@@ -266,24 +266,24 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
         </section>
 
         <section className="mt-6">
-          <h3 className="etiqueta-mono">Qué hizo leer</h3>
+          <h3 className="font-display text-bloque font-bold text-ink">Qué hizo leer</h3>
           {listaZonas.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-2">
               {listaZonas.map(([zona, n]) => (
-                <li key={zona} className="inline-flex items-center gap-2 rounded-full bg-granate-soft px-3.5 py-1.5 text-[14px] text-ink">
+                <li key={zona} className="inline-flex items-center gap-2 rounded-full bg-granate-soft px-3.5 py-1.5 text-dato text-ink">
                   <span className="font-medium">{zona}</span>
-                  <span className="font-mono text-[13px] tabular-nums text-granate">{numero(n)}</span>
+                  <span className="font-mono text-meta tabular-nums text-granate">{numero(n)}</span>
                 </li>
               ))}
             </ul>
           ) : estado === "error" ? (
-            <p className="mt-2 text-[15px] leading-relaxed text-mute">No pudimos traer el detalle ahora. Está completo en su perfil.</p>
+            <p className="mt-2 text-cuerpo leading-relaxed text-mute">No pudimos traer el detalle ahora. Está completo en su perfil.</p>
           ) : estado === "cargando" ? (
             <div className="mt-3 h-8 w-40 animate-pulseSoft rounded-full bg-paperDeep" aria-hidden />
           ) : (
-            <p className="mt-2 text-[15px] leading-relaxed text-mute">Todavía no tiene zonas registradas.</p>
+            <p className="mt-2 text-cuerpo leading-relaxed text-mute">Todavía no tiene zonas registradas.</p>
           )}
-          <p className="mt-4 text-[13px] leading-snug text-mute">
+          <p className="mt-4 text-meta leading-snug text-mute">
             Se cuenta en contratos, nunca en soles. El aliado no elige cuáles se leen: se asignan por antigüedad.
           </p>
         </section>

@@ -60,10 +60,10 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
   if (personasConHallazgo.length === 0) {
     return (
       <div className="border-t border-line bg-paperSoft px-5 py-3">
-        <h3 className="text-[12px] font-semibold text-inkSoft">
+        <h3 className="text-cuerpo font-semibold text-inkSoft">
           Vinculaciones por persona
         </h3>
-        <p className="mt-1 text-[11px] italic text-mute">
+        <p className="mt-1 text-micro italic text-mute">
           Se cruzaron ONPE Claridad, candidaturas del JNE, PEPs y el registro de visitas para
           titular, socios, firmantes y comité ({consultas} consulta{consultas === 1 ? "" : "s"} por nombre o DNI).
           Ninguna registra hallazgos.
@@ -74,10 +74,10 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
 
   return (
     <div className="border-t border-line bg-paperSoft px-5 py-3">
-      <h3 className="text-[12px] font-semibold text-ink">
+      <h3 className="text-cuerpo font-semibold text-ink">
         Vinculaciones por persona
       </h3>
-      <p className="mt-0.5 text-[11px] italic text-mute">
+      <p className="mt-0.5 text-micro italic text-mute">
         {personasConHallazgo.length} con hallazgos de {consultas} consulta{consultas === 1 ? "" : "s"} por nombre o DNI.
         Cruces de ONPE, JNE, PEPs y visitas para titular, socios, firmantes del acta y comité de selección.
       </p>
@@ -91,23 +91,23 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
           return (
             <li key={i} className="rounded-md border border-line bg-paper px-3 py-2">
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", cat.color)}>
+                <span className={cn("rounded-full px-2 py-0.5 text-micro font-semibold", cat.color)}>
                   {cat.rol}
                 </span>
-                <strong className="text-[12px] text-ink">
+                <strong className="text-rotulo text-ink">
                   <Clave valor={String(key)} ganadorRuc={ganadorRuc} ganadorRazon={ganadorRazon} />
                 </strong>
               </div>
               <div className="mt-1 grid gap-1 sm:grid-cols-2">
                 {onpe.n_aportes > 0 && (
-                  <div className="text-[11px]">
+                  <div className="text-micro">
                     <span className="font-semibold text-ink">ONPE:</span>{" "}
                     {onpe.n_aportes} aporte{onpe.n_aportes !== 1 ? "s" : ""} a partido
                     {onpe.aportes?.[0]?.partido && <span className="text-inkSoft"> ({onpe.aportes[0].partido}{onpe.aportes[0].año ? `, ${onpe.aportes[0].año}` : ""})</span>}
                   </div>
                 )}
                 {jne.n_candidaturas > 0 && (
-                  <div className="text-[11px]">
+                  <div className="text-micro">
                     <span className="font-bold text-amberTexto">JNE:</span>{" "}
                     {jne.n_candidaturas} candidatura{jne.n_candidaturas !== 1 ? "s" : ""}
                     {jne.candidaturas?.[0]?.cargo && (
@@ -116,13 +116,13 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
                   </div>
                 )}
                 {pep.found && (
-                  <div className="text-[11px]">
+                  <div className="text-micro">
                     <span className="font-semibold text-ink">PEP:</span>{" "}
                     Persona expuesta políticamente activa
                   </div>
                 )}
                 {visitas.n_visitas > 0 && (
-                  <div className="text-[11px]">
+                  <div className="text-micro">
                     <span className="font-semibold text-ink">Visitas (Ley 28024):</span>{" "}
                     {visitas.n_visitas} a entidades públicas
                   </div>

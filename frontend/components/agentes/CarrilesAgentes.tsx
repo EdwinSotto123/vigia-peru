@@ -38,7 +38,7 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
     <div className="min-w-0">
       {porCarril(pasos).map((c) => (
         <section key={c.key} className="mt-3 first:mt-0">
-          <p className="border-b border-line pb-1 text-[11px] font-semibold text-inkSoft">
+          <p className="border-b border-line pb-1 text-micro font-semibold text-inkSoft">
             Carril {c.label}
             <span className="ml-1.5 font-normal text-mute">
               {c.pasos.length} {c.pasos.length === 1 ? "paso" : "pasos"}
@@ -64,10 +64,10 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                     )}
                   >
                     <span className="w-[6.5rem] shrink-0 sm:w-40">
-                      <span className={cn("block text-[12.5px] leading-tight text-ink sm:truncate", seleccionado && "font-semibold")}>{p.nombre}</span>
-                      {p.tipo === "paso" && <span className="block text-[11px] text-mute">no es un agente</span>}
+                      <span className={cn("block text-meta leading-tight text-ink sm:truncate", seleccionado && "font-semibold")}>{p.nombre}</span>
+                      {p.tipo === "paso" && <span className="block text-micro text-mute">no es un agente</span>}
                     </span>
-                    <span className="min-w-0 flex-1 text-[12px] leading-snug text-mute">
+                    <span className="min-w-0 flex-1 text-rotulo leading-snug text-mute">
                       {p.que}
                       {seleccionado && p.fuentes.length > 0 && (
                         <span className="mt-0.5 block text-inkSoft">
@@ -76,7 +76,7 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                       )}
                     </span>
                     {conSenales && (
-                      <span className="flex w-14 shrink-0 items-center justify-end gap-1 pt-0.5 text-[11px]">
+                      <span className="flex w-14 shrink-0 items-center justify-end gap-1 pt-0.5 text-micro">
                         {n > 0 && peor ? (
                           <>
                             <Severidad bandera={peor} formato="punto" />

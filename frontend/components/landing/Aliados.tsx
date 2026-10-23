@@ -52,7 +52,7 @@ export async function Aliados() {
           <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
             Leer un contrato cuesta poco, y lo puede pagar cualquiera.
           </h2>
-          <p className="mt-5 max-w-[60ch] text-pretty text-lg leading-relaxed text-paper/75">
+          <p className="mt-5 max-w-[60ch] text-pretty text-bloque leading-relaxed text-paper/75">
             Personas, colectivos y empresas. Su nombre queda en el podio, contado en contratos, nunca en soles.
           </p>
         </div>
@@ -73,7 +73,7 @@ export async function Aliados() {
             </h3>
             <Link
               href="/app/financiar#independencia"
-              className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] font-semibold text-maiz underline-offset-4 hover:underline"
+              className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-dato font-semibold text-maiz underline-offset-4 hover:underline"
             >
               Todas las reglas de independencia <ArrowUpRight size={14} aria-hidden />
             </Link>
@@ -96,8 +96,8 @@ function Regla({ Icono, titulo, detalle }: { Icono: LucideIcon; titulo: string; 
         <Icono size={19} />
       </span>
       <span className="min-w-0">
-        <span className="block text-[15px] font-semibold leading-snug text-paper">{titulo}</span>
-        <span className="mt-1 block text-[14px] leading-snug text-paper/70">{detalle}</span>
+        <span className="block text-cuerpo font-semibold leading-snug text-paper">{titulo}</span>
+        <span className="mt-1 block text-dato leading-snug text-paper/70">{detalle}</span>
       </span>
     </li>
   );

@@ -34,19 +34,19 @@ const COLUMNAS: Columna[] = [
 function Alcance({ c }: { c: ContribucionReciente }) {
   if (c.partido) {
     return (
-      <span className="text-[13px] text-ink">
+      <span className="text-meta text-ink">
         Gobiernos de <span className="font-medium">{c.partido.nombre}</span>
       </span>
     );
   }
   if (c.entidad) {
     return (
-      <span className="text-[13px] text-ink">
+      <span className="text-meta text-ink">
         <NombreEntidad ruc={c.entidad.ruc} nombre={c.entidad.nombre} />
       </span>
     );
   }
-  return <span className="text-[13px] text-ink">{c.zona}</span>;
+  return <span className="text-meta text-ink">{c.zona}</span>;
 }
 
 function fila(c: ContribucionReciente, mayor: number): Fila {
@@ -65,12 +65,12 @@ function fila(c: ContribucionReciente, mayor: number): Fila {
       ),
       contratos: (
         <CeldaNumero>
-          <span className="font-display text-[15px] font-bold text-ink">{numero(c.contratos)}</span>
+          <span className="font-display text-bloque font-bold text-ink">{numero(c.contratos)}</span>
         </CeldaNumero>
       ),
       alcance: <Alcance c={c} />,
       barra: <CeldaBarra parte={c.contratos / mayor} resumen={`${numero(c.contratos)} contratos, de ${numero(mayor)} en el aporte más grande de esta página`} />,
-      comprobante: <span className="font-mono text-[12.5px] text-mute">{c.codigo}</span>,
+      comprobante: <span className="font-mono text-meta text-mute">{c.codigo}</span>,
     },
   };
 }
@@ -115,7 +115,7 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
               </EstadoVacio>
             ) : (
               <section aria-label="Aportes" className="space-y-3">
-                <div className="rounded-2xl bg-granate-50 px-4 py-2.5 text-[13px] text-inkSoft">
+                <div className="rounded-2xl bg-granate-50 px-4 py-2.5 text-meta text-inkSoft">
                   <strong className="font-semibold text-ink">{numero(datos.total)}</strong>{" "}
                   {q ? (datos.total === 1 ? `aporte coincide con “${q}”` : `aportes coinciden con “${q}”`) : datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}.
                   Mostrando {numero((pagina - 1) * TAM + 1)} a {numero((pagina - 1) * TAM + datos.data.length)}.

@@ -75,7 +75,7 @@ export function PipelineAgentes() {
             <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl">
               Lo que Vigía revisa en cada contrato
             </h2>
-            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-maiz/30 bg-maiz/10 px-3.5 py-1.5 text-[14px] font-medium text-maiz sm:text-[15px]">
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-maiz/30 bg-maiz/10 px-3.5 py-1.5 text-dato font-medium text-maiz sm:text-cuerpo">
               <UserCheck size={16} className="shrink-0" aria-hidden />
               Si no está seguro, no lo publica: lo revisa una persona.
             </p>
@@ -91,7 +91,7 @@ export function PipelineAgentes() {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maiz/10 text-maiz" aria-hidden>
                 <Icono size={18} />
               </span>
-              <span className="text-[15px] font-semibold leading-snug text-paper">{texto}</span>
+              <span className="text-cuerpo font-semibold leading-snug text-paper">{texto}</span>
             </li>
           ))}
         </ul>

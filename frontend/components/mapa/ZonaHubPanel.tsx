@@ -149,7 +149,7 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-5 py-4">
         <div className="min-w-0">
           <h2 className="font-display text-2xl font-bold leading-tight text-ink">{nombre}</h2>
-          <p className="mt-0.5 text-[12px] leading-snug text-inkSoft">
+          <p className="mt-0.5 text-rotulo leading-snug text-inkSoft">
             {zona ? ESTADO_LABEL[zona.estado] : detalle === null ? "Sin conexión con el estado de la zona" : "Cargando el estado de la zona…"}
             {zona && zona.precioPen > 0 && `, a ${soles(zona.precioPen)} por contrato leído`}
           </p>
@@ -242,14 +242,14 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
         <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-line bg-paperDeep px-5 py-3">
           <Link
             href={financiarHref}
-            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2.5 text-rotulo font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             Financiar la lectura
           </Link>
           {/* Secundario y sin rojo: en este producto el rojo dice "riesgo", no "acción". */}
           <Link
             href={denunciarHref}
-            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2.5 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2.5 text-rotulo font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             <Camera size={13} aria-hidden /> Denunciar
           </Link>
@@ -299,7 +299,7 @@ function ResumenTab({
   const inicio = (
     <>
       <InicioRegion ubigeo={ubigeo} nombre={nombre} mefDept={mefDept} />
-      <h3 className="pt-2 text-[15px] font-semibold text-ink">La cola de lectura de {nombre}</h3>
+      <h3 className="pt-2 text-cuerpo font-semibold text-ink">La cola de lectura de {nombre}</h3>
     </>
   );
 
@@ -367,7 +367,7 @@ function ResumenTab({
               <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300 transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
               <div className="absolute inset-y-0 left-0 rounded-full bg-moss transition-[width] duration-normal ease-salida" style={{ width: `${leidoFinPct}%` }} />
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-mute">
+            <p className="mt-2 text-rotulo leading-relaxed text-mute">
               {esperando > 0 ? (
                 <>
                   <strong className="font-semibold text-ink">{enteros(esperando)}</strong>{" "}
@@ -399,7 +399,7 @@ function ResumenTab({
             href={financiarHref}
             className="group flex min-h-[44px] items-center justify-between gap-3 rounded-full bg-granate px-4 py-2.5 text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
-            <span className="text-sm font-semibold">
+            <span className="text-dato leading-5 font-semibold">
               Financiar la lectura {esperando > 0 ? `de hasta ${enteros(esperando)} contratos` : `en ${nombre}`}
             </span>
             <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
@@ -408,18 +408,18 @@ function ResumenTab({
             href={denunciarHref}
             className="group flex min-h-[44px] items-center justify-between gap-3 rounded-full border border-line bg-paper px-4 py-2.5 text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
-            <span className="inline-flex items-center gap-2 text-sm font-semibold">
+            <span className="inline-flex items-center gap-2 text-dato leading-5 font-semibold">
               <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
             </span>
             <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </Link>
           {zona.financiados > 0 ? (
-            <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-[12px] font-medium text-granate hover:underline">
+            <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-rotulo font-medium text-granate hover:underline">
               Ver los {enteros(zona.financiados)} financiados pasar de la cola al dictamen
               <ArrowUpRight size={12} aria-hidden />
             </Link>
           ) : (
-            <p className="px-1 text-[12px] text-mute">Nadie financió esta zona todavía.</p>
+            <p className="px-1 text-rotulo text-mute">Nadie financió esta zona todavía.</p>
           )}
         </div>
       </BloqueDetalle>
@@ -541,7 +541,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
           titulo={`Contratos de ${zonaNombre}`}
           acciones={
             zonaUb && mapa ? (
-              <button type="button" onClick={mapa.limpiarDistrito} className="min-h-[24px] shrink-0 text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+              <button type="button" onClick={mapa.limpiarDistrito} className="min-h-[24px] shrink-0 text-rotulo font-medium text-granate underline-offset-2 hover:underline">
                 Ver todo {nombre}
               </button>
             ) : mapa?.activa ? (
@@ -568,7 +568,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
       {provinciasConCola.length > 0 && (
         <BloqueDetalle
           titulo="Provincias con cola"
-          acciones={<span className="shrink-0 text-[12px] tabular-nums text-mute">{provinciasConCola.length} de {hijas.length}</span>}
+          acciones={<span className="shrink-0 text-rotulo tabular-nums text-mute">{provinciasConCola.length} de {hijas.length}</span>}
         >
           <ListaPaginada
             tam={8}
@@ -580,12 +580,12 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               buscable: h.nombre,
               contenido: (
                 <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-center justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
-                  <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-granate">{h.nombre}</span>
-                  <span className="shrink-0 text-right font-mono text-[12px] leading-tight text-mute tabular-nums">
+                  <span className="min-w-0 truncate text-meta text-ink group-hover:text-granate">{h.nombre}</span>
+                  <span className="shrink-0 text-right font-mono text-rotulo leading-tight text-mute tabular-nums">
                     <span className="block">
                       <span className="font-semibold text-ink">{enteros(h.totalCola)}</span> en cola
                     </span>
-                    {h.financiados > 0 && <span className="block text-[11px]">{enteros(h.financiados)} financiados</span>}
+                    {h.financiados > 0 && <span className="block text-micro">{enteros(h.financiados)} financiados</span>}
                   </span>
                 </Link>
               ),
@@ -605,7 +605,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               id: `${a.nombre}-${i}`,
               buscable: a.nombre,
               contenido: (
-                <span className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
+                <span className="flex items-baseline justify-between gap-3 py-2 text-meta">
                   {a.slug ? (
                     <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-granate hover:underline">
                       {a.nombre}
@@ -613,7 +613,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
                   ) : (
                     <span className="min-w-0 truncate text-ink">{a.nombre}</span>
                   )}
-                  <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">{enteros(a.contratos)} contratos leídos</span>
+                  <span className="shrink-0 font-mono text-rotulo text-mute tabular-nums">{enteros(a.contratos)} contratos leídos</span>
                 </span>
               ),
             }))}
@@ -665,7 +665,7 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
                     <Icon size={13} aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
                       <Dato tipo="tipo" nombre="Categoría">{meta?.label ?? "Reporte"}</Dato>
                       {confirmada ? (
                         <span className="inline-flex items-center gap-0.5 text-mossTexto">
@@ -678,7 +678,7 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
                       )}
                       {r.fecha && <Dato tipo="fecha" className="tabular-nums">{fechaCorta(String(r.fecha).slice(0, 10))}</Dato>}
                     </span>
-                    <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{relato}</span>
+                    <span className="mt-0.5 line-clamp-2 text-meta leading-snug text-ink">{relato}</span>
                   </span>
                   <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
                 </Link>
@@ -690,11 +690,11 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
       <div className="flex flex-col gap-2">
         <Link
           href={denunciarHref}
-          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 py-2.5 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
         >
           <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
         </Link>
-        <Link href="/app/denuncias" className="text-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+        <Link href="/app/denuncias" className="text-center text-rotulo font-medium text-granate underline-offset-2 hover:underline">
           Ver las denuncias de todo el país
         </Link>
       </div>
@@ -709,7 +709,7 @@ function DeTotal({ n, de }: { n: React.ReactNode; de: string }) {
   return (
     <span className="tabular-nums">
       <span className="font-mono font-semibold text-ink">{n}</span>
-      <span className="ml-1.5 text-[12px] text-mute">{de}</span>
+      <span className="ml-1.5 text-rotulo text-mute">{de}</span>
     </span>
   );
 }
@@ -722,10 +722,10 @@ function Salto({ etiqueta, valor, detalle, onClick }: { etiqueta: string; valor?
         onClick={onClick}
         className="group flex w-full items-baseline justify-between gap-3 py-2 text-left transition-colors duration-rapido hover:bg-paper"
       >
-        <span className="min-w-0 text-[12px] text-mute group-hover:text-ink">{etiqueta}</span>
+        <span className="min-w-0 text-rotulo text-mute group-hover:text-ink">{etiqueta}</span>
         <span className="flex shrink-0 items-baseline gap-1.5">
-          {valor && <span className="font-mono text-[15px] font-semibold text-ink tabular-nums">{valor}</span>}
-          {detalle && <span className="text-[11px] text-mute">{detalle}</span>}
+          {valor && <span className="font-mono text-cuerpo font-semibold text-ink tabular-nums">{valor}</span>}
+          {detalle && <span className="text-micro text-mute">{detalle}</span>}
           <ArrowRight size={12} className="self-center text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" aria-hidden />
         </span>
       </button>
@@ -771,8 +771,8 @@ function datosAlcance(alcance: ZonaDetalle["alcance"] | undefined, documentosLis
 function Vacio({ titulo, texto }: { titulo: string; texto: string }) {
   return (
     <div className="border-y border-dashed border-line py-4">
-      <p className="text-[13px] font-semibold text-ink">{titulo}</p>
-      <p className="mt-1 max-w-[46ch] text-[12px] leading-relaxed text-mute">{texto}</p>
+      <p className="text-meta font-semibold text-ink">{titulo}</p>
+      <p className="mt-1 max-w-[46ch] text-rotulo leading-relaxed text-mute">{texto}</p>
     </div>
   );
 }
@@ -805,14 +805,14 @@ function TabBtn({
       tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn(
-        "relative flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-1.5 py-2.5 text-[12px] font-medium transition-colors duration-rapido sm:flex-1",
+        "relative flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-1.5 py-2.5 text-rotulo font-medium transition-colors duration-rapido sm:flex-1",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
         active ? "text-granate" : "text-inkSoft hover:text-ink",
       )}
     >
       <span>{children}</span>
       {count !== undefined && count > 0 && (
-        <span className={cn("rounded-full px-1.5 py-0 text-[10px] font-bold tabular-nums", active ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>
+        <span className={cn("rounded-full px-1.5 py-0 text-micro font-bold tabular-nums", active ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>
           {count > 999 ? "999+" : count}
         </span>
       )}

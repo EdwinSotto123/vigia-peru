@@ -9,9 +9,9 @@ import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { cn } from "@/lib/utils";
 
 /** Clase de los campos de texto del formulario (DESIGN_SYSTEM.md §5: inputs `rounded-xl`, hundidos). */
-export const CAMPO = "w-full rounded-xl border border-line bg-paperDeep px-4 py-2.5 text-sm text-ink placeholder:text-mute focus:border-granate";
+export const CAMPO = "w-full rounded-xl border border-line bg-paperDeep px-4 py-2.5 text-dato leading-5 text-ink placeholder:text-mute focus:border-granate";
 /** Etiqueta visible de un campo. */
-export const ETIQUETA = "mb-1 block text-[13px] font-semibold text-inkSoft";
+export const ETIQUETA = "mb-1 block text-meta font-semibold text-inkSoft";
 
 /**
  * Elegir la categoría de la denuncia. Cada opción lleva el ícono de su categoría
@@ -48,8 +48,8 @@ export function OpcionesCategoria({
             aria-pressed={activa}
             onClick={() => onElegir(activa && permiteQuitar ? "" : c.id)}
             className={cn(
-              "flex items-center gap-3 rounded-xl border text-left text-sm transition-colors duration-rapido",
-              compacta ? "min-h-[44px] gap-2 px-3 py-2 text-[13px] leading-tight" : "min-h-[48px] px-4 py-3",
+              "flex items-center gap-3 rounded-xl border text-left text-dato leading-5 transition-colors duration-rapido",
+              compacta ? "min-h-[44px] gap-2 px-3 py-2 text-meta leading-tight" : "min-h-[48px] px-4 py-3",
               activa
                 ? "border-granate bg-granate-soft font-semibold text-granate"
                 : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
@@ -67,7 +67,7 @@ export function OpcionesCategoria({
 /** Error en línea, junto al campo que lo causó. */
 export function ErrorCampo({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
-    <p id={id} className="mt-1.5 flex items-start gap-1.5 text-xs text-crimsonTexto">
+    <p id={id} className="mt-1.5 flex items-start gap-1.5 text-rotulo leading-4 text-crimsonTexto">
       <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden />
       {children}
     </p>
@@ -77,7 +77,7 @@ export function ErrorCampo({ children, id }: { children: React.ReactNode; id?: s
 /** Qué falló al enviar, en palabras, sobre el botón de enviar. */
 export function ErrorEnvio({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft px-3 py-2.5 text-sm text-crimsonTexto" role="alert">
+    <p className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft px-3 py-2.5 text-dato leading-5 text-crimsonTexto" role="alert">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden /> {children}
     </p>
   );

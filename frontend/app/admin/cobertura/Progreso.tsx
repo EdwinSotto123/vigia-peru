@@ -48,12 +48,12 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
       <Card>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-mono text-3xl font-semibold text-ink">{pr.pct.toLocaleString("es-PE")} %</span>
-          <span className="text-sm text-inkSoft">
+          <span className="text-dato leading-5 text-inkSoft">
             <span className="font-mono text-ink">{fmtNum(pr.vigentes)}</span> de {fmtNum(pr.publicados)} documentos publicados en el SEACE ya están en el almacén
           </span>
         </div>
         <BarraProgreso pct={pr.pct} alto="lg" etiqueta={`${pr.pct} % de los documentos publicados ya está en el almacén`} className="mt-3" />
-        <p className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-mute">
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-rotulo text-mute">
           {lote ? (
             <>
               <Badge tono={estadoLote(lote.estado).tono} punto>{estadoLote(lote.estado).label}</Badge>
@@ -82,17 +82,17 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
       <div className="grid items-start gap-3 lg:grid-cols-2">
         {/* Un panel con cabecera solo si hay algo que listar; sin datos, una línea que lo diga. */}
         {!pr.ritmo.length && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-snug text-inkSoft">
             <Moon size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
             <span><strong className="font-semibold text-ink">Ninguna descarga en la última semana.</strong> No se bajaron documentos en estos 7 días: sólo se bajan los de contratos financiados.</span>
           </p>
         )}
         {!!pr.ritmo.length && (
           <section aria-label="Descargados por noche" className="rounded-xl border border-line bg-paperSoft px-3 py-2">
-            <h3 className="text-[13px] font-semibold text-ink">
+            <h3 className="text-meta font-semibold text-ink">
               Descargados por noche <span className="font-normal text-mute">últimos 7 días</span>
             </h3>
-            <ul className="mt-1.5 grid gap-x-4 gap-y-1 text-[12px] sm:grid-cols-2">
+            <ul className="mt-1.5 grid gap-x-4 gap-y-1 text-rotulo sm:grid-cols-2">
               {pr.ritmo.map((r) => (
                 <li key={r.dia} className="flex items-center gap-2">
                   <span className="w-20 shrink-0 text-inkSoft">{dia(r.dia)}</span>
@@ -109,7 +109,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
         )}
 
         {!pr.errores.length && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-snug text-inkSoft">
             <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             <span><strong className="font-semibold text-ink">Ningún documento falló.</strong> Los últimos lotes bajaron todo lo que intentaron.</span>
           </p>
@@ -126,7 +126,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
                     meta={`${items.length} docs de ${contratos.size} ${contratos.size === 1 ? "contrato" : "contratos"}`}
                     className="rounded-xl"
                   >
-                    <ul className="max-h-48 space-y-1 overflow-y-auto text-[12px]">
+                    <ul className="max-h-48 space-y-1 overflow-y-auto text-rotulo">
                       {items.map((e, i) => {
                         const [ocid, doc] = e.clave.split("/");
                         return (
@@ -140,7 +140,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
                         );
                       })}
                     </ul>
-                    {ERROR_ITEM[causa] && <p className="mt-2 font-mono text-[11px] text-mute">Mensaje del lote: {causa}</p>}
+                    {ERROR_ITEM[causa] && <p className="mt-2 font-mono text-micro text-mute">Mensaje del lote: {causa}</p>}
                   </Expandable>
                 );
               })}

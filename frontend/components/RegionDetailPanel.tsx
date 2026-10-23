@@ -98,11 +98,11 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
   const filas = q ? conPuesto.filter((x) => coincide(paraBuscar(x.f.nombre), q)) : todas ? conPuesto : conPuesto.slice(0, FILAS_INICIALES);
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-paperSoft px-5 py-5">
-      <h2 className="flex items-center gap-2 font-display text-lg font-bold leading-tight text-ink">
+      <h2 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
         <MapPin size={18} className="shrink-0 text-granate" aria-hidden />
         Todo el Perú
       </h2>
-      <p className="mt-1 text-[13px] leading-snug text-mute">
+      <p className="mt-1 text-meta leading-snug text-mute">
         {medidaTitulo ? `Departamentos por ${medidaTitulo.toLowerCase()}. ` : ""}Toca uno aquí o en el mapa.
       </p>
       {ranking === null ? (
@@ -116,7 +116,7 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
           <div className="mt-3">
             <Buscador placeholder="Buscar un departamento…" etiqueta="Buscar un departamento" valor={consulta} onBuscar={setConsulta} />
           </div>
-          {q && filas.length === 0 && <p className="mt-2 text-[13px] text-mute">Ningún departamento coincide con “{consulta}”.</p>}
+          {q && filas.length === 0 && <p className="mt-2 text-meta text-mute">Ningún departamento coincide con “{consulta}”.</p>}
           <ol className="mt-3 divide-y divide-line border-y border-line">
             {filas.map(({ f, puesto }) => (
               <li key={f.ubigeo}>
@@ -125,16 +125,16 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
                   onClick={() => onElegir?.(f.ubigeo)}
                   className="group flex w-full items-center gap-2.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
                 >
-                  <span aria-hidden className="w-5 shrink-0 text-right font-mono text-[12px] tabular-nums text-mute">{puesto}</span>
+                  <span aria-hidden className="w-5 shrink-0 text-right font-mono text-rotulo tabular-nums text-mute">{puesto}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[14px] font-semibold text-ink group-hover:text-granate">{f.nombre}</span>
-                      <span className="shrink-0 font-mono text-[12.5px] font-semibold tabular-nums text-ink">{f.texto}</span>
+                      <span className="truncate text-dato font-semibold text-ink group-hover:text-granate">{f.nombre}</span>
+                      <span className="shrink-0 font-mono text-meta font-semibold tabular-nums text-ink">{f.texto}</span>
                     </span>
                     <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
                       <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, (f.valor / max) * 100)}%` }} />
                     </span>
-                    <span className="mt-0.5 block text-[11.5px] text-mute">
+                    <span className="mt-0.5 block text-rotulo text-mute">
                       {f.leidos.toLocaleString("es-PE")} leídos de {f.total.toLocaleString("es-PE")}
                       {f.conSenales > 0 ? `, ${f.conSenales.toLocaleString("es-PE")} con riesgo medio o alto` : ""}
                     </span>
@@ -148,7 +148,7 @@ function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | 
               type="button"
               onClick={() => setTodas((v) => !v)}
               aria-expanded={todas}
-              className="mt-2 self-start text-[13px] font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
+              className="mt-2 self-start text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
             >
               {todas ? "Ver menos" : `Ver los ${ranking.length}`}
             </button>

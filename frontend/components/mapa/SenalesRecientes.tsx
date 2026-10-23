@@ -43,7 +43,7 @@ export function SenalesRecientes({
 }) {
   if (fallo) {
     return (
-      <p className="flex items-center gap-1.5 text-[12px] text-inkSoft" role="status" aria-live="polite">
+      <p className="flex items-center gap-1.5 text-rotulo text-inkSoft" role="status" aria-live="polite">
         <WifiOff size={13} className="text-clayTexto" aria-hidden />
         No pudimos cargar las señales publicadas; reintentando…
       </p>
@@ -54,7 +54,7 @@ export function SenalesRecientes({
 
   if (senales && senales.length === 0) {
     return (
-      <p className="flex items-center gap-1 text-[12px] text-mute">
+      <p className="flex items-center gap-1 text-rotulo text-mute">
         Todavía no hay contratos leídos con peso del riesgo medio o alto.
         <Ayuda titulo="¿Cuándo aparecen?">
           Cuando un contrato termina de leerse y su dictamen pasa la autoevaluación.
@@ -112,7 +112,7 @@ export function SenalesRecientes({
         <div className="space-y-2">
           <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
           {/* Los de mayor peso; todas las señales, con buscador y filtros, en /app/hallazgos. */}
-          <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-[12.5px] font-medium text-granate underline-offset-2 hover:underline">
+          <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-meta font-medium text-granate underline-offset-2 hover:underline">
             Ver todas las señales publicadas
           </Link>
         </div>

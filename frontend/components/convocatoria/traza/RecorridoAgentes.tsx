@@ -42,7 +42,7 @@ export function RecorridoAgentes({ recorrido, result }: { recorrido: Recorrido; 
     <div className="space-y-4">
       <h2 className="sr-only">Recorrido de los agentes</h2>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-inkSoft">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
           <span>
             <strong className="font-semibold tabular-nums text-ink">
               {numero(recorrido.agentesCorrieron)} de {numero(recorrido.totalAgentes)}
@@ -92,7 +92,7 @@ function SelectorModo({ modo, onCambiar }: { modo: Modo; onCambiar: (m: Modo) =>
             aria-pressed={on}
             onClick={() => onCambiar(clave)}
             className={cn(
-              "inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors duration-rapido",
+              "inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-4 py-1.5 text-dato font-medium transition-colors duration-rapido",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-1",
               on ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
             )}

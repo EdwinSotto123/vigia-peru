@@ -89,7 +89,7 @@ export function DetalleNodo({
                 <button
                   type="button"
                   onClick={() => onIr(k)}
-                  className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12.5px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
+                  className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
                 >
                   {recorrido.porClave[k]?.nombre ?? k}
                   <ArrowRight size={12} className="text-mute" aria-hidden />

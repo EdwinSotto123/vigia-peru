@@ -63,7 +63,7 @@ export function Lotes({
       className="mt-6"
     >
       {incompletos && (
-        <p className="mb-2 text-[12px] text-inkSoft">
+        <p className="mb-2 text-rotulo text-inkSoft">
           Se cuentan sólo los contratos de la lista de abajo, que trae los {TOPE_LISTA} con movimiento más reciente: a un lote grande o antiguo
           le pueden faltar contratos aquí.
         </p>
@@ -82,16 +82,16 @@ export function Lotes({
               )}
             >
               <div className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-sm font-semibold text-ink">{l.codigo}</span>
-                <span className="text-[12px] text-mute">
+                <span className="font-mono text-dato leading-5 font-semibold text-ink">{l.codigo}</span>
+                <span className="text-rotulo text-mute">
                   <span className="font-mono text-ink">{l.c.procesado}</span> de {l.total} leídos{incompletos ? " en la lista" : ""}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-[12px] text-mute"><Partes partes={[l.financiador, l.zonas.slice(0, 2).join(", ")]} /></p>
+              <p className="mt-0.5 truncate text-rotulo text-mute"><Partes partes={[l.financiador, l.zonas.slice(0, 2).join(", ")]} /></p>
               <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
                 {ORDEN_BARRA.map((e) => (l.c[e] > 0 ? <span key={e} className={ESTADO_UI[e].barra} style={{ width: `${(l.c[e] / l.total) * 100}%` }} /> : null))}
               </div>
-              <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-inkSoft">
+              <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-rotulo text-inkSoft">
                 {ORDEN_BARRA.filter((e) => e !== "procesado" && l.c[e] > 0).map((e) => (
                   <span key={e} className="inline-flex items-center gap-1">
                     <span className={cn("h-1.5 w-1.5 rounded-full", ESTADO_UI[e].punto)} aria-hidden />

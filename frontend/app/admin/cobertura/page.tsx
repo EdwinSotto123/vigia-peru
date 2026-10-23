@@ -63,18 +63,18 @@ function Almacen({ documentos, porFormato }: { documentos: Cobertura["documentos
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-sm font-semibold text-ink">
+        <p className="text-dato leading-5 font-semibold text-ink">
           En el almacén: {fmtNum(documentos?.vigentes) ?? "sin dato"} documentos
           {documentos && <span className="font-normal text-mute"> ({fmtBytes(documentos.bytesVigentes) ?? "tamaño sin dato"})</span>}
         </p>
-        <p className="text-[12px] text-mute">{documentos?.proximaExpiracion ? `El primero vence el ${fmtDia(documentos.proximaExpiracion)}` : "Ninguno por vencer"}</p>
+        <p className="text-rotulo text-mute">{documentos?.proximaExpiracion ? `El primero vence el ${fmtDia(documentos.proximaExpiracion)}` : "Ninguno por vencer"}</p>
       </div>
       {total > 0 && (
         <>
           <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
             {porFormato.map((f, i) => <span key={f.formato ?? i} className={TINTA[Math.min(i, TINTA.length - 1)]} style={{ width: `${(f.n / total) * 100}%` }} />)}
           </div>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-inkSoft">
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-inkSoft">
             {porFormato.map((f, i) => (
               <li key={f.formato ?? i} className="inline-flex items-center gap-1.5">
                 <span className={`h-2 w-2 rounded-full ${TINTA[Math.min(i, TINTA.length - 1)]}`} aria-hidden />
@@ -86,7 +86,7 @@ function Almacen({ documentos, porFormato }: { documentos: Cobertura["documentos
           </ul>
         </>
       )}
-      <p className="mt-3 text-[11.5px] leading-snug text-mute">Pasan a almacenamiento frío a los 30 días y se borran a los 90. Si alguien financia un contrato con documentos vencidos, se vuelven a bajar en la hora siguiente.</p>
+      <p className="mt-3 text-rotulo leading-snug text-mute">Pasan a almacenamiento frío a los 30 días y se borran a los 90. Si alguien financia un contrato con documentos vencidos, se vuelven a bajar en la hora siguiente.</p>
     </Card>
   );
 }
@@ -100,7 +100,7 @@ function Proporcion({ a, b }: { a: number; b: number }) {
       <span className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-paperDeep sm:inline-block" aria-hidden>
         <span className="block h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
       </span>
-      <span className="w-10 text-right font-sans text-[11px] text-mute">{p} %</span>
+      <span className="w-10 text-right font-sans text-micro text-mute">{p} %</span>
     </span>
   );
 }
@@ -138,7 +138,7 @@ export default function CoberturaPage() {
       celda: (l) => (
         <span title={l.id}>
           <span className="block font-medium text-ink">{tipoLoteLabel(l.tipo)}</span>
-          <span className="block text-[11px] text-mute">{fmtFechaHora(l.iniciadoAt ?? l.finalizadoAt) ?? "sin fecha"}</span>
+          <span className="block text-micro text-mute">{fmtFechaHora(l.iniciadoAt ?? l.finalizadoAt) ?? "sin fecha"}</span>
         </span>
       ),
     },
@@ -146,14 +146,14 @@ export default function CoberturaPage() {
       clave: "resultado",
       titulo: "Resultado",
       celda: (l) => (
-        <span className="text-[12px] text-inkSoft">
+        <span className="text-rotulo text-inkSoft">
           <span className="font-mono text-ink">{fmtNum(l.ok)}</span> de {fmtNum(l.total)}
           {l.fallidos ? <span className="text-crimsonTexto">, {fmtNum(l.fallidos)} fallidos</span> : null}
         </span>
       ),
     },
     { clave: "estado", titulo: "Estado", celda: (l) => { const e = estadoLote(l.estado); return <Badge tono={e.tono}>{e.label}</Badge>; } },
-    { clave: "cuando", titulo: "Terminó", className: "whitespace-nowrap text-[12px] text-mute", celda: (l) => hace(l.finalizadoAt) ?? "sin terminar" },
+    { clave: "cuando", titulo: "Terminó", className: "whitespace-nowrap text-rotulo text-mute", celda: (l) => hace(l.finalizadoAt) ?? "sin terminar" },
   ];
 
   return (
@@ -202,12 +202,12 @@ export default function CoberturaPage() {
                 vacio={<EmptyState compacto titulo="Todavía no hay contratos ingeridos" descripcion="Aparecen cuando corre la ingesta diaria de convocatorias." />}
               />
               {sinMes && sinMes.contratos > 0 && (
-                <p className="text-[12px] text-inkSoft">{fmtNum(sinMes.contratos)} contratos no tienen fecha de convocatoria: no entran en esta tabla ni en los totales.</p>
+                <p className="text-rotulo text-inkSoft">{fmtNum(sinMes.contratos)} contratos no tienen fecha de convocatoria: no entran en esta tabla ni en los totales.</p>
               )}
               <Expandable variante="linea" resumen="Qué mide cada columna">
-                <dl className="grid max-w-4xl gap-x-6 gap-y-2 text-[12.5px] leading-relaxed text-inkSoft md:grid-cols-2">
-                  <div><dt className="font-semibold text-ink">Expediente completo</dt><dd>Bajamos el expediente entero del OECE (partes, adjudicaciones y contratos). Sin él solo tenemos el aviso de convocatoria. <span className="font-mono text-[11px] text-mute">/record/&lt;ocid&gt; frente a /releasesAfter</span></dd></div>
-                  <div><dt className="font-semibold text-ink">Documentos bajados</dt><dd>Documentos guardados y vigentes frente a los que el SEACE publica para ese mes. <span className="font-mono text-[11px] text-mute">gs://vigia-peru-batch/batch/documentos/</span></dd></div>
+                <dl className="grid max-w-4xl gap-x-6 gap-y-2 text-meta leading-relaxed text-inkSoft md:grid-cols-2">
+                  <div><dt className="font-semibold text-ink">Expediente completo</dt><dd>Bajamos el expediente entero del OECE (partes, adjudicaciones y contratos). Sin él solo tenemos el aviso de convocatoria. <span className="font-mono text-micro text-mute">/record/&lt;ocid&gt; frente a /releasesAfter</span></dd></div>
+                  <div><dt className="font-semibold text-ink">Documentos bajados</dt><dd>Documentos guardados y vigentes frente a los que el SEACE publica para ese mes. <span className="font-mono text-micro text-mute">gs://vigia-peru-batch/batch/documentos/</span></dd></div>
                   <div><dt className="font-semibold text-ink">Clasificados</dt><dd>Contratos a los que ya se les asignó tipo y etapa.</dd></div>
                   <div><dt className="font-semibold text-ink">En proceso</dt><dd>Financiados y en camino: en cola, leyéndose o esperando documentos.</dd></div>
                 </dl>

@@ -145,7 +145,7 @@ export function EscalaDinero({
               lee.
             </h2>
           </div>
-          <p className="flex max-w-xs items-start gap-x-1.5 text-[15px] leading-snug text-paper/80">
+          <p className="flex max-w-xs items-start gap-x-1.5 text-cuerpo leading-snug text-paper/80">
             <span>Juntos suman más de S/ {numero(milMillones)} mil millones.</span>
             <Ayuda titulo="¿De dónde salen estas cifras?" className="text-paper/60 hover:bg-paper/10 hover:text-maiz">
               <span className="block">
@@ -181,7 +181,7 @@ export function EscalaDinero({
               <circle key={i} className="punto-leido fill-maiz" cx={i + 0.5} cy={0.5} r={0.42} />
             ))}
           </svg>
-          <figcaption className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-[13px] text-paper/75">
+          <figcaption className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-meta text-paper/75">
             <span className="inline-flex items-center gap-2">
               <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-paper/40" /> Cada punto son {POR_PUNTO} contratos
             </span>
@@ -242,17 +242,17 @@ export function EscalaDinero({
         {/* ── Por tipo, en una línea ──────────────────────────────── */}
         {tipos.length > 0 && (
           <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <p className="text-[13px] font-semibold text-paper/75">Por tipo</p>
+            <p className="text-meta font-semibold text-paper/75">Por tipo</p>
             <ul aria-label="Contratos publicados y leídos por tipo" className="carrusel-lista -mx-4 flex min-w-0 flex-1 gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
               {tipos.map((t) => {
                 const Icono = ICONO[t.clave];
                 return (
-                  <li key={t.clave} className="flex shrink-0 items-center gap-2 rounded-full border border-paper/15 bg-paper/[0.04] px-3.5 py-2 text-[13.5px]">
+                  <li key={t.clave} className="flex shrink-0 items-center gap-2 rounded-full border border-paper/15 bg-paper/[0.04] px-3.5 py-2 text-dato">
                     <Icono size={15} className="shrink-0 text-maiz/90" aria-hidden />
                     <span className="text-paper/90">{t.etiqueta}</span>
                     <span className="font-mono tabular-nums text-paper">{numero(t.total)}</span>
                     {t.leidos != null && t.leidos > 0 && (
-                      <span className="font-mono text-[12.5px] tabular-nums text-maiz">{numero(t.leidos)} leídos</span>
+                      <span className="font-mono text-meta tabular-nums text-maiz">{numero(t.leidos)} leídos</span>
                     )}
                   </li>
                 );
@@ -287,7 +287,7 @@ function Cifra({
   /** La única acción de la tarjeta, si la tiene. */
   accion?: { href: string; texto: string };
 }) {
-  const color = tono === "lima" ? "text-maiz" : tono === "alerta" ? "text-[#FF8B7E]" : "text-paper";
+  const color = tono === "lima" ? "text-maiz" : tono === "alerta" ? "text-alertaBanda" : "text-paper";
   return (
     <div
       className={
@@ -295,7 +295,7 @@ function Cifra({
         (tono === "lima" ? "border-maiz/45 bg-maiz/[0.07]" : tono === "alerta" ? "border-crimson/40 bg-crimson/[0.07]" : "border-paper/15 bg-paper/[0.04]")
       }
     >
-      <p className={"flex items-center gap-2 text-[14px] font-semibold " + (tono === "neutro" ? "text-paper/85" : color)}>
+      <p className={"flex items-center gap-2 text-dato font-semibold " + (tono === "neutro" ? "text-paper/85" : color)}>
         <Icono size={17} aria-hidden /> {titulo}
       </p>
       <p className={"mt-3 font-display text-5xl font-bold leading-none tabular-nums sm:text-[3.4rem] " + color}>
@@ -304,12 +304,12 @@ function Cifra({
         </span>
         {sufijo && <span className="ml-1 text-2xl font-semibold text-paper/70 sm:text-3xl">{sufijo}</span>}
       </p>
-      {apoyo && <p className="mt-2 text-[14px] font-medium text-paper/90">{apoyo}</p>}
-      <p className="mt-2 text-[14px] leading-snug text-paper/70">{frase}</p>
+      {apoyo && <p className="mt-2 text-dato font-medium text-paper/90">{apoyo}</p>}
+      <p className="mt-2 text-dato leading-snug text-paper/70">{frase}</p>
       {accion && (
         <Link
           href={accion.href}
-          className="mt-auto inline-flex min-h-11 items-center gap-1.5 pt-3 text-[14.5px] font-semibold text-maiz underline-offset-4 hover:underline"
+          className="mt-auto inline-flex min-h-11 items-center gap-1.5 pt-3 text-dato font-semibold text-maiz underline-offset-4 hover:underline"
         >
           {accion.texto} <ArrowRight size={15} aria-hidden />
         </Link>

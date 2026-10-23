@@ -35,7 +35,7 @@ export function Aviso({
       <span className={cn("mt-0.5 shrink-0", TONO[tono].texto)} aria-hidden>
         {icono ?? <Icono size={16} />}
       </span>
-      <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-inkSoft">
+      <div className="min-w-0 flex-1 text-meta leading-relaxed text-inkSoft">
         {titulo && <p className="font-semibold text-ink">{titulo}</p>}
         {children}
       </div>
@@ -86,7 +86,7 @@ export function ErrorBanner({ error, titulo, onReintentar, className }: { error:
       <p>{titulo ? `${x.titulo}. ${x.detalle}` : x.detalle}</p>
       {x.tecnico && (
         <Expandable variante="linea" resumen="Detalle técnico" className="mt-1">
-          <code className="block whitespace-pre-wrap break-words rounded-lg bg-paper/80 px-2 py-1.5 font-mono text-[11px] text-ink">{x.tecnico}</code>
+          <code className="block whitespace-pre-wrap break-words rounded-lg bg-paper/80 px-2 py-1.5 font-mono text-micro text-ink">{x.tecnico}</code>
         </Expandable>
       )}
     </Aviso>

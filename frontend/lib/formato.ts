@@ -131,13 +131,6 @@ export function hoyLima(ahora: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_LIMA }).format(ahora);
 }
 
-/** Píldora de severidad. Con los tokens de TEXTO: los tonos base no llegan a 4.5:1 como texto. */
-export function severidadColor(s: "alta" | "media" | "baja"): string {
-  if (s === "alta") return "text-crimsonTexto bg-crimson-soft border-crimson/20";
-  if (s === "media") return "text-amberTexto bg-amber-soft border-amber/20";
-  return "text-inkSoft bg-line border-mute/20";
-}
-
 /**
  * Un texto listo para buscar dentro de él: sin tildes, en minúsculas y con los espacios juntos ("Ñ" queda "n").
  * Lo usan los buscadores de las listas que llegan enteras al navegador (`TablaPaginada`).

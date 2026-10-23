@@ -35,8 +35,8 @@ export function Franja({
         </span>
       )}
       <div className="min-w-0 max-w-2xl flex-1">
-        <p className="font-display text-[16px] font-bold leading-tight text-ink">{titulo}</p>
-        {children && <p className="mt-0.5 text-[13.5px] leading-snug text-inkSoft">{children}</p>}
+        <p className="font-display text-bloque font-bold leading-tight text-ink">{titulo}</p>
+        {children && <p className="mt-0.5 text-dato leading-snug text-inkSoft">{children}</p>}
       </div>
       {accion && (
         <div className={cn("flex w-full flex-wrap gap-2 [&>*]:flex-1 [&>*]:justify-center", apilada ? "sm:[&>*]:flex-none" : "sm:w-auto sm:shrink-0 sm:[&>*]:flex-none")}>{accion}</div>
@@ -70,8 +70,8 @@ export function Beneficios({ items, className, columnas }: { items: Beneficio[];
             </span>
           )}
           <span className="min-w-0">
-            <span className="block text-[14.5px] font-semibold leading-snug text-ink">{b.titulo}</span>
-            <span className="mt-0.5 block text-[13px] leading-snug text-mute">{b.texto}</span>
+            <span className="block text-dato font-semibold leading-snug text-ink">{b.titulo}</span>
+            <span className="mt-0.5 block text-meta leading-snug text-mute">{b.texto}</span>
           </span>
         </li>
       ))}

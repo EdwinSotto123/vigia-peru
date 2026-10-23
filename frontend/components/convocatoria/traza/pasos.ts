@@ -11,6 +11,7 @@ import { reglaLabel } from "@/lib/auditoria";
 import { numero, plural, soles } from "@/lib/formato";
 import { TOOL_INFO } from "../constants";
 import type { Paso } from "./modelo";
+import { txt } from "@/lib/utils";
 
 export interface Linea {
   texto: string;
@@ -23,7 +24,6 @@ export interface Linea {
 }
 
 const esObjeto = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
-const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 const nro = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const arr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
 /** "contrato_firmado" → "contrato firmado". */

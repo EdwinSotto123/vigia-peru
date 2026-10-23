@@ -122,9 +122,9 @@ export function ComoFunciona() {
       <ol className="grid gap-3 sm:grid-cols-3">
         {ETAPAS.map((e, i) => (
           <li key={e.titulo} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-line bg-paper p-4">
-            <h3 className="flex items-center gap-2 font-display text-[15px] font-bold text-ink">
+            <h3 className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
               <span
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-granate-50 text-[12px] font-bold tabular-nums text-granate"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-granate-50 text-rotulo font-bold tabular-nums text-granate"
                 aria-hidden
               >
                 {i + 1}
@@ -133,7 +133,7 @@ export function ComoFunciona() {
               {e.titulo}
               {e.ayuda && <Ayuda titulo={e.ayuda.titulo}>{e.ayuda.texto}</Ayuda>}
             </h3>
-            <p className="text-[13px] leading-snug text-inkSoft text-pretty">{e.texto}</p>
+            <p className="text-meta leading-snug text-inkSoft text-pretty">{e.texto}</p>
             <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
               {e.estados.map((s) => (
                 <EstadoPill key={s} estado={s} />
@@ -144,7 +144,7 @@ export function ComoFunciona() {
       </ol>
 
       <section aria-labelledby="pasos-analisis">
-        <h3 id="pasos-analisis" className="mb-3 flex items-center gap-1 font-display text-[15px] font-bold text-ink">
+        <h3 id="pasos-analisis" className="mb-3 flex items-center gap-1 font-display text-bloque font-bold text-ink">
           Los {TOTAL_PASOS} pasos del análisis
           <Ayuda titulo="¿Qué es una rama?">
             {ramas.length > 2 ? `Las ramas ${paralelas} corren a la vez; la rama ${final} junta lo que encontraron y redacta el dictamen. ` : ""}

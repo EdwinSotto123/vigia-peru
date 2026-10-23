@@ -158,7 +158,7 @@ export function AuditoriaDeAgentes({
       <div className="space-y-3">
         {/* Quién encontró qué: plegado (vocabulario técnico, §12). Cada agente filtra la tabla. */}
         <details className="group rounded-2xl border border-line bg-paper">
-          <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-semibold text-ink hover:bg-paperSoft sm:px-5 [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-4 py-2.5 text-meta font-semibold text-ink hover:bg-paperSoft sm:px-5 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex flex-wrap items-center gap-x-1.5">
               Quién encontró cada señal
               <span className="font-normal text-mute">
@@ -169,7 +169,7 @@ export function AuditoriaDeAgentes({
           </summary>
           <div className="border-t border-line px-3 py-3 sm:px-5">
             {/* Sin ⓘ dentro del <summary>: un botón ahí también abriría y cerraría el pliegue. */}
-            <p className="mb-2 text-[12px] leading-snug text-mute">
+            <p className="mb-2 text-rotulo leading-snug text-mute">
               {hayEje
                 ? `Corrieron ${nAgentes} agentes ${formaCarriles(carriles)}${omitidos > 0 ? ` (${omitidos} de los ${pasos.length} pasos no aplicaban y se saltaron)` : ""}.`
                 : `Le aplican ${nAgentes} agentes de los ${TOTAL_PASOS} pasos del análisis, ${formaCarriles(carriles)}.`}{" "}
@@ -189,7 +189,7 @@ export function AuditoriaDeAgentes({
             ) : (
               <>
                 <CarrilesAgentes pasos={pasos} senalesPorAgente={porAgente} totalSenales={conteo.total} seleccion={agente} onSeleccion={setAgente} />
-                <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
+                <p className="mt-2 border-t border-line pt-2 text-micro leading-snug text-mute">
                   Sin marcas de tiempo por agente: se ve qué hace cada uno y qué encontró, no cuánto tardó.
                 </p>
               </>
@@ -201,7 +201,7 @@ export function AuditoriaDeAgentes({
                 onClick={() => setAgente(agente === SIN_AGENTE ? null : SIN_AGENTE)}
                 aria-pressed={agente === SIN_AGENTE}
                 className={cn(
-                  "mt-2 flex w-full items-baseline gap-2 rounded-lg border-t border-line px-1 pt-2 text-left text-[12px] transition-colors duration-rapido",
+                  "mt-2 flex w-full items-baseline gap-2 rounded-lg border-t border-line px-1 pt-2 text-left text-rotulo transition-colors duration-rapido",
                   "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
                   agente === SIN_AGENTE && "bg-granate-soft",
                 )}
@@ -217,7 +217,7 @@ export function AuditoriaDeAgentes({
 
         {/* El recorte activo, con su salida: la tabla nunca queda filtrada sin decirlo. */}
         {agente && (
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-inkSoft" aria-live="polite">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-inkSoft" aria-live="polite">
             <span>
               Señales de <strong className="font-semibold text-ink">{pasoSel?.nombre ?? "sin agente declarado"}</strong>:{" "}
               <span className="tabular-nums">
@@ -255,7 +255,7 @@ export function AuditoriaDeAgentes({
 /** El agente elegido no emitió señales: se dice qué hace, para que el vacío también enseñe. */
 function VacioAgente({ agente }: { agente: PasoPipeline | null }) {
   return (
-    <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-[13px] leading-relaxed text-mute sm:px-5">
+    <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-meta leading-relaxed text-mute sm:px-5">
       <p className="text-ink">
         {agente ? `${agente.nombre} corrió sobre este contrato y no emitió ninguna señal.` : "Ninguna señal coincide con el recorte elegido."}
       </p>

@@ -41,7 +41,7 @@ const ANILLO_ETIQUETA =
 
 /** Selector de archivo con forma de botón secundario (píldora, borde, 40 px). */
 const ELEGIR =
-  "inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-sm font-medium text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50";
+  "inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-medium text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50";
 
 export function SubirComprobante({
   codigo,
@@ -133,7 +133,7 @@ export function SubirComprobante({
 
   if (subido) {
     return (
-      <p className="inline-flex items-center gap-1.5 text-[13px] font-medium text-mossTexto" role="status">
+      <p className="inline-flex items-center gap-1.5 text-meta font-medium text-mossTexto" role="status">
         <CheckCircle2 size={14} aria-hidden /> Comprobante recibido para {codigo}.
       </p>
     );
@@ -143,15 +143,15 @@ export function SubirComprobante({
     <div className={compacto ? "" : "rounded-2xl border border-line p-4"}>
       {!compacto && (
         <>
-          <p className="text-sm font-semibold text-ink">
+          <p className="text-dato leading-5 font-semibold text-ink">
             Envía tu comprobante de pago <span className="font-normal text-mute">(opcional: acelera la validación)</span>
           </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">Captura de Yape o Plin, o constancia de transferencia. Se guarda en privado; solo lo ve quien valida.</p>
+          <p className="mt-1 text-meta leading-relaxed text-inkSoft">Captura de Yape o Plin, o constancia de transferencia. Se guarda en privado; solo lo ve quien valida.</p>
         </>
       )}
       {mostrarCorreo && (
         <div className={compacto ? "mb-2" : "mt-3"}>
-          <label htmlFor={idCorreo} className="block text-sm font-medium text-ink">Correo con el que registraste el aporte</label>
+          <label htmlFor={idCorreo} className="block text-dato leading-5 font-medium text-ink">Correo con el que registraste el aporte</label>
           <input
             id={idCorreo}
             type="email"
@@ -160,10 +160,10 @@ export function SubirComprobante({
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
             aria-describedby={`${idCorreo}-ayuda`}
-            className="mt-1 w-full max-w-sm rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-mute"
+            className="mt-1 w-full max-w-sm rounded-xl border border-line bg-paper px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute"
             placeholder="tu@correo.pe"
           />
-          <p id={`${idCorreo}-ayuda`} className="mt-1 text-[12px] text-mute">
+          <p id={`${idCorreo}-ayuda`} className="mt-1 text-rotulo text-mute">
             Solo lo usamos para comprobar que el aporte {codigo} es tuyo; no se publica.
           </p>
         </div>
@@ -177,7 +177,7 @@ export function SubirComprobante({
           <Upload size={14} aria-hidden /> Elegir archivo
           <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(e) => elegir(e.target.files?.[0] ?? null)} />
         </label>
-        {archivo && <span className="max-w-[16rem] truncate text-[12px] text-inkSoft">{archivo.name}</span>}
+        {archivo && <span className="max-w-[16rem] truncate text-rotulo text-inkSoft">{archivo.name}</span>}
         <Button type="button" onClick={enviar} disabled={!archivo || cargando}>
           {cargando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Upload size={14} aria-hidden />} Enviar comprobante
         </Button>
@@ -188,7 +188,7 @@ export function SubirComprobante({
           <div className="h-full rounded-full bg-moss" style={{ width: `${progreso}%` }} />
         </div>
       )}
-      {error && <p className="mt-2 text-sm text-crimsonTexto" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
     </div>
   );
 }

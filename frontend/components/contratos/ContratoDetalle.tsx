@@ -214,7 +214,7 @@ export function ContratoDetalle({
 function TituloContrato({ texto }: { texto: string }) {
   const largo = texto.length;
   return (
-    <span className={largo > 150 ? "block text-[19px] leading-snug sm:text-[21px]" : largo > 80 ? "block text-[23px] leading-snug sm:text-[26px]" : undefined}>
+    <span className={largo > 150 ? "block text-bloque leading-snug sm:text-seccion" : largo > 80 ? "block text-seccion leading-snug sm:text-cifra" : undefined}>
       {texto}
     </span>
   );
@@ -252,7 +252,7 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
 
 /** "Sin dato" como cifra: en `mute` y más chico, para que no se lea como un número (§10.2). */
 function SinDato({ texto = "Sin dato" }: { texto?: string }) {
-  return <span className="text-[18px] font-semibold text-mute">{texto}</span>;
+  return <span className="text-bloque font-semibold text-mute">{texto}</span>;
 }
 
 /** Las cifras del contrato: número compacto → qué es → el monto exacto o la fecha que lo acompaña. */
@@ -302,23 +302,23 @@ function DatosProceso({ c }: { c: Detalle }) {
   const descripcion = c.descripcion && c.descripcion !== c.titulo ? c.descripcion : null;
   return (
     <div className="rounded-2xl border border-line bg-paper">
-      <h2 id="datos-proceso" className="px-4 pt-3.5 text-[15px] font-semibold text-ink">
+      <h2 id="datos-proceso" className="px-4 pt-3.5 font-display text-bloque font-bold text-ink">
         Datos del proceso
       </h2>
-      <dl className="space-y-3 px-4 pb-3.5 pt-2.5 text-sm">
+      <dl className="space-y-3 px-4 pb-3.5 pt-2.5 text-dato leading-5">
         <Dato k="Quién ganó">
           {proveedor ? (
             <>
               {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
               <span className="font-semibold">{natural ? <PersonName name={proveedor} orden="sunat" /> : proveedor}</span>
               {proveedorRuc && (
-                <span className="block font-mono text-[12px] text-mute">
+                <span className="block font-mono text-rotulo text-mute">
                   RUC <Ruc value={proveedorRuc} />
                 </span>
               )}
-              {queda && <span className="block text-[12px] text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
+              {queda && <span className="block text-rotulo text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
               {enlaceProveedor(proveedorRuc) && (
-                <Link href={enlaceProveedor(proveedorRuc)!} className="mt-1 inline-block text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+                <Link href={enlaceProveedor(proveedorRuc)!} className="mt-1 inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">
                   Ver la ficha de la empresa
                 </Link>
               )}
@@ -330,19 +330,19 @@ function DatosProceso({ c }: { c: Detalle }) {
         {descripcion && (
           <Dato k="Descripción">
             {/* div y no span: la descripción larga se pliega en un <details>. */}
-            <div className="text-[13px] leading-relaxed">
+            <div className="text-meta leading-relaxed">
               <Descripcion texto={descripcion} />
             </div>
           </Dato>
         )}
         {c.nomenclatura && (
           <Dato k="Nomenclatura">
-            <span className="break-all font-mono text-[13px]">{c.nomenclatura}</span>
+            <span className="break-all font-mono text-meta">{c.nomenclatura}</span>
           </Dato>
         )}
         {c.ocid !== c.codigo && (
           <Dato k="OCID">
-            <span className="break-all font-mono text-[13px] text-inkSoft">{c.ocid}</span>
+            <span className="break-all font-mono text-meta text-inkSoft">{c.ocid}</span>
           </Dato>
         )}
       </dl>
@@ -354,7 +354,7 @@ function DatosProceso({ c }: { c: Detalle }) {
 function Dato({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-[12px] text-mute">{k}</dt>
+      <dt className="text-rotulo text-mute">{k}</dt>
       <dd className="mt-0.5 text-ink">{children}</dd>
     </div>
   );
@@ -384,7 +384,7 @@ function TarjetaEstado({ icono, titulo, ayuda, children }: { icono: ReactNode; t
     // Sin caja: un estado de una línea no merece una tarjeta de 700 x 100 px. Filete a la izquierda.
     <section className="border-l-2 border-line py-1 pl-4">
       <div className="flex items-center gap-1">
-        <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        <h2 className="inline-flex items-center gap-1.5 font-display text-bloque font-bold text-ink">
           {icono}
           {titulo}
         </h2>
@@ -407,7 +407,7 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
     return (
       <div className="space-y-2">
         <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} sharePath={`/app/contratos/${encodeURIComponent(c.ocid)}`} />
-        {c.alerta.analizadoEn && <p className="text-[12px] text-mute">Leído el {fecha(dia(c.alerta.analizadoEn))}</p>}
+        {c.alerta.analizadoEn && <p className="text-rotulo text-mute">Leído el {fecha(dia(c.alerta.analizadoEn))}</p>}
       </div>
     );
   }
@@ -423,11 +423,11 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
           </Ayuda>
         }
       >
-        <p className="mt-2 text-sm text-ink">
+        <p className="mt-2 text-dato leading-5 text-ink">
           Ya financiado; sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}.
         </p>
         {c.pedidoDescarga && (
-          <p className="mt-2 text-[12px] text-mute">
+          <p className="mt-2 text-rotulo text-mute">
             Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el {fechaCorta(dia(c.pedidoDescarga.solicitadoAt))}.
           </p>
         )}
@@ -451,7 +451,7 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
           </Ayuda>
         }
       >
-        <p className="mt-2 text-sm text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
+        <p className="mt-2 text-dato leading-5 text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />
       </TarjetaEstado>
     );
@@ -480,7 +480,7 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
           </Ayuda>
         }
       >
-        <p className="mt-2 text-sm text-ink">La lectura de {tipo} en esta etapa todavía no está activa.</p>
+        <p className="mt-2 text-dato leading-5 text-ink">La lectura de {tipo} en esta etapa todavía no está activa.</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />
       </TarjetaEstado>
     );
@@ -498,7 +498,7 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
         </Ayuda>
       }
     >
-      <p className="mt-2 text-sm text-ink">Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.</p>
+      <p className="mt-2 text-dato leading-5 text-ink">Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.</p>
       <Pendientes v={c.clasificacion.validacionesPendientes} />
       {c.ubigeo && (
         <EnlaceAccion href={`/app/financiar/${c.ubigeo}`} flecha className="mt-4 w-full sm:w-auto">
@@ -515,7 +515,7 @@ function ClasificacionCard({ c }: { c: Detalle }) {
   return (
     <section className="space-y-1.5">
       <div className="flex items-center gap-1">
-        <h2 className="text-[13px] font-semibold text-ink">Qué partes del análisis aplican</h2>
+        <h2 className="font-display text-bloque font-bold text-ink">Qué partes del análisis aplican</h2>
         <Ayuda titulo="¿Por qué estas partes?">
           Dependen del tipo de contrato y de su etapa. Las que no aparecen no aplican a este contrato.
         </Ayuda>
@@ -527,7 +527,7 @@ function ClasificacionCard({ c }: { c: Detalle }) {
           ))}
         </ul>
       ) : (
-        <p className="text-[12px] text-mute">Ninguna para esta combinación de tipo y etapa.</p>
+        <p className="text-rotulo text-mute">Ninguna para esta combinación de tipo y etapa.</p>
       )}
     </section>
   );
@@ -537,8 +537,8 @@ function Pendientes({ v }: { v: string[] | null }) {
   if (!v?.length) return null;
   return (
     <div className="mt-3">
-      <div className="text-[12px] font-semibold text-inkSoft">Validaciones pendientes</div>
-      <ul className="mt-1 space-y-0.5 text-[13px] text-ink">
+      <div className="text-rotulo font-semibold text-inkSoft">Validaciones pendientes</div>
+      <ul className="mt-1 space-y-0.5 text-meta text-ink">
         {v.map((x) => <li key={x} className="flex items-start gap-1.5"><span aria-hidden className="mt-2 inline-block h-1 w-1 shrink-0 rounded-full bg-mute" />{validacionLabel(x)}</li>)}
       </ul>
     </div>
@@ -557,7 +557,7 @@ function Descripcion({ texto }: { texto: string }) {
     <details className="group/desc">
       <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <span className="group-open/desc:hidden">{recortar(texto, 150)} </span>
-        <span className="text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+        <span className="text-rotulo font-medium text-granate underline-offset-2 hover:underline">
           <span className="group-open/desc:hidden">Ver completa</span>
           <span className="hidden group-open/desc:inline">Ocultar</span>
         </span>
@@ -580,7 +580,7 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
   return (
     <section aria-labelledby="cambio-ganador" className={cn("rounded-2xl border bg-paper px-4 py-3.5", sube ? "border-amber/40" : "border-line")}>
       <div className="flex items-start justify-between gap-3">
-        <h2 id="cambio-ganador" className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+        <h2 id="cambio-ganador" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
           <ShieldAlert size={16} className={sube ? "text-amberTexto" : "text-mute"} aria-hidden />
           La buena pro pasó a otro postor
         </h2>
@@ -590,7 +590,7 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
           postor, con su propia oferta. El motivo está en el expediente.
         </Ayuda>
       </div>
-      <p className="mt-2 text-sm text-ink">
+      <p className="mt-2 text-dato leading-5 text-ink">
         La buena pro fue primero para <span className="font-semibold">{nombre(original)}</span>
         {original.montoPen != null && <> por {monto(original.montoPen, c.moneda)}</>}; según CONOSCE quedó con{" "}
         {queda.map((q, i) => (
@@ -608,7 +608,7 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
         )}
         .
       </p>
-      <p className="mt-1.5 text-[12px] text-mute">Fuente: registro OCDS del OECE y las adjudicaciones de CONOSCE</p>
+      <p className="mt-1.5 text-rotulo text-mute">Fuente: registro OCDS del OECE y las adjudicaciones de CONOSCE</p>
     </section>
   );
 }

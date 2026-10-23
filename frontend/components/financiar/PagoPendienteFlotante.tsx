@@ -72,11 +72,11 @@ export function PagoPendienteFlotante() {
             aria-expanded={!minimizado}
             className="min-w-0 flex-1 text-left"
           >
-            <span className="flex items-baseline justify-between gap-2 text-[13px] font-semibold text-ink">
+            <span className="flex items-baseline justify-between gap-2 text-meta font-semibold text-ink">
               <span className="truncate">Pago pendiente</span>
               <span className="shrink-0 font-mono tabular-nums">{soles(c.montoPen)}</span>
             </span>
-            <span className="block truncate text-[11px] text-mute">
+            <span className="block truncate text-micro text-mute">
               <Partes
                 partes={[
                   <Dato key="c" tipo="codigo" nombre="Código del aporte" mono>{c.codigo}</Dato>,
@@ -98,12 +98,12 @@ export function PagoPendienteFlotante() {
         {!minimizado && (
           <div className="max-h-[70vh] space-y-4 overflow-y-auto border-t border-line px-3 py-3">
             {visibles.length > 1 && (
-              <label className="block text-[12px] text-inkSoft">
+              <label className="block text-rotulo text-inkSoft">
                 Aporte
                 <select
                   value={Math.min(indice, visibles.length - 1)}
                   onChange={(e) => setIndice(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-line bg-paper px-2 py-1.5 text-sm text-ink"
+                  className="mt-1 w-full rounded-xl border border-line bg-paper px-2 py-1.5 text-dato leading-5 text-ink"
                 >
                   {visibles.map((v, i) => (
                     <option key={v.creada.codigo} value={i}>{v.creada.codigo} ({soles(v.creada.montoPen)})</option>
@@ -111,13 +111,13 @@ export function PagoPendienteFlotante() {
                 </select>
               </label>
             )}
-            <p className="text-[13px] leading-snug text-inkSoft">
+            <p className="text-meta leading-snug text-inkSoft">
               Financia {plural(c.contratos, "contrato", "contratos")}. Paga {soles(c.montoPen)} con el código{" "}
               <span className="font-mono font-semibold text-ink">{c.codigo}</span> como concepto y sube tu comprobante.
             </p>
             {pago && <PaymentMethods pago={pago as PagoPublico} monto={soles(c.montoPen)} concepto={c.codigo} metodoPreferido={pago.metodo} />}
             <SubirComprobante codigo={c.codigo} email={emailDe(p)} compacto onSubido={() => borrarBorrador(p.ubigeo)} />
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-rotulo">
               <Link href={href} className="font-semibold text-granate underline underline-offset-2">Ir a la página del aporte</Link>
               <button
                 type="button"

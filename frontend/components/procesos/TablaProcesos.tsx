@@ -13,6 +13,7 @@ import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 import type { DatoDudosoContrato } from "@/lib/contratos";
 import { Dato } from "@/components/ui/Dato";
 import { AvisoContrato, ConBanderaDato } from "@/components/contratos/DatoDudosoContrato";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /** La fila trae además el posible error de carga del OECE (migración 102, lib/estadoFila.ts de la API). */
 type Proceso = ProcesoPartido & { datoDudoso?: DatoDudosoContrato | null };
@@ -112,7 +113,7 @@ export function TablaProcesos({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           {plural(pagina.total, "contrato", "contratos")}
           {filtrado ? " con estos filtros" : ""}, {solesCompacto(pagina.montoAdjudicadoPen)} adjudicados en soles.
         </p>
@@ -151,7 +152,7 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
               c={{ estadoProcesamiento: p.estadoProcesamiento as never, estadoOperativo: p.estadoOperativo as never, enRevision: !!p.enRevision, score: p.score ?? null, banderas: p.banderas ?? 0 }}
             />
           ) : (
-            <span className="text-[12px] text-mute">No está en Vigía</span>
+            <span className="text-rotulo text-mute">No está en Vigía</span>
           )}
         </ConBanderaDato>
       ),
@@ -174,7 +175,7 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
       ),
       monto: <CeldaNumero>{p.montoAdjudicado == null ? <span className="font-sans text-mute">Sin dato</span> : enSoles(p) ? solesCompacto(p.montoAdjudicado) : monto(p.montoAdjudicado, p)}</CeldaNumero>,
       ganador: (
-        <span className="line-clamp-2 text-[13px] text-inkSoft" title={p.proveedor ?? undefined}>
+        <span className="line-clamp-2 text-meta text-inkSoft" title={p.proveedor ?? undefined}>
           {p.proveedor ?? "Sin dato"}
           {p.proveedores > 1 && <span className="text-mute"> y {p.proveedores - 1} más</span>}
         </span>
@@ -197,16 +198,16 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
       ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] text-mute">Fuente: OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados</span>
+          <span className="text-rotulo text-mute">Fuente: OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados</span>
           {p.ocid ? (
             <Link
               href={`/app/contratos/${encodeURIComponent(p.ocid)}`}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-[13px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
             >
               Ver su ficha en Vigía <ArrowRight size={14} aria-hidden />
             </Link>
           ) : (
-            <Link href={`/entidad/${p.entidadRuc}`} className="inline-flex min-h-[40px] items-center gap-1.5 text-[13px] font-semibold text-granate hover:underline">
+            <Link href={`/entidad/${p.entidadRuc}`} className="inline-flex min-h-[40px] items-center gap-1.5 text-meta font-semibold text-granate hover:underline">
               Ver la entidad <ArrowRight size={14} aria-hidden />
             </Link>
           )}
@@ -216,5 +217,4 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
   };
 }
 
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;

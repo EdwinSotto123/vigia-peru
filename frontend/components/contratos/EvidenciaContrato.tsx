@@ -164,7 +164,7 @@ function SeccionItems({ c }: { c: Detalle }) {
         cantidad: it.cantidad != null ? <CeldaNumero sub={it.unidad ?? undefined}>{numero(it.cantidad)}</CeldaNumero> : undefined,
         monto: it.montoPen ? <CeldaNumero>{monto(it.montoPen, c.moneda)}</CeldaNumero> : undefined,
         unitario: it.precio ? <PrecioUnidad p={it.precio} unidad={it.unidad} /> : undefined,
-        frente: it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-[12px] text-mute">Sin con qué comparar</span> : undefined,
+        frente: it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-rotulo text-mute">Sin con qué comparar</span> : undefined,
       },
       buscable: [it.descripcion, `item ${it.posicion}`, it.cubso && `cubso ${it.cubso}`, it.estado && humanizarCodigo(it.estado)].filter(Boolean).join(" "),
     };
@@ -221,7 +221,7 @@ function FrenteOtras({ p }: { p: NonNullable<Detalle["items"][number]["precio"]>
         <line x1={x(k.mediana)} x2={x(k.mediana)} y1={1} y2={13} className="stroke-mute" strokeWidth={1.5} />
         <circle cx={x(precio)} cy={7} r={4.5} className={`${tono} stroke-paper`} strokeWidth={1.5} />
       </svg>
-      <span className="mt-0.5 block text-[11.5px] text-mute">
+      <span className="mt-0.5 block text-rotulo text-mute">
         {texto} de lo {k.base === "adjudicado" ? "pagado" : "presupuestado"} en {numero(k.entidades)} entidades
       </span>
     </span>
@@ -303,7 +303,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         ),
         item: p.item ? <CeldaTexto>{p.item}</CeldaTexto> : undefined,
         oferta: oferta ? <CeldaNumero sub={dif != null ? `${diferencia(dif)} vs. referencia` : undefined}>{oferta}</CeldaNumero> : undefined,
-        fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[12px] text-mute">Sin cita</span>,
+        fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
       },
       // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por su estado.
       buscable: [esPersonaNatural(p.ruc) ? null : p.razonSocial, esPersonaNatural(p.ruc) ? null : p.ruc, estado, humanizarCodigo(p.motivoEstado)].filter(Boolean).join(" "),
@@ -389,7 +389,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
         referencia: it.referenciaUnitaria != null ? <CeldaNumero>{monto(it.referenciaUnitaria, c.moneda)}</CeldaNumero> : undefined,
         contratado: unit != null ? <CeldaNumero sub={sub}>{monto(unit, c.moneda)}</CeldaNumero> : undefined,
         diferencia: d != null ? <CeldaNumero>{diferencia(d)}</CeldaNumero> : undefined,
-        fuente: it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[12px] text-mute">Sin cita</span>,
+        fuente: it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
       },
       buscable: [it.descripcion, `item ${it.numero}`, it.marca].filter(Boolean).join(" "),
     };
@@ -424,15 +424,16 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
           id: `${b.regla}-${i}`,
           buscable: etiquetaRegla(b.regla, catalogo),
           contenido: (
-            <div className="px-4 py-3 text-sm">
-              <div className="text-[14px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
+            <div className="px-4 py-3 text-dato leading-5">
+              <div className="text-dato font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
               {b.evidencia && (
-                <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
+                <p className="mt-0.5 line-clamp-2 text-meta text-inkSoft">
                   <TextoRedactado texto={b.evidencia} personas={personas} />
                 </p>
               )}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
+                {(b.citas?.length ?? 0) > 4 && <span className="self-center text-rotulo text-mute">{`y ${(b.citas?.length ?? 0) - 4} citas más`}</span>}
               </div>
             </div>
           ),
@@ -495,7 +496,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
   });
   return (
     <>
-      {nota && <p className="mb-3 text-sm text-inkSoft">{nota}</p>}
+      {nota && <p className="mb-3 text-dato leading-5 text-inkSoft">{nota}</p>}
       {docs.length ? (
         <TablaPaginada
           columnas={columnas}

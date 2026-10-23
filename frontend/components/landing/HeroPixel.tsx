@@ -77,6 +77,7 @@ function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
     <div className="mt-10">
       <p className="etiqueta-mono mb-3">Lo hacen posible</p>
       <ul className="flex flex-wrap gap-2.5">
+        {/* recorte: tres aliados en la portada; todos, en /app/aliados */}
         {aliados.slice(0, 3).map((f) => (
           <li key={f.id}>
             <AliadoAbrir
@@ -85,8 +86,8 @@ function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
             >
               <Medalla puesto={Math.min(f.puesto, 3) as 1 | 2 | 3} tamano={30} corona={false} />
               <span className="flex flex-col leading-tight">
-                <span className="max-w-[11rem] truncate text-[14px] font-semibold text-ink">{f.nombre}</span>
-                <span className="text-[12px] text-mute">
+                <span className="max-w-[11rem] truncate text-dato font-semibold text-ink">{f.nombre}</span>
+                <span className="text-rotulo text-mute">
                   {numero(f.contratosFinanciados)} {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
                 </span>
               </span>
@@ -186,7 +187,7 @@ export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanki
         <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0 -z-10" />
 
         <div className="container-page grid w-full max-w-7xl flex-1 items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:py-16">
-          <div className="hero-texto relative z-10">
+          <header className="hero-texto relative z-10">
             <p className="etiqueta-mono mb-5 text-granate">Plataforma cívica anticorrupción</p>
             <h1
               id="hero-titulo"
@@ -194,11 +195,11 @@ export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanki
             >
               ¿En qué se gasta el dinero de tu <span className="text-granate">región?</span>
             </h1>
-            <p className="mt-6 max-w-[46ch] text-pretty text-lg leading-relaxed text-inkSoft sm:text-xl">
+            <p className="mt-6 max-w-[46ch] text-pretty text-bloque leading-relaxed text-inkSoft sm:text-xl">
               Agentes de inteligencia artificial leen los contratos del Estado y los cruzan con registros oficiales
               para detectar indicios de corrupción. Tú ves cuáles merecen una segunda mirada.
             </p>
-            <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-[15px] leading-snug text-inkSoft">
+            <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-cuerpo leading-snug text-inkSoft">
               <span className="font-semibold text-ink">Nos financiamos con donaciones.</span>{" "}
               {precio != null
                 ? `Con S/ ${numero(precio)} pagas la lectura de un contrato. Tu granito de arena sí cuenta.`
@@ -213,7 +214,7 @@ export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanki
               </EnlaceAccion>
             </div>
             <LoHacenPosible aliados={aliados} />
-          </div>
+          </header>
 
           <div className="ojo-ancla relative z-20 mx-auto w-[min(78vw,22rem)] sm:w-[min(60vw,28rem)] lg:w-[min(42vw,36rem)]">
             <div className="ojo-escena will-change-transform">

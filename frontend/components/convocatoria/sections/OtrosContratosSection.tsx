@@ -14,9 +14,9 @@ export function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: an
           <Building2 size={16} className="mr-1.5 inline text-mute" aria-hidden />
           Otros contratos del proveedor ({otros.length})
         </h2>
-        <p className="mt-0.5 text-[12px] text-mute">Historial del proveedor con el Estado, según fuentes públicas</p>
+        <p className="mt-0.5 text-rotulo text-mute">Historial del proveedor con el Estado, según fuentes públicas</p>
         {relacion && (typeof relacion.contratos_previos === "number" || relacion.detalle) && (
-          <p className="mt-1 text-xs leading-relaxed text-mute">
+          <p className="mt-1 text-rotulo leading-relaxed text-mute">
             {typeof relacion.contratos_previos === "number" && (
               <>
                 Relación previa con esta entidad:{" "}
@@ -35,20 +35,20 @@ export function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: an
           <li key={i} className="px-5 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-ink">{c.entidad}</div>
-                <div className="mt-0.5 text-xs text-inkSoft">{c.objeto ? oracion(c.objeto) : null}</div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-mute">
+                <div className="text-dato leading-5 font-semibold text-ink">{c.entidad}</div>
+                <div className="mt-0.5 text-rotulo leading-4 text-inkSoft">{c.objeto ? oracion(c.objeto) : null}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-micro text-mute">
                   {c.fecha && <span>{fechaDossier(c.fecha, true)}</span>}
                   {c.ocid_o_contrato && <span>{c.ocid_o_contrato}</span>}
                 </div>
-                {c.evidencia && <Evidencia value={c.evidencia} className="mt-1 text-[11px] text-mute" />}
+                {c.evidencia && <Evidencia value={c.evidencia} className="mt-1 text-micro text-mute" />}
               </div>
               <div className="text-right">
                 {c.monto && (
-                  <div className="font-mono text-sm font-semibold tabular-nums text-ink">{fmtMoney(c.monto)}</div>
+                  <div className="font-mono text-dato leading-5 font-semibold tabular-nums text-ink">{fmtMoney(c.monto)}</div>
                 )}
                 {c.url && (
-                  <a href={c.url} target="_blank" rel="noreferrer" className="inline-flex min-h-[24px] items-center gap-1 text-[12px] text-granate hover:underline">
+                  <a href={c.url} target="_blank" rel="noreferrer" className="inline-flex min-h-[24px] items-center gap-1 text-rotulo text-granate hover:underline">
                     Fuente <ExternalLink size={11} aria-hidden />
                   </a>
                 )}

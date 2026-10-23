@@ -26,6 +26,8 @@ const config: Config = {
         // Una banda oscura (`bg-ink`, `bg-granate-deep`, `.sobre-oscuro`) redefine
         // esas variables en su ámbito (globals.css), así `text-paper` sigue siendo
         // "texto claro sobre banda" y `bg-paperSoft` una placa clara dentro de ella.
+        // El fondo de la página (body): de día, más oscuro que las tarjetas; de noche, el mismo papel.
+        fondo: "rgb(var(--fondo) / <alpha-value>)",
         paper: "rgb(var(--paper) / <alpha-value>)",
         paperSoft: "rgb(var(--paper-soft) / <alpha-value>)",
         paperDeep: "rgb(var(--paper-deep) / <alpha-value>)",
@@ -59,6 +61,13 @@ const config: Config = {
         mossTexto: "rgb(var(--moss-texto) / <alpha-value>)",
         clayTexto: "rgb(var(--clay-texto) / <alpha-value>)",
         crimsonTexto: "rgb(var(--crimson-texto) / <alpha-value>)",
+        // El texto sobre un relleno maíz (era `text-[#0B0F0F]` suelto) y el añil del segundo lado de una comparación
+        // (el duelo de partidos: era `bg-[#6C8CFF]`), los dos con su versión de día en globals.css.
+        sobreMaiz: "rgb(var(--sobre-maiz) / <alpha-value>)",
+        anil: "rgb(var(--anil) / <alpha-value>)",
+        anilTexto: "rgb(var(--anil-texto) / <alpha-value>)",
+        // Rojo de alerta sobre una banda oscura (globals.css: --alerta-banda), igual en los dos modos.
+        alertaBanda: "rgb(var(--alerta-banda) / <alpha-value>)",
         clay: "rgb(var(--clay) / <alpha-value>)",
         rust: "rgb(var(--rust) / <alpha-value>)",
         moss: "rgb(var(--moss) / <alpha-value>)",
@@ -123,6 +132,22 @@ const config: Config = {
       // Esquinas más contenidas: la identidad Píxel es de rejilla, no de burbujas.
       // Space Grotesk llega a 700: `font-extrabold` (800) se sintetizaba y apelmazaba los títulos.
       fontWeight: { extrabold: "700", black: "700" },
+      // La escala tipográfica (docs/PLAN_VISUAL.md, fase B): en vez de 36 tamaños `text-[Npx]` sueltos, estos 11 con nombre de
+      // rol. Sólo el tamaño, sin interlínea, para que el cambio no mueva líneas que heredan la suya. Un tamaño fuera de la
+      // escala lo marca scripts/auditar-estilo.mjs.
+      fontSize: {
+        micro: "11px", //      lo mínimo: nunca menos de 11 px
+        rotulo: "12px", //     rótulos de datos, chips, contadores
+        meta: "13px", //       metadatos, ayudas, la línea bajo un título
+        dato: "14px", //       valores de tablas y fichas, texto de interfaz
+        cuerpo: "15px", //     texto corrido
+        destacado: "16px", //  campos de formulario (16 px: el celular no hace zoom al tocarlos)
+        bloque: "18px", //     h3: el título de una tarjeta o un bloque
+        seccion: "22px", //    h2: cada sección de una página
+        cifra: "28px", //      la cifra grande de una tarjeta; el h1 en el celular
+        titulo: "32px", //     h1 de la página
+        portada: "40px", //    el titular de la portada
+      },
       borderRadius: { xl: "10px", "2xl": "12px", "3xl": "16px" },
       transitionTimingFunction: {
         // Salida exponencial: arranca rápido y se asienta. Es la curva de todo

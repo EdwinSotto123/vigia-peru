@@ -32,22 +32,22 @@ export function CumplimientoNormativoSection({
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
         <h2 className="font-display text-xl font-bold text-ink">Cumplimiento normativo</h2>
-        <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-mute">
+        <p className="mt-0.5 flex items-center gap-1.5 text-rotulo text-mute">
           <Scale size={12} aria-hidden /> {plural(evals.length, "hallazgo contrastado", "hallazgos contrastados")} con las opiniones jurídicas del OECE
         </p>
-        <p className="mt-1 max-w-[68ch] text-xs leading-relaxed text-mute">
+        <p className="mt-1 max-w-[68ch] text-rotulo leading-relaxed text-mute">
           Cada hallazgo se busca entre las opiniones jurídicas del OECE para encontrar la más parecida, y así citar la
           interpretación administrativa que corresponde a cada señal.
         </p>
       </div>
 
       {evals.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-mute">No hubo hallazgos que contrastar con las opiniones del OECE.</p>
+        <p className="px-5 py-6 text-dato leading-5 text-mute">No hubo hallazgos que contrastar con las opiniones del OECE.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full border-collapse text-rotulo leading-4">
             <thead>
-              <tr className="border-b border-line bg-paperSoft text-left text-[12px] text-inkSoft">
+              <tr className="border-b border-line bg-paperSoft text-left text-rotulo text-inkSoft">
                 <th scope="col" className="px-3 py-2 font-semibold">Quién lo encontró</th>
                 <th scope="col" className="px-3 py-2 font-semibold">Hallazgo</th>
                 <th scope="col" className="px-3 py-2 font-semibold">Severidad</th>
@@ -62,7 +62,7 @@ export function CumplimientoNormativoSection({
                 return (
                   <tr key={i} className="border-b border-line/50 align-top hover:bg-paperSoft">
                     <td className="px-3 py-2 text-mute">
-                      <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-inkSoft">
+                      <span className="rounded-full bg-paperDeep px-2 py-0.5 text-micro text-inkSoft">
                         {FUENTE_HALLAZGO[h.fuente] ?? String(h.fuente || "").replace(/_/g, " ")}
                       </span>
                     </td>
@@ -70,12 +70,12 @@ export function CumplimientoNormativoSection({
                       <div className="font-semibold leading-tight">
                         {/^[a-z0-9_]+$/.test(String(h.titulo || "")) ? reglaLabel(h.titulo) : h.titulo}
                         {!sobreprecioMedido && h.fuente === "market_sobreprecio" && (
-                          <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-[11px] font-normal text-mute">
+                          <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-micro font-normal text-mute">
                             no verificable
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-mute">{redactDnis(typeof h.descripcion === "string" ? h.descripcion : evidenciaComoTexto(h.descripcion))}</div>
+                      <div className="mt-0.5 text-micro text-mute">{redactDnis(typeof h.descripcion === "string" ? h.descripcion : evidenciaComoTexto(h.descripcion))}</div>
                     </td>
                     <td className="px-3 py-2">
                       <Severidad bandera={severidadDe(h)} formato="linea" />
@@ -88,19 +88,19 @@ export function CumplimientoNormativoSection({
                             {op.num_opinion && <span className="font-mono">{op.num_opinion}</span>}
                           </div>
                           {(op.art_ley || op.art_reglamento) && (
-                            <div className="text-[11px] text-mute">
+                            <div className="text-micro text-mute">
                               {op.art_ley && <>Ley {op.art_ley}{op.art_reglamento ? ", " : ""}</>}
                               {op.art_reglamento && <>Reglamento {op.art_reglamento}</>}
                             </div>
                           )}
                           {op.interpretacion_snippet && (
-                            <div className="mt-1 line-clamp-3 text-[11px] italic text-inkSoft">
+                            <div className="mt-1 line-clamp-3 text-micro italic text-inkSoft">
                               "{op.interpretacion_snippet}"
                             </div>
                           )}
                           {op.link && (
                             <a href={op.link} target="_blank" rel="noreferrer"
-                               className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-[12px] font-semibold text-granate hover:underline">
+                               className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-rotulo font-semibold text-granate hover:underline">
                               Abrir la opinión <ExternalLink size={11} aria-hidden />
                             </a>
                           )}
@@ -111,7 +111,7 @@ export function CumplimientoNormativoSection({
                     </td>
                     <td className="px-3 py-2 text-right">
                       {op?.score != null ? (
-                        <span className="font-mono text-[12px] font-semibold tabular-nums text-ink">
+                        <span className="font-mono text-rotulo font-semibold tabular-nums text-ink">
                           {porcentaje(op.score * 100)}
                         </span>
                       ) : (
@@ -127,7 +127,7 @@ export function CumplimientoNormativoSection({
       )}
 
       {sinOpinion.length > 0 && (
-        <div className="border-t border-line bg-paperSoft px-5 py-2 text-[12px] text-mute">
+        <div className="border-t border-line bg-paperSoft px-5 py-2 text-rotulo text-mute">
           {conOpinion.length} de {evals.length} hallazgos tienen una opinión del OECE lo bastante parecida para citarla.
         </div>
       )}

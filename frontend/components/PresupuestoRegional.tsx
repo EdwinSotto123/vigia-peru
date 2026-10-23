@@ -97,7 +97,7 @@ export function PresupuestoRegional({
             href={CONSULTA_AMIGABLE}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-1.5 text-[12px] font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-1.5 text-rotulo font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
           >
             <ExternalLink size={12} aria-hidden /> Abrir la Consulta Amigable del MEF
           </a>
@@ -151,8 +151,8 @@ export function PresupuestoRegional({
     <div className="space-y-4">
       {/* Encabezado: la pregunta, y de dónde y de cuándo es el dato. */}
       <div>
-        <h3 className="font-display text-base font-bold text-ink">¿Cuánto se gastó en {capitalize(data.department.toLowerCase())}?</h3>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <h3 className="font-display text-destacado leading-6 font-bold text-ink">¿Cuánto se gastó en {capitalize(data.department.toLowerCase())}?</h3>
+        <p className="mt-0.5 text-rotulo text-mute">
           MEF, Datos Abiertos: {numero(data.totalRows)} registros sumados.{" "}
           {data.fechaDescarga ? `Descargados el ${fechaCorta(data.fechaDescarga)}.` : "La copia no registró su fecha de descarga."}
         </p>
@@ -160,7 +160,7 @@ export function PresupuestoRegional({
 
       {/* El año que el MEF todavía no publica: se dice, no se disfraza de dato. */}
       {repetido && (
-        <p className="flex items-center gap-1.5 rounded-xl border border-line bg-paperSoft px-3 py-1.5 text-[12px] text-inkSoft">
+        <p className="flex items-center gap-1.5 rounded-xl border border-line bg-paperSoft px-3 py-1.5 text-rotulo text-inkSoft">
           <Info size={14} className="shrink-0 text-inkSoft" aria-hidden />
           <span>
             <strong className="text-ink">{repetido}</strong> todavía sin cifras: se muestra el cierre de {current.year}.
@@ -174,7 +174,7 @@ export function PresupuestoRegional({
 
       {/* Ejercicio en curso: sólo con cifras propias del año. Un estado, no una advertencia: tono neutro. */}
       {isCurrentOpen && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-paperSoft px-3 py-1.5 text-[12px]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-paperSoft px-3 py-1.5 text-rotulo">
           <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
             <Clock size={13} className="text-inkSoft" aria-hidden />
             Ejercicio {current.year} en curso
@@ -206,7 +206,7 @@ export function PresupuestoRegional({
 
       {/* Ritmo contra el calendario: sólo para un año en curso con cifras propias */}
       {isCurrentOpen && current.pim > 0 && (
-        <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-xs text-ink">
+        <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-rotulo leading-4 text-ink">
           {currentPaceVsCal > 15 ? (
             <>
               <TrendingUp size={14} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
@@ -236,7 +236,7 @@ export function PresupuestoRegional({
       )}
 
       {isUnder && (
-        <p className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2 text-xs text-ink">
+        <p className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2 text-rotulo leading-4 text-ink">
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
           <span>
             <strong className="font-semibold text-amberTexto">Ejecución baja en el cierre de {current.year}:</strong>{" "}
@@ -251,8 +251,8 @@ export function PresupuestoRegional({
       {/* Lectura rápida: sólo cuenta años cerrados para "no ejecutado" */}
       {(closedYearsWithData.length > 0 || yearsWithData.length > 1) && (
         <div className="rounded-xl border border-line bg-paperSoft p-3">
-          <p className="mb-1 text-[12px] font-semibold text-mute">Lectura rápida</p>
-          <ul className="space-y-1 text-[12px] text-ink">
+          <p className="mb-1 text-rotulo font-semibold text-mute">Lectura rápida</p>
+          <ul className="space-y-1 text-rotulo text-ink">
             {closedYearsWithData.length > 0 && (
               <li>
                 <strong className="font-mono font-semibold tabular-nums">{solesCompacto(totalNoEjecutadoCerrados)}</strong> no
@@ -301,8 +301,8 @@ export function PresupuestoRegional({
               className="group flex items-center justify-between gap-3 rounded-2xl border border-granate/40 bg-granate-50 px-4 py-3 transition-colors duration-150 hover:bg-granate-soft"
             >
               <span>
-                <span className="block text-sm font-bold text-ink">Ver el detalle completo</span>
-                <span className="block text-[12px] text-mute">Sectores, pliegos, programas y entidades</span>
+                <span className="block text-dato leading-5 font-bold text-ink">Ver el detalle completo</span>
+                <span className="block text-rotulo text-mute">Sectores, pliegos, programas y entidades</span>
               </span>
               <ArrowRight size={18} className="shrink-0 text-granate transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
             </Link>
@@ -356,9 +356,9 @@ function DatoClave({
   }[tono];
   return (
     <div className={cn("rounded-xl border p-2.5", estilo)}>
-      <dt className="text-[11px] font-semibold leading-tight">{etiqueta}</dt>
-      <dd className="mt-0.5 font-mono text-[15px] font-bold leading-tight tabular-nums">{valor}</dd>
-      {contexto && <dd className="mt-0.5 text-[11px] leading-snug">{contexto}</dd>}
+      <dt className="text-micro font-semibold leading-tight">{etiqueta}</dt>
+      <dd className="mt-0.5 font-mono text-cuerpo font-bold leading-tight tabular-nums">{valor}</dd>
+      {contexto && <dd className="mt-0.5 text-micro leading-snug">{contexto}</dd>}
     </div>
   );
 }
@@ -372,7 +372,7 @@ function PildoraEjecucion({ pct, sufijo }: { pct: number; sufijo?: string }) {
       ? "border-moss/30 bg-moss/10 text-mossTexto"
       : "border-line bg-paperDeep text-inkSoft";
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-[11px] font-semibold tabular-nums", estilo)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-micro font-semibold tabular-nums", estilo)}>
       {baja && <AlertCircle size={10} aria-hidden />}
       {porcentaje(pct)}
       {sufijo}
@@ -388,8 +388,8 @@ function BarrasPorAnio({ years, currentYear }: { years: MefBudgetRow[]; currentY
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-[12px] font-semibold text-mute">Año por año: ejecutado contra presupuesto</p>
-        <div className="flex items-center gap-2 text-[11px] text-mute" aria-hidden>
+        <p className="text-rotulo font-semibold text-mute">Año por año: ejecutado contra presupuesto</p>
+        <div className="flex items-center gap-2 text-micro text-mute" aria-hidden>
           <span className="flex items-center gap-1">
             <span className="h-2 w-3 rounded-sm bg-textil-anil" /> ejecutado
           </span>
@@ -408,11 +408,11 @@ function BarrasPorAnio({ years, currentYear }: { years: MefBudgetRow[]; currentY
           const baja = isClosed && ejPct < EJECUCION_BAJA;
           return (
             <li key={y.year}>
-              <div className="mb-0.5 flex items-baseline justify-between gap-2 text-[11px]">
+              <div className="mb-0.5 flex items-baseline justify-between gap-2 text-micro">
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono font-bold text-ink">{y.year}</span>
-                  {isCurrent && <span className="rounded-full border border-line bg-paper px-1.5 text-[11px] text-inkSoft">en curso</span>}
-                  {isClosed && <span className="rounded-full bg-paperDeep px-1.5 text-[11px] text-inkSoft">cerrado</span>}
+                  {isCurrent && <span className="rounded-full border border-line bg-paper px-1.5 text-micro text-inkSoft">en curso</span>}
+                  {isClosed && <span className="rounded-full bg-paperDeep px-1.5 text-micro text-inkSoft">cerrado</span>}
                 </span>
                 {hasData ? (
                   <span className="font-mono tabular-nums text-mute">
@@ -421,7 +421,7 @@ function BarrasPorAnio({ years, currentYear }: { years: MefBudgetRow[]; currentY
                     {solesCompacto(y.pim)}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-mute">Sin dato</span>
+                  <span className="text-micro text-mute">Sin dato</span>
                 )}
               </div>
               {hasData && (
@@ -433,7 +433,7 @@ function BarrasPorAnio({ years, currentYear }: { years: MefBudgetRow[]; currentY
                       style={{ width: `${Math.min(100, ejPct)}%` }}
                     />
                   </div>
-                  <div className="mt-0.5 flex justify-between gap-2 text-[11px]">
+                  <div className="mt-0.5 flex justify-between gap-2 text-micro">
                     <span className={cn("inline-flex items-center gap-1 font-semibold tabular-nums", baja ? "text-amberTexto" : "text-mute")}>
                       {baja && <AlertCircle size={10} aria-hidden />}
                       {porcentaje(ejPct, { decimales: 1 })} {isCurrent ? "devengado a la fecha" : "ejecutado"}
@@ -487,10 +487,10 @@ function TiposDeGasto({ items, anio, compact = false }: { items: BreakdownRow[];
   return (
     <div>
       <div className="mb-1.5">
-        <p className="flex items-center gap-1 text-[12px] font-semibold text-mute">
+        <p className="flex items-center gap-1 text-rotulo font-semibold text-mute">
           <Briefcase size={12} aria-hidden /> ¿En qué se gasta? Por tipo
         </p>
-        <p className="text-[11px] text-mute">Genéricas de gasto en {anio}: planillas, obras, bienes y otras.</p>
+        <p className="text-micro text-mute">Genéricas de gasto en {anio}: planillas, obras, bienes y otras.</p>
       </div>
 
       <div className="rounded-xl border border-line bg-paperSoft p-3">
@@ -509,14 +509,14 @@ function TiposDeGasto({ items, anio, compact = false }: { items: BreakdownRow[];
             const meta = etiquetaGenerica(it.nombre);
             const pct = (it.pim / total) * 100;
             return (
-              <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-rotulo">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-sm", meta.color)} aria-hidden />
                   <span className="font-medium text-ink">{meta.corto}</span>
                 </span>
-                <span className="font-mono text-[11px] tabular-nums text-mute">{porcentaje(pct, { decimales: 1 })}</span>
+                <span className="font-mono text-micro tabular-nums text-mute">{porcentaje(pct, { decimales: 1 })}</span>
                 <span className="ml-auto flex items-center gap-2">
-                  <span className="font-mono text-[12px] tabular-nums text-ink">{solesCompacto(it.pim)}</span>
+                  <span className="font-mono text-rotulo tabular-nums text-ink">{solesCompacto(it.pim)}</span>
                   <PildoraEjecucion pct={it.ejecPct} sufijo=" ejecutado" />
                 </span>
               </li>
@@ -525,7 +525,7 @@ function TiposDeGasto({ items, anio, compact = false }: { items: BreakdownRow[];
         </ul>
 
         {items.find((i) => i.nombre.toUpperCase() === "ADQUISICION DE ACTIVOS NO FINANCIEROS") && (
-          <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-inkSoft">
+          <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-rotulo text-inkSoft">
             <Info size={13} className="shrink-0" aria-hidden />
             <span>
               Las obras públicas van en <strong className="font-semibold text-ink">Inversión</strong>.
@@ -563,21 +563,21 @@ function Desglose({
   return (
     <div>
       <div className="mb-1.5">
-        <p className="flex items-center gap-1 text-[12px] font-semibold text-mute">
+        <p className="flex items-center gap-1 text-rotulo font-semibold text-mute">
           {icono} {titulo}
         </p>
-        <p className="text-[11px] text-mute">{bajada}</p>
+        <p className="text-micro text-mute">{bajada}</p>
       </div>
       {todas.length > 6 && (
         <div className="mb-2">
           <Buscador placeholder="Buscar por nombre…" etiqueta={`Buscar en ${titulo.toLowerCase()}`} valor={consulta} onBuscar={setConsulta} />
         </div>
       )}
-      {q && filas.length === 0 && <p className="text-[12px] text-mute">Ninguno coincide con “{consulta}”.</p>}
+      {q && filas.length === 0 && <p className="text-rotulo text-mute">Ninguno coincide con “{consulta}”.</p>}
       <ul className={cn("space-y-2 rounded-xl border border-line bg-paperSoft p-3", filas.length === 0 && "hidden")}>
         {filas.map((it, i) => (
           <li key={i}>
-            <div className="mb-0.5 flex items-center justify-between gap-2 text-[12px]">
+            <div className="mb-0.5 flex items-center justify-between gap-2 text-rotulo">
               <span className="line-clamp-1 font-medium text-ink">{it.nombre}</span>
               <span className="shrink-0 font-mono tabular-nums text-inkSoft">{solesCompacto(it.pim)}</span>
             </div>

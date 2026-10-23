@@ -51,7 +51,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
       </ChipsDetalle>
 
       {s.regla === "firmante_con_empresa_rnp" && (
-        <p role="note" className="rounded-lg border border-line bg-paperSoft px-3 py-2 text-[13px] leading-relaxed text-inkSoft">
+        <p role="note" className="rounded-lg border border-line bg-paperSoft px-3 py-2 text-meta leading-relaxed text-inkSoft">
           <strong className="font-semibold text-ink">Regla corregida el 11 de octubre de 2026.</strong> Antes, figurar en el
           RNP como socio o representante de una empresa se mostraba como señal. Ahora solo lo es si la persona firma por la
           entidad, está identificada por DNI y su empresa participa en este mismo proceso. En los demás casos queda como
@@ -77,7 +77,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
             ),
             valor: (
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <PesoRiesgo score={s.score} banderas={n ?? 1} className="text-[13px]" />
+                <PesoRiesgo score={s.score} banderas={n ?? 1} className="text-meta" />
                 <span className="tabular-nums text-inkSoft">
                   puntaje {s.score} de 100{n != null ? `, por ${plural(n, "señal", "señales")}` : ""}
                 </span>
@@ -154,7 +154,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
           <ul className="space-y-2">
             {s.citas.map((c, i) => {
               const fuente = (
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo text-mute">
                   <span className="font-medium text-inkSoft">{c.documentoTitulo ?? "Documento del expediente"}</span>
                   {c.pagina != null && <span className="font-mono tabular-nums text-ink">pág. {c.pagina}</span>}
                   {c.enVigia && <span className="font-mono">copia en Vigía</span>}

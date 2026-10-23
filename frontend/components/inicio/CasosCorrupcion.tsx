@@ -87,8 +87,8 @@ export function CasosCorrupcion({
 function Subtitulo({ titulo, bajada }: { titulo: string; bajada: string }) {
   return (
     <div className="mb-3">
-      <h4 className="text-[14px] font-semibold text-ink">{titulo}</h4>
-      <p className="text-[12.5px] text-mute">{bajada}</p>
+      <h4 className="text-dato font-semibold text-ink">{titulo}</h4>
+      <p className="text-meta text-mute">{bajada}</p>
     </div>
   );
 }
@@ -104,7 +104,7 @@ function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambi
         bajada={deEntidad ? `De todas las entidades públicas de ${donde} juntas, no sólo de esta.` : "Lo comprobado: casos con sentencia firme."}
       />
       {deEntidad && (
-        <p role="note" className="mb-3 flex max-w-3xl gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-[13px] leading-snug text-inkSoft">
+        <p role="note" className="mb-3 flex max-w-3xl gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-meta leading-snug text-inkSoft">
           <Info size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
           <span>
             Estas cifras no son de esta entidad: son de todas las entidades públicas de {donde} (ministerios, municipalidades,
@@ -135,13 +135,13 @@ function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambi
                 id: s.sede,
                 celdas: {
                   sede: <CeldaPrincipal titulo={s.sede} enLinea />,
-                  firme: <span className="font-mono text-[13px] tabular-nums text-ink">{numero(s.en_ejecucion)}</span>,
-                  tramite: <span className="font-mono text-[13px] tabular-nums text-inkSoft">{numero(s.en_tramite)}</span>,
+                  firme: <span className="font-mono text-meta tabular-nums text-ink">{numero(s.en_ejecucion)}</span>,
+                  tramite: <span className="font-mono text-meta tabular-nums text-inkSoft">{numero(s.en_tramite)}</span>,
                 },
               }))}
             />
           )}
-          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[12.5px]">
+          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 text-meta">
             <div className="flex gap-1.5">
               <dt className="text-mute">Corte</dt>
               <dd className="text-ink">{fechaCorta(pp.corte)}</dd>
@@ -211,7 +211,7 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
     externo: true,
     celdas: {
       fecha: <CeldaFecha fecha={i.fecha} />,
-      numero: <span className="font-mono text-[12.5px] text-inkSoft">{i.numero}</span>,
+      numero: <span className="font-mono text-meta text-inkSoft">{i.numero}</span>,
       asunto: (
         <CeldaPrincipal
           titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"}
@@ -219,7 +219,7 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
           meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
         />
       ),
-      entidad: <span className="line-clamp-2 text-[13px] text-inkSoft" title={i.entidad ?? undefined}>{i.entidad ? tituloNatural(i.entidad) : "Sin dato"}</span>,
+      entidad: <span className="line-clamp-2 text-meta text-inkSoft" title={i.entidad ?? undefined}>{i.entidad ? tituloNatural(i.entidad) : "Sin dato"}</span>,
       tipo: (
         <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
           {i.responsabilidades.map((r) => (
@@ -243,7 +243,7 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
         titulo={ambito === "entidad" ? "Contraloría: informes sobre esta entidad" : "Contraloría"}
         bajada={ambito === "entidad" ? "Presunta responsabilidad de sus funcionarios: no es una condena." : "Presunta responsabilidad de funcionarios: no es una condena."}
       />
-      {nota && <p className="-mt-1 mb-3 max-w-3xl text-[12.5px] text-mute">{nota}</p>}
+      {nota && <p className="-mt-1 mb-3 max-w-3xl text-meta text-mute">{nota}</p>}
       {inf.total === 0 ? (
         <SinDato>
           {ambito === "entidad"
@@ -276,12 +276,12 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
                   aria-pressed={tipo === o.t}
                   onClick={() => filtrar(o.t)}
                   className={
-                    "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors " +
+                    "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-meta font-semibold transition-colors " +
                     (tipo === o.t ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
                   }
                 >
                   {o.etiqueta}
-                  <span className={"font-mono text-[12px] tabular-nums " + (tipo === o.t ? "text-paper/80" : "text-mute")}>{numero(o.n)}</span>
+                  <span className={"font-mono text-rotulo tabular-nums " + (tipo === o.t ? "text-paper/80" : "text-mute")}>{numero(o.n)}</span>
                 </button>
               ))}
             </div>
@@ -305,7 +305,7 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
               <Tabla columnas={columnas} filas={filas} etiqueta="Informes de control de la Contraloría" medida="contenedor" />
             </div>
           )}
-          <p className="text-[12px] text-mute">
+          <p className="text-rotulo text-mute">
             Cada fila abre el informe oficial en la Contraloría. Todos están también en su{" "}
             <a href="https://buscadorinformes.contraloria.gob.pe/" target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
               buscador de informes

@@ -45,9 +45,9 @@ export interface Cifra {
 const fmt = (n: number) => n.toLocaleString("es-PE");
 
 const TAM = {
-  sm: "text-[11px]",
-  md: "text-[12px]",
-  lg: "text-[13px]",
+  sm: "text-micro",
+  md: "text-rotulo",
+  lg: "text-meta",
 } as const;
 
 export function Cifras({

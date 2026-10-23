@@ -47,19 +47,20 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
           { etiqueta: NOMBRE_VISTA[vista] },
         ]}
       />
-      {/* La cabecera lleva el color de la marca: un degradado suave de lima a carbón y una franja de tejido, no una página en blanco. */}
-      <header className="grid items-center gap-x-8 gap-y-4 rounded-2xl border border-granate/30 bg-gradient-to-br from-granate/25 via-granate-50 to-paper px-5 py-5 sm:px-7 sm:py-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+      {/* La cabecera de las demás páginas de Explorar (`encabezado-color`: filete y lavado del color de la sección). Antes
+          tenía un degradado lima propio: otro color que el de su sección y texto bajo 4,5:1 en su parte más intensa. */}
+      <header className="encabezado-color grid items-center gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <p className="etiqueta-mono text-granate">Quién gobernó el Perú</p>
-          <h1 className="mt-1 font-display text-[28px] font-bold leading-tight tracking-tight text-ink sm:text-[34px]">Partidos y gobiernos</h1>
-          <p className="mt-1.5 max-w-3xl text-[15px] leading-snug text-inkSoft">
+          <p className="etiqueta-mono text-acento-texto">Quién gobernó el Perú</p>
+          <h1 className="mt-1 font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Partidos y gobiernos</h1>
+          <p className="mt-1.5 max-w-3xl text-cuerpo leading-snug text-inkSoft">
             Quién ganó cada región, provincia y distrito del país en 2014, 2018 y 2022, y qué se contrató bajo los gobiernos de cada partido desde 2015.
           </p>
         </div>
         {/* Las elecciones y su mandato, de un vistazo: lo que hay cargado y lo que falta. */}
-        <ul aria-label="Elecciones cargadas" className="grid grid-cols-2 gap-2 text-[12.5px] sm:grid-cols-4 lg:grid-cols-1">
+        <ul aria-label="Elecciones cargadas" className="grid grid-cols-2 gap-2 text-meta sm:grid-cols-4 lg:grid-cols-1">
           {PERIODOS.map((p) => (
-            <li key={p.anio} className={"flex items-baseline justify-between gap-3 rounded-lg border px-3 py-1.5 " + (p.cargado ? "border-granate/30 bg-paper/60" : "border-line bg-paper/30 text-mute")}>
+            <li key={p.anio} className={"flex items-baseline justify-between gap-3 rounded-lg border px-3 py-1.5 " + (p.cargado ? "border-acento-borde bg-paper/70" : "border-line bg-paper/40 text-mute")}>
               <span className="font-mono font-semibold tabular-nums text-ink">{p.anio}</span>
               <span className="text-inkSoft">{p.cargado ? `mandato ${p.mandato}` : "resultados pendientes"}</span>
             </li>

@@ -84,7 +84,7 @@ export async function EjecucionPresupuestal({
 export function EjecucionPresupuestalSkeleton() {
   return (
     <div role="status" aria-live="polite" className="space-y-4">
-      <p className="text-sm text-mute">Cargando el presupuesto del MEF…</p>
+      <p className="text-dato leading-5 text-mute">Cargando el presupuesto del MEF…</p>
       <IndicadoresSkeleton n={4} />
       <TablaSkeleton columnas={COLUMNAS} filas={5} />
     </div>
@@ -105,12 +105,12 @@ function EstadoMef({
 }) {
   return (
     <div role={alerta ? "alert" : undefined} className="space-y-1">
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-inkSoft">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-dato leading-5 text-inkSoft">
         {icono}
         {children}
       </p>
       {query && (
-        <p className="text-xs text-mute">
+        <p className="text-rotulo leading-4 text-mute">
           Buscado: <code className="font-mono text-ink">«{query}»</code>
         </p>
       )}
@@ -165,7 +165,7 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
       {(repetido || isUnderExecuted || isOverExecuted) && (
         <div className="space-y-1.5">
           {repetido && (
-            <p className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-inkSoft">
+            <p className="flex flex-wrap items-center gap-x-1.5 text-rotulo text-inkSoft">
               Las cifras de {repetido} todavía no están cargadas.
               <Ayuda titulo={`¿Por qué no se muestra ${repetido}?`}>
                 En la copia descargada, {repetido} repite al centavo los valores de {repetido - 1}, así que no se muestran.
@@ -173,7 +173,7 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
             </p>
           )}
           {isUnderExecuted && (
-            <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink">
+            <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink">
               <AlertCircle size={14} className="shrink-0 text-amberTexto" aria-hidden />
               <strong className="font-semibold text-amberTexto">Ejecución baja en {current.year}:</strong> se devengó el{" "}
               {porcentaje(ejPct, { decimales: 1 })} del PIM en un año ya cerrado.
@@ -184,7 +184,7 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
             </p>
           )}
           {isOverExecuted && (
-            <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink">
+            <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink">
               <AlertCircle size={14} className="shrink-0 text-amberTexto" aria-hidden />
               <strong className="font-semibold text-amberTexto">Devengado por encima del PIM.</strong>
               <Ayuda titulo="¿Qué puede explicarlo?">
@@ -199,13 +199,13 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
       <EnQueGasta gasto={gasto} />
 
       <section aria-labelledby="mef-por-anio" className="space-y-2">
-        <h3 id="mef-por-anio" className="text-[15px] font-semibold text-ink">
+        <h3 id="mef-por-anio" className="text-cuerpo font-semibold text-ink">
           Año por año
         </h3>
         <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
       </section>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-mute">
         <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
         {!data.fechaDescarga && <span>La copia no registró su fecha de descarga.</span>}
       </div>
@@ -222,7 +222,7 @@ function OrigenCifras({ data }: { data: MefBudgetSummary }) {
   const unidades = data.matchedPliegos;
   if (data.cruce === "pliego") {
     return (
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-amber/40 bg-amber-soft px-3 py-2 text-[13px] text-ink">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-amber/40 bg-amber-soft px-3 py-2 text-meta text-ink">
         <AlertCircle size={14} className="shrink-0 text-amberTexto" aria-hidden />
         <strong className="font-semibold text-amberTexto">
           Son las cifras de todo el {data.pliego ? tituloNatural(data.pliego) : "gobierno regional"}
@@ -238,7 +238,7 @@ function OrigenCifras({ data }: { data: MefBudgetSummary }) {
   }
   if (unidades.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
+    <div className="flex flex-wrap items-center gap-1.5 text-rotulo text-mute">
       <span>{unidades.length === 1 ? "Unidad ejecutora del MEF:" : `${numero(unidades.length)} unidades ejecutoras del MEF, sumadas:`}</span>
       {unidades.slice(0, 6).map((u) => (
         // Como lo escribe el MEF: es el nombre con que se la encuentra en su consulta.
@@ -269,7 +269,7 @@ function filaAnio(row: MefBudgetRow, anioActual: number): Fila {
 
 /** Porcentaje de ejecución de un año. La baja lleva ícono y tono ámbar; alta, moss; sin PIM, "Sin dato". */
 function PildoraEjecucion({ pct, sinPim, baja }: { pct: number; sinPim: boolean; baja: boolean }) {
-  if (sinPim) return <span className="text-[12px] text-mute">Sin dato</span>;
+  if (sinPim) return <span className="text-rotulo text-mute">Sin dato</span>;
   const estilo = baja
     ? "border-amber/40 bg-amber-soft text-amberTexto"
     : pct >= 90
@@ -309,7 +309,7 @@ function BarraAnio({ row, growth, alerta }: { row: MefBudgetRow; growth: number 
   return (
     <section aria-labelledby="mef-anio" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 id="mef-anio" className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        <h3 id="mef-anio" className="flex items-center gap-1.5 text-cuerpo font-semibold text-ink">
           Presupuesto {row.year}
           <Ayuda titulo="¿Qué son PIA, PIM, devengado y girado?">
             PIA: el presupuesto aprobado al inicio del año. PIM: el presupuesto modificado durante el año, el que vale. Devengado:
@@ -317,15 +317,15 @@ function BarraAnio({ row, growth, alerta }: { row: MefBudgetRow; growth: number 
           </Ayuda>
         </h3>
         {growth != null && Math.round(growth * 10) !== 0 && (
-          <span className="text-[12px] text-mute">
+          <span className="text-rotulo text-mute">
             {growth > 0 ? "+" : "−"}
             {porcentaje(Math.abs(growth), { decimales: 1 })} frente a {row.year - 1}
           </span>
         )}
       </div>
       <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-        <span className="font-display text-[28px] font-bold leading-tight tabular-nums text-ink sm:text-[32px]">{solesCompacto(pim)}</span>
-        <span className="text-[13px] text-inkSoft">
+        <span className="font-display text-cifra font-bold leading-tight tabular-nums text-ink sm:text-titulo">{solesCompacto(pim)}</span>
+        <span className="text-meta text-inkSoft">
           de presupuesto vigente
           {pim > 0 ? (
             <>
@@ -351,13 +351,13 @@ function BarraAnio({ row, growth, alerta }: { row: MefBudgetRow; growth: number 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
         {cifras.map((c) => (
           <div key={c.clave} className="min-w-0">
-            <dt className="flex items-center gap-1.5 text-[12px] text-mute">
+            <dt className="flex items-center gap-1.5 text-rotulo text-mute">
               <span aria-hidden className={cn("inline-block shrink-0 rounded-sm", c.clave === "inicial" ? c.muestra : `h-2.5 w-2.5 ${c.muestra}`)} />
               {c.etiqueta}
             </dt>
-            <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+            <dd className="mt-0.5 font-mono text-dato font-semibold tabular-nums text-ink">
               {solesCompacto(c.valor)}
-              {c.pct != null && <span className="ml-1.5 font-sans text-[12px] font-normal text-mute">{porcentaje(c.pct, { decimales: 1 })}</span>}
+              {c.pct != null && <span className="ml-1.5 font-sans text-rotulo font-normal text-mute">{porcentaje(c.pct, { decimales: 1 })}</span>}
             </dd>
           </div>
         ))}

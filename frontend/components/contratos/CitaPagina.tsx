@@ -49,7 +49,7 @@ export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid
   }
 
   if (!cita.documentoUrl) {
-    return <span className={`inline-flex items-center gap-1 text-[11px] text-mute ${className}`}><FileText size={11} aria-hidden /> {label}</span>;
+    return <span className={`inline-flex items-center gap-1 text-micro text-mute ${className}`}><FileText size={11} aria-hidden /> {label}</span>;
   }
   return (
     <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
@@ -62,15 +62,15 @@ export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid
         // poner en vidrio. La cita se lee en la página del PDF que abre este botón.
         title={largo}
         aria-label={`Abrir ${largo}`}
-        className="inline-flex min-h-[28px] items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-[12px] text-ink transition-colors hover:bg-paperDeep disabled:opacity-60"
+        className="inline-flex min-h-[28px] items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-rotulo text-ink transition-colors hover:bg-paperDeep disabled:opacity-60"
       >
         {busy ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <FileText size={11} aria-hidden />}
         {label}
         <ExternalLink size={10} className="text-mute" aria-hidden />
       </button>
-      {error && <span className="text-[11px] text-mute">({error}; abrimos el SEACE)</span>}
+      {error && <span className="text-micro text-mute">({error}; abrimos el SEACE)</span>}
       {enlace && (
-        <a href={enlace} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-granate underline underline-offset-2">
+        <a href={enlace} target="_blank" rel="noopener noreferrer" className="text-micro font-medium text-granate underline underline-offset-2">
           abrir el documento
         </a>
       )}

@@ -85,7 +85,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
             className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
             detalle={<DetalleSenal s={s} />}
             pie={
-              <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta">
                 <Link href={dossierHref} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
                   Leer el dictamen completo <ArrowRight size={13} aria-hidden />
                 </Link>
@@ -102,7 +102,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           {/* Una línea de evidencia, fuera del botón: los DNI van tras vidrio y el vidrio
               es su propio control. Entera, en el panel. */}
           {s.evidencia && (
-            <p className="mt-0.5 line-clamp-1 border-l-2 border-line pl-2 text-[12px] leading-snug text-inkSoft">
+            <p className="mt-0.5 line-clamp-1 border-l-2 border-line pl-2 text-rotulo leading-snug text-inkSoft">
               <EvidenciaRedactada texto={s.evidencia} />
             </p>
           )}
@@ -132,9 +132,9 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
       <div className={`flex ${compacto ? "flex-col items-start gap-3" : "flex-wrap items-center gap-4"}`}>
         {conSenales && <ScoreGauge score={scoreVisible} size={compacto ? 112 : 132} className="shrink-0" />}
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
+          <p className="text-rotulo font-medium text-mute">Resultado de la lectura</p>
           <div className="mt-0.5 flex items-center gap-1">
-            <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+            <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-bloque" : "text-xl"}`}>
               {conSenales ? <AlertTriangle size={18} className="text-inkSoft" aria-hidden /> : <CheckCircle2 size={18} className="text-mossTexto" aria-hidden />}
               {titulo}
             </h2>
@@ -148,7 +148,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           {/* El mismo conteo por severidad (color, ícono y palabra) que la cabecera del dossier. */}
           {conSenales && <ConteoSenales conteo={{ total: senales.length, ...porSev }} className="mt-1.5" />}
           {(!conSenales || (duracionMs != null && duracionMs > 0)) && (
-            <p className="mt-1.5 text-[12px] leading-snug text-mute">
+            <p className="mt-1.5 text-rotulo leading-snug text-mute">
               {!conSenales && "Ningún patrón de riesgo en lo revisado. El dictamen explica qué se cotejó. "}
               {duracionMs != null && duracionMs > 0 && <>Análisis en <span className="font-mono">{duracion(duracionMs)}</span>.</>}
             </p>
@@ -170,13 +170,13 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           {senales.length > tope && (
             <li className="py-2">
               {compacto ? (
-                <Link href={`${dossierHref}#senales`} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-granate hover:underline">
+                <Link href={`${dossierHref}#senales`} className="inline-flex items-center gap-1 text-meta font-semibold text-granate hover:underline">
                   Ver {plural(senales.length - tope, "señal más", "señales más")} <ArrowRight size={13} aria-hidden />
                 </Link>
               ) : (
                 // Antes: "y N señales más en el dictamen", sin enlace. Ahora se despliegan aquí mismo.
                 <details>
-                  <summary className="inline-flex min-h-[30px] cursor-pointer items-center gap-1 text-[12.5px] font-semibold text-granate hover:underline">
+                  <summary className="inline-flex min-h-[30px] cursor-pointer items-center gap-1 text-meta font-semibold text-granate hover:underline">
                     Ver {plural(senales.length - tope, "señal más", "señales más")}
                   </summary>
                   <ol className="mt-1 divide-y divide-line">{senales.slice(tope).map((s, i) => fila(s, i + tope))}</ol>
@@ -189,11 +189,11 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
 
       {/* mercado, documentos y recortes */}
       {(mercado || r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
-        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2.5 text-[12px]">
+        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2.5 text-rotulo">
           {mercado && <Mercado mercado={mercado} compacto={compacto} />}
           {(r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
             <div className="min-w-0 border-l-2 border-line pl-3">
-              <dt className="text-[12px] font-semibold text-inkSoft">Expediente</dt>
+              <dt className="text-rotulo font-semibold text-inkSoft">Expediente</dt>
               <dd className="mt-1 space-y-1 text-ink">
                 {r?.documentos && (
                   <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5" title={r.documentos.titulos.join(", ")}>
@@ -211,7 +211,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   </div>
                 )}
                 {(r?.validacionesPendientes?.length ?? 0) > 0 && (
-                  <ul className="list-inside list-disc text-[12px] text-inkSoft">
+                  <ul className="list-inside list-disc text-rotulo text-inkSoft">
                     {r!.validacionesPendientes.map((v) => <li key={v}>pendiente: {validacionLabel(v)}</li>)}
                   </ul>
                 )}
@@ -223,12 +223,12 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
 
       {/* acciones: un botón por destino */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Link href={dossierHref} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep">
+        <Link href={dossierHref} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-4 py-2.5 text-dato leading-5 font-semibold text-paper transition-colors hover:bg-granate-deep">
           Leer el dictamen completo <ArrowRight size={15} aria-hidden />
         </Link>
         <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} ruta={sharePath ?? rutaContrato(ocid, "vivo")} />
       </div>
-      {r && !r.dictamenListo && <p className="mt-2 text-[12px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
+      {r && !r.dictamenListo && <p className="mt-2 text-rotulo text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
     </section>
   );
 }
@@ -249,18 +249,18 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
 
   return (
     <div className="min-w-0 border-l-2 border-line pl-3">
-      <dt className="text-[12px] font-semibold text-inkSoft">Mercado</dt>
+      <dt className="text-rotulo font-semibold text-inkSoft">Mercado</dt>
       <dd className="mt-1 space-y-1 text-ink">
         {comparables.length === 0 && !loteComparable ? (
-          <p className="text-[12px] leading-snug text-inkSoft">
+          <p className="text-rotulo leading-snug text-inkSoft">
             No se pudo comparar con el mercado <span className="text-mute">({itemsLeidos})</span>.
           </p>
         ) : (
           <>
             {comparables.slice(0, compacto ? 1 : 3).map((it, i) => (
               <div key={i} className="leading-snug">
-                <div className="line-clamp-1 text-[12px] text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
-                <div className="text-[12px]">
+                <div className="line-clamp-1 text-rotulo text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
+                <div className="text-rotulo">
                   <span className="font-mono tabular-nums">{soles(it.ofertado)}</span> ofertado, mediana de mercado{" "}
                   <span className="font-mono tabular-nums">{soles(it.mediana)}</span>
                   {it.unidad ? <span className="text-mute"> por {it.unidad.toLowerCase()}</span> : null}
@@ -269,7 +269,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
               </div>
             ))}
             {loteComparable ? (
-              <div className="text-[12px] text-mute">
+              <div className="text-rotulo text-mute">
                 Todo el lote: <span className="font-mono tabular-nums">{soles(mercado.totalOfertado!)}</span> ofertado frente a{" "}
                 <span className="font-mono tabular-nums">{soles(mercado.totalMercado!)}</span> de mercado
                 <span className="ml-1 font-semibold text-ink">
@@ -277,7 +277,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
                 </span>
               </div>
             ) : (
-              <div className="text-[12px] text-mute">
+              <div className="text-rotulo text-mute">
                 {comparables.length} de {itemsLeidos} se pudo comparar; el total del lote no.
               </div>
             )}
@@ -294,17 +294,17 @@ function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: bool
     <span className="flex items-start gap-2">
       <span className="block min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-[13px] font-semibold text-ink">{reglaLabel(s.regla)}</span>
-          <Severidad bandera={s.severidad} formato="linea" className="text-[12px]" />
+          <span className="text-meta font-semibold text-ink">{reglaLabel(s.regla)}</span>
+          <Severidad bandera={s.severidad} formato="linea" className="text-rotulo" />
           {s.verificada === true && (
             // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada).
-            <span className="inline-flex items-center gap-0.5 text-[11px] text-mossTexto">
+            <span className="inline-flex items-center gap-0.5 text-micro text-mossTexto">
               <ShieldCheck size={12} aria-hidden /> cotejada
             </span>
           )}
         </span>
         {s.norma && (
-          <span className="mt-0.5 flex items-start gap-1 text-[12px] text-mute">
+          <span className="mt-0.5 flex items-start gap-1 text-rotulo text-mute">
             <Scale size={11} className="mt-[2px] shrink-0" aria-hidden /> <span className="min-w-0 truncate" title={s.norma}>{s.norma}</span>
           </span>
         )}
@@ -361,9 +361,9 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
   const motivos = r?.revisionMotivos ?? [];
   return (
     <section className={`rounded-2xl border border-clay/40 bg-paper ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
-      <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
+      <p className="text-rotulo font-medium text-mute">Resultado de la lectura</p>
       <div className="mt-0.5 flex items-center gap-1">
-        <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+        <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-bloque" : "text-xl"}`}>
           <Eye size={18} className="text-clayTexto" aria-hidden />
           En revisión
         </h2>
@@ -372,7 +372,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
           sus señales: no cuentan como hallazgos.
         </Ayuda>
       </div>
-      <p className="mt-1 text-[13px] text-inkSoft">
+      <p className="mt-1 text-meta text-inkSoft">
         Una persona lo revisa antes de publicarlo.
         {duracionMs != null && duracionMs > 0 && <> El análisis tardó <span className="font-mono">{duracion(duracionMs)}</span>.</>}
       </p>
@@ -380,7 +380,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
         // Los motivos públicos, sin los nombres de las señales afectadas: nombrar en público una
         // señal que la autoevaluación marcó como sin respaldo sería publicarla por la puerta de atrás.
         <div className="mt-3" aria-label="Por qué está en revisión humana">
-          <div className="flex items-center gap-1 text-[12px] font-semibold text-clayTexto">
+          <div className="flex items-center gap-1 text-rotulo font-semibold text-clayTexto">
             Por qué no se publicó todavía
             <Ayuda titulo="Por qué no se publicó todavía">
               {motivos.map((m, i) => (
@@ -404,7 +404,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
           </ul>
         </div>
       ) : (
-        <p className="mt-3 text-[12px] leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
+        <p className="mt-3 text-rotulo leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
       )}
       <div className="mt-4">
         <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" ruta={sharePath ?? rutaContrato(ocid, "vivo")} />

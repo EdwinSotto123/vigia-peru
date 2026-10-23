@@ -76,7 +76,7 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
   };
 
   if (postores.length === 0) {
-    return <p className="px-4 py-3 text-[12px] text-mute">No se identificaron postores en el OCDS.</p>;
+    return <p className="px-4 py-3 text-rotulo text-mute">No se identificaron postores en el OCDS.</p>;
   }
 
   return (
@@ -84,20 +84,20 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
       {/* Stats agregados */}
       <div className="mb-3 grid gap-2 sm:grid-cols-3">
         <div className="rounded-xl bg-paperDeep px-3 py-2">
-          <div className="font-mono text-lg font-semibold tabular-nums text-ink">{patrones.n_postores_total || postores.length}</div>
-          <div className="text-[11px] text-mute">postores totales</div>
+          <div className="font-mono text-bloque leading-7 font-semibold tabular-nums text-ink">{patrones.n_postores_total || postores.length}</div>
+          <div className="text-micro text-mute">postores totales</div>
         </div>
         <div className="rounded-xl bg-paperDeep px-3 py-2">
-          <div className="font-mono text-lg font-semibold tabular-nums text-ink">
+          <div className="font-mono text-bloque leading-7 font-semibold tabular-nums text-ink">
             {nConCoOcurrencia}
           </div>
-          <div className="text-[11px] text-mute">coinciden en otros procesos leídos por Vigía</div>
+          <div className="text-micro text-mute">coinciden en otros procesos leídos por Vigía</div>
         </div>
         <div className="rounded-xl bg-paperDeep px-3 py-2">
-          <div className="font-mono text-lg font-semibold tabular-nums text-ink">
+          <div className="font-mono text-bloque leading-7 font-semibold tabular-nums text-ink">
             {patrones.n_con_direccion_compartida || 0}
           </div>
-          <div className="text-[11px] text-mute">comparten domicilio</div>
+          <div className="text-micro text-mute">comparten domicilio</div>
         </div>
       </div>
 
@@ -111,36 +111,36 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
               {/* Puntaje del patrón (0–100) en tinta neutra: sólo color, sin ícono ni palabra, se
                   leía como un semáforo sobre una empresa. Lo que explica el número son los patrones de al lado. */}
               <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-paperDeep text-ink" title="Puntaje del patrón de competencia de este postor (0 a 100)">
-                <span className="font-mono text-[12px] font-semibold tabular-nums leading-none">{score}</span>
-                <span className="text-[11px] leading-none text-mute">/100</span>
+                <span className="font-mono text-rotulo font-semibold tabular-nums leading-none">{score}</span>
+                <span className="text-micro leading-none text-mute">/100</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="line-clamp-1 text-sm font-semibold text-ink">
+                  <span className="line-clamp-1 text-dato leading-5 font-semibold text-ink">
                     {p.razon_social
                       ? natural
                         ? <PersonName name={p.razon_social} orden="sunat" />
                         : p.razon_social
                       : "Sin razón social"}
                   </span>
-                  {p.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={p.ruc} /></span>}
+                  {p.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={p.ruc} /></span>}
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-1">
                   {sospechasDe(p).map((s: string, j: number) => (
-                    <span key={j} className="inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0 text-[11px] font-medium text-ink">
+                    <span key={j} className="inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0 text-micro font-medium text-ink">
                       <AlertTriangle size={11} className="text-inkSoft" aria-hidden />
                       {sospechaLegible(String(s))}
                     </span>
                   ))}
                   {sospechasDe(p).length === 0 && (
-                    <span className="text-[11px] text-mute">Sin patrones</span>
+                    <span className="text-micro text-mute">Sin patrones</span>
                   )}
                 </div>
                 {p.direccion && (
-                  <div className="mt-0.5 line-clamp-1 text-[11px] text-mute">{p.direccion}</div>
+                  <div className="mt-0.5 line-clamp-1 text-micro text-mute">{p.direccion}</div>
                 )}
                 {p.n_apariciones_base_vigia != null && (
-                  <div className="mt-0.5 text-[11px] text-mute">
+                  <div className="mt-0.5 text-micro text-mute">
                     {p.n_apariciones_base_vigia || 0} aparició{(p.n_apariciones_base_vigia || 0) === 1 ? "n" : "nes"} en la base de Vigía
                     {" "}(no es su historial completo en el SEACE)
                   </div>
@@ -154,11 +154,11 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
       {/* Pares co-ocurrentes (señal de cartel) */}
       {pares.length > 0 && (
         <div className="mt-3 rounded-md border border-amber/30 bg-amber-soft/40 p-3">
-          <div className="text-[12px] font-semibold text-amberTexto">
+          <div className="text-rotulo font-semibold text-amberTexto">
             <AlertTriangle size={10} className="mr-1 inline" aria-hidden />
             Postores que se repiten juntos
           </div>
-          <p className="mt-1 text-[11px] text-inkSoft">
+          <p className="mt-1 text-micro text-inkSoft">
             Estos pares de postores aparecen juntos en otros procesos <strong>ya analizados por Vigía</strong>
             {" "}(no el universo completo del SEACE). Es una señal a investigar, no prueba de cartel.
           </p>
@@ -166,7 +166,7 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
             {pares.slice(0, 5).map(({ par, list, n }, i: number) => {
               const [a, b] = par.split("↔");
               return (
-                <li key={i} className="text-[11px] text-ink">
+                <li key={i} className="text-micro text-ink">
                   <span className="font-semibold">{nombreDe(a ?? par)}</span>
                   {b && <> y <span className="font-semibold">{nombreDe(b)}</span></>}
                   {": "}
@@ -176,7 +176,7 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
                       {list.slice(0, 8).map((oc, j) => (
                         <a key={j} href={oeceProcesoUrl(oc)}
                            target="_blank" rel="noreferrer"
-                           className="rounded bg-paperDeep px-1.5 py-0 font-mono text-[11px] text-granate hover:bg-paperSoft">
+                           className="rounded bg-paperDeep px-1.5 py-0 font-mono text-micro text-granate hover:bg-paperSoft">
                           {normOcid(oc)}
                         </a>
                       ))}

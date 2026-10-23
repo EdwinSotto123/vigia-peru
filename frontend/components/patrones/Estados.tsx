@@ -46,8 +46,8 @@ export function EstadoVacio({
       )}
     >
       {conLlamita && <Llamita className={cn("text-granate/80", compacto ? "w-7" : "w-10")} />}
-      <Titulo nivel={nivel} className={cn("font-display font-bold text-ink text-balance", compacto ? "text-[15px]" : "text-lg")}>{titulo}</Titulo>
-      {children && <div className="max-w-md text-sm leading-relaxed text-inkSoft text-pretty">{children}</div>}
+      <Titulo nivel={nivel} className={cn("font-display font-bold text-ink text-balance", compacto ? "text-cuerpo" : "text-bloque leading-tight")}>{titulo}</Titulo>
+      {children && <div className="max-w-md text-dato leading-relaxed text-inkSoft text-pretty">{children}</div>}
       {accion && <div className="mt-1">{accion}</div>}
     </div>
   );
@@ -76,13 +76,13 @@ export function EstadoError({
   return (
     <div role="alert" className={cn("flex flex-col items-center gap-3 rounded-2xl border border-crimson/25 bg-crimson-soft/60 px-6 py-8 text-center", className)}>
       {conLlamita && <Llamita className="w-9 text-crimsonTexto/80" />}
-      <Titulo nivel={nivel} className="font-display text-lg font-bold text-crimsonTexto text-balance">{titulo}</Titulo>
-      <div className="max-w-md text-sm leading-relaxed text-inkSoft text-pretty">
+      <Titulo nivel={nivel} className="font-display text-bloque leading-tight font-bold text-crimsonTexto text-balance">{titulo}</Titulo>
+      <div className="max-w-md text-dato leading-relaxed text-inkSoft text-pretty">
         {children ?? "Suele ser momentáneo. Vuelve a intentarlo en unos segundos."}
       </div>
       {accion && <div className="mt-1">{accion}</div>}
       {detalle && (
-        <details className="mt-1 text-left text-xs text-mute">
+        <details className="mt-1 text-left text-rotulo text-mute">
           <summary className="cursor-pointer select-none">Detalle técnico</summary>
           <p className="mt-1 max-w-md break-words font-mono">{detalle}</p>
         </details>
@@ -107,7 +107,7 @@ export function Cargando({
 }) {
   return (
     <div role="status" aria-live="polite" className={cn("rounded-2xl border border-line bg-paper p-5", className)}>
-      <div className="flex items-center gap-2.5 text-sm text-mute">
+      <div className="flex items-center gap-2.5 text-dato text-mute">
         <Llamita caminando className="w-6 text-granate/70" />
         <span>{texto}</span>
       </div>

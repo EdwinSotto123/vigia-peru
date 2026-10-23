@@ -58,7 +58,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
     const n = reglasEvaluadas ?? null;
     const m = disparadas.size;
     return (
-      <div className="px-5 py-4 text-[12px] leading-relaxed text-mute">
+      <div className="px-5 py-4 text-rotulo leading-relaxed text-mute">
         <p className="flex flex-wrap items-center gap-1 text-ink">
           {n != null
             ? `Se evaluaron ${n} reglas sobre este contrato y dispararon ${m}.`
@@ -94,7 +94,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
 
   return (
     <div className="px-5 py-4">
-      <p className="text-[13px] leading-relaxed text-ink">
+      <p className="text-meta leading-relaxed text-ink">
         Se evaluaron <strong className="font-semibold tabular-nums">{data.reglas.length} reglas</strong> para contratos de{" "}
         {tipoContratoHumano(data.perfil) ?? data.perfil} y dispararon{" "}
         <strong className="font-semibold tabular-nums">{nDisparadas}</strong>
@@ -111,7 +111,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                 anchoClase="w-80"
                 className="w-full rounded-md px-1 py-0.5 text-left transition-colors duration-rapido hover:bg-paperDeep"
                 trigger={
-                  <span className="flex w-full min-w-0 items-start gap-1.5 text-[12px] leading-snug">
+                  <span className="flex w-full min-w-0 items-start gap-1.5 text-rotulo leading-snug">
                     {on ? (
                       // El ícono de una regla que disparó lleva la severidad de SU señal: antes era
                       // siempre el triángulo rojo de "alta", aunque la señal fuera baja.
@@ -135,15 +135,15 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                   {on ? (
                     <>
                       {s ? <Severidad bandera={s.severidad} formato="linea" /> : null}
-                      <span className="text-[12px] text-ink">Disparó en este contrato.</span>
+                      <span className="text-rotulo text-ink">Disparó en este contrato.</span>
                     </>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-[12px] text-mossTexto">
+                    <span className="inline-flex items-center gap-1.5 text-rotulo text-mossTexto">
                       <Check size={12} aria-hidden /> Se evaluó y no disparó.
                     </span>
                   )}
                 </span>
-                {on && s?.evidencia && <span className="mt-1 block text-[12px] text-inkSoft">{redactDnis(s.evidencia)}</span>}
+                {on && s?.evidencia && <span className="mt-1 block text-rotulo text-inkSoft">{redactDnis(s.evidencia)}</span>}
               </Popover>
             </li>
           );
@@ -152,7 +152,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
 
       {otras.length > 0 && (
         <div className="mt-3 border-t border-line pt-2">
-          <p className="flex flex-wrap items-center gap-1 text-[12px] text-ink">
+          <p className="flex flex-wrap items-center gap-1 text-rotulo text-ink">
             Otras {otras.length} {otras.length === 1 ? "señal sale" : "señales salen"} de lo que leyeron los agentes
             <Ayuda titulo="¿Por qué no están en la lista de reglas?">
               No salen de estas reglas deterministas sino de lo que leyeron los agentes: el expediente, los precios de
@@ -161,12 +161,12 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
           </p>
           <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
             {otras.map((s, i) => (
-              <li key={`${s.regla}-${i}`} className="flex min-w-0 items-start gap-1.5 text-[12px] leading-snug">
+              <li key={`${s.regla}-${i}`} className="flex min-w-0 items-start gap-1.5 text-rotulo leading-snug">
                 <Severidad bandera={s.severidad} formato="punto" className="mt-0.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-ink">
                   {data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}
                 </span>
-                <span className="shrink-0 text-[11px] text-mute">{nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
+                <span className="shrink-0 text-micro text-mute">{nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
               </li>
             ))}
           </ul>

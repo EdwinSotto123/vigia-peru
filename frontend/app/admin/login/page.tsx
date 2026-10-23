@@ -207,31 +207,31 @@ function LoginForm() {
       <div className="flex items-center justify-between gap-2">
         <Marca />
         {/* La misma píldora neutra de perfil que la barra del panel (antes ámbar, el color de "por validar"). */}
-        <span className="rounded-full border border-paperEdge bg-paperDeep px-2.5 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-inkSoft">Equipo</span>
+        <span className="rounded-full border border-paperEdge bg-paperDeep px-2.5 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.12em] text-inkSoft">Equipo</span>
       </div>
 
       {paso.tipo === "formulario" && (
         <>
           <h1 className="mt-6 font-display text-2xl font-bold text-ink">{modo === "entrar" ? "Acceso al panel" : "Crear cuenta"}</h1>
-          <p className="mt-1 text-sm text-mute">Aportes, revisión humana y monitoreo del sistema.</p>
+          <p className="mt-1 text-dato leading-5 text-mute">Aportes, revisión humana y monitoreo del sistema.</p>
 
           <button
             type="button"
             onClick={conGoogle}
             disabled={!!cargando}
-            className="mt-6 flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-full border border-line bg-paper px-4 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep active:translate-y-px disabled:opacity-60"
+            className="mt-6 flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-full border border-line bg-paper px-4 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep active:translate-y-px disabled:opacity-60"
           >
             {cargando === "google" ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <LogoGoogle />}
             Continuar con Google
           </button>
 
-          <div className="my-5 flex items-center gap-3 text-[12px] text-mute" aria-hidden>
+          <div className="my-5 flex items-center gap-3 text-rotulo text-mute" aria-hidden>
             <span className="h-px flex-1 bg-line" />o con tu correo<span className="h-px flex-1 bg-line" />
           </div>
 
           {/* Entrar o crear cuenta: la misma caja, dos modos. Botones con aria-pressed (no pestañas:
               no hay paneles de pestaña, es el mismo formulario que cambia). */}
-          <div role="group" aria-label="Modo de acceso" className="grid grid-cols-2 rounded-full border border-line bg-paperDeep p-1 text-sm">
+          <div role="group" aria-label="Modo de acceso" className="grid grid-cols-2 rounded-full border border-line bg-paperDeep p-1 text-dato leading-5">
             {(["entrar", "crear"] as const).map((m) => (
               <button
                 key={m}
@@ -264,7 +264,7 @@ function LoginForm() {
             {modo === "crear" && <Campo etiqueta="Repite la contraseña" tipo="password" valor={clave2} onCambio={setClave2} autocompletar="new-password" />}
 
             {error && (
-              <p role="alert" className="rounded-lg bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
+              <p role="alert" className="rounded-lg bg-crimson-soft px-3 py-2 text-meta text-crimsonTexto">
                 {error}
               </p>
             )}
@@ -272,7 +272,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={!!cargando || !correo || !clave}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep active:translate-y-px disabled:opacity-50"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep active:translate-y-px disabled:opacity-50"
             >
               {cargando === "correo" && <Loader2 size={14} className="animate-spin" aria-hidden />}
               {modo === "entrar" ? "Entrar" : "Crear cuenta"}
@@ -286,13 +286,13 @@ function LoginForm() {
                 setPaso({ tipo: "recuperar" });
                 setError(null);
               }}
-              className="mt-3 text-[13px] text-mute underline-offset-4 hover:text-ink hover:underline"
+              className="mt-3 text-meta text-mute underline-offset-4 hover:text-ink hover:underline"
             >
               ¿Olvidaste tu contraseña?
             </button>
           )}
 
-          <p className="mt-6 flex items-start gap-1.5 border-t border-line pt-4 text-[12px] leading-relaxed text-mute">
+          <p className="mt-6 flex items-start gap-1.5 border-t border-line pt-4 text-rotulo leading-relaxed text-mute">
             <ShieldCheck size={13} className="mt-0.5 shrink-0" aria-hidden />
             Solo entra el equipo: administradores y revisores. Tu correo queda como autor de cada acción en la bitácora.
           </p>
@@ -303,12 +303,12 @@ function LoginForm() {
         <div className="mt-6">
           <MailCheck size={28} className="text-granate" aria-hidden />
           <h1 className="mt-3 font-display text-2xl font-bold text-ink">Verifica tu correo</h1>
-          <p className="mt-2 text-sm leading-relaxed text-inkSoft">
+          <p className="mt-2 text-dato leading-relaxed text-inkSoft">
             Te enviamos un enlace a <strong className="font-semibold text-ink">{paso.correo}</strong>. Ábrelo y vuelve acá para entrar.
           </p>
-          {aviso && <p className="mt-3 rounded-xl border border-line bg-paperDeep px-3 py-2 text-[13px] text-inkSoft">{aviso}</p>}
+          {aviso && <p className="mt-3 rounded-xl border border-line bg-paperDeep px-3 py-2 text-meta text-inkSoft">{aviso}</p>}
           {error && (
-            <p role="alert" className="mt-3 rounded-lg bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
+            <p role="alert" className="mt-3 rounded-lg bg-crimson-soft px-3 py-2 text-meta text-crimsonTexto">
               {error}
             </p>
           )}
@@ -316,12 +316,12 @@ function LoginForm() {
             type="button"
             onClick={yaLoAbri}
             disabled={!!cargando}
-            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
+            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
           >
             {cargando === "comprobar" && <Loader2 size={14} className="animate-spin" aria-hidden />}
             Ya lo abrí, entrar
           </button>
-          <div className="mt-3 flex items-center justify-between text-[13px]">
+          <div className="mt-3 flex items-center justify-between text-meta">
             <button type="button" onClick={volver} className="inline-flex items-center gap-1 text-mute hover:text-ink">
               <ArrowLeft size={13} aria-hidden /> Volver
             </button>
@@ -335,22 +335,22 @@ function LoginForm() {
       {paso.tipo === "recuperar" && (
         <form onSubmit={recuperar} className="mt-6 space-y-3">
           <h1 className="font-display text-2xl font-bold text-ink">Recuperar contraseña</h1>
-          <p className="text-sm text-mute">Te enviamos un enlace para crear una nueva.</p>
+          <p className="text-dato leading-5 text-mute">Te enviamos un enlace para crear una nueva.</p>
           <Campo etiqueta="Correo" tipo="email" valor={correo} onCambio={setCorreo} autocompletar="email" />
           {error && (
-            <p role="alert" className="rounded-lg bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
+            <p role="alert" className="rounded-lg bg-crimson-soft px-3 py-2 text-meta text-crimsonTexto">
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={!!cargando || !correo}
-            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
           >
             {cargando === "recuperar" && <Loader2 size={14} className="animate-spin" aria-hidden />}
             Enviar enlace
           </button>
-          <button type="button" onClick={volver} className="inline-flex items-center gap-1 text-[13px] text-mute hover:text-ink">
+          <button type="button" onClick={volver} className="inline-flex items-center gap-1 text-meta text-mute hover:text-ink">
             <ArrowLeft size={13} aria-hidden /> Volver
           </button>
         </form>
@@ -360,10 +360,10 @@ function LoginForm() {
         <div className="mt-6">
           <Mail size={28} className="text-granate" aria-hidden />
           <h1 className="mt-3 font-display text-2xl font-bold text-ink">Revisa tu correo</h1>
-          <p className="mt-2 text-sm leading-relaxed text-inkSoft">
+          <p className="mt-2 text-dato leading-relaxed text-inkSoft">
             Si <strong className="font-semibold text-ink">{paso.correo}</strong> tiene cuenta, te llegó un enlace para crear una contraseña nueva.
           </p>
-          <button type="button" onClick={volver} className="mt-5 inline-flex items-center gap-1 text-[13px] text-mute hover:text-ink">
+          <button type="button" onClick={volver} className="mt-5 inline-flex items-center gap-1 text-meta text-mute hover:text-ink">
             <ArrowLeft size={13} aria-hidden /> Volver a entrar
           </button>
         </div>
@@ -388,7 +388,7 @@ function Campo({
   ayuda?: string;
 }) {
   return (
-    <label className="block text-sm">
+    <label className="block text-dato leading-5">
       <span className="font-medium text-inkSoft">{etiqueta}</span>
       <input
         type={tipo}
@@ -398,7 +398,7 @@ function Campo({
         autoComplete={autocompletar}
         className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2.5 text-ink outline-none transition-shadow duration-rapido placeholder:text-mute focus:border-granate/60 focus:ring-2 focus:ring-granate/20"
       />
-      {ayuda && <span className="mt-1 block text-[12px] text-mute">{ayuda}</span>}
+      {ayuda && <span className="mt-1 block text-rotulo text-mute">{ayuda}</span>}
     </label>
   );
 }

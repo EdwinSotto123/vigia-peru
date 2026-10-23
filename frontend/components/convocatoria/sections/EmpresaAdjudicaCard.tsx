@@ -19,16 +19,16 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
       <h2 className="font-display text-xl font-bold text-ink">
         {natural ? <PersonName name={empresa.razon_social} orden="sunat" /> : empresa.razon_social}
       </h2>
-      <p className="mt-0.5 text-[12px] text-mute">
+      <p className="mt-0.5 text-rotulo text-mute">
         {natural ? "Persona natural con negocio que ganó el contrato" : "Empresa que ganó el contrato"}, según fuentes públicas
       </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo leading-4 text-mute">
         {empresa.ruc && <span className="font-mono">RUC <Ruc value={empresa.ruc} /></span>}
         {empresa.tipo && <span>{empresa.tipo}</span>}
         {empresa.condicion && (
           // Condición en SUNAT: activo/habido es el estado normal (verde = positivo); cualquier otra
           // (no habido, baja…) se nombra en tinta neutra con ícono: es un dato, no una señal.
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0 text-[11px] font-semibold",
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0 text-micro font-semibold",
             ["activo", "habido"].includes(String(empresa.condicion).toLowerCase())
               ? "bg-moss/10 text-mossTexto"
               : "bg-paperDeep text-ink")}>
@@ -42,15 +42,15 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
           </span>
         )}
       </div>
-      <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
+      <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-rotulo leading-4 sm:grid-cols-2">
         {empresa.fecha_inicio_actividades && (
-          <div><dt className="text-[11px] text-mute">Inicio actividades</dt><dd className="text-ink">{fechaDossier(empresa.fecha_inicio_actividades)}</dd></div>
+          <div><dt className="text-micro text-mute">Inicio actividades</dt><dd className="text-ink">{fechaDossier(empresa.fecha_inicio_actividades)}</dd></div>
         )}
         {empresa.ciiu && (
-          <div><dt className="text-[11px] text-mute">CIIU</dt><dd className="font-mono text-ink">{empresa.ciiu}</dd></div>
+          <div><dt className="text-micro text-mute">CIIU</dt><dd className="font-mono text-ink">{empresa.ciiu}</dd></div>
         )}
         {actividades.length > 0 && (
-          <div className="sm:col-span-2"><dt className="text-[11px] text-mute">Actividad comercial</dt>
+          <div className="sm:col-span-2"><dt className="text-micro text-mute">Actividad comercial</dt>
             <dd className="text-ink">
               <ul className="space-y-0.5">
                 {actividades.map((a, i) => <li key={i}>{a}</li>)}
@@ -59,11 +59,11 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
           </div>
         )}
         {empresa.direccion_legal && (
-          <div className="sm:col-span-2"><dt className="text-[11px] text-mute">Dirección legal</dt>
+          <div className="sm:col-span-2"><dt className="text-micro text-mute">Dirección legal</dt>
             <dd className="text-ink">{empresa.direccion_legal}</dd></div>
         )}
         {empresa.gerente_general?.nombre && (
-          <div className="sm:col-span-2"><dt className="text-[11px] text-mute">Gerente general</dt>
+          <div className="sm:col-span-2"><dt className="text-micro text-mute">Gerente general</dt>
             <dd className="flex flex-wrap items-baseline gap-x-2 text-ink">
               {/* SUNAT publica al gerente como APELLIDO APELLIDO NOMBRE. */}
               <strong><PersonName name={empresa.gerente_general.nombre} orden="sunat" /></strong>
@@ -73,12 +73,12 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
       </dl>
       {(empresa.socios || []).length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
-          <h3 className="text-[12px] font-semibold text-ink">
+          <h3 className="text-cuerpo font-semibold text-ink">
             Socios y representantes ({empresa.socios.length})
           </h3>
           <ul className="mt-1.5 space-y-1">
             {empresa.socios.map((s: any, i: number) => (
-              <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg bg-paperSoft px-2.5 py-1.5 text-xs">
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg bg-paperSoft px-2.5 py-1.5 text-rotulo leading-4">
                 <strong className="text-ink"><PersonName name={s.nombre} /></strong>
                 {s.dni && <span className="font-mono text-mute">DNI <Dni value={s.dni} /></span>}
                 {s.participacion && <span className="text-mute">{s.participacion}</span>}
@@ -90,16 +90,16 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
       )}
       {(banderasSugeridas || []).length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
-          <h3 className="text-[12px] font-semibold text-amberTexto">
+          <h3 className="text-cuerpo font-semibold text-amberTexto">
             <AlertTriangle size={10} className="mr-1 inline" aria-hidden />
             Señales sugeridas para investigar
           </h3>
           <ul className="mt-1.5 space-y-1">
             {banderasSugeridas.map((b, i) => (
-              <li key={i} className="rounded-lg bg-amber-soft px-2.5 py-1.5 text-xs">
+              <li key={i} className="rounded-lg bg-amber-soft px-2.5 py-1.5 text-rotulo leading-4">
                 <strong className="text-ink">{b.titulo}.</strong>{" "}
                 <span className="text-inkSoft">{redactDnis(b.descripcion)}</span>
-                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1 text-[11px] text-inkSoft" />}
+                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1 text-micro text-inkSoft" />}
               </li>
             ))}
           </ul>

@@ -8,7 +8,7 @@ import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -42,6 +42,7 @@ import {
   type DetallePartido,
   type ProcesosPartido,
 } from "@/lib/partidosApi";
+import { uno } from "@/lib/utils";
 
 export const revalidate = 120;
 
@@ -54,7 +55,6 @@ const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincia
 const TAM = 20;
 
 /** Un parámetro de texto de la URL, o nada. */
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
  * /app/partidos/[clave]?anio=2018 — un partido en un período, con el esqueleto de las demás fichas (entidad, contrato):
@@ -144,7 +144,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             href={`${ruta}?anio=${p.anio}`}
             aria-current={p.anio === anio ? "page" : undefined}
             className={
-              "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-[13.5px] font-semibold transition-colors " +
+              "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-dato font-semibold transition-colors " +
               (p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
             }
           >
@@ -252,7 +252,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                 {gobiernos.length > 0 ? (
                   <GobiernosPartido gobiernos={gobiernos} partido={partido.nombre} />
                 ) : (
-                  <p className="text-sm text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
+                  <p className="text-dato leading-5 text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
                 )}
               </div>
             ),
@@ -425,7 +425,7 @@ function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
       <GraficoMeses porMes={d.porMes} etiqueta={`Contratos de la base de Vigía por mes, ${periodoTexto(anio)}`} />
       {filas.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-[16px] font-semibold text-ink">Sus entidades con contratos en la base, de la que más tiene a la que menos</h3>
+          <h3 className="text-destacado font-semibold text-ink">Sus entidades con contratos en la base, de la que más tiene a la que menos</h3>
           <TablaPaginada
             columnas={columnas}
             filas={filas}
@@ -442,15 +442,13 @@ function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
 
 function NoDisponible({ clave, anio }: { clave: string; anio: AnioGobierno }) {
   return (
-    <Pagina>
-      <Volver href="/app/partidos">Partidos y gobiernos</Volver>
-      <EncabezadoPagina titulo="Contratos de un partido" />
-      <EstadoError
-        titulo="No pudimos leer este partido"
-        accion={<EnlaceAccion href={`/app/partidos/${encodeURIComponent(clave)}?anio=${anio}`}>Reintentar</EnlaceAccion>}
-      >
-        Puede que no haya gobernado nada en {periodoTexto(anio)} o que el servidor no respondiera. No mostramos nada en su lugar.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Partidos y gobiernos", href: "/app/partidos" }]}
+      titulo="Contratos de un partido"
+      error="No pudimos leer este partido"
+      reintentar={{ href: `/app/partidos/${encodeURIComponent(clave)}?anio=${anio}` }}
+    >
+      Puede que no haya gobernado nada en {periodoTexto(anio)} o que el servidor no respondiera. No mostramos nada en su lugar.
+    </FichaNoLeida>
   );
 }

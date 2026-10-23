@@ -206,18 +206,18 @@ export function BuscarGlobal({
       )}
     >
       <Search size={22} className="shrink-0 text-granate" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-[16px] text-mute sm:text-[18px]"><span className="sm:hidden">Contrato, entidad, RUC o región</span><span className="hidden sm:inline">Busca un contrato, una entidad, un RUC o tu región</span></span>
-      <kbd className="hidden rounded border border-line bg-paperSoft px-1.5 py-0.5 font-mono text-[11px] text-mute sm:inline">Ctrl K</kbd>
+      <span className="min-w-0 flex-1 truncate text-destacado text-mute sm:text-bloque"><span className="sm:hidden">Contrato, entidad, RUC o región</span><span className="hidden sm:inline">Busca un contrato, una entidad, un RUC o tu región</span></span>
+      <kbd className="hidden rounded border border-line bg-paperSoft px-1.5 py-0.5 font-mono text-micro text-mute sm:inline">Ctrl K</kbd>
     </button>
   ) : variant === "boton" ? (
     <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-granate group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
       <Search size={15} aria-hidden />
     </button>
   ) : (
-    <button type="button" onClick={abrir} aria-haspopup="dialog" className={cn("flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-[13px] text-mute transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50", className)} aria-label="Buscar (Ctrl+K)">
+    <button type="button" onClick={abrir} aria-haspopup="dialog" className={cn("flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-meta text-mute transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50", className)} aria-label="Buscar (Ctrl+K)">
       <Search size={14} aria-hidden />
       <span className="flex-1 truncate">Buscar contrato, entidad, RUC, zona…</span>
-      <kbd className="hidden rounded border border-line bg-paperSoft px-1 font-mono text-[10px] text-mute sm:inline">Ctrl K</kbd>
+      <kbd className="hidden rounded border border-line bg-paperSoft px-1 font-mono text-micro text-mute sm:inline">Ctrl K</kbd>
     </button>
   );
 
@@ -249,7 +249,7 @@ export function BuscarGlobal({
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder="Contrato, código VIG-…, entidad, RUC o zona"
-              className="h-12 w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-mute"
+              className="h-12 w-full min-w-0 bg-transparent text-dato leading-5 text-ink outline-none placeholder:text-mute"
               aria-label="Texto a buscar"
               aria-controls={listaId}
               aria-activedescendant={items[sel] ? `${idBase}-${items[sel].key}` : undefined}
@@ -265,17 +265,17 @@ export function BuscarGlobal({
 
           {corto && (
             <div className="px-4 pb-5 pt-4">
-              <p className="text-[13px] leading-relaxed text-mute">Busca por código de contrato, código de aporte VIG-…, nombre de entidad, RUC o zona.</p>
-              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-mute">Prueba con</p>
+              <p className="text-meta leading-relaxed text-mute">Busca por código de contrato, código de aporte VIG-…, nombre de entidad, RUC o zona.</p>
+              <p className="mt-4 text-micro font-semibold uppercase tracking-[0.12em] text-mute">Prueba con</p>
               <ul className="mt-2 flex flex-wrap gap-2">
                 {SUGERENCIAS.map((s) => (
                   <li key={s.q}>
                     <button
                       type="button"
                       onClick={() => probar(s.q)}
-                      className="group inline-flex min-h-8 items-center gap-2 rounded-full border border-line bg-paperSoft py-1.5 pl-3 pr-3.5 text-[13px] text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+                      className="group inline-flex min-h-8 items-center gap-2 rounded-full border border-line bg-paperSoft py-1.5 pl-3 pr-3.5 text-meta text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
                     >
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-mute group-hover:text-granate">{s.tipo}</span>
+                      <span className="text-micro font-semibold uppercase tracking-wider text-mute group-hover:text-granate">{s.tipo}</span>
                       <span className={s.tipo === "contrato" ? "font-mono" : undefined}>{s.q}</span>
                     </button>
                   </li>
@@ -286,18 +286,18 @@ export function BuscarGlobal({
 
           <div id={listaId} role="listbox" aria-label="Resultados" className={cn("max-h-[60vh] overflow-y-auto overscroll-contain p-1.5", corto && "hidden")}>
             {fallo && (
-              <p role="alert" className="px-3 py-6 text-center text-[13px] leading-relaxed text-crimsonTexto">
+              <p role="alert" className="px-3 py-6 text-center text-meta leading-relaxed text-crimsonTexto">
                 No pudimos buscar en este momento. Revisa tu conexión y vuelve a escribir para intentarlo otra vez.
               </p>
             )}
             {sinResultados && (
-              <p className="px-3 py-6 text-center text-[13px] leading-relaxed text-mute">
+              <p className="px-3 py-6 text-center text-meta leading-relaxed text-mute">
                 Sin resultados para “{q}”. Prueba con otro nombre, un RUC de 11 dígitos o el código del contrato.
               </p>
             )}
             {agrupar(items).map(([grupo, xs]) => (
               <div key={grupo} role="group" aria-label={grupo} className="mb-1">
-                <div aria-hidden className="px-3 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-mute">{grupo}</div>
+                <div aria-hidden className="px-3 pb-0.5 pt-2 text-micro font-semibold uppercase tracking-[0.12em] text-mute">{grupo}</div>
                 {xs.map((it) => {
                   const i = items.indexOf(it);
                   return (
@@ -313,8 +313,8 @@ export function BuscarGlobal({
                     >
                       <span className={cn("mt-0.5 shrink-0", i === sel ? "text-ink" : "text-mute")}>{it.icon}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-ink">{it.titulo}</span>
-                        <span className="block truncate text-xs text-mute"><Partes partes={it.detalle} /></span>
+                        <span className="block truncate text-dato leading-5 text-ink">{it.titulo}</span>
+                        <span className="block truncate text-rotulo leading-4 text-mute"><Partes partes={it.detalle} /></span>
                       </span>
                       {i === sel && <CornerDownLeft size={12} className="mt-1 shrink-0 text-mute" aria-hidden />}
                     </button>

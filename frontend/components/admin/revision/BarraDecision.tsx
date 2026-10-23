@@ -31,9 +31,9 @@ export function ResumenAlerta({ d }: { d: RevisionDetalle }) {
 
   return (
     <section aria-label="Resumen de la alerta" className="rounded-2xl border border-line bg-paperSoft p-3.5 sm:p-4">
-      {d.objeto && <p className="line-clamp-2 break-words font-display text-base font-bold leading-snug text-ink">{d.objeto}</p>}
+      {d.objeto && <p className="line-clamp-2 break-words font-display text-destacado font-bold leading-snug text-ink">{d.objeto}</p>}
 
-      <h2 className={cn("text-[11px] font-semibold uppercase tracking-wide text-mute", d.objeto && "mt-3")}>
+      <h2 className={cn("text-micro font-semibold uppercase tracking-wide text-mute", d.objeto && "mt-3")}>
         {enRevision ? "Por qué no se publicó sola" : "Por qué la autoevaluación la había frenado"}
       </h2>
       <ul className="mt-1.5 grid gap-x-6 gap-y-1.5 md:grid-cols-2">
@@ -41,8 +41,8 @@ export function ResumenAlerta({ d }: { d: RevisionDetalle }) {
           <li key={`${m.clave}-${i}`} className="flex items-start gap-2">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
             <div className="min-w-0">
-              <p className="text-[13px] font-medium leading-snug text-ink">{m.texto}</p>
-              {m.ayuda && <p className="text-[12px] leading-snug text-mute">{m.ayuda}</p>}
+              <p className="text-meta font-medium leading-snug text-ink">{m.texto}</p>
+              {m.ayuda && <p className="text-rotulo leading-snug text-mute">{m.ayuda}</p>}
             </div>
           </li>
         ))}
@@ -59,9 +59,9 @@ export function PanelDecision({ d, onDecidir }: { d: RevisionDetalle; onDecidir:
     <section aria-label="Decisión" className={cn("rounded-2xl border p-3.5", ui.caja)}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Badge tono={ui.tono}>{ui.label}</Badge>
-        <span className="font-mono text-xs text-ink">{d.codigo}</span>
+        <span className="font-mono text-rotulo leading-4 text-ink">{d.codigo}</span>
       </div>
-      <p className="mt-1 text-[11.5px] leading-snug text-mute">
+      <p className="mt-1 text-rotulo leading-snug text-mute">
         Analizado el {fmtDate(d.analizadoEn ?? d.createdAt)}
         {d.contribucionCodigo ? `, con el aporte ${d.contribucionCodigo}${d.financiador ? ` de ${d.financiador}` : ""}` : ""}
       </p>
@@ -76,14 +76,14 @@ export function PanelDecision({ d, onDecidir }: { d: RevisionDetalle; onDecidir:
               <XCircle size={15} aria-hidden /> Descartar
             </button>
           </div>
-          <p className="mt-2 text-[11.5px] leading-snug text-mute">
+          <p className="mt-2 text-rotulo leading-snug text-mute">
             Mientras no decidas, no aparece en listas públicas, mapa ni ranking. Te pediremos el motivo.
           </p>
         </>
       )}
 
       {d.moderacion && (
-        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-paperSoft px-3 py-2 text-[13px] text-ink">
+        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-paperSoft px-3 py-2 text-meta text-ink">
           {d.moderacion.accion === "publicar"
             ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             : <XCircle size={14} className="mt-0.5 shrink-0 text-rust" aria-hidden />}
@@ -102,8 +102,8 @@ export function ContratoDeAlerta({ d }: { d: RevisionDetalle }) {
   const zona = d.zona ?? d.distrito ?? d.provincia ?? d.region;
   return (
     <section aria-label="Datos del contrato" className="rounded-2xl border border-line bg-paperSoft p-3.5">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Del contrato</h2>
-      <dl className="mt-1.5 space-y-1.5 text-[13px] text-ink">
+      <h2 className="text-micro font-semibold uppercase tracking-wide text-mute">Del contrato</h2>
+      <dl className="mt-1.5 space-y-1.5 text-meta text-ink">
         <Dato icon={<Building2 size={13} />} k="Entidad">{d.entidad ?? d.entidadRuc ?? "sin dato"}</Dato>
         <Dato icon={<MapPin size={13} />} k="Zona">{zona ?? "sin dato"}</Dato>
         <Dato icon={<Banknote size={13} />} k="Monto">{d.montoAdjudicado != null && d.montoAdjudicado > 0 ? fmtPEN(d.montoAdjudicado) : "sin dato"}</Dato>
@@ -121,7 +121,7 @@ export function ContratoDeAlerta({ d }: { d: RevisionDetalle }) {
 function Dato({ icon, k, children }: { icon: React.ReactNode; k: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 items-baseline gap-2">
-      <dt className="flex w-[5.5rem] shrink-0 items-center gap-1.5 text-[12px] text-mute">
+      <dt className="flex w-[5.5rem] shrink-0 items-center gap-1.5 text-rotulo text-mute">
         {icon}
         {k}
       </dt>

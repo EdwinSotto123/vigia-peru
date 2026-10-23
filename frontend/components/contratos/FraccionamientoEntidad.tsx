@@ -65,21 +65,21 @@ export function FraccionamientoEntidadTabla({ casos, nombre }: { casos: Fraccion
       contenido: (
         <ol className="space-y-3">
           {c.detalle.map((o, i) => (
-            <li key={`${o.orden}-${i}`} className="rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-relaxed">
+            <li key={`${o.orden}-${i}`} className="rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-relaxed">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="font-mono text-[12px] text-mute" translate="no">
+                <span className="font-mono text-rotulo text-mute" translate="no">
                   {o.orden}
                 </span>
                 <span className="font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
               </div>
               {o.descripcion && <p className="mt-1 text-ink">{o.descripcion}</p>}
-              {o.estado && <p className="mt-0.5 text-[12px] text-mute">{capital(o.estado)}</p>}
+              {o.estado && <p className="mt-0.5 text-rotulo text-mute">{capital(o.estado)}</p>}
             </li>
           ))}
         </ol>
       ),
       pie: (
-        <p className="text-[12px] text-mute">
+        <p className="text-rotulo text-mute">
           Fuente:{" "}
           <a href="https://conosce.osce.gob.pe/buscador/" target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
             Órdenes de compra y de servicio de CONOSCE

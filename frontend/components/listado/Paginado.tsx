@@ -82,7 +82,7 @@ export function TablaPaginada({
         }}
       />
       {q && (
-        <span className="text-[13px] tabular-nums text-mute" aria-live="polite">
+        <span className="text-meta tabular-nums text-mute" aria-live="polite">
           {numero(vistas.length)} de {numero(filas.length)}
         </span>
       )}
@@ -137,7 +137,7 @@ export function ListaPaginada({
             }}
           />
           {q && (
-            <span className="text-[13px] tabular-nums text-mute" aria-live="polite">
+            <span className="text-meta tabular-nums text-mute" aria-live="polite">
               {numero(vistos.length)} de {numero(items.length)}
             </span>
           )}
@@ -186,7 +186,7 @@ export type FilaFiltrable = Fila & {
 };
 
 const CAMPO_LOCAL =
-  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 /**
  * Una lista que llegó entera, con buscador, filtros (desplegables con su conteo, que cuenta sobre los demás filtros) y
@@ -306,11 +306,11 @@ export function TablaFiltrable({
         </div>
       )}
       {filtrando && (
-        <p className="flex flex-wrap items-center gap-2 text-[13px] tabular-nums text-mute" aria-live="polite">
+        <p className="flex flex-wrap items-center gap-2 text-meta tabular-nums text-mute" aria-live="polite">
           {`${numero(vistas.length)} de ${numero(filas.length)}`}
           <button
             type="button"
-            className="rounded-full border border-line px-2.5 py-0.5 text-[12.5px] text-inkSoft hover:border-granate/40 hover:text-ink"
+            className="rounded-full border border-line px-2.5 py-0.5 text-meta text-inkSoft hover:border-granate/40 hover:text-ink"
             onClick={() => {
               setElegidos({});
               setConsulta("");

@@ -34,7 +34,7 @@ export function CifrasDelPais({ titulo = "Lo que ya se hizo entre todos" }: { ti
   if (!e) return null;
   return (
     <section aria-label={titulo} className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-      <h2 className="font-display text-[16px] font-bold text-ink">{titulo}</h2>
+      <h2 className="font-display text-bloque font-bold text-ink">{titulo}</h2>
       <CifrasEnFila
         className="mt-2.5"
         items={[
@@ -55,9 +55,9 @@ export function RecientesDelPais({ cuantos = 6, titulo = "Lo que ya financiaron 
   return (
     <section aria-label={titulo} className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className="font-display text-[17px] font-bold text-ink">{titulo}</h2>
+        <h2 className="font-display text-bloque font-bold text-ink">{titulo}</h2>
         {/* Los más recientes; la lista entera, con buscador, en /app/aliados/aportes. */}
-        <Link href="/app/aliados/aportes" className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline">
+        <Link href="/app/aliados/aportes" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">
           Ver todos los aportes
         </Link>
       </div>
@@ -74,17 +74,17 @@ export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
   return (
     <section aria-labelledby="aliados-pais" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="aliados-pais" className="font-display text-[16px] font-bold text-ink">Así aparecen los aliados</h2>
-        <Link href="/app/aliados" className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline">Ver el ranking</Link>
+        <h2 id="aliados-pais" className="font-display text-bloque font-bold text-ink">Así aparecen los aliados</h2>
+        <Link href="/app/aliados" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">Ver el ranking</Link>
       </div>
       <ol className="mt-2 space-y-2">
         {filas.map((f) => (
           <li key={f.id} className="flex items-center gap-2.5">
-            <span aria-hidden className="w-5 shrink-0 text-center font-mono text-[12.5px] font-bold tabular-nums text-mute">{f.puesto}</span>
+            <span aria-hidden className="w-5 shrink-0 text-center font-mono text-meta font-bold tabular-nums text-mute">{f.puesto}</span>
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[14px] font-semibold text-ink">{f.nombre}</span>
-                <span className="shrink-0 font-mono text-[12.5px] font-semibold tabular-nums text-ink">
+                <span className="truncate text-dato font-semibold text-ink">{f.nombre}</span>
+                <span className="shrink-0 font-mono text-meta font-semibold tabular-nums text-ink">
                   {numero(f.contratosFinanciados)} {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
                 </span>
               </span>
@@ -95,7 +95,7 @@ export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
           </li>
         ))}
       </ol>
-      <p className="mt-2.5 text-[12.5px] leading-snug text-mute">Se cuenta en contratos, nunca en soles. Con cuenta eliges cómo apareces.</p>
+      <p className="mt-2.5 text-meta leading-snug text-mute">Se cuenta en contratos, nunca en soles. Con cuenta eliges cómo apareces.</p>
     </section>
   );
 }
@@ -112,10 +112,10 @@ const FILAS_CUENTA: { que: string; sin: string | null; con: string }[] = [
 export function SinCuentaConCuenta() {
   return (
     <section aria-labelledby="sin-con-cuenta" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-      <h2 id="sin-con-cuenta" className="font-display text-[16px] font-bold text-ink">Qué cambia con una cuenta</h2>
+      <h2 id="sin-con-cuenta" className="font-display text-bloque font-bold text-ink">Qué cambia con una cuenta</h2>
       <ul className="mt-2 divide-y divide-line sm:hidden">
         {FILAS_CUENTA.map((f) => (
-          <li key={f.que} className="py-2 text-[13.5px] leading-snug">
+          <li key={f.que} className="py-2 text-dato leading-snug">
             <p className="font-medium text-ink">{f.que}</p>
             <p className="mt-0.5 text-inkSoft"><span className="font-semibold text-mute">Sin cuenta:</span> {f.sin ?? "no"}</p>
             <p className="text-ink"><span className="font-semibold text-mossTexto">Con cuenta:</span> {f.con}</p>
@@ -123,9 +123,9 @@ export function SinCuentaConCuenta() {
         ))}
       </ul>
       <div className="mt-2 hidden overflow-x-auto sm:block">
-        <table className="w-full text-left text-[13.5px]">
+        <table className="w-full text-left text-dato">
           <thead>
-            <tr className="text-[12px] uppercase tracking-wide text-mute">
+            <tr className="text-rotulo uppercase tracking-wide text-mute">
               <th scope="col" className="py-1.5 pr-3 font-semibold">Qué haces</th>
               <th scope="col" className="px-3 py-1.5 font-semibold">Sin cuenta</th>
               <th scope="col" className="py-1.5 pl-3 font-semibold">Con cuenta</th>

@@ -55,7 +55,7 @@ export function SortearSeace({ onRunNew }: { onRunNew: (codigo: string) => void 
         </Ayuda>
       </span>
       {error && (
-        <p role="alert" className="text-[12px] text-crimsonTexto">
+        <p role="alert" className="text-rotulo text-crimsonTexto">
           {error}
         </p>
       )}

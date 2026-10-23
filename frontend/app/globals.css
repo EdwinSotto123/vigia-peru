@@ -10,8 +10,10 @@
 :root {
   color-scheme: dark;
 
-  /* Superficies, de la más lejana a la más hundida */
-  --paper: 11 15 15;          /* #0B0F0F  fondo de la página */
+  /* Superficies, de la más lejana a la más hundida. `--fondo` es sólo el de la página (body): de noche es el mismo
+     papel; de día, un gris verdoso bajo tarjetas blancas, para que cada tarjeta se despegue del fondo. */
+  --fondo: 11 15 15;          /* #0B0F0F  fondo de la página */
+  --paper: 11 15 15;          /* #0B0F0F  el papel: tarjetas con borde, bandas de la portada */
   --paper-soft: 17 23 23;     /* #111717  tarjetas y paneles */
   --paper-deep: 25 33 33;     /* #192121  campos, filtros, hundidos */
   --paper-edge: 44 57 57;     /* #2C3939  borde marcado */
@@ -55,6 +57,12 @@
   --marca-pupila: 255 255 255;
   --marca-nota: 143 163 160;
   --sobre-maiz: 11 15 15;
+  --anil: 108 140 255;        /* #6C8CFF  el segundo lado de una comparación */
+  --anil-texto: 143 166 255;  /* #8FA6FF */
+  /* El rojo de una alerta escrito DIRECTO sobre una banda oscura (las cifras de la portada). Ninguna banda ni el modo
+     día lo redefinen: `crimson-texto` dentro de una banda es el rojo oscuro de las placas claras. 5,5:1 sobre la banda
+     verde de día, 8,4:1 sobre la carbón de noche. */
+  --alerta-banda: 255 139 126; /* #FF8B7E */
 }
 
 /* ── Color por intención (2026-10) ─────────────────────────────────────────
@@ -177,21 +185,22 @@
 /* ── Modo día (2026-10-19) ────────────────────────────────────────────────
    `<html data-modo="dia">` (lib/modo.ts, botón BotonModo): fondo claro, texto oscuro y verde profundo en vez del
    lima neón. Mismos roles que arriba, así ningún componente cambia: `bg-paper` sigue siendo "el fondo", `text-ink`
-   "el texto", `bg-granate` "la acción principal". Pares texto/fondo AA: mute 5,1:1 sobre paper, granate 6,5:1 con
+   "el texto", `bg-granate` "la acción principal". Pares texto/fondo AA: mute 5,3:1 sobre una tarjeta y 4,8:1 sobre el fondo, granate 6,5:1 con
    texto blanco y sobre blanco. Las bandas de marca (.sobre-oscuro, bg-ink) pasan de carbón a verde bosque, con el
    lima pálido como acento: siguen marcando la sección sin volver a lo oscuro ni al neón. */
 html[data-modo="dia"] {
   color-scheme: light;
 
-  --paper: 246 248 247;       /* #F6F8F7  fondo de la página */
-  --paper-soft: 255 255 255;  /* #FFFFFF  tarjetas y paneles */
+  --fondo: 239 243 242;       /* #EFF3F2  fondo de la página: mute 4,8:1, inkSoft 9:1 */
+  --paper: 255 255 255;       /* #FFFFFF  tarjetas (antes #F6F8F7, igual que el fondo: sólo el borde las separaba) */
+  --paper-soft: 247 249 248;  /* #F7F9F8  paneles y lo apenas hundido dentro de una tarjeta blanca */
   --paper-deep: 236 241 239;  /* #ECF1EF  campos, filtros, hundidos */
   --paper-edge: 190 202 199;  /* #BECAC7  borde marcado */
   --line: 220 228 226;        /* #DCE4E2  borde por defecto */
 
   --ink: 17 24 23;            /* #111817  principal  · 17:1 */
   --ink-soft: 55 68 66;       /* #374442  secundario · 10:1 */
-  --mute: 94 110 107;         /* #5E6E6B  terciario  · 5,1:1 */
+  --mute: 88 103 100;         /* #586764  terciario: 5,9:1 sobre una tarjeta, 4,8:1 sobre el fondo con el tinte de la sección */
 
   --granate: 47 107 16;       /* #2F6B10  verde profundo: botón con texto blanco 6,5:1 */
   --granate-50: 242 248 234;
@@ -229,6 +238,8 @@ html[data-modo="dia"] {
   --marca-pupila: 22 58 30;
   --marca-nota: 94 110 107;
   --sobre-maiz: 255 255 255;
+  --anil: 59 92 204;          /* #3B5CCC */
+  --anil-texto: 44 72 170;    /* #2C48AA  6,9:1 sobre paper */
 }
 html[data-modo="dia"] [data-intencion="explorar"] {
   --acento: 37 99 200;         /* #2563C8 */
@@ -300,10 +311,10 @@ html[data-modo="dia"] .fondo-intencion {
   html {
     font-family: var(--font-sans), "Inter", system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
-    background-color: rgb(var(--paper));
+    background-color: rgb(var(--fondo));
   }
   body {
-    @apply bg-paper text-ink;
+    @apply bg-fondo text-ink;
   }
   h1, h2, h3 {
     @apply tracking-tight;
@@ -376,7 +387,7 @@ html[data-modo="dia"] .fondo-intencion {
   }
   /* Etiqueta de datos: mono, versalitas, espaciada. Es la voz "terminal" de la marca. */
   .etiqueta-mono {
-    @apply font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-mute;
+    @apply font-mono text-micro font-bold uppercase tracking-[0.14em] text-mute;
   }
 }
 

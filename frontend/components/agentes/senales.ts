@@ -8,6 +8,8 @@
 
 import type { CitaDocumento, SenalRiesgo } from "@/lib/auditoria";
 import { claveDePaso } from "./catalogo";
+import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
+import { txt } from "@/lib/utils";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -42,7 +44,8 @@ export interface ConteoSenales {
 
 export const CONTEO_VACIO: ConteoSenales = { total: 0, alta: 0, media: 0, baja: 0, verificadas: 0, conCotejo: 0 };
 
-export const ORDEN_SEVERIDAD: Record<Severidad, number> = { alta: 0, media: 1, baja: 2 };
+/** El orden de lib/severidad (alta primero), con el nombre que ya usan los agentes. */
+export const ORDEN_SEVERIDAD: Record<Severidad, number> = RANGO_SEVERIDAD;
 
 export function contar(senales: SenalAgente[]): ConteoSenales {
   const c: ConteoSenales = { ...CONTEO_VACIO };
@@ -73,11 +76,10 @@ export function agruparPorAgente(senales: SenalAgente[]): Record<string, SenalAg
 /** La señal más grave que emitió un agente — es lo que decide el color de su fila en el eje. */
 export function severidadMaxima(senales: SenalAgente[] | undefined): Severidad | null {
   if (!senales?.length) return null;
-  return senales.reduce<Severidad>((peor, s) => (ORDEN_SEVERIDAD[s.severidad] < ORDEN_SEVERIDAD[peor] ? s.severidad : peor), "baja");
+  return peorSeveridad(senales) ?? "baja";
 }
 
 const sev = (v: unknown): Severidad => (v === "alta" || v === "media" ? v : "baja");
-const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** `SenalRiesgo` (GET /contratos/:ocid · /financiamiento/procesamientos/:ocid) → señal normalizada. */
 export function desdeSenalRiesgo(s: SenalRiesgo): SenalAgente {

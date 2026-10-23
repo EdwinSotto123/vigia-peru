@@ -7,6 +7,7 @@ import type { ApiEntidad, EntidadesPagina } from "@/lib/api-client";
 import { numero, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { Dato } from "@/components/ui/Dato";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * El ranking de entidades sobre la plantilla Listado (§14.1): la `Tabla` compartida
@@ -40,11 +41,9 @@ const COLUMNAS: Columna[] = [
   { clave: "puntaje", titulo: "Puntaje promedio", ancho: "128px", alinear: "der", desde: "lg" },
 ];
 
-/** La acción de un estado vacío o de error: un enlace con forma de píldora secundaria. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 const ACCION_PRIMARIA =
-  "inline-flex min-h-[40px] items-center rounded-full bg-granate px-4 py-1.5 text-[14px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
+  "inline-flex min-h-[40px] items-center rounded-full bg-granate px-4 py-1.5 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
 
 interface Props {
   /** La página ya traída (y descontada de semillas) por page.tsx; null = el API no respondió. */
@@ -156,7 +155,7 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
     id: e.ruc,
     href: `/entidad/${e.ruc}`,
     celdas: {
-      puesto: <span className="font-mono text-[12px] tabular-nums text-mute">{numero(puesto)}</span>,
+      puesto: <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span>,
       entidad: (
         <CeldaPrincipal
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
@@ -181,7 +180,7 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
           <span className="font-semibold text-ink">{numero(e.scorePromedio)}</span> de 100
         </span>
       ) : (
-        <span className="text-[13px] text-mute">Sin dato</span>
+        <span className="text-meta text-mute">Sin dato</span>
       ),
     },
   };

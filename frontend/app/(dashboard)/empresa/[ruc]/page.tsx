@@ -3,49 +3,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana } from "@/components/empresas/InicioEmpresa";
-import {
-  AntecedentesEmpresa,
-  BarraContratos,
-  BarraContratosConConteos,
-  BarraOrdenes,
-  BarraOrdenesConConteos,
-  BarraPostulaciones,
-  BarraPostulacionesConConteos,
-  P_ANTECEDENTES,
-  ClientesEmpresa,
-  ContratosEmpresa,
-  OrdenesEmpresa,
-  P_CONTRATOS,
-  P_ORDENES,
-  P_POSTULACIONES,
-  PostulacionesEmpresa,
-  SociosEmpresa,
-  VisitasEmpresa,
-} from "@/components/empresas/SeccionesEmpresa";
+import { AntecedentesEmpresa, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { fecha, fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import {
-  OBJETOS,
-  OBJETO_TEXTO,
-  esRucEmpresa,
-  getAntecedentesEmpresa,
-  getClientesEmpresa,
-  getContratosEmpresa,
-  getFichaEmpresa,
-  getOrdenesEmpresa,
-  getPostulacionesEmpresa,
-  getSociosEmpresa,
-  getVisitasEmpresa,
-  rutaEmpresa,
-  type FichaEmpresa,
-} from "@/lib/empresas";
+import { OBJETOS, OBJETO_TEXTO, esRucEmpresa, getAntecedentesEmpresa, getClientesEmpresa, getContratosEmpresa, getFichaEmpresa, getOrdenesEmpresa, getPostulacionesEmpresa, getSociosEmpresa, getVisitasEmpresa, rutaEmpresa, type FichaEmpresa } from "@/lib/empresas";
+import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
 
@@ -55,7 +24,6 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
 }
 
 const TAM = 20;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const texto = (v: string | string[] | undefined) => {
   const t = uno(v)?.slice(0, 80);
   return t && t.length >= 2 ? t : undefined;
@@ -157,7 +125,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         titulo={e.nombre}
         bajada={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="inline-flex items-center gap-1.5 font-mono text-[13px] tabular-nums">
+            <span className="inline-flex items-center gap-1.5 font-mono text-meta tabular-nums">
               <BadgeCheck size={14} className="shrink-0 text-mute" aria-hidden /> RUC {e.ruc}
             </span>
             {e.departamento && (
@@ -190,7 +158,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         }
       />
       {e.inhabilitada && (
-        <p role="note" className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[14px] text-crimsonTexto">
+        <p role="note" className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-dato text-crimsonTexto">
           <Ban size={16} className="mt-0.5 shrink-0" aria-hidden />
           <span>
           {e.inhabilitada === "definitiva"
@@ -392,9 +360,9 @@ async function Inicio({
       <CabeceraPestana>Lo que dicen de ella otros registros públicos, lo que recibió del Estado cada año y sus datos.</CabeceraPestana>
       <section className="space-y-2.5" aria-labelledby="antecedentes-titulo">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 id="antecedentes-titulo" className="font-display text-[15px] font-bold text-ink">Lo que dicen otros registros</h3>
+          <h3 id="antecedentes-titulo" className="font-display text-bloque font-bold text-ink">Lo que dicen otros registros</h3>
           {f.antecedentes.length > 0 && (
-            <Link href={`${ruta}?seccion=antecedentes`} className="text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+            <Link href={`${ruta}?seccion=antecedentes`} className="text-meta font-semibold text-granate underline-offset-2 hover:underline">
               Ver cada antecedente con su fuente
             </Link>
           )}
@@ -409,7 +377,7 @@ async function Inicio({
         <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruta={ruta} /></Suspense>
       </div>
       <section className="space-y-2">
-        <h3 className="font-display text-[15px] font-bold text-ink">Sus datos</h3>
+        <h3 className="font-display text-bloque font-bold text-ink">Sus datos</h3>
         <DatosClave
           items={[
             { etiqueta: "RUC", valor: e.ruc, mono: true },
@@ -441,7 +409,7 @@ async function Inicio({
 function BloqueCargando({ titulo }: { titulo: string }) {
   return (
     <section className="space-y-2 rounded-2xl border border-line bg-paper p-4" aria-busy="true">
-      <h3 className="font-display text-[15px] font-bold text-ink">{titulo}</h3>
+      <h3 className="font-display text-bloque font-bold text-ink">{titulo}</h3>
       <div className="h-24 animate-pulse rounded-xl bg-paperDeep" />
     </section>
   );
@@ -449,13 +417,14 @@ function BloqueCargando({ titulo }: { titulo: string }) {
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
-    <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Empresas", href: "/app/empresas" }]} />
-      <EncabezadoPagina titulo={`RUC ${ruc}`} />
-      <EstadoError titulo="No encontramos esta empresa" accion={<Link href={`/app/empresas?q=${ruc}`} className="text-granate hover:underline">Buscarla en Empresas</Link>}>
-        Puede que no le haya vendido al Estado desde 2018, que no haya postulado a ningún proceso, o que el servidor no
-        respondiera. No mostramos nada en su lugar.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Empresas", href: "/app/empresas" }]}
+      titulo={`RUC ${ruc}`}
+      error="No encontramos esta empresa"
+      reintentar={{ href: `/app/empresas?q=${ruc}`, texto: "Buscarla en Empresas" }}
+    >
+      Puede que no le haya vendido al Estado desde 2018, que no haya postulado a ningún proceso, o que el servidor no
+      respondiera. No mostramos nada en su lugar.
+    </FichaNoLeida>
   );
 }

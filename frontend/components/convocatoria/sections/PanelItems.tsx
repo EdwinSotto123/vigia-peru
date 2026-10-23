@@ -39,12 +39,12 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
           <section className="overflow-hidden rounded-2xl border border-line bg-paper">
             <div className="border-b border-line bg-paperSoft px-5 py-3">
               <h2 className="font-display text-xl font-bold text-ink">Qué se está comprando</h2>
-              <p className="mt-0.5 text-[12px] text-mute">
+              <p className="mt-0.5 text-rotulo text-mute">
                 {nItems} {nItems === 1 ? "ítem" : "ítems"}
                 {findings.length > items.length && ", desglosados al leer el requerimiento técnico"}
               </p>
               {consolidados.length > items.length && (
-                <p className="mt-1 text-[12px] text-mute">
+                <p className="mt-1 text-rotulo text-mute">
                   El registro OCDS reporta {items.length} {items.length === 1 ? "ítem global" : "ítems globales"}; al leer el
                   requerimiento técnico se desglosaron en {consolidados.length} productos.
                 </p>

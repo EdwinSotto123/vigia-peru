@@ -153,14 +153,14 @@ export function ContratoPinLeyenda() {
   const orden: EstadoOperativoZona[] = ["sin_analizar", "documentos_listos", "en_cola", "procesado", "en_revision"];
   // Sólo <span>: vive dentro del flotante (un <span>), donde una <ul> es HTML inválido.
   return (
-    <span className="block space-y-1 text-[12px] text-mute">
+    <span className="block space-y-1 text-rotulo text-mute">
       {orden.map((e) => (
         <span key={e} className="flex items-start gap-1.5">
           <span aria-hidden className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[e] }} />
           <span>{ESTADO_OPERATIVO_LABEL[e]}</span>
         </span>
       ))}
-      <span className="block border-t border-line pt-1.5 text-[11px]">
+      <span className="block border-t border-line pt-1.5 text-micro">
         Tamaño del punto = cantidad de contratos de la zona. Color = estado predominante.
       </span>
     </span>

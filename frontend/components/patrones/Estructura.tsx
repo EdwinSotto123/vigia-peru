@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, Info } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/formato";
@@ -63,15 +63,15 @@ export function EncabezadoPagina({
             parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */}
         {bajada ? (
           <>
-            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[32px]">{titulo}</h1>
-            <p className="mt-1.5 text-[15px] leading-snug text-inkSoft text-pretty">
+            <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">{titulo}</h1>
+            <p className="mt-1.5 text-cuerpo leading-snug text-inkSoft text-pretty">
               {bajada}
               {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
             </p>
           </>
         ) : (
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[32px]">{titulo}</h1>
+            <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">{titulo}</h1>
             {ayuda}
           </div>
         )}
@@ -109,12 +109,12 @@ export function Seccion({
   const cabecera = (
     <div className="min-w-0">
       <div className="flex items-center gap-1.5">
-        <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-[20px] font-bold leading-tight text-ink text-balance">
+        <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-seccion font-bold leading-tight text-ink text-balance">
           {titulo}
         </h2>
         {ayuda}
       </div>
-      {descripcion && <p className="mt-0.5 text-sm leading-snug text-inkSoft text-pretty">{descripcion}</p>}
+      {descripcion && <p className="mt-0.5 text-dato leading-snug text-inkSoft text-pretty">{descripcion}</p>}
     </div>
   );
   if (plegable) {
@@ -168,9 +168,23 @@ export function Cifra({
   const oscuro = tono === "oscuro";
   return (
     <div className={cn("min-w-0", className)}>
-      <p className={cn("font-display text-[28px] font-extrabold leading-none tabular-nums", oscuro ? "text-maiz" : "text-ink")}>{valor}</p>
-      <p className={cn("mt-2 text-sm font-semibold", oscuro ? "text-paper" : "text-ink")}>{etiqueta}</p>
-      <p className={cn("mt-0.5 text-[13px] leading-snug", oscuro ? "text-paper/75" : "text-mute")}>{contexto}</p>
+      <p className={cn("font-display text-cifra font-extrabold leading-none tabular-nums", oscuro ? "text-maiz" : "text-ink")}>{valor}</p>
+      <p className={cn("mt-2 text-dato font-semibold", oscuro ? "text-paper" : "text-ink")}>{etiqueta}</p>
+      <p className={cn("mt-0.5 text-meta leading-snug", oscuro ? "text-paper/75" : "text-mute")}>{contexto}</p>
+    </div>
+  );
+}
+
+/**
+ * Una nota al pie de una lista o de una sección: cómo se cuenta, qué no incluye, de dónde sale. Va en su caja con un
+ * ícono, nunca como párrafo suelto sobre el fondo (regla de diseño del usuario). Para un dato que puede estar mal,
+ * AvisoDato; para una explicación que se abre, Ayuda.
+ */
+export function Nota({ icono, children, className }: { icono?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <div role="note" className={cn("flex gap-2.5 rounded-xl border border-line bg-paperSoft/70 px-3.5 py-3", className)}>
+      <span className="mt-0.5 shrink-0 text-mute">{icono ?? <Info size={15} aria-hidden />}</span>
+      <p className="min-w-0 text-meta leading-relaxed text-inkSoft">{children}</p>
     </div>
   );
 }
@@ -194,7 +208,7 @@ export function FuenteDato({
     </>
   );
   return (
-    <p className={cn("text-xs text-mute", className)}>
+    <p className={cn("text-rotulo text-mute", className)}>
       {href ? (
         <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-granate hover:underline">
           {texto} <ExternalLink size={11} aria-hidden />
@@ -216,7 +230,7 @@ export function Volver({ href, children, className }: { href: string; children: 
     <Link
       href={href}
       prefetch={false}
-      className={cn("inline-flex min-h-[32px] items-center gap-1.5 text-[14px] text-inkSoft transition-colors duration-rapido hover:text-granate", className)}
+      className={cn("inline-flex min-h-[32px] items-center gap-1.5 text-dato text-inkSoft transition-colors duration-rapido hover:text-granate", className)}
     >
       <ArrowLeft size={15} aria-hidden />
       {children}

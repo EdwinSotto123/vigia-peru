@@ -14,7 +14,7 @@ export interface DisclaimerBannerProps {
  */
 export function DisclaimerBanner({ className }: DisclaimerBannerProps) {
   return (
-    <p className={cn("flex flex-wrap items-center gap-x-1.5 text-[13px] text-inkSoft", className)}>
+    <p className={cn("flex flex-wrap items-center gap-x-1.5 text-meta text-inkSoft", className)}>
       <Info size={14} className="shrink-0 text-granate" aria-hidden />
       <strong className="font-semibold text-ink">Vigía Perú no acusa a nadie:</strong>
       <span>las señales salen del cruce automático de datos públicos.</span>

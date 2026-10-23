@@ -132,7 +132,7 @@ export function CeldaContrato({ p }: { p: Procesamiento }) {
   return (
     <span data-fila={p.ocid} className="block w-full min-w-0">
       <CeldaPrincipal titulo={titulo} meta={meta} />
-      <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[11.5px]">
+      <span className="mt-1.5 flex min-w-0 items-center gap-2 text-rotulo">
         <FaseEnCurso p={p} fases={fases} className="min-w-0 truncate text-amberTexto" />
         <span className="shrink-0 font-mono tabular-nums text-mute">
           {prog.hechas}/{prog.aplicables} pasos
@@ -157,7 +157,7 @@ export function CeldaValor({ p }: { p: Procesamiento }) {
  * Fechas con `fechaLima` (meses escritos a mano): esta celda se hidrata en el cliente.
  */
 export function CeldaTiempo({ p }: { p: Procesamiento }) {
-  const clase = "text-[12.5px] tabular-nums";
+  const clase = "text-meta tabular-nums";
   if (p.estado === "procesando") {
     return p.iniciadoAt ? <TiempoEnAnalisis desde={p.iniciadoAt} className={`${clase} font-mono text-amberTexto`} /> : <></>;
   }

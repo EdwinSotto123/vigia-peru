@@ -28,10 +28,10 @@ import { tituloNatural } from "@/lib/landing";
 import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, rutaPlanilla, type PaginaPlanilla, type PersonaPlanilla } from "@/lib/planilla";
 import { SenalesPlanillaLista } from "./SenalesPlanilla";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
+import { uno } from "@/lib/utils";
 
 const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
 export const P_PLANILLA = { senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud" } as const;
@@ -184,7 +184,7 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-inkSoft">{plural(pagina.total, "persona", "personas")}{props.filtrada ? " con estos filtros" : ""}</p>
+        <p className="text-meta text-inkSoft">{plural(pagina.total, "persona", "personas")}{props.filtrada ? " con estos filtros" : ""}</p>
         {pag}
       </div>
       <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p) => fila(p, props.deEntidad))} etiqueta="Personal en planilla" />
@@ -195,7 +195,7 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
 
 function Chips({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"] }) {
   const motivo = motivoDudoso(dudoso?.motivo);
-  if (!senales?.length && !motivo) return <span className="text-[12.5px] text-mute">—</span>;
+  if (!senales?.length && !motivo) return <span className="text-meta text-mute">Ninguna</span>;
   return (
     <ul className="flex flex-wrap gap-1">
       {motivo && (
@@ -239,7 +239,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
         />
       ),
       senales: <Chips senales={p.senales} dudoso={p.dudoso} />,
-      regimen: <span className="text-[13px] text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
+      regimen: <span className="text-meta text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
         <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>
       ) : (
@@ -262,7 +262,7 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
           <DatosClave items={datos} />
           {(p.historia?.length ?? 0) > 1 && (
             <section className="space-y-2">
-              <h3 className="font-display text-[15px] font-bold text-ink">Sueldo mes a mes</h3>
+              <h3 className="font-display text-bloque font-bold text-ink">Sueldo mes a mes</h3>
               <LineaMeses
                 puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
                 etiqueta={`Sueldo mes a mes de ${p.nombre}`}
@@ -274,9 +274,9 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
       ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] text-mute">Fuente: Portal de Transparencia Estándar, rubro Personal</span>
+          <span className="text-rotulo text-mute">Fuente: Portal de Transparencia Estándar, rubro Personal</span>
           {p.codigo && (
-            <Link href={`/app/personas/${p.codigo}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-[13px] font-semibold text-paper hover:bg-granate-deep">
+            <Link href={`/app/personas/${p.codigo}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper hover:bg-granate-deep">
               Ver sus órdenes de servicio <ArrowRight size={14} aria-hidden />
             </Link>
           )}

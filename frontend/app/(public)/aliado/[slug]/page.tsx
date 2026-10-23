@@ -106,7 +106,7 @@ export default async function AliadoPage({
 
   const sinComprobante = comprobantes.filter((c) => c == null).length;
   const avisoParcial = parcial ? (
-    <p className="text-[12.5px] text-mute">
+    <p className="text-meta text-mute">
       {contribuciones.length > MAX_DETALLE
         ? `Señales de sus ${numero(MAX_DETALLE)} aportes más recientes; las de los anteriores están en el comprobante de cada aporte (pestaña Aportes).`
         : `Faltan las señales de ${plural(sinComprobante, "aporte cuyo comprobante no respondió", "aportes cuyos comprobantes no respondieron")}; vuelve a intentarlo en unos minutos.`}
@@ -155,7 +155,7 @@ export default async function AliadoPage({
             conteo: r.conSenal,
             contenido: (
               <div className="space-y-3">
-                <p className="flex flex-wrap items-center gap-1 text-[13px] text-mute">
+                <p className="flex flex-wrap items-center gap-1 text-meta text-mute">
                   Ordenadas por puntaje: la más fuerte primero.
                   <Ayuda titulo="¿Una señal es una acusación?">
                     No: cada señal se publica con la norma citada y el documento oficial que la sostiene, y se publicó sin
@@ -181,7 +181,7 @@ export default async function AliadoPage({
             conteo: r.regiones.length,
             contenido: (
               <div className="space-y-3">
-                <p className="flex flex-wrap items-center gap-1 text-[13px] text-mute">
+                <p className="flex flex-wrap items-center gap-1 text-meta text-mute">
                   Cada zona abre su cola, donde se puede financiar.
                   <Ayuda titulo="¿La zona se elige?">
                     Sí: al aportar se elige la zona y la cantidad. Los contratos concretos, no: salen de la cola por
@@ -208,7 +208,7 @@ export default async function AliadoPage({
                   <PruebaIndependencia nombre={aliado.nombre} />
                   <CadenaAliado nombre={aliado.nombre} items={items} />
                   {contribuciones.length > MAX_DETALLE && (
-                    <p className="text-[12.5px] text-mute">
+                    <p className="text-meta text-mute">
                       Desde el aporte {numero(MAX_DETALLE + 1)}, la fila abre su comprobante público en vez del panel.
                     </p>
                   )}

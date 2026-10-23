@@ -64,7 +64,7 @@ export function IdentidadDossier({
   }, [conv.ocid, conv.codigo]);
   const natural = esPersonaNatural(ganador?.ruc);
   const accion =
-    "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep";
+    "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep";
 
   return (
     <header className="space-y-3">
@@ -86,11 +86,11 @@ export function IdentidadDossier({
       </div>
 
       <div>
-        <Titulo className="max-w-4xl break-words font-display text-[24px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[30px]">
+        <Titulo className="max-w-4xl break-words font-display text-seccion font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">
           {objetoCompleto(conv.objeto) || "Contrato sin objeto registrado"}
         </Titulo>
         {/* Quién compra, en una línea con el código. */}
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] text-inkSoft">
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-dato text-inkSoft">
           <span>
             Convocatoria <span className="font-mono font-semibold text-ink">{codigo}</span>
           </span>
@@ -109,7 +109,7 @@ export function IdentidadDossier({
           <PartidoQueGobierna g={gobierno} completo />
         </p>
         {/* Quién ganó: la persona natural va en vidrio (su apellido y su RUC 10). */}
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] text-inkSoft">
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-dato text-inkSoft">
           {ganador?.nombre ? (
             <>
               <span>
@@ -117,12 +117,12 @@ export function IdentidadDossier({
                 <strong className="font-semibold text-ink">{natural ? <PersonName name={ganador.nombre} orden="sunat" /> : ganador.nombre}</strong>
               </span>
               {ganador.ruc && (
-                <span className="font-mono text-[12.5px] text-mute">
+                <span className="font-mono text-meta text-mute">
                   RUC <Ruc value={ganador.ruc} />
                 </span>
               )}
               {nGanadores > 1 && (
-                <span className="text-[12.5px] text-mute">
+                <span className="text-meta text-mute">
                   y {numero(nGanadores - 1)} {nGanadores - 1 === 1 ? "ganador más" : "ganadores más"} en otros ítems
                 </span>
               )}
@@ -234,7 +234,7 @@ function Compartir({ codigo, objeto }: { codigo: string; objeto?: string | null 
       onClick={compartir}
       aria-live="polite"
       className={cn(
-        "inline-flex min-h-[32px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-paper transition-colors duration-rapido",
+        "inline-flex min-h-[32px] items-center gap-1.5 rounded-full px-3 py-1 text-rotulo font-semibold text-paper transition-colors duration-rapido",
         copiado ? "bg-mossTexto" : "bg-granate hover:bg-granate-deep",
       )}
     >

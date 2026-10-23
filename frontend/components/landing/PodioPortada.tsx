@@ -59,7 +59,7 @@ export async function PodioPortada() {
             >
               Guardianes de los recursos <span className="text-maiz">del Perú.</span>
             </h2>
-            <p className="mt-5 max-w-[56ch] text-pretty text-lg leading-relaxed text-paper/75">
+            <p className="mt-5 max-w-[56ch] text-pretty text-bloque leading-relaxed text-paper/75">
               Ver todo en Vigía es gratis: cada contrato leído lo pagó una persona, un colectivo o una empresa, y es dinero público
               bajo vigilancia. Toca un nombre para ver quién es y qué hizo leer.
             </p>
@@ -71,7 +71,7 @@ export async function PodioPortada() {
             {cifras.map((c) => (
               <div key={c.etiqueta} className="bg-ink p-4 sm:p-6">
                 <dd className="font-display text-3xl font-bold leading-none tabular-nums text-maiz sm:text-5xl">{numero(c.valor)}</dd>
-                <dt className="mt-2 text-[13px] leading-snug text-paper/70 sm:text-[15px]">{c.etiqueta}</dt>
+                <dt className="mt-2 text-meta leading-snug text-paper/70 sm:text-cuerpo">{c.etiqueta}</dt>
               </div>
             ))}
           </dl>

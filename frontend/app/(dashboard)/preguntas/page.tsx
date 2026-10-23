@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EncabezadoPagina, Pagina } from "@/components/patrones";
+import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { FUENTES_FLUJO } from "@/components/landing/fuentesFlujo";
 import { getEstadoGlobal } from "@/lib/financiamiento";
@@ -235,6 +235,7 @@ export default async function PreguntasPage() {
 
   return (
     <Pagina>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Preguntas frecuentes", href: "/preguntas" }]} />
       <AbrirPorAncla />
       <EncabezadoPagina
         titulo="¿Cómo funciona Vigía Perú?"
@@ -258,7 +259,7 @@ export default async function PreguntasPage() {
             <li key={t.id}>
               <a
                 href={`#tema-${t.id}`}
-                className="inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 text-sm font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+                className="inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 text-dato leading-5 font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
               >
                 {t.titulo}
               </a>
@@ -284,10 +285,10 @@ export default async function PreguntasPage() {
         className="sobre-oscuro flex flex-col gap-4 rounded-2xl bg-granate-deep p-5 text-paper sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8"
       >
         <div className="min-w-0">
-          <h2 id="para-periodistas" className="font-display text-lg font-bold text-balance">
+          <h2 id="para-periodistas" className="font-display text-bloque leading-7 font-bold text-balance">
             ¿Eres periodista, fiscal o auditor?
           </h2>
-          <p className="mt-1 text-sm leading-snug text-paper/75 text-pretty">
+          <p className="mt-1 text-dato leading-snug text-paper/75 text-pretty">
             Cada señal publicada trae la regla que la disparó, la norma que cita y la evidencia del expediente.
           </p>
         </div>

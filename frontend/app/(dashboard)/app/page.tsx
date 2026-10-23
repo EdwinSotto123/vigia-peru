@@ -187,7 +187,7 @@ export default async function InicioApp() {
         )}
 
         <section aria-labelledby="caminos-titulo">
-          <h2 id="caminos-titulo" className="etiqueta-mono mb-3">Qué puedes hacer</h2>
+          <h2 id="caminos-titulo" className="font-display text-seccion font-bold text-ink mb-3">Qué puedes hacer</h2>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {CAMINOS.map(({ href, Icono, titulo, texto }) => (
               <li key={href}>
@@ -199,8 +199,8 @@ export default async function InicioApp() {
                     <Icono size={19} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold leading-snug text-ink">{titulo}</span>
-                    <span className="block text-[13px] leading-snug text-mute">{texto}</span>
+                    <span className="block text-cuerpo font-semibold leading-snug text-ink">{titulo}</span>
+                    <span className="block text-meta leading-snug text-mute">{texto}</span>
                   </span>
                   <ArrowUpRight size={15} aria-hidden className="shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" />
                 </Link>
@@ -211,7 +211,7 @@ export default async function InicioApp() {
 
         {ultimas.length > 0 && (
           <section aria-labelledby="ultimo-titulo">
-            <h2 id="ultimo-titulo" className="etiqueta-mono mb-3">Lo último que Vigía marcó</h2>
+            <h2 id="ultimo-titulo" className="font-display text-seccion font-bold text-ink mb-3">Lo último que Vigía marcó</h2>
             <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
               {ultimas.map((a) => {
                 const n = a.n_banderas ?? 0;
@@ -222,8 +222,8 @@ export default async function InicioApp() {
                       className="flex items-start justify-between gap-4 px-4 py-3 transition-colors duration-rapido hover:bg-granate-50 sm:px-5"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-[15px] font-semibold text-ink">{a.objeto ? tituloNatural(a.objeto) : "Contrato sin título"}</span>
-                        <span className="block truncate text-[13px] text-mute">
+                        <span className="block truncate text-cuerpo font-semibold text-ink">{a.objeto ? tituloNatural(a.objeto) : "Contrato sin título"}</span>
+                        <span className="block truncate text-meta text-mute">
                           <Partes
                             partes={[
                               a.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(a.entidad)}</Dato>,
@@ -232,7 +232,7 @@ export default async function InicioApp() {
                           />
                         </span>
                       </span>
-                      <span className="shrink-0 text-right text-[13px] leading-snug text-mute">
+                      <span className="shrink-0 text-right text-meta leading-snug text-mute">
                         <span className="block font-semibold text-ink">{n} {n === 1 ? "señal" : "señales"}</span>
                         <span className="block">{relativo(a.analizado_en)}</span>
                       </span>
@@ -241,7 +241,7 @@ export default async function InicioApp() {
                 );
               })}
             </ul>
-            <p className="mt-2 text-[13px] text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación.</p>
+            <p className="mt-2 text-meta text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación.</p>
           </section>
         )}
       </Pagina>

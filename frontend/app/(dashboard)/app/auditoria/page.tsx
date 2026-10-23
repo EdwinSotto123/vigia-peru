@@ -1,5 +1,5 @@
 import { BarChart3, BookOpen, CheckCircle2, Radio } from "lucide-react";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario, type OpcionFaceta } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -194,6 +194,7 @@ export default async function AuditoriaPage({
 
   return (
     <Pagina>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }]} />
       {/* Esta pantalla es un tablero: se entra a MIRAR, no a leer una introducción. El método
           está en su pestaña; el ⓘ lo resume en dos oraciones. */}
       <EncabezadoPagina

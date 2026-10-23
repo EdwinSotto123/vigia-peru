@@ -55,6 +55,7 @@ import { FASES, canonico, getReglasPerfil, type CitaDocumento } from "@/lib/audi
 import { esAlertaReal } from "@/lib/semillas";
 import { enParalelo } from "@/lib/concurrencia";
 import { esRucPersonaNatural } from "@/lib/privacidad";
+import { RANGO_SEVERIDAD } from "@/lib/severidad";
 
 export type NivelBandera = "alta" | "media" | "baja";
 
@@ -454,10 +455,10 @@ function aplanar(a: ApiAlerta, ricas: BanderaRica[], cat: CatalogoReglas): Senal
       citas,
       ocid: String(a.codigoconvocatoria),
       alertaCodigo: a.codigo ?? null,
-      objeto: a.objeto ?? "—",
-      entidad: a.entidad ?? "—",
+      objeto: a.objeto ?? "Sin dato",
+      entidad: a.entidad ?? "Sin dato",
       rucEntidad: a.rucEntidad ?? "",
-      proveedor: a.proveedor ?? "—",
+      proveedor: a.proveedor ?? "Sin dato",
       rucProveedor,
       personasPrivadas: [],
       montoSoles: Number(a.montoSoles ?? 0),
@@ -473,7 +474,7 @@ function aplanar(a: ApiAlerta, ricas: BanderaRica[], cat: CatalogoReglas): Senal
   return senales;
 }
 
-const PESO: Record<NivelBandera, number> = { alta: 0, media: 1, baja: 2 };
+const PESO: Record<NivelBandera, number> = RANGO_SEVERIDAD;
 
 /**
  * Las 94 alertas publicadas, crudas. Separado del enriquecimiento porque hay dos
@@ -661,7 +662,7 @@ export function facetasSenales(senales: Senal[], q: SenalesQuery): FacetasSenale
     regla: contar(sub("regla"), (s) => s.regla, (s) => s.etiqueta),
     entidad: contar(sub("entidad"), (s) => s.rucEntidad || null, (s) => s.entidad),
     agente: [
-      ...contar(sub("agente"), (s) => s.agente, (s) => s.agenteLabel ?? s.agente ?? "—"),
+      ...contar(sub("agente"), (s) => s.agente, (s) => s.agenteLabel ?? s.agente ?? "Sin dato"),
       // Las señales cuyo agente de origen no consta se ofrecen como su propia opción,
       // con su conteo real, en vez de desaparecer del filtro sin decir nada.
       ...(() => {

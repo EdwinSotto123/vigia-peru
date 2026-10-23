@@ -50,15 +50,15 @@ export function DetalleFinanciador({
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-paperDeep text-inkSoft" aria-hidden><Users size={18} /></span>
           )}
           <div className="min-w-0">
-            <p className={f.nombrePublico ? "font-display text-lg font-bold text-ink" : "text-lg italic text-mute"}>{nombre}</p>
-            <p className="text-[12px] text-mute">{tipoFinanciadorLabel(f.tipo)}</p>
+            <p className={f.nombrePublico ? "font-display text-bloque leading-7 font-bold text-ink" : "text-bloque leading-7 italic text-mute"}>{nombre}</p>
+            <p className="text-rotulo text-mute">{tipoFinanciadorLabel(f.tipo)}</p>
             <div className="mt-1">
               {f.visible ? (
                 <Badge tono="ok" punto>Visible</Badge>
               ) : (
                 <span className="inline-flex flex-wrap items-center gap-1.5">
                   <Badge tono="danger" punto>Oculto</Badge>
-                  <span className="text-[11px] text-mute">{motivoNoVisibleLabel(f.motivoNoVisible) ?? "sin motivo registrado"}</span>
+                  <span className="text-micro text-mute">{motivoNoVisibleLabel(f.motivoNoVisible) ?? "sin motivo registrado"}</span>
                 </span>
               )}
             </div>
@@ -88,8 +88,8 @@ export function DetalleFinanciador({
               </a>
             )}
             <div>
-              <p className="text-[11px] font-medium text-mute">Descripción</p>
-              {f.descripcion ? <p className="mt-0.5 text-[13px] text-ink">{f.descripcion}</p> : <p className="mt-0.5 text-sm"><SinDato texto="No publicó descripción" /></p>}
+              <p className="text-micro font-medium text-mute">Descripción</p>
+              {f.descripcion ? <p className="mt-0.5 text-meta text-ink">{f.descripcion}</p> : <p className="mt-0.5 text-dato leading-5"><SinDato texto="No publicó descripción" /></p>}
             </div>
             <KeyValue
               columnas={1}

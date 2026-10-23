@@ -10,6 +10,7 @@
 import { esAlertaReal } from "./semillas";
 import { fecha, soles } from "./formato";
 import { conTildes } from "./tildes";
+import { rangoSeveridad } from "@/lib/severidad";
 
 export interface BanderaReal {
   regla: string;
@@ -117,7 +118,6 @@ export interface CasoPortada {
  */
 export { esAlertaReal };
 
-const PESO_SEVERIDAD: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
 /**
  * Qué señales pueden ir en la portada. Sólo las que describen el PROCESO
@@ -176,7 +176,7 @@ function mejorBandera(a: AlertaReal): BanderaReal | null {
       !recortada(b.evidencia) &&
       !nombraAUnaPersona(b.evidencia),
   );
-  legibles.sort((x, y) => (PESO_SEVERIDAD[y.severidad] ?? 0) - (PESO_SEVERIDAD[x.severidad] ?? 0));
+  legibles.sort((x, y) => rangoSeveridad(x.severidad) - rangoSeveridad(y.severidad));
   return legibles[0] ?? null;
 }
 
@@ -241,7 +241,7 @@ export function elegirCasos(alertas: AlertaReal[], cuantos = 4): CasoPortada[] {
     .sort(
       (x, y) =>
         (y.a.score ?? 0) - (x.a.score ?? 0) ||
-        (PESO_SEVERIDAD[y.b.severidad] ?? 0) - (PESO_SEVERIDAD[x.b.severidad] ?? 0) ||
+        rangoSeveridad(x.b.severidad) - rangoSeveridad(y.b.severidad) ||
         (y.a.fechaBuenaPro ?? "").localeCompare(x.a.fechaBuenaPro ?? ""),
     );
 

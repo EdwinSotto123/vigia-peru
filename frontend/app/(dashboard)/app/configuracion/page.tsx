@@ -37,7 +37,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, Eye, EyeOff, Download, Trash2, Loader2, Check, LogIn, RefreshCw, ChevronRight, ShieldAlert, ShieldCheck, UserRound } from "lucide-react";
-import { Ayuda, Beneficios, Cargando, EncabezadoPagina, EstadoError, Franja, Pagina } from "@/components/patrones";
+import { Ayuda, Beneficios, Cargando, EncabezadoPagina, EstadoError, Franja, Migas, Pagina } from "@/components/patrones";
 import { AliadosDelPais, CifrasDelPais, RecientesDelPais, SinCuentaConCuenta } from "@/components/cuenta/ResumenPublico";
 import { fechaCorta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,7 @@ export default function ConfiguracionPage() {
 
   return (
     <Pagina>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Configuración", href: "/app/configuracion" }]} />
       <EncabezadoPagina
         titulo="Configuración"
         bajada="Tu perfil público de aliado, qué avisos quieres y qué guardamos de ti."
@@ -96,7 +97,7 @@ export default function ConfiguracionPage() {
               icono={<LogIn size={18} />}
               titulo="Entra para guardar tu perfil y tus avisos"
               accion={
-                <Link href="/login?next=/app/configuracion" prefetch={false} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+                <Link href="/login?next=/app/configuracion" prefetch={false} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
                   <LogIn size={16} aria-hidden /> Entrar
                 </Link>
               }
@@ -112,15 +113,15 @@ export default function ConfiguracionPage() {
               ]}
             />
             <section aria-labelledby="config-guardamos" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-              <h2 id="config-guardamos" className="font-display text-[16px] font-bold text-ink">Qué guardamos si creas una cuenta</h2>
-              <ul className="mt-2 list-outside list-disc space-y-1 pl-5 text-[13.5px] leading-snug text-inkSoft">
+              <h2 id="config-guardamos" className="font-display text-bloque font-bold text-ink">Qué guardamos si creas una cuenta</h2>
+              <ul className="mt-2 list-outside list-disc space-y-1 pl-5 text-dato leading-snug text-inkSoft">
                 <li>Tu nombre de usuario, sin correo salvo que lo dejes.</li>
                 <li>Tu perfil público: lo que decidas publicar y si eres visible o anónimo.</li>
                 <li>Tu RUC, si lo registras: solo para el chequeo de conflicto de interés, nunca se publica.</li>
                 <li>Las zonas y entidades que sigues, y tus preferencias de aviso.</li>
                 <li>Tus aportes y las denuncias enviadas con sesión.</li>
               </ul>
-              <p className="mt-2 text-xs text-mute">
+              <p className="mt-2 text-rotulo leading-4 text-mute">
                 Los aportes y los contratos leídos con ellos son públicos por diseño (comprobante de impacto). Detalle en{" "}
                 <Link href="/preguntas#cuentas" className="font-medium text-granate underline underline-offset-2">Cuánto cuesta y quién paga</Link>.
               </p>
@@ -139,7 +140,7 @@ export default function ConfiguracionPage() {
         <EstadoError
           titulo="No pudimos cargar tu cuenta"
           accion={
-            <button type="button" onClick={reintentar} disabled={reintentando} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-60">
+            <button type="button" onClick={reintentar} disabled={reintentando} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-60">
               <RefreshCw size={14} className={reintentando ? "animate-spin" : ""} aria-hidden /> {reintentando ? "Reintentando…" : "Reintentar"}
             </button>
           }
@@ -293,13 +294,13 @@ function Formulario({ perfil }: { perfil: Perfil }) {
             open={perfilOpen}
             onOpenChange={setPerfilOpen}
             hint={
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-mute">
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-micro font-medium text-mute">
                 {estado === "oculto" ? <ShieldAlert size={12} aria-hidden /> : estado === "visible" ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
                 {estado === "oculto" ? "Oculto" : estado === "visible" ? "Visible" : "Anónimo"}
               </span>
             }
           >
-            <p className="mb-4 flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+            <p className="mb-4 flex flex-wrap items-center gap-x-1 text-dato leading-5 text-inkSoft">
               <span>
                 Lo defines tú: así figuras en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">ranking de aliados</Link>.
               </span>
@@ -323,16 +324,16 @@ function Formulario({ perfil }: { perfil: Perfil }) {
             subtitulo="Correo opcional y qué avisos quieres recibir"
             open={correoOpen}
             onOpenChange={setCorreoOpen}
-            hint={<span className="shrink-0 text-xs font-medium tabular-nums text-mute">{notifsActivos} de {NOTIFS.length} activos</span>}
+            hint={<span className="shrink-0 text-rotulo leading-4 font-medium tabular-nums text-mute">{notifsActivos} de {NOTIFS.length} activos</span>}
           >
-            <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+            <p className="flex flex-wrap items-center gap-x-1 text-dato leading-5 text-inkSoft">
               <strong className="font-semibold text-ink">Todavía no enviamos correos:</strong> sólo guardamos tu preferencia.
               <Ayuda titulo="¿Para qué es el correo?">
                 Tu cuenta no necesita correo. Si dejas uno, es privado y solo sirve para los avisos que actives. No es el correo
                 público de tu perfil.
               </Ayuda>
             </p>
-            <div className="mt-3 text-sm">
+            <div className="mt-3 text-dato leading-5">
               <label htmlFor={idCampo("correo")} className="font-semibold text-inkSoft">Correo (opcional)</label>
               <input
                 id={idCampo("correo")}
@@ -346,16 +347,16 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                 className={campo(errores.correo)}
                 placeholder="tu@correo.pe"
               />
-              {errores.correo && <p id={`${idCampo("correo")}-error`} className="mt-1 text-[13px] text-crimsonTexto">{errores.correo}</p>}
+              {errores.correo && <p id={`${idCampo("correo")}-error`} className="mt-1 text-meta text-crimsonTexto">{errores.correo}</p>}
             </div>
             <ul className="mt-3 space-y-2">
               {NOTIFS.map((n) => {
                 const activo = !!notifs[n.k];
                 return (
                   <li key={n.k}>
-                    <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-sm transition-colors duration-rapido ${activo ? "border-granate/30 bg-granate-50" : "border-line hover:bg-paperSoft"}`}>
+                    <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-dato leading-5 transition-colors duration-rapido ${activo ? "border-granate/30 bg-granate-50" : "border-line hover:bg-paperSoft"}`}>
                       <input type="checkbox" checked={activo} onChange={(e) => { setNotifs((x) => ({ ...x, [n.k]: e.target.checked })); setOk(false); }} className="mt-0.5 h-4 w-4 rounded border-line accent-granate" />
-                      <span><span className="block text-ink">{n.label}</span><span className="block text-xs text-mute">{n.hint}</span></span>
+                      <span><span className="block text-ink">{n.label}</span><span className="block text-rotulo leading-4 text-mute">{n.hint}</span></span>
                     </label>
                   </li>
                 );
@@ -368,17 +369,17 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           {/* Una región viva siempre montada: el resumen de errores o el fallo general se anuncian al aparecer. */}
           <div role="alert">
             {nErrores > 0 && (
-              <p className="text-sm text-crimsonTexto">
+              <p className="text-dato leading-5 text-crimsonTexto">
                 {nErrores === 1 ? "Revisa el campo marcado antes de guardar." : `Revisa los ${nErrores} campos marcados antes de guardar.`}
               </p>
             )}
-            {error && <p className="text-sm text-crimsonTexto">{error}</p>}
+            {error && <p className="text-dato leading-5 text-crimsonTexto">{error}</p>}
           </div>
           {/* Guardado = positivo: moss (antes maíz con texto blanco, ≈ 1.9:1, ilegible). */}
           <button
             type="submit"
             disabled={guardando}
-            className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-paper transition-colors duration-rapido disabled:opacity-60 ${ok ? "bg-moss" : "bg-granate hover:bg-granate-deep"}`}
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-6 py-3 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido disabled:opacity-60 ${ok ? "bg-moss" : "bg-granate hover:bg-granate-deep"}`}
           >
             {/* key cambia entre idle/guardando/ok -> React remonta el span y el fade-in de 200ms
                 vuelve a correr cada vez, así el "Guardado" se siente como una confirmación y no
@@ -404,45 +405,45 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                 <h3 className={SUBTITULO}>Tu cuenta</h3>
                 <dl className="mt-2 grid grid-cols-2 gap-3">
                   <div>
-                    <dt className="text-xs text-mute">Usuario</dt>
-                    <dd className="truncate font-mono text-sm font-semibold text-ink" title={perfil.userId ?? perfil.uid}>{perfil.userId ?? perfil.uid.slice(0, 8)}</dd>
+                    <dt className="text-rotulo leading-4 text-mute">Usuario</dt>
+                    <dd className="truncate font-mono text-dato leading-5 font-semibold text-ink" title={perfil.userId ?? perfil.uid}>{perfil.userId ?? perfil.uid.slice(0, 8)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-mute">Miembro desde</dt>
-                    <dd className="text-sm font-semibold text-ink">{fechaCorta(perfil.createdAt)}</dd>
+                    <dt className="text-rotulo leading-4 text-mute">Miembro desde</dt>
+                    <dd className="text-dato leading-5 font-semibold text-ink">{fechaCorta(perfil.createdAt)}</dd>
                   </div>
                 </dl>
               </div>
 
               <div className="border-t border-line pt-4">
                 <h3 className={SUBTITULO}>Qué guardamos</h3>
-                <ul className="mt-2 list-outside list-disc space-y-1 rounded-xl bg-paperSoft p-3 pl-7 text-[12px] text-ink">
+                <ul className="mt-2 list-outside list-disc space-y-1 rounded-xl bg-paperSoft p-3 pl-7 text-rotulo text-ink">
                   <li>Tu nombre de usuario (sin correo, salvo que lo dejes arriba).</li>
                   <li>Tu perfil público: lo que decidas publicar y si eres visible o anónimo.</li>
                   <li>Tu RUC, si lo registras: sólo para el chequeo de conflicto de interés, nunca se publica.</li>
                   <li>Zonas y entidades que sigues; preferencias de aviso.</li>
                   <li>Tus aportes y las denuncias enviadas con sesión.</li>
                 </ul>
-                <p className="mt-2 text-xs text-mute">Los aportes y los contratos leídos con ellos son públicos por diseño (comprobante de impacto). Detalle en <Link href="/preguntas#cuentas" className="font-medium text-granate underline underline-offset-2">Cuánto cuesta y quién paga</Link>.</p>
-                <button type="button" onClick={exportar} className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
+                <p className="mt-2 text-rotulo leading-4 text-mute">Los aportes y los contratos leídos con ellos son públicos por diseño (comprobante de impacto). Detalle en <Link href="/preguntas#cuentas" className="font-medium text-granate underline underline-offset-2">Cuánto cuesta y quién paga</Link>.</p>
+                <button type="button" onClick={exportar} className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
                   <Download size={14} aria-hidden /> Exportar mis datos (JSON)
                 </button>
               </div>
 
               <div className="rounded-xl border border-crimson/25 bg-crimson-soft/40 p-4">
-                <h3 className="text-sm font-semibold text-crimsonTexto">Borrar cuenta</h3>
-                <p className="mt-1 text-[13px] text-ink">Se elimina tu usuario y se anonimiza tu perfil de aliado. <strong>Tus aportes se conservan</strong> (son públicos y ya financiaron análisis) y aparecerán como “Anónimo”; tus denuncias quedan sin autor.</p>
+                <h3 className="text-cuerpo font-semibold text-crimsonTexto">Borrar cuenta</h3>
+                <p className="mt-1 text-meta text-ink">Se elimina tu usuario y se anonimiza tu perfil de aliado. <strong>Tus aportes se conservan</strong> (son públicos y ya financiaron análisis) y aparecerán como “Anónimo”; tus denuncias quedan sin autor.</p>
                 {!confirmar ? (
-                  <button type="button" onClick={() => setConfirmar(true)} className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-full border border-crimson/40 bg-paper px-3 py-2 text-sm font-semibold text-crimsonTexto transition-colors duration-rapido hover:bg-crimson-soft">
+                  <button type="button" onClick={() => setConfirmar(true)} className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-full border border-crimson/40 bg-paper px-3 py-2 text-dato leading-5 font-semibold text-crimsonTexto transition-colors duration-rapido hover:bg-crimson-soft">
                     <Trash2 size={14} aria-hidden /> Quiero borrar mi cuenta
                   </button>
                 ) : (
                   <div className="mt-3 space-y-2">
-                    <label className="block text-[12px] text-ink">Escribe <span className="font-mono font-semibold">BORRAR</span> para confirmar
+                    <label className="block text-rotulo text-ink">Escribe <span className="font-mono font-semibold">BORRAR</span> para confirmar
                       <input value={confirmTexto} onChange={(e) => setConfirmTexto(e.target.value)} className={cn(CAMPO, "bg-paper font-mono")} autoComplete="off" />
                     </label>
                     {/* Por seguridad se pide la contraseña: sin ella Firebase no deja borrar el acceso. */}
-                    <label className="block text-[12px] text-ink">Tu contraseña
+                    <label className="block text-rotulo text-ink">Tu contraseña
                       <input
                         type="password"
                         value={confirmPassword}
@@ -453,12 +454,12 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                         className={cn(CAMPO, "bg-paper")}
                       />
                     </label>
-                    {errorBorrar && <p id="borrar-error" role="alert" className="text-[13px] text-crimsonTexto">{errorBorrar}</p>}
+                    {errorBorrar && <p id="borrar-error" role="alert" className="text-meta text-crimsonTexto">{errorBorrar}</p>}
                     <div className="flex gap-2">
-                      <button type="button" onClick={borrar} disabled={borrando || confirmTexto.trim().toUpperCase() !== "BORRAR" || !confirmPassword} className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full bg-crimsonTexto px-3 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-crimsonTexto/90 disabled:opacity-50">
+                      <button type="button" onClick={borrar} disabled={borrando || confirmTexto.trim().toUpperCase() !== "BORRAR" || !confirmPassword} className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full bg-crimsonTexto px-3 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-crimsonTexto/90 disabled:opacity-50">
                         {borrando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Trash2 size={14} aria-hidden />} Borrar definitivamente
                       </button>
-                      <button type="button" onClick={() => { setConfirmar(false); setConfirmTexto(""); setConfirmPassword(""); setErrorBorrar(null); }} className="min-h-[40px] rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep">Cancelar</button>
+                      <button type="button" onClick={() => { setConfirmar(false); setConfirmTexto(""); setConfirmPassword(""); setErrorBorrar(null); }} className="min-h-[40px] rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep">Cancelar</button>
                     </div>
                   </div>
                 )}
@@ -515,8 +516,8 @@ function Colapsable({
     >
       <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 p-5 transition-colors duration-rapido hover:bg-paperSoft sm:p-6 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-[17px] font-bold text-ink">{titulo}</h2>
-          {subtitulo && <p className="mt-0.5 text-[13px] text-mute">{subtitulo}</p>}
+          <h2 className="font-display text-bloque font-bold text-ink">{titulo}</h2>
+          {subtitulo && <p className="mt-0.5 text-meta text-mute">{subtitulo}</p>}
         </div>
         {hint}
         <ChevronRight size={16} className={`shrink-0 text-mute transition-transform duration-normal ${open ? "rotate-90" : ""}`} aria-hidden />

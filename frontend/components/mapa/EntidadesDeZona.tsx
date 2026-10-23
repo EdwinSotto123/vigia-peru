@@ -127,12 +127,12 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={`Buscar entidad en ${nombre}…`}
-          className="w-full bg-transparent text-sm text-ink placeholder:text-mute focus:outline-none"
+          className="w-full bg-transparent text-dato leading-5 text-ink placeholder:text-mute focus:outline-none"
         />
       </label>
 
       {pagina && pagina.total > 0 && (
-        <p className="flex items-center gap-1 text-[12px] tabular-nums text-inkSoft" aria-live="polite">
+        <p className="flex items-center gap-1 text-rotulo tabular-nums text-inkSoft" aria-live="polite">
           <span>
             <strong className="font-semibold text-ink">{numero(pagina.total)}</strong> {qDebounced ? "que coinciden" : "entidades"}
           </span>
@@ -176,8 +176,8 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
                   <Building2 size={13} aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{tituloNatural(e.nombre)}</span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                  <span className="line-clamp-2 text-rotulo font-medium leading-snug text-ink">{tituloNatural(e.nombre)}</span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
                     {TIPO_LABEL[e.tipo] && <Dato tipo="tipo">{TIPO_LABEL[e.tipo]}</Dato>}
                     {e.provincia && <Dato tipo="lugar">{e.provincia}</Dato>}
                     {(e.contratos ?? 0) > 0 && (
@@ -210,7 +210,7 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
         />
       )}
 
-      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center text-rotulo font-medium text-granate underline-offset-2 hover:underline">
         Ver el ranking nacional de entidades
       </Link>
     </div>

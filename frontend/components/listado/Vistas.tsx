@@ -32,7 +32,7 @@ export function Vistas({ vistas, etiqueta, className }: { vistas: Vista[]; etiqu
           prefetch={false}
           aria-current={v.activa ? "page" : undefined}
           className={cn(
-            "inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido sm:gap-2 sm:px-4 sm:text-[14px]",
+            "inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-meta font-medium transition-colors duration-rapido sm:gap-2 sm:px-4 sm:text-dato",
             v.activa ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
           )}
         >
@@ -40,7 +40,7 @@ export function Vistas({ vistas, etiqueta, className }: { vistas: Vista[]; etiqu
           {v.conteo === null ? (
             <span className="inline-block h-2.5 w-6 animate-shimmerSweep rounded bg-gradient-to-r from-paperDeep via-paper to-paperDeep bg-[length:200%_100%]" aria-hidden />
           ) : v.conteo !== undefined ? (
-            <span className={cn("text-[12px] font-semibold tabular-nums", v.activa ? "text-paper/85" : "text-mute")}>{numero(v.conteo)}</span>
+            <span className={cn("text-rotulo font-semibold tabular-nums", v.activa ? "text-paper/85" : "text-mute")}>{numero(v.conteo)}</span>
           ) : null}
         </Link>
       ))}

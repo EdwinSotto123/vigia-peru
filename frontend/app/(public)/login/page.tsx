@@ -66,14 +66,14 @@ function LoginInner() {
   };
 
   const campo =
-    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-base text-ink placeholder:text-mute transition-colors duration-rapido focus:bg-paper focus:outline-none focus:ring-1";
-  const etiqueta = "text-sm font-medium text-ink";
+    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-destacado leading-6 text-ink placeholder:text-mute transition-colors duration-rapido focus:bg-paper focus:outline-none focus:ring-1";
+  const etiqueta = "text-dato leading-5 font-medium text-ink";
 
   return (
     <div className="container-page flex min-h-[calc(100vh-200px)] items-center justify-center py-12">
       <div className="w-full max-w-md">
         {cuentaBorrada && (
-          <div role="status" className="mb-6 flex items-start gap-2 rounded-2xl border border-moss/30 bg-moss/10 px-4 py-3 text-sm text-ink">
+          <div role="status" className="mb-6 flex items-start gap-2 rounded-2xl border border-moss/30 bg-moss/10 px-4 py-3 text-dato leading-5 text-ink">
             <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
             <span>
               <strong className="font-semibold">Tu cuenta se borró.</strong> Tus aportes se conservan y aparecen como
@@ -91,10 +91,10 @@ function LoginInner() {
         {/* Sin ícono encima: la firma ya está en la cabecera, y el escudo que
             había acá no es de Vigía (DESIGN_SYSTEM.md §1: nada de íconos de policía). */}
         <div className="mb-6 text-center">
-          <h1 className="text-balance font-display text-[30px] font-bold leading-tight tracking-tight text-ink">
+          <h1 className="text-balance font-display text-titulo font-bold leading-tight tracking-tight text-ink">
             Inicia sesión
           </h1>
-          <p className="mt-2 text-pretty text-[15px] leading-relaxed text-inkSoft">
+          <p className="mt-2 text-pretty text-cuerpo leading-relaxed text-inkSoft">
             Ingresa con tu nombre de usuario y contraseña. La cuenta es opcional: sirve para seguir tus denuncias y aportes.
           </p>
         </div>
@@ -141,7 +141,7 @@ function LoginInner() {
                 onClick={() => setShowPw((v) => !v)}
                 aria-controls="login-password"
                 aria-pressed={showPw}
-                className="inline-flex min-h-6 items-center gap-1 rounded-full px-1.5 text-xs font-medium text-granate hover:underline"
+                className="inline-flex min-h-6 items-center gap-1 rounded-full px-1.5 text-rotulo leading-4 font-medium text-granate hover:underline"
               >
                 {showPw ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
                 {showPw ? "Ocultar" : "Mostrar"}
@@ -167,13 +167,13 @@ function LoginInner() {
                 className={cn(campo, error ? "border-crimson focus:border-crimson focus:ring-crimson" : "border-line focus:border-granate focus:ring-granate")}
               />
             </div>
-            <p id="login-sin-recuperacion" className="mt-1 text-xs text-mute">
+            <p id="login-sin-recuperacion" className="mt-1 text-rotulo leading-4 text-mute">
               No pedimos correo, así que una contraseña olvidada no se puede recuperar.
             </p>
           </div>
 
           {error && (
-            <div id="login-error" role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
+            <div id="login-error" role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-meta text-crimsonTexto">
               <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden />
               <span>{error}</span>
             </div>
@@ -197,7 +197,7 @@ function LoginInner() {
             )}
           </Button>
 
-          <p className="text-center text-[13px] text-mute">
+          <p className="text-center text-meta text-mute">
             ¿Sin cuenta?{" "}
             <Link href={signupHref} className="font-semibold text-granate hover:underline">
               Crear una →
@@ -205,7 +205,7 @@ function LoginInner() {
           </p>
         </form>
 
-        <p className="mt-4 text-center text-xs text-mute">
+        <p className="mt-4 text-center text-rotulo leading-4 text-mute">
           Tu nombre de usuario es único y privado. No pedimos correo electrónico.
         </p>
       </div>

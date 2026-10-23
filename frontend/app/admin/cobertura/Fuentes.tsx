@@ -62,7 +62,7 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
       celda: ({ meta }) => (
         <>
           <span className="block font-medium text-ink">{meta.nombre}</span>
-          <span className="block text-[11.5px] text-mute">Sirve para cruzar {meta.cruce}</span>
+          <span className="block text-rotulo text-mute">Sirve para cruzar {meta.cruce}</span>
         </>
       ),
     },
@@ -72,15 +72,15 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
       celda: ({ meta }) => (
         <span title={DONDE[meta.donde].ayuda}>
           <Badge tono={DONDE[meta.donde].tono} punto>{DONDE[meta.donde].label}</Badge>
-          <span className="mt-0.5 block text-[11px] text-mute">{meta.cadencia}</span>
+          <span className="mt-0.5 block text-micro text-mute">{meta.cadencia}</span>
         </span>
       ),
     },
-    { clave: "filas", titulo: "Filas", alinear: "derecha", celda: ({ f }) => (f ? fmtNum(f.filas) : <span className="font-sans text-[12px] text-mute">—</span>) },
+    { clave: "filas", titulo: "Filas", alinear: "derecha", celda: ({ f }) => (f ? fmtNum(f.filas) : <span className="font-sans text-rotulo text-mute">—</span>) },
     {
       clave: "ultima",
       titulo: "Última carga",
-      className: "whitespace-nowrap text-[12px]",
+      className: "whitespace-nowrap text-rotulo",
       celda: ({ f }) => (f?.ultimaCarga ? <span className="text-ink" title={fmtFechaHora(f.ultimaCarga) ?? undefined}>{hace(f.ultimaCarga)}</span> : <SinDato texto="Sin dato" />),
     },
     {
@@ -91,7 +91,7 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
         return (
           <>
             <Badge tono={e.tono}>{e.label}</Badge>
-            <span className="mt-0.5 block text-[11px] text-mute">{e.pista}</span>
+            <span className="mt-0.5 block text-micro text-mute">{e.pista}</span>
           </>
         );
       },
@@ -107,12 +107,12 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
         <div className="grid gap-2 md:grid-cols-2">
           {filas.filter((x) => x.f).map(({ clave, f, meta }) => (
             <div key={clave} className="min-w-0 rounded-xl border border-line bg-paperSoft px-3 py-2">
-              <p className="text-[13px] font-medium text-ink">{meta.nombre}</p>
-              <p className="truncate font-mono text-[11px] text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>{clave}{f!.tabla ? ` → ${f!.tabla}` : ""}</p>
-              <p className="text-[12px] leading-snug text-inkSoft">
+              <p className="text-meta font-medium text-ink">{meta.nombre}</p>
+              <p className="truncate font-mono text-micro text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>{clave}{f!.tabla ? ` → ${f!.tabla}` : ""}</p>
+              <p className="text-rotulo leading-snug text-inkSoft">
                 Último archivo <span className="font-mono text-ink">{f!.ultimaClave ?? "sin dato"}</span>, descargado {fmtFechaHora(f!.ultimaDescarga) ?? "sin fecha"}.
               </p>
-              <p className={`truncate text-[12px] ${f!.ultimoError ? "font-mono text-crimsonTexto" : "text-mute"}`} title={f!.ultimoError ?? undefined}>
+              <p className={`truncate text-rotulo ${f!.ultimoError ? "font-mono text-crimsonTexto" : "text-mute"}`} title={f!.ultimoError ?? undefined}>
                 {f!.ultimoError ? `Último error: ${f!.ultimoError}` : "Sin errores registrados"}
               </p>
             </div>

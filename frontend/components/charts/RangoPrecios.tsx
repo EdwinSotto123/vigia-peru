@@ -116,7 +116,7 @@ function PastillaVeredicto({ fila }: { fila: FilaPrecio }) {
   return (
     <span
       className={cn(
-        "pill justify-self-end whitespace-nowrap px-2 py-0 text-[11px]",
+        "pill justify-self-end whitespace-nowrap px-2 py-0 text-micro",
         fila.veredicto.ui.fondo,
         fila.veredicto.ui.texto,
         fila.veredicto.ui.borde,
@@ -359,10 +359,10 @@ function Renglon({
     <div className={cn(REJILLA, "rounded-lg px-2 py-1.5 transition-colors duration-rapido group-hover:bg-paperSoft")}>
       <div className="min-w-0">
         <div className="flex items-baseline gap-1.5">
-          <span className="shrink-0 font-mono text-[11px] font-semibold text-inkSoft">{fila.numero}</span>
-          <span className="truncate text-[12px] font-medium leading-tight text-ink">{fila.descripcion}</span>
+          <span className="shrink-0 font-mono text-micro font-semibold text-inkSoft">{fila.numero}</span>
+          <span className="truncate text-rotulo font-medium leading-tight text-ink">{fila.descripcion}</span>
         </div>
-        <div className="truncate text-[11px] tabular-nums text-mute">
+        <div className="truncate text-micro tabular-nums text-mute">
           {fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : "Sin cantidad"}
           {fila.ofertadoUnit !== null && `, ${fmtMoney(fila.ofertadoUnit)} c/u`}
           {fila.referenciaUnit !== null &&
@@ -377,7 +377,7 @@ function Renglon({
         {etiqueta && xOf !== null && ancho > 0 && (
           <span
             className={cn(
-              "pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-paper/90 px-1 text-[10px] font-semibold",
+              "pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-paper/90 px-1 text-micro font-semibold",
               fila.sobreElRango ? "text-rust" : "text-inkSoft",
               !etiquetaDirecta &&
                 "opacity-0 transition-opacity duration-rapido group-hover:opacity-100 group-focus-visible:opacity-100",
@@ -467,12 +467,12 @@ export function RangoPrecios({
 
       {/* Eje. Este bloque además mide el ancho del área de dibujo de todos los renglones. */}
       <div className={cn(REJILLA, "px-2 pb-1")}>
-        <div className="text-[11px] font-semibold text-mute">Ítem</div>
+        <div className="text-micro font-semibold text-mute">Ítem</div>
         <div ref={ref} className="order-last col-span-2 sm:order-none sm:col-span-1">
           {/* El padding replica el del trazo, para que las marcas del eje caigan
               exactamente sobre el 0 y el techo que dibuja cada renglón. */}
           <div className="px-[5px]">
-            <div className="grid grid-cols-3 font-mono text-[10px] tabular-nums text-mute">
+            <div className="grid grid-cols-3 font-mono text-micro tabular-nums text-mute">
               <span className="text-left">S/ 0</span>
               <span className="text-center">{fmtMoney(maximo / 2)}</span>
               <span className="text-right">{fmtMoney(maximo)}</span>
@@ -483,9 +483,9 @@ export function RangoPrecios({
               <span className="w-px bg-line" />
             </div>
           </div>
-          <div className="mt-0.5 text-center text-[9px] text-mute">soles de la línea (precio unitario × cantidad)</div>
+          <div className="mt-0.5 text-center text-micro text-mute">soles de la línea (precio unitario × cantidad)</div>
         </div>
-        <div className="justify-self-end text-[11px] font-semibold text-mute">Veredicto</div>
+        <div className="justify-self-end text-micro font-semibold text-mute">Veredicto</div>
       </div>
 
       <div
@@ -514,7 +514,7 @@ export function RangoPrecios({
           type="button"
           onClick={() => setTodas((v) => !v)}
           aria-expanded={todas}
-          className="mt-2 inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:bg-paperSoft"
+          className="mt-2 inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:bg-paperSoft"
         >
           <ChevronDown size={12} className={cn("transition-transform duration-rapido", todas && "rotate-180")} aria-hidden />
           {todas
@@ -523,7 +523,7 @@ export function RangoPrecios({
         </button>
       )}
 
-      <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-mute">
+      <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-micro text-mute">
         <span className="inline-flex items-center gap-1.5">
           <svg width="26" height="10" aria-hidden className="shrink-0">
             <rect x="0" y="1" width="26" height="8" className="fill-paperDeep stroke-line" strokeWidth="1" />

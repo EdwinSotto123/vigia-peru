@@ -31,7 +31,7 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="max-w-2xl">
           <h2 id="contratos-partido-titulo" className="font-display text-2xl font-bold leading-tight text-ink">Contratos por partido</h2>
-          <p className="mt-1 text-[14.5px] leading-snug text-inkSoft">
+          <p className="mt-1 text-dato leading-snug text-inkSoft">
             Los procesos adjudicados por los gobiernos de cada partido (SEACE, vía el OECE), cada uno con el partido que gobernaba la entidad el día en que se convocó.
           </p>
         </div>
@@ -43,7 +43,7 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
                 href={hrefPeriodo(p.anio)}
                 aria-current={p.anio === anio ? "page" : undefined}
                 className={
-                  "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-[13.5px] font-semibold transition-colors " +
+                  "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-dato font-semibold transition-colors " +
                   (p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
                 }
               >
@@ -57,12 +57,12 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
       {!ranking ? (
         <EstadoError titulo="No pudimos leer los contratos por partido">El servidor no respondió. No mostramos nada en su lugar.</EstadoError>
       ) : filas.length === 0 ? (
-        <p className="rounded-xl border border-line bg-paperSoft px-4 py-3 text-sm text-inkSoft">
+        <p className="rounded-xl border border-line bg-paperSoft px-4 py-3 text-dato leading-5 text-inkSoft">
           Ningún proceso adjudicado se asocia a un partido en {periodo.texto}.
         </p>
       ) : (
         <>
-          <p className="text-[13px] text-inkSoft">
+          <p className="text-meta text-inkSoft">
             {numero(filas.length)} partidos y movimientos, {numero(totalProcesos)} procesos, {solesCompacto(totalMonto)} adjudicados en soles.
           </p>
           <ListaPaginada
@@ -91,10 +91,10 @@ function FilaPartidoEnlace({ f, i, anio, maximo }: { f: FilaPartido; i: number; 
       href={`/app/partidos/${f.clave}?anio=${anio}`}
       className="group grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors hover:bg-granate-50 sm:grid-cols-[2.25rem_minmax(0,1.5fr)_minmax(0,1fr)_auto]"
     >
-      <span className="hidden font-mono text-[13px] tabular-nums text-mute sm:block" aria-hidden>{i + 1}</span>
+      <span className="hidden font-mono text-meta tabular-nums text-mute sm:block" aria-hidden>{i + 1}</span>
       <span className="min-w-0">
-        <span className="block truncate text-[14.5px] font-semibold text-ink" title={f.nombre}>{f.nombre}</span>
-        <span className="block truncate text-[12.5px] text-mute">
+        <span className="block truncate text-dato font-semibold text-ink" title={f.nombre}>{f.nombre}</span>
+        <span className="block truncate text-meta text-mute">
           <Partes
             partes={[
               <Dato key="g" tipo="partido" nombre="Gobiernos">{numero(gobiernos)} {gobiernos === 1 ? "gobierno" : "gobiernos"}</Dato>,
@@ -113,7 +113,7 @@ function FilaPartidoEnlace({ f, i, anio, maximo }: { f: FilaPartido; i: number; 
           <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(1.5, (monto / maximo) * 100)}%` }} />
         </span>
       </span>
-      <span className="flex items-center justify-between gap-3 text-[13px] sm:justify-end">
+      <span className="flex items-center justify-between gap-3 text-meta sm:justify-end">
         <span className="font-mono font-semibold tabular-nums text-ink">{solesCompacto(monto)}</span>
         <ChevronRight size={15} className="shrink-0 text-mute transition-transform group-hover:translate-x-0.5" aria-hidden />
       </span>

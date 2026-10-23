@@ -20,7 +20,7 @@ const ACCION: Record<string, string> = { alerta_publicar: "publicó la alerta", 
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">{titulo}</h3>
+      <h3 className="text-micro font-semibold uppercase tracking-wide text-mute">{titulo}</h3>
       <div className="mt-1.5">{children}</div>
     </div>
   );
@@ -68,8 +68,8 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
       <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-2.5 sm:px-5 [&::-webkit-details-marker]:hidden">
         <Wrench size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-ink">Detalle técnico</span>
-          <span className="block text-[12px] text-mute">Evidencia cruda, verificación automática, agentes, recortes y descartes, bitácora y umbrales.</span>
+          <span className="block text-dato leading-5 font-semibold text-ink">Detalle técnico</span>
+          <span className="block text-rotulo text-mute">Evidencia cruda, verificación automática, agentes, recortes y descartes, bitácora y umbrales.</span>
         </span>
         <ChevronDown size={16} className="mt-0.5 shrink-0 text-mute transition-transform group-open:rotate-180" aria-hidden />
       </summary>
@@ -84,12 +84,12 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
         <Bloque titulo="Motivo que dejó el sistema">
           {d.motivoPipeline
-            ? <p className="break-words font-mono text-[12px] text-ink">{redactDnis(d.motivoPipeline)}</p>
-            : <p className="text-[12px] text-mute">El pipeline no dejó aviso al bloquear (análisis a demanda o conexión cortada).</p>}
+            ? <p className="break-words font-mono text-rotulo text-ink">{redactDnis(d.motivoPipeline)}</p>
+            : <p className="text-rotulo text-mute">El pipeline no dejó aviso al bloquear (análisis a demanda o conexión cortada).</p>}
           {d.motivos.length > 0 && (
             <>
-              <p className="mt-2 text-[11px] text-mute">Recalculado con los umbrales de hoy:</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-ink">
+              <p className="mt-2 text-micro text-mute">Recalculado con los umbrales de hoy:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-rotulo text-ink">
                 {d.motivos.map((m) => <li key={m.clave} className="break-words">{m.texto}</li>)}
               </ul>
             </>
@@ -98,7 +98,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
         <Bloque titulo="Verificación del dictamen">
           {verif.length ? (
-            <dl className="grid gap-x-6 gap-y-0.5 text-[12px]">
+            <dl className="grid gap-x-6 gap-y-0.5 text-rotulo">
               {verif.map(([k, v]) => (
                 <div key={k} className="flex min-w-0 gap-2 border-b border-line/60 py-1">
                   <dt className="shrink-0 text-mute">{k}</dt>
@@ -106,34 +106,34 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
                 </div>
               ))}
             </dl>
-          ) : <p className="text-[12px] text-mute">Sin verificación guardada.</p>}
+          ) : <p className="text-rotulo text-mute">Sin verificación guardada.</p>}
         </Bloque>
 
         <Bloque titulo="Recortes y descartes">
           {descartes.length ? (
-            <ul className="space-y-1.5 text-[12px]">
+            <ul className="space-y-1.5 text-rotulo">
               {descartes.map(({ d: x, n }, i) => (
                 <li key={i} className="break-words">
                   <span className="font-mono text-ink">{x.donde ?? "sin ubicación"}</span>
                   {x.agente && <span className="text-mute"> ({x.agente})</span>}
                   <span className="text-ink">: {[x.motivo, ...(x.motivos ?? [])].filter(Boolean).map((m) => legible(String(m))).join(", ") || "sin motivo"}</span>
                   {x.detalle && <span className="text-mute">. {redactDnis(x.detalle)}</span>}
-                  {n > 1 && <span className="ml-1 rounded bg-paperDeep px-1 text-[11px] text-inkSoft">×{n}</span>}
+                  {n > 1 && <span className="ml-1 rounded bg-paperDeep px-1 text-micro text-inkSoft">×{n}</span>}
                 </li>
               ))}
             </ul>
-          ) : <p className="text-[12px] text-mute">Sin descartes registrados.</p>}
-          <p className="mt-3 text-[11px] text-mute">Validaciones pendientes</p>
+          ) : <p className="text-rotulo text-mute">Sin descartes registrados.</p>}
+          <p className="mt-3 text-micro text-mute">Validaciones pendientes</p>
           {d.validacionesPendientes?.length ? (
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-ink">
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-rotulo text-ink">
               {d.validacionesPendientes.map((v, i) => <li key={i} className="break-words">{redactDnis(typeof v === "string" ? v : JSON.stringify(v))}</li>)}
             </ul>
-          ) : <p className="mt-1 text-[12px] text-mute">Ninguna.</p>}
+          ) : <p className="mt-1 text-rotulo text-mute">Ninguna.</p>}
         </Bloque>
 
         {pctEval.length > 0 && (
           <Bloque titulo="Puntajes de la autoevaluación">
-            <ul className="flex flex-wrap gap-1.5 text-[12px]">
+            <ul className="flex flex-wrap gap-1.5 text-rotulo">
               {pctEval.map(([k, v]) => (
                 <li key={k} className="rounded-full border border-line bg-paperSoft px-2 py-0.5">
                   <span className="text-mute">{legible(k)}</span> <span className="font-mono text-ink">{typeof v === "number" ? `${v} %` : v}</span>
@@ -145,26 +145,26 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
         <Bloque titulo="Bitácora de esta alerta">
           {d.log.length ? (
-            <ul className="divide-y divide-line text-[12px]">
+            <ul className="divide-y divide-line text-rotulo">
               {d.log.map((l, i) => (
                 <li key={i} className="py-1.5">
                   <span className="font-medium text-ink">{l.actor}</span> <span className="text-mute">{ACCION[l.accion] ?? legible(l.accion)}</span>{" "}
-                  <span className="text-[11px] text-mute">{fmtDate(l.createdAt)}</span>
+                  <span className="text-micro text-mute">{fmtDate(l.createdAt)}</span>
                   {motivoDe(l.detalle) && <div className="break-words text-inkSoft">{redactDnis(motivoDe(l.detalle))}</div>}
                 </li>
               ))}
             </ul>
-          ) : <p className="text-[12px] text-mute">Sin acciones registradas.</p>}
+          ) : <p className="text-rotulo text-mute">Sin acciones registradas.</p>}
         </Bloque>
 
         <Bloque titulo="Umbrales vigentes">
-          <ul className="grid gap-1 text-[12px] text-ink">
+          <ul className="grid gap-1 text-rotulo text-ink">
             <li>Respaldo mínimo de señales: <span className="font-mono">{pct(u.min_respaldo)}</span> (con 2 o más juzgadas)</li>
             <li>Señales con norma y fuente: <span className="font-mono">{pct(u.min_cita)}</span> (con 3 o más)</li>
             <li>Comparaciones de precio razonables: <span className="font-mono">{pct(u.min_precio)}</span> (con 3 o más)</li>
             <li>Bloquea por tono acusatorio: {u.bloquea_tono ? "sí" : "no"}; por ítems incoherentes: {u.bloquea_coherencia ? "sí" : "no"}</li>
           </ul>
-          {u.nota && <p className="mt-2 text-[11px] leading-snug text-mute">{u.nota}</p>}
+          {u.nota && <p className="mt-2 text-micro leading-snug text-mute">{u.nota}</p>}
         </Bloque>
         </div>
       </div>

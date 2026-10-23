@@ -10,6 +10,7 @@ import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { Nota } from "@/components/patrones";
 import { Partes } from "@/components/ui/Partes";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -72,7 +73,7 @@ const ORDENES = [
 type Orden = (typeof ORDENES)[number]["valor"];
 
 const CAMPO =
-  "h-10 rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 /** Colores por organización para TODO el período: las 12 con más gobiernos, el resto gris. */
 function coloresDelPeriodo(d: AutoridadesDatos) {
@@ -83,7 +84,7 @@ function coloresDelPeriodo(d: AutoridadesDatos) {
 function ChipPartido({ nombre, tipo, color }: { nombre: string; tipo: TipoOrg; color: string }) {
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12.5px] font-medium leading-snug text-ink"
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-meta font-medium leading-snug text-ink"
       style={{ backgroundColor: `${color}22`, borderColor: `${color}66` }}
       title={`${nombre}, ${TIPO_ORG_LABEL[tipo].toLowerCase()}`}
     >
@@ -227,7 +228,7 @@ export function DirectorioGobiernos({
               prefetch={false}
               aria-current={vista === v ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-9 items-center rounded-full px-3.5 text-[13.5px] font-semibold transition-colors",
+                "inline-flex min-h-9 items-center rounded-full px-3.5 text-dato font-semibold transition-colors",
                 vista === v ? "bg-granate text-paper shadow-sm" : "text-inkSoft hover:text-ink",
               )}
             >
@@ -236,7 +237,7 @@ export function DirectorioGobiernos({
           ))}
         </nav>
         <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 hidden text-[12.5px] text-mute sm:inline">Gobiernos de</span>
+          <span className="mr-1 hidden text-meta text-mute sm:inline">Gobiernos de</span>
           {periodos.map((p) => (
             <Link
               key={p.anio}
@@ -244,7 +245,7 @@ export function DirectorioGobiernos({
               prefetch={false}
               aria-current={p.anio === anio ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-9 items-center rounded-full border px-3 text-[13px] font-semibold transition-colors",
+                "inline-flex min-h-9 items-center rounded-full border px-3 text-meta font-semibold transition-colors",
                 p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50 hover:text-ink",
               )}
             >
@@ -390,19 +391,19 @@ function Gobiernos({
       celdas: {
         lugar: (
           <span className="block min-w-0">
-            <span className="block truncate text-[14.5px] font-semibold text-ink">{f.lugar}</span>
+            <span className="block truncate text-dato font-semibold text-ink">{f.lugar}</span>
             {f.sub && (
-              <span className="block truncate text-[12px] text-mute">
+              <span className="block truncate text-rotulo text-mute">
                 <Dato tipo="lugar">{f.sub}</Dato>
               </span>
             )}
             {/* En el celular la autoridad baja bajo el lugar: la columna propia solo aparece desde md. */}
-            <span className="block truncate text-[12.5px] text-inkSoft md:hidden">{f.autoridad}</span>
+            <span className="block truncate text-meta text-inkSoft md:hidden">{f.autoridad}</span>
           </span>
         ),
-        autoridad: <span className="block min-w-0 truncate text-[13.5px] text-ink" title={f.autoridad}>{f.autoridad}</span>,
+        autoridad: <span className="block min-w-0 truncate text-dato text-ink" title={f.autoridad}>{f.autoridad}</span>,
         partido: <ChipPartido nombre={o.n} tipo={o.t} color={color} />,
-        votos: <span className="font-mono text-[13px] tabular-nums text-inkSoft">{pct(f.p) ?? "Sin dato"}</span>,
+        votos: <span className="font-mono text-meta tabular-nums text-inkSoft">{pct(f.p) ?? "Sin dato"}</span>,
       },
     };
   });
@@ -422,12 +423,12 @@ function Gobiernos({
               aria-pressed={activo}
               onClick={() => fijar({ nivel: n.id === "regional" ? undefined : n.id, org: org || undefined })}
               className={cn(
-                "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
+                "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-dato font-semibold transition-colors",
                 activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50 hover:text-ink",
               )}
             >
               {n.etiqueta}
-              <span className={cn("rounded-full px-1.5 font-mono text-[12px] tabular-nums", activo ? "bg-paper/25" : "bg-paperDeep text-mute")}>{numero(total)}</span>
+              <span className={cn("rounded-full px-1.5 font-mono text-rotulo tabular-nums", activo ? "bg-paper text-granate" : "bg-paperDeep text-mute")}>{numero(total)}</span>
             </button>
           );
         })}
@@ -465,17 +466,17 @@ function Gobiernos({
 
       <PaginacionNumerada actual={actual} total={filtradas.length} tam={TAM} nombre={nivel === "regional" ? "regiones" : nivel === "provincial" ? "provincias" : "distritos"} hrefBase={pathname} query={consulta} />
 
-      <p className="text-[12.5px] leading-relaxed text-mute">
+      <Nota>
         Cuenta quién ganó la elección de {anio}, no qué hizo cada gobierno: una vacancia, una revocatoria o un reemplazo dentro del período no está registrado.
         Una señal de Vigía es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona. Fuente: JNE, Plataforma Electoral (Infogob).
-      </p>
+      </Nota>
     </div>
   );
 }
 
 function LimpiarFiltros({ fijar }: { fijar: (c: Record<string, string | undefined>) => void }) {
   return (
-    <button type="button" onClick={() => fijar({ q: undefined, region: undefined, org: undefined, orden: undefined })} className="text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+    <button type="button" onClick={() => fijar({ q: undefined, region: undefined, org: undefined, orden: undefined })} className="text-dato font-semibold text-granate underline-offset-4 hover:underline">
       Quitar filtros
     </button>
   );
@@ -519,7 +520,7 @@ function RepartoDelPoder({
         ))}
         {resto > 0 && <span className="h-full" style={{ width: `${(resto / total) * 100}%`, backgroundColor: COLOR_OTRAS }} aria-hidden />}
       </div>
-      <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px]">
+      <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-meta">
         {grandes.slice(0, 8).map(([i, n]) => (
           <li key={i}>
             <button
@@ -660,25 +661,25 @@ function SelectorPartido({
             onChange={(e) => setFiltro(e.target.value)}
             placeholder="Buscar un partido"
             autoComplete="off"
-            className="h-9 w-full rounded-lg border border-line bg-paperSoft pl-8 pr-2 text-[13.5px] text-ink focus:border-granate"
+            className="h-9 w-full rounded-lg border border-line bg-paperSoft pl-8 pr-2 text-dato text-ink focus:border-granate"
           />
         </label>
         <ul className="mt-1.5 max-h-64 overflow-y-auto">
           <li>
-            <button type="button" onClick={() => { onElegir(undefined); cerrar(); }} className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-ink hover:bg-paperDeep">
+            <button type="button" onClick={() => { onElegir(undefined); cerrar(); }} className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-dato text-ink hover:bg-paperDeep">
               Todos los partidos
             </button>
           </li>
           {lista.map((o) => (
             <li key={o.clave}>
-              <button type="button" onClick={() => { onElegir(o.clave); cerrar(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-ink hover:bg-paperDeep">
+              <button type="button" onClick={() => { onElegir(o.clave); cerrar(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-dato text-ink hover:bg-paperDeep">
                 <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: o.color }} />
                 <span className="min-w-0 flex-1 truncate">{o.nombre}</span>
-                <span className="font-mono text-[12px] tabular-nums text-mute">{o.n}</span>
+                <span className="font-mono text-rotulo tabular-nums text-mute">{o.n}</span>
               </button>
             </li>
           ))}
-          {lista.length === 0 && <li className="px-2.5 py-2 text-[13px] text-mute">Ningún partido se llama así.</li>}
+          {lista.length === 0 && <li className="px-2.5 py-2 text-meta text-mute">Ningún partido se llama así.</li>}
         </ul>
       </div>
     </details>
@@ -743,7 +744,7 @@ function TodosLosPartidos({
             className={cn(CAMPO, "w-full pl-9")}
           />
         </label>
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           {numero(resumen.organizaciones)} organizaciones gobernaron algo en {anio}, todas aquí, de la que más gobiernos tiene a la que menos.
         </p>
       </div>
@@ -760,16 +761,16 @@ function TodosLosPartidos({
               // Toda la fila lleva a la ficha del partido (como en "Contratos por partido"): el nombre es el enlace y se
               // estira sobre la fila; "Ver sus gobiernos" y el conteo quedan encima y siguen siendo sus propios enlaces.
               <li key={c.org} className="relative grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors focus-within:bg-granate-50 hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
-                <span className="hidden font-mono text-[13px] tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
+                <span className="hidden font-mono text-meta tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="h-3 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
                     <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} title={c.o.n}
-                      className="truncate text-[14.5px] font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none">
+                      className="truncate text-dato font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none">
                       {c.o.n}
                     </Link>
                   </span>
-                  <span className="block truncate pl-3.5 text-[12px] text-mute">
+                  <span className="block truncate pl-3.5 text-rotulo text-mute">
                     <Partes
                       partes={[
                         <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
@@ -788,9 +789,9 @@ function TodosLosPartidos({
                   <span className="block h-2 overflow-hidden rounded-full bg-paperDeep">
                     <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (c.total / maximo) * 100)}%`, backgroundColor: color }} />
                   </span>
-                  <span className="mt-0.5 block text-[12px] tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
+                  <span className="mt-0.5 block text-rotulo tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
                 </span>
-                <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] sm:justify-end">
+                <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta sm:justify-end">
                   <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
                     Ver sus gobiernos <ChevronRight size={14} aria-hidden />
                   </Link>
@@ -802,7 +803,7 @@ function TodosLosPartidos({
                         <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
                       </span>
                       {(k.montoAdjudicadoPen ?? 0) > 0 && (
-                        <span className="font-mono text-[12px] tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
+                        <span className="font-mono text-rotulo tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
                       )}
                     </Link>
                   ) : (

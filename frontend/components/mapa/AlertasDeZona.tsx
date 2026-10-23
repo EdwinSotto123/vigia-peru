@@ -107,13 +107,13 @@ export function AlertasDeZona({
         </EstadoVacio>
       ) : rows.length === 0 ? (
         // Las hay, pero ninguna entre las de mayor puntaje del país que trae la lista: se dice el número, no un vacío.
-        <p className="text-[12px] tabular-nums text-inkSoft">
+        <p className="text-rotulo tabular-nums text-inkSoft">
           <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio o
           alto; su detalle está en el índice de señales.
         </p>
       ) : (
         <>
-          <p className="flex flex-wrap items-center gap-x-1 text-[12px] tabular-nums text-inkSoft">
+          <p className="flex flex-wrap items-center gap-x-1 text-rotulo tabular-nums text-inkSoft">
             <span>
               <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio
               o alto{total > rows.length ? `; aquí los ${rows.length} de mayor peso del país en la zona` : ""}
@@ -138,7 +138,7 @@ export function AlertasDeZona({
       )}
 
       {nBajas > 0 && (
-        <details className="rounded-xl border border-line bg-paper px-3 py-2 text-[12px] text-mute">
+        <details className="rounded-xl border border-line bg-paper px-3 py-2 text-rotulo text-mute">
           <summary className="min-h-[24px] cursor-pointer select-none font-medium text-inkSoft hover:text-ink">
             {plural(nBajas, "contrato", "contratos")} con señales de riesgo bajo
           </summary>
@@ -163,7 +163,7 @@ export function AlertasDeZona({
         </details>
       )}
 
-      <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+      <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-rotulo font-medium text-granate underline-offset-2 hover:underline">
         Ver todas las señales del país
       </Link>
     </div>
@@ -183,16 +183,16 @@ function FilaSenal({ a }: { a: any }) {
         className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg", CAJA[nivel])}
         title={`Puntaje ${score} de 100`}
       >
-        <span className="text-sm font-bold leading-none tabular-nums">{score}</span>
-        <span className="mt-0.5 text-[10px] leading-none">de 100</span>
+        <span className="text-dato font-bold leading-none tabular-nums">{score}</span>
+        <span className="mt-0.5 text-micro leading-none">de 100</span>
       </span>
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto ? oracion(a.objeto) : null}</span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
-          <PesoRiesgo score={score} banderas={nBanderas} className="text-[11px]" />
+        <span className="line-clamp-2 text-rotulo font-medium leading-snug text-ink">{a.objeto ? oracion(a.objeto) : null}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
+          <PesoRiesgo score={score} banderas={nBanderas} className="text-micro" />
           {nBanderas > 0 && <Dato icono={Flag} nombre="Señales" className="tabular-nums text-inkSoft">{plural(nBanderas, "señal", "señales")}</Dato>}
           {a.region && <Dato tipo="lugar">{a.region}</Dato>}
-          {a.entidad && a.entidad !== "—" && <Dato tipo="entidad" className="line-clamp-1 max-w-[180px]">{a.entidad}</Dato>}
+          {a.entidad && a.entidad !== "—" && a.entidad !== "Sin dato" && <Dato tipo="entidad" className="line-clamp-1 max-w-[180px]">{a.entidad}</Dato>}
           {a.montoSoles > 0 && <span className="font-mono tabular-nums text-inkSoft">{formatSoles(a.montoSoles)}</span>}
         </span>
       </span>

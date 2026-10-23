@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
   BarraFiltros,
   Indicadores,
@@ -77,6 +77,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
 
   return (
     <Pagina className="space-y-5">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
       <EncabezadoPagina
         titulo="Todos los contratos"
         bajada="Convocatorias del SEACE en la base de Vigía, con su tipo, etapa y estado de lectura."
@@ -129,7 +130,7 @@ async function IndicadoresContratos({
   const [r, g] = await Promise.all([resumen, global]);
   if (!r) {
     return (
-      <p className="text-[13px] text-mute" role="status">
+      <p className="text-meta text-mute" role="status">
         No pudimos contar los contratos en este momento.
       </p>
     );

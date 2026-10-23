@@ -109,23 +109,23 @@ export function FichaRegion({
       )}
     >
       <div className="border-b border-line bg-paperSoft px-3 py-2">
-        <div className="font-display text-[15px] font-bold leading-tight text-ink">{titulo}</div>
-        {contexto && <div className="mt-0.5 text-[11px] leading-snug text-mute">{contexto}</div>}
+        <div className="font-display text-bloque font-bold leading-tight text-ink">{titulo}</div>
+        {contexto && <div className="mt-0.5 text-micro leading-snug text-mute">{contexto}</div>}
       </div>
       <dl className="divide-y divide-line">
         {filas.map((f) => (
           <div key={f.etiqueta} className="flex items-baseline justify-between gap-3 px-3 py-1.5">
-            <dt className="shrink-0 text-[11px] text-mute">{f.etiqueta}</dt>
+            <dt className="shrink-0 text-micro text-mute">{f.etiqueta}</dt>
             <dd className="min-w-0 text-right">
-              <span className={cn("font-mono text-[13px] font-semibold tabular-nums", f.tono ?? "text-ink")}>
+              <span className={cn("font-mono text-meta font-semibold tabular-nums", f.tono ?? "text-ink")}>
                 {f.valor}
               </span>
-              {f.detalle && <span className="ml-1 text-[11px] text-mute">{f.detalle}</span>}
+              {f.detalle && <span className="ml-1 text-micro text-mute">{f.detalle}</span>}
             </dd>
           </div>
         ))}
       </dl>
-      {pie && <div className="border-t border-line px-3 py-1.5 text-[11px] leading-snug text-mute">{pie}</div>}
+      {pie && <div className="border-t border-line px-3 py-1.5 text-micro leading-snug text-mute">{pie}</div>}
     </div>
   );
 }

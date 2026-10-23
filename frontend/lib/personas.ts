@@ -8,6 +8,7 @@
  * Los GET devuelven `null` si la API no responde: quien llama no dibuja lo que no pudo leer.
  */
 import { API_BASE } from "./api-client";
+import { uno } from "@/lib/utils";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -320,7 +321,6 @@ export interface FiltrosPersonas {
 }
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Lee de la URL los filtros de la lista (con los nombres de `P`), validados como la API. */
 export function filtrosDeUrl(sp: Busqueda, P: ParamsPersonas): FiltrosPersonas {

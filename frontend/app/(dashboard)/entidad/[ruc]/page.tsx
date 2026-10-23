@@ -8,23 +8,13 @@ import { tituloNatural } from "@/lib/landing";
 import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
 import { normalizar } from "@/lib/partidos";
-import {
-  ORDENES,
-  TIPOS,
-  contratosParametros,
-  getContratos,
-  getResumenContratos,
-  parseContratosQuery,
-  type ContratosPagina,
-  type ContratosQuery,
-  type ResumenContratos,
-} from "@/lib/contratos";
+import { ORDENES, contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
@@ -298,7 +288,7 @@ export default async function EntidadProfile({
               <div>
                 <CabeceraPestana>¿Viste algo irregular en esta entidad? Cuéntalo.</CabeceraPestana>
                 <div className="flex flex-col gap-4 rounded-2xl border border-line bg-paperSoft p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                  <div className="max-w-prose space-y-1.5 text-sm text-inkSoft">
+                  <div className="max-w-prose space-y-1.5 text-dato leading-5 text-inkSoft">
                     <p>
                       Una denuncia sobre una entidad <strong className="font-semibold text-ink">no se publica</strong>: queda
                       en reserva y la revisa el equipo de Vigía. Si los datos la respaldan, lo que se publica es un dictamen
@@ -450,31 +440,28 @@ function indicadores({
         </Ayuda>
       ),
     },
-    {
-      valor: anio ? solesCompacto(anio.pim) : null,
-      etiqueta: anio ? `presupuesto ${anio.year}${deTodoElGobierno ? " del gobierno regional" : ""}` : "presupuesto",
-      contexto: anio
-        ? anio.pim > 0
-          ? `${porcentaje(ejecucionPct(anio), { decimales: 0 })} ya gastado (devengado)`
-          : undefined
-        : "sin dato del MEF",
-      href: `${ruta}?seccion=presupuesto`,
-    },
+    // Sin presupuesto del MEF no hay tarjeta (una que sólo diga «Sin dato» no informa): lo dice el bloque «En qué gasta».
+    ...(anio
+      ? [
+          {
+            valor: solesCompacto(anio.pim),
+            etiqueta: `presupuesto ${anio.year}${deTodoElGobierno ? " del gobierno regional" : ""}`,
+            contexto: anio.pim > 0 ? `${porcentaje(ejecucionPct(anio), { decimales: 0 })} ya gastado (devengado)` : undefined,
+            href: `${ruta}?seccion=presupuesto`,
+          },
+        ]
+      : []),
   ];
 }
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
-    <Pagina>
-      <Volver href="/app/entidades">Entidades</Volver>
-      <EncabezadoPagina titulo={`Entidad con RUC ${ruc}`} />
-      <EstadoError
-        titulo="No pudimos leer la ficha de esta entidad"
-        accion={<EnlaceAccion href={`/entidad/${encodeURIComponent(ruc)}`}>Reintentar</EnlaceAccion>}
-      >
-        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }]}
+      titulo={`Entidad con RUC ${ruc}`}
+      error="No pudimos leer la ficha de esta entidad"
+      reintentar={{ href: `/entidad/${encodeURIComponent(ruc)}` }}
+    />
   );
 }
 

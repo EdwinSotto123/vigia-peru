@@ -19,12 +19,12 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
   return (
     <section aria-labelledby="lecturas-anteriores" className="space-y-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-        <h3 id="lecturas-anteriores" className="text-[13px] font-semibold text-ink">
+        <h3 id="lecturas-anteriores" className="text-cuerpo font-semibold text-ink">
           Antes de esa{total != null ? `, ${plural(Math.max(total - 1, items.length), "lectura más", "lecturas más")}` : ""}
         </h3>
         <Link
           href="/app/auditoria?seccion=leidos"
-          className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+          className="text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
         >
           Ver todas
         </Link>
@@ -39,8 +39,8 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
                 className="group flex items-center gap-3 py-2 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-1 text-[13.5px] font-medium text-ink group-hover:text-granate">{p.titulo ? oracion(p.titulo) : p.ocid}</span>
-                  <span className="block truncate text-[12px] text-mute">
+                  <span className="line-clamp-1 text-dato font-medium text-ink group-hover:text-granate">{p.titulo ? oracion(p.titulo) : p.ocid}</span>
+                  <span className="block truncate text-rotulo text-mute">
                     <Partes
                       partes={[
                         p.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(p.entidad)}</Dato>,
@@ -50,10 +50,10 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
                     />
                   </span>
                 </span>
-                <span className="hidden shrink-0 text-right text-[12px] tabular-nums text-mute sm:block">
+                <span className="hidden shrink-0 text-right text-rotulo tabular-nums text-mute sm:block">
                   {p.finalizadoAt ? fechaLima(p.finalizadoAt, { hora: true }) : null}
                 </span>
-                <span className="w-24 shrink-0 text-right text-[12.5px] text-inkSoft">
+                <span className="w-24 shrink-0 text-right text-meta text-inkSoft">
                   {enRevision ? "En revisión" : p.banderas > 0 ? plural(p.banderas, "señal", "señales") : "sin señales"}
                 </span>
                 <ChevronRight size={14} className="shrink-0 text-mute group-hover:text-granate" aria-hidden />

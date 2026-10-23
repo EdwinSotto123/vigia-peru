@@ -94,7 +94,7 @@ export function NodeDetailPanel({
   return (
     <div className="mt-3 overflow-hidden rounded-2xl border border-granate/40 bg-paper shadow-md">
       <div className="flex items-start justify-between gap-2 border-b border-line bg-paperSoft px-4 py-3">
-        <h4 className="min-w-0 font-display text-lg font-bold leading-tight text-ink">
+        <h4 className="min-w-0 font-display text-bloque font-bold leading-tight text-ink">
           {/* Persona natural con negocio (RUC 10): la "razón social" es su nombre
               en orden SUNAT; va con el apellido materno en vidrio. */}
           {m.razon_social && esPersonaNatural(m.ruc)
@@ -113,7 +113,7 @@ export function NodeDetailPanel({
 
       <CuerpoDetalle className="p-4">
         <ChipsDetalle>
-          <span className={cn("rounded-full px-2 py-0.5 text-[12px] font-semibold", kindColor[node.kind])}>{kindLabel[node.kind]}</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-rotulo font-semibold", kindColor[node.kind])}>{kindLabel[node.kind]}</span>
           {m.rol && <span className="pill border-line bg-paperSoft text-inkSoft">{String(m.rol).replace(/_/g, " ")}</span>}
         </ChipsDetalle>
 
@@ -133,7 +133,7 @@ export function NodeDetailPanel({
           <button
             type="button"
             onClick={() => onVigiaSearch(m.ruc!)}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-granate px-3 py-1.5 text-[12px] font-semibold text-paper hover:bg-granate-deep"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-granate px-3 py-1.5 text-rotulo font-semibold text-paper hover:bg-granate-deep"
             title="Buscar este RUC en otros análisis de Vigía"
           >
             <Search size={12} aria-hidden /> Buscar en Vigía
@@ -145,7 +145,7 @@ export function NodeDetailPanel({
             href={l.href}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink hover:bg-paperDeep"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1.5 text-rotulo font-semibold text-ink hover:bg-paperDeep"
           >
             <ExternalLink size={11} aria-hidden /> {l.label}
           </a>

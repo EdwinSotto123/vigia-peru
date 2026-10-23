@@ -44,6 +44,7 @@ import {
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { ReplayAnalisis } from "./ReplayAnalisis";
 import { tituloNatural } from "@/lib/landing";
+import { peorSeveridad } from "@/lib/severidad";
 
 const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
 
@@ -51,8 +52,8 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
   if (!p) {
     return (
       <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-3">
-        <h3 className="text-sm font-semibold text-ink">Todavía no hay ninguna lectura terminada acá</h3>
-        <p className="mt-0.5 text-[13px] text-inkSoft">
+        <h3 className="text-cuerpo font-semibold text-ink">Todavía no hay ninguna lectura terminada acá</h3>
+        <p className="mt-0.5 text-meta text-inkSoft">
           {hayFiltros
             ? "Con estos filtros no hay ningún análisis terminado: quita uno arriba."
             : "Cuando termine el primer análisis, aparece acá con lo que encontró."}
@@ -76,11 +77,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
   // del puntaje ("Riesgo bajo" con score 18) habla del contrato, no de sus señales, y
   // mezclarlos es la contradicción que más daño hace en esta pantalla. Sin señales, la
   // pastilla es la de "Sin señales" (el único check verde).
-  const ORDEN_SEV = { alta: 3, media: 2, baja: 1 } as const;
-  const peorSenal = senales.reduce<"alta" | "media" | "baja" | null>(
-    (peor, s) => (!peor || ORDEN_SEV[s.severidad] > ORDEN_SEV[peor] ? s.severidad : peor),
-    null,
-  );
+  const peorSenal = peorSeveridad(senales);
   const motivos = enRevision ? p.resultado?.revisionMotivos ?? [] : [];
   const titulo = p.titulo ? oracion(p.titulo) : p.ocid;
   const href = rutaContrato(p.ocid, "vivo");
@@ -90,8 +87,8 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
       {/* "Ningún contrato en análisis" ya lo dice la franja de estado de arriba: este panel solo
           existe cuando eso es cierto, así que se presenta por lo que muestra. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] text-mute">
-          <h3 className="text-[13px] font-semibold text-ink">Lo último que se leyó</h3>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-rotulo text-mute">
+          <h3 className="text-cuerpo font-semibold text-ink">Lo último que se leyó</h3>
           {p.finalizadoAt && <time dateTime={p.finalizadoAt}>{fechaLima(p.finalizadoAt, { larga: true, hora: true })}</time>}
           {/* Cuánto trabajo costó, junto a cuándo terminó. */}
           <span>
@@ -109,7 +106,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
             className="w-auto"
             detalle={<ReplayAnalisis eventos={eventos} estadoFinal={estado} compacto />}
           >
-            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-[12px] font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
+            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-rotulo font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
               <Play size={11} aria-hidden /> Repetir el análisis paso por paso
             </span>
           </Revelar>
@@ -118,10 +115,10 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
 
       {/* Qué fue: el objeto en una línea (entero en `title`), entidad, zona y valor. */}
       <Link href={href} className="group mt-1.5 block min-w-0 rounded-lg">
-        <span className="text-[14px] font-semibold leading-snug text-ink line-clamp-2 group-hover:text-granate md:truncate" title={titulo}>
+        <span className="text-dato font-semibold leading-snug text-ink line-clamp-2 group-hover:text-granate md:truncate" title={titulo}>
           {titulo}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-mute">
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-rotulo text-mute">
           <Dato tipo="entidad" className="min-w-0 truncate">{p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</Dato>
           {p.zona && <Dato tipo="lugar">{p.zona}</Dato>}
           {p.montoPen != null && p.montoPen > 0 && <Dato icono={Coins} nombre="Valor" mono>{solesCompacto(p.montoPen)}</Dato>}
@@ -137,7 +134,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
       </Link>
 
       {/* Qué encontró, en una línea de chips. En revisión: sólo eso y sus motivos (§10.4). */}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px]">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-rotulo">
         {enRevision ? (
           <>
             <span className="pill border-clay/40 bg-paperDeep font-semibold text-clayTexto">
@@ -173,7 +170,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
               </span>
             )}
             {conSenales && (
-              <span className="text-[13px] text-mute">
+              <span className="text-meta text-mute">
                 <span className="font-semibold text-ink">{plural(nSenales, "señal de riesgo", "señales de riesgo")}</span>
                 {/* El puntaje sólo junto a las señales que lo explican (§10.4). */}
                 {p.score != null && (

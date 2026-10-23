@@ -8,7 +8,7 @@ import { ListaZonas } from "@/components/financiar/ListaZonas";
 import { TablaAliados } from "@/components/financiar/TablaAliados";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Revelar } from "@/components/ui/Revelar";
-import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, type Pestana, Pestanas } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
@@ -81,19 +81,13 @@ export default async function ZonaPage({
 
   return (
     <Pagina className="space-y-6">
-      <nav aria-label="Ubicación" className="flex flex-wrap items-center gap-1 text-sm text-inkSoft">
-        <Link href="/app/financiar" className="inline-flex min-h-[24px] items-center underline-offset-2 hover:text-ink hover:underline">Perú</Link>
-        {breadcrumb.map((b) => (
-          <span key={b.ubigeo} className="flex items-center gap-1">
-            <ChevronRight size={14} className="text-mute" aria-hidden />
-            {b.ubigeo === zona.ubigeo ? (
-              <span className="text-ink" aria-current="page">{b.nombre}</span>
-            ) : (
-              <Link href={`/app/financiar/${b.ubigeo}`} className="inline-flex min-h-[24px] items-center underline-offset-2 hover:text-ink hover:underline">{b.nombre}</Link>
-            )}
-          </span>
-        ))}
-      </nav>
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Financiar", href: "/app/financiar" },
+          ...breadcrumb.map((b) => ({ etiqueta: b.nombre, href: `/app/financiar/${b.ubigeo}` })),
+        ]}
+      />
 
       <div className="space-y-4">
         {/* Identidad de la zona: nombre, qué es y en qué estado está. Sin kicker encima del título. */}
@@ -121,7 +115,7 @@ export default async function ZonaPage({
           />
 
           {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>Financias capacidad de lectura, no resultados.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
@@ -134,9 +128,9 @@ export default async function ZonaPage({
               la forma de bajar de una región a su provincia o distrito. */}
           {d.hijas.length > 0 && (
             <section aria-labelledby="hijas-titulo" className="space-y-2">
-              <h2 id="hijas-titulo" className="font-display text-base font-bold text-ink">
+              <h2 id="hijas-titulo" className="font-display text-bloque font-bold text-ink">
                 {zona.nivel === "departamento" ? "Provincias" : "Distritos"} de {zona.nombre}
-                <span className="ml-2 font-mono text-[13px] font-normal text-mute">{numero(d.hijas.length)}</span>
+                <span className="ml-2 font-mono text-meta font-normal text-mute">{numero(d.hijas.length)}</span>
               </h2>
               <ListaZonas
                 zonas={d.hijas}
@@ -184,7 +178,7 @@ export default async function ZonaPage({
   );
 }
 
-const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
+const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline";
 
 /**
  * Lo que hace falta para decidir, en pestañas: la cola (el resumen), el avance en vivo, las
@@ -257,7 +251,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
                   descripcion="Cada contrato financiado, de la cola a la lectura. Se actualiza solo."
                   etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
                   ancho="lg"
-                  className="inline-flex min-h-[24px] w-auto items-center gap-1 text-[13px] font-medium text-granate hover:underline"
+                  className="inline-flex min-h-[24px] w-auto items-center gap-1 text-meta font-medium text-granate hover:underline"
                   detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} pedirAlMontar compacto />}
                   pie={
                     <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className={ENLACE_PESTANA}>
@@ -275,7 +269,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
             <VistaPreviaVivo items={enVivo} />
           </>
         ) : (
-          <p className="flex items-center gap-1.5 text-sm text-inkSoft">
+          <p className="flex items-center gap-1.5 text-dato leading-5 text-inkSoft">
             <Activity size={15} className="shrink-0 text-mute" aria-hidden />
             Cuando alguien financie esta zona, verás aquí cada contrato pasar a la lectura.
           </p>
@@ -290,7 +284,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
     contenido: aliados.length ? (
       <TablaAliados aliados={aliados} etiqueta={`Quién financió la lectura en ${zona.nombre}`} />
     ) : (
-      <p className="text-sm text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
+      <p className="text-dato leading-5 text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
     ),
   });
   return pestanas;
@@ -370,7 +364,7 @@ function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
     return <EstadoError titulo="No pudimos leer el avance">El tablero en vivo lo reintenta solo: ábrelo con «Ver en vivo».</EstadoError>;
   }
   if (items.length === 0) {
-    return <p className="text-sm text-inkSoft">Todavía no hay contratos asignados en esta zona.</p>;
+    return <p className="text-dato leading-5 text-inkSoft">Todavía no hay contratos asignados en esta zona.</p>;
   }
   const ordenados = [...items].sort((a, b) => PRIORIDAD[estadoVisible(a)] - PRIORIDAD[estadoVisible(b)]);
   const filas: Fila[] = ordenados.map((p) => ({

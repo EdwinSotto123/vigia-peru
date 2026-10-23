@@ -559,7 +559,7 @@ export function TableroAuditoria({
           {/* De qué está hecho el grupo, contado sobre estas mismas filas. Con un solo estado
               no se desglosa: la píldora de cada fila ya lo nombra. */}
           {partes.length > 1 && (
-            <span className="text-[11.5px] font-normal text-mute">
+            <span className="text-rotulo font-normal text-mute">
               {partes.map(([estado, n], i) => (
                 <span key={estado}>
                   {i > 0 && ", "}
@@ -568,7 +568,7 @@ export function TableroAuditoria({
               ))}
             </span>
           )}
-          {filas.length === 0 && cargado && <span className="text-[11.5px] font-normal text-mute">{g.vacio}</span>}
+          {filas.length === 0 && cargado && <span className="text-rotulo font-normal text-mute">{g.vacio}</span>}
         </span>
       ),
       filas: aVista.map(fila),
@@ -590,7 +590,7 @@ export function TableroAuditoria({
       {enPestanas ? (
         // El estado en vivo ya está arriba de la página: acá sólo lo que avisa de un problema.
         (truncado || sinConexion) && (
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-mute">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-rotulo text-mute">
             {truncado && (
               <span className="tabular-nums" title={`Se muestran como mucho ${limit} contratos a la vez.`}>
                 Mostrando {numero(items.length)} de {numero(total)}
@@ -604,7 +604,7 @@ export function TableroAuditoria({
       ) : (
         // Una línea de estado: enlace a lo ya leído y qué tan vivo está esto de verdad. Los
         // conteos van en el rótulo de cada grupo, una sola vez.
-        <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-mute ${titulo ? "mt-1" : ""}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-rotulo text-mute ${titulo ? "mt-1" : ""}`}>
           {verMasHref && porGrupo.procesado.length > 0 ? (
             <a href={verMasHref} className="inline-flex min-h-[24px] items-center gap-1 font-medium text-granate underline-offset-2 hover:underline">
               Ver lo ya leído <span aria-hidden>↓</span>
@@ -646,10 +646,10 @@ export function TableroAuditoria({
 
       {/* Lo último que se movió mientras esta página estuvo abierta. */}
       {ultimoCambio && (
-        <p className={`${sinCabecera ? "" : "mt-2"} flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink`}>
+        <p className={`${sinCabecera ? "" : "mt-2"} flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-rotulo leading-snug text-ink`}>
           <span className="font-semibold">Recién:</span>
           <span className="min-w-0">{ultimoCambio.texto}</span>
-          <span className="text-[11px] tabular-nums text-inkSoft" suppressHydrationWarning>
+          <span className="text-micro tabular-nums text-inkSoft" suppressHydrationWarning>
             <HaceVivo desde={ultimoCambio.at} />
           </span>
         </p>
@@ -684,7 +684,7 @@ export function TableroAuditoria({
               type="button"
               onClick={() => setTodaLaEspera((v) => !v)}
               aria-expanded={todaLaEspera}
-              className="inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-4 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+              className="inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-4 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
             >
               {todaLaEspera ? `Ver sólo los primeros ${TOPE}` : `Ver los ${numero(nEspera)} en espera`}
             </button>

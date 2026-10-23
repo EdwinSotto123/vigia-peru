@@ -216,6 +216,11 @@ del pie y del sello "Hecho en Perú". No es un color de interfaz: rojo significa
 
 ### 3.6 Neutros — papel y tinta, apenas cálidos
 
+> **Vigente (2026-10-22):** el fondo de la página es `bg-fondo` (`--fondo`, en `body`), no `paper`. De noche son el
+> mismo carbón; de día el fondo es `#EFF3F2` y `paper` (las tarjetas) blanco, para que cada tarjeta se despegue del
+> fondo (antes eran iguales y sólo el borde las separaba). `paperSoft` de día es `#F7F9F8`: lo apenas hundido dentro de
+> una tarjeta. La tabla de abajo es de la identidad anterior.
+
 | Token | Hex | Uso |
 |---|---|---|
 | `paper` | `#FFFFFF` | fondo principal |
@@ -283,15 +288,22 @@ de dictamen lo pide explícitamente.
 
 ### Escala
 
-| Paso | Tamaño / interlínea | Uso |
+Desde 2026-10-22 (docs/PLAN_VISUAL.md) la escala son **tokens de `tailwind.config.ts`** (sólo el tamaño; la
+interlínea va aparte con `leading-*`). Un `text-[13px]` suelto lo rechaza la guardia (`npm run auditar:estilo`).
+
+| Token | Tamaño | Uso |
 |---|---|---|
-| `display` | 40–56 px / 1.05, `tracking-tight`, 800 | titular del hero |
-| `h1` | 30–36 px / 1.15, 700 | título de página |
-| `h2` | 22–26 px / 1.2, 700 | sección |
-| `h3` | 17–18 px / 1.3, 600 | tarjeta, bloque |
-| `body` | 15–16 px / 1.6 | texto corrido (máx. 68 caracteres de ancho) |
-| `small` | 13–14 px / 1.5 | metadatos, ayudas |
-| `caption` | 11–12 px / 1.4, 500–600 | etiquetas de datos (en mayúsculas sólo si son 1–3 palabras) |
+| `text-portada` | 40 px | titular de la portada |
+| `text-titulo` | 32 px | h1 de la página (`EncabezadoPagina`; `text-cifra` en celular) |
+| `text-cifra` | 28 px | la cifra de una tarjeta de indicadores |
+| `text-seccion` | 22 px | h2: cada sección (`Seccion`) |
+| `text-bloque` | 18 px | h3: el título de una tarjeta o bloque (`font-display font-bold`) |
+| `text-destacado` | 16 px | una línea que tiene que leerse primero |
+| `text-cuerpo` | 15 px | texto corrido (máx. 68 caracteres de ancho) |
+| `text-dato` | 14 px | valores en tablas y fichas |
+| `text-meta` | 13 px | metadatos, ayudas, notas |
+| `text-rotulo` | 12 px | rótulos de datos, chips |
+| `text-micro` | 11 px | lo mínimo (nunca menos); `etiqueta-mono` |
 
 Reglas:
 

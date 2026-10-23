@@ -33,7 +33,7 @@ export function EstadoVacio({
     accion && typeof accion === "object" && "href" in (accion as object) && "etiqueta" in (accion as object) ? (
       <Link
         href={(accion as { href: string }).href}
-        className="shrink-0 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+        className="shrink-0 text-dato font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
       >
         {(accion as { etiqueta: string }).etiqueta}
       </Link>
@@ -44,7 +44,7 @@ export function EstadoVacio({
     <div
       role="status"
       className={cn(
-        "flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] leading-snug",
+        "flex flex-wrap items-center gap-x-3 gap-y-1 text-dato leading-snug",
         tono === "error" ? "text-crimsonTexto" : "text-mute",
         variante === "compacta" ? "border-l-2 border-line py-2 pl-3" : "py-1.5",
         className,

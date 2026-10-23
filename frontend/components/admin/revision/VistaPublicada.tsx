@@ -53,23 +53,23 @@ export function VistaPublicada({
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 hover:bg-paperDeep/50 sm:px-5 [&::-webkit-details-marker]:hidden">
         <Eye size={15} className="shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span id="vista-publicada" className="block text-sm font-semibold text-ink">Así se verá publicado</span>
-          <span className="block text-[12px] text-inkSoft">
+          <span id="vista-publicada" className="block text-dato leading-5 font-semibold text-ink">Así se verá publicado</span>
+          <span className="block text-rotulo text-inkSoft">
             El informe completo, como en la página pública del contrato.{publicada ? " Ya es público." : " Por ahora sólo lo ve el equipo."}
           </span>
         </span>
         {ruta && publicada && (
-          <Link href={ruta} target="_blank" onClick={(e) => e.stopPropagation()} className="hidden shrink-0 items-center gap-1 text-[12px] font-medium text-ink hover:underline sm:inline-flex">
+          <Link href={ruta} target="_blank" onClick={(e) => e.stopPropagation()} className="hidden shrink-0 items-center gap-1 text-rotulo font-medium text-ink hover:underline sm:inline-flex">
             <ExternalLink size={12} aria-hidden /> Abrir la página pública
           </Link>
         )}
-        <span className="shrink-0 text-[12px] text-mute group-open:hidden">Abrir</span>
+        <span className="shrink-0 text-rotulo text-mute group-open:hidden">Abrir</span>
         <ChevronDown size={16} className="shrink-0 text-mute transition-transform group-open:rotate-180" aria-hidden />
       </summary>
 
       <div className="border-t border-line">
         {ruta && (
-          <div className="flex min-w-0 items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-[11px] text-mute sm:px-4">
+          <div className="flex min-w-0 items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-micro text-mute sm:px-4">
             <span className="shrink-0 font-semibold uppercase tracking-wide">Vista previa</span>
             <span className="min-w-0 truncate font-mono">{ruta}</span>
           </div>
@@ -77,7 +77,7 @@ export function VistaPublicada({
 
         <div className="px-3 py-4 sm:px-6 sm:py-5">
           {!abierto ? null : error ? (
-            <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4 text-sm text-crimsonTexto sm:flex-row sm:items-center">
+            <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4 text-dato leading-5 text-crimsonTexto sm:flex-row sm:items-center">
               <AlertTriangle size={18} className="shrink-0" aria-hidden />
               <p className="min-w-0 flex-1">No se pudo cargar el informe: {error}. La decisión y el juicio del evaluador siguen disponibles más abajo.</p>
               <button type="button" onClick={onReintentar} className={claseBoton("peligro", "sm")}>

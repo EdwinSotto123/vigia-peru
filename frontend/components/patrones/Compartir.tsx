@@ -52,7 +52,7 @@ export function BarraCompartir({
   ];
   const oscuro = variante === "oscuro";
   const boton = cn(
-    "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] font-medium transition-colors duration-rapido",
+    "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido",
     oscuro ? "border-paper/25 text-paper hover:bg-paper/10" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
   );
 
@@ -74,7 +74,7 @@ export function BarraCompartir({
   };
 
   if (compacto) {
-    const opcion = "flex min-h-[40px] w-full items-center gap-2 rounded-lg px-2.5 text-[14px] text-ink transition-colors duration-rapido hover:bg-granate-50";
+    const opcion = "flex min-h-[40px] w-full items-center gap-2 rounded-lg px-2.5 text-dato text-ink transition-colors duration-rapido hover:bg-granate-50";
     return nativa ? (
       <button type="button" onClick={nativo} className={cn(boton, className)}>
         <Share2 size={15} aria-hidden /> Compartir
@@ -94,7 +94,7 @@ export function BarraCompartir({
         <span className="block space-y-0.5">
           {redes.map((r) => (
             <a key={r.nombre} href={r.href()} target="_blank" rel="noopener noreferrer" className={opcion}>
-              <span aria-hidden className="w-5 font-display text-[12px] font-extrabold text-granate">
+              <span aria-hidden className="w-5 font-display text-rotulo font-extrabold text-granate">
                 {r.letra}
               </span>
               {r.nombre}
@@ -124,7 +124,7 @@ export function BarraCompartir({
           rel="noopener noreferrer"
           className={boton}
         >
-          <span aria-hidden className={cn("font-display text-[12px] font-extrabold", oscuro ? "text-maiz" : "text-granate")}>
+          <span aria-hidden className={cn("font-display text-rotulo font-extrabold", oscuro ? "text-maiz" : "text-granate")}>
             {r.letra}
           </span>
           {r.nombre}

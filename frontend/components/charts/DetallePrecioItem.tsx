@@ -27,15 +27,15 @@ import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line/60 py-1.5">
-      <dt className="shrink-0 text-[11px] text-mute">{etiqueta}</dt>
-      <dd className="text-right font-mono text-[12px] font-semibold tabular-nums text-ink">{children}</dd>
+      <dt className="shrink-0 text-micro text-mute">{etiqueta}</dt>
+      <dd className="text-right font-mono text-rotulo font-semibold tabular-nums text-ink">{children}</dd>
     </div>
   );
 }
 
 function Titulo({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-1.5 mt-4 text-[12px] font-semibold text-inkSoft">{children}</h3>
+    <h3 className="mb-1.5 mt-4 text-cuerpo font-semibold text-inkSoft">{children}</h3>
   );
 }
 
@@ -52,7 +52,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
   const porUnidad = fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : null;
 
   return (
-    <div className="text-[13px] leading-relaxed text-ink">
+    <div className="text-meta leading-relaxed text-ink">
       <dl className="mt-0">
         <Dato etiqueta="Cantidad del requerimiento">{porUnidad ?? "no consta en el expediente"}</Dato>
         <Dato etiqueta={`Precio ${fila.baseOfertado === "ofertado" ? "ofertado" : "referencial"} por unidad`}>
@@ -98,7 +98,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       </dl>
 
       {!fila.medido && (
-        <p className="mt-3 border-l-2 border-line pl-3 text-[12px] text-mute">
+        <p className="mt-3 border-l-2 border-line pl-3 text-rotulo text-mute">
           <strong className="font-semibold text-ink">{fila.veredicto.etiqueta}.</strong>{" "}
           {fila.motivo
             ? `Sin veredicto de precio porque ${fila.motivo}.`
@@ -114,12 +114,12 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
         </p>
       )}
 
-      {f.nota_base && <p className="mt-3 text-[12px] text-mute">{f.nota_base}</p>}
+      {f.nota_base && <p className="mt-3 text-rotulo text-mute">{f.nota_base}</p>}
 
       {f.comentario && <p className="mt-3">{f.comentario}</p>}
 
       {f.spec_restrictiva && (
-        <p className="mt-3 flex items-start gap-1.5 border-l-2 border-rust pl-3 text-[12px] text-rust">
+        <p className="mt-3 flex items-start gap-1.5 border-l-2 border-rust pl-3 text-rotulo text-rust">
           <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
           <span>
             <strong className="font-semibold">Especificación restrictiva: </strong>
@@ -131,7 +131,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {fila.ocdsItem?.requerimiento && observados.length === 0 && (
         <>
           <Titulo>Lo que pide el requerimiento</Titulo>
-          <p className="text-[12px] text-mute">{String(fila.ocdsItem.requerimiento).slice(0, 700)}</p>
+          <p className="text-rotulo text-mute">{String(fila.ocdsItem.requerimiento).slice(0, 700)}</p>
         </>
       )}
 
@@ -141,7 +141,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
           <ul className="grid gap-1 sm:grid-cols-2">
             {caracs.map((c, j) => (
               // Es lo que PIDE el requerimiento, no algo verificado: viñeta neutra, nunca el check verde.
-              <li key={j} className="flex items-start gap-1.5 text-[12px]">
+              <li key={j} className="flex items-start gap-1.5 text-rotulo">
                 <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-mute" aria-hidden />
                 <span>{c}</span>
               </li>
@@ -156,7 +156,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             Precios encontrados en el mercado: {observados.length} referencia{observados.length === 1 ? "" : "s"}, {fila.nFuentes} con enlace
           </Titulo>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[11px]">
+            <table className="w-full border-collapse text-micro">
               <thead>
                 <tr className="border-b border-line text-left text-mute">
                   <th scope="col" className="py-1.5 pr-2 font-semibold">Producto y proveedor</th>
@@ -183,14 +183,14 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                         )}
                       </div>
                       {Array.isArray(p.caracteristicas_no_cumplidas) && p.caracteristicas_no_cumplidas.length > 0 && (
-                        <div className="mt-0.5 text-[10px] text-rust">
+                        <div className="mt-0.5 text-micro text-rust">
                           no cumple: {p.caracteristicas_no_cumplidas.join(", ")}
                         </div>
                       )}
                     </td>
                     <td className="py-1.5 pr-2 text-right font-mono font-semibold tabular-nums text-ink">
                       {typeof (p.precio ?? p.valor) === "number" ? fmtMoney(p.precio ?? p.valor) : <span className="font-sans font-normal text-mute">Sin dato</span>}
-                      {p.moneda_origen === "USD" && <div className="text-[9px] font-normal text-mute">convertido de USD</div>}
+                      {p.moneda_origen === "USD" && <div className="text-micro font-normal text-mute">convertido de USD</div>}
                     </td>
                     <td className="py-1.5">
                       {p.cumple_caracteristicas === true && (
@@ -222,8 +222,11 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
               : ""}
           </Titulo>
           <ul className="space-y-1">
+            {referencias.length > 8 && (
+              <li className="pb-1 text-micro text-mute">{`Las 8 más parecidas de ${referencias.length} referencias.`}</li>
+            )}
             {referencias.slice(0, 8).map((r, j) => (
-              <li key={j} className="flex items-baseline justify-between gap-3 border-b border-line/50 py-1 text-[11px]">
+              <li key={j} className="flex items-baseline justify-between gap-3 border-b border-line/50 py-1 text-micro">
                 <span className="min-w-0">
                   <span className="block truncate text-ink">{String(r.descripcion || "Sin descripción").slice(0, 70)}</span>
                   <span className="text-mute">
@@ -254,7 +257,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {proveedores.length > 0 && (
         <>
           <Titulo>Proveedores donde la entidad podría haber cotizado</Titulo>
-          <ul className="space-y-0.5 text-[12px]">
+          <ul className="space-y-0.5 text-rotulo">
             {proveedores.map((p, j) => (
               <li key={j}>
                 <span className="font-medium">{p.nombre || "Proveedor sin nombre"}</span>
@@ -276,7 +279,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       )}
 
       {queries.length > 0 && (
-        <details className="mt-4 text-[11px] text-mute">
+        <details className="mt-4 text-micro text-mute">
           <summary className="min-h-[24px] cursor-pointer font-semibold hover:text-ink">
             Qué buscó el agente: {queries.length} consulta{queries.length === 1 ? "" : "s"}
           </summary>
@@ -302,8 +305,8 @@ export function TablaPrecios({ filas, fmtMoney }: { filas: FilaPrecio[]; fmtMone
   const sinDato = <span className="font-sans font-normal text-mute">Sin dato</span>;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[11px]">
-        <caption className="pb-2 text-left text-[12px] text-mute">
+      <table className="w-full border-collapse text-micro">
+        <caption className="pb-2 text-left text-rotulo text-mute">
           Los {numero(filas.length)} ítems desglosados del requerimiento con sus precios. Mismos datos del gráfico, en texto.
         </caption>
         <thead>
@@ -329,18 +332,18 @@ export function TablaPrecios({ filas, fmtMoney }: { filas: FilaPrecio[]; fmtMone
                 <td className="px-2 py-1.5 text-ink">{fila.descripcion.slice(0, 80)}</td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fila.cantidad !== null ? numero(fila.cantidad) : sinDato}
-                  <div className="text-[10px] text-mute">{fila.unidad}</div>
+                  <div className="text-micro text-mute">{fila.unidad}</div>
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fila.ofertadoUnit !== null ? fmtMoney(fila.ofertadoUnit) : sinDato}
-                  {fila.baseOfertado === "referencial" && <div className="text-[10px] text-mute">referencial</div>}
+                  {fila.baseOfertado === "referencial" && <div className="text-micro text-mute">referencial</div>}
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
                   {fila.referenciaUnit !== null
                     ? `${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)}`
                     : sinDato}
                   {fila.tipoReferencia === "estimacion_ia" && fila.referenciaUnit !== null && (
-                    <div className="text-[10px] text-mute">estimado, sin medir</div>
+                    <div className="text-micro text-mute">estimado, sin medir</div>
                   )}
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-inkSoft">
@@ -363,7 +366,7 @@ export function TablaPrecios({ filas, fmtMoney }: { filas: FilaPrecio[]; fmtMone
                     <Icono size={11} aria-hidden />
                     {fila.veredicto.etiqueta}
                   </span>
-                  {!fila.medido && fila.motivo && <div className="text-[10px] text-mute">{fila.motivo}</div>}
+                  {!fila.medido && fila.motivo && <div className="text-micro text-mute">{fila.motivo}</div>}
                 </td>
               </tr>
             );

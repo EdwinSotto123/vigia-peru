@@ -29,7 +29,7 @@ export function Participar() {
             <h3 className="mt-5 max-w-[20ch] text-balance font-display text-3xl font-bold leading-tight sm:text-4xl">
               ¿Ves una obra abandonada? Denúnciala.
             </h3>
-            <p className="mt-4 max-w-[52ch] text-pretty text-base leading-relaxed text-paper/80">
+            <p className="mt-4 max-w-[52ch] text-pretty text-destacado leading-relaxed text-paper/80">
               Toma una foto y marca dónde está. Vigía la cruza con los contratos de esa zona y la pone en el mapa.
               Es anónima si quieres: no se publica tu DNI ni tu nombre. Cuando otra persona reporta el mismo lugar
               en 30 días, la denuncia queda confirmada.
@@ -44,7 +44,7 @@ export function Participar() {
             <h3 className="mt-5 max-w-[20ch] text-balance font-display text-3xl font-bold leading-tight text-ink">
               ¿Investigas? Busca cualquier contrato.
             </h3>
-            <p className="mt-4 max-w-[46ch] text-pretty text-base leading-relaxed text-inkSoft">
+            <p className="mt-4 max-w-[46ch] text-pretty text-destacado leading-relaxed text-inkSoft">
               Por lo que se compró, por la entidad que contrató o por región. Si Vigía ya lo leyó, trae sus señales
               con la ley que citan y los documentos oficiales de donde salen, listos para verificar y citar.
             </p>

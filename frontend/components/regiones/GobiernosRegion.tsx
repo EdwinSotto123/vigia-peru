@@ -95,19 +95,19 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
     return {
       id: String(a),
       celdas: {
-        mandato: <span className="font-mono text-[13px] tabular-nums text-inkSoft">{mandato(a)}</span>,
+        mandato: <span className="font-mono text-meta tabular-nums text-inkSoft">{mandato(a)}</span>,
         gobernador: <CeldaPrincipal titulo={g?.g ?? "Sin dato"} meta={[<Dato key="c" tipo="cargo">{cargoRegional(a)}</Dato>]} />,
         partido: o ? (
-          <Link href={`/app/partidos/${claveOrg(o.n)}?anio=${a}`} className="text-[13.5px] font-medium text-ink underline-offset-2 hover:text-granate hover:underline">{o.n}</Link>
-        ) : <span className="text-[13px] text-mute">Sin dato</span>,
+          <Link href={`/app/partidos/${claveOrg(o.n)}?anio=${a}`} className="text-dato font-medium text-ink underline-offset-2 hover:text-granate hover:underline">{o.n}</Link>
+        ) : <span className="text-meta text-mute">Sin dato</span>,
         votos: <CeldaNumero>{pct(g?.p) ?? "Sin dato"}</CeldaNumero>,
       },
     };
   });
 
   const celda = (v: { prov: number; dist: number; region: boolean } | undefined) =>
-    !v ? <span className="text-[12.5px] text-mute">Ninguno</span> : (
-      <span className="block text-right text-[12.5px] leading-snug text-inkSoft">
+    !v ? <span className="text-meta text-mute">Ninguno</span> : (
+      <span className="block text-right text-meta leading-snug text-inkSoft">
         {v.region && <span className="block font-semibold text-ink">La región</span>}
         {v.prov > 0 && <span className="block">{numero(v.prov)} {v.prov === 1 ? "provincia" : "provincias"}</span>}
         {v.dist > 0 && <span className="block">{numero(v.dist)} {v.dist === 1 ? "distrito" : "distritos"}</span>}
@@ -128,13 +128,13 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
   return (
     <div className="space-y-6">
       <section className="space-y-2">
-        <h3 className="font-display text-[16px] font-bold text-ink">Quién gobernó {nombre}</h3>
+        <h3 className="font-display text-bloque font-bold text-ink">Quién gobernó {nombre}</h3>
         <Tabla columnas={COLS_GOB} filas={filasGob} etiqueta={`Gobernadores de ${nombre}`} />
-        <p className="text-[12px] text-mute">Fuente: JNE, resultados de las elecciones regionales y municipales. Las de 2026 aún no tienen resultados.</p>
+        <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones regionales y municipales. Las de 2026 aún no tienen resultados.</p>
       </section>
       <section className="space-y-2">
-        <h3 className="font-display text-[16px] font-bold text-ink">Qué partidos gobernaron sus provincias y distritos</h3>
-        <p className="text-[13px] text-inkSoft">Cada organización con lo que ganó en cada período: la región, cuántas provincias y cuántos distritos.</p>
+        <h3 className="font-display text-bloque font-bold text-ink">Qué partidos gobernaron sus provincias y distritos</h3>
+        <p className="text-meta text-inkSoft">Cada organización con lo que ganó en cada período: la región, cuántas provincias y cuántos distritos.</p>
         <TablaPaginada
           columnas={COLS_PARTIDOS}
           filas={filasPartidos}
@@ -176,10 +176,10 @@ export function TerritorioRegion({ ubigeo, nombre, buscar }: { ubigeo: string; n
     return g ? { alcalde: g.a, partido: orgDe(x, g.o).n } : null;
   };
   const celda = (g: { alcalde: string; partido: string } | null, conNombre: boolean) =>
-    !g ? <span className="text-[12.5px] text-mute">Sin dato</span> : (
+    !g ? <span className="text-meta text-mute">Sin dato</span> : (
       <span className="block min-w-0">
-        {conNombre && <span className="block truncate text-[13.5px] font-medium text-ink" title={g.alcalde}>{g.alcalde}</span>}
-        <span className="block truncate text-[12.5px] text-inkSoft" title={g.partido}>
+        {conNombre && <span className="block truncate text-dato font-medium text-ink" title={g.alcalde}>{g.alcalde}</span>}
+        <span className="block truncate text-meta text-inkSoft" title={g.partido}>
           <Dato tipo="partido">{g.partido}</Dato>
         </span>
       </span>
@@ -221,7 +221,7 @@ export function TerritorioRegion({ ubigeo, nombre, buscar }: { ubigeo: string; n
   return (
     <div className="space-y-6">
       <section className="space-y-2">
-        <h3 className="font-display text-[16px] font-bold text-ink">Sus {numero(provincias.length)} provincias</h3>
+        <h3 className="font-display text-bloque font-bold text-ink">Sus {numero(provincias.length)} provincias</h3>
         <TablaPaginada
           columnas={COLS_LUGAR}
           filas={filasProv}
@@ -232,7 +232,7 @@ export function TerritorioRegion({ ubigeo, nombre, buscar }: { ubigeo: string; n
         />
       </section>
       <section className="space-y-2">
-        <h3 className="font-display text-[16px] font-bold text-ink">Sus {numero(distritos.length)} distritos</h3>
+        <h3 className="font-display text-bloque font-bold text-ink">Sus {numero(distritos.length)} distritos</h3>
         <TablaPaginada
           columnas={COLS_LUGAR}
           filas={filasDist}
@@ -242,7 +242,7 @@ export function TerritorioRegion({ ubigeo, nombre, buscar }: { ubigeo: string; n
           buscar={{ placeholder: "Buscar un distrito, una provincia, un alcalde o un partido…", etiqueta: `Buscar en los distritos de ${nombre}`, inicial: buscar }}
         />
       </section>
-      <p className="text-[12px] text-mute">Fuente: JNE, resultados de las elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026).</p>
+      <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026).</p>
     </div>
   );
 }

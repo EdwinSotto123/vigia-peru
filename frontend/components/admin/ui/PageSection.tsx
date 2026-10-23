@@ -37,8 +37,8 @@ export function PageSection({
 
   const cabecera = (
     <>
-      <span className="font-display text-[19px] font-bold leading-tight tracking-tight text-ink">{titulo}</span>
-      {meta != null && <span className="text-[12.5px] font-medium tabular-nums text-mute">{meta}</span>}
+      <span className="font-display text-bloque font-bold leading-tight tracking-tight text-ink">{titulo}</span>
+      {meta != null && <span className="text-meta font-medium tabular-nums text-mute">{meta}</span>}
       {plegable && <ChevronDown size={16} className={cn("shrink-0 self-center text-inkSoft transition-transform duration-rapido", abierto && "rotate-180")} aria-hidden />}
     </>
   );
@@ -62,7 +62,7 @@ export function PageSection({
               <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">{cabecera}</span>
             )}
           </h2>
-          {descripcion && <p className="mt-1 max-w-3xl text-[13.5px] leading-snug text-inkSoft text-pretty">{descripcion}</p>}
+          {descripcion && <p className="mt-1 max-w-3xl text-dato leading-snug text-inkSoft text-pretty">{descripcion}</p>}
         </div>
         {acciones && visible && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>

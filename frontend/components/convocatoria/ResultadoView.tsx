@@ -20,6 +20,7 @@ import { SeccionSegura } from "./sections/SeccionSegura";
 import { EnRevisionDossier } from "./sections/EnRevisionDossier";
 import { PanelDossier, type TabKey } from "./sections/PanelesDossier";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
+import { RANGO_SEVERIDAD } from "@/lib/severidad";
 
 /** Las pestañas del informe, en orden. La primera ("resumen", la de las señales) no va a la URL. */
 
@@ -126,8 +127,7 @@ export function ResultadoView({
       if (p) p.n++;
       else m.set(regla, { regla, severidad: severidadDe(b), n: 1 });
     }
-    const peso = { alta: 0, media: 1, baja: 2 } as const;
-    return [...m.values()].sort((a, b) => peso[a.severidad] - peso[b.severidad]);
+    return [...m.values()].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad]);
   }, [banderasArr]);
   const nivel = nivelDelDossier(compl.score, banderasArr.length, corrida);
   // El puntaje nunca aparece sin las señales que lo explican (§10.4).
@@ -222,7 +222,7 @@ export function ResultadoView({
               {nivel.etiqueta}
             </span>
             {conv.tipo_proceso && <span className="pill border-line bg-paperSoft text-inkSoft">{conv.tipo_proceso}</span>}
-            {analizadoEn && <span className="text-[12.5px] text-mute">Leído el {fechaCorta(analizadoEn)}</span>}
+            {analizadoEn && <span className="text-meta text-mute">Leído el {fechaCorta(analizadoEn)}</span>}
           </>
         }
       />
@@ -296,7 +296,7 @@ export function ResultadoView({
 
           {/* Una línea + ⓘ (§10.7). Es la única vez que el informe lo dice: antes lo repetían el
               veredicto, el pie de la lista de señales y este párrafo. */}
-          <p className="flex items-center gap-1 border-t border-line pt-3 text-[12px] text-mute">
+          <p className="flex items-center gap-1 border-t border-line pt-3 text-rotulo text-mute">
             <Info size={13} className="shrink-0" aria-hidden />
             Una señal no es una acusación.
             <Ayuda titulo="¿De dónde salen y qué hago con ellas?">
@@ -311,17 +311,17 @@ export function ResultadoView({
         {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ─── */}
         <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start" aria-label="Datos del proceso">
           <div className="rounded-2xl border border-line bg-paper p-4">
-            <h2 className="text-[13px] font-semibold text-ink">Datos del proceso</h2>
+            <h2 className="font-display text-bloque font-bold text-ink">Datos del proceso</h2>
             {/* Filas etiqueta · cifra, alineadas a la izquierda: antes eran tres baldosas centradas. */}
-            <dl className="mt-1.5 divide-y divide-line/70 text-[13px]">
+            <dl className="mt-1.5 divide-y divide-line/70 text-meta">
               <DatoProceso valor={conv.n_postores} etiqueta={Number(conv.n_postores) === 1 ? "Postor" : "Postores"} />
               <DatoProceso valor={conv.n_items} etiqueta="Ítems" />
               <DatoProceso valor={conv.n_docs} etiqueta="Documentos" />
             </dl>
-            {Number(conv.n_postores) === 1 && <p className="mt-1.5 text-[12px] leading-snug text-inkSoft">Se presentó un solo postor.</p>}
+            {Number(conv.n_postores) === 1 && <p className="mt-1.5 text-rotulo leading-snug text-inkSoft">Se presentó un solo postor.</p>}
             {/* El perfil de la entidad ya se enlaza desde la identidad: aquí sólo lo que no está arriba. */}
             {ocidContrato && (
-              <p className="mt-3 border-t border-line pt-3 text-[13px]">
+              <p className="mt-3 border-t border-line pt-3 text-meta">
                 <Link href={`/app/contratos/${encodeURIComponent(ocidContrato)}`} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
                   Documentos oficiales y citas por página <ArrowRight size={13} aria-hidden />
                 </Link>
@@ -335,11 +335,11 @@ export function ResultadoView({
             onClick={() => abrirTab("trace")}
             className="w-full rounded-2xl border border-line bg-paperSoft p-4 text-left transition-colors duration-rapido hover:bg-paperDeep"
           >
-            <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-ink">
+            <span className="flex items-center justify-between gap-2 text-meta font-semibold text-ink">
               Cómo se hizo este análisis
               <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
             </span>
-            <span className="mt-1 block text-[12px] leading-snug text-inkSoft">
+            <span className="mt-1 block text-rotulo leading-snug text-inkSoft">
               {corrida.hayTraza ? (
                 <>
                   Corrieron <strong className="font-semibold text-ink">{corrida.agentes.length} de {TOTAL_AGENTES}</strong> agentes
@@ -362,7 +362,7 @@ function DatoProceso({ valor, etiqueta }: { valor: unknown; etiqueta: string }) 
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
       <dt className="text-mute">{etiqueta}</dt>
-      <dd className={cn("font-mono tabular-nums", n === null ? "font-sans text-[12px] text-mute" : "font-semibold text-ink")}>
+      <dd className={cn("font-mono tabular-nums", n === null ? "font-sans text-rotulo text-mute" : "font-semibold text-ink")}>
         {n === null ? "Sin dato" : numero(n)}
       </dd>
     </div>
@@ -378,7 +378,7 @@ function EstadoInconsistente({ er }: { er: any }) {
   const legible = (s: unknown) => String(s || "").replace(/_/g, " ");
   const docs: any[] = er.documentos_clave || [];
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-paperSoft px-4 py-2.5 text-[13px]">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-paperSoft px-4 py-2.5 text-meta">
       <Info size={15} className="shrink-0 text-inkSoft" aria-hidden />
       <span className="font-semibold text-ink">Los documentos y el portal oficial no coinciden</span>
       <span className="text-inkSoft">
@@ -392,11 +392,12 @@ function EstadoInconsistente({ er }: { er: any }) {
           pendiente.
         </span>
         {docs.slice(0, 3).map((d: any, i: number) => (
-          <span key={i} className="mt-1.5 block text-[12px] text-inkSoft">
+          <span key={i} className="mt-1.5 block text-rotulo text-inkSoft">
             <strong className="font-semibold text-ink">{legible(d.tipo)}</strong> {d.titulo}
             {d.fecha && <span className="text-mute">, del {fechaCorta(String(d.fecha).slice(0, 10))}</span>}
           </span>
         ))}
+        {docs.length > 3 && <span className="mt-1.5 block text-rotulo text-mute">{`y ${docs.length - 3} documentos más en el expediente.`}</span>}
       </Ayuda>
     </div>
   );

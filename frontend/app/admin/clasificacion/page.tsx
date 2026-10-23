@@ -103,40 +103,40 @@ function ProcesamientoActivo() {
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="space-y-2">
           <div role="group" aria-label="Tipos de contratación activos" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-[12px] font-medium text-inkSoft">Tipos</span>
+            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Tipos</span>
             {TIPOS_CFG.map((t) => editable
               ? <Chip key={t} activo={!!v.tipos_activos?.includes(t)} onClick={() => toggle("tipos_activos", t)}>{tipoTxt(t)}</Chip>
               : <Badge key={t} tono={v.tipos_activos?.includes(t) ? "ok" : "muted"} punto={!!v.tipos_activos?.includes(t)}>{tipoTxt(t)}</Badge>)}
           </div>
           <div role="group" aria-label="Etapas activas" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-[12px] font-medium text-inkSoft">Etapas</span>
+            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Etapas</span>
             {ETAPAS_CFG.map((e) => editable
               ? <Chip key={e} activo={!!v.etapas_activas?.includes(e)} onClick={() => toggle("etapas_activas", e)}>{etapaTxt(e)}</Chip>
               : <Badge key={e} tono={v.etapas_activas?.includes(e) ? "ok" : "muted"} punto={!!v.etapas_activas?.includes(e)}>{etapaTxt(e)}</Badge>)}
           </div>
           {/* Migración 69: la base trae contratos desde 2015; a la cola sólo entran los convocados desde esta fecha. */}
           <div role="group" aria-label="Desde qué fecha entra a la cola" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-[12px] font-medium text-inkSoft">Desde</span>
+            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Desde</span>
             {editable ? (
               <input
                 type="date"
                 value={v.cola_desde ?? ""}
                 onChange={(e) => { setV({ ...v, cola_desde: e.target.value || null }); setSucio(true); setMsg(null); }}
-                className="rounded-lg border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink"
+                className="rounded-lg border border-line bg-paper px-2 py-1 font-mono text-rotulo text-ink"
                 aria-label="Fecha de convocatoria desde la que un contrato entra a la cola"
               />
             ) : (
               <Badge tono="muted">{v.cola_desde ? fecha(v.cola_desde) : "Todas las fechas"}</Badge>
             )}
-            <span className="text-[11.5px] text-mute">Los contratos anteriores se ven en la base, pero no se financian ni se descargan.</span>
+            <span className="text-rotulo text-mute">Los contratos anteriores se ven en la base, pero no se financian ni se descargan.</span>
           </div>
-          {v.nota && <p className="text-[12px] text-mute">{v.nota}</p>}
+          {v.nota && <p className="text-rotulo text-mute">{v.nota}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-paperSoft px-3 py-2">
           <div>
-            <p className="text-[12px] font-medium text-inkSoft">Cola financiable hoy</p>
+            <p className="text-rotulo font-medium text-inkSoft">Cola financiable hoy</p>
             <p className="font-mono text-xl font-semibold leading-tight text-ink">{fmtNum(data.cola) ?? "—"}</p>
-            <p className="text-[11.5px] text-mute">
+            <p className="text-rotulo text-mute">
               {data.updatedAt ? `Editada ${fmtFechaHora(data.updatedAt)}${data.updatedBy ? ` por ${data.updatedBy}` : ", sin autor registrado"}` : "Nunca editada"}
             </p>
           </div>
@@ -148,7 +148,7 @@ function ProcesamientoActivo() {
               {sucio && <Badge tono="warn" punto>Sin guardar</Badge>}
             </div>
           ) : (
-            <p className="text-[11.5px] text-inkSoft">Qué se procesa lo cambia un administrador.</p>
+            <p className="text-rotulo text-inkSoft">Qué se procesa lo cambia un administrador.</p>
           )}
         </div>
       </div>
@@ -215,9 +215,9 @@ export default function ClasificacionPage() {
 
               {/* Escritorio: la matriz completa. */}
               <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paperSoft md:block">
-                <table className="w-full text-sm">
+                <table className="w-full text-dato leading-5">
                   <caption className="sr-only">Contratos por tipo de contratación y etapa</caption>
-                  <thead className="text-left text-[11px] text-mute">
+                  <thead className="text-left text-micro text-mute">
                     <tr>
                       <th scope="col" className="px-4 py-2.5 font-medium">Tipo y etapa</th>
                       {etapas.map((e) => <th key={e} scope="col" className="px-2 py-2.5 text-right font-medium">{etapaTxt(e)}</th>)}
@@ -230,23 +230,23 @@ export default function ClasificacionPage() {
                         <th scope="row" className="px-4 py-2 text-left font-medium text-ink">{tipoTxt(t)}</th>
                         {etapas.map((e) => {
                           const v = grid.get(`${t}|${e}`);
-                          if (!v) return <td key={e} className="px-2 py-2 text-right font-mono text-xs text-mute">0</td>;
+                          if (!v) return <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-mute">0</td>;
                           return (
-                            <td key={e} className="px-2 py-2 text-right font-mono text-xs" style={{ background: fondo(v.n) }}>
+                            <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4" style={{ background: fondo(v.n) }}>
                               <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="text-ink hover:underline" title={`${tipoTxt(t)}, ${etapaTxt(e)}: ver contratos`}>{fmtNum(v.n)}</Link>
-                              {v.np > 0 && <span className="ml-1 text-[10px] text-amberTexto" title="no procesables">({fmtNum(v.np)})</span>}
+                              {v.np > 0 && <span className="ml-1 text-micro text-amberTexto" title="no procesables">({fmtNum(v.np)})</span>}
                             </td>
                           );
                         })}
-                        <td className="px-4 py-2 text-right font-mono text-xs font-semibold text-ink">{fmtNum(r.porTipo[t] ?? 0)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.porTipo[t] ?? 0)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-line bg-paperSoft">
-                      <th scope="row" className="px-4 py-2 text-left text-[12px] font-medium text-inkSoft">Total</th>
-                      {etapas.map((e) => <td key={e} className="px-2 py-2 text-right font-mono text-xs text-ink">{fmtNum(r.porEtapa[e] ?? 0)}</td>)}
-                      <td className="px-4 py-2 text-right font-mono text-xs font-semibold text-ink">{fmtNum(r.totales.total)}</td>
+                      <th scope="row" className="px-4 py-2 text-left text-rotulo font-medium text-inkSoft">Total</th>
+                      {etapas.map((e) => <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-ink">{fmtNum(r.porEtapa[e] ?? 0)}</td>)}
+                      <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.totales.total)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -256,7 +256,7 @@ export default function ClasificacionPage() {
               <div className="space-y-2 md:hidden">
                 {tipos.map((t) => (
                   <Expandable key={t} resumen={tipoTxt(t)} meta={<span className="font-mono text-ink">{fmtNum(r.porTipo[t] ?? 0)}</span>}>
-                    <ul className="space-y-1.5 text-[13px]">
+                    <ul className="space-y-1.5 text-meta">
                       {etapas.filter((e) => grid.get(`${t}|${e}`)).map((e) => {
                         const v = grid.get(`${t}|${e}`)!;
                         return (
@@ -273,7 +273,7 @@ export default function ClasificacionPage() {
                   </Expandable>
                 ))}
               </div>
-              {Array.from(grid.values()).some((v) => v.np > 0) && <p className="text-[12px] text-inkSoft">Entre paréntesis: cuántos de la celda no se pueden procesar.</p>}
+              {Array.from(grid.values()).some((v) => v.np > 0) && <p className="text-rotulo text-inkSoft">Entre paréntesis: cuántos de la celda no se pueden procesar.</p>}
             </div>
           )}
         </PageSection>
@@ -298,7 +298,7 @@ export default function ClasificacionPage() {
           <p className="max-w-3xl leading-relaxed text-inkSoft">
             La clasificación corre sola con cada ingesta. Para rehacerla completa (por ejemplo, tras cambiar las reglas), desde la carpeta del proyecto:
           </p>
-          <code className="mt-2 inline-block rounded-lg bg-ink px-3 py-2 font-mono text-[12px] text-paper">python -m backend.core.clasificacion --reclasificar</code>
+          <code className="mt-2 inline-block rounded-lg bg-ink px-3 py-2 font-mono text-rotulo text-paper">python -m backend.core.clasificacion --reclasificar</code>
         </Expandable>
       </div>
     </AdminShell>
@@ -310,7 +310,7 @@ function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripci
   // Sin filas no hace falta una caja con cabecera: una línea que diga la buena noticia.
   if (!rows.length)
     return (
-      <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+      <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-snug text-inkSoft">
         <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
         <span><strong className="font-semibold text-ink">{titulo}.</strong> {vacio}</span>
       </p>
@@ -321,7 +321,7 @@ function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripci
         <ul className="space-y-2">
           {rows.map((r) => (
             <li key={r.codigo} title={r.codigo}>
-              <div className="flex items-baseline justify-between gap-3 text-[13px]">
+              <div className="flex items-baseline justify-between gap-3 text-meta">
                 <span className="text-ink">{r.texto}</span>
                 <span className="shrink-0 font-mono text-ink">{fmtNum(r.n)}</span>
               </div>

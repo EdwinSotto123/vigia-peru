@@ -44,10 +44,10 @@ export function LlamadaPodio({
       <div className="relative space-y-4 px-5 py-5 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div>
-            <h2 id="llamada-podio" className="font-display text-[26px] font-bold leading-tight sm:text-[32px]">
+            <h2 id="llamada-podio" className="font-display text-cifra font-bold leading-tight sm:text-titulo">
               ¿Quieres salir en este <span className="text-maiz">podio</span>?
             </h2>
-            <p className="mt-1 text-[15px] text-paper/80">Ayúdanos a vigilar{donde}.</p>
+            <p className="mt-1 text-cuerpo text-paper/80">Ayúdanos a vigilar{donde}.</p>
           </div>
           <EnlaceAccion href="/app/financiar" variante="oscuro" tamano="lg" flecha>
             Quiero vigilar con mi aporte
@@ -61,11 +61,11 @@ export function LlamadaPodio({
                   <Icono size={17} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[13.5px] font-semibold leading-snug text-paper">
+                  <span className="block text-dato font-semibold leading-snug text-paper">
                     <span className="sr-only">Paso {i + 1}: </span>
                     {titulo}
                   </span>
-                  <span className="mt-0.5 block text-[12.5px] leading-snug text-paper/75">{texto}</span>
+                  <span className="mt-0.5 block text-meta leading-snug text-paper/75">{texto}</span>
                 </span>
               </li>
             ))}

@@ -63,7 +63,7 @@ export function PortadaAliado({
           <Image src={aliado.portadaUrl} alt="" fill unoptimized priority className="object-cover" />
         ) : (
           <>
-            <p className="absolute right-4 top-3.5 inline-flex items-center gap-2 text-[12.5px] font-medium text-paper/80 sm:right-6 sm:top-5">
+            <p className="absolute right-4 top-3.5 inline-flex items-center gap-2 text-meta font-medium text-paper/80 sm:right-6 sm:top-5">
               <Isotipo tamano={22} />
               Aliado de transparencia de Vigía Perú
             </p>
@@ -80,14 +80,14 @@ export function PortadaAliado({
             <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="perfil" />
           </div>
           <div className="min-w-0 flex-1 sm:pb-1">
-            <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[34px]">
+            <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">
               {aliado.nombre}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
               {puesto && (
                 <Link
                   href={hrefRanking}
-                  className="inline-flex min-h-[32px] items-center gap-2 rounded-full text-[13px] font-medium text-inkSoft underline-offset-2 hover:text-granate hover:underline"
+                  className="inline-flex min-h-[32px] items-center gap-2 rounded-full text-meta font-medium text-inkSoft underline-offset-2 hover:text-granate hover:underline"
                 >
                   <Puesto n={puesto.puesto} />
                   de {numero(puesto.de)} {puesto.de === 1 ? "aliado" : "aliados"}
@@ -99,7 +99,7 @@ export function PortadaAliado({
         </div>
 
         {aliado.descripcion && (
-          <p className="mt-4 max-w-[70ch] text-[15px] leading-relaxed text-inkSoft text-pretty">{aliado.descripcion}</p>
+          <p className="mt-4 max-w-[70ch] text-cuerpo leading-relaxed text-inkSoft text-pretty">{aliado.descripcion}</p>
         )}
 
         <ContactoAliado web={aliado.web} email={aliado.email} redes={aliado.redes} telefono={aliado.telefono} ubicacion={aliado.ubicacion} enlaces={aliado.enlaces} className="mt-4" />

@@ -26,10 +26,10 @@ import { tituloNatural } from "@/lib/landing";
 import { SENAL_PLAZA, TIPOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
 import { SEVERIDAD_TEXTO } from "@/lib/personas";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
+import { uno } from "@/lib/utils";
 
 const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** Los filtros de las plazas en la URL, con `z` delante. */
 export const P_PLAZAS = { senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag", q: "zq" } as const;
@@ -152,7 +152,7 @@ async function Resultados(props: { pagina: Promise<PaginaPlazas | null>; paramet
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-inkSoft">{plural(pagina.total, "plaza", "plazas")}{props.filtrada ? " con estos filtros" : ""}</p>
+        <p className="text-meta text-inkSoft">{plural(pagina.total, "plaza", "plazas")}{props.filtrada ? " con estos filtros" : ""}</p>
         {pag}
       </div>
       <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p) => fila(p, props.deEntidad))} etiqueta="Plazas CAS" />
@@ -197,9 +197,14 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
               <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SENAL_PLAZA[s.tipo]?.corto ?? s.tipo}</Badge>
             </li>
           ))}
+          {p.senales.length > 3 && (
+            <li title={p.senales.slice(3).map((s) => SENAL_PLAZA[s.tipo]?.corto ?? s.tipo).join(", ")}>
+              <Badge variant="neutral">{`+${p.senales.length - 3}`}</Badge>
+            </li>
+          )}
         </ul>
       ) : (
-        <span className="text-[12.5px] text-mute">—</span>
+        <span className="text-meta text-mute">Ninguna</span>
       ),
       sueldo: <CeldaNumero sub={p.vacantes && p.vacantes > 1 ? plural(p.vacantes, "vacante", "vacantes") : undefined}>{p.remuneracion != null ? soles(p.remuneracion) : "Sin dato"}</CeldaNumero>,
     },
@@ -213,9 +218,9 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
             <div key={s.tipo} className="space-y-1.5 rounded-xl border border-line bg-paperSoft p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-                <span className="text-[14px] font-semibold text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</span>
+                <span className="text-dato font-semibold text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</span>
               </div>
-              <p className="text-[13px] text-inkSoft">{SENAL_PLAZA[s.tipo]?.explica}</p>
+              <p className="text-meta text-inkSoft">{SENAL_PLAZA[s.tipo]?.explica}</p>
               <DetallePlaza tipo={s.tipo} d={s.detalle} />
             </div>
           ))}
@@ -224,9 +229,9 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
       ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>
+          <span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>
           {p.detalleUrl && (
-            <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[40px] items-center gap-1.5 text-[13px] font-semibold text-granate hover:underline">
+            <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[40px] items-center gap-1.5 text-meta font-semibold text-granate hover:underline">
               Ver la convocatoria en la entidad <ExternalLink size={13} aria-hidden />
             </a>
           )}

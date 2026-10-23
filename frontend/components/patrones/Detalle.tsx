@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 /** El cuerpo del panel: el ritmo vertical fijo entre sus piezas. */
 export function CuerpoDetalle({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("space-y-5 text-[14px] leading-relaxed text-ink", className)}>{children}</div>;
+  return <div className={cn("space-y-5 text-dato leading-relaxed text-ink", className)}>{children}</div>;
 }
 
 /** Chips de estado en una fila (severidad, estado, cotejo…). */
@@ -45,11 +45,11 @@ export function DatosClave({ items, className }: { items: DatoClave[]; className
     <dl className={cn("divide-y divide-line/70 rounded-xl border border-line [container-type:inline-size]", className)}>
       {items.map((d) => (
         <div key={d.etiqueta} className="grid gap-x-4 gap-y-0.5 px-3.5 py-2.5 [@container(min-width:26rem)]:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
-          <dt className="flex items-center gap-1 text-[13px] text-mute">
+          <dt className="flex items-center gap-1 text-meta text-mute">
             {d.etiqueta}
             {d.ayuda}
           </dt>
-          <dd className={cn("min-w-0 break-words text-[14px] text-ink", d.mono && "font-mono text-[13px] tabular-nums")}>
+          <dd className={cn("min-w-0 break-words text-dato text-ink", d.mono && "font-mono text-meta tabular-nums")}>
             {d.valor == null || d.valor === "" ? <span className="text-mute">Sin dato</span> : d.valor}
           </dd>
         </div>
@@ -76,7 +76,7 @@ export function BloqueDetalle({
     // El primero del panel no lleva raya arriba: no separa nada de nada.
     <section className={cn("border-t border-line pt-4 first:border-t-0 first:pt-0", className)}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="flex items-center gap-1 font-display text-[15px] font-bold text-ink">
+        <h3 className="flex items-center gap-1 font-display text-bloque font-bold text-ink">
           {titulo}
           {ayuda}
         </h3>
@@ -91,8 +91,8 @@ export function BloqueDetalle({
 export function CitaDetalle({ children, fuente }: { children: ReactNode; fuente?: ReactNode }) {
   return (
     <figure className="rounded-r-xl border-l-2 border-granate/40 bg-paperSoft px-3.5 py-2.5">
-      <blockquote className="text-[14px] leading-relaxed text-ink">{children}</blockquote>
-      {fuente && <figcaption className="mt-1.5 text-[12px] text-mute">{fuente}</figcaption>}
+      <blockquote className="text-dato leading-relaxed text-ink">{children}</blockquote>
+      {fuente && <figcaption className="mt-1.5 text-rotulo text-mute">{fuente}</figcaption>}
     </figure>
   );
 }
@@ -103,7 +103,7 @@ export function CitaDetalle({ children, fuente }: { children: ReactNode; fuente?
  */
 export function PieDetalle({ principal, secundarias }: { principal?: ReactNode; secundarias?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[13px]">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-meta">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">{principal}</div>
       {secundarias && <div className="flex flex-wrap items-center gap-2">{secundarias}</div>}
     </div>

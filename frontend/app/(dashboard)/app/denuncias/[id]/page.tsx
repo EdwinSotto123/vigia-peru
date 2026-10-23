@@ -3,18 +3,7 @@ import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  MapPin,
-  MapPinOff,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Camera,
-  GitMerge,
-  ShieldAlert,
-  ChevronRight,
-} from "lucide-react";
+import { MapPin, MapPinOff, Calendar, CheckCircle2, Clock, Camera, GitMerge, ShieldAlert, ChevronRight } from "lucide-react";
 import { solesCompacto } from "@/lib/formato";
 import { maskDnis } from "@/lib/privacidad";
 import { getReporte, getReportes, getConvergencias, getAlerta, type ApiConvergencia, type ApiReporte } from "@/lib/api-client";
@@ -24,7 +13,7 @@ import { DenunciasMap } from "@/components/denuncias/DenunciasMap";
 import { fechaDeDenuncia, haceCuantoSeReporto } from "@/components/denuncias/fechaDenuncia";
 import { TextoProtegido } from "@/components/alertas/Protegido";
 import { Severidad } from "@/components/ui/Severidad";
-import { BarraCompartir, Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
+import { Ayuda, BarraCompartir, EncabezadoPagina, FichaNoLeida, Migas, Pagina } from "@/components/patrones";
 
 export function generateMetadata({ params }: { params: { id: string } }): Metadata {
   return { title: `Denuncia ${decodeURIComponent(params.id)}` };
@@ -79,16 +68,20 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
 
   return (
     <Pagina>
-      <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
-        <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
-      </Link>
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Denuncias", href: "/app/denuncias" },
+          { etiqueta: meta?.label ?? "Denuncia ciudadana", href: `/app/denuncias/${rep.id}` },
+        ]}
+      />
 
       <EncabezadoPagina
         titulo={`${meta?.label ?? "Denuncia ciudadana"}${rep.region ? ` en ${rep.region}` : ""}`}
         bajada={
           <>
             {fecha ? `Reportada el ${fecha}` : "Sin fecha de reporte"}, código{" "}
-            <span className="font-mono text-[13px]" translate="no">{rep.id}</span>. Es el testimonio de un vecino, no un
+            <span className="font-mono text-meta" translate="no">{rep.id}</span>. Es el testimonio de un vecino, no un
             hallazgo de Vigía.
           </>
         }
@@ -103,19 +96,19 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                 <img src={rep.fotoUrl} alt={`Foto de la denuncia ${rep.id}`} className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/15 to-transparent" aria-hidden />
                 <div className="absolute left-5 top-5 flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold backdrop-blur-md ${meta?.tone ?? "border-line bg-paperSoft text-ink"}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-micro font-semibold backdrop-blur-md ${meta?.tone ?? "border-line bg-paperSoft text-ink"}`}>
                     <Icon size={12} aria-hidden />
                     {meta?.label ?? "Denuncia"}
                   </span>
                   {convergencia && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-paper">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-micro font-semibold text-paper">
                       <GitMerge size={11} className="text-maiz" aria-hidden />
                       Coincide con un contrato con señales
                     </span>
                   )}
                 </div>
                 <div className="absolute bottom-4 left-5 right-5 text-paper">
-                  <p className="max-w-2xl text-base leading-snug">
+                  <p className="max-w-2xl text-destacado leading-snug">
                     <TextoProtegido texto={rep.descripcion ?? ""} nombres={[]} />
                   </p>
                 </div>
@@ -123,15 +116,15 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
             ) : (
               <div className="space-y-3 p-6">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${meta?.tone ?? "border-line bg-paperSoft text-ink"}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-micro font-semibold ${meta?.tone ?? "border-line bg-paperSoft text-ink"}`}>
                     <Icon size={12} aria-hidden />
                     {meta?.label ?? "Denuncia"}
                   </span>
-                  <span className="rounded-full border border-line bg-paperDeep px-2 py-0.5 text-[11px] font-medium text-inkSoft">
+                  <span className="rounded-full border border-line bg-paperDeep px-2 py-0.5 text-micro font-medium text-inkSoft">
                     Sin foto
                   </span>
                 </div>
-                <p className="text-base leading-relaxed text-ink">
+                <p className="text-destacado leading-relaxed text-ink">
                   <TextoProtegido texto={rep.descripcion ?? ""} nombres={[]} />
                 </p>
               </div>
@@ -146,15 +139,15 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                 Esta denuncia coincide con un contrato que tiene señales
               </h2>
               {convergencia.resumen && (
-                <p className="mt-2 text-sm leading-relaxed text-paper/75">{convergencia.resumen}</p>
+                <p className="mt-2 text-dato leading-relaxed text-paper/75">{convergencia.resumen}</p>
               )}
               {alerta && codigoAlerta && (
                 <div className="mt-4 rounded-xl bg-paper/5 p-4">
-                  <div className="font-mono text-[11px] text-paper/75" translate="no">{codigoAlerta}</div>
-                  {alerta.objeto && <div className="text-sm font-semibold">{alerta.objeto}</div>}
+                  <div className="font-mono text-micro text-paper/75" translate="no">{codigoAlerta}</div>
+                  {alerta.objeto && <div className="text-dato leading-5 font-semibold">{alerta.objeto}</div>}
                   {/* El peso del riesgo en palabras, sin el puntaje suelto: el número sólo se
                       muestra junto a las señales que lo explican, y esas viven en el dossier. */}
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-paper/75">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo leading-4 text-paper/75">
                     {alerta.score != null && Number.isFinite(Number(alerta.score)) && (
                       <Severidad score={Number(alerta.score)} formato="pastilla" />
                     )}
@@ -164,7 +157,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                   </div>
                   <Link
                     href={rutaContrato(codigoAlerta, "dictamen")}
-                    className="mt-3 inline-flex min-h-[36px] items-center gap-1 rounded-full bg-paper px-4 py-1.5 text-[13px] font-semibold text-granate transition-colors duration-rapido hover:bg-maiz-soft"
+                    className="mt-3 inline-flex min-h-[36px] items-center gap-1 rounded-full bg-paper px-4 py-1.5 text-meta font-semibold text-granate transition-colors duration-rapido hover:bg-maiz-soft"
                   >
                     Ver el dossier del contrato <ChevronRight size={12} aria-hidden />
                   </Link>
@@ -175,11 +168,11 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
 
           <section>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-display text-lg font-bold text-ink">
+              <h2 className="font-display text-bloque leading-7 font-bold text-ink">
                 Ubicación{rep.region ? `: ${rep.region}` : ""}
               </h2>
               {conUbicacion && (
-                <span className="font-mono text-[11px] text-mute">
+                <span className="font-mono text-micro text-mute">
                   {Number(rep.lat).toFixed(4)}, {Number(rep.lon).toFixed(4)}
                 </span>
               )}
@@ -187,7 +180,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
             {conUbicacion ? (
               <DenunciasMap reporte={{ lat: rep.lat, lon: rep.lon, categoria: rep.categoria, region: rep.region }} />
             ) : (
-              <p className={`${TARJETA} flex items-start gap-2 p-4 text-sm text-inkSoft`}>
+              <p className={`${TARJETA} flex items-start gap-2 p-4 text-dato leading-5 text-inkSoft`}>
                 <MapPinOff size={15} className="mt-0.5 shrink-0" aria-hidden />
                 Quien denunció no marcó un punto en el mapa{rep.region ? `; sólo indicó la región (${rep.region})` : ""}.
               </p>
@@ -198,7 +191,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
         <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
           {/* El estado como chip + una línea; cuándo se confirma, a un clic (§10.7). */}
           <div className={`${TARJETA} p-4`}>
-            <h2 className="text-xs font-semibold text-mute">Estado de la denuncia</h2>
+            <h2 className="font-display text-bloque font-bold text-ink">Estado de la denuncia</h2>
             <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
               {confirmada ? (
                 <span className="pill border-moss/30 bg-moss/10 font-semibold text-mossTexto">
@@ -209,7 +202,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                   <Clock size={12} aria-hidden /> Sin confirmar
                 </span>
               )}
-              <span className="text-[13px] text-inkSoft">
+              <span className="text-meta text-inkSoft">
                 {confirmada
                   ? `La respaldan ${rep.confirmaciones} reportes independientes del mismo lugar.`
                   : "La respalda un solo reporte."}
@@ -223,9 +216,9 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
 
           <div className={`${TARJETA} overflow-hidden`}>
             <div className="border-b border-line bg-paperSoft px-4 py-2.5">
-              <h2 className="text-xs font-semibold text-mute">Datos de la denuncia</h2>
+              <h2 className="font-display text-bloque font-bold text-ink">Datos de la denuncia</h2>
             </div>
-            <dl className="divide-y divide-line text-sm">
+            <dl className="divide-y divide-line text-dato leading-5">
               {rep.region && <Row icon={<MapPin size={13} />} label="Región" value={rep.region} />}
               {fecha && (
                 <Row
@@ -259,7 +252,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
             {conUbicacion && (
               <Link
                 href={`/app/mapa?${regionId ? `region=${regionId}&` : ""}tab=denuncias`}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2.5 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
               >
                 <MapPin size={16} aria-hidden /> Verla en el mapa
               </Link>
@@ -269,7 +262,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
           {otras.length > 0 && rep.region && (
             <div className={`${TARJETA} overflow-hidden`}>
               <div className="border-b border-line bg-paperSoft px-4 py-2.5">
-                <h2 className="text-xs font-semibold text-mute">Otras denuncias en {rep.region}</h2>
+                <h2 className="font-display text-bloque font-bold text-ink">Otras denuncias en {rep.region}</h2>
               </div>
               <ul className="divide-y divide-line">
                 {otras.map((c) => {
@@ -283,8 +276,8 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                         </span>
                         <div className="min-w-0 flex-1">
                           {/* Dentro de un enlace no cabe el vidrio revelable (sería un botón dentro de un <a>): DNI tapado sin más. */}
-                          <div className="line-clamp-1 text-xs font-medium text-ink">{maskDnis(c.descripcion)}</div>
-                          <div className="text-[11px] text-mute">
+                          <div className="line-clamp-1 text-rotulo leading-4 font-medium text-ink">{maskDnis(c.descripcion)}</div>
+                          <div className="text-micro text-mute">
                             <Dato tipo="codigo" nombre="Código de la denuncia" mono>
                               <span translate="no">{c.id}</span>
                             </Dato>
@@ -300,7 +293,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
               <div className="border-t border-line px-4 py-2.5">
                 <Link
                   href={`/app/denuncias?region=${encodeURIComponent(rep.region)}`}
-                  className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
+                  className="inline-flex min-h-[24px] items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline"
                 >
                   Ver todas las denuncias de {rep.region} <ChevronRight size={13} aria-hidden />
                 </Link>
@@ -315,22 +308,12 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
 
 function NoSePudoLeer({ id }: { id: string }) {
   return (
-    <Pagina>
-      <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
-        <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
-      </Link>
-      <EncabezadoPagina titulo="Denuncia ciudadana" />
-      <EstadoError
-        titulo="No pudimos leer esta denuncia"
-        accion={
-          <Link href={`/app/denuncias/${encodeURIComponent(id)}`} className="text-sm font-semibold text-granate underline-offset-2 hover:underline">
-            Reintentar
-          </Link>
-        }
-      >
-        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Denuncias", href: "/app/denuncias" }]}
+      titulo="Denuncia ciudadana"
+      error="No pudimos leer esta denuncia"
+      reintentar={{ href: `/app/denuncias/${encodeURIComponent(id)}` }}
+    />
   );
 }
 
@@ -352,12 +335,12 @@ function Row({
     <div className="flex gap-2.5 px-4 py-2.5">
       <div className="mt-0.5 text-mute" aria-hidden>{icon}</div>
       <div className="min-w-0 flex-1">
-        <dt className="text-xs text-mute">{label}</dt>
-        <dd className="flex items-center gap-1 text-sm font-medium text-ink">
+        <dt className="text-rotulo leading-4 text-mute">{label}</dt>
+        <dd className="flex items-center gap-1 text-dato leading-5 font-medium text-ink">
           {value}
           {ayuda}
         </dd>
-        {sub && <div className="text-[11px] text-mute">{sub}</div>}
+        {sub && <div className="text-micro text-mute">{sub}</div>}
       </div>
     </div>
   );

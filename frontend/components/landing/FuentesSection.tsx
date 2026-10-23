@@ -36,12 +36,12 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
           Vigía no inventa nada.{" "}
           <span className="text-granate">Cada señal sale de un registro público que puedes revisar.</span>
         </h2>
-        <p className="mt-4 max-w-[68ch] text-pretty text-base leading-relaxed text-inkSoft">
+        <p className="mt-4 max-w-[68ch] text-pretty text-destacado leading-relaxed text-inkSoft">
           Si una señal dice que el gerente del proveedor aportó a la campaña del alcalde, hay un registro de ONPE
           detrás. Si dice que el requisito direcciona, hay un artículo de ley citado y la página exacta del documento
           donde está. Y cuando algo es una estimación, lo dice.
         </p>
-        <p className="mt-3 max-w-[68ch] text-[15px] leading-relaxed text-inkSoft">
+        <p className="mt-3 max-w-[68ch] text-cuerpo leading-relaxed text-inkSoft">
           Toca una fuente para ver dónde está y qué tomamos de ella, o un resultado para ver qué información sale de
           todo eso.
         </p>
@@ -59,7 +59,7 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
               <Gavel size={17} className="shrink-0 text-maiz" aria-hidden />
               <span className="font-display text-2xl font-bold">La norma</span>
             </h3>
-            <p className="mt-2 max-w-[54ch] text-sm leading-relaxed text-paper/75">
+            <p className="mt-2 max-w-[54ch] text-dato leading-relaxed text-paper/75">
               {/* Cifras de docs/design/RAG_NORMATIVO.md (contenido del bucket gs://vigia-peru-rag). */}
               Cuatro bibliotecas legales: 1,176 artículos y 721 opiniones del OECE. Por eso cada señal puede
               citar el artículo exacto.
@@ -73,16 +73,16 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
                       href={n.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="group mt-3 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold underline decoration-maiz/50 underline-offset-4 transition-colors duration-rapido hover:decoration-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz focus-visible:ring-offset-2 focus-visible:ring-offset-granate-deep"
+                      className="group mt-3 inline-flex items-center gap-1 rounded-sm text-meta font-semibold underline decoration-maiz/50 underline-offset-4 transition-colors duration-rapido hover:decoration-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz focus-visible:ring-offset-2 focus-visible:ring-offset-granate-deep"
                     >
                       {n.nombre}
                       <ArrowUpRight size={13} className="transition-transform duration-rapido group-hover:-translate-y-px group-hover:translate-x-px" aria-hidden />
                       <span className="sr-only">(se abre en una pestaña nueva)</span>
                     </a>
                   ) : (
-                    <p className="mt-3 text-[13px] font-semibold">{n.nombre}</p>
+                    <p className="mt-3 text-meta font-semibold">{n.nombre}</p>
                   )}
-                  <p className="mt-1 text-[13px] leading-relaxed text-paper/75">{n.aporta}</p>
+                  <p className="mt-1 text-meta leading-relaxed text-paper/75">{n.aporta}</p>
                 </li>
               ))}
             </ul>
@@ -93,20 +93,20 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
               <Search size={17} className="shrink-0 text-granate" aria-hidden />
               <span className="font-display text-2xl font-bold text-ink">Al leer cada contrato</span>
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-inkSoft">
+            <p className="mt-2 text-dato leading-relaxed text-inkSoft">
               Dos fuentes no tienen calendario: se consultan en el momento, para el contrato que se está leyendo.
             </p>
             <ul className="mt-6 space-y-5">
               <li className="border-t border-line pt-4">
-                <p className="text-[14px] font-semibold text-ink">Personal de entidades</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
+                <p className="text-dato font-semibold text-ink">Personal de entidades</p>
+                <p className="mt-1 text-meta leading-relaxed text-inkSoft">
                   Los designados de confianza, que no aparecen en ningún registro electoral. Se buscan en las
                   resoluciones de la propia entidad.
                 </p>
               </li>
               <li className="border-t border-line pt-4">
-                <p className="text-[14px] font-semibold text-ink">Búsqueda de precios al momento</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
+                <p className="text-dato font-semibold text-ink">Búsqueda de precios al momento</p>
+                <p className="mt-1 text-meta leading-relaxed text-inkSoft">
                   Precios reales peruanos para los ítems del contrato. Es lo único que no es un registro público, y
                   por eso cada veredicto dice de dónde salió:
                 </p>
@@ -126,7 +126,7 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
           <p className="max-w-[34ch] text-balance font-display text-2xl font-bold leading-snug text-ink sm:text-3xl">
             Si un dato no está, queda vacío.
           </p>
-          <p className="mt-3 max-w-[65ch] text-base leading-relaxed text-inkSoft">
+          <p className="mt-3 max-w-[65ch] text-destacado leading-relaxed text-inkSoft">
             No se rellena el hueco con un valor plausible: un dato inventado en una herramienta anticorrupción vale
             lo mismo que una acusación inventada.
           </p>
@@ -146,7 +146,7 @@ function Veredicto({ clave, nota }: { clave: string; nota: string }) {
         <Icono size={11} aria-hidden />
         {v.etiqueta}
       </span>
-      <p className="mt-1.5 text-[12px] leading-snug text-mute">{nota}</p>
+      <p className="mt-1.5 text-rotulo leading-snug text-mute">{nota}</p>
     </div>
   );
 }

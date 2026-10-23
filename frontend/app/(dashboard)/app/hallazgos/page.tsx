@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, Vistas, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { ListaSenales, ListaSenalesSkeleton } from "@/components/alertas/ListaSenales";
 import { EnRevision, EnRevisionSkeleton, indicadoresRevision } from "@/components/alertas/EnRevision";
@@ -63,6 +63,7 @@ export default async function HallazgosPage({
 
   return (
     <Pagina className="space-y-5">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Señales", href: "/app/hallazgos" }]} />
       <EncabezadoPagina
         titulo="Señales"
         bajada="Reglas que dispararon en contratos leídos, con su norma y su evidencia."

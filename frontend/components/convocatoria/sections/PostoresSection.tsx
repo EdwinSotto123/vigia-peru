@@ -28,7 +28,7 @@ export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMo
         <h2 className="font-display text-xl font-bold text-ink">
           Quién ofertó y quién ganó
         </h2>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <p className="mt-0.5 text-rotulo text-mute">
           {plural(postores.length, "postor", "postores")}, {plural(ganadores.length, "ganador", "ganadores")}. Fuente: registro OCDS del OECE
         </p>
       </div>
@@ -47,30 +47,30 @@ export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMo
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="text-sm font-semibold text-ink">
+                    <span className="text-dato leading-5 font-semibold text-ink">
                       {/* Persona natural con negocio (RUC 10): su nombre viene en
                           orden SUNAT y se tapa el apellido materno. Empresa: tal cual. */}
                       {natural ? <PersonName name={p.nombre} orden="sunat" /> : p.nombre}
                     </span>
                     {p.es_ganador && (
-                      <span className="rounded-full bg-granate-soft px-2 py-0 text-[11px] font-semibold text-granate">Ganador</span>
+                      <span className="rounded-full bg-granate-soft px-2 py-0 text-micro font-semibold text-granate">Ganador</span>
                     )}
                     {p.es_consorcio && (
-                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-semibold text-inkSoft">Consorcio</span>
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-micro font-semibold text-inkSoft">Consorcio</span>
                     )}
                     {natural && (
-                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-medium text-inkSoft">persona natural</span>
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-micro font-medium text-inkSoft">persona natural</span>
                     )}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
                     {p.ruc && <span className="font-mono">RUC <Ruc value={p.ruc} /></span>}
                     {roles && <span>{roles}</span>}
                   </div>
                 </div>
                 {p.monto_ganado != null && p.monto_ganado > 0 && (
                   <div className="text-right">
-                    <div className="font-mono text-sm font-semibold tabular-nums text-ink">{fmtMoney(p.monto_ganado)}</div>
-                    <div className="text-[11px] text-mute">adjudicado</div>
+                    <div className="font-mono text-dato leading-5 font-semibold tabular-nums text-ink">{fmtMoney(p.monto_ganado)}</div>
+                    <div className="text-micro text-mute">adjudicado</div>
                   </div>
                 )}
               </div>

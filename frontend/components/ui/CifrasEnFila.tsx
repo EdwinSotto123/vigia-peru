@@ -60,7 +60,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
             it.href && "transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft focus-within:ring-2 focus-within:ring-granate",
           )}
         >
-          <dt className={cn("flex min-w-0 items-center gap-1 font-medium leading-tight text-inkSoft", chico ? "text-[12px]" : "text-[12.5px]")}>
+          <dt className={cn("flex min-w-0 items-center gap-1 font-medium leading-tight text-inkSoft", chico ? "text-rotulo" : "text-meta")}>
             {it.marca && <span className={cn("mr-0.5 h-2 w-2 shrink-0 rounded-full", it.marca)} aria-hidden />}
             <span className="min-w-0">{it.etiqueta}</span>
             {/* El ⓘ queda por encima del enlace estirado para poder tocarlo. */}
@@ -69,12 +69,12 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
           <dd
             className={cn(
               "font-display font-bold leading-none tracking-tight tabular-nums",
-              tieneLetras(it.valor) ? (chico ? "text-[15px]" : "text-[19px]") : chico ? "text-[19px]" : "text-[27px]",
+              tieneLetras(it.valor) ? (chico ? "text-cuerpo" : "text-bloque") : chico ? "text-bloque" : "text-cifra",
               TONO[it.tono ?? "neutro"],
             )}
           >
             {it.valor == null ? (
-              <span className="text-[16px] font-semibold text-mute">Sin dato</span>
+              <span className="text-destacado font-semibold text-mute">Sin dato</span>
             ) : it.href ? (
               // Sin prefetch: el enlace de una cifra filtra el listado; se pide al hacer clic.
               <Link href={it.href} prefetch={false} className="after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none">
@@ -85,7 +85,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
             )}
           </dd>
           {it.contexto != null && (
-            <dd className={cn("leading-snug text-mute tabular-nums", chico ? "text-[11px]" : "text-[12px]")}>{it.contexto}</dd>
+            <dd className={cn("leading-snug text-mute tabular-nums", chico ? "text-micro" : "text-rotulo")}>{it.contexto}</dd>
           )}
         </div>
       ))}

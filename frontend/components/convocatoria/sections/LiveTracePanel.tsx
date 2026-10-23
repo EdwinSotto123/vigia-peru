@@ -34,10 +34,10 @@ export function LiveTracePanel({ events }: { events: any[] }) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperDeep px-5 py-3">
           <div className="flex items-baseline gap-2">
             <span className="h-1.5 w-1.5 animate-pulse self-center rounded-full bg-moss" />
-            <h3 className="font-display text-sm font-bold text-ink">Seguimiento del análisis en vivo</h3>
-            <span className="font-mono text-[11px] text-mute">{steps.length} pasos</span>
+            <h3 className="font-display text-cuerpo font-bold text-ink">Seguimiento del análisis en vivo</h3>
+            <span className="font-mono text-micro text-mute">{steps.length} pasos</span>
           </div>
-          <div className="flex gap-1.5 font-mono text-[11px]">
+          <div className="flex gap-1.5 font-mono text-micro">
             {nTools > 0 && <span className="rounded bg-amber-soft px-1.5 py-0.5 font-bold text-amberTexto">{nTools} consultas</span>}
             {nRes > 0 && <span className="rounded bg-moss/10 px-1.5 py-0.5 font-bold text-mossTexto">{nRes} resultados</span>}
           </div>
@@ -47,7 +47,7 @@ export function LiveTracePanel({ events }: { events: any[] }) {
           <li ref={tail} aria-hidden className="h-0 border-0 p-0" />
         </ol>
         {steps.length > 24 && (
-          <div className="border-t border-line bg-paperSoft px-5 py-1 text-center text-[11px] text-mute">
+          <div className="border-t border-line bg-paperSoft px-5 py-1 text-center text-micro text-mute">
             mostrando últimos 24 de {steps.length} pasos
           </div>
         )}

@@ -15,9 +15,9 @@ import { Isotipo } from "./Isotipo";
  */
 
 const TAMANO = {
-  sm: { texto: "text-[16px]", iso: 22, nota: "text-[10px]" },
-  md: { texto: "text-[20px]", iso: 26, nota: "text-[10px]" },
-  lg: { texto: "text-[28px]", iso: 36, nota: "text-[11px]" },
+  sm: { texto: "text-destacado", iso: 22, nota: "text-micro" },
+  md: { texto: "text-seccion", iso: 26, nota: "text-micro" },
+  lg: { texto: "text-cifra", iso: 36, nota: "text-micro" },
 } as const;
 
 export function Marca({
@@ -47,7 +47,7 @@ export function Marca({
             las bandas de marca. */}
         <span className={cn("font-mono font-bold tracking-[-0.06em]", t.texto, sobreClaro ? "text-[#0B0F0F]" : "text-[rgb(var(--marca-texto))]")}>
           vigía<span className={cn("cursor-parpadeo", sobreClaro ? "text-[#3E5C08]" : "text-[rgb(var(--marca-acento))]")}>_</span>
-          <span className="ml-1.5 align-middle text-[0.5em] font-medium uppercase tracking-[0.16em] text-[rgb(var(--marca-nota))]">perú</span>
+          <span className="ml-1.5 align-middle text-[max(11px,0.5em)] font-medium uppercase tracking-[0.16em] text-[rgb(var(--marca-nota))]">perú</span>
         </span>
         {nota && (
           <span className={cn("mt-1.5 font-mono font-medium uppercase tracking-[0.14em]", t.nota, "text-[rgb(var(--marca-nota))]")}>

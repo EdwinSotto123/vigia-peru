@@ -186,7 +186,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const regionViva = <p className="sr-only" aria-live="polite" aria-atomic="true">{anuncio}</p>;
 
   const enVivoBadge = (
-    <span className="inline-flex items-center gap-1.5 text-[12px]">
+    <span className="inline-flex items-center gap-1.5 text-rotulo">
       {fallo ? (
         <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
       ) : vivoAhora ? (
@@ -209,7 +209,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
     <button
       type="button"
       onClick={() => setVerReplay((v) => !v)}
-      className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
+      className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-rotulo font-semibold text-ink transition-colors hover:bg-paperDeep"
     >
       <Play size={11} aria-hidden /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
     </button>
@@ -235,7 +235,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
             </div>
           </section>
         )}
-        <div className="flex items-center justify-between text-[11px] text-mute">
+        <div className="flex items-center justify-between text-micro text-mute">
           {enVivoBadge}
           <Link href={rutaContrato(p.ocid, "vivo")} className="hover:underline">Ver en auditoría en vivo</Link>
         </div>
@@ -269,10 +269,10 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
       {/* Identidad: el objeto entero (es su propia página); estado, entidad, zona y códigos en una línea. */}
       <header className="space-y-2.5">
-        <h1 className="max-w-5xl break-words font-display text-[22px] font-bold leading-snug tracking-tight text-ink text-balance sm:text-[26px]">
+        <h1 className="max-w-5xl break-words font-display text-seccion font-bold leading-snug tracking-tight text-ink text-balance sm:text-cifra">
           {p.titulo ?? "Contrato sin título registrado"}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-mute">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-meta text-mute">
           <EstadoPill estado={estado} size="md" intentos={p.intentos} />
           <span className="inline-flex items-center gap-1 text-inkSoft"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
           <span>{p.zona}</span>

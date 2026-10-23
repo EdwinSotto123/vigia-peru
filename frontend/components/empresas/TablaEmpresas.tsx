@@ -7,6 +7,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { CORTO_EMPRESA, OBJETO_TEXTO, rutaEmpresa, type EmpresaFila, type PaginaEmpresas } from "@/lib/empresas";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * Empresas en la `Tabla` del kit, una fila por empresa: quién es (RUC, dónde vende, qué vende), sus antecedentes en
@@ -79,7 +80,7 @@ export function TablaEmpresas({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-inkSoft">{plural(pagina.total, "empresa", "empresas")}{filtrada ? " con estos filtros" : ""}</p>
+        <p className="text-meta text-inkSoft">{plural(pagina.total, "empresa", "empresas")}{filtrada ? " con estos filtros" : ""}</p>
         {pag}
       </div>
       <Tabla columnas={COLUMNAS} filas={pagina.data.map(filaDe)} etiqueta="Empresas que le venden al Estado" />
@@ -130,5 +131,4 @@ export function filaDe(e: EmpresaFila): Fila {
   };
 }
 
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;

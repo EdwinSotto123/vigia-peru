@@ -279,7 +279,7 @@ function CierreLanding({ enCola }: { enCola: number | null }) {
                 ? `Hay ${numero(enCola)} contratos esperando que alguien los lea.`
                 : "Empieza por los contratos de tu región."}
             </h2>
-            <p className="mt-5 max-w-[48ch] text-pretty text-lg leading-relaxed text-paper/80">
+            <p className="mt-5 max-w-[48ch] text-pretty text-bloque leading-relaxed text-paper/80">
               Mira qué se contrata donde vives, financia la lectura de algunos o denuncia la obra que tienes enfrente.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">

@@ -21,7 +21,7 @@ export function BotonModo({ className, conTexto = false }: { className?: string;
       title={`Cambiar a ${texto.toLowerCase()}`}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-full border border-line bg-paper text-ink transition-colors duration-rapido hover:bg-paperDeep",
-        conTexto ? "min-h-10 px-3.5 text-[13.5px] font-medium" : "h-10 w-10",
+        conTexto ? "min-h-10 px-3.5 text-dato font-medium" : "h-10 w-10",
         className,
       )}
     >

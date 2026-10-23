@@ -55,7 +55,7 @@ export function StatCard({
   );
   const cuerpo = (
     <>
-      <span className="flex items-center gap-2 pr-4 text-[12px] font-medium leading-tight text-inkSoft">
+      <span className="flex items-center gap-2 pr-4 text-rotulo font-medium leading-tight text-inkSoft">
         {tono !== "neutral" && <span className={cn("h-2 w-2 shrink-0 rounded-full", TONO[tono].punto)} aria-hidden />}
         {etiqueta}
       </span>
@@ -69,15 +69,15 @@ export function StatCard({
               "text-ink",
               // Un valor que es frase ("Sin ritmo suficiente…") baja de tamaño y envuelve en vez de cortarse.
               typeof valor === "string" && valor.length > 12
-                ? "text-sm font-semibold leading-snug"
-                : "truncate font-display text-[22px] font-bold leading-none tracking-tight tabular-nums",
+                ? "text-dato font-semibold leading-snug"
+                : "truncate font-display text-seccion font-bold leading-none tracking-tight tabular-nums",
             )}
             title={sinDato ? "Sin dato" : undefined}
           >
             {sinDato ? <><span aria-hidden>—</span><span className="sr-only">Sin dato</span></> : typeof valor === "number" ? valor.toLocaleString("es-PE") : valor}
           </span>
         )}
-        {pista && <span className={cn("min-w-0 text-[11.5px] leading-snug", destacado ? "text-inkSoft" : "text-mute")}>{pista}</span>}
+        {pista && <span className={cn("min-w-0 text-rotulo leading-snug", destacado ? "text-inkSoft" : "text-mute")}>{pista}</span>}
       </span>
       {href && <ArrowUpRight size={13} className="absolute right-2.5 top-2.5 text-mute transition-colors group-hover:text-ink" aria-hidden />}
     </>

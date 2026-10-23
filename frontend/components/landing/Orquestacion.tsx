@@ -84,11 +84,11 @@ export function Orquestacion({
           <ul className="flex flex-col justify-center gap-2.5">
             {ENTRADA.map(({ Icono, t, d }) => (
               <li key={t} className="rounded-2xl border border-paper/12 bg-paper/[0.04] px-3.5 py-2.5">
-                <span className="flex items-center gap-2 text-[13px] font-semibold text-paper">
+                <span className="flex items-center gap-2 text-meta font-semibold text-paper">
                   <Icono size={13} className="shrink-0 text-maiz" aria-hidden />
                   {t}
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-paper/75">{d}</span>
+                <span className="mt-0.5 block text-micro leading-snug text-paper/75">{d}</span>
               </li>
             ))}
           </ul>
@@ -100,9 +100,9 @@ export function Orquestacion({
           <div className="relative">
             <span aria-hidden className="animate-latidoNodo absolute inset-0 rounded-2xl border border-maiz" />
             <div className="relative rounded-2xl border border-maiz/50 bg-maiz/[0.09] px-4 py-4 text-center">
-              <span className="block font-display text-lg font-bold text-paper">El coordinador</span>
-              <span className="mt-0.5 block text-[12px] font-semibold text-maiz">No se salta ninguna revisión</span>
-              <p className="mt-2.5 text-[11px] leading-relaxed text-paper/75">
+              <span className="block font-display text-bloque leading-7 font-bold text-paper">El coordinador</span>
+              <span className="mt-0.5 block text-rotulo font-semibold text-maiz">No se salta ninguna revisión</span>
+              <p className="mt-2.5 text-micro leading-relaxed text-paper/75">
                 Le hace al contrato las {totalPasos} revisiones y no lo da por leído hasta terminarlas todas.
               </p>
             </div>
@@ -124,8 +124,8 @@ export function Orquestacion({
         <div className="flex w-[13rem] shrink-0 flex-col justify-center">
           <div className="rounded-2xl border border-paper/15 bg-paper/[0.06] px-4 py-4 text-center">
             <Scale size={18} className="mx-auto text-maiz" aria-hidden />
-            <span className="mt-2 block font-display text-lg font-bold text-paper">Informe público</span>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-paper/75">
+            <span className="mt-2 block font-display text-bloque leading-7 font-bold text-paper">Informe público</span>
+            <p className="mt-1.5 text-micro leading-relaxed text-paper/75">
               Cada señal con la ley que cita y la página exacta del documento que la sostiene.
             </p>
           </div>
@@ -157,7 +157,7 @@ export function Orquestacion({
         {activo ? (
           <DetalleCarril key={activo.clave} carril={activo} />
         ) : (
-          <p className="rounded-2xl border border-dashed border-paper/15 px-4 py-5 text-center text-[13px] text-paper/75">
+          <p className="rounded-2xl border border-dashed border-paper/15 px-4 py-5 text-center text-meta text-paper/75">
             Elige un frente para ver qué revisa, en qué orden y contra qué fuente lo compara.
           </p>
         )}
@@ -210,8 +210,8 @@ function BotonCarril({
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-semibold text-paper">Carril {carril.label}</span>
-        <span className="mt-0.5 block text-[11px] text-paper/75">
+        <span className="block text-meta font-semibold text-paper">Carril {carril.label}</span>
+        <span className="mt-0.5 block text-micro text-paper/75">
           {QUE_REVISA[carril.clave] ?? ""}
         </span>
       </span>
@@ -229,7 +229,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
   return (
     <div className="motion-safe:animate-slideUp rounded-2xl border border-paper/10 bg-paper/[0.04] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
-        <h3 className="text-[15px] font-semibold text-paper">Carril {carril.label}</h3>
+        <h3 className="text-cuerpo font-semibold text-paper">Carril {carril.label}</h3>
       </div>
 
       {/* El riel. Arranca desfasado porque así arranca de verdad: Proveedor y
@@ -253,7 +253,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
               </span>
             )}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <span className="flex items-baseline gap-2 text-[11px] font-semibold text-paper/75">
+              <span className="flex items-baseline gap-2 text-micro font-semibold text-paper/75">
                 Etapa {gi + 1}
               </span>
               <div className="flex flex-1 flex-col justify-center gap-2">
@@ -290,32 +290,32 @@ function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {
               que estos agentes existen. */}
           <span className="flex items-baseline gap-2">
             <span className={`h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full ${t.punto}`} aria-hidden />
-            <span className="text-[13px] font-semibold leading-snug text-paper">{p.titulo}</span>
+            <span className="text-meta font-semibold leading-snug text-paper">{p.titulo}</span>
           </span>
           {fuentesVivas(p).length > 0 && (
-            <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-paper/75">{fuentesVivas(p).join(", ")}</span>
+            <span className="mt-0.5 block truncate pl-3.5 text-micro text-paper/75">{fuentesVivas(p).join(", ")}</span>
           )}
         </span>
       }
     >
       <span className="block">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-granate">
+        <span className="flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wide text-granate">
           <Cpu size={12} aria-hidden /> {t.etiqueta}
         </span>
-        <span className="mt-2 block text-[13px] leading-relaxed text-inkSoft">{p.que}</span>
+        <span className="mt-2 block text-meta leading-relaxed text-inkSoft">{p.que}</span>
         {fuentesVivas(p).length > 0 && (
-          <span className="mt-2 block border-t border-line pt-2 text-[12px] text-mute">
+          <span className="mt-2 block border-t border-line pt-2 text-rotulo text-mute">
             Lo coteja contra:
             <span className="mt-1 flex flex-wrap gap-1">
               {fuentesVivas(p).map((f) => (
-                <span key={f} className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-inkSoft">
+                <span key={f} className="rounded-full bg-paperDeep px-2 py-0.5 text-micro text-inkSoft">
                   {f}
                 </span>
               ))}
             </span>
           </span>
         )}
-        {p.id && <span className="mt-1.5 block font-mono text-[11px] text-mute">{p.id}</span>}
+        {p.id && <span className="mt-1.5 block font-mono text-micro text-mute">{p.id}</span>}
       </span>
     </Popover>
   );
@@ -342,10 +342,10 @@ function EslabonMovil({
           destacado ? "border-maiz/50 bg-maiz/[0.09]" : "border-paper/12 bg-paper/[0.04]"
         }`}
       >
-        <span className={`block text-[14px] font-semibold text-paper ${destacado ? "font-display text-[16px]" : ""}`}>
+        <span className={`block text-dato font-semibold text-paper ${destacado ? "font-display text-destacado" : ""}`}>
           {titulo}
         </span>
-        <span className="mt-0.5 block text-[12px] leading-relaxed text-paper/75">{cuerpo}</span>
+        <span className="mt-0.5 block text-rotulo leading-relaxed text-paper/75">{cuerpo}</span>
         {children}
       </div>
       {!ultimo && (
@@ -368,7 +368,7 @@ function EslabonMovil({
 function Columna({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <span className="mb-2 text-[12px] font-semibold text-paper/75">{titulo}</span>
+      <span className="mb-2 text-rotulo font-semibold text-paper/75">{titulo}</span>
       <div className="flex flex-1 flex-col justify-center">{children}</div>
     </div>
   );

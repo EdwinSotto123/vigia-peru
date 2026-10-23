@@ -117,7 +117,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
         <nav aria-label="Secciones del panel" className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
           {nav.map((g) => (
             <div key={g.grupo}>
-              <p className="flex items-center gap-2 px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-mute">
+              <p className="flex items-center gap-2 px-3 pb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-mute">
                 <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mute/70" />
                 {g.grupo}
               </p>
@@ -133,7 +133,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
                         onMouseEnter={() => precargar(it.precargar)}
                         onFocus={() => precargar(it.precargar)}
                         className={cn(
-                          "group flex min-h-10 items-center gap-2.5 rounded-xl border px-2 py-1.5 text-[13.5px] transition-colors duration-rapido",
+                          "group flex min-h-10 items-center gap-2.5 rounded-xl border px-2 py-1.5 text-dato transition-colors duration-rapido",
                           active
                             ? "border-granate/25 bg-granate-50 font-semibold text-ink"
                             : "border-transparent font-medium text-inkSoft hover:bg-paperDeep/70 hover:text-ink",
@@ -157,15 +157,15 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
             </div>
           ))}
         </nav>
-        <div className="space-y-0.5 border-t border-line p-3 text-[13px]">
+        <div className="space-y-0.5 border-t border-line p-3 text-meta">
           {correo && (
             <p className="flex items-center gap-2.5 px-2 pb-2 pt-1" title={rol ? `${ROLES[rol].nombre}: ${ROLES[rol].descripcion}` : "Sesión iniciada"}>
               <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-paperDeep text-inkSoft">
                 <UserRound size={14} />
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-[12.5px] text-ink">{correo}</span>
-                {rol && <span className="block text-[11.5px] text-mute">{ROLES[rol].nombre}</span>}
+                <span className="block truncate text-meta text-ink">{correo}</span>
+                {rol && <span className="block text-rotulo text-mute">{ROLES[rol].nombre}</span>}
               </span>
             </p>
           )}
@@ -192,8 +192,8 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
           </div>
           <div className={cn(ANCHO, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3.5")}>
             <div className="min-w-0">
-              <h1 className="font-display text-[22px] font-bold leading-tight tracking-tight text-ink text-balance">{title}</h1>
-              {subtitle && <p className="mt-0.5 text-[13px] leading-snug text-mute text-pretty">{subtitle}</p>}
+              <h1 className="font-display text-seccion font-bold leading-tight tracking-tight text-ink text-balance">{title}</h1>
+              {subtitle && <p className="mt-0.5 text-meta leading-snug text-mute text-pretty">{subtitle}</p>}
             </div>
             {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
           </div>
@@ -210,7 +210,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
                   aria-current={active ? "page" : undefined}
                   onFocus={() => precargar(it.precargar)}
                   className={cn(
-                    "inline-flex min-h-[34px] items-center whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors duration-rapido",
+                    "inline-flex min-h-[34px] items-center whitespace-nowrap rounded-full border px-3.5 text-meta font-medium transition-colors duration-rapido",
                     active ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:bg-paperSoft hover:text-ink",
                   )}
                 >
@@ -223,7 +223,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
         <main id="contenido-admin" className={cn(ANCHO, "py-5 sm:py-6")}>
           {contenido}
         </main>
-        <footer className={cn(ANCHO, "flex flex-wrap items-center gap-x-4 gap-y-2 pb-6 text-[12px] text-mute")}>
+        <footer className={cn(ANCHO, "flex flex-wrap items-center gap-x-4 gap-y-2 pb-6 text-rotulo text-mute")}>
           <span className="flex items-center gap-2">
             <ShieldCheck size={13} aria-hidden /> Panel interno. Cada acción queda en la bitácora con tu correo.
           </span>
@@ -249,7 +249,7 @@ const CLASE_PIE_BARRA =
 /** El perfil de quien está en el panel, en una píldora neutra (antes ámbar, el color de "por validar"). */
 function EtiquetaRol({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full border border-paperEdge bg-paperDeep px-2.5 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-inkSoft">
+    <span className="rounded-full border border-paperEdge bg-paperDeep px-2.5 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.12em] text-inkSoft">
       {children}
     </span>
   );
@@ -275,5 +275,5 @@ export function Kpi({ label, value, hint, tone = "ink" }: { label: string; value
 
 /** Píldora con clases a mano (la usan páginas que todavía no migraron). Nuevo código: `Badge` con `tono` de components/admin/ui. */
 export function Badge({ children, cls }: { children: React.ReactNode; cls: string }) {
-  return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", cls)}>{children}</span>;
+  return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium", cls)}>{children}</span>;
 }

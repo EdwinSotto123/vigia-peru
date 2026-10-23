@@ -25,9 +25,9 @@ const VARIANTE: Record<VarianteBoton, string> = {
 };
 
 const TAMANO: Record<TamanoBoton, string> = {
-  xs: "min-h-[28px] gap-1 rounded-full px-2.5 text-[12px]",
-  sm: "min-h-[34px] gap-1.5 rounded-full px-3.5 text-[13px]",
-  md: "min-h-[40px] gap-2 rounded-full px-5 text-sm",
+  xs: "min-h-[28px] gap-1 rounded-full px-2.5 text-rotulo",
+  sm: "min-h-[34px] gap-1.5 rounded-full px-3.5 text-meta",
+  md: "min-h-[40px] gap-2 rounded-full px-5 text-dato leading-5",
 };
 
 export function claseBoton(variante: VarianteBoton = "secundario", tamano: TamanoBoton = "sm", extra?: string) {

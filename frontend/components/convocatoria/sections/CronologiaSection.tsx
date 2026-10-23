@@ -54,7 +54,7 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
         <h2 className="font-display text-xl font-bold text-ink">Línea de tiempo del proceso</h2>
-        <p className="mt-0.5 text-[12px] text-mute">
+        <p className="mt-0.5 text-rotulo text-mute">
           Fechas del registro OCDS publicado por el OECE
           {c.tipo_proceso && (
             <>
@@ -82,14 +82,14 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
                     >
                       {s.icon}
                     </div>
-                    <div className="mt-2 text-[12px] font-semibold text-ink">{s.label}</div>
-                    <div className="mt-0.5 text-xs tabular-nums text-inkSoft">{fechaDossier(s.fecha, true)}</div>
+                    <div className="mt-2 text-rotulo font-semibold text-ink">{s.label}</div>
+                    <div className="mt-0.5 text-rotulo leading-4 tabular-nums text-inkSoft">{fechaDossier(s.fecha, true)}</div>
                   </div>
                   {siguiente && (
                     <div className="mt-5 flex w-20 flex-col items-center">
                       <div className="h-px w-full bg-line" />
                       {gap !== null && (
-                        <span className="mt-1 text-[11px] tabular-nums text-mute">
+                        <span className="mt-1 text-micro tabular-nums text-mute">
                           {gap} {Math.abs(gap) === 1 ? "día" : "días"}
                         </span>
                       )}
@@ -102,13 +102,13 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
         </div>
       )}
       {senalPlazo && (
-        <div className="border-t border-line bg-paperSoft px-5 py-3 text-[12px] leading-relaxed text-inkSoft">
+        <div className="border-t border-line bg-paperSoft px-5 py-3 text-rotulo leading-relaxed text-inkSoft">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <Severidad bandera={severidadDe(senalPlazo)} formato="linea" />
             <span className="font-semibold text-ink">{reglaLabel(String(senalPlazo.regla))}</span>
           </p>
           {evidenciaComoTexto(senalPlazo.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(senalPlazo.evidencia))}</p>}
-          {senalPlazo.norma && <p className="mt-0.5 text-[11px] text-mute">Norma: {senalPlazo.norma}</p>}
+          {senalPlazo.norma && <p className="mt-0.5 text-micro text-mute">Norma: {senalPlazo.norma}</p>}
         </div>
       )}
     </section>

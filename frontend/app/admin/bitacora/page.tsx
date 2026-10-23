@@ -98,7 +98,7 @@ export default function BitacoraPage() {
           <FilterChips<CategoriaBitacora | "todas"> etiqueta="Tipo de acción" valor={cat} onCambiar={setCat} opciones={opciones} />
           {actores.length > 1 && (
             <div role="radiogroup" aria-labelledby="bitacora-quien" onKeyDown={flechasRadio} className="flex flex-wrap items-center gap-1.5">
-              <span id="bitacora-quien" className="mr-1 text-[12px] font-medium text-inkSoft">Quién</span>
+              <span id="bitacora-quien" className="mr-1 text-rotulo font-medium text-inkSoft">Quién</span>
               <Chip rol="radio" activo={!actor} onClick={() => setActor(null)}>Todos</Chip>
               {actores.map((a) => <Chip key={a} rol="radio" activo={actor === a} onClick={() => setActor((x) => (x === a ? null : a))} title={a}>{actorCorto(a)}</Chip>)}
             </div>
@@ -129,7 +129,7 @@ export default function BitacoraPage() {
           </div>
         )}
 
-        {entradas.length >= 100 && <p className="text-[12px] text-inkSoft">Se muestran las últimas 100 acciones; las anteriores siguen guardadas en la base.</p>}
+        {entradas.length >= 100 && <p className="text-rotulo text-inkSoft">Se muestran las últimas 100 acciones; las anteriores siguen guardadas en la base.</p>}
       </div>
     </AdminShell>
   );
@@ -154,13 +154,13 @@ function FilaBitacora({ e, a, rol }: { e: EntradaBitacora; a: AccionLegible; rol
         className={cn("flex flex-col gap-1 rounded-lg sm:flex-row sm:items-start sm:justify-between sm:gap-2", conDatos && "cursor-pointer")}
       >
         <span className="flex min-w-0 items-start gap-3">
-          <span className="w-11 shrink-0 pt-px font-mono text-[12px] text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hora(e.createdAt)}</span>
+          <span className="w-11 shrink-0 pt-px font-mono text-rotulo text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hora(e.createdAt)}</span>
           <Punto tono={a.tono} className="mt-1.5" />
-          <span className="min-w-0 text-[13px] leading-snug">
+          <span className="min-w-0 text-meta leading-snug">
             <span className="font-medium text-ink" title={e.actor}>{actorCorto(e.actor)}</span>{" "}
             <span className="text-inkSoft">{a.frase}</span>
             {a.objeto && <span className="text-ink">: {a.objeto}</span>}
-            {a.resumen && <span className="mt-0.5 block text-[12px] text-mute">{a.resumen}</span>}
+            {a.resumen && <span className="mt-0.5 block text-rotulo text-mute">{a.resumen}</span>}
           </span>
         </span>
         {(href || conDatos) && (
@@ -176,7 +176,7 @@ function FilaBitacora({ e, a, rol }: { e: EntradaBitacora; a: AccionLegible; rol
                 onClick={() => setAbierto((v) => !v)}
                 aria-expanded={abierto}
                 aria-controls={idDatos}
-                className="inline-flex items-center gap-0.5 rounded-full px-2 py-1 text-[11.5px] text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
+                className="inline-flex items-center gap-0.5 rounded-full px-2 py-1 text-rotulo text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
               >
                 Datos <ChevronDown size={12} className={cn("transition-transform duration-rapido", abierto && "rotate-180")} aria-hidden />
               </button>
@@ -186,9 +186,9 @@ function FilaBitacora({ e, a, rol }: { e: EntradaBitacora; a: AccionLegible; rol
       </div>
       {conDatos && (
         <div id={idDatos} hidden={!abierto} className="mt-2 sm:ml-[4.75rem]">
-          <p className="mb-1 text-[11px] font-medium text-mute">Datos técnicos de la acción</p>
-          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-paperSoft px-3 py-2 font-mono text-[11px] text-ink">{JSON.stringify(e.detalle, null, 2)}</pre>
-          <p className="mt-1 font-mono text-[11px] text-mute"><Partes partes={[e.accion, e.objeto]} /></p>
+          <p className="mb-1 text-micro font-medium text-mute">Datos técnicos de la acción</p>
+          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-paperSoft px-3 py-2 font-mono text-micro text-ink">{JSON.stringify(e.detalle, null, 2)}</pre>
+          <p className="mt-1 font-mono text-micro text-mute"><Partes partes={[e.accion, e.objeto]} /></p>
         </div>
       )}
     </li>

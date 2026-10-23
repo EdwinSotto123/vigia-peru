@@ -14,8 +14,8 @@ import { getReglasPerfil, reglaLabel, tipoContratoHumano, type ReglasPerfil, typ
 import { nombreDeAgente } from "@/components/agentes/catalogo";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { peorSeveridad } from "@/lib/severidad";
 
-const ORDEN = { alta: 0, media: 1, baja: 2 } as const;
 
 interface Props {
   perfil: string | null | undefined;
@@ -53,10 +53,10 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
   const total = reglas.length;
   // El ícono de una regla que disparó lleva la severidad de SU señal (antes, siempre el rojo de "alta").
   const peorDe = (id: string) =>
-    senales.filter((s) => s.regla === id).sort((a, b) => ORDEN[a.severidad] - ORDEN[b.severidad])[0]?.severidad ?? null;
+    peorSeveridad(senales.filter((s) => s.regla === id));
 
   return (
-    <div className={`rounded-xl border border-line bg-paperSoft ${compacto ? "text-[11px]" : "text-[12px]"}`}>
+    <div className={`rounded-xl border border-line bg-paperSoft ${compacto ? "text-micro" : "text-rotulo"}`}>
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
@@ -77,7 +77,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
       {abierto && (
         <div id="reglas-evaluadas" className="border-t border-line px-3 py-2">
           {/* Una línea de datos; cómo se comprobó cada regla, a un clic (DESIGN_SYSTEM.md §10.7). */}
-          <p className="mb-2 flex items-center gap-1 text-[11px] text-mute">
+          <p className="mb-2 flex items-center gap-1 text-micro text-mute">
             <span>
               Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil}, versión <span className="font-mono">{data.version}</span>
             </span>
@@ -110,13 +110,13 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
           </ul>
           {otras.length > 0 && (
             <div className="mt-2 border-t border-line pt-2">
-              <div className="text-[12px] font-semibold text-inkSoft">Otras señales (lectura del expediente, prensa y mercado)</div>
+              <div className="text-rotulo font-semibold text-inkSoft">Otras señales (lectura del expediente, prensa y mercado)</div>
               <ul className="mt-1 space-y-0.5">
                 {otras.map((s, i) => (
                   <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5" title={data.otrasSenales[s.regla]?.descripcion}>
                     <Severidad bandera={s.severidad} formato="punto" className="mt-0.5 shrink-0" />
                     <span className="text-ink">{data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}</span>
-                    {s.agente && <span className="ml-1 text-[11px] text-mute">{nombreDeAgente(s.agente)}</span>}
+                    {s.agente && <span className="ml-1 text-micro text-mute">{nombreDeAgente(s.agente)}</span>}
                   </li>
                 ))}
               </ul>

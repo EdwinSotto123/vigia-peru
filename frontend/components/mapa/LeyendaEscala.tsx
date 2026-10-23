@@ -46,7 +46,7 @@ export function LeyendaEscala({
     // fila propia: en 390 px esa fila sola empujaba el mapa 40 px más abajo.
     <div className="flex items-start justify-between gap-x-3 sm:items-end sm:justify-start sm:gap-x-5">
       <div className="min-w-0">
-        <div className="mb-0.5 flex items-center gap-0.5 text-[11px]">
+        <div className="mb-0.5 flex items-center gap-0.5 text-micro">
           <span className="font-medium text-inkSoft">{medida.titulo}</span>
           <Ayuda titulo={medida.titulo} etiqueta="Qué mide esta escala">
             <span className="block">{medida.ayuda}</span>
@@ -70,7 +70,7 @@ export function LeyendaEscala({
             ))}
           </div>
         ) : escala.vacia ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-mute">
+          <div className="flex items-center gap-1.5 text-micro text-mute">
             <span className="inline-block h-3 w-6 shrink-0 rounded-sm border border-paperEdge" style={{ background: RAYADO }} />
             Sin dato en ninguna zona
           </div>
@@ -88,7 +88,7 @@ export function LeyendaEscala({
             {escala.tramos.map((t, i) => (
               <li
                 key={t.color + i}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] text-mute"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap text-micro text-mute"
                 title={`De ${medida.formato(t.desde)} a ${medida.formato(t.hasta)}`}
               >
                 <span className="inline-block h-3 w-5 shrink-0 rounded-sm" style={{ background: t.color }} />
@@ -99,7 +99,7 @@ export function LeyendaEscala({
               </li>
             ))}
             {/* "Sin dato" nombrado y rayado: no es el escalón más bajo. */}
-            <li className="inline-flex items-center gap-1.5 text-[11px] text-mute">
+            <li className="inline-flex items-center gap-1.5 text-micro text-mute">
               <span className="inline-block h-3 w-5 shrink-0 rounded-sm border border-paperEdge" style={{ background: RAYADO }} />
               Sin dato
             </li>
@@ -111,7 +111,7 @@ export function LeyendaEscala({
         <Popover
           titulo="Los puntos del mapa"
           anchoClase="w-80"
-          className="min-h-[28px] shrink-0 rounded-full border border-line bg-paperDeep px-2.5 py-1 text-[11px] text-inkSoft transition-colors duration-rapido hover:bg-paper hover:text-ink"
+          className="min-h-[28px] shrink-0 rounded-full border border-line bg-paperDeep px-2.5 py-1 text-micro text-inkSoft transition-colors duration-rapido hover:bg-paper hover:text-ink"
           trigger={<>Puntos por distrito</>}
         >
           <ContratoPinLeyenda />

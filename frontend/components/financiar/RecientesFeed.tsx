@@ -45,7 +45,7 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
         return (
           <li key={c.codigo} className={enColumnas ? "flex items-start gap-3 bg-paper px-4 py-3" : "flex items-start gap-3 px-4 py-3"}>
             <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
-            <div className="min-w-0 flex-1 text-sm">
+            <div className="min-w-0 flex-1 text-dato leading-5">
               <p className="text-ink">
                 <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
                 <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"}{" "}
@@ -70,8 +70,8 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
                   </>
                 )}
               </p>
-              {mensaje && <p className="mt-0.5 line-clamp-2 text-[13px] italic text-inkSoft" title={mensaje}>“{mensaje}”</p>}
-              <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-mute">
+              {mensaje && <p className="mt-0.5 line-clamp-2 text-meta italic text-inkSoft" title={mensaje}>“{mensaje}”</p>}
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-rotulo text-mute">
                 <Dato tipo="fecha" nombre="Confirmado">{relativo(c.pagadaAt)}</Dato>
                 <Link href={`/impacto/${c.codigo}`} className="underline-offset-2 hover:text-ink hover:underline">
                   <Dato tipo="codigo" nombre="Comprobante" mono>{c.codigo}</Dato>

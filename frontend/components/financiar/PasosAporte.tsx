@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 /** Tarjeta del formulario en reposo: borde, sin sombra (DESIGN_SYSTEM.md §5). */
 export const TARJETA = "rounded-2xl border border-line bg-paper p-5 sm:p-6";
 /** Etiqueta de un grupo de campos: 1–3 palabras, así que va en versalitas (§4). */
-export const ETIQUETA_GRUPO = "text-[11px] font-semibold uppercase tracking-wide text-mute";
+export const ETIQUETA_GRUPO = "text-micro font-semibold uppercase tracking-wide text-mute";
 
 /**
  * Opción de un grupo de radio con apariencia de píldora. Es un <input type="radio"> nativo
@@ -27,7 +27,7 @@ export function OpcionRadio({ name, checked, onChange, children, className = "" 
   return (
     <label
       className={cn(
-        "flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors duration-150",
+        "flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-dato leading-5 transition-colors duration-150",
         "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-granate has-[:focus-visible]:ring-offset-2",
         checked ? "border-granate bg-granate-soft font-semibold text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
         className,
@@ -67,11 +67,11 @@ export function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, prese
         {opciones.map((n) => (
           <OpcionRadio key={n} name={nombreGrupo} checked={cantidadTxt === String(n)} onChange={() => setCantidadTxt(String(n))}>
             <span className="tabular-nums">{n === tope && esTodos && !presets.includes(n) ? `Todos (${numero(n)})` : numero(n)}</span>
-            <span className="ml-1 font-mono text-[12px] font-normal tabular-nums opacity-80">{soles(n * precioPen)}</span>
+            <span className="ml-1 font-mono text-rotulo font-normal tabular-nums opacity-80">{soles(n * precioPen)}</span>
           </OpcionRadio>
         ))}
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-dato leading-5">
         <label htmlFor={`${nombreGrupo}-otro`} className="text-inkSoft">Otra cantidad</label>
         <input
           id={`${nombreGrupo}-otro`}
@@ -87,7 +87,7 @@ export function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, prese
         />
         {monto != null && <span className="font-mono tabular-nums text-ink">= {soles(monto)}</span>}
       </div>
-      {error && <p id={idError} className="mt-1.5 text-[12px] text-crimsonTexto" role="alert">{error}</p>}
+      {error && <p id={idError} className="mt-1.5 text-rotulo text-crimsonTexto" role="alert">{error}</p>}
     </div>
   );
 }
@@ -96,14 +96,14 @@ export function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, prese
 export function Stepper({ step, primero = "Zona" }: { step: 1 | 2 | 3 | 4; primero?: "Zona" | "Entidad" | "Partido" }) {
   const steps = [primero, "Cantidad", "Pago"];
   return (
-    <ol className="flex flex-wrap items-center gap-2 text-[12px]" aria-label="Pasos">
+    <ol className="flex flex-wrap items-center gap-2 text-rotulo" aria-label="Pasos">
       {steps.map((s, i) => {
         const n = (i + 1) as 1 | 2 | 3;
         const done = n < step, active = n === step;
         return (
           <li key={s} className="flex items-center gap-2" aria-current={active ? "step" : undefined}>
             <span className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-full font-mono text-[11px]",
+              "flex h-6 w-6 items-center justify-center rounded-full font-mono text-micro",
               done ? "bg-moss text-paper" : active ? "bg-granate text-paper" : "bg-paperDeep text-mute",
             )}>
               {done ? <span aria-hidden>✓</span> : n}

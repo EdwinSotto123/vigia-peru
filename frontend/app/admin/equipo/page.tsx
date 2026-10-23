@@ -72,10 +72,10 @@ function MatrizSecciones() {
   return (
     <div className="mt-3 grid overflow-hidden rounded-2xl border border-line bg-paperSoft md:grid-cols-2 md:divide-x md:divide-line">
       {[SECCIONES.slice(0, mitad), SECCIONES.slice(mitad)].map((grupo, g) => (
-      <table key={g} className="w-full self-start text-[13px]">
+      <table key={g} className="w-full self-start text-meta">
         <caption className="sr-only">Qué secciones del panel ve cada perfil</caption>
         <thead>
-          <tr className="border-b border-line bg-paperSoft text-left text-[11.5px] font-medium text-inkSoft">
+          <tr className="border-b border-line bg-paperSoft text-left text-rotulo font-medium text-inkSoft">
             <th scope="col" className="px-3 py-1.5 font-medium">Sección del panel</th>
             <th scope="col" className="w-16 px-1 py-1.5 text-center font-medium">Revisor</th>
             <th scope="col" className="w-16 px-1 py-1.5 text-center font-medium">Admin</th>
@@ -188,7 +188,7 @@ export default function EquipoPage() {
       celda: (m) => (
         <div className="min-w-0">
           <p className={`truncate font-medium ${m.activo ? "text-ink" : "text-mute line-through"}`}>{m.nombre ?? m.correo}</p>
-          {m.nombre && <p className="truncate text-[12px] text-mute">{m.correo}</p>}
+          {m.nombre && <p className="truncate text-rotulo text-mute">{m.correo}</p>}
         </div>
       ),
     },
@@ -206,14 +206,14 @@ export default function EquipoPage() {
     {
       clave: "ingreso",
       titulo: "Último ingreso",
-      className: "whitespace-nowrap text-[12px] text-inkSoft",
+      className: "whitespace-nowrap text-rotulo text-inkSoft",
       celda: (m) => (m.principal ? "—" : m.ultimoIngreso ? <span title={fmtFechaHora(m.ultimoIngreso) ?? undefined}>{hace(m.ultimoIngreso)}</span> : "Todavía no entró"),
     },
     {
       clave: "alta",
       titulo: "Agregado",
       soloEscritorio: true,
-      className: "text-[12px] text-inkSoft",
+      className: "text-rotulo text-inkSoft",
       celda: (m) => (m.principal ? "Desde la configuración" : [m.creadoAt && hace(m.creadoAt), m.creadoPor && `por ${m.creadoPor}`].filter(Boolean).join(" ") || "—"),
     },
     {
@@ -260,13 +260,13 @@ export default function EquipoPage() {
             <ul aria-label="Personas del equipo" className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paperSoft">
               {filas.map((m) => (
                 <li key={m.correo} className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5">
-                  <div className="min-w-0 flex-1 basis-56 text-sm">{columnas[0].celda(m)}</div>
-                  <div className="text-sm">{columnas[1].celda(m)}</div>
-                  <div className="text-[12px] leading-snug text-inkSoft">
+                  <div className="min-w-0 flex-1 basis-56 text-dato leading-5">{columnas[0].celda(m)}</div>
+                  <div className="text-dato leading-5">{columnas[1].celda(m)}</div>
+                  <div className="text-rotulo leading-snug text-inkSoft">
                     <span className="block">{columnas[2].celda(m)}</span>
                     <span className="block text-mute">{columnas[3].celda(m)}</span>
                   </div>
-                  <div className="ml-auto text-sm">{columnas[4].celda(m)}</div>
+                  <div className="ml-auto text-dato leading-5">{columnas[4].celda(m)}</div>
                 </li>
               ))}
             </ul>
@@ -287,13 +287,13 @@ export default function EquipoPage() {
           <Card relleno="sm" className="grid gap-x-6 gap-y-3 md:grid-cols-2">
             {(["revisor", "admin"] as Rol[]).map((r) => (
               <div key={r} className="min-w-0">
-                <p className="flex items-center gap-2 text-sm font-medium text-ink">
+                <p className="flex items-center gap-2 text-dato leading-5 font-medium text-ink">
                   {r === "admin" ? <KeyRound size={14} aria-hidden /> : <ShieldCheck size={14} aria-hidden />} {ROLES[r].nombre}
                 </p>
                 <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                  {PUEDE[r].map((x) => <li key={x} className="rounded-full bg-paperSoft px-2.5 py-0.5 text-[12px] leading-snug text-inkSoft">{x}</li>)}
+                  {PUEDE[r].map((x) => <li key={x} className="rounded-full bg-paperSoft px-2.5 py-0.5 text-rotulo leading-snug text-inkSoft">{x}</li>)}
                 </ul>
-                {r === "revisor" && <p className="mt-1.5 text-[12px] text-mute">No ve aportes, financiadores, medios de pago, configuración ni equipo.</p>}
+                {r === "revisor" && <p className="mt-1.5 text-rotulo text-mute">No ve aportes, financiadores, medios de pago, configuración ni equipo.</p>}
               </div>
             ))}
           </Card>
@@ -323,13 +323,13 @@ function ActividadReciente() {
   return (
     <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paperSoft">
       {filas.map(({ e, a }, i) => (
-        <li key={`${e.createdAt}-${i}`} className="flex items-start gap-3 px-4 py-2 text-[13px] leading-snug">
+        <li key={`${e.createdAt}-${i}`} className="flex items-start gap-3 px-4 py-2 text-meta leading-snug">
           <Punto tono={a.tono} className="mt-1.5" />
           <span className="min-w-0 flex-1">
             <span className="font-medium text-ink" title={e.actor}>{actorCorto(e.actor)}</span> <span className="text-inkSoft">{a.frase}</span>
             {a.objeto && <span className="text-ink">: {a.objeto}</span>}
           </span>
-          <span className="shrink-0 text-[11px] text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
+          <span className="shrink-0 text-micro text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
         </li>
       ))}
     </ol>

@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
-import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
+import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
 import { soles, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -128,7 +128,8 @@ export function GeneradorNoticia() {
 
   return (
     <Pagina>
-      <Link href="/app/mapa" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Generador de noticias", href: "/noticia" }]} />
+      <Link href="/app/mapa" className="inline-flex min-h-[24px] items-center gap-2 text-meta font-medium text-inkSoft hover:text-ink">
         <ArrowLeft size={14} aria-hidden /> Volver al mapa
       </Link>
 
@@ -153,15 +154,15 @@ export function GeneradorNoticia() {
       <section className="grid gap-6 lg:grid-cols-[400px,1fr]">
         <div className="space-y-5 rounded-2xl border border-line bg-paper p-5 sm:p-6">
           <div>
-            <label htmlFor="noticia-caso" className="mb-1 block text-[13px] font-semibold text-inkSoft">
+            <label htmlFor="noticia-caso" className="mb-1 block text-meta font-semibold text-inkSoft">
               Caso
             </label>
             {analizadas === null ? (
-              <p className="inline-flex items-center gap-2 text-sm text-mute" role="status">
+              <p className="inline-flex items-center gap-2 text-dato leading-5 text-mute" role="status">
                 <Loader2 size={14} className="animate-spin" aria-hidden /> Cargando los casos analizados…
               </p>
             ) : analizadas.length === 0 && !casoFromUrl ? (
-              <p className="text-sm text-mute">No hay casos analizados todavía, o no pudimos leerlos.</p>
+              <p className="text-dato leading-5 text-mute">No hay casos analizados todavía, o no pudimos leerlos.</p>
             ) : (
               <select
                 id="noticia-caso"
@@ -171,7 +172,7 @@ export function GeneradorNoticia() {
                   setResultado(null);
                   setError(null);
                 }}
-                className="min-h-[44px] w-full rounded-xl border border-line bg-paperDeep px-3 py-2.5 text-sm text-ink focus:border-granate"
+                className="min-h-[44px] w-full rounded-xl border border-line bg-paperDeep px-3 py-2.5 text-dato leading-5 text-ink focus:border-granate"
               >
                 {casoFromUrl && !analizadas.some((a) => a.codigo === casoFromUrl) && <option value={casoFromUrl}>{casoFromUrl}</option>}
                 {analizadas.map((a) => (
@@ -182,7 +183,7 @@ export function GeneradorNoticia() {
               </select>
             )}
             {elegida && (
-              <p className="mt-2 text-xs text-mute">
+              <p className="mt-2 text-rotulo leading-4 text-mute">
                 {elegida.entidad}
                 {elegida.monto != null && Number.isFinite(Number(elegida.monto)) ? `, ${solesCompacto(Number(elegida.monto))}` : ""}
               </p>
@@ -190,7 +191,7 @@ export function GeneradorNoticia() {
           </div>
 
           <fieldset>
-            <legend className="mb-2 block text-[13px] font-semibold text-inkSoft">Tono</legend>
+            <legend className="mb-2 block text-meta font-semibold text-inkSoft">Tono</legend>
             <div className="space-y-1.5">
               {TONOS.map((t) => (
                 <button
@@ -199,19 +200,19 @@ export function GeneradorNoticia() {
                   aria-pressed={tono === t.id}
                   onClick={() => setTono(t.id)}
                   className={cn(
-                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors duration-rapido",
+                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-dato leading-5 transition-colors duration-rapido",
                     tono === t.id ? "border-granate bg-granate-soft text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
                   )}
                 >
                   <div className="font-semibold">{t.label}</div>
-                  <div className="text-xs text-inkSoft">{t.hint}</div>
+                  <div className="text-rotulo leading-4 text-inkSoft">{t.hint}</div>
                 </button>
               ))}
             </div>
           </fieldset>
 
           <fieldset>
-            <legend className="mb-2 block text-[13px] font-semibold text-inkSoft">Largo</legend>
+            <legend className="mb-2 block text-meta font-semibold text-inkSoft">Largo</legend>
             <div className="space-y-1.5">
               {LARGOS.map((l) => (
                 <button
@@ -220,7 +221,7 @@ export function GeneradorNoticia() {
                   aria-pressed={largo === l.id}
                   onClick={() => setLargo(l.id)}
                   className={cn(
-                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors duration-rapido",
+                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-dato leading-5 transition-colors duration-rapido",
                     largo === l.id ? "border-granate bg-granate-soft font-semibold text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
                   )}
                 >
@@ -247,7 +248,7 @@ export function GeneradorNoticia() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4 sm:px-6">
             <div className="flex items-center gap-2">
               <Newspaper size={16} className="text-mute" aria-hidden />
-              <h2 className="font-display text-[15px] font-bold text-ink">Borrador</h2>
+              <h2 className="font-display text-bloque font-bold text-ink">Borrador</h2>
             </div>
             {resultado && (
               <div className="flex gap-2">
@@ -280,7 +281,7 @@ export function GeneradorNoticia() {
             {generando && <Cargando texto="Cargando el dictamen del caso…" lineas={6} />}
             {resultado && (
               <div className="space-y-3">
-                <p className="inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft">
+                <p className="inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-3 py-1 text-rotulo leading-4 font-medium text-inkSoft">
                   <FileText size={12} aria-hidden />
                   Hecho a partir del dictamen del análisis
                 </p>

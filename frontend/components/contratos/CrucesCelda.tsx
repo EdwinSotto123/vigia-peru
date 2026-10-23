@@ -17,7 +17,7 @@ export function CrucesCelda({
   etiquetas?: Record<string, string>;
 }) {
   const corto = (t: string) => etiquetas?.[t] ?? TIPO_CRUCE[t]?.corto ?? t;
-  if (!cruces?.length) return <span className="text-[12.5px] text-mute">—</span>;
+  if (!cruces?.length) return <span className="text-meta text-mute">Ninguno</span>;
   const resto = cruces.length - MAX_CRUCES;
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Registros donde aparece el ganador">

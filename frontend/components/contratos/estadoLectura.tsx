@@ -198,7 +198,7 @@ export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContra
     return (
       <span
         className={cn(
-          "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+          "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium",
           listo ? "border border-inkSoft/40 text-inkSoft" : "bg-paperDeep text-mute",
         )}
         role="status"
@@ -215,7 +215,7 @@ export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContra
   if (estado in ESTADO_PROC) return <EstadoPill estado={estado as EstadoProc} />;
   const e = ESTADO_CONTRATO_EXTRA[estado as keyof typeof ESTADO_CONTRATO_EXTRA] ?? ESTADO_CONTRATO_EXTRA.sin_analizar;
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", e.cls)} role="status">
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium", e.cls)} role="status">
       {e.label}
     </span>
   );

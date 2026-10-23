@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Building2, CalendarRange } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import {
   BarraFiltros,
@@ -30,6 +30,7 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { getFichaPersona, getOrdenesPersona, tipoContratacion, type AnioDePersona, type FichaPersona, type OrdenesPersona } from "@/lib/personas";
+import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
 
@@ -39,7 +40,6 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
 }
 
 const TAM_ORDENES = 20;
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
  * /app/personas/[codigo] — una persona que recibe órdenes de servicio del Estado (código al azar: nunca el RUC ni el
@@ -263,7 +263,7 @@ function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: No
     return {
       id: `${a.anio}-${a.entidadRuc}`,
       celdas: {
-        anio: <span className="font-mono text-[13px] tabular-nums">{a.anio}</span>,
+        anio: <span className="font-mono text-meta tabular-nums">{a.anio}</span>,
         entidad: (
           <CeldaPrincipal
             titulo={a.entidad ? tituloNatural(a.entidad) : a.entidadRuc}
@@ -301,7 +301,7 @@ function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: No
       </CabeceraPestana>
       {mensual.length > 1 && (
         <section className="space-y-2 rounded-2xl border border-line bg-paper p-4">
-          <h3 className="font-display text-[15px] font-bold text-ink">Mes a mes</h3>
+          <h3 className="font-display text-bloque font-bold text-ink">Mes a mes</h3>
           <LineaMeses
             puntos={mensual.map((m) => ({ mes: m.mes, base: m.monto, aparte: m.dudoso || null }))}
             nombres={{ base: "Cobrado por órdenes" }}
@@ -312,7 +312,7 @@ function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: No
         </section>
       )}
       <Tabla columnas={COLUMNAS_PAGOS} filas={filas} etiqueta="Lo que cobró por año y entidad" />
-      <p className="max-w-prose text-[12.5px] text-mute">
+      <p className="max-w-prose text-meta text-mute">
         El tipo de servicio sale de las palabras de la descripción de sus órdenes. No se compara lo que no es el trabajo de una
         persona (alquileres, comida, impresiones, transporte): ahí dice «No aplica».
       </p>
@@ -379,7 +379,7 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
         ),
         estado: (
           <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[13px] text-inkSoft">{o.estado ?? "Sin estado"}</span>
+            <span className="text-meta text-inkSoft">{o.estado ?? "Sin estado"}</span>
             {motivo && <BanderaDato motivo={motivo} fuente="conosce_ordenes" />}
           </span>
         ),
@@ -414,7 +414,7 @@ async function Ordenes({ pagina: p, parametros, ruta, actual }: { pagina: Promis
             />
           </div>
         ),
-        pie: <span className="text-[12px] text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
       },
     };
   });
@@ -464,12 +464,13 @@ function filasEntidades(f: FichaPersona): Fila[] {
 
 function NoSePudoLeer({ codigo }: { codigo: string }) {
   return (
-    <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Personas contratadas", href: "/app/personas" }]} />
-      <EncabezadoPagina titulo="Persona contratada" />
-      <EstadoError titulo="No pudimos leer esta ficha" accion={<Link href={`/app/personas/${codigo}`} className="text-granate hover:underline">Reintentar</Link>}>
-        Puede que el código no exista o que el servidor no respondiera. No mostramos nada en su lugar.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Personas contratadas", href: "/app/personas" }]}
+      titulo="Persona contratada"
+      error="No pudimos leer esta ficha"
+      reintentar={{ href: `/app/personas/${codigo}` }}
+    >
+      Puede que el código no exista o que el servidor no respondiera. No mostramos nada en su lugar.
+    </FichaNoLeida>
   );
 }

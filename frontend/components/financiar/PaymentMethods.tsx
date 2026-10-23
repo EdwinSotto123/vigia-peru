@@ -35,7 +35,7 @@ const BRAND: Record<string, { bg: string; fg: string; label: string }> = {
 export function BrandBadge({ brand, size = "md" }: { brand: string; size?: "md" | "lg" }) {
   const b = BRAND[brand] ?? { bg: "#1E191B", fg: "#FFFFFF", label: brand };
   return (
-    <span className={`inline-flex items-center rounded-md font-bold tracking-tight ${size === "lg" ? "px-2.5 py-1 text-base" : "px-2 py-0.5 text-xs"}`} style={{ background: b.bg, color: b.fg }}>
+    <span className={`inline-flex items-center rounded-md font-bold tracking-tight ${size === "lg" ? "px-2.5 py-1 text-destacado leading-6" : "px-2 py-0.5 text-rotulo leading-4"}`} style={{ background: b.bg, color: b.fg }}>
       {b.label}
     </span>
   );
@@ -54,9 +54,9 @@ export function CopyValue({ value, label, mono = true, size = "md", dark = false
       className={`group inline-flex min-h-[28px] max-w-full items-center gap-1.5 rounded-xl border text-left transition-colors duration-150 ${dark ? "border-paper/30 bg-paper/10 hover:bg-paper/20" : "border-line bg-paper hover:border-granate/40 hover:bg-granate-50"} ${size === "lg" ? "px-3 py-2" : "px-2.5 py-1"}`}
       title="Copiar"
     >
-      {label && <span className={`text-[11px] ${dark ? "text-paper/75" : "text-mute"}`}>{label}</span>}
-      <span className={`truncate ${size === "lg" ? "text-lg font-semibold" : "text-sm"} ${dark ? "text-paper" : "text-ink"} ${mono ? "font-mono" : ""}`}>{value}</span>
-      <span className={`shrink-0 text-[11px] ${dark ? "text-paper/75" : "text-mute group-hover:text-ink"}`} aria-live="polite">{ok ? "copiado" : "copiar"}</span>
+      {label && <span className={`text-micro ${dark ? "text-paper/75" : "text-mute"}`}>{label}</span>}
+      <span className={`truncate ${size === "lg" ? "text-bloque leading-7 font-semibold" : "text-dato leading-5"} ${dark ? "text-paper" : "text-ink"} ${mono ? "font-mono" : ""}`}>{value}</span>
+      <span className={`shrink-0 text-micro ${dark ? "text-paper/75" : "text-mute group-hover:text-ink"}`} aria-live="polite">{ok ? "copiado" : "copiar"}</span>
       {ok ? <Check size={12} className={`shrink-0 ${dark ? "text-maiz" : "text-mossTexto"}`} aria-hidden /> : <Copy size={12} className={`shrink-0 ${dark ? "text-paper/75" : "text-mute group-hover:text-ink"}`} aria-hidden />}
     </button>
   );
@@ -65,7 +65,7 @@ export function CopyValue({ value, label, mono = true, size = "md", dark = false
 export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande = false }: { pago: PagoPublico; monto: string; concepto: string; metodoPreferido?: string; grande?: boolean }) {
   if (!pago.configurado) {
     return (
-      <div className="rounded-2xl border border-dashed border-line bg-paperSoft p-4 text-sm leading-relaxed text-inkSoft">
+      <div className="rounded-2xl border border-dashed border-line bg-paperSoft p-4 text-dato leading-relaxed text-inkSoft">
         Este aporte todavía no se puede pagar: no hay medios de pago configurados. Guarda el código{" "}
         <span className="font-mono text-ink">{concepto}</span> para ver su estado.
         {pago.contactoEmail && <> Dudas: <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="text-granate underline underline-offset-2">{pago.contactoEmail}</a>.</>}
@@ -78,8 +78,8 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
     <div className="space-y-4">
       {/* El dato que no se puede equivocar, en la superficie oscura: monto en maíz, concepto copiable. */}
       <div className="sobre-oscuro flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-ink px-4 py-3 text-paper">
-        <span className="text-sm text-paper/75">Monto exacto</span><span className="font-mono text-lg font-semibold tabular-nums text-maiz">{monto}</span>
-        <span className="text-sm text-paper/75 sm:ml-2">Concepto</span>
+        <span className="text-dato leading-5 text-paper/75">Monto exacto</span><span className="font-mono text-bloque leading-7 font-semibold tabular-nums text-maiz">{monto}</span>
+        <span className="text-dato leading-5 text-paper/75 sm:ml-2">Concepto</span>
         <CopyValue value={concepto} dark />
       </div>
 
@@ -87,13 +87,13 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
         <div className={`grid gap-3 ${grande && wallets.length > 1 ? "sm:grid-cols-2" : wallets.length > 1 ? "sm:grid-cols-2" : ""}`}>
           {wallets.sort((a, b) => order(a.k) - order(b.k)).map((w) => (
             <div key={w.k} className={`rounded-2xl border p-4 ${w.k === metodoPreferido ? "border-granate/50" : "border-line"}`}>
-              <div className="flex items-center justify-between"><BrandBadge brand={w.k} size="lg" />{w.k === metodoPreferido && <span className="text-[11px] font-medium text-granate">Tu método</span>}</div>
+              <div className="flex items-center justify-between"><BrandBadge brand={w.k} size="lg" />{w.k === metodoPreferido && <span className="text-micro font-medium text-granate">Tu método</span>}</div>
               <div className={`mt-3 flex ${grande ? "flex-col items-center gap-3 text-center" : "items-start gap-3"}`}>
                 {w.qrUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={w.qrUrl} alt={`QR de ${w.k} para pagar`} className={`rounded-xl border border-line bg-paper object-contain ${grande ? "h-48 w-48 sm:h-56 sm:w-56" : "h-24 w-24"}`} />}
                 <div className={`min-w-0 space-y-1.5 ${grande ? "flex flex-col items-center" : ""}`}>
                   <CopyValue value={w.numero} label="número" size={grande ? "lg" : "md"} />
-                  {w.titular && <div className="text-[12px] text-mute">Titular: <span className="text-ink">{w.titular}</span></div>}
-                  {grande && <div className="text-[12px] text-mute">Escanea el QR o copia el número, y pon el código como concepto.</div>}
+                  {w.titular && <div className="text-rotulo text-mute">Titular: <span className="text-ink">{w.titular}</span></div>}
+                  {grande && <div className="text-rotulo text-mute">Escanea el QR o copia el número, y pon el código como concepto.</div>}
                 </div>
               </div>
             </div>
@@ -103,23 +103,23 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
 
       {pago.cuentas.length > 0 && (
         <div className="rounded-2xl border border-line p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Transferencia bancaria</div>
+          <div className="text-micro font-semibold uppercase tracking-wide text-mute">Transferencia bancaria</div>
           <ul className="mt-2 space-y-3">
             {pago.cuentas.map((c, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 <BrandBadge brand={c.banco} />
-                <span className="text-[12px] text-mute">{c.tipo} {c.moneda}</span>
+                <span className="text-rotulo text-mute">{c.tipo} {c.moneda}</span>
                 {c.numero && <CopyValue value={c.numero} label="cuenta" />}
                 {c.cci && <CopyValue value={c.cci} label="CCI" />}
-                {c.titular && <span className="text-[12px] text-mute">Titular: {c.titular}</span>}
+                {c.titular && <span className="text-rotulo text-mute">Titular: {c.titular}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      <p className="text-[12px] leading-relaxed text-mute">{pago.instrucciones}</p>
-      {pago.contactoEmail && <p className="flex flex-wrap items-center gap-1 text-[12px] text-mute"><Mail size={12} aria-hidden /> ¿Problemas con el pago o necesitas recibo? <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="text-granate underline underline-offset-2">{pago.contactoEmail}</a></p>}
+      <p className="text-rotulo leading-relaxed text-mute">{pago.instrucciones}</p>
+      {pago.contactoEmail && <p className="flex flex-wrap items-center gap-1 text-rotulo text-mute"><Mail size={12} aria-hidden /> ¿Problemas con el pago o necesitas recibo? <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="text-granate underline underline-offset-2">{pago.contactoEmail}</a></p>}
     </div>
   );
 }

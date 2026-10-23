@@ -97,10 +97,10 @@ export function AgentTraceRow({
     payload = argsStr;
     preview = (
       <>
-        <span className="font-mono text-[12.5px] font-semibold text-ink">{ev.name}</span>
-        <span className="text-[11px] text-mute"> ( </span>
+        <span className="font-mono text-meta font-semibold text-ink">{ev.name}</span>
+        <span className="text-micro text-mute"> ( </span>
         {Object.entries(ev.args || {}).map(([k, v], i) => (
-          <span key={k} className="text-[11px]">
+          <span key={k} className="text-micro">
             {i > 0 && <span className="text-mute">, </span>}
             <span className="text-mute">{k}=</span>
             <span className="font-mono text-inkSoft">
@@ -114,7 +114,7 @@ export function AgentTraceRow({
             </span>
           </span>
         ))}
-        <span className="text-[11px] text-mute"> )</span>
+        <span className="text-micro text-mute"> )</span>
       </>
     );
   } else if (ev.kind === "tool_result") {
@@ -125,21 +125,21 @@ export function AgentTraceRow({
     const keys = result && typeof result === "object" ? Object.keys(result).slice(0, 5) : [];
     preview = (
       <>
-        <span className="font-mono text-[12.5px] text-mute">{ev.name}</span>
-        <span className="text-[11px] text-mute"> → </span>
-        <span className="font-mono text-[11.5px] text-ink">
+        <span className="font-mono text-meta text-mute">{ev.name}</span>
+        <span className="text-micro text-mute"> → </span>
+        <span className="font-mono text-rotulo text-ink">
           <TextoSeguro plano texto={keys.length > 0 ? `{ ${keys.join(", ")} }` : String(JSON.stringify(result) ?? "").slice(0, 100)} />
         </span>
       </>
     );
   } else if (ev.kind === "transfer") {
-    preview = <span className="text-[12.5px] text-ink">{nombreDeAgente(ev.to)}</span>;
+    preview = <span className="text-meta text-ink">{nombreDeAgente(ev.to)}</span>;
   } else if (ev.kind === "thought") {
     const t = ev.text || "";
     hayMas = t.length > 200;
     payload = t;
     preview = (
-      <span className="text-[12px] italic text-inkSoft">
+      <span className="text-rotulo italic text-inkSoft">
         &quot;
         <TextoSeguro plano texto={t.slice(0, 200)} />
         {hayMas ? "…" : ""}&quot;
@@ -149,7 +149,7 @@ export function AgentTraceRow({
     payload = ev.detail || "";
     hayMas = (ev.detail || "").length > 200;
     preview = (
-      <span className="text-[12px] text-crimsonTexto">
+      <span className="text-rotulo text-crimsonTexto">
         <TextoSeguro plano texto={(ev.detail || "").slice(0, 200)} />
         {hayMas ? "…" : ""}
       </span>
@@ -162,17 +162,17 @@ export function AgentTraceRow({
 
   const fila = (
     <>
-      <span className="mt-0.5 w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-mute">
+      <span className="mt-0.5 w-6 shrink-0 text-right font-mono text-micro tabular-nums text-mute">
         {String(idx).padStart(2, "0")}
       </span>
       {mostrarAgente && (
-        <span className="mt-0.5 hidden w-28 shrink-0 truncate text-[11px] text-mute sm:inline-block">
+        <span className="mt-0.5 hidden w-28 shrink-0 truncate text-micro text-mute sm:inline-block">
           {nombreDeAgente(ev.agent)}
         </span>
       )}
       <span
         className={cn(
-          "mt-0.5 w-14 shrink-0 font-mono text-[11px]",
+          "mt-0.5 w-14 shrink-0 font-mono text-micro",
           ev.kind === "error" ? "font-semibold text-crimsonTexto" : "text-mute",
         )}
       >
@@ -216,7 +216,7 @@ export function AgentTraceRow({
       {expandido && payload && (
         <div className="ml-8 mt-2 rounded-xl border border-line bg-paperSoft p-3">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[12px] font-semibold text-mute">
+            <span className="text-rotulo font-semibold text-mute">
               {ev.kind === "tool_call"
                 ? "Lo que se le pidió"
                 : ev.kind === "tool_result"
@@ -229,13 +229,13 @@ export function AgentTraceRow({
             </span>
             <button
               type="button"
-              className="rounded text-[11px] font-medium text-granate transition-colors duration-rapido hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
+              className="rounded text-micro font-medium text-granate transition-colors duration-rapido hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
               onClick={() => navigator.clipboard?.writeText(tapar(payload || ""))}
             >
               copiar
             </button>
           </div>
-          <pre className="scrollbar-warm max-h-[400px] overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-relaxed text-ink">
+          <pre className="scrollbar-warm max-h-[400px] overflow-auto whitespace-pre-wrap break-words font-mono text-micro leading-relaxed text-ink">
             <DatoCrudo texto={payload} />
           </pre>
         </div>

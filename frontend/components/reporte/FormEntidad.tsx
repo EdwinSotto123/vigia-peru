@@ -229,21 +229,21 @@ export function FormEntidad({
       {ent ? (
         <div className="flex items-start justify-between gap-3 rounded-xl border border-line bg-paperSoft p-4">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
               <span className="inline-flex items-center gap-1">
                 <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(ent.tipo, ent.nombre, "corto")}
               </span>
               <span className="font-mono tabular-nums">RUC {ent.ruc}</span>
             </div>
-            <div className="mt-0.5 font-display text-base font-bold text-ink">{ent.nombre}</div>
-            {(ent.region || ent.provincia) && <div className="text-xs text-mute">{[ent.region, ent.provincia].filter(Boolean).join(", ")}</div>}
+            <div className="mt-0.5 font-display text-destacado leading-6 font-bold text-ink">{ent.nombre}</div>
+            {(ent.region || ent.provincia) && <div className="text-rotulo leading-4 text-mute">{[ent.region, ent.provincia].filter(Boolean).join(", ")}</div>}
           </div>
-          <button type="button" onClick={() => setEnt(null)} className="inline-flex min-h-[44px] shrink-0 items-center rounded-full px-3 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
+          <button type="button" onClick={() => setEnt(null)} className="inline-flex min-h-[44px] shrink-0 items-center rounded-full px-3 text-meta font-medium text-granate underline-offset-2 hover:underline">
             Cambiar
           </button>
         </div>
       ) : cargandoInicial ? (
-        <p className="inline-flex items-center gap-2 text-sm text-mute">
+        <p className="inline-flex items-center gap-2 text-dato leading-5 text-mute">
           <Loader2 size={14} className="animate-spin" aria-hidden /> Cargando la entidad…
         </p>
       ) : (
@@ -279,8 +279,8 @@ export function FormEntidad({
                       }}
                       className="block min-h-[44px] w-full px-3 py-2 text-left transition-colors duration-rapido hover:bg-granate-50"
                     >
-                      <span className="block text-sm font-medium text-ink">{r.nombre}</span>
-                      <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-mute">
+                      <span className="block text-dato leading-5 font-medium text-ink">{r.nombre}</span>
+                      <span className="mt-0.5 flex flex-wrap gap-x-3 text-micro text-mute">
                         <span className="font-mono tabular-nums">RUC {r.ruc}</span>
                         <span>{etiquetaTipoEntidad(r.tipo, r.nombre, "corto")}</span>
                         {r.region && <span>{r.region}</span>}
@@ -291,7 +291,7 @@ export function FormEntidad({
               </ul>
             )}
             {!buscando && query.trim().length >= 2 && resultados.length === 0 && (
-              <p className="mt-2 rounded-xl border border-dashed border-line bg-paperSoft p-3 text-xs text-inkSoft">
+              <p className="mt-2 rounded-xl border border-dashed border-line bg-paperSoft p-3 text-rotulo leading-4 text-inkSoft">
                 {errorBusqueda
                   ? "No pudimos buscar ahora mismo: el servidor de Vigía no respondió. Inténtalo otra vez en un momento."
                   : "No encontramos una entidad con ese nombre. Prueba con otra palabra del nombre oficial o con su RUC de 11 dígitos."}
@@ -302,7 +302,7 @@ export function FormEntidad({
       )}
       {errores.entidad && <ErrorCampo>{errores.entidad}</ErrorCampo>}
       {!ent && (
-        <ul className="mt-auto space-y-1 rounded-xl bg-paperSoft px-3 py-3 text-xs text-inkSoft">
+        <ul className="mt-auto space-y-1 rounded-xl bg-paperSoft px-3 py-3 text-rotulo leading-4 text-inkSoft">
           <li className="flex items-start gap-1.5">
             <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden /> Busca por el nombre oficial o por el RUC de 11 dígitos.
           </li>
@@ -351,7 +351,7 @@ export function FormEntidad({
           placeholder="Ej: La municipalidad lleva 4 años contratando siempre al mismo proveedor para mantenimiento. El gerente de logística es pariente del dueño de la empresa."
           className={cn(campo, "min-h-[140px] flex-1 py-3 leading-relaxed")}
         />
-        <p id="entidad-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
+        <p id="entidad-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-micro text-mute">
           <span>Cargos, fechas, números de contrato y enlaces hacen que tu denuncia se pueda comprobar.</span>
           <span className="shrink-0 font-mono tabular-nums">
             {numero(descripcion.length)} / {numero(DESCRIPCION_MAX)}
@@ -368,7 +368,7 @@ export function FormEntidad({
         <span className={etiqueta}>Evidencia (opcional)</span>
         <label className="flex min-h-[96px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperSoft px-4 py-4 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate/40">
           <Upload size={18} className="shrink-0 text-mute" aria-hidden />
-          <span className="text-sm">
+          <span className="text-dato leading-5">
             {evidencia ? (
               <span className="break-all font-medium text-ink">
                 {evidencia.name} <Check size={14} className="ml-1 inline text-mossTexto" aria-hidden />
@@ -376,7 +376,7 @@ export function FormEntidad({
             ) : (
               <>
                 <span className="font-medium text-ink">Foto o documento PDF</span>
-                <span className="block text-xs text-mute">Opcional. JPG, PNG, WebP o PDF, hasta {MAX_MB} MB.</span>
+                <span className="block text-rotulo leading-4 text-mute">Opcional. JPG, PNG, WebP o PDF, hasta {MAX_MB} MB.</span>
               </>
             )}
           </span>
@@ -392,19 +392,19 @@ export function FormEntidad({
           />
         </label>
         {evidencia && (
-          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-1 inline-flex min-h-[44px] items-center gap-1 text-xs text-inkSoft hover:text-ink hover:underline">
+          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-1 inline-flex min-h-[44px] items-center gap-1 text-rotulo leading-4 text-inkSoft hover:text-ink hover:underline">
             <X size={12} aria-hidden /> Quitar el archivo
           </button>
         )}
         {errores.evidencia && <ErrorCampo>{errores.evidencia}</ErrorCampo>}
-        <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-mute">
+        <p className="mt-1 flex flex-wrap items-center gap-x-1 text-rotulo leading-4 text-mute">
           A las fotos les quitamos los datos ocultos antes de guardarlas.
           <Ayuda titulo="¿Qué datos ocultos les quitamos?">La ubicación GPS y el modelo del teléfono.</Ayuda>
         </p>
       </div>
 
       <details className="group rounded-xl border border-dashed border-line bg-paperSoft open:border-line open:bg-transparent" open={!!errores.correo || undefined}>
-        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-dato leading-5 font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
           <ChevronDown size={16} className="transition-transform duration-normal group-open:rotate-180" aria-hidden />
           Contacto: tu correo, opcional
         </summary>
@@ -427,7 +427,7 @@ export function FormEntidad({
             className={campo}
           />
           {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
-          <p className="text-[12px] text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado en reserva junto a la denuncia: no se publica.</p>
+          <p className="text-rotulo text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado en reserva junto a la denuncia: no se publica.</p>
         </div>
       </details>
 
@@ -446,7 +446,7 @@ export function FormEntidad({
             </>
           )}
         </Button>
-        <p className="text-center text-xs text-mute" aria-live="polite">
+        <p className="text-center text-rotulo leading-4 text-mute" aria-live="polite">
           {ready
             ? "Todo listo para enviar."
             : `Faltan ${milestones.length - doneCount} de ${milestones.length}: ${milestones

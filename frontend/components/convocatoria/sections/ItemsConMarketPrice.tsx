@@ -49,7 +49,7 @@ export function ItemsConMarketPrice({
 
   if (filas.length === 0) {
     return (
-      <div className="px-5 py-6 text-sm text-mute">
+      <div className="px-5 py-6 text-dato leading-5 text-mute">
         <p className="flex items-start gap-2">
           <Package size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
           <span>
@@ -70,7 +70,7 @@ export function ItemsConMarketPrice({
   return (
     <div className="space-y-3 px-5 py-4">
       {padreLote && (
-        <p className="border-l-2 border-line pl-3 text-[12px] text-mute">
+        <p className="border-l-2 border-line pl-3 text-rotulo text-mute">
           <strong className="font-semibold text-ink">Lote OCDS {padreLote.numero}:</strong>{" "}
           {padreLote.cantidad !== null ? `${numero(padreLote.cantidad)} ${padreLote.unidad}` : padreLote.unidad}{" "}
           por {padreLote.cuantia !== null ? fmtMoney(padreLote.cuantia) : "cuantía no publicada"}, desglosado acá en{" "}
@@ -78,7 +78,7 @@ export function ItemsConMarketPrice({
         </p>
       )}
 
-      <p className="text-[13px] leading-snug text-ink">
+      <p className="text-meta leading-snug text-ink">
         <strong className="font-semibold">
           {conMedicion} de {filas.length} ítems
         </strong>{" "}
@@ -111,7 +111,7 @@ export function ItemsConMarketPrice({
           titulo={`Comparación de precio ofertado contra el mercado en ${plural(orden.length, "ítem", "ítems")}, ordenados por diferencia en soles. La tabla completa con las mismas cifras está bajo "ver la tabla completa".`}
         />
       ) : (
-        <p className="border-l-2 border-line pl-3 text-[12px] text-mute">
+        <p className="border-l-2 border-line pl-3 text-rotulo text-mute">
           Ningún ítem llegó a tener precio de mercado y cantidad a la vez, que es lo mínimo para compararlo. No hay
           gráfico porque no hay comparación que dibujar. El detalle de por qué está abajo, ítem por ítem.
         </p>
@@ -126,7 +126,7 @@ export function ItemsConMarketPrice({
           className="w-auto"
           etiqueta={`Ver la tabla completa de los ${filas.length} ítems con sus precios`}
         >
-          <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido group-hover:bg-paperSoft">
+          <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido group-hover:bg-paperSoft">
             <Table2 size={12} aria-hidden />
             Ver la tabla completa ({filas.length} ítems)
           </span>
@@ -154,10 +154,10 @@ export function ItemsConMarketPrice({
                     {fuera.map((f) => (
                       <li key={f.key} className="px-3.5 py-2.5">
                         <div className="flex items-baseline gap-1.5">
-                          <span className="font-mono text-[12px] font-semibold text-inkSoft">{f.numero}</span>
+                          <span className="font-mono text-rotulo font-semibold text-inkSoft">{f.numero}</span>
                           <span className="font-medium">{f.descripcion}</span>
                         </div>
-                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-mute">
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-rotulo text-mute">
                           <span>
                             {f.cantidad !== null ? `${numero(f.cantidad)} ${f.unidad}` : "sin cantidad en el expediente"}
                           </span>
@@ -173,7 +173,7 @@ export function ItemsConMarketPrice({
             className="w-auto"
             etiqueta={`Ver por qué ${fuera.length} ítems no tienen comparación de mercado`}
           >
-            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-inkSoft transition-colors duration-rapido group-hover:bg-paperSoft group-hover:text-ink">
+            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido group-hover:bg-paperSoft group-hover:text-ink">
               Por qué {fuera.length} {fuera.length === 1 ? "ítem no tiene" : "ítems no tienen"} comparación
             </span>
           </Revelar>

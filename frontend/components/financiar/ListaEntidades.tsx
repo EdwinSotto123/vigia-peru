@@ -7,6 +7,7 @@ import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { alcanceCorto, type AlcanceProcesamiento, type EntidadFinanciable, type EntidadesFinanciables } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { NombreEntidad, esRucPersona } from "./NombreEntidad";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * La vista "Por entidad" de /app/financiar (§14.1): entidades con contratos en cola, con la
@@ -23,9 +24,7 @@ import { NombreEntidad, esRucPersona } from "./NombreEntidad";
 /** Entidades por página (el API acepta hasta 50). */
 export const TAM_ENTIDADES = 25;
 
-/** La acción de un estado vacío o de error: la misma píldora secundaria de todos los listados. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 
 const hrefVista = (q?: string, pagina?: number, region?: string) => {
   const p = new URLSearchParams({ por: "entidad" });

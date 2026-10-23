@@ -24,7 +24,7 @@ function VerTodo({ href, children }: { href: string; children: React.ReactNode }
     <Link
       href={href}
       scroll={false}
-      className="inline-flex min-h-[32px] items-center gap-1 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
+      className="inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline"
     >
       {children} <ArrowRight size={13} aria-hidden />
     </Link>
@@ -137,13 +137,13 @@ function QueSalio({ leidos, conSenal, enRevision, sinSenal }: { leidos: number; 
   ].filter((p) => p.valor > 0);
   return (
     <figure className="rounded-xl border border-line px-3.5 py-3">
-      <figcaption className="text-[13px] text-mute">En qué terminaron sus {num(leidos)} contratos leídos</figcaption>
+      <figcaption className="text-meta text-mute">En qué terminaron sus {num(leidos)} contratos leídos</figcaption>
       <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
         {partes.map((p) => (
           <div key={p.clave} className={p.barra} style={{ width: `${(p.valor / leidos) * 100}%` }} />
         ))}
       </div>
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-inkSoft">
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-inkSoft">
         {partes.map((p) => (
           <li key={p.clave} className="inline-flex items-center gap-1.5">
             <span className={`h-2 w-2 shrink-0 rounded-full ${p.barra}`} aria-hidden />

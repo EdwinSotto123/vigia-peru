@@ -17,18 +17,18 @@ export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
   return (
     <section aria-labelledby="obras-por-region" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="obras-por-region" className="font-display text-[16px] font-bold text-ink">Contratos de obras publicados por región</h2>
-        <Link href="/app/contratos?tipo=obras" className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline">
+        <h2 id="obras-por-region" className="font-display text-bloque font-bold text-ink">Contratos de obras publicados por región</h2>
+        <Link href="/app/contratos?tipo=obras" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">
           Ver los contratos
         </Link>
       </div>
-      <p className="mt-1 text-[13px] leading-snug text-mute">
+      <p className="mt-1 text-meta leading-snug text-mute">
         Antes de denunciar, mira qué obras hay contratadas en tu región. Es el registro oficial: no dice si una obra está parada.
       </p>
-      <ol className="mt-3 space-y-2">
+      <ol className="mt-3 space-y-2" data-lista="grafico">
         {filas.map((z) => (
           <li key={z.ubigeo} className="flex items-center gap-3 py-0.5">
-            <Link href={`/app/mapa?region=${z.ubigeo}`} className="w-28 shrink-0 truncate rounded text-[14px] font-semibold text-ink underline-offset-4 hover:text-granate hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate">
+            <Link href={`/app/mapa?region=${z.ubigeo}`} className="w-28 shrink-0 truncate rounded text-dato font-semibold text-ink underline-offset-4 hover:text-granate hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate">
               {z.nombre}
             </Link>
             {/* La barra es un gráfico (SVG): su largo es el número de contratos de obras de la región. */}
@@ -37,8 +37,8 @@ export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
               <rect width={Math.max(3, (z.total / max) * 100)} height="8" className="fill-granate" />
             </svg>
             <span className="w-24 shrink-0 text-right leading-tight">
-              <span className="block font-mono text-[12.5px] tabular-nums text-ink">{numero(z.total)} {z.total === 1 ? "obra" : "obras"}</span>
-              {z.montoPen != null && <span className="block font-mono text-[11.5px] tabular-nums text-mute">{solesCompacto(z.montoPen)}</span>}
+              <span className="block font-mono text-meta tabular-nums text-ink">{numero(z.total)} {z.total === 1 ? "obra" : "obras"}</span>
+              {z.montoPen != null && <span className="block font-mono text-rotulo tabular-nums text-mute">{solesCompacto(z.montoPen)}</span>}
             </span>
           </li>
         ))}

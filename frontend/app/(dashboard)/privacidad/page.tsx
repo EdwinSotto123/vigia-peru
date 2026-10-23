@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EncabezadoPagina, Pagina } from "@/components/patrones";
+import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { FormularioPrivacidad } from "./FormularioPrivacidad";
 
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ function Bloque({ id, titulo, children }: { id: string; titulo: string; children
       <h2 id={`${id}-titulo`} className="font-display text-xl font-bold tracking-tight text-ink">
         {titulo}
       </h2>
-      <div className="space-y-3 text-[15px] leading-relaxed text-inkSoft">{children}</div>
+      <div className="space-y-3 text-cuerpo leading-relaxed text-inkSoft">{children}</div>
     </section>
   );
 }
@@ -38,6 +38,7 @@ export default function PrivacidadPage({ searchParams }: { searchParams?: { enla
 
   return (
     <Pagina ancho="lectura">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Privacidad", href: "/privacidad" }]} />
       <EncabezadoPagina
         titulo="Privacidad y tus datos"
         bajada="Vigía vigila contratos del Estado, no personas. Así tratamos los datos personales que aparecen en los análisis."
@@ -104,7 +105,7 @@ export default function PrivacidadPage({ searchParams }: { searchParams?: { enla
         <h2 id="pedido-titulo" className="font-display text-xl font-bold tracking-tight text-ink">
           ¿Apareces en Vigía? Pide una corrección
         </h2>
-        <p className="mt-1 text-sm text-inkSoft">Con tu nombre y el enlace de la página ubicamos el dato.</p>
+        <p className="mt-1 text-dato leading-5 text-inkSoft">Con tu nombre y el enlace de la página ubicamos el dato.</p>
         <div className="mt-5">
           <FormularioPrivacidad enlaceInicial={enlace} />
         </div>

@@ -85,7 +85,7 @@ export function CadenaAliado({
         pie: (
           <Link
             href={`/impacto/${c.codigo}`}
-            className="inline-flex min-h-[24px] items-center gap-1.5 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
+            className="inline-flex min-h-[24px] items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline"
           >
             <FileText size={13} aria-hidden /> Ver el comprobante público de {c.codigo}
           </Link>
@@ -163,7 +163,7 @@ function DetalleAporte({
             medida="contenedor"
           />
         ) : (
-          <p className="text-[13px] text-mute">Todavía sin contratos asignados: la cola de {c.zona} los entrega por antigüedad.</p>
+          <p className="text-meta text-mute">Todavía sin contratos asignados: la cola de {c.zona} los entrega por antigüedad.</p>
         )}
       </BloqueDetalle>
     </CuerpoDetalle>

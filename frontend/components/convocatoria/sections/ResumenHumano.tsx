@@ -76,7 +76,7 @@ export function ResumenHumano({
           <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border", nivel.ui.fondo, nivel.ui.texto, nivel.ui.borde)} aria-hidden>
             <Icono size={16} />
           </span>
-          <Titulo id="veredicto-titulo" className="font-display text-[19px] font-bold leading-tight text-ink text-balance">
+          <Titulo id="veredicto-titulo" className="font-display text-bloque font-bold leading-tight text-ink text-balance">
             {titular}
           </Titulo>
           {conSenales ? (
@@ -113,7 +113,7 @@ export function ResumenHumano({
               <button
                 type="button"
                 onClick={onVerEvidencia}
-                className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-[12.5px] text-ink hover:border-granate"
+                className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-meta text-ink hover:border-granate"
               >
                 <Severidad bandera={p.severidad} formato="punto" />
                 {reglaLabel(p.regla)}
@@ -133,11 +133,11 @@ export function ResumenHumano({
 
       {/* Qué se sabe, en palabras: el anticipo del dictamen, pasado por la redacción de datos personales. */}
       {resumenEjecutivo && (
-        <p className="mt-2 line-clamp-2 max-w-[70ch] text-sm leading-relaxed text-inkSoft">{redactDnis(resumenEjecutivo)}</p>
+        <p className="mt-2 line-clamp-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">{redactDnis(resumenEjecutivo)}</p>
       )}
 
       <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        {estado ? <p className="text-[12.5px] tabular-nums text-mute">{estado}</p> : <span />}
+        {estado ? <p className="text-meta tabular-nums text-mute">{estado}</p> : <span />}
         {resumenEjecutivo && (
           <button type="button" onClick={onLeerDictamen} className={ENLACE}>
             Leer el dictamen completo <ChevronRight size={14} aria-hidden />
@@ -149,4 +149,4 @@ export function ResumenHumano({
 }
 
 const MAX_PRINCIPALES = 6;
-const ENLACE = "inline-flex min-h-[32px] items-center gap-1 rounded-full text-[13px] font-semibold text-granate hover:underline";
+const ENLACE = "inline-flex min-h-[32px] items-center gap-1 rounded-full text-meta font-semibold text-granate hover:underline";

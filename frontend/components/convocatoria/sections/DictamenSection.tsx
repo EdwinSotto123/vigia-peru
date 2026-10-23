@@ -68,7 +68,7 @@ const PROSA = cn(
   "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-ink prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
   "prose-blockquote:border-l-2 prose-blockquote:border-line prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r-xl prose-blockquote:text-inkSoft prose-blockquote:not-italic",
   "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
-  "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-semibold prose-th:text-[12px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
+  "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-semibold prose-th:text-rotulo prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
   "prose-td:text-ink prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-line prose-td:align-top",
   "prose-hr:my-6 prose-hr:border-line",
 );
@@ -157,7 +157,7 @@ export function DictamenSection({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperSoft px-5 py-3">
         <div>
           <h2 className="font-display text-xl font-bold text-ink">Dictamen</h2>
-          <div className="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-mute">
+          <div className="mt-0.5 inline-flex items-center gap-1.5 text-rotulo text-mute">
             <FileText size={12} aria-hidden />
             Redactado automáticamente{modelo ? ` (${modelo})` : ""} con la evidencia del análisis. Los datos personales van tapados.
           </div>
@@ -168,7 +168,7 @@ export function DictamenSection({
           aria-live="polite"
           title="Copia el texto con los datos personales ya ocultos"
           className={cn(
-            "inline-flex min-h-[32px] items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
+            "inline-flex min-h-[32px] items-center gap-1 rounded-full border px-3 py-1 text-rotulo font-medium transition-colors",
             copiado === "ok"
               ? "border-moss/40 bg-moss/10 text-mossTexto"
               : copiado === "error"
@@ -187,8 +187,8 @@ export function DictamenSection({
             <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-3 [&::-webkit-details-marker]:hidden">
               <ScanSearch size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
               <span className="min-w-0 flex-1">
-                <span className="block font-display text-base font-bold text-ink">{TITULO_LLANO_LIMITES}</span>
-                <span className="block text-[12px] leading-snug text-mute">
+                <span className="block font-display text-destacado leading-6 font-bold text-ink">{TITULO_LLANO_LIMITES}</span>
+                <span className="block text-rotulo leading-snug text-mute">
                   Lo que no se pudo comprobar y lo que quedó fuera de la lectura de los documentos.
                 </span>
               </span>

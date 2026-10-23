@@ -1,5 +1,5 @@
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { RankingAliados } from "@/components/aliados/RankingAliados";
@@ -114,6 +114,7 @@ export default async function AliadosPage({
 
   return (
     <Pagina className="space-y-6">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Aliados", href: "/app/aliados" }]} />
       <EncabezadoPagina
         titulo="Ranking de aliados"
         bajada="Quién hizo leer más contratos públicos. Se cuenta en contratos, nunca en soles."

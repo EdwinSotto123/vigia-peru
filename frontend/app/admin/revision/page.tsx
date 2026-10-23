@@ -185,24 +185,24 @@ export default function RevisionPage() {
       celda: (r) => (
         <>
           <span className="flex items-baseline gap-2">
-            <span className="shrink-0 font-mono text-xs font-medium text-ink">{r.codigo}</span>
-            <span className="truncate text-[11px] text-mute">
+            <span className="shrink-0 font-mono text-rotulo leading-4 font-medium text-ink">{r.codigo}</span>
+            <span className="truncate text-micro text-mute">
               <Partes partes={[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? tipoLabel(r.tipo) ?? r.tipo, r.contribucionCodigo && `aporte ${r.contribucionCodigo}`]} />
             </span>
           </span>
-          <span className="block truncate text-[12px] text-inkSoft" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</span>
+          <span className="block truncate text-rotulo text-inkSoft" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</span>
         </>
       ),
     },
     {
       clave: "entidad",
       titulo: "Entidad y zona",
-      className: "max-w-[230px] text-[12px]",
+      className: "max-w-[230px] text-rotulo",
       anchoCompletoMovil: true,
       celda: (r) => (
         <>
           <span className="block truncate text-ink" title={r.entidad ?? ""}>{r.entidad ?? r.entidadRuc ?? "Entidad sin dato"}</span>
-          <span className="block truncate text-[11px] text-mute">{r.zona ?? r.provincia ?? r.region ?? "Zona sin dato"}</span>
+          <span className="block truncate text-micro text-mute">{r.zona ?? r.provincia ?? r.region ?? "Zona sin dato"}</span>
         </>
       ),
     },
@@ -214,7 +214,7 @@ export default function RevisionPage() {
       className: "max-w-[340px]",
       anchoCompletoMovil: true,
       celda: (r) => (
-        <div className="text-[12px]">
+        <div className="text-rotulo">
           <div className="flex flex-wrap gap-1">
             {clavesDe(r).map((k) => {
               const m = motivoBloqueo(k);
@@ -225,7 +225,7 @@ export default function RevisionPage() {
             {fraseDe(r)}
           </p>
           {r.moderacion && (
-            <p className="truncate text-[11px] text-mute" title={`${r.moderacion.actor}: ${r.moderacion.motivo}`}>
+            <p className="truncate text-micro text-mute" title={`${r.moderacion.actor}: ${r.moderacion.motivo}`}>
               {r.moderacion.accion === "publicar" ? <CheckCircle2 size={11} className="inline text-moss" aria-hidden /> : <XCircle size={11} className="inline text-rust" aria-hidden />}{" "}
               {r.moderacion.accion === "publicar" ? "Publicada" : "Descartada"} por {r.moderacion.actor}, {fmtFechaHora(r.moderacion.at)}: {r.moderacion.motivo}
             </p>
@@ -236,7 +236,7 @@ export default function RevisionPage() {
     {
       clave: "analizado",
       titulo: "Analizada",
-      className: "whitespace-nowrap text-[12px] text-mute",
+      className: "whitespace-nowrap text-rotulo text-mute",
       celda: (r) => <span title={fmtFechaHora(r.analizadoEn ?? r.createdAt) ?? undefined}>{hace(r.analizadoEn ?? r.createdAt) ?? "Sin fecha"}</span>,
     },
     {

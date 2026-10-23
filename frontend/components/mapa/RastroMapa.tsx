@@ -40,7 +40,7 @@ export function RastroMapa({
   if (!region && !zona && deptos.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-3 sm:px-5">
-      <nav aria-label="Dónde estás en el mapa" className={`min-h-[28px] items-center gap-1.5 text-[12px] ${region || zona ? "flex" : "hidden"}`}>
+      <nav aria-label="Dónde estás en el mapa" className={`min-h-[28px] items-center gap-1.5 text-rotulo ${region || zona ? "flex" : "hidden"}`}>
         <button
           type="button"
           onClick={onPeru}
@@ -83,7 +83,7 @@ export function RastroMapa({
 
       {/* Lo que se está leyendo AHORA. Sólo aparece si hay algo en curso. */}
       {deptos.length > 0 && (
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-inkSoft" role="status">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-rotulo text-inkSoft" role="status">
           <PulseDot color="moss" size={7} />
           <span className="font-semibold text-ink">Ahora</span>
           {deptos.map((ub) => {

@@ -39,11 +39,11 @@ export function TarjetaConfirmacion({
           <Llamita className="mt-0.5 w-9 text-granate" />
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-xl font-bold leading-snug text-ink text-balance">{titulo}</h2>
-            {children && <div className="mt-2 text-sm leading-relaxed text-inkSoft text-pretty">{children}</div>}
+            {children && <div className="mt-2 text-dato leading-relaxed text-inkSoft text-pretty">{children}</div>}
           </div>
         </div>
         {acciones && <div className="mt-5 flex flex-wrap items-center gap-2">{acciones}</div>}
-        {pie && <div className="mt-4 text-[12px] leading-relaxed text-mute">{pie}</div>}
+        {pie && <div className="mt-4 text-rotulo leading-relaxed text-mute">{pie}</div>}
       </div>
     </div>
   );

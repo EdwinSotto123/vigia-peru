@@ -11,9 +11,9 @@ import { observacionesLegibles } from "../dossier";
 import { EVALS, resultadoDe } from "./evaluadores";
 import { esHerramientaDeEntrada, type NodoTraza, type Paso, type Recorrido } from "./modelo";
 import { accionDe, avisoDeGuardado, lecturaDeRegla, legible, lineasDeResultado, type Linea } from "./pasos";
+import { txt } from "@/lib/utils";
 
 const esObjeto = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
-const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 const nro = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const arr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
 const mayuscula = (s: string) => s.replace(/^\p{L}/u, (c) => c.toUpperCase());

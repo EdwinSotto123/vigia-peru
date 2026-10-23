@@ -23,6 +23,10 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/entidades", "explorar"],
   ["/app/partidos", "explorar"],
   ["/entidad", "explorar"],
+  // Empresas y personas contratadas están en Explorar en el menú: antes quedaban sin color.
+  ["/app/empresas", "explorar"],
+  ["/empresa", "explorar"],
+  ["/app/personas", "explorar"],
   ["/app/hallazgos", "alertas"],
   ["/app/alertas", "alertas"],
   ["/alerta", "alertas"],
@@ -32,6 +36,7 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/impacto", "participar"],
   ["/reporte", "participar"],
   ["/app/auditoria", "participar"],
+  ["/noticia", "participar"],
   ["/app/mi-impacto", "cuenta"],
   ["/app/configuracion", "cuenta"],
 ];

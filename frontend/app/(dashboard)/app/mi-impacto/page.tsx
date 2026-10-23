@@ -21,10 +21,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, CircleDot, HandCoins, type LucideIcon } from "lucide-react";
-import { PieDetalle, CabeceraPestana,
-  Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, Franja, Beneficios,
-  Pagina, Pestanas, type DatoClave,
-} from "@/components/patrones";
+import { Ayuda, Beneficios, BloqueDetalle, CabeceraPestana, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, type DatoClave, DatosClave, EncabezadoPagina, EstadoError, Franja, Migas, Pagina, Pestanas, PieDetalle } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { ChipAporte, EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
@@ -41,7 +38,7 @@ import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { cn } from "@/lib/utils";
 
 /** Enlace de acción secundaria de una pestaña (arriba a la derecha) o de un vacío. */
-const ENLACE_SECCION = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
+const ENLACE_SECCION = "inline-flex min-h-[24px] items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline";
 
 /** Categorías de las denuncias a una ENTIDAD: nunca se publican (backend/api/src/lib/publicacion.ts, regla 3). */
 const CATEGORIAS_ENTIDAD = new Set(["malversacion", "conflicto_interes", "favoritismo", "obstruccion", "patron_corrupcion", "otra_entidad"]);
@@ -50,6 +47,7 @@ const esDeEntidad = (d: Pick<DenunciaMia, "id" | "categoria">) => d.id.startsWit
 export default function MiImpactoPage() {
   return (
     <Pagina>
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Mi impacto", href: "/app/mi-impacto" }]} />
       <EncabezadoPagina
         titulo="Mi impacto"
         bajada="Tus aportes, tus denuncias y las zonas que sigues, en un solo lugar."
@@ -94,7 +92,7 @@ function Contenido() {
         titulo="No pudimos cargar tu cuenta"
         detalle={error}
         accion={
-          <button type="button" onClick={cargar} className="inline-flex min-h-[44px] items-center rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+          <button type="button" onClick={cargar} className="inline-flex min-h-[44px] items-center rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
             Reintentar
           </button>
         }
@@ -116,10 +114,10 @@ function Contenido() {
           titulo="Todavía no hay nada con esta cuenta"
           accion={
             <>
-              <Link href="/app/financiar" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+              <Link href="/app/financiar" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
                 Financiar una lectura <ArrowRight size={16} aria-hidden />
               </Link>
-              <Link href="/reporte/nuevo" className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
+              <Link href="/reporte/nuevo" className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
                 Denunciar una obra
               </Link>
             </>
@@ -251,7 +249,7 @@ function Contenido() {
         ]}
       />
 
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
         <Bell size={15} className="shrink-0 text-mute" aria-hidden />
         <span>
           Avisos por correo: en <Link href="/app/configuracion" className="font-medium text-granate underline underline-offset-2">Configuración</Link>.
@@ -349,7 +347,7 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
       ),
       contenido: <DetalleAporte a={a} recargar={recargar} />,
       pie: (
-        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta">
           <Link href={`/impacto/${a.codigo}`} className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline">Comprobante público <ArrowRight size={13} aria-hidden /></Link>
           {a.primerOcid && <Link href={rutaContrato(a.primerOcid, "vivo")} className="min-h-[24px] text-inkSoft underline-offset-2 hover:text-ink hover:underline">Primer contrato leído</Link>}
           {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[24px] items-center gap-1 text-inkSoft underline-offset-2 hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={12} aria-hidden /></a>}
@@ -398,7 +396,7 @@ function DetalleAporte({ a, recargar }: { a: AporteMio; recargar: () => void }) 
       {/* Pendiente y sin comprobante: se sube acá mismo (antes el enlace llevaba a un formulario nuevo, en blanco). */}
       {a.estado === "pendiente_pago" && !a.tieneComprobante && (
         <BloqueDetalle titulo="Tu comprobante de pago">
-          <p className="mb-2 text-[13px] text-inkSoft">Envía la captura o constancia de tu pago para que podamos validarlo.</p>
+          <p className="mb-2 text-meta text-inkSoft">Envía la captura o constancia de tu pago para que podamos validarlo.</p>
           <SubirComprobante codigo={a.codigo} onSubido={recargar} compacto />
         </BloqueDetalle>
       )}
@@ -648,7 +646,7 @@ function DejarDeSeguir({ onClick }: { onClick: () => Promise<unknown> }) {
         // Si falla, el botón vuelve a quedar disponible; si no, la fila desaparece al recargar.
         onClick().catch(() => {}).finally(() => setEnviando(false));
       }}
-      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 text-[13px] text-inkSoft underline-offset-2 transition-colors duration-rapido hover:bg-paperDeep hover:text-ink hover:underline disabled:opacity-60"
+      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 text-meta text-inkSoft underline-offset-2 transition-colors duration-rapido hover:bg-paperDeep hover:text-ink hover:underline disabled:opacity-60"
     >
       {enviando && <Loader2 size={13} className="animate-spin" aria-hidden />} Dejar de seguir
     </button>
@@ -670,17 +668,17 @@ function Reclamar({ codigo, onOk }: { codigo: string; onOk: () => void }) {
   if (estado === "ok") return null;
   return (
     <form onSubmit={enviar} className="rounded-2xl border border-granate/30 bg-granate-50 p-5">
-      <h2 className="inline-flex flex-wrap items-center gap-2 font-display text-[15px] font-bold text-ink">
+      <h2 className="inline-flex flex-wrap items-center gap-2 font-display text-bloque font-bold text-ink">
         <Link2 size={16} className="text-granate" aria-hidden /> Asociar el aporte <span className="font-mono" translate="no">{codigo}</span> a tu cuenta
       </h2>
-      <p className="mt-1 text-[13px] text-inkSoft">Escribe el correo que usaste al aportar (es la prueba de que es tuyo; el código es público).</p>
+      <p className="mt-1 text-meta text-inkSoft">Escribe el correo que usaste al aportar (es la prueba de que es tuyo; el código es público).</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <input type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.pe" className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate" aria-label="Correo usado en el aporte" />
-        <button type="submit" disabled={estado === "enviando"} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-60">
+        <input type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.pe" className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute focus:border-granate" aria-label="Correo usado en el aporte" />
+        <button type="submit" disabled={estado === "enviando"} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-60">
           {estado === "enviando" && <Loader2 size={14} className="animate-spin" aria-hidden />} Asociar
         </button>
       </div>
-      {msg && <p className="mt-2 text-[13px] text-crimsonTexto" role="alert">{msg === "email_mismatch" ? "El correo no coincide con el usado en el aporte." : msg}</p>}
+      {msg && <p className="mt-2 text-meta text-crimsonTexto" role="alert">{msg === "email_mismatch" ? "El correo no coincide con el usado en el aporte." : msg}</p>}
     </form>
   );
 }
@@ -696,7 +694,7 @@ function VacioSeccion({ icon: Icon, children }: { icon: LucideIcon; children: Re
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-mute" aria-hidden>
         <Icon size={18} />
       </span>
-      <div className="max-w-sm text-sm text-inkSoft">{children}</div>
+      <div className="max-w-sm text-dato leading-5 text-inkSoft">{children}</div>
     </div>
   );
 }
@@ -710,7 +708,7 @@ function SinSesion() {
           icono={<LogIn size={18} />}
           titulo="Entra para reunir lo tuyo"
           accion={
-            <Link href="/login?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
+            <Link href="/login?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
           }
         >
           Sin cuenta puedes ver todo, financiar como invitado (con tu código VIG-…) y denunciar sin tu nombre.{" "}

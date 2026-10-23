@@ -152,7 +152,7 @@ export function Header() {
             <Link
               href="/app/financiar"
               className={cn(
-                "group hidden min-h-11 lg:min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido sm:inline-flex",
+                "group hidden min-h-11 lg:min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-dato leading-5 font-semibold transition-colors duration-rapido sm:inline-flex",
                 // Sobre oscuro, el botón primario se invierte: papel con texto granate (Button "oscuro").
                 oscuro ? "bg-maiz text-ink hover:bg-maiz/85" : "bg-granate text-paper hover:bg-granate-deep",
               )}
@@ -307,7 +307,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
             onMouseEnter={(e) => mover(e.currentTarget)}
             onFocus={(e) => mover(e.currentTarget)}
             className={cn(
-              "group relative z-10 inline-flex min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors duration-rapido xl:px-3",
+              "group relative z-10 inline-flex min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-dato leading-5 font-medium transition-colors duration-rapido xl:px-3",
               "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:transition-transform after:duration-normal",
               active ? "after:scale-x-100" : "after:scale-x-0",
               oscuro
@@ -396,7 +396,7 @@ function MobileNavPanel({
                 href={n.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-12 items-center rounded-xl px-4 text-base font-medium transition-colors duration-rapido",
+                  "flex min-h-12 items-center rounded-xl px-4 text-destacado leading-6 font-medium transition-colors duration-rapido",
                   "dorado" in n && n.dorado
                     ? "gap-2 bg-maiz-soft font-semibold text-ink hover:bg-maiz/40"
                     : active
@@ -413,7 +413,7 @@ function MobileNavPanel({
         </nav>
         <Link
           href="/app/financiar"
-          className="group mt-3 flex min-h-12 items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+          className="group mt-3 flex min-h-12 items-center justify-center gap-2 rounded-full bg-granate px-4 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
         >
           <Heart size={15} aria-hidden className="fill-paper text-paper motion-safe:group-hover:animate-latir" /> Financiar una auditoría
         </Link>

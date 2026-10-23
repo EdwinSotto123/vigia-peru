@@ -53,7 +53,7 @@ export function DocumentosSection({
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
         <h2 className="font-display text-xl font-bold text-ink">Expediente del proceso</h2>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-mute">
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
           <span className="inline-flex items-center gap-1">
             <FileText size={12} aria-hidden /> {plural(documentos.length, "documento publicado", "documentos publicados")} en el SEACE
           </span>
@@ -69,10 +69,10 @@ export function DocumentosSection({
         {(modalidad || normas.length > 0) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {modalidad && (
-              <span className="rounded-full bg-paperSoft px-2 py-0.5 text-[11px] font-medium text-ink">Modalidad: {modalidad}</span>
+              <span className="rounded-full bg-paperSoft px-2 py-0.5 text-micro font-medium text-ink">Modalidad: {modalidad}</span>
             )}
             {(normasOpen ? normas : normas.slice(0, 3)).map((f, i) => (
-              <span key={i} className="rounded-full bg-paperSoft px-2 py-0.5 text-[11px] font-medium text-ink">
+              <span key={i} className="rounded-full bg-paperSoft px-2 py-0.5 text-micro font-medium text-ink">
                 <Scale size={11} className="mr-1 inline text-mute" aria-hidden />
                 {f}
               </span>
@@ -82,7 +82,7 @@ export function DocumentosSection({
                 type="button"
                 onClick={() => setNormasOpen((p) => !p)}
                 aria-expanded={normasOpen}
-                className="min-h-[24px] rounded-full bg-granate-soft px-2.5 py-0.5 text-[11px] font-semibold text-granate hover:bg-granate/15"
+                className="min-h-[24px] rounded-full bg-granate-soft px-2.5 py-0.5 text-micro font-semibold text-granate hover:bg-granate/15"
               >
                 {normasOpen ? "Ocultar normas" : `Ver ${normas.length - 3} normas más`}
               </button>
@@ -94,13 +94,13 @@ export function DocumentosSection({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-3">
           <Buscador placeholder="Buscar un documento por nombre o tipo…" etiqueta="Buscar en los documentos del expediente" valor={consulta} onBuscar={setConsulta} />
           {q && (
-            <span className="text-[13px] tabular-nums text-mute" aria-live="polite">
+            <span className="text-meta tabular-nums text-mute" aria-live="polite">
               {vistos.length} de {documentos.length}
             </span>
           )}
         </div>
       )}
-      {q && vistos.length === 0 && <p className="px-5 py-3 text-[13px] text-mute">Ningún documento coincide con “{consulta}”.</p>}
+      {q && vistos.length === 0 && <p className="px-5 py-3 text-meta text-mute">Ningún documento coincide con “{consulta}”.</p>}
       <ul className="divide-y divide-line">
         {vistos.map((d, i) => {
           const parsed: any = parserByUrl.get(d.url);
@@ -113,25 +113,25 @@ export function DocumentosSection({
                   <FileText size={14} aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{d.titulo || "Documento sin título"}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+                  <div className="text-dato leading-5 font-medium text-ink">{d.titulo || "Documento sin título"}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-mute">
                     {d.tipo_ocds && <Dato tipo="documento" nombre="Tipo">{tipoDocLabel(d.tipo_ocds)}</Dato>}
                     {formato && <Dato icono={FileType} nombre="Formato">{ETIQUETA_FORMATO[formato] ?? formato.toUpperCase()}</Dato>}
                     {d.fecha && <Dato tipo="fecha" nombre="Publicado">{fechaDossier(d.fecha, true)}</Dato>}
                     {parsed?.n_pdfs_internos && parsed.n_pdfs_internos > 1 && (
-                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-semibold text-inkSoft">
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-micro font-semibold text-inkSoft">
                         {parsed.n_pdfs_internos} PDF adentro
                       </span>
                     )}
                   </div>
                   {parsed?.resumen && !parsed?.error && (
-                    <p className="mt-1.5 text-[12px] leading-relaxed text-inkSoft">
+                    <p className="mt-1.5 text-rotulo leading-relaxed text-inkSoft">
                       <span className="font-medium text-ink">Lo que se leyó: </span>
                       {parsed.resumen}
                     </p>
                   )}
                   {parsed?.error && (
-                    <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-crimson-soft px-2 py-0.5 text-[11px] text-crimsonTexto">
+                    <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-crimson-soft px-2 py-0.5 text-micro text-crimsonTexto">
                       <AlertTriangle size={10} aria-hidden /> No se pudo leer este documento
                     </div>
                   )}
@@ -141,7 +141,7 @@ export function DocumentosSection({
                     href={d.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-granate hover:bg-paperDeep"
+                    className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-granate hover:bg-paperDeep"
                     title={esPdf ? "Abrir el PDF en el SEACE" : "Descargar el archivo del SEACE"}
                   >
                     {esPdf ? <ExternalLink size={11} aria-hidden /> : <Download size={11} aria-hidden />}

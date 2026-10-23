@@ -33,7 +33,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
             <h2 id="casos-titulo" className="font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
               Lo que ya encontró.
             </h2>
-            <p className="mt-3 max-w-[58ch] text-pretty text-base leading-relaxed text-inkSoft">
+            <p className="mt-3 max-w-[58ch] text-pretty text-destacado leading-relaxed text-inkSoft">
               Contratos reales, tal como quedaron publicados. Señal alta quiere decir que hay indicios fuertes de
               que algo no se hizo como manda la ley; señal media, que hay algo inusual que conviene mirar. Ninguna
               es una acusación.
@@ -53,16 +53,16 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
                 <p className={`font-display text-2xl font-bold ${c.region ? "text-ink" : "text-mute"}`}>
                   {c.region ?? "Región sin dato"}
                 </p>
-                {c.monto && <p className="font-mono text-[15px] tabular-nums text-ink lg:mt-2">{c.monto}</p>}
-                {c.fecha && <p className="text-[13px] text-mute lg:mt-1">{c.fecha}</p>}
+                {c.monto && <p className="font-mono text-cuerpo tabular-nums text-ink lg:mt-2">{c.monto}</p>}
+                {c.fecha && <p className="text-meta text-mute lg:mt-1">{c.fecha}</p>}
               </div>
 
               {/* Qué encontró */}
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-inkSoft">{c.entidad}</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-mute">{oracion(c.objeto)}</p>
-                <p className="mt-3 max-w-[72ch] text-[16px] leading-relaxed text-ink">{c.hallazgo}</p>
-                <p className="mt-3 flex items-start gap-2 text-[13px] leading-relaxed text-inkSoft">
+                <p className="text-meta font-semibold text-inkSoft">{c.entidad}</p>
+                <p className="mt-1 line-clamp-2 text-meta leading-relaxed text-mute">{oracion(c.objeto)}</p>
+                <p className="mt-3 max-w-[72ch] text-destacado leading-relaxed text-ink">{c.hallazgo}</p>
+                <p className="mt-3 flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                   <Scale size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
                   {c.norma}
                 </p>
@@ -73,7 +73,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
                 <Severidad bandera={c.severidad} />
                 <Link
                   href={rutaContrato(c.convocatoria, "dictamen")}
-                  className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"
                 >
                   Leer el análisis <ArrowUpRight size={14} aria-hidden />
                 </Link>
@@ -82,7 +82,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
                     href={c.fuenteUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] text-inkSoft underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-dato text-inkSoft underline-offset-4 hover:underline"
                   >
                     Ficha oficial <ExternalLink size={13} aria-hidden />
                     <span className="sr-only">(se abre en una pestaña nueva)</span>

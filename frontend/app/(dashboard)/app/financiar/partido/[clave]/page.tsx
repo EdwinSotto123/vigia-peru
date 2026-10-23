@@ -5,12 +5,12 @@ import { ChevronRight, Landmark, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, EncabezadoPagina, EstadoError, Migas, Pagina, Volver } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, FichaNoLeida, Migas, Pagina } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { getEstadoGlobal, getPago, tiposEnPalabras } from "@/lib/financiamiento";
-import { listaY, numero, plural, soles } from "@/lib/formato";
+import { listaY, numero, soles } from "@/lib/formato";
 import { EXPLICACION_PARTIDO, anioDeUrl, getDetallePartido, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 
 export const revalidate = 60;
@@ -153,7 +153,7 @@ export default async function FinanciarPartidoPage({
 
           {filas.length > 0 && (
             <section aria-labelledby="entidades-partido" className="space-y-2">
-              <h2 id="entidades-partido" className="font-display text-lg font-bold text-ink">
+              <h2 id="entidades-partido" className="font-display text-bloque leading-7 font-bold text-ink">
                 Las entidades que gobernó, de la que más contratos tiene a la que menos
               </h2>
               <TablaPaginada
@@ -167,7 +167,7 @@ export default async function FinanciarPartidoPage({
             </section>
           )}
 
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>Financias capacidad de lectura, no resultados.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
@@ -215,15 +215,11 @@ export default async function FinanciarPartidoPage({
 
 function NoSePudoLeer({ clave, anio }: { clave: string; anio: number }) {
   return (
-    <Pagina>
-      <Volver href={`/app/financiar?por=partido&anio=${anio}`}>Financiar por partido</Volver>
-      <EncabezadoPagina titulo="¿Cómo contrataron los gobiernos de este partido?" />
-      <EstadoError
-        titulo="No pudimos leer la cola de este partido"
-        accion={<EnlaceAccion href={`/app/financiar/partido/${encodeURIComponent(clave)}?anio=${anio}`}>Reintentar</EnlaceAccion>}
-      >
-        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-      </EstadoError>
-    </Pagina>
+    <FichaNoLeida
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }, { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` }]}
+      titulo="¿Cómo contrataron los gobiernos de este partido?"
+      error="No pudimos leer la cola de este partido"
+      reintentar={{ href: `/app/financiar/partido/${encodeURIComponent(clave)}?anio=${anio}` }}
+    />
   );
 }

@@ -12,6 +12,7 @@ import { MiniaturaDenuncia } from "./MiniaturaDenuncia";
 import { diaDeDenuncia } from "./fechaDenuncia";
 import { Dato } from "@/components/ui/Dato";
 import { Separador } from "@/components/ui/Partes";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * Las denuncias sobre la plantilla Listado (§14.1): la `Tabla` compartida con la
@@ -32,9 +33,7 @@ const COLUMNAS: Columna[] = [
   { clave: "estado", titulo: "Estado", ancho: "124px" },
 ];
 
-/** La acción de un estado vacío o de error: un enlace con forma de píldora secundaria. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 
 interface Props {
   /** Las filas de esta página, ya filtradas. */
@@ -142,7 +141,7 @@ export function ListaDenuncias({ reportes, total, pagina, tam, parametros, q, fa
       <div className="flex justify-end">{pag}</div>
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Denuncias de vecinos" />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {aviso ? <p className="inline-flex items-center gap-1 text-[12.5px] text-mute">{aviso}</p> : <span />}
+        {aviso ? <p className="inline-flex items-center gap-1 text-meta text-mute">{aviso}</p> : <span />}
         {pag}
       </div>
     </div>

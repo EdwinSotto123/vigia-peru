@@ -50,10 +50,10 @@ export function HeroInicio({ c }: { c: CifrasInicio | null }) {
   return (
     <header className="space-y-5">
       <div className="max-w-3xl">
-        <h1 className="font-display text-[30px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[40px]">
+        <h1 className="font-display text-titulo font-bold leading-tight tracking-tight text-ink text-balance sm:text-portada">
           ¿Qué quieres revisar hoy?
         </h1>
-        <p className="mt-2 text-[16px] leading-snug text-inkSoft text-pretty">
+        <p className="mt-2 text-destacado leading-snug text-inkSoft text-pretty">
           Vigía lee los contratos del Estado y marca los que merecen una segunda mirada. Busca algo concreto o mira lo que pasa ahora.
         </p>
       </div>
@@ -65,8 +65,8 @@ export function HeroInicio({ c }: { c: CifrasInicio | null }) {
               {t.pct != null ? <AnilloProgreso pct={t.pct} className="hidden sm:block" /> : null}
               <div className="min-w-0">
                 <dd className="font-display text-2xl font-bold leading-none tabular-nums text-ink sm:text-4xl">{t.valor}</dd>
-                <dt className="mt-1.5 text-[14px] font-semibold leading-tight text-ink sm:text-[15px]">{t.etiqueta}</dt>
-                <dd className="mt-0.5 text-[13px] leading-snug text-mute">{t.detalle}</dd>
+                <dt className="mt-1.5 text-dato font-semibold leading-tight text-ink sm:text-cuerpo">{t.etiqueta}</dt>
+                <dd className="mt-0.5 text-meta leading-snug text-mute">{t.detalle}</dd>
               </div>
             </div>
           ))}

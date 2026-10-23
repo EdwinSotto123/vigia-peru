@@ -150,7 +150,7 @@ export function Tabla({
       className={cn("overflow-clip rounded-2xl border border-line bg-paper", medida === "contenedor" && "[container-type:inline-size]", className)}
       style={estilo}
     >
-      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-[12px] font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
+      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
         {columnas.map((c) => (
           <span key={c.clave} className={cn("min-w-0 items-center gap-1", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end")}>
             <span className="truncate">{c.titulo}</span>
@@ -163,7 +163,7 @@ export function Tabla({
         grupos.map((g) => (
           <section key={g.clave} aria-label={typeof g.titulo === "string" ? g.titulo : undefined} className="border-b border-line last:border-b-0">
             {/* `top-[0px]`, no `top-0`: el layout baja todo `.sticky.top-0` en el celular. */}
-            <h3 className="sticky top-[0px] z-[1] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-[12.5px] font-semibold text-inkSoft backdrop-blur">
+            <h3 className="sticky top-[0px] z-[1] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
               {g.titulo}
             </h3>
             <ul>
@@ -229,7 +229,7 @@ function FilaTabla({
               ))}
             </span>
           ) : (
-            fila.celdas[c.clave] ?? <span className="text-[13px] text-mute">Sin dato</span>
+            fila.celdas[c.clave] ?? <span className="text-meta text-mute">Sin dato</span>
           )}
         </span>
       ))}
@@ -302,19 +302,19 @@ export function CeldaPrincipal({
   if (enLinea) {
     return (
       <span className={cn("block w-full min-w-0 sm:flex sm:items-baseline sm:gap-x-3", className)}>
-        <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink sm:line-clamp-1 sm:shrink-0 sm:max-w-[70%]" title={tooltip}>
+        <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1 sm:shrink-0 sm:max-w-[70%]" title={tooltip}>
           {titulo}
         </span>
-        {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute sm:mt-0 sm:min-w-0">{lineaMeta}</span>}
+        {lineaMeta && <span className="mt-0.5 block truncate text-meta text-mute sm:mt-0 sm:min-w-0">{lineaMeta}</span>}
       </span>
     );
   }
   return (
     <span className={cn("block w-full min-w-0", className)}>
-      <span className={cn("text-[14px] font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
+      <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
-      {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute">{lineaMeta}</span>}
+      {lineaMeta && <span className="mt-0.5 block truncate text-meta text-mute">{lineaMeta}</span>}
     </span>
   );
 }
@@ -336,7 +336,7 @@ export function CeldaBarra({ parte, resumen, className }: { parte: number; resum
 /** El conteo de un rótulo de grupo, en su propia pastilla: "En espera [47]". */
 export function CuentaGrupo({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn("rounded-full bg-paperDeep px-1.5 text-[12px] font-semibold tabular-nums text-ink", className)}>{children}</span>
+    <span className={cn("rounded-full bg-paperDeep px-1.5 text-rotulo font-semibold tabular-nums text-ink", className)}>{children}</span>
   );
 }
 
@@ -344,8 +344,8 @@ export function CuentaGrupo({ children, className }: { children: ReactNode; clas
 export function CeldaNumero({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <span className="block text-right">
-      <span className="block font-mono text-[13px] tabular-nums text-ink">{children}</span>
-      {sub && <span className="block text-[11.5px] tabular-nums text-mute">{sub}</span>}
+      <span className="block font-mono text-meta tabular-nums text-ink">{children}</span>
+      {sub && <span className="block text-rotulo tabular-nums text-mute">{sub}</span>}
     </span>
   );
 }
@@ -354,14 +354,14 @@ export function CeldaNumero({ children, sub }: { children: ReactNode; sub?: Reac
 export function CeldaTexto({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <span className="block w-full min-w-0">
-      <span className="block truncate text-[13px] text-inkSoft">{children}</span>
-      {sub && <span className="block truncate text-[11.5px] text-mute">{sub}</span>}
+      <span className="block truncate text-meta text-inkSoft">{children}</span>
+      {sub && <span className="block truncate text-rotulo text-mute">{sub}</span>}
     </span>
   );
 }
 
 export function CeldaFecha({ fecha }: { fecha: string | null | undefined }) {
-  return <span className="text-[13px] tabular-nums text-mute">{fecha ? fechaCorta(fecha) : "Sin fecha"}</span>;
+  return <span className="text-meta tabular-nums text-mute">{fecha ? fechaCorta(fecha) : "Sin fecha"}</span>;
 }
 
 /** Misma rejilla que la tabla real: nada salta cuando llegan los datos. */

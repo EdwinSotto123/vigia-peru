@@ -16,13 +16,13 @@ export function CuentaCta({ codigo }: { codigo: string }) {
   const miImpacto = `/app/mi-impacto?aporte=${encodeURIComponent(codigo)}`;
   if (user) {
     return (
-      <Link href={miImpacto} className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
+      <Link href={miImpacto} className="inline-flex min-h-[24px] items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline">
         ¿Es tuyo? Velo o asócialo en Mi impacto <ArrowRight size={12} aria-hidden />
       </Link>
     );
   }
   return (
-    <div className="flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] leading-relaxed text-inkSoft">
+    <div className="flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-rotulo leading-relaxed text-inkSoft">
       <UserPlus size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
       <span>
         <strong className="text-ink">¿Es tuyo? Crea una cuenta para seguirlo.</strong> No es obligatorio: con el código{" "}

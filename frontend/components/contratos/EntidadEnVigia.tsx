@@ -36,19 +36,19 @@ export function EntidadEnVigia({
   return (
     <section aria-labelledby="entidad-en-vigia" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="entidad-en-vigia" className="text-[15px] font-semibold text-ink">
+        <h2 id="entidad-en-vigia" className="font-display text-bloque font-bold text-ink">
           Esta entidad en Vigía
         </h2>
         <Link
           href={`/entidad/${ruc}`}
-          className="text-[13px] font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+          className="text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
         >
           Ver su ficha
         </Link>
       </div>
       <p className="mt-2 flex items-baseline gap-2">
         <span className="font-mono text-2xl font-semibold tabular-nums text-ink">{numero(total)}</span>
-        <span className="text-[13px] text-inkSoft">{total === 1 ? "contrato publicado" : "contratos publicados"}</span>
+        <span className="text-meta text-inkSoft">{total === 1 ? "contrato publicado" : "contratos publicados"}</span>
       </p>
       {total > 0 && (
         <>
@@ -61,14 +61,14 @@ export function EntidadEnVigia({
               <span key={t.clave} className={cn("h-full", t.clase)} style={{ width: `${(t.n / total) * 100}%` }} />
             ))}
           </div>
-          <dl className="mt-3 space-y-1.5 text-[13px]">
+          <dl className="mt-3 space-y-1.5 text-meta">
             {tramos.map((t) => (
               <div key={t.clave} className="flex items-start justify-between gap-3">
                 <dt className="flex min-w-0 items-start gap-2 text-inkSoft">
                   <span aria-hidden className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-sm", t.clase, t.clave === "sin" && "border border-line")} />
                   <span>
                     {t.etiqueta}
-                    {t.detalle && <span className={cn("block text-[12px]", t.clave === "leidos" ? "text-amberTexto" : "text-mute")}>{t.detalle}</span>}
+                    {t.detalle && <span className={cn("block text-rotulo", t.clave === "leidos" ? "text-amberTexto" : "text-mute")}>{t.detalle}</span>}
                   </span>
                 </dt>
                 <dd className="font-mono font-semibold tabular-nums text-ink">{numero(t.n)}</dd>
@@ -76,7 +76,7 @@ export function EntidadEnVigia({
             ))}
           </dl>
           {leidos === 0 && esperando > 0 && (
-            <p className="mt-2 text-[12px] text-mute">
+            <p className="mt-2 text-rotulo text-mute">
               Ninguno leído todavía: {plural(esperando, "espera", "esperan")} que alguien financie su lectura.
             </p>
           )}

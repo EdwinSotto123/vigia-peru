@@ -91,7 +91,7 @@ interface Creada {
 }
 
 /** Campo de texto del sistema: radio de input, foco granate del CSS global. */
-const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-mute";
+const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute";
 /**
  * Un grupo del formulario (¿quién financia?, ¿cómo pagas?) es su propio `<fieldset>`, con la
  * raya de arriba. La leyenda flota a lo ancho para no montarse sobre esa raya (así la dibuja
@@ -232,12 +232,12 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
   // el perfil público (lo que se ve en el muro de aliados y en el comprobante).
   const invitarCuenta = creada && !authLoading && (
     conCuenta ? (
-      <p className="mt-4 inline-flex items-center gap-1.5 text-[12px] text-inkSoft">
+      <p className="mt-4 inline-flex items-center gap-1.5 text-rotulo text-inkSoft">
         <UserCog size={14} className="shrink-0 text-granate" aria-hidden />
         <Link href="/app/configuracion" prefetch={false} className="font-semibold text-granate underline underline-offset-2">Completa tu perfil público</Link>
       </p>
     ) : (
-      <div className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] leading-relaxed text-inkSoft">
+      <div className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-rotulo leading-relaxed text-inkSoft">
         <UserPlus size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
         <span>
           <strong className="text-ink">Crea una cuenta para seguir tu aporte.</strong> Sin ella, tu código{" "}
@@ -264,13 +264,13 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
             Ver mi comprobante de impacto <ArrowRight size={14} aria-hidden />
           </EnlaceAccion>
         }
-        pie={<>{invitarCuenta}{error && <p className="mt-3 text-sm text-crimsonTexto" role="alert">{error}</p>}<div className="mt-3">{otroAporte}</div></>}
+        pie={<>{invitarCuenta}{error && <p className="mt-3 text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}<div className="mt-3">{otroAporte}</div></>}
       >
         <p>
           Tu aporte <span className="font-mono font-semibold text-ink">{creada.codigo}</span> financia la lectura de{" "}
           {numero(creada.contratos)} {creada.contratos === 1 ? "contrato" : "contratos"} de {destino}. Esto sigue:
         </p>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px]">
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-meta">
           <li>Validamos el pago en menos de 48 h; el estado cambia en tu comprobante público{conCuenta ? " y en Mi impacto" : ""}.</li>
           <li>Al confirmarse, se asignan {numero(creada.contratos)} {creada.contratos === 1 ? "contrato" : "contratos"} de {destino} {asignacion}.</li>
           <li>Tu comprobante se va llenando con cada contrato leído, salga con señales o sin ellas.</li>
@@ -283,19 +283,19 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
     return (
       <div className={TARJETA}>
         <Stepper step={3} primero={ETIQUETA_ALCANCE[alcance.tipo]} />
-        <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-mossTexto">
+        <p className="mt-5 inline-flex items-center gap-1.5 text-dato leading-5 font-semibold text-mossTexto">
           <CheckCircle2 size={16} aria-hidden /> Aporte registrado
         </p>
         <h2 className="mt-1 font-display text-xl font-bold leading-snug text-ink text-balance">
           Paga {soles(creada.montoPen)} para financiar {plural(creada.contratos, "contrato", "contratos")} de {destino}
         </h2>
-        <p className="mt-1 text-sm text-inkSoft">
+        <p className="mt-1 text-dato leading-5 text-inkSoft">
           Tu código es <span className="font-mono font-semibold text-ink">{creada.codigo}</span>: ponlo como concepto del pago.
         </p>
 
         <div className="mt-5">
           <PaymentMethods pago={creada.pago} monto={soles(creada.montoPen)} concepto={creada.codigo} metodoPreferido={creada.pago.metodo} grande />
-          <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-[12px] text-inkSoft">
+          <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-rotulo text-inkSoft">
             Validamos el pago en menos de 48 h.
             <Ayuda titulo="¿Qué pasa después?">
               Al validarse, se asignan {plural(creada.contratos, "contrato", "contratos")} de {destino} {asignacion} y cada
@@ -305,16 +305,16 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
         </div>
         <div className="mt-5">
           <SubirComprobante codigo={creada.codigo} email={email.trim() || null} onSubido={() => { setSubido(true); borrarBorrador(clave); }} />
-          <p className="mt-2 text-[12px] text-inkSoft">
+          <p className="mt-2 text-rotulo text-inkSoft">
             ¿Lo envías después? Desde <Link href="/app/mi-impacto" className="text-granate underline underline-offset-2">Mi impacto</Link> o desde esta página, en este navegador.
           </p>
         </div>
-        <Link href={`/impacto/${creada.codigo}`} className="mt-4 inline-flex min-h-[24px] items-center gap-1 text-sm font-semibold text-granate hover:underline">
+        <Link href={`/impacto/${creada.codigo}`} className="mt-4 inline-flex min-h-[24px] items-center gap-1 text-dato leading-5 font-semibold text-granate hover:underline">
           Ver mi comprobante de impacto <ArrowRight size={14} aria-hidden />
         </Link>
         {invitarCuenta}
-        {error && <p className="mt-3 text-sm text-crimsonTexto" role="alert">{error}</p>}
-        <div className="mt-4 text-[12px] text-mute">{otroAporte}</div>
+        {error && <p className="mt-3 text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
+        <div className="mt-4 text-rotulo text-mute">{otroAporte}</div>
       </div>
     );
   }
@@ -366,7 +366,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
       <h2 id={`titulo-aporte-${clave}`} className="mt-5 font-display text-xl font-bold leading-snug text-ink text-balance">
         ¿Cuántos contratos de {destino} quieres que se lean?
       </h2>
-      <p className="mt-1 text-sm text-inkSoft">
+      <p className="mt-1 text-dato leading-5 text-inkSoft">
         {soles(precioPen)} por contrato.{" "}
         {porZona ? `Quedan ${numero(restantes)} sin financiar.` : `${plural(restantes, "contrato", "contratos")} en cola.`}
       </p>
@@ -388,12 +388,12 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
       <fieldset className={GRUPO}>
         <legend className={LEYENDA}>¿Quién financia?</legend>
         {identidadDesdeCuenta && !masDatos ? (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-dato leading-5">
             <span className="inline-flex items-center gap-2 text-ink">
               {tipo === "anonimo" ? <EyeOff size={14} className="text-mute" aria-hidden /> : <User size={14} className="text-mute" aria-hidden />}
               {tipo === "anonimo" ? "Anónimo (tu cuenta no aparece en el muro)" : <>Como <strong>{nombre}</strong></>}
             </span>
-            <button type="button" onClick={() => setMasDatos(true)} className="min-h-[24px] text-[12px] text-granate underline underline-offset-2">cambiar</button>
+            <button type="button" onClick={() => setMasDatos(true)} className="min-h-[24px] text-rotulo text-granate underline underline-offset-2">cambiar</button>
           </div>
         ) : (
           <>
@@ -406,29 +406,29 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {tipo !== "anonimo" && (
-                <label className="text-sm">
+                <label className="text-dato leading-5">
                   <span className="font-medium text-ink">{tipo === "persona" ? "Nombre a mostrar" : "Razón social o nombre público"}</span>
                   <input value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete={tipo === "persona" ? "name" : "organization"} className={CAMPO} placeholder={tipo === "persona" ? "Ej. María Q." : "Ej. Empresa X S.A.C."} />
                 </label>
               )}
               {necesitaRuc && (
-                <label className="text-sm">
+                <label className="text-dato leading-5">
                   <span className="font-medium text-ink">RUC</span>
                   <input value={ruc} inputMode="numeric" autoComplete="off" onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))} className={cn(CAMPO, "font-mono")} placeholder="20XXXXXXXXX" />
-                  <span className="mt-1 block text-[12px] leading-snug text-mute">11 dígitos. Se cruza con sanciones vigentes del OECE y alertas activas.</span>
+                  <span className="mt-1 block text-rotulo leading-snug text-mute">11 dígitos. Se cruza con sanciones vigentes del OECE y alertas activas.</span>
                 </label>
               )}
               {!conCuenta && (
-                <label className="text-sm">
+                <label className="text-dato leading-5">
                   <span className="font-medium text-ink">Correo</span>
                   <input type="email" required value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} className={CAMPO} placeholder="tu@correo.pe" />
-                  <span className="mt-1 block text-[12px] leading-snug text-mute">Privado: sólo sirve para asociar el aporte a una cuenta.</span>
+                  <span className="mt-1 block text-rotulo leading-snug text-mute">Privado: sólo sirve para asociar el aporte a una cuenta.</span>
                 </label>
               )}
             </div>
           </>
         )}
-        <label className="mt-3 block text-sm">
+        <label className="mt-3 block text-dato leading-5">
           <span className="font-medium text-ink">Mensaje público</span> <span className="text-mute">(opcional, hasta 140 caracteres)</span>
           <input
             maxLength={140}
@@ -454,12 +454,12 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
           </div>
         </div>
         {metodos.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-rotulo text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
         )}
       </div>
 
       {verificacion.widget}
-      {error && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{error}</p>}
+      {error && <p className="mt-4 text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
 
       <Button type="submit" full disabled={loading} className="mt-6 py-3">
         {loading && <Loader2 size={14} className="animate-spin" aria-hidden />}
@@ -468,7 +468,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
           : `Financiar la lectura de ${destino}`}
       </Button>
       {/* Lo que sigue y la independencia, una línea cada uno; el detalle, a un clic (§10.7). */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-inkSoft">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-inkSoft">
         <span className="inline-flex items-center gap-1">
           Recibes tu código y los datos de pago.
           <Ayuda titulo="¿Qué pasa después?">

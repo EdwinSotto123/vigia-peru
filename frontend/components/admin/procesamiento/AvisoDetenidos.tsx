@@ -65,11 +65,11 @@ export function AvisoDetenidos({
           <button onClick={() => onVer("esperando_documentos")} className={claseBoton("secundario", "sm", "mt-2")}>
             Ver cuáles son
           </button>
-          <Expandable variante="linea" resumen={<span className="font-semibold text-ink">Cómo destrabarlo</span>} className="mt-2 text-[13px]">
-            <ol className="space-y-2 rounded-xl bg-paper/80 p-3 text-[13px] text-inkSoft">
+          <Expandable variante="linea" resumen={<span className="font-semibold text-ink">Cómo destrabarlo</span>} className="mt-2 text-meta">
+            <ol className="space-y-2 rounded-xl bg-paper/80 p-3 text-meta text-inkSoft">
               <li>
                 <strong className="text-ink">Ahora, desde tu computadora</strong> (conexión peruana), en la carpeta del proyecto:
-                <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-[12px] text-paper">bash infrastructure/deploy/gcp/batch-nocturno.sh</code>
+                <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-rotulo text-paper">bash infrastructure/deploy/gcp/batch-nocturno.sh</code>
                 Baja primero los contratos financiados; al terminar, se procesan solos.
               </li>
               <li>

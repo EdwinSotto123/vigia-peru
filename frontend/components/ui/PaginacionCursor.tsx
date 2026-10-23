@@ -22,7 +22,7 @@ export function PaginacionCursor({
   siguiente: string | null;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[12px] text-mute">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-rotulo text-mute">
       {/* Sin aria-live: la vista muestra dos paginadores (arriba y abajo). */}
       <span className="font-mono tabular-nums">{texto}</span>
       <span className="inline-flex items-center gap-1.5">
@@ -40,7 +40,7 @@ export function PaginacionCursor({
 }
 
 const PASO =
-  "inline-flex h-8 items-center gap-1 rounded-full border border-line bg-paper px-3 text-[12px] font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2";
+  "inline-flex h-8 items-center gap-1 rounded-full border border-line bg-paper px-3 text-rotulo font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2";
 
 /** El texto visible ("Anterior", "Siguiente") es el nombre accesible: sin aria-label que lo contradiga. */
 function Paso({ href, children }: { href: string | null; children: React.ReactNode }) {

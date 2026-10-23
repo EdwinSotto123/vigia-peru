@@ -23,7 +23,7 @@ export function paginasVisibles(actual: number, ultima: number): (number | null)
 }
 
 const BASE =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border text-[13px] font-semibold tabular-nums transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:min-h-9 sm:min-w-9";
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border text-meta font-semibold tabular-nums transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:min-h-9 sm:min-w-9";
 
 export function PaginacionNumerada({
   actual,
@@ -59,7 +59,7 @@ export function PaginacionNumerada({
   const f = (n: number) => n.toLocaleString("es-PE");
   return (
     <nav aria-label={`Páginas de ${nombre}`} className={cn("flex flex-wrap items-center justify-between gap-x-4 gap-y-2", className)}>
-      <p className="text-[13px] text-inkSoft">
+      <p className="text-meta text-inkSoft">
         {total === 0 ? (
           `0 ${nombre}`
         ) : (

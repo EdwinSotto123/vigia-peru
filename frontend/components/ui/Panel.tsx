@@ -151,8 +151,8 @@ export function Panel({
     >
       <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line bg-paperSoft px-5 py-4">
         <div className="min-w-0">
-          <h2 className="truncate font-display text-lg font-bold leading-tight text-ink">{titulo}</h2>
-          {descripcion && <div className="mt-0.5 text-[13px] leading-snug text-mute">{descripcion}</div>}
+          <h2 className="truncate font-display text-bloque font-bold leading-tight text-ink">{titulo}</h2>
+          {descripcion && <div className="mt-0.5 text-meta leading-snug text-mute">{descripcion}</div>}
         </div>
         <button
           type="button"

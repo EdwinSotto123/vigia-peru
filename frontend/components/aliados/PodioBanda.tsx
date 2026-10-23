@@ -49,7 +49,7 @@ export function PodioBanda({
     <section aria-labelledby="podio-banda-titulo" className="sobre-oscuro relative overflow-hidden rounded-2xl bg-granate-deep text-paper">
       <FranjaTextil alto={4} />
       <div className="px-3.5 pb-3.5 pt-3 sm:px-4">
-        <h2 id="podio-banda-titulo" className="font-display text-[15px] font-bold leading-tight">
+        <h2 id="podio-banda-titulo" className="font-display text-bloque font-bold leading-tight">
           {titulo}
         </h2>
         <ol className="mt-2.5 grid gap-2 md:grid-cols-3">
@@ -84,21 +84,21 @@ function Puesto({ lugar, fila: f, financiadosAmbito }: { lugar: Lugar; fila: Fil
       </span>
       <span className="min-w-0 flex-1">
         <span
-          className={cn("block truncate text-[14px] font-semibold leading-snug text-paper", href && "group-hover/aliado:underline")}
+          className={cn("block truncate text-dato font-semibold leading-snug text-paper", href && "group-hover/aliado:underline")}
           title={f.nombre}
         >
           {f.nombre}
         </span>
-        <span className="block truncate text-[12px] leading-snug text-paper/75">
+        <span className="block truncate text-rotulo leading-snug text-paper/75">
           {tipo}
           {href && <span className="text-maiz"> Ver quién es →</span>}
         </span>
       </span>
       <span className="shrink-0 text-right">
-        <span className={cn("block font-display text-[26px] font-extrabold leading-none tabular-nums", CIFRA[lugar])}>
+        <span className={cn("block font-display text-cifra font-extrabold leading-none tabular-nums", CIFRA[lugar])}>
           {numero(f.contratosFinanciados)}
         </span>
-        <span className="mt-0.5 block text-[11.5px] leading-tight text-paper/75">
+        <span className="mt-0.5 block text-rotulo leading-tight text-paper/75">
           {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
           {pct && <span>, {pct}</span>}
         </span>
@@ -127,17 +127,17 @@ function PuestoLibre({ lugar, texto }: { lugar: Lugar; texto: string }) {
       >
         <span
           aria-hidden
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-paper/35 font-display text-base font-bold text-paper/65"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-paper/35 font-display text-destacado leading-6 font-bold text-paper/65"
         >
           {lugar}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-semibold leading-snug text-paper/85">
+          <span className="block text-dato font-semibold leading-snug text-paper/85">
             Puesto<span className="sr-only"> {lugar}</span> libre
           </span>
-          <span className="block truncate text-[12px] leading-snug text-paper/70">{texto}</span>
+          <span className="block truncate text-rotulo leading-snug text-paper/70">{texto}</span>
         </span>
-        <span className="shrink-0 whitespace-nowrap text-[12.5px] font-semibold text-paper/85 group-hover/libre:text-maiz">
+        <span className="shrink-0 whitespace-nowrap text-meta font-semibold text-paper/85 group-hover/libre:text-maiz">
           Ocupa este lugar <span aria-hidden>→</span>
         </span>
       </Link>

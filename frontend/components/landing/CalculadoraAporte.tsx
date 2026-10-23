@@ -50,7 +50,7 @@ export function CalculadoraAporte({
     <div className="grid overflow-hidden rounded-2xl bg-paper text-ink shadow-dialog lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] [&_:focus-visible]:outline-granate">
       {/* El precio y en qué se va. */}
       <div className="border-b border-line bg-paperSoft p-6 sm:p-8 lg:border-b-0 lg:border-r">
-        <h3 className="text-[15px] font-semibold text-inkSoft">Leer un contrato cuesta</h3>
+        <h3 className="text-cuerpo font-semibold text-inkSoft">Leer un contrato cuesta</h3>
         <p className="mt-1 font-display text-6xl font-extrabold leading-none tabular-nums text-granate sm:text-7xl">{soles(precio)}</p>
         {desgloseValido && (
           <>
@@ -59,7 +59,7 @@ export function CalculadoraAporte({
                 <span key={p.concepto} className={TONOS[i % TONOS.length]} style={{ width: `${(p.monto / precio) * 100}%` }} />
               ))}
             </div>
-            <ul className="mt-3 space-y-1.5 text-[14px] text-inkSoft">
+            <ul className="mt-3 space-y-1.5 text-dato text-inkSoft">
               {partes.map((p, i) => (
                 <li key={p.concepto} className="flex items-center gap-2">
                   <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${TONOS[i % TONOS.length]}`} />
@@ -74,13 +74,13 @@ export function CalculadoraAporte({
 
       {/* Cuántos, cuánto, y a financiar. */}
       <div className="p-6 sm:p-8">
-        <label htmlFor={id} className="text-[15px] font-semibold text-inkSoft">
+        <label htmlFor={id} className="text-cuerpo font-semibold text-inkSoft">
           ¿Cuántos quieres que se lean?
         </label>
         <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <output htmlFor={id} className="font-display text-5xl font-extrabold leading-none tabular-nums">
             {numero(contratos)}
-            <span className="ml-2 font-sans text-base font-medium text-mute">{contratos === 1 ? "contrato" : "contratos"}</span>
+            <span className="ml-2 font-sans text-destacado leading-6 font-medium text-mute">{contratos === 1 ? "contrato" : "contratos"}</span>
           </output>
           <span className="font-display text-3xl font-bold tabular-nums text-granate">{soles(contratos * precio)}</span>
         </div>
@@ -102,7 +102,7 @@ export function CalculadoraAporte({
               type="button"
               onClick={() => setContratos(p)}
               aria-pressed={contratos === p}
-              className={`min-h-11 min-w-[44px] rounded-full border px-3.5 py-1.5 text-[13px] font-semibold tabular-nums transition-colors duration-rapido ${
+              className={`min-h-11 min-w-[44px] rounded-full border px-3.5 py-1.5 text-meta font-semibold tabular-nums transition-colors duration-rapido ${
                 contratos === p
                   ? "border-granate bg-granate text-paper"
                   : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50"
@@ -116,7 +116,7 @@ export function CalculadoraAporte({
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
           <EnlaceAccion href="/app/financiar">Financiar una auditoría</EnlaceAccion>
           {enCola > 0 && (
-            <span className="inline-flex items-center gap-2 rounded-full bg-paperDeep px-3 py-1.5 text-[13px] text-inkSoft">
+            <span className="inline-flex items-center gap-2 rounded-full bg-paperDeep px-3 py-1.5 text-meta text-inkSoft">
               <span aria-hidden className="h-2 w-2 rounded-full bg-amber" />
               <span>
                 <span className="font-semibold tabular-nums text-ink">{numero(enCola)}</span> contratos esperan en cola

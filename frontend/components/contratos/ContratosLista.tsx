@@ -44,6 +44,7 @@ import { EstadoContratoPill as PildoraEstadoContrato, EstadoContratoChip } from 
 import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * Compatibilidad: el dossier (`ContratoDetalle`, un server component) importa
@@ -250,7 +251,7 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
               <ConBanderaDato dato={c.datoDudoso}>
                 <EstadoContratoChip c={c} />
               </ConBanderaDato>
-              <span className="truncate text-[12px] text-mute">{tipoEtapa}</span>
+              <span className="truncate text-rotulo text-mute">{tipoEtapa}</span>
             </span>
           </span>
           <CeldaNumero sub={formatFecha(c.fecha)}>
@@ -269,6 +270,4 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
   );
 }
 
-/** La acción de un estado vacío o de error: la píldora secundaria de los listados. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;

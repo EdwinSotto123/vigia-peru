@@ -87,7 +87,7 @@ export function Footer() {
             >
               <Marca tono="oscuro" tamano="lg" />
             </Link>
-            <p className="mt-5 max-w-md text-pretty text-sm leading-relaxed text-paper/80">
+            <p className="mt-5 max-w-md text-pretty text-dato leading-relaxed text-paper/80">
               Vigilancia cívica de las compras públicas del Perú. Sin fines de lucro y de código abierto, para que
               la verdad no dependa de quién paga el servidor.
             </p>
@@ -101,7 +101,7 @@ export function Footer() {
             >
               <span className="flex items-center gap-2.5">
                 <Heart size={16} aria-hidden className="fill-granate text-granate motion-safe:group-hover:animate-latir" />
-                <span className="font-display text-base font-bold leading-tight">Financiar una auditoría</span>
+                <span className="font-display text-destacado font-bold leading-tight">Financiar una auditoría</span>
               </span>
               <ArrowRight size={18} aria-hidden className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" />
             </Link>
@@ -113,7 +113,7 @@ export function Footer() {
             >
               <span className="flex items-center gap-2.5">
                 <Github size={15} aria-hidden />
-                <span className="text-sm font-medium">Contribuir al código</span>
+                <span className="text-dato leading-5 font-medium">Contribuir al código</span>
                 <span className="sr-only">(se abre en otra pestaña)</span>
               </span>
               <ArrowUpRight size={14} aria-hidden className="text-paper/75" />
@@ -126,7 +126,7 @@ export function Footer() {
         <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 border-t border-paper/15 pt-10 lg:grid-cols-[1.4fr,1fr,1fr,1fr,1.1fr] lg:gap-x-8">
           <div className="col-span-2 lg:col-span-1">
             <TituloColumna>Postura editorial</TituloColumna>
-            <p className="mt-3 max-w-md text-pretty text-[13px] leading-relaxed text-paper/80">
+            <p className="mt-3 max-w-md text-pretty text-meta leading-relaxed text-paper/80">
               <strong className="font-semibold text-paper">No acusamos a nadie.</strong> Detectamos señales y
               publicamos sus fuentes. La denuncia formal corresponde al Ministerio Público, la Contraloría o el
               periodismo. Los reportes ciudadanos son anónimos por defecto.
@@ -140,7 +140,7 @@ export function Footer() {
 
         {/* Línea final. Son listas: se dibujan como listas, con espacio entre
             ítems, no con una raya de puntos medios entre medio. */}
-        <div className="mt-10 flex flex-col gap-3 border-t border-paper/15 pt-5 text-xs text-paper/75 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-paper/15 pt-5 text-rotulo leading-4 text-paper/75 sm:flex-row sm:items-center sm:justify-between">
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <li className="inline-flex items-center gap-2 font-medium text-paper">
               <FranjaBandera className="ring-paper/30" /> Hecho en Perú
@@ -172,13 +172,13 @@ export function Footer() {
 
 /** Título de columna: pocas palabras, en maíz sobre el granate (9.6:1). */
 function TituloColumna({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-display text-[11px] font-bold uppercase tracking-[0.16em] text-maiz">{children}</h2>;
+  return <h2 className="font-display text-micro font-bold uppercase tracking-[0.16em] text-maiz">{children}</h2>;
 }
 
 function ColumnaEnlaces({ titulo, enlaces }: { titulo: string; enlaces: Enlace[] }) {
   // El subrayado en maíz al pasar es el acento del pie (DESIGN_SYSTEM.md §3.3).
   const clase =
-    "inline-flex min-h-11 lg:min-h-6 items-center text-[13px] leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
+    "inline-flex min-h-11 lg:min-h-6 items-center text-meta leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
   return (
     <div className="min-w-0">
       <TituloColumna>{titulo}</TituloColumna>

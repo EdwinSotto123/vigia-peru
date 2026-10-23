@@ -232,18 +232,18 @@ export function PartidosExplorador({
                   <p className="etiqueta-mono flex items-center gap-1.5">
                     <MapPin size={13} aria-hidden /> {ficha.titulo}
                   </p>
-                  <p className={cn("mt-2 font-display font-bold leading-tight text-ink", portada ? "text-[19px]" : "text-[22px]")}>{ficha.gano.org.n}</p>
-                  <p className="mt-1 text-[14px] text-inkSoft">
+                  <p className={cn("mt-2 font-display font-bold leading-tight text-ink", portada ? "text-bloque" : "text-seccion")}>{ficha.gano.org.n}</p>
+                  <p className="mt-1 text-dato text-inkSoft">
                     {ficha.cargo}: <span className="font-semibold text-ink">{ficha.gano.persona}</span>
                   </p>
-                  <p className="mt-1 text-[13px] text-mute">
+                  <p className="mt-1 text-meta text-mute">
                     {TIPO_ORG_LABEL[ficha.gano.org.t]}
                     {pct(ficha.gano.p) ? `, ${pct(ficha.gano.p)} de los votos` : ""}
                   </p>
-                  {ficha.fuente && <p className="mt-1 text-[12px] text-mute">Fuente: {ficha.fuente}</p>}
+                  {ficha.fuente && <p className="mt-1 text-rotulo text-mute">Fuente: {ficha.fuente}</p>}
                   <ol className={portada ? "mt-2 flex flex-wrap gap-1.5" : "mt-3 space-y-1 border-t border-line pt-3"}>
                     {ficha.historial.map((h) => (
-                      <li key={h.anio} className={cn(portada ? "inline-flex max-w-[12rem] gap-1.5 rounded-full bg-paperDeep px-2.5 py-1 text-[12px]" : "grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", h.anio === anio ? "text-ink" : "text-inkSoft")}>
+                      <li key={h.anio} className={cn(portada ? "inline-flex max-w-[12rem] gap-1.5 rounded-full bg-paperDeep px-2.5 py-1 text-rotulo" : "grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-meta", h.anio === anio ? "text-ink" : "text-inkSoft")}>
                         <span className="font-mono tabular-nums text-mute">{h.anio}</span>
                         <span className={cn("truncate", h.anio === anio && "font-semibold")} title={h.gano?.org.n}>
                           {h.gano ? h.gano.org.n : "Sin dato"}
@@ -252,7 +252,7 @@ export function PartidosExplorador({
                     ))}
                   </ol>
                   {ficha.lectura && (
-                    <p className={cn("rounded-lg bg-paperDeep px-3 py-2 text-[13px] leading-snug text-inkSoft", portada ? "mt-2" : "mt-3")}>
+                    <p className={cn("rounded-lg bg-paperDeep px-3 py-2 text-meta leading-snug text-inkSoft", portada ? "mt-2" : "mt-3")}>
                       Se contratan <span className="font-mono font-bold tabular-nums text-ink">{solesCompacto(ficha.lectura.monto)}</span>.{" "}
                       Vigía leyó{" "}
                       <span className="font-mono font-bold tabular-nums text-ink">{numero(ficha.lectura.leidos)}</span> de{" "}
@@ -261,13 +261,13 @@ export function PartidosExplorador({
                     </p>
                   )}
                   {ficha.region && (
-                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-dato font-semibold text-granate underline-offset-4 hover:underline">
                       Financiar la lectura de esta región
                     </Link>
                   )}
                 </>
               ) : (
-                <p className="text-[15px] leading-relaxed text-mute">
+                <p className="text-cuerpo leading-relaxed text-mute">
                   {portada
                     ? `Toca una región para ver quién la gobierna y quién ganó antes.`
                     : `Pasa el cursor o toca una región para ver quién la gobierna en ${anio} y quién ganó en los otros períodos. Toca una región para abrir sus provincias.`}
@@ -280,7 +280,7 @@ export function PartidosExplorador({
     return (
       <div>
         {portada && encabezado && <div className="mb-4">{encabezado}</div>}
-        <p className="rounded-xl border border-line bg-paperSoft p-5 text-[15px] text-inkSoft">
+        <p className="rounded-xl border border-line bg-paperSoft p-5 text-cuerpo text-inkSoft">
           No pudimos traer los resultados electorales ahora. Vuelve a intentarlo en unos minutos.
         </p>
       </div>
@@ -318,8 +318,8 @@ export function PartidosExplorador({
                   !p.cargado && "cursor-not-allowed border-dashed opacity-60 hover:border-line hover:text-inkSoft",
                 )}
               >
-                <span className="font-mono text-[15px] font-bold tabular-nums leading-tight">{p.anio}</span>
-                <span className={cn("text-[11.5px] leading-tight", activo ? "text-paper/80" : "text-mute")}>
+                <span className="font-mono text-cuerpo font-bold tabular-nums leading-tight">{p.anio}</span>
+                <span className={cn("text-rotulo leading-tight", activo ? "text-paper/80" : "text-mute")}>
                   {p.cargado ? `Mandato ${p.mandato}` : "Pendiente"}
                 </span>
               </button>
@@ -356,7 +356,7 @@ export function PartidosExplorador({
                         aria-selected={modo === id}
                         onClick={() => setModo(id)}
                         className={cn(
-                          "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[12.5px] font-semibold transition-colors",
+                          "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-meta font-semibold transition-colors",
                           modo === id ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
                         )}
                       >
@@ -377,7 +377,7 @@ export function PartidosExplorador({
                       setProvSel(null);
                       setActiva(null);
                     }}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-[13px] font-semibold text-ink hover:bg-paperDeep"
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-meta font-semibold text-ink hover:bg-paperDeep"
                   >
                     <ArrowLeft size={14} aria-hidden /> Todo el Perú
                   </button>
@@ -402,8 +402,8 @@ export function PartidosExplorador({
               </div>
               {conDinero ? (
                 <div className="border-t border-line px-4 py-3">
-                  <p className="text-[12.5px] text-inkSoft">Valor de los contratos convocados en la sede de cada región. No es lo pagado.</p>
-                  <div className="mt-2 flex items-center gap-2 text-[12px] text-mute">
+                  <p className="text-meta text-inkSoft">Valor de los contratos convocados en la sede de cada región. No es lo pagado.</p>
+                  <div className="mt-2 flex items-center gap-2 text-rotulo text-mute">
                     <span>Menos</span>
                     <span aria-hidden className="h-2.5 flex-1 rounded-sm" style={{ background: `linear-gradient(90deg, ${RAMPA.join(", ")})` }} />
                     <span>Más</span>
@@ -411,8 +411,8 @@ export function PartidosExplorador({
                 </div>
               ) : vigilando ? (
                 <div className="border-t border-line px-4 py-3">
-                  <p className="text-[12.5px] text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
-                  <ul className={cn("mt-2 flex gap-x-4 gap-y-1.5 text-[12px] text-mute", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
+                  <p className="text-meta text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
+                  <ul className={cn("mt-2 flex gap-x-4 gap-y-1.5 text-rotulo text-mute", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
                     {(
                       [
                         ["#1F2A2A", "Ninguno"],
@@ -431,15 +431,15 @@ export function PartidosExplorador({
               ) : (
               <ul className={cn("flex gap-x-4 gap-y-1.5 border-t border-line px-4 py-3", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
                 {leyenda.map(([o, n]) => (
-                  <li key={o} className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-inkSoft">
+                  <li key={o} className="flex shrink-0 items-center gap-1.5 text-meta text-inkSoft">
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? COLOR_OTRAS }} />
                     <span className="max-w-[11rem] truncate" title={orgDe(d, o).n}>
                       {orgDe(d, o).n}
                     </span>
-                    <span className="font-mono text-[12px] tabular-nums text-mute">{n}</span>
+                    <span className="font-mono text-rotulo tabular-nums text-mute">{n}</span>
                   </li>
                 ))}
-                <li className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-mute">
+                <li className="flex shrink-0 items-center gap-1.5 text-meta text-mute">
                   <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
                 </li>
               </ul>
@@ -461,7 +461,7 @@ export function PartidosExplorador({
                   aria-selected={panel === id}
                   onClick={() => setPanel(id)}
                   className={cn(
-                    "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[14px] font-semibold transition-colors",
+                    "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-dato font-semibold transition-colors",
                     panel === id ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
                   )}
                 >
@@ -475,7 +475,7 @@ export function PartidosExplorador({
               {panel === "distrito" && <MiDistrito d={d} anio={anio} datos={datos} />}
             </div>
             {!portada && (
-              <p className="mt-3 text-[12.5px] leading-snug text-mute">
+              <p className="mt-3 text-meta leading-snug text-mute">
                 Elecciones {anio} (mandato {periodo?.mandato}): {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales
                 y {numero(d.distrital.length)} distritales. Fuente: {d.fuente}.
               </p>

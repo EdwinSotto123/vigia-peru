@@ -75,8 +75,8 @@ function SignupInner() {
   };
 
   const campo =
-    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-base text-ink placeholder:text-mute transition-colors duration-rapido focus:bg-paper focus:outline-none focus:ring-1";
-  const etiqueta = "text-sm font-medium text-ink";
+    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-destacado leading-6 text-ink placeholder:text-mute transition-colors duration-rapido focus:bg-paper focus:outline-none focus:ring-1";
+  const etiqueta = "text-dato leading-5 font-medium text-ink";
   const conError = (malo: boolean) => (malo ? "border-crimson focus:border-crimson focus:ring-crimson" : "border-line focus:border-granate focus:ring-granate");
 
   return (
@@ -85,10 +85,10 @@ function SignupInner() {
         {/* Sin ícono encima: la firma ya está en la cabecera, y el escudo que
             había acá no es de Vigía (DESIGN_SYSTEM.md §1: nada de íconos de policía). */}
         <div className="mb-6 text-center">
-          <h1 className="text-balance font-display text-[30px] font-bold leading-tight tracking-tight text-ink">
+          <h1 className="text-balance font-display text-titulo font-bold leading-tight tracking-tight text-ink">
             Crea tu cuenta
           </h1>
-          <p className="mt-2 text-pretty text-[15px] leading-relaxed text-inkSoft">
+          <p className="mt-2 text-pretty text-cuerpo leading-relaxed text-inkSoft">
             Elige un nombre de usuario y una contraseña. Sin correo y sin rastreo: la cuenta solo sirve para seguir tus denuncias y aportes.
           </p>
         </div>
@@ -131,7 +131,7 @@ function SignupInner() {
             <p
               id="signup-usuario-ayuda"
               className={cn(
-                "mt-1 text-xs",
+                "mt-1 text-rotulo leading-4",
                 userIdError ? "text-crimsonTexto" : "text-mute",
               )}
             >
@@ -152,7 +152,7 @@ function SignupInner() {
                 onClick={() => setShowPw((v) => !v)}
                 aria-controls="signup-password signup-password2"
                 aria-pressed={showPw}
-                className="inline-flex min-h-6 items-center gap-1 rounded-full px-1.5 text-xs font-medium text-granate hover:underline"
+                className="inline-flex min-h-6 items-center gap-1 rounded-full px-1.5 text-rotulo leading-4 font-medium text-granate hover:underline"
               >
                 {showPw ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
                 {showPw ? "Ocultar" : "Mostrar"}
@@ -179,7 +179,7 @@ function SignupInner() {
               />
             </div>
             {pwError && (
-              <p id="signup-password-error" className="mt-1 text-xs text-crimsonTexto">{pwError}</p>
+              <p id="signup-password-error" className="mt-1 text-rotulo leading-4 text-crimsonTexto">{pwError}</p>
             )}
           </div>
 
@@ -216,14 +216,14 @@ function SignupInner() {
               )}
             </div>
             {password2 && !pwMatch && (
-              <p id="signup-password2-error" className="mt-1 text-xs text-crimsonTexto">Las contraseñas no coinciden</p>
+              <p id="signup-password2-error" className="mt-1 text-rotulo leading-4 text-crimsonTexto">Las contraseñas no coinciden</p>
             )}
           </div>
 
           {/* Sin correo no hay recuperación: se dice antes de crear la cuenta, no después de perderla. */}
           <p
             id="signup-sin-recuperacion"
-            className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft/60 px-3 py-2 text-[12px] leading-snug text-ink"
+            className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft/60 px-3 py-2 text-rotulo leading-snug text-ink"
           >
             <KeyRound size={14} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
             <span>
@@ -233,7 +233,7 @@ function SignupInner() {
           </p>
 
           {error && (
-            <div role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
+            <div role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-meta text-crimsonTexto">
               <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden />
               <span>{error}</span>
             </div>
@@ -257,7 +257,7 @@ function SignupInner() {
             )}
           </Button>
 
-          <p className="text-center text-[13px] text-mute">
+          <p className="text-center text-meta text-mute">
             ¿Ya tienes cuenta?{" "}
             <Link href={loginHref} className="font-semibold text-granate hover:underline">
               Entrar →
@@ -265,7 +265,7 @@ function SignupInner() {
           </p>
         </form>
 
-        <div className="mt-4 space-y-1 text-center text-xs text-mute">
+        <div className="mt-4 space-y-1 text-center text-rotulo leading-4 text-mute">
           <p>Si el nombre de usuario ya existe, te avisamos al crear la cuenta.</p>
           <p>No pedimos correo ni usamos cookies de rastreo.</p>
         </div>

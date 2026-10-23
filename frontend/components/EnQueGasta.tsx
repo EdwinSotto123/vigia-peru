@@ -117,9 +117,9 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-[16px] font-semibold text-ink">
+        <h3 className="flex items-center gap-1.5 text-destacado font-semibold text-ink">
           En qué gasta en {gasto.anio}
-          {deTodo && <span className="text-[13px] font-normal text-amberTexto">(todo el gobierno regional)</span>}
+          {deTodo && <span className="text-meta font-normal text-amberTexto">(todo el gobierno regional)</span>}
           <Ayuda titulo="¿De dónde sale este desglose?">
             Del archivo de presupuesto y ejecución de gasto del MEF, fila por fila. La barra es la parte de su presupuesto
             (PIM) que va a cada rubro; el tramo oscuro, lo que ya gastó (devengado). Un rubro con poco gastado no es una
@@ -138,7 +138,7 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "o
 
 function Leyenda() {
   return (
-    <p className="flex items-center gap-3 text-[12px] text-mute" aria-hidden>
+    <p className="flex items-center gap-3 text-rotulo text-mute" aria-hidden>
       <span className="inline-flex items-center gap-1.5">
         <span className="h-2 w-3 rounded-full bg-granate" /> ya gastado
       </span>
@@ -179,7 +179,7 @@ const GRILLA = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3
  */
 function Columnas({ sangria = true }: { sangria?: boolean }) {
   return (
-    <div className={cn(GRILLA, "hidden border-b border-line pb-1.5 pr-2 text-[11.5px] font-medium text-mute sm:grid", sangria ? "pl-[31px]" : "pl-2")}>
+    <div className={cn(GRILLA, "hidden border-b border-line pb-1.5 pr-2 text-rotulo font-medium text-mute sm:grid", sangria ? "pl-[31px]" : "pl-2")}>
       <span>Rubro</span>
       <span>Parte del presupuesto</span>
       <span className="text-right">Presupuesto</span>
@@ -213,7 +213,7 @@ function Fila({
   return (
     <div className={GRILLA}>
       <span
-        className={cn("order-1 min-w-0", destacada ? "text-[14px] font-semibold text-ink" : "text-[13px] text-ink", recortar && "line-clamp-2")}
+        className={cn("order-1 min-w-0", destacada ? "text-dato font-semibold text-ink" : "text-meta text-ink", recortar && "line-clamp-2")}
         title={recortar ? nombre : undefined}
       >
         {nombre}
@@ -229,12 +229,12 @@ function Fila({
         </span>
       </span>
       <span className="order-2 text-right sm:order-3">
-        <span className={cn("block font-mono tabular-nums", destacada ? "text-[13.5px] font-semibold text-ink" : "text-[13px] text-ink")}>
+        <span className={cn("block font-mono tabular-nums", destacada ? "text-dato font-semibold text-ink" : "text-meta text-ink")}>
           {solesCompacto(pim)}
         </span>
-        <span className="block text-[11.5px] text-mute sm:hidden">{pct} gastado</span>
+        <span className="block text-rotulo text-mute sm:hidden">{pct} gastado</span>
       </span>
-      <span className="order-4 hidden text-right font-mono text-[12.5px] tabular-nums text-inkSoft sm:block">{pct}</span>
+      <span className="order-4 hidden text-right font-mono text-meta tabular-nums text-inkSoft sm:block">{pct}</span>
     </div>
   );
 }
@@ -260,12 +260,12 @@ function Barras({ filas, total }: { filas: DatoGasto[]; total: number }) {
 
 function Proyectos({ p, total }: { p: GastoEntidad["proyectos"]; total: number }) {
   if (p.total === 0) {
-    return <p className="py-2 text-sm text-inkSoft">Este año no tiene proyectos de inversión con presupuesto en el MEF.</p>;
+    return <p className="py-2 text-dato leading-5 text-inkSoft">Este año no tiene proyectos de inversión con presupuesto en el MEF.</p>;
   }
   const mayor = p.lista[0]?.pim || total;
   return (
     <div className="space-y-3 py-2">
-      <p className="text-[13px] text-inkSoft">
+      <p className="text-meta text-inkSoft">
         <span className="font-semibold text-ink">{solesCompacto(p.pim)}</span> en {plural(p.total, "proyecto", "proyectos")} (
         {total > 0 ? porcentaje((p.pim / total) * 100) : "0 %"} de su presupuesto), {p.pim > 0 ? porcentaje((p.devengado / p.pim) * 100) : "0 %"}{" "}
         ya gastado. De mayor a menor presupuesto; la barra compara con el más grande.
@@ -286,7 +286,7 @@ function Proyectos({ p, total }: { p: GastoEntidad["proyectos"]; total: number }
               extra={
                 // 2999999: inversiones sin código propio en el MEF (no es un CUI).
                 x.codigo !== SIN_PROYECTO && (
-                  <span className="ml-2 whitespace-nowrap font-mono text-[11px] font-normal text-mute" translate="no" title="Código único de inversión">
+                  <span className="ml-2 whitespace-nowrap font-mono text-micro font-normal text-mute" translate="no" title="Código único de inversión">
                     CUI {x.codigo}
                   </span>
                 )
@@ -309,24 +309,24 @@ function Meses({ meses, anio }: { meses: { mes: number; devengado: number }[]; a
   const mayor = meses.reduce((a, b) => (b.devengado > a.devengado ? b : a), meses[0]);
   return (
     <div className="space-y-3 py-2">
-      <p className="text-[13px] text-inkSoft">
+      <p className="text-meta text-inkSoft">
         <span className="font-semibold text-ink">{solesCompacto(total)}</span> devengados en {anio}. El mes de más gasto fue{" "}
         {MESES[mayor.mes - 1]}, con {solesCompacto(mayor.devengado)}.
       </p>
       <ol className="grid h-48 grid-cols-12 items-end gap-1 sm:gap-2" aria-label={`Devengado por mes en ${anio}`}>
         {meses.map((m) => (
           <li key={m.mes} className="flex h-full flex-col items-center justify-end gap-1" title={`${MESES[m.mes - 1]}: ${solesCompacto(m.devengado)}`}>
-            <span className="hidden text-[10.5px] tabular-nums text-mute sm:block">{m.devengado > 0 ? solesCompacto(m.devengado).replace("S/ ", "") : ""}</span>
+            <span className="hidden text-micro tabular-nums text-mute sm:block">{m.devengado > 0 ? solesCompacto(m.devengado).replace("S/ ", "") : ""}</span>
             <span
               className={cn("w-full rounded-t-md", m.devengado > 0 ? "bg-granate" : "bg-paperDeep")}
               style={{ height: `${m.devengado > 0 ? Math.max(2, (m.devengado / max) * 100) : 2}%` }}
             />
-            <span className="text-[11px] text-mute">{MESES[m.mes - 1]}</span>
+            <span className="text-micro text-mute">{MESES[m.mes - 1]}</span>
             <span className="sr-only">{solesCompacto(m.devengado)}</span>
           </li>
         ))}
       </ol>
-      <p className="text-[12px] text-mute">
+      <p className="text-rotulo text-mute">
         Devengado: el gasto que la entidad ya reconoció como obligación de pago, en el mes en que lo registró. {numero(meses.filter((m) => m.devengado > 0).length)} meses con datos.
       </p>
     </div>

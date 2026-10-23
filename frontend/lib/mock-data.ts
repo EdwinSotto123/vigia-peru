@@ -487,4 +487,4 @@ export const RESUMEN_REGIONES = [
 ];
 
 // Viven en lib/formato.ts; se re-exportan para no romper imports viejos.
-export { formatSoles, severidadColor } from "./formato";
+export { formatSoles } from "./formato";

@@ -126,7 +126,7 @@ export function Pestanas({
               onClick={() => elegir(p.clave)}
               onKeyDown={(e) => alTeclado(e, i)}
               className={cn(
-                "relative -mb-px inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 text-[14px] font-medium transition-colors duration-rapido",
+                "relative -mb-px inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 text-dato font-medium transition-colors duration-rapido",
                 sel ? "border-granate text-granate" : "border-transparent text-inkSoft hover:border-line hover:text-ink",
               )}
             >
@@ -135,7 +135,7 @@ export function Pestanas({
               {p.conteo != null && (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 text-[12px] font-semibold tabular-nums",
+                    "rounded-full px-1.5 text-rotulo font-semibold tabular-nums",
                     sel ? "bg-granate-50 text-granate" : "bg-paperDeep text-mute",
                   )}
                 >
@@ -167,7 +167,7 @@ export function Pestanas({
 export function CabeceraPestana({ children, ayuda, acciones }: { children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <p className="inline-flex items-center gap-1 text-[14px] text-inkSoft">
+      <p className="inline-flex items-center gap-1 text-dato text-inkSoft">
         {children}
         {ayuda}
       </p>

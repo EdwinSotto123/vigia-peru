@@ -36,13 +36,13 @@ function Pildora({ c }: { c: ContribucionReciente }) {
       >
         <AvatarAliado tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} size="sm" />
         <span className="flex flex-col leading-tight">
-          <span className="whitespace-nowrap text-[14px] text-paper">
+          <span className="whitespace-nowrap text-dato text-paper">
             <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
             <span className="font-display font-bold tabular-nums text-maiz">{numero(c.contratos)}</span>{" "}
             {c.contratos === 1 ? "contrato" : "contratos"} {deAlguien ? "de " : "en "}
             <span className="font-semibold">{dondeFue(c)}</span>
           </span>
-          <span className="mt-0.5 flex items-center gap-2 text-[12px] text-paper/70">
+          <span className="mt-0.5 flex items-center gap-2 text-rotulo text-paper/70">
             <span>{relativo(c.pagadaAt)}</span>
             <span className="font-mono group-hover/ap:text-maiz">{c.codigo}</span>
           </span>
@@ -61,10 +61,10 @@ export function CintaAportes({ items, total }: { items: ContribucionReciente[]; 
     <section aria-labelledby="aportes-titulo" className="sobre-oscuro overflow-hidden rounded-2xl bg-ink text-paper">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-1 pt-3.5 sm:px-5">
         <div className="min-w-0">
-          <h2 id="aportes-titulo" className="font-display text-[17px] font-bold leading-tight">
+          <h2 id="aportes-titulo" className="font-display text-bloque font-bold leading-tight">
             Últimos aportes
           </h2>
-          <p className="text-[12.5px] text-paper/70">Cada uno es dinero que paga leer contratos públicos. Toca uno para ver su comprobante.</p>
+          <p className="text-meta text-paper/70">Cada uno es dinero que paga leer contratos públicos. Toca uno para ver su comprobante.</p>
         </div>
         <EnlaceAccion href="/app/aliados/aportes" variante="oscuro" flecha>
           Ver todos los aportes{typeof total === "number" && total > items.length ? ` (${numero(total)})` : ""}
@@ -81,7 +81,7 @@ export function CintaAportes({ items, total }: { items: ContribucionReciente[]; 
           className={mueve ? "cinta-pista" : "flex w-max gap-3 px-4 sm:px-5"}
           style={mueve ? ({ "--cinta-duracion": `${duracion}s` } as React.CSSProperties) : undefined}
         >
-          <ul className={cn("flex gap-3", mueve && "px-1.5")} aria-label="Últimos aportes">
+          <ul className={cn("flex gap-3", mueve && "px-1.5")} aria-label="Últimos aportes" data-lista="avance">
             {items.map((c) => (
               <Pildora key={c.codigo} c={c} />
             ))}

@@ -25,9 +25,9 @@ import { useEsAdmin } from "@/lib/useEsAdmin";
 type Fallo = { tipo: "not_found" | "error"; mensaje: string };
 
 const BOTON_PRIMARIO =
-  "inline-flex min-h-[40px] items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep";
+  "inline-flex min-h-[40px] items-center gap-2 rounded-full bg-granate px-4 py-2 text-dato leading-5 font-semibold text-paper transition-colors hover:bg-granate-deep";
 const BOTON_SECUNDARIO =
-  "inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paperDeep";
+  "inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-semibold text-ink transition-colors hover:bg-paperDeep";
 
 export function DossierCliente({
   id,
@@ -107,7 +107,7 @@ export function DossierCliente({
                     {esAdmin && !esDemo && (
                       <Link
                         href={`/admin/analisis?ocid=${encodeURIComponent(id)}`}
-                        className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-granate/30 bg-granate-soft px-4 py-2 text-sm font-semibold text-granate hover:bg-granate/15"
+                        className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-granate/30 bg-granate-soft px-4 py-2 text-dato leading-5 font-semibold text-granate hover:bg-granate/15"
                       >
                         Procesar {id} ahora (equipo)
                       </Link>

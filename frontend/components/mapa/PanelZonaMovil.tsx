@@ -39,8 +39,8 @@ export function PanelZonaMovil({
           className="flex h-16 w-full items-center justify-between gap-3 border-b border-line bg-paperDeep px-5 text-left"
         >
           <span className="min-w-0">
-            <span className="block font-display text-base font-bold leading-tight text-ink">{titulo}</span>
-            <span className="mt-0.5 block truncate text-[12px] tabular-nums text-inkSoft">
+            <span className="block font-display text-destacado font-bold leading-tight text-ink">{titulo}</span>
+            <span className="mt-0.5 block truncate text-rotulo tabular-nums text-inkSoft">
               {resumen ?? (
                 <>
                   {/* Un <span> y no <Skeleton> (un <div>): dentro de un botón sólo cabe contenido en línea. */}

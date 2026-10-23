@@ -31,16 +31,16 @@ export function ResumenAntecedentes({ antecedentes, ruta }: { antecedentes: Ante
             href={`${ruta}?seccion=antecedentes&atipo=${a.tipo}`}
             className="flex h-full gap-3 rounded-xl border border-line/80 bg-paperSoft p-3 transition-colors duration-rapido hover:border-granate/40"
           >
-            <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-[12px] font-semibold tabular-nums text-ink" aria-hidden>
+            <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold tabular-nums text-ink" aria-hidden>
               {i + 1}
             </span>
             <span className="min-w-0 flex-1 space-y-1">
-              <span className="block text-[14px] font-semibold text-ink">{CORTO_EMPRESA[a.tipo] ?? TIPO_CRUCE[a.tipo]?.corto ?? a.etiqueta}</span>
-              <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-inkSoft">
+              <span className="block text-dato font-semibold text-ink">{CORTO_EMPRESA[a.tipo] ?? TIPO_CRUCE[a.tipo]?.corto ?? a.etiqueta}</span>
+              <span className="flex flex-wrap items-center gap-1.5 text-meta text-inkSoft">
                 <Badge variant={VARIANTE[a.severidad]}>{SEV[a.severidad]}</Badge>
                 {plural(a.n, "registro", "registros")}
               </span>
-              {TIPO_CRUCE[a.tipo]?.explica && <span className="block text-[12.5px] leading-relaxed text-mute">{TIPO_CRUCE[a.tipo].explica}</span>}
+              {TIPO_CRUCE[a.tipo]?.explica && <span className="block text-meta leading-relaxed text-mute">{TIPO_CRUCE[a.tipo].explica}</span>}
             </span>
           </Link>
         </li>

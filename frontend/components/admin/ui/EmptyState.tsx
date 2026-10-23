@@ -28,8 +28,8 @@ export function EmptyState({
         {icono ?? <Inbox size={16} />}
       </span>
       <div className="min-w-0 flex-1 basis-60">
-        <p className="text-sm font-semibold leading-snug text-ink">{titulo}</p>
-        {descripcion && <p className="mt-0.5 text-[13px] leading-snug text-mute">{descripcion}</p>}
+        <p className="text-dato font-semibold leading-snug text-ink">{titulo}</p>
+        {descripcion && <p className="mt-0.5 text-meta leading-snug text-mute">{descripcion}</p>}
       </div>
       {accion && <div className="flex flex-wrap gap-2">{accion}</div>}
     </div>

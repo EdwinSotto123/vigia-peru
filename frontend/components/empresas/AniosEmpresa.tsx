@@ -16,8 +16,8 @@ export function AniosEmpresa({ anual, nombre }: { anual: AnioEmpresa[]; nombre: 
   return (
     <section className="space-y-3 rounded-2xl border border-line bg-paper p-4" aria-labelledby="anios-titulo">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id="anios-titulo" className="font-display text-[15px] font-bold text-ink">Año por año</h3>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-inkSoft" aria-label="Leyenda">
+        <h3 id="anios-titulo" className="font-display text-bloque font-bold text-ink">Año por año</h3>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-inkSoft" aria-label="Leyenda">
           <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate" aria-hidden />Contratos que ganó sola</li>
           <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate/35" aria-hidden />Órdenes de compra y de servicio</li>
         </ul>
@@ -29,31 +29,31 @@ export function AniosEmpresa({ anual, nombre }: { anual: AnioEmpresa[]; nombre: 
           const raro = a.contratosDudosos > 0 || a.dudosas > 0;
           return (
             <li key={a.anio} className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-3">
-              <span className="font-mono text-[13px] tabular-nums text-inkSoft">{a.anio}</span>
+              <span className="font-mono text-meta tabular-nums text-inkSoft">{a.anio}</span>
               <span
                 className="flex h-3.5 w-full items-stretch gap-[2px]"
                 title={`${a.anio}: ${soles(a.adjudicado)} en contratos, ${soles(a.ordenado)} en órdenes`}
               >
                 {a.adjudicado > 0 && <span className="rounded-[3px] bg-granate" style={{ width: `${Math.max(0.6, pa)}%` }} />}
                 {a.ordenado > 0 && <span className="rounded-[3px] bg-granate/35" style={{ width: `${Math.max(0.6, po)}%` }} />}
-                {raro && <span className="ml-1 self-center text-[11px] font-semibold text-amberTexto" aria-label="con un posible error de carga aparte">▲</span>}
+                {raro && <span className="ml-1 self-center text-micro font-semibold text-amberTexto" aria-label="con un posible error de carga aparte">▲</span>}
               </span>
-              <span className="text-right font-mono text-[13px] tabular-nums text-ink">{solesCompacto(total(a))}</span>
+              <span className="text-right font-mono text-meta tabular-nums text-ink">{solesCompacto(total(a))}</span>
             </li>
           );
         })}
       </ol>
       {anual.some((a) => a.contratosDudosos > 0 || a.dudosas > 0) && (
-        <p className="text-[12.5px] text-mute">
+        <p className="text-meta text-mute">
           <span className="font-semibold text-amberTexto">▲</span> Ese año hay montos con un posible error de carga: se muestran en
           sus listas con su bandera y no entran en estas barras.
         </p>
       )}
       <details className="group rounded-xl border border-line/80">
-        <summary className="cursor-pointer select-none px-3 py-2 text-[13px] font-semibold text-granate">Ver la tabla año por año</summary>
+        <summary className="cursor-pointer select-none px-3 py-2 text-meta font-semibold text-granate">Ver la tabla año por año</summary>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-[13px]">
-            <thead className="bg-paperSoft text-left text-[12px] text-mute">
+          <table className="w-full min-w-[34rem] text-meta">
+            <thead className="bg-paperSoft text-left text-rotulo text-mute">
               <tr>
                 <th className="px-3 py-2 font-medium">Año</th>
                 <th className="px-3 py-2 text-right font-medium">Contratos sola</th>

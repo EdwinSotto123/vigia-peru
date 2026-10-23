@@ -183,7 +183,7 @@ export function TablaAnalisis({ universo, filtrados, query, ruta, parcial, total
       <Tabla columnas={COLUMNAS_ANALISIS} filas={filas} etiqueta="Análisis publicados" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {parcial ? (
-          <p className="inline-flex items-center gap-1 text-[12.5px] text-mute">
+          <p className="inline-flex items-center gap-1 text-meta text-mute">
             {totalReal != null && totalReal > universo.length
               ? `Se listan los ${numero(universo.length)} análisis más recientes de ${numero(totalReal)}`
               : `Se listan los ${numero(universo.length || TOPE_API)} análisis más recientes`}

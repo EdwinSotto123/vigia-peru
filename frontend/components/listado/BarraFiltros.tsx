@@ -95,7 +95,7 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
 };
 
 const CAMPO =
-  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 export function BarraFiltros({
   busqueda,
@@ -185,12 +185,12 @@ export function BarraFiltros({
 
         {visibles.map((f) => (
           <label key={f.param} className="inline-flex min-w-0 items-center gap-1.5">
-            <span className={f.corta ? "sr-only" : "shrink-0 text-[13px] font-medium text-inkSoft"}>{f.etiqueta}</span>
+            <span className={f.corta ? "sr-only" : "shrink-0 text-meta font-medium text-inkSoft"}>{f.etiqueta}</span>
             <select
               value={parametros[f.param] ?? ""}
               onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
               className={cn(
-                "h-10 truncate rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
+                "h-10 truncate rounded-full border bg-paper pl-3.5 pr-8 text-dato text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
                 // Ancho fijo con nombre corto: el desplegable no crece con su opción más larga y la barra cabe en una fila.
                 f.corta ? "w-[11.5rem]" : "max-w-[15rem]",
                 parametros[f.param] ? "border-granate font-semibold text-granate" : "border-line",
@@ -215,7 +215,7 @@ export function BarraFiltros({
               anchoClase="w-80"
               lado="abajo"
               className={cn(
-                "min-h-[40px] gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition-colors duration-rapido",
+                "min-h-[40px] gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido",
                 activos.length ? "border-granate bg-granate-50 text-granate" : "border-line bg-paper text-ink hover:bg-paperSoft",
               )}
               trigger={
@@ -223,7 +223,7 @@ export function BarraFiltros({
                   <SlidersHorizontal size={15} aria-hidden />
                   Filtros
                   {activos.length > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-[11px] font-semibold text-paper">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-micro font-semibold text-paper">
                       {activos.length}
                     </span>
                   )}
@@ -233,7 +233,7 @@ export function BarraFiltros({
               <span className="block space-y-3">
                 {filtros.map((f) => (
                   <label key={f.param} className="block">
-                    <span className="mb-1 block text-[12px] font-medium text-inkSoft">{f.etiqueta}</span>
+                    <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
                     <select
                       value={parametros[f.param] ?? ""}
                       onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
@@ -259,7 +259,7 @@ export function BarraFiltros({
               <select
                 value={parametros[orden.param] ?? orden.porDefecto}
                 onChange={(e) => navegar({ [orden.param]: e.target.value === orden.porDefecto ? undefined : e.target.value })}
-                className="h-10 min-w-[11.5rem] max-w-[18rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
+                className="h-10 min-w-[11.5rem] max-w-[18rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-dato text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
               >
                 {orden.opciones.map((o) => (
                   <option key={o.valor} value={o.valor}>
@@ -273,7 +273,7 @@ export function BarraFiltros({
       </div>
 
       {chipsActivos.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
+        <div className="flex flex-wrap items-center gap-1.5 text-meta">
           <span className="text-mute">Filtrando por</span>
           {chipsActivos.map((c) => (
             <button
@@ -305,7 +305,7 @@ function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition-colors duration-rapido active:translate-y-px",
+        "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido active:translate-y-px",
         activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
       )}
     >
@@ -315,7 +315,7 @@ function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => v
 }
 
 function Conteo({ n }: { n: number }) {
-  return <span className="text-[12px] font-semibold tabular-nums opacity-80">{numero(n)}</span>;
+  return <span className="text-rotulo font-semibold tabular-nums opacity-80">{numero(n)}</span>;
 }
 
 /**
@@ -387,7 +387,7 @@ export function Buscador({
       <span
         id={`${id}-minimo`}
         aria-live="polite"
-        className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 text-[12px] text-mute"
+        className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 text-rotulo text-mute"
       >
         {faltan ? `Mínimo ${min} caracteres` : ""}
       </span>

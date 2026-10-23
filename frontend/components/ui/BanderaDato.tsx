@@ -46,11 +46,11 @@ export function AvisoDato({
   return (
     <div role="note" className={cn("flex gap-3 rounded-xl border border-amber/30 bg-amber-soft/60 p-3.5", className)}>
       <TriangleAlert size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-      <div className="min-w-0 space-y-1 text-[13.5px] leading-snug">
+      <div className="min-w-0 space-y-1 text-dato leading-snug">
         <p className="font-semibold text-ink">Puede ser un error {QUIEN_CARGA[fuente]} al subir el dato</p>
         <p className="text-inkSoft">{m.explica}</p>
         {children && <p className="text-inkSoft">{children}</p>}
-        <p className="text-[12.5px] text-mute">
+        <p className="text-meta text-mute">
           Vigía no borra ni cambia el dato: lo muestra tal como lo publicó {FUENTE_DUDOSO[fuente]}
           {suma ? ". Va aparte de los totales y de las comparaciones, para que un posible error no infle las cifras." : "."}
         </p>

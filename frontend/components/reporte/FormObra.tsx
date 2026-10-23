@@ -246,9 +246,9 @@ export function FormObra({
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-granate-soft text-granate" aria-hidden>
         <ImagePlus size={vacia ? 24 : 20} />
       </span>
-      <span className="min-w-0 text-sm">
+      <span className="min-w-0 text-dato leading-5">
         <span className="block font-semibold text-ink">{vacia ? "Arrastra tus fotos aquí o elígelas" : "Agregar más fotos o documentos"}</span>
-        <span className="block text-xs text-mute">JPG, PNG o WebP, o PDF. Hasta {MAX_MB} MB cada uno.</span>
+        <span className="block text-rotulo leading-4 text-mute">JPG, PNG o WebP, o PDF. Hasta {MAX_MB} MB cada uno.</span>
       </span>
       <input
         type="file"
@@ -270,9 +270,9 @@ export function FormObra({
       {/* Cámara directa en el teléfono (capture) */}
       <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-granate/40 bg-granate-soft px-4 py-3 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate sm:hidden">
         <Camera size={22} className="text-granate" aria-hidden />
-        <span className="text-sm">
+        <span className="text-dato leading-5">
           <span className="font-semibold text-ink">Tomar foto ahora</span>
-          <span className="block text-xs text-inkSoft">Abre la cámara del teléfono</span>
+          <span className="block text-rotulo leading-4 text-inkSoft">Abre la cámara del teléfono</span>
         </span>
         <input
           type="file"
@@ -292,8 +292,8 @@ export function FormObra({
         <>
           {zonaSubida(true)}
           <div className="rounded-xl bg-paperSoft px-3 py-3">
-            <p className="text-xs font-semibold text-ink">Qué fotos ayudan</p>
-            <ul className="mt-1.5 space-y-1 text-xs text-inkSoft">
+            <p className="text-rotulo leading-4 font-semibold text-ink">Qué fotos ayudan</p>
+            <ul className="mt-1.5 space-y-1 text-rotulo leading-4 text-inkSoft">
               {FOTOS_QUE_AYUDAN.map((t) => (
                 <li key={t} className="flex items-start gap-1.5">
                   <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden /> {t}
@@ -313,10 +313,10 @@ export function FormObra({
                 ) : (
                   <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 p-2 text-center">
                     <FileText size={22} className="text-mute" aria-hidden />
-                    <span className="line-clamp-2 break-all text-[11px] text-inkSoft">{s.filename}</span>
+                    <span className="line-clamp-2 break-all text-micro text-inkSoft">{s.filename}</span>
                   </div>
                 )}
-                <span className="absolute bottom-1 left-1 rounded-full bg-ink/70 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-paper">
+                <span className="absolute bottom-1 left-1 rounded-full bg-ink/70 px-1.5 py-0.5 font-mono text-micro tabular-nums text-paper">
                   {(s.size_bytes / 1024 / 1024).toLocaleString("es-PE", { maximumFractionDigits: 1 })} MB
                 </span>
                 <button
@@ -338,7 +338,7 @@ export function FormObra({
 
       {Object.entries(progreso).map(([nombre, pct]) => (
         <div key={nombre}>
-          <div className="flex items-center justify-between text-[11px] text-mute">
+          <div className="flex items-center justify-between text-micro text-mute">
             <span className="inline-flex items-center gap-1.5 truncate">
               <Loader2 size={11} className="animate-spin" aria-hidden /> Subiendo {nombre}
             </span>
@@ -357,7 +357,7 @@ export function FormObra({
         </div>
       ))}
       {erroresSubida.length > 0 && (
-        <ul className="space-y-1 text-xs text-crimsonTexto" role="alert">
+        <ul className="space-y-1 text-rotulo leading-4 text-crimsonTexto" role="alert">
           {erroresSubida.map((m, i) => (
             <li key={i} className="flex items-start gap-1.5">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden /> {m}
@@ -368,7 +368,7 @@ export function FormObra({
       {verificacionSubida.widget}
       {errores.foto && <ErrorCampo>{errores.foto}</ErrorCampo>}
       {/* Lo que decide si subirla va a la vista (se publica); el detalle técnico, a un clic (§10.7). */}
-      <p id="foto-ayuda" className="flex flex-wrap items-center gap-x-1 text-xs text-mute">
+      <p id="foto-ayuda" className="flex flex-wrap items-center gap-x-1 text-rotulo leading-4 text-mute">
         {nFotos > 0 ? `${nFotos} ${nFotos === 1 ? "foto lista" : "fotos listas"}. ` : "Hace falta al menos una foto. "}
         Se publica con la denuncia, sin los datos ocultos del celular.
         <Ayuda titulo="¿Qué datos ocultos le quitamos?">
@@ -388,16 +388,16 @@ export function FormObra({
           {geoEstado === "buscando" ? "Buscando tu ubicación…" : ubicacion ? "Actualizar mi ubicación" : "Usar mi ubicación actual"}
         </Button>
         {ubicacion && (
-          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-1 text-xs font-medium text-mossTexto">
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-1 text-rotulo leading-4 font-medium text-mossTexto">
             <Check size={12} aria-hidden /> Punto marcado: {ubicacion.lat.toFixed(4)}, {ubicacion.lon.toFixed(4)}
           </p>
         )}
         {geoEstado === "error" && !ubicacion && (
-          <p className="mt-2 text-xs text-crimsonTexto" role="status">
+          <p className="mt-2 text-rotulo leading-4 text-crimsonTexto" role="status">
             No pudimos obtener tu ubicación: escribe la dirección abajo.
           </p>
         )}
-        <p className="mt-2 text-xs text-mute">El punto que marques se publica en el mapa. Si prefieres no marcarlo, basta con una dirección o referencia.</p>
+        <p className="mt-2 text-rotulo leading-4 text-mute">El punto que marques se publica en el mapa. Si prefieres no marcarlo, basta con una dirección o referencia.</p>
       </div>
 
       <div className="flex min-h-[96px] flex-1 flex-col">
@@ -479,7 +479,7 @@ export function FormObra({
           placeholder="Ej: Esta obra dice ser un colegio terminado pero por dentro está vacío, sin ventanas. El alcalde la inauguró en agosto."
           className={cn(campo, "py-3 leading-relaxed")}
         />
-        <p id="obra-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
+        <p id="obra-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-micro text-mute">
           <span>Mínimo {DESCRIPCION_MIN} caracteres.</span>
           <span className="font-mono tabular-nums">
             {numero(descripcion.length)} / {numero(DESCRIPCION_MAX)}
@@ -495,7 +495,7 @@ export function FormObra({
 
       {/* Colapsado: la mayoría de denuncias rápidas no los llena, y foto + lugar + relato ya alcanzan para enviar. */}
       <details className="group rounded-xl border border-dashed border-line bg-paperSoft open:border-line open:bg-transparent" open={!!errores.enlaces || !!errores.correo || undefined}>
-        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-dato leading-5 font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
           <ChevronDown size={16} className="transition-transform duration-normal group-open:rotate-180" aria-hidden />
           Más datos y contacto (opcional)
         </summary>
@@ -557,14 +557,14 @@ export function FormObra({
               }}
               aria-invalid={!!errores.enlaces}
               placeholder={"https://facebook.com/post/123\nhttps://noticia.pe/articulo"}
-              className={cn(campo, "py-2 font-mono text-xs")}
+              className={cn(campo, "py-2 font-mono text-rotulo leading-4")}
             />
             {errores.enlaces && <ErrorCampo>{errores.enlaces}</ErrorCampo>}
           </div>
         </div>
         <hr className="mx-3 border-line" />
         <div className="space-y-2 px-3 pb-3 pt-1">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-dato leading-5">
             <input
               id="obra-anonimo"
               type="checkbox"
@@ -605,7 +605,7 @@ export function FormObra({
             />
             {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
           </div>
-          <p className="flex flex-wrap items-center gap-x-1 text-[11px] text-mute">
+          <p className="flex flex-wrap items-center gap-x-1 text-micro text-mute">
             Si lo dejas, el correo queda guardado junto a la denuncia.
             <Ayuda titulo="¿Qué se envía de mí?">
               No hace falta cuenta. Si marcas «sin mi nombre», tu nombre no se envía. El correo es opcional.
@@ -633,7 +633,7 @@ export function FormObra({
             </>
           )}
         </Button>
-        <p className="text-center text-xs text-mute" aria-live="polite">
+        <p className="text-center text-rotulo leading-4 text-mute" aria-live="polite">
           {ready
             ? "Todo listo para enviar."
             : `Faltan ${milestones.length - doneCount} de ${milestones.length}: ${milestones

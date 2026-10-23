@@ -27,7 +27,7 @@ type Respuesta = { valor: Partial<PagosConfig>; updatedAt?: string; updatedBy?: 
 const desde = (v: Partial<PagosConfig>): PagosConfig => ({ ...EMPTY, ...v, yape: { ...EMPTY.yape, ...(v.yape ?? {}) }, plin: { ...EMPTY.plin, ...(v.plin ?? {}) }, cuentas: v.cuentas ?? [] });
 
 // Los campos hundidos del sitio: radio xl, fondo paperDeep, foco en lima.
-const campo = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60";
+const campo = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute focus:border-granate/60";
 
 export default function PagosPage() {
   // Sin revalidar al volver a la pestaña: pisaría lo que estás editando.
@@ -100,20 +100,20 @@ export default function PagosPage() {
                   <Card key={k}>
                     <BrandBadge brand={k} size="lg" />
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="text-sm"><span className="text-[12px] font-medium text-inkSoft">Número</span><input value={cfg[k].numero} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], numero: e.target.value.replace(/\D/g, "").slice(0, 12) } }))} placeholder="9XXXXXXXX" inputMode="numeric" className={`${campo} font-mono`} /></label>
-                      <label className="text-sm"><span className="text-[12px] font-medium text-inkSoft">Titular (como aparece en la app)</span><input value={cfg[k].titular} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], titular: e.target.value } }))} placeholder="Edwin S." className={campo} /></label>
+                      <label className="text-dato leading-5"><span className="text-rotulo font-medium text-inkSoft">Número</span><input value={cfg[k].numero} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], numero: e.target.value.replace(/\D/g, "").slice(0, 12) } }))} placeholder="9XXXXXXXX" inputMode="numeric" className={`${campo} font-mono`} /></label>
+                      <label className="text-dato leading-5"><span className="text-rotulo font-medium text-inkSoft">Titular (como aparece en la app)</span><input value={cfg[k].titular} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], titular: e.target.value } }))} placeholder="Edwin S." className={campo} /></label>
                     </div>
                     <div className="mt-3 flex items-start gap-4">
                       <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-paperDeep">
-                        {cfg[k].qr_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={cfg[k].qr_url} alt={`Código QR de ${k === "yape" ? "Yape" : "Plin"}`} className="h-full w-full object-contain" /> : <span className="text-[11px] text-inkSoft">Sin QR</span>}
+                        {cfg[k].qr_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={cfg[k].qr_url} alt={`Código QR de ${k === "yape" ? "Yape" : "Plin"}`} className="h-full w-full object-contain" /> : <span className="text-micro text-inkSoft">Sin QR</span>}
                       </div>
-                      <div className="min-w-0 text-sm">
-                        <p className="text-[12px] font-medium text-inkSoft">Código QR (captura desde la app)</p>
+                      <div className="min-w-0 text-dato leading-5">
+                        <p className="text-rotulo font-medium text-inkSoft">Código QR (captura desde la app)</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <label className={claseBoton("secundario", "sm", "cursor-pointer")}><Upload size={12} aria-hidden /> Subir imagen<input type="file" accept="image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && uploadQr(k, e.target.files[0])} /></label>
                           {cfg[k].qr_url && <button onClick={() => editar((c) => ({ ...c, [k]: { ...c[k], qr_url: "" } }))} className={claseBoton("fantasma", "sm", "text-rust")}>Quitar</button>}
                         </div>
-                        <p className="mt-2 text-[11.5px] leading-snug text-mute">El QR es público. No subas capturas donde se vea tu saldo.</p>
+                        <p className="mt-2 text-rotulo leading-snug text-mute">El QR es público. No subas capturas donde se vea tu saldo.</p>
                       </div>
                     </div>
                   </Card>
@@ -141,13 +141,13 @@ export default function PagosPage() {
                 <div className="space-y-3">
                   {cfg.cuentas.map((cu, i) => (
                     <Card key={i} relleno="sm" className="grid gap-2 sm:grid-cols-6">
-                      <label className="text-xs"><span className="font-medium text-inkSoft">Banco</span><select value={cu.banco} onChange={(e) => setCuenta(i, { banco: e.target.value })} className={campo}>{BANCOS.map((b) => <option key={b}>{b}</option>)}</select></label>
-                      <label className="text-xs"><span className="font-medium text-inkSoft">Moneda</span><select value={cu.moneda} onChange={(e) => setCuenta(i, { moneda: e.target.value as "PEN" | "USD" })} className={campo}><option value="PEN">Soles</option><option value="USD">Dólares</option></select></label>
-                      <label className="text-xs"><span className="font-medium text-inkSoft">Tipo</span><input value={cu.tipo} onChange={(e) => setCuenta(i, { tipo: e.target.value })} className={campo} /></label>
-                      <label className="text-xs"><span className="font-medium text-inkSoft">N° de cuenta</span><input value={cu.numero} onChange={(e) => setCuenta(i, { numero: e.target.value })} className={`${campo} font-mono`} /></label>
-                      <label className="text-xs"><span className="font-medium text-inkSoft">CCI (20 dígitos)</span><input value={cu.cci} onChange={(e) => setCuenta(i, { cci: e.target.value.replace(/\D/g, "").slice(0, 20) })} inputMode="numeric" className={`${campo} font-mono`} /></label>
+                      <label className="text-rotulo leading-4"><span className="font-medium text-inkSoft">Banco</span><select value={cu.banco} onChange={(e) => setCuenta(i, { banco: e.target.value })} className={campo}>{BANCOS.map((b) => <option key={b}>{b}</option>)}</select></label>
+                      <label className="text-rotulo leading-4"><span className="font-medium text-inkSoft">Moneda</span><select value={cu.moneda} onChange={(e) => setCuenta(i, { moneda: e.target.value as "PEN" | "USD" })} className={campo}><option value="PEN">Soles</option><option value="USD">Dólares</option></select></label>
+                      <label className="text-rotulo leading-4"><span className="font-medium text-inkSoft">Tipo</span><input value={cu.tipo} onChange={(e) => setCuenta(i, { tipo: e.target.value })} className={campo} /></label>
+                      <label className="text-rotulo leading-4"><span className="font-medium text-inkSoft">N° de cuenta</span><input value={cu.numero} onChange={(e) => setCuenta(i, { numero: e.target.value })} className={`${campo} font-mono`} /></label>
+                      <label className="text-rotulo leading-4"><span className="font-medium text-inkSoft">CCI (20 dígitos)</span><input value={cu.cci} onChange={(e) => setCuenta(i, { cci: e.target.value.replace(/\D/g, "").slice(0, 20) })} inputMode="numeric" className={`${campo} font-mono`} /></label>
                       <div className="flex items-end gap-1">
-                        <label className="min-w-0 flex-1 text-xs"><span className="font-medium text-inkSoft">Titular</span><input value={cu.titular} onChange={(e) => setCuenta(i, { titular: e.target.value })} className={campo} /></label>
+                        <label className="min-w-0 flex-1 text-rotulo leading-4"><span className="font-medium text-inkSoft">Titular</span><input value={cu.titular} onChange={(e) => setCuenta(i, { titular: e.target.value })} className={campo} /></label>
                         <button onClick={() => editar((c) => ({ ...c, cuentas: c.cuentas.filter((_, j) => j !== i) }))} aria-label={`Quitar la cuenta ${cu.banco} ${cu.numero}`} className="mb-0.5 grid h-9 w-9 place-items-center rounded-full border border-line text-crimsonTexto transition-colors duration-rapido hover:border-rust/50 hover:bg-crimson-soft"><Trash2 size={14} aria-hidden /></button>
                       </div>
                     </Card>
@@ -159,20 +159,20 @@ export default function PagosPage() {
             <PageSection titulo="Lo que lee el financiador">
               {/* Una sola caja en dos columnas: las instrucciones (largas) y el correo (corto) juntos, no dos cajas con aire. */}
               <Card className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                <p className="text-[12.5px] leading-snug text-inkSoft lg:col-span-2">
+                <p className="text-meta leading-snug text-inkSoft lg:col-span-2">
                   Lo ve el financiador al registrar un aporte en <strong className="font-semibold text-ink">Financiar</strong>, junto con los números de Yape o Plin, las
                   cuentas bancarias y el código de su aporte. Para ver cómo queda, usa «Ver como financiador».
                 </p>
-                <label className="block text-sm">
+                <label className="block text-dato leading-5">
                   <span className="font-semibold text-ink">Instrucciones</span>
                   <textarea value={cfg.instrucciones} onChange={(e) => editar((c) => ({ ...c, instrucciones: e.target.value }))} rows={4} maxLength={600} className={campo} placeholder="Transfiere el monto exacto indicando el código de tu aporte como concepto…" />
-                  <span className="mt-1 block text-right text-[11px] text-mute">{cfg.instrucciones.length} / 600</span>
+                  <span className="mt-1 block text-right text-micro text-mute">{cfg.instrucciones.length} / 600</span>
                 </label>
-                <label className="block text-sm">
+                <label className="block text-dato leading-5">
                   <span className="font-semibold text-ink">Correo de contacto para pagos</span>
                   <input type="email" value={cfg.contacto_email} onChange={(e) => editar((c) => ({ ...c, contacto_email: e.target.value }))} className={campo} placeholder="el correo que atiende los pagos" />
                   {/* TODO(contacto): reemplazar cuando exista un correo del equipo. Antes el ejemplo era pagos@vigiaperu.org, un dominio que no resuelve. */}
-                  <span className="mt-2 block text-[12px] leading-snug text-mute">
+                  <span className="mt-2 block text-rotulo leading-snug text-mute">
                     {cfg.contacto_email ? "Se muestra al financiador por si el pago falla o necesita factura o recibo." : "Vacío: el financiador no tiene a quién escribir si el pago falla."}
                   </span>
                 </label>

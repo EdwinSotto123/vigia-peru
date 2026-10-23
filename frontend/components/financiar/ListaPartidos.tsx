@@ -6,6 +6,7 @@ import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { alcanceCorto, type AlcanceProcesamiento } from "@/lib/financiamiento";
 import { numero, plural, soles } from "@/lib/formato";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * La vista "Por partido" de /app/financiar: los partidos de un período con contratos esperando lectura, de 25
@@ -21,8 +22,7 @@ import { numero, plural, soles } from "@/lib/formato";
 /** Partidos por página. */
 export const TAM_PARTIDOS = 25;
 
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 
 /** Los filtros de la vista, en el orden en que viajan por la URL. */
 export interface FiltrosPartidosUrl {
@@ -55,7 +55,7 @@ export const hrefVistaPartido = (f: FiltrosPartidosUrl) => {
 export function SelectorPeriodo({ filtros }: { filtros: FiltrosPartidosUrl }) {
   return (
     <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-[13px] font-medium text-inkSoft">Gobiernos de</span>
+      <span className="text-meta font-medium text-inkSoft">Gobiernos de</span>
       <ul className="inline-flex rounded-full border border-line bg-paperSoft p-0.5">
         {PERIODOS_GOBIERNO.map((p) => {
           const activo = p.anio === filtros.anio;
@@ -66,7 +66,7 @@ export function SelectorPeriodo({ filtros }: { filtros: FiltrosPartidosUrl }) {
                 aria-current={activo ? "page" : undefined}
                 scroll={false}
                 className={
-                  "inline-flex min-h-10 items-center rounded-full px-3.5 text-[13.5px] font-semibold tabular-nums transition-colors sm:min-h-9 " +
+                  "inline-flex min-h-10 items-center rounded-full px-3.5 text-dato font-semibold tabular-nums transition-colors sm:min-h-9 " +
                   (activo ? "bg-granate text-paper" : "text-inkSoft hover:text-ink")
                 }
               >
@@ -146,7 +146,7 @@ function fila(f: FilaPartido, anio: AnioGobierno, precioPen: number | null, mayo
       costo: <CeldaNumero>{soles(precioPen != null ? f.enCola * precioPen : null)}</CeldaNumero>,
       // La fila entera es el enlace: esto es solo la señal visual de adónde lleva (no es un segundo botón).
       accion: (
-        <span aria-hidden className="inline-flex min-h-8 items-center rounded-full border border-granate/40 px-3 text-[13px] font-semibold text-granate group-hover:bg-granate-50">
+        <span aria-hidden className="inline-flex min-h-8 items-center rounded-full border border-granate/40 px-3 text-meta font-semibold text-granate group-hover:bg-granate-50">
           Financiar
         </span>
       ),

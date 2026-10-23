@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PartidosExplorador } from "@/components/partidos/PartidosExplorador";
+import { Nota } from "@/components/patrones";
 import { Carrusel } from "@/components/ui/Carrusel";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
@@ -62,7 +63,7 @@ export async function PartidosSeccion() {
               <h2 id="partidos-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] sm:text-5xl lg:text-[2.4rem]">
                 Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
               </h2>
-              <p className="mt-3 hidden text-pretty text-base leading-relaxed text-inkSoft sm:block sm:text-lg">
+              <p className="mt-3 hidden text-pretty text-destacado leading-relaxed text-inkSoft sm:block sm:text-lg">
                 Quién gobierna cada región, cuánto se contrata en ella y qué tanto de eso ya leyó Vigía.
               </p>
             </div>
@@ -71,14 +72,14 @@ export async function PartidosSeccion() {
 
         {porPartido && porPartido.data.length > 0 && <PorPartido r={porPartido} />}
 
-        <p className="mt-6 max-w-4xl text-[13px] leading-relaxed text-mute">
+        <Nota className="mt-6 max-w-4xl">
           Cada contrato se asocia al partido que ganó la elección de ese período, sin vacancias ni reemplazos. Resultados de 2026 pendientes.
           Fuente: JNE. Una señal es para revisar, nunca una acusación.{" "}
           <Link href="/preguntas" className="text-granate underline-offset-4 hover:underline">
             Cómo leemos las señales
           </Link>
           .
-        </p>
+        </Nota>
       </div>
     </section>
   );
@@ -97,11 +98,11 @@ function PorPartido({ r }: { r: RankingPartidos }) {
       <div className="mb-3 flex items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0 max-w-2xl">
           <h3 className="font-display text-xl font-bold leading-tight text-ink sm:text-3xl">Qué tanto vigilamos a cada partido</h3>
-          <p className="mt-1 text-[14px] leading-snug text-inkSoft">
+          <p className="mt-1 text-dato leading-snug text-inkSoft">
             Contratos de las entidades que gobernó cada uno, de {r.desde.slice(0, 4)} a {r.hasta.slice(0, 4)}.
           </p>
         </div>
-        <Link href="/app/partidos" className="inline-flex min-h-11 shrink-0 items-center text-[14px] font-semibold text-granate underline-offset-4 hover:underline">
+        <Link href="/app/partidos" className="inline-flex min-h-11 shrink-0 items-center text-dato font-semibold text-granate underline-offset-4 hover:underline">
           Ver todos
         </Link>
       </div>
@@ -112,14 +113,14 @@ function PorPartido({ r }: { r: RankingPartidos }) {
             href={`/app/partidos/${x.clave}?anio=${r.anio}`}
             className="group flex h-full flex-col rounded-2xl border border-line bg-paperSoft p-4 transition-colors hover:border-granate/50"
           >
-            <span className="line-clamp-2 min-h-[2.6rem] text-[15px] font-semibold leading-snug text-ink group-hover:text-granate">{x.nombre}</span>
+            <span className="line-clamp-2 min-h-[2.6rem] text-cuerpo font-semibold leading-snug text-ink group-hover:text-granate">{x.nombre}</span>
             <span className="mt-3 block h-2.5 overflow-hidden rounded-full bg-paperDeep" style={{ width: `${Math.max(14, (x.contratos / maximo) * 100)}%` }} aria-hidden>
               <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(x.leidos > 0 ? 5 : 0, (x.leidos / Math.max(x.contratos, 1)) * 100)}%` }} />
             </span>
-            <span className="mt-3 font-mono text-[12.5px] tabular-nums text-mute">
+            <span className="mt-3 font-mono text-meta tabular-nums text-mute">
               {numero(x.contratos)} contratos en {numero(x.gobiernosConContratos)} gobiernos
             </span>
-            <span className="mt-1 text-[13.5px] text-inkSoft">
+            <span className="mt-1 text-dato text-inkSoft">
               <span className="font-semibold text-ink">{numero(x.leidos)}</span> leídos, <span className="font-semibold text-ink">{numero(x.enCola)}</span> esperando lectura
             </span>
           </Link>

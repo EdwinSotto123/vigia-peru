@@ -45,7 +45,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
 
   if (!ultimos.length) {
     return (
-      <p className={`text-mute ${compacto ? "text-[11px]" : "text-[12px]"}`}>
+      <p className={`text-mute ${compacto ? "text-micro" : "text-rotulo"}`}>
         {activo ? "Esperando el primer evento de los agentes…" : "Sin eventos registrados."}
       </p>
     );
@@ -61,7 +61,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
             ? ahora > 0 ? haceCuanto(ahora - t) : ""
             : Number.isFinite(t0) ? desfase(t - t0) : "";
         return (
-          <li key={key} className={`flex items-start gap-2 ${compacto ? "text-[11px]" : "text-[12.5px]"} ${i === 0 && activo ? "animate-slideUp" : ""}`}>
+          <li key={key} className={`flex items-start gap-2 ${compacto ? "text-micro" : "text-meta"} ${i === 0 && activo ? "animate-slideUp" : ""}`}>
             <span className={`mt-[3px] shrink-0 ${tono}`} aria-hidden>
               {ev.kind === "error" ? <XCircle size={12} /> : ev.kind === "warn" ? <AlertTriangle size={12} /> : ev.kind === "final" ? <CheckCircle2 size={12} /> : <span className={`block h-1.5 w-1.5 translate-y-[3px] rounded-full ${i === 0 && activo ? "bg-amber" : "bg-line"}`} />}
             </span>
@@ -72,7 +72,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
             <time
               dateTime={ev.ts}
               title={`${horaLima(ev.ts)}, hora de Lima`}
-              className="shrink-0 font-mono text-[11px] tabular-nums text-mute"
+              className="shrink-0 font-mono text-micro tabular-nums text-mute"
               suppressHydrationWarning
             >
               {tiempo}

@@ -26,7 +26,7 @@ export function TextoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
   const tarjeta = (clave: string) => <TarjetaPaso key={clave} clave={clave} recorrido={recorrido} result={result} />;
   const grupo = (g: GrupoParalelo) => (
     <div className="space-y-3 rounded-2xl border border-dashed border-paperEdge bg-paperSoft/60 p-2 sm:p-3">
-      <p className="px-1 text-[12px] font-medium text-mute">{recorrido.paralelo[g] ? "Estos corrieron a la vez" : "Estos corrieron después, uno tras otro"}</p>
+      <p className="px-1 text-rotulo font-medium text-mute">{recorrido.paralelo[g] ? "Estos corrieron a la vez" : "Estos corrieron después, uno tras otro"}</p>
       {GRUPOS_PARALELOS[g].map(tarjeta)}
     </div>
   );
@@ -73,12 +73,12 @@ function Fase({ numero: n, titulo, bajada, children }: { numero: number; titulo:
     <li className="relative">
       <span
         aria-hidden
-        className="absolute -left-[2.05rem] top-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-paper bg-ink text-[11px] font-bold text-paper sm:-left-[2.55rem]"
+        className="absolute -left-[2.05rem] top-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-paper bg-ink text-micro font-bold text-paper sm:-left-[2.55rem]"
       >
         {n}
       </span>
-      <h3 className="font-display text-[17px] font-bold leading-6 text-ink">{titulo}</h3>
-      <p className="text-[13px] text-inkSoft">{bajada}</p>
+      <h3 className="font-display text-bloque font-bold leading-6 text-ink">{titulo}</h3>
+      <p className="text-meta text-inkSoft">{bajada}</p>
       <div className="mt-3 space-y-4">{children}</div>
     </li>
   );
@@ -87,7 +87,7 @@ function Fase({ numero: n, titulo, bajada, children }: { numero: number; titulo:
 function Rama({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="space-y-3">
-      <h4 className="flex items-center gap-2 text-[13px] font-semibold text-inkSoft">
+      <h4 className="flex items-center gap-2 text-meta font-semibold text-inkSoft">
         <span className="h-px w-3 bg-mute/60" aria-hidden />
         Rama: {titulo}
       </h4>
@@ -112,10 +112,10 @@ function TarjetaPaso({ clave, recorrido, result }: { clave: string; recorrido: R
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-line px-4 py-2.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           <Icono size={15} className={cn("shrink-0", tenue ? "text-mute" : "text-inkSoft")} aria-hidden />
-          <h5 className={cn("font-display text-[15px] font-bold leading-tight", tenue ? "text-mute" : "text-ink")}>{n.titulo}</h5>
-          <span className="text-[12px] text-mute">{TIPO_NODO[n.tipo]}</span>
+          <h5 className={cn("font-display text-bloque font-bold leading-tight", tenue ? "text-mute" : "text-ink")}>{n.titulo}</h5>
+          <span className="text-rotulo text-mute">{TIPO_NODO[n.tipo]}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+        <div className="flex flex-wrap items-center gap-1.5 text-rotulo">
           {n.estado !== "corrio" && (
             <span className={cn("pill", n.estado === "fallo" ? "border-crimson/40 bg-crimson-soft text-crimsonTexto" : "border-dashed border-line bg-paper text-mute")}>
               {ESTADO_NODO[n.estado]}
@@ -130,7 +130,7 @@ function TarjetaPaso({ clave, recorrido, result }: { clave: string; recorrido: R
       </header>
 
       {tenue ? (
-        <p className="px-4 py-3 text-[12.5px] text-mute">
+        <p className="px-4 py-3 text-meta text-mute">
           {n.estado === "omitido" ? n.avisos.find((a) => a.tipo === "omitido")?.texto ?? "No aplicó a este contrato." : "La traza no registra este paso en este análisis."}
         </p>
       ) : (
@@ -152,7 +152,7 @@ function TarjetaPaso({ clave, recorrido, result }: { clave: string; recorrido: R
           </div>
           {pasos.length > 0 && (
             <details className="group border-t border-line">
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2 text-[12.5px] font-medium text-granate hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate/50 [&::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2 text-meta font-medium text-granate hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate/50 [&::-webkit-details-marker]:hidden">
                 <ChevronRight size={14} className="transition-transform duration-rapido group-open:rotate-90" aria-hidden />
                 Ver {pasos.length === 1 ? "el paso" : `los ${numero(pasos.length)} pasos`} con sus datos
               </summary>
@@ -170,7 +170,7 @@ function TarjetaPaso({ clave, recorrido, result }: { clave: string; recorrido: R
 function Columna({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="min-w-0">
-      <h6 className="mb-1.5 text-[12px] font-semibold text-mute">{titulo}</h6>
+      <h6 className="mb-1.5 text-rotulo font-semibold text-mute">{titulo}</h6>
       {children}
     </section>
   );

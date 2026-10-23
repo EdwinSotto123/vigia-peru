@@ -81,7 +81,7 @@ export function Visual({ clave, cifras }: { clave: ResultadoClave; cifras: Cifra
     return (
       <div className="rounded-lg bg-paper/[0.04] p-3">
         <p className="font-display text-3xl font-extrabold leading-none tabular-nums text-maiz">{numero(cifras.leidos)}</p>
-        <p className="mt-1 text-[12px] text-paper/75">
+        <p className="mt-1 text-rotulo text-paper/75">
           contratos leídos
           {cifras.publicados != null && <> de {numero(cifras.publicados)} publicados</>}
         </p>
@@ -115,7 +115,7 @@ export function Visual({ clave, cifras }: { clave: ResultadoClave; cifras: Cifra
         {papeles.map(([I, t]) => (
           <li key={t} className="flex flex-col items-center gap-1 rounded-lg bg-paper/[0.04] px-1 py-2 text-center">
             <I size={16} className="text-maiz" aria-hidden />
-            <span className="text-[11px] text-paper/75">{t}</span>
+            <span className="text-micro text-paper/75">{t}</span>
           </li>
         ))}
       </ul>
@@ -132,16 +132,16 @@ function Barras({ titulo, filas }: { titulo: string; filas: Fila[] }) {
   const max = Math.max(1, ...filas.map((f) => f.n));
   return (
     <figure className="rounded-lg bg-paper/[0.04] p-3">
-      <figcaption className="text-[12px] font-semibold text-paper/75">{titulo}</figcaption>
+      <figcaption className="text-rotulo font-semibold text-paper/75">{titulo}</figcaption>
       <ul className="mt-2.5 space-y-2">
         {filas.map(({ etiqueta, n, Icono, clase }) => (
           <li key={etiqueta}>
-            <div className="flex items-center justify-between gap-2 text-[12px]">
+            <div className="flex items-center justify-between gap-2 text-rotulo">
               <span className="flex min-w-0 items-center gap-1.5 truncate text-paper/80">
                 {Icono && <Icono size={12} className="shrink-0" aria-hidden />}
                 {etiqueta}
               </span>
-              <span className="shrink-0 font-mono text-[12px] text-paper">{numero(n)}</span>
+              <span className="shrink-0 font-mono text-rotulo text-paper">{numero(n)}</span>
             </div>
             <div
               aria-hidden
@@ -159,17 +159,18 @@ function Barras({ titulo, filas }: { titulo: string; filas: Fila[] }) {
 function Esquema({ centro, brazos }: { centro: { Icono: LucideIcon; t: string }; brazos: { Icono: LucideIcon; t: string }[] }) {
   const C = centro.Icono;
   const caja = ({ Icono: I, t }: { Icono: LucideIcon; t: string }) => (
-    <span key={t} className="flex items-center gap-1.5 rounded-md border border-paper/10 px-2 py-1.5 text-[12px] text-paper/75">
+    <span key={t} className="flex items-center gap-1.5 rounded-md border border-paper/10 px-2 py-1.5 text-rotulo text-paper/75">
       <I size={13} className="shrink-0 text-maiz" aria-hidden />
       {t}
     </span>
   );
   return (
     <div className="rounded-lg bg-paper/[0.04] p-3" role="img" aria-label={`${centro.t}: ${brazos.map((b) => b.t).join(", ")}`}>
+      {/* recorte: dos brazos por lado del esquema */}
       <div className="grid grid-cols-2 gap-2">{brazos.slice(0, 2).map(caja)}</div>
       <div className="my-2 flex items-center justify-center gap-2">
         <span className="h-px flex-1 bg-paper/15" />
-        <span className="flex items-center gap-1.5 rounded-full border border-maiz/60 bg-maiz/10 px-3 py-1 text-[12px] font-semibold text-paper">
+        <span className="flex items-center gap-1.5 rounded-full border border-maiz/60 bg-maiz/10 px-3 py-1 text-rotulo font-semibold text-paper">
           <C size={14} className="text-maiz" aria-hidden />
           {centro.t}
         </span>
@@ -188,7 +189,7 @@ function Esquema({ centro, brazos }: { centro: { Icono: LucideIcon; t: string };
  */
 function EsquemaRelacion() {
   const caja = (I: LucideIcon, t: string) => (
-    <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper/20 bg-ink px-2.5 py-1.5 text-[12px] font-medium text-paper">
+    <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper/20 bg-ink px-2.5 py-1.5 text-rotulo font-medium text-paper">
       <I size={13} className="shrink-0 text-maiz" aria-hidden />
       {t}
     </span>
@@ -196,7 +197,7 @@ function EsquemaRelacion() {
   const enlace = (t: string) => (
     <span className="flex flex-col items-center py-1" aria-hidden>
       <span className="h-3 border-l border-dashed border-maiz/60" />
-      <span className="text-[11px] italic text-paper/75">{t}</span>
+      <span className="text-micro italic text-paper/75">{t}</span>
       <span className="h-3 border-l border-dashed border-maiz/60" />
     </span>
   );

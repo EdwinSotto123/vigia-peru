@@ -20,7 +20,7 @@ import { FranjaTextil, Llamita } from "@/components/marca";
 import type { Modo } from "./types";
 
 const boton =
-  "inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-rapido sm:w-auto";
+  "inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-dato leading-5 font-semibold transition-colors duration-rapido sm:w-auto";
 const botonSecundario = `${boton} border border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50`;
 const botonPrimario = `${boton} bg-granate text-paper hover:bg-granate-deep`;
 
@@ -60,12 +60,12 @@ export function Confirmacion({
           <h2 className="mt-4 font-display text-2xl font-bold leading-tight text-ink text-balance sm:text-3xl">
             {publica ? "Tu denuncia ya está publicada" : "Recibimos tu denuncia"}
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-inkSoft text-pretty">
+          <p className="mx-auto mt-2 max-w-md text-cuerpo leading-relaxed text-inkSoft text-pretty">
             Gracias por mirar donde el control del Estado no alcanza a llegar solo.
           </p>
           {/* El código es lo único que hay que anotar: alto contraste, tamaño de lectura y seleccionable de un toque. */}
           <div className="mx-auto mt-5 max-w-xs rounded-2xl border border-line bg-paperSoft px-4 py-3 text-ink">
-            <div className="text-[13px] font-medium text-inkSoft">Anota el código de tu denuncia</div>
+            <div className="text-meta font-medium text-inkSoft">Anota el código de tu denuncia</div>
             <div className="mt-0.5 select-all font-mono text-2xl font-bold tracking-wide" translate="no">
               {id}
             </div>
@@ -74,18 +74,18 @@ export function Confirmacion({
       </div>
 
       <div className="rounded-2xl border border-line bg-paper p-6">
-        <h3 className="mb-4 inline-flex items-center gap-2 font-display text-[15px] font-bold text-ink">
+        <h3 className="mb-4 inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
           <ListChecks size={16} className="text-granate" aria-hidden /> Qué pasa ahora
         </h3>
         <ol className="space-y-3">
           {pasos.map((p, i) => (
             <li key={p.t} className="flex gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-granate-soft text-xs font-bold tabular-nums text-granate" aria-hidden>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-granate-soft text-rotulo leading-4 font-bold tabular-nums text-granate" aria-hidden>
                 {i + 1}
               </span>
               <div className="min-w-0 pt-0.5">
-                <div className="text-sm font-semibold text-ink">{p.t}</div>
-                <div className="text-[13px] text-inkSoft">{p.d}</div>
+                <div className="text-dato leading-5 font-semibold text-ink">{p.t}</div>
+                <div className="text-meta text-inkSoft">{p.d}</div>
               </div>
             </li>
           ))}

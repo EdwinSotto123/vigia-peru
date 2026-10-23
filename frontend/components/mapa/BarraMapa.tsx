@@ -136,7 +136,7 @@ export function BarraMapa({
           role="group"
           aria-label="Qué se pinta en el mapa"
         >
-          <span className="shrink-0 whitespace-nowrap px-2 text-[11.5px] font-semibold text-inkSoft">Color del mapa</span>
+          <span className="shrink-0 whitespace-nowrap px-2 text-rotulo font-semibold text-inkSoft">Color del mapa</span>
           {MEDIDAS.map((m) => (
             <button
               key={m.id}
@@ -145,7 +145,7 @@ export function BarraMapa({
               aria-pressed={medida === m.id}
               title={m.ayuda}
               className={cn(
-                "min-h-[36px] shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors duration-rapido sm:min-h-[30px]",
+                "min-h-[36px] shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-meta font-medium transition-colors duration-rapido sm:min-h-[30px]",
                 // Granate = elegido (la marca), el mismo idioma en todos los controles.
                 medida === m.id ? "bg-granate text-paper shadow-sm" : "text-ink hover:bg-paper",
               )}
@@ -168,7 +168,7 @@ export function BarraMapa({
       {/* 2. Contratos que cuentan */}
       <div className="rounded-xl border border-line bg-paperSoft p-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">
+          <p className="flex items-center gap-1.5 text-meta font-semibold text-ink">
             <Filter size={14} aria-hidden className="text-granate" />
             Contratos que cuentan
           </p>
@@ -179,14 +179,14 @@ export function BarraMapa({
             aria-expanded={abiertos}
             aria-controls="filtros-mapa"
             className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-[12.5px] font-medium sm:hidden",
+              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-meta font-medium sm:hidden",
               filtrosContrato + (region ? 1 : 0) > 0 ? "border-granate bg-granate-50 text-granate" : "border-line bg-paper text-ink",
             )}
           >
             <SlidersHorizontal size={14} aria-hidden />
             {abiertos ? "Cerrar filtros" : "Filtros"}
             {chips.length > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-[11px] font-semibold text-paper">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-micro font-semibold text-paper">
                 {chips.length}
               </span>
             )}
@@ -261,7 +261,7 @@ export function BarraMapa({
       {/* 4. Puntos y leyenda */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex shrink-0 flex-wrap items-center gap-1.5" role="group" aria-label="Puntos sobre el mapa">
-          <span className="flex items-center gap-0.5 text-[11.5px] font-semibold text-inkSoft">
+          <span className="flex items-center gap-0.5 text-rotulo font-semibold text-inkSoft">
             Puntos
             <Ayuda titulo="¿Qué son los puntos?">
               Los puntos se dibujan sobre el color y no siguen los filtros de contratos: muestran todos los contratos de riesgo
@@ -283,7 +283,7 @@ export function BarraMapa({
           )}
         </div>
         {sinConexion.length > 0 && (
-          <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] text-inkSoft" role="status" aria-live="polite">
+          <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-rotulo text-inkSoft" role="status" aria-live="polite">
             <WifiOff size={13} className="text-clayTexto" aria-hidden />
             Sin conexión con {sinConexion.join(" y ")}; reintentando…
           </span>
@@ -324,7 +324,7 @@ function LoQueVes({
         ninguno ? "border-amber/50 bg-amber-soft" : chips.length ? "border-granate/40 bg-granate-50" : "border-line bg-paperDeep",
       )}
     >
-      <span className="text-[12.5px] font-semibold text-ink">{chips.length ? "Estás viendo:" : "Estás viendo todos los contratos del Perú"}</span>
+      <span className="text-meta font-semibold text-ink">{chips.length ? "Estás viendo:" : "Estás viendo todos los contratos del Perú"}</span>
       {chips.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Filtros activos">
           {chips.map((c) => (
@@ -332,7 +332,7 @@ function LoQueVes({
               <button
                 type="button"
                 onClick={c.quitar}
-                className="inline-flex min-h-[30px] max-w-[18rem] items-center gap-1 rounded-full border border-granate/30 bg-paper py-0.5 pl-2.5 pr-1.5 text-[12.5px] font-medium text-ink transition-colors duration-rapido hover:border-granate hover:text-granate"
+                className="inline-flex min-h-[30px] max-w-[18rem] items-center gap-1 rounded-full border border-granate/30 bg-paper py-0.5 pl-2.5 pr-1.5 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate hover:text-granate"
               >
                 <span className="truncate">{c.texto}</span>
                 <X size={13} aria-hidden />
@@ -342,7 +342,7 @@ function LoQueVes({
           ))}
         </ul>
       )}
-      <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
+      <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
         {cargando ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-inkSoft">
             <Loader2 size={14} className="animate-spin" aria-hidden /> Actualizando el mapa…
@@ -402,7 +402,7 @@ function Desplegable({
   return (
     <label className={cn("min-w-0", bloque ? "flex flex-col gap-1" : "inline-flex w-full items-center gap-2 sm:w-auto")}>
       {/* Alto fijo: la etiqueta con ⓘ no baja su desplegable respecto de los demás de la fila. */}
-      <span className="flex h-5 shrink-0 items-center gap-0.5 text-[11.5px] font-semibold text-inkSoft">
+      <span className="flex h-5 shrink-0 items-center gap-0.5 text-rotulo font-semibold text-inkSoft">
         {etiqueta}
         {ayuda && (
           <Ayuda titulo={etiqueta}>
@@ -414,7 +414,7 @@ function Desplegable({
         value={valor}
         onChange={(e) => onCambio(e.target.value)}
         className={cn(
-          "h-10 min-w-0 rounded-lg border bg-paper pl-3 pr-8 text-[13px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate sm:h-9",
+          "h-10 min-w-0 rounded-lg border bg-paper pl-3 pr-8 text-meta text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate sm:h-9",
           bloque ? "w-full" : "flex-1 sm:w-56 sm:flex-none",
           valor ? "border-granate font-semibold text-granate" : "border-line",
         )}
@@ -468,7 +468,7 @@ function BotonCapa({
       disabled={vacia}
       aria-busy={cargando || undefined}
       className={cn(
-        "inline-flex min-h-[36px] sm:min-h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+        "inline-flex min-h-[36px] sm:min-h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-rotulo leading-4 font-medium transition-colors duration-rapido",
         "disabled:cursor-not-allowed disabled:border-line disabled:bg-paperDeep disabled:text-mute",
         activa && !vacia && !cargando
           ? "border-granate bg-granate-soft text-granate"
@@ -482,7 +482,7 @@ function BotonCapa({
       {cargando ? (
         <span className="inline-block h-2.5 w-4 animate-pulse rounded bg-paperEdge" aria-hidden />
       ) : (
-        <span className="text-[11px] font-semibold tabular-nums">
+        <span className="text-micro font-semibold tabular-nums">
           {n.toLocaleString("es-PE")}
           {parcial && (
             <>

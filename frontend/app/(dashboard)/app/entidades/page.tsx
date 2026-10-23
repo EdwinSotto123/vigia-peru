@@ -88,7 +88,7 @@ export default async function EntidadesPage({
         acciones={
           <Link
             href="/reporte/nuevo?modo=entidad"
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             <Flag size={14} aria-hidden /> Denunciar una entidad
           </Link>

@@ -58,8 +58,8 @@ export interface DatoIdentidad {
 }
 
 const TAM_DATO = {
-  sm: { texto: "text-[11px]", icono: 11 },
-  md: { texto: "text-[13px]", icono: 13 },
+  sm: { texto: "text-micro", icono: 11 },
+  md: { texto: "text-meta", icono: 13 },
 } as const;
 
 export function IdentidadAliado({
@@ -287,7 +287,7 @@ const RED: Record<RedSocial, { nombre: string; Icono?: typeof Globe; letra?: str
 const ORDEN_REDES: RedSocial[] = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"];
 
 const ENLACE =
-  "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+  "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 export function ContactoAliado({
   web,
@@ -355,7 +355,7 @@ export function ContactoAliado({
               {Icono ? (
                 <Icono size={14} className="text-granate" aria-hidden />
               ) : (
-                <span aria-hidden className="font-display text-[12px] font-extrabold text-granate">
+                <span aria-hidden className="font-display text-rotulo font-extrabold text-granate">
                   {letra}
                 </span>
               )}

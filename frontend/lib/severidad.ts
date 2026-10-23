@@ -185,6 +185,22 @@ export function severidadDeContrato(c: {
   return severidadDeScore(c.score);
 }
 
+/**
+ * El orden de las severidades, de la más grave a la más leve: `RANGO_SEVERIDAD[a] - RANGO_SEVERIDAD[b]` deja primero la
+ * alta. Es el único: había ocho copias por componente, dos de ellas al revés (alta = 3).
+ */
+export const RANGO_SEVERIDAD: Record<"alta" | "media" | "baja", number> = { alta: 0, media: 1, baja: 2 };
+
+/** El rango de un valor que puede no ser una severidad (una faceta, un dato crudo): lo desconocido va al final. */
+export const rangoSeveridad = (s: string | null | undefined): number => RANGO_SEVERIDAD[s as "alta"] ?? 3;
+
+/** La severidad más grave de una lista, o null si está vacía. */
+export function peorSeveridad<S extends "alta" | "media" | "baja">(lista: readonly { severidad: S }[] | null | undefined): S | null {
+  let peor: S | null = null;
+  for (const x of lista ?? []) if (peor == null || RANGO_SEVERIDAD[x.severidad] < RANGO_SEVERIDAD[peor]) peor = x.severidad;
+  return peor;
+}
+
 /** Severidad de UNA SEÑAL (bandera) ya clasificada por el backend. */
 export function severidadDeBandera(s: "alta" | "media" | "baja"): SeveridadUI {
   return SEVERIDAD[s] ?? SEVERIDAD.baja;

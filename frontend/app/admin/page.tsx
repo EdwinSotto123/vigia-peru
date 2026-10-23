@@ -137,7 +137,7 @@ function chequeos(op: Operacion): Chequeo[] {
       estado: d.ok ? "En orden" : "Atrasado",
       frase: d.activos > 0 ? `Leyendo ${plural(d.activos, "contrato", "contratos")} ahora` : d.ultimaCorrida ? `Corrió ${hace(d.ultimaCorrida)}` : "Todavía no corrió",
       extra: !d.ok && (
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           {d.colgados > 0 ? "Hay contratos que dejaron de dar señal mientras se leían." : "Hay contratos en cola y no corre desde hace más de una hora."}
         </p>
       ),
@@ -163,7 +163,7 @@ function chequeos(op: Operacion): Chequeo[] {
       extra: (
         <ul className="grid gap-1.5 sm:grid-cols-2">
           {sv.map((s) => (
-            <li key={s.perfil} className="flex min-w-0 items-center gap-2 text-[13px]">
+            <li key={s.perfil} className="flex min-w-0 items-center gap-2 text-meta">
               <Punto tono={tonoServicio(s)} />
               <span className="font-medium text-ink">{PERFIL_LABEL[s.perfil]?.split(" ")[0] ?? s.perfil}</span>
               <span className="min-w-0 truncate text-inkSoft">{estadoServicio(s)}</span>
@@ -181,7 +181,7 @@ function chequeos(op: Operacion): Chequeo[] {
       nombre: "Servidor de Lima",
       ...relay,
       extra: r.ok === false && (
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           Los contratos vuelven a la cola sin gastar intentos. Para destrabarlo, reinicia el servidor en su proveedor o corre el procesamiento desde una conexión peruana.
         </p>
       ),
@@ -198,7 +198,7 @@ function chequeos(op: Operacion): Chequeo[] {
       tono: g.ok ? "ok" : "warn",
       estado: g.ok ? "En orden" : "Atrasada",
       frase: g.ultimaIngesta ? `Última carga ${hace(g.ultimaIngesta)}` : "Todavía no hay cargas",
-      extra: !g.ok && <p className="text-[13px] text-inkSoft">La carga es diaria y lleva más de 36 h sin traer convocatorias.</p>,
+      extra: !g.ok && <p className="text-meta text-inkSoft">La carga es diaria y lleva más de 36 h sin traer convocatorias.</p>,
       datos: [
         { etiqueta: "Nuevas en 24 h", valor: fmtNum(g.ultimas24h) },
         { etiqueta: "Contratos en total", valor: fmtNum(g.total) },
@@ -215,7 +215,7 @@ function chequeos(op: Operacion): Chequeo[] {
         ? `${fmtNum(l.ok)} de ${fmtNum(l.total)} documentos${l.fallidos ? `, ${fmtNum(l.fallidos)} fallidos` : ""}, ${hace(finLote) ?? "sin fecha"}`
         : "Todavía no corrió ningún lote",
       extra: l && loteParado && (
-        <p className="text-[13px] text-inkSoft">
+        <p className="text-meta text-inkSoft">
           Corre cada noche desde el servidor de Lima. Mientras no corra, los contratos financiados se quedan esperando sus documentos.
         </p>
       ),
@@ -374,7 +374,7 @@ export default function AdminHome() {
                         </li>
                       )}
                       {totalCola === 0 && !(cola.revision ?? op.revision.n) && (
-                        <li className="px-4 py-3 text-[13px] text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
+                        <li className="px-4 py-3 text-meta text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
                       )}
                     </ul>
                   </>
@@ -383,7 +383,7 @@ export default function AdminHome() {
                 ) : (
                   <EmptyState compacto titulo="La cola no llegó" descripcion="Reintenta desde el aviso de arriba." />
                 )}
-                <p className="border-t border-line px-4 py-3 text-[12.5px] text-inkSoft">
+                <p className="border-t border-line px-4 py-3 text-meta text-inkSoft">
                   {k ? <><span className="font-semibold tabular-nums text-ink">{fmtNum(k.colaGlobal)}</span> contratos esperan financiamiento en todo el país.</> : cargandoRes ? "Contando los que esperan financiamiento…" : "Sin dato de la cola sin financiar."}
                 </p>
               </div>
@@ -405,10 +405,10 @@ export default function AdminHome() {
                         <li key={u.ocid}>
                           <Link href={rutaContrato(u.ocid, "vivo")} target="_blank" className={cn(FILA, "block")}>
                             <span className="flex items-start justify-between gap-3">
-                              <span className="line-clamp-1 min-w-0 text-[13px] font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
-                              <span className="shrink-0 text-[12px] text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>
+                              <span className="line-clamp-1 min-w-0 text-meta font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
+                              <span className="shrink-0 text-rotulo text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>
                             </span>
-                            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-mute">
+                            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
                               <span className="font-mono">{u.ocid}</span>
                               {u.score != null && <span>puntaje <span className="tabular-nums text-inkSoft">{u.score}</span></span>}
                               {u.segundos != null && <span>leído en {duracion(u.segundos)}</span>}
@@ -462,7 +462,7 @@ export default function AdminHome() {
                 </StatGrid>
                 {data && data.porEstado.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-[12.5px] font-medium text-inkSoft">Aportes</span>
+                    <span className="text-meta font-medium text-inkSoft">Aportes</span>
                     <ul className="contents">
                       {data.porEstado.map((e) => {
                         const x = estadoAporte(e.estado);
@@ -470,7 +470,7 @@ export default function AdminHome() {
                           <li key={e.estado}>
                             <Link
                               href={`/admin/contribuciones?estado=${encodeURIComponent(e.estado)}`}
-                              className="inline-flex min-h-[32px] items-center gap-2 rounded-full border border-line bg-paperSoft py-1 pl-1 pr-3 text-[12.5px] transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60"
+                              className="inline-flex min-h-[32px] items-center gap-2 rounded-full border border-line bg-paperSoft py-1 pl-1 pr-3 text-meta transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60"
                             >
                               <Badge tono={x.tono} punto>{x.label}</Badge>
                               <span className="font-semibold tabular-nums text-ink">{fmtNum(e.n)}</span>
@@ -526,8 +526,8 @@ function FilaChequeo({ c }: { c: Chequeo }) {
         <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperDeep/50 [&::-webkit-details-marker]:hidden">
           <Punto tono={c.tono} className="mt-1.5" />
           <span className="min-w-0 flex-1">
-            <span className="block text-[13.5px] font-medium text-ink">{c.nombre}</span>
-            <span className="mt-0.5 block text-[12.5px] leading-snug text-mute">{c.frase}</span>
+            <span className="block text-dato font-medium text-ink">{c.nombre}</span>
+            <span className="mt-0.5 block text-meta leading-snug text-mute">{c.frase}</span>
           </span>
           <Badge tono={c.tono}>{c.estado}</Badge>
           <ChevronDown size={14} className="mt-0.5 shrink-0 text-inkSoft transition-transform duration-rapido [details[open]>summary_&]:rotate-180" aria-hidden />
@@ -544,7 +544,7 @@ function FilaChequeo({ c }: { c: Chequeo }) {
               )}
               {c.tecnico?.length ? (
                 <Expandable variante="linea" resumen="Detalle técnico" className="min-w-0 flex-1 pt-0.5">
-                  <ul className="space-y-1 rounded-xl border border-line bg-paper px-3 py-2 font-mono text-[11.5px] leading-relaxed text-inkSoft">
+                  <ul className="space-y-1 rounded-xl border border-line bg-paper px-3 py-2 font-mono text-rotulo leading-relaxed text-inkSoft">
                     {c.tecnico.map((t, i) => <li key={i} className="break-all">{t}</li>)}
                   </ul>
                 </Expandable>
@@ -573,8 +573,8 @@ function FilaCola({ href, tono, etiqueta, n, ayuda }: { href: string; tono: Tone
   return (
     <Link href={href} className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-rapido hover:bg-paperDeep/50">
       <Punto tono={tono} />
-      <span className={cn("w-12 shrink-0 text-right font-display text-[17px] font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{fmtNum(n)}</span>
-      <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
+      <span className={cn("w-12 shrink-0 text-right font-display text-bloque font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{fmtNum(n)}</span>
+      <span className="min-w-0 flex-1 text-meta leading-snug text-ink">
         {etiqueta}
         {ayuda && <span className="text-mute">, {ayuda}</span>}
       </span>
@@ -593,12 +593,12 @@ function FilaActividad({ e, rol }: { e: EntradaBitacora; rol: Rol | null }) {
   const cuerpo = (
     <span className="flex items-start gap-3">
       <Punto tono={a.tono} className="mt-1.5" />
-      <span className="min-w-0 flex-1 text-[13px] leading-snug">
+      <span className="min-w-0 flex-1 text-meta leading-snug">
         <span className="font-medium text-ink" title={e.actor}>{actorCorto(e.actor)}</span> <span className="text-inkSoft">{a.frase}</span>
         {a.objeto && <span className="text-ink">: {a.objeto}</span>}
-        {a.resumen && <span className="mt-0.5 block truncate text-[12px] text-mute">{a.resumen}</span>}
+        {a.resumen && <span className="mt-0.5 block truncate text-rotulo text-mute">{a.resumen}</span>}
       </span>
-      <span className="shrink-0 text-[12px] text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
+      <span className="shrink-0 text-rotulo text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
     </span>
   );
   return (

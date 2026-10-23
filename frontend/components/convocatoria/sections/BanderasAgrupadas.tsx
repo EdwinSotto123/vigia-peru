@@ -24,6 +24,7 @@ import type { SenalAgente, Severidad } from "@/components/agentes/senales";
 import type { Bandera } from "../types";
 import { severidadDe } from "../dossier";
 import { inferAgente } from "../utils";
+import { txt } from "@/lib/utils";
 
 /** El payload del buscador es JSON suelto: el cotejo puede venir plano o anidado, o no venir. */
 type BanderaConCotejo = Bandera & {
@@ -31,7 +32,6 @@ type BanderaConCotejo = Bandera & {
   verificacion?: { ok?: boolean | null } | null;
 };
 
-const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** La `Bandera` del payload → la señal normalizada que pinta la tabla de señales. */
 function desdeBandera(b: Bandera): SenalAgente {
@@ -122,20 +122,20 @@ export function BanderasAgrupadas({
 /** Hechos que el análisis registra pero que no suman al puntaje: a la vista, con su evidencia, fuera de los conteos. */
 function HechosDeContexto({ banderas }: { banderas: Bandera[] }) {
   return (
-    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
+    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-meta">
       <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
         <Info size={15} className="shrink-0 text-mute" aria-hidden />
         <strong className="font-semibold">
           {banderas.length} {banderas.length === 1 ? "hecho de contexto" : "hechos de contexto"}
         </strong>
-        <span className="text-[12px] text-mute">no suman al puntaje</span>
+        <span className="text-rotulo text-mute">no suman al puntaje</span>
       </summary>
-      <p className="mt-2 text-[12px] leading-snug text-mute">
+      <p className="mt-2 text-rotulo leading-snug text-mute">
         Datos ciertos que ayudan a leer el caso pero que, solos, no indican un riesgo: por eso no cuentan como señal.
       </p>
       <ul className="mt-3 space-y-2 border-t border-line pt-3">
         {banderas.map((b, i) => (
-          <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
+          <li key={`${b.regla}-${i}`} className="text-rotulo leading-relaxed text-inkSoft">
             <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "contexto"))}</span>
             {evidenciaComoTexto(b.evidencia) && <span className="mt-0.5 block">{redactDnis(evidenciaComoTexto(b.evidencia))}</span>}
           </li>
@@ -148,23 +148,23 @@ function HechosDeContexto({ banderas }: { banderas: Bandera[] }) {
 /** Las señales de sobreprecio que el mercado no sostiene: a la vista, plegadas y fuera de los conteos. */
 function NoVerificables({ banderas }: { banderas: Bandera[] }) {
   return (
-    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
+    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-meta">
       <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
         <CircleSlash size={15} className="shrink-0 text-mute" aria-hidden />
         <strong className="font-semibold">
           {banderas.length} {banderas.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
         </strong>
-        <span className="text-[12px] text-mute">fuera de los conteos</span>
+        <span className="text-rotulo text-mute">fuera de los conteos</span>
       </summary>
-      <p className="mt-2 text-[12px] leading-snug text-mute">
+      <p className="mt-2 text-rotulo leading-snug text-mute">
         El agente de precios no pudo medir el sobreprecio con fuentes suficientes: estas señales no se cuentan ni se usan en
         el resumen, y se dejan a la vista para revisarlas.
       </p>
       <ul className="mt-3 space-y-2 border-t border-line pt-3">
         {banderas.map((b, i) => (
-          <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
+          <li key={`${b.regla}-${i}`} className="text-rotulo leading-relaxed text-inkSoft">
             <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "sobreprecio"))}</span>
-            <span className="ml-1.5 rounded-full border border-line bg-paper px-1.5 py-0 text-[11px] text-inkSoft">no verificable</span>
+            <span className="ml-1.5 rounded-full border border-line bg-paper px-1.5 py-0 text-micro text-inkSoft">no verificable</span>
             {evidenciaComoTexto(b.evidencia) && <span className="mt-0.5 block">{redactDnis(evidenciaComoTexto(b.evidencia))}</span>}
           </li>
         ))}

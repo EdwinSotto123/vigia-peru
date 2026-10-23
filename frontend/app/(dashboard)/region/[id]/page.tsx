@@ -5,13 +5,13 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { InicioRegion } from "@/components/inicio/InicioRegion";
 import { HistoriaGobiernos, ResumenRegion, TerritorioRegion } from "@/components/regiones/GobiernosRegion";
 import { regionDe, rutaRegion } from "@/lib/regiones";
+import { uno } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const r = regionDe(params.id);
   return { title: r ? `Región ${r.nombre}` : "Región" };
 }
 
-const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
  * /region/[ubigeo o nombre corto] — la ficha de una región (pedido del usuario, 2026-10-22: «las regiones deberían poder

@@ -30,12 +30,12 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
           sel ? "border-granate/60 bg-granate-50 ring-1 ring-inset ring-granate/40" : "border-line bg-paperSoft hover:border-paperEdge hover:bg-paperDeep/60",
         )}
       >
-        <span className="flex items-center gap-2 text-[12px] font-medium text-inkSoft">
+        <span className="flex items-center gap-2 text-rotulo font-medium text-inkSoft">
           <span className={cn("h-2 w-2 shrink-0 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
           {ESTADO_UI[e].label}
         </span>
-        {cargando ? <Cargando className="mt-2 h-7 w-12" /> : <span className="mt-1.5 font-display text-[26px] font-bold leading-none tracking-tight tabular-nums text-ink sm:text-[30px]">{n.toLocaleString("es-PE")}</span>}
-        <span className="mt-0.5 hidden text-[11.5px] leading-snug text-mute sm:block">{ayuda}</span>
+        {cargando ? <Cargando className="mt-2 h-7 w-12" /> : <span className="mt-1.5 font-display text-cifra font-bold leading-none tracking-tight tabular-nums text-ink sm:text-titulo">{n.toLocaleString("es-PE")}</span>}
+        <span className="mt-0.5 hidden text-rotulo leading-snug text-mute sm:block">{ayuda}</span>
       </button>
     );
   };
@@ -64,7 +64,7 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
         {/* Lo detenido va en una franja aparte, debajo del flujo: no es una etapa más.
             Va sobre el fondo gris de la página: textos en inkSoft (mute no llega a 4.5:1 ahí). */}
         <div className="flex flex-col gap-1 rounded-2xl border border-dashed border-line bg-paper/40 p-2 md:flex-row md:items-center">
-          <p className="px-2 text-[12px] font-medium text-inkSoft md:w-24 md:shrink-0">Detenidos</p>
+          <p className="px-2 text-rotulo font-medium text-inkSoft md:w-24 md:shrink-0">Detenidos</p>
           <ul className="grid flex-1 gap-1 md:grid-cols-3">
             {DETENIDOS.map(([e, ayuda]) => {
               const n = counts[e];
@@ -82,8 +82,8 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
                   >
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium text-ink">{ESTADO_UI[e].label}</span>
-                      <span className="block text-[11.5px] text-inkSoft">{ayuda}</span>
+                      <span className="block text-meta font-medium text-ink">{ESTADO_UI[e].label}</span>
+                      <span className="block text-rotulo text-inkSoft">{ayuda}</span>
                     </span>
                     {cargando ? <Cargando className="h-6 w-8" /> : <span className={cn("font-display text-xl font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{n.toLocaleString("es-PE")}</span>}
                   </button>

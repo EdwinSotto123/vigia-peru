@@ -398,7 +398,7 @@ export function FlowGraph({ liveEvents = [], override }: {
       <button
         type="button"
         onClick={() => setFullscreen((v) => !v)}
-        className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg border border-line bg-paperSoft/70 px-2.5 py-1 font-mono text-[10px] text-mute backdrop-blur transition-colors hover:text-ink"
+        className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg border border-line bg-paperSoft/70 px-2.5 py-1 font-mono text-micro text-mute backdrop-blur transition-colors hover:text-ink"
         title={fullscreen ? "Salir de pantalla completa (Esc)" : "Ver en grande"}
       >
         {fullscreen ? <Minimize2 size={12} aria-hidden /> : <Maximize2 size={12} aria-hidden />}
@@ -410,87 +410,87 @@ export function FlowGraph({ liveEvents = [], override }: {
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
           {selNode ? (
             <>
-              <div className="font-display text-[17px] font-bold leading-tight" style={{ color: stroke(selNode.id) }}>{selNode.name}</div>
-              <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 font-mono text-[9px] font-semibold tracking-wider"
+              <div className="font-display text-bloque font-bold leading-tight" style={{ color: stroke(selNode.id) }}>{selNode.name}</div>
+              <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 font-mono text-micro font-semibold tracking-wider"
                 style={{ background: stroke(selNode.id) + "1f", color: stroke(selNode.id), border: `1px solid ${stroke(selNode.id)}55` }}>
                 {TIPO_LABEL[selNode.type]}{selNode.carril ? `, carril ${selNode.carril}` : ""}
               </span>
-              <p className="mt-2 text-[12px] leading-relaxed text-ink/75">{selNode.desc}</p>
+              <p className="mt-2 text-rotulo leading-relaxed text-ink/75">{selNode.desc}</p>
               {selNode.fuentes.length > 0 && (
                 <div className="mt-2.5">
-                  <div className="text-[11px] font-semibold text-mute">Coteja contra</div>
+                  <div className="text-micro font-semibold text-mute">Coteja contra</div>
                   <ul className="mt-1 flex flex-wrap gap-1.5">
-                    {selNode.fuentes.map((c) => <li key={c} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-[10px] text-mute">{c}</li>)}
+                    {selNode.fuentes.map((c) => <li key={c} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-micro text-mute">{c}</li>)}
                   </ul>
                 </div>
               )}
             </>
           ) : (
-            <p className="text-[12px] leading-relaxed text-mute">Haz clic en un paso para ver qué hace y contra qué fuentes coteja.</p>
+            <p className="text-rotulo leading-relaxed text-mute">Haz clic en un paso para ver qué hace y contra qué fuentes coteja.</p>
           )}
         </div>
 
         {/* Hallazgos en vivo (necesita el trace fino del ADK: no disponible en `override`) */}
         {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
-          <div className="mb-2 text-[12px] font-semibold text-ink">Hallazgos en vivo</div>
+          <div className="mb-2 text-rotulo font-semibold text-ink">Hallazgos en vivo</div>
           {(findings.empresa || findings.entidad || findings.socios.length > 0 || findings.senales.length > 0) ? (
-            <div className="flex flex-col gap-2 text-[12px]">
-              {findings.entidad && <div><span className="block text-[11px] text-mute">Entidad</span><span className="font-semibold text-ink">{findings.entidad}</span></div>}
+            <div className="flex flex-col gap-2 text-rotulo">
+              {findings.entidad && <div><span className="block text-micro text-mute">Entidad</span><span className="font-semibold text-ink">{findings.entidad}</span></div>}
               {findings.empresa && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-full text-[11px] text-mute">Empresa</span>
+                  <span className="w-full text-micro text-mute">Empresa</span>
                   <span className="font-semibold text-ink">{findings.empresa}</span>
-                  {findings.ruc && <span className="rounded-full border border-line bg-paperDeep/60 px-2 py-0.5 font-mono text-[9px] text-mute">RUC {maskDnis(findings.ruc)}</span>}
-                  {findings.estado && <span className="rounded-full bg-moss/10 px-2 py-0.5 text-[9px] font-bold text-mossTexto">{findings.estado}</span>}
-                  {findings.apto === false && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-[9px] font-bold text-rust">No apto</span>}
-                  {typeof findings.n_sanciones === "number" && findings.n_sanciones > 0 && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-[9px] font-bold text-rust">{findings.n_sanciones} sanciones</span>}
+                  {findings.ruc && <span className="rounded-full border border-line bg-paperDeep/60 px-2 py-0.5 font-mono text-micro text-mute">RUC {maskDnis(findings.ruc)}</span>}
+                  {findings.estado && <span className="rounded-full bg-moss/10 px-2 py-0.5 text-micro font-bold text-mossTexto">{findings.estado}</span>}
+                  {findings.apto === false && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-micro font-bold text-rust">No apto</span>}
+                  {typeof findings.n_sanciones === "number" && findings.n_sanciones > 0 && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-micro font-bold text-rust">{findings.n_sanciones} sanciones</span>}
                 </div>
               )}
               {findings.socios.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-full text-[11px] text-mute">Socios</span>
+                  <span className="w-full text-micro text-mute">Socios</span>
                   {/* Socios: personas privadas salvo que sean empresas — apellido tapado (§10.6); un RUC 10 lleva un DNI. */}
-                  {findings.socios.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-[11px] text-ink">{pareceEmpresa(s) ? s : maskApellido(s)}</span>)}
+                  {findings.socios.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-micro text-ink">{pareceEmpresa(s) ? s : maskApellido(s)}</span>)}
                 </div>
               )}
               {findings.senales.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-full text-[11px] text-mute">Señales</span>
-                  {findings.senales.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-full bg-crimson-soft px-2 py-0.5 text-[10px] font-bold text-rust">{s.replace(/_/g, " ")}</span>)}
+                  <span className="w-full text-micro text-mute">Señales</span>
+                  {findings.senales.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-full bg-crimson-soft px-2 py-0.5 text-micro font-bold text-rust">{s.replace(/_/g, " ")}</span>)}
                 </div>
               )}
             </div>
-          ) : <p className="text-[12px] text-mute">Aún sin hallazgos…</p>}
+          ) : <p className="text-rotulo text-mute">Aún sin hallazgos…</p>}
         </div>
         )}
 
         {/* Traza de invocaciones (compacta: verbo + acción): ídem, requiere el trace fino */}
         {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3 shadow-lg backdrop-blur">
-          <div className="mb-1.5 text-[12px] font-semibold text-ink">Últimos pasos</div>
+          <div className="mb-1.5 text-rotulo font-semibold text-ink">Últimos pasos</div>
           {recent.length ? (
             <div className="flex flex-col gap-1">
               {recent.slice(-6).map((s, i) => (
-                <div key={i} className="flex items-baseline gap-1.5 text-[10px] leading-snug text-mute">
+                <div key={i} className="flex items-baseline gap-1.5 text-micro leading-snug text-mute">
                   <span className="shrink-0 font-mono font-bold" style={{ color: VERB_HEX[s.v] }}>{s.v}</span>
                   <span className="truncate">{s.m}</span>
                 </div>
               ))}
             </div>
-          ) : <p className="text-[11px] text-mute">Esperando el primer paso…</p>}
+          ) : <p className="text-micro text-mute">Esperando el primer paso…</p>}
         </div>
         )}
 
         {/* Leyenda */}
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
-          <div className="mb-2 text-[12px] font-semibold text-ink">Leyenda</div>
-          <ul className="flex flex-col gap-1.5 text-[12px] text-mute">
+          <div className="mb-2 text-rotulo font-semibold text-ink">Leyenda</div>
+          <ul className="flex flex-col gap-1.5 text-rotulo text-mute">
             <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: G_COLOR.agent.stroke }} aria-hidden />Agente de IA</li>
             <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: G_COLOR.src.stroke, background: G_COLOR.src.stroke + "40" }} aria-hidden />Paso de datos o control (no es IA)</li>
             <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: G_COLOR.orch.stroke }} aria-hidden />Coordinador (código fijo)</li>
           </ul>
-          <p className="mt-2 text-[11px] leading-snug text-mute">Las flechas siguen el orden real: expediente y proveedor a la vez, la síntesis al final.</p>
+          <p className="mt-2 text-micro leading-snug text-mute">Las flechas siguen el orden real: expediente y proveedor a la vez, la síntesis al final.</p>
         </div>
       </div>
 
@@ -501,16 +501,16 @@ export function FlowGraph({ liveEvents = [], override }: {
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
         </span>
         {override?.narracion ? (
-          <span className="truncate font-display text-[14px] font-semibold text-ink">
+          <span className="truncate font-display text-dato font-semibold text-ink">
             Ahora: <span style={{ color: stroke(activeId) }}>{override.narracion}</span>
           </span>
         ) : curStep ? (
-          <span className="truncate font-display text-[14px] font-semibold text-ink">
-            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: VERB_HEX[curStep.v] }}>{curStep.v}</span>
+          <span className="truncate font-display text-dato font-semibold text-ink">
+            <span className="font-mono text-micro uppercase tracking-wider" style={{ color: VERB_HEX[curStep.v] }}>{curStep.v}</span>
             {" "}<span style={{ color: stroke(curStep.f) }}>{nm(curStep.f)}</span> {curStep.m}
           </span>
         ) : (
-          <span className="font-display text-[14px] font-semibold text-ink">Repartiendo el contrato entre los agentes…</span>
+          <span className="font-display text-dato font-semibold text-ink">Repartiendo el contrato entre los agentes…</span>
         )}
       </div>
     </div>

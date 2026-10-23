@@ -77,7 +77,7 @@ export function PerfilPublicoForm({
           </button>
         </div>
         {oculto && (
-          <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-soft px-3 py-2 text-[13px] text-ink" role="status">
+          <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-soft px-3 py-2 text-meta text-ink" role="status">
             <ShieldAlert size={13} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
             <span>
               {oculto} Tus aportes financian contratos igual. Mientras siga oculto, elegir “Visible” no lo muestra.
@@ -126,13 +126,13 @@ export function PerfilPublicoForm({
             )}
           </button>
           <input ref={logoInput} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { void subir("logo", e.target.files?.[0] ?? null); e.target.value = ""; }} />
-          <div className="mt-1 flex gap-2 text-[11px] sm:justify-center">
+          <div className="mt-1 flex gap-2 text-micro sm:justify-center">
             <button type="button" onClick={() => logoInput.current?.click()} disabled={subiendo === "logo"} className="inline-flex items-center gap-1 text-ink underline transition-colors hover:text-granate disabled:opacity-60">
               {valor.logoUrl ? "Cambiar" : "Subir"}
             </button>
             {valor.logoUrl && <button type="button" onClick={() => onCambiar({ logoUrl: null })} className="text-mute underline transition-colors hover:text-ink">Quitar</button>}
           </div>
-          {errorLogo && <p id={`${idCampo("logoUrl")}-error`} className="mt-1 max-w-[12rem] text-[12px] text-crimsonTexto">{errorLogo}</p>}
+          {errorLogo && <p id={`${idCampo("logoUrl")}-error`} className="mt-1 max-w-[12rem] text-rotulo text-crimsonTexto">{errorLogo}</p>}
         </div>
       </div>
 
@@ -184,12 +184,12 @@ export function PerfilPublicoForm({
                 </Campo>
               ))}
             </div>
-            {errores.redes && <p id={`${idCampo("redes")}-error`} className="mt-2 text-[13px] text-crimsonTexto">{errores.redes}</p>}
+            {errores.redes && <p id={`${idCampo("redes")}-error`} className="mt-2 text-meta text-crimsonTexto">{errores.redes}</p>}
           </fieldset>
 
           <fieldset>
             <legend className={SUBTITULO}>Enlaces relevantes (opcional): informes, noticias, tu página de transparencia</legend>
-            <p className="mt-1 text-xs text-mute">Hasta {MAX_ENLACES}. Cada uno con un título corto y su enlace https.</p>
+            <p className="mt-1 text-rotulo leading-4 text-mute">Hasta {MAX_ENLACES}. Cada uno con un título corto y su enlace https.</p>
             <ul className="mt-2 space-y-3">
               {valor.enlaces.map((e, i) => {
                 const idErr = `${idCampo(`enlace-${i}`)}-error`;
@@ -226,7 +226,7 @@ export function PerfilPublicoForm({
                     >
                       <Trash2 size={15} aria-hidden />
                     </button>
-                    {errores[`enlace-${i}`] && <p id={idErr} className="text-[13px] text-crimsonTexto sm:col-span-3">{errores[`enlace-${i}`]}</p>}
+                    {errores[`enlace-${i}`] && <p id={idErr} className="text-meta text-crimsonTexto sm:col-span-3">{errores[`enlace-${i}`]}</p>}
                   </li>
                 );
               })}
@@ -235,12 +235,12 @@ export function PerfilPublicoForm({
               <button
                 type="button"
                 onClick={() => onCambiar({ enlaces: [...valor.enlaces, { titulo: "", url: "" }] })}
-                className="mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-granate/40 hover:bg-granate-50"
+                className="mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-meta font-semibold text-ink transition-colors hover:border-granate/40 hover:bg-granate-50"
               >
                 <Plus size={14} aria-hidden /> Agregar enlace
               </button>
             )}
-            {errores.enlaces && <p className="mt-2 text-[13px] text-crimsonTexto">{errores.enlaces}</p>}
+            {errores.enlaces && <p className="mt-2 text-meta text-crimsonTexto">{errores.enlaces}</p>}
           </fieldset>
 
           <div>
@@ -251,10 +251,10 @@ export function PerfilPublicoForm({
                   <Image src={valor.portadaUrl} alt="Tu imagen de portada" fill unoptimized className="object-cover" />
                 </div>
               ) : (
-                <p className="flex h-24 items-center justify-center px-4 text-center text-[13px] text-mute sm:h-28">Sin portada, tu página usa la franja textil de Vigía.</p>
+                <p className="flex h-24 items-center justify-center px-4 text-center text-meta text-mute sm:h-28">Sin portada, tu página usa la franja textil de Vigía.</p>
               )}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px]">
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-meta">
               <button
                 type="button"
                 id={idCampo("portadaUrl")}
@@ -270,8 +270,8 @@ export function PerfilPublicoForm({
               {valor.portadaUrl && <button type="button" onClick={() => onCambiar({ portadaUrl: "" })} className="text-mute underline transition-colors hover:text-ink">Quitar</button>}
             </div>
             <input ref={portadaInput} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { void subir("portada", e.target.files?.[0] ?? null); e.target.value = ""; }} />
-            <p id={`${idCampo("portadaUrl")}-pista`} className="mt-1 text-xs text-mute">JPG, PNG o WebP horizontal, de unos 1500 × 500 px y hasta 12 MB.</p>
-            {errorPortada && <p id={`${idCampo("portadaUrl")}-error`} className="mt-1 text-[13px] text-crimsonTexto">{errorPortada}</p>}
+            <p id={`${idCampo("portadaUrl")}-pista`} className="mt-1 text-rotulo leading-4 text-mute">JPG, PNG o WebP horizontal, de unos 1500 × 500 px y hasta 12 MB.</p>
+            {errorPortada && <p id={`${idCampo("portadaUrl")}-error`} className="mt-1 text-meta text-crimsonTexto">{errorPortada}</p>}
           </div>
 
           <CampoRuc perfil={perfil} valor={valor} onCambiar={onCambiar} errores={errores} />
@@ -295,11 +295,11 @@ function CampoRuc({ perfil, valor, onCambiar, errores }: { perfil: Perfil; valor
   );
   if (perfil.ruc) {
     return (
-      <div className="rounded-xl bg-paperSoft px-3 py-2.5 text-sm">
+      <div className="rounded-xl bg-paperSoft px-3 py-2.5 text-dato leading-5">
         <span className="flex items-center gap-1 font-semibold text-inkSoft">RUC registrado {ayuda}</span>
         <span className="font-mono text-ink"><Ruc value={perfil.ruc} /></span>
-        <span className="block text-xs text-mute">No se muestra en público y no se puede cambiar.</span>
-        {errores.ruc && <p className="mt-1 text-[13px] text-crimsonTexto" role="alert">{errores.ruc}</p>}
+        <span className="block text-rotulo leading-4 text-mute">No se muestra en público y no se puede cambiar.</span>
+        {errores.ruc && <p className="mt-1 text-meta text-crimsonTexto" role="alert">{errores.ruc}</p>}
       </div>
     );
   }
@@ -328,7 +328,7 @@ function CampoRuc({ perfil, valor, onCambiar, errores }: { perfil: Perfil; valor
         )}
       </Campo>
       {valor.ruc && (
-        <label className="mt-2 flex cursor-pointer items-start gap-2.5 text-[13px] text-ink">
+        <label className="mt-2 flex cursor-pointer items-start gap-2.5 text-meta text-ink">
           <input
             type="checkbox"
             id={idCampo("rucConfirmado")}
@@ -343,7 +343,7 @@ function CampoRuc({ perfil, valor, onCambiar, errores }: { perfil: Perfil; valor
           </span>
         </label>
       )}
-      {errores.rucConfirmado && <p id={`${idCampo("rucConfirmado")}-error`} className="mt-1 text-[13px] text-crimsonTexto">{errores.rucConfirmado}</p>}
+      {errores.rucConfirmado && <p id={`${idCampo("rucConfirmado")}-error`} className="mt-1 text-meta text-crimsonTexto">{errores.rucConfirmado}</p>}
     </div>
   );
 }
@@ -370,14 +370,14 @@ function Campo({
   const id = idCampo(nombre);
   const describe = [pista ? `${id}-pista` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");
   return (
-    <div className="text-sm">
+    <div className="text-dato leading-5">
       <span className="flex items-center gap-1">
         <label htmlFor={id} className={ETIQUETA}>{etiqueta}</label>
         {extraEtiqueta}
       </span>
       {children({ id, className: campo(error), "aria-invalid": error ? true : undefined, "aria-describedby": describe || undefined })}
-      {pista && <p id={`${id}-pista`} className="mt-1 text-xs text-mute">{pista}</p>}
-      {error && <p id={`${id}-error`} className="mt-1 text-[13px] text-crimsonTexto">{error}</p>}
+      {pista && <p id={`${id}-pista`} className="mt-1 text-rotulo leading-4 text-mute">{pista}</p>}
+      {error && <p id={`${id}-error`} className="mt-1 text-meta text-crimsonTexto">{error}</p>}
     </div>
   );
 }

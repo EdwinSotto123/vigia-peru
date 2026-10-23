@@ -80,7 +80,7 @@ export function RankingPartidos({
               onResaltar(null);
             }}
             className={cn(
-              "min-h-11 rounded-full px-3.5 py-1.5 text-[13px] font-semibold capitalize transition-colors sm:min-h-[32px]",
+              "min-h-11 rounded-full px-3.5 py-1.5 text-meta font-semibold capitalize transition-colors sm:min-h-[32px]",
               nivel === n ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
             )}
           >
@@ -91,17 +91,17 @@ export function RankingPartidos({
 
       {compacto ? (
         <div className="mt-2 hidden items-center justify-between gap-3 sm:flex">
-          <p className="text-[13px] leading-snug text-mute">
+          <p className="text-meta leading-snug text-mute">
             {numero(total)} {NIVEL_LABEL[nivel].plural}. Toca una organización para verla en el mapa.
           </p>
           {filas.length > 5 && (
-            <button type="button" onClick={() => setVerMas((v) => !v)} aria-expanded={verMas} className="shrink-0 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+            <button type="button" onClick={() => setVerMas((v) => !v)} aria-expanded={verMas} className="shrink-0 text-dato font-semibold text-granate underline-offset-4 hover:underline">
               {verMas ? "Ver menos" : "Ver más"}
             </button>
           )}
         </div>
       ) : (
-        <p className="mt-3 text-[13px] leading-snug text-mute">
+        <p className="mt-3 text-meta leading-snug text-mute">
           {numero(total)} {NIVEL_LABEL[nivel].plural} en total. Toca una organización para verla en el mapa.
         </p>
       )}
@@ -123,9 +123,9 @@ export function RankingPartidos({
                   activa ? "border-granate bg-granate-soft" : "border-transparent hover:border-line hover:bg-paperSoft",
                 )}
               >
-                <span className="font-mono text-[12px] tabular-nums text-mute">{i + 1}</span>
+                <span className="font-mono text-rotulo tabular-nums text-mute">{i + 1}</span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[14px] font-semibold text-ink" title={o.n}>
+                  <span className="block truncate text-dato font-semibold text-ink" title={o.n}>
                     {o.n}
                   </span>
                   <span className={cn("block overflow-hidden rounded-full bg-paperDeep", compacto ? "mt-1 h-1.5" : "mt-1.5 h-2")}>
@@ -136,8 +136,8 @@ export function RankingPartidos({
                   </span>
                 </span>
                 <span className="text-right">
-                  <span className="block font-mono text-[15px] font-bold tabular-nums text-ink">{numero(n)}</span>
-                  {!compacto && <span className="block font-mono text-[11px] tabular-nums text-mute">{((n / total) * 100).toFixed(0)} %</span>}
+                  <span className="block font-mono text-cuerpo font-bold tabular-nums text-ink">{numero(n)}</span>
+                  {!compacto && <span className="block font-mono text-micro tabular-nums text-mute">{((n / total) * 100).toFixed(0)} %</span>}
                 </span>
               </button>
             </li>
@@ -149,13 +149,13 @@ export function RankingPartidos({
           type="button"
           onClick={() => setVerMas((v) => !v)}
           aria-expanded={verMas}
-          className="mt-2 inline-flex min-h-11 items-center text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline sm:hidden"
+          className="mt-2 inline-flex min-h-11 items-center text-dato font-semibold text-granate underline-offset-4 hover:underline sm:hidden"
         >
           {verMas ? "Ver menos" : "Ver más"}
         </button>
       )}
       {(!compacto || verMas) && resto.length > 0 && (
-        <p className="mt-2 text-[13px] text-mute">
+        <p className="mt-2 text-meta text-mute">
           Y otras {numero(resto.length)} organizaciones con {numero(restoN)} {NIVEL_LABEL[nivel].plural} entre todas.
         </p>
       )}
@@ -165,7 +165,7 @@ export function RankingPartidos({
         {(["partido", "movimiento", "alianza"] as const).map((t) => (
           <div key={t}>
             <dd className="font-mono text-xl font-bold tabular-nums text-ink">{numero(porTipo[t])}</dd>
-            <dt className="mt-0.5 text-[12px] leading-snug text-mute">{TIPO_ORG_LABEL[t]}</dt>
+            <dt className="mt-0.5 text-rotulo leading-snug text-mute">{TIPO_ORG_LABEL[t]}</dt>
           </div>
         ))}
       </dl>
@@ -186,7 +186,7 @@ export function DueloPartidos({ d }: { d: AutoridadesDatos }) {
 
   return (
     <div>
-      <p className="text-[13px] leading-snug text-mute">
+      <p className="text-meta leading-snug text-mute">
         Dos organizaciones frente a frente, contando cuántos gobiernos ganó cada una en este período.
       </p>
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
@@ -205,7 +205,7 @@ export function DueloPartidos({ d }: { d: AutoridadesDatos }) {
               <p className="etiqueta-mono mb-1.5 text-center">{NIVEL_LABEL[n].plural}</p>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 <div className="flex items-center justify-end gap-2">
-                  <span className={cn("font-mono text-lg font-bold tabular-nums", va > vb ? "text-granate" : "text-inkSoft")}>{numero(va)}</span>
+                  <span className={cn("font-mono text-bloque leading-7 font-bold tabular-nums", va > vb ? "text-granate" : "text-inkSoft")}>{numero(va)}</span>
                   <span className="h-3 overflow-hidden rounded-l-full bg-paperDeep" style={{ width: "100%", maxWidth: "9rem" }}>
                     <span
                       className="ml-auto block h-full rounded-l-full bg-granate transition-[width] duration-panel ease-salida"
@@ -217,18 +217,18 @@ export function DueloPartidos({ d }: { d: AutoridadesDatos }) {
                 <div className="flex items-center gap-2">
                   <span className="h-3 overflow-hidden rounded-r-full bg-paperDeep" style={{ width: "100%", maxWidth: "9rem" }}>
                     <span
-                      className="block h-full rounded-r-full bg-[#6C8CFF] transition-[width] duration-panel ease-salida"
+                      className="block h-full rounded-r-full bg-anil transition-[width] duration-panel ease-salida"
                       style={{ width: `${(vb / mx) * 100}%`, opacity: vb >= va ? 1 : 0.45 }}
                     />
                   </span>
-                  <span className={cn("font-mono text-lg font-bold tabular-nums", vb > va ? "text-[#8FA6FF]" : "text-inkSoft")}>{numero(vb)}</span>
+                  <span className={cn("font-mono text-bloque leading-7 font-bold tabular-nums", vb > va ? "text-anilTexto" : "text-inkSoft")}>{numero(vb)}</span>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
-      <p className="mt-5 border-t border-line pt-3 text-[12.5px] leading-snug text-mute">
+      <p className="mt-5 border-t border-line pt-3 text-meta leading-snug text-mute">
         Cuántos gobiernos ganó cada una, no cuántos hizo bien o mal. Un movimiento regional sólo compite en su región.
       </p>
     </div>
@@ -254,7 +254,7 @@ function Selector({
       <select
         value={valor}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full min-w-0 truncate rounded-lg border border-line bg-paperDeep px-2.5 py-2 text-[13px] font-semibold text-ink"
+        className="w-full min-w-0 truncate rounded-lg border border-line bg-paperDeep px-2.5 py-2 text-meta font-semibold text-ink"
       >
         {opciones.map((o) => (
           <option key={o} value={o}>
@@ -301,7 +301,7 @@ export function MiDistrito({
 
   return (
     <div>
-      <p className="text-[13px] leading-snug text-mute">Escribe el nombre de tu distrito y mira quién ganó en {anio}.</p>
+      <p className="text-meta leading-snug text-mute">Escribe el nombre de tu distrito y mira quién ganó en {anio}.</p>
       <label className="relative mt-3 block">
         <span className="sr-only">Buscar un distrito</span>
         <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
@@ -312,7 +312,7 @@ export function MiDistrito({
             setSel(null);
           }}
           placeholder="Ej. Miraflores, Yanahuara, Huanta…"
-          className="w-full rounded-lg border border-line bg-paperDeep py-2.5 pl-9 pr-9 text-[15px] text-ink placeholder:text-mute"
+          className="w-full rounded-lg border border-line bg-paperDeep py-2.5 pl-9 pr-9 text-cuerpo text-ink placeholder:text-mute"
         />
         {q && (
           <button
@@ -340,8 +340,8 @@ export function MiDistrito({
                   onClick={() => setSel(i)}
                   className="flex w-full items-baseline justify-between gap-3 bg-paperSoft px-3 py-2.5 text-left hover:bg-paperDeep"
                 >
-                  <span className="text-[14px] font-semibold text-ink">{x.n}</span>
-                  <span className="truncate text-[12.5px] text-mute">
+                  <span className="text-dato font-semibold text-ink">{x.n}</span>
+                  <span className="truncate text-meta text-mute">
                     {x.pv}, {nombreDepartamento(x.u)}
                   </span>
                 </button>
@@ -351,7 +351,7 @@ export function MiDistrito({
         </ul>
       )}
       {!dist && q.trim().length >= 2 && resultados.length === 0 && (
-        <p className="mt-3 text-[13px] text-mute">No encontramos ese distrito en los resultados de {anio}.</p>
+        <p className="mt-3 text-meta text-mute">No encontramos ese distrito en los resultados de {anio}.</p>
       )}
 
       {dist && (
@@ -359,15 +359,15 @@ export function MiDistrito({
           <p className="etiqueta-mono">
             {dist.n}, {dist.pv}, {nombreDepartamento(dist.u)}
           </p>
-          <p className="mt-2 font-display text-[22px] font-bold leading-tight text-ink">{orgDe(d, dist.o).n}</p>
-          <p className="mt-1 text-[14px] text-inkSoft">
+          <p className="mt-2 font-display text-seccion font-bold leading-tight text-ink">{orgDe(d, dist.o).n}</p>
+          <p className="mt-1 text-dato text-inkSoft">
             {NIVEL_LABEL.distrital.cargo}: <span className="font-semibold text-ink">{dist.a}</span>
           </p>
-          <p className="mt-1 text-[13px] text-mute">
+          <p className="mt-1 text-meta text-mute">
             {TIPO_ORG_LABEL[orgDe(d, dist.o).t]}
             {pct(dist.p) ? `, ${pct(dist.p)} de los votos` : ""}
           </p>
-          <ul className="mt-3 space-y-1 border-t border-line pt-3 text-[13px] text-inkSoft">
+          <ul className="mt-3 space-y-1 border-t border-line pt-3 text-meta text-inkSoft">
             {prov && (
               <li>
                 Provincia de {prov.n}: <span className="font-semibold text-ink">{orgDe(d, prov.o).n}</span>
@@ -384,7 +384,7 @@ export function MiDistrito({
             {PERIODOS.filter((p) => p.cargado).map((p) => {
               const g = ganoDistrito(datos[p.anio], dist.pv, dist.n);
               return (
-                <li key={p.anio} className={cn("grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", p.anio === anio ? "text-ink" : "text-inkSoft")}>
+                <li key={p.anio} className={cn("grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-meta", p.anio === anio ? "text-ink" : "text-inkSoft")}>
                   <span className="font-mono tabular-nums text-mute">{p.anio}</span>
                   <span className={cn("truncate", p.anio === anio && "font-semibold")} title={g?.org.n}>
                     {g ? `${g.org.n}, ${g.persona}` : datos[p.anio] ? "Sin dato" : "Cargando"}
@@ -396,7 +396,7 @@ export function MiDistrito({
           <div className="mt-4 flex flex-wrap gap-2">
             <a
               href={`/app/entidades?q=${encodeURIComponent(`Municipalidad Distrital de ${dist.n}`)}`}
-              className="inline-flex min-h-11 items-center rounded-full bg-granate px-4 text-[14px] font-semibold text-paper hover:bg-granate-deep"
+              className="inline-flex min-h-11 items-center rounded-full bg-granate px-4 text-dato font-semibold text-paper hover:bg-granate-deep"
             >
               Ver sus contratos en Vigía
             </a>
@@ -414,11 +414,11 @@ export function MiDistrito({
                   /* el usuario canceló */
                 }
               }}
-              className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-4 text-[14px] font-semibold text-ink hover:bg-paperSoft"
+              className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-4 text-dato font-semibold text-ink hover:bg-paperSoft"
             >
               {copiado ? "Copiado" : "Compartir"}
             </button>
-            <button type="button" onClick={() => setSel(null)} className="inline-flex min-h-11 items-center px-2 text-[13px] text-mute hover:text-ink">
+            <button type="button" onClick={() => setSel(null)} className="inline-flex min-h-11 items-center px-2 text-meta text-mute hover:text-ink">
               Otro distrito
             </button>
           </div>

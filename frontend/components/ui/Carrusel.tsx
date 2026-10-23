@@ -122,7 +122,7 @@ export function Carrusel({
 
   return (
     <div className={cn("relative", className)} role="group" aria-roledescription="carrusel" aria-label={etiqueta}>
-      <ul
+      <ul data-lista="carrusel"
         ref={lista}
         tabIndex={0}
         onKeyDown={alTeclado}
@@ -153,7 +153,7 @@ export function Carrusel({
 
       {total > 1 && (
         <div className={cn("mt-3 flex items-center justify-between gap-3", lateral && "lg:hidden")}>
-          <p className={cn("text-[13px] tabular-nums", oscuro ? "text-paper/70" : "text-mute")} aria-hidden>
+          <p className={cn("text-meta tabular-nums", oscuro ? "text-paper/70" : "text-mute")} aria-hidden>
             {pos + 1} de {total}
           </p>
           <div className="flex items-center gap-1" aria-hidden>

@@ -30,6 +30,7 @@ export function ContenidoPersonas({
         filas={[
           { etiqueta: "Con una señal grave", n: r.alta, href: href({ [P.severidad]: "alta" }), grave: true },
           { etiqueta: "Con alguna señal", n: r.conSenales, href: href({ [P.severidad]: "con" }) },
+          // recorte: las 5 señales más frecuentes; todas, en la lista filtrable
           ...r.porSenal.slice(0, 5).map((s) => ({ etiqueta: SENAL[s.tipo]?.titulo ?? s.tipo, n: s.n, href: href({ [P.senal]: s.tipo }) })),
         ]}
       />

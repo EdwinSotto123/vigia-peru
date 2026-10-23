@@ -148,29 +148,6 @@ export function shortIdFromOcid(ocid: string): string {
   return ocid.replace(OCID_PREFIX, "");
 }
 
-export function formatAmount(a?: OcdsAmount): string {
-  if (!a || !a.amount) return "—";
-  const v = a.amount;
-  if (v >= 1_000_000) return `S/. ${(v / 1_000_000).toFixed(2)}M`;
-  if (v >= 1000) return `S/. ${(v / 1000).toFixed(0)}K`;
-  return `S/. ${v.toLocaleString("es-PE")}`;
-}
-
-export function formatDate(s?: string): string {
-  if (!s) return "—";
-  try {
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "—";
-  }
-}
-
 // ─── Fetchers (server-side) ──────────────────────
 
 export async function fetchConvocatoria(

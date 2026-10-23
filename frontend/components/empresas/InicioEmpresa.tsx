@@ -33,8 +33,8 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
   return (
     <section className="min-w-0 space-y-2.5 rounded-2xl border border-line bg-paper p-4">
       <div className="space-y-0.5">
-        <h3 className="font-display text-[15px] font-bold text-ink">{titulo}</h3>
-        {explica && <p className="text-[12.5px] text-mute">{explica}</p>}
+        <h3 className="font-display text-bloque font-bold text-ink">{titulo}</h3>
+        {explica && <p className="text-meta text-mute">{explica}</p>}
       </div>
       {items.length ? (
         <ol className="space-y-2">
@@ -42,13 +42,13 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
             const cuerpo = (
               <>
                 <span className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 truncate text-[13.5px] text-ink">{it.titulo}</span>
-                  <span className="shrink-0 font-mono text-[13px] tabular-nums text-ink">{it.valor}</span>
+                  <span className="min-w-0 truncate text-dato text-ink">{it.titulo}</span>
+                  <span className="shrink-0 font-mono text-meta tabular-nums text-ink">{it.valor}</span>
                 </span>
                 <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
                   <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, Math.round(it.parte * 100))}%` }} />
                 </span>
-                {it.sub && <span className="mt-0.5 block text-[12px] text-mute">{it.sub}</span>}
+                {it.sub && <span className="mt-0.5 block text-rotulo text-mute">{it.sub}</span>}
               </>
             );
             return (
@@ -65,10 +65,10 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
           })}
         </ol>
       ) : (
-        <p className="text-[13px] text-mute">{vacio}</p>
+        <p className="text-meta text-mute">{vacio}</p>
       )}
       {verTodo && (
-        <Link href={verTodo.href} className="inline-block text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+        <Link href={verTodo.href} className="inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">
           {verTodo.texto}
         </Link>
       )}

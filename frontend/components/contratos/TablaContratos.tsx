@@ -44,6 +44,7 @@ import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
 import { Dato } from "@/components/ui/Dato";
 import { AvisoContrato, ConBanderaDato } from "./DatoDudosoContrato";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 const RUTA = "/app/contratos";
 
@@ -270,10 +271,10 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
       ),
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>
+          <span className="text-rotulo text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>
           <Link
             href={`${RUTA}/${encodeURIComponent(c.ocid)}`}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-[13px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             Ver el dossier completo <ArrowRight size={14} aria-hidden />
           </Link>
@@ -288,6 +289,4 @@ export function TablaContratosSkeleton() {
   return <TablaSkeleton columnas={COLUMNAS} filas={10} />;
 }
 
-/** La acción de un estado vacío o de error: la píldora secundaria de los listados. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;

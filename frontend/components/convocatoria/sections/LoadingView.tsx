@@ -82,7 +82,7 @@ export function LoadingView({
         {/* HEADER */}
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-3 py-1 text-[12px] font-semibold text-amberTexto" role="status" aria-live="polite">
+            <p className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-3 py-1 text-rotulo font-semibold text-amberTexto" role="status" aria-live="polite">
               <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
               {/* Solo el tiempo transcurrido, que es un dato. El "≈11 min" salía de sumar
                   estimaciones a mano y contradecía la mediana real de producción. */}
@@ -91,13 +91,13 @@ export function LoadingView({
             <h2 className="mt-2 font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
               Los agentes están leyendo el contrato
             </h2>
-            <p className="mt-0.5 text-[13px] text-mute">
+            <p className="mt-0.5 text-meta text-mute">
               Convocatoria <span className="font-mono">{codigo}</span>
             </p>
           </div>
           <div className="text-right">
             <div className="font-mono text-3xl font-bold tabular-nums text-ink">{progressPct} %</div>
-            <div className="text-[12px] text-mute">progreso estimado</div>
+            <div className="text-rotulo text-mute">progreso estimado</div>
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export function LoadingView({
 
         {/* CONTADOR DE SEÑALES EN VIVO: todavía sin verificar, en tinta neutra */}
         {findings > 0 && (
-          <p className="mt-3 text-center text-[13px] text-inkSoft">
+          <p className="mt-3 text-center text-meta text-inkSoft">
             <span className="font-mono font-semibold tabular-nums text-ink">{plural(findings, "señal registrada", "señales registradas")}</span> hasta
             ahora; se verifican antes de publicarse.
           </p>

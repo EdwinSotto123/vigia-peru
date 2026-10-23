@@ -115,7 +115,7 @@ export function EjeAgentes({
     <div className="min-w-0">
       {/* Cabecera del eje: qué mide cada columna. Es lo que le da denominador a cada cifra de abajo. */}
       <div className={cn(
-        "grid items-end gap-x-2 border-b border-line pb-1 text-[11px] uppercase tracking-wide text-mute",
+        "grid items-end gap-x-2 border-b border-line pb-1 text-micro uppercase tracking-wide text-mute",
         conSenales ? "grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]" : "grid-cols-[minmax(0,1fr)_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem]",
       )}>
         <span>Agente</span>
@@ -132,7 +132,7 @@ export function EjeAgentes({
       </div>
       {/* En móvil el total del eje va aparte: la columna de la pista no tiene encabezado propio. */}
       {rango && (
-        <p className="mt-1 font-mono text-[11px] text-mute sm:hidden" suppressHydrationWarning>
+        <p className="mt-1 font-mono text-micro text-mute sm:hidden" suppressHydrationWarning>
           Ejecución real: {duracion(rango.span)} en total
         </p>
       )}
@@ -143,7 +143,7 @@ export function EjeAgentes({
         const listos = ventanas.filter((v) => v.estado === "hecho" || v.estado === "omitido").length;
         return (
           <section key={c.key} className="mt-2 first:mt-1">
-            <p className="flex items-baseline justify-between gap-2 px-1 text-[11px] font-semibold text-inkSoft">
+            <p className="flex items-baseline justify-between gap-2 px-1 text-micro font-semibold text-inkSoft">
               <span>
                 Carril {c.label}
                 <span className="ml-1.5 font-normal text-mute">
@@ -173,7 +173,7 @@ export function EjeAgentes({
       })}
 
       {otras.length > 0 && (
-        <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
+        <p className="mt-2 border-t border-line pt-2 text-micro leading-snug text-mute">
           Además de los {pasos.length} pasos de los carriles corrieron {otras.length} pasos de control
           del análisis, que no son agentes: {listaY(otras.map((k) => faseLabel(k).toLowerCase()))}.
         </p>
@@ -239,7 +239,7 @@ function FilaAgente({
       >
         <span className="flex min-w-0 items-center gap-1.5">
           <IconoEstado estado={v.estado} />
-          <span className={cn("min-w-0 text-[12px] leading-tight sm:truncate", v.estado === "omitido" ? "text-mute line-through decoration-mute/50" : "text-ink", seleccionado && "font-semibold")}>
+          <span className={cn("min-w-0 text-rotulo leading-tight sm:truncate", v.estado === "omitido" ? "text-mute line-through decoration-mute/50" : "text-ink", seleccionado && "font-semibold")}>
             {paso.nombre}
           </span>
         </span>
@@ -257,7 +257,7 @@ function FilaAgente({
               style={{ left: `${izq}%`, width: `${ancho}%` }}
             />
           ) : (
-            <span className={cn("absolute inset-y-0 left-0 flex items-center truncate text-[11px]", e.texto)}>
+            <span className={cn("absolute inset-y-0 left-0 flex items-center truncate text-micro", e.texto)}>
               {v.estado === "omitido" ? `omitido: ${motivoHumano(v.motivo)}` : e.label}
             </span>
           )}
@@ -268,12 +268,12 @@ function FilaAgente({
           )}
         </span>
 
-        <span className={cn("text-right font-mono text-[11px] tabular-nums", v.estado === "corriendo" ? "text-amberTexto" : "text-mute")} suppressHydrationWarning>
-          {dur ?? "—"}
+        <span className={cn("text-right font-mono text-micro tabular-nums", v.estado === "corriendo" ? "text-amberTexto" : "text-mute")} suppressHydrationWarning>
+          {dur ?? "Sin dato"}
         </span>
 
         {conSenales && (
-          <span className="flex items-center justify-end gap-1 text-[11px]">
+          <span className="flex items-center justify-end gap-1 text-micro">
             {n > 0 && peor ? (
               <>
                 <Severidad bandera={peor} formato="punto" />
@@ -287,7 +287,7 @@ function FilaAgente({
       </button>
 
       {seleccionado && (
-        <div className="mb-1 ml-1 mt-0.5 border-l-2 border-granate/40 pl-3 text-[12px] leading-relaxed text-inkSoft">
+        <div className="mb-1 ml-1 mt-0.5 border-l-2 border-granate/40 pl-3 text-rotulo leading-relaxed text-inkSoft">
           <p>{paso.que}</p>
           {paso.fuentes.length > 0 && (
             <p className="mt-0.5 text-mute">

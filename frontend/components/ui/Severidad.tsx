@@ -47,7 +47,7 @@ export function Severidad({
 
   if (formato === "linea") {
     return (
-      <span className={cn("inline-flex items-center gap-1.5 text-[13px] font-medium", s.texto, className)}>
+      <span className={cn("inline-flex items-center gap-1.5 text-meta font-medium", s.texto, className)}>
         <Icono size={13} aria-hidden />
         {s.etiqueta}
       </span>

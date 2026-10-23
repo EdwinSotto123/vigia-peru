@@ -41,7 +41,7 @@ export function ChipResultado({ ev, resultado }: { ev: EvaluacionTraza | undefin
   const valor =
     ev && ev.n != null && ev.ok != null && ev.n > 0 ? `${numero(ev.ok)} de ${numero(ev.n)}` : ev?.label ? legible(ev.label) : r.palabra;
   return (
-    <span className={cn("pill shrink-0 whitespace-nowrap text-[11.5px] font-semibold tabular-nums", r.clase)} title={r.palabra}>
+    <span className={cn("pill shrink-0 whitespace-nowrap text-rotulo font-semibold tabular-nums", r.clase)} title={r.palabra}>
       <Icono size={12} aria-hidden />
       {valor}
       <span className="sr-only">, {r.palabra.toLowerCase()}</span>
@@ -51,14 +51,14 @@ export function ChipResultado({ ev, resultado }: { ev: EvaluacionTraza | undefin
 
 /** Los controles en una lista corta (panel del grafo, tarjeta del modo Texto). */
 export function ControlesEnResumen({ recorrido, onVerControles }: { recorrido: Recorrido; onVerControles?: () => void }) {
-  if (!recorrido.evaluaciones.length) return <p className="text-[12.5px] text-mute">Sin registro en la traza.</p>;
+  if (!recorrido.evaluaciones.length) return <p className="text-meta text-mute">Sin registro en la traza.</p>;
   return (
     <div className="space-y-2">
       <ul className="divide-y divide-line/70">
         {EVALS.map((e) => {
           const ev = recorrido.evaluaciones.find((x) => x.evaluador === e.n);
           return (
-            <li key={e.n} className="flex items-center justify-between gap-3 py-1.5 text-[12.5px]">
+            <li key={e.n} className="flex items-center justify-between gap-3 py-1.5 text-meta">
               <span className="min-w-0 text-ink">{e.label}</span>
               <ChipResultado ev={ev} resultado={resultadoDe(ev)} />
             </li>
@@ -69,7 +69,7 @@ export function ControlesEnResumen({ recorrido, onVerControles }: { recorrido: R
         <button
           type="button"
           onClick={onVerControles}
-          className="inline-flex items-center gap-1 rounded text-[12.5px] font-medium text-granate hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
+          className="inline-flex items-center gap-1 rounded text-meta font-medium text-granate hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
         >
           Ver cada control con su detalle <ChevronRight size={13} aria-hidden />
         </button>
@@ -140,7 +140,7 @@ export function ControlesCalidad({ recorrido, result }: { recorrido: Recorrido; 
 function GrupoControles({ titulo, filas }: { titulo: string; filas: { e: Evaluador; ev: EvaluacionTraza | undefined; resultado: ResultadoControl; metodo: string | null }[] }) {
   return (
     <section className="min-w-0">
-      <h3 className="mb-2 font-display text-[15px] font-bold text-ink">{titulo}</h3>
+      <h3 className="mb-2 font-display text-bloque font-bold text-ink">{titulo}</h3>
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
         {filas.map(({ e, ev, resultado }) => (
           <li key={e.n}>
@@ -153,8 +153,8 @@ function GrupoControles({ titulo, filas }: { titulo: string; filas: { e: Evaluad
             >
               <span className="flex items-center gap-3 px-3.5 py-2.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13.5px] font-medium text-ink">{e.label}</span>
-                  <span className="block truncate text-[12px] text-mute">{ev?.pregunta ?? e.d}</span>
+                  <span className="block text-dato font-medium text-ink">{e.label}</span>
+                  <span className="block truncate text-rotulo text-mute">{ev?.pregunta ?? e.d}</span>
                 </span>
                 <ChipResultado ev={ev} resultado={resultado} />
                 <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
@@ -175,7 +175,7 @@ function DetalleControl({ e, ev, resultado }: { e: Evaluador; ev: EvaluacionTraz
         <ChipsDetalle>
           <ChipResultado ev={ev} resultado={resultado} />
         </ChipsDetalle>
-        <p className="text-[14px] text-inkSoft">La traza de este análisis no tiene registro de este control.</p>
+        <p className="text-dato text-inkSoft">La traza de este análisis no tiene registro de este control.</p>
       </CuerpoDetalle>
     );
   }
@@ -209,7 +209,7 @@ function DetalleControl({ e, ev, resultado }: { e: Evaluador; ev: EvaluacionTraz
               const ok = [it.respaldada, it.plausible, it.ok].find((v) => typeof v === "boolean") as boolean | undefined;
               const titulo = typeof it.regla === "string" ? reglaLabel(it.regla) : typeof it.item === "string" ? it.item : `Caso ${i + 1}`;
               return (
-                <li key={i} className="flex items-start gap-2 py-2 text-[13px]">
+                <li key={i} className="flex items-start gap-2 py-2 text-meta">
                   {ok === true ? (
                     <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-mossTexto" aria-label="Pasó" />
                   ) : ok === false ? (
@@ -222,7 +222,7 @@ function DetalleControl({ e, ev, resultado }: { e: Evaluador; ev: EvaluacionTraz
                       <TextoSeguro texto={titulo} />
                     </span>
                     {typeof it.reason === "string" && (
-                      <span className="block text-[12.5px] leading-snug text-inkSoft">
+                      <span className="block text-meta leading-snug text-inkSoft">
                         <TextoSeguro texto={it.reason} />
                       </span>
                     )}
@@ -235,7 +235,7 @@ function DetalleControl({ e, ev, resultado }: { e: Evaluador; ev: EvaluacionTraz
       )}
       {ev.faltantes.length > 0 && (
         <BloqueDetalle titulo="Qué faltó">
-          <ul className="list-disc space-y-0.5 pl-5 text-[13px] text-ink">
+          <ul className="list-disc space-y-0.5 pl-5 text-meta text-ink">
             {ev.faltantes.map((f) => (
               <li key={f}>{legible(f)}</li>
             ))}
@@ -275,14 +275,14 @@ function Guardas({ phoenix }: { phoenix: string | null }) {
   ];
   return (
     <section className="[container-type:inline-size]">
-      <h3 className="mb-2 font-display text-[15px] font-bold text-ink">Reglas que no dependen del modelo</h3>
+      <h3 className="mb-2 font-display text-bloque font-bold text-ink">Reglas que no dependen del modelo</h3>
       <ul className="grid gap-2 [@container(min-width:36rem)]:grid-cols-2">
         {items.map(({ icono: Icono, titulo, detalle }) => (
           <li key={titulo} className="flex items-start gap-2.5 rounded-xl border border-line bg-paperSoft px-3 py-2.5">
             <Icono size={16} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
             <span className="min-w-0">
-              <span className="block text-[13px] font-semibold text-ink">{titulo}</span>
-              <span className="block text-[12.5px] leading-snug text-inkSoft">{detalle}</span>
+              <span className="block text-meta font-semibold text-ink">{titulo}</span>
+              <span className="block text-meta leading-snug text-inkSoft">{detalle}</span>
             </span>
           </li>
         ))}

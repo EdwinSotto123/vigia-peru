@@ -73,7 +73,7 @@ export function CabeceraEjecucion({
     <>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-1 text-[12px] font-semibold text-mute">
+          <div className="flex items-center gap-1 text-rotulo font-semibold text-mute">
             {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
             {p.estado === "encolado" && (
               <Ayuda titulo="¿Cuándo le toca?">
@@ -81,7 +81,7 @@ export function CabeceraEjecucion({
               </Ayuda>
             )}
           </div>
-          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} suppressHydrationWarning>
+          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-destacado leading-6" : "text-bloque leading-7"}`} suppressHydrationWarning>
             {p.estado === "procesando"
               ? faseHumana(p, montado ? ahora : undefined, fases)
               : p.estado === "encolado"
@@ -96,10 +96,10 @@ export function CabeceraEjecucion({
         </div>
         {conCifras && (
           <div className="text-right">
-            <div className={`font-mono font-semibold tabular-nums text-ink ${compacto ? "text-lg" : "text-2xl"}`}>
+            <div className={`font-mono font-semibold tabular-nums text-ink ${compacto ? "text-bloque leading-7" : "text-2xl"}`}>
               {prog.hechas}<span className="text-mute">/{prog.aplicables}</span>
             </div>
-            <div className="font-mono text-[11px] tabular-nums text-mute" suppressHydrationWarning>
+            <div className="font-mono text-micro tabular-nums text-mute" suppressHydrationWarning>
               {transcurrido != null && transcurrido > 0 ? (
                 <>
                   {duracion(transcurrido)}
@@ -118,18 +118,18 @@ export function CabeceraEjecucion({
       </div>
 
       {p.estado === "encolado" && p.intentos > 0 && (
-        <p className="mt-3 text-[12px] text-mute">
+        <p className="mt-3 text-rotulo text-mute">
           Intentos previos: <span className="font-mono">{p.intentos}</span>; se reintenta automáticamente.
         </p>
       )}
       {p.estado === "error" && (
-        <p className="mt-3 text-[12px] text-crimsonTexto">
+        <p className="mt-3 text-rotulo text-crimsonTexto">
           {p.intentos < 3
             ? "El intento anterior falló; el análisis vuelve a tomar el contrato desde el inicio."
             : "Tras 3 intentos quedó en revisión manual: el equipo lo vuelve a poner en la cola y el aporte no pierde su contrato."}
         </p>
       )}
-      {sinEventos && <p className="mt-3 text-[12px] text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis.</p>}
+      {sinEventos && <p className="mt-3 text-rotulo text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis.</p>}
     </>
   );
 }
@@ -173,7 +173,7 @@ export function CuerpoEjecucion({
       {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} conDatos={compacto} />}
       {!terminado ? (
         <div className={separador}>
-          <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-mute">
+          <div className="mb-2 flex items-center justify-between text-rotulo font-semibold text-mute">
             <span>Bitácora</span>
             <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
           </div>
@@ -182,7 +182,7 @@ export function CuerpoEjecucion({
       ) : (
         <details className={separador}>
           {/* `display` por defecto: conserva el triángulo del <summary>, que es lo que dice "se abre". */}
-          <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
+          <summary className="min-h-[32px] cursor-pointer select-none text-rotulo font-semibold text-mute hover:text-ink">
             <span className="inline-flex items-baseline gap-x-3">
               <span>Bitácora</span>
               <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
@@ -208,24 +208,24 @@ export function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; 
   if (p.estado === "pendiente_de_procesamiento") {
     return (
       <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-        <div className="text-[12px] font-semibold text-mute">Sin análisis aplicable</div>
-        <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
+        <div className="text-rotulo font-semibold text-mute">Sin análisis aplicable</div>
+        <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-destacado leading-6" : "text-bloque leading-7"}`}>
           Todavía no hay análisis para este tipo de contrato
           <Ayuda titulo="¿Qué pasa con lo que se pagó?">
             Es de un tipo o de una etapa que los agentes todavía no leen. Queda reservado: cuando ese análisis exista, entra
             a la cola sin que nadie tenga que volver a pagarlo.
           </Ayuda>
         </div>
-        <p className="mt-1 text-[13px] text-inkSoft">Ya está pagado y queda reservado.</p>
+        <p className="mt-1 text-meta text-inkSoft">Ya está pagado y queda reservado.</p>
       </section>
     );
   }
   return (
     <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-      <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-clayTexto">
+      <div className="inline-flex items-center gap-1.5 text-rotulo font-semibold text-clayTexto">
         <Clock size={13} aria-hidden /> Esperando documentos
       </div>
-      <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
+      <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-destacado leading-6" : "text-bloque leading-7"}`}>
         Todavía no se puede leer: faltan sus documentos
         <Ayuda titulo="¿Por qué faltan?">
           <span className="block">
@@ -236,7 +236,7 @@ export function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; 
         </Ayuda>
       </div>
       {conFecha && (
-        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-mute">
+        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-mute">
           <span>
             Espera desde <time dateTime={p.iniciadoAt!} className="text-ink">{fechaLima(desde, { larga: true, hora: true })}</time>
           </span>
@@ -271,8 +271,8 @@ function FichaTecnica({ p, fases, duro, compacto, conDatos }: { p: Procesamiento
   if (!filas.length && !(conDatos && (r?.costo || r?.modelo))) return null;
   const costo = r?.costo ?? null;
   return (
-    <details className={`${compacto ? "mt-3 pt-3" : "mt-4 pt-4"} border-t border-line text-[12px]`}>
-      <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
+    <details className={`${compacto ? "mt-3 pt-3" : "mt-4 pt-4"} border-t border-line text-rotulo`}>
+      <summary className="min-h-[32px] cursor-pointer select-none text-rotulo font-semibold text-mute hover:text-ink">
         <span className="inline-flex flex-wrap items-baseline gap-x-3">
           <span>{conDatos ? "Ficha técnica y tiempos por agente" : "Tiempos por agente"}</span>
           {costo?.costoUsd != null && <span className="font-mono normal-case">US$ {costo.costoUsd.toFixed(2)}</span>}
@@ -281,21 +281,21 @@ function FichaTecnica({ p, fases, duro, compacto, conDatos }: { p: Procesamiento
       </summary>
       <div className={`mt-2 grid gap-3 ${conDatos ? "sm:grid-cols-[1fr_auto]" : ""}`}>
         {filas.length > 0 && (
-          <table className="w-full text-left text-[11px]">
+          <table className="w-full text-left text-micro">
             <caption className="sr-only">Tiempo por agente</caption>
-            <thead className="text-[11px] text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
+            <thead className="text-micro text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
             <tbody className="divide-y divide-line">
               {filas.map((f) => (
                 <tr key={f.k}>
                   <td className="py-1 pr-2 text-ink">{faseLabel(f.k)}</td>
                   <td className="py-1 pr-2 text-mute">{f.estado === "omitido" ? `omitido: ${motivoHumano(f.motivo)}` : ESTADO_FASE_HUMANO[f.estado] ?? f.estado}</td>
-                  <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : "—"}</td>
+                  <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : f.estado === "omitido" ? "No corrió" : "Sin dato"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        {conDatos && <DatosTecnicos p={p} className="space-y-1 text-[11px] sm:min-w-[180px]" />}
+        {conDatos && <DatosTecnicos p={p} className="space-y-1 text-micro sm:min-w-[180px]" />}
       </div>
     </details>
   );
@@ -331,15 +331,15 @@ function DatosTecnicos({ p, className }: { p: ProcesamientoDetalle; className?: 
  */
 export function DatosProceso({ p }: { p: ProcesamientoDetalle }) {
   return (
-    <section aria-labelledby="datos-proceso" className="rounded-2xl border border-line bg-paper p-4 text-[13px]">
-      <h2 id="datos-proceso" className="font-display text-[15px] font-bold text-ink">Datos del proceso</h2>
+    <section aria-labelledby="datos-proceso" className="rounded-2xl border border-line bg-paper p-4 text-meta">
+      <h2 id="datos-proceso" className="font-display text-bloque font-bold text-ink">Datos del proceso</h2>
       <dl className="mt-3 space-y-2.5">
         <div>
-          <dt className="text-[12px] text-mute">Zona</dt>
+          <dt className="text-rotulo text-mute">Zona</dt>
           <dd><Link href={`/app/financiar/${p.ubigeo}`} className="text-ink underline-offset-2 hover:text-granate hover:underline">{p.zona}</Link></dd>
         </div>
         <div>
-          <dt className="flex items-center gap-1 text-[12px] text-mute">
+          <dt className="flex items-center gap-1 text-rotulo text-mute">
             Lo pagó
             <Ayuda titulo="¿Quién pagó influye en el resultado?">
               Los agentes no saben quién pagó este análisis, y los resultados se publican aunque señalen a quien lo
@@ -354,7 +354,7 @@ export function DatosProceso({ p }: { p: ProcesamientoDetalle }) {
             <span className="inline-flex items-center gap-1 font-semibold text-ink">
               <ShieldCheck size={13} className="text-mossTexto" aria-hidden /> {p.financiador}
             </span>
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono text-[12px] text-mute hover:text-granate hover:underline">
+            <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono text-rotulo text-mute hover:text-granate hover:underline">
               {p.contribucionCodigo}
             </Link>
           </dd>
@@ -362,7 +362,7 @@ export function DatosProceso({ p }: { p: ProcesamientoDetalle }) {
       </dl>
       {p.estado === "procesado" && (
         <div className="mt-3 border-t border-line pt-3">
-          <DatosTecnicos p={p} className="space-y-2.5 text-[13px] [&_dt]:text-[12px]" />
+          <DatosTecnicos p={p} className="space-y-2.5 text-meta [&_dt]:text-rotulo" />
         </div>
       )}
     </section>

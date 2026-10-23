@@ -19,7 +19,7 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
   const pct = (doneCount / milestones.length) * 100;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-line bg-paperSoft px-4 py-3">
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-meta font-semibold text-ink">
         {ready ? <CheckCircle2 size={15} className="text-mossTexto" aria-hidden /> : <Eye size={15} className="text-granate" aria-hidden />}
         {ready ? "Denuncia completa: lista para enviar" : `Tu denuncia: ${doneCount} de ${milestones.length}`}
       </span>
@@ -38,7 +38,7 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
           <li
             key={m.label}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors duration-rapido",
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-micro font-medium transition-colors duration-rapido",
               m.done ? "bg-moss/10 text-mossTexto" : "bg-paperDeep text-inkSoft",
             )}
           >
@@ -47,7 +47,7 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
           </li>
         ))}
       </ul>
-      <span className="font-mono text-[11px] tabular-nums text-mute">{porcentaje(pct)}</span>
+      <span className="font-mono text-micro tabular-nums text-mute">{porcentaje(pct)}</span>
     </div>
   );
 }

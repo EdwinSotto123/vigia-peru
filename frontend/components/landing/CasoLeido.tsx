@@ -126,11 +126,11 @@ export function CasoLeido({
             <h2 id="caso-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
               Así lee Vigía <span className="text-maiz">un contrato.</span>
             </h2>
-            <p className="mt-3 max-w-[54ch] text-pretty text-lg leading-relaxed text-paper/75">
+            <p className="mt-3 max-w-[54ch] text-pretty text-bloque leading-relaxed text-paper/75">
               Un ejemplo real, de principio a fin: uno de los {numero(leidos)} que ya leyó.
             </p>
           </div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-paper/15 bg-paper/[0.05] px-3.5 py-1.5 text-[13.5px] text-paper/80">
+          <p className="inline-flex items-center gap-2 rounded-full border border-paper/15 bg-paper/[0.05] px-3.5 py-1.5 text-dato text-paper/80">
             <Info size={15} className="shrink-0 text-maiz" aria-hidden />
             Una señal es para revisar, nunca una acusación.
           </p>
@@ -147,14 +147,14 @@ export function CasoLeido({
           <ol className="relative grid gap-6 lg:grid-cols-4 lg:gap-5">
             <Paso n={1}>
               <div className={cn("capa", TARJETA)}>
-                <p className="flex items-center gap-1.5 text-[12px] text-paper/60">
+                <p className="flex items-center gap-1.5 text-rotulo text-paper/60">
                   <FileText size={13} aria-hidden /> Publicado en el SEACE
                 </p>
-                <p className="mt-2 line-clamp-2 font-display text-[17px] font-bold leading-snug" title={caso.entidad}>
+                <p className="mt-2 line-clamp-2 font-display text-bloque font-bold leading-snug" title={caso.entidad}>
                   {tituloNatural(caso.entidad)}
                 </p>
-                <p className="mt-1.5 text-[13px] text-paper/60">compró:</p>
-                <p className="mt-1 line-clamp-4 text-[14.5px] leading-snug text-paper/90" title={caso.objeto}>
+                <p className="mt-1.5 text-meta text-paper/60">compró:</p>
+                <p className="mt-1 line-clamp-4 text-dato leading-snug text-paper/90" title={caso.objeto}>
                   {tituloNatural(caso.objeto)}
                 </p>
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-paper/10 pt-3.5">
@@ -167,12 +167,12 @@ export function CasoLeido({
 
             <Paso n={2}>
               <div className={cn("capa", TARJETA)}>
-                <p className="text-[15px] font-medium leading-snug text-paper/90">Revisores automáticos leen todo el expediente:</p>
+                <p className="text-cuerpo font-medium leading-snug text-paper/90">Revisores automáticos leen todo el expediente:</p>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <Cifra n={TOTAL_AGENTES} t="revisores" />
                   <Cifra n={TOTAL_PASOS} t="comprobaciones" />
                 </div>
-                <ul className="mt-4 space-y-2.5 border-t border-paper/10 pt-3.5 text-[13.5px] leading-snug">
+                <ul className="mt-4 space-y-2.5 border-t border-paper/10 pt-3.5 text-dato leading-snug">
                   <Hizo Icono={FileText}>Leyeron las bases, las actas y el contrato</Hizo>
                   {caso.proveedor && (
                     <Hizo Icono={Building2}>
@@ -195,12 +195,12 @@ export function CasoLeido({
                 <div className={cn("p-4 sm:p-5", sev.fondo)}>
                   <Severidad bandera={caso.severidad} className="bg-paper" />
                   <h4 className="mt-2.5 text-balance font-display text-xl font-bold leading-tight">{titulo}</h4>
-                  <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">Qué encontró</p>
-                  <p className="mt-1 line-clamp-4 text-[14px] leading-relaxed text-ink">{caso.hallazgo}</p>
+                  <p className="mt-3 text-rotulo font-semibold uppercase tracking-[0.1em] text-mute">Qué encontró</p>
+                  <p className="mt-1 line-clamp-4 text-dato leading-relaxed text-ink">{caso.hallazgo}</p>
                 </div>
                 <div className="space-y-2.5 border-t border-line p-4 sm:px-5">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">Qué dice la ley</p>
-                  <p className="flex items-start gap-1.5 text-[13.5px] font-medium text-granate" title={caso.norma}>
+                  <p className="text-rotulo font-semibold uppercase tracking-[0.1em] text-mute">Qué dice la ley</p>
+                  <p className="flex items-start gap-1.5 text-dato font-medium text-granate" title={caso.norma}>
                     <Scale size={14} className="mt-0.5 shrink-0" aria-hidden />
                     <span className="line-clamp-3">{caso.norma}</span>
                   </p>
@@ -208,7 +208,7 @@ export function CasoLeido({
                     titulo={titulo}
                     descripcion={caso.entidad}
                     etiqueta="Ver lo que encontró Vigía en este contrato"
-                    className="inline-flex w-auto min-h-11 sm:min-h-8 items-center gap-1 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline"
+                    className="inline-flex w-auto min-h-11 sm:min-h-8 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
                     detalle={<DetalleCaso caso={caso} />}
                     pie={<PieCaso caso={caso} analisis={analisis} />}
                   >
@@ -220,17 +220,17 @@ export function CasoLeido({
 
             <Paso n={4}>
               <div className={cn("capa", TARJETA)}>
-                <p className="text-[15px] font-medium leading-snug text-paper/90">
+                <p className="text-cuerpo font-medium leading-snug text-paper/90">
                   Cada señal cita su norma y su fuente. Puedes comprobarla tú.
                 </p>
                 {nombradas.length > 0 && (
                   <>
-                    <p className="mt-4 text-[12px] text-paper/60">Otras señales de este contrato</p>
+                    <p className="mt-4 text-rotulo text-paper/60">Otras señales de este contrato</p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
                       {nombradas.map((o) => (
                         <li
                           key={o.etiqueta}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-paper/15 px-2.5 py-1 text-[12.5px] text-paper/85"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-paper/15 px-2.5 py-1 text-meta text-paper/85"
                         >
                           <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", PUNTO[o.severidad])} />
                           {o.etiqueta}
@@ -241,14 +241,14 @@ export function CasoLeido({
                   </>
                 )}
                 {sinNombrar > 0 && (
-                  <p className="mt-3 text-[13px] text-paper/70">
+                  <p className="mt-3 text-meta text-paper/70">
                     {plural(sinNombrar, "señal más", "señales más")} en el análisis
                   </p>
                 )}
                 <div className={cn("flex flex-col gap-2", caso.otrasSenales > 0 && "mt-4 border-t border-paper/10 pt-4")}>
                   <Link
                     href={analisis}
-                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-maiz px-4 text-[14px] font-semibold text-[#0B0F0F] transition-colors duration-rapido hover:bg-maiz-soft"
+                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-maiz px-4 text-dato font-semibold text-sobreMaiz transition-colors duration-rapido hover:bg-maiz-soft"
                   >
                     Leer el análisis completo <ArrowUpRight size={15} aria-hidden />
                   </Link>
@@ -275,8 +275,8 @@ function Paso({ n, children }: { n: 1 | 2 | 3 | 4; children: React.ReactNode }) 
         <Icono size={17} aria-hidden />
       </span>
       <div className="min-w-0 lg:flex lg:flex-1 lg:flex-col">
-        <h3 className="flex min-h-[2.5rem] items-center gap-2 text-[15px] font-semibold lg:mt-3 lg:min-h-0">
-          <span className="font-mono text-[12px] font-medium text-maiz">
+        <h3 className="flex min-h-[2.5rem] items-center gap-2 text-cuerpo font-semibold lg:mt-3 lg:min-h-0">
+          <span className="font-mono text-rotulo font-medium text-maiz">
             <span className="sr-only">Paso </span>
             {n}
           </span>
@@ -293,7 +293,7 @@ function Cifra({ n, t }: { n: number; t: string }) {
   return (
     <p>
       <span className="block font-display text-4xl font-extrabold leading-none tabular-nums text-maiz">{numero(n)}</span>
-      <span className="mt-1 block text-[13px] text-paper/75">{t}</span>
+      <span className="mt-1 block text-meta text-paper/75">{t}</span>
     </p>
   );
 }
@@ -310,8 +310,8 @@ function Hizo({ Icono, children }: { Icono: LucideIcon; children: React.ReactNod
 function Dato({ t, v, mono = false, className }: { t: string; v: string; mono?: boolean; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
-      <dt className="text-[12px] text-paper/60">{t}</dt>
-      <dd className={cn("mt-0.5 text-[14px] font-semibold leading-snug text-paper", mono && "font-mono tabular-nums")}>
+      <dt className="text-rotulo text-paper/60">{t}</dt>
+      <dd className={cn("mt-0.5 text-dato font-semibold leading-snug text-paper", mono && "font-mono tabular-nums")}>
         {v}
       </dd>
     </div>
@@ -326,7 +326,7 @@ function FichaOficial({ href, oscuro = false }: { href: string; oscuro?: boolean
       rel="noreferrer"
       className={cn(
         "inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 font-medium underline-offset-2 hover:underline",
-        oscuro ? "justify-center text-[14px] text-paper/85" : "text-ink",
+        oscuro ? "justify-center text-dato text-paper/85" : "text-ink",
       )}
     >
       Ver la ficha oficial <ExternalLink size={13} aria-hidden />

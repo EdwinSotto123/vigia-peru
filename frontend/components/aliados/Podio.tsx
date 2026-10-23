@@ -21,7 +21,7 @@ export function Puesto({ n, tamano = "md", className }: { n: number; tamano?: "m
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-display font-extrabold leading-none tabular-nums",
         n <= 3 ? "bg-granate-deep text-maiz" : "bg-paperDeep text-inkSoft",
-        tamano === "lg" ? "h-9 min-w-[2.75rem] px-2.5 text-[16px]" : "h-7 min-w-[2.25rem] px-2 text-[13px]",
+        tamano === "lg" ? "h-9 min-w-[2.75rem] px-2.5 text-destacado" : "h-7 min-w-[2.25rem] px-2 text-meta",
         className,
       )}
     >
@@ -62,7 +62,7 @@ const LUGAR: Record<Lugar, Medidas> = {
     orden: "order-1",
     alto: "h-12 sm:h-16 lg:h-20",
     cara: "border-medalla-plata bg-gradient-to-b from-paper/[0.14] to-paper/[0.03]",
-    numeral: "text-2xl text-paper/35 sm:text-3xl lg:text-4xl",
+    numeral: "text-2xl text-paper/60 sm:text-3xl lg:text-4xl",
     cifra: "text-paper",
     medalla: 54,
     sube: 200,
@@ -71,7 +71,7 @@ const LUGAR: Record<Lugar, Medidas> = {
     orden: "order-3",
     alto: "h-8 sm:h-12 lg:h-14",
     cara: "border-medalla-bronce bg-gradient-to-b from-paper/[0.11] to-paper/[0.02]",
-    numeral: "text-xl text-paper/30 sm:text-2xl lg:text-3xl",
+    numeral: "text-xl text-paper/60 sm:text-2xl lg:text-3xl",
     cifra: "text-paper",
     medalla: 54,
     sube: 0,
@@ -96,7 +96,7 @@ const LUGAR_DESTACADO: Record<Lugar, Medidas> = {
     orden: "order-1",
     alto: "h-16 sm:h-28 lg:h-36",
     cara: "border-medalla-plata bg-gradient-to-b from-paper/[0.2] to-paper/[0.04]",
-    numeral: "text-3xl text-paper/45 sm:text-5xl lg:text-6xl",
+    numeral: "text-3xl text-paper/70 sm:text-5xl lg:text-6xl",
     cifra: "text-paper",
     medalla: 72,
     sube: 200,
@@ -105,7 +105,7 @@ const LUGAR_DESTACADO: Record<Lugar, Medidas> = {
     orden: "order-3",
     alto: "h-12 sm:h-20 lg:h-24",
     cara: "border-medalla-bronce bg-gradient-to-b from-paper/[0.16] to-paper/[0.03]",
-    numeral: "text-2xl text-paper/40 sm:text-4xl lg:text-5xl",
+    numeral: "text-2xl text-paper/65 sm:text-4xl lg:text-5xl",
     cifra: "text-paper",
     medalla: 72,
     sube: 0,
@@ -191,12 +191,12 @@ export function PodioRanking({
         )}
         <Titulo
           id="podio-titulo"
-          className={cn("px-1 font-display font-bold leading-tight sm:px-0", destacado ? "text-[22px] sm:text-[28px]" : subtitulo ? "text-[24px] sm:text-[28px] lg:text-[34px]" : "text-[17px]")}
+          className={cn("px-1 font-display font-bold leading-tight sm:px-0", destacado ? "text-seccion sm:text-cifra" : subtitulo ? "text-seccion sm:text-cifra lg:text-titulo" : "text-bloque")}
         >
           {texto}
         </Titulo>
-        {subtitulo && <p className="mt-2 max-w-[60ch] px-1 text-[14px] leading-snug text-paper/80 sm:px-0 sm:text-[16px]">{subtitulo}</p>}
-        {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 border-l-2 border-maiz/40 pl-3.5 text-[14px] leading-snug text-paper/75 lg:block">{nota}</div>}
+        {subtitulo && <p className="mt-2 max-w-[60ch] px-1 text-dato leading-snug text-paper/80 sm:px-0 sm:text-destacado">{subtitulo}</p>}
+        {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 border-l-2 border-maiz/40 pl-3.5 text-dato leading-snug text-paper/75 lg:block">{nota}</div>}
         </div>
         <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : lateral ? "mt-5 max-w-3xl lg:mt-0 lg:max-w-none" : "mt-5 max-w-3xl")}>
           {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
@@ -254,15 +254,15 @@ function Escalon({
         </span>
         <span
           className={cn(
-            "mt-2 line-clamp-2 max-w-full break-words text-[13px] font-semibold leading-snug text-paper sm:text-[15px]",
-            destacado && "text-[15px] sm:text-[19px]",
+            "mt-2 line-clamp-2 max-w-full break-words text-meta font-semibold leading-snug text-paper sm:text-cuerpo",
+            destacado && "text-cuerpo sm:text-bloque",
             href && "underline-offset-2 group-hover/aliado:underline",
           )}
           title={f.nombre}
         >
           {f.nombre}
         </span>
-        <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{tipo}</span>
+        <span className="mt-0.5 hidden text-meta leading-snug text-paper/75 sm:block">{tipo}</span>
         <span
           className={cn(
             "mt-2 font-display font-extrabold leading-none tabular-nums",
@@ -272,12 +272,12 @@ function Escalon({
         >
           {numero(f.contratosFinanciados)}
         </span>
-        <span className="mt-1 text-[11.5px] leading-tight text-paper/75 sm:text-[13px]">
+        <span className="mt-1 text-rotulo leading-tight text-paper/75 sm:text-meta">
           {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
           <span className="hidden sm:inline">{f.contratosFinanciados === 1 ? " financiado" : " financiados"}</span>
         </span>
         {/* Su parte de lo financiado, en línea propia: debajo de la cifra, no pegada con un separador. */}
-        {pct && <span className="mt-0.5 hidden text-[12.5px] leading-tight text-paper/75 md:block">{pct} del total</span>}
+        {pct && <span className="mt-0.5 hidden text-meta leading-tight text-paper/75 md:block">{pct} del total</span>}
         {!!financiadosAmbito && (
           <span aria-hidden className="mt-1.5 hidden h-1.5 w-full max-w-[7rem] overflow-hidden rounded-full bg-paper/15 sm:block">
             <span className="block h-full rounded-full bg-maiz" style={{ width: `${Math.min(100, Math.round((f.contratosFinanciados / financiadosAmbito) * 100))}%` }} />
@@ -285,7 +285,7 @@ function Escalon({
         )}
         {/* La invitación a tocar: sin ella nadie sabe que el puesto abre al aliado. */}
         {href && (
-          <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-maiz/40 px-2.5 py-1 text-[12px] font-semibold text-maiz transition-colors group-hover/aliado:bg-maiz group-hover/aliado:text-ink sm:text-[13px]">
+          <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-maiz/40 px-2.5 py-1 text-rotulo font-semibold text-maiz transition-colors group-hover/aliado:bg-maiz group-hover/aliado:text-ink sm:text-meta">
             Ver quién es <span aria-hidden>→</span>
           </span>
         )}
@@ -329,17 +329,17 @@ function EscalonLibre({ lugar, texto, destacado, conBoton }: { lugar: Lugar; tex
           className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-paper/35 text-paper/55 sm:h-16 sm:w-16"
         >
           <Shield size={26} strokeWidth={1.5} />
-          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/15 font-display text-[12px] font-bold text-paper">
+          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/15 font-display text-rotulo font-bold text-paper">
             {lugar}
           </span>
         </span>
-        <span className="mt-2.5 font-display text-[15px] font-bold leading-snug text-paper sm:text-[18px]">
+        <span className="mt-2.5 font-display text-bloque font-bold leading-snug text-paper sm:text-bloque">
           ¿Serás tú?<span className="sr-only"> Puesto {lugar} libre</span>
         </span>
-        {texto && <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{texto}</span>}
+        {texto && <span className="mt-0.5 hidden text-meta leading-snug text-paper/75 sm:block">{texto}</span>}
         {conBoton && (
           /* En el celular cada escalón mide ~110 px: el texto largo no entraba y el botón se salía por los costados. */
-          <span className="mt-2.5 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-[12.5px] font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-[13.5px]">
+          <span className="mt-2.5 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-meta font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-dato">
             <span className="sm:hidden">Ocúpalo</span>
             <span className="hidden sm:inline">Ocupa este puesto</span> <span aria-hidden>→</span>
           </span>

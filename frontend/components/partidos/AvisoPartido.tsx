@@ -10,7 +10,7 @@ export function Aviso({ children, tono = "lima", className }: { children: React.
     <p
       role="note"
       className={cn(
-        "flex items-start gap-2.5 rounded-xl border px-4 py-3 text-[14px] leading-snug text-ink",
+        "flex items-start gap-2.5 rounded-xl border px-4 py-3 text-dato leading-snug text-ink",
         tono === "lima" ? "border-granate/30 bg-granate-50" : "border-line bg-paperSoft text-inkSoft",
         className,
       )}

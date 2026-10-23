@@ -112,8 +112,8 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
     <section className="mb-5 rounded-2xl border border-granate/30 bg-paper p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-bold text-ink">Procesar a nombre de Vigía Perú</h2>
-          <p className="mt-0.5 text-[13px] text-inkSoft">
+          <h2 className="font-display text-bloque leading-7 font-bold text-ink">Procesar a nombre de Vigía Perú</h2>
+          <p className="mt-0.5 text-meta text-inkSoft">
             {modo === "partido"
               ? "Se leen contratos al azar de las entidades que el partido gobernó en el período. Nadie elige cuáles."
               : "Se leen los contratos más antiguos de la región que elijas. Nadie elige cuáles."}
@@ -124,7 +124,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
         </button>
       </div>
 
-      <div role="radiogroup" aria-label="De dónde salen los contratos" className="mt-3 inline-flex rounded-full border border-line bg-paperSoft p-1 text-sm">
+      <div role="radiogroup" aria-label="De dónde salen los contratos" className="mt-3 inline-flex rounded-full border border-line bg-paperSoft p-1 text-dato leading-5">
         {(["region", "partido"] as const).map((m) => (
           <button
             key={m}
@@ -142,7 +142,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto] sm:items-end">
         {modo === "partido" ? (
           <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.5fr)]">
-            <label className="block text-sm">
+            <label className="block text-dato leading-5">
               <span className="font-medium text-inkSoft">Período</span>
               <select
                 value={anio}
@@ -152,7 +152,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
                 {PERIODOS_GOBIERNO.map((p) => <option key={p.anio} value={p.anio}>{p.texto}</option>)}
               </select>
             </label>
-            <label className="block text-sm">
+            <label className="block text-dato leading-5">
               <span className="font-medium text-inkSoft">Partido</span>
               <select
                 value={partido}
@@ -167,7 +167,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
             </label>
           </div>
         ) : (
-        <label className="block text-sm">
+        <label className="block text-dato leading-5">
           <span className="font-medium text-inkSoft">Región</span>
           <select
             value={ubigeo}
@@ -186,7 +186,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
           </select>
         </label>
         )}
-        <label className="block text-sm">
+        <label className="block text-dato leading-5">
           <span className="font-medium text-inkSoft">Contratos</span>
           <input
             type="number"
@@ -201,7 +201,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
             className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 font-mono text-ink focus:border-granate/60 disabled:opacity-50"
           />
         </label>
-        <div className="text-sm">
+        <div className="text-dato leading-5">
           <span className="font-medium text-inkSoft">Costo referencial</span>
           <p className="mt-1 rounded-lg bg-paperSoft px-3 py-2 font-mono text-ink">{preview && entero ? `S/ ${(cantidad * preview.precioPen).toLocaleString("es-PE")}` : "—"}</p>
         </div>
@@ -210,7 +210,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
         </button>
       </div>
       {preview && (
-        <p className="mt-2 text-[12px] text-inkSoft">
+        <p className="mt-2 text-rotulo text-inkSoft">
           {modo === "partido" ? `${destino}, ${periodoLargo(anio)}` : preview.zona}: {preview.enCola.toLocaleString("es-PE")} contratos sin financiar.{" "}
           {preview.enCola < MIN_LOTE ? `El mínimo por lote es ${MIN_LOTE}.` : `Entre ${MIN_LOTE} y ${tope.toLocaleString("es-PE")} por lote, en números enteros.`}
         </p>

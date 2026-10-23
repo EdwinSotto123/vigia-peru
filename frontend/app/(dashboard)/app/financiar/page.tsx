@@ -8,10 +8,10 @@ import { ORDEN_PARTIDOS_DEFECTO, ResultadosPartidos, SelectorPeriodo, TAM_PARTID
 import { FiltrosFinanciar, ResultadosConEspera } from "@/components/financiar/FiltrosFinanciar";
 import { EXPLICACION_PARTIDO, ORDENES_PARTIDOS, anioDeUrl, esOrdenPartidos, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
-import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
+import { EnlaceAccion, claseAccion, CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 import { Popover } from "@/components/ui/Flotante";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Pagina, Seccion } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Migas, Pagina, Seccion } from "@/components/patrones";
 import { BarraFiltros, Listado, Vistas, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
 import { numero, plural, porcentaje, soles } from "@/lib/formato";
@@ -88,9 +88,7 @@ const norm = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").
 
 const porCola = (a: Pick<Zona, "pendientes" | "nombre">, b: Pick<Zona, "pendientes" | "nombre">) => b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre, "es");
 
-/** La acción de un estado vacío o de error: la misma píldora secundaria de todos los listados. */
-const ACCION =
-  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+const ACCION = CLASE_ACCION_LISTA;
 
 /**
  * /app/financiar — plantilla de conversión (DESIGN_SYSTEM.md §14): una pregunta por
@@ -188,6 +186,7 @@ export default async function FinanciarPage({
 
   return (
     <Pagina className="space-y-8">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }]} />
       <div className="space-y-4">
         {/* La pregunta de la pantalla va de título (plantilla de conversión, §14); el porqué, en el ⓘ. */}
         <EncabezadoPagina
@@ -252,7 +251,7 @@ export default async function FinanciarPage({
           nota={estado?.tarifa.nota ?? null}
         />
         {!pagosAbiertos && (
-          <p className="inline-flex flex-wrap items-center gap-1.5 text-[13px] text-inkSoft" role="note">
+          <p className="inline-flex flex-wrap items-center gap-1.5 text-meta text-inkSoft" role="note">
             <Clock size={14} className="shrink-0 text-granate" aria-hidden />
             <strong className="font-semibold text-ink">Los aportes todavía no están abiertos.</strong>
             <Ayuda titulo="¿Por qué no se puede aportar?">
@@ -379,10 +378,10 @@ export default async function FinanciarPage({
           acciones={
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {/* La lista entera, con buscador: aquí van los más recientes. */}
-              <Link href="/app/aliados/aportes" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm font-semibold text-granate underline-offset-2 hover:underline">
+              <Link href="/app/aliados/aportes" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
                 Todos los aportes <ArrowRight size={14} aria-hidden />
               </Link>
-              <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm font-semibold text-granate underline-offset-2 hover:underline">
+              <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
                 Muro de aliados <ArrowRight size={14} aria-hidden />
               </Link>
             </span>
@@ -410,7 +409,7 @@ export default async function FinanciarPage({
                 <ShieldCheck size={20} className="shrink-0 text-maiz" aria-hidden />
                 Financias capacidad, no resultados
               </h2>
-              <p className="mt-1 text-sm text-paper/80">
+              <p className="mt-1 text-dato leading-5 text-paper/80">
                 Pagas la lectura de contratos que ya son públicos. Las reglas están en el código, no en una promesa.
               </p>
             </div>
@@ -420,13 +419,13 @@ export default async function FinanciarPage({
           </div>
           <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             {REGLAS.map((regla) => (
-              <li key={regla.titulo} className="min-w-0 border-t border-paper/15 pt-3 text-[13px] leading-snug">
+              <li key={regla.titulo} className="min-w-0 border-t border-paper/15 pt-3 text-meta leading-snug">
                 <span className="block font-semibold text-paper">{regla.titulo}</span>
                 <span className="text-paper/75">{regla.resumen}</span>{" "}
                 <Popover
                   titulo={regla.titulo}
                   anchoClase="w-80"
-                  className="min-h-[24px] align-baseline text-[12px] font-medium text-maiz underline underline-offset-2 hover:text-paper"
+                  className="min-h-[24px] align-baseline text-rotulo font-medium text-maiz underline underline-offset-2 hover:text-paper"
                   trigger={<>cómo</>}
                 >
                   {regla.detalle}
@@ -497,7 +496,7 @@ function ResultadosZonas({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Parcial (§10.5): se dice qué falta. */}
         {fallaronProvincias ? (
-          <p className="text-[12.5px] text-mute" role="note">No pudimos buscar en las provincias: sólo se muestran regiones.</p>
+          <p className="text-meta text-mute" role="note">No pudimos buscar en las provincias: sólo se muestran regiones.</p>
         ) : (
           <span />
         )}
@@ -615,7 +614,7 @@ function CifrasFinanciar({
     });
   }
   if (!estado) {
-    return <p className="text-[13px] text-mute" role="note">No se pudo leer el estado del financiamiento. Vuelve a intentarlo en un momento.</p>;
+    return <p className="text-meta text-mute" role="note">No se pudo leer el estado del financiamiento. Vuelve a intentarlo en un momento.</p>;
   }
   return <CifrasEnFila items={items} />;
 }

@@ -90,7 +90,7 @@ export function LineaMeses({
 
   return (
     <figure className="space-y-3">
-      <p className="text-[13px] leading-snug text-inkSoft">
+      <p className="text-meta leading-snug text-inkSoft">
         {tipico > 0 && <>Su mes típico: <b className="font-mono tabular-nums text-ink">{soles(tipico)}</b>. </>}
         {raros.length === 0
           ? "Ningún mes se aparta de lo normal."
@@ -124,7 +124,7 @@ export function LineaMeses({
                 {raro && (
                   <span className="relative mb-0.5 flex justify-center">
                     {pasa && (
-                      <span className="absolute bottom-full mb-0.5 whitespace-nowrap font-mono text-[10.5px] tabular-nums text-amberTexto">{solesCompacto(m.valor)}</span>
+                      <span className="absolute bottom-full mb-0.5 whitespace-nowrap font-mono text-micro tabular-nums text-amberTexto">{solesCompacto(m.valor)}</span>
                     )}
                     <TriangleAlert size={11} strokeWidth={2.5} className="text-amberTexto" aria-hidden />
                   </span>
@@ -146,7 +146,7 @@ export function LineaMeses({
           {meses.map((m, i) => (
             <div key={m.mes} className="relative h-4 max-w-7 flex-1">
               {marca(m, i) && (
-                <span className="absolute left-0 whitespace-nowrap font-mono text-[11px] text-mute">
+                <span className="absolute left-0 whitespace-nowrap font-mono text-micro text-mute">
                   {m.mes.endsWith("-01") ? m.mes.slice(0, 4) : mesCorto(m.mes)}
                 </span>
               )}
@@ -154,7 +154,7 @@ export function LineaMeses({
           ))}
         </div>
       </div>
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-inkSoft" aria-label="Qué es cada color">
+      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-inkSoft" aria-label="Qué es cada color">
         <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate" aria-hidden />{nombres.base}</li>
         {conExtra && nombres.extra && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate/30" aria-hidden />{nombres.extra}</li>}
         {raros.length > 0 && (
@@ -166,10 +166,10 @@ export function LineaMeses({
         {meses.some((m) => m.hueco) && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-mute" aria-hidden />Sin dato ese mes</li>}
       </ul>
       <details className="group rounded-xl border border-line">
-        <summary className="cursor-pointer select-none px-3.5 py-2 text-[13px] font-semibold text-granate">Ver mes por mes</summary>
+        <summary className="cursor-pointer select-none px-3.5 py-2 text-meta font-semibold text-granate">Ver mes por mes</summary>
         <div className="overflow-x-auto border-t border-line">
-          <table className="w-full text-[13px]">
-            <thead className="bg-paperSoft text-left text-[12px] text-mute">
+          <table className="w-full text-meta">
+            <thead className="bg-paperSoft text-left text-rotulo text-mute">
               <tr>
                 <th className="px-3.5 py-2 font-medium">Mes</th>
                 <th className="px-3.5 py-2 text-right font-medium">{nombres.base}</th>
@@ -185,7 +185,7 @@ export function LineaMeses({
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "Sin dato" : soles(m.base ?? 0)}</td>
                   {conExtra && <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.hueco ? "" : soles(m.extra ?? 0)}</td>}
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "" : soles(m.valor)}</td>
-                  <td className="px-3.5 py-1.5 text-[12px] text-amberTexto">
+                  <td className="px-3.5 py-1.5 text-rotulo text-amberTexto">
                     {m.hueco ? <span className="text-mute">No se publicó</span> : m.dudoso || (m.aparte ?? 0) > 0 ? `Posible error ${quienCarga}` : fuera(m) ? "Fuera de lo normal" : ""}
                   </td>
                 </tr>
