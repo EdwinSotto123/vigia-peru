@@ -168,6 +168,8 @@ Arreglos que salieron del propio recorrido: `mute` de día a #586764 (sobre el f
 4,3:1); el encabezado de Partidos con `encabezado-color` (tenía un degradado lima propio); «Con riesgo alto» de la
 portada con `alertaBanda`; el contador de la pestaña activa; los h2/h3 de la ficha de contrato y del dossier.
 
+Segunda vuelta (commits 191d64a, 2610c80): paleta de organizaciones por modo validada para daltonismo (antes confundía verde y rojo con deuteranopía); pines del mapa con tokens del tema; barra del navegador al nuevo fondo. Y en la ficha de planilla, «Cobros al Estado, mes a mes» marca con ◆ los meses con órdenes de servicio (conecta planilla con OECE/CONOSCE).
+
 Queda para la siguiente vuelta: los hex de mapas y grafos (y `textil-*`/`warm*`) con versión de día; familias de
 antecedentes con color validado para daltonismo; partir MapaWrapper, ZonaHubPanel, DirectorioGobiernos y lib/contratos;
 los 148 tamaños de Tailwind con prefijo; los 346 `any`.

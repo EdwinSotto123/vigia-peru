@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { TIPO_CRUCE } from "@/lib/cruces";
+import { GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
 import {
   ACTIVIDADES,
   CORTO_EMPRESA,
@@ -69,7 +69,15 @@ function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entid
       etiqueta: "Antecedente",
       corta: "Antecedente",
       todas: "Todo antecedente",
-      opciones: (r?.porTipo ?? []).map((t) => ({ valor: t.tipo, etiqueta: CORTO_EMPRESA[t.tipo] ?? TIPO_CRUCE[t.tipo]?.corto ?? t.etiqueta, conteo: t.n })),
+      // Segmentado por familia (Política, En el proceso, Registro SUNAT…), como en la lista de contratos: cada opción
+      // lleva su `grupo` y el filtro las agrupa. Sólo los tipos que aparecen en estas empresas.
+      opciones: (() => {
+        const conteo = new Map((r?.porTipo ?? []).map((t) => [t.tipo, t.n]));
+        return GRUPOS_CRUCE.flatMap((g) =>
+          g.tipos
+            .filter((t) => conteo.has(t.tipo))
+            .map((t) => ({ valor: t.tipo, etiqueta: CORTO_EMPRESA[t.tipo] ?? t.corto, grupo: g.titulo, conteo: conteo.get(t.tipo) ?? 0 })));
+      })(),
     },
     {
       param: "objeto",

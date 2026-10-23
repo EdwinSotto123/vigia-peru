@@ -43,6 +43,16 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "recurrente", corto: "Proveedor frecuente", explica: "Ganó varios procesos de la misma entidad (CONOSCE)." },
     ],
   },
+  {
+    // Señales de la empresa desde la ficha RUC de la SUNAT (migración 116). Son hechos de la EMPRESA, no de un contrato.
+    titulo: "Registro SUNAT",
+    tipos: [
+      { tipo: "recien_fundada", corto: "Ganó recién fundada", explica: "Ganó su primer proceso del Estado a los pocos meses de iniciar actividades (SUNAT): puede ser una empresa creada para ese contrato. No prueba nada por sí solo." },
+      { tipo: "dada_de_baja", corto: "Dada de baja en la SUNAT", explica: "Hoy figura dada de baja en la SUNAT. Es su estado actual; la SUNAT no publica desde cuándo, así que no se afirma que vendiera estando de baja." },
+      { tipo: "suspendida", corto: "Suspendida en la SUNAT", explica: "Hoy figura en suspensión temporal de actividades en la SUNAT." },
+      { tipo: "no_habida", corto: "No habida", explica: "Hoy figura como «no habido» en la SUNAT: la autoridad no la ubica en su domicilio fiscal." },
+    ],
+  },
 ];
 
 export const TIPO_CRUCE = Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t])));
