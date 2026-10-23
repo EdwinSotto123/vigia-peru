@@ -46,6 +46,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // proveedor contratado por la entidad" (puerta giratoria, RNP × persona_entidad). Van con los otros post-pasos.
   await uno("refrescar_cruce_unico_postor", "SELECT refrescar_cruce_unico_postor() AS n");
   await uno("refrescar_cruce_socio_en_entidad", "SELECT refrescar_cruce_socio_en_entidad() AS n");
+  // Dos cruces más de la migración 123: mismo domicilio fiscal que otro postor, y proveedor cautivo de una entidad.
+  await uno("refrescar_cruce_domicilio_compartido", "SELECT refrescar_cruce_domicilio_compartido() AS n");
+  await uno("refrescar_cruce_proveedor_cautivo", "SELECT refrescar_cruce_proveedor_cautivo() AS n");
   // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
   // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
   await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");

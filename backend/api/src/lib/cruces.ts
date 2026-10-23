@@ -31,6 +31,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
   socio_en_entidad: "Un socio del proveedor trabaja en la entidad",
+  domicilio_compartido: "Mismo domicilio fiscal que otro postor",
+  proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",
   vendio_gobernante: "Le vendió a la campaña del partido que gobierna la entidad",
   proveedor_campana: "Le vendió a una campaña electoral",
