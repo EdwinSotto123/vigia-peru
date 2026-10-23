@@ -47,7 +47,9 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
     // Señales de la empresa desde la ficha RUC de la SUNAT (migración 116). Son hechos de la EMPRESA, no de un contrato.
     titulo: "Registro SUNAT",
     tipos: [
-      { tipo: "recien_fundada", corto: "Ganó recién fundada", explica: "Ganó su primer proceso del Estado a los pocos meses de iniciar actividades (SUNAT): puede ser una empresa creada para ese contrato. No prueba nada por sí solo." },
+      { tipo: "recien_fundada_medio_ano", corto: "Ganó con 6 meses o menos de fundada", explica: "Ganó este proceso del Estado a los 6 meses o menos de darse de alta en la SUNAT: muy nueva para ese contrato. No prueba nada por sí solo." },
+      { tipo: "recien_fundada_un_ano", corto: "Ganó con menos de 1 año de fundada", explica: "Ganó este proceso con entre 6 meses y 1 año desde su alta en la SUNAT. Pesa más si el contrato es millonario." },
+      { tipo: "recien_fundada_dos_anos", corto: "Ganó con menos de 2 años de fundada", explica: "Ganó este proceso con entre 1 y 2 años desde su alta en la SUNAT: una empresa todavía joven." },
       { tipo: "dada_de_baja", corto: "Dada de baja en la SUNAT", explica: "Hoy figura dada de baja en la SUNAT. Es su estado actual; la SUNAT no publica desde cuándo, así que no se afirma que vendiera estando de baja." },
       { tipo: "suspendida", corto: "Suspendida en la SUNAT", explica: "Hoy figura en suspensión temporal de actividades en la SUNAT." },
       { tipo: "no_habida", corto: "No habida", explica: "Hoy figura como «no habido» en la SUNAT: la autoridad no la ubica en su domicilio fiscal." },

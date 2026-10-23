@@ -42,6 +42,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // "Ganó recién fundada" como cruce del contrato (migración 118): la brecha entre la fecha de alta en la SUNAT y la
   // buena pro de ese proceso. Va con los otros post-pasos de cruces_proveedor, antes de casos_cruce_base.
   await uno("refrescar_cruce_recien_fundada", "SELECT refrescar_cruce_recien_fundada() AS n");
+  // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
+  // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
+  await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");
   await uno("refrescar_adjudicado_vigente", "SELECT refrescar_adjudicado_vigente() AS n");
   // Adjudicaciones de 20 veces su valor referencial o con un valor de S/ 1 (migración 102): la web las marca como
   // posible error de carga. ~30 s en producción.

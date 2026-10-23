@@ -32,8 +32,11 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
   otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
   sobreprecio: "Pagó más que otras entidades por lo mismo",
-  // Señales de la ficha RUC de la SUNAT (migraciones 116-118).
+  // Señales de la ficha RUC de la SUNAT (migraciones 116-119). "Recién fundada" en tres bandas por tiempo de fundación.
   recien_fundada: "Ganó recién fundada",
+  recien_fundada_medio_ano: "Ganó con 6 meses o menos de fundada",
+  recien_fundada_un_ano: "Ganó con menos de 1 año de fundada",
+  recien_fundada_dos_anos: "Ganó con menos de 2 años de fundada",
   dada_de_baja: "Dada de baja en la SUNAT",
   suspendida: "Suspendida en la SUNAT",
   no_habida: "No habida en la SUNAT",

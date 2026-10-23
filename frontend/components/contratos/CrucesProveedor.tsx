@@ -129,6 +129,9 @@ function Gano({ c, dias }: { c: CruceProveedor; dias?: number | null }) {
   );
 }
 
+const RECIEN_FUNDADA_POR_QUE =
+  "Una empresa que gana contratos del Estado a los pocos meses de existir puede haberse creado para eso. No prueba nada por sí solo —hay empresas nuevas legítimas—, pero vale mirar quién está detrás y cómo fue la adjudicación, sobre todo si el monto es alto.";
+
 /** Por qué mirar cada tipo de cruce: una línea bajo el título del grupo. */
 const POR_QUE: Record<string, string> = {
   aporte: "Quien financia una campaña y después contrata con el Estado puede tener un acceso que otros no tienen. No está prohibido, pero es un posible conflicto de interés.",
@@ -148,7 +151,10 @@ const POR_QUE: Record<string, string> = {
   adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
-  recien_fundada: "Una empresa que gana contratos del Estado a los pocos meses de existir puede haberse creado para eso. No prueba nada por sí solo —hay empresas nuevas legítimas—, pero vale mirar quién está detrás y cómo fue la adjudicación, sobre todo si el monto es alto.",
+  recien_fundada: RECIEN_FUNDADA_POR_QUE,
+  recien_fundada_medio_ano: RECIEN_FUNDADA_POR_QUE,
+  recien_fundada_un_ano: RECIEN_FUNDADA_POR_QUE,
+  recien_fundada_dos_anos: RECIEN_FUNDADA_POR_QUE,
 };
 
 /** Una línea de texto por cruce, con los datos del registro: quién, de qué empresa, qué hizo y qué ganó después. */
@@ -393,7 +399,10 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
-    case "recien_fundada": {
+    case "recien_fundada":
+    case "recien_fundada_medio_ano":
+    case "recien_fundada_un_ano":
+    case "recien_fundada_dos_anos": {
       // El texto lo escribe el dato: "con solo 6 meses de fundación", "con menos de 1 año", y "millonario" si pasa S/ 1 M.
       const meses = Math.max(0, Math.round(n(d.meses) ?? 0));
       const fund = txt(d.fundada);
@@ -587,7 +596,15 @@ const DATOS_PROVEEDOR = new Set(["candidato", "aporte", "aporte_empresa", "prove
 /** Un bloque de cruces agrupados por tipo, en orden de severidad: se reutiliza para los antecedentes y para los datos del proveedor. */
 function GruposCruces({ lista, gobierna }: { lista: CruceProveedor[]; gobierna?: GobiernoContrato | null }) {
   const grupos = new Map<string, CruceProveedor[]>();
-  for (const c of lista) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
+  // Dedup de seguridad: la base puede traer cruces idénticos (mismo tipo, persona, aporte y detalle) por un JOIN que
+  // multiplica; se muestran una sola vez. El arreglo de raíz está en dedup_cruces_proveedor (migración 120).
+  const vistos = new Set<string>();
+  for (const c of lista) {
+    const clave = `${c.tipo}|${c.ocid ?? ""}|${c.severidad}|${c.fecha ?? ""}|${c.montoSoles ?? ""}|${JSON.stringify(c.socios ?? [])}|${JSON.stringify(c.detalle ?? {})}`;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
+  }
   const orden = [...grupos.values()].sort((a, b) =>
     RANGO_SEVERIDAD[peorSeveridad(a) ?? "baja"] - RANGO_SEVERIDAD[peorSeveridad(b) ?? "baja"] || b.length - a.length);
   return (
