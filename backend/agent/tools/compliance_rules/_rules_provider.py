@@ -126,10 +126,11 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
     try:
         cur = conn.cursor()
         cur.execute(
-            """SELECT e.ruc, e.razon_social, SUM(o.monto_ofertado) as monto_total
+            """SELECT e.ruc, e.razon_social, SUM(o.monto_ofertado) as monto_total, MAX(c.fecha_buena_pro) AS fbp
                  FROM postores p
                  JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
                  JOIN empresas e ON e.ruc=p.empresa_ruc
+                 LEFT JOIN convocatorias c ON c.ocid=p.ocid
                 WHERE p.ocid=%s GROUP BY e.ruc, e.razon_social""",
             (ocid,),
         )
@@ -138,23 +139,22 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
             return {"regla": "ruc_ganador_muy_nuevo", "triggered": False, "motivo": "sin ganadores en BD"}
 
         sunat_profiles = tool_context.state.get("sunat_profiles") or {}
+        # Auditoría 2026-10-23: la edad del RUC se mide a la BUENA PRO, no a hoy. Antes usaba date.today(): un RUC que
+        # hoy ya tiene 2 años pero tenía 3 meses al contratar no disparaba (falso negativo), y un contrato viejo con un
+        # RUC hoy joven daba falso positivo. `edad_dias` del perfil SUNAT también es relativo a hoy: ya no se usa.
+        _ocds = tool_context.state.get("ocds") or tool_context.state.get("ocds_preloaded") or {}
+        _fbp_fallback = _to_date(((_ocds.get("awards") or [{}])[0] or {}).get("date"))
         triggered_list = []
-        from datetime import date
-        for ruc, razon, monto in ganadores:
+        for ruc, razon, monto, fbp in ganadores:
             monto_f = float(monto or 0)
             if monto_f < 100000:
                 continue
             profile = sunat_profiles.get(ruc) or {}
             fecha_inicio = profile.get("fecha_inicio_actividades")
-            edad_dias = profile.get("edad_dias")
-            if not edad_dias and fecha_inicio:
-                try:
-                    from datetime import datetime
-                    d = datetime.strptime(str(fecha_inicio)[:10], "%Y-%m-%d").date()
-                    edad_dias = (date.today() - d).days
-                except Exception:
-                    edad_dias = None
-            if edad_dias is not None and edad_dias < 730:  # < 2 años
+            ref = _to_date(fbp) or _fbp_fallback
+            d_inicio = _to_date(fecha_inicio) if fecha_inicio else None
+            edad_dias = (ref - d_inicio).days if (ref and d_inicio) else None
+            if edad_dias is not None and 0 <= edad_dias < 730:  # < 2 años al ganar
                 triggered_list.append({
                     "ruc": ruc,
                     "razon_social": razon,

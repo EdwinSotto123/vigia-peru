@@ -239,15 +239,21 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
 
         # Decidir si triggea bandera y con qué severidad
         if not causal["match"] and not tiene_keyword_legal:
-            # No identificamos causal ni hay keywords legales → bandera ALTA
+            # ¿De verdad no hay causal, o no se pudo LEER el documento? Si no hubo análisis del documento ni texto del
+            # parser, la ausencia de causal es falta de extracción (PDF escaneado o no publicado), no una irregularidad:
+            # MEDIA con verificación manual, no ALTA (auditoría 2026-10-23: antes era alta sistemática sobre ilegibles).
+            hubo_texto = bool(doc) or bool(raw)
             result.update({
                 "triggered": True,
-                "severidad": "alta",
+                "severidad": "alta" if hubo_texto else "media",
+                "requiere_verificacion": not hubo_texto,
                 "evidencia": (
-                    f"Tipo de proceso '{tipo}' sin causal legal claramente "
-                    f"identificable del Art. 27 TUO Ley 30225 / Art. 55 Ley 32069. "
-                    f"Fundamento extraído del documento: "
-                    f"{fund if fund else 'ninguno'}"
+                    f"Tipo de proceso '{tipo}' sin causal legal claramente identificable del Art. 27 TUO Ley 30225 / "
+                    f"Art. 55 Ley 32069. "
+                    + (f"Fundamento extraído del documento: {fund if fund else 'ninguno'}."
+                       if hubo_texto else
+                       "No se pudo leer el texto de los documentos (posible PDF escaneado o no publicado): requiere "
+                       "verificación manual del expediente.")
                 ),
                 "norma": "Art. 27 TUO Ley 30225 / Art. 55.1 Ley 32069 — causales "
                          "de selección no competitiva deben estar acreditadas",
