@@ -38,6 +38,7 @@ const PARTICIPAR: Enlace[] = [
 
 const SOBRE_VIGIA: Enlace[] = [
   { href: "/preguntas", label: "Preguntas frecuentes" },
+  { href: "/fuentes", label: "De dónde salen los datos" },
   { href: "/preguntas#cuentas", label: "Cuánto cuesta y quién paga" },
   { href: "/privacidad", label: "Privacidad y tus datos" },
   // TODO(contacto): reemplazar cuando exista un correo del equipo.
