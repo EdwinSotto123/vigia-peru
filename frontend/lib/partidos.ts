@@ -1,3 +1,4 @@
+import type { Modo } from "./modo";
 /**
  * Quién gobierna dónde: las autoridades electas en las Elecciones Regionales y Municipales de
  * 2014, 2018 y 2022, de la Plataforma Electoral del JNE (Infogob). Los archivos
@@ -192,25 +193,36 @@ export function conteos(d: AutoridadesDatos): Conteo[] {
 }
 
 /**
- * Colores de las organizaciones más grandes del nivel mirado; el resto, un gris. Se asignan por
- * orden de tamaño y no por partido, a propósito. Sirven en los dos modos de color (lib/modo.ts): sin el lima neón ni
- * el casi blanco (#E7F0EE) de antes, que en modo día no se veía sobre el fondo claro.
+ * Colores de las 8 organizaciones más grandes del nivel mirado; desde la 9.ª, «Otras» en gris. Se asignan por orden de
+ * tamaño y no por partido, a propósito. Una paleta por modo (lib/modo.ts), validada con el validador de paletas
+ * (2026-10-22): los pares vecinos se distinguen con daltonismo (ΔE 8,4 o más), ninguno es gris y de noche todos dan
+ * 3:1 o más sobre el carbón. De día tres (aqua, amarillo, rosa) quedan bajo 3:1 sobre blanco: por eso el color nunca va
+ * solo, siempre con el nombre al lado (leyenda, pastilla, tabla). La anterior (12 colores) confundía los dos más
+ * grandes, verde y rojo, con deuteranopía (ΔE 3) y tenía un gris entre los colores.
  */
-export const PALETA_ORG = ["#8DB82B", "#FF6B5B", "#6C8CFF", "#FFB020", "#3DDC97", "#8C9A98", "#C08CFF", "#FF8FA3", "#4FD1C5", "#F6AD55", "#9F9CFF", "#5E8C1F"] as const;
+export const PALETA_ORG = ["#3987E5", "#D95926", "#199E70", "#C98500", "#D55181", "#008300", "#9085E9", "#E66767"] as const;
+export const PALETA_ORG_DIA = ["#2A78D6", "#EB6834", "#1BAF7A", "#EDA100", "#E87BA4", "#008300", "#6250D6", "#E34948"] as const;
 export const COLOR_OTRAS = "#566663";
+export const COLOR_OTRAS_DIA = "#A3AFAD";
+
+/** Los colores de las organizaciones para el modo de color de la página. */
+export function paletaOrg(modo: Modo): { colores: readonly string[]; otras: string } {
+  return modo === "dia" ? { colores: PALETA_ORG_DIA, otras: COLOR_OTRAS_DIA } : { colores: PALETA_ORG, otras: COLOR_OTRAS };
+}
 
 /** Colores para un conjunto de gobiernos: las organizaciones con más puestos en ESE conjunto, en orden. */
-export function coloresDeFilas(filas: { o: number }[]): Map<number, string> {
+export function coloresDeFilas(filas: { o: number }[], modo: Modo = "noche"): Map<number, string> {
+  const { colores, otras } = paletaOrg(modo);
   const n = new Map<number, number>();
   for (const f of filas) n.set(f.o, (n.get(f.o) ?? 0) + 1);
   const orden = [...n.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
   const out = new Map<number, string>();
-  orden.forEach(([o], i) => out.set(o, i < PALETA_ORG.length ? PALETA_ORG[i] : COLOR_OTRAS));
+  orden.forEach(([o], i) => out.set(o, i < colores.length ? colores[i] : otras));
   return out;
 }
 
-export function coloresPorOrg(d: AutoridadesDatos, nivel: Nivel): Map<number, string> {
-  return coloresDeFilas(nivel === "regional" ? d.regional : nivel === "provincial" ? d.provincial : d.distrital);
+export function coloresPorOrg(d: AutoridadesDatos, nivel: Nivel, modo: Modo = "noche"): Map<number, string> {
+  return coloresDeFilas(nivel === "regional" ? d.regional : nivel === "provincial" ? d.provincial : d.distrital, modo);
 }
 
 export const pct = (p: number | null | undefined) => (p == null ? null : `${(p * 100).toFixed(1).replace(".", ",")} %`);

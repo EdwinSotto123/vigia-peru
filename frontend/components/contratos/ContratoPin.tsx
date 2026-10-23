@@ -11,8 +11,9 @@ import { plural } from "@/lib/formato";
  * Estados (mismo vocabulario que EstadoPill / lib/auditoria): sin analizar · documentos listos ·
  * en cola · procesado · en revisión. Los colores salen de los tokens del tema (tailwind.config):
  * mute / inkSoft / amber / moss / clay. Las señales se ven en la capa de alertas, no acá.
- * Son hex porque el SVG del mapa pinta con `fill`: los valores son los de tailwind.config.ts
- * (neutros cálidos desde el 2026-09-25; el gris azulado viejo peleaba con el granate).
+ * Son las variables del tema (rgb(var(--x))), así siguen al modo día / noche: en el SVG entran por `style` (una variable
+ * en el atributo `fill` no se resuelve). Antes eran los hex de noche y de día un «expediente descargado» (#BECDCA)
+ * casi no se veía sobre el mapa claro.
  */
 
 import type { ContratoZona } from "@/lib/contratos";
@@ -20,11 +21,11 @@ import type { ContratoZona } from "@/lib/contratos";
 export type EstadoOperativoZona = "sin_analizar" | "documentos_listos" | "en_cola" | "procesado" | "en_revision";
 
 export const COLOR_ESTADO: Record<EstadoOperativoZona, string> = {
-  sin_analizar: "#6B7B78",        // gris verdoso (entre mute y paperEdge): nada descargado ni analizable aún
-  documentos_listos: "#BECDCA",   // inkSoft: expediente en el almacén, análisis en preparación
-  en_cola: "#FFB020",             // amber: financiable hoy (bienes con adjudicación)
-  procesado: "#3DDC97",           // moss: dictamen publicado
-  en_revision: "#E88C5C",         // clay: procesado, espera revisión humana
+  sin_analizar: "rgb(var(--mute))",          // nada descargado ni analizable aún
+  documentos_listos: "rgb(var(--ink-soft))",  // expediente en el almacén, análisis en preparación
+  en_cola: "rgb(var(--amber))",               // financiable hoy (bienes con adjudicación)
+  procesado: "rgb(var(--moss))",              // dictamen publicado
+  en_revision: "rgb(var(--clay))",            // procesado, espera revisión humana
 };
 export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
   // Las palabras de la leyenda de la lista (estadoLectura.tsx, §10.1), con un poco más de aire.
@@ -136,11 +137,11 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           strokeOpacity={selected ? 0.9 : 0.5}
         />
       )}
-      <circle r={rr} fill={color} fillOpacity={0.9} style={{ stroke: "rgb(var(--paper))" }} strokeWidth={sw}>
+      <circle r={rr} fillOpacity={0.9} style={{ fill: color, stroke: "rgb(var(--paper))" }} strokeWidth={sw}>
         <title>{`${nombre}: ${plural(total, "contrato", "contratos")}`}</title>
       </circle>
       {rr >= 6 / zoom && (
-        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#0B0F0F" pointerEvents="none">
+        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} style={{ fill: "rgb(var(--sobre-maiz))" }} pointerEvents="none">
           {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total}
         </text>
       )}

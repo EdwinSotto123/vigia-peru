@@ -16,7 +16,6 @@ import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { listaY, numero, solesCompacto } from "@/lib/formato";
 import {
-  COLOR_OTRAS,
   PALETA_ORG,
   TIPO_ORG_LABEL,
   cargarAutoridades,
@@ -30,8 +29,10 @@ import {
   type AutoridadesDatos,
   type Nivel,
   type TipoOrg,
+  paletaOrg,
 } from "@/lib/partidos";
 import { cn } from "@/lib/utils";
+import { useModo, type Modo } from "@/lib/modo";
 
 /**
  * El directorio de TODOS los gobiernos del país en un período (Elecciones Regionales y Municipales, JNE):
@@ -75,9 +76,9 @@ type Orden = (typeof ORDENES)[number]["valor"];
 const CAMPO =
   "h-10 rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
-/** Colores por organización para TODO el período: las 12 con más gobiernos, el resto gris. */
-function coloresDelPeriodo(d: AutoridadesDatos) {
-  return coloresDeFilas([...d.regional, ...d.provincial, ...d.distrital]);
+/** Colores por organización para TODO el período: las 8 con más gobiernos, el resto «Otras» en gris. */
+function coloresDelPeriodo(d: AutoridadesDatos, modo: Modo) {
+  return coloresDeFilas([...d.regional, ...d.provincial, ...d.distrital], modo);
 }
 
 /** El nombre de la organización como una pastilla con su color: el punto lleva el color, el fondo apenas lo insinúa. */
@@ -183,16 +184,17 @@ export function DirectorioGobiernos({
     [pathname],
   );
 
+  const modo = useModo();
   const resumen = useMemo(() => {
     if (!datos) return null;
     const porOrg = conteos(datos);
     return {
-      colores: coloresDelPeriodo(datos),
+      colores: coloresDelPeriodo(datos, modo),
       porOrg,
       organizaciones: porOrg.length,
       claves: new Map(datos.orgs.map((o, i) => [claveOrg(o.n), i])),
     };
-  }, [datos]);
+  }, [datos, modo]);
 
   const hrefVista = (v: Vista) => {
     const p = new URLSearchParams({ anio: String(anio) });
@@ -343,7 +345,9 @@ function Gobiernos({
   const orgIndice = org ? resumen.claves.get(org) ?? -1 : null;
   // Los colores se reparten entre las organizaciones de ESTE nivel: así las regiones, las provincias y los distritos
   // se ven coloreados por quienes de verdad gobiernan ahí (con los de todo el período, casi todo quedaba gris).
-  const colores = useMemo(() => coloresDeFilas(base), [base]);
+  const modo = useModo();
+  const otras = paletaOrg(modo).otras;
+  const colores = useMemo(() => coloresDeFilas(base, modo), [base, modo]);
 
   // Cuántos gobiernos tiene cada organización en ESTE nivel: para el reparto, el selector y las pastillas.
   const enEsteNivel = useMemo(() => {
@@ -383,7 +387,7 @@ function Gobiernos({
   ];
   const filas: Fila[] = visibles.map((f) => {
     const o = orgDe(datos, f.o);
-    const color = colores.get(f.o) ?? COLOR_OTRAS;
+    const color = colores.get(f.o) ?? otras;
     return {
       id: f.id,
       // La región abre su ficha; una provincia o un distrito, la de su región con su nombre ya buscado.
@@ -451,7 +455,7 @@ function Gobiernos({
         regiones={regiones}
         orden={orden}
         orgSeleccionada={orgIndice != null && orgIndice >= 0 ? orgDe(datos, orgIndice).n : ""}
-        opcionesOrg={enEsteNivel.map(([i, n]) => ({ clave: claveOrg(orgDe(datos, i).n), nombre: orgDe(datos, i).n, n, color: colores.get(i) ?? COLOR_OTRAS }))}
+        opcionesOrg={enEsteNivel.map(([i, n]) => ({ clave: claveOrg(orgDe(datos, i).n), nombre: orgDe(datos, i).n, n, color: colores.get(i) ?? otras }))}
         hayFiltros={hayFiltros}
         fijar={fijar}
       />
@@ -500,6 +504,7 @@ function RepartoDelPoder({
   orgIndice: number | null;
   onElegir: (i: number | null) => void;
 }) {
+  const otrasReparto = paletaOrg(useModo()).otras;
   const grandes = enEsteNivel.slice(0, PALETA_ORG.length);
   const resto = enEsteNivel.slice(PALETA_ORG.length).reduce((s, [, n]) => s + n, 0);
   const etiqueta = NIVELES.find((n) => n.id === nivel)?.etiqueta.toLowerCase();
@@ -515,10 +520,10 @@ function RepartoDelPoder({
             aria-label={`${orgDe(datos, i).n}: ${n} de ${total}`}
             title={`${orgDe(datos, i).n}: ${n}`}
             className={cn("h-full min-w-[3px] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink", orgIndice != null && orgIndice !== i && "opacity-35")}
-            style={{ width: `${(n / total) * 100}%`, backgroundColor: colores.get(i) ?? COLOR_OTRAS }}
+            style={{ width: `${(n / total) * 100}%`, backgroundColor: colores.get(i) ?? otrasReparto }}
           />
         ))}
-        {resto > 0 && <span className="h-full" style={{ width: `${(resto / total) * 100}%`, backgroundColor: COLOR_OTRAS }} aria-hidden />}
+        {resto > 0 && <span className="h-full" style={{ width: `${(resto / total) * 100}%`, backgroundColor: otrasReparto }} aria-hidden />}
       </div>
       <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-meta">
         {grandes.slice(0, 8).map(([i, n]) => (
@@ -529,7 +534,7 @@ function RepartoDelPoder({
               aria-pressed={orgIndice === i}
               className={cn("inline-flex max-w-[16rem] items-center gap-1.5 rounded-full py-0.5 pr-1 text-inkSoft hover:text-ink", orgIndice === i && "font-semibold text-ink")}
             >
-              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: colores.get(i) ?? COLOR_OTRAS }} />
+              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: colores.get(i) ?? otrasReparto }} />
               <span className="truncate">{orgDe(datos, i).n}</span>
               <span className="font-mono tabular-nums text-mute">{numero(n)}</span>
             </button>
@@ -707,6 +712,7 @@ function TodosLosPartidos({
   contratos: Record<string, ContratosDeUnPartido> | null;
   hrefGobiernos: (clave: string, nivel: Nivel) => string;
 }) {
+  const otrasTodos = paletaOrg(useModo()).otras;
   const pathname = usePathname();
   const [texto, setTexto] = useState(q);
   const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -754,7 +760,7 @@ function TodosLosPartidos({
       ) : (
         <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
           {visibles.map((c, i) => {
-            const color = resumen.colores.get(c.org) ?? COLOR_OTRAS;
+            const color = resumen.colores.get(c.org) ?? otrasTodos;
             const k = contratos?.[c.clave];
             const orden = (actual - 1) * TAM + i + 1;
             return (

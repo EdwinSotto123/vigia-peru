@@ -14,7 +14,8 @@ import { CLAVE_MODO as CLAVE } from "./modoScript";
 
 export type Modo = "dia" | "noche";
 
-const COLOR_BARRA: Record<Modo, string> = { dia: "#F6F8F7", noche: "#0B0F0F" };
+// La barra del navegador del color del fondo de la página (--fondo en globals.css).
+const COLOR_BARRA: Record<Modo, string> = { dia: "#EFF3F2", noche: "#0B0F0F" };
 
 function leer(): Modo {
   return document.documentElement.dataset.modo === "dia" ? "dia" : "noche";

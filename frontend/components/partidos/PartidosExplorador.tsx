@@ -11,7 +11,6 @@ import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
   ANIO_ACTUAL,
-  COLOR_OTRAS,
   NIVEL_LABEL,
   PERIODOS,
   TIPO_ORG_LABEL,
@@ -28,6 +27,7 @@ import {
   type Cobertura,
   type Gano,
   type Nivel,
+  paletaOrg,
 } from "@/lib/partidos";
 import { DueloPartidos, MiDistrito, RankingPartidos } from "./PartidosPaneles";
 
@@ -118,8 +118,9 @@ export function PartidosExplorador({
   // si no, la leyenda nombra organizaciones que el mapa pinta de gris.
   const colores = useMemo(() => {
     if (!d) return new Map<number, string>();
-    return seleccion ? coloresDeFilas(d.provincial.filter((p) => p.u.startsWith(seleccion))) : coloresPorOrg(d, "regional");
-  }, [d, seleccion]);
+    return seleccion ? coloresDeFilas(d.provincial.filter((p) => p.u.startsWith(seleccion)), modoColor) : coloresPorOrg(d, "regional", modoColor);
+  }, [d, seleccion, modoColor]);
+  const otras = paletaOrg(modoColor).otras;
   const nivelMapa: Nivel = seleccion ? "provincial" : "regional";
 
   // Modo "qué tanto vigilamos": las regiones se pintan por cuántos contratos ya leyó Vigía en ellas.
@@ -164,18 +165,18 @@ export function PartidosExplorador({
       }
       return out;
     }
-    const colReg = coloresPorOrg(d, "regional");
+    const colReg = coloresPorOrg(d, "regional", modoColor);
     for (const g of d.regional) {
       const o = orgDe(d, g.o);
       out[g.u] = {
-        color: colReg.get(g.o) ?? COLOR_OTRAS,
+        color: colReg.get(g.o) ?? otras,
         sinDato: false,
         resumen: `${nombreDepartamento(g.u)}: ${g.g}, ${o.n}`,
         apagada: resaltar != null && nivel === "regional" && g.o !== resaltar,
       };
     }
     return out;
-  }, [d, resaltar, nivel, vigilando, conDinero, cobertura, escalaDinero]);
+  }, [d, resaltar, nivel, vigilando, conDinero, cobertura, escalaDinero, modoColor, otras]);
 
   const provincias = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
@@ -184,14 +185,14 @@ export function PartidosExplorador({
       if (!p.u.startsWith(seleccion)) continue;
       const o = orgDe(d, p.o);
       out[p.u] = {
-        color: colores.get(p.o) ?? COLOR_OTRAS,
+        color: colores.get(p.o) ?? otras,
         sinDato: false,
         resumen: `${p.n}: ${p.a}, ${o.n}`,
         apagada: resaltar != null && nivel === "provincial" && p.o !== resaltar,
       };
     }
     return out;
-  }, [d, seleccion, colores, resaltar, nivel]);
+  }, [d, seleccion, colores, resaltar, nivel, otras]);
 
   const foco = activa?.ubigeo ?? provSel ?? seleccion;
 
@@ -387,7 +388,7 @@ export function PartidosExplorador({
                 <PeruChoropleth
                   regiones={regiones}
                   provincias={provincias}
-                  provinciaPorDefecto={{ color: COLOR_OTRAS, sinDato: true, resumen: "Sin dato en los resultados" }}
+                  provinciaPorDefecto={{ color: otras, sinDato: true, resumen: "Sin dato en los resultados" }}
                   seleccion={seleccion}
                   zonaSel={provSel}
                   onZonaActiva={(z) => setActiva(z ? { ubigeo: z.ubigeo, nivel: z.nivel } : null)}
@@ -432,7 +433,7 @@ export function PartidosExplorador({
               <ul className={cn("flex gap-x-4 gap-y-1.5 border-t border-line px-4 py-3", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
                 {leyenda.map(([o, n]) => (
                   <li key={o} className="flex shrink-0 items-center gap-1.5 text-meta text-inkSoft">
-                    <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? COLOR_OTRAS }} />
+                    <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? otras }} />
                     <span className="max-w-[11rem] truncate" title={orgDe(d, o).n}>
                       {orgDe(d, o).n}
                     </span>
@@ -440,7 +441,7 @@ export function PartidosExplorador({
                   </li>
                 ))}
                 <li className="flex shrink-0 items-center gap-1.5 text-meta text-mute">
-                  <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
+                  <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: otras }} /> Otras
                 </li>
               </ul>
               )}

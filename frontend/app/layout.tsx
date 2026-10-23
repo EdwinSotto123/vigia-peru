@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 // Modo día / noche (lib/modo.ts): la barra del navegador sigue al sistema en la primera visita; BotonModo la ajusta.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F6F8F7" },
+    { media: "(prefers-color-scheme: light)", color: "#EFF3F2" },
     { media: "(prefers-color-scheme: dark)", color: "#0B0F0F" },
   ],
   colorScheme: "dark light",
