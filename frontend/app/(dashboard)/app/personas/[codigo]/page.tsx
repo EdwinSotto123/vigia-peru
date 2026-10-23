@@ -156,7 +156,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
           {
             clave: "pagos",
             etiqueta: "Lo que cobró",
-            contenido: <Pagos anual={f.anual} mensual={f.mensual ?? []} nombre={nombre} />,
+            contenido: <Pagos anual={f.anual} mensual={f.mensual ?? []} nombre={nombre} ruta={ruta} />,
           },
           {
             clave: "ordenes",
@@ -256,12 +256,14 @@ const COLUMNAS_PAGOS: Columna[] = [
   { clave: "veces", titulo: "Diferencia", ancho: "104px", alinear: "der", desde: "md" },
 ];
 
-function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: NonNullable<FichaPersona["mensual"]>; nombre: string }) {
+function Pagos({ anual, mensual, nombre, ruta }: { anual: AnioDePersona[]; mensual: NonNullable<FichaPersona["mensual"]>; nombre: string; ruta: string }) {
   const filas: Fila[] = anual.map((a) => {
     const med = a.enLaEntidad?.mediana ?? null;
     const veces = a.personal && a.porMes != null && med ? a.porMes / med : null;
     return {
       id: `${a.anio}-${a.entidadRuc}`,
+      // Desde el agregado del año se baja a las órdenes de ESA entidad y año, donde cada una dice qué se pagó (su motivo).
+      href: `${ruta}?seccion=ordenes&oent=${a.entidadRuc}&oanio=${a.anio}`,
       celdas: {
         anio: <span className="font-mono text-meta tabular-nums">{a.anio}</span>,
         entidad: (
@@ -297,7 +299,7 @@ function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: No
     <div className="space-y-4">
       <CabeceraPestana>
         Lo que cobró por mes cada año, junto a lo que la misma entidad y todo el país pagan a quienes hacen el mismo tipo de
-        servicio.
+        servicio. Toca una fila para ver esas órdenes una por una, con lo que se pagó en cada una.
       </CabeceraPestana>
       {mensual.length > 1 && (
         <section className="space-y-2 rounded-2xl border border-line bg-paper p-4">
