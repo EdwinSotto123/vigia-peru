@@ -57,8 +57,13 @@ export function filtrosVisibles(resumen: Pick<ResumenContratos, "porLectura" | "
       opciones: [
         { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },
         { valor: "con", etiqueta: "Con alguno", conteo: k ? k.con : null },
+        // Sólo los antecedentes que SÍ son de ESTE contrato (los que casos_cruce cuenta). Los hechos del proveedor que no
+        // se atribuyen al contrato (aporte a cualquier partido, candidato, autoridad…) salen en 0 aquí —son datos de la
+        // empresa, migración 115—, así que no se ofrecen en este filtro; se ven en /app/empresas y en «datos del proveedor».
         ...GRUPOS_CRUCE.flatMap((g) =>
-          g.tipos.map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo, conteo: k?.tipos ? k.tipos[t.tipo] ?? 0 : null }))),
+          g.tipos
+            .filter((t) => !k?.tipos || (k.tipos[t.tipo] ?? 0) > 0)
+            .map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo, conteo: k?.tipos ? k.tipos[t.tipo] ?? 0 : null }))),
       ],
     },
   ];
