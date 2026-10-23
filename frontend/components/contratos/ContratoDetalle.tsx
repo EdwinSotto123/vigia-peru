@@ -33,6 +33,7 @@ import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
 import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
 import { CrucesProveedor } from "./CrucesProveedor";
+import { DossierDrawerProvider } from "./DossierDrawer";
 import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import { AvisoContrato } from "./DatoDudosoContrato";
 import { BanderaDato } from "@/components/ui/BanderaDato";
@@ -133,7 +134,9 @@ export function ContratoDetalle({
   const pestanas = [{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })];
 
   return (
-    <>
+    // Envuelve el dossier con el drawer lateral: cualquier componente cliente de adentro (p. ej. una orden del
+    // fraccionamiento) puede abrir el detalle a la derecha con useDossierDrawer(), sin salir de la pestaña.
+    <DossierDrawerProvider>
       {vistas && <div className="mb-4">{vistas}</div>}
       <Migas
         items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }]}
@@ -206,7 +209,7 @@ export function ContratoDetalle({
           )}
         </aside>
       </div>
-    </>
+    </DossierDrawerProvider>
   );
 }
 
