@@ -260,15 +260,22 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
             </AvisoDato>
           )}
           <DatosClave items={datos} />
-          {(p.historia?.length ?? 0) > 1 && (
-            <section className="space-y-2">
-              <h3 className="font-display text-bloque font-bold text-ink">Sueldo mes a mes</h3>
-              <LineaMeses
-                puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
-                etiqueta={`Sueldo mes a mes de ${p.nombre}`}
-              />
-            </section>
-          )}
+          {(p.historia?.length ?? 0) > 1 && (() => {
+            // La señal "tambien_ordenes" trae los meses en que además cobró por órdenes de servicio y su monto total.
+            const det = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
+            const mesesOrden = Array.isArray(det?.meses) ? (det!.meses as unknown[]).map(String) : [];
+            const montoOrden = typeof det?.monto === "number" ? (det!.monto as number) : null;
+            return (
+              <section className="space-y-2">
+                <h3 className="font-display text-bloque font-bold text-ink">Cobros al Estado, mes a mes</h3>
+                <LineaMeses
+                  puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
+                  etiqueta={`Cobros al Estado mes a mes de ${p.nombre}`}
+                  ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
+                />
+              </section>
+            );
+          })()}
           {p.senales.length > 0 && <SenalesPlanillaLista senales={p.senales} />}
         </div>
       ),

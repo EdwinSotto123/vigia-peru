@@ -66,6 +66,7 @@ export function LineaMeses({
   nombres = { base: "Sueldo", extra: "Fuera del sueldo" },
   huecos = "sin_dato",
   quienCarga = "de la entidad",
+  ordenes,
 }: {
   puntos: PuntoMes[];
   /** Para el lector de pantalla: "Sueldo mes a mes de …". */
@@ -75,9 +76,15 @@ export function LineaMeses({
   huecos?: "sin_dato" | "cero";
   /** "de la entidad", "de CONOSCE": en el texto del posible error. */
   quienCarga?: string;
+  /** Meses en que la persona ADEMÁS cobró por órdenes de servicio (otra fuente): se marcan con ◆, no se suman al sueldo
+   *  (si se sumaran, el mes parecería "fuera de lo normal" y la mediana se distorsionaría). */
+  ordenes?: { meses: string[]; monto: number | null } | null;
 }) {
   const meses = completar(puntos, huecos);
   if (meses.length < 2) return null;
+  const conOrden = new Set(ordenes?.meses ?? []);
+  // Con un solo mes conocemos su monto exacto; con varios, sólo el total (va en el texto), así que la nota no lo reparte.
+  const notaOrden = conOrden.size === 1 && ordenes?.monto != null ? `+ ${soles(ordenes.monto)} en órdenes de servicio` : "+ órdenes de servicio ese mes";
   const conDato = meses.filter((m) => !m.hueco && m.valor > 0);
   const tipico = mediana(conDato.map((m) => m.valor));
   const fuera = (m: Mes) => !m.hueco && (m.dudoso || (m.aparte ?? 0) > 0 || (tipico > 0 && m.valor >= 3 * tipico && m.valor - tipico >= 3000));
@@ -97,6 +104,7 @@ export function LineaMeses({
           : raros.length === 1
             ? <>En <b className="text-ink">{mesCorto(raros[0].mes)}</b> se aparta: {soles(raros[0].valor)}{tipico > 0 ? `, ${numero(Math.round(raros[0].valor / tipico))} veces su mes típico` : ""}. Si es un solo mes, suele ser un pago acumulado o un error {quienCarga} al subir el dato.</>
             : <>{numero(raros.length)} meses se apartan de lo normal (marcados en ámbar).</>}
+        {conOrden.size > 0 && <> El <span className="text-anilTexto">◆</span> marca {conOrden.size === 1 ? "el mes" : "los meses"} en que además cobró por órdenes de servicio{ordenes?.monto != null ? <> (<b className="font-mono tabular-nums text-ink">{soles(ordenes.monto)}</b> en total)</> : null}.</>}
       </p>
       {/* Barras en CSS (no un SVG estirado): se adaptan al ancho y el texto no cambia de tamaño. */}
       <div role="img" aria-label={`${etiqueta}: ${numero(conDato.length)} meses con dato${raros.length ? `, ${numero(raros.length)} fuera de lo normal` : ""}`}>
@@ -118,9 +126,15 @@ export function LineaMeses({
               `${mesCorto(m.mes)}: ${soles(m.valor)}`,
               conExtra && m.extra ? `${nombres.base} ${soles(m.base ?? 0)}, ${(nombres.extra ?? "otros").toLowerCase()} ${soles(m.extra)}` : null,
               m.dudoso || (m.aparte ?? 0) > 0 ? `posible error ${quienCarga}` : raro ? "fuera de lo normal" : null,
+              conOrden.has(m.mes) ? "también órdenes de servicio ese mes" : null,
             ].filter(Boolean).join(". ");
             return (
               <div key={m.mes} className="flex h-full max-w-7 flex-1 flex-col justify-end" title={titulo}>
+                {conOrden.has(m.mes) && (
+                  <span className="mb-0.5 flex justify-center" aria-hidden>
+                    <span className="h-2 w-2 rotate-45 rounded-[1px] bg-anil" />
+                  </span>
+                )}
                 {raro && (
                   <span className="relative mb-0.5 flex justify-center">
                     {pasa && (
@@ -157,6 +171,7 @@ export function LineaMeses({
       <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-inkSoft" aria-label="Qué es cada color">
         <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate" aria-hidden />{nombres.base}</li>
         {conExtra && nombres.extra && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-granate/30" aria-hidden />{nombres.extra}</li>}
+        {conOrden.size > 0 && <li className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rotate-45 rounded-[1px] bg-anil" aria-hidden />Órdenes de servicio ese mes</li>}
         {raros.length > 0 && (
           <li className="inline-flex items-center gap-1.5">
             <TriangleAlert size={12} className="text-amberTexto" aria-hidden />
@@ -185,8 +200,16 @@ export function LineaMeses({
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "Sin dato" : soles(m.base ?? 0)}</td>
                   {conExtra && <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.hueco ? "" : soles(m.extra ?? 0)}</td>}
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "" : soles(m.valor)}</td>
-                  <td className="px-3.5 py-1.5 text-rotulo text-amberTexto">
-                    {m.hueco ? <span className="text-mute">No se publicó</span> : m.dudoso || (m.aparte ?? 0) > 0 ? `Posible error ${quienCarga}` : fuera(m) ? "Fuera de lo normal" : ""}
+                  <td className="px-3.5 py-1.5 text-rotulo">
+                    {m.hueco ? (
+                      <span className="text-mute">No se publicó</span>
+                    ) : (
+                      <span className="flex flex-col gap-0.5">
+                        {(m.dudoso || (m.aparte ?? 0) > 0) && <span className="text-amberTexto">{`Posible error ${quienCarga}`}</span>}
+                        {!(m.dudoso || (m.aparte ?? 0) > 0) && fuera(m) && <span className="text-amberTexto">Fuera de lo normal</span>}
+                        {conOrden.has(m.mes) && <span className="text-anilTexto">{notaOrden}</span>}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

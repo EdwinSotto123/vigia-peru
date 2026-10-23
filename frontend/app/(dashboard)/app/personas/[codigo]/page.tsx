@@ -325,7 +325,7 @@ function Pagos({ anual, mensual, nombre }: { anual: AnioDePersona[]; mensual: No
 // En el celular la fecha y el estado (con sus banderas) se apilan bajo la descripción, no bajo la fecha angosta.
 const COLUMNAS_ORDENES: Columna[] = [
   { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
-  { clave: "orden", titulo: "Orden", ancho: "minmax(0,1.8fr)" },
+  { clave: "orden", titulo: "Orden de servicio", ancho: "minmax(0,1.8fr)" },
   {
     clave: "estado", titulo: "Estado y banderas", ancho: "minmax(0,0.7fr)", desde: "lg", apilar: true,
     ayuda: (
