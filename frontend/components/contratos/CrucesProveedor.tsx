@@ -554,16 +554,62 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
   );
 }
 
-export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
-  if (!todos.length) return null;
-  // Un antecedente es lo que ya había pasado cuando se convocó el proceso (migración 83); lo de después va aparte.
-  const cruces = todos.filter((c) => !c.posterior);
-  const posteriores = todos.filter((c) => c.posterior);
-  // Un grupo por tipo, en orden de severidad (la más alta del grupo) y luego por cuántas filas tiene.
+/**
+ * Los tipos que son DATOS DEL PROVEEDOR (hechos de quien ganó), no antecedentes de ESTA contratación: una candidatura,
+ * un aporte o una venta a una campaña, o ser autoridad electa (en cualquier jurisdicción). Desde la migración 115 no
+ * cuentan para el riesgo del contrato y se muestran en una sección aparte, no mezclados con lo de esta entidad. Las
+ * versiones LIGADAS a la entidad (partido_gobernante, vendio_gobernante) NO están aquí: son antecedentes de verdad.
+ */
+const DATOS_PROVEEDOR = new Set(["candidato", "aporte", "aporte_empresa", "proveedor_campana", "autoridad"]);
+
+/** Un bloque de cruces agrupados por tipo, en orden de severidad: se reutiliza para los antecedentes y para los datos del proveedor. */
+function GruposCruces({ lista, gobierna }: { lista: CruceProveedor[]; gobierna?: GobiernoContrato | null }) {
   const grupos = new Map<string, CruceProveedor[]>();
-  for (const c of cruces) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
+  for (const c of lista) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
   const orden = [...grupos.values()].sort((a, b) =>
     RANGO_SEVERIDAD[peorSeveridad(a) ?? "baja"] - RANGO_SEVERIDAD[peorSeveridad(b) ?? "baja"] || b.length - a.length);
+  return (
+    <ul className="divide-y divide-line px-4 pb-1">
+      {orden.map((grupo) => {
+        const sev = peorSeveridad(grupo) ?? grupo[0].severidad;
+        const filas = [...grupo].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+        return (
+          <li key={grupo[0].tipo} className="py-3">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <Badge variant={VARIANTE[sev]}>{SEVERIDAD[sev]}</Badge>
+              <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
+                {grupo[0].etiqueta}
+                {grupo.length > 1 && <CuentaGrupo>{grupo.length}</CuentaGrupo>}
+              </h3>
+            </div>
+            {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
+            {grupo[0].tipo === "sancion" && <SancionesAlGanar grupo={grupo} />}
+            <ul className="list-disc space-y-1.5 pl-5">
+              {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
+            </ul>
+            {filas.length > VISIBLES && (
+              <details className="mt-1.5">
+                <summary className="cursor-pointer text-meta text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
+                <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
+                  {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
+                </ul>
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
+  if (!todos.length) return null;
+  // Un antecedente es lo que ya había pasado cuando se convocó (migración 83) Y está ligado a esta entidad/proceso. Los
+  // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
+  // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
+  const antecedentes = todos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo));
+  const datosProv = todos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo));
+  const posteriores = todos.filter((c) => c.posterior);
 
   return (
     <section aria-labelledby="cruces-proveedor" className="rounded-2xl border border-line bg-paper">
@@ -578,41 +624,29 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
           posterior se muestra aparte.
         </Ayuda>
       </div>
-      {!cruces.length && (
+      {!antecedentes.length && (
         <p className="px-4 pb-3 pt-2 text-meta leading-relaxed text-inkSoft">
-          Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes en estos registros.
+          Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
         </p>
       )}
-      <ul className="divide-y divide-line px-4 pb-1">
-        {orden.map((grupo) => {
-          const sev = peorSeveridad(grupo) ?? grupo[0].severidad;
-          const filas = [...grupo].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
-          return (
-            <li key={grupo[0].tipo} className="py-3">
-              <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <Badge variant={VARIANTE[sev]}>{SEVERIDAD[sev]}</Badge>
-                <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
-                  {grupo[0].etiqueta}
-                  {grupo.length > 1 && <CuentaGrupo>{grupo.length}</CuentaGrupo>}
-                </h3>
-              </div>
-              {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
-              {grupo[0].tipo === "sancion" && <SancionesAlGanar grupo={grupo} />}
-              <ul className="list-disc space-y-1.5 pl-5">
-                {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
-              </ul>
-              {filas.length > VISIBLES && (
-                <details className="mt-1.5">
-                  <summary className="cursor-pointer text-meta text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
-                  <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
-                    {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
-                  </ul>
-                </details>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {antecedentes.length > 0 && <GruposCruces lista={antecedentes} gobierna={gobierna} />}
+      {datosProv.length > 0 && (
+        <details className="group border-t border-line">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+            <span className="text-meta text-inkSoft">
+              <span className="font-semibold text-ink">Datos del proveedor</span> <CuentaGrupo>{numero(datosProv.length)}</CuentaGrupo> — no relacionados con esta entidad
+            </span>
+            <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
+          </summary>
+          <div>
+            <p className="px-4 pb-1 pt-1 text-meta leading-relaxed text-inkSoft">
+              Hechos de quien ganó (una candidatura, un aporte o una venta a una campaña, un cargo de autoridad electa), no de
+              esta contratación: contexto del proveedor, no cuentan para el riesgo de este contrato.
+            </p>
+            <GruposCruces lista={datosProv} gobierna={gobierna} />
+          </div>
+        </details>
+      )}
       {posteriores.length > 0 && (
         <details className="group border-t border-line">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
