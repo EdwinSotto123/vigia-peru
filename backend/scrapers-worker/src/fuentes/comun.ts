@@ -64,5 +64,7 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // estado (dada de baja, suspendida, no habida); así nunca quedan sin ellas. "Recién fundada" ya llega como cruce del
   // contrato (migración 118), por cruces_proveedor.
   await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
+  // Mapa de poder (migración 125): captura por partido/entidad. Lee casos_cruce + entidad_gobierno_amplia + jne, ya listos.
+  await uno("refrescar_poder", "SELECT refrescar_poder() AS n");
   return n;
 }
