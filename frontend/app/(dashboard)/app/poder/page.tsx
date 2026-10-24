@@ -5,7 +5,7 @@ import { Indicadores, type Indicador } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { getPoderPartidos, getPoderEntidades, clavePartido } from "@/lib/poder";
+import { getPoderPartidos, getPoderEntidades, getPoderGrafo, clavePartido } from "@/lib/poder";
 import { PoderVista } from "@/components/entidad/PoderVista";
 import { PoderResumenGrafo } from "@/components/entidad/PoderResumenGrafo";
 
@@ -24,11 +24,11 @@ export const revalidate = 600;
  * socio contratado por la misma entidad. Son INDICIOS agregados para revisar, nunca una acusación.
  */
 export default async function PoderPage() {
-  const [r, re] = await Promise.all([getPoderPartidos(), getPoderEntidades()]);
+  const [r, re, g] = await Promise.all([getPoderPartidos(), getPoderEntidades(), getPoderGrafo()]);
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
-  const entidadesTop = re?.data ?? [];
-  const entidades = entidadesTop.slice(0, 50);
+  const entidades = (re?.data ?? []).slice(0, 50);
+  const grafoPartidos = g?.partidos ?? [];
 
   const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);
   const totCap = partidos.reduce((s, p) => s + p.n_captura, 0);
@@ -58,7 +58,7 @@ export default async function PoderPage() {
       <Indicadores items={cifras} />
 
       <PoderVista
-        grafo={<PoderResumenGrafo partidos={partidos} entidades={entidadesTop} />}
+        grafo={<PoderResumenGrafo partidos={grafoPartidos} />}
         lista={
       <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[720px] text-meta">

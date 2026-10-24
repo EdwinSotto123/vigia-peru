@@ -75,5 +75,18 @@ export interface GrafoPartido {
 export const getPoderGrafoPartido = (partido: string) =>
   partido ? leer<GrafoPartido>(`/poder/partido/${encodeURIComponent(partido)}/grafo`) : Promise.resolve(null);
 
+/** Grafo-resumen del mapa de poder: los partidos que más capturan, cada uno con sus instituciones más capturadas. */
+export interface PoderGrafoPartido {
+  partido: string;
+  n_captura: number;
+  n_entidades: number;
+  monto_captura: number;
+  instituciones: {
+    ruc: string; nombre: string; nivel: string; departamento: string | null;
+    n_captura: number; monto_captura: number; n_financiaron: number; n_vendieron: number; n_socio: number;
+  }[];
+}
+export const getPoderGrafo = () => leer<{ partidos: PoderGrafoPartido[] }>(`/poder/grafo`);
+
 /** Clave URL-segura de un partido (para enlazar), y su inverso aproximado no hace falta: la página usa el nombre. */
 export const clavePartido = (p: string) => encodeURIComponent(p);

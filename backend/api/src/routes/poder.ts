@@ -29,6 +29,45 @@ poderRouter.get("/partidos", async (c) => {
   return c.json(publicar({ data: r.rows }));
 });
 
+/** Grafo-resumen del mapa de poder: los partidos que más capturan y, de CADA uno, sus instituciones más capturadas.
+ * Garantiza que cada partido traiga sus propias entidades (LATERAL), para que el grafo de /app/poder no salga ralo. */
+poderRouter.get("/grafo", async (c) => {
+  const nPart = 12;
+  const kEnt = 6;
+  const r = await pool.query(
+    `WITH p AS (
+       SELECT partido, n_captura, n_entidades, monto_captura
+         FROM poder_partido WHERE n_captura > 0
+        ORDER BY n_captura DESC, n_entidades DESC, partido LIMIT $1)
+     SELECT p.partido, p.n_captura::int, p.n_entidades::int, p.monto_captura::float,
+            e.entidad_ruc AS ruc, e.entidad AS nombre, e.nivel, e.departamento,
+            e.n_captura::int AS e_captura, e.monto_captura::float AS e_monto,
+            e.n_financiaron::int, e.n_vendieron::int, e.n_socio::int
+       FROM p
+       CROSS JOIN LATERAL (
+         SELECT entidad_ruc, entidad, nivel, departamento, n_captura, monto_captura, n_financiaron, n_vendieron, n_socio
+           FROM poder_entidad pe
+          WHERE pe.partido = p.partido AND pe.n_captura > 0
+          ORDER BY pe.n_captura DESC, pe.monto_captura DESC NULLS LAST, pe.entidad_ruc LIMIT $2) e
+      ORDER BY p.n_captura DESC, p.partido, e.n_captura DESC`,
+    [nPart, kEnt]);
+  const porPartido = new Map<string, Record<string, unknown>>();
+  for (const row of r.rows) {
+    let p = porPartido.get(row.partido as string);
+    if (!p) {
+      p = { partido: row.partido, n_captura: row.n_captura, n_entidades: row.n_entidades, monto_captura: row.monto_captura, instituciones: [] };
+      porPartido.set(row.partido as string, p);
+    }
+    (p.instituciones as unknown[]).push({
+      ruc: row.ruc, nombre: row.nombre, nivel: row.nivel, departamento: row.departamento,
+      n_captura: row.e_captura, monto_captura: row.e_monto,
+      n_financiaron: row.n_financiaron, n_vendieron: row.n_vendieron, n_socio: row.n_socio,
+    });
+  }
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ partidos: [...porPartido.values()] }));
+});
+
 /** Ranking de ENTIDADES por captura (las más capturadas primero): para bajar del partido al municipio concreto. */
 poderRouter.get("/entidades", async (c) => {
   const nivel = c.req.query("nivel");

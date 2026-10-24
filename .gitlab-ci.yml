@@ -48,8 +48,7 @@ deploy:api:dev:
     name: dev
     url: https://vigia-api-dev.vigiaperu.workers.dev
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
-      when: manual
+    - if: '$CI_COMMIT_BRANCH == "dev"'   # DEV se despliega solo con cada push a dev
 
 deploy:web:dev:
   <<: *web
@@ -64,8 +63,7 @@ deploy:web:dev:
     name: dev
     url: https://vigia-web-dev.vigiaperu.workers.dev
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
-      when: manual
+    - if: '$CI_COMMIT_BRANCH == "dev"'   # DEV se despliega solo con cada push a dev
 
 # ─── PRODUCTION (rama main) ──────────────────────────────────────────────────────────────────────
 deploy:api:prod:
