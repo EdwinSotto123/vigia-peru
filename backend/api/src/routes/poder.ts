@@ -73,32 +73,27 @@ poderRouter.get("/grafo", async (c) => {
  * Incluye su captura política si es electa (poder_entidad); los ministerios no se eligen por partido, así que no la
  * tienen. Indicios para revisión, no acusación. */
 poderRouter.get("/instituciones", async (c) => {
+  // Conteo por entidad (índice idx_conv_entidad, ~0.6s), categoría por rama y top 9 DENTRO de cada rama: así los
+  // ministerios salen aunque contraten menos que organismos como EsSalud o el Ejército (que no son ministerios).
   const r = await pool.query(
-    `WITH tops AS (
-       SELECT entidad_ruc, count(*)::int AS n_contratos, COALESCE(sum(cuantia_referencial), 0)::float AS monto
-         FROM convocatorias
-        WHERE entidad_ruc ~ '^[0-9]{11}$'
-        GROUP BY entidad_ruc
-        ORDER BY count(*) DESC
-        LIMIT 240)
-     SELECT t.entidad_ruc AS ruc, e.nombre, e.tipo, e.region, t.n_contratos, t.monto,
+    `WITH cnt AS (
+       SELECT entidad_ruc AS ruc, count(*)::int AS n, COALESCE(sum(cuantia_referencial), 0)::float AS monto
+         FROM convocatorias WHERE entidad_ruc ~ '^[0-9]{11}$' GROUP BY entidad_ruc),
+     cat AS (
+       SELECT c.ruc, e.nombre, e.tipo, e.region, c.n AS n_contratos, c.monto,
+              CASE WHEN upper(e.nombre) LIKE '%MINISTERIO%' THEN 'ministerios'
+                   WHEN upper(e.nombre) LIKE '%GOBIERNO REGIONAL%' OR e.tipo = 'gobierno_regional' THEN 'regional'
+                   WHEN upper(e.nombre) LIKE '%MUNICIPALIDAD%' OR e.tipo LIKE 'municipal%' THEN 'local'
+                   ELSE 'otro' END AS rama
+         FROM cnt c JOIN entidades e ON e.ruc = c.ruc),
+     rk AS (SELECT *, row_number() OVER (PARTITION BY rama ORDER BY n_contratos DESC) AS rn FROM cat WHERE rama <> 'otro')
+     SELECT k.ruc, k.nombre, k.tipo, k.region, k.n_contratos, k.monto, k.rama,
             pe.partido, pe.n_captura::int AS captura, pe.monto_captura::float AS captura_monto
-       FROM tops t
-       JOIN entidades e ON e.ruc = t.entidad_ruc
-       LEFT JOIN poder_entidad pe ON pe.entidad_ruc = t.entidad_ruc
-      ORDER BY t.n_contratos DESC`);
-  const rama = (nombre: string | null, tipo: string | null) => {
-    const n = (nombre ?? "").toUpperCase();
-    if (/GOBIERNO\s+REGIONAL/.test(n) || tipo === "gobierno_regional") return "regional";
-    if (/MUNICIPALIDAD/.test(n) || (tipo ?? "").startsWith("municipal")) return "local";
-    return "nacional"; // ministerios, organismos, direcciones, unidades ejecutoras de pliegos nacionales
-  };
-  const K = 9;
-  const ramas: Record<string, unknown[]> = { nacional: [], regional: [], local: [] };
-  for (const row of r.rows) {
-    const b = rama(row.nombre as string, row.tipo as string);
-    if (ramas[b].length < K) ramas[b].push(row);
-  }
+       FROM rk k LEFT JOIN poder_entidad pe ON pe.entidad_ruc = k.ruc
+      WHERE k.rn <= 9
+      ORDER BY k.rama, k.n_contratos DESC`);
+  const ramas: Record<string, unknown[]> = { ministerios: [], regional: [], local: [] };
+  for (const row of r.rows) (ramas[row.rama as string] ??= []).push(row);
   c.header("Cache-Control", CACHE);
   return c.json(publicar({ ramas }));
 });

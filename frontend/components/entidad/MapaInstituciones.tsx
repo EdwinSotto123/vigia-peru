@@ -13,7 +13,7 @@ import type { Institucion, MapaInstituciones as Datos } from "@/lib/poder";
  * las gobierna); en lima las demás (los ministerios no se eligen por partido). Indicios para revisión, no acusación.
  */
 const RAMAS = [
-  { key: "nacional", titulo: "Gobierno Nacional", ang: -90 },
+  { key: "ministerios", titulo: "Ministerios", ang: -90 },
   { key: "regional", titulo: "Gobiernos Regionales", ang: 30 },
   { key: "local", titulo: "Municipalidades", ang: 150 },
 ] as const;
@@ -35,7 +35,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
   const Re = 368;
 
   const { nodos, maxC, total } = useMemo(() => {
-    const all = [...datos.ramas.nacional, ...datos.ramas.regional, ...datos.ramas.local];
+    const all = [...datos.ramas.ministerios, ...datos.ramas.regional, ...datos.ramas.local];
     const maxC = Math.max(...all.map((e) => e.n_contratos), 1);
     const nodos = RAMAS.map((r) => {
       const insts = (datos.ramas[r.key] ?? []).slice(0, 9);
@@ -60,7 +60,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
     return { nodos, maxC, total: all.length };
   }, [datos]);
 
-  const det = hover ? [...datos.ramas.nacional, ...datos.ramas.regional, ...datos.ramas.local].find((e) => e.ruc === hover) : null;
+  const det = hover ? [...datos.ramas.ministerios, ...datos.ramas.regional, ...datos.ramas.local].find((e) => e.ruc === hover) : null;
   const dim = (ruc: string) => (hover && hover !== ruc ? 0.3 : 1);
 
   return (
