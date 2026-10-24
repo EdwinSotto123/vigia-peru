@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
 import { baseApiNavegador } from "@/lib/api-client";
@@ -9,11 +9,11 @@ import type { TerritorioNodo } from "@/lib/poder";
 import type { Cadena } from "@/lib/cadena";
 
 /**
- * Explorador territorial del Estado (migración 125): UN SOLO ÁRBOL con TODOS los nodos —El Estado → las 25 regiones →
- * todas sus provincias → todos sus distritos (~1.841)— con ZOOM y ARRASTRE para navegarlo, sin niveles ni topes. Al
- * tocar una entidad, el panel lateral muestra quién la gobierna (la autoridad = el afiliado), su captura, de quién
- * depende y su CADENA de captura (empresas ligadas → quién aprueba). Filtro por región (hace zoom ahí). En rojo las que
- * tienen indicios de captura. Los municipios son autónomos pero territorialmente anidados. Indicios, no acusación.
+ * Explorador territorial del Estado (migración 125): radial COLAPSABLE con AUTO-ZOOM. Se ve el Estado + las 25 regiones;
+ * al tocar una región aparecen sus provincias y el zoom va solo hasta ella; al tocar una provincia aparecen sus distritos.
+ * Progresivo (los datos aparecen al clickear), navegable, con panel lateral que trae el detalle + la cadena de captura.
+ * En rojo las que tienen indicios de captura. Los municipios son autónomos pero territorialmente anidados. Indicios, no
+ * acusación.
  */
 const fuerte = (n: TerritorioNodo) => (n.n_captura ?? 0) > 0;
 const fuerteLazo = (ls: string[]) => ls.includes("partido_gobernante") || ls.includes("socio_en_entidad");
@@ -23,83 +23,93 @@ function corto(s: string, n: number) {
 }
 const nivelTxt = (n: string) => (n === "regional" ? "Gobierno regional" : n === "provincial" ? "Municipalidad provincial" : "Municipalidad distrital");
 
-type Pos = { n: TerritorioNodo; x: number; y: number; r: number; ang: number; label: string };
+const VB = 1000;
+const C = VB / 2;
+const R1 = 215; // regiones desde el centro
+const PR = 155; // provincias desde su región
+const DR = 108; // distritos desde su provincia
+const rad = (deg: number) => (deg * Math.PI) / 180;
 
-const W = 1000;
-const H = 1000;
-const CX = W / 2;
-const CY = H / 2;
-const RR = { regional: 175, provincial: 310, distrital: 445 } as const;
+type P = { n: TerritorioNodo; x: number; y: number; r: number; ang: number; label: string; nivel: "regional" | "provincial" | "distrital" };
 
 export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
   const router = useRouter();
+  const [regAbierta, setRegAbierta] = useState<string | null>(null);
+  const [provAbierta, setProvAbierta] = useState<string | null>(null);
   const [sel, setSel] = useState<TerritorioNodo | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [cadena, setCadena] = useState<Cadena | null>(null);
   const [cargandoCadena, setCargandoCadena] = useState(false);
-  const [filtroDep, setFiltroDep] = useState<string>("");
-  const [vista, setVista] = useState({ k: 1, x: 0, y: 0 });
-  const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
 
-  // Construir el árbol completo y asignar posiciones radiales (partición angular por nº de hojas/distritos).
-  const { posList, posByRuc, edges, regiones } = useMemo(() => {
-    const regs = nodos.filter((n) => n.nivel === "regional").map((n) => n.departamento);
-    const provsDe = (d: string) => [...new Set(nodos.filter((n) => n.nivel === "provincial" && n.departamento === d).map((n) => n.provincia as string))];
-    const distsDe = (d: string, p: string) => nodos.filter((n) => n.nivel === "distrital" && n.departamento === d && n.provincia === p);
-    const nodoReg = (d: string) => nodos.find((n) => n.nivel === "regional" && n.departamento === d)!;
-    const nodoProv = (d: string, p: string) => nodos.find((n) => n.nivel === "provincial" && n.departamento === d && n.provincia === p);
+  const regiones = useMemo(
+    () => nodos.filter((n) => n.nivel === "regional").sort((a, b) => a.departamento.localeCompare(b.departamento)),
+    [nodos],
+  );
+  const provsDe = (d: string) => nodos.filter((n) => n.nivel === "provincial" && n.departamento === d).sort((a, b) => (b.n_captura ?? 0) - (a.n_captura ?? 0));
+  const distsDe = (d: string, p: string) => nodos.filter((n) => n.nivel === "distrital" && n.departamento === d && n.provincia === p).sort((a, b) => (b.n_captura ?? 0) - (a.n_captura ?? 0));
+  const nHijos = (n: TerritorioNodo) =>
+    n.nivel === "regional" ? new Set(nodos.filter((x) => x.nivel === "provincial" && x.departamento === n.departamento).map((x) => x.provincia)).size
+      : n.nivel === "provincial" ? distsDe(n.departamento, n.provincia ?? "").length : 0;
 
-    const hojasProv = (d: string, p: string) => Math.max(distsDe(d, p).length, 1);
-    const hojasReg = (d: string) => Math.max(provsDe(d).reduce((s, p) => s + hojasProv(d, p), 0), 1);
-    const L = regs.reduce((s, d) => s + hojasReg(d), 0) || 1;
+  // Posiciones: regiones siempre; la región abierta despliega sus provincias; la provincia abierta sus distritos.
+  const { nodosPos, edges, foco } = useMemo(() => {
+    const N = regiones.length || 1;
+    const pos: P[] = [];
+    const byRuc = new Map<string, P>();
+    const edges: { a: P | null; x1: number; y1: number; bx: number; by: number; fuerte: boolean }[] = [];
+    const F: { reg: P | null; prov: P | null } = { reg: null, prov: null };
 
-    const posList: Pos[] = [];
-    const posByRuc = new Map<string, Pos>();
-    const edges: { x1: number; y1: number; x2: number; y2: number; fuerte: boolean }[] = [];
-    const push = (n: TerritorioNodo, ang: number, lvl: keyof typeof RR, label: string) => {
-      const r = lvl === "regional" ? 8 : lvl === "provincial" ? 5 : 3.2;
-      const a = (ang * Math.PI) / 180;
-      const p: Pos = { n, x: CX + RR[lvl] * Math.cos(a), y: CY + RR[lvl] * Math.sin(a), r, ang, label };
-      posList.push(p);
-      posByRuc.set(n.ruc, p);
-      return p;
-    };
-
-    let ang = -90;
-    const regMeta: { dep: string; ang: number }[] = [];
-    for (const d of regs.sort()) {
-      const span = (hojasReg(d) / L) * 360;
-      const regNode = nodoReg(d);
-      const regPos = push(regNode, ang + span / 2, "regional", tituloNatural(d));
-      regMeta.push({ dep: d, ang: ang + span / 2 });
-      edges.push({ x1: CX, y1: CY, x2: regPos.x, y2: regPos.y, fuerte: fuerte(regNode) });
-      let a2 = ang;
-      for (const p of provsDe(d)) {
-        const pspan = (hojasProv(d, p) / hojasReg(d)) * span;
-        const provN = nodoProv(d, p);
-        if (provN) {
-          const provPos = push(provN, a2 + pspan / 2, "provincial", tituloNatural(p));
-          edges.push({ x1: regPos.x, y1: regPos.y, x2: provPos.x, y2: provPos.y, fuerte: fuerte(provN) });
-          const dists = distsDe(d, p);
-          dists.forEach((dn, k) => {
-            const da = a2 + ((k + 0.5) / Math.max(dists.length, 1)) * pspan;
-            const dPos = push(dn, da, "distrital", tituloNatural(dn.distrito ?? dn.nombre));
-            edges.push({ x1: provPos.x, y1: provPos.y, x2: dPos.x, y2: dPos.y, fuerte: fuerte(dn) });
-          });
-        }
-        a2 += pspan;
+    regiones.forEach((rn, i) => {
+      const ang = -90 + (i * 360) / N;
+      const rp: P = { n: rn, x: C + R1 * Math.cos(rad(ang)), y: C + R1 * Math.sin(rad(ang)), r: 9, ang, label: tituloNatural(rn.departamento), nivel: "regional" };
+      pos.push(rp); byRuc.set(rn.ruc, rp);
+      edges.push({ a: null, x1: C, y1: C, bx: rp.x, by: rp.y, fuerte: fuerte(rn) });
+      if (rn.departamento === regAbierta) {
+        F.reg = rp;
+        const provs = provsDe(rn.departamento);
+        const K = provs.length;
+        const spread = Math.min(14, 130 / Math.max(K - 1, 1));
+        provs.forEach((pn, k) => {
+          const pa = ang + (k - (K - 1) / 2) * spread;
+          const pp: P = { n: pn, x: rp.x + PR * Math.cos(rad(pa)), y: rp.y + PR * Math.sin(rad(pa)), r: 6, ang: pa, label: tituloNatural(pn.provincia ?? ""), nivel: "provincial" };
+          pos.push(pp); byRuc.set(pn.ruc, pp);
+          edges.push({ a: rp, x1: rp.x, y1: rp.y, bx: pp.x, by: pp.y, fuerte: fuerte(pn) });
+          if (pn.provincia === provAbierta) {
+            F.prov = pp;
+            const dists = distsDe(rn.departamento, pn.provincia ?? "");
+            const M = dists.length;
+            const phi = Math.atan2(pp.y - rp.y, pp.x - rp.x) * (180 / Math.PI);
+            const spreadD = Math.min(12, 150 / Math.max(M - 1, 1));
+            dists.forEach((dn, m) => {
+              const da = phi + (m - (M - 1) / 2) * spreadD;
+              const dp: P = { n: dn, x: pp.x + DR * Math.cos(rad(da)), y: pp.y + DR * Math.sin(rad(da)), r: 4.5, ang: da, label: tituloNatural(dn.distrito ?? dn.nombre), nivel: "distrital" };
+              pos.push(dp); byRuc.set(dn.ruc, dp);
+              edges.push({ a: pp, x1: pp.x, y1: pp.y, bx: dp.x, by: dp.y, fuerte: fuerte(dn) });
+            });
+          }
+        });
       }
-      ang += span;
-    }
-    return { posList, posByRuc, edges, regiones: regMeta };
-  }, [nodos]);
+    });
 
-  // Cadena de captura (Capa C) al seleccionar.
+    // foco + transform
+    let k = 1, tx = 0, ty = 0;
+    const target = F.prov ?? F.reg;
+    if (target) {
+      const out = rad(target.ang);
+      const push = F.prov ? 60 : 82;
+      const px = target.x + push * Math.cos(out);
+      const py = target.y + push * Math.sin(out);
+      k = F.prov ? 2.9 : 2.0;
+      tx = C - px * k;
+      ty = C - py * k;
+    }
+    return { nodosPos: pos, edges, foco: { k, tx, ty } };
+  }, [nodos, regiones, regAbierta, provAbierta]);
+
   useEffect(() => {
     if (!sel) { setCadena(null); return; }
     let vivo = true;
-    setCadena(null);
-    setCargandoCadena(true);
+    setCadena(null); setCargandoCadena(true);
     fetch(`${baseApiNavegador()}/cadena/entidad/${sel.ruc}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: Cadena | null) => { if (vivo) setCadena(d); })
@@ -108,115 +118,71 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
     return () => { vivo = false; };
   }, [sel]);
 
-  const nHijos = (n: TerritorioNodo) => {
-    if (n.nivel === "regional") return new Set(nodos.filter((x) => x.nivel === "provincial" && x.departamento === n.departamento).map((x) => x.provincia)).size;
-    if (n.nivel === "provincial") return nodos.filter((x) => x.nivel === "distrital" && x.departamento === n.departamento && x.provincia === n.provincia).length;
-    return 0;
-  };
-
-  // Zoom hacia el cursor.
-  function onWheel(e: React.WheelEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mx = ((e.clientX - rect.left) / rect.width) * W;
-    const my = ((e.clientY - rect.top) / rect.height) * H;
-    setVista((v) => {
-      const k2 = Math.min(14, Math.max(1, v.k * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));
-      // mantener el punto bajo el cursor fijo: (m - x)/k constante
-      return { k: k2, x: mx - ((mx - v.x) / v.k) * k2, y: my - ((my - v.y) / v.k) * k2 };
-    });
-  }
-  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y, moved: false };
-  }
-  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
-    const a = arrastre.current;
-    if (!a) return;
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const dx = ((e.clientX - a.x) / rect.width) * W;
-    const dy = ((e.clientY - a.y) / rect.height) * H;
-    if (Math.abs(e.clientX - a.x) + Math.abs(e.clientY - a.y) > 3) a.moved = true;
-    setVista((v) => ({ ...v, x: a.vx + dx, y: a.vy + dy }));
-  }
-  function onPointerUp() { arrastre.current = null; }
-
-  function irARegion(dep: string) {
-    setFiltroDep(dep);
-    if (!dep) { setVista({ k: 1, x: 0, y: 0 }); return; }
-    const reg = regiones.find((r) => r.dep === dep);
-    if (!reg) return;
-    // zoom al sector de la región
-    const a = (reg.ang * Math.PI) / 180;
-    const fx = CX + 330 * Math.cos(a);
-    const fy = CY + 330 * Math.sin(a);
-    const k = 3.2;
-    setVista({ k, x: CX - fx * k, y: CY - fy * k });
+  function abrir(p: P) {
+    setSel(p.n);
+    if (p.nivel === "regional") { setRegAbierta(p.n.departamento); setProvAbierta(null); }
+    else if (p.nivel === "provincial") { setProvAbierta(p.n.provincia ?? null); }
   }
 
-  const mostrarEtiqueta = (p: Pos) =>
-    p.n.nivel === "regional" || hover === p.n.ruc || sel?.ruc === p.n.ruc || (vista.k >= 3 && p.n.nivel === "provincial") || (vista.k >= 6 && p.n.nivel === "distrital");
+  const mostrarEtiqueta = (p: P) => p.nivel === "regional" || regAbierta != null;
 
   return (
     <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-cuerpo font-semibold text-ink">El Estado y su territorio</h2>
-          <p className="text-rotulo text-mute">{numero(posList.length)} entidades — rueda para zoom, arrastrá para mover, tocá una para su detalle</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select value={filtroDep} onChange={(e) => irARegion(e.target.value)} className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-meta text-ink shadow-sm focus:border-granate focus:outline-none" aria-label="Ir a una región">
-            <option value="">Todas las regiones</option>
-            {regiones.map((r) => <option key={r.dep} value={r.dep}>{tituloNatural(r.dep)}</option>)}
-          </select>
-          <button type="button" onClick={() => { setVista({ k: 1, x: 0, y: 0 }); setFiltroDep(""); }} className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-meta text-inkSoft shadow-sm hover:text-ink">Reiniciar</button>
-        </div>
+        <nav className="flex flex-wrap items-center gap-1.5 text-meta">
+          <button type="button" onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} className={`font-semibold ${regAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>El Estado</button>
+          {regAbierta && <span className="text-mute" aria-hidden>›</span>}
+          {regAbierta && <button type="button" onClick={() => { setProvAbierta(null); setSel(null); }} className={`font-semibold ${provAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>{tituloNatural(regAbierta)}</button>}
+          {provAbierta && <span className="text-mute" aria-hidden>›</span>}
+          {provAbierta && <span className="font-semibold text-ink">{tituloNatural(provAbierta)}</span>}
+        </nav>
+        <select
+          value={regAbierta ?? ""}
+          onChange={(e) => { setRegAbierta(e.target.value || null); setProvAbierta(null); setSel(null); }}
+          className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-meta text-ink shadow-sm focus:border-granate focus:outline-none"
+          aria-label="Ir a una región"
+        >
+          <option value="">Todas las regiones</option>
+          {regiones.map((r) => <option key={r.departamento} value={r.departamento}>{tituloNatural(r.departamento)}</option>)}
+        </select>
       </div>
+      <p className="text-meta leading-relaxed text-inkSoft">
+        {!regAbierta ? "El Estado al centro y las 25 regiones. Tocá una región: aparecen sus provincias y el zoom va solo hasta ahí."
+          : !provAbierta ? "Las provincias de la región. Tocá una para abrir sus distritos; el panel muestra quién la gobierna y su cadena."
+          : "Los distritos de la provincia. Tocá uno para su detalle, o las migas para volver."}
+      </p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="overflow-hidden rounded-xl border border-line bg-fondo/40">
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="h-auto w-full min-w-[560px] touch-none select-none"
-            style={{ cursor: arrastre.current ? "grabbing" : "grab" }}
-            role="img"
-            aria-label={`Árbol territorial del Estado: ${numero(posList.length)} entidades`}
-            onWheel={onWheel}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={onPointerUp}
-          >
-            <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
+          <svg viewBox={`0 0 ${VB} ${VB}`} className="h-auto w-full min-w-[520px] touch-manipulation select-none" role="img" aria-label="Explorador territorial del Estado">
+            <g style={{ transform: `translate(${foco.tx}px, ${foco.ty}px) scale(${foco.k})`, transition: "transform 650ms cubic-bezier(0.4,0,0.2,1)" }}>
               {edges.map((ed, i) => (
-                <line key={i} x1={ed.x1} y1={ed.y1} x2={ed.x2} y2={ed.y2} className={ed.fuerte ? "stroke-crimson" : "stroke-granate"} strokeWidth={0.5 / vista.k} strokeOpacity={0.3} />
+                <line key={i} x1={ed.x1} y1={ed.y1} x2={ed.bx} y2={ed.by} className={ed.fuerte ? "stroke-crimson" : "stroke-granate"} strokeWidth={1 / foco.k} strokeOpacity={regAbierta && !ed.a ? 0.12 : 0.4} strokeLinecap="round" />
               ))}
-              {posList.map((p) => {
+              {nodosPos.map((p) => {
                 const eh = hover === p.n.ruc;
                 const es = sel?.ruc === p.n.ruc;
-                const r = p.r * (eh || es ? 1.6 : 1);
+                const dim = regAbierta != null && p.nivel === "regional" && p.n.departamento !== regAbierta;
+                const r = p.r * (eh || es ? 1.5 : 1);
+                const anchor = Math.cos(rad(p.ang)) >= 0 ? "start" : "end";
                 return (
-                  <g key={p.n.ruc} className="cursor-pointer"
+                  <g key={p.n.ruc} className="cursor-pointer" opacity={dim ? 0.3 : 1}
                      onPointerEnter={() => setHover(p.n.ruc)} onPointerLeave={() => setHover(null)}
-                     onClick={() => { if (!arrastre.current?.moved) setSel(p.n); }}
-                     role="button" tabIndex={-1} aria-label={p.label}>
-                    {es && <circle cx={p.x} cy={p.y} r={r + 3 / vista.k} className="fill-none stroke-ink" strokeWidth={1 / vista.k} />}
-                    <circle cx={p.x} cy={p.y} r={r} className={`${fuerte(p.n) ? "fill-crimson/40 stroke-crimson" : "fill-granate/35 stroke-granate"}`} strokeWidth={0.6 / vista.k} />
-                    {mostrarEtiqueta(p) && (
-                      <text x={p.x + (Math.cos((p.ang * Math.PI) / 180) >= 0 ? r + 2 / vista.k : -(r + 2 / vista.k))} y={p.y + 1 / vista.k}
-                        textAnchor={Math.cos((p.ang * Math.PI) / 180) >= 0 ? "start" : "end"}
+                     onClick={() => abrir(p)} role="button" tabIndex={-1} aria-label={p.label}>
+                    {es && <circle cx={p.x} cy={p.y} r={r + 4 / foco.k} className="fill-none stroke-ink" strokeWidth={1.2 / foco.k} />}
+                    <circle cx={p.x} cy={p.y} r={r} className={`${fuerte(p.n) ? "fill-crimson/35 stroke-crimson" : "fill-granate/30 stroke-granate"}`} strokeWidth={1.2 / foco.k} />
+                    {mostrarEtiqueta(p) && !dim && (
+                      <text x={p.x + (anchor === "start" ? r + 3 / foco.k : -(r + 3 / foco.k))} y={p.y + 1 / foco.k} textAnchor={anchor}
                         className={`pointer-events-none ${eh || es ? "fill-ink font-semibold" : "fill-inkSoft"}`}
-                        style={{ fontSize: `${(p.n.nivel === "regional" ? 9 : 7) / vista.k}px` }}>
+                        style={{ fontSize: `${(p.nivel === "regional" ? 10 : p.nivel === "provincial" ? 8 : 6.5) / foco.k}px` }}>
                         {corto(p.label, 20)}
                       </text>
                     )}
                   </g>
                 );
               })}
-              <circle cx={CX} cy={CY} r={11} className="fill-paperSoft stroke-ink" strokeWidth={1.5 / vista.k} />
-              <text x={CX} y={CY + 1} textAnchor="middle" className="fill-ink font-semibold" style={{ fontSize: `${8 / vista.k}px` }}>El Estado</text>
+              <circle cx={C} cy={C} r={13} className="cursor-pointer fill-paperSoft stroke-ink" strokeWidth={1.6 / foco.k} onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} role="button" aria-label="El Estado (ver todo)" />
+              <text x={C} y={C + 1} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${8 / foco.k}px` }}>El Estado</text>
             </g>
           </svg>
         </div>
@@ -241,8 +207,7 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
                 ) : <div className="text-meta text-mute">Sin indicios de captura.</div>}
               </div>
               <div className="text-rotulo text-mute">Depende de: {sel.nivel === "distrital" ? `${tituloNatural(sel.provincia ?? "")}, ${tituloNatural(sel.departamento)}` : sel.nivel === "provincial" ? tituloNatural(sel.departamento) : "Gobierno del Perú"}</div>
-              {sel.nivel !== "distrital" && <div className="text-rotulo text-mute">Contiene {numero(nHijos(sel))} {sel.nivel === "regional" ? "provincias" : "distritos"}.</div>}
-
+              {sel.nivel !== "distrital" && <div className="text-rotulo text-mute">Contiene {numero(nHijos(sel))} {sel.nivel === "regional" ? "provincias" : "distritos"} — tocá el nodo para abrirlo.</div>}
               {cargandoCadena && <div className="border-t border-line pt-2 text-rotulo text-mute">cargando la cadena…</div>}
               {cadena?.disponible && cadena.empresas && cadena.empresas.length > 0 && (
                 <div className="space-y-1.5 border-t border-line pt-2">
@@ -260,14 +225,13 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
           ) : (
             <div className="space-y-3">
               <div>
-                <div className="text-cuerpo font-semibold text-ink">El Estado</div>
-                <div className="text-rotulo text-mute">{numero(posList.length)} entidades, de las 25 regiones a cada distrito</div>
+                <div className="text-cuerpo font-semibold text-ink">{regAbierta ? tituloNatural(regAbierta) : "El Estado"}</div>
+                <div className="text-rotulo text-mute">{regAbierta ? `${numero(provsDe(regAbierta).length)} provincias` : `${numero(regiones.length)} regiones`}</div>
               </div>
-              <p className="text-meta leading-relaxed text-inkSoft">Están TODAS: el centro es el Estado, el primer anillo las regiones, luego las provincias y afuera los distritos. Rueda para acercarte, arrastrá para moverte, tocá un nodo para su detalle y su cadena de captura.</p>
+              <p className="text-meta leading-relaxed text-inkSoft">Tocá una región para abrirla: aparecen sus provincias y el zoom va solo. Tocá un nodo para ver quién lo gobierna y su cadena de captura.</p>
               <div className="space-y-1.5 text-rotulo text-mute">
                 <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-crimson/70" aria-hidden /> con indicios de captura</span>
                 <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-granate/70" aria-hidden /> sin ese indicio</span>
-                <span>anillos: regiones → provincias → distritos</span>
               </div>
             </div>
           )}
