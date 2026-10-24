@@ -101,7 +101,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
           : "En el centro, el Estado; las tres ramas y, de cada una, las instituciones que más contratan. Tocá una rama para ver todas, o una institución para ir a su ficha."}
       </p>
 
-      <div className="relative overflow-x-auto">
+      <div className="relative overflow-x-auto rounded-xl border border-line bg-fondo/40">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full min-w-[820px] touch-manipulation select-none"
@@ -144,7 +144,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                   onKeyDown={(ev) => { if (ev.key === "Enter") router.push(`/entidad/${en.e.ruc}`); }}
                   aria-label={`${corto(en.e.nombre, 60)}: ${numero(en.e.n_contratos)} contratos`}
                 >
-                  <circle cx={en.x} cy={en.y} r={en.r} className={`${fuerteEnt(en.e) ? "fill-crimson/30 stroke-crimson" : "fill-granate/25 stroke-granate"} stroke-[1.5]`} />
+                  <circle cx={en.x} cy={en.y} r={en.r + (hover === en.e.ruc ? 3 : 0)} className={`${fuerteEnt(en.e) ? "fill-crimson/30 stroke-crimson" : "fill-granate/25 stroke-granate"}`} strokeWidth={hover === en.e.ruc ? 2.5 : 1.5} fillOpacity={hover === en.e.ruc ? 0.5 : undefined} />
                   <text x={lx} y={ly} textAnchor={anchor} className="pointer-events-none fill-inkSoft text-[10.5px] font-medium">
                     {nd.key === "regional" && en.e.region ? corto(en.e.region, 18) : corto(en.e.nombre, foco ? 22 : 24)}
                   </text>
