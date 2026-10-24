@@ -25,6 +25,7 @@ import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { GrafoCaptura } from "@/components/entidad/GrafoCaptura";
 import { CapturaEntidad } from "@/components/entidad/CapturaEntidad";
+import { CadenaCapturaEntidad } from "@/components/entidad/CadenaCapturaEntidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -163,6 +164,12 @@ export default async function EntidadProfile({
       </Suspense>
       <Suspense fallback={null}>
         <CapturaEntidad ruc={e.ruc} />
+      </Suspense>
+
+      {/* 2.d La cadena de captura (Capa C): empresas ligadas → partido + autoridad → la entidad → quién aprueba sus
+          contratos. Combina A+B; oculta si no hay partido ni empresas. Indicios, no acusación. */}
+      <Suspense fallback={null}>
+        <CadenaCapturaEntidad ruc={e.ruc} />
       </Suspense>
 
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un

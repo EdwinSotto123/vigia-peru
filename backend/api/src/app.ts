@@ -34,6 +34,7 @@ import { senalesRouter } from "./routes/senales.js";
 import { privacidadRouter } from "./routes/privacidad.js";
 import { mefRouter } from "./routes/mef.js";
 import { estructuraRouter } from "./routes/estructura.js";
+import { cadenaRouter } from "./routes/cadena.js";
 
 export const app = new Hono();
 
@@ -126,6 +127,7 @@ api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);
 api.route("/mef", mefRouter);
 api.route("/estructura", estructuraRouter);
+api.route("/cadena", cadenaRouter);
 api.route("/admin", adminRouter);
 
 app.route("/", api);
