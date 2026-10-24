@@ -59,6 +59,48 @@ poderRouter.get("/partido/:partido", async (c) => {
   return c.json(publicar({ partido: cab.rows[0], entidades: ent.rows }));
 });
 
+/** El GRAFO de captura de un PARTIDO: las entidades que gobierna (las más capturadas) y las empresas «puente» —las que
+ * ganaron contratos con indicio en DOS O MÁS de esas entidades—, con las entidades que conecta cada una. Es el patrón
+ * que más señala: una misma empresa ligada al partido que se repite por varios de sus municipios. Indicios, no acusación. */
+poderRouter.get("/partido/:partido/grafo", async (c) => {
+  const partido = c.req.param("partido");
+  if (!partido || partido.length > 120) return c.json({ error: "not_found" }, 404);
+  // Las entidades del partido con más captura (tope 14), ordenadas de forma determinista para que las dos consultas
+  // trabajen sobre EL MISMO conjunto (la de empresas referencia estos entidad_ruc).
+  const entsCte = `SELECT entidad_ruc FROM poder_entidad
+     WHERE partido = $1 AND n_captura > 0
+     ORDER BY n_captura DESC, monto_captura DESC NULLS LAST, entidad_ruc LIMIT 14`;
+  const [cab, ent, emp] = await Promise.all([
+    pool.query(`SELECT ${COLS_PARTIDO} FROM poder_partido WHERE partido = $1`, [partido]),
+    pool.query(
+      `SELECT entidad_ruc AS ruc, entidad AS nombre, nivel, departamento,
+              n_captura::int, monto_captura::float
+         FROM poder_entidad
+        WHERE partido = $1 AND n_captura > 0
+        ORDER BY n_captura DESC, monto_captura DESC NULLS LAST, entidad_ruc LIMIT 14`, [partido]),
+    pool.query(
+      `WITH ents AS (${entsCte})
+       SELECT cp.ruc_empresa AS ruc, max(e.razon_social) AS nombre,
+              array_agg(DISTINCT c.entidad_ruc) AS entidades,
+              array_agg(DISTINCT cp.tipo) AS lazos,
+              count(DISTINCT cp.ocid)::int AS contratos,
+              count(DISTINCT c.entidad_ruc)::int AS n_entidades,
+              COALESCE(sum(cp.monto), 0)::float AS monto
+         FROM convocatorias c
+         JOIN ents ON ents.entidad_ruc = c.entidad_ruc
+         JOIN cruces_proveedor cp ON cp.ocid = c.ocid
+         LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
+        WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
+          AND cp.ruc_empresa ~ '^20[0-9]{9}$'
+        GROUP BY cp.ruc_empresa
+       HAVING count(DISTINCT c.entidad_ruc) >= 2
+        ORDER BY count(DISTINCT c.entidad_ruc) DESC, count(DISTINCT cp.ocid) DESC LIMIT 14`, [partido]),
+  ]);
+  if (!cab.rows[0]) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ partido: cab.rows[0], entidades: ent.rows, empresas: emp.rows }));
+});
+
 /** El GRAFO de captura de una entidad: el partido que la gobierna y las empresas (RUC 20) ligadas a ese partido que
  * ganaron sus contratos, con el tipo de lazo. Para dibujar la red de captura. Indicios para revisión, no acusación. */
 poderRouter.get("/entidad/:ruc/grafo", async (c) => {
