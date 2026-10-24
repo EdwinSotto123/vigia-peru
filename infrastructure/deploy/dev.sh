@@ -26,6 +26,29 @@ export PYTHONUTF8=1
 wr() { npx --yes wrangler "$@"; }
 
 web() {
+  # Build LOCAL por defecto (sin GCP: Cloud Build está muerto). Las mismas env de DEV que cloudbuild-cf-dev.yaml
+  # (API y Turnstile de prueba). Deploy directo desde frontend/ con --env dev (worker-dev.js + .open-next ahí mismo).
+  if [[ -z "${USAR_CLOUD_BUILD:-}" ]]; then
+    if command -v netstat >/dev/null 2>&1; then
+      for p in 3000 3001 3300 3400; do
+        if netstat -ano 2>/dev/null | grep -i listen | grep -qE "[:.]$p\b"; then
+          echo "✗ puerto $p en uso (¿next dev? comparte frontend/.next). Ciérralo o usa USAR_CLOUD_BUILD=1." >&2; return 1
+        fi
+      done
+    fi
+    ( cd "$REPO_ROOT/frontend"
+      if [[ -z "${SIN_BUILD:-}" ]]; then
+        NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" \
+          NEXT_PUBLIC_SITE_URL=https://vigia-web-dev.vigiaperu.workers.dev \
+          NEXT_PUBLIC_VIGIA_API_URL=https://vigia-api-dev.vigiaperu.workers.dev \
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+          NEXT_PUBLIC_VIGIA_ENTORNO=dev \
+          VIGIA_API_URL=https://vigia-api-dev.vigiaperu.workers.dev \
+          npm run cf:build
+      fi
+      npx --yes opennextjs-cloudflare deploy --env dev )
+    return
+  fi
   local W; W="$(mktemp -d)"
   trap 'rm -rf "$W"' RETURN
   # 1. La copia de trabajo de frontend/ (sin dependencias, builds ni secretos locales) + .env.production.
