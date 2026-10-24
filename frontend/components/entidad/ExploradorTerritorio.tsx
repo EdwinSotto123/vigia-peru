@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
+import { baseApiNavegador } from "@/lib/api-client";
 import type { TerritorioNodo } from "@/lib/poder";
+import type { Cadena } from "@/lib/cadena";
 
 /**
  * Explorador territorial del Estado (migración 125): El Estado → regiones → provincias → distritos, EN LA MISMA PANTALLA.
@@ -13,6 +15,7 @@ import type { TerritorioNodo } from "@/lib/poder";
  * pero territorialmente anidados. En rojo los que tienen indicios de captura. Indicios de registros públicos, no acusación.
  */
 const fuerte = (n: TerritorioNodo) => (n.n_captura ?? 0) > 0;
+const fuerteLazo = (ls: string[]) => ls.includes("partido_gobernante") || ls.includes("socio_en_entidad");
 function corto(s: string, n: number) {
   const t = tituloNatural(s);
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
@@ -25,6 +28,22 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
   const [prov, setProv] = useState<string | null>(null);
   const [sel, setSel] = useState<TerritorioNodo | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+  const [cadena, setCadena] = useState<Cadena | null>(null);
+  const [cargandoCadena, setCargandoCadena] = useState(false);
+
+  // Al seleccionar una entidad, traé su cadena de captura (Capa C) para mostrarla compacta en el panel.
+  useEffect(() => {
+    if (!sel) { setCadena(null); return; }
+    let vivo = true;
+    setCadena(null);
+    setCargandoCadena(true);
+    fetch(`${baseApiNavegador()}/cadena/entidad/${sel.ruc}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: Cadena | null) => { if (vivo) setCadena(d); })
+      .catch(() => { if (vivo) setCadena(null); })
+      .finally(() => { if (vivo) setCargandoCadena(false); });
+    return () => { vivo = false; };
+  }, [sel]);
 
   const regiones = useMemo(
     () => nodos.filter((n) => n.nivel === "regional").sort((a, b) => (b.n_captura ?? 0) - (a.n_captura ?? 0)),
@@ -160,6 +179,31 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
               </div>
               <div className="text-rotulo text-mute">Depende de: {sel.nivel === "distrital" ? `${tituloNatural(sel.provincia ?? "")}, ${tituloNatural(sel.departamento)}` : sel.nivel === "provincial" ? tituloNatural(sel.departamento) : "Gobierno del Perú"}</div>
               {sel.nivel !== "distrital" && <div className="text-rotulo text-mute">Contiene {numero(nHijos(sel))} {sel.nivel === "regional" ? "provincias" : "distritos"} — tocá el nodo para abrirlo.</div>}
+
+              {/* Capa C: la cadena de captura, compacta */}
+              {cargandoCadena && <div className="border-t border-line pt-2 text-rotulo text-mute">cargando la cadena…</div>}
+              {cadena?.disponible && cadena.empresas && cadena.empresas.length > 0 && (
+                <div className="space-y-1.5 border-t border-line pt-2">
+                  <div className="text-rotulo font-semibold uppercase tracking-wide text-mute">La cadena de captura</div>
+                  <p className="text-rotulo leading-relaxed text-inkSoft">
+                    <b className="text-ink">{numero(cadena.empresas.length)}</b> {cadena.empresas.length === 1 ? "empresa ligada" : "empresas ligadas"} al partido ganan sus contratos; los aprueba{" "}
+                    <b className="text-ink">{cadena.decision?.apruebaContratos ?? "la entidad"}</b>.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {cadena.empresas.slice(0, 6).map((emp) => (
+                      <button
+                        key={emp.ruc}
+                        type="button"
+                        onClick={() => router.push(`/empresa/${emp.ruc}`)}
+                        className={`rounded-full px-2 py-0.5 text-rotulo transition-opacity hover:opacity-80 ${fuerteLazo(emp.lazos) ? "bg-crimson/10 text-crimson" : "bg-amber/10 text-amber"}`}
+                      >
+                        {corto(emp.nombre ?? emp.ruc, 18)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button type="button" onClick={() => router.push(`/entidad/${sel.ruc}`)} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">
                 Ver ficha completa →
               </button>
