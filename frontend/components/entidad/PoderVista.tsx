@@ -4,23 +4,25 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 /**
- * Conmutador de vistas del mapa de poder (/app/poder): Territorio (explorador departamento → provincia → distrito),
- * Instituciones (El Estado → ramas) y Lista (tabla de partidos). Todas quedan montadas (se ocultan con `hidden`) para
- * no perder el estado ni rehacerlas al cambiar. Arranca en Territorio.
+ * Conmutador de vistas del mapa de poder (/app/poder): Dependencia (Gobierno Nacional: sector → pliego → ejecutora, con
+ * los autónomos marcados), Territorio (región → provincia → distrito), Instituciones (las que más contratan por rama) y
+ * Lista (tabla de partidos). Todas quedan montadas (se ocultan con `hidden`) para no perder el estado. Arranca en
+ * Dependencia (la estructura de quién depende de quién).
  */
 const TABS = [
+  ["dependencia", "Dependencia"],
   ["territorio", "Territorio"],
   ["instituciones", "Instituciones"],
   ["lista", "Lista"],
 ] as const;
 type Vista = (typeof TABS)[number][0];
 
-export function PoderVista({ territorio, instituciones, lista }: { territorio: ReactNode; instituciones: ReactNode; lista: ReactNode }) {
-  const [v, setV] = useState<Vista>("territorio");
-  const nodo = { territorio, instituciones, lista };
+export function PoderVista({ dependencia, territorio, instituciones, lista }: { dependencia: ReactNode; territorio: ReactNode; instituciones: ReactNode; lista: ReactNode }) {
+  const [v, setV] = useState<Vista>("dependencia");
+  const nodo = { dependencia, territorio, instituciones, lista };
   return (
     <div className="space-y-3">
-      <div role="tablist" aria-label="Vista del mapa de poder" className="inline-flex rounded-xl border border-line bg-paper p-0.5">
+      <div role="tablist" aria-label="Vista del mapa de poder" className="inline-flex flex-wrap rounded-xl border border-line bg-paper p-0.5">
         {TABS.map(([k, label]) => (
           <button
             key={k}

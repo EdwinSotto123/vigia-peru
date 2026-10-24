@@ -68,6 +68,24 @@ poderRouter.get("/grafo", async (c) => {
   return c.json(publicar({ partidos: [...porPartido.values()] }));
 });
 
+/** Árbol de DEPENDENCIA del Gobierno Nacional (presupuesto MEF, mef_ejecutora_anual): sector → pliego → unidad
+ * ejecutora. Es la estructura real de quién depende de quién (p. ej. Defensa → Ejército/Marina/FAP; Educación → sus
+ * organismos), y marca los sectores AUTÓNOMOS (Contraloría, JNE, ONPE, RENIEC, TC, Ministerio Público, Defensoría,
+ * Junta Nacional de Justicia, Poder Judicial, Congreso, Fuero Militar) que NO dependen del Ejecutivo. Con el PIM de cada
+ * nodo (tamaño = presupuesto = peso). Para el explorador de dependencia; indicios/estructura oficial, no acusación. */
+poderRouter.get("/dependencia", async (c) => {
+  const r = await pool.query(
+    `SELECT sector, sector_nombre, pliego, pliego_nombre, sec_ejec AS ejec, ejecutora_nombre,
+            round(sum(pim))::float AS pim, round(sum(devengado))::float AS devengado
+       FROM mef_ejecutora_anual
+      WHERE nivel_gobierno = 'E' AND anio = (SELECT max(anio) FROM mef_ejecutora_anual)
+      GROUP BY sector, sector_nombre, pliego, pliego_nombre, sec_ejec, ejecutora_nombre
+      ORDER BY sector, pliego, sec_ejec`);
+  const anio = await pool.query(`SELECT max(anio)::int AS anio FROM mef_ejecutora_anual`);
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ anio: anio.rows[0]?.anio, nodos: r.rows }));
+});
+
 /** Árbol territorial del Estado para el explorador (migración 125): una entidad electa por nivel —el gobierno regional
  * de cada departamento (uno por depto), las municipalidades provinciales y las distritales— con su autoridad (el
  * afiliado que la gobierna), partido y captura. El front arma el árbol depto → provincia → distrito y deja explorar

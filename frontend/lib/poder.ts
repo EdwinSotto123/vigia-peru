@@ -107,5 +107,14 @@ export interface TerritorioNodo {
 }
 export const getPoderTerritorio = () => leer<{ nodos: TerritorioNodo[] }>(`/poder/territorio`);
 
+/** Árbol de dependencia del Gobierno Nacional (MEF): sector → pliego → unidad ejecutora. Lista plana; el front arma el árbol. */
+export interface DependenciaNodo {
+  sector: string; sector_nombre: string;
+  pliego: string; pliego_nombre: string;
+  ejec: string; ejecutora_nombre: string;
+  pim: number; devengado: number;
+}
+export const getPoderDependencia = () => leer<{ anio: number; nodos: DependenciaNodo[] }>(`/poder/dependencia`);
+
 /** Clave URL-segura de un partido (para enlazar), y su inverso aproximado no hace falta: la página usa el nombre. */
 export const clavePartido = (p: string) => encodeURIComponent(p);
