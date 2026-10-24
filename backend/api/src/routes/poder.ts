@@ -75,23 +75,32 @@ poderRouter.get("/grafo", async (c) => {
 poderRouter.get("/instituciones", async (c) => {
   // Conteo por entidad (índice idx_conv_entidad, ~0.6s), categoría por rama y top 9 DENTRO de cada rama: así los
   // ministerios salen aunque contraten menos que organismos como EsSalud o el Ejército (que no son ministerios).
+  // regional = UNA entidad por departamento (las 25 regiones, no las 543 unidades ejecutoras); ministerios y
+  // municipalidades = top 24 por contratos dentro de su rama. El departamento sale de poder_entidad (electas).
   const r = await pool.query(
     `WITH cnt AS (
        SELECT entidad_ruc AS ruc, count(*)::int AS n, COALESCE(sum(cuantia_referencial), 0)::float AS monto
          FROM convocatorias WHERE entidad_ruc ~ '^[0-9]{11}$' GROUP BY entidad_ruc),
-     cat AS (
-       SELECT c.ruc, e.nombre, e.tipo, e.region, c.n AS n_contratos, c.monto,
+     ent AS (
+       SELECT c.ruc, e.nombre, e.tipo, c.n AS n_contratos, c.monto,
+              pe.partido, pe.n_captura::int AS captura, pe.monto_captura::float AS captura_monto, pe.departamento,
               CASE WHEN upper(e.nombre) LIKE '%MINISTERIO%' THEN 'ministerios'
                    WHEN upper(e.nombre) LIKE '%GOBIERNO REGIONAL%' OR e.tipo = 'gobierno_regional' THEN 'regional'
                    WHEN upper(e.nombre) LIKE '%MUNICIPALIDAD%' OR e.tipo LIKE 'municipal%' THEN 'local'
                    ELSE 'otro' END AS rama
-         FROM cnt c JOIN entidades e ON e.ruc = c.ruc),
-     rk AS (SELECT *, row_number() OVER (PARTITION BY rama ORDER BY n_contratos DESC) AS rn FROM cat WHERE rama <> 'otro')
-     SELECT k.ruc, k.nombre, k.tipo, k.region, k.n_contratos, k.monto, k.rama,
-            pe.partido, pe.n_captura::int AS captura, pe.monto_captura::float AS captura_monto
-       FROM rk k LEFT JOIN poder_entidad pe ON pe.entidad_ruc = k.ruc
-      WHERE k.rn <= 9
-      ORDER BY k.rama, k.n_contratos DESC`);
+         FROM cnt c JOIN entidades e ON e.ruc = c.ruc
+         LEFT JOIN poder_entidad pe ON pe.entidad_ruc = c.ruc),
+     rk AS (
+       SELECT *,
+              row_number() OVER (PARTITION BY rama ORDER BY n_contratos DESC) AS rn,
+              row_number() OVER (PARTITION BY rama, departamento ORDER BY n_contratos DESC) AS rn_rd
+         FROM ent WHERE rama <> 'otro')
+     SELECT ruc, nombre, tipo, departamento AS region, n_contratos, monto, rama, partido, captura, captura_monto
+       FROM rk
+      WHERE (rama = 'regional' AND departamento IS NOT NULL AND rn_rd = 1)
+         OR (rama = 'ministerios' AND rn <= 24)
+         OR (rama = 'local' AND rn <= 24)
+      ORDER BY rama, n_contratos DESC`);
   const ramas: Record<string, unknown[]> = { ministerios: [], regional: [], local: [] };
   for (const row of r.rows) (ramas[row.rama as string] ??= []).push(row);
   c.header("Cache-Control", CACHE);
