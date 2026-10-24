@@ -6,11 +6,17 @@ import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { getPoderPartidos, getPoderEntidades, clavePartido } from "@/lib/poder";
+import { PoderVista } from "@/components/entidad/PoderVista";
+import { PoderResumenGrafo } from "@/components/entidad/PoderResumenGrafo";
 
 export const metadata: Metadata = {
   title: "Mapa de poder",
   description: "Qué partido gobierna cada entidad y cuánta de su contratación fue a empresas ligadas a ese partido.",
 };
+
+// ISR como el resto de los listados: si no, la página queda estática del build (y el build, sin el binding
+// VIGIA_API_URL, pegaba al Cloud Run muerto y la dejaba en cero). Con revalidate se rearma en runtime con datos.
+export const revalidate = 600;
 
 /**
  * Mapa de poder: ranking de partidos por «captura» — de las entidades que gobiernan (municipios y gobiernos regionales,
@@ -21,7 +27,8 @@ export default async function PoderPage() {
   const [r, re] = await Promise.all([getPoderPartidos(), getPoderEntidades()]);
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
-  const entidades = (re?.data ?? []).slice(0, 50);
+  const entidadesTop = re?.data ?? [];
+  const entidades = entidadesTop.slice(0, 50);
 
   const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);
   const totCap = partidos.reduce((s, p) => s + p.n_captura, 0);
@@ -50,6 +57,9 @@ export default async function PoderPage() {
       />
       <Indicadores items={cifras} />
 
+      <PoderVista
+        grafo={<PoderResumenGrafo partidos={partidos} entidades={entidadesTop} />}
+        lista={
       <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[720px] text-meta">
           <thead>
@@ -90,6 +100,8 @@ export default async function PoderPage() {
           </tbody>
         </table>
       </div>
+        }
+      />
 
       {entidades.length > 0 && (
         <section className="space-y-3">

@@ -14,7 +14,10 @@ import { esAlertaDemo, esAlertaReal, esConvergenciaReal, esReporteReal } from ".
 export const API_BASE =
   process.env.VIGIA_API_URL ??
   process.env.NEXT_PUBLIC_VIGIA_API_URL ??
-  "https://vigia-peru-api-36169102688.us-central1.run.app";
+  // Por defecto el Worker de Cloudflare (la plataforma vive ahí; GCP quedó sin facturación). En runtime el
+  // binding VIGIA_API_URL lo pisa; este valor es el que usa el BUILD al prerenderizar (antes caía al Cloud Run
+  // muerto y las páginas estáticas quedaban en cero).
+  "https://vigia-api.vigiaperu.workers.dev";
 
 /**
  * Base de la API para pedidos DESDE EL NAVEGADOR. Detrás de Firebase Hosting (*.web.app,
