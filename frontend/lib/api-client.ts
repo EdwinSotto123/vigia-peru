@@ -267,6 +267,24 @@ export async function getEntidad(ruc: string) {
   }
 }
 
+/** Estructura de decisión de una entidad (grafo del Estado, migración 126): quién aprueba/firma sus contratos. */
+export interface EstructuraEntidad {
+  disponible: boolean;
+  apruebaContratos?: string;
+  estructuraLegal?: string | null;
+  funcionarios?: { persona: string; cargo: string; organo: string }[];
+  organos?: string[];
+  corte?: string;
+}
+export async function getEstructuraEntidad(ruc: string): Promise<EstructuraEntidad | null> {
+  try {
+    return await get<EstructuraEntidad>(`/estructura/entidad/${ruc}`);
+  } catch {
+    // La estructura es opcional: si el grafo no la tiene o falla, la ficha sigue sin romperse.
+    return null;
+  }
+}
+
 // ─── Entidades: página filtrada+paginada (server-side) + resumen global ─────
 // `getEntidades` (arriba) sigue devolviendo el arreglo plano tal cual — lo consume
 // components/mapa/EntidadesDeZona.tsx — así que no se le toca la forma. /app/entidades
