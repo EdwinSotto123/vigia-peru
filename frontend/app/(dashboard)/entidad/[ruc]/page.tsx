@@ -22,6 +22,7 @@ import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
+import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -147,6 +148,11 @@ export default async function EntidadProfile({
 
       {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
       <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
+
+      {/* 2.b Quién decide y firma sus contratos (grafo del Estado, migración 126); streaming aparte, oculto si no hay data. */}
+      <Suspense fallback={null}>
+        <QuienDecide ruc={e.ruc} />
+      </Suspense>
 
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
           enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
