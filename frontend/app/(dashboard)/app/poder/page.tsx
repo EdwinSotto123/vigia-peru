@@ -4,7 +4,8 @@ import { Migas, Pagina, EncabezadoPagina, Ayuda } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
-import { getPoderPartidos, clavePartido } from "@/lib/poder";
+import { tituloNatural } from "@/lib/landing";
+import { getPoderPartidos, getPoderEntidades, clavePartido } from "@/lib/poder";
 
 export const metadata: Metadata = {
   title: "Mapa de poder",
@@ -17,9 +18,10 @@ export const metadata: Metadata = {
  * socio contratado por la misma entidad. Son INDICIOS agregados para revisar, nunca una acusación.
  */
 export default async function PoderPage() {
-  const r = await getPoderPartidos();
+  const [r, re] = await Promise.all([getPoderPartidos(), getPoderEntidades()]);
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
+  const entidades = (re?.data ?? []).slice(0, 50);
 
   const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);
   const totCap = partidos.reduce((s, p) => s + p.n_captura, 0);
@@ -88,6 +90,53 @@ export default async function PoderPage() {
           </tbody>
         </table>
       </div>
+
+      {entidades.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-seccion font-semibold text-ink">Entidades más capturadas</h2>
+          <p className="text-meta leading-relaxed text-inkSoft">
+            Baja del partido al municipio o gobierno regional concreto: dónde más contratos ganaron empresas ligadas al
+            partido que lo gobierna. Toca una entidad para ver su ficha.
+          </p>
+          <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+            <table className="w-full min-w-[720px] text-meta">
+              <thead>
+                <tr className="border-b border-line text-rotulo uppercase tracking-wide text-mute">
+                  <th className="px-4 py-2.5 text-left font-semibold">Entidad</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">La gobierna</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Contratos con indicio</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Monto</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">Desglose</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/70">
+                {entidades.map((e) => (
+                  <tr key={e.entidad_ruc} className="transition-colors duration-rapido hover:bg-paperSoft">
+                    <td className="px-4 py-2.5">
+                      <Link href={`/entidad/${e.entidad_ruc}`} className="font-semibold text-ink hover:text-granate hover:underline underline-offset-2">
+                        {tituloNatural(e.entidad)}
+                      </Link>
+                      <span className="block text-rotulo text-mute">{[e.distrito, e.provincia, e.departamento].filter(Boolean).map((x) => tituloNatural(String(x))).join(", ")}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Link href={`/app/poder/${clavePartido(e.partido)}`} className="text-inkSoft hover:text-granate hover:underline underline-offset-2">{tituloNatural(e.partido)}</Link>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{numero(e.n_captura)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{solesCompacto(e.monto_captura)}</td>
+                    <td className="px-4 py-2.5">
+                      <span className="flex flex-wrap gap-1">
+                        {e.n_financiaron > 0 && <Badge variant="crimson">{numero(e.n_financiaron)} le financiaron</Badge>}
+                        {e.n_vendieron > 0 && <Badge variant="amber">{numero(e.n_vendieron)} vendieron a su campaña</Badge>}
+                        {e.n_socio > 0 && <Badge variant="amber">{numero(e.n_socio)} socio adentro</Badge>}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <p className="text-rotulo leading-relaxed text-mute">
         Fuente: JNE (quién gobierna cada entidad), ONPE (aportes y gastos de campaña), RNP/SEACE (socios y contratos). Cada

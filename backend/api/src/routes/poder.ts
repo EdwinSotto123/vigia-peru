@@ -29,6 +29,23 @@ poderRouter.get("/partidos", async (c) => {
   return c.json(publicar({ data: r.rows }));
 });
 
+/** Ranking de ENTIDADES por captura (las más capturadas primero): para bajar del partido al municipio concreto. */
+poderRouter.get("/entidades", async (c) => {
+  const nivel = c.req.query("nivel");
+  const dep = (c.req.query("departamento") ?? "").trim();
+  const q = (c.req.query("q") ?? "").trim();
+  const conds = ["n_captura > 0"];
+  const vals: unknown[] = [];
+  if (nivel && ["distrital", "provincial", "regional"].includes(nivel)) { vals.push(nivel); conds.push(`nivel = $${vals.length}`); }
+  if (dep.length >= 2) { vals.push(dep); conds.push(`departamento ILIKE $${vals.length}`); }
+  if (q.length >= 3) { vals.push(`%${q}%`); conds.push(`(entidad ILIKE $${vals.length} OR partido ILIKE $${vals.length} OR autoridad ILIKE $${vals.length})`); }
+  const r = await pool.query(
+    `SELECT ${COLS_ENTIDAD} FROM poder_entidad WHERE ${conds.join(" AND ")} ORDER BY n_captura DESC, monto_captura DESC NULLS LAST LIMIT 300`,
+    vals);
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ data: r.rows }));
+});
+
 /** Un partido: sus totales y las entidades que gobierna, con su captura (las más capturadas primero). */
 poderRouter.get("/partido/:partido", async (c) => {
   const partido = c.req.param("partido");

@@ -23,6 +23,7 @@ import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { QuienDecide } from "@/components/entidad/QuienDecide";
+import { CapturaEntidad } from "@/components/entidad/CapturaEntidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -152,6 +153,11 @@ export default async function EntidadProfile({
       {/* 2.b Quién decide y firma sus contratos (grafo del Estado, migración 126); streaming aparte, oculto si no hay data. */}
       <Suspense fallback={null}>
         <QuienDecide ruc={e.ruc} />
+      </Suspense>
+
+      {/* 2.c Quién la gobierna y a quién le compra: captura política (mapa de poder, migración 125); oculto si no aplica. */}
+      <Suspense fallback={null}>
+        <CapturaEntidad ruc={e.ruc} />
       </Suspense>
 
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
