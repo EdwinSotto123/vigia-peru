@@ -99,5 +99,13 @@ export interface MapaInstituciones {
 }
 export const getMapaInstituciones = () => leer<MapaInstituciones>(`/poder/instituciones`);
 
+/** Árbol territorial del Estado (lista plana): el front arma departamento → provincia → distrito. */
+export interface TerritorioNodo {
+  ruc: string; nombre: string; nivel: "regional" | "provincial" | "distrital";
+  departamento: string; provincia: string | null; distrito: string | null;
+  autoridad: string | null; partido: string | null; n_captura: number; monto_captura: number;
+}
+export const getPoderTerritorio = () => leer<{ nodos: TerritorioNodo[] }>(`/poder/territorio`);
+
 /** Clave URL-segura de un partido (para enlazar), y su inverso aproximado no hace falta: la página usa el nombre. */
 export const clavePartido = (p: string) => encodeURIComponent(p);

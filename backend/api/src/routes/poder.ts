@@ -68,6 +68,27 @@ poderRouter.get("/grafo", async (c) => {
   return c.json(publicar({ partidos: [...porPartido.values()] }));
 });
 
+/** Árbol territorial del Estado para el explorador (migración 125): una entidad electa por nivel —el gobierno regional
+ * de cada departamento (uno por depto), las municipalidades provinciales y las distritales— con su autoridad (el
+ * afiliado que la gobierna), partido y captura. El front arma el árbol depto → provincia → distrito y deja explorar
+ * in-situ. Indicios para revisión, no acusación. */
+poderRouter.get("/territorio", async (c) => {
+  const r = await pool.query(
+    `WITH reg AS (
+       SELECT DISTINCT ON (departamento) entidad_ruc, entidad, 'regional'::text AS nivel, departamento,
+              NULL::text AS provincia, NULL::text AS distrito, autoridad, partido, n_captura, monto_captura
+         FROM poder_entidad WHERE nivel = 'regional' AND departamento IS NOT NULL
+        ORDER BY departamento, n_captura DESC)
+     SELECT entidad_ruc AS ruc, entidad AS nombre, nivel, departamento, provincia, distrito, autoridad, partido,
+            n_captura::int, monto_captura::float FROM reg
+     UNION ALL
+     SELECT entidad_ruc AS ruc, entidad AS nombre, nivel, departamento, provincia, distrito, autoridad, partido,
+            n_captura::int, monto_captura::float
+       FROM poder_entidad WHERE nivel IN ('provincial', 'distrital') AND departamento IS NOT NULL`);
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ nodos: r.rows }));
+});
+
 /** Mapa de instituciones del Estado: las que más contratan, agrupadas en tres ramas (Gobierno Nacional —ministerios y
  * organismos—, Gobiernos Regionales, Municipalidades), para el grafo-árbol de /app/poder. Cada una enlaza a su ficha.
  * Incluye su captura política si es electa (poder_entidad); los ministerios no se eligen por partido, así que no la

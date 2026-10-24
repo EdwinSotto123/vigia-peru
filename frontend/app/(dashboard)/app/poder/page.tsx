@@ -5,9 +5,10 @@ import { Indicadores, type Indicador } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { getPoderPartidos, getPoderEntidades, getMapaInstituciones, clavePartido } from "@/lib/poder";
+import { getPoderPartidos, getPoderEntidades, getMapaInstituciones, getPoderTerritorio, clavePartido } from "@/lib/poder";
 import { PoderVista } from "@/components/entidad/PoderVista";
 import { MapaInstituciones } from "@/components/entidad/MapaInstituciones";
+import { ExploradorTerritorio } from "@/components/entidad/ExploradorTerritorio";
 
 export const metadata: Metadata = {
   title: "Mapa de poder",
@@ -24,11 +25,12 @@ export const revalidate = 600;
  * socio contratado por la misma entidad. Son INDICIOS agregados para revisar, nunca una acusación.
  */
 export default async function PoderPage() {
-  const [r, re, m] = await Promise.all([getPoderPartidos(), getPoderEntidades(), getMapaInstituciones()]);
+  const [r, re, m, t] = await Promise.all([getPoderPartidos(), getPoderEntidades(), getMapaInstituciones(), getPoderTerritorio()]);
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
   const entidades = (re?.data ?? []).slice(0, 50);
   const mapa = m ?? { ramas: { ministerios: [], regional: [], local: [] } };
+  const territorio = t?.nodos ?? [];
 
   const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);
   const totCap = partidos.reduce((s, p) => s + p.n_captura, 0);
@@ -58,7 +60,8 @@ export default async function PoderPage() {
       <Indicadores items={cifras} />
 
       <PoderVista
-        grafo={<MapaInstituciones datos={mapa} />}
+        territorio={<ExploradorTerritorio nodos={territorio} />}
+        instituciones={<MapaInstituciones datos={mapa} />}
         lista={
       <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[720px] text-meta">

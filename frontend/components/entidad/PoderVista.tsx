@@ -4,31 +4,41 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 /**
- * Conmutador Grafo / Lista para el mapa de poder (/app/poder). Ambas vistas quedan montadas (se ocultan con `hidden`)
- * para no perder el estado del grafo ni rehacer la tabla al cambiar. Arranca en Grafo (la vista de conjunto).
+ * Conmutador de vistas del mapa de poder (/app/poder): Territorio (explorador departamento → provincia → distrito),
+ * Instituciones (El Estado → ramas) y Lista (tabla de partidos). Todas quedan montadas (se ocultan con `hidden`) para
+ * no perder el estado ni rehacerlas al cambiar. Arranca en Territorio.
  */
-export function PoderVista({ grafo, lista }: { grafo: ReactNode; lista: ReactNode }) {
-  const [v, setV] = useState<"grafo" | "lista">("grafo");
+const TABS = [
+  ["territorio", "Territorio"],
+  ["instituciones", "Instituciones"],
+  ["lista", "Lista"],
+] as const;
+type Vista = (typeof TABS)[number][0];
+
+export function PoderVista({ territorio, instituciones, lista }: { territorio: ReactNode; instituciones: ReactNode; lista: ReactNode }) {
+  const [v, setV] = useState<Vista>("territorio");
+  const nodo = { territorio, instituciones, lista };
   return (
     <div className="space-y-3">
       <div role="tablist" aria-label="Vista del mapa de poder" className="inline-flex rounded-xl border border-line bg-paper p-0.5">
-        {(["grafo", "lista"] as const).map((x) => (
+        {TABS.map(([k, label]) => (
           <button
-            key={x}
+            key={k}
             type="button"
             role="tab"
-            aria-selected={v === x}
-            onClick={() => setV(x)}
+            aria-selected={v === k}
+            onClick={() => setV(k)}
             className={`rounded-lg px-3.5 py-1.5 text-meta font-medium transition-colors duration-rapido ${
-              v === x ? "bg-granate text-sobreMaiz" : "text-inkSoft hover:text-ink"
+              v === k ? "bg-granate text-sobreMaiz" : "text-inkSoft hover:text-ink"
             }`}
           >
-            {x === "grafo" ? "Grafo" : "Lista"}
+            {label}
           </button>
         ))}
       </div>
-      <div hidden={v !== "grafo"}>{grafo}</div>
-      <div hidden={v !== "lista"}>{lista}</div>
+      {(Object.keys(nodo) as Vista[]).map((k) => (
+        <div key={k} hidden={v !== k}>{nodo[k]}</div>
+      ))}
     </div>
   );
 }
