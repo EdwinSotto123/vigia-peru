@@ -1,0 +1,80 @@
+# CI/CD de Vigía Perú en GitLab — dos ambientes: dev y production (GitLab Environments).
+# Despliega directo a Cloudflare con wrangler/opennextjs (SIN GCP: Cloud Build está muerto).
+#
+# Variables requeridas (Settings → CI/CD → Variables, "protected" y "masked"):
+#   CLOUDFLARE_API_TOKEN    token de Cloudflare con permiso "Workers Scripts: Edit" (y acceso a los Workers/KV/R2 usados)
+#   CLOUDFLARE_ACCOUNT_ID   id de la cuenta de Cloudflare (1cd0748daa880a849a2dae0baadfce34)
+# wrangler y opennextjs-cloudflare leen esas dos variables del entorno.
+#
+# Flujo: push a `dev` → pipeline con deploys a DEV (manual). Push a `main` → deploys a PRODUCTION (manual).
+# Los deploys son manuales a propósito (botón ▶ en el pipeline), para no soltar a prod sin querer.
+#
+# NO cubierto aquí (se hace desde la PC con infrastructure/deploy/dev.sh, por el túnel a la RDS privada):
+#   · migraciones de base (dev.sh migrar / sql)         · workers secundarios (scrapers, llm, precios, relay)
+#   · el worker-dev.js del web-dev (franja DEV, noindex, clave) lo arma dev.sh; aquí el web-dev va con --env dev.
+
+stages:
+  - deploy
+
+default:
+  image: node:22-bookworm
+  interruptible: true
+
+# ─── Anclas reutilizables ────────────────────────────────────────────────────────────────────────
+.web: &web
+  stage: deploy
+  script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+    - NODE_OPTIONS=--max-old-space-size=4096 npm run cf:build
+    - npx opennextjs-cloudflare deploy $DEPLOY_ENV
+  timeout: 40m
+
+.api: &api
+  stage: deploy
+  script:
+    - cd backend/api
+    - npm ci --no-audit --no-fund
+    - npx wrangler deploy $DEPLOY_ENV
+
+# ─── DEV (rama dev) ──────────────────────────────────────────────────────────────────────────────
+deploy:api:dev:
+  <<: *api
+  variables: { DEPLOY_ENV: "--env dev" }
+  environment:
+    name: dev
+    url: https://vigia-api-dev.vigiaperu.workers.dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+
+deploy:web:dev:
+  <<: *web
+  variables: { DEPLOY_ENV: "--env dev" }
+  environment:
+    name: dev
+    url: https://vigia-web-dev.vigiaperu.workers.dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+
+# ─── PRODUCTION (rama main) ──────────────────────────────────────────────────────────────────────
+deploy:api:prod:
+  <<: *api
+  variables: { DEPLOY_ENV: "" }
+  environment:
+    name: production
+    url: https://vigia-api.vigiaperu.workers.dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+
+deploy:web:prod:
+  <<: *web
+  variables: { DEPLOY_ENV: "" }
+  environment:
+    name: production
+    url: https://vigia-web.vigiaperu.workers.dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
