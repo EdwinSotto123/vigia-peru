@@ -56,5 +56,15 @@ export const getPoderPartido = (partido: string) =>
   leer<{ partido: PoderPartido; entidades: PoderEntidad[] }>(`/poder/partido/${encodeURIComponent(partido)}`);
 export const getPoderEntidad = (ruc: string) => (/^\d{11}$/.test(ruc) ? leer<PoderEntidad>(`/poder/entidad/${ruc}`) : Promise.resolve(null));
 
+export interface GrafoCaptura {
+  entidad: { ruc: string; nombre: string | null };
+  partido: string;
+  cargoGob: string | null;
+  autoridad: string | null;
+  empresas: { ruc: string; nombre: string | null; lazos: string[]; contratos: number; monto: number }[];
+}
+export const getPoderGrafoEntidad = (ruc: string) =>
+  /^\d{11}$/.test(ruc) ? leer<GrafoCaptura>(`/poder/entidad/${ruc}/grafo`) : Promise.resolve(null);
+
 /** Clave URL-segura de un partido (para enlazar), y su inverso aproximado no hace falta: la página usa el nombre. */
 export const clavePartido = (p: string) => encodeURIComponent(p);
