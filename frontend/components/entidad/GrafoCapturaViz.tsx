@@ -47,9 +47,11 @@ export function GrafoCapturaViz({ data }: { data: GrafoCaptura }) {
     const r = 7 + 13 * Math.sqrt(e.contratos / maxC);
     const fuerte = esFuerte(e.lazos);
     const cos = Math.cos(ang);
-    const anchor = cos > 0.34 ? "start" : cos < -0.34 ? "end" : "middle";
-    const lx = x + (r + 7) * Math.cos(ang);
-    const ly = y + (r + 7) * Math.sin(ang) + (anchor === "middle" ? (Math.sin(ang) > 0 ? 10 : -4) : 4);
+    // Umbral bajo (~10° de la vertical): así los nodos de arriba y abajo abren su etiqueta a un lado en vez de
+    // amontonarlas centradas (si no, las dos de las 6 en punto se encimaban y el texto se volvía ilegible).
+    const anchor = cos > 0.12 ? "start" : cos < -0.12 ? "end" : "middle";
+    const lx = x + (r + 7) * Math.cos(ang) + (anchor === "start" ? 3 : anchor === "end" ? -3 : 0);
+    const ly = y + (r + 7) * Math.sin(ang) + (anchor === "middle" ? (Math.sin(ang) > 0 ? 11 : -5) : 4);
     return { e, i, x, y, r, fuerte, anchor, lx, ly };
   });
 
