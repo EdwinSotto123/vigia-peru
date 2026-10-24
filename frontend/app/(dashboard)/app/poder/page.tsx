@@ -29,7 +29,7 @@ export default async function PoderPage() {
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
   const entidades = (re?.data ?? []).slice(0, 50);
-  const mapa = m ?? { ramas: { ministerios: [], regional: [], local: [] } };
+  const mapa = m ?? { ramas: { ministerios: [], organismos: [], regional: [], local: [] } };
   const territorio = t?.nodos ?? [];
 
   const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);

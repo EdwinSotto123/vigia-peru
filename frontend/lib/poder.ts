@@ -95,7 +95,7 @@ export interface Institucion {
   partido: string | null; captura: number | null; captura_monto: number | null;
 }
 export interface MapaInstituciones {
-  ramas: { ministerios: Institucion[]; regional: Institucion[]; local: Institucion[] };
+  ramas: { ministerios: Institucion[]; organismos: Institucion[]; regional: Institucion[]; local: Institucion[] };
 }
 export const getMapaInstituciones = () => leer<MapaInstituciones>(`/poder/instituciones`);
 

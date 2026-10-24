@@ -14,8 +14,9 @@ import type { Institucion, MapaInstituciones as Datos } from "@/lib/poder";
  */
 const RAMAS = [
   { key: "ministerios", titulo: "Ministerios", ang: -90 },
-  { key: "regional", titulo: "Gobiernos Regionales", ang: 30 },
-  { key: "local", titulo: "Municipalidades", ang: 150 },
+  { key: "organismos", titulo: "Organismos del Estado", ang: 0 },
+  { key: "regional", titulo: "Gobiernos Regionales", ang: 90 },
+  { key: "local", titulo: "Municipalidades", ang: 180 },
 ] as const;
 type RamaKey = (typeof RAMAS)[number]["key"];
 
@@ -36,7 +37,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
   const cy = H / 2;
 
   const maxC = useMemo(() => {
-    const all = [...datos.ramas.ministerios, ...datos.ramas.regional, ...datos.ramas.local];
+    const all = [...datos.ramas.ministerios, ...datos.ramas.organismos, ...datos.ramas.regional, ...datos.ramas.local];
     return Math.max(...all.map((e) => e.n_contratos), 1);
   }, [datos]);
 
@@ -62,7 +63,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
       const insts = (datos.ramas[r.key] ?? []).slice(0, 7);
       const base = (r.ang * Math.PI) / 180;
       const K = insts.length;
-      const span = 100;
+      const span = 68;
       return {
         key: r.key,
         bx: cx + Rb * Math.cos(base), by: cy + Rb * Math.sin(base),
@@ -74,7 +75,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
     });
   }, [datos, foco, maxC, cx, cy]);
 
-  const all = [...datos.ramas.ministerios, ...datos.ramas.regional, ...datos.ramas.local];
+  const all = [...datos.ramas.ministerios, ...datos.ramas.organismos, ...datos.ramas.regional, ...datos.ramas.local];
   const det = hover ? all.find((e) => e.ruc === hover) : null;
   const total = all.length;
   const ramaTit = RAMAS.find((r) => r.key === foco)?.titulo;

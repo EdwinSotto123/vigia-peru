@@ -108,19 +108,18 @@ poderRouter.get("/instituciones", async (c) => {
               CASE WHEN upper(e.nombre) LIKE '%MINISTERIO%' THEN 'ministerios'
                    WHEN upper(e.nombre) LIKE '%GOBIERNO REGIONAL%' OR e.tipo = 'gobierno_regional' THEN 'regional'
                    WHEN upper(e.nombre) LIKE '%MUNICIPALIDAD%' OR e.tipo LIKE 'municipal%' THEN 'local'
-                   ELSE 'otro' END AS rama
+                   ELSE 'organismos' END AS rama
          FROM cnt c JOIN entidades e ON e.ruc = c.ruc
          LEFT JOIN poder_entidad pe ON pe.entidad_ruc = c.ruc),
      rk AS (
        SELECT *,
               row_number() OVER (PARTITION BY rama ORDER BY n_contratos DESC) AS rn,
               row_number() OVER (PARTITION BY rama, departamento ORDER BY n_contratos DESC) AS rn_rd
-         FROM ent WHERE rama <> 'otro')
+         FROM ent)
      SELECT ruc, nombre, tipo, departamento AS region, n_contratos, monto, rama, partido, captura, captura_monto
        FROM rk
       WHERE (rama = 'regional' AND departamento IS NOT NULL AND rn_rd = 1)
-         OR (rama = 'ministerios' AND rn <= 24)
-         OR (rama = 'local' AND rn <= 24)
+         OR (rama IN ('ministerios', 'local', 'organismos') AND rn <= 24)
       ORDER BY rama, n_contratos DESC`);
   const ramas: Record<string, unknown[]> = { ministerios: [], regional: [], local: [] };
   for (const row of r.rows) (ramas[row.rama as string] ??= []).push(row);
