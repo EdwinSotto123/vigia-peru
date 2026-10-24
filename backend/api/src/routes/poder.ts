@@ -75,7 +75,7 @@ poderRouter.get("/grafo", async (c) => {
 poderRouter.get("/instituciones", async (c) => {
   const r = await pool.query(
     `WITH tops AS (
-       SELECT entidad_ruc, count(*)::int AS n_contratos, COALESCE(sum(monto), 0)::float AS monto
+       SELECT entidad_ruc, count(*)::int AS n_contratos, COALESCE(sum(cuantia_referencial), 0)::float AS monto
          FROM convocatorias
         WHERE entidad_ruc ~ '^[0-9]{11}$'
         GROUP BY entidad_ruc
