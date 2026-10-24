@@ -88,5 +88,16 @@ export interface PoderGrafoPartido {
 }
 export const getPoderGrafo = () => leer<{ partidos: PoderGrafoPartido[] }>(`/poder/grafo`);
 
+/** Mapa de instituciones del Estado (las que más contratan) en tres ramas. Cada institución enlaza a su ficha. */
+export interface Institucion {
+  ruc: string; nombre: string; tipo: string | null; region: string | null;
+  n_contratos: number; monto: number;
+  partido: string | null; captura: number | null; captura_monto: number | null;
+}
+export interface MapaInstituciones {
+  ramas: { nacional: Institucion[]; regional: Institucion[]; local: Institucion[] };
+}
+export const getMapaInstituciones = () => leer<MapaInstituciones>(`/poder/instituciones`);
+
 /** Clave URL-segura de un partido (para enlazar), y su inverso aproximado no hace falta: la página usa el nombre. */
 export const clavePartido = (p: string) => encodeURIComponent(p);

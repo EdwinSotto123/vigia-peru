@@ -68,6 +68,41 @@ poderRouter.get("/grafo", async (c) => {
   return c.json(publicar({ partidos: [...porPartido.values()] }));
 });
 
+/** Mapa de instituciones del Estado: las que más contratan, agrupadas en tres ramas (Gobierno Nacional —ministerios y
+ * organismos—, Gobiernos Regionales, Municipalidades), para el grafo-árbol de /app/poder. Cada una enlaza a su ficha.
+ * Incluye su captura política si es electa (poder_entidad); los ministerios no se eligen por partido, así que no la
+ * tienen. Indicios para revisión, no acusación. */
+poderRouter.get("/instituciones", async (c) => {
+  const r = await pool.query(
+    `WITH tops AS (
+       SELECT entidad_ruc, count(*)::int AS n_contratos, COALESCE(sum(monto), 0)::float AS monto
+         FROM convocatorias
+        WHERE entidad_ruc ~ '^[0-9]{11}$'
+        GROUP BY entidad_ruc
+        ORDER BY count(*) DESC
+        LIMIT 240)
+     SELECT t.entidad_ruc AS ruc, e.nombre, e.tipo, e.region, t.n_contratos, t.monto,
+            pe.partido, pe.n_captura::int AS captura, pe.monto_captura::float AS captura_monto
+       FROM tops t
+       JOIN entidades e ON e.ruc = t.entidad_ruc
+       LEFT JOIN poder_entidad pe ON pe.entidad_ruc = t.entidad_ruc
+      ORDER BY t.n_contratos DESC`);
+  const rama = (nombre: string | null, tipo: string | null) => {
+    const n = (nombre ?? "").toUpperCase();
+    if (/GOBIERNO\s+REGIONAL/.test(n) || tipo === "gobierno_regional") return "regional";
+    if (/MUNICIPALIDAD/.test(n) || (tipo ?? "").startsWith("municipal")) return "local";
+    return "nacional"; // ministerios, organismos, direcciones, unidades ejecutoras de pliegos nacionales
+  };
+  const K = 9;
+  const ramas: Record<string, unknown[]> = { nacional: [], regional: [], local: [] };
+  for (const row of r.rows) {
+    const b = rama(row.nombre as string, row.tipo as string);
+    if (ramas[b].length < K) ramas[b].push(row);
+  }
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({ ramas }));
+});
+
 /** Ranking de ENTIDADES por captura (las más capturadas primero): para bajar del partido al municipio concreto. */
 poderRouter.get("/entidades", async (c) => {
   const nivel = c.req.query("nivel");
