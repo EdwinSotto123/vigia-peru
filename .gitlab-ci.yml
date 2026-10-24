@@ -5,6 +5,9 @@
 #   CLOUDFLARE_API_TOKEN    token de Cloudflare con permiso "Workers Scripts: Edit" (y acceso a los Workers/KV/R2 usados)
 #   CLOUDFLARE_ACCOUNT_ID   id de la cuenta de Cloudflare (1cd0748daa880a849a2dae0baadfce34)
 # wrangler y opennextjs-cloudflare leen esas dos variables del entorno.
+# Para el BUILD del web (claves PÚBLICAS de cliente, NO masked): NEXT_PUBLIC_FIREBASE_API_KEY, _AUTH_DOMAIN,
+# _PROJECT_ID, _STORAGE_BUCKET, _MESSAGING_SENDER_ID, _APP_ID, y NEXT_PUBLIC_TURNSTILE_SITE_KEY (la real de prod;
+# DEV usa la de prueba, abajo en el job). Sin ellas el build falla al prerenderizar /login (Firebase invalid-api-key).
 #
 # Flujo: push a `dev` → pipeline con deploys a DEV (manual). Push a `main` → deploys a PRODUCTION (manual).
 # Los deploys son manuales a propósito (botón ▶ en el pipeline), para no soltar a prod sin querer.
@@ -50,7 +53,13 @@ deploy:api:dev:
 
 deploy:web:dev:
   <<: *web
-  variables: { DEPLOY_ENV: "--env dev" }
+  variables:
+    DEPLOY_ENV: "--env dev"
+    VIGIA_API_URL: "https://vigia-api-dev.vigiaperu.workers.dev"
+    NEXT_PUBLIC_VIGIA_API_URL: "https://vigia-api-dev.vigiaperu.workers.dev"
+    NEXT_PUBLIC_SITE_URL: "https://vigia-web-dev.vigiaperu.workers.dev"
+    NEXT_PUBLIC_VIGIA_ENTORNO: "dev"
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"  # Turnstile de prueba (siempre pasa en DEV)
   environment:
     name: dev
     url: https://vigia-web-dev.vigiaperu.workers.dev
@@ -71,7 +80,12 @@ deploy:api:prod:
 
 deploy:web:prod:
   <<: *web
-  variables: { DEPLOY_ENV: "" }
+  variables:
+    DEPLOY_ENV: ""
+    VIGIA_API_URL: "https://vigia-api.vigiaperu.workers.dev"
+    NEXT_PUBLIC_VIGIA_API_URL: "https://vigia-api.vigiaperu.workers.dev"
+    NEXT_PUBLIC_SITE_URL: "https://vigia-web.vigiaperu.workers.dev"
+    # NEXT_PUBLIC_TURNSTILE_SITE_KEY y los NEXT_PUBLIC_FIREBASE_* vienen de las variables del proyecto (prod reales).
   environment:
     name: production
     url: https://vigia-web.vigiaperu.workers.dev
