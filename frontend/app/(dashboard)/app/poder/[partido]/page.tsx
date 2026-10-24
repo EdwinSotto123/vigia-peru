@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Migas, Pagina, EncabezadoPagina } from "@/components/patrones";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { getPoderPartido } from "@/lib/poder";
+import { GrafoPartido } from "@/components/entidad/GrafoPartido";
 
 export async function generateMetadata({ params }: { params: { partido: string } }): Promise<Metadata> {
   return { title: `${decodeURIComponent(params.partido)} — Mapa de poder` };
@@ -36,6 +38,12 @@ export default async function PoderPartidoPage({ params }: { params: { partido: 
         bajada={`Las entidades que gobierna hoy y, en cada una, cuántos contratos ganaron empresas ligadas al partido. ${sinIndicio > 0 ? `${numero(sinIndicio)} entidades sin indicios no se listan.` : ""}`}
       />
       <Indicadores items={cifras} />
+
+      {/* El grafo de captura del partido: entidades que gobierna ↔ empresas que se repiten en 2+ de ellas. Oculto si
+          ninguna empresa se repite. Se trae aparte (su propia consulta) para no frenar la tabla. */}
+      <Suspense fallback={null}>
+        <GrafoPartido partido={p.partido} />
+      </Suspense>
 
       <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[720px] text-meta">

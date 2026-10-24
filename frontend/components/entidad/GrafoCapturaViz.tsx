@@ -175,7 +175,7 @@ export function GrafoCapturaViz({ data }: { data: GrafoCaptura }) {
               ))}
             </div>
             <div className="mt-1.5 font-mono text-rotulo text-inkSoft">
-              {numero(activo.e.contratos)} {activo.e.contratos === 1 ? "contrato" : "contratos"} · {solesCompacto(activo.e.monto)}
+              {numero(activo.e.contratos)} {activo.e.contratos === 1 ? "contrato" : "contratos"}, {solesCompacto(activo.e.monto)}
             </div>
           </div>
         )}
@@ -189,7 +189,7 @@ export function GrafoCapturaViz({ data }: { data: GrafoCaptura }) {
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber/70" aria-hidden /> le vendió a la campaña
         </span>
-        <span className="text-mute">· el tamaño es el número de contratos</span>
+        <span className="text-mute">el tamaño es el número de contratos</span>
       </div>
       <p className="text-rotulo leading-relaxed text-mute">
         Son indicios de registros públicos (JNE, ONPE, RNP/SEACE) para revisión humana —una empresa puede ganar de forma
