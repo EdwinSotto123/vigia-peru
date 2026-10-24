@@ -26,17 +26,18 @@ function corto(s: string, n: number) {
 }
 const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-/** El prefijo común (a límite de palabra) de varios nombres. Sirve para que entidades con el mismo arranque
- * —p. ej. muchas unidades de «Gobierno Regional de Ayacucho …»— muestren la parte que las distingue, no todas igual. */
-function prefijoComun(nombres: string[]): string {
-  if (nombres.length < 2) return "";
-  let p = nombres[0];
-  for (const n of nombres) {
-    while (p && !n.startsWith(p)) p = p.slice(0, -1);
-    if (!p) return "";
-  }
-  const i = p.lastIndexOf(" ");
-  return i > 0 ? p.slice(0, i + 1) : "";
+/** Abrevia el tipo genérico al inicio del nombre de una entidad para que se vea la parte que la distingue (que en
+ * Perú va al final: el distrito, o la unidad ejecutora). Así varias unidades de «Gobierno Regional de Ayacucho …»
+ * no salen todas iguales al truncar desde el inicio. */
+const ABREV: [RegExp, string][] = [
+  [/^Gobierno Regional Del? /i, "G.R. "],
+  [/^Municipalidad Provincial Del? /i, "M.P. "],
+  [/^Municipalidad Distrital Del? /i, "M.D. "],
+  [/^Municipalidad Del? /i, "Mun. "],
+];
+function abreviar(t: string): string {
+  for (const [re, ab] of ABREV) if (re.test(t)) return t.replace(re, ab);
+  return t;
 }
 
 type Hover = { tipo: "ent" | "emp"; ruc: string } | null;
@@ -55,10 +56,8 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
     // Orden baricéntrico: cada empresa cerca del promedio de sus entidades → menos cruces de líneas.
     const bary = (c: (typeof comps)[number]) => c.ents.reduce((s, r) => s + (idx.get(r) ?? 0), 0) / c.ents.length;
     comps.sort((a, b) => bary(a) - bary(b) || b.n_entidades - a.n_entidades);
-    // Etiqueta de cada entidad sin el prefijo que comparten todas (surge la unidad que las distingue).
-    const titulos = ents.map((e) => tituloNatural(e.nombre));
-    const pre = prefijoComun(titulos);
-    const entsEtq = ents.map((e, i) => ({ ...e, etiqueta: (pre ? "… " : "") + titulos[i].slice(pre.length) }));
+    // Etiqueta de cada entidad con el tipo abreviado, para que se vea el distrito o la unidad que la distingue.
+    const entsEtq = ents.map((e) => ({ ...e, etiqueta: abreviar(tituloNatural(e.nombre)) }));
     return { ents: entsEtq, comps, maxCap: Math.max(...ents.map((e) => e.n_captura), 1) };
   }, [data]);
 
@@ -163,7 +162,7 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
             >
               <circle cx={xEnt} cy={eY(i)} r={rEnt(e.n_captura)} className="fill-granate/25 stroke-granate stroke-[1.5]" />
               <text x={xEnt - rEnt(e.n_captura) - 8} y={eY(i) + 4} textAnchor="end" className="pointer-events-none fill-inkSoft text-[11px] font-medium">
-                {trunc(e.etiqueta, 26)}
+                {trunc(e.etiqueta, 30)}
               </text>
             </g>
           ))}
