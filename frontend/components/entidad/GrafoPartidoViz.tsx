@@ -24,6 +24,20 @@ function corto(s: string, n: number) {
   const t = tituloNatural(s);
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 }
+const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** El prefijo común (a límite de palabra) de varios nombres. Sirve para que entidades con el mismo arranque
+ * —p. ej. muchas unidades de «Gobierno Regional de Ayacucho …»— muestren la parte que las distingue, no todas igual. */
+function prefijoComun(nombres: string[]): string {
+  if (nombres.length < 2) return "";
+  let p = nombres[0];
+  for (const n of nombres) {
+    while (p && !n.startsWith(p)) p = p.slice(0, -1);
+    if (!p) return "";
+  }
+  const i = p.lastIndexOf(" ");
+  return i > 0 ? p.slice(0, i + 1) : "";
+}
 
 type Hover = { tipo: "ent" | "emp"; ruc: string } | null;
 
@@ -41,7 +55,11 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
     // Orden baricéntrico: cada empresa cerca del promedio de sus entidades → menos cruces de líneas.
     const bary = (c: (typeof comps)[number]) => c.ents.reduce((s, r) => s + (idx.get(r) ?? 0), 0) / c.ents.length;
     comps.sort((a, b) => bary(a) - bary(b) || b.n_entidades - a.n_entidades);
-    return { ents, comps, maxCap: Math.max(...ents.map((e) => e.n_captura), 1) };
+    // Etiqueta de cada entidad sin el prefijo que comparten todas (surge la unidad que las distingue).
+    const titulos = ents.map((e) => tituloNatural(e.nombre));
+    const pre = prefijoComun(titulos);
+    const entsEtq = ents.map((e, i) => ({ ...e, etiqueta: (pre ? "… " : "") + titulos[i].slice(pre.length) }));
+    return { ents: entsEtq, comps, maxCap: Math.max(...ents.map((e) => e.n_captura), 1) };
   }, [data]);
 
   const entIdx = useMemo(() => new Map(ents.map((e, i) => [e.ruc, i])), [ents]);
@@ -145,7 +163,7 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
             >
               <circle cx={xEnt} cy={eY(i)} r={rEnt(e.n_captura)} className="fill-granate/25 stroke-granate stroke-[1.5]" />
               <text x={xEnt - rEnt(e.n_captura) - 8} y={eY(i) + 4} textAnchor="end" className="pointer-events-none fill-inkSoft text-[11px] font-medium">
-                {corto(e.nombre, 24)}
+                {trunc(e.etiqueta, 26)}
               </text>
             </g>
           ))}

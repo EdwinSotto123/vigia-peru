@@ -1,12 +1,38 @@
 #!/usr/bin/env bash
-# Despliega vigia-web (Cloudflare) con el build pesado en Cloud Build y el deploy liviano desde la PC.
-# Para cuando `npm run cf:deploy` no entra en memoria (next build pide ~3 GB) o para no tocar el
-# `.next` del `next dev` de frontend/ (nunca buildear OpenNext ahí).
+# Despliega vigia-web (Cloudflare).
 #
-#   bash infrastructure/deploy/cloudflare/web.sh
+#   bash infrastructure/deploy/cloudflare/web.sh          # build LOCAL en la PC (por defecto)
+#   USAR_CLOUD_BUILD=1 bash .../web.sh                    # build pesado en GCP Cloud Build (sólo si GCP revive)
 #
-# Necesita `wrangler login` (cuenta de Cloudflare) y gcloud con acceso a PROJECT_ID. Usado el 29/09/2026.
+# Por defecto NO usa GCP: GCP está sin facturación desde 2026-10-12 y Cloud Build muere con
+# "quota restrictions… billing". El build local corre `npm run cf:build` (OpenNext, pide ~3 GB RAM) en
+# `frontend/` y despliega con `opennextjs-cloudflare deploy`. OJO: comparte `frontend/.next` con un
+# `next dev`, así que NO correrlo con un dev server activo (hay una guardia que aborta si lo detecta).
+# Necesita `wrangler login`. El binding VIGIA_API_URL (→ Worker vigia-api) ya está en el Worker.
 source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
+
+if [[ "${USAR_CLOUD_BUILD:-0}" != "1" ]]; then
+  # ── Build LOCAL (por defecto, sin GCP) ──────────────────────────────────────────────────────────
+  FRONT="$REPO_ROOT/frontend"
+  # Guardia: no pisar un `next dev` activo (comparten .next). Best-effort por puertos conocidos.
+  if command -v netstat >/dev/null 2>&1; then
+    for p in 3000 3001 3300 3400; do
+      if netstat -ano 2>/dev/null | grep -i listen | grep -qE "[:.]$p\b"; then
+        echo "✗ hay algo escuchando en el puerto $p: parece un 'next dev' (comparte frontend/.next)." >&2
+        echo "  Ciérralo y reintenta, o fuerza el camino viejo con USAR_CLOUD_BUILD=1." >&2
+        exit 1
+      fi
+    done
+  fi
+  echo "→ build local de OpenNext en $FRONT (sin Cloud Build)"
+  cd "$FRONT"
+  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" npm run cf:build
+  npx opennextjs-cloudflare deploy
+  exit 0
+fi
+
+# ── Build en GCP Cloud Build (opt-in: USAR_CLOUD_BUILD=1; sólo si GCP revive) ──────────────────────
+# El build pesado en Cloud Build y el deploy liviano desde la PC. Necesita gcloud con acceso a BUILD_PROJECT_ID.
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 cd "$W"
