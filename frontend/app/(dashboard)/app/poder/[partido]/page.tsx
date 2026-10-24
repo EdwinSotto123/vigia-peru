@@ -9,6 +9,7 @@ import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { getPoderPartido } from "@/lib/poder";
 import { GrafoPartido } from "@/components/entidad/GrafoPartido";
+import { GrafoPartidoRegiones } from "@/components/entidad/GrafoPartidoRegiones";
 
 export async function generateMetadata({ params }: { params: { partido: string } }): Promise<Metadata> {
   return { title: `${decodeURIComponent(params.partido)} — Mapa de poder` };
@@ -38,6 +39,9 @@ export default async function PoderPartidoPage({ params }: { params: { partido: 
         bajada={`Las entidades que gobierna hoy y, en cada una, cuántos contratos ganaron empresas ligadas al partido. ${sinIndicio > 0 ? `${numero(sinIndicio)} entidades sin indicios no se listan.` : ""}`}
       />
       <Indicadores items={cifras} />
+
+      {/* Dónde gobierna, por región: el partido → departamentos → TODAS sus entidades (con la autoridad que las gobierna). */}
+      {entidades.length > 0 && <GrafoPartidoRegiones partido={p.partido} entidades={entidades} />}
 
       {/* El grafo de captura del partido: entidades que gobierna ↔ empresas que se repiten en 2+ de ellas. Oculto si
           ninguna empresa se repite. Se trae aparte (su propia consulta) para no frenar la tabla. */}
