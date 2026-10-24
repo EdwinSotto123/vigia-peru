@@ -103,6 +103,13 @@ const SECTIONS: Section[] = [
         match: (p) => p.startsWith("/app/partidos") || p.startsWith("/region"),
       },
       {
+        href: "/app/poder",
+        label: "Mapa de poder",
+        icon: <Crown size={16} />,
+        hint: "Captura por partido en lo que gobierna",
+        match: (p) => p.startsWith("/app/poder"),
+      },
+      {
         href: "/app/personas",
         label: "Personas contratadas",
         icon: <Users size={16} />,
