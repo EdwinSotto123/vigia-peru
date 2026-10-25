@@ -26,6 +26,13 @@ export interface ContratoMenor {
   fecPublica: string | null;
   cotizaDesde: string | null;
   cotizaHasta: string | null;
+  // Identidad SUNAT del proveedor (seace_proveedor_sunat): giro, estado y antigüedad al ganar.
+  provActividad: string | null;       // actividad económica (CIIU)
+  provEstado: string | null;          // ACTIVO | BAJA… | SUSPENSION… (en SUNAT)
+  provCondicion: string | null;       // HABIDO | NO HABIDO | NO HALLADO
+  provDesde: string | null;           // fecha de inicio de actividades
+  provTipo: string | null;            // tipo de contribuyente SUNAT
+  provDiasAlGanar: number | null;     // días entre inicio de actividades y la firma del contrato
 }
 
 export interface MenoresPagina {

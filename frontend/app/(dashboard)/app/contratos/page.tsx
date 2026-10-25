@@ -294,16 +294,27 @@ function filtros({
 // Contratos y Órdenes son dos poblaciones del mismo lugar (§14.1 Vistas): un toggle, no un filtro. Las órdenes de
 // compra y de servicio son compras directas del Estado; hasta ahora solo se veían dentro de una persona o empresa.
 
+// Tres ángulos del mismo universo: «Contratos» (con concurso) y, como compra directa, «Órdenes» (el pago) y «Menores»
+// (el expediente ≤8 UIT). Órdenes y Menores se solapan (misma compra, dos registros) pero no se suman; el ⓘ lo explica.
 function VistaToggle({ vista }: { vista: "contratos" | "ordenes" | "menores" }) {
   return (
-    <Vistas
-      etiqueta="Vista del índice"
-      vistas={[
-        { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos" },
-        { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
-        { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
-      ]}
-    />
+    <div className="flex flex-wrap items-center gap-2">
+      <Vistas
+        etiqueta="Vista del índice"
+        vistas={[
+          { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos" },
+          { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
+          { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
+        ]}
+      />
+      <Ayuda titulo="¿Contratos, Órdenes o Menores?">
+        <span className="block">Son tres ángulos del mismo universo de compras del Estado, no tres sumas distintas.</span>
+        <span className="mt-2 block">Contratos: los procesos con concurso (bases y postores compitiendo).</span>
+        <span className="block">Órdenes: lo que el Estado pagó directo, el registro completo e histórico (28 millones).</span>
+        <span className="block">Menores: las compras chicas (hasta 8 UIT) con su requerimiento y ventana de cotización.</span>
+        <span className="mt-2 block">Una misma compra chica puede aparecer en Órdenes (el pago) y en Menores (el expediente): son la misma, vista distinta, no se suman.</span>
+      </Ayuda>
+    </div>
   );
 }
 

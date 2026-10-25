@@ -1,4 +1,4 @@
-import { FileText, FileSignature, Store } from "lucide-react";
+import { FileText, FileSignature, Store, TriangleAlert } from "lucide-react";
 import { AyudaTermino, DatosClave, EstadoVacio, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
@@ -84,11 +84,20 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
     const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
     const objeto = objetoTxt(m.objeto);
     const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaCorta(m.cotizaDesde)} – ${fechaCorta(m.cotizaHasta)}` : null;
+    // Banderas SUNAT del proveedor (indicio, no acusación): dado de baja/suspendido, no habido/no hallado, o recién creado al ganar.
+    const provEstadoMal = m.provEstado && m.provEstado !== "ACTIVO" ? m.provEstado : null;
+    const provCondMal = m.provCondicion && m.provCondicion !== "HABIDO" ? m.provCondicion : null;
+    const mesesAlGanar = m.provDiasAlGanar != null && m.provDiasAlGanar >= 0 ? Math.round(m.provDiasAlGanar / 30) : null;
+    const recienCreada = mesesAlGanar != null && mesesAlGanar < 6;
+    const hayBanderaProv = !!(provEstadoMal || provCondMal || recienCreada);
     const items: (DatoClave | null)[] = [
       { etiqueta: "Qué se contrató", valor: descripcion },
       objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
       { etiqueta: "Entidad", valor: entidad },
       { etiqueta: "Proveedor", valor: proveedor },
+      m.provTipo ? { etiqueta: "Tipo de proveedor", valor: oracion(m.provTipo) } : null,
+      m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
+      m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaCorta(m.provDesde), mono: true } : null,
       { etiqueta: "Suscrito", valor: m.fecha ? fechaCorta(m.fecha) : null, mono: true },
       { etiqueta: "Monto", valor: m.monto != null ? soles(m.monto) : null, mono: true },
       m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
@@ -111,7 +120,16 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
             ]}
           />
         ),
-        estado: <span className="text-meta text-inkSoft">{m.estado ?? "Sin estado"}</span>,
+        estado: (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-meta text-inkSoft">{m.estado ?? "Sin estado"}</span>
+            {hayBanderaProv && (
+              <span className="pill inline-flex items-center gap-1 border-amber/30 bg-amber-soft text-amberTexto">
+                <TriangleAlert size={12} aria-hidden /> proveedor
+              </span>
+            )}
+          </span>
+        ),
         monto: <CeldaNumero sub="≤ 8 UIT, sin concurso">{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
       },
       detalle: {
@@ -120,6 +138,17 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
         descripcion: entidad ?? undefined,
         contenido: (
           <div className="space-y-4">
+            {hayBanderaProv && (
+              <div role="note" className="flex gap-3 rounded-xl border border-amber/30 bg-amber-soft/60 p-3.5 text-dato text-ink">
+                <TriangleAlert size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
+                <span className="block">
+                  {provCondMal && `El proveedor figura ${provCondMal} en SUNAT (no se le ubica). `}
+                  {provEstadoMal && `El proveedor está en ${oracion(provEstadoMal)} en SUNAT. `}
+                  {recienCreada && `Empezó actividades ${mesesAlGanar} ${mesesAlGanar === 1 ? "mes" : "meses"} antes de ganar este contrato. `}
+                  Es un indicio para revisión humana, no una acusación.
+                </span>
+              </div>
+            )}
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
             {(m.tieneRequerimiento || m.tieneContrato) && (
               <div className="flex flex-wrap gap-2">

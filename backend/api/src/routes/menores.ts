@@ -78,8 +78,12 @@ menoresRouter.get("/", async (c) => {
                   (m.id_documento_contrato IS NOT NULL) AS "tieneContrato",
                   m.req_r2 AS "tieneRequerimiento", m.requerimiento_nombre AS "requerimientoNombre",
                   m.estado_prod6 AS "estadoProceso", to_char(m.fec_publica,'YYYY-MM-DD') AS "fecPublica",
-                  to_char(m.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(m.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta"`;
-    const sql = `SELECT ${COLS} FROM seace_menores m WHERE ${conds.join(" AND ")}
+                  to_char(m.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(m.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta",
+                  sp.actividad_ciiu AS "provActividad", sp.estado AS "provEstado", sp.condicion AS "provCondicion",
+                  to_char(sp.fecha_inicio_actividades,'YYYY-MM-DD') AS "provDesde", sp.tipo_contribuyente AS "provTipo",
+                  CASE WHEN sp.fecha_inicio_actividades IS NOT NULL THEN (m.fecha_suscripcion - sp.fecha_inicio_actividades) END AS "provDiasAlGanar"`;
+    const sql = `SELECT ${COLS} FROM seace_menores m LEFT JOIN seace_proveedor_sunat sp ON sp.ruc = m.proveedor_ruc
+                 WHERE ${conds.join(" AND ")}
                  ORDER BY m.fecha_suscripcion ${dir} NULLS LAST, m.id_contrato ${dir} LIMIT ${lim} OFFSET ${offset}`;
     const r = await consultaConPlazo(sql, vals);
     const hayMas = r.rows.length > q.size;
