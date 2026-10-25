@@ -79,16 +79,23 @@ ordenesRouter.get("/", async (c) => {
                   o.ruc_contratista AS "rucContratista", COALESCE(o.monto, o.monto_dudoso)::float AS monto,
                   o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
                   o.tipo_contratacion AS "tipoContratacion", o.estado`;
-    const r = await consultaConPlazo(
-      `WITH c AS (
-         SELECT o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")}
-          ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}
-       ), d AS (
-         SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
-           FROM c o ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC
-       )
-       SELECT ${COLS} FROM d o ${despues}
-        ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`, vals);
+    const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+    const salida = `SELECT ${COLS} FROM d o ${despues} ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`;
+    // Anclado a una entidad/proveedor → SU índice trae sus órdenes (acotadas) y se dedup/ordena ahí; NADA de ventana por
+    // fecha (ordenar por fecha con un filtro de entidad haría que el planner recorra el índice de fecha entero → timeout).
+    // Sin anclar → ventana por el índice de fecha (las más recientes, o las del año elegido) y luego dedup + filtro.
+    const sql = anclado
+      ? `WITH d AS (
+           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
+             FROM conosce_ordenes o WHERE ${base.join(" AND ")}
+            ORDER BY ${dedupOrden})
+         ${salida}`
+      : `WITH c AS (
+           SELECT o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}
+         ), d AS (
+           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o ORDER BY ${dedupOrden})
+         ${salida}`;
+    const r = await consultaConPlazo(sql, vals);
     const hayMas = r.rows.length > q.size;
     return publicar({ page: q.page, size: q.size, hayMas, anclado, anio: q.anio ?? null, anios, data: r.rows.slice(0, q.size) });
   });
