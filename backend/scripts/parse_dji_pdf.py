@@ -77,8 +77,71 @@ def familiares(texto: str) -> list[dict]:
     return out
 
 
+RE_DNI = re.compile(r"^\d{6,9}$")
+RE_RUC = re.compile(r"\b(10|15|16|17|20)\d{9}\b")
+# fronteras de columna (x0) del formato DJI; derivadas del encabezado de la sección 7
+COL1_FIN, COL2_FIN, COL3_FIN = 108, 250, 345
+
+
+def familiares_pdf(ruta: str) -> list[dict]:
+    """Extrae la sección 7 (familiares) por coordenadas: ancla en el DNI (col1), cada palabra se asigna a la
+    fila del DNI más cercano. Robusto ante el parentesco que envuelve en dos líneas y ante celdas pegadas."""
+    import pdfplumber  # import perezoso: solo si se parsea un PDF
+    vistos: dict[str, dict] = {}
+    with pdfplumber.open(ruta) as pdf:
+        for pg in pdf.pages:
+            txt = pg.extract_text() or ""
+            if "LUGAR DE TRABAJO" not in txt and "vínculo de consanguinidad" not in txt:
+                continue
+            ws = pg.extract_words(use_text_flow=False, keep_blank_chars=False)
+            anclas = [w for w in ws if w["x0"] < COL1_FIN and RE_DNI.match(w["text"])]
+            if not anclas:
+                continue
+            tops = sorted(a["top"] for a in anclas)
+            for a in anclas:
+                t = a["top"]
+                nombre, parent = [], []
+                for w in ws:
+                    if w is a or w["x0"] < COL1_FIN:
+                        continue
+                    # a la fila del DNI (top) más cercano, y que sea ESTE
+                    cerca = min(tops, key=lambda tt: abs(tt - w["top"]))
+                    if cerca != t or abs(w["top"] - t) > 11:
+                        continue
+                    if w["x0"] < COL2_FIN:
+                        nombre.append((round(w["top"]), w["x0"], w["text"]))
+                    elif w["x0"] < COL3_FIN:
+                        parent.append((round(w["top"]), w["x0"], w["text"]))
+                nom = " ".join(x[2] for x in sorted(nombre))             # orden de lectura: (top, x0)
+                par_txt = _norm(" ".join(x[2] for x in sorted(parent)))
+                mp = RE_PAR.search(par_txt)
+                parentesco = mp.group(1) if mp else (par_txt or None)
+                doc = a["text"]
+                if doc not in vistos and nom:
+                    vistos[doc] = {"doc": doc, "nombre": nom, "parentesco": parentesco,
+                                   "grado": grado(parentesco) if parentesco else "otro"}
+    return list(vistos.values())
+
+
+def empresas_pdf(ruta: str) -> list[str]:
+    """RUCs declarados en la sección 1 (participación patrimonial). Best-effort: RUCs en páginas de la sección 1."""
+    import pdfplumber
+    rucs: set[str] = set()
+    with pdfplumber.open(ruta) as pdf:
+        for pg in pdf.pages:
+            txt = pg.extract_text() or ""
+            if "participaci" in txt.lower() and "patrimonial" in txt.lower():
+                rucs.update(RE_RUC.findall(txt.replace(" ", "")))
+    return sorted(rucs)
+
+
 def main() -> None:
     ruta = sys.argv[1] if len(sys.argv) > 1 else "-"
+    if ruta.lower().endswith(".pdf"):
+        fams = familiares_pdf(ruta)
+        emp = empresas_pdf(ruta)
+        print(json.dumps({"familiares": fams, "n": len(fams), "empresas_ruc": emp}, ensure_ascii=False, indent=2))
+        return
     texto = sys.stdin.read() if ruta == "-" else open(ruta, encoding="utf-8", errors="replace").read()
     fams = familiares(texto)
     print(json.dumps({"familiares": fams, "n": len(fams)}, ensure_ascii=False, indent=2))
