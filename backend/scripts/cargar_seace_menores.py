@@ -40,6 +40,10 @@ PROD6 = "https://prod6.seace.gob.pe/v1/s8uit-services"
 HDRS6 = ["-A", UA, "-H", "Referer: https://prod6.seace.gob.pe/buscador-publico/contrataciones",
          "-H", "Origin: https://prod6.seace.gob.pe", "-H", "Accept: application/json, text/plain, */*"]
 FUENTE = "seace_menores"
+# --relay: enruta prod6 por el relay de Cloudflare en Zúrich (pasa el WAF que bloquea datacenter y la IP de la PC si se
+# baneó). Token en SSM /vigia/relay/token; lo setea main(). El relay aguanta mucha más concurrencia que la PC directa.
+RELAY = "https://vigia-relay.vigiaperu.workers.dev"
+RELAY_TOK: str | None = None
 
 SQL_UPSERT = """
 INSERT INTO seace_menores (id_contrato, codigo, numero_contrato, objeto, descripcion, entidad, entidad_ruc,
@@ -97,6 +101,18 @@ def to_float(v) -> float | None:
 
 def curl_json(url: str, headers: list[str], tries: int = 4, pausa: float = 1.2):
     for i in range(tries):
+        if RELAY_TOK and "prod6.seace.gob.pe" in url:
+            # por el relay: POST /fetch {url} → {ok,status,body(str JSON)}
+            r = subprocess.run(["curl", "-s", "--max-time", "90", "-X", "POST", f"{RELAY}/fetch",
+                                "-H", f"Authorization: Bearer {RELAY_TOK}", "-H", "Content-Type: application/json",
+                                "-d", json.dumps({"url": url})], capture_output=True)
+            try:
+                env = json.loads(r.stdout.decode("utf-8", "replace"))
+                if env.get("status") == 200 and env.get("body"):
+                    return json.loads(env["body"])
+            except Exception:
+                pass
+            time.sleep(pausa * (i + 1)); continue
         r = subprocess.run(["curl", "-s", "--max-time", "90", url, *headers], capture_output=True)
         try:
             j = json.loads(r.stdout.decode("utf-8", "replace"))
@@ -106,6 +122,16 @@ def curl_json(url: str, headers: list[str], tries: int = 4, pausa: float = 1.2):
         except Exception:
             time.sleep(pausa * (i + 1))
     return None
+
+
+def descargar_pdf(url: str, outfile: str) -> None:
+    """Baja un PDF de prod6 a `outfile`: por el relay (/raw) si hay token, si no directo."""
+    if RELAY_TOK and "prod6.seace.gob.pe" in url:
+        subprocess.run(["curl", "-s", "--max-time", "120", "-X", "POST", f"{RELAY}/raw",
+                        "-H", f"Authorization: Bearer {RELAY_TOK}", "-H", "Content-Type: application/json",
+                        "-d", json.dumps({"url": url}), "-o", outfile], capture_output=True)
+    else:
+        subprocess.run(["curl", "-s", "--max-time", "120", url, *HDRS6, "-o", outfile], capture_output=True)
 
 
 def bajar_prod4(anio: int) -> list[dict]:
@@ -192,9 +218,7 @@ def espejar(con, entorno: str, limite: int, pausa: float) -> int:
     for idc, rid in rows:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             tmp = f.name
-        subprocess.run(["curl", "-s", "--max-time", "120", f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}",
-                        "-A", UA, "-H", "Referer: https://prod6.seace.gob.pe/buscador-publico/contrataciones",
-                        "-H", "Origin: https://prod6.seace.gob.pe", "-o", tmp], capture_output=True)
+        descargar_pdf(f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}", tmp)
         time.sleep(pausa)
         with open(tmp, "rb") as fh:
             if fh.read(5) != b"%PDF-":
@@ -279,7 +303,7 @@ def espejar_paralelo(entorno: str, anio: int, limite: int, hilos: int, pausa: fl
                     continue
                 with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
                     tmp = f.name
-                subprocess.run(["curl", "-s", "--max-time", "90", f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}", *HDRS6, "-o", tmp], capture_output=True)
+                descargar_pdf(f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}", tmp)
                 ok_pdf = False
                 with open(tmp, "rb") as fh:
                     ok_pdf = fh.read(5) == b"%PDF-"
@@ -329,12 +353,19 @@ def main() -> int:
     ap.add_argument("--seco", action="store_true", help="sólo baja prod4 y cuenta, no escribe")
     ap.add_argument("--enriquecer", type=int, default=0, help="N CM recientes a enriquecer con el requerimiento de prod6")
     ap.add_argument("--espejar", type=int, default=0, help="N requerimientos a bajar de prod6 y subir a R2 (wrangler)")
-    ap.add_argument("--hilos", type=int, default=1, help="hilos para enriquecer+espejar en paralelo (probado ≤4; 8 tumba la IP)")
+    ap.add_argument("--hilos", type=int, default=1, help="hilos para enriquecer+espejar en paralelo (directo ≤4; por relay 10+)")
+    ap.add_argument("--relay", action="store_true", help="enrutar prod6 por el relay de Zúrich (pasa el WAF; permite más hilos)")
     ap.add_argument("--pausa", type=float, default=1.1, help="segundos entre llamadas a prod6 (WAF)")
     a = ap.parse_args()
     if not a.seco and not a.entorno:
         ap.error("falta --entorno (o --seco)")
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.relay:
+        global RELAY_TOK
+        RELAY_TOK = subprocess.run(["aws", "ssm", "get-parameter", "--name", "/vigia/relay/token", "--with-decryption",
+                                    "--query", "Parameter.Value", "--output", "text", "--profile", "founder.edwin", "--region", "us-east-2"],
+                                   capture_output=True, text=True, env={**os.environ, "MSYS_NO_PATHCONV": "1"}).stdout.strip()
+        print(f"relay activado (token {len(RELAY_TOK)} chars)")
 
     filas = bajar_prod4(a.anio)
     if a.seco or not filas:

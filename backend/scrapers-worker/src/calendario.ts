@@ -30,11 +30,15 @@
 export const CRON_DIARIO = "0 11 * * *";
 export const CRON_DATOS = "0 13 * * *";
 export const CRON_DOCUMENTOS = "40 * * * *";
+// Contratos menores del SEACE: cron propio (martes 05:00 Lima = 10:00 UTC, minuto 0) para NO competir con `documentos`
+// (que usa el mismo relay cada hora al minuto 40) ni con los otros de las 06:00/08:00. Semanal: los menores nuevos son pocos.
+export const CRON_MENORES = "0 10 * * 2";
 
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
   if (cron === CRON_DOCUMENTOS) return ["documentos"];
+  if (cron === CRON_MENORES) return ["seace_menores"];
   if (cron !== CRON_DATOS) return [];
   const lima = new Date(ms - 5 * 3600 * 1000);
   const dia = lima.getUTCDate();

@@ -24,6 +24,7 @@ import { correrDji } from "./fuentes/pnda_dji.ts";
 import { correrPndaOece } from "./fuentes/pnda_oece.ts";
 import { correrSancionados } from "./fuentes/pnda_sancionados.ts";
 import { correrVisitas } from "./fuentes/pnda_visitas.ts";
+import { correrSeaceMenores } from "./fuentes/seace_menores.ts";
 import { conDb } from "./db.ts";
 import { registrar } from "./registro.ts";
 
@@ -47,6 +48,7 @@ export const FUENTES: Record<string, Corredor> = {
   onpe_claridad: correrOnpe,
   contraloria_informes: correrContraloria,
   pte_personal: correrPte,
+  seace_menores: correrSeaceMenores,
 };
 
 /** Los pasos de la bitácora: cortos, y si fallan la corrida sigue (anotar nunca la corta). */
