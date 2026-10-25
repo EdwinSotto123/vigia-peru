@@ -58,8 +58,11 @@ ordenesRouter.get("/", async (c) => {
     // Filtros INDEXABLES (van en la ventana que elige el índice): entidad, proveedor, año.
     const base = [`o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`,
                   `o.fecha_emision >= DATE '2018-01-01'`, `o.fecha_emision <= current_date + 31`, `o.entidad_ruc ~ '^[0-9]{11}$'`];
-    if (q.entidad) base.push(`o.entidad_ruc = ${p(q.entidad)}`);
-    if (q.proveedor) base.push(`o.ruc_contratista = ${p(q.proveedor)}`);
+    // entidad/proveedor son 11 dígitos (validados por zod) → se inyectan como LITERAL, no como $param: con un parámetro,
+    // Hyperdrive prepara la sentencia y el planner, sin conocer el valor, elige un plan genérico que ignora el índice de
+    // entidad y recorre el de fecha (timeout). Con el literal usa el bitmap index por entidad (rápido). Solo dígitos: seguro.
+    if (q.entidad) base.push(`o.entidad_ruc = '${q.entidad}'`);
+    if (q.proveedor) base.push(`o.ruc_contratista = '${q.proveedor}'`);
     if (q.anio) base.push(`o.fecha_emision >= make_date(${p(q.anio)}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`);
     // Filtros NO indexables (se aplican DESPUÉS de deduplicar la ventana): tipo, estado, posible error, texto.
     const variables: string[] = [];
