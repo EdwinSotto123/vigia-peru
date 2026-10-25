@@ -341,16 +341,51 @@ function Detalle({ s }: { s: SenalDetalle }) {
           resolucion: <span className="font-mono text-meta text-inkSoft">{txt(x.resolucion) ?? "Sin dato"}</span>,
         },
       }));
-      // Las órdenes concretas que recibió dentro de la inhabilitación: la cita a la evidencia, una por una.
-      const ordenes = lista(d.ordenes_detalle).map((o, i) => ({
-        id: `ord-${i}`,
-        celdas: {
-          fecha: <span className="text-meta tabular-nums text-mute">{dia(o.fecha) ?? "Sin dato"}</span>,
-          servicio: <span className="text-meta text-inkSoft">{txt(o.servicio) ?? txt(o.descripcion) ?? "Sin dato"}</span>,
-          numero: <span className="font-mono text-meta text-inkSoft">{txt(o.numero) ?? txt(o.orden) ?? "Sin dato"}</span>,
-          monto: <CeldaNumero>{soles(num(o.monto) ?? 0)}</CeldaNumero>,
-        },
-      }));
+      // Las órdenes concretas que recibió dentro de la inhabilitación: la cita a la evidencia, una por una. Cada fila
+      // abre un panel lateral con lo que hay de esa orden. Una orden de servicio es una compra directa: no hay proceso
+      // de selección ni otros postores, y eso se dice claro para que no quede la duda.
+      const ordenes: Fila[] = lista(d.ordenes_detalle).map((o, i) => {
+        const descripcion = txt(o.descripcion);
+        const entidad = txt(o.entidad);
+        const servicio = txt(o.servicio);
+        const numero = txt(o.numero) ?? txt(o.orden);
+        const monto = num(o.monto) ?? 0;
+        return {
+          id: `ord-${i}`,
+          celdas: {
+            fecha: <span className="text-meta tabular-nums text-mute">{dia(o.fecha) ?? "Sin dato"}</span>,
+            servicio: <span className="text-meta text-inkSoft">{servicio ?? descripcion ?? "Sin dato"}</span>,
+            numero: <span className="font-mono text-meta text-inkSoft">{numero ?? "Sin dato"}</span>,
+            monto: <CeldaNumero>{soles(monto)}</CeldaNumero>,
+          },
+          detalle: {
+            titulo: numero ? `Orden de servicio N.° ${numero}` : "Orden de servicio",
+            etiqueta: `Ver el detalle de la orden ${numero ?? ""}`.trim(),
+            descripcion: entidad ?? undefined,
+            contenido: (
+              <div className="space-y-3">
+                <DatosClave
+                  items={[
+                    { etiqueta: "Qué se pagó", valor: descripcion },
+                    { etiqueta: "Entidad", valor: entidad },
+                    { etiqueta: "Emitida", valor: dia(o.fecha) },
+                    { etiqueta: "Estado", valor: txt(o.estado) },
+                    { etiqueta: "Monto", valor: soles(monto), mono: true },
+                    { etiqueta: "Tipo de servicio", valor: servicio },
+                    { etiqueta: "Cómo se contrató", valor: txt(o.tipoContratacion) },
+                  ]}
+                />
+                <p className="text-rotulo leading-relaxed text-mute">
+                  Es la orden tal como la publicó CONOSCE: no incluye quién más compitió por ella. Lo que se puede revisar es
+                  el servicio, la fecha y el monto, y que la emitieron mientras el Tribunal lo tenía inhabilitado para
+                  contratar con el Estado.
+                </p>
+              </div>
+            ),
+            pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{txt(o.orden) ? ` (${txt(o.orden)})` : ""}</span>,
+          },
+        };
+      });
       return (
         <div className="space-y-2">
           <DatosClave
@@ -369,10 +404,10 @@ function Detalle({ s }: { s: SenalDetalle }) {
             filas={filas}
           />
           {ordenes.length > 0 && (
-            <Lista
-              etiqueta="Cada orden recibida durante la inhabilitación"
+            <Tabla
+              etiqueta="Cada orden recibida durante la inhabilitación (tocá una para su detalle)"
               columnas={[
-                { clave: "fecha", titulo: "Fecha", ancho: "110px" },
+                { clave: "fecha", titulo: "Fecha", ancho: "120px" },
                 { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)" },
                 { clave: "numero", titulo: "N° de orden", ancho: "minmax(0,170px)", desde: "md" },
                 { clave: "monto", titulo: "Monto", ancho: "120px", alinear: "der" },
