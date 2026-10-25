@@ -18,10 +18,41 @@
 
 stages:
   - deploy
+  - test
 
 default:
   image: node:22-bookworm
   interruptible: true
+
+# ─── Prueba: ¿la IP del runner de GitLab pasa el WAF de prod6 del SEACE? ───────────────────────────
+# Para decidir si usamos runners de CI como "IPs extra" del backfill de contratos menores (el WAF de prod6
+# bloquea el egress de Cloudflare y penaliza ráfagas desde una sola IP). Manual.
+test:prod6:
+  stage: test
+  script:
+    - |
+      UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+      REF='https://prod6.seace.gob.pe/buscador-publico/contrataciones'
+      B='https://prod6.seace.gob.pe/v1/s8uit-services'
+      H=(-A "$UA" -H "Referer: $REF" -H "Origin: https://prod6.seace.gob.pe" -H "Accept: application/json, text/plain, */*")
+      echo "== IP del runner =="; curl -s --max-time 20 https://ifconfig.me || true; echo
+      echo "== buscador (Culminado 2026) =="
+      curl -s --max-time 40 "${H[@]}" "$B/buscadorpublico/contrataciones/buscador?anio=2026&lista_estado_contrato=4&page=1&page_size=20" -o l.json -w "HTTP %{http_code} %{size_download}b\n"
+      ids=$(node -e "const d=require('./l.json');console.log((d.data||[]).map(r=>r.idContrato).slice(0,10).join(' '))")
+      echo "ids: $ids"
+      echo "== secuencial: listar-archivos de 10 =="
+      ok=0; f=0
+      for id in $ids; do code=$(curl -s --max-time 30 "${H[@]}" -o a.json -w "%{http_code}" "$B/archivo/archivos-publico/listar-archivos-contrato/$id/1"); [ "$code" = "200" ] && ok=$((ok+1)) || f=$((f+1)); done
+      echo "listar-archivos secuencial: ok=$ok fail=$f"
+      echo "== descargar 1 requerimiento (PDF) =="
+      rid=$(node -e "const d=require('./a.json');const l=Array.isArray(d)?d:(d.data||[]);console.log(l[0]?l[0].idContratoArchivo:'')")
+      curl -s --max-time 60 "${H[@]}" -H "Accept: application/pdf" "$B/archivo/archivos-publico/descargar-archivo-contrato/$rid" -o r.pdf -w "PDF HTTP %{http_code} %{size_download}b\n"; head -c4 r.pdf | od -c | head -1
+      echo "== burst 8 en paralelo (¿cuántos 403?) =="
+      for id in $ids; do ( curl -s --max-time 30 "${H[@]}" -o /dev/null -w "%{http_code} " "$B/archivo/archivos-publico/listar-archivos-contrato/$id/1" ) & done; wait; echo
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+      allow_failure: true
 
 # ─── Anclas reutilizables ────────────────────────────────────────────────────────────────────────
 .web: &web
