@@ -5,7 +5,7 @@ import { useContext, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
-import { Migas, Volver } from "@/components/patrones";
+import { AyudaTermino, Migas, Volver } from "@/components/patrones";
 import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
 import { baseApiNavegador } from "@/lib/api-client";
 import type { GobiernoContrato } from "@/lib/contratos";
@@ -169,10 +169,11 @@ export function indicadoresDossier({
   // ancho a 26 px. El monto exacto queda en el `title` y en las tablas de ítems y postores.
   const monto = (n: number) => <span title={montoDossier(n)}>{solesCompacto(n)}</span>;
   const items: Indicador[] = [
-    { valor: referencial !== null ? monto(referencial) : null, etiqueta: "valor referencial", contexto: "presupuesto de la entidad" },
+    { valor: referencial !== null ? monto(referencial) : null, etiqueta: "valor referencial", ayuda: <AyudaTermino clave="valor-referencial" />, contexto: "presupuesto de la entidad" },
     {
       valor: adjudicado !== null ? monto(adjudicado) : null,
       etiqueta: "adjudicado",
+      ayuda: <AyudaTermino clave="adjudicacion" />,
       contexto:
         variacion === null
           ? adjudicado === null

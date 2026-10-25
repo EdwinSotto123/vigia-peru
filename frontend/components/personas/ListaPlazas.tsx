@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
-import { Ayuda, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import {
   BarraFiltros,
@@ -77,9 +77,9 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlazas | null> }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
   const items: Indicador[] = [
-    { valor: numero(r.plazas), etiqueta: "plazas CAS publicadas", contexto: r.desde ? `desde el ${fechaCorta(r.desde)}` : undefined },
+    { valor: numero(r.plazas), etiqueta: "plazas CAS publicadas", contexto: r.desde ? `desde el ${fechaCorta(r.desde)}` : undefined, ayuda: <AyudaTermino clave="cas" /> },
     { valor: numero(r.vacantes), etiqueta: "vacantes" },
-    { valor: r.medianaSueldo != null ? soles(r.medianaSueldo) : null, etiqueta: "sueldo mediano", contexto: "la mitad paga menos" },
+    { valor: r.medianaSueldo != null ? soles(r.medianaSueldo) : null, etiqueta: "sueldo mediano", contexto: "la mitad paga menos", ayuda: <AyudaTermino clave="mediana" /> },
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "de plaza a la medida", tono: r.conSenales > 0 ? "media" : "neutro" },
   ];
   return <Indicadores items={items} />;
@@ -246,8 +246,8 @@ const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && 
 function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
   if (tipo === "plazo_corto") items = [{ etiqueta: "Días publicada", valor: n(d.dias) != null ? numero(n(d.dias)) : null }];
-  else if (tipo === "sueldo_alto") items = [{ etiqueta: "Mediana de plazas parecidas", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.plazas) ?? 0)} plazas)` : null }];
-  else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null }];
+  else if (tipo === "sueldo_alto") items = [{ etiqueta: "Mediana de plazas parecidas", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.plazas) ?? 0)} plazas)` : null, ayuda: <AyudaTermino clave="mediana" /> }];
+  else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null, ayuda: <AyudaTermino clave="locacion" /> }];
   else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${String(n(d.exp_general)).replace(".", ",")} años` : "No la pide" }];
   return items.length ? <DatosClave items={items} /> : null;
 }

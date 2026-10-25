@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { DatosClave, type DatoClave } from "@/components/patrones";
+import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
 import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
 import { fecha, listaY, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -459,7 +459,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
             { clave: "anio", titulo: "Año", ancho: "64px" },
             { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)", desde: "md" },
             { clave: "suyo", titulo: "Cobra por mes", ancho: "112px", alinear: "der" },
-            { clave: "mediana", titulo: "Mediana de la entidad", ancho: "140px", alinear: "der" },
+            { clave: "mediana", titulo: "Mediana de la entidad", ancho: "140px", alinear: "der", ayuda: <AyudaTermino clave="mediana" /> },
             { clave: "veces", titulo: "Diferencia", ancho: "92px", alinear: "der" },
           ]}
           filas={filas}
@@ -474,7 +474,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
           items={[
             { etiqueta: "Meses con órdenes y planilla", valor: meses.length ? meses.join(", ") : null, mono: true },
             { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
-            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null },
+            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
             { etiqueta: "Lo que cobró en planilla", valor: num(d.sueldo) != null ? soles(num(d.sueldo)!) : null, mono: true },
           ]}
         />
@@ -489,7 +489,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
             { etiqueta: "Primera orden", valor: dia(d.primera_orden), mono: true },
             { etiqueta: "Entró a la planilla", valor: mes ? mes.slice(0, 7) : null, mono: true },
             { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
-            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null },
+            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
           ]}
         />
       );

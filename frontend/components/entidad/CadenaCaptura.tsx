@@ -4,6 +4,7 @@ import Link from "next/link";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
 import type { Cadena } from "@/lib/cadena";
+import { AyudaTermino } from "@/components/patrones";
 
 /**
  * Capa C — la cadena de captura (combina Capa A + Capa B): [empresas ligadas] → [partido + su autoridad] → [la entidad]
@@ -89,7 +90,7 @@ export function CadenaCaptura({ cadena }: { cadena: Cadena }) {
 
         {/* 4. quién decide */}
         <div className="rounded-xl border border-line bg-paperSoft/50 p-3">
-          <div className="text-rotulo uppercase tracking-wide text-mute">Quién aprueba y decide</div>
+          <div className="flex items-center gap-1 text-rotulo uppercase tracking-wide text-mute">Quién aprueba y decide <AyudaTermino clave="aga" /></div>
           <div className="text-cuerpo font-semibold text-ink">{dec?.apruebaContratos ?? "Autoridad de la gestión administrativa"}</div>
           {dec && dec.funcionarios.length > 0 ? (
             <ul className="mt-1 space-y-0.5 text-meta text-inkSoft">

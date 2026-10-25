@@ -10,6 +10,7 @@ import {
   GrafoSeccion, GrafoCabecera, MigaSep, GrafoColumnas, GrafoMarco, GrafoAside, BotonFicha,
   Nodo, NodoCentro, Arista, ChipLeyenda, type Tono,
 } from "@/components/grafo/primitivos";
+import { AyudaTermino } from "@/components/patrones";
 import type { TerritorioNodo } from "@/lib/poder";
 import type { Cadena } from "@/lib/cadena";
 
@@ -236,7 +237,7 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
               </div>
               <p className="text-meta leading-relaxed text-inkSoft">Tocá una región para abrirla: sus provincias brotan y el zoom va solo. Tocá un nodo para ver quién lo gobierna y su cadena de captura.</p>
               <div className="space-y-1.5">
-                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura</ChipLeyenda>
+                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura <AyudaTermino clave="captura" /></ChipLeyenda>
                 <ChipLeyenda tono="granate" forma="punto">sin ese indicio</ChipLeyenda>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { LineaMeses } from "@/components/charts/LineaMeses";
@@ -151,7 +151,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                     { etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}?seccion=planilla`} className="text-granate hover:underline">{entidad}</Link> },
                     { etiqueta: "Cargo", valor: cargo },
                     { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
-                    { etiqueta: "Régimen", valor: p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null },
+                    { etiqueta: "Régimen", valor: p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
                     { etiqueta: "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
                     { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
                     ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),

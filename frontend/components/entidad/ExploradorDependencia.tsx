@@ -8,6 +8,7 @@ import {
   GrafoSeccion, GrafoCabecera, MigaSep, GrafoColumnas, GrafoMarco, GrafoAside,
   Nodo, NodoCentro, Arista, ChipLeyenda, type Tono,
 } from "@/components/grafo/primitivos";
+import { AyudaTermino } from "@/components/patrones";
 import type { DependenciaNodo } from "@/lib/poder";
 
 /**
@@ -183,7 +184,10 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-cuerpo font-semibold leading-tight text-ink">{tituloNatural(sel.nombre)}</div>
-                  <div className="text-rotulo text-mute">{kindTxt(sel.kind)}{sel.kind === "sector" ? (esAutonomo(sel.sector) ? " — autónomo" : " — del Ejecutivo") : ""}</div>
+                  <div className="flex items-center gap-1 text-rotulo text-mute">
+                    <span>{kindTxt(sel.kind)}{sel.kind === "sector" ? (esAutonomo(sel.sector) ? " — autónomo" : " — del Ejecutivo") : ""}</span>
+                    <AyudaTermino clave={sel.kind === "sector" ? "sector" : sel.kind === "pliego" ? "pliego" : "unidad-ejecutora"} />
+                  </div>
                 </div>
                 <button type="button" onClick={() => setSel(null)} className="text-mute hover:text-ink" aria-label="Cerrar detalle">✕</button>
               </div>
@@ -191,8 +195,14 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
                 <p className="text-meta text-inkSoft">{esAutonomo(sel.sector) ? "Organismo autónomo: NO depende del Poder Ejecutivo." : "Sector del Poder Ejecutivo: sus pliegos y organismos dependen de él."}</p>
               )}
               <div className="rounded-lg border border-line bg-paper px-3 py-2">
-                <div className="font-mono text-cuerpo font-semibold tabular-nums text-ink">{solesCompacto(sel.pim)}</div>
-                <div className="text-rotulo text-mute">presupuesto {anio} (PIM), {solesCompacto(sel.dev)} ejecutado</div>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono text-cuerpo font-semibold tabular-nums text-ink">{solesCompacto(sel.pim)}</span>
+                  <AyudaTermino clave="pim" />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-1 text-rotulo text-mute">
+                  <span>presupuesto {anio} (PIM), {solesCompacto(sel.dev)} ejecutado</span>
+                  <AyudaTermino clave="devengado" />
+                </div>
               </div>
               {sel.kind !== "ejec" && <div className="text-rotulo text-mute">Contiene {numero(sel.hijos)} {sel.kind === "sector" ? "pliegos" : "unidades ejecutoras"} — tocá el nodo para abrirlo.</div>}
             </div>
@@ -205,7 +215,7 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
               <p className="text-meta leading-relaxed text-inkSoft">Tocá un sector para abrirlo: sus pliegos brotan (lo que depende de él) y el zoom va solo. Tocá un nodo para su presupuesto.</p>
               <div className="space-y-1.5">
                 <ChipLeyenda tono="granate" forma="punto">del Poder Ejecutivo (ministerios)</ChipLeyenda>
-                <ChipLeyenda tono="anil" forma="punteado">autónomo (no depende del Ejecutivo)</ChipLeyenda>
+                <ChipLeyenda tono="anil" forma="punteado">autónomo (no depende del Ejecutivo) <AyudaTermino clave="autonomo" /></ChipLeyenda>
                 <span className="text-rotulo text-mute">el tamaño es el presupuesto</span>
               </div>
             </div>

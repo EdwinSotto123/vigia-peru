@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Building2, CalendarRange } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import {
   BarraFiltros,
@@ -327,7 +327,7 @@ function Pagos({ anual, mensual, nombre, ruta }: { anual: AnioDePersona[]; mensu
 // En el celular la fecha y el estado (con sus banderas) se apilan bajo la descripción, no bajo la fecha angosta.
 const COLUMNAS_ORDENES: Columna[] = [
   { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
-  { clave: "orden", titulo: "Orden de servicio", ancho: "minmax(0,1.8fr)" },
+  { clave: "orden", titulo: "Orden de servicio", ancho: "minmax(0,1.8fr)", ayuda: <AyudaTermino clave="orden-servicio" /> },
   {
     clave: "estado", titulo: "Estado y banderas", ancho: "minmax(0,0.7fr)", desde: "lg", apilar: true,
     ayuda: (

@@ -6,6 +6,7 @@ import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
 import { corto } from "@/lib/grafo";
 import { GrafoSeccion, GrafoColumnas, GrafoAside, BotonFicha, ChipLeyenda } from "@/components/grafo/primitivos";
+import { AyudaTermino } from "@/components/patrones";
 import type { Institucion, MapaInstituciones as Datos } from "@/lib/poder";
 
 /**
@@ -221,7 +222,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                 {foco ? "Tocá una institución para ver su detalle, o volvé a todas las ramas." : "Tocá una rama para expandirla, o una institución para ver su detalle."}
               </p>
               <div className="space-y-1.5">
-                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura política</ChipLeyenda>
+                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura política <AyudaTermino clave="captura" /></ChipLeyenda>
                 <ChipLeyenda tono="granate" forma="punto">sin ese indicio (p. ej. ministerios)</ChipLeyenda>
                 <span className="text-rotulo text-mute">el tamaño es cuánto contrata</span>
               </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { Aviso } from "@/components/partidos/AvisoPartido";
@@ -76,7 +76,7 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
             etiqueta: "Por órdenes de servicio",
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Locadores, asesores y profesionales pagados por órdenes de servicio, sin concurso.</CabeceraPestana>
+                <CabeceraPestana>Locadores, asesores y profesionales pagados por órdenes de servicio <AyudaTermino clave="orden-servicio" />, sin concurso.</CabeceraPestana>
                 <ListaPersonas alcance={{ dep, entidad }} sp={searchParams} P={PARAMS_SOLOS} ruta={ruta} base={{ dep, entidad }} filtrosExtra={[region]} conIndicadores />
               </div>
             ),
@@ -86,7 +86,7 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
             etiqueta: "En planilla",
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>El personal que las entidades publican en su Portal de Transparencia, con lo que cobra cada uno.</CabeceraPestana>
+                <CabeceraPestana>El personal que las entidades publican en su Portal de Transparencia <AyudaTermino clave="pte" />, con lo que cobra cada uno.</CabeceraPestana>
                 <ListaPlanilla alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "planilla" }} />
               </div>
             ),
@@ -96,7 +96,7 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
             etiqueta: "Plazas CAS",
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Las convocatorias CAS publicadas en SERVIR Talento Perú, con lo que piden y lo que pagan.</CabeceraPestana>
+                <CabeceraPestana>Las convocatorias CAS <AyudaTermino clave="cas" /> publicadas en SERVIR Talento Perú <AyudaTermino clave="servir" />, con lo que piden y lo que pagan.</CabeceraPestana>
                 <ListaPlazas alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "plazas" }} />
               </div>
             ),

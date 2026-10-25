@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import Link from "next/link";
 import {
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { ejecucionPct, sinAnioRepetido, type BreakdownRow, type MefBudgetRow, type RegionBudgetSummary } from "@/lib/mef";
 import { coincide, fechaCorta, numero, paraBuscar, porcentaje, solesCompacto } from "@/lib/formato";
-import { Ayuda, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { Ayuda, AyudaTermino, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
 import { cn } from "@/lib/utils";
 
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
@@ -189,12 +189,14 @@ export function PresupuestoRegional({
           etiqueta={isCurrentOpen ? `Presupuesto ${current.year}` : `Presupuesto ${current.year} (cerrado)`}
           valor={solesCompacto(current.pim)}
           contexto={growth != null && Math.round(growth) !== 0 ? `${variacion(growth)} frente a ${current.year - 1}` : "PIM, presupuesto modificado"}
+          ayuda={<AyudaTermino clave="pim" />}
         />
         <DatoClave
           etiqueta={isCurrentOpen ? "Devengado a la fecha" : "Ejecutado"}
           valor={solesCompacto(current.devengado)}
           contexto={`${porcentaje(ejPct)} del PIM${isCurrentOpen ? " a la fecha" : ""}`}
           tono={isUnder ? "atencion" : ejPct > 80 ? "positivo" : "neutro"}
+          ayuda={<AyudaTermino clave="devengado" />}
         />
         <DatoClave
           etiqueta={isCurrentOpen ? "Por ejecutar" : "Sin gastar"}
@@ -343,11 +345,13 @@ function DatoClave({
   valor,
   contexto,
   tono = "neutro",
+  ayuda,
 }: {
   etiqueta: string;
   valor: string;
   contexto?: string;
   tono?: "neutro" | "atencion" | "positivo";
+  ayuda?: ReactNode;
 }) {
   const estilo = {
     neutro: "border-line bg-paperSoft text-ink",
@@ -356,7 +360,7 @@ function DatoClave({
   }[tono];
   return (
     <div className={cn("rounded-xl border p-2.5", estilo)}>
-      <dt className="text-micro font-semibold leading-tight">{etiqueta}</dt>
+      <dt className="flex items-center gap-1 text-micro font-semibold leading-tight">{etiqueta}{ayuda}</dt>
       <dd className="mt-0.5 font-mono text-cuerpo font-bold leading-tight tabular-nums">{valor}</dd>
       {contexto && <dd className="mt-0.5 text-micro leading-snug">{contexto}</dd>}
     </div>

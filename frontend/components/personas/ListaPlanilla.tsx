@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight } from "lucide-react";
-import { Ayuda, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -161,7 +161,7 @@ const columnas = (deEntidad: boolean): Columna[] => [
       </Ayuda>
     ),
   },
-  { clave: "regimen", titulo: "Régimen", ancho: "112px", desde: "lg" },
+  { clave: "regimen", titulo: "Régimen", ancho: "112px", desde: "lg", ayuda: <AyudaTermino clave="regimen" /> },
   { clave: "total", titulo: "Sueldo", ancho: "112px", alinear: "der" },
 ];
 

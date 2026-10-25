@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { AyudaTermino } from "@/components/patrones";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { oeceProcesoUrl } from "../utils";
 
@@ -85,7 +86,7 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
       <div className="mb-3 grid gap-2 sm:grid-cols-3">
         <div className="rounded-xl bg-paperDeep px-3 py-2">
           <div className="font-mono text-bloque leading-7 font-semibold tabular-nums text-ink">{patrones.n_postores_total || postores.length}</div>
-          <div className="text-micro text-mute">postores totales</div>
+          <div className="flex items-center gap-1 text-micro text-mute">postores totales <AyudaTermino clave="postor" /></div>
         </div>
         <div className="rounded-xl bg-paperDeep px-3 py-2">
           <div className="font-mono text-bloque leading-7 font-semibold tabular-nums text-ink">

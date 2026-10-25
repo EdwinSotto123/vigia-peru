@@ -16,6 +16,7 @@ import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { AyudaTermino } from "@/components/patrones/AyudaTermino";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { PersonName, Ruc } from "@/components/Redact";
 import { enlaceProveedor } from "@/lib/empresas";
@@ -77,8 +78,8 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
           mono: true,
         }]
       : []),
-    { etiqueta: "Código SEACE", valor: c.codigo, mono: true },
-    { etiqueta: "OCID", valor: <span className="break-all">{c.ocid}</span>, mono: true },
+    { etiqueta: "Código SEACE", valor: c.codigo, mono: true, ayuda: <AyudaTermino clave="seace" /> },
+    { etiqueta: "OCID", valor: <span className="break-all">{c.ocid}</span>, mono: true, ayuda: <AyudaTermino clave="ocid" /> },
   ];
 
   // El puntaje sólo junto a las señales que lo explican (§10.4), y nunca en revisión.

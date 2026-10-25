@@ -2,6 +2,7 @@ import { getEstructuraEntidad } from "@/lib/api-client";
 import { tituloNatural } from "@/lib/landing";
 import { rad, corto, anguloEnAnillo, anchorDeCos } from "@/lib/grafo";
 import { GrafoSeccion, GrafoMarco } from "@/components/grafo/primitivos";
+import { AyudaTermino } from "@/components/patrones";
 
 /**
  * «Quién decide y firma los contratos» de una entidad, del grafo del Estado (migración 126): un grafo pequeño con la
@@ -42,7 +43,7 @@ export async function QuienDecide({ ruc }: { ruc: string }) {
         <span className="text-rotulo text-mute">Estructura institucional, fuentes oficiales, corte {e.corte ?? "2026"}</span>
       </div>
       <p className="text-meta leading-relaxed text-inkSoft">
-        Por ley, quien aprueba las contrataciones de esta entidad es la <b className="text-ink">{aga}</b>
+        Por ley, quien aprueba las contrataciones de esta entidad es la <b className="text-ink">{aga}</b> <AyudaTermino clave="aga" />
         {funcionarios.length > 0 ? ", y estos son los altos funcionarios que hoy la ocupan" : ""}.
       </p>
 

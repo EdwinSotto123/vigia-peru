@@ -2,6 +2,7 @@
 export { EstadoVacio, EstadoError, Cargando } from "./Estados";
 export { Pagina, EncabezadoPagina, Seccion, Cifra, FuenteDato, Nota, Volver } from "./Estructura";
 export { Ayuda } from "./Ayuda";
+export { AyudaTermino } from "./AyudaTermino";
 export { Pestanas, CabeceraPestana, irAPestana, type Pestana } from "./Pestanas";
 export { Migas, type Miga } from "./Migas";
 export { FichaNoLeida } from "./FichaNoLeida";

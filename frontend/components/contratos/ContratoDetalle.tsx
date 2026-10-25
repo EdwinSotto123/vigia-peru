@@ -23,7 +23,7 @@ import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, EncabezadoPagina, FuenteDato, Migas, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, EncabezadoPagina, FuenteDato, Migas, Pestanas } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
@@ -269,11 +269,13 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
     {
       valor: c.montoPen ? cifra(c.montoPen, c.moneda) : <SinDato />,
       etiqueta: "valor referencial",
+      ayuda: <AyudaTermino clave="valor-referencial" />,
       contexto: c.montoPen ? unir([exacto(c.montoPen, c.moneda), nItems > 1 && `en ${numero(nItems)} ítems`]) : "el registro no lo publica",
     },
     {
       valor: adjudicado ? cifra(adjudicado, c.moneda) : <SinDato texto="Sin adjudicar" />,
       etiqueta: "monto adjudicado",
+      ayuda: <AyudaTermino clave="adjudicacion" />,
       contexto: adjudicado
         ? unir([
             exacto(adjudicado, c.moneda),
@@ -285,11 +287,13 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
     {
       valor: c.fecha ? fechaCorta(c.fecha) : <SinDato texto="Sin fecha" />,
       etiqueta: "convocatoria",
+      ayuda: <AyudaTermino clave="convocatoria" />,
       contexto: `buena pro: ${c.fechaBuenaPro ? fechaCorta(dia(c.fechaBuenaPro)) : "sin fecha"}`,
     },
     {
       valor: c.postores != null ? numero(c.postores) : <SinDato />,
       etiqueta: c.postores === 1 ? "postor" : "postores",
+      ayuda: <AyudaTermino clave={c.postores === 1 ? "unico-postor" : "postor"} />,
       contexto: conOferta > 0 ? `${numero(conOferta)} con oferta leída del expediente` : undefined,
     },
   ];

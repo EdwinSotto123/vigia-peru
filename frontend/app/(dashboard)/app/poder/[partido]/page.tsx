@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Migas, Pagina, EncabezadoPagina } from "@/components/patrones";
+import { Migas, Pagina, EncabezadoPagina, AyudaTermino } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { numero, solesCompacto } from "@/lib/formato";
@@ -37,6 +37,7 @@ export default async function PoderPartidoPage({ params }: { params: { partido: 
       <EncabezadoPagina
         titulo={p.partido}
         bajada={`Las entidades que gobierna hoy y, en cada una, cuántos contratos ganaron empresas ligadas al partido. ${sinIndicio > 0 ? `${numero(sinIndicio)} entidades sin indicios no se listan.` : ""}`}
+        ayuda={<AyudaTermino clave="captura" />}
       />
       <Indicadores items={cifras} />
 

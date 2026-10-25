@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
@@ -216,7 +216,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             conteo: e.ordN,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Sus órdenes de compra y de servicio, sin proceso de selección, de la más reciente a la más antigua.</CabeceraPestana>
+                <CabeceraPestana>Sus órdenes de compra y de servicio, sin proceso de selección <AyudaTermino clave="proceso-seleccion" />, de la más reciente a la más antigua.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={po} paramPagina={P_ORDENES.page}>
                   <Suspense fallback={<BarraOrdenes facetas={null} />}>
                     <BarraOrdenesConConteos pagina={ordenesP} />
