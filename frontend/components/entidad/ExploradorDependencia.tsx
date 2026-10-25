@@ -3,28 +3,28 @@
 import { useMemo, useState } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
+import { VB, C, rad, corto, radioPorRaiz, anguloEnAnillo, anchorDeCos } from "@/lib/grafo";
+import {
+  GrafoSeccion, GrafoCabecera, MigaSep, GrafoColumnas, GrafoMarco, GrafoAside,
+  Nodo, NodoCentro, Arista, ChipLeyenda, type Tono,
+} from "@/components/grafo/primitivos";
 import type { DependenciaNodo } from "@/lib/poder";
 
 /**
  * Explorador de DEPENDENCIA del Gobierno Nacional (presupuesto MEF): sector → pliego → unidad ejecutora. Muestra de
- * quién depende quién —p. ej. Defensa → Ejército/Marina/FAP (bajo el pliego "M. de Defensa"), más INDECI, CENEPRED,
- * IGN— y marca los sectores AUTÓNOMOS (Contraloría, JNE, ONPE, RENIEC, TC, Ministerio Público, Poder Judicial, Congreso…)
- * que NO dependen del Ejecutivo. Radial colapsable con auto-zoom: tocá un sector y aparecen sus pliegos; tocá un pliego y
- * aparecen sus ejecutoras. El tamaño es el presupuesto (PIM). Estructura oficial, no una acusación.
+ * quién depende quién —p. ej. Defensa → M. de Defensa (Ejército/Marina/FAP), INDECI, CENEPRED, IGN— y marca los
+ * sectores AUTÓNOMOS (Contraloría, JNE, ONPE, RENIEC, TC, Ministerio Público, Poder Judicial, Congreso…) que NO
+ * dependen del Ejecutivo: anil + anillo punteado (3er canal, no sólo color) + la palabra en el panel. Radial
+ * colapsable con auto-zoom: tocá un sector y sus pliegos brotan; tocá un pliego y brotan sus ejecutoras. El tamaño
+ * es el presupuesto (PIM). Estructura oficial, no una acusación. Usa los primitivos de components/grafo.
  */
 const AUTONOMOS = new Set(["04", "19", "20", "21", "22", "24", "27", "28", "31", "32", "33"]);
 const esAutonomo = (sector: string) => AUTONOMOS.has(sector);
-function corto(s: string, n: number) {
-  const t = tituloNatural(s);
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-}
+const tonoDe = (sector: string): Tono => (esAutonomo(sector) ? "anil" : "granate");
 
-const VB = 1000;
-const C = VB / 2;
 const R1 = 220;
 const PR = 150;
 const DR = 110;
-const rad = (d: number) => (d * Math.PI) / 180;
 
 type Kind = "sector" | "pliego" | "ejec";
 type Nd = { kind: Kind; key: string; nombre: string; sector: string; pim: number; dev: number; hijos: number };
@@ -64,13 +64,13 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
   const { pos, edges, foco } = useMemo(() => {
     const N = sectores.length || 1;
     const maxS = Math.max(...sectores.map((s) => s.pim), 1);
-    const pos: P[] = [];
+    const pos: (P & { kind: Kind; indice: number })[] = [];
     const edges: { x1: number; y1: number; x2: number; y2: number; sector: string; faint: boolean }[] = [];
     const F: { sec: P | null; pli: P | null } = { sec: null, pli: null };
     sectores.forEach((s, i) => {
-      const ang = -90 + (i * 360) / N;
-      const sp: P = { nd: s, x: C + R1 * Math.cos(rad(ang)), y: C + R1 * Math.sin(rad(ang)), r: 8 + 11 * Math.sqrt(s.pim / maxS), ang, label: tituloNatural(s.nombre) };
-      pos.push(sp);
+      const ang = anguloEnAnillo(i, N);
+      const sp: P = { nd: s, x: C + R1 * Math.cos(rad(ang)), y: C + R1 * Math.sin(rad(ang)), r: radioPorRaiz(s.pim, maxS, 8, 11), ang, label: tituloNatural(s.nombre) };
+      pos.push({ ...sp, kind: "sector", indice: i });
       edges.push({ x1: C, y1: C, x2: sp.x, y2: sp.y, sector: s.sector, faint: true });
       if (s.key === sectorAb) {
         F.sec = sp;
@@ -80,8 +80,8 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
         const spread = Math.min(16, 150 / Math.max(K - 1, 1));
         plis.forEach((p, k) => {
           const pa = ang + (k - (K - 1) / 2) * spread;
-          const pp: P = { nd: p, x: sp.x + PR * Math.cos(rad(pa)), y: sp.y + PR * Math.sin(rad(pa)), r: 5 + 7 * Math.sqrt(p.pim / maxP), ang: pa, label: tituloNatural(p.nombre) };
-          pos.push(pp);
+          const pp: P = { nd: p, x: sp.x + PR * Math.cos(rad(pa)), y: sp.y + PR * Math.sin(rad(pa)), r: radioPorRaiz(p.pim, maxP, 5, 7), ang: pa, label: tituloNatural(p.nombre) };
+          pos.push({ ...pp, kind: "pliego", indice: k });
           edges.push({ x1: sp.x, y1: sp.y, x2: pp.x, y2: pp.y, sector: s.sector, faint: false });
           if (p.key === pliegoAb) {
             F.pli = pp;
@@ -92,7 +92,7 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
             ejes.forEach((e, m) => {
               const da = phi + (m - (M - 1) / 2) * spreadD;
               const ep: P = { nd: e, x: pp.x + DR * Math.cos(rad(da)), y: pp.y + DR * Math.sin(rad(da)), r: 4.5, ang: da, label: tituloNatural(e.nombre) };
-              pos.push(ep);
+              pos.push({ ...ep, kind: "ejec", indice: m });
               edges.push({ x1: pp.x, y1: pp.y, x2: ep.x, y2: ep.y, sector: s.sector, faint: false });
             });
           }
@@ -116,65 +116,67 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
     if (nd.kind === "sector") { setSectorAb(nd.key); setPliegoAb(null); }
     else if (nd.kind === "pliego") { setPliegoAb(nd.key); }
   }
-  const clsNodo = (sector: string) => (esAutonomo(sector) ? "fill-anil/30 stroke-anil" : "fill-granate/30 stroke-granate");
-  const clsEdge = (sector: string) => (esAutonomo(sector) ? "stroke-anil" : "stroke-granate");
   const kindTxt = (k: Kind) => (k === "sector" ? "Sector / ministerio" : k === "pliego" ? "Pliego" : "Unidad ejecutora");
-
+  const focoKey = pliegoAb ?? sectorAb;
   const secAbNd = sectorAb ? sectores.find((s) => s.key === sectorAb) : null;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav className="flex flex-wrap items-center gap-1.5 text-meta">
-          <button type="button" onClick={() => { setSectorAb(null); setPliegoAb(null); setSel(null); }} className={`font-semibold ${sectorAb ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>Gobierno Nacional</button>
-          {secAbNd && <span className="text-mute" aria-hidden>›</span>}
-          {secAbNd && <button type="button" onClick={() => { setPliegoAb(null); setSel(null); }} className={`font-semibold ${pliegoAb ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>{corto(secAbNd.nombre, 24)}</button>}
-        </nav>
-        <span className="text-rotulo text-mute">presupuesto {anio}</span>
-      </div>
+    <GrafoSeccion>
+      <GrafoCabecera
+        extra={<span className="text-rotulo text-mute">presupuesto {anio}</span>}
+        migas={
+          <>
+            <button type="button" onClick={() => { setSectorAb(null); setPliegoAb(null); setSel(null); }} className={`font-semibold ${sectorAb ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>Gobierno Nacional</button>
+            {secAbNd && <MigaSep />}
+            {secAbNd && <button type="button" onClick={() => { setPliegoAb(null); setSel(null); }} className={`font-semibold ${pliegoAb ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>{corto(secAbNd.nombre, 24)}</button>}
+          </>
+        }
+      />
       <p className="text-meta leading-relaxed text-inkSoft">
-        {!sectorAb ? "El Gobierno Nacional al centro y sus sectores (ministerios y organismos autónomos). Tocá un sector: aparecen sus pliegos y el zoom va solo."
+        {!sectorAb ? "El Gobierno Nacional al centro y sus sectores (ministerios y organismos autónomos). Tocá un sector: sus pliegos brotan y el zoom va solo."
           : !pliegoAb ? "Los pliegos del sector (la entidad rectora y los organismos que dependen de ella). Tocá un pliego para ver sus unidades ejecutoras."
           : "Las unidades ejecutoras del pliego — las que ejecutan el presupuesto."}
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="overflow-hidden rounded-xl border border-line bg-fondo/40">
+      <GrafoColumnas>
+        <GrafoMarco>
           <svg viewBox={`0 0 ${VB} ${VB}`} className="h-auto w-full min-w-[520px] touch-manipulation select-none" role="img" aria-label="Explorador de dependencia del Gobierno Nacional">
             <g style={{ transform: `translate(${foco.tx}px, ${foco.ty}px) scale(${foco.k})`, transition: "transform 650ms cubic-bezier(0.4,0,0.2,1)" }}>
               {edges.map((ed, i) => (
-                <line key={i} x1={ed.x1} y1={ed.y1} x2={ed.x2} y2={ed.y2} className={clsEdge(ed.sector)} strokeWidth={1 / foco.k} strokeOpacity={sectorAb && ed.faint && ed.sector !== sectorAb ? 0.1 : ed.faint ? 0.35 : 0.5} strokeLinecap="round" />
+                <Arista key={i} x1={ed.x1} y1={ed.y1} x2={ed.x2} y2={ed.y2} tono={tonoDe(ed.sector)} k={foco.k} flujo={!ed.faint}
+                  opacity={sectorAb && ed.faint && ed.sector !== sectorAb ? 0.1 : ed.faint ? 0.35 : 0.5} />
               ))}
               {pos.map((p) => {
-                const eh = hover === p.nd.key;
-                const es = sel?.key === p.nd.key;
-                const dim = sectorAb != null && p.nd.kind === "sector" && p.nd.key !== sectorAb;
-                const r = p.r * (eh || es ? 1.5 : 1);
-                const anchor = Math.cos(rad(p.ang)) >= 0 ? "start" : "end";
+                const dim = sectorAb != null && p.kind === "sector" && p.nd.key !== sectorAb;
+                const mostrarLabel = p.kind === "sector" || sectorAb != null;
                 return (
-                  <g key={p.nd.key} className="cursor-pointer" opacity={dim ? 0.3 : 1}
-                     onPointerEnter={() => setHover(p.nd.key)} onPointerLeave={() => setHover(null)}
-                     onClick={() => abrir(p.nd)} role="button" tabIndex={-1} aria-label={p.label}>
-                    {es && <circle cx={p.x} cy={p.y} r={r + 4 / foco.k} className="fill-none stroke-ink" strokeWidth={1.2 / foco.k} />}
-                    <circle cx={p.x} cy={p.y} r={r} className={clsNodo(p.nd.sector)} strokeWidth={1.2 / foco.k} />
-                    {(p.nd.kind === "sector" || sectorAb) && !dim && (
-                      <text x={p.x + (anchor === "start" ? r + 3 / foco.k : -(r + 3 / foco.k))} y={p.y + 1 / foco.k} textAnchor={anchor}
-                        className={`pointer-events-none ${eh || es ? "fill-ink font-semibold" : "fill-inkSoft"}`}
-                        style={{ fontSize: `${(p.nd.kind === "sector" ? 9.5 : p.nd.kind === "pliego" ? 8 : 6.5) / foco.k}px` }}>
-                        {corto(p.label, 22)}
-                      </text>
-                    )}
-                  </g>
+                  <Nodo
+                    key={p.nd.key}
+                    x={p.x} y={p.y} r={p.r} k={foco.k}
+                    tono={tonoDe(p.nd.sector)}
+                    label={mostrarLabel && !dim ? corto(p.label, 22) : undefined}
+                    anchor={anchorDeCos(Math.cos(rad(p.ang)))}
+                    fontSize={p.kind === "sector" ? 9.5 : p.kind === "pliego" ? 8 : 6.5}
+                    hovered={hover === p.nd.key}
+                    selected={sel?.key === p.nd.key}
+                    foco={p.nd.key === focoKey}
+                    punteado={p.kind === "sector" && esAutonomo(p.nd.sector)}
+                    entra={p.kind !== "sector"}
+                    indice={p.indice}
+                    atenuado={dim}
+                    onEnter={() => setHover(p.nd.key)}
+                    onLeave={() => setHover(null)}
+                    onClick={() => abrir(p.nd)}
+                    aria={p.label}
+                  />
                 );
               })}
-              <circle cx={C} cy={C} r={13} className="cursor-pointer fill-paperSoft stroke-ink" strokeWidth={1.6 / foco.k} onClick={() => { setSectorAb(null); setPliegoAb(null); setSel(null); }} role="button" aria-label="Gobierno Nacional (ver todo)" />
-              <text x={C} y={C - 1} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${7 / foco.k}px` }}>Gobierno</text>
-              <text x={C} y={C + 7 / foco.k} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${7 / foco.k}px` }}>Nacional</text>
+              <NodoCentro x={C} y={C} k={foco.k} lineas={["Gobierno", "Nacional"]} onClick={() => { setSectorAb(null); setPliegoAb(null); setSel(null); }} aria="Gobierno Nacional (ver todo)" />
             </g>
           </svg>
-        </div>
+        </GrafoMarco>
 
-        <aside className="rounded-xl border border-line bg-paperSoft/50 p-4">
+        <GrafoAside>
           {sel ? (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -199,21 +201,21 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
                 <div className="text-cuerpo font-semibold text-ink">{secAbNd ? corto(secAbNd.nombre, 26) : "Gobierno Nacional"}</div>
                 <div className="text-rotulo text-mute">{secAbNd ? `${numero(pliegosDe(secAbNd.sector).length)} pliegos` : `${numero(sectores.length)} sectores`}</div>
               </div>
-              <p className="text-meta leading-relaxed text-inkSoft">Tocá un sector para abrirlo: aparecen sus pliegos (lo que depende de él) y el zoom va solo. Tocá un nodo para su presupuesto.</p>
-              <div className="space-y-1.5 text-rotulo text-mute">
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-granate/70" aria-hidden /> del Poder Ejecutivo (ministerios)</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-anil/70" aria-hidden /> autónomo (no depende del Ejecutivo)</span>
-                <span>el tamaño es el presupuesto</span>
+              <p className="text-meta leading-relaxed text-inkSoft">Tocá un sector para abrirlo: sus pliegos brotan (lo que depende de él) y el zoom va solo. Tocá un nodo para su presupuesto.</p>
+              <div className="space-y-1.5">
+                <ChipLeyenda tono="granate" forma="punto">del Poder Ejecutivo (ministerios)</ChipLeyenda>
+                <ChipLeyenda tono="anil" forma="punteado">autónomo (no depende del Ejecutivo)</ChipLeyenda>
+                <span className="text-rotulo text-mute">el tamaño es el presupuesto</span>
               </div>
             </div>
           )}
-        </aside>
-      </div>
+        </GrafoAside>
+      </GrafoColumnas>
 
       <p className="text-rotulo leading-relaxed text-mute">
         Estructura presupuestal oficial del MEF (sector → pliego → unidad ejecutora), {anio}. Es de quién depende quién en
         el Gobierno Nacional; los autónomos no responden al Ejecutivo. Para revisión, no una acusación.
       </p>
-    </section>
+    </GrafoSeccion>
   );
 }

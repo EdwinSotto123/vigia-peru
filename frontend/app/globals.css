@@ -534,6 +534,34 @@ html[data-modo="dia"] .fondo-intencion {
   100% { transform: translateX(300%); }
 }
 
+/* ── Grafo del mapa de poder (components/grafo) ────────────────────────────
+   Un lenguaje común para todos los grafos. Sólo transform/opacity; el bloque global de
+   prefers-reduced-motion de más abajo ya neutraliza todo esto. El brillo de los nodos es por
+   capas de círculo (halo translúcido en el mismo token), no por filtro: así el día/noche sale
+   gratis de las variables y no hay repintado caro. El latido del halo y el flujo de las aristas
+   reusan los keyframes latidoNodo/fluirDatos de tailwind.config.ts. */
+
+/* Hover suave: el radio y la opacidad del nodo transicionan en vez de saltar (donde el navegador
+   anima la geometría SVG; si no, salta igual que antes — degradación limpia). */
+.grafo-nodo-circulo { transition: r 160ms ease-out, opacity 160ms ease-out; }
+
+/* Entrada «brota»: los hijos aparecen escalando desde su propio centro, en cascada por --i.
+   Sólo para lo que aparece al abrir un nodo (el anillo inicial nunca nace oculto: convención SSR). */
+@keyframes grafoBrota {
+  0% { transform: scale(0.2); opacity: 0; }
+  72% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.grafo-brota {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: grafoBrota 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--i, 0ms);
+}
+
+/* El halo del nodo enfocado respira (animate-latidoNodo). transform-box para escalar desde su centro. */
+.grafo-halo { transform-box: fill-box; transform-origin: center; }
+
 /* ─── Overlays ───────────────────────────────────────────────────
    <dialog> nativo: escapa cualquier overflow:hidden, trae foco atrapado y Escape
    gratis. Sólo hay que vestirlo. */

@@ -4,25 +4,21 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
+import { corto, esLazoFuerte, etiquetaLazo } from "@/lib/grafo";
+import {
+  GrafoSeccion, GrafoCabecera, GrafoColumnas, GrafoMarco, GrafoAside, BotonFicha,
+  Nodo, ChipLeyenda, type Tono,
+} from "@/components/grafo/primitivos";
 import type { GrafoPartido } from "@/lib/poder";
 
 /**
  * El grafo de captura de un partido (mapa de poder, migración 125), dibujado como red BIPARTITA: a la izquierda las
  * entidades que gobierna, a la derecha las empresas «puente» —las que ganaron con indicio en 2+ de esas entidades—, y
  * una línea por cada vez que una empresa ganó en una entidad. Rojo si financió al partido o es su socio adentro, ámbar
- * si sólo le vendió a la campaña. El panel lateral muestra el nodo activo. Son INDICIOS para revisión, nunca acusación.
+ * si sólo le vendió a la campaña. Al enfocar un nodo, sus conexiones fluyen. Panel lateral persistente (Capa A). Usa los
+ * primitivos de components/grafo. Son INDICIOS para revisión, nunca acusación.
  */
-const esFuerte = (l: string[]) => l.includes("partido_gobernante") || l.includes("socio_en_entidad");
-const etiquetaLazo = (l: string) =>
-  l === "partido_gobernante" ? "financió al partido que gobierna"
-    : l === "vendio_gobernante" ? "le vendió a la campaña"
-    : l === "socio_en_entidad" ? "socio contratado por la entidad"
-    : l;
-
-function corto(s: string, n: number) {
-  const t = tituloNatural(s);
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-}
+const tonoLazo = (lazos: string[]): Tono => (esLazoFuerte(lazos) ? "crimson" : "amber");
 const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 const ABREV: [RegExp, string][] = [
@@ -84,8 +80,8 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
     return { actEnt: new Set([foco.ruc]), actEmp: emp, sinFoco: false };
   }, [foco, comps]);
 
-  const entOn = (ruc: string) => sinFoco || actEnt?.has(ruc);
-  const empOn = (ruc: string) => sinFoco || actEmp?.has(ruc);
+  const entOn = (ruc: string) => sinFoco || !!actEnt?.has(ruc);
+  const empOn = (ruc: string) => sinFoco || !!actEmp?.has(ruc);
   const act = (tipo: "ent" | "emp", ruc: string) => foco?.tipo === tipo && foco.ruc === ruc;
   const esSel = (tipo: "ent" | "emp", ruc: string) => sel?.tipo === tipo && sel.ruc === ruc;
 
@@ -93,24 +89,24 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
   const detalleEnt = foco?.tipo === "ent" ? ents.find((e) => e.ruc === foco.ruc) : null;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-cuerpo font-semibold text-ink">El patrón: empresas que se repiten por sus municipios</h2>
-        <span className="text-rotulo text-mute">{numero(nC)} {nC === 1 ? "empresa puente" : "empresas puente"}</span>
-      </div>
+    <GrafoSeccion>
+      <GrafoCabecera
+        migas={<span className="text-cuerpo font-semibold text-ink">El patrón: empresas que se repiten por sus municipios</span>}
+        extra={<span className="text-rotulo text-mute">{numero(nC)} {nC === 1 ? "empresa puente" : "empresas puente"}</span>}
+      />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40">
+      <GrafoColumnas>
+        <GrafoMarco>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="h-auto w-full min-w-[560px] touch-manipulation select-none"
             role="img"
             aria-label={`Grafo del partido ${corto(data.partido.partido, 50)}: ${numero(nE)} entidades y ${numero(nC)} empresas que se repiten en dos o más de ellas.`}
           >
-            <text x={xEnt} y={top - 34} textAnchor="middle" className="fill-mute text-[11px] font-semibold uppercase tracking-wide">Entidades que gobierna</text>
-            <text x={xEmp} y={top - 34} textAnchor="middle" className="fill-mute text-[11px] font-semibold uppercase tracking-wide">Empresas que se repiten</text>
+            <text x={xEnt} y={top - 34} textAnchor="middle" className="fill-mute font-semibold uppercase tracking-wide" style={{ fontSize: "11px" }}>Entidades que gobierna</text>
+            <text x={xEmp} y={top - 34} textAnchor="middle" className="fill-mute font-semibold uppercase tracking-wide" style={{ fontSize: "11px" }}>Empresas que se repiten</text>
 
-            {/* líneas entidad ↔ empresa */}
+            {/* líneas entidad ↔ empresa (curvas); fluyen cuando el par está enfocado */}
             {comps.map((c) =>
               c.ents.map((r) => {
                 const i = entIdx.get(r);
@@ -121,52 +117,63 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
                 const x2 = xEmp - rEmp(c.n_entidades);
                 const y2 = cY(j);
                 const mx = (x1 + x2) / 2;
-                const on = sinFoco || (actEmp?.has(c.ruc) && actEnt?.has(r));
+                const on = sinFoco || (!!actEmp?.has(c.ruc) && !!actEnt?.has(r));
+                const fluye = on && !sinFoco;
                 return (
                   <path key={`${c.ruc}-${r}`} d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`} fill="none"
-                    className={esFuerte(c.lazos) ? "stroke-crimson" : "stroke-amber"}
-                    strokeWidth={on && !sinFoco ? 2 : 1.2} strokeOpacity={on ? 0.5 : 0.08} strokeLinecap="round" />
+                    className={`${esLazoFuerte(c.lazos) ? "stroke-crimson" : "stroke-amber"} ${fluye ? "animate-fluirDatos" : ""}`}
+                    strokeWidth={fluye ? 2 : 1.2} strokeOpacity={on ? 0.5 : 0.08} strokeLinecap="round"
+                    strokeDasharray={fluye ? "8 8" : undefined} />
                 );
               }),
             )}
 
-            {/* nodos entidad */}
-            {ents.map((e, i) => {
-              const r = rEnt(e.n_captura) + (act("ent", e.ruc) ? 2 : 0);
-              return (
-                <g key={e.ruc} className="cursor-pointer transition-opacity duration-rapido" opacity={entOn(e.ruc) ? 1 : 0.25}
-                   onMouseEnter={() => setHover({ tipo: "ent", ruc: e.ruc })} onMouseLeave={() => setHover(null)}
-                   onClick={() => setSel({ tipo: "ent", ruc: e.ruc })} role="button" tabIndex={0}
-                   onKeyDown={(ev) => { if (ev.key === "Enter") setSel({ tipo: "ent", ruc: e.ruc }); }}
-                   aria-label={`${corto(e.nombre, 60)}: ${numero(e.n_captura)} contratos con indicio`}>
-                  {esSel("ent", e.ruc) && <circle cx={xEnt} cy={eY(i)} r={r + 4} className="fill-none stroke-ink stroke-[1.5]" />}
-                  <circle cx={xEnt} cy={eY(i)} r={r} className="fill-granate/25 stroke-granate" strokeWidth={act("ent", e.ruc) ? 2.5 : 1.5} />
-                  <text x={xEnt - r - 8} y={eY(i) + 4} textAnchor="end" className={`pointer-events-none text-[11px] ${act("ent", e.ruc) ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`}>{trunc(e.etiqueta, 30)}</text>
-                </g>
-              );
-            })}
+            {/* nodos entidad (izquierda) */}
+            {ents.map((e, i) => (
+              <Nodo
+                key={e.ruc}
+                x={xEnt} y={eY(i)} r={rEnt(e.n_captura)}
+                tono="granate"
+                label={trunc(e.etiqueta, 30)}
+                anchor="end"
+                fontSize={11}
+                hovered={act("ent", e.ruc)}
+                selected={esSel("ent", e.ruc)}
+                resalta={(e.n_captura ?? 0) > 0}
+                atenuado={!entOn(e.ruc)}
+                onEnter={() => setHover({ tipo: "ent", ruc: e.ruc })}
+                onLeave={() => setHover(null)}
+                onClick={() => setSel({ tipo: "ent", ruc: e.ruc })}
+                aria={`${corto(e.nombre, 60)}: ${numero(e.n_captura)} contratos con indicio`}
+              />
+            ))}
 
-            {/* nodos empresa */}
-            {comps.map((c, j) => {
-              const r = rEmp(c.n_entidades) + (act("emp", c.ruc) ? 2 : 0);
-              return (
-                <g key={c.ruc} className="cursor-pointer transition-opacity duration-rapido" opacity={empOn(c.ruc) ? 1 : 0.25}
-                   onMouseEnter={() => setHover({ tipo: "emp", ruc: c.ruc })} onMouseLeave={() => setHover(null)}
-                   onClick={() => setSel({ tipo: "emp", ruc: c.ruc })} role="button" tabIndex={0}
-                   onKeyDown={(ev) => { if (ev.key === "Enter") setSel({ tipo: "emp", ruc: c.ruc }); }}
-                   aria-label={`${corto(c.nombre ?? c.ruc, 60)}: ganó en ${numero(c.n_entidades)} entidades del partido`}>
-                  {esSel("emp", c.ruc) && <circle cx={xEmp} cy={cY(j)} r={r + 4} className="fill-none stroke-ink stroke-[1.5]" />}
-                  <circle cx={xEmp} cy={cY(j)} r={r} className={`${esFuerte(c.lazos) ? "fill-crimson/25 stroke-crimson" : "fill-amber/25 stroke-amber"}`} strokeWidth={act("emp", c.ruc) ? 2.5 : 1.5} />
-                  <text x={xEmp + r + 8} y={cY(j) + 1} textAnchor="start" className={`pointer-events-none text-[11px] ${act("emp", c.ruc) ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`}>{corto(c.nombre ?? c.ruc, 26)}</text>
-                  <text x={xEmp + r + 8} y={cY(j) + 13} textAnchor="start" className="pointer-events-none fill-mute text-[10px]">{numero(c.n_entidades)} entidades, {numero(c.contratos)} contratos</text>
-                </g>
-              );
-            })}
+            {/* nodos empresa (derecha) + segunda línea de detalle */}
+            {comps.map((c, j) => (
+              <g key={c.ruc} opacity={empOn(c.ruc) ? 1 : 0.25}>
+                <Nodo
+                  x={xEmp} y={cY(j)} r={rEmp(c.n_entidades)}
+                  tono={tonoLazo(c.lazos)}
+                  label={corto(c.nombre ?? c.ruc, 26)}
+                  anchor="start"
+                  fontSize={11}
+                  hovered={act("emp", c.ruc)}
+                  selected={esSel("emp", c.ruc)}
+                  onEnter={() => setHover({ tipo: "emp", ruc: c.ruc })}
+                  onLeave={() => setHover(null)}
+                  onClick={() => setSel({ tipo: "emp", ruc: c.ruc })}
+                  aria={`${corto(c.nombre ?? c.ruc, 60)}: ganó en ${numero(c.n_entidades)} entidades del partido`}
+                />
+                <text x={xEmp + rEmp(c.n_entidades) + 8} y={cY(j) + 13} textAnchor="start" className="pointer-events-none fill-mute" style={{ fontSize: "10px" }}>
+                  {numero(c.n_entidades)} entidades, {numero(c.contratos)} contratos
+                </text>
+              </g>
+            ))}
           </svg>
-        </div>
+        </GrafoMarco>
 
         {/* panel lateral persistente */}
-        <aside className="rounded-xl border border-line bg-paperSoft/50 p-4">
+        <GrafoAside>
           {detalle ? (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -178,13 +185,13 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
               </div>
               <div className="flex flex-wrap gap-1">
                 {detalle.lazos.map((l) => (
-                  <span key={l} className={`rounded-full px-2 py-0.5 text-rotulo ${esFuerte([l]) ? "bg-crimson/10 text-crimson" : "bg-amber/10 text-amber"}`}>{etiquetaLazo(l)}</span>
+                  <span key={l} className={`rounded-full px-2 py-0.5 text-rotulo ${esLazoFuerte([l]) ? "bg-crimson/10 text-crimson" : "bg-amber/10 text-amber"}`}>{etiquetaLazo(l)}</span>
                 ))}
               </div>
               <div className="rounded-lg border border-line bg-paper px-3 py-2 font-mono text-rotulo text-inkSoft">
                 ganó en {numero(detalle.n_entidades)} entidades, {numero(detalle.contratos)} contratos, {solesCompacto(detalle.monto)}
               </div>
-              <button type="button" onClick={() => router.push(`/empresa/${detalle.ruc}`)} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">Ver la empresa →</button>
+              <BotonFicha onClick={() => router.push(`/empresa/${detalle.ruc}`)}>Ver la empresa →</BotonFicha>
             </div>
           ) : detalleEnt ? (
             <div className="space-y-2">
@@ -197,7 +204,7 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
                 <div className="font-mono text-cuerpo font-semibold tabular-nums text-crimson">{numero(detalleEnt.n_captura)}</div>
                 <div className="text-rotulo text-mute">contratos con indicio, {solesCompacto(detalleEnt.monto_captura)}</div>
               </div>
-              <button type="button" onClick={() => router.push(`/entidad/${detalleEnt.ruc}`)} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">Ver la entidad →</button>
+              <BotonFicha onClick={() => router.push(`/entidad/${detalleEnt.ruc}`)}>Ver la entidad →</BotonFicha>
             </div>
           ) : (
             <div className="space-y-3">
@@ -209,20 +216,20 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
                 A la izquierda, las entidades que gobierna el partido; a la derecha, las empresas que ganaron con indicio en
                 <b className="text-ink"> dos o más</b> de ellas. Tocá un nodo para verlo.
               </p>
-              <div className="space-y-1.5 text-rotulo text-mute">
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-crimson/70" aria-hidden /> financió al partido o es su socio</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-amber/70" aria-hidden /> le vendió a la campaña</span>
-                <span>el tamaño de la empresa es a cuántas entidades llega</span>
+              <div className="space-y-1.5">
+                <ChipLeyenda tono="crimson" forma="punto">financió al partido o es su socio</ChipLeyenda>
+                <ChipLeyenda tono="amber" forma="punto">le vendió a la campaña</ChipLeyenda>
+                <span className="text-rotulo text-mute">el tamaño de la empresa es a cuántas entidades llega</span>
               </div>
             </div>
           )}
-        </aside>
-      </div>
+        </GrafoAside>
+      </GrafoColumnas>
 
       <p className="text-rotulo leading-relaxed text-mute">
         Que una empresa gane en varias entidades del mismo partido es un indicio para revisar —puede ser competencia
         legítima—, no una acusación. Fuentes: JNE, ONPE, RNP/SEACE.
       </p>
-    </section>
+    </GrafoSeccion>
   );
 }

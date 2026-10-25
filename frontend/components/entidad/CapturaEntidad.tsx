@@ -22,7 +22,7 @@ export async function CapturaEntidad({ ruc }: { ruc: string }) {
   return (
     <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-cuerpo font-semibold text-ink">Quién la gobierna, y a quién le compra</h2>
+        <div className="text-cuerpo font-semibold tracking-tight text-ink">Quién la gobierna, y a quién le compra</div>
         {periodo && <span className="text-rotulo text-mute">Gobierno {periodo}</span>}
       </div>
       <p className="text-meta leading-relaxed text-inkSoft">

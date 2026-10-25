@@ -69,10 +69,10 @@ export default async function PoderPartidoPage({ params }: { params: { partido: 
                   </Link>
                   <span className="block text-rotulo text-mute">
                     {e.nivel === "regional" ? "Gobierno regional" : e.nivel === "provincial" ? "Municipalidad provincial" : "Municipalidad distrital"}
-                    {e.departamento ? ` · ${tituloNatural(e.departamento)}` : ""}
+                    {e.departamento ? `, ${tituloNatural(e.departamento)}` : ""}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-inkSoft">{e.autoridad ? tituloNatural(e.autoridad) : "—"}</td>
+                <td className="px-3 py-2.5 text-inkSoft">{e.autoridad ? tituloNatural(e.autoridad) : "Sin dato"}</td>
                 <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{numero(e.n_captura)}</td>
                 <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{solesCompacto(e.monto_captura)}</td>
                 <td className="px-4 py-2.5">

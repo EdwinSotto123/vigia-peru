@@ -1,16 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
+import { corto } from "@/lib/grafo";
+import { GrafoSeccion, GrafoColumnas, GrafoAside, BotonFicha, ChipLeyenda } from "@/components/grafo/primitivos";
 import type { Institucion, MapaInstituciones as Datos } from "@/lib/poder";
 
 /**
  * Mapa de instituciones del Estado (las que más contratan): El Estado en el centro y cuatro ramas —Ministerios,
  * Organismos del Estado, Gobiernos Regionales, Municipalidades—, cada institución CLICKEABLE. Tocá una rama para
- * EXPANDIRLA (hasta 24, las que más contratan) y una institución para verla en el panel lateral. En rojo las que tienen
- * indicios de captura política; en lima las demás (los ministerios no se eligen por partido). Indicios, no acusación.
+ * EXPANDIRLA (hasta 24, las que más contratan) y una institución para verla en el panel lateral. En rojo + halo las que
+ * tienen indicios de captura política; en lima las demás (los ministerios no se eligen por partido). Las instituciones
+ * «brotan» al cambiar de rama. Sobre los primitivos de components/grafo. Indicios, no acusación.
  */
 const RAMAS = [
   { key: "ministerios", titulo: "Ministerios", ang: -90 },
@@ -21,10 +24,6 @@ const RAMAS = [
 type RamaKey = (typeof RAMAS)[number]["key"];
 
 const fuerteEnt = (e: Institucion) => (e.captura ?? 0) > 0;
-function corto(s: string, n: number) {
-  const t = tituloNatural(s);
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-}
 
 export function MapaInstituciones({ datos }: { datos: Datos }) {
   const router = useRouter();
@@ -83,31 +82,22 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
   // En el panel: la que se pasa con el cursor (preview) o, si no, la última tocada (fija).
   const panelEnt = (hover ? all.find((e) => e.ruc === hover) : null) ?? sel;
 
-  const Leyenda = () => (
-    <div className="space-y-1.5 text-rotulo text-mute">
-      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-crimson/70" aria-hidden /> con indicios de captura política</span>
-      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-granate/70" aria-hidden /> sin ese indicio (p. ej. ministerios)</span>
-      <span>el tamaño es cuánto contrata</span>
-    </div>
-  );
-
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+    <GrafoSeccion>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {foco ? (
           <button type="button" onClick={() => setFoco(null)} className="flex items-center gap-1.5 text-meta font-semibold text-granate hover:underline underline-offset-2">
             ← Todas las ramas
           </button>
         ) : (
-          <h2 className="text-cuerpo font-semibold text-ink">El Estado y sus instituciones</h2>
+          <div className="text-cuerpo font-semibold tracking-tight text-ink">El Estado y sus instituciones</div>
         )}
         <span className="text-rotulo text-mute">
           {foco ? `${ramaTit}: ${numero(nFoco)} que más contratan` : `${numero(total)} instituciones — tocá una rama para expandir`}
         </span>
       </div>
 
-      {/* dos columnas: grafo + panel lateral */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+      <GrafoColumnas>
         <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40">
           <svg
             viewBox={`0 0 ${W} ${H}`}
@@ -117,7 +107,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
           >
             {/* centro → rama (solo overview) */}
             {!foco && nodos.map((nd) => (
-              <line key={`b${nd.key}`} x1={cx} y1={cy} x2={nd.bx} y2={nd.by} className="stroke-line" strokeWidth={1.6} strokeOpacity={0.7} />
+              <line key={`b${nd.key}`} x1={cx} y1={cy} x2={nd.bx} y2={nd.by} className="stroke-line" strokeWidth={1.6} strokeOpacity={0.7} strokeLinecap="round" />
             ))}
             {/* rama → institución */}
             {nodos.map((nd) =>
@@ -132,33 +122,38 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                 />
               )),
             )}
-            {/* instituciones (clickeables → panel) */}
+            {/* instituciones (clickeables → panel), con halo por capas y entrada «brota» */}
             {nodos.map((nd) =>
-              nd.ents.map((en) => {
+              nd.ents.map((en, k) => {
                 const anchor = en.cos > 0.25 ? "start" : en.cos < -0.25 ? "end" : "middle";
                 const lx = en.x + (en.r + 7) * Math.cos(en.a) + (anchor === "start" ? 2 : anchor === "end" ? -2 : 0);
                 const ly = en.y + (en.r + 7) * Math.sin(en.a) + (anchor === "middle" ? (Math.sin(en.a) > 0 ? 11 : -5) : 4);
                 const esHover = hover === en.e.ruc;
                 const esSel = sel?.ruc === en.e.ruc;
-                const r = en.r + (esHover ? 3 : 0);
+                const captura = fuerteEnt(en.e);
+                const r = en.r * (esHover || esSel ? 1.4 : 1);
                 return (
-                  <g
-                    key={`n${en.e.ruc}`}
-                    className="cursor-pointer transition-opacity duration-rapido"
-                    opacity={hover && !esHover ? 0.4 : 1}
-                    onMouseEnter={() => setHover(en.e.ruc)}
-                    onMouseLeave={() => setHover(null)}
-                    onClick={() => setSel(en.e)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(ev) => { if (ev.key === "Enter") setSel(en.e); }}
-                    aria-label={`${corto(en.e.nombre, 60)}: ${numero(en.e.n_contratos)} contratos`}
-                  >
-                    {esSel && <circle cx={en.x} cy={en.y} r={r + 5} className="fill-none stroke-ink stroke-[1.5]" />}
-                    <circle cx={en.x} cy={en.y} r={r} className={`${fuerteEnt(en.e) ? "fill-crimson/30 stroke-crimson" : "fill-granate/25 stroke-granate"}`} strokeWidth={esHover || esSel ? 2.5 : 1.5} fillOpacity={esHover ? 0.5 : undefined} />
-                    <text x={lx} y={ly} textAnchor={anchor} className={`pointer-events-none text-[10.5px] ${esHover || esSel ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`}>
-                      {nd.key === "regional" && en.e.region ? corto(en.e.region, 18) : corto(en.e.nombre, foco ? 22 : 24)}
-                    </text>
+                  <g key={`n${en.e.ruc}`} className="grafo-brota" style={{ "--i": `${Math.min(k * 20, 340)}ms` } as CSSProperties}>
+                    <g
+                      className="grafo-nodo cursor-pointer"
+                      opacity={hover && !esHover ? 0.4 : 1}
+                      onMouseEnter={() => setHover(en.e.ruc)}
+                      onMouseLeave={() => setHover(null)}
+                      onClick={() => setSel(en.e)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(ev) => { if (ev.key === "Enter") setSel(en.e); }}
+                      aria-label={`${corto(en.e.nombre, 60)}: ${numero(en.e.n_contratos)} contratos`}
+                    >
+                      {esSel && <circle cx={en.x} cy={en.y} r={r + 5} className="fill-none stroke-ink pointer-events-none" strokeWidth={1.5} />}
+                      {(captura || esHover || esSel) && (
+                        <circle cx={en.x} cy={en.y} r={r + (esHover ? 5 : 4)} className={`pointer-events-none ${captura ? "fill-crimson/20" : "fill-granate/15"}`} />
+                      )}
+                      <circle cx={en.x} cy={en.y} r={r} className={`grafo-nodo-circulo ${captura ? "fill-crimson/35 stroke-crimson" : "fill-granate/30 stroke-granate"}`} strokeWidth={esHover || esSel ? 2.5 : 1.5} />
+                      <text x={lx} y={ly} textAnchor={anchor} className={`pointer-events-none ${esHover || esSel ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`} style={{ fontSize: "10.5px" }}>
+                        {nd.key === "regional" && en.e.region ? corto(en.e.region, 18) : corto(en.e.nombre, foco ? 22 : 24)}
+                      </text>
+                    </g>
                   </g>
                 );
               }),
@@ -169,20 +164,21 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
               return (
                 <g key={`h${nd.key}`} className="cursor-pointer" onClick={() => setFoco(nd.key as RamaKey)} role="button" tabIndex={0}
                    onKeyDown={(ev) => { if (ev.key === "Enter") setFoco(nd.key as RamaKey); }} aria-label={`Ver todas: ${tit}`}>
-                  <rect x={nd.bx - 96} y={nd.by - 16} width={192} height={32} rx={16} className="fill-paperSoft stroke-ink stroke-[1.5]" />
-                  <text x={nd.bx} y={nd.by + 4} textAnchor="middle" className="fill-ink text-[12px] font-semibold">{tit} +</text>
+                  <rect x={nd.bx - 96} y={nd.by - 16} width={192} height={32} rx={16} className="fill-paperSoft stroke-ink" strokeWidth={1.5} />
+                  <text x={nd.bx} y={nd.by + 4} textAnchor="middle" className="fill-ink font-semibold" style={{ fontSize: "12px" }}>{tit} +</text>
                 </g>
               );
             })}
             {/* Estado (centro) */}
-            <circle cx={cx} cy={cy} r={foco ? 40 : 34} className="fill-paperSoft stroke-ink stroke-[2.5]" />
-            <text x={cx} y={cy - (foco ? 4 : 1)} textAnchor="middle" className="fill-ink text-[13px] font-semibold">{foco ? (ramaTit ?? "El Estado") : "El Estado"}</text>
-            <text x={cx} y={cy + (foco ? 12 : 15)} textAnchor="middle" className="fill-mute text-[9px]">{foco ? "del Estado" : "peruano"}</text>
+            <circle cx={cx} cy={cy} r={(foco ? 40 : 34) + 6} className="fill-granate/10 pointer-events-none" />
+            <circle cx={cx} cy={cy} r={foco ? 40 : 34} className="fill-paperSoft stroke-ink" strokeWidth={2.5} />
+            <text x={cx} y={cy - (foco ? 4 : 1)} textAnchor="middle" className="fill-ink font-semibold" style={{ fontSize: "13px" }}>{foco ? (ramaTit ?? "El Estado") : "El Estado"}</text>
+            <text x={cx} y={cy + (foco ? 12 : 15)} textAnchor="middle" className="fill-mute" style={{ fontSize: "9px" }}>{foco ? "del Estado" : "peruano"}</text>
           </svg>
         </div>
 
         {/* panel lateral persistente */}
-        <aside className="rounded-xl border border-line bg-paperSoft/50 p-4">
+        <GrafoAside>
           {panelEnt ? (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -197,11 +193,9 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                 <div className="text-rotulo text-mute">contratos, {solesCompacto(panelEnt.monto)}</div>
               </div>
               {(panelEnt.captura ?? 0) > 0 && panelEnt.partido
-                ? <p className="text-meta text-inkSoft">La gobierna <b className="text-ink">{tituloNatural(panelEnt.partido)}</b> — <span className="text-crimson">{numero(panelEnt.captura)} contratos con indicio</span>.</p>
+                ? <p className="text-meta text-inkSoft">La gobierna <b className="text-ink">{tituloNatural(panelEnt.partido)}</b>, con <span className="text-crimson">{numero(panelEnt.captura)} contratos con indicio</span>.</p>
                 : <p className="text-rotulo text-mute">Sin indicios de captura política (no todas las instituciones se eligen por partido).</p>}
-              <button type="button" onClick={() => router.push(`/entidad/${panelEnt.ruc}`)} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">
-                Ver ficha completa →
-              </button>
+              <BotonFicha onClick={() => router.push(`/entidad/${panelEnt.ruc}`)} />
             </div>
           ) : (
             <div className="space-y-3">
@@ -212,16 +206,20 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
               <p className="text-meta leading-relaxed text-inkSoft">
                 {foco ? "Tocá una institución para ver su detalle, o volvé a todas las ramas." : "Tocá una rama para expandirla, o una institución para ver su detalle."}
               </p>
-              <Leyenda />
+              <div className="space-y-1.5">
+                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura política</ChipLeyenda>
+                <ChipLeyenda tono="granate" forma="punto">sin ese indicio (p. ej. ministerios)</ChipLeyenda>
+                <span className="text-rotulo text-mute">el tamaño es cuánto contrata</span>
+              </div>
             </div>
           )}
-        </aside>
-      </div>
+        </GrafoAside>
+      </GrafoColumnas>
 
       <p className="text-rotulo leading-relaxed text-mute">
         Las instituciones que más contratan de cada rama. Fuentes: SEACE/OECE (contratos), JNE/ONPE/RNP (captura).
         Indicios para revisión humana, no una acusación.
       </p>
-    </section>
+    </GrafoSeccion>
   );
 }

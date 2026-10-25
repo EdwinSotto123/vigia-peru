@@ -17,7 +17,7 @@ type Fuente = { nombre: string; que: string; escala: string; url?: string };
 /** El SEACE llega por dos puertas del MISMO regulador (OSCE se renombró a OECE). */
 const PUERTAS: Fuente[] = [
   {
-    nombre: "OECE · Contrataciones Abiertas (OCDS)",
+    nombre: "OECE — Contrataciones Abiertas (OCDS)",
     que: "El proceso completo y estructurado: convocatoria, los postores que compitieron, la adjudicación, el contrato y los enlaces a su expediente (bases). Es el formato abierto estándar OCDS.",
     escala: "~828 mil procesos (desde 2018, con histórico previo)",
     url: "https://contratacionesabiertas.oece.gob.pe/",
@@ -34,8 +34,8 @@ const PUERTAS: Fuente[] = [
 const REGISTROS: Fuente[] = [
   { nombre: "SUNAT", que: "La ficha de cada empresa: fecha de alta, estado, domicilio fiscal y actividad.", escala: "~250 mil empresas" },
   { nombre: "RNP (OECE)", que: "Los socios y representantes de cada proveedor: quién está detrás de la empresa.", escala: "~1.4 millones de vínculos" },
-  { nombre: "JNE · Infogob", que: "Las autoridades electas por jurisdicción: quién gobierna cada entidad.", escala: "~13 mil autoridades" },
-  { nombre: "ONPE · Claridad", que: "Los aportes a organizaciones políticas, los candidatos y a quién le compró cada campaña.", escala: "~82 mil aportes" },
+  { nombre: "JNE — Infogob", que: "Las autoridades electas por jurisdicción: quién gobierna cada entidad.", escala: "~13 mil autoridades" },
+  { nombre: "ONPE — Claridad", que: "Los aportes a organizaciones políticas, los candidatos y a quién le compró cada campaña.", escala: "~82 mil aportes" },
   { nombre: "MEF", que: "El presupuesto y la ejecución de gasto de cada entidad: en qué gasta.", escala: "Por entidad y año" },
   { nombre: "Contraloría y Procuraduría", que: "Informes con responsabilidad presunta (penal, civil o administrativa) y, aparte, las sentencias firmes.", escala: "~14 mil informes de control" },
   { nombre: "Transparencia y SERVIR", que: "El personal de cada entidad (CAS, planilla, altos funcionarios) y los locadores contratados.", escala: "~12 millones de registros de planilla" },

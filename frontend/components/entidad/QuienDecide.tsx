@@ -1,16 +1,20 @@
 import { getEstructuraEntidad } from "@/lib/api-client";
 import { tituloNatural } from "@/lib/landing";
+import { rad, corto, anguloEnAnillo, anchorDeCos } from "@/lib/grafo";
+import { GrafoSeccion, GrafoMarco } from "@/components/grafo/primitivos";
 
 /**
  * «Quién decide y firma los contratos» de una entidad, del grafo del Estado (migración 126): un grafo pequeño con la
- * entidad al centro, la autoridad que por ley aprueba sus contrataciones (la AGA, destacada) y los altos funcionarios
- * que hoy la ocupan, cada uno con su cargo. Acerca la responsabilidad: no solo «la entidad contrató», sino quién decide.
- * Es un corte en el tiempo (no el organigrama en vivo). Si no hay data del grafo para esta entidad, no muestra nada.
+ * entidad al centro, la autoridad que por ley aprueba sus contrataciones (la AGA, destacada, con halo que respira) y los
+ * altos funcionarios que hoy la ocupan, cada uno con su cargo. Acerca la responsabilidad: no solo «la entidad contrató»,
+ * sino quién decide. Es un corte en el tiempo (no el organigrama en vivo). Server component estático: el latido del halo
+ * es CSS puro (animate-latidoNodo), sin JS. Si no hay data del grafo para esta entidad, no muestra nada.
  */
-function corto(s: string, n: number) {
-  const t = tituloNatural(s);
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-}
+const W = 720;
+const H = 560;
+const cx = W / 2;
+const cy = H / 2;
+const R = 166;
 
 export async function QuienDecide({ ruc }: { ruc: string }) {
   const e = await getEstructuraEntidad(ruc).catch(() => null);
@@ -26,20 +30,15 @@ export async function QuienDecide({ ruc }: { ruc: string }) {
     ...funcionarios.map((f) => ({ aga: false, titulo: f.cargo || "Cargo", sub: tituloNatural(f.persona) })),
   ];
   const N = nodos.length;
-  const W = 720;
-  const H = 560;
-  const cx = W / 2;
-  const cy = H / 2;
-  const R = 166;
   const pos = nodos.map((nd, i) => {
-    const a = ((-90 + i * (360 / N)) * Math.PI) / 180;
-    return { nd, a, cos: Math.cos(a), x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+    const a = anguloEnAnillo(i, N);
+    return { nd, a, x: cx + R * Math.cos(rad(a)), y: cy + R * Math.sin(rad(a)) };
   });
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+    <GrafoSeccion>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-cuerpo font-semibold text-ink">Quién decide y firma los contratos</h2>
+        <div className="text-cuerpo font-semibold tracking-tight text-ink">Quién decide y firma los contratos</div>
         <span className="text-rotulo text-mute">Estructura institucional, fuentes oficiales, corte {e.corte ?? "2026"}</span>
       </div>
       <p className="text-meta leading-relaxed text-inkSoft">
@@ -47,7 +46,7 @@ export async function QuienDecide({ ruc }: { ruc: string }) {
         {funcionarios.length > 0 ? ", y estos son los altos funcionarios que hoy la ocupan" : ""}.
       </p>
 
-      <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40">
+      <GrafoMarco>
         <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[520px]" role="img"
              aria-label={`Estructura de decisión: la entidad, su autoridad que aprueba contratos (${aga}) y ${funcionarios.length} funcionarios.`}>
           {pos.map((p, i) => (
@@ -55,29 +54,31 @@ export async function QuienDecide({ ruc }: { ruc: string }) {
               className={p.nd.aga ? "stroke-granate" : "stroke-line"} strokeWidth={p.nd.aga ? 2 : 1.2} strokeOpacity={p.nd.aga ? 0.7 : 0.45} strokeLinecap="round" />
           ))}
           {pos.map((p, i) => {
-            const anchor = p.cos > 0.3 ? "start" : p.cos < -0.3 ? "end" : "middle";
+            const anchor = anchorDeCos(Math.cos(rad(p.a)));
             const r = p.nd.aga ? 15 : 9;
-            const lx = p.x + (r + 8) * Math.cos(p.a) + (anchor === "start" ? 2 : anchor === "end" ? -2 : 0);
-            const ly = p.y + (r + 8) * Math.sin(p.a) + (anchor === "middle" ? (Math.sin(p.a) > 0 ? 12 : -14) : 0);
+            const lx = p.x + (anchor === "start" ? r + 8 : -(r + 8));
             return (
               <g key={`n${i}`}>
-                <circle cx={p.x} cy={p.y} r={r} className={p.nd.aga ? "fill-granate/25 stroke-granate stroke-[2]" : "fill-paperSoft stroke-ink stroke-[1.5]"} />
-                <text x={lx} y={ly} textAnchor={anchor} className={`${p.nd.aga ? "fill-ink" : "fill-inkSoft"} text-[11px] font-semibold`}>{corto(p.nd.titulo, 24)}</text>
-                {p.nd.sub ? <text x={lx} y={ly + 12} textAnchor={anchor} className="fill-mute text-[10px]">{corto(p.nd.sub, 26)}</text> : null}
+                {p.nd.aga
+                  ? <circle cx={p.x} cy={p.y} r={r + 6} className="grafo-halo animate-latidoNodo fill-granate/15" />
+                  : <circle cx={p.x} cy={p.y} r={r + 3.5} className="fill-mute/10" />}
+                <circle cx={p.x} cy={p.y} r={r} className={p.nd.aga ? "fill-granate/30 stroke-granate" : "fill-paperSoft stroke-ink"} strokeWidth={p.nd.aga ? 2 : 1.5} />
+                <text x={lx} y={p.y} textAnchor={anchor} className={`${p.nd.aga ? "fill-ink" : "fill-inkSoft"} font-semibold`} style={{ fontSize: "11px" }}>{corto(p.nd.titulo, 24)}</text>
+                {p.nd.sub ? <text x={lx} y={p.y + 12} textAnchor={anchor} className="fill-mute" style={{ fontSize: "10px" }}>{corto(p.nd.sub, 26)}</text> : null}
               </g>
             );
           })}
-          <circle cx={cx} cy={cy} r={34} className="fill-paperSoft stroke-ink stroke-[2.5]" />
-          <text x={cx} y={cy - 1} textAnchor="middle" className="fill-ink text-[12px] font-semibold">La entidad</text>
-          <text x={cx} y={cy + 13} textAnchor="middle" className="fill-mute text-[9px]">contrata</text>
+          <circle cx={cx} cy={cy} r={34} className="fill-paperSoft stroke-ink" strokeWidth={2.5} />
+          <text x={cx} y={cy - 1} textAnchor="middle" className="fill-ink font-semibold" style={{ fontSize: "12px" }}>La entidad</text>
+          <text x={cx} y={cy + 13} textAnchor="middle" className="fill-mute" style={{ fontSize: "9px" }}>contrata</text>
         </svg>
-      </div>
+      </GrafoMarco>
 
       {resto > 0 ? <p className="text-rotulo text-mute">y {resto} funcionarios más.</p> : null}
       <p className="text-rotulo leading-relaxed text-mute">
         Es la estructura de decisión según normas oficiales; la confianza varía y es un corte en el tiempo, no el
         organigrama en vivo.
       </p>
-    </section>
+    </GrafoSeccion>
   );
 }

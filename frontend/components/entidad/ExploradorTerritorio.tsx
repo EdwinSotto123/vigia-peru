@@ -5,32 +5,30 @@ import { useEffect, useMemo, useState } from "react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, solesCompacto } from "@/lib/formato";
 import { baseApiNavegador } from "@/lib/api-client";
+import { VB, C, rad, corto, anguloEnAnillo, anchorDeCos, nivelTxt, esLazoFuerte } from "@/lib/grafo";
+import {
+  GrafoSeccion, GrafoCabecera, MigaSep, GrafoColumnas, GrafoMarco, GrafoAside, BotonFicha,
+  Nodo, NodoCentro, Arista, ChipLeyenda, type Tono,
+} from "@/components/grafo/primitivos";
 import type { TerritorioNodo } from "@/lib/poder";
 import type { Cadena } from "@/lib/cadena";
 
 /**
- * Explorador territorial del Estado (migración 125): radial COLAPSABLE con AUTO-ZOOM. Se ve el Estado + las 25 regiones;
- * al tocar una región aparecen sus provincias y el zoom va solo hasta ella; al tocar una provincia aparecen sus distritos.
- * Progresivo (los datos aparecen al clickear), navegable, con panel lateral que trae el detalle + la cadena de captura.
- * En rojo las que tienen indicios de captura. Los municipios son autónomos pero territorialmente anidados. Indicios, no
- * acusación.
+ * Explorador territorial del Estado (migración 125): radial COLAPSABLE con AUTO-ZOOM, sobre los primitivos de
+ * components/grafo. Se ve el Estado + las 25 regiones; al tocar una región sus provincias brotan y el zoom va solo;
+ * al tocar una provincia brotan sus distritos. Las entidades con indicio de captura van en crimson + halo
+ * persistente + la palabra (3 canales, no sólo color). Panel lateral con el detalle + la cadena de captura. Los
+ * municipios son autónomos pero territorialmente anidados. Indicios, no acusación.
  */
 const fuerte = (n: TerritorioNodo) => (n.n_captura ?? 0) > 0;
-const fuerteLazo = (ls: string[]) => ls.includes("partido_gobernante") || ls.includes("socio_en_entidad");
-function corto(s: string, n: number) {
-  const t = tituloNatural(s);
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-}
-const nivelTxt = (n: string) => (n === "regional" ? "Gobierno regional" : n === "provincial" ? "Municipalidad provincial" : "Municipalidad distrital");
+const tonoDe = (n: TerritorioNodo): Tono => (fuerte(n) ? "crimson" : "granate");
 
-const VB = 1000;
-const C = VB / 2;
 const R1 = 215; // regiones desde el centro
 const PR = 155; // provincias desde su región
 const DR = 108; // distritos desde su provincia
-const rad = (deg: number) => (deg * Math.PI) / 180;
 
-type P = { n: TerritorioNodo; x: number; y: number; r: number; ang: number; label: string; nivel: "regional" | "provincial" | "distrital" };
+type Nivel = "regional" | "provincial" | "distrital";
+type P = { n: TerritorioNodo; x: number; y: number; r: number; ang: number; label: string; nivel: Nivel; indice: number };
 
 export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
   const router = useRouter();
@@ -55,14 +53,13 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
   const { nodosPos, edges, foco } = useMemo(() => {
     const N = regiones.length || 1;
     const pos: P[] = [];
-    const byRuc = new Map<string, P>();
     const edges: { a: P | null; x1: number; y1: number; bx: number; by: number; fuerte: boolean }[] = [];
     const F: { reg: P | null; prov: P | null } = { reg: null, prov: null };
 
     regiones.forEach((rn, i) => {
-      const ang = -90 + (i * 360) / N;
-      const rp: P = { n: rn, x: C + R1 * Math.cos(rad(ang)), y: C + R1 * Math.sin(rad(ang)), r: 9, ang, label: tituloNatural(rn.departamento), nivel: "regional" };
-      pos.push(rp); byRuc.set(rn.ruc, rp);
+      const ang = anguloEnAnillo(i, N);
+      const rp: P = { n: rn, x: C + R1 * Math.cos(rad(ang)), y: C + R1 * Math.sin(rad(ang)), r: 9, ang, label: tituloNatural(rn.departamento), nivel: "regional", indice: i };
+      pos.push(rp);
       edges.push({ a: null, x1: C, y1: C, bx: rp.x, by: rp.y, fuerte: fuerte(rn) });
       if (rn.departamento === regAbierta) {
         F.reg = rp;
@@ -71,8 +68,8 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
         const spread = Math.min(14, 130 / Math.max(K - 1, 1));
         provs.forEach((pn, k) => {
           const pa = ang + (k - (K - 1) / 2) * spread;
-          const pp: P = { n: pn, x: rp.x + PR * Math.cos(rad(pa)), y: rp.y + PR * Math.sin(rad(pa)), r: 6, ang: pa, label: tituloNatural(pn.provincia ?? ""), nivel: "provincial" };
-          pos.push(pp); byRuc.set(pn.ruc, pp);
+          const pp: P = { n: pn, x: rp.x + PR * Math.cos(rad(pa)), y: rp.y + PR * Math.sin(rad(pa)), r: 6, ang: pa, label: tituloNatural(pn.provincia ?? ""), nivel: "provincial", indice: k };
+          pos.push(pp);
           edges.push({ a: rp, x1: rp.x, y1: rp.y, bx: pp.x, by: pp.y, fuerte: fuerte(pn) });
           if (pn.provincia === provAbierta) {
             F.prov = pp;
@@ -82,8 +79,8 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
             const spreadD = Math.min(12, 150 / Math.max(M - 1, 1));
             dists.forEach((dn, m) => {
               const da = phi + (m - (M - 1) / 2) * spreadD;
-              const dp: P = { n: dn, x: pp.x + DR * Math.cos(rad(da)), y: pp.y + DR * Math.sin(rad(da)), r: 4.5, ang: da, label: tituloNatural(dn.distrito ?? dn.nombre), nivel: "distrital" };
-              pos.push(dp); byRuc.set(dn.ruc, dp);
+              const dp: P = { n: dn, x: pp.x + DR * Math.cos(rad(da)), y: pp.y + DR * Math.sin(rad(da)), r: 4.5, ang: da, label: tituloNatural(dn.distrito ?? dn.nombre), nivel: "distrital", indice: m };
+              pos.push(dp);
               edges.push({ a: pp, x1: pp.x, y1: pp.y, bx: dp.x, by: dp.y, fuerte: fuerte(dn) });
             });
           }
@@ -91,17 +88,14 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
       }
     });
 
-    // foco + transform
     let k = 1, tx = 0, ty = 0;
     const target = F.prov ?? F.reg;
     if (target) {
       const out = rad(target.ang);
       const push = F.prov ? 60 : 82;
-      const px = target.x + push * Math.cos(out);
-      const py = target.y + push * Math.sin(out);
       k = F.prov ? 2.9 : 2.0;
-      tx = C - px * k;
-      ty = C - py * k;
+      tx = C - (target.x + push * Math.cos(out)) * k;
+      ty = C - (target.y + push * Math.sin(out)) * k;
     }
     return { nodosPos: pos, edges, foco: { k, tx, ty } };
   }, [nodos, regiones, regAbierta, provAbierta]);
@@ -124,70 +118,81 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
     else if (p.nivel === "provincial") { setProvAbierta(p.n.provincia ?? null); }
   }
 
-  const mostrarEtiqueta = (p: P) => p.nivel === "regional" || regAbierta != null;
+  const focoRuc = provAbierta
+    ? nodosPos.find((p) => p.nivel === "provincial" && p.n.provincia === provAbierta)?.n.ruc
+    : regAbierta
+    ? nodosPos.find((p) => p.nivel === "regional" && p.n.departamento === regAbierta)?.n.ruc
+    : null;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav className="flex flex-wrap items-center gap-1.5 text-meta">
-          <button type="button" onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} className={`font-semibold ${regAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>El Estado</button>
-          {regAbierta && <span className="text-mute" aria-hidden>›</span>}
-          {regAbierta && <button type="button" onClick={() => { setProvAbierta(null); setSel(null); }} className={`font-semibold ${provAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>{tituloNatural(regAbierta)}</button>}
-          {provAbierta && <span className="text-mute" aria-hidden>›</span>}
-          {provAbierta && <span className="font-semibold text-ink">{tituloNatural(provAbierta)}</span>}
-        </nav>
-        <select
-          value={regAbierta ?? ""}
-          onChange={(e) => { setRegAbierta(e.target.value || null); setProvAbierta(null); setSel(null); }}
-          className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-meta text-ink shadow-sm focus:border-granate focus:outline-none"
-          aria-label="Ir a una región"
-        >
-          <option value="">Todas las regiones</option>
-          {regiones.map((r) => <option key={r.departamento} value={r.departamento}>{tituloNatural(r.departamento)}</option>)}
-        </select>
-      </div>
+    <GrafoSeccion>
+      <GrafoCabecera
+        migas={
+          <>
+            <button type="button" onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} className={`font-semibold ${regAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>El Estado</button>
+            {regAbierta && <MigaSep />}
+            {regAbierta && <button type="button" onClick={() => { setProvAbierta(null); setSel(null); }} className={`font-semibold ${provAbierta ? "text-granate hover:underline underline-offset-2" : "text-ink"}`}>{tituloNatural(regAbierta)}</button>}
+            {provAbierta && <MigaSep />}
+            {provAbierta && <span className="font-semibold text-ink">{tituloNatural(provAbierta)}</span>}
+          </>
+        }
+        extra={
+          <select
+            value={regAbierta ?? ""}
+            onChange={(e) => { setRegAbierta(e.target.value || null); setProvAbierta(null); setSel(null); }}
+            className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-meta text-ink shadow-sm focus:border-granate focus:outline-none"
+            aria-label="Ir a una región"
+          >
+            <option value="">Todas las regiones</option>
+            {regiones.map((r) => <option key={r.departamento} value={r.departamento}>{tituloNatural(r.departamento)}</option>)}
+          </select>
+        }
+      />
       <p className="text-meta leading-relaxed text-inkSoft">
-        {!regAbierta ? "El Estado al centro y las 25 regiones. Tocá una región: aparecen sus provincias y el zoom va solo hasta ahí."
+        {!regAbierta ? "El Estado al centro y las 25 regiones. Tocá una región: sus provincias brotan y el zoom va solo hasta ahí."
           : !provAbierta ? "Las provincias de la región. Tocá una para abrir sus distritos; el panel muestra quién la gobierna y su cadena."
           : "Los distritos de la provincia. Tocá uno para su detalle, o las migas para volver."}
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="overflow-hidden rounded-xl border border-line bg-fondo/40">
+      <GrafoColumnas>
+        <GrafoMarco>
           <svg viewBox={`0 0 ${VB} ${VB}`} className="h-auto w-full min-w-[520px] touch-manipulation select-none" role="img" aria-label="Explorador territorial del Estado">
             <g style={{ transform: `translate(${foco.tx}px, ${foco.ty}px) scale(${foco.k})`, transition: "transform 650ms cubic-bezier(0.4,0,0.2,1)" }}>
               {edges.map((ed, i) => (
-                <line key={i} x1={ed.x1} y1={ed.y1} x2={ed.bx} y2={ed.by} className={ed.fuerte ? "stroke-crimson" : "stroke-granate"} strokeWidth={1 / foco.k} strokeOpacity={regAbierta && !ed.a ? 0.12 : 0.4} strokeLinecap="round" />
+                <Arista key={i} x1={ed.x1} y1={ed.y1} x2={ed.bx} y2={ed.by} tono={ed.fuerte ? "crimson" : "granate"} k={foco.k} flujo={ed.a !== null}
+                  opacity={regAbierta && !ed.a ? 0.12 : 0.4} />
               ))}
               {nodosPos.map((p) => {
-                const eh = hover === p.n.ruc;
-                const es = sel?.ruc === p.n.ruc;
                 const dim = regAbierta != null && p.nivel === "regional" && p.n.departamento !== regAbierta;
-                const r = p.r * (eh || es ? 1.5 : 1);
-                const anchor = Math.cos(rad(p.ang)) >= 0 ? "start" : "end";
+                const mostrarLabel = p.nivel === "regional" || regAbierta != null;
                 return (
-                  <g key={p.n.ruc} className="cursor-pointer" opacity={dim ? 0.3 : 1}
-                     onPointerEnter={() => setHover(p.n.ruc)} onPointerLeave={() => setHover(null)}
-                     onClick={() => abrir(p)} role="button" tabIndex={-1} aria-label={p.label}>
-                    {es && <circle cx={p.x} cy={p.y} r={r + 4 / foco.k} className="fill-none stroke-ink" strokeWidth={1.2 / foco.k} />}
-                    <circle cx={p.x} cy={p.y} r={r} className={`${fuerte(p.n) ? "fill-crimson/35 stroke-crimson" : "fill-granate/30 stroke-granate"}`} strokeWidth={1.2 / foco.k} />
-                    {mostrarEtiqueta(p) && !dim && (
-                      <text x={p.x + (anchor === "start" ? r + 3 / foco.k : -(r + 3 / foco.k))} y={p.y + 1 / foco.k} textAnchor={anchor}
-                        className={`pointer-events-none ${eh || es ? "fill-ink font-semibold" : "fill-inkSoft"}`}
-                        style={{ fontSize: `${(p.nivel === "regional" ? 10 : p.nivel === "provincial" ? 8 : 6.5) / foco.k}px` }}>
-                        {corto(p.label, 20)}
-                      </text>
-                    )}
-                  </g>
+                  <Nodo
+                    key={p.n.ruc}
+                    x={p.x} y={p.y} r={p.r} k={foco.k}
+                    tono={tonoDe(p.n)}
+                    label={mostrarLabel && !dim ? corto(p.label, 20) : undefined}
+                    anchor={anchorDeCos(Math.cos(rad(p.ang)))}
+                    fontSize={p.nivel === "regional" ? 10 : p.nivel === "provincial" ? 8 : 6.5}
+                    hovered={hover === p.n.ruc}
+                    selected={sel?.ruc === p.n.ruc}
+                    foco={p.n.ruc === focoRuc}
+                    resalta={fuerte(p.n)}
+                    entra={p.nivel !== "regional"}
+                    indice={p.indice}
+                    atenuado={dim}
+                    onEnter={() => setHover(p.n.ruc)}
+                    onLeave={() => setHover(null)}
+                    onClick={() => abrir(p)}
+                    aria={p.label}
+                  />
                 );
               })}
-              <circle cx={C} cy={C} r={13} className="cursor-pointer fill-paperSoft stroke-ink" strokeWidth={1.6 / foco.k} onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} role="button" aria-label="El Estado (ver todo)" />
-              <text x={C} y={C + 1} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${8 / foco.k}px` }}>El Estado</text>
+              <NodoCentro x={C} y={C} k={foco.k} lineas={["El Estado"]} onClick={() => { setRegAbierta(null); setProvAbierta(null); setSel(null); }} aria="El Estado (ver todo)" />
             </g>
           </svg>
-        </div>
+        </GrafoMarco>
 
-        <aside className="rounded-xl border border-line bg-paperSoft/50 p-4">
+        <GrafoAside>
           {sel ? (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -215,12 +220,12 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
                   <p className="text-rotulo leading-relaxed text-inkSoft"><b className="text-ink">{numero(cadena.empresas.length)}</b> {cadena.empresas.length === 1 ? "empresa ligada" : "empresas ligadas"} al partido ganan sus contratos; los aprueba <b className="text-ink">{cadena.decision?.apruebaContratos ?? "la entidad"}</b>.</p>
                   <div className="flex flex-wrap gap-1">
                     {cadena.empresas.slice(0, 6).map((emp) => (
-                      <button key={emp.ruc} type="button" onClick={() => router.push(`/empresa/${emp.ruc}`)} className={`rounded-full px-2 py-0.5 text-rotulo transition-opacity hover:opacity-80 ${fuerteLazo(emp.lazos) ? "bg-crimson/10 text-crimson" : "bg-amber/10 text-amber"}`}>{corto(emp.nombre ?? emp.ruc, 18)}</button>
+                      <button key={emp.ruc} type="button" onClick={() => router.push(`/empresa/${emp.ruc}`)} className={`rounded-full px-2 py-0.5 text-rotulo transition-opacity hover:opacity-80 ${esLazoFuerte(emp.lazos) ? "bg-crimson/10 text-crimson" : "bg-amber/10 text-amber"}`}>{corto(emp.nombre ?? emp.ruc, 18)}</button>
                     ))}
                   </div>
                 </div>
               )}
-              <button type="button" onClick={() => router.push(`/entidad/${sel.ruc}`)} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">Ver ficha completa →</button>
+              <BotonFicha onClick={() => router.push(`/entidad/${sel.ruc}`)} />
             </div>
           ) : (
             <div className="space-y-3">
@@ -228,20 +233,20 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
                 <div className="text-cuerpo font-semibold text-ink">{regAbierta ? tituloNatural(regAbierta) : "El Estado"}</div>
                 <div className="text-rotulo text-mute">{regAbierta ? `${numero(provsDe(regAbierta).length)} provincias` : `${numero(regiones.length)} regiones`}</div>
               </div>
-              <p className="text-meta leading-relaxed text-inkSoft">Tocá una región para abrirla: aparecen sus provincias y el zoom va solo. Tocá un nodo para ver quién lo gobierna y su cadena de captura.</p>
-              <div className="space-y-1.5 text-rotulo text-mute">
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-crimson/70" aria-hidden /> con indicios de captura</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-granate/70" aria-hidden /> sin ese indicio</span>
+              <p className="text-meta leading-relaxed text-inkSoft">Tocá una región para abrirla: sus provincias brotan y el zoom va solo. Tocá un nodo para ver quién lo gobierna y su cadena de captura.</p>
+              <div className="space-y-1.5">
+                <ChipLeyenda tono="crimson" forma="halo">con indicios de captura</ChipLeyenda>
+                <ChipLeyenda tono="granate" forma="punto">sin ese indicio</ChipLeyenda>
               </div>
             </div>
           )}
-        </aside>
-      </div>
+        </GrafoAside>
+      </GrafoColumnas>
 
       <p className="text-rotulo leading-relaxed text-mute">
         Jerarquía territorial (departamento → provincia → distrito). Los municipios son autónomos, pero están anidados en su
         territorio. Fuentes: JNE/ONPE/RNP. Indicios para revisión humana, no una acusación.
       </p>
-    </section>
+    </GrafoSeccion>
   );
 }

@@ -38,7 +38,7 @@ export function CadenaCaptura({ cadena }: { cadena: Cadena }) {
 
   return (
     <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <h2 className="text-cuerpo font-semibold text-ink">La cadena de captura</h2>
+      <div className="text-cuerpo font-semibold tracking-tight text-ink">La cadena de captura</div>
       <p className="text-meta leading-relaxed text-inkSoft">
         Cómo se cierra el círculo: empresas ligadas al partido que gobierna la entidad ganan los contratos que esa misma
         gestión aprueba. Es un indicio de registros públicos para revisar, no una acusación.
