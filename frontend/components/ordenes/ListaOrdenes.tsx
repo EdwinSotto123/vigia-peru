@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Store } from "lucide-react";
-import { DatosClave, EstadoVacio } from "@/components/patrones";
+import { AyudaTermino, DatosClave, EstadoVacio, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -120,13 +120,16 @@ export async function ListaOrdenes({ pagina: p, ruta, parametros, actual }: { pa
             <DatosClave
               items={[
                 { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
+                o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
                 { etiqueta: "Entidad", valor: entidad },
                 { etiqueta: "Proveedor", valor: proveedor },
                 { etiqueta: "Emitida", valor: o.fecha ? fechaCorta(o.fecha) : null, mono: true },
+                o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaCorta(o.fechaNotificacion), mono: true } : null,
+                o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaCorta(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
                 { etiqueta: "Estado", valor: o.estado },
                 { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
                 { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
-              ]}
+              ].filter(Boolean) as DatoClave[]}
             />
           </div>
         ),

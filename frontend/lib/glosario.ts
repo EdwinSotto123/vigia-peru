@@ -126,6 +126,10 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "el PIA",
     definicion: "El presupuesto que se aprobó al empezar el año, antes de cualquier cambio (Presupuesto Institucional de Apertura).",
   },
+  "compromiso-presupuestal": {
+    termino: "el compromiso presupuestal",
+    definicion: "El momento en que la entidad aparta la plata de su presupuesto para esta compra: se compromete a gastarla. Va antes del pago; que esté comprometida no significa que ya se pagó.",
+  },
   "devengado": {
     termino: "el devengado",
     definicion: "El gasto que la entidad ya dio por comprometido (reconoció que lo debe pagar). No es lo mismo que ya pagado.",

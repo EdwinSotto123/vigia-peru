@@ -6,7 +6,14 @@ import type { OrdenEmpresa } from "./empresas";
  * Params prefijados con «o» para no chocar con los de la lista de contratos en la misma URL (es un toggle `?vista=ordenes`).
  * La API acota por año (defecto: el último) y pagina por fecha con `hayMas` (sin total exacto, para no contar millones).
  */
-export type OrdenGeneral = OrdenEmpresa & { contratista: string | null; rucContratista: string | null };
+export type OrdenGeneral = OrdenEmpresa & {
+  contratista: string | null;
+  rucContratista: string | null;
+  /** Campos que CONOSCE trae en el reporte de órdenes y que el panel muestra cuando vienen (suelen faltar en órdenes viejas). */
+  objeto: string | null;            // BIENES | SERVICIOS | CONSULTORÍAS | OBRAS…
+  fechaNotificacion: string | null; // cuándo se le notificó al proveedor
+  fechaCompromiso: string | null;   // compromiso presupuestal (cuando la entidad separó la plata)
+};
 
 export interface OrdenesPagina {
   page: number;

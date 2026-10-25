@@ -85,7 +85,9 @@ ordenesRouter.get("/", async (c) => {
                   o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
                   o.ruc_contratista AS "rucContratista", COALESCE(o.monto, o.monto_dudoso)::float AS monto,
                   o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
-                  o.tipo_contratacion AS "tipoContratacion", o.estado`;
+                  o.tipo_contratacion AS "tipoContratacion", o.estado,
+                  o.objeto, to_char(o.fecha_notificacion, 'YYYY-MM-DD') AS "fechaNotificacion",
+                  to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso"`;
     const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
     const salida = `SELECT ${COLS} FROM d o ${despues} ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`;
     // UNA sola consulta con VENTANA para los tres casos. El WHERE lleva el filtro de entidad/proveedor (o ninguno) y el
