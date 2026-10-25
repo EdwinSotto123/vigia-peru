@@ -18,15 +18,18 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.parse
 from datetime import date, datetime, timezone
 from pathlib import Path
+from queue import Empty, Queue
 
 NPX = shutil.which("npx") or shutil.which("npx.cmd") or "npx"  # en Windows es npx.cmd; el subprocess no lo halla solo
 
@@ -212,6 +215,113 @@ def espejar(con, entorno: str, limite: int, pausa: float) -> int:
     return hechos
 
 
+def espejar_paralelo(entorno: str, anio: int, limite: int, hilos: int, pausa: float) -> int:
+    """Enriquece (prod6) + espeja el requerimiento a R2, con N hilos, desde la PC (única IP que pasa el WAF de prod6).
+    El WAF corta ráfagas y penaliza con un cooldown: si se acumulan 403, TODOS los hilos esperan y reanudan. Idempotente
+    y reanudable (req_r2). OJO: probado hasta 4 hilos sin bloqueo; 8 tumba la IP. No subir mucho `hilos`."""
+    import tunel_rds as T  # ya está en sys.path (lo puso main)
+    import psycopg2
+    clave = T._aws("ssm", "get-parameter", "--name", T.CLAVES["vigia-db"], "--with-decryption", "--query", "Parameter.Value")
+    bucket = "vigia-peru-batch-dev" if entorno == "dev" else "vigia-peru-batch"
+    api_dir = str(RAIZ / "backend" / "api")
+    st = {"ok": 0, "sin_req": 0, "403": 0, "err": 0, "consec403": 0, "enfriar_hasta": 0.0}
+    lock = threading.Lock()
+
+    def worker(host, puerto, q):
+        con = psycopg2.connect(host=host, port=puerto, dbname="vigia", user="postgres", password=clave, sslmode="require", connect_timeout=20)
+        con.autocommit = True
+        cur = con.cursor()
+        while True:
+            try:
+                idc, codigo, intentos = q.get_nowait()
+            except Empty:
+                break
+            # respetar cooldown global del WAF
+            with lock:
+                espera = st["enfriar_hasta"] - time.time()
+            if espera > 0:
+                time.sleep(espera)
+            try:
+                def un403():
+                    with lock:
+                        st["403"] += 1
+                        st["consec403"] += 1
+                        if st["consec403"] >= hilos * 2:  # ráfaga de 403 → cooldown y reset
+                            st["enfriar_hasta"] = time.time() + 150
+                            st["consec403"] = 0
+                    if intentos < 3:
+                        q.put((idc, codigo, intentos + 1))  # reintentar luego
+
+                b = curl_json(f"{PROD6}/buscadorpublico/contrataciones/buscador?anio={anio}&palabra_clave={urllib.parse.quote(codigo)}&page=1&page_size=5", HDRS6, tries=1)
+                if b is None:
+                    un403(); continue
+                rows = (b or {}).get("data") or []
+                row = next((r for r in rows if (r.get("desContratacion") or "").strip() == codigo), None)
+                if not row:
+                    cur.execute("UPDATE seace_menores SET match_prod6='sin_match' WHERE id_contrato=%s", (idc,))
+                    with lock: st["sin_req"] += 1; st["consec403"] = 0
+                    continue
+                idc6 = row.get("idContrato")
+                arch = curl_json(f"{PROD6}/archivo/archivos-publico/listar-archivos-contrato/{idc6}/1", HDRS6, tries=1)
+                if arch is None:
+                    un403(); continue
+                lista = arch if isinstance(arch, list) else (arch or {}).get("data") or []
+                req = lista[0] if lista else {}
+                rid = req.get("idContratoArchivo")
+                cur.execute("""UPDATE seace_menores SET id_contrato_prod6=%s, estado_prod6=%s, fec_publica=%s,
+                    fec_ini_cotizacion=%s, fec_fin_cotizacion=%s, id_requerimiento=%s, requerimiento_nombre=%s,
+                    match_prod6='exacto' WHERE id_contrato=%s""",
+                    (idc6, row.get("nomEstadoContrato"), fecha_iso(row.get("fecPublica")), fecha_iso(row.get("fecIniCotizacion")),
+                     fecha_iso(row.get("fecFinCotizacion")), str(rid) if rid else None, req.get("nombre"), idc))
+                with lock: st["consec403"] = 0
+                if not rid:
+                    with lock: st["sin_req"] += 1
+                    continue
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                    tmp = f.name
+                subprocess.run(["curl", "-s", "--max-time", "90", f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}", *HDRS6, "-o", tmp], capture_output=True)
+                ok_pdf = False
+                with open(tmp, "rb") as fh:
+                    ok_pdf = fh.read(5) == b"%PDF-"
+                if not ok_pdf:
+                    os.unlink(tmp); un403(); continue
+                up = subprocess.run([NPX, "wrangler", "r2", "object", "put", f"{bucket}/seace/menores/req/{idc}.pdf",
+                                     "--file", tmp, "--content-type", "application/pdf", "--remote"], capture_output=True, cwd=api_dir)
+                os.unlink(tmp)
+                if up.returncode == 0:
+                    cur.execute("UPDATE seace_menores SET req_r2=true WHERE id_contrato=%s", (idc,))
+                    with lock: st["ok"] += 1
+                else:
+                    with lock: st["err"] += 1
+                time.sleep(pausa)
+            except Exception:
+                with lock: st["err"] += 1
+            finally:
+                q.task_done()
+        cur.close(); con.close()
+
+    with T.tunel("vigia-db") as (host, puerto):
+        c0 = psycopg2.connect(host=host, port=puerto, dbname="vigia", user="postgres", password=clave, sslmode="require", connect_timeout=20)
+        c0.autocommit = True
+        cur0 = c0.cursor()
+        cur0.execute("""SELECT id_contrato, codigo FROM seace_menores
+                        WHERE codigo IS NOT NULL AND match_prod6='pendiente' AND (anio=%s OR %s=0)
+                        ORDER BY fecha_suscripcion DESC NULLS LAST LIMIT %s""", (anio, anio, limite))
+        items = cur0.fetchall()
+        c0.close()
+        q: Queue = Queue()
+        for idc, codigo in items:
+            q.put((idc, codigo, 0))
+        print(f"Procesando {len(items)} CM con {hilos} hilos (prod6 + R2, pausa {pausa}s)…")
+        t0 = time.time()
+        hs = [threading.Thread(target=worker, args=(host, puerto, q), daemon=True) for _ in range(hilos)]
+        for h in hs: h.start()
+        for h in hs: h.join()
+        dt = time.time() - t0
+        print(f"  {st['ok']} en R2 · {st['sin_req']} sin requerimiento · {st['403']} bloqueos · {st['err']} errores · {dt:.0f}s")
+    return st["ok"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Carga contratos menores ≤8 UIT del SEACE (prod4 + prod6).")
     ap.add_argument("--entorno", choices=["dev", "prod"], help="dev = vigia-db-dev, prod = vigia-db")
@@ -219,6 +329,7 @@ def main() -> int:
     ap.add_argument("--seco", action="store_true", help="sólo baja prod4 y cuenta, no escribe")
     ap.add_argument("--enriquecer", type=int, default=0, help="N CM recientes a enriquecer con el requerimiento de prod6")
     ap.add_argument("--espejar", type=int, default=0, help="N requerimientos a bajar de prod6 y subir a R2 (wrangler)")
+    ap.add_argument("--hilos", type=int, default=1, help="hilos para enriquecer+espejar en paralelo (probado ≤4; 8 tumba la IP)")
     ap.add_argument("--pausa", type=float, default=1.1, help="segundos entre llamadas a prod6 (WAF)")
     a = ap.parse_args()
     if not a.seco and not a.entorno:
@@ -241,8 +352,8 @@ def main() -> int:
             cur.execute("SELECT count(*) FROM seace_menores WHERE anio=%s", (a.anio,))
             (n,) = cur.fetchone()
         print(f"✓ {BASES[a.entorno]}: {len(filas)} contratos menores {a.anio} cargados (tabla: {n} del año)")
-        # 2) enriquecimiento prod6 + espejado a R2, en autocommit (cada UPDATE se guarda al toque; el reintento retoma)
-        if a.enriquecer or a.espejar:
+        # 2) enriquecimiento + espejado SECUENCIAL (1 hilo); el paralelo va abajo (abre su propio túnel)
+        if (a.enriquecer or a.espejar) and a.hilos <= 1:
             con.autocommit = True
             if a.enriquecer:
                 with con.cursor() as cur:
@@ -258,6 +369,9 @@ def main() -> int:
                    ON CONFLICT (fuente, clave) DO UPDATE SET archivo=EXCLUDED.archivo, sha256=EXCLUDED.sha256, filas=EXCLUDED.filas,
                      fuente_url=EXCLUDED.fuente_url, descargado_at=EXCLUDED.descargado_at, cargado_at=now(), estado='ok', error=NULL""",
                 (FUENTE, str(a.anio), f"script {date.today().isoformat()}", sha, len(filas), PROD4_QUERY.format(anio=a.anio)))
+    # 4) enriquecimiento + espejado EN PARALELO (fuera del túnel de carga: abre el suyo con N conexiones)
+    if (a.enriquecer or a.espejar) and a.hilos > 1:
+        espejar_paralelo(a.entorno, a.anio, a.espejar or a.enriquecer, a.hilos, a.pausa)
     return 0
 
 
