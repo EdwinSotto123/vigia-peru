@@ -41,8 +41,12 @@ const sinVacios = (c: Parameters<typeof parametros>[0]) =>
 
 const anios = () =>
   aniosMemo.obtener("anios", async () => {
-    const r = await pool.query<{ anio: number }>(`SELECT DISTINCT anio FROM conosce_ordenes WHERE anio >= 2018 ORDER BY anio DESC`);
-    return r.rows.map((x) => x.anio);
+    // Barato: el máximo desde un agregado chico (NO escanear ~28 M de conosce_ordenes), y la lista 2018..max en JS.
+    const r = await pool.query<{ m: number }>(`SELECT max(anio)::int AS m FROM empresa_orden_anual`);
+    const max = Math.max(r.rows[0]?.m ?? new Date().getFullYear(), 2018);
+    const list: number[] = [];
+    for (let y = max; y >= 2018; y--) list.push(y);
+    return list;
   });
 
 ordenesRouter.get("/", async (c) => {
@@ -51,16 +55,23 @@ ordenesRouter.get("/", async (c) => {
   const q = parsed.data;
   const cuerpo = await memo.obtener(JSON.stringify(q), async () => {
     const aa = await anios();
-    // Acotar: sin año, entidad ni proveedor, el último año disponible (no escanear ~28 M filas).
-    const anio = q.anio ?? (q.entidad || q.proveedor ? undefined : aa[0] ?? new Date().getFullYear());
     const vals: unknown[] = [];
     const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     const base = [`o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`,
                   `o.fecha_emision >= DATE '2018-01-01'`, `o.fecha_emision <= current_date + 31`, `o.entidad_ruc ~ '^[0-9]{11}$'`];
     const fijos: string[] = [];
-    if (anio) fijos.push(`o.fecha_emision >= make_date(${p(anio)}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`);
     if (q.entidad) fijos.push(`o.entidad_ruc = ${p(q.entidad)}`);
     if (q.proveedor) fijos.push(`o.ruc_contratista = ${p(q.proveedor)}`);
+    // Acotación por rendimiento: los índices rápidos de conosce_ordenes empiezan por ruc_contratista/entidad_ruc; NO hay
+    // btree global por fecha para ordenar ~28 M filas. Si está ANCLADO a una entidad o proveedor, usamos su índice (y el
+    // año opcional); si NO, mostramos sólo las órdenes RECIENTES (ventana de 180 días por el BRIN de fecha_emision).
+    const anclado = !!(q.entidad || q.proveedor);
+    if (anclado) {
+      if (q.anio) fijos.push(`o.fecha_emision >= make_date(${p(q.anio)}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`);
+    } else {
+      fijos.push(`o.fecha_emision >= current_date - 180`);
+    }
+    const anio = anclado ? (q.anio ?? null) : null;
     const variables: string[] = [];
     if (q.tipo) variables.push(q.tipo === "compra" ? `o.tipo_orden ILIKE '%compra%'` : `o.tipo_orden NOT ILIKE '%compra%'`);
     if (q.estado) variables.push(`o.estado = ${p(q.estado)}`);
