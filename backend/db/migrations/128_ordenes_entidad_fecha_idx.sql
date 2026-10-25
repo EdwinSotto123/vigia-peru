@@ -1,0 +1,12 @@
+-- 128 · Índice (entidad_ruc, fecha_emision DESC) de las órdenes, para la subsección general "Órdenes" de Contratos
+-- filtrada POR ENTIDAD (GET /ordenes?entidad=…). El índice que había, conosce_ordenes_entidad (entidad_ruc,
+-- ruc_contratista), filtra por entidad pero NO da orden por fecha: para listar las órdenes recientes de una entidad
+-- grande (ONPE: ~45 k) Postgres traía y ordenaba en disco sus ~44 k filas enteras (~39 s → timeout). Con este índice la
+-- consulta toma una VENTANA de las más recientes por el índice (igual que conosce_ordenes_contratista_fecha hace para el
+-- filtro por proveedor) y recién ahí dedup-ea y filtra.
+--
+-- OJO en producción: esta tabla recibe escrituras de los scrapers, así que en la base EN VIVO el índice se crea con
+--   CREATE INDEX CONCURRENTLY conosce_ordenes_entidad_fecha ON conosce_ordenes (entidad_ruc, fecha_emision DESC);
+-- ejecutado en AUTOCOMMIT (CONCURRENTLY no puede ir en una transacción, y el runner de migraciones abre una). Esta
+-- versión no-concurrente queda para montar la base desde cero.
+CREATE INDEX IF NOT EXISTS conosce_ordenes_entidad_fecha ON conosce_ordenes (entidad_ruc, fecha_emision DESC);

@@ -75,7 +75,11 @@ ordenesRouter.get("/", async (c) => {
     const dir = q.orden === "antiguo" ? "ASC" : "DESC";
     const offset = (q.page - 1) * q.size;
     const lim = q.size + 1; // una de más para saber si hay página siguiente
-    const ventana = Math.max(4000, (offset + lim) * 4); // candidatas que trae el índice antes de dedup/filtro
+    // Candidatas que trae el índice por fecha antes de dedup/filtro. El dedup quita MUY poco (una orden casi no se repite
+    // entre archivos: medido 3990 únicas de 4000), así que la ventana solo cubre la página pedida con margen para los
+    // filtros post-ventana (tipo/estado/texto). El piso bajo mantiene rápida la 1ª página; el múltiplo crece en páginas
+    // hondas. Cada fila completa es ~0,5 KB, así que la ventana es también el costo: no inflarla de más.
+    const ventana = Math.max(1500, (offset + lim) * 6);
     const despues = variables.length ? `WHERE ${variables.join(" AND ")}` : "";
     const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
                   o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
@@ -84,20 +88,19 @@ ordenesRouter.get("/", async (c) => {
                   o.tipo_contratacion AS "tipoContratacion", o.estado`;
     const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
     const salida = `SELECT ${COLS} FROM d o ${despues} ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`;
-    // Anclado a una entidad/proveedor → SU índice trae sus órdenes (acotadas) y se dedup/ordena ahí; NADA de ventana por
-    // fecha (ordenar por fecha con un filtro de entidad haría que el planner recorra el índice de fecha entero → timeout).
-    // Sin anclar → ventana por el índice de fecha (las más recientes, o las del año elegido) y luego dedup + filtro.
-    const sql = anclado
-      ? `WITH d AS (
-           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
-             FROM conosce_ordenes o WHERE ${base.join(" AND ")}
-            ORDER BY ${dedupOrden})
-         ${salida}`
-      : `WITH c AS (
-           SELECT o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}
-         ), d AS (
-           SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o ORDER BY ${dedupOrden})
-         ${salida}`;
+    // UNA sola consulta con VENTANA para los tres casos. El WHERE lleva el filtro de entidad/proveedor (o ninguno) y el
+    // ORDER BY o.fecha_emision + LIMIT deja que el planner elija el índice que da ese orden YA filtrado, sin traer toda la
+    // historia de la entidad/proveedor (una entidad grande tiene ~44 k filas; ordenarlas enteras en disco tardaba ~39 s):
+    //   · entidad   → conosce_ordenes_entidad_fecha      (entidad_ruc, fecha_emision DESC)   [migración 128]
+    //   · proveedor → conosce_ordenes_contratista_fecha  (ruc_contratista, fecha_emision DESC) [migración 111]
+    //   · ninguno   → idx_conosce_ordenes_fecha_emision  (fecha_emision)                     [migración 127]
+    // Se toma la ventana de candidatas más recientes (o las del año elegido), se dedup-ea (un archivo mensual repite una
+    // orden) y recién ahí se filtra por tipo/estado/texto y se pagina.
+    const sql = `WITH c AS (
+         SELECT o.* FROM conosce_ordenes o WHERE ${base.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}
+       ), d AS (
+         SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o ORDER BY ${dedupOrden})
+       ${salida}`;
     const r = await consultaConPlazo(sql, vals);
     const hayMas = r.rows.length > q.size;
     return publicar({ page: q.page, size: q.size, hayMas, anclado, anio: q.anio ?? null, anios, data: r.rows.slice(0, q.size) });
