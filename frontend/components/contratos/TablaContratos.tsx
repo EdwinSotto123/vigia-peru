@@ -46,6 +46,8 @@ import { Dato } from "@/components/ui/Dato";
 import { AvisoContrato, ConBanderaDato } from "./DatoDudosoContrato";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
+import { urlDesde, conDesde } from "@/lib/desde";
+
 const RUTA = "/app/contratos";
 
 const COLUMNAS: Columna[] = [
@@ -112,6 +114,8 @@ export function TablaContratos({
   deEntidad?: boolean;
 }) {
   const hash = ancla ? `#${ancla}` : "";
+  // De dónde vino el usuario (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
+  const desde = urlDesde(ruta, parametros);
   /** Los filtros de la URL más un paso de paginación (página por número o token de cursor). */
   const hrefCon = (paso: Record<string, string>) => {
     const q = new URLSearchParams();
@@ -203,13 +207,13 @@ export function TablaContratos({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag}</div>
-      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad))} etiqueta="Contratos" />
+      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde))} etiqueta="Contratos" />
       <div className="flex justify-end">{pag}</div>
     </div>
   );
 }
 
-function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
+function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
   // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
   const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
@@ -273,7 +277,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
         <span className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-rotulo text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>
           <Link
-            href={`${RUTA}/${encodeURIComponent(c.ocid)}`}
+            href={conDesde(`${RUTA}/${encodeURIComponent(c.ocid)}`, desde)}
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             Ver el dossier completo <ArrowRight size={14} aria-hidden />

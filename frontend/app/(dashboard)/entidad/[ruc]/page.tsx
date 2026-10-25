@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Briefcase, Building2, Flag, Hash, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
+import { migasConDesde, leerDesde } from "@/lib/desde";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
@@ -63,6 +64,7 @@ export default async function EntidadProfile({
 }) {
   const ruc = params.ruc;
   const ruta = `/entidad/${ruc}`;
+  const desde = leerDesde(searchParams);
   // La entidad la fija la ruta: de la URL sólo se leen los demás filtros (zona y partido no aplican).
   const query: ContratosQuery = { ...parseContratosQuery(searchParams), entidad: ruc, ubigeo: undefined, partido: undefined };
   const parametros = contratosParametros({ ...query, entidad: undefined });
@@ -104,7 +106,7 @@ export default async function EntidadProfile({
   return (
     <Pagina>
       <Migas
-        items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }]}
+        items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }])}
         pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
       />
 

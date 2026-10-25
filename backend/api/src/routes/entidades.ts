@@ -20,9 +20,20 @@ const ListQuery = z.object({
   q: z.string().trim().max(120).optional(),
   region: z.string().max(80).optional(),
   tipo: z.string().max(60).optional(),
+  // `clase` = tipo/nivel derivado del NOMBRE (el campo `entidades.tipo` está casi todo en NULL). Mismas reglas que
+  // frontend/lib/entidad-tipo.ts, en regex POSIX sobre nombre_norm (minúsculas, sin tildes). Es un filtro, no una
+  // afirmación categórica: "ministerio" incluye al Ministerio Público, etc.
+  clase: z.enum(["ministerio", "regional", "municipal", "organismo"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+const CLASE_REGEX: Record<string, string> = {
+  ministerio: "ministerio",
+  regional: "gobierno regional",
+  municipal: "municipalidad",
+  organismo: "organismo|superintendencia|instituto|autoridad|contraloria|defensoria|jurado|registro",
+};
 
 // ─── GET /entidades — lista con contadores agregados (paginada) ─
 // Fase 2 (auditoría C9): desde la vista materializada `entidad_stats` (migración 35), una fila por
@@ -32,7 +43,7 @@ const ListQuery = z.object({
 entidadesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { q, region, tipo, limit, offset } = parsed.data;
+  const { q, region, tipo, clase, limit, offset } = parsed.data;
   const modelos = await hayModelosLectura();
 
   const conds: string[] = [];
@@ -47,6 +58,10 @@ entidadesRouter.get("/", async (c) => {
   }
   if (region) { vals.push(region); conds.push(`${modelos ? "es" : "e"}.region = $${vals.length}`); }
   if (tipo)   { vals.push(tipo);   conds.push(`${modelos ? "es" : "e"}.tipo = $${vals.length}`); }
+  if (clase && CLASE_REGEX[clase]) {
+    vals.push(CLASE_REGEX[clase]);
+    conds.push(`${modelos ? "es.nombre_norm" : "immutable_unaccent(lower(e.nombre))"} ~ $${vals.length}`);
+  }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const totalVals = [...vals];
@@ -111,6 +126,17 @@ entidadesRouter.get("/summary", async (c) => {
   );
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(r.rows[0]);
+});
+
+// ─── GET /entidades/regiones — las regiones (departamentos) para el filtro de la lista ─
+// Antes de /:ruc para que Hono no lo tome por un RUC.
+entidadesRouter.get("/regiones", async (c) => {
+  const modelos = await hayModelosLectura();
+  const r = await pool.query<{ region: string }>(
+    `SELECT DISTINCT region FROM ${modelos ? "entidad_stats" : "entidades"} WHERE region IS NOT NULL AND region <> '' ORDER BY region`,
+  );
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 3600 }));
+  return c.json({ regiones: r.rows.map((x) => x.region) });
 });
 
 // ─── GET /entidades/:ruc ─────────────────────────────────────────

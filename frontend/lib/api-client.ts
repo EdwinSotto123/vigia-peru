@@ -302,9 +302,17 @@ const TIPOS_ENTIDAD: ApiEntidad["tipo"][] = [
   "organismo_autonomo",
 ];
 
+/** Clase (tipo/nivel) derivada del nombre en el backend: ministerio, gobierno regional, municipalidad, organismo autónomo. */
+export const CLASES_ENTIDAD = ["ministerio", "regional", "municipal", "organismo"] as const;
+export type ClaseEntidad = (typeof CLASES_ENTIDAD)[number];
+
 export interface EntidadesQuery {
   q?: string;
   tipo?: ApiEntidad["tipo"];
+  /** Región (nombre de departamento tal como lo trae el backend). */
+  region?: string;
+  /** Tipo/nivel de la entidad (derivado del nombre). */
+  clase?: ClaseEntidad;
   page?: number;
 }
 
@@ -315,10 +323,13 @@ export function parseEntidadesQuery(sp: Record<string, string | string[] | undef
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   const page = Math.max(1, Number(s("page") ?? 1) || 1);
   const tipo = s("tipo");
+  const clase = s("clase");
   return {
     page,
     q: s("q")?.slice(0, 120) || undefined,
     tipo: tipo && (TIPOS_ENTIDAD as string[]).includes(tipo) ? (tipo as ApiEntidad["tipo"]) : undefined,
+    region: s("region")?.slice(0, 80) || undefined,
+    clase: clase && (CLASES_ENTIDAD as readonly string[]).includes(clase) ? (clase as ClaseEntidad) : undefined,
   };
 }
 
@@ -336,10 +347,22 @@ export async function getEntidadesPagina(query: EntidadesQuery = {}): Promise<En
   const qs = new URLSearchParams();
   if (query.q) qs.set("q", query.q);
   if (query.tipo) qs.set("tipo", query.tipo);
+  if (query.region) qs.set("region", query.region);
+  if (query.clase) qs.set("clase", query.clase);
   qs.set("limit", String(size));
   qs.set("offset", String((page - 1) * size));
   const r = await get<{ data: ApiEntidad[]; total: number; limit: number; offset: number }>(`/entidades?${qs}`);
   return { data: r.data, total: r.total, page, size };
+}
+
+/** Las regiones (departamentos) para poblar el filtro de la lista de entidades. */
+export async function getRegionesEntidades(): Promise<string[]> {
+  try {
+    const r = await get<{ regiones: string[] }>(`/entidades/regiones`);
+    return r.regiones ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export interface EntidadesResumen {

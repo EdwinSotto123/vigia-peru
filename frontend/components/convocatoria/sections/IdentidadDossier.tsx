@@ -5,7 +5,9 @@ import { useContext, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
+import { useSearchParams } from "next/navigation";
 import { AyudaTermino, Migas, Volver } from "@/components/patrones";
+import { migasConDesde } from "@/lib/desde";
 import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
 import { baseApiNavegador } from "@/lib/api-client";
 import type { GobiernoContrato } from "@/lib/contratos";
@@ -63,6 +65,7 @@ export function IdentidadDossier({
     return () => { vivo = false; };
   }, [conv.ocid, conv.codigo]);
   const natural = esPersonaNatural(ganador?.ruc);
+  const desde = useSearchParams().get("desde") ?? undefined;
   const accion =
     "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep";
 
@@ -71,7 +74,7 @@ export function IdentidadDossier({
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         {volver ? (
           <Migas
-            items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${codigo}` }]}
+            items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${codigo}` }])}
             pestanas={ruta}
           />
         ) : (

@@ -24,6 +24,7 @@ import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
 import { Ayuda, AyudaTermino, EncabezadoPagina, FuenteDato, Migas, Pestanas } from "@/components/patrones";
+import { migasConDesde } from "@/lib/desde";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
@@ -80,8 +81,11 @@ export function ContratoDetalle({
   entidadEnVigia = null,
   parecidos = null,
   vistas = null,
+  desde,
 }: {
   c: Detalle;
+  /** De dónde vino el usuario (?desde): antepone esa miga para no perder el flujo de navegación. */
+  desde?: string;
   /** El selector de vistas del contrato (ficha · dictamen · en vivo): arriba de todo, como en las otras dos vistas. */
   vistas?: ReactNode;
   alcance?: AlcanceActivo | null;
@@ -139,7 +143,7 @@ export function ContratoDetalle({
     <DossierDrawerProvider>
       {vistas && <div className="mb-4">{vistas}</div>}
       <Migas
-        items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }]}
+        items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }])}
         pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])) }}
       />
 

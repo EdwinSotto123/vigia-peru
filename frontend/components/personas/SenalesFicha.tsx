@@ -15,7 +15,7 @@ import { txtONumero } from "@/lib/utils";
  * la autoridad, los meses, lo que cobra frente a la mediana…) y la fuente para verificarlo. Cada tipo trae su detalle
  * de la migración 91; los nombres llegan tapados por la API salvo los de autoridades electas. Server-safe.
  */
-export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[] }) {
+export function SenalesPorEntidad({ entidades, codigo }: { entidades: EntidadDePersona[]; codigo: string }) {
   const con = entidades.filter((e) => e.senalesDetalle.length > 0);
   // Lo que es de la persona y no de una entidad (un aporte, una candidatura, ser autoridad de otro gobierno) llega
   // igual en cada entidad: va una vez, arriba, con las entidades en que aplica. Lo demás, en su entidad, numerado.
@@ -65,7 +65,7 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
           </header>
           <ol className="space-y-3">
             {comunes.map(({ s, en }, i) => (
-              <Senal key={clave(s)} s={s} numero={String(i + 1)} en={en} />
+              <Senal key={clave(s)} s={s} numero={String(i + 1)} en={en} codigo={codigo} />
             ))}
           </ol>
         </section>
@@ -91,7 +91,7 @@ export function SenalesPorEntidad({ entidades }: { entidades: EntidadDePersona[]
             {lista.length ? (
               <ol className="space-y-3">
                 {lista.map((s, k) => (
-                  <Senal key={s.tipo} s={s} numero={con.length > 1 ? `${i + 1}.${k + 1}` : String(k + 1)} />
+                  <Senal key={s.tipo} s={s} numero={con.length > 1 ? `${i + 1}.${k + 1}` : String(k + 1)} codigo={codigo} entidadRuc={e.entidadRuc} />
                 ))}
               </ol>
             ) : (
@@ -118,7 +118,7 @@ function Numero({ n, grande = false }: { n: number; grande?: boolean }) {
   );
 }
 
-function Senal({ s, numero: num, en }: { s: SenalDetalle; numero: string; en?: string[] }) {
+function Senal({ s, numero: num, en, codigo, entidadRuc }: { s: SenalDetalle; numero: string; en?: string[]; codigo: string; entidadRuc?: string }) {
   return (
     <li className="flex gap-3 rounded-xl border border-line/80 bg-paperSoft p-3.5">
       <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold tabular-nums text-ink" aria-hidden>
@@ -136,7 +136,7 @@ function Senal({ s, numero: num, en }: { s: SenalDetalle; numero: string; en?: s
             {listaY(en)}
           </p>
         )}
-        <Detalle s={s} />
+        <Detalle s={s} codigo={codigo} entidadRuc={entidadRuc} />
         <Fuente s={s} />
       </div>
     </li>
@@ -189,7 +189,7 @@ function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila
   return <Tabla columnas={columnas} filas={filas} etiqueta={etiqueta} medida="contenedor" densidad="compacta" />;
 }
 
-function Detalle({ s }: { s: SenalDetalle }) {
+function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; entidadRuc?: string }) {
   const d = s.detalle ?? {};
   switch (s.tipo) {
     case "candidato_gobierna":
@@ -221,6 +221,9 @@ function Detalle({ s }: { s: SenalDetalle }) {
             filas={filas}
           />
           <Nota>{porQue(d.por)}</Nota>
+          <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
+            {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
+          </VerOrdenes>
         </div>
       );
     }
@@ -421,6 +424,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
     case "meses_seguidos": {
       const filas = lista(d.anios).map((a, i) => ({
         id: String(i),
+        href: entidadRuc ? `/app/personas/${codigo}?seccion=ordenes&oent=${entidadRuc}&oanio=${txt(a.anio) ?? ""}` : undefined,
         celdas: {
           anio: <span className="font-mono text-meta tabular-nums">{txt(a.anio)}</span>,
           meses: <CeldaNumero>{`${txt(a.meses)} de 12`}</CeldaNumero>,
@@ -444,6 +448,7 @@ function Detalle({ s }: { s: SenalDetalle }) {
     case "pago_alto": {
       const filas = lista(d.anios).map((a, i) => ({
         id: String(i),
+        href: entidadRuc ? `/app/personas/${codigo}?seccion=ordenes&oent=${entidadRuc}&oanio=${txt(a.anio) ?? ""}` : undefined,
         celdas: {
           anio: <span className="font-mono text-meta tabular-nums">{txt(a.anio)}</span>,
           servicio: <span className="text-meta text-inkSoft">{txt(a.servicio) ?? "Sin dato"}</span>,
@@ -470,14 +475,17 @@ function Detalle({ s }: { s: SenalDetalle }) {
       const meses = Array.isArray(d.meses) ? (d.meses as unknown[]).map((m) => txt(m)).filter((m): m is string => !!m).sort() : [];
       const regimen = num(d.regimen);
       return (
-        <DatosClave
-          items={[
-            { etiqueta: "Meses con órdenes y planilla", valor: meses.length ? meses.join(", ") : null, mono: true },
-            { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
-            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
-            { etiqueta: "Lo que cobró en planilla", valor: num(d.sueldo) != null ? soles(num(d.sueldo)!) : null, mono: true },
-          ]}
-        />
+        <div className="space-y-2">
+          <DatosClave
+            items={[
+              { etiqueta: "Meses con órdenes y planilla", valor: meses.length ? meses.join(", ") : null, mono: true },
+              { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
+              { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
+              { etiqueta: "Lo que cobró en planilla", valor: num(d.sueldo) != null ? soles(num(d.sueldo)!) : null, mono: true },
+            ]}
+          />
+          {entidadRuc && <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>Ver sus órdenes de esta entidad</VerOrdenes>}
+        </div>
       );
     }
     case "paso_a_planilla": {
@@ -518,6 +526,18 @@ function Detalle({ s }: { s: SenalDetalle }) {
     default:
       return null;
   }
+}
+
+/** Enlace de citación a la pestaña Órdenes de la MISMA persona, ya filtrada (allí cada orden abre su panel). */
+function VerOrdenes({ codigo, entidadRuc, anio, children }: { codigo: string; entidadRuc?: string; anio?: string | number | null; children: string }) {
+  const qs = new URLSearchParams({ seccion: "ordenes" });
+  if (entidadRuc) qs.set("oent", entidadRuc);
+  if (anio != null && String(anio) !== "") qs.set("oanio", String(anio));
+  return (
+    <Link href={`/app/personas/${codigo}?${qs.toString()}`} className="inline-flex items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline">
+      {children} <span aria-hidden>→</span>
+    </Link>
+  );
 }
 
 function Nota({ children }: { children: string | null | undefined }) {

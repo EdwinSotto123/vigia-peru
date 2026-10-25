@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
 import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
@@ -52,6 +53,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   if (!f) return <NoSePudoLeer ruc={params.ruc} />;
   const e = f.empresa;
   const ruta = rutaEmpresa(e.ruc);
+  const desde = leerDesde(sp);
 
   // Los filtros de cada pestaña, validados como la API (lo que no vale, se ignora).
   const de = <T extends string>(v: string | string[] | undefined, validos: readonly T[]) => (validos.includes(uno(v) as T) ? (uno(v) as T) : undefined);
@@ -111,11 +113,11 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   return (
     <Pagina>
       <Migas
-        items={[
+        items={migasConDesde(desde, [
           { etiqueta: "Inicio", href: "/app" },
           { etiqueta: "Empresas", href: "/app/empresas" },
           { etiqueta: e.nombre, href: ruta },
-        ]}
+        ])}
         pestanas={{
           primera: "inicio",
           activa: seccion ?? "inicio",

@@ -10,6 +10,7 @@ import { cargarDossier, idLegible } from "@/lib/dossier-servidor";
 import { rutaContrato, type VistaContrato } from "@/lib/rutas";
 import { recortar as corto } from "@/components/contratos/recortar";
 import { Pagina } from "@/components/patrones";
+import { leerDesde } from "@/lib/desde";
 import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { soles } from "@/lib/formato";
@@ -63,10 +64,11 @@ export default async function ContratoPage({
   searchParams,
 }: {
   params: { ocid: string };
-  searchParams?: { seccion?: string | string[]; vista?: string | string[]; tab?: string | string[] };
+  searchParams?: { seccion?: string | string[]; vista?: string | string[]; tab?: string | string[]; desde?: string | string[] };
 }) {
   const param = decodeURIComponent(params.ocid);
   const seccion = typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined;
+  const desde = leerDesde(searchParams);
   const vista = vistaDe(searchParams?.vista);
   const tab = typeof searchParams?.tab === "string" && TABS_DICTAMEN.has(searchParams.tab) ? searchParams.tab : undefined;
   const [{ contrato: c, redirigirA }, vivo, catalogo] = await Promise.all([
@@ -129,7 +131,7 @@ export default async function ContratoPage({
       : null;
   return (
     <Pagina>
-      <ContratoDetalle vistas={selector} c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} relacionados={relacionados} entidadEnVigia={entidadEnVigia} parecidos={parecidos} />
+      <ContratoDetalle vistas={selector} c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} relacionados={relacionados} entidadEnVigia={entidadEnVigia} parecidos={parecidos} desde={desde} />
     </Pagina>
   );
 }

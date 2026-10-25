@@ -143,7 +143,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
               <div className="space-y-4">
                 <CabeceraPestana>En cada entidad que lo contrató, qué dicen de esta persona otros registros públicos.</CabeceraPestana>
                 {conSenales.length ? (
-                  <SenalesPorEntidad entidades={f.entidades} />
+                  <SenalesPorEntidad entidades={f.entidades} codigo={params.codigo} />
                 ) : (
                   <EstadoVacio compacto titulo="Ningún otro registro coincide">
                     No figura como candidato, aportante, autoridad ni inhabilitado, no comparte apellidos con autoridades de sus

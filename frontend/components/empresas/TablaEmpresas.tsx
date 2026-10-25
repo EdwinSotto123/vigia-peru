@@ -1,4 +1,5 @@
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { urlDesde, conDesde } from "@/lib/desde";
 import { Dato } from "@/components/ui/Dato";
 import { Badge } from "@/components/ui/Badge";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
@@ -77,23 +78,25 @@ export function TablaEmpresas({
       nombre="empresas"
     />
   );
+  // De dónde vino (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
+  const desde = urlDesde(ruta, parametros);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-meta text-inkSoft">{plural(pagina.total, "empresa", "empresas")}{filtrada ? " con estos filtros" : ""}</p>
         {pag}
       </div>
-      <Tabla columnas={COLUMNAS} filas={pagina.data.map(filaDe)} etiqueta="Empresas que le venden al Estado" />
+      <Tabla columnas={COLUMNAS} filas={pagina.data.map((e) => filaDe(e, desde))} etiqueta="Empresas que le venden al Estado" />
       <div className="flex justify-end">{pag}</div>
     </div>
   );
 }
 
-export function filaDe(e: EmpresaFila): Fila {
+export function filaDe(e: EmpresaFila, desde?: string): Fila {
   const contratos = e.adjProcesos + e.consProcesos;
   return {
     id: e.ruc,
-    href: rutaEmpresa(e.ruc),
+    href: conDesde(rutaEmpresa(e.ruc), desde),
     celdas: {
       empresa: (
         <CeldaPrincipal

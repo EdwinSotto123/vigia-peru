@@ -8,11 +8,13 @@ import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
   getEntidadesPagina,
   getEntidadesResumen,
+  getRegionesEntidades,
   parseEntidadesQuery,
   type EntidadesPagina,
   type EntidadesResumen,
 } from "@/lib/api-client";
 import { numero, plural, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 
 export const metadata: Metadata = {
   title: "Entidades del Estado",
@@ -30,9 +32,9 @@ const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v :
  * viven en la URL (`?q=&orden=&pagina=`); antes el orden era estado local y se
  * perdía al recargar o al compartir el enlace.
  *
- * Sin faceta de tipo: el backend tiene `tipo` nulo en la mayoría de las 2.121
- * entidades, así que "Gobierno regional" dejaba fuera a casi todos los gobiernos
- * regionales. El tipo se sigue MOSTRANDO, inferido del nombre.
+ * Filtros de Región y Tipo: el campo `entidades.tipo` está casi todo en NULL, así que el filtro de tipo
+ * se deriva del NOMBRE en el backend (param `clase`: ministerio/regional/municipal/organismo), las mismas
+ * reglas con que se MUESTRA el tipo (lib/entidad-tipo.ts). La región ya la filtraba el endpoint.
  *
  * Ya no se pide `/alertas?limit=500` para descontar las alertas de demo `ALT-…`: se
  * borraron de la base (0 en la copia de producción del 2026-09-25), así que el descuento
@@ -53,14 +55,15 @@ export default async function EntidadesPage({
 
   let pagina: EntidadesPagina | null = null;
   let resumen: EntidadesResumen | null = null;
+  let regiones: string[] = [];
   try {
-    [pagina, resumen] = await Promise.all([getEntidadesPagina(query), getEntidadesResumen()]);
+    [pagina, resumen, regiones] = await Promise.all([getEntidadesPagina(query), getEntidadesResumen(), getRegionesEntidades()]);
   } catch (e) {
     console.error("[entidades] el API no respondió:", (e as Error).message);
   }
 
   // Datos planos (nunca funciones) hacia los componentes cliente del Listado.
-  const parametros = { q, orden: orden === "dictamen" ? undefined : orden };
+  const parametros = { q, orden: orden === "dictamen" ? undefined : orden, region: query.region, clase: query.clase };
   const aqui = hrefEntidades({ ...parametros, pagina: actual > 1 ? String(actual) : undefined });
 
   // El conteo por entidad (`alertas` del API) es de contratos con dictamen PUBLICADO, tengan
@@ -124,6 +127,27 @@ export default async function EntidadesPage({
       <Listado ruta="/app/entidades" parametros={parametros}>
         <BarraFiltros
           busqueda={{ param: "q", placeholder: "Buscar por nombre o RUC…", etiqueta: "Buscar una entidad por su nombre" }}
+          visibles={[
+            {
+              param: "clase",
+              etiqueta: "Tipo",
+              corta: "Tipo",
+              todas: "Todos los tipos",
+              opciones: [
+                { valor: "ministerio", etiqueta: "Ministerio" },
+                { valor: "regional", etiqueta: "Gobierno regional" },
+                { valor: "municipal", etiqueta: "Municipalidad" },
+                { valor: "organismo", etiqueta: "Organismo autónomo" },
+              ],
+            },
+            {
+              param: "region",
+              etiqueta: "Región",
+              corta: "Región",
+              todas: "Todo el Perú",
+              opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })),
+            },
+          ]}
           orden={{ param: "orden", porDefecto: "dictamen", opciones: ORDENES_ENTIDADES }}
         />
         <ZonaResultados>

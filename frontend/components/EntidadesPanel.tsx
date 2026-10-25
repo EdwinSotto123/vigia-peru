@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { urlDesde, conDesde } from "@/lib/desde";
 import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
@@ -118,7 +119,9 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
         ? [...conPuesto].sort((a, b) => b.e.scorePromedio - a.e.scorePromedio)
         : conPuesto;
 
-  const filas: Fila[] = ordenadas.map(({ e, puesto }) => filaEntidad(e, puesto));
+  // De dónde vino (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
+  const desde = urlDesde("/app/entidades", parametros);
+  const filas: Fila[] = ordenadas.map(({ e, puesto }) => filaEntidad(e, puesto, desde));
 
   const pag = (
     <Paginacion
@@ -143,7 +146,7 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
   );
 }
 
-function filaEntidad(e: ApiEntidad, puesto: number): Fila {
+function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
   // El tipo no es un nivel de riesgo: se infiere del nombre oficial cuando el backend
   // no lo declara, y si no se puede, dice "Sin clasificar".
   const tipo = etiquetaTipoEntidad(e.tipo, e.nombre, "corto");
@@ -153,7 +156,7 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
   const leida = e.alertas > 0;
   return {
     id: e.ruc,
-    href: `/entidad/${e.ruc}`,
+    href: conDesde(`/entidad/${e.ruc}`, desde),
     celdas: {
       puesto: <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span>,
       entidad: (
