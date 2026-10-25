@@ -257,10 +257,44 @@ personasRouter.get("/:codigo", async (c) => {
          SELECT count(*)::int AS ordenes, sum(monto_dudoso)::float AS monto, array_agg(DISTINCT dudoso_motivo) AS motivos FROM d`, [ruc]),
     ]);
     if (!ent.rows.length) return null;
+    const nombrePersona = ent.rows[0]?.nombre ? conEnie(ent.rows[0].nombre) : null;
+    // Las órdenes CONCRETAS detrás de la señal "inhabilitado" (el mismo JOIN órdenes↔sanción por vigencia que la computa
+    // en la migración 91): se citan para que un humano pueda revisar cada una. Sólo si la persona tiene esa señal; el
+    // `detalle.ordenes` (conteo) y estas filas salen del mismo DISTINCT ON, así que coinciden.
+    const ordsInhab = new Map<string, Record<string, unknown>[]>();
+    if (senales.rows.some((s) => s.tipo === "inhabilitado")) {
+      const ro = await pool.query(
+        `WITH _san AS (
+           SELECT fecha_desde, COALESCE(fecha_hasta, CASE WHEN tipo = 'definitivo' THEN DATE '9999-12-31' END) AS hasta, resolucion
+             FROM osce_sancionados
+            WHERE ruc = $1 AND tipo IN ('temporal','definitivo') AND fecha_desde IS NOT NULL),
+         o AS (
+           SELECT DISTINCT ON (c.entidad_ruc, c.orden, c.fecha_emision)
+                  c.entidad_ruc AS "entidadRuc", c.entidad, c.fecha_emision, c.nro_orden AS numero, c.orden,
+                  c.descripcion, c.monto::float AS monto, c.tipo_contratacion AS "tipoContratacion", c.estado,
+                  servicio_persona(c.descripcion) AS servicio
+             FROM _san s
+             JOIN conosce_ordenes c ON c.ruc_contratista = $1 AND c.fecha_emision BETWEEN s.fecha_desde AND s.hasta
+            WHERE c.tipo_orden = 'Orden de Servicio' AND c.estado IS DISTINCT FROM 'Anulada' AND c.moneda = 'Nuevos Soles' AND c.monto > 0
+            ORDER BY c.entidad_ruc, c.orden, c.fecha_emision, c.anio DESC, c.mes DESC)
+         SELECT o."entidadRuc", o.entidad, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.numero, o.orden, o.descripcion,
+                o.monto, o."tipoContratacion", o.estado, o.servicio,
+                (SELECT s.resolucion FROM _san s WHERE o.fecha_emision BETWEEN s.fecha_desde AND s.hasta ORDER BY s.fecha_desde LIMIT 1) AS resolucion
+           FROM o ORDER BY o."entidadRuc", o.fecha_emision DESC`, [ruc]);
+      for (const o of ro.rows) {
+        const { entidadRuc, ...resto } = o as { entidadRuc: string } & Record<string, unknown>;
+        const l = ordsInhab.get(entidadRuc) ?? [];
+        l.push({ ...resto, descripcion: taparNombrePropio(resto.descripcion as string | null, nombrePersona) });
+        ordsInhab.set(entidadRuc, l);
+      }
+    }
     const porEntidad = new Map<string, unknown[]>();
     for (const s of senales.rows) {
       const l = porEntidad.get(s.entidadRuc) ?? [];
-      l.push({ tipo: s.tipo, severidad: s.severidad, detalle: s.detalle, fuente: s.fuente, fuenteUrl: s.fuenteUrl });
+      const detalle = s.tipo === "inhabilitado"
+        ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsInhab.get(s.entidadRuc) ?? [] }
+        : s.detalle;
+      l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl: s.fuenteUrl });
       porEntidad.set(s.entidadRuc, l);
     }
     const entidades = ent.rows.map((e) => ({ ...e, nombre: e.nombre ? conEnie(e.nombre) : e.nombre, senalesDetalle: porEntidad.get(e.entidadRuc) ?? [] }));

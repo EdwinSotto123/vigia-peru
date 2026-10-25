@@ -195,7 +195,7 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
 
         <GrafoAside>
           {sel ? (
-            <div className="space-y-2">
+            <div key={sel.ruc} className="space-y-2 animate-slideUp">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-cuerpo font-semibold leading-tight text-ink">{tituloNatural(sel.nombre)}</div>

@@ -179,7 +179,7 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
 
         <GrafoAside>
           {sel ? (
-            <div className="space-y-2">
+            <div key={sel.key} className="space-y-2 animate-slideUp">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-cuerpo font-semibold leading-tight text-ink">{tituloNatural(sel.nombre)}</div>

@@ -341,6 +341,16 @@ function Detalle({ s }: { s: SenalDetalle }) {
           resolucion: <span className="font-mono text-meta text-inkSoft">{txt(x.resolucion) ?? "Sin dato"}</span>,
         },
       }));
+      // Las órdenes concretas que recibió dentro de la inhabilitación: la cita a la evidencia, una por una.
+      const ordenes = lista(d.ordenes_detalle).map((o, i) => ({
+        id: `ord-${i}`,
+        celdas: {
+          fecha: <span className="text-meta tabular-nums text-mute">{dia(o.fecha) ?? "Sin dato"}</span>,
+          servicio: <span className="text-meta text-inkSoft">{txt(o.servicio) ?? txt(o.descripcion) ?? "Sin dato"}</span>,
+          numero: <span className="font-mono text-meta text-inkSoft">{txt(o.numero) ?? txt(o.orden) ?? "Sin dato"}</span>,
+          monto: <CeldaNumero>{soles(num(o.monto) ?? 0)}</CeldaNumero>,
+        },
+      }));
       return (
         <div className="space-y-2">
           <DatosClave
@@ -358,6 +368,18 @@ function Detalle({ s }: { s: SenalDetalle }) {
             ]}
             filas={filas}
           />
+          {ordenes.length > 0 && (
+            <Lista
+              etiqueta="Cada orden recibida durante la inhabilitación"
+              columnas={[
+                { clave: "fecha", titulo: "Fecha", ancho: "110px" },
+                { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)" },
+                { clave: "numero", titulo: "N° de orden", ancho: "minmax(0,170px)", desde: "md" },
+                { clave: "monto", titulo: "Monto", ancho: "120px", alinear: "der" },
+              ]}
+              filas={ordenes}
+            />
+          )}
         </div>
       );
     }

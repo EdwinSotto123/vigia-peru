@@ -40,7 +40,7 @@ const GUARDADO = "X-Vigia-Guardado";
  * (entidad_gobierno_amplia), migración 124; "28": el detalle de una orden del fraccionamiento trae su entidad y rubro;
  * "29": nuevos /poder/grafo y /poder/instituciones (mapa de instituciones del Estado) y su forma de respuesta).
  */
-const VERSION_CACHE = "31";
+const VERSION_CACHE = "32";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

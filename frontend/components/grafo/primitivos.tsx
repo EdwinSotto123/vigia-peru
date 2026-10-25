@@ -62,9 +62,12 @@ export function Nodo(p: NodoProps) {
       opacity={p.atenuado ? 0.3 : 1}
       onPointerEnter={p.onEnter}
       onPointerLeave={p.onLeave}
+      onFocus={p.onEnter}
+      onBlur={p.onLeave}
       onClick={p.onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onClick?.(); } }}
       role="button"
-      tabIndex={-1}
+      tabIndex={p.atenuado ? -1 : 0}
       aria-label={p.aria ?? p.label}
     >
       {p.foco ? (
