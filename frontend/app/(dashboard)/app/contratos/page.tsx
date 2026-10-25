@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, AyudaTermino, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
-import { Vistas } from "@/components/listado/Vistas";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
   BarraFiltros,
   Indicadores,
@@ -26,8 +25,6 @@ import {
   type ContratosQuery,
   type ResumenContratos,
 } from "@/lib/contratos";
-import { getOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD } from "@/lib/ordenes";
-import { ListaOrdenes, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { numero } from "@/lib/formato";
@@ -39,7 +36,6 @@ export const metadata = {
 };
 
 const SIZE = 50;
-const SIZE_ORD = 25;
 const RUTA = "/app/contratos";
 
 /**
@@ -59,8 +55,6 @@ const RUTA = "/app/contratos";
  * queda atenuado hasta que llega lo nuevo, sin volver a los esqueletos.
  */
 export default async function ContratosPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
-  const vistaParam = Array.isArray(searchParams?.vista) ? searchParams.vista[0] : searchParams?.vista;
-  if (vistaParam === "ordenes") return <OrdenesVista searchParams={searchParams} />;
   const query = parseContratosQuery(searchParams);
   const parametros = contratosParametros(query);
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
@@ -94,7 +88,6 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
           </Ayuda>
         }
       />
-      <VistaToggle vista="contratos" />
 
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <IndicadoresContratos resumen={resumen} global={resumenGlobal} recortada={recortada} parametros={parametros} />
@@ -284,56 +277,4 @@ function filtros({
     filtroMes(parametros),
     ...filtrosMonto(parametros),
   ];
-}
-
-// ─── Vista Órdenes (subsección del mismo índice) ───────────────────────────────
-// Contratos y Órdenes son dos poblaciones del mismo lugar (§14.1 Vistas): un toggle, no un filtro. Las órdenes de
-// compra y de servicio son compras directas del Estado; hasta ahora solo se veían dentro de una persona o empresa.
-
-function VistaToggle({ vista }: { vista: "contratos" | "ordenes" }) {
-  return (
-    <Vistas
-      etiqueta="Vista del índice"
-      vistas={[
-        { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos" },
-        { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
-      ]}
-    />
-  );
-}
-
-async function OrdenesVista({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
-  const oq = parseOrdenesQuery(searchParams);
-  const parametros = ordenesParametros(oq);
-  const pagina = getOrdenes({ ...oq, size: SIZE_ORD });
-  return (
-    <Pagina className="space-y-5">
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
-      <EncabezadoPagina
-        titulo="Todos los contratos"
-        bajada="Las convocatorias del SEACE y, aparte, las órdenes de compra y de servicio del Estado."
-        ayuda={
-          <Ayuda titulo="¿Qué hay aquí?">
-            Cada convocatoria del SEACE que Vigía tiene en su base, y las órdenes de compra y de servicio, que son
-            compras directas (por lo general sin concurso).
-          </Ayuda>
-        }
-      />
-      <VistaToggle vista="ordenes" />
-      <p className="flex flex-wrap items-center gap-1.5 text-meta text-inkSoft">
-        Las órdenes de compra y de servicio: compras directas del Estado, por lo general sin concurso.
-        <AyudaTermino clave="orden-servicio" />
-      </p>
-      <Listado ruta={RUTA} parametros={parametros} paramPagina={P_ORD.page}>
-        <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraOrdenesGeneral pagina={pagina} />
-        </Suspense>
-        <ZonaResultados>
-          <Suspense fallback={<TablaContratosSkeleton />}>
-            <ListaOrdenes pagina={pagina} ruta={RUTA} parametros={parametros} actual={oq.page ?? 1} />
-          </Suspense>
-        </ZonaResultados>
-      </Listado>
-    </Pagina>
-  );
 }

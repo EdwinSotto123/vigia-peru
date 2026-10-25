@@ -28,7 +28,6 @@ import { contribucionesRouter } from "./routes/contribuciones.js";
 import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
 import { contratosRouter } from "./routes/contratos.js";
-import { ordenesRouter } from "./routes/ordenes.js";
 import { cuentasRouter } from "./routes/cuentas.js";
 import { buscarRouter } from "./routes/buscar.js";
 import { senalesRouter } from "./routes/senales.js";
@@ -123,7 +122,6 @@ api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /
 api.route("/financiamiento", financiamientoRouter);
 api.route("/contribuciones", contribucionesRouter);
 api.route("/contratos", contratosRouter);
-api.route("/ordenes", ordenesRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);
