@@ -93,8 +93,8 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
         ? `suma de su último mes publicado; aparte, ${plural(r.dudosos, "sueldo", "sueldos")} con posible error de la entidad`
         : "suma de su último mes publicado",
     },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "lo que dicen otros registros" },
-    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: "cobran también por órdenes, candidatos del que gobierna", tono: r.alta > 0 ? "alta" : "neutro" },
+    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros` },
+    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro" },
   ];
   return <Indicadores items={items} />;
 }
@@ -276,7 +276,12 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
               </section>
             );
           })()}
-          {p.senales.length > 0 && <SenalesPlanillaLista senales={p.senales} />}
+          {p.senales.length > 0 && (
+            <>
+              <SenalesPlanillaLista senales={p.senales} />
+              <p className="text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación ni prueba de un delito.</p>
+            </>
+          )}
         </div>
       ),
       pie: (

@@ -168,7 +168,7 @@ export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: Pa
         ? `${periodo ? `${periodo}; ` : ""}aparte, ${solesCompacto(r.dudosas.monto)} en ${plural(r.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
         : periodo,
     },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "lo que dicen otros registros", href: href({ [P.severidad]: "con" }) },
-    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: "candidatos del que gobierna, autoridades, inhabilitados", tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P.severidad]: "alta" }) },
+    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P.severidad]: "con" }) },
+    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; candidatos del que gobierna, autoridades, inhabilitados`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P.severidad]: "alta" }) },
   ];
 }

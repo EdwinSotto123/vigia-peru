@@ -78,9 +78,9 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlazas | null> }) {
   if (!r) return null;
   const items: Indicador[] = [
     { valor: numero(r.plazas), etiqueta: "plazas CAS publicadas", contexto: r.desde ? `desde el ${fechaCorta(r.desde)}` : undefined, ayuda: <AyudaTermino clave="cas" /> },
-    { valor: numero(r.vacantes), etiqueta: "vacantes" },
-    { valor: r.medianaSueldo != null ? soles(r.medianaSueldo) : null, etiqueta: "sueldo mediano", contexto: "la mitad paga menos", ayuda: <AyudaTermino clave="mediana" /> },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: "de plaza a la medida", tono: r.conSenales > 0 ? "media" : "neutro" },
+    { valor: numero(r.vacantes), etiqueta: "vacantes", contexto: `en ${numero(r.plazas)} plazas` },
+    { valor: r.medianaSueldo != null ? soles(r.medianaSueldo) : null, etiqueta: "sueldo mediano", contexto: `de ${numero(r.plazas)} plazas; la mitad paga menos`, ayuda: <AyudaTermino clave="mediana" /> },
+    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.plazas)} (plaza a la medida)`, tono: r.conSenales > 0 ? "media" : "neutro" },
   ];
   return <Indicadores items={items} />;
 }
@@ -225,6 +225,7 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
             </div>
           ))}
           <DatosClave items={datos} />
+          {p.senales.length > 0 && <p className="text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación.</p>}
         </div>
       ),
       pie: (

@@ -70,6 +70,11 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
               </span>{" "}
               {r.pct >= 0 ? "sobre" : "bajo"} la mediana de mercado
             </h2>
+            {r.pct > 0 && (
+              <p className="mt-1 text-rotulo leading-relaxed text-mute">
+                Pagar más que la mediana puede tener explicación (menor cantidad, transporte, otra calidad): es un indicio para revisar, no una prueba de sobreprecio.
+              </p>
+            )}
             <p className="mt-1 text-meta leading-snug text-inkSoft">
               {r.abs !== null && (
                 <>

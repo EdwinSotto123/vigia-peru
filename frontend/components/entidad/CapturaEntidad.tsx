@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPoderEntidad, clavePartido } from "@/lib/poder";
 import { tituloNatural } from "@/lib/landing";
 import { numero, plural, solesCompacto } from "@/lib/formato";
+import { FuenteDato } from "@/components/patrones";
 
 /**
  * La «captura» política de una entidad (migración 125, mapa de poder): qué partido la gobierna y cuántos de sus contratos
@@ -59,6 +60,7 @@ export async function CapturaEntidad({ ruc }: { ruc: string }) {
       ) : (
         <p className="text-meta text-inkSoft">Sin indicios de captura con los registros actuales.</p>
       )}
+      <FuenteDato fuente="JNE (quién gobierna cada entidad), ONPE (aportes de campaña), RNP/SEACE (socios y contratos)." />
     </section>
   );
 }

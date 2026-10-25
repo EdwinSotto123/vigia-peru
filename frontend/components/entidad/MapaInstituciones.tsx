@@ -208,7 +208,7 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                 <div className="text-rotulo text-mute">contratos, {solesCompacto(panelEnt.monto)}</div>
               </div>
               {(panelEnt.captura ?? 0) > 0 && panelEnt.partido
-                ? <p className="text-meta text-inkSoft">La gobierna <b className="text-ink">{tituloNatural(panelEnt.partido)}</b>, con <span className="text-crimson">{numero(panelEnt.captura)} contratos con indicio</span>.</p>
+                ? <p className="text-meta text-inkSoft">La gobierna <b className="text-ink">{tituloNatural(panelEnt.partido)}</b>, con <span className="text-crimson">{numero(panelEnt.captura)} de {numero(panelEnt.n_contratos)} contratos con indicio</span>.</p>
                 : <p className="text-rotulo text-mute">Sin indicios de captura política (no todas las instituciones se eligen por partido).</p>}
               <BotonFicha onClick={() => router.push(`/entidad/${panelEnt.ruc}`)} />
             </div>

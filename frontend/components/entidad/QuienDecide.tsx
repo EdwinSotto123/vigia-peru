@@ -40,7 +40,7 @@ export async function QuienDecide({ ruc }: { ruc: string }) {
     <GrafoSeccion>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-cuerpo font-semibold tracking-tight text-ink">Quién decide y firma los contratos</div>
-        <span className="text-rotulo text-mute">Estructura institucional, fuentes oficiales, corte {e.corte ?? "2026"}</span>
+        <span className="text-rotulo text-mute">Organigrama oficial (grafo del Estado), corte {e.corte ?? "2026"}</span>
       </div>
       <p className="text-meta leading-relaxed text-inkSoft">
         Por ley, quien aprueba las contrataciones de esta entidad es la <b className="text-ink">{aga}</b> <AyudaTermino clave="aga" />

@@ -102,6 +102,7 @@ export function AnalisisPostoresSection({ data, ocidActual }: { data: any; ocidA
         </div>
       </div>
 
+      <p className="mb-2 text-rotulo leading-relaxed text-mute">Son patrones de competencia para investigar, no una prueba de cartel: coincidir en otros procesos o compartir domicilio puede tener explicaciones legítimas.</p>
       {/* Tabla de postores */}
       <ul className="divide-y divide-line">
         {postores.map((p: any, i: number) => {

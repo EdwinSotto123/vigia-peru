@@ -16,6 +16,7 @@
  */
 
 import Link from "next/link";
+import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
 import { Building2, Clock, Hash, MapPin, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
@@ -146,6 +147,8 @@ export function ContratoDetalle({
         items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }])}
         pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])) }}
       />
+
+      <DisclaimerBanner className="mb-4" />
 
       <div className="grid items-start gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-5">
