@@ -40,6 +40,14 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "una convocatoria",
     definicion: "El llamado público para que las empresas presenten ofertas por un contrato del Estado.",
   },
+  "contrato-menor": {
+    termino: "un contrato menor",
+    definicion: "Una compra del Estado por un monto pequeño (hasta 8 UIT, unos S/ 42,800 en 2026). Por ley no necesita concurso ni proceso de selección: la entidad contrata de forma directa.",
+  },
+  "cotizacion": {
+    termino: "una cotización",
+    definicion: "La oferta de precio que un proveedor presenta para una compra menor. Como no hay concurso formal, la entidad invita a cotizar y compara precios durante una ventana de días.",
+  },
   "adjudicacion": {
     termino: "una adjudicación",
     definicion: "Declarar ganadora a una empresa (darle la buena pro). El «monto adjudicado» es lo que se decidió pagarle.",

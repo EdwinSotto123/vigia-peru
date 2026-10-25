@@ -28,6 +28,8 @@ import {
 } from "@/lib/contratos";
 import { getOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD } from "@/lib/ordenes";
 import { ListaOrdenes, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
+import { getMenores, parseMenoresQuery, menoresParametros, P_MEN } from "@/lib/menores";
+import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { numero } from "@/lib/formato";
@@ -40,6 +42,7 @@ export const metadata = {
 
 const SIZE = 50;
 const SIZE_ORD = 25;
+const SIZE_MEN = 25;
 const RUTA = "/app/contratos";
 
 /**
@@ -61,6 +64,7 @@ const RUTA = "/app/contratos";
 export default async function ContratosPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const vistaParam = Array.isArray(searchParams?.vista) ? searchParams.vista[0] : searchParams?.vista;
   if (vistaParam === "ordenes") return <OrdenesVista searchParams={searchParams} />;
+  if (vistaParam === "menores") return <MenoresVista searchParams={searchParams} />;
   const query = parseContratosQuery(searchParams);
   const parametros = contratosParametros(query);
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
@@ -290,13 +294,14 @@ function filtros({
 // Contratos y Órdenes son dos poblaciones del mismo lugar (§14.1 Vistas): un toggle, no un filtro. Las órdenes de
 // compra y de servicio son compras directas del Estado; hasta ahora solo se veían dentro de una persona o empresa.
 
-function VistaToggle({ vista }: { vista: "contratos" | "ordenes" }) {
+function VistaToggle({ vista }: { vista: "contratos" | "ordenes" | "menores" }) {
   return (
     <Vistas
       etiqueta="Vista del índice"
       vistas={[
         { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos" },
         { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
+        { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
       ]}
     />
   );
@@ -331,6 +336,47 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
         <ZonaResultados>
           <Suspense fallback={<TablaContratosSkeleton />}>
             <ListaOrdenes pagina={pagina} ruta={RUTA} parametros={parametros} actual={oq.page ?? 1} />
+          </Suspense>
+        </ZonaResultados>
+      </Listado>
+    </Pagina>
+  );
+}
+
+// ─── Vista Contratos Menores (≤8 UIT) ──────────────────────────────────────────
+// La contratación directa por montos pequeños (SEACE, módulo de menores): es la fase que NO aparece en las órdenes de
+// CONOSCE ni en los datos abiertos. Trae el requerimiento/TDR y el contrato en PDF. Fuente: prod4 + prod6 (ver /menores).
+
+async function MenoresVista({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+  const mq = parseMenoresQuery(searchParams);
+  const parametros = menoresParametros(mq);
+  const pagina = getMenores({ ...mq, size: SIZE_MEN });
+  return (
+    <Pagina className="space-y-5">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
+      <EncabezadoPagina
+        titulo="Todos los contratos"
+        bajada="Las convocatorias del SEACE, las órdenes del Estado y, aparte, los contratos menores (≤8 UIT)."
+        ayuda={
+          <Ayuda titulo="¿Qué son los contratos menores?">
+            Compras del Estado por montos pequeños (hasta 8 UIT, unos S/ 42,800). Por ley se contratan de forma directa,
+            sin concurso. A diferencia de una orden, aquí sí suele publicarse el requerimiento (las especificaciones) y
+            una ventana de cotización. El módulo es facultativo, así que no están todas las del país.
+          </Ayuda>
+        }
+      />
+      <VistaToggle vista="menores" />
+      <p className="flex flex-wrap items-center gap-1.5 text-meta text-inkSoft">
+        Contratos menores: compras directas por montos pequeños, con su requerimiento (especificaciones) descargable.
+        <AyudaTermino clave="contrato-menor" />
+      </p>
+      <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
+        <Suspense fallback={<div className="min-h-[52px]" />}>
+          <BarraMenoresGeneral pagina={pagina} />
+        </Suspense>
+        <ZonaResultados>
+          <Suspense fallback={<TablaContratosSkeleton />}>
+            <ListaMenores pagina={pagina} ruta={RUTA} parametros={parametros} actual={mq.page ?? 1} />
           </Suspense>
         </ZonaResultados>
       </Listado>
