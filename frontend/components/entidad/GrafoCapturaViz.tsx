@@ -78,6 +78,7 @@ export function GrafoCapturaViz({ data }: { data: GrafoCaptura }) {
                 tono={nd.tono}
                 label={corto(nd.e.nombre ?? nd.e.ruc, 22)}
                 anchor={anchorDeCos(Math.cos(rad(nd.ang)))}
+                anguloEtiqueta={nd.ang}
                 fontSize={11}
                 hovered={hover === nd.e.ruc}
                 selected={sel === nd.e.ruc}

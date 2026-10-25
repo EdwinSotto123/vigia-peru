@@ -27,6 +27,9 @@ export const aristaTono = (t: Tono) => TONO[t].arista;
 export interface NodoProps {
   x: number; y: number; r: number; tono: Tono;
   label?: string; anchor?: "start" | "end" | "middle"; fontSize?: number;
+  /** Si se da (grados), la etiqueta se dibuja RADIAL (en abanico hacia afuera del centro), que evita el
+   *  amontonamiento arriba/abajo de los anillos densos. Si no, la etiqueta es horizontal (anchor/offset). */
+  anguloEtiqueta?: number;
   /** Factor de zoom del lienzo: los grosores/offsets/letra se dividen por él para verse constantes. */
   k?: number;
   hovered?: boolean; selected?: boolean;
@@ -76,7 +79,19 @@ export function Nodo(p: NodoProps) {
         <circle cx={p.x} cy={p.y} r={rr + 2.5 * inv} className={`fill-none ${c.borde} pointer-events-none`} strokeWidth={1 * inv} strokeOpacity={0.9} strokeDasharray={`${2.4 * inv} ${2.4 * inv}`} />
       )}
       <circle className={`grafo-nodo-circulo ${c.cuerpo} ${c.borde}`} cx={p.x} cy={p.y} r={rr} strokeWidth={1.3 * inv} />
-      {p.label && (
+      {p.label && (p.anguloEtiqueta != null ? (
+        <g transform={`translate(${p.x} ${p.y}) rotate(${p.anguloEtiqueta})`} className="pointer-events-none">
+          <text
+            transform={`translate(${rr + 4 * inv} 0)${Math.cos((p.anguloEtiqueta * Math.PI) / 180) < 0 ? " rotate(180)" : ""}`}
+            y={(p.fontSize ?? 9) * inv * 0.32}
+            textAnchor={Math.cos((p.anguloEtiqueta * Math.PI) / 180) < 0 ? "end" : "start"}
+            className={activo ? "fill-ink font-semibold" : "fill-inkSoft"}
+            style={{ fontSize: `${(p.fontSize ?? 9) * inv}px` }}
+          >
+            {p.label}
+          </text>
+        </g>
+      ) : (
         <text
           x={p.x + lx}
           y={p.y + 1 * inv}
@@ -86,7 +101,7 @@ export function Nodo(p: NodoProps) {
         >
           {p.label}
         </text>
-      )}
+      ))}
     </g>
   );
 
@@ -103,10 +118,10 @@ export function NodoCentro({ x, y, k = 1, lineas, onClick, aria }: { x: number; 
   const inv = 1 / k;
   return (
     <g className="cursor-pointer" onClick={onClick} role="button" tabIndex={-1} aria-label={aria}>
-      <circle cx={x} cy={y} r={15} className="fill-granate/15 pointer-events-none" />
-      <circle cx={x} cy={y} r={13} className="fill-paperSoft stroke-ink" strokeWidth={1.6 * inv} />
+      <circle cx={x} cy={y} r={20} className="fill-granate/15 pointer-events-none" />
+      <circle cx={x} cy={y} r={16} className="fill-paperSoft stroke-ink" strokeWidth={1.6 * inv} />
       {lineas.map((t, i) => (
-        <text key={i} x={x} y={y + (i - (lineas.length - 1) / 2) * 7 * inv + 1 * inv} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${7 * inv}px` }}>
+        <text key={i} x={x} y={y + (i - (lineas.length - 1) / 2) * 7.2 * inv + 1 * inv} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${7 * inv}px` }}>
           {t}
         </text>
       ))}
@@ -154,7 +169,9 @@ export function GrafoColumnas({ children }: { children: ReactNode }) {
 }
 
 export function GrafoMarco({ children }: { children: ReactNode }) {
-  return <div className="overflow-hidden rounded-xl border border-line bg-fondo/40">{children}</div>;
+  // overflow-x-auto (no -hidden): en móvil el SVG de min-w ~520px se desplaza en vez de recortarse; el auto-zoom
+  // sigue encuadrando porque el propio <svg> recorta lo que sale de su viewBox.
+  return <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40">{children}</div>;
 }
 
 export function GrafoAside({ children }: { children: ReactNode }) {

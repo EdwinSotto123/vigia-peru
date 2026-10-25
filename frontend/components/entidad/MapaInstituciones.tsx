@@ -125,13 +125,19 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
             {/* instituciones (clickeables → panel), con halo por capas y entrada «brota» */}
             {nodos.map((nd) =>
               nd.ents.map((en, k) => {
-                const anchor = en.cos > 0.25 ? "start" : en.cos < -0.25 ? "end" : "middle";
-                const lx = en.x + (en.r + 7) * Math.cos(en.a) + (anchor === "start" ? 2 : anchor === "end" ? -2 : 0);
-                const ly = en.y + (en.r + 7) * Math.sin(en.a) + (anchor === "middle" ? (Math.sin(en.a) > 0 ? 11 : -5) : 4);
                 const esHover = hover === en.e.ruc;
                 const esSel = sel?.ruc === en.e.ruc;
                 const captura = fuerteEnt(en.e);
                 const r = en.r * (esHover || esSel ? 1.4 : 1);
+                const txt = nd.key === "regional" && en.e.region ? corto(en.e.region, 18) : corto(en.e.nombre, foco ? 22 : 24);
+                const clsTxt = `pointer-events-none ${esHover || esSel ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`;
+                // Overview (7 por rama en un arco corto): etiqueta horizontal con ancla de 3 vías.
+                const anchor = en.cos > 0.25 ? "start" : en.cos < -0.25 ? "end" : "middle";
+                const lx = en.x + (en.r + 7) * Math.cos(en.a) + (anchor === "start" ? 2 : anchor === "end" ? -2 : 0);
+                const ly = en.y + (en.r + 7) * Math.sin(en.a) + (anchor === "middle" ? (Math.sin(en.a) > 0 ? 11 : -5) : 4);
+                // Foco (hasta 24 en anillo completo): etiqueta RADIAL en abanico, auto-volteada a la izquierda.
+                const deg = (en.a * 180) / Math.PI;
+                const flip = en.cos < 0;
                 return (
                   <g key={`n${en.e.ruc}`} className="grafo-brota" style={{ "--i": `${Math.min(k * 20, 340)}ms` } as CSSProperties}>
                     <g
@@ -150,9 +156,17 @@ export function MapaInstituciones({ datos }: { datos: Datos }) {
                         <circle cx={en.x} cy={en.y} r={r + (esHover ? 5 : 4)} className={`pointer-events-none ${captura ? "fill-crimson/20" : "fill-granate/15"}`} />
                       )}
                       <circle cx={en.x} cy={en.y} r={r} className={`grafo-nodo-circulo ${captura ? "fill-crimson/35 stroke-crimson" : "fill-granate/30 stroke-granate"}`} strokeWidth={esHover || esSel ? 2.5 : 1.5} />
-                      <text x={lx} y={ly} textAnchor={anchor} className={`pointer-events-none ${esHover || esSel ? "fill-ink font-semibold" : "fill-inkSoft font-medium"}`} style={{ fontSize: "10.5px" }}>
-                        {nd.key === "regional" && en.e.region ? corto(en.e.region, 18) : corto(en.e.nombre, foco ? 22 : 24)}
-                      </text>
+                      {foco ? (
+                        <g transform={`translate(${en.x} ${en.y}) rotate(${deg})`} className="pointer-events-none">
+                          <text transform={`translate(${r + 6} 0)${flip ? " rotate(180)" : ""}`} y={3.4} textAnchor={flip ? "end" : "start"} className={clsTxt} style={{ fontSize: "10.5px" }}>
+                            {txt}
+                          </text>
+                        </g>
+                      ) : (
+                        <text x={lx} y={ly} textAnchor={anchor} className={clsTxt} style={{ fontSize: "10.5px" }}>
+                          {txt}
+                        </text>
+                      )}
                     </g>
                   </g>
                 );

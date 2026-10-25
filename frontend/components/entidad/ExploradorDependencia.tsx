@@ -154,8 +154,9 @@ export function ExploradorDependencia({ anio, nodos }: { anio: number; nodos: De
                     key={p.nd.key}
                     x={p.x} y={p.y} r={p.r} k={foco.k}
                     tono={tonoDe(p.nd.sector)}
-                    label={mostrarLabel && !dim ? corto(p.label, 22) : undefined}
+                    label={mostrarLabel && !dim ? corto(p.label, p.kind === "sector" ? 30 : 22) : undefined}
                     anchor={anchorDeCos(Math.cos(rad(p.ang)))}
+                    anguloEtiqueta={p.kind === "sector" ? p.ang : undefined}
                     fontSize={p.kind === "sector" ? 9.5 : p.kind === "pliego" ? 8 : 6.5}
                     hovered={hover === p.nd.key}
                     selected={sel?.key === p.nd.key}

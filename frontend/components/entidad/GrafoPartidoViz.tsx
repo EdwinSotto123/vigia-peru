@@ -59,7 +59,8 @@ export function GrafoPartidoViz({ data }: { data: GrafoPartido }) {
 
   const W = 860;
   const top = 108;
-  const band = rows * 34;
+  // 38 px por fila: deja aire entre la etiqueta de la empresa y su segunda línea de detalle, sin amontonarse.
+  const band = rows * 38;
   const H = top + band + 48;
   const xEnt = 300;
   const xEmp = 600;

@@ -52,12 +52,14 @@ export function GrafoPartidoRegiones({ partido, entidades }: { partido: string; 
 
   const depNodos = depVis.map((d, i) => {
     const N = depVis.length;
-    const a = rad(-90 + ((i + 0.5) * 360) / N);
-    return { d, a, cos: Math.cos(a), x: cx + 266 * Math.cos(a), y: cy + 266 * Math.sin(a), r: 10 + 14 * Math.sqrt(d.ents.length / maxDep) };
+    const deg = -90 + ((i + 0.5) * 360) / N;
+    const a = rad(deg);
+    return { d, a, deg, cos: Math.cos(a), x: cx + 266 * Math.cos(a), y: cy + 266 * Math.sin(a), r: 10 + 14 * Math.sqrt(d.ents.length / maxDep) };
   });
   const entNodos = focoEnts.map((e, k) => {
-    const a = rad(-90 + ((k + 0.5) * 360) / Math.max(focoEnts.length, 1));
-    return { e, k, a, cos: Math.cos(a), x: cx + 266 * Math.cos(a), y: cy + 266 * Math.sin(a), r: 8 + 10 * Math.sqrt((e.n_captura ?? 0) / maxCapFoco) };
+    const deg = -90 + ((k + 0.5) * 360) / Math.max(focoEnts.length, 1);
+    const a = rad(deg);
+    return { e, k, a, deg, cos: Math.cos(a), x: cx + 266 * Math.cos(a), y: cy + 266 * Math.sin(a), r: 8 + 10 * Math.sqrt((e.n_captura ?? 0) / maxCapFoco) };
   });
 
   const detE = (hover ? entidades.find((e) => e.entidad_ruc === hover) : null) ?? (sel ? entidades.find((e) => e.entidad_ruc === sel) : null);
@@ -106,6 +108,7 @@ export function GrafoPartidoRegiones({ partido, entidades }: { partido: string; 
                     tono={tonoEnt(nd.e)}
                     label={corto(nd.e.entidad, 22)}
                     anchor={anchorDeCos(nd.cos)}
+                    anguloEtiqueta={nd.deg}
                     fontSize={10.5}
                     hovered={hover === nd.e.entidad_ruc}
                     selected={sel === nd.e.entidad_ruc}
@@ -126,6 +129,7 @@ export function GrafoPartidoRegiones({ partido, entidades }: { partido: string; 
                     tono="granate"
                     label={`${tituloNatural(nd.d.dep)} (${nd.d.ents.length})`}
                     anchor={anchorDeCos(nd.cos)}
+                    anguloEtiqueta={nd.deg}
                     fontSize={11}
                     hovered={hover === nd.d.dep}
                     atenuado={!!hover && hover !== nd.d.dep}

@@ -114,6 +114,7 @@ export function PoderResumenGrafo({ partidos }: { partidos: PoderGrafoPartido[] 
                 tono="granate"
                 label={corto(nd.c.partido, 24)}
                 anchor={anchorDeCos(nd.cos)}
+                anguloEtiqueta={nd.ang}
                 fontSize={11}
                 hovered={hoverP === nd.c.partido}
                 foco={hoverP === nd.c.partido}

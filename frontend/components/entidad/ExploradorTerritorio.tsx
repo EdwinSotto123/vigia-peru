@@ -172,6 +172,7 @@ export function ExploradorTerritorio({ nodos }: { nodos: TerritorioNodo[] }) {
                     tono={tonoDe(p.n)}
                     label={mostrarLabel && !dim ? corto(p.label, 20) : undefined}
                     anchor={anchorDeCos(Math.cos(rad(p.ang)))}
+                    anguloEtiqueta={p.nivel === "regional" ? p.ang : undefined}
                     fontSize={p.nivel === "regional" ? 10 : p.nivel === "provincial" ? 8 : 6.5}
                     hovered={hover === p.n.ruc}
                     selected={sel?.ruc === p.n.ruc}
