@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,8 @@ import time
 import urllib.parse
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+NPX = shutil.which("npx") or shutil.which("npx.cmd") or "npx"  # en Windows es npx.cmd; el subprocess no lo halla solo
 
 RAIZ = Path(__file__).resolve().parents[2]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
@@ -171,12 +174,51 @@ def enriquecer(cur, anio: int, limite: int, pausa: float) -> int:
     return hechos
 
 
+def espejar(con, entorno: str, limite: int, pausa: float) -> int:
+    """Baja de prod6 los requerimientos aún sin espejar (desde la PC, que sí pasa el WAF) y los sube a R2 con wrangler
+    (OAuth del usuario). La API los sirve desde R2 (su Worker no puede bajar de prod6). Marca req_r2=true."""
+    bucket = "vigia-peru-batch-dev" if entorno == "dev" else "vigia-peru-batch"
+    with con.cursor() as cur:
+        cur.execute("""SELECT id_contrato, id_requerimiento FROM seace_menores
+                       WHERE id_requerimiento IS NOT NULL AND req_r2 = false
+                       ORDER BY fecha_suscripcion DESC NULLS LAST LIMIT %s""", (limite,))
+        rows = cur.fetchall()
+    print(f"Espejando {len(rows)} requerimientos a R2 ({bucket})…")
+    api_dir = str(RAIZ / "backend" / "api")
+    hechos = 0
+    for idc, rid in rows:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            tmp = f.name
+        subprocess.run(["curl", "-s", "--max-time", "120", f"{PROD6}/archivo/archivos-publico/descargar-archivo-contrato/{rid}",
+                        "-A", UA, "-H", "Referer: https://prod6.seace.gob.pe/buscador-publico/contrataciones",
+                        "-H", "Origin: https://prod6.seace.gob.pe", "-o", tmp], capture_output=True)
+        time.sleep(pausa)
+        with open(tmp, "rb") as fh:
+            if fh.read(5) != b"%PDF-":
+                print(f"  ! {idc}: prod6 no devolvió PDF (WAF/sin archivo), salto")
+                continue
+        key = f"seace/menores/req/{idc}.pdf"
+        up = subprocess.run([NPX, "wrangler", "r2", "object", "put", f"{bucket}/{key}",
+                             "--file", tmp, "--content-type", "application/pdf", "--remote"],
+                            capture_output=True, cwd=api_dir)  # sin text=True: la salida de wrangler trae emojis/cajas no-cp1252
+        if up.returncode != 0:
+            err = (up.stderr or up.stdout or b"").decode("utf-8", "replace")
+            print(f"  ! wrangler falló para {idc}: {err[-200:]}")
+            continue
+        with con.cursor() as cur:
+            cur.execute("UPDATE seace_menores SET req_r2 = true WHERE id_contrato = %s", (idc,))
+        hechos += 1
+    print(f"  {hechos} requerimientos en R2")
+    return hechos
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Carga contratos menores ≤8 UIT del SEACE (prod4 + prod6).")
     ap.add_argument("--entorno", choices=["dev", "prod"], help="dev = vigia-db-dev, prod = vigia-db")
     ap.add_argument("--anio", type=int, default=datetime.now().year)
     ap.add_argument("--seco", action="store_true", help="sólo baja prod4 y cuenta, no escribe")
     ap.add_argument("--enriquecer", type=int, default=0, help="N CM recientes a enriquecer con el requerimiento de prod6")
+    ap.add_argument("--espejar", type=int, default=0, help="N requerimientos a bajar de prod6 y subir a R2 (wrangler)")
     ap.add_argument("--pausa", type=float, default=1.1, help="segundos entre llamadas a prod6 (WAF)")
     a = ap.parse_args()
     if not a.seco and not a.entorno:
@@ -199,11 +241,14 @@ def main() -> int:
             cur.execute("SELECT count(*) FROM seace_menores WHERE anio=%s", (a.anio,))
             (n,) = cur.fetchone()
         print(f"✓ {BASES[a.entorno]}: {len(filas)} contratos menores {a.anio} cargados (tabla: {n} del año)")
-        # 2) enriquecimiento prod6 en autocommit (cada UPDATE se guarda al toque; un reintento retoma los 'pendiente')
-        if a.enriquecer:
+        # 2) enriquecimiento prod6 + espejado a R2, en autocommit (cada UPDATE se guarda al toque; el reintento retoma)
+        if a.enriquecer or a.espejar:
             con.autocommit = True
-            with con.cursor() as cur:
-                enriquecer(cur, a.anio, a.enriquecer, a.pausa)
+            if a.enriquecer:
+                with con.cursor() as cur:
+                    enriquecer(cur, a.anio, a.enriquecer, a.pausa)
+            if a.espejar:
+                espejar(con, a.entorno, a.espejar, a.pausa)
             con.autocommit = False
         # 3) bitácora de la carga
         with con, con.cursor() as cur:

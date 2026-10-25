@@ -6,6 +6,9 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
 
+// Tipo mínimo del binding R2 (no importamos workers/env.ts para no arrastrar los tipos de Cloudflare al tsconfig de Node).
+type BucketR2 = { get(key: string): Promise<{ body: ReadableStream | null } | null> };
+
 /**
  * Contratos menores (≤8 UIT) del SEACE (tabla seace_menores, migración 129): la fase de contratación directa que NO está
  * en el reporte de órdenes de CONOSCE ni en los datos abiertos OCDS. Une prod4 (el contrato: entidad+RUC, proveedor+RUC,
@@ -30,7 +33,6 @@ const listaAnios = (): number[] => {
 };
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-const PROD6 = "https://prod6.seace.gob.pe/v1/s8uit-services";
 const PROD4_DOC = "https://prod4.seace.gob.pe:9000/api/con/documentos/descargar";
 
 const Lista = z.object({
@@ -74,7 +76,7 @@ menoresRouter.get("/", async (c) => {
                   m.entidad, m.entidad_ruc AS "entidadRuc", m.proveedor, m.proveedor_ruc AS "proveedorRuc",
                   m.monto::float AS monto, m.moneda, m.estado, to_char(m.fecha_suscripcion,'YYYY-MM-DD') AS fecha, m.anio,
                   (m.id_documento_contrato IS NOT NULL) AS "tieneContrato",
-                  (m.id_requerimiento IS NOT NULL) AS "tieneRequerimiento", m.requerimiento_nombre AS "requerimientoNombre",
+                  m.req_r2 AS "tieneRequerimiento", m.requerimiento_nombre AS "requerimientoNombre",
                   m.estado_prod6 AS "estadoProceso", to_char(m.fec_publica,'YYYY-MM-DD') AS "fecPublica",
                   to_char(m.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(m.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta"`;
     const sql = `SELECT ${COLS} FROM seace_menores m WHERE ${conds.join(" AND ")}
@@ -101,15 +103,22 @@ async function proxyPdf(url: string, referer: string, nombre: string, c: Context
   });
 }
 
-// Requerimiento/TDR del proceso (prod6).
+// Requerimiento/TDR del proceso (prod6): se sirve desde R2 (vigia-peru-batch), porque el WAF de prod6 bloquea el egress
+// de Cloudflare y no se puede traer en vivo. Lo espeja a R2 backend/scripts/cargar_seace_menores.py --espejar.
 menoresRouter.get("/:id/requerimiento", async (c) => {
   const id = c.req.param("id");
   if (!/^\d+$/.test(id)) return c.json({ error: "id_invalido" }, 400);
-  const r = await consultaConPlazo("SELECT id_requerimiento, codigo FROM seace_menores WHERE id_contrato=$1", [id]);
-  const row = r.rows[0] as { id_requerimiento: string | null; codigo: string | null } | undefined;
-  if (!row?.id_requerimiento) return c.json({ error: "sin_requerimiento" }, 404);
-  return proxyPdf(`${PROD6}/archivo/archivos-publico/descargar-archivo-contrato/${row.id_requerimiento}`,
-                  "https://prod6.seace.gob.pe/buscador-publico/contrataciones", `requerimiento-${row.codigo ?? id}.pdf`, c);
+  const bucket = (c.env as { DOCUMENTOS?: BucketR2 } | undefined)?.DOCUMENTOS;
+  if (!bucket) return c.json({ error: "sin_r2" }, 404);
+  const obj = await bucket.get(`seace/menores/req/${id}.pdf`);
+  if (!obj) return c.json({ error: "sin_requerimiento" }, 404);
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="requerimiento-${id}.pdf"`,
+      "Cache-Control": "public, max-age=86400, s-maxage=604800",
+    },
+  });
 });
 
 // Contrato u orden ya firmada (prod4).

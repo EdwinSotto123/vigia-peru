@@ -19,6 +19,10 @@
     { "binding": "HYPERDRIVE_ADMIN", "id": "e59e43440e124a26936da5d311a9574f" }
   ],
 
+  // Réplica R2 de documentos (la misma del Worker de scrapers): sirve los requerimientos de contratos menores
+  // espejados desde prod6, cuyo WAF bloquea el egress de Cloudflare (routes/menores.ts).
+  "r2_buckets": [{ "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch" }],
+
   // "Correr el dispatcher ahora" (lib/dispatcher.ts): un Worker no puede llamar por URL pública a otro
   // workers.dev de la misma cuenta (error 1042), así que va por service binding.
   "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }],
@@ -53,6 +57,7 @@
         { "binding": "HYPERDRIVE", "id": "7baa210be4c346a2b74440fbbdb55826" },
         { "binding": "HYPERDRIVE_ADMIN", "id": "b89caaf04e304186b27f9cf4e43ffa2b" }
       ],
+      "r2_buckets": [{ "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }],
       "services": [],
       "ratelimits": [{ "name": "LIMITE_ESCRITURA", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }],
       "vars": {

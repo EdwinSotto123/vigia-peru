@@ -22,6 +22,8 @@ import { InicioEntidad } from "@/components/inicio/InicioEntidad";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
+import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
+import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { GrafoCaptura } from "@/components/entidad/GrafoCaptura";
@@ -102,12 +104,21 @@ export default async function EntidadProfile({
   // "Inicio" es la primera pestaña (sin `seccion` en la URL): la lista de contratos lleva la suya en sus enlaces
   // (paginación, filtros), o volverían a Inicio.
   const parametrosLista: Parametros = { ...parametros, seccion: "contratos" };
+  // Contratos menores (≤8 UIT) de esta entidad: por su RUC, con los filtros «m» propios.
+  const fm = { ...parseMenoresQuery(searchParams), entidad: undefined, proveedor: undefined };
+  const pmMenores: Parametros = { seccion: "menores" };
+  for (const [k, key] of Object.entries(P_MEN)) {
+    if (k === "page") continue;
+    const v = (fm as Record<string, unknown>)[k];
+    if (v != null) pmMenores[key] = String(v);
+  }
+  const menoresP = getMenores({ ...fm, entidad: e.ruc, size: 25 });
 
   return (
     <Pagina>
       <Migas
         items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }])}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", menores: "Menores", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
       />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. */}
@@ -220,6 +231,37 @@ export default async function EntidadProfile({
                   <ZonaResultados>
                     <Suspense fallback={<TablaContratosSkeleton />}>
                       <Resultados pagina={pagina} parametros={parametrosLista} query={query} ruta={ruta} />
+                    </Suspense>
+                  </ZonaResultados>
+                </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "menores",
+            etiqueta: "Menores",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Qué son los contratos menores?">
+                      <span className="block">
+                        Compras de esta entidad por montos pequeños (hasta 8 UIT, unos S/ 42,800). Por ley se contratan de
+                        forma directa, sin concurso; aquí sí suele publicarse el requerimiento (las especificaciones) y una
+                        ventana de cotización (SEACE). El módulo es facultativo, así que no están todas.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  Sus contratos menores (≤8 UIT), con el proveedor que ganó y el requerimiento descargable.
+                </CabeceraPestana>
+                <Listado ruta={ruta} parametros={pmMenores} paramPagina={P_MEN.page}>
+                  <Suspense fallback={<div className="min-h-[52px]" />}>
+                    <BarraMenoresGeneral pagina={menoresP} />
+                  </Suspense>
+                  <ZonaResultados>
+                    <Suspense fallback={<TablaContratosSkeleton />}>
+                      <ListaMenores pagina={menoresP} ruta={ruta} parametros={pmMenores} actual={fm.page ?? 1} />
                     </Suspense>
                   </ZonaResultados>
                 </Listado>

@@ -15,6 +15,8 @@ import { AntecedentesEmpresa, BarraContratos, BarraContratosConConteos, BarraOrd
 import { fecha, fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { OBJETOS, OBJETO_TEXTO, esRucEmpresa, getAntecedentesEmpresa, getClientesEmpresa, getContratosEmpresa, getFichaEmpresa, getOrdenesEmpresa, getPostulacionesEmpresa, getSociosEmpresa, getVisitasEmpresa, rutaEmpresa, type FichaEmpresa } from "@/lib/empresas";
+import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
+import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
@@ -89,17 +91,22 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     for (const k of Object.keys(P) as K[]) if (k !== ("page" as K) && f[k] != null) out[P[k]] = String(f[k]);
     return out;
   };
+  // Contratos menores (≤8 UIT) que ganó: se filtran por su RUC de proveedor (no por URL), con los filtros «m» propios.
+  const fm = { ...parseMenoresQuery(sp), entidad: undefined, proveedor: undefined };
   const pc = conservar("contratos", P_CONTRATOS, fc);
   const po = conservar("ordenes", P_ORDENES, fo);
   const pp = conservar("postulaciones", P_POSTULACIONES, fp);
   const pa = conservar("antecedentes", P_ANTECEDENTES, fa);
+  const pm = conservar("menores", P_MEN, fm as Partial<Record<keyof typeof P_MEN, string | number | undefined>>);
   const algo = (p: Parametros, pag: number) => Object.keys(p).length > 1 || pag > 1;
   const seccion =
     uno(sp?.seccion) ??
-    (algo(pc, fc.page) ? "contratos" : algo(po, fo.page) ? "ordenes" : algo(pp, fp.page) ? "postulaciones" : algo(pa, 1) ? "antecedentes" : undefined);
+    (algo(pc, fc.page) ? "contratos" : algo(po, fo.page) ? "ordenes" : algo(pp, fp.page) ? "postulaciones"
+      : algo(pm, fm.page ?? 1) ? "menores" : algo(pa, 1) ? "antecedentes" : undefined);
 
   const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
   const ordenesP = getOrdenesEmpresa(e.ruc, { ...fo, size: TAM });
+  const menoresP = getMenores({ ...fm, proveedor: e.ruc, size: TAM });
   const postulacionesP = getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM });
   const clientesP = getClientesEmpresa(e.ruc);
   const antecedentesP = getAntecedentesEmpresa(e.ruc);
@@ -121,7 +128,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         pestanas={{
           primera: "inicio",
           activa: seccion ?? "inicio",
-          etiquetas: { contratos: "Contratos", ordenes: "Órdenes", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", socios: "Socios", visitas: "Visitas" },
+          etiquetas: { contratos: "Contratos", ordenes: "Órdenes", menores: "Menores", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", socios: "Socios", visitas: "Visitas" },
         }}
       />
       <EncabezadoPagina
@@ -226,6 +233,25 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                   <ZonaResultados>
                     <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Orden", ancho: "1fr" }]} filas={8} />}>
                       <OrdenesEmpresa pagina={ordenesP} ruta={ruta} parametros={po} actual={fo.page} />
+                    </Suspense>
+                  </ZonaResultados>
+                </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "menores",
+            etiqueta: "Menores",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana>Los contratos menores (≤8 UIT) que ganó, con su requerimiento descargable, del más reciente al más antiguo. <AyudaTermino clave="contrato-menor" /></CabeceraPestana>
+                <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page}>
+                  <Suspense fallback={<div className="min-h-[52px]" />}>
+                    <BarraMenoresGeneral pagina={menoresP} />
+                  </Suspense>
+                  <ZonaResultados>
+                    <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
+                      <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
                     </Suspense>
                   </ZonaResultados>
                 </Listado>

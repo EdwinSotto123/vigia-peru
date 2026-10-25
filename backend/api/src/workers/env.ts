@@ -9,6 +9,9 @@ export interface Env {
   HYPERDRIVE: Hyperdrive;
   /** Postgres como vigia_api_admin (panel y tareas programadas; 120 s por sentencia en el rol). */
   HYPERDRIVE_ADMIN: Hyperdrive;
+  /** Réplica R2 de documentos (vigia-peru-batch): sirve los requerimientos de contratos menores espejados desde prod6
+   * (su WAF bloquea el egress de Cloudflare, así que no se pueden traer en vivo). Lo llena backend/scripts/cargar_seace_menores.py. */
+  DOCUMENTOS?: R2Bucket;
 
   // vars
   FIREBASE_PROJECT_ID?: string;
