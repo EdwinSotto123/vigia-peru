@@ -110,6 +110,13 @@ export interface FichaEmpresa {
     vinculadas: number;
     visitasClientes: number;
     actualizado: string | null;
+    // Ficha reducida: empresa jurídica que SOLO aparece en contratos menores (no está en empresa_resumen).
+    soloMenores?: boolean;
+    condicionSunat?: string | null;
+    distrito?: string | null;
+    menores?: number;
+    menoresEntidades?: number;
+    menoresMonto?: number;
   };
   antecedentes: AntecedentePorTipo[];
   anual: AnioEmpresa[];

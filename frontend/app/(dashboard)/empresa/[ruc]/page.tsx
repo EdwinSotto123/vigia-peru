@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
-import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type DatoClave } from "@/components/patrones";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
@@ -12,7 +12,7 @@ import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana } from "@/components/empresas/InicioEmpresa";
 import { AntecedentesEmpresa, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
-import { fecha, fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { OBJETOS, OBJETO_TEXTO, esRucEmpresa, getAntecedentesEmpresa, getClientesEmpresa, getContratosEmpresa, getFichaEmpresa, getOrdenesEmpresa, getPostulacionesEmpresa, getSociosEmpresa, getVisitasEmpresa, rutaEmpresa, type FichaEmpresa } from "@/lib/empresas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
@@ -54,6 +54,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const f = await getFichaEmpresa(params.ruc);
   if (!f) return <NoSePudoLeer ruc={params.ruc} />;
   const e = f.empresa;
+  if (e.soloMenores) return <FichaSoloMenores ruc={params.ruc} e={e} sp={sp} />;
   const ruta = rutaEmpresa(e.ruc);
   const desde = leerDesde(sp);
 
@@ -455,5 +456,58 @@ function NoSePudoLeer({ ruc }: { ruc: string }) {
       Puede que no le haya vendido al Estado desde 2018, que no haya postulado a ningún proceso, o que el servidor no
       respondiera. No mostramos nada en su lugar.
     </FichaNoLeida>
+  );
+}
+
+// Ficha REDUCIDA: empresa jurídica que solo aparece en contratos menores (no está en empresa_resumen). Muestra su
+// identidad SUNAT y sus menores; las demás secciones no existen para ella.
+async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["empresa"]; sp?: Record<string, string | string[] | undefined> }) {
+  const ruta = rutaEmpresa(ruc);
+  const desde = leerDesde(sp);
+  const nombre = tituloNatural(e.nombre ?? `RUC ${ruc}`);
+  const fm = { ...parseMenoresQuery(sp), entidad: undefined, proveedor: undefined };
+  const pm: Parametros = {};
+  for (const [k, key] of Object.entries(P_MEN)) {
+    if (k === "page") continue;
+    const v = (fm as Record<string, unknown>)[k];
+    if (v != null) pm[key] = String(v);
+  }
+  const menoresP = getMenores({ ...fm, proveedor: ruc, size: 25 });
+  const noActivo = e.estadoSunat && e.estadoSunat !== "ACTIVO";
+  const items: (DatoClave | null)[] = [
+    { etiqueta: "RUC", valor: ruc, mono: true },
+    e.estadoSunat ? { etiqueta: "Estado en SUNAT", valor: oracion(e.estadoSunat) } : null,
+    e.condicionSunat && e.condicionSunat !== "HABIDO" ? { etiqueta: "Condición", valor: oracion(e.condicionSunat) } : null,
+    e.actividad ? { etiqueta: "Giro", valor: oracion(e.actividad) } : null,
+    e.departamento ? { etiqueta: "Departamento", valor: tituloNatural(e.departamento) } : null,
+    e.fechaAlta ? { etiqueta: "Activa desde", valor: fechaCorta(e.fechaAlta), mono: true } : null,
+    { etiqueta: "Contratos menores", valor: `${numero(e.menores ?? 0)} en ${numero(e.menoresEntidades ?? 0)} entidades` },
+    e.menoresMonto != null ? { etiqueta: "Monto en menores", valor: soles(e.menoresMonto), mono: true } : null,
+  ];
+  return (
+    <Pagina className="space-y-5">
+      <Migas items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Empresas", href: "/app/empresas" }, { etiqueta: nombre, href: ruta }])} />
+      <EncabezadoPagina
+        titulo={nombre}
+        bajada="Esta empresa solo figura en contratos menores (≤8 UIT); no tiene otra actividad registrada con el Estado en la base de Vigía."
+        ayuda={
+          <Ayuda titulo="¿Por qué una ficha reducida?">
+            <span className="block">Solo aparece ganando compras menores, que no pasan por un proceso de selección. Mostramos su identidad (SUNAT) y sus menores, sin las demás secciones.</span>
+          </Ayuda>
+        }
+      />
+      {noActivo && <Aviso tono="neutro">En SUNAT figura con estado {oracion(e.estadoSunat as string)}. Es un indicio para revisión humana, no una acusación.</Aviso>}
+      <DatosClave items={items.filter(Boolean) as DatoClave[]} />
+      <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page}>
+        <Suspense fallback={<div className="min-h-[52px]" />}>
+          <BarraMenoresGeneral pagina={menoresP} />
+        </Suspense>
+        <ZonaResultados>
+          <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
+            <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
+          </Suspense>
+        </ZonaResultados>
+      </Listado>
+    </Pagina>
   );
 }

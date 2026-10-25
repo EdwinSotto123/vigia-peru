@@ -164,6 +164,37 @@ empresasRouter.get("/", async (c) => {
 
 const conNombre = <T extends { nombre?: string | null }>(f: T): T => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre });
 
+/**
+ * Ficha MÍNIMA para una empresa jurídica (RUC-20) que NO está en empresa_resumen pero sí ganó contratos menores:
+ * `empresa_resumen` se reconstruye entero desde contratos/órdenes, así que estos proveedores «solo-menores» no caben.
+ * Se arma al vuelo desde seace_proveedor_sunat (identidad SUNAT) + seace_menores (sus menores). `soloMenores: true` le
+ * dice al frontend que renderice la ficha reducida (identidad + sus menores). RUC-10 (persona) NO: sale como persona.
+ */
+async function fichaMenoresOnly(ruc: string) {
+  if (!ruc.startsWith("20")) return null;
+  const r = await pool.query<{
+    razon_social: string | null; estado: string | null; condicion: string | null; actividad_ciiu: string | null;
+    departamento: string | null; distrito: string | null; fecha_inicio: string | null;
+    menores: number; entidades: number; monto: number;
+  }>(
+    `SELECT sp.razon_social, sp.estado, sp.condicion, sp.actividad_ciiu, sp.departamento, sp.distrito,
+            to_char(sp.fecha_inicio_actividades,'YYYY-MM-DD') AS fecha_inicio,
+            (SELECT count(*) FROM seace_menores m WHERE m.proveedor_ruc = sp.ruc)::int AS menores,
+            (SELECT count(DISTINCT m.entidad_ruc) FROM seace_menores m WHERE m.proveedor_ruc = sp.ruc)::int AS entidades,
+            (SELECT COALESCE(sum(m.monto),0) FROM seace_menores m WHERE m.proveedor_ruc = sp.ruc)::float AS monto
+       FROM seace_proveedor_sunat sp WHERE sp.ruc = $1`, [ruc]);
+  const s = r.rows[0];
+  if (!s || !s.menores) return null;
+  return publicar({
+    empresa: {
+      soloMenores: true, ruc, nombre: s.razon_social, estadoSunat: s.estado, condicionSunat: s.condicion,
+      actividad: s.actividad_ciiu, departamento: s.departamento, distrito: s.distrito, fechaAlta: s.fecha_inicio,
+      menores: s.menores, menoresEntidades: s.entidades, menoresMonto: s.monto,
+    },
+    antecedentes: [], anual: [],
+  });
+}
+
 // ─── GET /empresas/:ruc ─────────────────────────────────────────────────────────────────────────
 empresasRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
@@ -210,7 +241,7 @@ empresasRouter.get("/:ruc", async (c) => {
            FROM ad FULL JOIN o ON o.anio = ad.anio ORDER BY 1`, [ruc]),
     ]);
     const fila = e.rows[0];
-    if (!fila) return null;
+    if (!fila) return fichaMenoresOnly(ruc);
     // Sus antecedentes por tipo: qué registro la nombra, cuántas veces y con qué gravedad (sin puntos ni puntaje).
     const antecedentes = ((fila.cruces as { tipo: string; severidad: string; n: number }[] | null) ?? [])
       .map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo }));
