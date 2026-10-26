@@ -13,6 +13,7 @@
 
 import type { GobiernoContrato } from "@/lib/contratos";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { CuentaGrupo } from "@/components/listado";
@@ -56,6 +57,9 @@ const FUENTE: Record<string, string> = {
   conosce_contratos: "Contratos de CONOSCE",
   conosce_ordenes: "Órdenes de compra y de servicio de CONOSCE",
   precio_item: "Ítems del OCDS (OECE) y CONOSCE",
+  sunat: "Consulta RUC de la SUNAT",
+  oece_ocds: "Contrataciones Abiertas del OECE",
+  persona_entidad: "Órdenes de servicio de CONOSCE",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -67,6 +71,19 @@ const rango = (a: unknown, b: unknown) => {
   const f = (s: string | null) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? fechaCorta(s) : s);
   return x === y || !y ? f(x) : `${f(x) ?? "?"} – ${f(y)}`;
 };
+/** Otra empresa del cruce, con enlace a su ficha (RUC 20); una persona natural (RUC 10), sin nombre ni código. */
+function OtraEmpresa({ ruc, nombre, conRuc = false }: { ruc: string; nombre: string | null; conRuc?: boolean }) {
+  if (!ruc.startsWith("20")) return <>una persona natural</>;
+  return (
+    <>
+      <Link href={`/empresa/${ruc}`} className="font-semibold text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
+        {nombre ? tituloNatural(nombre) : `RUC ${ruc}`}
+      </Link>
+      {conRuc && nombre ? <span className="font-mono text-rotulo"> (RUC {ruc})</span> : null}
+    </>
+  );
+}
+
 /** La empresa ganadora de la que habla el cruce, en negrita. */
 function Emp({ c }: { c: CruceProveedor }) {
   const emp = c.proveedor ? <b>{c.proveedor}</b> : <>la empresa ganadora</>;
@@ -140,7 +157,7 @@ const POR_QUE: Record<string, string> = {
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
-  domicilio_compartido: "Dos postores que comparten la dirección fiscal pueden ser la misma mano detrás de las dos: la competencia sería solo aparente. No prueba vínculo por sí solo —puede ser un centro de oficinas—, por eso se excluyen las direcciones con muchas empresas.",
+  domicilio_compartido: "Dos empresas con la misma dirección fiscal que se presentan al mismo proceso pueden ser la misma mano detrás de las dos: la competencia sería solo aparente. No prueba un vínculo por sí solo (puede ser un estudio contable o un edificio de oficinas); por eso no cuentan las direcciones con más de 5 empresas.",
   proveedor_cautivo: "Una empresa que vive casi por completo de una sola entidad es muy dependiente de ella: vale ver si se creó para servirla o si hay una relación demasiado estrecha. No es una irregularidad por sí misma.",
   recien_fundada: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_medio_ano: RECIEN_FUNDADA_POR_QUE,
@@ -279,7 +296,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {otros.map((o, i) => (
             <span key={o.ruc}>
               {i > 0 && ", "}
-              {o.nombre ? <b>{o.nombre}</b> : null} <span className="font-mono text-rotulo">(RUC {o.ruc})</span>
+              <OtraEmpresa ruc={o.ruc} nombre={o.nombre} conRuc />
             </span>
           ))}
           .<Gano c={c} />
@@ -391,9 +408,12 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
     case "otro_postor": {
       const pct = n(d.porcentaje);
       const original = txt(d.proveedor_original);
+      const rucOriginal = txt(d.ruc_original);
       return (
         <>
-          La buena pro fue primero para {original ? <b>{original}</b> : "otro postor"} por <b>{solesCompacto(n(d.monto_original))}</b>; se
+          La buena pro fue primero para{" "}
+          {rucOriginal ? <OtraEmpresa ruc={rucOriginal} nombre={original} /> : original ? <b>{original}</b> : "otro postor"} por{" "}
+          <b>{solesCompacto(n(d.monto_original))}</b>; se
           adjudicó después a <Emp c={c} /> por <b>{solesCompacto(n(d.monto_contratado))}</b>
           {pct != null && pct !== 0 && (
             <>
@@ -456,11 +476,42 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
     }
     case "domicilio_compartido": {
       const nEmp = n(d.empresas_en_domicilio);
-      const otros = n(d.otros_postores) ?? 1;
+      const dir = txt(d.domicilio);
+      const juntas = n(d.procesos_juntas);
+      // Migración 141: los otros participantes con nombre, y si presentaron oferta (CONOSCE) o sólo se registraron.
+      const postores = (Array.isArray(d.postores) ? (d.postores as { ruc?: unknown; nombre?: unknown; oferta?: unknown }[]) : [])
+        .filter((o) => typeof o.ruc === "string")
+        .map((o) => ({ ruc: o.ruc as string, nombre: txt(o.nombre), oferta: typeof o.oferta === "boolean" ? o.oferta : null }));
+      if (!postores.length) {
+        const otros = n(d.otros_postores) ?? 1;
+        return (
+          <>
+            <Emp c={c} /> comparte su <b>domicilio fiscal en la SUNAT</b> con {otros === 1 ? "otro participante" : <><b>{numero(otros)}</b> participantes</>} de este proceso
+            {nEmp ? <> (en esa dirección hay <b>{numero(nEmp)}</b> empresas)</> : ""}: la competencia pudo ser solo aparente.
+          </>
+        );
+      }
+      const compitieron = postores.some((o) => o.oferta === true);
+      const ninguna = postores.every((o) => o.oferta === false);
       return (
         <>
-          <Emp c={c} /> comparte su <b>domicilio fiscal en la SUNAT</b> con {otros === 1 ? "otro postor" : <><b>{numero(otros)}</b> postores</>} de este proceso
-          {nEmp ? <> (en esa dirección hay <b>{numero(nEmp)}</b> empresas)</> : ""}: la competencia pudo ser solo aparente.
+          <Emp c={c} /> declara en la SUNAT el <b>mismo domicilio fiscal</b>
+          {dir ? <> ({tituloNatural(dir)})</> : ""} que{" "}
+          {postores.map((o, i) => (
+            <span key={o.ruc}>
+              {i > 0 && (i === postores.length - 1 ? " y " : ", ")}
+              <OtraEmpresa ruc={o.ruc} nombre={o.nombre} />
+              {o.oferta === true ? " (también presentó oferta)" : o.oferta === false ? " (se registró, pero no presentó oferta)" : ""}
+            </span>
+          ))}
+          , {postores.length === 1 ? "otra empresa que participó" : "otras empresas que participaron"} en este proceso.
+          {nEmp ? <> En esa dirección hay <b>{numero(nEmp)}</b> empresas en total.</> : ""}
+          {juntas ? <> Ya se habían presentado juntas a <b>{numero(juntas)}</b> {juntas === 1 ? "proceso" : "procesos"} más.</> : ""}{" "}
+          {compitieron
+            ? "Compitieron entre ellas: la competencia pudo ser solo aparente."
+            : ninguna
+              ? "No compitió en la oferta, pero dos empresas de la misma dirección registradas en el mismo proceso vale mirarlo."
+              : "Si las dos ofertaron, la competencia pudo ser solo aparente."}
         </>
       );
     }

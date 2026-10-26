@@ -325,6 +325,154 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
   return ev;
 }
 
+const SUNAT_RUC = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp";
+type EmpresaRef = { ruc: string; nombre: string | null };
+const refs = (v: unknown): EmpresaRef[] =>
+  Array.isArray(v) ? v.filter((x): x is EmpresaRef => !!x && typeof x === "object" && typeof (x as EmpresaRef).ruc === "string") : [];
+/** La empresa como enlace a su ficha; una persona natural (RUC 10), en texto, sin nombre ni enlace (lib/privacidad.ts). */
+const empresaEnlace = (e: EmpresaRef) =>
+  e.ruc.startsWith("20") ? { texto: e.nombre ?? `RUC ${e.ruc}`, url: `/empresa/${e.ruc}` } : "Una persona natural";
+const estadoSunat = (x: Record<string, any> | undefined) =>
+  x ? [x.estado_sunat, x.condicion].filter(Boolean).map((s: string) => s.charAt(0) + s.slice(1).toLowerCase()).join(", ") || null : null;
+
+const MESES = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
+/** "2026-07-16" → "16 jul. 2026", como las fechas de la web. */
+const fechaTexto = (iso: string) => {
+  const [a, m, d] = iso.split("-");
+  return `${Number(d)} ${MESES[Number(m) - 1] ?? m} ${a}`;
+};
+
+/** Quién presentó oferta en el proceso, según CONOSCE: null si CONOSCE no trae el proceso (no es «nadie»). */
+export async function ofertasDe(codigo: string | null): Promise<Map<string, string | null> | null> {
+  if (!codigo) return null;
+  const r = await filas(`SELECT ruc_postor AS ruc, min(fecha_propuesta) AS fecha FROM conosce_postores WHERE codigo_convocatoria = $1 GROUP BY 1`, [codigo]);
+  return r.length ? new Map(r.map((x) => [String(x.ruc), fecha(x.fecha)])) : null;
+}
+/** Qué hizo una empresa en este proceso: ganó, ofertó, sólo se registró o no participó. */
+const enElProceso = (ruc: string, ganador: string, registrados: Set<string>, ofertas: Map<string, string | null> | null) => {
+  if (ruc === ganador) return "Ganó la buena pro";
+  if (!registrados.has(ruc)) return "No participó";
+  if (!ofertas) return "Se registró como participante";
+  return ofertas.has(ruc) ? `Presentó oferta${ofertas.get(ruc) ? ` el ${fechaTexto(ofertas.get(ruc)!)}` : ""}` : "Se registró, sin presentar oferta";
+};
+
+/**
+ * Mismo domicilio fiscal que otro participante (migración 141): las empresas de esa dirección en la SUNAT, cuál se
+ * registró en este proceso y si presentó oferta (CONOSCE). Sólo RUC 20: la dirección de una empresa es pública (va en su
+ * ficha); nunca la de una persona natural (el cruce ni la guarda).
+ */
+async function domicilio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | null> {
+  const empresas = refs(f.detalle?.empresas);
+  if (!empresas.length) return null;
+  const registrados = new Set(refs(f.detalle?.postores).map((x) => x.ruc));
+  const [sunat, ofertas] = await Promise.all([
+    filas(`SELECT ruc, estado_sunat, metadata->>'condicion' AS condicion, fecha_alta_ruc FROM empresas WHERE ruc = ANY($1::text[])`, [empresas.map((e) => e.ruc)]),
+    ofertasDe(p.codigo),
+  ]);
+  const porRuc = new Map(sunat.map((x) => [String(x.ruc), x]));
+  const dir = typeof f.detalle?.domicilio === "string" ? f.detalle.domicilio : null;
+  return {
+    titulo: dir ? `Las empresas con domicilio fiscal en ${dir}` : "Las empresas con ese domicilio fiscal",
+    columnas: [
+      { clave: "empresa", titulo: "Empresa", tipo: "enlace" },
+      { clave: "ruc", titulo: "RUC" },
+      { clave: "proceso", titulo: "En este proceso" },
+      { clave: "estado", titulo: "En la SUNAT" },
+      { clave: "alta", titulo: "Inscrita", tipo: "fecha" },
+    ],
+    filas: empresas.map((e) => ({
+      empresa: empresaEnlace(e), ruc: e.ruc,
+      proceso: enElProceso(e.ruc, f.ruc_empresa, registrados, ofertas),
+      estado: estadoSunat(porRuc.get(e.ruc)), alta: fecha(porRuc.get(e.ruc)?.fecha_alta_ruc),
+    })),
+    verificar: `En la Consulta RUC de la SUNAT, busca cada RUC: todas declaran ese domicilio fiscal. Compartir dirección no prueba un vínculo (puede ser un estudio contable o un edificio de oficinas); por eso no cuentan las direcciones con más de 5 empresas.`,
+    enlace: { texto: "Consulta RUC de la SUNAT", url: SUNAT_RUC },
+  };
+}
+
+/** Recién fundada: la empresa en la SUNAT (alta, estado, actividad) y su ficha, donde están sus socios y representantes. */
+async function fundacion(f: FilaCruce): Promise<Evidencia | null> {
+  if (!f.ruc_empresa.startsWith("20")) return null;
+  const r = await filas(
+    `SELECT e.razon_social, e.fecha_alta_ruc, e.estado_sunat, e.metadata->>'condicion' AS condicion, e.actividad_economica,
+            (SELECT count(DISTINCT j.numero_documento) FROM rnp_conformacion_juridica j WHERE j.ruc_empresa = e.ruc) AS personas
+       FROM empresas e WHERE e.ruc = $1`, [f.ruc_empresa]);
+  if (!r.length) return null;
+  const x = r[0];
+  return {
+    titulo: "La empresa en la SUNAT",
+    columnas: [
+      { clave: "alta", titulo: "Inscrita", tipo: "fecha" },
+      { clave: "estado", titulo: "Estado" },
+      { clave: "actividad", titulo: "Actividad declarada" },
+      { clave: "quien", titulo: "Quién está detrás", tipo: "enlace" },
+    ],
+    filas: [{
+      alta: fecha(x.fecha_alta_ruc), estado: estadoSunat(x), actividad: x.actividad_economica ?? null,
+      quien: {
+        texto: Number(x.personas) === 1 ? "1 persona (socio o representante) en su ficha"
+          : Number(x.personas) > 1 ? `${Number(x.personas)} personas (socios y representantes) en su ficha` : "Su ficha en Vigía",
+        url: `/empresa/${f.ruc_empresa}?seccion=gente`,
+      },
+    }],
+    verificar: `En la Consulta RUC de la SUNAT (RUC ${f.ruc_empresa}): fecha de inscripción y estado. Sus socios y representantes están en el RNP (OECE).`,
+    enlace: { texto: "Consulta RUC de la SUNAT", url: SUNAT_RUC },
+  };
+}
+
+/** Proveedor cautivo: a qué entidades les vende y cuánto de lo suyo sale de cada una (CONOSCE). */
+async function clientes(f: FilaCruce): Promise<Evidencia | null> {
+  const r = await filas(
+    `SELECT a.entidad_ruc, max(a.entidad) AS entidad, count(DISTINCT a.codigo_convocatoria) AS procesos,
+            sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')) AS monto,
+            sum(sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))) OVER () AS total,
+            count(*) OVER () AS n
+       FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1 AND a.entidad_ruc IS NOT NULL
+      GROUP BY a.entidad_ruc ORDER BY monto DESC NULLS LAST LIMIT 25`, [f.ruc_empresa]);
+  return {
+    titulo: "A quién le vende",
+    columnas: [
+      { clave: "entidad", titulo: "Entidad", tipo: "enlace" },
+      { clave: "procesos", titulo: "Procesos" },
+      { clave: "monto", titulo: "Le adjudicó", tipo: "soles" },
+      { clave: "parte", titulo: "Parte de lo que vende", tipo: "pct" },
+    ],
+    filas: r.map((x) => ({
+      entidad: { texto: x.entidad ?? `RUC ${x.entidad_ruc}`, url: `/entidad/${x.entidad_ruc}` }, procesos: Number(x.procesos), monto: num(x.monto),
+      parte: Number(x.total) > 0 && x.monto != null ? (100 * Number(x.monto)) / Number(x.total) : null,
+    })),
+    total: r.length ? Number(r[0].n) : 0,
+    verificar: "Suma de lo adjudicado por entidad en CONOSCE (OECE), desde 2018.",
+    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
+  };
+}
+
+/** Socio común: las otras empresas de este proceso donde figura la misma persona, con su ficha y si ofertaron. */
+async function socioComun(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | null> {
+  const otros = (Array.isArray(f.detalle?.otros_postores) ? (f.detalle!.otros_postores as unknown[]) : []).filter((x): x is string => typeof x === "string");
+  if (!otros.length) return null;
+  const [nombres, ofertas] = await Promise.all([
+    filas(`SELECT ruc, razon_social AS nombre FROM empresas WHERE ruc = ANY($1::text[])`, [otros]),
+    ofertasDe(p.codigo),
+  ]);
+  const nombre = new Map(nombres.map((x) => [String(x.ruc), x.nombre as string | null]));
+  const registrados = new Set(otros);
+  return {
+    titulo: "Las otras empresas del proceso con esa persona",
+    columnas: [
+      { clave: "empresa", titulo: "Empresa", tipo: "enlace" },
+      { clave: "ruc", titulo: "RUC" },
+      { clave: "proceso", titulo: "En este proceso" },
+    ],
+    filas: otros.map((ruc) => ({
+      empresa: empresaEnlace({ ruc, nombre: nombre.get(ruc) ?? null }), ruc: ruc.startsWith("20") ? ruc : null,
+      proceso: enElProceso(ruc, f.ruc_empresa, registrados, ofertas),
+    })),
+    verificar: "En el RNP (OECE), la conformación jurídica de cada empresa: la misma persona figura como socio, titular o representante.",
+    enlace: { texto: "Buscador de proveedores del RNP", url: "https://apps.osce.gob.pe/perfilprov-ui/" },
+  };
+}
+
 /** La evidencia de cada fila (mismo orden), [] donde no hay nada que agregar a lo que el cruce ya trae. */
 export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<Evidencia[][]> {
   return Promise.all(rows.map(async (f): Promise<Evidencia[]> => {
@@ -343,10 +491,25 @@ export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<
         break;
       }
       case "penalidad": ev.push(await penalidades(f)); break;
+      // Las bandas de la migración 121 (sanción, recurrente, sobreprecio) con la evidencia de su tipo base: no entraban
+      // al switch y su tabla desaparecía.
       case "sancion":
-      case "sancion_vigente": ev.push(await sanciones(f)); break;
-      case "recurrente": ev.push(await recurrente(f, p)); break;
-      case "sobreprecio": ev.push(...(await sobreprecio(f, p))); break;
+      case "sancion_vigente":
+      case "sancion_definitiva":
+      case "sancion_temporal":
+      case "sancion_multa": ev.push(await sanciones(f)); break;
+      case "recurrente":
+      case "recurrente_frecuente":
+      case "recurrente_dominante": ev.push(await recurrente(f, p)); break;
+      case "sobreprecio":
+      case "sobreprecio_alto":
+      case "sobreprecio_extremo": ev.push(...(await sobreprecio(f, p))); break;
+      case "domicilio_compartido": ev.push(await domicilio(f, p)); break;
+      case "socio_comun": ev.push(await socioComun(f, p)); break;
+      case "proveedor_cautivo": ev.push(await clientes(f)); break;
+      case "recien_fundada_medio_ano":
+      case "recien_fundada_un_ano":
+      case "recien_fundada_dos_anos": ev.push(await fundacion(f)); break;
       default: break;
     }
     return ev.filter((e): e is Evidencia => !!e && e.filas.length > 0);

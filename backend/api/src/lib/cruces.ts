@@ -12,7 +12,7 @@
  */
 
 import { pool } from "./db.js";
-import { evidenciasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
+import { evidenciasDe, ofertasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
   aporte: "Aportó a una organización política",
@@ -236,6 +236,18 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
        FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE ocid_corto(c.ocid) = ocid_corto($1) LIMIT 1`, [ocid]).catch(() => null);
   const proceso: ProcesoCruce = proc?.rows[0] ?? { ocid, codigo: null, entidadRuc: null, ubigeo: null, fecha: null };
   const evidencias = crudas.length ? await evidenciasDe(crudas as FilaCruce[], proceso) : [];
+  // Mismo domicilio (migración 141): cada otro participante con `oferta` (true/false; null si CONOSCE no trae el
+  // proceso). Los del OCDS sólo se registraron; CONOSCE dice quién ofertó: «compitieron» no es lo mismo.
+  if (cruces.some((c) => c.tipo === "domicilio_compartido" && Array.isArray(c.detalle.postores))) {
+    const ofertas = await ofertasDe(proceso.codigo);
+    for (const c of cruces) {
+      if (c.tipo !== "domicilio_compartido" || !Array.isArray(c.detalle.postores)) continue;
+      c.detalle = {
+        ...c.detalle,
+        postores: (c.detalle.postores as { ruc?: unknown }[]).map((o) => ({ ...o, oferta: ofertas ? ofertas.has(String(o.ruc)) : null })),
+      };
+    }
+  }
   const nombres = new Map<string, string>();
   if (otros.length) {
     const n = await pool.query(
