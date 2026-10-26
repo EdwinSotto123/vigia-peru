@@ -108,17 +108,26 @@ export function Pestanas({
     window.dispatchEvent(new CustomEvent(EVENTO_ACTIVA, { detail: { param, clave } }));
   };
 
-  // Un enlace de la página a una pestaña (`?seccion=contratos&…`, una cifra de arriba) cuando el servidor ya tenía esa
-  // misma: el `key` de la página no cambia y la barra no se vuelve a montar, pero la URL dice cuál mostrar. Sólo una
-  // clave explícita y válida: sin el parámetro no se mueve (hay listas cuyos enlaces no lo llevan).
+  // Un enlace de esta misma página a una pestaña (`?seccion=contratos&…`, una cifra de arriba) cuando el servidor ya
+  // tenía esa: el `key` de la página no cambia y Next reusa el árbol que ya tiene, así que la barra ni se entera. Se
+  // abre al hacer clic (en captura: antes de que el enlace de Next lo cancele). Sólo una clave explícita y válida.
   useEffect(() => {
-    let pedida: string | null = null;
-    try {
-      pedida = new URL(window.location.href).searchParams.get(param);
-    } catch {
-      return;
-    }
-    if (pedida && pedida !== actual && pestanas.some((p) => p.clave === pedida)) elegir(pedida);
+    const alClic = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || (a.target && a.target !== "_self")) return;
+      let url: URL;
+      try {
+        url = new URL(a.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
+      const pedida = url.searchParams.get(param);
+      if (pedida && pedida !== actual && pestanas.some((p) => p.clave === pedida)) elegir(pedida);
+    };
+    document.addEventListener("click", alClic, true);
+    return () => document.removeEventListener("click", alClic, true);
   });
 
   // `irAPestana()` desde cualquier botón de la página.
