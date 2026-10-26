@@ -17,11 +17,11 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260926.1",
+    "@cloudflare/workers-types": "^5.20261023.1",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.23.1",
     "@types/pg-copy-streams": "^1.2.5",
     "typescript": "^5.9.3",
-    "wrangler": "4.151.0"
+    "wrangler": "4.152.0"
   }
 }

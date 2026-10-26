@@ -14,19 +14,19 @@
     "build:worker": "npx wrangler deploy --dry-run --outdir .wrangler-dist"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.14.0",
-    "@hono/node-server": "^1.13.7",
+    "@google-cloud/storage": "^7.22.0",
+    "@hono/node-server": "^1.19.17",
     "firebase-admin": "^13.0.2",
     "hono": "^4.13.13",
-    "jose": "^6.2.12",
-    "pg": "^8.13.1",
+    "jose": "^6.2.13",
+    "pg": "^8.23.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
-    "@types/node": "^20.14.10",
-    "@types/pg": "^8.11.10",
-    "tsx": "^4.19.2",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.5.3"
   },
   "engines": {
