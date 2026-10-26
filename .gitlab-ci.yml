@@ -86,7 +86,7 @@ scrape:dji:
   interruptible: false
   timeout: 3h
   variables:
-    TARGETS: backend/scrapers-worker/dji_targets/targets_dji.csv
+    TARGETS: backend/scrapers-worker/dji_targets/targets_pendientes.csv
     HILOS: "2"
   script:
     - pip install --quiet playwright==1.47.0 pdfplumber
