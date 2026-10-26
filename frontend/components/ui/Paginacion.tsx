@@ -44,10 +44,53 @@ interface Props {
   /** Nombre del parámetro de página en la URL (`pagina` por defecto; el API de contratos usa `page`). */
   paramPagina?: string;
   /**
-   * El paginador de ABAJO: al cambiar de página lleva al inicio de los resultados (el ancla `#resultados` de
-   * `ZonaResultados`, o el `[data-paginado]` que lo contiene). Sin esto, quedaba al pie de la página siguiente.
+   * El paginador de ABAJO: al cambiar de página lleva al inicio de SU lista (el `[data-paginado]` que lo contiene:
+   * `ZonaResultados` o las tablas de `Paginado`). Sin esto, quedaba al pie de la página siguiente.
    */
   subir?: boolean;
+}
+
+/**
+ * El margen con que una lista queda bajo lo fijo de arriba al subir a ella: la barra del sitio o, en una ficha, la de
+ * pestañas (`--alto-barra-fija`, que pone `Pestanas fija`), más aire. Va en el `[data-paginado]`.
+ */
+export const MARGEN_LISTA = "scroll-mt-[calc(var(--alto-barra-fija,3.5rem)_+_1.5rem)]";
+
+/** Lleva a la vista el inicio de la lista que contiene a `el`; sin animación si se pidió menos movimiento. */
+function irAlInicio(el: HTMLElement) {
+  const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  window.requestAnimationFrame(() => el.closest("[data-paginado]")?.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" }));
+}
+
+function alSubir(e: React.MouseEvent<HTMLElement>) {
+  // Abrir la página en otra pestaña (Ctrl, Cmd, Mayús, rueda) no mueve ésta.
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  irAlInicio(e.currentTarget);
+}
+
+/**
+ * Enlace a otra página de una lista. Nunca deja que Next suba al tope de la página; con `subir`, lleva a la vista el
+ * inicio de su lista al hacer clic. Sirve desde un server component (`PaginacionCursor`): sólo recibe datos.
+ */
+export function EnlacePagina({
+  href,
+  subir = false,
+  className,
+  children,
+  ...aria
+}: {
+  href: string;
+  subir?: boolean;
+  className?: string;
+  children: React.ReactNode;
+  "aria-label"?: string;
+  "aria-disabled"?: boolean;
+}) {
+  return (
+    <Link href={href} prefetch={false} scroll={false} onClick={subir ? alSubir : undefined} className={className} {...aria}>
+      {children}
+    </Link>
+  );
 }
 
 export function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando, nombre, hrefBase, query, paramPagina = "pagina", subir = false }: Props) {
@@ -62,9 +105,8 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
   // Con `subir`, el cambio interno lleva a la vista el inicio de la lista que lo contiene.
   const resolvedOnChange = (n: number, el?: HTMLElement | null) => {
     cambiar(n);
-    if (subir && el) window.requestAnimationFrame(() => el.closest("[data-paginado]")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    if (subir && el) irAlInicio(el);
   };
-  const destino = (n: number) => (subir ? `${resolvedHref(n)}#resultados` : resolvedHref(n));
   // Una URL como ?pagina=99 con 2 páginas daba "2.353–33 de 33". El rango, los
   // botones y el "N / M" se calculan siempre sobre una página que existe.
   const ultima = Math.max(1, paginas);
@@ -83,14 +125,14 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
       </span>
       <span className="inline-flex items-center gap-1.5">
         {navegacion === "url" ? (
-          <Link href={destino(prev)} prefetch={false} aria-disabled={pagina <= 1} className={btn} aria-label="Página anterior" scroll={subir}><ChevronLeft size={15} aria-hidden /></Link>
+          <EnlacePagina href={resolvedHref(prev)} subir={subir} aria-disabled={pagina <= 1} className={btn} aria-label="Página anterior"><ChevronLeft size={15} aria-hidden /></EnlacePagina>
         ) : (
           <button type="button" disabled={pagina <= 1} onClick={(e) => resolvedOnChange(prev, e.currentTarget)} className={btn} aria-label="Página anterior"><ChevronLeft size={15} /></button>
         )}
         {/* Con separador de miles: "1 / 11,813", no "1 / 11813". */}
         <span className="font-mono tabular-nums text-ink">{pagina.toLocaleString("es-PE")}<span className="text-mute"> / {ultima.toLocaleString("es-PE")}</span></span>
         {navegacion === "url" ? (
-          <Link href={destino(next)} prefetch={false} aria-disabled={pagina >= ultima} className={btn} aria-label="Página siguiente" scroll={subir}><ChevronRight size={15} aria-hidden /></Link>
+          <EnlacePagina href={resolvedHref(next)} subir={subir} aria-disabled={pagina >= ultima} className={btn} aria-label="Página siguiente"><ChevronRight size={15} aria-hidden /></EnlacePagina>
         ) : (
           <button type="button" disabled={pagina >= ultima} onClick={(e) => resolvedOnChange(next, e.currentTarget)} className={btn} aria-label="Página siguiente"><ChevronRight size={15} /></button>
         )}

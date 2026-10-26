@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { MARGEN_LISTA } from "@/components/ui/Paginacion";
 
 /**
  * El estado de un listado vive en la URL (§14.1): un filtro se comparte con un
@@ -84,8 +85,8 @@ export function Listado({
 export function ZonaResultados({ children, className }: { children: React.ReactNode; className?: string }) {
   const { pendiente } = useListado();
   return (
-    // `#resultados`: adonde lleva el paginador de abajo (`subir`); el margen deja ver la fila bajo la barra fija.
-    <div id="resultados" data-paginado className={cn("relative scroll-mt-20", className)} aria-busy={pendiente || undefined}>
+    // `data-paginado`: adonde lleva el paginador de abajo (`subir`); el margen deja ver la fila bajo lo fijo de arriba.
+    <div data-paginado className={cn("relative", MARGEN_LISTA, className)} aria-busy={pendiente || undefined}>
       <div
         aria-hidden
         className={cn(

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { SearchX } from "lucide-react";
-import { Paginacion } from "@/components/ui/Paginacion";
+import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { coincide, numero, paraBuscar } from "@/lib/formato";
 import { Buscador } from "./BarraFiltros";
@@ -90,7 +90,7 @@ export function TablaPaginada({
     </div>
   );
   return (
-    <div data-paginado className="scroll-mt-20 space-y-3">
+    <div data-paginado className={`${MARGEN_LISTA} space-y-3`}>
       {barra}
       {vistas.length === 0 && q ? (
         <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
@@ -126,7 +126,7 @@ export function ListaPaginada({
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistos.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
   const controlAbajo = <Control actual={p.actual} paginas={p.paginas} total={vistos.length} tam={tam} nombre={nombre} onChange={p.setPagina} subir />;
   return (
-    <div data-paginado className="scroll-mt-20 space-y-3">
+    <div data-paginado className={`${MARGEN_LISTA} space-y-3`}>
       {buscar && items.length > MIN_BUSCAR && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Buscador
@@ -250,7 +250,7 @@ export function TablaFiltrable({
   const filtrando = !!q || Object.values(elegidos).some(Boolean);
   const conBarra = filas.length > MIN_BUSCAR || filtrando;
   return (
-    <div data-paginado className="scroll-mt-20 space-y-3">
+    <div data-paginado className={`${MARGEN_LISTA} space-y-3`}>
       {conBarra && (
         <div className="flex flex-wrap items-center gap-2">
           {buscar && (

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { EnlacePagina } from "./Paginacion";
 
 /**
  * Paginación por cursor (keyset): "Anterior / Siguiente" y cuántos se ven de cuántos.
@@ -21,7 +21,7 @@ export function PaginacionCursor({
   texto: string;
   anterior: string | null;
   siguiente: string | null;
-  /** El paginador de ABAJO: lleva al inicio de los resultados (`#resultados` de `ZonaResultados`). */
+  /** El paginador de ABAJO: lleva al inicio de su lista (el `[data-paginado]` que lo contiene). */
   subir?: boolean;
 }) {
   return (
@@ -56,8 +56,8 @@ function Paso({ href, subir, children }: { href: string | null; subir: boolean; 
     );
   }
   return (
-    <Link href={subir ? `${href}#resultados` : href} prefetch={false} scroll={subir} className={PASO}>
+    <EnlacePagina href={href} subir={subir} className={PASO}>
       {children}
-    </Link>
+    </EnlacePagina>
   );
 }
