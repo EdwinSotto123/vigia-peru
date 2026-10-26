@@ -20,6 +20,7 @@ import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { Dato } from "@/components/ui/Dato";
 import { oracion, soles } from "@/lib/formato";
 import { limpiarObjeto } from "@/components/contratos/recortar";
+import { tituloNatural } from "@/lib/landing";
 import {
   estadoVisible,
   fasesEfectivas,
@@ -119,7 +120,7 @@ export function EstadoProcesamiento({ p }: { p: Procesamiento }) {
  */
 export function CeldaContrato({ p }: { p: Procesamiento }) {
   const titulo = p.titulo ? oracion(limpiarObjeto(p.titulo)) : "Contrato sin título en el registro";
-  const meta = [<Dato key="e" tipo="entidad">{p.entidad ?? "Entidad no identificada"}</Dato>, p.zona && <Dato key="z" tipo="lugar">{p.zona}</Dato>];
+  const meta = [<Dato key="e" tipo="entidad">{p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</Dato>, p.zona && <Dato key="z" tipo="lugar">{p.zona}</Dato>];
   if (p.estado !== "procesando") {
     return (
       <span data-fila={p.ocid} className="block w-full min-w-0">

@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { Clock, Landmark, Play, WifiOff } from "lucide-react";
 import { numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { limpiarObjeto } from "@/components/contratos/recortar";
+import { tituloNatural } from "@/lib/landing";
 import { BarraCompartir, EstadoError, Seccion, Volver } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import {
@@ -275,7 +276,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         </h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-meta text-mute">
           <EstadoPill estado={estado} size="md" intentos={p.intentos} />
-          <span className="inline-flex items-center gap-1 text-inkSoft"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
+          <span className="inline-flex items-center gap-1 text-inkSoft"><Landmark size={14} aria-hidden /> {p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</span>
           <span>{p.zona}</span>
           <span>OCID <span className="font-mono">{p.ocid}</span></span>
           {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
