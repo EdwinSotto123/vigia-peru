@@ -74,6 +74,32 @@ test:djic:
       when: manual
       allow_failure: true
 
+# ─── Scrape DJI en paralelo (varias instancias = varias IPs, cada una suave con el servidor) ────────
+# Cada nodo toma su porción (CI_NODE_INDEX de CI_NODE_TOTAL) de los targets y baja los PDFs como artefactos.
+# El ingest a la base y la subida a R2 se hacen en local (donde están las credenciales). Manual en dev.
+scrape:dji:
+  stage: test
+  image: mcr.microsoft.com/playwright/python:v1.47.0-jammy
+  parallel: 5
+  timeout: 3h
+  variables:
+    TARGETS: backend/scrapers-worker/dji_targets/targets_dji.csv
+    HILOS: "2"
+  script:
+    - pip install --quiet playwright==1.47.0 pdfplumber
+    - python -m playwright install chromium
+    - mkdir -p dji_pdfs
+    - python backend/scripts/scrape_dji.py --targets "$TARGETS" --out dji_pdfs --hilos "$HILOS" --shard "$((CI_NODE_INDEX-1))/$CI_NODE_TOTAL"
+    - echo "PDFs del nodo:"; ls dji_pdfs/*.pdf 2>/dev/null | wc -l
+  artifacts:
+    paths: [dji_pdfs/]
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+      allow_failure: true
+
 # ─── Anclas reutilizables ────────────────────────────────────────────────────────────────────────
 .web: &web
   stage: deploy

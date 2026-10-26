@@ -129,9 +129,14 @@ def main() -> None:
     ap.add_argument("--targets", help="CSV con columnas ruc,apellidos")
     ap.add_argument("--out", default=str(OUT), help="carpeta de PDFs")
     ap.add_argument("--log", default=None, help="CSV de progreso (por defecto <out>/_log.csv)")
+    ap.add_argument("--shard", help="i/N: procesa solo la porción i de N (para CI en paralelo)")
     ap.add_argument("--n", type=int, default=4, help="si no hay --targets, cuántos objetivos de muestra")
     a = ap.parse_args()
     objetivos = leer_targets(a.targets) if a.targets else OBJETIVOS[: a.n]
+    if a.shard:
+        i, nn = (int(x) for x in a.shard.split("/"))
+        objetivos = objetivos[i::nn]
+        print(f"shard {i}/{nn}: {len(objetivos)} targets")
     out_dir = Path(a.out)
     log_path = Path(a.log) if a.log else out_dir / "_log.csv"
     asyncio.run(correr(a.hilos, objetivos, out_dir, log_path))
