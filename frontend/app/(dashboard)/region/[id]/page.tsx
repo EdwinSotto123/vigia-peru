@@ -58,6 +58,7 @@ export default function RegionPage({ params, searchParams }: { params: { id: str
       />
       <ResumenRegion ubigeo={r.ubigeo} />
       <Pestanas
+        fija
         key={seccion ?? "inicio"}
         etiqueta={`Secciones de la región ${r.nombre}`}
         activa={seccion}

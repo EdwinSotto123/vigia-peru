@@ -35,6 +35,7 @@ export function Panel({
   posicion = "lateral",
   ancho = "md",
   pie,
+  acciones,
   children,
   className,
 }: {
@@ -43,6 +44,8 @@ export function Panel({
   titulo: string;
   /** Línea de contexto bajo el título. Es lo que evita que el panel se sienta desconectado de donde saliste. */
   descripcion?: React.ReactNode;
+  /** Controles junto a la ✕ de la cabecera: el anterior/siguiente de `ProveedorDetalle`. */
+  acciones?: React.ReactNode;
   posicion?: PanelPosicion;
   ancho?: "sm" | "md" | "lg" | "xl";
   pie?: React.ReactNode;
@@ -154,14 +157,17 @@ export function Panel({
           <h2 className="truncate font-display text-bloque font-bold leading-tight text-ink">{titulo}</h2>
           {descripcion && <div className="mt-0.5 text-meta leading-snug text-mute">{descripcion}</div>}
         </div>
-        <button
-          type="button"
-          onClick={cerrarConAnimacion}
-          aria-label={`Cerrar ${titulo}`}
-          className="-mr-1 -mt-1 shrink-0 rounded-xl p-2 text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
-        >
-          <X size={16} />
-        </button>
+        <span className="-mr-1 -mt-1 flex shrink-0 items-center gap-1">
+          {acciones}
+          <button
+            type="button"
+            onClick={cerrarConAnimacion}
+            aria-label={`Cerrar ${titulo}`}
+            className="shrink-0 rounded-xl p-2 text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
+          >
+            <X size={16} />
+          </button>
+        </span>
       </header>
 
       <div className="scrollbar-warm min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">

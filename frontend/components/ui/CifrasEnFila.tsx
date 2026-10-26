@@ -55,7 +55,8 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
         <div
           key={it.etiqueta}
           className={cn(
-            "relative flex min-w-0 flex-col rounded-2xl border border-line bg-paper",
+            // Dentro de una tarjeta, placa suave sin borde (una tarjeta dentro de otra era ruido).
+            "relative flex min-w-0 flex-col rounded-2xl border border-line bg-paper [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft",
             chico ? "gap-1 px-3 py-2.5" : "gap-1.5 px-4 py-3.5",
             it.href && "transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft focus-within:ring-2 focus-within:ring-granate",
           )}

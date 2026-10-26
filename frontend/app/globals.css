@@ -147,8 +147,10 @@
 
 /* Tarjetas y bloques con borde: un tinte del 5 al 6 % de la intención y el filete superior en su color.
    Usa background-image (no background-color) para no pisar los fondos de cada componente. El panel admin
-   no lo lleva: es una herramienta de trabajo y ahí el color es sólo de los estados. */
-[data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper) {
+   no lo lleva: es una herramienta de trabajo y ahí el color es sólo de los estados.
+   Sólo la caja de PRIMER nivel: teñir y filetear también las de adentro era el "bordes en todo" de la auditoría
+   (2026-10-26); adentro de una tarjeta, las piezas van sin marco (`.tarjeta`, ver DatosClave, Tabla, CifrasEnFila). */
+[data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper):not(.border .border) {
   background-image: linear-gradient(180deg, rgb(var(--acento) / 0.055), transparent 62%);
   border-top-color: rgb(var(--acento) / 0.38);
 }

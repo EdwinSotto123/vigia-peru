@@ -49,6 +49,18 @@ PAGINAS = {
     "aliados": "/app/aliados",
     "auditoria": "/app/auditoria",
     "portada": "/",
+    # Las que faltaban: sub-vistas de Contratos, pestañas de fichas largas, el poder y las listas de alertas y cruces.
+    "ordenes": "/app/contratos?vista=ordenes",
+    "menores": "/app/contratos?vista=menores",
+    "entidad-lima": "/entidad/20131380951",
+    "entidad-contratos": "/entidad/20131380951?seccion=contratos",
+    "persona-senales": "/app/personas/e2e2d5f77000?seccion=senales",
+    "planilla-2": "/app/personas/planilla/1d225afcbe18",
+    "alertas": "/app/alertas",
+    "cruces": "/app/cruces",
+    "convocatorias": "/app/convocatoria",
+    "poder": "/app/poder",
+    "poder-partido": "/app/poder/ALIANZA%20PARA%20EL%20PROGRESO",
 }
 VISTAS = {"escritorio": (1366, 900), "celular": (390, 844)}
 MODOS = ("dia", "noche")
@@ -131,6 +143,8 @@ def main() -> None:
                 ab(sesion, "eval", f"localStorage.setItem('vigia-modo','{modo}'); document.documentElement.dataset.modo='{modo}'; 1")
                 ab(sesion, "wait", "1500")
                 captura = salida / f"{nombre}-{vista}-{modo}.png"
+                # La primera pantalla (lo que se ve sin bajar) y la página entera.
+                ab(sesion, "screenshot", str(salida / f"{nombre}-{vista}-{modo}-pantalla.png"), plazo=60)
                 ab(sesion, "screenshot", "--full", str(captura), plazo=120)
                 bruto = ab(sesion, "eval", "-b", codigo, plazo=120)
                 datos = extraer_json(bruto) or {"error": bruto[-400:]}
@@ -147,7 +161,8 @@ def main() -> None:
                     continue
                 print(f"{nombre:18} {vista:10} {modo:6} {datos.get('segundos')}s sep={datos.get('nSeparadores', '?')} "
                       f"desborde={'sí' if datos.get('desborde') else 'no'} migas={datos.get('migas')} "
-                      f"sueltos={datos.get('nTextoSuelto', '?')} contraste={datos.get('nContraste', '?')}", flush=True)
+                      f"sueltos={datos.get('nTextoSuelto', '?')} contraste={datos.get('nContraste', '?')} "
+                      f"pantallas={datos.get('pantallas', '?')} anidadas={datos.get('nAnidadas', '?')}", flush=True)
     ab(sesion, "close")
     (salida / "resultados.json").write_text(json.dumps(resultados, ensure_ascii=False, indent=1), encoding="utf-8")
     (salida / "informe.md").write_text(informe(resultados), encoding="utf-8")
@@ -183,6 +198,13 @@ def informe(rs: list[dict]) -> str:
         for r in malas[:40]:
             L.append(f"- {fila(r)}: {ejemplo(r)}")
         L.append("")
+    # Cuánto hay que bajar en cada página y cuántas tarjetas tiene (y dentro de otra): para comparar antes y después.
+    L.append("## Scroll y cajas por página")
+    L.append("| Página | Vista | Modo | Pantallas | Cajas | Anidadas |")
+    L.append("|---|---|---|---:|---:|---:|")
+    for r in sorted((r for r in rs if "error" not in r), key=lambda r: -(r.get("pantallas") or 0)):
+        L.append(f"| {r['pagina']} | {r['vista']} | {r['modo']} | {r.get('pantallas', '?')} | {r.get('nCajas', '?')} | {r.get('nAnidadas', '?')} |")
+    L.append("")
     tam = {}
     for r in rs:
         for k, v in (r.get("tamanos") or {}).items():

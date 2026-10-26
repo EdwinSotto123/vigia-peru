@@ -42,7 +42,8 @@ export interface DatoClave {
  */
 export function DatosClave({ items, className }: { items: DatoClave[]; className?: string }) {
   return (
-    <dl className={cn("divide-y divide-line/70 rounded-xl border border-line [container-type:inline-size]", className)}>
+    // Dentro de una tarjeta, sin marco propio (las filas alineadas con el texto de la tarjeta); en un panel, con marco.
+    <dl className={cn("divide-y divide-line/70 rounded-xl border border-line [container-type:inline-size] [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&>div]:px-0", className)}>
       {items.map((d) => (
         <div key={d.etiqueta} className="grid gap-x-4 gap-y-0.5 px-3.5 py-2.5 [@container(min-width:26rem)]:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
           <dt className="flex items-center gap-1 text-meta text-mute">

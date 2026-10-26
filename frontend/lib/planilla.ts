@@ -140,12 +140,12 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
       "Ese mes cobró S/ 20,000 o más en otros beneficios, gratificación o incentivo, el triple de su sueldo o más: suele ser una liquidación, un retiro incentivado o un bono. No es irregular por sí mismo.",
   },
   apellidos_autoridad: {
-    corto: "Apellidos de una autoridad",
+    corto: "Comparte apellidos con una autoridad",
     titulo: "Tiene los dos apellidos de una autoridad de la entidad",
     explica: "Sus dos apellidos son los del alcalde, un regidor, el gobernador o un consejero del gobierno de la entidad. No prueba parentesco.",
   },
   apellidos_directivo: {
-    corto: "Apellidos de un directivo",
+    corto: "Comparte apellidos con un directivo",
     titulo: "Tiene los dos apellidos de un directivo de la misma planilla",
     explica: "Sus dos apellidos, poco comunes, son los de un gerente, director o jefe de la misma entidad. No prueba parentesco.",
   },

@@ -2,10 +2,10 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Partes, hayDato } from "@/components/ui/Partes";
-import { Revelar } from "@/components/ui/Revelar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/formato";
+import { BotonFila, ProveedorDetalle } from "./DetalleFilas";
 
 /**
  * La tabla de todo listado (§14.1). Las columnas se declaran una vez y la cabecera
@@ -19,6 +19,9 @@ import { fechaCorta } from "@/lib/formato";
  * Una fila es UNA acción: `href` (va a su página) o `detalle` (abre el panel lateral).
  * Por eso sus celdas no llevan enlaces ni botones propios (serían un control dentro
  * de otro). Semántica de lista (`ul`): cada fila se lee entera por su contenido.
+ *
+ * Los `detalle` de una tabla comparten UN panel (`ProveedorDetalle`): en escritorio queda
+ * anclado al costado sin tapar la lista, con anterior/siguiente; en el celular, la hoja.
  *
  * Server-safe: columnas y filas son datos + ReactNode ya armados.
  */
@@ -38,9 +41,12 @@ export interface Columna {
   /**
    * Con `desde`: debajo de ese ancho la celda no desaparece, se apila bajo la primera
    * columna visible (el chip de estado bajo el título en el celular, en vez de una
-   * columna de 170 px que dejaba el título en 114).
+   * columna de 170 px que dejaba el título en 114). `"con-rotulo"`: apilada con su
+   * nombre delante ("Valor S/ 1.2 M"): para un número o una fecha, que solos no dicen qué son.
    */
-  apilar?: boolean;
+  apilar?: boolean | "con-rotulo";
+  /** El nombre corto para el rótulo apilado ("Antecedentes" en vez de "Antecedentes del ganador"). */
+  corto?: string;
 }
 
 export interface Fila {
@@ -143,11 +149,18 @@ export function Tabla({
   const todas = grupos ? grupos.flatMap((g) => g.filas) : filas ?? [];
   const conAccion = todas.some((f) => f.href || f.detalle);
   const estilo = rejilla(columnas, conAccion);
-  return (
+  const detalles = todas.flatMap((f) => (f.detalle ? [{ id: f.id, ...f.detalle }] : []));
+  const tabla = (
     // `overflow-clip` y no `overflow-hidden`: recorta las esquinas igual pero no crea un
     // contenedor de scroll, así los rótulos de grupo (`sticky`) se quedan fijos al bajar.
     <div
-      className={cn("overflow-clip rounded-2xl border border-line bg-paper", medida === "contenedor" && "[container-type:inline-size]", className)}
+      className={cn(
+        "overflow-clip rounded-2xl border border-line bg-paper",
+        // Dentro de una tarjeta, sólo el filete de arriba: la tabla es parte de la tarjeta, no otra caja adentro.
+        "[.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent",
+        medida === "contenedor" && "[container-type:inline-size]",
+        className,
+      )}
       style={estilo}
     >
       <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
@@ -186,6 +199,13 @@ export function Tabla({
       )}
     </div>
   );
+  return detalles.length > 0 ? (
+    <ProveedorDetalle detalles={detalles} nombre={etiqueta}>
+      {tabla}
+    </ProveedorDetalle>
+  ) : (
+    tabla
+  );
 }
 
 const FILA =
@@ -209,6 +229,9 @@ function FilaTabla({
 }) {
   const k = clases(medida);
   const apiladas = columnas.filter((c) => c.apilar && c.desde);
+  // Lo apilado va en UNA línea (chip, cifra y fecha juntos), no un renglón por dato. La línea se ve mientras se vea
+  // alguno: hasta el ancho de la columna que aparece más tarde.
+  const ultima = apiladas.reduce<Desde | undefined>((m, c) => (ORDEN.indexOf(c.desde) > ORDEN.indexOf(m) ? c.desde : m), undefined);
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
   // escritorio la columna apilada vaya antes (el chip de estado a la izquierda).
   const principal = columnas.findIndex((c) => !c.desde);
@@ -222,11 +245,14 @@ function FilaTabla({
           {i === principal && apiladas.length > 0 ? (
             <span className="block w-full min-w-0">
               {fila.celdas[c.clave]}
-              {apiladas.map((a) => (
-                <span key={a.clave} className={cn("mt-1.5 flex flex-wrap items-center gap-1.5", k.hasta[a.desde!])}>
-                  {fila.celdas[a.clave]}
-                </span>
-              ))}
+              <span className={cn("mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1", ultima && k.hasta[ultima])}>
+                {apiladas.map((a) => (
+                  <span key={a.clave} className={cn("inline-flex min-w-0 max-w-full items-center gap-1.5", k.hasta[a.desde!])}>
+                    {a.apilar === "con-rotulo" && <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>}
+                    {fila.celdas[a.clave] ?? <span className="text-meta text-mute">Sin dato</span>}
+                  </span>
+                ))}
+              </span>
             </span>
           ) : (
             fila.celdas[c.clave] ?? <span className="text-meta text-mute">Sin dato</span>
@@ -261,9 +287,9 @@ function FilaTabla({
   if (fila.detalle) {
     const d = fila.detalle;
     return (
-      <Revelar titulo={d.titulo} etiqueta={d.etiqueta} descripcion={d.descripcion} detalle={d.contenido} pie={d.pie} ancho="lg" className={clase}>
+      <BotonFila id={fila.id} etiqueta={d.etiqueta ?? `Ver detalle de ${d.titulo}`} className={clase}>
         {celdas}
-      </Revelar>
+      </BotonFila>
     );
   }
   return <div className={clase}>{celdas}</div>;

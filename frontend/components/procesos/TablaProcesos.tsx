@@ -156,7 +156,7 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
           )}
         </ConBanderaDato>
       ),
-      cruces: <CrucesCelda cruces={p.cruces} />,
+      cruces: <CrucesCelda cruces={p.cruces} sinGanador={!p.proveedor} />,
       // En la ficha de una entidad la entidad es la misma en todas las filas: va la nomenclatura.
       proceso: (
         <CeldaPrincipal

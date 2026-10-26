@@ -180,6 +180,7 @@ export function ContratoDetalle({
 
           {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
           <Pestanas
+            fija
             etiqueta="Secciones del contrato"
             activa={seccion}
             pestanas={pestanas}

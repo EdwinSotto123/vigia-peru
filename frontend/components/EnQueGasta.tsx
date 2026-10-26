@@ -128,7 +128,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
         </h3>
         <Leyenda />
       </div>
-      <Pestanas param="gasto" etiqueta="Desglose del gasto" pestanas={pestanas} />
+      <Pestanas param="gasto" variante="segunda" etiqueta="Desglose del gasto" pestanas={pestanas} />
     </div>
   );
 }

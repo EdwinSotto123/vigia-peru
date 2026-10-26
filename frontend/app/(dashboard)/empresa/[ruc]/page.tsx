@@ -191,6 +191,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
       )}
 
       <Pestanas
+        fija
         key={seccion ?? "inicio"}
         etiqueta={`Secciones de ${e.nombre}`}
         activa={seccion}
@@ -393,7 +394,7 @@ async function Inicio({
 
       {/* 1. Sus datos, ARRIBA: la identidad (SUNAT) y quién está detrás (RNP), en dos columnas, cada vínculo navegable. */}
       <section className="space-y-3" aria-labelledby="datos-titulo">
-        <h3 id="datos-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h3>
+        <h2 id="datos-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h2>
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
             <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>
@@ -545,7 +546,7 @@ async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["
       />
       {noActivo && <Aviso tono="neutro">En SUNAT figura con estado {oracion(e.estadoSunat as string)}. Es un indicio para revisión humana, no una acusación.</Aviso>}
       <section className="space-y-3" aria-labelledby="datos-min-titulo">
-        <h3 id="datos-min-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h3>
+        <h2 id="datos-min-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h2>
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
             <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>

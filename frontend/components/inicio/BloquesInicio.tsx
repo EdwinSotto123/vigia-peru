@@ -35,12 +35,14 @@ export function BloqueInicio({
   children: ReactNode;
 }) {
   return (
-    <section className={`min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5${ancho ? " lg:col-span-2" : ""}${className ? ` ${className}` : ""}`}>
+    <section className={`tarjeta min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5${ancho ? " lg:col-span-2" : ""}${className ? ` ${className}` : ""}`}>
       <header className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <h3 className="flex items-center gap-1.5 font-display text-bloque font-bold text-ink">
-          {titulo}
+        {/* h2: es la sección de la pestaña Inicio (bajo el h1 de la ficha no hay otro nivel). La ⓘ va AL LADO del
+            título y no dentro: dentro, su texto pasaba a ser parte del nombre del título para el lector de pantalla. */}
+        <div className="flex items-center gap-1.5">
+          <h2 className="font-display text-bloque font-bold text-ink">{titulo}</h2>
           {ayuda}
-        </h3>
+        </div>
         {enlace && (
           <Link href={enlace.href} prefetch={false} className="inline-flex min-h-8 shrink-0 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
             {enlace.texto} <ChevronRight size={14} aria-hidden />
@@ -115,7 +117,8 @@ export function BarrasGasto({ rubros, total, maximo = 5 }: { rubros: RubroGasto[
 /** Filas "etiqueta … número", cada una con su enlace al filtro que la muestra. */
 export function ListaConteos({ filas }: { filas: { etiqueta: string; n: number; href?: string; detalle?: string; grave?: boolean }[] }) {
   return (
-    <ul className="divide-y divide-line/70 rounded-xl border border-line">
+    // Dentro de una tarjeta (un bloque de Inicio), sin marco propio: sólo los divisores.
+    <ul className="divide-y divide-line/70 rounded-xl border border-line [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0">
       {filas.map((f) => {
         const cuerpo = (
           <>

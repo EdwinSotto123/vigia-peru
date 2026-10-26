@@ -35,6 +35,7 @@ export function TrazaAnalisis({ result }: { result: ApiResult }) {
   return (
     <ProveedorSensibles valor={sensibles}>
       <Pestanas
+        variante="segunda"
         etiqueta="Partes de cómo se hizo el análisis"
         param={PARAM}
         activa={inicial}

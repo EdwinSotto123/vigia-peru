@@ -94,8 +94,9 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
   neutro: "text-mute",
 };
 
+// `placeholder:text-mute`: sin él, el texto de ayuda del buscador heredaba el gris de Tailwind (2,5:1, bajo el piso).
 const CAMPO =
-  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 export function BarraFiltros({
   busqueda,

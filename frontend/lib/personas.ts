@@ -216,13 +216,13 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     explica: "Figura en la ONPE como aportante del partido que gobernaba la entidad que lo contrató.",
   },
   apellidos_autoridad: {
-    corto: "Apellidos de una autoridad",
+    corto: "Comparte apellidos con una autoridad",
     titulo: "Tiene los dos apellidos de una autoridad de la entidad",
     explica:
       "Sus dos apellidos son los del alcalde, un regidor, el gobernador o un consejero del gobierno que lo contrató. No prueba parentesco: es un dato para revisar.",
   },
   apellidos_funcionario: {
-    corto: "Apellidos de un funcionario",
+    corto: "Comparte apellidos con un funcionario",
     titulo: "Tiene los dos apellidos de un funcionario de la entidad",
     explica:
       "Sus dos apellidos, poco comunes, son los de alguien que declaró trabajar en la misma entidad (declaración jurada de intereses). No prueba parentesco.",

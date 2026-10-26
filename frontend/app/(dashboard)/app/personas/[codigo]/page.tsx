@@ -131,6 +131,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
       ) : null}
 
       <Pestanas
+        fija
         key={seccion ?? "senales"}
         etiqueta="Secciones de la persona"
         activa={seccion}

@@ -18,8 +18,9 @@ export function TarjetaDatos({
   className?: string;
 }) {
   return (
-    <article className={`space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5${className ? ` ${className}` : ""}`}>
-      {titulo && <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">{titulo}</h4>}
+    <article className={`tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5${className ? ` ${className}` : ""}`}>
+      {/* Un subtítulo de verdad (h3 bajo el h2 de la sección), no un rótulo en mayúsculas. */}
+      {titulo && <h3 className="font-display text-cuerpo font-bold text-ink">{titulo}</h3>}
       {items ? <DatosClave items={items} /> : children}
     </article>
   );

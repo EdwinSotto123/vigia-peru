@@ -168,6 +168,7 @@ export default async function EntidadProfile({
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
           enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
       <Pestanas
+        fija
         key={seccion ?? "inicio"}
         etiqueta="Secciones de la entidad"
         activa={seccion}

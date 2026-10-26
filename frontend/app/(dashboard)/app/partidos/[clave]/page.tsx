@@ -156,6 +156,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
       <Indicadores items={indicadores(d, anio, totalGobiernos, ruta)} />
 
       <Pestanas
+        fija
         key={seccion ?? "inicio"}
         etiqueta="Secciones del partido"
         activa={seccion}

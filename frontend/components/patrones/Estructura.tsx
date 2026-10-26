@@ -123,7 +123,7 @@ export function Seccion({
         id={id}
         open={plegable === "abierta"}
         aria-labelledby={id ? `${id}-titulo` : undefined}
-        className={cn("group/plegable scroll-mt-24 rounded-2xl border border-line bg-paper", className)}
+        className={cn("tarjeta group/plegable scroll-mt-24 rounded-2xl border border-line bg-paper", className)}
       >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           {cabecera}

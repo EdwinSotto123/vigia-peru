@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { Info } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
 
@@ -19,8 +19,14 @@ import { numero } from "@/lib/formato";
  *   Inicio y Fin; en el celular la barra se desliza en una sola fila.
  * - Cada pestaña se monta la primera vez que se abre (la inicial, en el servidor): una
  *   página con siete pestañas pesadas no dibuja las siete al cargar. Visitada, queda montada.
- * - `fija`: la barra queda pegada arriba al bajar (páginas largas como el informe).
+ * - `fija`: la barra queda pegada arriba al bajar (las fichas: entidad, empresa, persona…).
  * - Un botón fuera de la barra ("Ver las señales") cambia de pestaña con `irAPestana()`.
+ * - La barra es una franja con superficie (no texto gris sobre el fondo: "parecía texto suelto"), la activa rellena en
+ *   granate suave. Si no entra (9 pestañas a 1366 px, o el celular), se difumina en el borde y aparecen flechas: ninguna
+ *   pestaña queda fuera de alcance del mouse. La activa siempre a la vista.
+ * - `variante="segunda"`: pestañas DENTRO de una pestaña (En qué gasta, la traza): píldora más chica, para que no se
+ *   confunda con la barra de la ficha.
+ * - Cada panel sabe su nombre: `CabeceraPestana` lo usa como su título (h2), sin repetirlo en cada página.
  */
 
 const EVENTO = "vigia:pestana";
@@ -39,8 +45,26 @@ export interface Pestana {
   conteo?: number | null;
   /** Ícono a la izquierda del nombre (un `<Icono size={15} aria-hidden />` ya armado). */
   icono?: ReactNode;
+  /** El título del panel abierto (el h2 de su `CabeceraPestana`). Por defecto, `etiqueta`. */
+  titulo?: string;
   contenido: ReactNode;
 }
+
+/** El panel en que está una `CabeceraPestana`: su nombre es el título de la cabecera (h2; h3 en `variante="segunda"`). */
+const PanelActual = createContext<{ titulo: string; nivel: 2 | 3 } | null>(null);
+
+/** `useLayoutEffect` sin el aviso del render en el servidor. */
+const useEfectoDeMedida = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+type Desborde = { izq: boolean; der: boolean };
+
+// Clases literales (Tailwind sólo genera lo que ve escrito entero). Difumina el borde por donde hay más pestañas.
+const MASCARA: Record<string, string> = {
+  "true-true": "[mask-image:linear-gradient(to_right,transparent,black_2.5rem,black_calc(100%-2.5rem),transparent)]",
+  "true-false": "[mask-image:linear-gradient(to_right,transparent,black_2.5rem)]",
+  "false-true": "[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]",
+  "false-false": "",
+};
 
 export function Pestanas({
   pestanas,
@@ -48,6 +72,7 @@ export function Pestanas({
   param = "seccion",
   etiqueta,
   fija = false,
+  variante = "pagina",
   className,
 }: {
   pestanas: Pestana[];
@@ -58,6 +83,8 @@ export function Pestanas({
   etiqueta: string;
   /** La barra queda fija arriba al bajar (páginas largas). */
   fija?: boolean;
+  /** `segunda`: pestañas dentro de otra pestaña (más chicas, en píldora). */
+  variante?: "pagina" | "segunda";
   className?: string;
 }) {
   const inicial = pestanas.some((p) => p.clave === activa) ? activa! : pestanas[0]?.clave;
@@ -100,52 +127,103 @@ export function Pestanas({
     elegir(pestanas[destino].clave, true);
   };
 
+  // ¿Quedan pestañas fuera de la franja, a la izquierda o a la derecha?
+  const riel = useRef<HTMLDivElement>(null);
+  const [desborde, setDesborde] = useState<Desborde>({ izq: false, der: false });
+  const medir = useCallback(() => {
+    const r = riel.current;
+    if (!r) return;
+    const izq = r.scrollLeft > 2;
+    const der = r.scrollLeft + r.clientWidth < r.scrollWidth - 2;
+    setDesborde((d) => (d.izq === izq && d.der === der ? d : { izq, der }));
+  }, []);
+  useEffect(() => {
+    const r = riel.current;
+    if (!r) return;
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(r);
+    return () => ro.disconnect();
+  }, [medir]);
+  // La activa, siempre a la vista dentro de la franja (sin mover la página: nada de scrollIntoView).
+  useEfectoDeMedida(() => {
+    const r = riel.current;
+    const b = botones.current[pestanas.findIndex((p) => p.clave === actual)];
+    if (!r || !b) return;
+    const margen = 40;
+    if (b.offsetLeft - margen < r.scrollLeft) r.scrollLeft = Math.max(0, b.offsetLeft - margen);
+    else if (b.offsetLeft + b.offsetWidth + margen > r.scrollLeft + r.clientWidth) r.scrollLeft = b.offsetLeft + b.offsetWidth + margen - r.clientWidth;
+    medir();
+  }, [actual, pestanas, medir]);
+  const correr = (lado: -1 | 1) => riel.current?.scrollBy({ left: lado * riel.current.clientWidth * 0.7, behavior: "smooth" });
+
+  const segunda = variante === "segunda";
+
   return (
     <div className={className}>
-      <div
-        role="tablist"
-        aria-label={etiqueta}
-        className={cn(
-          "-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 [scrollbar-width:none] sm:mx-0 sm:px-0",
-          fija && "sticky top-0 z-barra bg-paper/95 backdrop-blur",
+      <div className={cn("relative", fija && !segunda && "sticky top-0 z-barra")}>
+        <div
+          ref={riel}
+          role="tablist"
+          aria-label={etiqueta}
+          onScroll={medir}
+          className={cn(
+            "flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            segunda
+              ? "w-fit max-w-full gap-1 rounded-full border border-line bg-paperSoft p-1"
+              : "gap-1 rounded-2xl border border-line bg-paper p-1 shadow-[0_1px_2px_rgb(var(--ink)/0.04)]",
+            MASCARA[`${desborde.izq}-${desborde.der}`],
+          )}
+        >
+          {pestanas.map((p, i) => {
+            const sel = p.clave === actual;
+            return (
+              <button
+                key={p.clave}
+                ref={(el) => {
+                  botones.current[i] = el;
+                }}
+                type="button"
+                role="tab"
+                id={`${id}-tab-${p.clave}`}
+                aria-selected={sel}
+                aria-controls={`${id}-panel-${p.clave}`}
+                tabIndex={sel ? 0 : -1}
+                onClick={() => elegir(p.clave)}
+                onKeyDown={(e) => alTeclado(e, i)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 whitespace-nowrap font-medium transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
+                  segunda ? "min-h-[36px] rounded-full px-3 text-meta" : "min-h-[44px] rounded-xl px-3.5 text-dato",
+                  sel
+                    ? segunda
+                      ? "bg-paper font-semibold text-granate shadow-[0_1px_2px_rgb(var(--ink)/0.08)]"
+                      : "bg-granate-50 font-semibold text-granate"
+                    : "text-inkSoft hover:bg-paperSoft hover:text-ink",
+                )}
+              >
+                {p.icono}
+                {p.etiqueta}
+                {p.conteo != null && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 text-rotulo font-semibold tabular-nums",
+                      sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft",
+                    )}
+                  >
+                    {numero(p.conteo)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {/* Flechas sólo para el mouse: con el teclado, las flechas del teclado ya recorren las pestañas. */}
+        {!segunda && desborde.izq && (
+          <FlechaRiel lado="izq" onClick={() => correr(-1)} />
         )}
-      >
-        {pestanas.map((p, i) => {
-          const sel = p.clave === actual;
-          return (
-            <button
-              key={p.clave}
-              ref={(el) => {
-                botones.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`${id}-tab-${p.clave}`}
-              aria-selected={sel}
-              aria-controls={`${id}-panel-${p.clave}`}
-              tabIndex={sel ? 0 : -1}
-              onClick={() => elegir(p.clave)}
-              onKeyDown={(e) => alTeclado(e, i)}
-              className={cn(
-                "relative -mb-px inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 text-dato font-medium transition-colors duration-rapido",
-                sel ? "border-granate text-granate" : "border-transparent text-inkSoft hover:border-line hover:text-ink",
-              )}
-            >
-              {p.icono}
-              {p.etiqueta}
-              {p.conteo != null && (
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 text-rotulo font-semibold tabular-nums",
-                    sel ? "bg-granate-50 text-granate" : "bg-paperDeep text-mute",
-                  )}
-                >
-                  {numero(p.conteo)}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        {!segunda && desborde.der && (
+          <FlechaRiel lado="der" onClick={() => correr(1)} />
+        )}
       </div>
       {pestanas.map((p) => (
         <div
@@ -155,27 +233,58 @@ export function Pestanas({
           aria-labelledby={`${id}-tab-${p.clave}`}
           hidden={p.clave !== actual}
           tabIndex={0}
-          className="pt-5 focus-visible:outline-none"
+          className={cn(segunda ? "pt-4" : "pt-5", "focus-visible:outline-none")}
         >
-          {visitadas.has(p.clave) ? p.contenido : null}
+          <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2 }}>{visitadas.has(p.clave) ? p.contenido : null}</PanelActual.Provider>
         </div>
       ))}
     </div>
   );
 }
 
-/** La primera línea de una pestaña: qué muestra (una oración, ⓘ) y su acción, a la derecha. */
-export function CabeceraPestana({ children, ayuda, acciones }: { children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
+function FlechaRiel({ lado, onClick }: { lado: "izq" | "der"; onClick: () => void }) {
+  const Icono = lado === "izq" ? ChevronLeft : ChevronRight;
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      {children && (
-        <p className="flex min-w-0 flex-1 items-start gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-dato leading-relaxed text-inkSoft">
-          <Info size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
-          <span className="min-w-0">
-            {children} {ayuda}
-          </span>
-        </p>
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-hidden
+      onClick={onClick}
+      className={cn(
+        "absolute top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-paper text-inkSoft shadow-[0_1px_3px_rgb(var(--ink)/0.12)] transition-colors duration-rapido hover:text-ink sm:inline-flex",
+        lado === "izq" ? "left-1" : "right-1",
       )}
+    >
+      <Icono size={16} />
+    </button>
+  );
+}
+
+/**
+ * La cabecera de una pestaña abierta: su título (h2, el nombre de la pestaña salvo que se pase `titulo`), qué muestra en
+ * una línea, la ⓘ y las acciones a la derecha. Antes era una caja de texto sin título ("textos sueltos sin títulos"), y
+ * bajo el h1 de la ficha no había ningún h2.
+ */
+export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?: ReactNode; children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
+  const panel = useContext(PanelActual);
+  const nombre = titulo ?? panel?.titulo;
+  const Titulo = panel?.nivel === 3 ? "h3" : "h2";
+  return (
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0 flex-1">
+        {nombre ? (
+          <div className="flex items-center gap-1.5">
+            <Titulo className={cn("font-display font-bold leading-tight text-ink text-balance", Titulo === "h3" ? "text-bloque" : "text-seccion")}>{nombre}</Titulo>
+            {ayuda}
+          </div>
+        ) : null}
+        {children && (
+          <p className={cn("max-w-[80ch] text-dato leading-snug text-inkSoft text-pretty", nombre && "mt-1")}>
+            {children}
+            {!nombre && ayuda ? <> {ayuda}</> : null}
+          </p>
+        )}
+      </div>
       {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
     </div>
   );

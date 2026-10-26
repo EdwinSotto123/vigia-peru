@@ -127,6 +127,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
       )}
 
       <Pestanas
+        fija
         key={seccion ?? "senales"}
         etiqueta="Secciones de la persona"
         activa={seccion}

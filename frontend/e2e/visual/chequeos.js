@@ -11,6 +11,7 @@
 //   contraste     textos con contraste menor a 4.5:1 (3:1 si es grande) contra su fondo
 //   sinNombre     botones o enlaces sin nombre accesible; imágenes sin alt
 //   jerarquia     h1 bajo 26 px, h2 bajo 18, h3 bajo 15 (un título del tamaño del texto); textoChico: textos bajo 11 px
+//   pantallas     cuántas pantallas hay que bajar; cajas y anidadas: tarjetas, y tarjetas dentro de otra tarjeta
 (() => {
   const visible = (el) => {
     if (!el) return false;
@@ -66,7 +67,9 @@
     let s = l;
     for (let i = 0; i < 5 && s.parentElement && s.parentElement.tagName !== "MAIN"; i++) s = s.parentElement;
     const buscador = !!s.querySelector('input[type="search"], input[placeholder^="Buscar"], input[aria-label^="Buscar"]');
-    const paginacion = !!s.querySelector('[aria-label="Página siguiente"], [aria-label="Página anterior"]');
+    // Por nombre accesible (Paginacion) o por texto visible (PaginacionCursor: "Anterior" / "Siguiente").
+    const paginacion = !!s.querySelector('[aria-label="Página siguiente"], [aria-label="Página anterior"]')
+      || [...s.querySelectorAll("a, button")].some((b) => /^(anterior|siguiente)\b/i.test((b.textContent || "").trim()));
     listas.push({ lista: ruta(l), filas, buscador, paginacion });
   }
 
@@ -160,7 +163,27 @@
   }
   const chico = Object.entries(tamanos).filter(([t]) => parseFloat(t) < 11).reduce((n, [, c]) => n + c, 0);
 
+  // ── scroll y cajas ─────────────────────────────────────────────────────────
+  // pantallas: cuánto hay que bajar para ver todo (alto de la página / alto de la ventana). cajas: bloques con borde y
+  // radio de tarjeta (no botones ni chips: el radio de una píldora pasa de 40 px); anidadas: una caja dentro de otra.
+  const alto = document.documentElement.scrollHeight;
+  const pantallas = Math.round((alto / innerHeight) * 10) / 10;
+  const esCaja = (el) => {
+    const s = getComputedStyle(el);
+    const r = parseFloat(s.borderTopLeftRadius);
+    return parseFloat(s.borderTopWidth) >= 1 && parseFloat(s.borderLeftWidth) >= 1 && s.borderTopStyle !== "none" && r >= 10 && r < 40
+      && el.offsetWidth > 160 && el.offsetHeight > 48;
+  };
+  const cajas = [...document.querySelectorAll("main div, main section, main article, main li, main aside, main details, main figure")]
+    .filter((el) => visible(el) && esCaja(el));
+  const enCaja = new Set(cajas);
+  const anidadas = cajas.filter((el) => {
+    for (let x = el.parentElement; x && x.tagName !== "MAIN"; x = x.parentElement) if (enCaja.has(x)) return true;
+    return false;
+  });
+
   return JSON.stringify({
+    alto, pantallas, nCajas: cajas.length, nAnidadas: anidadas.length, anidadas: anidadas.slice(0, 6).map(ruta),
     url: location.pathname + location.search,
     titulo: document.title,
     separadores: separadores.slice(0, 15), nSeparadores: separadores.length,

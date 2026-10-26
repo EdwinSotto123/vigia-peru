@@ -71,7 +71,7 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   {
-    clave: "cruces", titulo: "Antecedentes del ganador", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    clave: "cruces", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo",
     ayuda: (
       <Ayuda titulo="¿Qué son estos antecedentes?">
         Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña (ONPE),
@@ -82,8 +82,9 @@ const COLUMNAS: Columna[] = [
     ),
   },
   { clave: "tipo", titulo: "Tipo y etapa", ancho: "minmax(0,0.6fr)", desde: "xl" },
-  { clave: "valor", titulo: "Valor referencial", ancho: "128px", alinear: "der", desde: "md" },
-  { clave: "convocada", titulo: "Convocada", ancho: "96px", desde: "lg" },
+  // En el celular, el valor y la fecha se apilan con su rótulo: son lo que pregunta el vecino (antes desaparecían).
+  { clave: "valor", titulo: "Valor referencial", corto: "Valor", ancho: "128px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "convocada", titulo: "Convocada", ancho: "96px", desde: "lg", apilar: "con-rotulo" },
 ];
 
 export function TablaContratos({
@@ -247,7 +248,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM).
       // En la ficha de una entidad la fila no repite la entidad: el objeto puede ocupar dos líneas.
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas={deEntidad} />,
-      cruces: <CrucesCelda cruces={c.cruces} />,
+      cruces: <CrucesCelda cruces={c.cruces} sinGanador={!c.proveedor} />,
       tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
