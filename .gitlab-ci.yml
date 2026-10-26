@@ -83,6 +83,7 @@ scrape:dji:
   needs: []
   image: mcr.microsoft.com/playwright/python:v1.47.0-jammy
   parallel: 10
+  interruptible: false
   timeout: 3h
   variables:
     TARGETS: backend/scrapers-worker/dji_targets/targets_dji.csv
