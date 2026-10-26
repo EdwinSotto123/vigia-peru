@@ -27,5 +27,7 @@ export function limpiarObjeto(texto: string): string {
   let t = texto.replace(/\\[nrt]/g, " ").replace(/\s+/g, " ").trim();
   t = t.replace(/^(DENOMINACI[OÓ]N|OBJETO|NOMBRE|DESCRIPCI[OÓ]N)( DEL?| DE LA)? (REQUERIMIENTO|CONTRATACI[OÓ]N|PROCESO|SERVICIO|BIEN|OBRA)\s*:\s*/i, "");
   if (!t.includes("?")) t = t.replace(/\s*¿\s*/g, " ").replace(/\s+/g, " ").trim();
+  // Un «·» o «•» de la fuente separando partes («…de Lima"· CUI N.º 2354896»): en palabras, una coma.
+  t = t.replace(/(\s*[·•]\s*)+/g, ", ").trim().replace(/^,\s*|\s*,$/g, "");
   return t.replace(/^["'“”\s]+|["'“”\s]+$/g, "") || texto;
 }
