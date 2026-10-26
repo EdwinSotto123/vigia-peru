@@ -4,21 +4,21 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 /**
- * Conmutador de vistas del mapa de poder (/app/poder): Dependencia (Gobierno Nacional: sector → pliego → ejecutora, con
- * los autónomos marcados), Territorio (región → provincia → distrito), Instituciones (las que más contratan por rama) y
- * Lista (tabla de partidos). Todas quedan montadas (se ocultan con `hidden`) para no perder el estado. Arranca en
- * Dependencia (la estructura de quién depende de quién).
+ * Conmutador de vistas del mapa de poder (/app/poder): Ranking (tabla de partidos por captura, la respuesta de la página),
+ * Dependencia (Gobierno Nacional: sector → pliego → ejecutora, con los autónomos marcados), Territorio (región →
+ * provincia → distrito) e Instituciones (las que más contratan por rama). Todas quedan montadas (se ocultan con `hidden`)
+ * para no perder el estado. Arranca en el Ranking (la respuesta a «qué partido captura más»).
  */
 const TABS = [
+  ["lista", "Ranking"],
   ["dependencia", "Dependencia"],
   ["territorio", "Territorio"],
   ["instituciones", "Instituciones"],
-  ["lista", "Lista"],
 ] as const;
 type Vista = (typeof TABS)[number][0];
 
 export function PoderVista({ dependencia, territorio, instituciones, lista }: { dependencia: ReactNode; territorio: ReactNode; instituciones: ReactNode; lista: ReactNode }) {
-  const [v, setV] = useState<Vista>("dependencia");
+  const [v, setV] = useState<Vista>("lista");
   const nodo = { dependencia, territorio, instituciones, lista };
   return (
     <div className="space-y-3">

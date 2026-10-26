@@ -40,6 +40,7 @@ const Lista = z.object({
   anio: z.coerce.number().int().min(2024).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
   proveedor: z.string().regex(/^\d{11}$/).optional(),
+  region: z.string().trim().min(2).max(40).optional(), // departamento (nombre); se compara normalizado
   objeto: z.enum(["bien", "servicio"]).optional(),
   estado: z.string().trim().min(3).max(30).optional(),
   conReq: z.enum(["si"]).optional(), // solo las que ya tienen requerimiento (prod6)
@@ -63,6 +64,7 @@ menoresRouter.get("/", async (c) => {
     if (q.entidad) conds.push(`m.entidad_ruc = '${q.entidad}'`);
     if (q.proveedor) conds.push(`m.proveedor_ruc = '${q.proveedor}'`);
     if (q.anio) conds.push(`m.anio = ${p(q.anio)}`);
+    if (q.region) conds.push(`mef_norm(COALESCE(m.departamento, '')) = mef_norm(${p(q.region)})`);
     if (q.objeto) conds.push(`m.objeto = ${p(q.objeto === "bien" ? "BIEN" : "SERVICIO")}`);
     if (q.estado) conds.push(`m.estado = ${p(q.estado)}`);
     if (q.conReq) conds.push(`m.id_requerimiento IS NOT NULL`);

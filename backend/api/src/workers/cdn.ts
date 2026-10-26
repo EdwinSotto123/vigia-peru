@@ -38,9 +38,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * único postor y socio del proveedor contratado por la entidad, migración 122; "27": dos cruces más —domicilio fiscal
  * compartido y proveedor cautivo, migración 123— y la atribución de "financió al que gobierna" por jurisdicción real
  * (entidad_gobierno_amplia), migración 124; "28": el detalle de una orden del fraccionamiento trae su entidad y rubro;
- * "29": nuevos /poder/grafo y /poder/instituciones (mapa de instituciones del Estado) y su forma de respuesta).
+ * "29": nuevos /poder/grafo y /poder/instituciones (mapa de instituciones del Estado) y su forma de respuesta;
+ * "34": privacidad — el locador (RUC 10) de una orden va con un apellido tapado (claves contratista/rucContratista),
+ *        y la señal de nepotismo como bandera atada a la orden: hay que invalidar lo cacheado sin tapar).
  */
-const VERSION_CACHE = "33";
+const VERSION_CACHE = "34";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

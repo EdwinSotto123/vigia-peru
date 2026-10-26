@@ -14,7 +14,7 @@ import {
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
-import { getEntidad } from "@/lib/api-client";
+import { getEntidad, getRegionesEntidades } from "@/lib/api-client";
 import {
   ORDENES,
   contratosParametros,
@@ -322,16 +322,17 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
   const oq = parseOrdenesQuery(searchParams);
   const parametros = ordenesParametros(oq);
   const pagina = getOrdenes({ ...oq, size: SIZE_ORD });
+  const regiones = await getRegionesEntidades().catch(() => []);
   return (
     <Pagina className="space-y-5">
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
       <EncabezadoPagina
-        titulo="Todos los contratos"
-        bajada="Las convocatorias del SEACE y, aparte, las órdenes de compra y de servicio del Estado."
+        titulo="Órdenes de compra y de servicio"
+        bajada="Las compras directas del Estado (CONOSCE), por lo general sin concurso ni otros postores."
         ayuda={
           <Ayuda titulo="¿Qué hay aquí?">
-            Cada convocatoria del SEACE que Vigía tiene en su base, y las órdenes de compra y de servicio, que son
-            compras directas (por lo general sin concurso).
+            Las órdenes de compra y de servicio que Vigía tiene en su base (CONOSCE), que son compras directas, por lo
+            general sin concurso. Para las convocatorias con proceso, usa la pestaña Contratos.
           </Ayuda>
         }
       />
@@ -342,7 +343,7 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
       </p>
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_ORD.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraOrdenesGeneral pagina={pagina} />
+          <BarraOrdenesGeneral pagina={pagina} regiones={regiones} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaContratosSkeleton />}>
@@ -362,12 +363,13 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
   const mq = parseMenoresQuery(searchParams);
   const parametros = menoresParametros(mq);
   const pagina = getMenores({ ...mq, size: SIZE_MEN });
+  const regiones = await getRegionesEntidades().catch(() => []);
   return (
     <Pagina className="space-y-5">
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
       <EncabezadoPagina
-        titulo="Todos los contratos"
-        bajada="Las convocatorias del SEACE, las órdenes del Estado y, aparte, los contratos menores (≤8 UIT)."
+        titulo="Contratos menores (≤8 UIT)"
+        bajada="Las compras chicas del Estado (hasta 8 UIT) con su requerimiento y ventana de cotización (SEACE)."
         ayuda={
           <Ayuda titulo="¿Qué son los contratos menores?">
             Compras del Estado por montos pequeños (hasta 8 UIT, unos S/ 42,800). Por ley se contratan de forma directa,
@@ -383,7 +385,7 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
       </p>
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraMenoresGeneral pagina={pagina} />
+          <BarraMenoresGeneral pagina={pagina} regiones={regiones} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaContratosSkeleton />}>

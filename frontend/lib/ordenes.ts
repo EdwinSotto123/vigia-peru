@@ -13,6 +13,8 @@ export type OrdenGeneral = OrdenEmpresa & {
   objeto: string | null;            // BIENES | SERVICIOS | CONSULTORÍAS | OBRAS…
   fechaNotificacion: string | null; // cuándo se le notificó al proveedor
   fechaCompromiso: string | null;   // compromiso presupuestal (cuando la entidad separó la plata)
+  /** El proveedor (locador RUC-10) es pariente declarado de un funcionario de ESTA entidad (señal nepotismo). Indicio. */
+  conNepotismo?: boolean;
 };
 
 export interface OrdenesPagina {
@@ -25,7 +27,7 @@ export interface OrdenesPagina {
 }
 
 export type FiltrosOrdenes = {
-  q?: string; anio?: number; entidad?: string; proveedor?: string;
+  q?: string; anio?: number; entidad?: string; proveedor?: string; region?: string;
   tipo?: string; estado?: string; dudosa?: string; orden?: string; page?: number; size?: number;
 };
 
@@ -48,7 +50,7 @@ export const getOrdenes = (f: FiltrosOrdenes) => leer<OrdenesPagina>(`/ordenes?$
 
 /** Claves en la URL (prefijo «o»), para no pisar los filtros de la vista Contratos. */
 export const P_ORD = {
-  q: "oq", anio: "oanio", entidad: "oent", proveedor: "oprov",
+  q: "oq", anio: "oanio", entidad: "oent", proveedor: "oprov", region: "oreg",
   tipo: "otipo", estado: "oest", dudosa: "odud", orden: "oord", page: "opag",
 } as const;
 
@@ -60,6 +62,7 @@ export function parseOrdenesQuery(sp?: Record<string, string | string[] | undefi
     anio: num(P_ORD.anio),
     entidad: g(P_ORD.entidad) || undefined,
     proveedor: g(P_ORD.proveedor) || undefined,
+    region: g(P_ORD.region) || undefined,
     tipo: g(P_ORD.tipo) || undefined,
     estado: g(P_ORD.estado) || undefined,
     dudosa: g(P_ORD.dudosa) || undefined,
@@ -73,6 +76,7 @@ export function ordenesParametros(q: FiltrosOrdenes): Record<string, string> {
   const out: Record<string, string> = { vista: "ordenes" };
   const set = (k: string, v: unknown) => { if (v != null && v !== "") out[k] = String(v); };
   set(P_ORD.q, q.q); set(P_ORD.anio, q.anio); set(P_ORD.entidad, q.entidad); set(P_ORD.proveedor, q.proveedor);
+  set(P_ORD.region, q.region);
   set(P_ORD.tipo, q.tipo); set(P_ORD.estado, q.estado); set(P_ORD.dudosa, q.dudosa); set(P_ORD.orden, q.orden);
   return out;
 }

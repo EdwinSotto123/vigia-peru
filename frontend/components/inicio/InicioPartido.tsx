@@ -1,6 +1,6 @@
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
-import { plural, solesCompacto } from "@/lib/formato";
+import { plural } from "@/lib/formato";
 import { AVISO_PARTIDO, getGastoPartido, getProcesosPartido, periodoTexto, type AnioGobierno, type DetallePartido } from "@/lib/partidosApi";
 import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
 import { Banderas, BarrasMonto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
@@ -26,22 +26,23 @@ export async function InicioPartido({ clave, anio, ruta, d }: { clave: string; a
   const t = d.totales;
   const g = d.partido.gobiernos;
 
+  const gobiernosHref = `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "gobiernos" })}`;
+  // No se repiten las dos cifras de cabecera (contratos y monto adjudicado): aquí va lo que ellas no dicen, y cada chip
+  // lleva a su lista filtrada (no es texto muerto).
   const datos: DatoClave[] = [
-    { etiqueta: "Contratos adjudicados", valor: h ? plural(h.procesos, "contrato", "contratos") : null },
-    { etiqueta: "Monto adjudicado", valor: h ? solesCompacto(h.montoAdjudicadoPen) : null },
     {
       etiqueta: "Gobiernos que ganó",
-      valor: <Fichas items={[{ etiqueta: "Regiones", n: g.regional }, { etiqueta: "Provincias", n: g.provincial }, { etiqueta: "Distritos", n: g.distrital }]} />,
+      valor: <Fichas items={[{ etiqueta: "Regiones", n: g.regional, href: gobiernosHref }, { etiqueta: "Provincias", n: g.provincial, href: gobiernosHref }, { etiqueta: "Distritos", n: g.distrital, href: gobiernosHref }]} />,
     },
     {
       etiqueta: "Entidades y proveedores",
-      valor: h ? <Fichas items={[{ etiqueta: "Entidades", n: h.entidades }, { etiqueta: "Proveedores", n: h.proveedores }]} /> : null,
+      valor: h ? <Fichas items={[{ etiqueta: "Entidades", n: h.entidades, href: procesos() }, { etiqueta: "Proveedores", n: h.proveedores, href: procesos() }]} /> : null,
     },
     {
       etiqueta: "En la base de Vigía",
       valor:
         t.contratos > 0 ? (
-          <Fichas items={[{ etiqueta: "Contratos", n: t.contratos }, { etiqueta: "Leídos", n: t.leidos, destacada: true }, { etiqueta: "En cola", n: t.enCola }]} />
+          <Fichas items={[{ etiqueta: "Contratos", n: t.contratos, href: procesos() }, { etiqueta: "Leídos", n: t.leidos, destacada: true, href: procesos({ lectura: "publicado" }) }, { etiqueta: "En cola", n: t.enCola, href: procesos({ lectura: "sin_leer" }) }]} />
         ) : (
           "Ninguno en este período"
         ),
@@ -71,7 +72,7 @@ export async function InicioPartido({ clave, anio, ruta, d }: { clave: string; a
         )}
       </BloqueInicio>
 
-      <BloqueInicio titulo="Sus contratos" ayuda={<Ayuda titulo="Una advertencia">{AVISO_PARTIDO}</Ayuda>} enlace={{ href: `${ruta}?anio=${anio}&seccion=gobiernos`, texto: "Ver sus gobiernos" }}>
+      <BloqueInicio titulo="En números" ayuda={<Ayuda titulo="Una advertencia">{AVISO_PARTIDO}</Ayuda>} enlace={{ href: gobiernosHref, texto: "Ver sus gobiernos" }}>
         <DatosClave items={datos} />
       </BloqueInicio>
 

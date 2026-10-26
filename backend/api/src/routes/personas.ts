@@ -288,12 +288,39 @@ personasRouter.get("/:codigo", async (c) => {
         ordsInhab.set(entidadRuc, l);
       }
     }
+    // Las órdenes de servicio que la entidad le dio al locador: la evidencia de la señal "nepotismo", una por una (como
+    // en "inhabilitado"). Sólo en las entidades donde tiene la señal; cada orden tal como la publicó CONOSCE.
+    const ordsNep = new Map<string, Record<string, unknown>[]>();
+    const entsNep = [...new Set(senales.rows.filter((s) => s.tipo === "nepotismo").map((s) => s.entidadRuc))];
+    if (entsNep.length) {
+      const ro = await pool.query(
+        `SELECT o."entidadRuc", o.entidad, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.numero, o.orden, o.descripcion,
+                o.monto, o."tipoContratacion", o.estado, o.servicio
+           FROM (
+             SELECT DISTINCT ON (c.entidad_ruc, c.orden, c.fecha_emision)
+                    c.entidad_ruc AS "entidadRuc", c.entidad, c.fecha_emision, c.nro_orden AS numero, c.orden,
+                    c.descripcion, c.monto::float AS monto, c.tipo_contratacion AS "tipoContratacion", c.estado,
+                    servicio_persona(c.descripcion) AS servicio
+               FROM conosce_ordenes c
+              WHERE c.ruc_contratista = $1 AND c.entidad_ruc = ANY($2)
+                AND c.tipo_orden = 'Orden de Servicio' AND c.estado IS DISTINCT FROM 'Anulada' AND c.moneda = 'Nuevos Soles' AND c.monto > 0
+              ORDER BY c.entidad_ruc, c.orden, c.fecha_emision, c.anio DESC, c.mes DESC
+           ) o ORDER BY o."entidadRuc", o.fecha_emision DESC`, [ruc, entsNep]);
+      for (const o of ro.rows) {
+        const { entidadRuc, ...resto } = o as { entidadRuc: string } & Record<string, unknown>;
+        const l = ordsNep.get(entidadRuc) ?? [];
+        l.push({ ...resto, descripcion: taparNombrePropio(resto.descripcion as string | null, nombrePersona) });
+        ordsNep.set(entidadRuc, l);
+      }
+    }
     const porEntidad = new Map<string, unknown[]>();
     for (const s of senales.rows) {
       const l = porEntidad.get(s.entidadRuc) ?? [];
       const detalle = s.tipo === "inhabilitado"
         ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsInhab.get(s.entidadRuc) ?? [] }
-        : s.detalle;
+        : s.tipo === "nepotismo"
+          ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [] }
+          : s.detalle;
       l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl: s.fuenteUrl });
       porEntidad.set(s.entidadRuc, l);
     }

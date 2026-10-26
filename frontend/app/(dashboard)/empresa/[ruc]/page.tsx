@@ -385,9 +385,67 @@ async function Inicio({
   postulaciones: ReturnType<typeof getPostulacionesEmpresa>;
 }) {
   const e = f.empresa;
+  const haySunat = !!(e.estadoSunat || e.fechaAlta || e.domicilio || e.actividad);
+  const personas = e.socios + e.representantes + e.directivos;
   return (
     <div className="space-y-5">
-      <CabeceraPestana>Lo que dicen de ella otros registros públicos, lo que recibió del Estado cada año y sus datos.</CabeceraPestana>
+      <CabeceraPestana>Quién es la empresa, lo que dicen de ella otros registros públicos y lo que recibió del Estado cada año.</CabeceraPestana>
+
+      {/* 1. Sus datos, ARRIBA: la identidad (SUNAT) y quién está detrás (RNP), en dos columnas, cada vínculo navegable. */}
+      <section className="space-y-3" aria-labelledby="datos-titulo">
+        <h3 id="datos-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h3>
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>
+            <DatosClave
+              items={
+                haySunat
+                  ? [
+                      { etiqueta: "RUC", valor: e.ruc, mono: true },
+                      { etiqueta: "Estado", valor: e.estadoSunat },
+                      { etiqueta: "Inscrita", valor: e.fechaAlta ? fecha(e.fechaAlta) : null },
+                      { etiqueta: "Domicilio fiscal", valor: e.domicilio },
+                      { etiqueta: "Actividad", valor: e.actividad },
+                    ]
+                  : [
+                      { etiqueta: "RUC", valor: e.ruc, mono: true },
+                      { etiqueta: "Datos de la SUNAT", valor: "Todavía no cargados para esta empresa" },
+                    ]
+              }
+            />
+          </article>
+          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Su gente y sus vínculos</h4>
+            <DatosClave
+              items={[
+                {
+                  etiqueta: "Su gente en el RNP",
+                  valor: personas ? (
+                    <EnlaceDato href={`${ruta}?seccion=socios`}>
+                      {[plural(e.socios, "socio", "socios"), plural(e.representantes, "representante", "representantes"), plural(e.directivos, "directivo", "directivos")].join(", ")}
+                    </EnlaceDato>
+                  ) : "Sin registro en el RNP",
+                },
+                {
+                  etiqueta: "Empresas vinculadas",
+                  valor: e.vinculadas ? (
+                    <EnlaceDato href={`${ruta}?seccion=socios`}>{`${plural(e.vinculadas, "empresa comparte", "empresas comparten")} socio, representante o directivo`}</EnlaceDato>
+                  ) : "Ninguna",
+                },
+                {
+                  etiqueta: "Visitas de su gente",
+                  valor: e.visitas ? (
+                    <EnlaceDato href={`${ruta}?seccion=visitas`}>{`${plural(e.visitas, "visita", "visitas")}, ${numero(e.visitasClientes)} a entidades que le pagaron`}</EnlaceDato>
+                  ) : "Ninguna registrada",
+                },
+                { etiqueta: "Primera y última venta al Estado", valor: e.primera && e.ultima ? `${fecha(e.primera)} y ${fecha(e.ultima)}` : null },
+              ]}
+            />
+          </article>
+        </div>
+      </section>
+
+      {/* 2. Lo que dicen otros registros (las banderas), con su enlace a cada fuente. */}
       <section className="space-y-2.5" aria-labelledby="antecedentes-titulo">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id="antecedentes-titulo" className="font-display text-bloque font-bold text-ink">Lo que dicen otros registros</h3>
@@ -399,40 +457,27 @@ async function Inicio({
         </div>
         <ResumenAntecedentes antecedentes={f.antecedentes} ruta={ruta} />
       </section>
+
+      {/* 3. Lo que recibió del Estado, año por año. */}
       <AniosEmpresa anual={f.anual} nombre={e.nombre} />
+
+      {/* 4. Análisis: cómo gana, sus clientes, quién le gana y dónde. */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruta={ruta} /></Suspense>
         <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruta={ruta} /></Suspense>
         <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruta={ruta} /></Suspense>
         <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruta={ruta} /></Suspense>
       </div>
-      <section className="space-y-2">
-        <h3 className="font-display text-bloque font-bold text-ink">Sus datos</h3>
-        <DatosClave
-          items={[
-            { etiqueta: "RUC", valor: e.ruc, mono: true },
-            // Lo de la SUNAT sólo está para algunas empresas: sin ello, una sola fila que lo dice (no cuatro «Sin dato»).
-            ...(e.estadoSunat || e.fechaAlta || e.domicilio || e.actividad
-              ? [
-                  { etiqueta: "Estado en la SUNAT", valor: e.estadoSunat },
-                  { etiqueta: "Inscrita en la SUNAT", valor: e.fechaAlta ? fecha(e.fechaAlta) : null },
-                  { etiqueta: "Domicilio fiscal", valor: e.domicilio },
-                  { etiqueta: "Actividad", valor: e.actividad },
-                ]
-              : [{ etiqueta: "Datos de la SUNAT", valor: "Todavía no cargados para esta empresa" }]),
-            { etiqueta: "Primera y última venta al Estado", valor: e.primera && e.ultima ? `${fecha(e.primera)} y ${fecha(e.ultima)}` : null },
-            {
-              etiqueta: "Su gente en el RNP",
-              valor: e.socios + e.representantes + e.directivos
-                ? [plural(e.socios, "socio", "socios"), plural(e.representantes, "representante", "representantes"), plural(e.directivos, "directivo", "directivos")].join(", ")
-                : null,
-            },
-            { etiqueta: "Empresas vinculadas", valor: e.vinculadas ? `${plural(e.vinculadas, "empresa comparte", "empresas comparten")} socio, representante o directivo` : "Ninguna" },
-            { etiqueta: "Visitas de su gente", valor: e.visitas ? `${plural(e.visitas, "visita", "visitas")}, ${numero(e.visitasClientes)} a entidades que le pagaron` : "Ninguna registrada" },
-          ]}
-        />
-      </section>
     </div>
+  );
+}
+
+/** Un valor de «Sus datos» que lleva a su pestaña (socios, visitas): la cifra es navegable, no texto muerto. */
+function EnlaceDato({ href, children }: { href: string; children: string }) {
+  return (
+    <Link href={href} className="font-medium text-granate underline-offset-2 hover:underline">
+      {children}
+    </Link>
   );
 }
 
@@ -474,13 +519,15 @@ async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["
   }
   const menoresP = getMenores({ ...fm, proveedor: ruc, size: 25 });
   const noActivo = e.estadoSunat && e.estadoSunat !== "ACTIVO";
-  const items: (DatoClave | null)[] = [
+  const identidad: (DatoClave | null)[] = [
     { etiqueta: "RUC", valor: ruc, mono: true },
-    e.estadoSunat ? { etiqueta: "Estado en SUNAT", valor: oracion(e.estadoSunat) } : null,
+    e.estadoSunat ? { etiqueta: "Estado", valor: oracion(e.estadoSunat) } : null,
     e.condicionSunat && e.condicionSunat !== "HABIDO" ? { etiqueta: "Condición", valor: oracion(e.condicionSunat) } : null,
     e.actividad ? { etiqueta: "Giro", valor: oracion(e.actividad) } : null,
     e.departamento ? { etiqueta: "Departamento", valor: tituloNatural(e.departamento) } : null,
     e.fechaAlta ? { etiqueta: "Activa desde", valor: fechaCorta(e.fechaAlta), mono: true } : null,
+  ];
+  const conElEstado: (DatoClave | null)[] = [
     { etiqueta: "Contratos menores", valor: `${numero(e.menores ?? 0)} en ${numero(e.menoresEntidades ?? 0)} entidades` },
     e.menoresMonto != null ? { etiqueta: "Monto en menores", valor: soles(e.menoresMonto), mono: true } : null,
   ];
@@ -497,7 +544,19 @@ async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["
         }
       />
       {noActivo && <Aviso tono="neutro">En SUNAT figura con estado {oracion(e.estadoSunat as string)}. Es un indicio para revisión humana, no una acusación.</Aviso>}
-      <DatosClave items={items.filter(Boolean) as DatoClave[]} />
+      <section className="space-y-3" aria-labelledby="datos-min-titulo">
+        <h3 id="datos-min-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h3>
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>
+            <DatosClave items={identidad.filter(Boolean) as DatoClave[]} />
+          </article>
+          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Con el Estado (compras menores)</h4>
+            <DatosClave items={conElEstado.filter(Boolean) as DatoClave[]} />
+          </article>
+        </div>
+      </section>
       <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
           <BarraMenoresGeneral pagina={menoresP} />

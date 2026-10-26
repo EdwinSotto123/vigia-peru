@@ -29,13 +29,16 @@ const COLUMNAS: Columna[] = [
 
 const objetoTxt = (o: string | null) => (o && /bien/i.test(o) ? "Bien" : o && /servicio/i.test(o) ? "Servicio" : o ? tituloNatural(o) : null);
 
-export async function BarraMenoresGeneral({ pagina }: { pagina: Promise<MenoresPagina | null> }) {
+export async function BarraMenoresGeneral({ pagina, regiones = [] }: { pagina: Promise<MenoresPagina | null>; regiones?: string[] }) {
   const anios = (await pagina)?.anios ?? [];
   return (
     <BarraFiltros
       busqueda={{ param: P_MEN.q, placeholder: "Buscar por descripción, entidad, proveedor o código…", etiqueta: "Buscar en los contratos menores", min: 3 }}
       visibles={[
         { param: P_MEN.anio, etiqueta: "Año", corta: "Año", todas: "Todos", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a) })) },
+        ...(regiones.length
+          ? [{ param: P_MEN.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })) }]
+          : []),
         {
           param: P_MEN.objeto, etiqueta: "Objeto", corta: "Objeto", todas: "Bien y servicio",
           opciones: [{ valor: "bien", etiqueta: "Bienes" }, { valor: "servicio", etiqueta: "Servicios" }],

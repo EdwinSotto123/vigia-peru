@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Indicadores } from "@/components/listado";
@@ -5,9 +6,11 @@ import { getGastoEntidad } from "@/lib/api-client";
 import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { plural, porcentaje, solesCompacto } from "@/lib/formato";
+import type { NepotismoEntidad } from "@/lib/api-client";
 import { Banderas, BarrasGasto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
 import { BloquePersonas } from "./BloquePersonas";
+import { NepotismoInicio } from "./NepotismoInicio";
 
 /**
  * Inicio de una entidad (/entidad/[ruc], primera pestaña): en qué gasta (MEF), sus contratos, las banderas levantadas
@@ -20,6 +23,7 @@ export async function InicioEntidad({
   totalContratos,
   enCola,
   region,
+  nepotismo,
 }: {
   ruc: string;
   ruta: string;
@@ -28,6 +32,8 @@ export async function InicioEntidad({
   enCola: number;
   /** Su departamento, por nombre: las cifras de la Procuraduría son de la región, no de la entidad. */
   region: string | null;
+  /** Parientes declarados en la DJI que son locadores de esta entidad (indicio). Se muestra como bandera. */
+  nepotismo: NepotismoEntidad | null;
 }) {
   const [gasto, corrupcion] = await Promise.all([getGastoEntidad(ruc), getCorrupcionEntidad(ruc)]);
   const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", ...f })}`;
@@ -36,8 +42,9 @@ export async function InicioEntidad({
   const l = resumen?.porLectura;
   const hayGasto = !!gasto && totalGasto > 0;
 
+  const enlace = "font-medium text-granate underline-offset-2 hover:underline";
   const datosContratos: DatoClave[] = [
-    { etiqueta: "Desde 2015", valor: plural(totalContratos, "contrato", "contratos") },
+    { etiqueta: "Desde 2015", valor: <Link href={contratos()} className={enlace}>{plural(totalContratos, "contrato", "contratos")}</Link> },
     {
       etiqueta: "Por tipo",
       valor: resumen ? <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} /> : null,
@@ -55,7 +62,7 @@ export async function InicioEntidad({
         />
       ) : null,
     },
-    { etiqueta: "Esperan lectura", valor: enCola > 0 ? plural(enCola, "contrato en la cola", "contratos en la cola") : "Ninguno en la cola" },
+    { etiqueta: "Esperan lectura", valor: enCola > 0 ? <Link href={contratos({ lectura: "sin_leer" })} className={enlace}>{plural(enCola, "contrato en la cola", "contratos en la cola")}</Link> : "Ninguno en la cola" },
   ];
 
   return (
@@ -105,6 +112,8 @@ export async function InicioEntidad({
       </BloqueInicio>
 
       <BloquePersonas alcance={{ entidad: ruc }} de="esta entidad" href={(f) => `${ruta}?${new URLSearchParams({ seccion: "personas", ...f })}`} />
+
+      <NepotismoInicio nepotismo={nepotismo} href={(f) => `${ruta}?${new URLSearchParams({ seccion: "personas", ...f })}`} />
 
       <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" nombreRegion={region} />
     </RejillaInicio>

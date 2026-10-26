@@ -7,5 +7,6 @@ export { Pestanas, CabeceraPestana, irAPestana, type Pestana } from "./Pestanas"
 export { Migas, type Miga } from "./Migas";
 export { FichaNoLeida } from "./FichaNoLeida";
 export { CuerpoDetalle, ChipsDetalle, DatosClave, BloqueDetalle, CitaDetalle, PieDetalle, type DatoClave } from "./Detalle";
+export { TarjetaDatos } from "./TarjetaDatos";
 export { BarraCompartir } from "./Compartir";
 export { Franja, Beneficios, type Beneficio } from "./Franja";

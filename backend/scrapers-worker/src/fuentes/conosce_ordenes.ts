@@ -166,6 +166,10 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   // Sólo las personas con órdenes desde ese año (migración 94) y, en otro paso, el resumen de cada alcance.
   resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales($1::date) AS n", [desde]);
   resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
+  // Nepotismo (migración 137): la señal se rehace entera (es barata) tras las señales de persona, y parcha persona_entidad.
+  // Guardado con to_regprocedure para no fallar si la base aún no tiene la función (despliegue previo a la migración).
+  await uno("refrescar_nepotismo_senal",
+    "SELECT CASE WHEN to_regprocedure('refrescar_nepotismo_senal()') IS NOT NULL THEN refrescar_nepotismo_senal() ELSE 0 END AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
   // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).

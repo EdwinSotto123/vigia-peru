@@ -189,9 +189,110 @@ function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila
   return <Tabla columnas={columnas} filas={filas} etiqueta={etiqueta} medida="contenedor" densidad="compacta" />;
 }
 
+const GRADO_PARIENTE: Record<string, string> = {
+  hermano: "hermano(a)",
+  conyuge: "cónyuge o conviviente",
+  hijo: "hijo(a)",
+  padre: "padre o madre",
+  otro: "pariente",
+};
+
+/** El nombre del funcionario, no completo (sólo su primer apellido): la DJI es pública, pero basta para ubicarlo. */
+function primerApellido(nombre: unknown): string | null {
+  const t = txt(nombre);
+  if (!t) return null;
+  return tituloNatural(t).split(/\s+/)[0] ?? null;
+}
+
 function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; entidadRuc?: string }) {
   const d = s.detalle ?? {};
   switch (s.tipo) {
+    case "nepotismo": {
+      // El/los funcionario(s) que lo declararon como pariente: cargo + apellido (no completo) + parentesco. No se
+      // nombra entero a nadie; es un indicio para revisión humana.
+      const parientes = lista(d.parientes).map((p, i) => ({
+        id: String(i),
+        celdas: {
+          cargo: <span className="text-meta text-ink">{txt(p.cargo) ? tituloNatural(txt(p.cargo)!) : "Funcionario de la entidad"}</span>,
+          quien: <span className="text-meta font-medium text-inkSoft">{primerApellido(p.declarante) ?? "Sin dato"}</span>,
+          parentesco: <span className="text-meta text-inkSoft">{GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente"}</span>,
+        },
+      }));
+      // Las órdenes concretas que esta entidad le dio: la cita a la evidencia, una por una (como "inhabilitado").
+      const ordenes: Fila[] = lista(d.ordenes_detalle).map((o, i) => {
+        const descripcion = txt(o.descripcion);
+        const entidad = txt(o.entidad);
+        const servicio = txt(o.servicio);
+        const numero = txt(o.numero) ?? txt(o.orden);
+        const monto = num(o.monto) ?? 0;
+        return {
+          id: `ord-${i}`,
+          celdas: {
+            fecha: <span className="text-meta tabular-nums text-mute">{dia(o.fecha) ?? "Sin dato"}</span>,
+            servicio: <span className="text-meta text-inkSoft">{servicio ?? descripcion ?? "Sin dato"}</span>,
+            numero: <span className="font-mono text-meta text-inkSoft">{numero ?? "Sin dato"}</span>,
+            monto: <CeldaNumero>{soles(monto)}</CeldaNumero>,
+          },
+          detalle: {
+            titulo: numero ? `Orden de servicio N.° ${numero}` : "Orden de servicio",
+            etiqueta: `Ver el detalle de la orden ${numero ?? ""}`.trim(),
+            descripcion: entidad ?? undefined,
+            contenido: (
+              <div className="space-y-3">
+                <DatosClave
+                  items={[
+                    { etiqueta: "Qué se pagó", valor: descripcion },
+                    { etiqueta: "Entidad", valor: entidad },
+                    { etiqueta: "Emitida", valor: dia(o.fecha) },
+                    { etiqueta: "Estado", valor: txt(o.estado) },
+                    { etiqueta: "Monto", valor: soles(monto), mono: true },
+                    { etiqueta: "Tipo de servicio", valor: servicio },
+                    { etiqueta: "Cómo se contrató", valor: txt(o.tipoContratacion) },
+                  ]}
+                />
+                <p className="text-rotulo leading-relaxed text-mute">
+                  Es la orden tal como la publicó CONOSCE. La contratación de un pariente de un funcionario puede estar
+                  impedida según el cargo (Ley 32069, art. 30): esto es un dato para revisar, no una prueba de falta.
+                </p>
+              </div>
+            ),
+            pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{txt(o.orden) ? ` (${txt(o.orden)})` : ""}</span>,
+          },
+        };
+      });
+      return (
+        <div className="space-y-2">
+          <DatosClave
+            items={[
+              { etiqueta: "Le vendió a la entidad", valor: `${numero(num(d.ordenes) ?? 0)} ${(num(d.ordenes) ?? 0) === 1 ? "orden" : "órdenes"}`, mono: true },
+              { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
+              { etiqueta: "Años", valor: [num(d.desde), num(d.hasta)].filter((x) => x != null).join(" a ") || null, mono: true },
+            ]}
+          />
+          <Lista
+            etiqueta="Funcionario(s) que lo declararon como pariente"
+            columnas={[
+              { clave: "cargo", titulo: "Cargo en la entidad", ancho: "minmax(0,1.2fr)" },
+              { clave: "quien", titulo: "Funcionario", ancho: "minmax(0,110px)" },
+              { clave: "parentesco", titulo: "Parentesco declarado", ancho: "minmax(0,1fr)" },
+            ]}
+            filas={parientes}
+          />
+          {ordenes.length > 0 && (
+            <Tabla
+              etiqueta="Cada orden que le dio la entidad (tocá una para su detalle)"
+              columnas={[
+                { clave: "fecha", titulo: "Fecha", ancho: "120px" },
+                { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)" },
+                { clave: "numero", titulo: "N° de orden", ancho: "minmax(0,170px)", desde: "md" },
+                { clave: "monto", titulo: "Monto", ancho: "120px", alinear: "der" },
+              ]}
+              filas={ordenes}
+            />
+          )}
+        </div>
+      );
+    }
     case "candidato_gobierna":
     case "candidato": {
       const filas = lista(d.candidaturas)

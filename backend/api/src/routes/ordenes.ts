@@ -35,6 +35,7 @@ const Lista = z.object({
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
   proveedor: z.string().regex(/^\d{11}$/).optional(),
+  region: z.string().trim().min(2).max(40).optional(), // departamento (nombre); se compara normalizado
   tipo: z.enum(["compra", "servicio"]).optional(),
   estado: z.string().trim().min(3).max(30).optional(),
   dudosa: z.enum(["si"]).optional(),
@@ -69,6 +70,9 @@ ordenesRouter.get("/", async (c) => {
     if (q.tipo) variables.push(q.tipo === "compra" ? `o.tipo_orden ILIKE '%compra%'` : `o.tipo_orden NOT ILIKE '%compra%'`);
     if (q.estado) variables.push(`o.estado = ${p(q.estado)}`);
     if (q.dudosa) variables.push(`o.monto_dudoso IS NOT NULL`);
+    // Región (departamento): no hay índice por departamento, así que es un filtro post-ventana (sobre las filas de la
+    // ventana, normalizando tildes/mayúsculas). La ventana se agranda cuando hay región (abajo) para que la página llene.
+    if (q.region) variables.push(`mef_norm(COALESCE(o.departamento, '')) = mef_norm(${p(q.region)})`);
     for (const w of palabrasBusqueda(q.q)) {
       variables.push(`mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.contratista, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
     }
@@ -79,7 +83,9 @@ ordenesRouter.get("/", async (c) => {
     // entre archivos: medido 3990 únicas de 4000), así que la ventana solo cubre la página pedida con margen para los
     // filtros post-ventana (tipo/estado/texto). El piso bajo mantiene rápida la 1ª página; el múltiplo crece en páginas
     // hondas. Cada fila completa es ~0,5 KB, así que la ventana es también el costo: no inflarla de más.
-    const ventana = Math.max(1500, (offset + lim) * 6);
+    // Con región (sin ancla de entidad/proveedor) la ventana se agranda: un departamento es ~1/25 del universo, así que
+    // hace falta más margen para llenar la página tras el filtro post-ventana. Acotada: es un índice por fecha que para ahí.
+    const ventana = q.region && !anclado ? Math.max(12000, (offset + lim) * 24) : Math.max(1500, (offset + lim) * 6);
     const despues = variables.length ? `WHERE ${variables.join(" AND ")}` : "";
     const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
                   o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
@@ -87,7 +93,9 @@ ordenesRouter.get("/", async (c) => {
                   o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
                   o.tipo_contratacion AS "tipoContratacion", o.estado,
                   o.objeto, to_char(o.fecha_notificacion, 'YYYY-MM-DD') AS "fechaNotificacion",
-                  to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso"`;
+                  to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso",
+                  EXISTS (SELECT 1 FROM persona_senal ps WHERE ps.tipo = 'nepotismo'
+                            AND ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista) AS "conNepotismo"`;
     const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
     const salida = `SELECT ${COLS} FROM d o ${despues} ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`;
     // UNA sola consulta con VENTANA para los tres casos. El WHERE lleva el filtro de entidad/proveedor (o ninguno) y el

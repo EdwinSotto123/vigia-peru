@@ -29,7 +29,6 @@ import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { GrafoCaptura } from "@/components/entidad/GrafoCaptura";
 import { CapturaEntidad } from "@/components/entidad/CapturaEntidad";
 import { CadenaCapturaEntidad } from "@/components/entidad/CadenaCapturaEntidad";
-import { NepotismoEntidad } from "@/components/entidad/NepotismoEntidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -166,30 +165,6 @@ export default async function EntidadProfile({
       {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
       <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
 
-      {/* 2.b Quién decide y firma sus contratos (grafo del Estado, migración 126); streaming aparte, oculto si no hay data. */}
-      <Suspense fallback={null}>
-        <QuienDecide ruc={e.ruc} />
-      </Suspense>
-
-      {/* 2.c Quién la gobierna y a quién le compra: captura política (mapa de poder, migración 125); oculto si no aplica.
-          Primero el grafo (visual), luego el resumen en cifras; cada uno trae su data y se oculta solo si no hay. */}
-      <Suspense fallback={null}>
-        <GrafoCaptura ruc={e.ruc} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <CapturaEntidad ruc={e.ruc} />
-      </Suspense>
-
-      {/* 2.d La cadena de captura (Capa C): empresas ligadas → partido + autoridad → la entidad → quién aprueba sus
-          contratos. Combina A+B; oculta si no hay partido ni empresas. Indicios, no acusación. */}
-      <Suspense fallback={null}>
-        <CadenaCapturaEntidad ruc={e.ruc} />
-      </Suspense>
-
-      {/* 2.e Nepotismo: parientes declarados en la DJI que son locadores de la entidad (migración 136). Indicio, no
-          acusación; agregado, sin identidades. Oculto si no hay. */}
-      <NepotismoEntidad nepotismo={apiResp.nepotismo} />
-
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
           enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
       <Pestanas
@@ -201,9 +176,26 @@ export default async function EntidadProfile({
             clave: "inicio",
             etiqueta: "Inicio",
             contenido: (
-              <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
-                <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} />
-              </Suspense>
+              <div className="space-y-5">
+                {/* Quién la controla: grafo del Estado (quién decide/firma, migr. 126) y captura política (mapa de poder,
+                    migr. 125). Cada bloque trae su data y se oculta solo si no aplica; van dentro del Inicio, no como muro
+                    sobre las pestañas. */}
+                <Suspense fallback={null}>
+                  <QuienDecide ruc={e.ruc} />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <GrafoCaptura ruc={e.ruc} />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <CapturaEntidad ruc={e.ruc} />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <CadenaCapturaEntidad ruc={e.ruc} />
+                </Suspense>
+                <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
+                  <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} nepotismo={apiResp.nepotismo} />
+                </Suspense>
+              </div>
             ),
           },
           {

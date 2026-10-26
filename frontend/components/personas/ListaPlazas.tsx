@@ -57,7 +57,7 @@ export function ListaPlazas({ alcance, sp, ruta, base, deEntidad = false }: { al
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
-        <Cifras pagina={paginaP} />
+        <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
         <Suspense fallback={<Barra r={null} />}>
@@ -73,14 +73,19 @@ export function ListaPlazas({ alcance, sp, ruta, base, deEntidad = false }: { al
   );
 }
 
-async function Cifras({ pagina }: { pagina: Promise<PaginaPlazas | null> }) {
+async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlazas | null>; ruta: string; base: Parametros }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
+  const href = (extra: Record<string, string>) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...base, ...extra })) if (v) q.set(k, String(v));
+    return `${ruta}?${q.toString()}`;
+  };
   const items: Indicador[] = [
     { valor: numero(r.plazas), etiqueta: "plazas CAS publicadas", contexto: r.desde ? `desde el ${fechaCorta(r.desde)}` : undefined, ayuda: <AyudaTermino clave="cas" /> },
     { valor: numero(r.vacantes), etiqueta: "vacantes", contexto: `en ${numero(r.plazas)} plazas` },
     { valor: r.medianaSueldo != null ? soles(r.medianaSueldo) : null, etiqueta: "sueldo mediano", contexto: `de ${numero(r.plazas)} plazas; la mitad paga menos`, ayuda: <AyudaTermino clave="mediana" /> },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.plazas)} (plaza a la medida)`, tono: r.conSenales > 0 ? "media" : "neutro" },
+    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.plazas)} (plaza a la medida)`, tono: r.conSenales > 0 ? "media" : "neutro", href: href({ [P_PLAZAS.severidad]: "con" }) },
   ];
   return <Indicadores items={items} />;
 }

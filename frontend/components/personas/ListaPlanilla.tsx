@@ -65,7 +65,7 @@ export function ListaPlanilla({ alcance, sp, ruta, base, deEntidad = false }: { 
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
-        <Cifras pagina={paginaP} />
+        <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
         <Suspense fallback={<Barra r={null} />}>
@@ -81,9 +81,14 @@ export function ListaPlanilla({ alcance, sp, ruta, base, deEntidad = false }: { 
   );
 }
 
-async function Cifras({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
+async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla | null>; ruta: string; base: Parametros }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
+  const href = (extra: Record<string, string>) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...base, ...extra })) if (v) q.set(k, String(v));
+    return `${ruta}?${q.toString()}`;
+  };
   const items: Indicador[] = [
     { valor: numero(r.personas), etiqueta: "personas en planilla", contexto: r.ultimoMes ? `hasta ${r.ultimoMes}` : undefined },
     {
@@ -93,8 +98,8 @@ async function Cifras({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
         ? `suma de su último mes publicado; aparte, ${plural(r.dudosos, "sueldo", "sueldos")} con posible error de la entidad`
         : "suma de su último mes publicado",
     },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros` },
-    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro" },
+    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P_PLANILLA.severidad]: "con" }) },
+    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
   ];
   return <Indicadores items={items} />;
 }
@@ -118,6 +123,7 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
           { valor: "alta", etiqueta: "Graves", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
           { valor: "media", etiqueta: "Para revisar", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+          { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.personas - r.conSenales : null },
         ],
       }}
       visibles={[

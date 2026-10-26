@@ -46,7 +46,7 @@ export interface MenoresPagina {
 }
 
 export type FiltrosMenores = {
-  q?: string; anio?: number; entidad?: string; proveedor?: string;
+  q?: string; anio?: number; entidad?: string; proveedor?: string; region?: string;
   objeto?: string; estado?: string; conReq?: string; orden?: string; page?: number; size?: number;
 };
 
@@ -73,7 +73,7 @@ export const urlContratoMenor = (id: number) => `${API_BASE}/menores/${id}/contr
 
 /** Claves en la URL (prefijo «m»), para no pisar los filtros de Contratos/Órdenes. */
 export const P_MEN = {
-  q: "mq", anio: "manio", entidad: "ment", proveedor: "mprov",
+  q: "mq", anio: "manio", entidad: "ment", proveedor: "mprov", region: "mreg",
   objeto: "mobj", estado: "mest", conReq: "mreq", orden: "mord", page: "mpag",
 } as const;
 
@@ -85,6 +85,7 @@ export function parseMenoresQuery(sp?: Record<string, string | string[] | undefi
     anio: num(P_MEN.anio),
     entidad: g(P_MEN.entidad) || undefined,
     proveedor: g(P_MEN.proveedor) || undefined,
+    region: g(P_MEN.region) || undefined,
     objeto: g(P_MEN.objeto) || undefined,
     estado: g(P_MEN.estado) || undefined,
     conReq: g(P_MEN.conReq) || undefined,
@@ -98,6 +99,7 @@ export function menoresParametros(q: FiltrosMenores): Record<string, string> {
   const out: Record<string, string> = { vista: "menores" };
   const set = (k: string, v: unknown) => { if (v != null && v !== "") out[k] = String(v); };
   set(P_MEN.q, q.q); set(P_MEN.anio, q.anio); set(P_MEN.entidad, q.entidad); set(P_MEN.proveedor, q.proveedor);
+  set(P_MEN.region, q.region);
   set(P_MEN.objeto, q.objeto); set(P_MEN.estado, q.estado); set(P_MEN.conReq, q.conReq); set(P_MEN.orden, q.orden);
   return out;
 }

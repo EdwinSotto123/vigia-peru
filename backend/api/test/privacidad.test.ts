@@ -273,6 +273,16 @@ test("personas contratadas (migración 91): RUC 10 → ref, un apellido tapado e
   assert.match(t, /VARGAS ROJAS PEDRO/);
 });
 
+test("orden de servicio: el locador (RUC 10) va con un apellido tapado; la empresa (RUC 20) de una orden de compra queda completa", () => {
+  const servicio = publicar({ contratista: "CARPIO COBOS ABEL", rucContratista: "10439608801", descripcion: "Pago a ABEL CARPIO COBOS por asesoría" });
+  assert.equal(servicio.contratista, `CARPIO ${TAPA_NOMBRE} ABEL`);
+  assert.doesNotMatch(json(servicio), /10439608801/);
+  assert.match(servicio.descripcion, new RegExp(`ABEL CARPIO ${TAPA_NOMBRE}`));
+  const compra = publicar({ contratista: "CONSTRUCTORA SANTA ROSA S.A.C.", rucContratista: "20131378972" });
+  assert.equal(compra.contratista, "CONSTRUCTORA SANTA ROSA S.A.C.");
+  assert.equal(compra.rucContratista, "20131378972");
+});
+
 test("la Ñ escrita «¿» por el SEACE (NURE¿A) se repone y el apellido se tapa; el «¿» de una pregunta no se toca", () => {
   const r = publicar({ ganador: { ruc: "10439608801", razon_social: "LEON NURE¿A MANUEL ALEXANDER" }, nota: "¿QUÉ PASÓ? LEON NURE¿A MANUEL ALEXANDER" });
   assert.equal(r.ganador.razon_social, `LEON ${TAPA_NOMBRE} MANUEL ALEXANDER`);

@@ -29,7 +29,7 @@ export default async function PoderPage() {
   const [r, re, m, t, dep] = await Promise.all([getPoderPartidos(), getPoderEntidades(), getMapaInstituciones(), getPoderTerritorio(), getPoderDependencia()]);
   const todos = r?.data ?? [];
   const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
-  const entidades = (re?.data ?? []).slice(0, 50);
+  const entidades = (re?.data ?? []).slice(0, 15);
   const mapa = m ?? { ramas: { ministerios: [], organismos: [], regional: [], local: [] } };
   const territorio = t?.nodos ?? [];
   const dependencia = dep ?? { anio: new Date().getFullYear(), nodos: [] };
@@ -66,7 +66,8 @@ export default async function PoderPage() {
         territorio={<ExploradorTerritorio nodos={territorio} />}
         instituciones={<MapaInstituciones datos={mapa} />}
         lista={
-      <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+          <div className="space-y-6">
+          <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[720px] text-meta">
           <thead>
             <tr className="border-b border-line text-rotulo uppercase tracking-wide text-mute">
@@ -106,15 +107,12 @@ export default async function PoderPage() {
           </tbody>
         </table>
       </div>
-        }
-      />
-
       {entidades.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-seccion font-semibold text-ink">Entidades más capturadas</h2>
           <p className="text-meta leading-relaxed text-inkSoft">
-            Baja del partido al municipio o gobierno regional concreto: dónde más contratos ganaron empresas ligadas al
-            partido que lo gobierna. Toca una entidad para ver su ficha.
+            Las 15 entidades donde más contratos ganaron empresas ligadas al partido que las gobierna: baja del partido al
+            municipio o gobierno regional concreto. Toca una entidad para ver su ficha.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
             <table className="w-full min-w-[720px] text-meta">
@@ -155,6 +153,9 @@ export default async function PoderPage() {
           </div>
         </section>
       )}
+          </div>
+        }
+      />
 
       <p className="text-rotulo leading-relaxed text-mute">
         Fuente: JNE (quién gobierna cada entidad), ONPE (aportes y gastos de campaña), RNP/SEACE (socios y contratos). Cada

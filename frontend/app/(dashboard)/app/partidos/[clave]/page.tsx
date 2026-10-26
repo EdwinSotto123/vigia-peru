@@ -362,6 +362,7 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
       valor: h ? solesCompacto(h.montoAdjudicadoPen) : null,
       etiqueta: "adjudicados en soles",
       contexto: h ? `a ${plural(h.proveedores, "proveedor", "proveedores")}` : undefined,
+      href: `${ruta}?anio=${anio}&seccion=procesos&orden=monto`,
     },
     {
       valor: numero(totalGobiernos),

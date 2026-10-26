@@ -264,11 +264,13 @@ export async function getFraccionamientoEntidad(ruc: string, limit = 1000) {
 /** Indicio de nepotismo: parientes declarados en la DJI que son locadores de la entidad. El funcionario es cargo
  *  público (sin tapar); el proveedor (RUC-10) va con un apellido tapado, como cualquier locador. */
 export interface NepotismoIndicio {
-  declarante: string;      // el funcionario que lo declaró (cargo público)
+  declarante: string;      // el funcionario que lo declaró (cargo público; el frontend muestra el nombre parcial)
+  cargo: string | null;    // su cargo en la entidad (de la DJI), p. ej. "JEFE DE ABASTECIMIENTO"
   grado: string;           // hermano | hijo | padre | conyuge | otro
   parentesco: string;
   proveedorRuc: string;
   proveedorNombre: string; // tapado por el backend (un apellido)
+  proveedorCodigo: string | null; // id (12 hex) para enlazar a su ficha; la evidencia (sus órdenes) vive ahí
   ordenes: number;
   monto: number;
 }

@@ -10,7 +10,8 @@ import { getCorrupcionRegion, rutaCorrupcion, type Corrupcion } from "@/lib/corr
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import type { RegionBudgetSummary } from "@/lib/mef";
-import { Banderas, BarrasGasto, BloqueInicio, Fichas, SinDato } from "./BloquesInicio";
+import Link from "next/link";
+import { Banderas, BarrasGasto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
 import { ContenidoPersonas } from "./ContenidoPersonas";
 import { PARAMS_SOLOS, type PaginaPersonas, type ResumenPersonas } from "@/lib/personas";
@@ -81,7 +82,7 @@ export function InicioRegion({
   const l = resumen?.porLectura;
   const datos: DatoClave[] = resumen
     ? [
-        { etiqueta: "Desde 2015", valor: plural(resumen.total, "contrato", "contratos") },
+        { etiqueta: "Desde 2015", valor: <Link href={contratos()} className="font-medium text-granate underline-offset-2 hover:underline">{plural(resumen.total, "contrato", "contratos")}</Link> },
         {
           etiqueta: "Por tipo",
           valor: <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} />,
@@ -102,7 +103,7 @@ export function InicioRegion({
     : [];
 
   return (
-    <div className="space-y-4">
+    <RejillaInicio>
       <BloqueInicio
         titulo={anio ? `En qué gasta ${nombre} (${anio.year})` : `En qué gasta ${nombre}`}
         ayuda={
@@ -165,6 +166,6 @@ export function InicioRegion({
       )}
 
       <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.region(ubigeo)} ambito="region" nombreRegion={nombre} />
-    </div>
+    </RejillaInicio>
   );
 }

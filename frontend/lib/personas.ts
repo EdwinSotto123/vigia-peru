@@ -178,7 +178,7 @@ export interface OrdenesPersona {
 // ─── Señales ───────────────────────────────────────────────────────────────────────────────────
 
 export const TIPOS_SENAL = [
-  "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
+  "nepotismo", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
@@ -188,6 +188,12 @@ export type TipoSenal = (typeof TIPOS_SENAL)[number];
  * acusa: dicen qué registro coincide.
  */
 export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: string }> = {
+  nepotismo: {
+    corto: "Pariente de un funcionario",
+    titulo: "Un funcionario de la entidad lo declaró como su pariente",
+    explica:
+      "Un funcionario de esta entidad lo declaró como pariente en su Declaración Jurada de Intereses (Ley 31227), y él figura como locador (proveedor) de la misma entidad. Es un indicio de posible nepotismo para revisión humana, no una acusación: la declaración es pública y el impedimento depende del cargo del funcionario (Ley 32069, art. 30).",
+  },
   candidato_gobierna: {
     corto: "Candidato del que gobierna",
     titulo: "Fue candidato del partido que gobernaba la entidad",

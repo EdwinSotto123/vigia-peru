@@ -284,8 +284,8 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
 const CARGO_ELECTO = /^\s*(?:ex\s*-?\s*)?(?:teniente\s+)?(?:alcalde|alcaldesa|gobernador|gobernadora|vicegobernador|vicegobernadora|regidor|regidora|consejero\s+regional|consejera\s+regional|congresista)\b/i;
 
 /** Objetos con un RUC: si es un RUC 10, el nombre de al lado es el de una persona natural (orden SUNAT). */
-const CLAVES_RUC = ["ruc", "rucProveedor", "proveedorRuc", "proveedor_ruc", "ruc_proveedor", "ganador_ruc", "ruc_postor", "ruc_empresa", "ruc_ocr", "id"];
-const CLAVES_RAZON = ["razon_social", "razonSocial", "proveedor", "nombre", "name", "legalName", "proveedor_nombre", "proveedorNombre", "ganador_razon_social", "razon_social_ocds"];
+const CLAVES_RUC = ["ruc", "rucProveedor", "proveedorRuc", "proveedor_ruc", "ruc_proveedor", "ganador_ruc", "ruc_postor", "ruc_empresa", "ruc_ocr", "rucContratista", "ruc_contratista", "id"];
+const CLAVES_RAZON = ["razon_social", "razonSocial", "proveedor", "nombre", "name", "legalName", "proveedor_nombre", "proveedorNombre", "ganador_razon_social", "razon_social_ocds", "contratista"];
 
 class Recolector {
   personas = new Map<string, Persona>();

@@ -33,13 +33,16 @@ const COLUMNAS: Columna[] = [
 ];
 
 /** La barra de filtros de las órdenes: búsqueda, año (de los años disponibles) y tipo; orden por fecha. */
-export async function BarraOrdenesGeneral({ pagina }: { pagina: Promise<OrdenesPagina | null> }) {
+export async function BarraOrdenesGeneral({ pagina, regiones = [] }: { pagina: Promise<OrdenesPagina | null>; regiones?: string[] }) {
   const anios = (await pagina)?.anios ?? [];
   return (
     <BarraFiltros
       busqueda={{ param: P_ORD.q, placeholder: "Buscar por descripción, entidad, proveedor o número…", etiqueta: "Buscar en las órdenes", min: 3 }}
       visibles={[
         { param: P_ORD.anio, etiqueta: "Año", corta: "Año", todas: "Último año", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a) })) },
+        ...(regiones.length
+          ? [{ param: P_ORD.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })) }]
+          : []),
         {
           param: P_ORD.tipo, etiqueta: "Tipo de orden", corta: "Tipo", todas: "Compra y servicio",
           opciones: [
@@ -95,6 +98,11 @@ export async function ListaOrdenes({ pagina: p, ruta, parametros, actual }: { pa
             titulo={descripcion}
             dosLineas
             meta={[
+              o.conNepotismo && (
+                <span key="nep" className="pill border-amber/30 bg-amber-soft text-amberTexto" title="El proveedor es pariente declarado de un funcionario de esta entidad (indicio, no acusación)">
+                  Posible nepotismo
+                </span>
+              ),
               entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
               proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
               <Dato key="tipo" tipo="tipo">{clase}</Dato>,
@@ -116,6 +124,12 @@ export async function ListaOrdenes({ pagina: p, ruta, parametros, actual }: { pa
         descripcion: entidad ?? undefined,
         contenido: (
           <div className="space-y-4">
+            {o.conNepotismo && (
+              <p className="rounded-xl border border-amber/30 bg-amber-soft p-3 text-rotulo leading-relaxed text-amberTexto">
+                El proveedor figura como pariente declarado de un funcionario de esta entidad (Declaración Jurada de
+                Intereses, Ley 31227). Es un indicio para revisión humana, no una acusación.
+              </p>
+            )}
             {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}</AvisoDato>}
             <DatosClave
               items={[
