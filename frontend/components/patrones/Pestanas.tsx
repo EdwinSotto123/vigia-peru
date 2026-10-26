@@ -108,6 +108,19 @@ export function Pestanas({
     window.dispatchEvent(new CustomEvent(EVENTO_ACTIVA, { detail: { param, clave } }));
   };
 
+  // Un enlace de la página a una pestaña (`?seccion=contratos&…`, una cifra de arriba) cuando el servidor ya tenía esa
+  // misma: el `key` de la página no cambia y la barra no se vuelve a montar, pero la URL dice cuál mostrar. Sólo una
+  // clave explícita y válida: sin el parámetro no se mueve (hay listas cuyos enlaces no lo llevan).
+  useEffect(() => {
+    let pedida: string | null = null;
+    try {
+      pedida = new URL(window.location.href).searchParams.get(param);
+    } catch {
+      return;
+    }
+    if (pedida && pedida !== actual && pestanas.some((p) => p.clave === pedida)) elegir(pedida);
+  });
+
   // `irAPestana()` desde cualquier botón de la página.
   useEffect(() => {
     const alPedir = (e: Event) => {
