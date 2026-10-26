@@ -50,7 +50,8 @@ const tieneLetras = (v: ReactNode | null) => typeof v === "string" && /[a-zá-ú
 export function CifrasEnFila({ items, pie, className, apilado = false, chico = false }: { items: Cifra[]; pie?: ReactNode; className?: string; apilado?: boolean; chico?: boolean }) {
   const visibles = items.slice(0, 4);
   const fila = (
-    <dl className={cn("grid grid-cols-2 gap-2.5", !apilado && COLUMNAS[visibles.length])}>
+    // En el celular van de a 2 por fila: con un total impar, la última a todo el ancho (no media fila con un hueco al lado).
+    <dl className={cn("grid grid-cols-2 gap-2.5 max-sm:[&>div:last-child:nth-child(odd)]:col-span-2", !apilado && COLUMNAS[visibles.length])}>
       {visibles.map((it) => (
         <div
           key={it.etiqueta}

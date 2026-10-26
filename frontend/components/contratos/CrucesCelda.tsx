@@ -1,6 +1,6 @@
 import { AlertTriangle, CircleAlert, Info } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { TIPO_CRUCE } from "@/lib/cruces";
+import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
 
 const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 // La severidad también con ícono (no sólo el color: WCAG 1.4.1), el mismo de `Severidad`.
@@ -26,16 +26,18 @@ export function CrucesCelda({
   /** La convocatoria todavía no tiene ganador: no hay de quién buscar antecedentes. */
   sinGanador?: boolean;
 }) {
-  const corto = (t: string) => etiquetas?.[t] ?? TIPO_CRUCE[t]?.corto ?? t;
+  // En el chip, el nombre breve; el completo (y qué significa) en su title, y la lista entera en el de la fila.
+  const corto = (t: string) => etiquetas?.[t] ?? chipCruce(t);
+  const completo = (t: string) => etiquetas?.[t] ?? TIPO_CRUCE[t]?.corto ?? t;
   if (!cruces?.length) return <span className="text-meta text-mute">{sinGanador ? "Sin ganador aún" : "Sin antecedentes"}</span>;
   const orden = [...cruces].sort((a, b) => RANGO[a.severidad] - RANGO[b.severidad]);
   const resto = orden.length - MAX_CRUCES;
   return (
-    <ul className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden" aria-label="Registros donde aparece el ganador" title={orden.map((x) => corto(x.tipo)).join(", ")}>
+    <ul className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden" aria-label="Registros donde aparece el ganador" title={orden.map((x) => completo(x.tipo)).join(", ")}>
       {orden.slice(0, MAX_CRUCES).map((x) => {
         const Icono = ICONO_CRUCE[x.severidad];
         return (
-          <li key={x.tipo} className="min-w-0" title={TIPO_CRUCE[x.tipo]?.explica}>
+          <li key={x.tipo} className="min-w-0" title={`${completo(x.tipo)}: ${TIPO_CRUCE[x.tipo]?.explica ?? ""}`}>
             <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 px-2">
               <Icono size={12} className="shrink-0" aria-hidden />
               <span className="truncate">{corto(x.tipo)}</span>
@@ -47,7 +49,7 @@ export function CrucesCelda({
         <li className="shrink-0">
           <Badge variant="neutral" className="px-2">
             +{resto}
-            <span className="sr-only"> más: {orden.slice(MAX_CRUCES).map((x) => corto(x.tipo)).join(", ")}</span>
+            <span className="sr-only"> más: {orden.slice(MAX_CRUCES).map((x) => completo(x.tipo)).join(", ")}</span>
           </Badge>
         </li>
       )}

@@ -82,6 +82,8 @@ export interface Indicio {
   n: number;
   severidad: SeveridadIndicio;
   corto: string;
+  /** El nombre para el chip angosto (lib/cruces.ts `chip`); sin él, `corto`. */
+  chip?: string;
   explica: string;
 }
 
@@ -95,6 +97,7 @@ export function indiciosDe(x: ConteosCaptura | null | undefined): Indicio[] {
     n: Number(x[t.campo] ?? 0) || 0,
     severidad: t.severidad,
     corto: TIPO_CRUCE[t.tipo]?.corto ?? t.tipo,
+    chip: TIPO_CRUCE[t.tipo]?.chip ?? TIPO_CRUCE[t.tipo]?.corto ?? t.tipo,
     explica: TIPO_CRUCE[t.tipo]?.explica ?? "",
   }))
     .filter((i) => i.n > 0)

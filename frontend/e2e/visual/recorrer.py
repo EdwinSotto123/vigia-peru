@@ -116,6 +116,8 @@ def main() -> None:
     ap.add_argument("--base", default="https://vigia-web.vigiaperu.workers.dev")
     ap.add_argument("--salida", default=str(AQUI / "salida"))
     ap.add_argument("--solo", default="")
+    # Otras páginas en vez de las de siempre: "nombre=/ruta,otra=/ruta2" (p. ej. fichas livianas en DEV, cuya base es chica).
+    ap.add_argument("--paginas", default="")
     ap.add_argument("--vistas", default="escritorio,celular")
     ap.add_argument("--modos", default="dia,noche")
     ap.add_argument("--usuario", default="")
@@ -124,7 +126,8 @@ def main() -> None:
 
     salida = Path(a.salida)
     salida.mkdir(parents=True, exist_ok=True)
-    paginas = {k: v for k, v in PAGINAS.items() if not a.solo or k in a.solo.split(",")}
+    fuente = dict(x.split("=", 1) for x in a.paginas.split(",") if "=" in x) if a.paginas else PAGINAS
+    paginas = {k: v for k, v in fuente.items() if not a.solo or k in a.solo.split(",")}
     sesion = "vigia-visual"
     codigo = base64.b64encode(CHEQUEOS.encode("utf-8")).decode("ascii")
     if a.usuario:

@@ -104,7 +104,8 @@ export function EmpresasLigadas({
       id: e.ruc,
       buscable: `${nombre} ${e.ruc}`,
       celdas: {
-        empresa: <CeldaPrincipal titulo={nombre} meta={[<Dato key="r" tipo="ruc" mono>{e.ruc}</Dato>]} enLinea />,
+        // El RUC debajo del nombre (no en la misma línea): en la columna principal el nombre se cortaba a 20 letras.
+        empresa: <CeldaPrincipal titulo={nombre} meta={[<Dato key="r" tipo="ruc" mono>{e.ruc}</Dato>]} />,
         lazo: <CrucesCelda cruces={crucesDe(e.lazos)} />,
         contratos: <CeldaNumero>{numero(e.contratos)}</CeldaNumero>,
         monto: <CeldaNumero>{solesCompacto(e.monto)}</CeldaNumero>,

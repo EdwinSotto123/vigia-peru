@@ -64,7 +64,7 @@ export function ChipIndicio({ i, conteo = "numero" }: { i: Indicio; conteo?: "nu
   return (
     <Badge variant={VARIANTE[i.severidad]} className="max-w-full gap-1 px-2">
       <Icono size={12} className="shrink-0" aria-hidden />
-      <span className="truncate">{i.corto}</span>
+      <span className="truncate" title={i.corto}>{i.chip ?? i.corto}</span>
       {conteo !== "ninguno" && <span className="shrink-0 font-semibold tabular-nums">{conteo === "unidad" ? unidad(i.n) : numero(i.n)}</span>}
       {conteo === "numero" && <span className="sr-only"> {i.n === 1 ? "contrato" : "contratos"}</span>}
     </Badge>
