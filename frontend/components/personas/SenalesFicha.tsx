@@ -3,7 +3,7 @@ import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
 import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
-import { fecha, listaY, numero, plural, soles } from "@/lib/formato";
+import { fecha, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { clavePartido } from "@/lib/poder";
 import { REGIMEN } from "@/lib/planilla";
@@ -134,10 +134,12 @@ function Senal({ s, numero: num, en, codigo, entidadRuc }: { s: SenalDetalle; nu
         </div>
         <p className="max-w-prose text-dato leading-relaxed text-inkSoft">{SENAL[s.tipo]?.explica}</p>
         {en && en.length > 0 && (
-          <p className="text-meta text-inkSoft">
-            <span className="text-mute">Vale en: </span>
-            {listaY(en)}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-meta">
+            <span className="text-mute">Vale en:</span>
+            {en.map((x, i) => (
+              <span key={i} className="rounded-full border border-line bg-paper px-2 py-0.5 text-inkSoft">{x}</span>
+            ))}
+          </div>
         )}
         <Detalle s={s} codigo={codigo} entidadRuc={entidadRuc} />
         <Fuente s={s} />

@@ -177,9 +177,12 @@ export default async function EntidadProfile({
             etiqueta: "Inicio",
             contenido: (
               <div className="space-y-5">
-                {/* Quién la controla: grafo del Estado (quién decide/firma, migr. 126) y captura política (mapa de poder,
-                    migr. 125). Cada bloque trae su data y se oculta solo si no aplica; van dentro del Inicio, no como muro
-                    sobre las pestañas. */}
+                {/* Primero el resumen escaneable (en qué gasta, sus contratos, banderas, personas, nepotismo); luego, más
+                    abajo, el análisis más profundo: quién la controla (grafo del Estado migr. 126 y captura política migr.
+                    125). Cada grafo trae su data y se oculta si no aplica. */}
+                <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
+                  <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} nepotismo={apiResp.nepotismo} />
+                </Suspense>
                 <Suspense fallback={null}>
                   <QuienDecide ruc={e.ruc} />
                 </Suspense>
@@ -191,9 +194,6 @@ export default async function EntidadProfile({
                 </Suspense>
                 <Suspense fallback={null}>
                   <CadenaCapturaEntidad ruc={e.ruc} />
-                </Suspense>
-                <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
-                  <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} nepotismo={apiResp.nepotismo} />
                 </Suspense>
               </div>
             ),
