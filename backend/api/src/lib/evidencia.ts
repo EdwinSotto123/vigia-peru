@@ -325,13 +325,21 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
   return ev;
 }
 
-const SUNAT_RUC = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp";
+const SUNAT_RUC = "https://e-consultaruc.sunat.gob.pe/";
+const MENORES = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "en", "a"]);
+/** "INVERSIONES Y NEGOCIOS DEL PERU S.R.L." → "Inversiones y Negocios del Peru S.R.L.": las siglas (S.A.C., E.I.R.L.), igual. */
+const titulo = (t: string) =>
+  t.split(/\s+/).map((w, i) => {
+    if ((w.match(/\./g) ?? []).length >= 2 && w === w.toUpperCase()) return w;
+    const m = w.toLowerCase();
+    return i > 0 && MENORES.has(m) ? m : m.charAt(0).toUpperCase() + m.slice(1);
+  }).join(" ");
 type EmpresaRef = { ruc: string; nombre: string | null };
 const refs = (v: unknown): EmpresaRef[] =>
   Array.isArray(v) ? v.filter((x): x is EmpresaRef => !!x && typeof x === "object" && typeof (x as EmpresaRef).ruc === "string") : [];
 /** La empresa como enlace a su ficha; una persona natural (RUC 10), en texto, sin nombre ni enlace (lib/privacidad.ts). */
 const empresaEnlace = (e: EmpresaRef) =>
-  e.ruc.startsWith("20") ? { texto: e.nombre ?? `RUC ${e.ruc}`, url: `/empresa/${e.ruc}` } : "Una persona natural";
+  e.ruc.startsWith("20") ? { texto: e.nombre ? titulo(e.nombre) : `RUC ${e.ruc}`, url: `/empresa/${e.ruc}` } : "Una persona natural";
 const estadoSunat = (x: Record<string, any> | undefined) =>
   x ? [x.estado_sunat, x.condicion].filter(Boolean).map((s: string) => s.charAt(0) + s.slice(1).toLowerCase()).join(", ") || null : null;
 
@@ -372,7 +380,7 @@ async function domicilio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nul
   const porRuc = new Map(sunat.map((x) => [String(x.ruc), x]));
   const dir = typeof f.detalle?.domicilio === "string" ? f.detalle.domicilio : null;
   return {
-    titulo: dir ? `Las empresas con domicilio fiscal en ${dir}` : "Las empresas con ese domicilio fiscal",
+    titulo: dir ? `Las empresas con domicilio fiscal en ${titulo(dir)}` : "Las empresas con ese domicilio fiscal",
     columnas: [
       { clave: "empresa", titulo: "Empresa", tipo: "enlace" },
       { clave: "ruc", titulo: "RUC" },
@@ -447,6 +455,47 @@ async function clientes(f: FilaCruce): Promise<Evidencia | null> {
   };
 }
 
+/** El RUC 10 de una persona por su DNI: "10" + DNI + dígito verificador (módulo 11 de la SUNAT). */
+const ruc10 = (dni: string) => {
+  const base = `10${dni}`;
+  const suma = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2].reduce((s, p, i) => s + p * Number(base[i]), 0);
+  const r = 11 - (suma % 11);
+  return `${base}${r === 10 ? 0 : r === 11 ? 1 : r}`;
+};
+
+/**
+ * Socio en la entidad (puerta giratoria, migración 122): lo que las entidades le pagaron por órdenes de servicio a esa
+ * persona (persona_entidad), con la ficha de cada una; la de este proceso, primero. Sin su nombre ni su documento: la
+ * persona va tapada en el cruce y su ficha pública es la de `codigo`.
+ */
+async function ordenesSocio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | null> {
+  if (!f.persona_doc || !/^\d{8}$/.test(f.persona_doc)) return null;
+  const r = await filas(
+    `SELECT entidad_ruc, entidad, servicio, ordenes, monto, primera, ultima, codigo, count(*) OVER () AS n
+       FROM persona_entidad WHERE ruc = $1
+      ORDER BY (entidad_ruc = $2) DESC, monto DESC NULLS LAST LIMIT ${TOPE}`, [ruc10(f.persona_doc), p.entidadRuc ?? ""]);
+  return {
+    titulo: "Lo que esa persona cobró por órdenes de servicio",
+    columnas: [
+      { clave: "entidad", titulo: "Entidad", tipo: "enlace" },
+      { clave: "servicio", titulo: "Servicio" },
+      { clave: "ordenes", titulo: "Órdenes" },
+      { clave: "periodo", titulo: "Período" },
+      { clave: "monto", titulo: "Le pagaron", tipo: "soles" },
+      { clave: "ficha", titulo: "Su ficha", tipo: "enlace" },
+    ],
+    filas: r.map((x) => ({
+      entidad: { texto: x.entidad ?? `RUC ${x.entidad_ruc}`, url: `/entidad/${x.entidad_ruc}` }, servicio: x.servicio ?? null,
+      ordenes: x.ordenes == null ? null : Number(x.ordenes),
+      periodo: [fecha(x.primera), fecha(x.ultima)].filter(Boolean).map((v) => fechaTexto(v!)).join(" a ") || null,
+      monto: num(x.monto), ficha: x.codigo ? { texto: "Ver sus órdenes", url: `/app/personas/${x.codigo}` } : null,
+    })),
+    total: r.length ? Number(r[0].n) : 0,
+    verificar: "En CONOSCE (OECE), órdenes de servicio por proveedor; su RUC de persona natural no se publica aquí. Que sea socio de la empresa ganadora sale del RNP.",
+    enlace: { texto: "Buscador de CONOSCE (OECE)", url: "https://conosce.osce.gob.pe/buscador/" },
+  };
+}
+
 /** Socio común: las otras empresas de este proceso donde figura la misma persona, con su ficha y si ofertaron. */
 async function socioComun(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | null> {
   const otros = (Array.isArray(f.detalle?.otros_postores) ? (f.detalle!.otros_postores as unknown[]) : []).filter((x): x is string => typeof x === "string");
@@ -506,6 +555,7 @@ export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<
       case "sobreprecio_extremo": ev.push(...(await sobreprecio(f, p))); break;
       case "domicilio_compartido": ev.push(await domicilio(f, p)); break;
       case "socio_comun": ev.push(await socioComun(f, p)); break;
+      case "socio_en_entidad": ev.push(await ordenesSocio(f, p)); break;
       case "proveedor_cautivo": ev.push(await clientes(f)); break;
       case "recien_fundada_medio_ano":
       case "recien_fundada_un_ano":

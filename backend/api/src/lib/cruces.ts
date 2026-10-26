@@ -31,7 +31,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
   socio_en_entidad: "Un socio del proveedor trabaja en la entidad",
-  domicilio_compartido: "Mismo domicilio fiscal que otro postor",
+  domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",
   vendio_gobernante: "Le vendió a la campaña del partido que gobierna la entidad",
@@ -263,7 +263,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     if (r.tipo === "aporte" || r.tipo === "aporte_empresa") return gobernantes.has(clave({ ...r, detalle: { partido: r.detalle?.partido } }));
     return false;
   });
-  return cruces.map((c, i) => {
+  const resultado: Cruce[] = cruces.map((c, i) => {
     const g = porRuc.get(c.rucProveedor);
     const anteriores = soloAnteriores(c, evidencias[i], proceso.fecha);
     const posterior = crudas[i]?.antecedente === false || anteriores.posterior === true;
@@ -281,6 +281,23 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       ...(posterior ? { posterior: true, etiqueta: ETIQUETA_POSTERIOR[c.tipo] ?? c.etiqueta } : {}),
     };
   }).filter((_, i) => !repetida[i]);
+  // El estado de HOY del ganador en la SUNAT (migración 116: de baja, suspendida, no habida), de empresa_resumen. No es
+  // un cruce del contrato: la SUNAT no dice desde cuándo, y la ficha lo dice así (antes ni aparecía en el contrato).
+  const est = await pool.query(
+    `SELECT r.ruc, c->>'tipo' AS tipo, c->>'severidad' AS severidad, c->'detalle' AS detalle
+       FROM empresa_resumen r, jsonb_array_elements(r.cruces) c
+      WHERE r.ruc = ANY($1::text[]) AND c->>'tipo' IN ('dada_de_baja', 'suspendida', 'no_habida')`, [[...porRuc.keys()]]).catch(() => null);
+  for (const r of est?.rows ?? []) {
+    const g = porRuc.get(r.ruc);
+    resultado.push({
+      ...aCruce({ tipo: r.tipo, severidad: r.severidad, ruc_empresa: r.ruc, detalle: r.detalle ?? {}, fuente: "sunat",
+        fuente_url: "https://e-consultaruc.sunat.gob.pe/" }),
+      proveedor: g?.proveedor ?? null,
+      buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
+      consorcio: g?.consorcio ?? null,
+    });
+  }
+  return resultado;
 }
 
 /**

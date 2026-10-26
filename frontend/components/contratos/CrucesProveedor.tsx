@@ -138,6 +138,9 @@ const RECIEN_FUNDADA_POR_QUE =
 
 /** Por qué mirar cada tipo de cruce: una línea bajo el título del grupo. */
 const POR_QUE: Record<string, string> = {
+  dada_de_baja: "Una empresa de baja ya no puede emitir comprobantes. Es su estado de hoy: la SUNAT no publica desde cuándo, así que no se afirma que lo estuviera cuando ganó.",
+  suspendida: "La suspensión temporal es una pausa que la empresa declaró en sus actividades. Es su estado de hoy: la SUNAT no publica desde cuándo.",
+  no_habida: "«No habido» quiere decir que la SUNAT no la encuentra en el domicilio fiscal que declaró. Es su estado de hoy: la SUNAT no publica desde cuándo.",
   aporte: "Quien financia una campaña y después contrata con el Estado puede tener un acceso que otros no tienen. No está prohibido, pero es un posible conflicto de interés.",
   aporte_empresa: "Quien financia una campaña y después contrata con el Estado puede tener un acceso que otros no tienen. No está prohibido, pero es un posible conflicto de interés.",
   candidato: "Las autoridades electas y sus parientes tienen impedimentos para contratar con el Estado, sobre todo en su jurisdicción. Una candidatura muestra el vínculo político de la empresa.",
@@ -510,7 +513,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {compitieron
             ? "Compitieron entre ellas: la competencia pudo ser solo aparente."
             : ninguna
-              ? "No compitió en la oferta, pero dos empresas de la misma dirección registradas en el mismo proceso vale mirarlo."
+              ? "No llegó a ofertar; aun así, que dos empresas de la misma dirección se registren en el mismo proceso merece una revisión."
               : "Si las dos ofertaron, la competencia pudo ser solo aparente."}
         </>
       );
@@ -522,6 +525,18 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         <>
           <Emp c={c} /> recibe {parte != null ? <>el <b>{(parte * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })}%</b></> : "casi todo"} de lo que le compra el Estado de <b>{ent ? tituloNatural(ent) : "esta entidad"}</b>
           {n(d.total_empresa) ? <> (<b>{solesCompacto(n(d.total_empresa))}</b> en {numero(n(d.procesos) ?? 0)} procesos)</> : ""}: depende casi por completo de ella.
+        </>
+      );
+    }
+    case "dada_de_baja":
+    case "suspendida":
+    case "no_habida": {
+      const estado = txt(d.condicion) ?? txt(d.estado);
+      return (
+        <>
+          <Emp c={c} /> figura hoy{" "}
+          {c.tipo === "no_habida" ? <>como <b>no habida</b></> : c.tipo === "suspendida" ? <>con <b>suspensión temporal de actividades</b></> : <><b>dada de baja</b></>} en
+          la SUNAT{estado ? <> ({oracion(estado)})</> : ""}. Es su estado actual, no el de cuando ganó.
         </>
       );
     }
