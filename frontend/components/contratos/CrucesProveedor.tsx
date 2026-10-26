@@ -512,8 +512,10 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {juntas ? <> Ya se habían presentado juntas a <b>{numero(juntas)}</b> {juntas === 1 ? "proceso" : "procesos"} más.</> : ""}{" "}
           {compitieron
             ? "Compitieron entre ellas: la competencia pudo ser solo aparente."
-            : ninguna
-              ? "No llegó a ofertar; aun así, que dos empresas de la misma dirección se registren en el mismo proceso merece una revisión."
+            : ninguna && juntas != null && juntas >= 3
+              ? "No ofertó en este proceso; lo que pesa es la historia de presentarse juntas."
+              : ninguna
+                ? "No llegó a ofertar; aun así, que dos empresas de la misma dirección se registren en el mismo proceso merece una revisión."
               : "Si las dos ofertaron, la competencia pudo ser solo aparente."}
         </>
       );
@@ -531,7 +533,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
     case "dada_de_baja":
     case "suspendida":
     case "no_habida": {
-      const estado = txt(d.condicion) ?? txt(d.estado);
+      // El detalle sólo dice algo en la baja («baja de oficio»); en las otras repetía la palabra («no habida (No habido)»).
+      const estado = c.tipo === "dada_de_baja" ? txt(d.estado) ?? txt(d.condicion) : null;
       return (
         <>
           <Emp c={c} /> figura hoy{" "}
