@@ -16,6 +16,7 @@ import argparse
 import csv
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infrastructure" / "aws"))
@@ -52,9 +53,13 @@ def main() -> None:
     ap.add_argument("--pdfs", required=True)
     ap.add_argument("--logs", help="dir con _log.csv (por defecto = --pdfs)")
     ap.add_argument("--r2", action="store_true", help="subir PDFs a R2")
+    ap.add_argument("--hilos-r2", type=int, default=8, help="subidas a R2 en paralelo")
     a = ap.parse_args()
     pdfs = sorted(Path(a.pdfs).rglob("*.pdf"))
-    print(f"{len(pdfs)} PDFs")
+    print(f"{len(pdfs)} PDFs", flush=True)
+    # Las subidas a R2 van en un pool aparte: el ledger dice dónde quedará cada PDF y la base no espera a wrangler.
+    pool = ThreadPoolExecutor(max_workers=a.hilos_r2) if a.r2 else None
+    subidas = []
     with conexion(a.entorno) as c:
         cur = c.cursor()
         # 1) errores de descarga desde los logs
@@ -100,8 +105,8 @@ def main() -> None:
                                VALUES (NULL,%s,%s,%s,%s,%s,%s)""", (decl, ruc, d, _norm(f.get("nombre")), f.get("parentesco"), f.get("grado")))
             v += len(vistos)
             key = f"dji/pdfs/{pdf.name}"
-            if a.r2:
-                subir_r2(pdf, key)
+            if pool:
+                subidas.append(pool.submit(subir_r2, pdf, key))
             cur.execute("""UPDATE dji_descargas SET estado='ok', parse_estado=%s, n_familiares=%s,
                            pdf_r2=%s, descargado=now(), actualizado=now() WHERE ruc=%s AND apellidos=%s""",
                         (parse_estado, len(vistos), key if a.r2 else None, ruc, ape))
@@ -112,6 +117,10 @@ def main() -> None:
         c.commit()
         cur.execute("SELECT count(*), count(DISTINCT entidad_ruc), count(DISTINCT pariente_doc) FROM dji_vinculos")
         tot = cur.fetchone()
+    if pool:
+        hechas = sum(1 for s in subidas if s.result())
+        pool.shutdown()
+        print(f"  R2: {hechas} de {len(subidas)} PDFs subidos", flush=True)
     print(f"\n✓ {a.entorno}: {ok} PDFs, {v} vínculos insertados (parser_fallo: {fallo_parse}), {nlog} errores de descarga marcados")
     print(f"  dji_vinculos total: {tot[0]} vínculos · {tot[1]} entidades · {tot[2]} parientes")
 

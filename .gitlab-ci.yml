@@ -88,17 +88,24 @@ scrape:dji:
   variables:
     TARGETS: backend/scrapers-worker/dji_targets/targets_pendientes.csv
     HILOS: "2"
+    # El script para solo a los 150 min para que los artefactos suban: si GitLab corta el job por tiempo, no sube nada.
+    MINUTOS: "150"
+    # Red de seguridad: si el script se colgara, a las 2 h 45 m se corta SÓLO el script y los artefactos igual suben.
+    RUNNER_SCRIPT_TIMEOUT: 2h45m
   script:
     - pip install --quiet playwright==1.47.0 pdfplumber
     - python -m playwright install chromium
     - mkdir -p dji_pdfs
-    - python backend/scripts/scrape_dji.py --targets "$TARGETS" --out dji_pdfs --hilos "$HILOS" --shard "$((CI_NODE_INDEX-1))/$CI_NODE_TOTAL"
+    - python backend/scripts/scrape_dji.py --targets "$TARGETS" --out dji_pdfs --hilos "$HILOS" --minutos "$MINUTOS" --shard "$((CI_NODE_INDEX-1))/$CI_NODE_TOTAL"
     - echo "PDFs del nodo:"; ls dji_pdfs/*.pdf 2>/dev/null | wc -l
   artifacts:
     paths: [dji_pdfs/]
     expire_in: 1 week
     when: always
   rules:
+    # La rama `dji` la empuja backend/scripts/orquestar_dji.py con los pendientes de cada ronda: corre sola.
+    - if: '$CI_COMMIT_BRANCH == "dji"'
+      allow_failure: true
     - if: '$CI_COMMIT_BRANCH == "dev"'
       when: manual
       allow_failure: true

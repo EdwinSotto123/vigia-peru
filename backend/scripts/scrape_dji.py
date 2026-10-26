@@ -79,16 +79,19 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path, nombres: str = "")
         await pg.close()
 
 
-async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, log_path: Path) -> None:
+async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, log_path: Path, minutos: float = 0) -> None:
     t0 = time.time()
+    # Tope de tiempo: pasado, no se empieza ningún objetivo nuevo (los que están a medio bajar terminan).
+    limite = t0 + minutos * 60 if minutos else None
     out_dir.mkdir(parents=True, exist_ok=True)
     objetivos = [(t[0], t[1], t[2] if len(t) > 2 else "") for t in objetivos]
     # resumible: saltar los que ya tienen PDF
     pendientes = [(r, a, n) for r, a, n in objetivos if not destino(out_dir, r, a, n).exists()]
     hechos0 = len(objetivos) - len(pendientes)
-    print(f"{len(objetivos)} targets · {hechos0} ya bajados · {len(pendientes)} pendientes · {hilos} hilos")
+    print(f"{len(objetivos)} targets · {hechos0} ya bajados · {len(pendientes)} pendientes · {hilos} hilos"
+          + (f" · tope {minutos:.0f} min" if minutos else ""), flush=True)
     sem = asyncio.Semaphore(hilos)
-    done = {"ok": 0, "fail": 0, "n": 0}
+    done = {"ok": 0, "fail": 0, "n": 0, "sin_tiempo": 0}
     logf = open(log_path, "a", encoding="utf-8", newline="")
     logw = csv.writer(logf)
     async with async_playwright() as p:
@@ -96,6 +99,9 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
 
         async def tarea(ruc, ape, nom):
             async with sem:
+                if limite and time.time() > limite:
+                    done["sin_tiempo"] += 1
+                    return None
                 r = None
                 for intento in range(2):  # 2 intentos por pase; los fallos se reintentan en un re-run (resume)
                     ctx = await b.new_context(accept_downloads=True)
@@ -119,7 +125,8 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
         await asyncio.gather(*[tarea(r, a, n) for r, a, n in pendientes])
         await b.close()
     logf.close()
-    print(f"\n=== fin: ok={done['ok']} fail={done['fail']} de {len(pendientes)} · {(time.time()-t0)/60:.1f} min ===")
+    print(f"\n=== fin: ok={done['ok']} fail={done['fail']} sin tiempo={done['sin_tiempo']} de {len(pendientes)} · "
+          f"{(time.time()-t0)/60:.1f} min ===", flush=True)
 
 
 def leer_targets(csv_path: str) -> list[tuple[str, str, str]]:
@@ -139,15 +146,16 @@ def main() -> None:
     ap.add_argument("--log", default=None, help="CSV de progreso (por defecto <out>/_log.csv)")
     ap.add_argument("--shard", help="i/N: procesa solo la porción i de N (para CI en paralelo)")
     ap.add_argument("--n", type=int, default=4, help="si no hay --targets, cuántos objetivos de muestra")
+    ap.add_argument("--minutos", type=float, default=0, help="tope de tiempo: pasado, no empieza objetivos nuevos (CI)")
     a = ap.parse_args()
     objetivos = leer_targets(a.targets) if a.targets else OBJETIVOS[: a.n]
     if a.shard:
         i, nn = (int(x) for x in a.shard.split("/"))
         objetivos = objetivos[i::nn]
-        print(f"shard {i}/{nn}: {len(objetivos)} targets")
+        print(f"shard {i}/{nn}: {len(objetivos)} targets", flush=True)
     out_dir = Path(a.out)
     log_path = Path(a.log) if a.log else out_dir / "_log.csv"
-    asyncio.run(correr(a.hilos, objetivos, out_dir, log_path))
+    asyncio.run(correr(a.hilos, objetivos, out_dir, log_path, a.minutos))
 
 
 if __name__ == "__main__":
