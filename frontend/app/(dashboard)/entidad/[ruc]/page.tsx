@@ -29,6 +29,7 @@ import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { GrafoCaptura } from "@/components/entidad/GrafoCaptura";
 import { CapturaEntidad } from "@/components/entidad/CapturaEntidad";
 import { CadenaCapturaEntidad } from "@/components/entidad/CadenaCapturaEntidad";
+import { NepotismoEntidad } from "@/components/entidad/NepotismoEntidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -184,6 +185,10 @@ export default async function EntidadProfile({
       <Suspense fallback={null}>
         <CadenaCapturaEntidad ruc={e.ruc} />
       </Suspense>
+
+      {/* 2.e Nepotismo: parientes declarados en la DJI que son locadores de la entidad (migración 136). Indicio, no
+          acusación; agregado, sin identidades. Oculto si no hay. */}
+      <NepotismoEntidad nepotismo={apiResp.nepotismo} />
 
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
           enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}

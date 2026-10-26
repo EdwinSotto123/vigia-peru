@@ -378,7 +378,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas] = await Promise.all([
+  const [ent, mef, alertas, nep] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (1,5 ms con la migración 32).
       ? `SELECT e.*,
@@ -419,6 +419,13 @@ entidadesRouter.get("/:ruc", async (c) => {
          ORDER BY a.score DESC, a.id LIMIT 20`,
       [ruc],
     ),
+    // Nepotismo (indicio, no acusación): parientes declarados en la DJI que son locadores de ESTA entidad.
+    // Solo el AGREGADO por grado — nunca el DNI ni el nombre del pariente (ver vista dji_nepotismo, migr. 136).
+    pool.query<{ grado: string; n: number; monto: number; ordenes: number }>(
+      `SELECT grado, count(*)::int AS n, COALESCE(sum(monto),0)::float AS monto, COALESCE(sum(ordenes),0)::int AS ordenes
+         FROM dji_nepotismo WHERE entidad_ruc = $1 GROUP BY grado ORDER BY monto DESC NULLS LAST`,
+      [ruc],
+    ),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -428,10 +435,18 @@ entidadesRouter.get("/:ruc", async (c) => {
     for (const k of ENTIDAD_METADATA_MOCK) delete limpia[k];
     entidad.metadata = limpia;
   }
+  const nepotismo = nep.rows.length
+    ? {
+        total: nep.rows.reduce((a, r) => a + r.n, 0),
+        monto: nep.rows.reduce((a, r) => a + (r.monto || 0), 0),
+        porGrado: nep.rows,
+      }
+    : null;
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json({
     entidad,
     mef: mef.rows[0] ?? null,
     alertas: alertas.rows,
+    nepotismo,
   });
 });

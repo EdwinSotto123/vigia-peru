@@ -259,9 +259,16 @@ export async function getFraccionamientoEntidad(ruc: string, limit = 1000) {
   }
 }
 
+/** Indicio de nepotismo (agregado, sin identidades): parientes declarados en la DJI que son locadores de la entidad. */
+export interface NepotismoEntidad {
+  total: number;
+  monto: number;
+  porGrado: { grado: string; n: number; monto: number; ordenes: number }[];
+}
+
 export async function getEntidad(ruc: string) {
   try {
-    return await get<{ entidad: any; mef: any; alertas: any[] }>(
+    return await get<{ entidad: any; mef: any; alertas: any[]; nepotismo: NepotismoEntidad | null }>(
       `/entidades/${ruc}`,
     );
   } catch (e) {
