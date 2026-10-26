@@ -63,12 +63,14 @@ async function BarraConConteos({ pagina, entidad }: { pagina: Promise<PaginaEmpr
 }
 
 function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entidad: { ruc: string; nombre: string | null } | null }) {
+  // Sin nombre corto (`corta`): el desplegable y su chip dicen lo mismo ("Donde más vende: Lima"), y ninguno se llama
+  // casi igual que la faceta de al lado (antes, chips «Antecedentes» junto al desplegable «Antecedente»; «Región» y
+  // «Rubro» en el control y «Donde más vende» y «Lo que más vende» en el chip).
   const visibles: FiltroSecundario[] = [
     {
       param: "tipo",
-      etiqueta: "Antecedente",
-      corta: "Antecedente",
-      todas: "Todo antecedente",
+      etiqueta: "Tipo de antecedente",
+      todas: "Todos",
       // Segmentado por familia (Política, En el proceso, Registro SUNAT…), como en la lista de contratos: cada opción
       // lleva su `grupo` y el filtro las agrupa. Sólo los tipos que aparecen en estas empresas.
       opciones: (() => {
@@ -82,14 +84,12 @@ function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entid
     {
       param: "objeto",
       etiqueta: "Lo que más vende",
-      corta: "Rubro",
-      todas: "Todo rubro",
+      todas: "Todo",
       opciones: (r?.porObjeto ?? []).map((o) => ({ valor: o.objeto, etiqueta: OBJETO_TEXTO[o.objeto] ?? o.objeto, conteo: o.n })),
     },
     {
       param: "departamento",
       etiqueta: "Donde más vende",
-      corta: "Región",
       todas: "Todo el Perú",
       opciones: [...(r?.porDepartamento ?? [])]
         .sort((a, b) => a.departamento.localeCompare(b.departamento, "es"))

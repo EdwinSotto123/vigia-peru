@@ -8,7 +8,8 @@ import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { REGION_UBIGEO } from "@/components/mapa/region-match";
 import type { FiltroSecundario } from "@/components/listado";
 import { REGIONES } from "@/lib/peru-data";
-import { PARAMS_SOLOS } from "@/lib/personas";
+import { PARAMS_SOLOS, getPersonas } from "@/lib/personas";
+import { getPlanilla, getPlazas } from "@/lib/planilla";
 
 export const metadata: Metadata = { title: "Personas contratadas" };
 export const revalidate = 600;
@@ -23,9 +24,13 @@ const DEPARTAMENTOS = REGIONES.map((r) => ({ ubigeo: REGION_UBIGEO[r.id], nombre
  * en todo el país, y lo que otros registros públicos dicen de cada una en cada entidad: candidaturas y aportes al
  * partido que gobernaba, autoridades electas, apellidos de autoridades y funcionarios, órdenes casi todos los meses,
  * pagos muy por encima de lo que la entidad paga por lo mismo, inhabilitaciones. Una fila por persona y entidad.
- * Filtros: región (?dep=), entidad (?entidad=, desde su ficha), señal, gravedad, tipo de servicio y año.
+ * Filtros: región (?dep=, a la vista), entidad (?entidad=, desde su ficha: un chip que se quita), señal, gravedad, tipo
+ * de servicio y año.
+ *
+ * Cada pestaña lleva su conteo (§14.3): el resumen de su alcance (`size=0`, sin filas), el mismo que dicen sus cifras.
+ * La de órdenes cuenta contrataciones (lo que lista), las otras dos, personas en planilla y plazas.
  */
-export default function PersonasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function PersonasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const ruta = "/app/personas";
   const dep = typeof searchParams?.dep === "string" && /^\d{2}$/.test(searchParams.dep) ? searchParams.dep : undefined;
   const entidad = typeof searchParams?.entidad === "string" && /^\d{11}$/.test(searchParams.entidad) ? searchParams.entidad : undefined;
@@ -33,12 +38,21 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
   const seccion =
     (typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined) ??
     (con(Object.values(P_PLANILLA)) ? "planilla" : con(Object.values(P_PLAZAS)) ? "plazas" : undefined);
+  // La región a la vista (era la pregunta de casi todos y estaba detrás de «Filtros»): el mismo nombre en el
+  // desplegable y en su chip.
   const region: FiltroSecundario = {
     param: "dep",
-    etiqueta: "Región de la entidad",
+    etiqueta: "Región",
+    corta: "Región",
     todas: "Todo el Perú",
     opciones: DEPARTAMENTOS.map((d) => ({ valor: d.ubigeo, etiqueta: d.nombre })),
   };
+  // Los resúmenes ya están contados por alcance (y en caché): no frenan la página. Sin respuesta, la pestaña va sin número.
+  const [ordenes, planilla, plazas] = await Promise.all([
+    getPersonas({ dep, entidad, size: 0 }),
+    getPlanilla({ dep, entidad, size: 0 }),
+    getPlazas({ dep, entidad, size: 0 }),
+  ]);
   return (
     <Pagina>
       <Migas
@@ -74,30 +88,40 @@ export default function PersonasPage({ searchParams }: { searchParams?: Record<s
           {
             clave: "ordenes",
             etiqueta: "Por órdenes de servicio",
+            conteo: ordenes?.resumen?.filas ?? null,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Locadores, asesores y profesionales pagados por órdenes de servicio <AyudaTermino clave="orden-servicio" />, sin concurso.</CabeceraPestana>
-                <ListaPersonas alcance={{ dep, entidad }} sp={searchParams} P={PARAMS_SOLOS} ruta={ruta} base={{ dep, entidad }} filtrosExtra={[region]} conIndicadores />
+                {/* Una ⓘ por cabecera y una línea que no repite la bajada: dice lo que sólo esta pestaña tiene. */}
+                <CabeceraPestana ayuda={<AyudaTermino clave="orden-servicio" />}>
+                  Locadores, asesores y profesionales que cobran por orden. Una fila por persona y entidad.
+                </CabeceraPestana>
+                <ListaPersonas alcance={{ dep, entidad }} sp={searchParams} P={PARAMS_SOLOS} ruta={ruta} base={{ dep, entidad }} visiblesExtra={[region]} conIndicadores />
               </div>
             ),
           },
           {
             clave: "planilla",
             etiqueta: "En planilla",
+            conteo: planilla?.resumen?.personas ?? null,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>El personal que las entidades publican en su Portal de Transparencia <AyudaTermino clave="pte" />, con lo que cobra cada uno.</CabeceraPestana>
-                <ListaPlanilla alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "planilla" }} />
+                <CabeceraPestana ayuda={<AyudaTermino clave="pte" />}>
+                  El personal que cada entidad publica en su Portal de Transparencia, con lo que cobra cada mes.
+                </CabeceraPestana>
+                <ListaPlanilla alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "planilla" }} visiblesExtra={[region]} />
               </div>
             ),
           },
           {
             clave: "plazas",
             etiqueta: "Plazas CAS",
+            conteo: plazas?.resumen?.plazas ?? null,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Las convocatorias CAS <AyudaTermino clave="cas" /> publicadas en SERVIR Talento Perú <AyudaTermino clave="servir" />, con lo que piden y lo que pagan.</CabeceraPestana>
-                <ListaPlazas alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "plazas" }} />
+                <CabeceraPestana ayuda={<AyudaTermino clave="cas" />}>
+                  Las convocatorias publicadas en SERVIR Talento Perú, con lo que piden y lo que pagan.
+                </CabeceraPestana>
+                <ListaPlazas alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "plazas" }} visiblesExtra={[region]} />
               </div>
             ),
           },

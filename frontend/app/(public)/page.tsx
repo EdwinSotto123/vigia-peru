@@ -132,31 +132,32 @@ export default async function LandingPage() {
         />
       )}
 
-      {/* B: la respuesta, un solo mapa con tres lecturas y los partidos en una fila que se desliza. */}
+      {/* B: la respuesta, un solo mapa con tres lecturas y los partidos en una fila que se desliza. El revelado en píxeles
+          va sólo aquí y en el cierre: en nueve secciones dejaba de ser un momento y era un efecto repetido. */}
       <PixelReveal desde="izquierda" celda={30}>
         <PartidosSeccion />
       </PixelReveal>
 
       {/* Nos financiamos con donaciones: el podio de quienes lo hacen posible y cuánto cuesta leer un contrato. */}
       <PodioPortada />
-      <PixelReveal><Aliados /></PixelReveal>
+      <Aliados />
 
       {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
 
-      <PixelReveal><PipelineAgentes /></PixelReveal>
+      <PipelineAgentes />
 
-      <PixelReveal><FuentesSection cifras={cifrasFuentes} /></PixelReveal>
+      <FuentesSection cifras={cifrasFuentes} />
 
-      <PixelReveal><CasosReales casos={otrosCasos} /></PixelReveal>
+      <CasosReales casos={otrosCasos} />
 
-      <PixelReveal><Participar /></PixelReveal>
+      <Participar />
 
       {/* La misma cuenta que el gráfico de señales del mapa de fuentes (resumen de
           contratos). El estado global contaba otro universo y la portada decía 12
           en una sección y 14 en otra. */}
-      <PixelReveal><ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} /></PixelReveal>
+      <ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} />
 
-      <PixelReveal><ExpansionSection /></PixelReveal>
+      <ExpansionSection />
 
       <PixelReveal desde="centro" celda={32}>
         <CierreLanding enCola={estado?.colaGlobal ?? null} />

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { numero, solesCompacto } from "@/lib/formato";
+import { Seccion } from "@/components/patrones";
+import { CeldaBarra, CeldaNumero, Tabla, type Columna, type Fila } from "@/components/listado";
+import { numero, plural, solesCompacto } from "@/lib/formato";
 import type { ContratoZona } from "@/lib/contratos";
 
 /**
@@ -7,42 +9,47 @@ import type { ContratoZona } from "@/lib/contratos";
  * (los mismos de /app/contratos). Sirve a quien ve una obra parada y quiere saber si hay contratos de obras en su
  * región. No dice que ninguna obra esté parada: es el registro oficial, región por región.
  *
+ * Una tabla compacta dentro de una sección PLEGADA (`Seccion plegable`): antes eran 25 barras abiertas que en el
+ * celular empujaban «Cómo funciona una denuncia» varias pantallas abajo. Cada fila abre su región en el mapa; los
+ * montos, con `solesCompacto` en su columna (no se parten en dos renglones).
+ *
  * Server component: recibe ya las zonas de la API (datos planos). La región es la sede de la entidad que contrata.
- * Todas las regiones con obras (antes, las 8 o 16 primeras), de la que más tiene a la que menos.
+ * Todas las regiones con obras, de la que más tiene a la que menos.
  */
+const COLUMNAS: Columna[] = [
+  { clave: "region", titulo: "Región", ancho: "minmax(0,1fr)" },
+  { clave: "barra", titulo: "Frente a la región con más", ancho: "minmax(0,1.2fr)", desde: "md" },
+  { clave: "obras", titulo: "Contratos de obras", ancho: "112px", alinear: "der" },
+  { clave: "monto", titulo: "Valor", ancho: "120px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+];
+
 export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
-  const filas = [...zonas].filter((z) => z.total > 0).sort((a, b) => b.total - a.total);
-  if (filas.length === 0) return null;
-  const max = Math.max(1, ...filas.map((z) => z.total));
+  const lista = [...zonas].filter((z) => z.total > 0).sort((a, b) => b.total - a.total);
+  if (lista.length === 0) return null;
+  const max = Math.max(1, ...lista.map((z) => z.total));
+  const filas: Fila[] = lista.map((z) => ({
+    id: z.ubigeo,
+    href: `/app/mapa?region=${z.ubigeo}`,
+    celdas: {
+      region: <span className="block truncate text-dato font-semibold text-ink">{z.nombre}</span>,
+      barra: <CeldaBarra parte={z.total / max} resumen={`${plural(z.total, "contrato de obras", "contratos de obras")} en ${z.nombre}`} />,
+      obras: <CeldaNumero>{numero(z.total)}</CeldaNumero>,
+      monto: z.montoPen != null ? <CeldaNumero>{solesCompacto(z.montoPen)}</CeldaNumero> : null,
+    },
+  }));
   return (
-    <section aria-labelledby="obras-por-region" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="obras-por-region" className="font-display text-bloque font-bold text-ink">Contratos de obras publicados por región</h2>
+    <Seccion
+      plegable
+      id="obras-por-region"
+      titulo="Contratos de obras publicados por región"
+      descripcion="Mira qué obras hay contratadas en tu región. Es el registro oficial: no dice si una obra está parada."
+      acciones={
         <Link href="/app/contratos?tipo=obras" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">
-          Ver los contratos
+          Ver los contratos de obras
         </Link>
-      </div>
-      <p className="mt-1 text-meta leading-snug text-mute">
-        Antes de denunciar, mira qué obras hay contratadas en tu región. Es el registro oficial: no dice si una obra está parada.
-      </p>
-      <ol className="mt-3 space-y-2" data-lista="grafico">
-        {filas.map((z) => (
-          <li key={z.ubigeo} className="flex items-center gap-3 py-0.5">
-            <Link href={`/app/mapa?region=${z.ubigeo}`} className="w-28 shrink-0 truncate rounded text-dato font-semibold text-ink underline-offset-4 hover:text-granate hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate">
-              {z.nombre}
-            </Link>
-            {/* La barra es un gráfico (SVG): su largo es el número de contratos de obras de la región. */}
-            <svg className="h-2 min-w-0 flex-1" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label={`${numero(z.total)} contratos de obras en ${z.nombre}`}>
-              <rect width="100" height="8" className="fill-paperDeep" />
-              <rect width={Math.max(3, (z.total / max) * 100)} height="8" className="fill-granate" />
-            </svg>
-            <span className="w-24 shrink-0 text-right leading-tight">
-              <span className="block font-mono text-meta tabular-nums text-ink">{numero(z.total)} {z.total === 1 ? "obra" : "obras"}</span>
-              {z.montoPen != null && <span className="block font-mono text-rotulo tabular-nums text-mute">{solesCompacto(z.montoPen)}</span>}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
+      }
+    >
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de obras por región (cada una abre su región en el mapa)" densidad="compacta" />
+    </Seccion>
   );
 }

@@ -191,32 +191,39 @@ export function EstadoContratoChip({
 // estado del pipeline con toda su granularidad, la lista lo agrupa en cinco.
 // La re-exporta ContratosLista.tsx para no tocar a sus importadores.
 
+/** La píldora de la lectura que todavía no empezó: la misma forma que el chip de la lista, con el punto del mapa. */
+const PILDORA_SIN_LEER = "pill border-line bg-paperSoft text-inkSoft";
+
 export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContrato; operativo?: string | null }) {
-  // Migración 19: sin analizar pero fuera del alcance activo → decir qué hay (documentos listos o no).
+  // Migración 19: sin analizar pero fuera del alcance activo → decir qué hay (documentos listos o no). Antes era la
+  // píldora más débil de su fila (11 px, sin borde, en gris) al lado del tipo y la etapa: ahora mide lo mismo que ellas
+  // (`pill`) y lleva el punto de su estado, como en la lista de contratos.
   if (estado === "sin_analizar" && operativo && operativo !== "en_cola") {
     const listo = operativo === "documentos_listos";
     return (
       <span
-        className={cn(
-          "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium",
-          listo ? "border border-inkSoft/40 text-inkSoft" : "bg-paperDeep text-mute",
-        )}
-        role="status"
+        className={PILDORA_SIN_LEER}
         title={
           listo
             ? "Documentos descargados; el análisis de este tipo de contratación aún no está activo"
             : "Este tipo de contratación aún no está activo y sus documentos no se han descargado"
         }
       >
+        <PuntoLectura estado={listo ? "documentos_listos" : "sin_analizar"} />
         {listo ? "Docs listos" : "Sin documentos"}
       </span>
     );
   }
   if (estado in ESTADO_PROC) return <EstadoPill estado={estado as EstadoProc} />;
+  if (estado === "sin_analizar") {
+    return (
+      <span className={PILDORA_SIN_LEER}>
+        <PuntoLectura estado="sin_analizar" />
+        {ESTADO_CONTRATO_EXTRA.sin_analizar.label}
+      </span>
+    );
+  }
   const e = ESTADO_CONTRATO_EXTRA[estado as keyof typeof ESTADO_CONTRATO_EXTRA] ?? ESTADO_CONTRATO_EXTRA.sin_analizar;
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium", e.cls)} role="status">
-      {e.label}
-    </span>
-  );
+  // Sin `role="status"`: una píldora es una etiqueta, no una región viva (como `EstadoPill`).
+  return <span className={cn("pill border-transparent", e.cls)}>{e.label}</span>;
 }

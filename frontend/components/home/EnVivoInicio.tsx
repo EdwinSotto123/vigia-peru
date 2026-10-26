@@ -1,25 +1,34 @@
 "use client";
 
-import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
-import { Panel } from "@/components/ui/Panel";
+import { ArrowRight, CircleDashed, Clock, FileCheck2 } from "lucide-react";
+import { rutaContrato } from "@/lib/rutas";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { Dato } from "@/components/ui/Dato";
+import { Partes } from "@/components/ui/Partes";
+import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/listado/DetalleFilas";
+import { ChipsDetalle, CuerpoDetalle, DatosClave, PieDetalle, type DatoClave } from "@/components/patrones/Detalle";
+import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
+import { severidadDeContrato } from "@/lib/severidad";
 import { PUBLIC_API_BASE, faseHumana, faseProgreso, type Procesamiento } from "@/lib/auditoria";
-import { aFilaLeida, aFilaVivo, type FilaLeida, type FilaVivo, type FotoVivo } from "./vivo";
-import { oracion, relativo, soles } from "@/lib/formato";
+import { fecha, numero, oracion, porcentaje, relativo, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { aFilaVivo, deAnalisis, deProcesamiento, esAnalisisReal, unirLecturas, type FilaLectura, type FilaVivo, type FotoVivo } from "./vivo";
 
 /**
- * "Estos contratos se están analizando ahora": lo que los agentes de Vigía tienen entre manos, en vivo.
- * Se refresca cada ~10 s SOLO mientras la pestaña está visible. Un clic en una fila abre un panel lateral con
- * lo que se sabe de ese contrato y los caminos: la auditoría en vivo y la ficha.
+ * «Últimas lecturas»: lo que los agentes de Vigía tienen entre manos ahora y lo último que terminaron de leer, en UN
+ * bloque (antes eran dos, con 4 de 6 contratos repetidos y comportamientos distintos). Cada fila lleva su chip de peso
+ * del riesgo, la entidad y el lugar con su ícono, y la fecha; al tocarla abre el panel compartido del kit (§14.4:
+ * chips, cifras, datos clave y, al pie, el dictamen y la ficha), anclado al costado en escritorio.
  *
- * Honestidad: si nada se está procesando en este momento, se dice, y se muestran los últimos contratos LEÍDOS
- * con su fecha (otro título, otro punto de color). Nunca se hace pasar uno por el otro.
+ * Honestidad: el punto late sólo si hay algo en análisis ahora. Si no, queda quieto y se dice desde cuándo no se
+ * termina una lectura, con la fecha real del dato. Nunca se hace pasar lo leído por lo que se está leyendo.
  *
- * El servidor entrega la primera foto (props con sólo datos); el cliente la mantiene al día.
+ * Se refresca cada ~10 s SOLO mientras la pestaña está visible; las lecturas se vuelven a pedir sólo cuando la cola
+ * cambió. El servidor entrega la primera foto (props con sólo datos); el cliente la mantiene al día.
  */
 
 const INTERVALO_MS = 10_000;
@@ -43,18 +52,67 @@ function duracion(seg: number): string {
   return `${h} h ${m % 60} min`;
 }
 
+/** «desde hace 3 h», «desde ayer», «desde el 12 oct.»: la fecha real de la última lectura terminada. */
+function desdeCuando(iso: string): string {
+  const r = relativo(iso);
+  return /^(hace|ayer)/.test(r) ? r : `el ${r}`;
+}
+
 const pctDe = (f: FilaVivo) => faseProgreso({ estado: "procesando", faseIndex: f.faseIndex, faseActual: f.faseActual, fases: f.fases });
 const faseDe = (f: FilaVivo) =>
   faseHumana({ estado: "procesando", faseActual: f.faseActual, faseIndex: f.faseIndex, fases: f.fases, iniciadoAt: null });
 
+/** La lectura se publicó: tiene dictamen público que abrir. */
+const publicable = (f: FilaLectura) => !f.enRevision && !f.descartada;
+
+/** La palabra del chip de una lectura, para el nombre accesible de su fila (el botón lo reemplaza entero). */
+function palabraLectura(f: FilaLectura): string {
+  if (f.descartada) return "Descartada";
+  if (!f.enRevision && f.score == null) return f.banderas === 0 ? "Sin señales" : "Leída";
+  return severidadDeContrato({ score: f.score, banderas: f.banderas, enRevision: f.enRevision }).etiqueta;
+}
+
+/** El estado de una lectura terminada, con color, ícono y palabra (nunca color solo). */
+function ChipLectura({ f }: { f: FilaLectura }) {
+  if (f.descartada) {
+    return (
+      <span className="pill border-line bg-paperDeep text-inkSoft">
+        <CircleDashed size={11} aria-hidden /> Descartada
+      </span>
+    );
+  }
+  // Leída y sin puntaje: sin señales si se sabe que no tiene ninguna; si no, sólo "leída" (nunca "sin leer").
+  if (!f.enRevision && f.score == null) {
+    if (f.banderas === 0) return <PesoRiesgo score={0} banderas={0} formato="pastilla" />;
+    return (
+      <span className="pill border-line bg-paperDeep text-inkSoft">
+        <FileCheck2 size={11} aria-hidden /> Leída
+      </span>
+    );
+  }
+  return <PesoRiesgo score={f.score} banderas={f.banderas} enRevision={f.enRevision} formato="pastilla" />;
+}
+
+function ChipEnAnalisis() {
+  return (
+    <span className="pill border-moss/40 bg-moss/10 text-mossTexto">
+      <PulseDot color="moss" size={6} /> En análisis
+    </span>
+  );
+}
+
+const FILA =
+  "block w-full px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5";
+
 export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
   const [foto, setFoto] = useState<FotoVivo>(inicial);
-  const [sel, setSel] = useState<{ tipo: "vivo" | "leido"; ocid: string } | null>(null);
   // `desde` = el momento (ms) en que se tomó la foto; el reloj corre aparte para que el tiempo avance entre pedidos.
   const [desde, setDesde] = useState<number | null>(null);
   const [ahora, setAhora] = useState<number | null>(null);
   const [aviso, setAviso] = useState("");
   const enCurso = useRef(false);
+  /** Lo que identifica el estado de la cola: si no cambió, las lecturas tampoco y no se vuelven a pedir. */
+  const firma = useRef<string | null>(null);
 
   const refrescar = useCallback(async () => {
     if (enCurso.current) return;
@@ -64,15 +122,23 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
       if (!r) return;
       const activos = (r.activos ?? []).map(aFilaVivo);
       const total = r.porEstado?.procesando || activos.length;
-      let leidos: FilaLeida[] | null = null;
-      if (activos.length === 0) {
-        const l = (await pedir("/financiamiento/procesamientos?estado=procesado&limit=8")) as { data?: Procesamiento[] } | null;
-        leidos = l?.data ? l.data.map(aFilaLeida) : null;
+      const nueva = `${r.porEstado?.procesado ?? "?"}|${activos.map((a) => a.ocid).join(",")}`;
+      let lecturas: FilaLectura[] | null = null;
+      if (nueva !== firma.current) {
+        firma.current = nueva;
+        const [cola, publicados] = (await Promise.all([
+          pedir("/financiamiento/procesamientos?estado=procesado&limit=8"),
+          pedir("/alertas/analizadas?limit=8&orden=reciente"),
+        ])) as [{ data?: Procesamiento[] } | null, { items?: unknown[] } | null];
+        const deCola = cola?.data ? cola.data.map(deProcesamiento) : null;
+        const dePublicados = publicados?.items ? publicados.items.filter(esAnalisisReal).map(deAnalisis) : null;
+        if (deCola || dePublicados) lecturas = unirLecturas([dePublicados ?? [], deCola ?? []], MAX_FILAS);
       }
       setFoto((prev) => ({
         enAnalisis: activos.slice(0, MAX_FILAS),
         totalEnAnalisis: total,
-        ultimosLeidos: leidos ?? prev.ultimosLeidos,
+        vivoConocido: true,
+        lecturas: lecturas ?? prev.lecturas,
       }));
       setDesde(Date.now());
       setAviso(activos.length > 0 ? `${total} ${total === 1 ? "contrato" : "contratos"} en análisis ahora.` : "Ahora no se está analizando ninguno.");
@@ -81,7 +147,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
     }
   }, []);
 
-  const sinNada = inicial.enAnalisis.length === 0 && inicial.ultimosLeidos.length === 0;
+  const sinNada = inicial.enAnalisis.length === 0 && inicial.lecturas.length === 0;
   useEffect(() => {
     setDesde(Date.now());
     setAhora(Date.now());
@@ -95,141 +161,219 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
 
   const extra = desde != null && ahora != null ? Math.max(0, Math.round((ahora - desde) / 1000)) : 0;
   const vivo = foto.enAnalisis.length > 0;
-  const selVivo = sel?.tipo === "vivo" ? foto.enAnalisis.find((f) => f.ocid === sel.ocid) ?? null : null;
-  const selLeido = sel?.tipo === "leido" ? foto.ultimosLeidos.find((f) => f.ocid === sel.ocid) ?? null : null;
-  const tituloSel = selVivo?.titulo ?? selLeido?.titulo ?? null;
-  if (!vivo && foto.ultimosLeidos.length === 0) return null;
+  if (!vivo && foto.lecturas.length === 0) return null;
 
-  const filaCls =
-    "block w-full px-4 py-3 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-granate sm:px-5";
+  const ultima = foto.lecturas[0]?.fecha ?? null;
+  // El estado, en una línea: late sólo si de verdad hay algo en análisis; si no, la fecha real de la última lectura.
+  const estado = vivo
+    ? `${numero(foto.totalEnAnalisis)} en análisis ahora`
+    : !foto.vivoConocido
+      ? ultima ? `La última terminó ${relativo(ultima)}` : null
+      : ultima ? `Sin lecturas desde ${desdeCuando(ultima)}` : "Ninguna en análisis ahora";
+
+  const detalles: DetalleFila[] = [
+    ...foto.enAnalisis.map((f) => detalleVivo(f, extra)),
+    ...foto.lecturas.map(detalleLectura),
+  ];
 
   return (
-    <section aria-labelledby="vivo-titulo" className="rounded-2xl border border-line bg-paper">
-      <div className="border-b border-line px-4 py-3 sm:px-5">
-        <h2 id="vivo-titulo" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-          <PulseDot color={vivo ? "moss" : "amber"} size={8} />
-          {vivo ? "Se están analizando ahora" : "Lo último que se leyó"}
+    <section aria-labelledby="lecturas-titulo" className="tarjeta overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-3 sm:px-5">
+        <h2 id="lecturas-titulo" className="font-display text-seccion font-bold leading-tight text-ink">
+          Últimas lecturas
         </h2>
-        <p className="mt-1 text-dato leading-snug text-mute">
-          {vivo
-            ? "Cada contrato pasa por los agentes de Vigía. Toca uno para ver."
-            : "Ahora no se está analizando ninguno. Estos son los últimos contratos que terminaron de leerse."}
-        </p>
+        {estado && (
+          <p className="inline-flex items-center gap-2 text-meta text-inkSoft">
+            {vivo ? <PulseDot color="moss" size={8} /> : <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-mute" />}
+            {estado}
+          </p>
+        )}
         <p className="sr-only" role="status" aria-live="polite">{aviso}</p>
       </div>
 
-      <ul className="divide-y divide-line">
-        {vivo
-          ? foto.enAnalisis.map((f) => (
-              <li key={f.ocid}>
-                <button type="button" onClick={() => setSel({ tipo: "vivo", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-cuerpo font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
-                  <span className="mt-0.5 flex items-center justify-between gap-3 text-meta text-mute">
-                    <span className="truncate">{faseDe(f)}</span>
-                    <span className="shrink-0 tabular-nums">{duracion(f.desdeSeg + extra)}</span>
+      <ProveedorDetalle detalles={detalles} nombre="Últimas lecturas">
+        <ul className="divide-y divide-line">
+          {foto.enAnalisis.map((f) => (
+            <li key={`vivo-${f.ocid}`}>
+              <BotonFila id={`vivo-${f.ocid}`} etiqueta={`${tituloDe(f.titulo)}: en análisis, ${faseDe(f)}. Ver el detalle`} className={FILA}>
+                <span className="flex items-start gap-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1">{tituloDe(f.titulo)}</span>
+                    <span className="mt-0.5 block truncate text-meta text-mute">
+                      <Partes partes={[<span key="fase">{faseDe(f)}</span>, f.zona && <Dato key="lugar" tipo="lugar">{f.zona}</Dato>]} />
+                    </span>
+                    <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
+                      <span className="block h-full rounded-full bg-granate transition-[width] duration-700" style={{ width: `${Math.max(4, pctDe(f))}%` }} />
+                    </span>
                   </span>
-                  <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
-                    <span className="block h-full rounded-full bg-granate transition-[width] duration-700" style={{ width: `${Math.max(4, pctDe(f))}%` }} />
+                  <span className="flex shrink-0 flex-col items-end gap-1 text-right">
+                    <ChipEnAnalisis />
+                    <Dato icono={Clock} nombre="Lleva" className="text-rotulo tabular-nums text-mute">
+                      {duracion(f.desdeSeg + extra)}
+                    </Dato>
                   </span>
-                </button>
-              </li>
-            ))
-          // recorte: los últimos leídos; la lista entera, en «Ver la auditoría en vivo»
-          : foto.ultimosLeidos.slice(0, MAX_FILAS).map((f) => (
-              <li key={f.ocid}>
-                <button type="button" onClick={() => setSel({ tipo: "leido", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-cuerpo font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
-                  <span className="mt-0.5 flex items-center justify-between gap-3 text-meta text-mute">
-                    <span className="truncate">{f.zona ?? "Sin zona"}</span>
-                    <span className="shrink-0">{f.finalizadoAt ? relativo(f.finalizadoAt) : "Sin fecha"}</span>
+                </span>
+              </BotonFila>
+            </li>
+          ))}
+          {/* recorte: las últimas lecturas; todas, con buscador, en «Ver la auditoría en vivo» y en Contratos */}
+          {foto.lecturas.slice(0, MAX_FILAS).map((f) => (
+            <li key={`leida-${f.ocid}`}>
+              <BotonFila
+                id={`leida-${f.ocid}`}
+                etiqueta={`${tituloDe(f.titulo)}: ${palabraLectura(f)}, terminó ${f.fecha ? relativo(f.fecha) : "sin fecha"}. Ver el detalle`}
+                className={FILA}
+              >
+                <span className="flex items-start gap-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1">{tituloDe(f.titulo)}</span>
+                    <span className="mt-0.5 block truncate text-meta text-mute">
+                      <Partes
+                        partes={[
+                          f.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(f.entidad)}</Dato>,
+                          f.lugar && <Dato key="lugar" tipo="lugar">{f.lugar}</Dato>,
+                        ]}
+                      />
+                    </span>
                   </span>
-                </button>
-              </li>
-            ))}
-      </ul>
+                  <span className="flex shrink-0 flex-col items-end gap-1 text-right">
+                    <ChipLectura f={f} />
+                    <Dato tipo="fecha" nombre="Terminó" className="text-rotulo text-mute">
+                      {f.fecha ? relativo(f.fecha) : "Sin fecha"}
+                    </Dato>
+                  </span>
+                </span>
+              </BotonFila>
+            </li>
+          ))}
+        </ul>
+      </ProveedorDetalle>
 
       {vivo && foto.totalEnAnalisis > foto.enAnalisis.length && (
-        <p className="border-t border-line px-4 py-2.5 text-meta text-mute sm:px-5">y {foto.totalEnAnalisis - foto.enAnalisis.length} más en análisis.</p>
+        <p className="border-t border-line px-4 py-2.5 text-meta text-mute sm:px-5">
+          y {numero(foto.totalEnAnalisis - foto.enAnalisis.length)} más en análisis.
+        </p>
       )}
       <div className="border-t border-line px-4 py-3 sm:px-5">
         <Link href="/app/auditoria" className="inline-flex min-h-10 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline">
           Ver la auditoría en vivo <ArrowRight size={14} aria-hidden />
         </Link>
       </div>
-
-      <Panel
-        abierto={sel != null}
-        onCerrar={() => setSel(null)}
-        titulo={tituloSel ? oracion(tituloSel) : "Contrato"}
-        descripcion={selVivo ? "Se está analizando ahora" : "Ya se leyó"}
-        ancho="md"
-        pie={
-          sel ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href={selVivo ? rutaContrato(sel.ocid, "vivo") : `/app/contratos/${encodeURIComponent(sel.ocid)}`}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-cuerpo font-semibold text-paper hover:bg-granate-deep"
-              >
-                {selVivo ? "Ver el análisis en vivo" : "Ver el dictamen"} <ArrowRight size={16} aria-hidden />
-              </Link>
-              {selVivo && (
-                <Link href={`/app/contratos/${encodeURIComponent(sel.ocid)}`} className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-5 text-cuerpo font-semibold text-ink hover:bg-paperSoft">
-                  Ver la ficha del contrato
-                </Link>
-              )}
-            </div>
-          ) : undefined
-        }
-      >
-        {selVivo && <PanelVivo f={selVivo} extra={extra} />}
-        {selLeido && <PanelLeido f={selLeido} />}
-      </Panel>
     </section>
   );
 }
 
-function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-line bg-paperSoft p-3.5">
-      <dt className="text-meta text-mute">{etiqueta}</dt>
-      <dd className="mt-0.5 text-cuerpo font-semibold text-ink">{children}</dd>
-    </div>
-  );
-}
+const tituloDe = (t: string | null) => (t ? oracion(t) : "Contrato sin título");
 
-function PanelVivo({ f, extra }: { f: FilaVivo; extra: number }) {
+const NOTA_SENAL = "Una señal es un motivo para revisar un contrato, nunca una acusación.";
+
+/** El panel de un contrato que se está analizando ahora (§14.4). */
+function detalleVivo(f: FilaVivo, extra: number): DetalleFila {
   const pct = pctDe(f);
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="flex items-center gap-2 text-cuerpo font-semibold text-ink"><PulseDot size={8} /> {faseDe(f)}</p>
-        <div aria-hidden className="mt-3 h-2 overflow-hidden rounded-full bg-paperDeep">
-          <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(4, pct)}%` }} />
+  return {
+    id: `vivo-${f.ocid}`,
+    titulo: tituloDe(f.titulo),
+    descripcion: "Se está analizando ahora",
+    contenido: (
+      <CuerpoDetalle>
+        <ChipsDetalle>
+          <ChipEnAnalisis />
+        </ChipsDetalle>
+        <div>
+          <p className="text-dato font-semibold text-ink">{faseDe(f)}</p>
+          <div aria-hidden className="mt-2 h-2 overflow-hidden rounded-full bg-paperDeep">
+            <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(4, pct)}%` }} />
+          </div>
+          <p className="mt-1.5 text-meta text-mute">{porcentaje(pct)} del recorrido de los agentes</p>
         </div>
-        <p className="mt-1.5 text-meta text-mute">{Math.round(pct)} % del recorrido de los agentes</p>
-      </div>
-      <dl className="grid grid-cols-2 gap-3">
-        <Dato etiqueta="Lleva">{duracion(f.desdeSeg + extra)}</Dato>
-        <Dato etiqueta="Zona">{f.zona ?? "Sin dato"}</Dato>
-        <Dato etiqueta="Lo financia">{f.financiador || "Anónimo"}</Dato>
-      </dl>
-      <p className="text-meta leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación. El resultado aparece cuando terminan los agentes.</p>
-    </div>
-  );
+        <DatosClave
+          items={[
+            { etiqueta: "Lleva", valor: duracion(f.desdeSeg + extra) },
+            { etiqueta: "Lugar", valor: f.zona },
+            { etiqueta: "Lo financia", valor: f.financiador || "Anónimo" },
+          ]}
+        />
+        <p className="text-meta leading-snug text-mute">{NOTA_SENAL} El resultado aparece cuando terminan los agentes.</p>
+      </CuerpoDetalle>
+    ),
+    pie: (
+      <PieDetalle
+        principal={
+          <>
+            <EnlaceAccion href={rutaContrato(f.ocid, "vivo")} flecha>
+              Ver el análisis en vivo
+            </EnlaceAccion>
+            <EnlaceAccion variante="secundario" href={rutaContrato(f.ocid)}>
+              Ver la ficha del contrato
+            </EnlaceAccion>
+          </>
+        }
+      />
+    ),
+  };
 }
 
-function PanelLeido({ f }: { f: FilaLeida }) {
-  return (
-    <div className="space-y-5">
-      <dl className="grid grid-cols-2 gap-3">
-        <Dato etiqueta="Terminó">{f.finalizadoAt ? relativo(f.finalizadoAt) : "Sin fecha"}</Dato>
-        <Dato etiqueta="Señales">{f.banderas > 0 ? `${f.banderas} ${f.banderas === 1 ? "señal" : "señales"}` : "Ninguna señal"}</Dato>
-        <Dato etiqueta="Entidad">{f.entidad ? tituloNatural(f.entidad) : "Sin dato"}</Dato>
-        <Dato etiqueta="Zona">{f.zona ?? "Sin dato"}</Dato>
-        {f.montoPen ? <Dato etiqueta="Valor referencial">{soles(f.montoPen)}</Dato> : null}
-        <Dato etiqueta="Lo financió">{f.financiador || "Anónimo"}</Dato>
-      </dl>
-      <p className="text-meta leading-snug text-mute">Una señal es un motivo para revisar un contrato, nunca una acusación.</p>
-    </div>
-  );
+/** El panel de una lectura terminada (§14.4): su estado, sus señales por severidad, los datos y, al pie, el dictamen. */
+function detalleLectura(f: FilaLectura): DetalleFila {
+  const sev = f.porSeveridad;
+  const conSenales = publicable(f) && sev != null && (f.banderas ?? 0) > 0;
+  const datos: DatoClave[] = [
+    { etiqueta: "Entidad", valor: f.entidad ? tituloNatural(f.entidad) : null },
+    { etiqueta: "Lugar", valor: f.lugar },
+    { etiqueta: "Terminó de leerse", valor: f.fecha ? fecha(f.fecha) : null },
+  ];
+  // En revisión se dice "En revisión" y nada más (§10.4): sin montos ni señales.
+  if (publicable(f) && f.valorReferencial) datos.push({ etiqueta: "Valor referencial", valor: soles(f.valorReferencial), mono: true });
+  if (publicable(f) && f.montoAdjudicado) datos.push({ etiqueta: "Monto adjudicado", valor: soles(f.montoAdjudicado), mono: true });
+  if (f.financiador) datos.push({ etiqueta: "Lo financió", valor: f.financiador });
+  if (f.comprobante) {
+    datos.push({
+      etiqueta: "Comprobante",
+      valor: (
+        <Link href={`/impacto/${f.comprobante}`} className="font-mono text-meta text-granate underline-offset-2 hover:underline">
+          {f.comprobante}
+        </Link>
+      ),
+    });
+  }
+  return {
+    id: `leida-${f.ocid}`,
+    titulo: tituloDe(f.titulo),
+    descripcion: f.enRevision ? "Leída, en revisión humana" : f.descartada ? "Leída, alerta descartada" : "Ya se leyó",
+    contenido: (
+      <CuerpoDetalle>
+        <ChipsDetalle>
+          <ChipLectura f={f} />
+        </ChipsDetalle>
+        {conSenales && sev && (
+          <CifrasEnFila
+            chico
+            items={[
+              { valor: numero(sev.alta), etiqueta: "señales altas" },
+              { valor: numero(sev.media), etiqueta: "señales medias" },
+              { valor: numero(sev.baja), etiqueta: "señales bajas" },
+            ]}
+          />
+        )}
+        <DatosClave items={datos} />
+        <p className="text-meta leading-snug text-mute">{NOTA_SENAL}</p>
+      </CuerpoDetalle>
+    ),
+    pie: (
+      <PieDetalle
+        principal={
+          <>
+            {publicable(f) && (
+              <EnlaceAccion href={rutaContrato(f.ocid, "dictamen")} flecha>
+                Ver el dictamen
+              </EnlaceAccion>
+            )}
+            <EnlaceAccion variante={publicable(f) ? "secundario" : "primario"} href={rutaContrato(f.ocid)}>
+              Ver la ficha del contrato
+            </EnlaceAccion>
+          </>
+        }
+      />
+    ),
+  };
 }

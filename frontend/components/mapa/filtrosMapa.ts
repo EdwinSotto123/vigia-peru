@@ -2,7 +2,7 @@
  * Filtros del mapa: los mismos de /app/contratos (GET /contratos/geo los entiende igual), para pintar sólo los
  * contratos que cumplen. Viven en la URL con los mismos nombres, así "Ver estos contratos" abre la lista ya filtrada.
  */
-import { LECTURAS, TIPOS, type Lectura, type TipoContrato } from "@/lib/contratos";
+import { anioLectura, LECTURAS, TIPOS, type Lectura, type TipoContrato } from "@/lib/contratos";
 
 export interface FiltrosMapa {
   /** Clave del partido que gobernaba la entidad al convocar. */
@@ -28,11 +28,15 @@ export function filtrosDeUrl(sp: URLSearchParams): FiltrosMapa {
   return f;
 }
 
-/** La lista de contratos con estos filtros (y la zona, si hay). */
-export function hrefContratos(f: FiltrosMapa, ubigeo?: string | null): string {
+/**
+ * La lista de contratos con estos filtros, la zona y el periodo que cuenta el mapa: el mes elegido o, sin mes, el año
+ * en curso (`mes=AAAA`, que /app/contratos entiende como el año entero). Sin el periodo, «Ver estos contratos» abría la
+ * base desde 2015 y la lista no tenía el número que decía el mapa.
+ */
+export function hrefContratos(f: FiltrosMapa, ubigeo?: string | null, mes?: { desde: string } | null): string {
   const q = new URLSearchParams();
   for (const k of CLAVES_FILTRO) if (f[k]) q.set(k, f[k]!);
   if (ubigeo) q.set("ubigeo", ubigeo);
-  const qs = q.toString();
-  return `/app/contratos${qs ? `?${qs}` : ""}`;
+  q.set("mes", mes ? mes.desde.slice(0, 7) : String(anioLectura()));
+  return `/app/contratos?${q.toString()}`;
 }

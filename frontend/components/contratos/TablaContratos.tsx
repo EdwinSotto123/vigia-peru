@@ -13,6 +13,9 @@
  * fila ya trae, sin pedir el dossier (pesado) de un contrato que casi siempre está sin
  * leer. El dossier queda en el pie del panel. Una sola acción por fila.
  *
+ * El panel es también donde se elige una entidad («Ver sólo los contratos de esta entidad», con los demás filtros): son
+ * miles y la barra sólo tiene desplegables nativos; elegida, queda en «Filtros» con su nombre y su ×.
+ *
  * Componente cliente porque usa `estadoLecturaDe` (módulo cliente): llamada desde un
  * server component sería una referencia, no una función.
  *
@@ -27,10 +30,11 @@
  */
 
 import Link from "next/link";
-import { ArrowRight, Award, Flag } from "lucide-react";
+import { ArrowRight, Award, Flag, ListFilter } from "lucide-react";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Llamita } from "@/components/marca/Llamita";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { numero, oracion, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
@@ -44,7 +48,7 @@ import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
 import { Dato } from "@/components/ui/Dato";
 import { AvisoContrato, ConBanderaDato } from "./DatoDudosoContrato";
-import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
+import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 
 import { urlDesde, conDesde } from "@/lib/desde";
 
@@ -54,7 +58,8 @@ const COLUMNAS: Columna[] = [
   {
     clave: "estado", desde: "md", apilar: true,
     titulo: "Estado",
-    ancho: "136px",
+    // Lo justo para «Riesgo medio», la pastilla más ancha que no se recorta: el resto del ancho es del objeto.
+    ancho: "120px",
     // Reemplaza a las dos leyendas que iban al pie de la tabla vieja: el vocabulario, a un clic.
     ayuda: (
       <Ayuda titulo="¿Qué dice el estado?">
@@ -184,7 +189,8 @@ export function TablaContratos({
     );
   }
 
-  let pag: React.ReactNode;
+  // El de abajo lleva `subir`: al cambiar de página vuelve al inicio de los resultados, no al pie de la siguiente.
+  let pag: (subir: boolean) => React.ReactNode;
   if (porCursor) {
     // Primera página: se sabe el rango ("1–50 de 18,393"). Después, sólo cuántos se ven
     // de cuántos: con un cursor no hay número de página que decir.
@@ -192,29 +198,33 @@ export function TablaContratos({
     const primera = !cursor && !antes && actual <= 1;
     const cuantos = numero(data.length);
     const texto = `${primera ? `1–${cuantos}` : cuantos} de ${totalContratosTexto(pagina)}`;
-    pag = (
+    pag = (subir) => (
       <PaginacionCursor
         texto={texto}
         anterior={!primera && pagina.anterior ? hrefCon({ antes: pagina.anterior }) : null}
         siguiente={pagina.siguiente ? hrefCon({ cursor: pagina.siguiente }) : null}
+        subir={subir}
       />
     );
   } else {
-    pag = (
-      <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={ruta} query={parametros} paramPagina="page" cargando={false} nombre="contratos" />
+    pag = (subir) => (
+      <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={ruta} query={parametros} paramPagina="page" cargando={false} nombre="contratos" subir={subir} />
     );
   }
+  // «Sólo los de esta entidad» en el panel: la misma lista con sus filtros, más la entidad (que queda en Filtros, con su ×).
+  // No en la ficha de una entidad (ya es su lista) ni si la entidad ya es el filtro.
+  const hrefEntidad = (ruc: string | null) => (!deEntidad && ruc && parametros.entidad !== ruc ? hrefCon({ entidad: ruc }) : null);
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">{pag}</div>
-      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde))} etiqueta="Contratos" />
-      <div className="flex justify-end">{pag}</div>
+      <div className="flex justify-end">{pag(false)}</div>
+      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc)))} etiqueta="Contratos" />
+      <div className="flex justify-end">{pag(true)}</div>
     </div>
   );
 }
 
-function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
+function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null): Fila {
   // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
   const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
@@ -245,9 +255,9 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
           <EstadoContratoChip c={c} />
         </ConBanderaDato>
       ),
-      // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM).
-      // En la ficha de una entidad la fila no repite la entidad: el objeto puede ocupar dos líneas.
-      contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas={deEntidad} />,
+      // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM). Dos líneas en
+      // escritorio (tres en el celular): «qué se compra» es el dato de la fila, y en una línea se cortaba a ~30 letras.
+      contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas />,
       cruces: <CrucesCelda cruces={c.cruces} sinGanador={!c.proveedor} />,
       tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
@@ -272,6 +282,12 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
         <div className="space-y-4">
           <AvisoContrato dato={c.datoDudoso} />
           <DetalleContrato c={c} />
+          {soloEntidad && (
+            <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+              <ListFilter size={15} aria-hidden />
+              Ver sólo los contratos de esta entidad
+            </EnlaceAccion>
+          )}
         </div>
       ),
       pie: (
@@ -292,6 +308,23 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string): Fila {
 /** Mientras llega la primera página: la misma rejilla, sin saltos cuando entran los datos. */
 export function TablaContratosSkeleton() {
   return <TablaSkeleton columnas={COLUMNAS} filas={10} />;
+}
+
+/**
+ * La espera de la lista en /app/contratos (§10.5): la rejilla en esqueleto y, en el renglón del paginador, qué se espera
+ * con la llamita caminando, que aparece pasado 1 s (una carga corta no necesita aviso; una con cruces o un texto amplio
+ * tarda varios segundos y el esqueleto mudo parecía colgado). Sin JS ni movimiento, igual se ve: la demora es de CSS.
+ */
+export function TablaContratosCargando({ texto = "Cargando los contratos…" }: { texto?: string }) {
+  return (
+    <div className="space-y-3" role="status" aria-busy>
+      <p className="flex min-h-[44px] items-center gap-2.5 text-dato text-mute animate-[fadeIn_200ms_ease-out_1s_both] sm:min-h-[36px]">
+        <Llamita caminando className="w-6 text-granate/70" />
+        {texto}
+      </p>
+      <TablaSkeleton columnas={COLUMNAS} filas={10} />
+    </div>
+  );
 }
 
 const ACCION = CLASE_ACCION_LISTA;

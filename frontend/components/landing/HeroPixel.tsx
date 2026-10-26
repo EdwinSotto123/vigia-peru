@@ -74,9 +74,10 @@ function pintarMalla(lienzo: HTMLCanvasElement, t: number) {
 function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
   if (aliados.length === 0) return null;
   return (
-    <div className="mt-10">
-      <p className="etiqueta-mono mb-3">Lo hacen posible</p>
-      <ul className="flex flex-wrap gap-2.5">
+    // El rótulo va en la misma fila que los aliados y en letra normal: en versalitas encima era un antetítulo (prohibido).
+    <div className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-2.5">
+      <p className="text-meta font-semibold text-inkSoft">Lo hacen posible</p>
+      <ul className="flex flex-wrap gap-2.5" aria-label="Lo hacen posible">
         {/* recorte: tres aliados en la portada; todos, en /app/aliados */}
         {aliados.slice(0, 3).map((f) => (
           <li key={f.id}>
@@ -188,7 +189,6 @@ export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanki
 
         <div className="container-page grid w-full max-w-7xl flex-1 items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:py-16">
           <header className="hero-texto relative z-10">
-            <p className="etiqueta-mono mb-5 text-granate">Plataforma cívica anticorrupción</p>
             <h1
               id="hero-titulo"
               className="max-w-[18ch] text-balance font-display text-[2.5rem] font-bold leading-[1.04] tracking-tight text-ink sm:text-5xl lg:text-[3.6rem]"

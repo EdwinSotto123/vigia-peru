@@ -52,6 +52,16 @@ export interface FiltroSecundario {
   /** Dentro de "Filtros", los filtros con la misma `seccion` van juntos bajo ese subtítulo ("Dónde", "Cuándo", "Cuánto"). */
   seccion?: string;
   /**
+   * En `visibles`: siempre desplegable, aunque tenga una sola opción (un filtro de una opción se dibuja como chip; uno
+   * que mientras carga trae sólo la elegida saltaba de chip a desplegable).
+   */
+  desplegable?: boolean;
+  /**
+   * Dentro de "Filtros": un campo donde se escribe y se elige (`<datalist>` nativo) en vez de un desplegable, para las
+   * listas largas (unos 100 partidos): recorrer cien opciones a ojo no es filtrar.
+   */
+  buscable?: boolean;
+  /**
    * En `visibles`: el nombre corto que va DENTRO del desplegable cuando no hay nada elegido ("Riesgo"), como un botón de filtro.
    * Así las tres preguntas, la búsqueda, "Filtros" y el orden caben en una fila (antes, con la etiqueta afuera, la
    * barra se partía en dos renglones). Lo elegido se nombra completo en "Filtrando por".
@@ -133,8 +143,9 @@ export function BarraFiltros({
 }) {
   const { parametros, navegar, pendiente } = useListado();
   const activos = filtros.filter((f) => parametros[f.param]);
-  const conmutadores = visibles.filter((f) => f.opciones.length === 1);
-  const desplegables = visibles.filter((f) => f.opciones.length !== 1);
+  const esConmutador = (f: FiltroSecundario) => f.opciones.length === 1 && !f.desplegable;
+  const conmutadores = visibles.filter(esConmutador);
+  const desplegables = visibles.filter((f) => !esConmutador(f));
   const visiblesActivos = desplegables.filter((f) => parametros[f.param]).length;
   const valorFaceta = faceta ? parametros[faceta.param] : undefined;
   const textoBusqueda = busqueda ? parametros[busqueda.param] : undefined;
@@ -329,6 +340,7 @@ function Contador({ n, className }: { n: number; className?: string }) {
 
 /** Un filtro dentro del menú "Filtros": su nombre arriba y el desplegable a todo el ancho. */
 function CampoFiltro({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
+  if (f.buscable) return <CampoBuscable filtro={f} valor={valor} onCambio={onCambio} />;
   return (
     <label className="block">
       <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
@@ -338,6 +350,47 @@ function CampoFiltro({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario;
         {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{valor}</option>}
         <Opciones opciones={f.opciones} />
       </select>
+    </label>
+  );
+}
+
+/**
+ * Un filtro de lista larga: se escribe y el navegador sugiere (`<datalist>`); al elegir una opción se aplica, y vaciar el
+ * campo lo quita. Lo que se escribe y no es una opción no filtra nada (no hay controles que finjan funcionar).
+ */
+function CampoBuscable({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
+  const id = useId();
+  const etiquetaDe = (v: string | undefined) => (v ? f.opciones.find((o) => o.valor === v)?.etiqueta ?? v : "");
+  const [texto, setTexto] = useState(etiquetaDe(valor));
+  useEffect(() => setTexto(etiquetaDe(valor)), [valor]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <label className="block">
+      <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
+      <span className="relative block">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+        <input
+          type="search"
+          list={`${id}-opciones`}
+          value={texto}
+          placeholder={`${f.todas}: escribe para buscar`}
+          autoComplete="off"
+          onChange={(e) => {
+            const t = e.target.value;
+            setTexto(t);
+            if (!t) return onCambio("");
+            const o = f.opciones.find((x) => x.etiqueta === t);
+            if (o) onCambio(o.valor);
+          }}
+          className={cn(CAMPO, "pl-9", valor && "border-granate/60 font-medium")}
+        />
+      </span>
+      <datalist id={`${id}-opciones`}>
+        {f.opciones.map((o) => (
+          <option key={o.valor} value={o.etiqueta}>
+            {o.conteo != null ? numero(o.conteo) : undefined}
+          </option>
+        ))}
+      </datalist>
     </label>
   );
 }

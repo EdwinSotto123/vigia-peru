@@ -39,7 +39,8 @@ export function RastroMapa({
   // En la vista del país, sin nada en curso, el rastro sería sólo la palabra "Perú": una fila vacía menos.
   if (!region && !zona && deptos.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-3 sm:px-5">
+    // Una fila más de la barra del mapa (separada por su divisor), no una caja.
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 sm:px-5">
       <nav aria-label="Dónde estás en el mapa" className={`min-h-[28px] items-center gap-1.5 text-rotulo ${region || zona ? "flex" : "hidden"}`}>
         <button
           type="button"

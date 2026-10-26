@@ -3,34 +3,34 @@
 import { useModo } from "@/lib/modo";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, SearchX } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useCuenta } from "@/lib/cuentas";
 import { REGIONES } from "@/lib/peru-data";
-import { getAlertas, getAlertasPagina, getAlertasPuntos, getReportes } from "@/lib/api-client";
+import { getAlertasPagina, getAlertasPuntos, getReportes } from "@/lib/api-client";
 import { apiNueva } from "@/lib/capacidades";
 import { getZonas, getEstadoGlobal, type EstadoGlobal, type Zona } from "@/lib/financiamiento";
 import { desdeLectura, getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
-import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { CLAVES_FILTRO, filtrosDeUrl, type FiltrosMapa } from "./mapa/filtrosMapa";
 import { numero } from "@/lib/formato";
 import { EncabezadoPagina, Migas } from "@/components/patrones";
-import { Indicadores } from "@/components/listado";
-import { Llamita } from "@/components/marca";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
 import { colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
-import { RegionDetailPanel, type FilaPais } from "./RegionDetailPanel";
 import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
 import { type RangoMes } from "./mapa/meses";
 import { BarraMapa } from "./mapa/BarraMapa";
+import { LeyendaEscala } from "./mapa/LeyendaEscala";
+import { PanelPais, type FilaPais } from "./mapa/PanelPais";
+import { MapaEsqueleto, VeloMapa } from "./mapa/EstadosMapa";
+import { useDatosMapa } from "./mapa/useDatosMapa";
 import { FichaRegion } from "./mapa/FichaRegion";
-import { indicadoresPais, indicadoresRegion } from "./mapa/indicadoresMapa";
+import { indicadoresPais } from "./mapa/indicadoresMapa";
 import { SenalesRecientes } from "./mapa/SenalesRecientes";
 import { RastroMapa } from "./mapa/RastroMapa";
 import { PanelZonaMovil } from "./mapa/PanelZonaMovil";
 import { fraseEnCurso, useEnCurso } from "./mapa/useEnCurso";
 import { alertaMapaDesdeLista, alertaMapaDesdePunto, puntosDeDenuncias, puntosDeSenales, type AlertasMapa } from "./mapa/puntos";
 import { construirEscala, formatoSoles, medidaPorId, paletaMapa, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
-import { TAB_LABEL, type ZonaTab } from "./mapa/ZonaHubPanel";
+import { TAB_LABEL, ZonaHubPanel, type ZonaTab } from "./mapa/ZonaHubPanel";
 import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
 
 const PeruChoropleth = dynamic(() => import("./PeruChoropleth").then((m) => m.PeruChoropleth), {
@@ -79,8 +79,6 @@ export function MapaWrapper({
   /** Filtros del mapa (partido que gobierna, tipo, lectura, antecedentes): repintan con lo que cumple. En la URL. */
   const [filtrosMapa, setFiltrosMapa] = useState<FiltrosMapa>({});
   const hayFiltros = Object.values(filtrosMapa).some(Boolean);
-  /** Partidos que gobiernan hoy, para el desplegable (una vez). */
-  const [partidos, setPartidos] = useState<{ clave: string; nombre: string }[] | null>(null);
   /** La pestaña del panel vive acá (no en el panel) para poder escribirla en `?tab=`. */
   const [panelTab, setPanelTab] = useState<ZonaTab>(initialTab ?? "resumen");
   const [drawerAbierto, setDrawerAbierto] = useState(false);
@@ -105,8 +103,8 @@ export function MapaWrapper({
   const [estado, setEstado] = useState<EstadoGlobal | null | undefined>(undefined);
   /** TODAS las alertas publicadas en filas mínimas: los puntos y los conteos por zona. */
   const [senalesMapa, setSenalesMapa] = useState<AlertasMapa | null>(null);
-  /** Las de mayor puntaje, con objeto, entidad y monto: "Los de mayor peso del riesgo". */
-  const [alertasTop, setAlertasTop] = useState<any[] | null>(null);
+  /** Los de mayor peso del riesgo, las cifras del año (lib/cifras) y los partidos del desplegable. */
+  const { topContratos, falloTop, cifrasAnio, partidos } = useDatosMapa();
   /**
    * Filas completas para la pestaña Señales del panel. `undefined` = la pestaña las pide al
    * abrirse (con la API nueva el mapa ya no baja las 200 al entrar); `null` = cargando.
@@ -161,8 +159,7 @@ export function MapaWrapper({
   useEffect(() => {
     let vivo = true;
     // Los puntos salen de `/alertas/puntos`: TODAS las publicadas, en filas mínimas. "Los de
-    // mayor peso" necesita objeto, entidad y monto: las 20 de mayor puntaje de `/alertas`
-    // (la lista viene ordenada por puntaje, así que las 5 primeras son las del país).
+    // mayor peso" ya no sale de aquí: lo trae `/contratos?orden=score` (efecto de abajo).
     // COMPAT-API-VIEJA: `/alertas/puntos` sólo si la API es la nueva (lib/capacidades); a
     // ciegas, la API vieja respondía 404 y quedaba un error en la consola en cada visita.
     apiNueva()
@@ -173,9 +170,6 @@ export function MapaWrapper({
         if (puntos) {
           setSenalesMapa({ alertas: puntos.map(alertaMapaDesdePunto), completo: true });
           setAlertasZona(undefined);
-          const top = await getAlertas({ limit: 20 });
-          if (!vivo) return;
-          setAlertasTop(top as any[]);
           setFalloSenales(false);
           return;
         }
@@ -185,7 +179,6 @@ export function MapaWrapper({
         const pag = await getAlertasPagina({ limit: 200 });
         if (!vivo) return;
         setSenalesMapa({ alertas: pag.data.map(alertaMapaDesdeLista), completo: pag.total <= pag.data.length });
-        setAlertasTop(pag.data as any[]);
         setAlertasZona(pag.data as any[]);
         setFalloSenales(false);
       })
@@ -276,17 +269,6 @@ export function MapaWrapper({
       vivo = false;
     };
   }, [regionUb, mes, filtrosMapa, intento, pedirGeo, reintentar]);
-
-  // La lista de partidos para el desplegable "Partido que gobierna".
-  useEffect(() => {
-    let vivo = true;
-    getRankingPartidos(ANIO_GOBIERNO_VIGENTE, { limit: 100 })
-      .then((r) => vivo && setPartidos((r?.data ?? []).map((p) => ({ clave: p.clave, nombre: p.nombre }))))
-      .catch(() => vivo && setPartidos([]));
-    return () => {
-      vivo = false;
-    };
-  }, []);
 
   // ─── Estado ↔ URL (sin navegar) ──────────────────────────────────────────
   const urlLeida = useRef(false);
@@ -384,7 +366,7 @@ export function MapaWrapper({
     const c = z ?? (CERO as ContratoZona);
     return `${enteros(c.total)} contratos publicados, ${formatoSoles(c.montoPen)} en valor referencial, ${enteros(
       c.enCola,
-    )} esperando lectura, ${enteros(c.procesados)} leídos, ${enteros(c.conSenales)} de riesgo medio o alto`;
+    )} en cola, ${enteros(c.procesados)} leídos, ${enteros(c.conSenales)} de riesgo medio o alto`;
   }, []);
 
   const regiones = useMemo(() => {
@@ -523,8 +505,7 @@ export function MapaWrapper({
 
   // ─── Encabezado que refleja el estado ────────────────────────────────────
   const region = regionUb ? REGIONES.find((r) => r.id === UBIGEO_REGION[regionUb]) ?? null : null;
-  /** Cifras del departamento abierto: las del mes si hay mes (encabezado), las del año en curso para el panel. */
-  const zPais = regionUb ? zonaPorUbigeo.get(regionUb) ?? (geoPais ? (CERO as ContratoZona) : undefined) : undefined;
+  /** Cifras del departamento abierto, del año en curso (el panel y el asa del celular). */
   const zBase = regionUb && geoBase ? geoBase.find((z) => z.ubigeo === regionUb) ?? (CERO as ContratoZona) : undefined;
   const fPais = regionUb ? financiamientoPorUbigeo.get(regionUb) : undefined;
   const totalPais = useMemo(
@@ -559,7 +540,7 @@ export function MapaWrapper({
     const z = zonaActiva ?? (CERO as ContratoZona);
     const esperando = mes || !finActiva ? z.enCola : finActiva.pendientes;
     const filas: { etiqueta: string; valor: string; detalle?: string; tono?: string }[] = [
-      { etiqueta: "Esperando lectura", valor: enteros(esperando), detalle: `de ${enteros(z.total)} publicados`, tono: "text-ink" },
+      { etiqueta: "En cola", valor: enteros(esperando), detalle: `de ${enteros(z.total)} publicados`, tono: "text-ink" },
     ];
     if (finActiva) {
       filas.push({
@@ -578,17 +559,16 @@ export function MapaWrapper({
     return filas;
   }, [activa, zonaActiva, finActiva, mes, cargandoPais, enCurso]);
 
-  // Plantilla Tablero (§14): las cifras del estado actual van en `Indicadores`, entre el
-  // encabezado y el mapa, y cambian con la región y el mes elegidos.
-  const indicadores = region
-    ? indicadoresRegion({ zona: cargandoPais ? undefined : zPais, financiamiento: fPais, financiamientoCargando: zonas === null, mes })
-    : indicadoresPais({ total: totalPais, cargando: cargandoPais, mes, estado });
+  // Plantilla Tablero (§14): las cifras del estado actual van en la cabecera del panel «Todo el Perú» (antes, en una
+  // fila entre el encabezado y el mapa, que empujaba el lienzo fuera de la primera pantalla). Con una región abierta,
+  // sus cifras las trae su panel.
+  const cifrasPais = indicadoresPais({ total: totalPais, cargando: cargandoPais, mes, filtrado: hayFiltros, estado, anio: cifrasAnio });
 
   const resumenMovil =
     zBase && fPais
-      ? `${enteros(fPais.pendientes)} esperando, ${enteros(fPais.financiados)} financiados, ${enteros(zBase.conSenales)} de riesgo medio o alto`
+      ? `${enteros(fPais.pendientes)} en cola, ${enteros(fPais.financiados)} financiados, ${enteros(zBase.conSenales)} de riesgo medio o alto`
       : zBase
-        ? `${enteros(zBase.enCola)} esperando, ${enteros(zBase.conSenales)} de riesgo medio o alto`
+        ? `${enteros(zBase.enCola)} en cola, ${enteros(zBase.conSenales)} de riesgo medio o alto`
         : null;
 
   // El panel sin región abierta ordena los departamentos por lo que pinta el mapa (no se queda vacío).
@@ -607,20 +587,22 @@ export function MapaWrapper({
       .sort((a, b) => b.valor - a.valor || a.nombre.localeCompare(b.nombre, "es"));
   }, [geoPais, cargandoPais, m]);
 
-  const panel = (
-    <RegionDetailPanel
-      ranking={rankingPais}
-      medidaTitulo={m.titulo}
-      onElegirRegion={elegirRegion}
-      region={region}
+  // Con una región abierta, su panel (cola, entidades, señales, denuncias, presupuesto); sin región, «Todo el Perú».
+  const panel = region ? (
+    <ZonaHubPanel
+      regionId={region.id}
+      ubigeo={REGION_UBIGEO[region.id] ?? ""}
+      nombre={region.nombre}
       onClose={() => elegirRegion(null)}
-      alertasApi={alertasZona}
+      alertas={alertasZona}
       senales={senalesMapa}
       reportes={reportes}
       geo={geoBase ? zBase : falloGeo ? null : undefined}
       tab={panelTab}
       onTab={setPanelTab}
     />
+  ) : (
+    <PanelPais ranking={rankingPais} medidaTitulo={m.titulo} cifras={cifrasPais} onElegir={elegirRegion} />
   );
 
   return (
@@ -655,24 +637,16 @@ export function MapaWrapper({
           }
         />
 
-        <div aria-live="polite">
-          <Indicadores items={indicadores} />
-        </div>
-
-        {/* Un bloque blanco con borde sobre el suelo teñido: sin sombra en reposo (DESIGN_SYSTEM.md §5). */}
+        {/* UNA superficie con divisores: la barra (qué se pinta, qué filtra, qué estás viendo), el lienzo y el panel.
+            Antes había una caja dentro de otra dentro de otra. Sin sombra en reposo (DESIGN_SYSTEM.md §5). */}
         <div className="relative overflow-hidden rounded-2xl border border-line bg-paper">
-          {/* Una sola franja de control hundida: filtros, leyenda y migaja son
-              la misma cosa ("qué estoy viendo y cómo lo filtro"). */}
-          <div className="border-b border-line bg-paperSoft">
+          <div className="divide-y divide-line border-b border-line bg-paperSoft">
             <BarraMapa
               medida={medida}
               onMedida={setMedida}
               filtro={filtro}
               onFiltro={setFiltro}
-              escala={escalaActiva}
               medidaActual={m}
-              ambito={ambito}
-              conPines={regionUb !== null}
               cargando={regionUb ? cargandoProv : cargandoPais}
               mes={mes}
               onMes={setMes}
@@ -713,33 +687,15 @@ export function MapaWrapper({
                   móvil la altura sigue al ancho (130vw, tope 560 px) para que el país
                   entre en el primer pantallazo. */}
               <div className="relative h-[min(560px,130vw)] w-full overflow-hidden bg-paper lg:h-[680px]">
-                {/* Respuesta visual a un filtro: el mapa se atenúa con "Actualizando…" mientras llega, y si nada cumple
-                    lo dice encima del mapa (antes quedaba gris sin explicación). */}
-                {(cargandoVista && (mes || hayFiltros)) || (!cargandoVista && nContratos === 0) ? (
-                  <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-paper/55 pt-10 backdrop-blur-[1px]">
-                    <span className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-4 py-2 text-meta font-semibold text-ink shadow-sm">
-                      {cargandoVista ? (
-                        <>
-                          <Loader2 size={15} className="animate-spin text-granate" aria-hidden /> Actualizando el mapa…
-                        </>
-                      ) : (
-                        <>
-                          <SearchX size={15} className="text-amberTexto" aria-hidden /> Ningún contrato cumple estos filtros
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFiltrosMapa({});
-                              setMes(null);
-                            }}
-                            className="ml-1 font-semibold text-granate hover:underline"
-                          >
-                            Quitar filtros
-                          </button>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                ) : null}
+                {((cargandoVista && (mes || hayFiltros)) || (!cargandoVista && nContratos === 0)) && (
+                  <VeloMapa
+                    cargando={cargandoVista}
+                    onQuitar={() => {
+                      setFiltrosMapa({});
+                      setMes(null);
+                    }}
+                  />
+                )}
                 <PeruChoropleth
                   regiones={regiones}
                   provincias={provincias}
@@ -759,6 +715,10 @@ export function MapaWrapper({
                   pulsos={pulsos}
                   ola={ola}
                 />
+                {/* La leyenda, superpuesta en la esquina de abajo a la izquierda: ahí está el mar, no un departamento. */}
+                <div className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-1.5rem)]">
+                  <LeyendaEscala escala={escalaActiva} medida={m} ambito={ambito} conPines={regionUb !== null} cargando={regionUb ? cargandoProv : cargandoPais} />
+                </div>
               </div>
 
               {/* Arriba y no abajo: abajo lo tapaba el botón flotante de navegación. */}
@@ -769,7 +729,7 @@ export function MapaWrapper({
               )}
             </div>
 
-            {/* Panel de zona (escritorio). Alto fijo al del lienzo y scroll propio. */}
+            {/* Panel (escritorio): la zona abierta o «Todo el Perú» con sus cifras. Alto fijo al del lienzo y scroll propio. */}
             <aside className="relative z-mapa hidden h-[680px] border-l border-line lg:block">{panel}</aside>
 
             {/* Panel de zona (móvil) */}
@@ -786,8 +746,16 @@ export function MapaWrapper({
           </div>
         </div>
 
+        {/* En el celular, la misma lista de departamentos debajo del mapa (la alternativa al mapa, §13): el panel del
+            costado es sólo de escritorio. */}
+        {!region && (
+          <div className="lg:hidden">
+            <PanelPais variante="bloque" ranking={rankingPais} medidaTitulo={m.titulo} cifras={cifrasPais} onElegir={elegirRegion} />
+          </div>
+        )}
+
         {/* Debajo del mapa: arriba empujaba el lienzo fuera del primer pantallazo. */}
-        <SenalesRecientes alertas={alertasTop} fallo={falloSenales && alertasTop === null} />
+        <SenalesRecientes contratos={topContratos} fallo={falloTop && topContratos === null} />
 
         {/* Ficha contextual: top layer, así el overflow-hidden del lienzo no la recorta */}
         <FichaRegion
@@ -812,15 +780,5 @@ export function MapaWrapper({
         />
       </div>
     </MapaContratosContext.Provider>
-  );
-}
-
-/** Mientras baja el mapa (es un módulo aparte): la llamita camina, y se dice qué se espera. */
-function MapaEsqueleto() {
-  return (
-    <div className="flex h-full min-h-[320px] w-full flex-col items-center justify-center gap-3 bg-paperSoft" role="status">
-      <Llamita caminando className="w-12 text-granate/70" />
-      <span className="text-dato leading-5 text-mute">Cargando el mapa del Perú…</span>
-    </div>
   );
 }

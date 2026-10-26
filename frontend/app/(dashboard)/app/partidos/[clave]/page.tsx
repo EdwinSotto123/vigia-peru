@@ -1,26 +1,21 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CalendarRange } from "lucide-react";
 import { Aviso } from "@/components/partidos/AvisoPartido";
-import { GobiernosPartido } from "@/components/partidos/GobiernosPartido";
+import { GobiernosPartido, P_GOB, filtrosGobiernos } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
-import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import {
   BarraFiltros,
-  CeldaNumero,
-  CeldaPrincipal,
   Indicadores,
   Listado,
-  TablaPaginada,
   TablaSkeleton,
   ZonaResultados,
   type Columna,
   type FiltroSecundario,
-  type Fila,
   type Indicador,
   type Parametros,
 } from "@/components/listado";
@@ -36,6 +31,7 @@ import {
   PERIODOS_GOBIERNO,
   anioDeUrl,
   getDetallePartido,
+  getGastoPartido,
   getProcesosPartido,
   periodoTexto,
   type AnioGobierno,
@@ -53,27 +49,41 @@ export async function generateMetadata({ params, searchParams }: { params: { cla
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
 const TAM = 20;
-
-/** Un parámetro de texto de la URL, o nada. */
+/** Las vistas de la pestaña Contratos (`?vista=`). «Por mes» y «Lo que leyó Vigía» eran pestañas aparte. */
+const VISTAS_CONTRATOS = ["lista", "meses", "vigia"] as const;
 
 /**
  * /app/partidos/[clave]?anio=2018 — un partido en un período, con el esqueleto de las demás fichas (entidad, contrato):
  *   volver → nombre, período (con los otros a un clic) y cuántos gobiernos ganó → cuatro cifras → pestañas (?seccion=):
- *     · Procesos: TODOS los procesos adjudicados de sus gobiernos (OECE, desde 2015), con búsqueda, nivel, región,
- *       objeto y orden, de a 20. Antes la ficha listaba las 15 entidades con más contratos de la base de Vigía (2026).
- *     · Gobiernos: TODOS los que ganó, con sus procesos y sus contratos en Vigía, filtrables.
- *     · Por mes: los procesos convocados mes a mes.
- *     · Lectura de Vigía: los contratos de la base de Vigía (leídos, señales, cola), si los hay.
- * Se asocia al GANADOR de la elección: una vacancia o un reemplazo dentro del período no está registrado.
+ *     · Inicio: qué se encontró (banderas) → dinero (MEF y contratos) → control (Contraloría).
+ *     · Contratos: TODOS los procesos adjudicados de sus gobiernos (OECE, desde 2015), con búsqueda, nivel, región,
+ *       objeto, gobierno y orden, de a 20; y en la misma pestaña (`?vista=`) los procesos mes a mes y lo que leyó Vigía.
+ *       Los enlaces viejos `?seccion=meses` y `?seccion=vigia` llevan ahí (redirección).
+ *     · Personas contratadas.
+ *     · Gobiernos: UNA tabla con todos los que ganó (presupuesto MEF, contratos, lo leído y con señal), filtrable en la
+ *       URL; cada fila abre sus entidades en un panel. Con el detalle del MEF, también «En qué gastan» (`?gvista=gasto`).
+ * Se asocia al GANADOR de la elección: una vacancia o un reemplazo dentro del período no está registrado (el aviso, una
+ * vez, al pie).
  */
 export default async function PartidoPage({ params, searchParams }: { params: { clave: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   const anio = anioDeUrl(searchParams?.anio);
   const ruta = `/app/partidos/${params.clave}`;
+  const seccionUrl = uno(searchParams?.seccion);
+  // «Por mes» y «Lo que leyó Vigía» eran pestañas: sus enlaces siguen funcionando, a su vista dentro de Contratos.
+  if (seccionUrl === "meses" || seccionUrl === "vigia") {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(searchParams ?? {})) if (typeof v === "string" && k !== "seccion" && k !== "vista") q.set(k, v);
+    q.set("seccion", "procesos");
+    q.set("vista", seccionUrl);
+    redirect(`${ruta}?${q.toString()}`);
+  }
   const page = Math.max(1, Number(uno(searchParams?.page)) || 1);
   const filtros = {
     q: uno(searchParams?.q)?.slice(0, 80),
     nivel: ["regional", "provincial", "distrital"].includes(uno(searchParams?.nivel) ?? "") ? uno(searchParams?.nivel) : undefined,
     region: /^\d{2}$/.test(uno(searchParams?.region) ?? "") ? uno(searchParams?.region) : undefined,
+    // Un gobierno (desde el panel de la pestaña Gobiernos): su ubigeo de 2, 4 o 6 dígitos.
+    ubigeo: /^\d{2}(\d{2}(\d{2})?)?$/.test(uno(searchParams?.ubigeo) ?? "") ? uno(searchParams?.ubigeo) : undefined,
     objeto: uno(searchParams?.objeto)?.slice(0, 40),
     // Las preguntas de la lista de contratos: ¿lo leyó Vigía?, riesgo y antecedentes del ganador.
     lectura: LECTURAS.some((l) => l.value === uno(searchParams?.lectura)) ? uno(searchParams?.lectura) : undefined,
@@ -85,8 +95,11 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   if (filtros.q && filtros.q.length < 3) filtros.q = undefined;
   // "Inicio" es la primera pestaña (sin `seccion`): la lista de procesos lleva la suya en sus enlaces (paginación).
   const parametros: Parametros = { anio: String(anio), ...filtros, seccion: "procesos" };
+  const fg = filtrosGobiernos(searchParams);
 
   const procesosP = getProcesosPartido(params.clave, anio, { ...filtros, page, size: TAM });
+  // El MEF lo usan el Inicio y la pestaña Gobiernos: un solo pedido (Next junta los dos `fetch` iguales).
+  const gastoP = getGastoPartido(params.clave, anio);
   const d = await getDetallePartido(params.clave, anio);
   // Sin respuesta: puede ser un partido que no gobernó nada ese período o un servidor caído. Desde el cliente no
   // se distinguen (ambos son `null`), así que se dice con esas dos palabras y no se muestra nada inventado.
@@ -97,9 +110,12 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   const h = d.historia;
   const gobiernos = d.gobiernos ?? [];
   const totalGobiernos = partido.gobiernos.regional + partido.gobiernos.provincial + partido.gobiernos.distrital;
-  // Con filtros de la lista y sin pestaña (enlaces de otras páginas), se abren sus contratos, no el Inicio.
-  const conPersonas = Object.values(PARAMS_EN_FICHA).some((k) => typeof searchParams?.[k] === "string");
-  const seccion = uno(searchParams?.seccion) ?? (conPersonas ? "personas" : Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
+  // Con filtros de una lista y sin pestaña (enlaces de otras páginas), se abre esa lista, no el Inicio.
+  const con = (nombres: readonly string[]) => nombres.some((k) => typeof searchParams?.[k] === "string");
+  const seccion =
+    seccionUrl ??
+    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_GOB)) ? "gobiernos" : Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
+  const vista = VISTAS_CONTRATOS.find((v) => v === uno(searchParams?.vista));
 
   return (
     <Pagina>
@@ -109,7 +125,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
           { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos", meses: "Por mes", vigia: "Lo que leyó Vigía" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos" } }}
       />
 
       <EncabezadoPagina
@@ -165,8 +181,8 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             clave: "inicio",
             etiqueta: "Inicio",
             contenido: (
-              <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
-                <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} />
+              <Suspense fallback={<EsqueletoInicio />}>
+                <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} gasto={gastoP} />
               </Suspense>
             ),
           },
@@ -189,23 +205,59 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                         «¿Lo leyó Vigía?», «Riesgo» y «Antecedentes» sólo responden por los procesos que también están en
                         la base de Vigía (más o menos la mitad): el resto no se leyó ni se cruzó con otras fuentes.
                       </span>
-                      <span className="mt-2 block">{AVISO_PARTIDO}</span>
                     </Ayuda>
                   }
                 >
                   Todos los contratos adjudicados de sus gobiernos en {periodoTexto(anio)}, con su ganador y su monto.
                 </CabeceraPestana>
-                <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-                  {/* Los conteos de lectura, riesgo y antecedentes llegan con la página: mientras, la barra sin números. */}
-                  <Suspense fallback={<BarraDeProcesos d={d} facetas={null} />}>
-                    <BarraProcesos pagina={procesosP} d={d} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_SKELETON} filas={10} />}>
-                      <Procesos pagina={procesosP} parametros={parametros} ruta={ruta} actual={page} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
+                {/* Tres vistas de los mismos contratos: la lista, mes a mes y lo que leyó Vigía (antes, dos pestañas más
+                    al final de la barra, una de ellas con un solo gráfico). */}
+                <Pestanas
+                  variante="segunda"
+                  // Un enlace a otra vista (la cuarta cifra: «leídos por Vigía») la abre aunque la pestaña ya esté montada.
+                  key={vista ?? "lista"}
+                  param="vista"
+                  etiqueta="Vistas de sus contratos"
+                  activa={vista}
+                  pestanas={[
+                    {
+                      clave: "lista",
+                      etiqueta: "Todos",
+                      conteo: h?.procesos ?? null,
+                      contenido: (
+                        <Listado ruta={ruta} parametros={parametros} paramPagina="page">
+                          {/* Los conteos de lectura, riesgo y antecedentes llegan con la página: mientras, la barra sin números. */}
+                          <Suspense fallback={<BarraDeProcesos d={d} facetas={null} ubigeo={filtros.ubigeo} />}>
+                            <BarraProcesos pagina={procesosP} d={d} ubigeo={filtros.ubigeo} />
+                          </Suspense>
+                          <ZonaResultados>
+                            <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_SKELETON} filas={10} />}>
+                              <Procesos pagina={procesosP} parametros={parametros} ruta={ruta} actual={page} />
+                            </Suspense>
+                          </ZonaResultados>
+                        </Listado>
+                      ),
+                    },
+                    {
+                      clave: "meses",
+                      etiqueta: "Por mes",
+                      contenido: (
+                        <div className="space-y-4">
+                          <CabeceraPestana>Cada proceso cuenta en el mes en que se convocó, con el partido que gobernaba la entidad ese día.</CabeceraPestana>
+                          <GraficoMeses
+                            porMes={(h?.porMes ?? []).map((m) => ({ mes: m.mes, contratos: m.procesos, leidos: 0, conSenales: 0 }))}
+                            etiqueta={`Procesos de los gobiernos de ${partido.nombre} por mes, ${periodoTexto(anio)}`}
+                            unidad={{ singular: "proceso", plural: "procesos" }}
+                            conLectura={false}
+                          />
+                        </div>
+                      ),
+                    },
+                    ...(t.contratos > 0
+                      ? [{ clave: "vigia", etiqueta: "Lo que leyó Vigía", conteo: t.leidos, contenido: <LecturaVigia d={d} anio={anio} ruta={ruta} /> }]
+                      : []),
+                  ]}
+                />
               </div>
             ),
           },
@@ -247,33 +299,29 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             conteo: gobiernos.length || totalGobiernos,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>
-                  Los {numero(gobiernos.length || totalGobiernos)} gobiernos que ganó para {periodoTexto(anio)}, con sus procesos y sus contratos en Vigía.
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Qué hay en cada fila?">
+                      <span className="block">
+                        Cada gobierno que ganó: su presupuesto y lo gastado (MEF, sólo en el mandato que incluye el año cargado),
+                        sus contratos adjudicados (OECE) y lo que Vigía leyó de ellos, con cuántos tienen una señal para revisar.
+                      </span>
+                      <span className="mt-2 block">La fila abre sus entidades en la base de Vigía, sus proyectos y sus contratos.</span>
+                    </Ayuda>
+                  }
+                >
+                  Los {numero(gobiernos.length || totalGobiernos)} gobiernos que ganó para {periodoTexto(anio)}, con su dinero, sus contratos y lo que leyó Vigía.
                 </CabeceraPestana>
                 {gobiernos.length > 0 ? (
-                  <GobiernosPartido gobiernos={gobiernos} partido={partido.nombre} />
+                  <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_GOBIERNOS} filas={10} />}>
+                    <GobiernosPartido d={d} gasto={gastoP} filtros={fg} ruta={ruta} anio={anio} />
+                  </Suspense>
                 ) : (
                   <p className="text-dato leading-5 text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
                 )}
               </div>
             ),
           },
-          {
-            clave: "meses",
-            etiqueta: "Por mes",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Cada proceso cuenta en el mes en que se convocó, con el partido que gobernaba la entidad ese día.</CabeceraPestana>
-                <GraficoMeses
-                  porMes={(h?.porMes ?? []).map((m) => ({ mes: m.mes, contratos: m.procesos, leidos: 0, conSenales: 0 }))}
-                  etiqueta={`Procesos de los gobiernos de ${partido.nombre} por mes, ${periodoTexto(anio)}`}
-                  unidad={{ singular: "proceso", plural: "procesos" }}
-                  conLectura={false}
-                />
-              </div>
-            ),
-          },
-          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Lo que leyó Vigía", conteo: t.leidos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
         ]}
       />
       <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>
@@ -281,30 +329,66 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   );
 }
 
+function EsqueletoInicio() {
+  return (
+    <div className="space-y-10" aria-hidden>
+      {[0, 1].map((i) => (
+        <div key={i} className="space-y-4">
+          <Skeleton className="h-7 w-48" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-56 rounded-2xl" />
+            <Skeleton className="h-56 rounded-2xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 async function Procesos({ pagina, parametros, ruta, actual }: { pagina: Promise<ProcesosPartido | null>; parametros: Parametros; ruta: string; actual: number }) {
   return <TablaProcesos pagina={await pagina} parametros={parametros} ruta={ruta} actual={actual} />;
 }
 
-async function BarraProcesos({ pagina, d }: { pagina: Promise<ProcesosPartido | null>; d: DetallePartido }) {
-  return <BarraDeProcesos d={d} facetas={(await pagina)?.facetas ?? null} />;
+async function BarraProcesos({ pagina, d, ubigeo }: { pagina: Promise<ProcesosPartido | null>; d: DetallePartido; ubigeo?: string }) {
+  return <BarraDeProcesos d={d} facetas={(await pagina)?.facetas ?? null} ubigeo={ubigeo} />;
 }
 
-/** Búsqueda, las tres preguntas de Vigía (como en /app/contratos) y nivel, región y objeto. */
-function BarraDeProcesos({ d, facetas }: { d: DetallePartido; facetas: ProcesosPartido["facetas"] | null }) {
+/** Búsqueda, las tres preguntas de Vigía (como en /app/contratos) y nivel, región y objeto; el gobierno, si viene. */
+function BarraDeProcesos({ d, facetas, ubigeo }: { d: DetallePartido; facetas: ProcesosPartido["facetas"] | null; ubigeo?: string }) {
   return (
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus contratos", min: 3 }}
       visibles={[...filtrosVisibles(facetas ?? null), ...visibles(d)]}
-      filtros={[]}
+      filtros={ubigeo ? [filtroGobierno(d, ubigeo)] : []}
       orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
     />
   );
+}
+
+/**
+ * El gobierno elegido en su panel (pestaña Gobiernos → «Ver sus contratos»): va como filtro sólo si viene en la URL, para
+ * que la lista diga por qué es la que es y se quite con su ×.
+ */
+function filtroGobierno(d: DetallePartido, ubigeo: string): FiltroSecundario {
+  const g = (d.gobiernos ?? []).find((x) => x.ubigeo === ubigeo);
+  return {
+    param: "ubigeo",
+    etiqueta: "Gobierno",
+    todas: "Todos sus gobiernos",
+    opciones: [{ valor: ubigeo, etiqueta: g ? `${NIVEL[g.nivel]} de ${g.lugar ?? ubigeo}` : `Ubigeo ${ubigeo}`, conteo: g ? g.procesos : null }],
+  };
 }
 
 const COLUMNAS_SKELETON: Columna[] = [
   { clave: "fecha", titulo: "Convocado", ancho: "96px" },
   { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.6fr)" },
   { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
+];
+
+const COLUMNAS_GOBIERNOS: Columna[] = [
+  { clave: "gobierno", titulo: "Gobierno", ancho: "minmax(0,1.5fr)" },
+  { clave: "procesos", titulo: "Contratos", ancho: "92px", alinear: "der", desde: "md" },
+  { clave: "adjudicado", titulo: "Adjudicado", ancho: "112px", alinear: "der" },
 ];
 
 /** Nivel, región y objeto, con cuántos procesos tiene cada opción (de la ficha del partido). */
@@ -348,7 +432,11 @@ function visibles(d: DetallePartido): FiltroSecundario[] {
   ];
 }
 
-/** Procesos y monto (OECE: CONOSCE desde 2018, la API OCDS antes), gobiernos con procesos y lo que leyó Vigía. */
+/**
+ * Procesos y monto (OECE: CONOSCE desde 2018, la API OCDS antes), gobiernos con procesos y lo que leyó Vigía. Lo de la
+ * base de Vigía se nombra «convocatorias en la base de Vigía»: antes era «contratos en su base», un número MAYOR que el
+ * total de «contratos adjudicados» de la primera cifra (§10.1: la misma palabra contando dos cosas).
+ */
 function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: number, ruta: string): Indicador[] {
   const h = d.historia;
   const t = d.totales;
@@ -374,70 +462,36 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
     {
       valor: numero(t.leidos),
       etiqueta: "leídos por Vigía",
-      contexto: t.contratos > 0 ? `de ${plural(t.contratos, "contrato", "contratos")} en su base (${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })})` : "ninguno en su base para este período",
-      href: t.contratos > 0 ? `${ruta}?anio=${anio}&seccion=vigia` : undefined,
+      contexto:
+        t.contratos > 0
+          ? `de ${plural(t.contratos, "convocatoria", "convocatorias")} en la base de Vigía (${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })})`
+          : "ninguna convocatoria en la base de Vigía para este período",
+      href: t.contratos > 0 ? `${ruta}?anio=${anio}&seccion=procesos&vista=vigia` : undefined,
     },
   ];
 }
 
-/** Lo de la base de Vigía (lo que se puede leer): leídos, señales, cola y las entidades con más contratos. */
-function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
+/** Lo de la base de Vigía (lo que se puede leer): leídos, señales y cola, y mes a mes. Sus entidades, en Gobiernos. */
+function LecturaVigia({ d, anio, ruta }: { d: DetallePartido; anio: AnioGobierno; ruta: string }) {
   const t = d.totales;
   const esperando = t.enCola + t.documentosListos;
   const items: Indicador[] = [
-    { valor: numero(t.contratos), etiqueta: "contratos en su base", contexto: `${solesCompacto(t.montoPen)} de valor referencial` },
-    { valor: numero(t.leidos), etiqueta: "ya leídos", contexto: t.contratos > 0 ? `${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })} del total` : "ninguno" },
+    { valor: numero(t.contratos), etiqueta: "convocatorias en la base de Vigía", contexto: `${solesCompacto(t.montoPen)} de valor referencial` },
+    { valor: numero(t.leidos), etiqueta: "leídos por Vigía", contexto: t.contratos > 0 ? `${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })} de esas convocatorias` : "ninguno" },
     { valor: numero(t.conSenales), etiqueta: "con señal para revisar", contexto: "una señal no es una acusación" },
     { valor: numero(esperando), etiqueta: "esperando lectura", contexto: `${numero(t.documentosListos)} ya con sus documentos` },
   ];
-  const columnas: Columna[] = [
-    { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)" },
-    { clave: "contratos", titulo: "Contratos", ancho: "92px", alinear: "der" },
-    { clave: "leidos", titulo: "Leídos", ancho: "84px", alinear: "der", desde: "md" },
-    { clave: "senales", titulo: "Con señal", ancho: "92px", alinear: "der", desde: "lg" },
-    { clave: "cola", titulo: "En cola", ancho: "84px", alinear: "der", desde: "lg" },
-  ];
-  const filas: Fila[] = d.entidades.map((e) => ({
-    id: e.ruc,
-    href: `/entidad/${e.ruc}`,
-    buscable: [e.nombre, e.ruc, NIVEL[e.nivel], e.lugar, e.autoridad].filter(Boolean).join(" "),
-    celdas: {
-      entidad: (
-        <CeldaPrincipal
-          titulo={e.nombre}
-          textoCompleto={e.nombre}
-          meta={[
-            NIVEL[e.nivel] && <Dato key="n" tipo="tipo">{NIVEL[e.nivel]}</Dato>,
-            e.lugar && <Dato key="l" tipo="lugar">{e.lugar}</Dato>,
-            // Autoridad electa: completa (docs/PRIVACIDAD.md).
-            e.autoridad && <Dato key="a" tipo="cargo" nombre="Autoridad">{e.autoridad}</Dato>,
-          ]}
-        />
-      ),
-      contratos: <CeldaNumero>{numero(e.contratos)}</CeldaNumero>,
-      leidos: <CeldaNumero>{numero(e.leidos)}</CeldaNumero>,
-      senales: <CeldaNumero>{numero(e.conSenales)}</CeldaNumero>,
-      cola: <CeldaNumero>{numero(e.enCola)}</CeldaNumero>,
-    },
-  }));
   return (
     <div className="space-y-5">
-      <CabeceraPestana>Los contratos de sus gobiernos que Vigía tiene para leer en {periodoTexto(anio)}, y lo que ya leyó.</CabeceraPestana>
+      <CabeceraPestana>
+        Las convocatorias de sus gobiernos que Vigía tiene para leer en {periodoTexto(anio)}, y lo que ya leyó.{" "}
+        <Link href={`${ruta}?anio=${anio}&seccion=gobiernos`} className="font-medium text-granate underline-offset-2 hover:underline">
+          Cada gobierno con lo leído de sus entidades
+        </Link>
+        .
+      </CabeceraPestana>
       <Indicadores items={items} />
       <GraficoMeses porMes={d.porMes} etiqueta={`Contratos de la base de Vigía por mes, ${periodoTexto(anio)}`} />
-      {filas.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-destacado font-semibold text-ink">Sus entidades con contratos en la base, de la que más tiene a la que menos</h3>
-          <TablaPaginada
-            columnas={columnas}
-            filas={filas}
-            tam={15}
-            nombre="entidades"
-            etiqueta="Entidades de sus gobiernos con contratos en la base de Vigía"
-            buscar={{ placeholder: "Buscar una entidad, un lugar o un RUC…", etiqueta: "Buscar en sus entidades" }}
-          />
-        </div>
-      )}
     </div>
   );
 }

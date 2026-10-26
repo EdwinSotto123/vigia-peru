@@ -287,7 +287,7 @@ export const FILTROS: { id: FiltroZona; label: string; ayuda: string }[] = [
   { id: "todas", label: "Todas", ayuda: "Los 25 departamentos, sin acotar." },
   { id: "senal", label: "Riesgo medio o alto", ayuda: "Sólo donde hay contratos leídos con peso del riesgo medio o alto." },
   { id: "financiadas", label: "Financiadas", ayuda: "Sólo donde alguien pagó para que se leyeran contratos." },
-  { id: "sinleer", label: "Sin financiar", ayuda: "Sólo donde hay contratos esperando lectura y todavía nadie financió ninguno." },
+  { id: "sinleer", label: "Sin financiar", ayuda: "Sólo donde hay contratos en cola y todavía nadie financió ninguno." },
 ];
 
 /**

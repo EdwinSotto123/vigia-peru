@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
 import { numero, plural, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import {
   ORDENES_PERSONAS,
   SENAL,
@@ -15,6 +16,8 @@ import {
 import { TablaPersonas, TablaPersonasSkeleton } from "./TablaPersonas";
 
 const TAM = 20;
+/** Desplegables a la vista, como mucho (BarraFiltros v2): los que sobran van dentro de «Filtros». */
+const MAX_VISIBLES = 3;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
@@ -23,6 +26,11 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
  * con su barra de filtros y su tabla. Los filtros van en la URL con los nombres de `P` (dentro de una ficha, con `p`
  * delante: no chocan con los de sus contratos). `base`: lo que la lista conserva en sus enlaces (la pestaña, el período).
  * Server component: la barra y la tabla esperan cada una la misma página (`Suspense`).
+ *
+ * QUÉ CUENTA CADA CIFRA (GET /personas, persona_resumen de la migración 91): `personas` son personas distintas (por su
+ * RUC); `filas`, `conSenales`, `alta` y `media` son CONTRATACIONES (una persona en una entidad), lo mismo que lista la
+ * tabla. En el país una persona que trabajó para dos entidades cuenta dos veces; en una entidad, una fila es una
+ * persona. Por eso cada cifra nombra su unidad y nunca divide contrataciones entre personas.
  */
 export function ListaPersonas({
   alcance,
@@ -31,6 +39,7 @@ export function ListaPersonas({
   ruta,
   base,
   deEntidad = false,
+  visiblesExtra = [],
   filtrosExtra = [],
   conIndicadores = false,
 }: {
@@ -40,24 +49,30 @@ export function ListaPersonas({
   ruta: string;
   base: Parametros;
   deEntidad?: boolean;
-  /** Filtros detrás de "Filtros" (la región en /app/personas). Sus valores ya vienen en `base`. */
+  /** Filtros a la vista, antes de los propios (la región en /app/personas). Sus valores ya vienen en `base`. */
+  visiblesExtra?: FiltroSecundario[];
+  /** Filtros detrás de «Filtros». Sus valores ya vienen en `base`. */
   filtrosExtra?: FiltroSecundario[];
   conIndicadores?: boolean;
 }) {
   const f = filtrosDeUrl(sp, P);
   const paginaP = getPersonas({ ...alcance, ...f, page: f.page, size: TAM });
   const parametros: Parametros = { ...base, ...parametrosDe(f, P) };
-  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.q) || filtrosExtra.some((x) => !!base[x.param]);
+  const extras = [...visiblesExtra, ...filtrosExtra];
+  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.q) || extras.some((x) => !!base[x.param]);
+  // La entidad que llega de su ficha (/app/personas?entidad=<RUC>): se nombra en su chip y se quita con su ×. En la ficha
+  // de la propia entidad no (es el alcance, no un filtro).
+  const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
     <div className="space-y-4">
       {conIndicadores && (
         <Suspense fallback={<IndicadoresSkeleton n={4} />}>
-          <CifrasPersonas pagina={paginaP} ruta={ruta} base={base} P={P} />
+          <CifrasPersonas pagina={paginaP} ruta={ruta} base={base} P={P} deEntidad={deEntidad} />
         </Suspense>
       )}
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
-        <Suspense fallback={<Barra resumen={null} P={P} filtrosExtra={filtrosExtra} />}>
-          <BarraConConteos pagina={paginaP} P={P} filtrosExtra={filtrosExtra} />
+        <Suspense fallback={<Barra resumen={null} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
+          <BarraConConteos pagina={paginaP} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaPersonasSkeleton deEntidad={deEntidad} />}>
@@ -91,13 +106,43 @@ async function Resultados(props: {
   );
 }
 
-async function BarraConConteos({ pagina, P, filtrosExtra }: { pagina: Promise<PaginaPersonas | null>; P: ParamsPersonas; filtrosExtra: FiltroSecundario[] }) {
-  return <Barra resumen={(await pagina)?.resumen ?? null} P={P} filtrosExtra={filtrosExtra} />;
+async function BarraConConteos({
+  pagina,
+  P,
+  visiblesExtra,
+  filtrosExtra,
+  entidad,
+}: {
+  pagina: Promise<PaginaPersonas | null>;
+  P: ParamsPersonas;
+  visiblesExtra: FiltroSecundario[];
+  filtrosExtra: FiltroSecundario[];
+  entidad?: string;
+}) {
+  const pg = await pagina;
+  // Con la entidad elegida, todas las filas son de ella: su nombre sale de la primera.
+  const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
+  return <Barra resumen={pg?.resumen ?? null} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
 }
 
-/** Señales (faceta), qué señal, tipo de servicio y año (a la vista), y el orden. Sin resumen, sin números. */
-function Barra({ resumen: r, P, filtrosExtra }: { resumen: ResumenPersonas | null; P: ParamsPersonas; filtrosExtra: FiltroSecundario[] }) {
-  const visibles: FiltroSecundario[] = [
+/**
+ * Señales (faceta), y a la vista la región (si la hay), qué señal y el tipo de servicio; el año y la entidad, dentro de
+ * «Filtros». Sin resumen, sin números. Los conteos de la faceta son contrataciones, como la lista.
+ */
+function Barra({
+  resumen: r,
+  P,
+  visiblesExtra,
+  filtrosExtra,
+  entidad,
+}: {
+  resumen: ResumenPersonas | null;
+  P: ParamsPersonas;
+  visiblesExtra: FiltroSecundario[];
+  filtrosExtra: FiltroSecundario[];
+  entidad: { ruc: string; nombre: string | null } | null;
+}) {
+  const propios: FiltroSecundario[] = [
     {
       param: P.senal,
       etiqueta: "Señal",
@@ -120,6 +165,16 @@ function Barra({ resumen: r, P, filtrosExtra }: { resumen: ResumenPersonas | nul
       opciones: [...(r?.porAnio ?? [])].sort((a, b) => b.anio - a.anio).map((a) => ({ valor: String(a.anio), etiqueta: String(a.anio), conteo: a.n })),
     },
   ];
+  // La región va primero (es la pregunta de casi todos); si con ella pasan de tres, el año baja a «Filtros».
+  const enFila = [...visiblesExtra, ...propios];
+  const visibles = enFila.slice(0, MAX_VISIBLES);
+  const filtros: FiltroSecundario[] = [
+    ...enFila.slice(MAX_VISIBLES),
+    ...filtrosExtra,
+    ...(entidad
+      ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+      : []),
+  ];
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por entidad o tipo de servicio…", etiqueta: "Buscar en las personas contratadas", min: 3 }}
@@ -129,46 +184,68 @@ function Barra({ resumen: r, P, filtrosExtra }: { resumen: ResumenPersonas | nul
         todas: "Todas",
         conteoTodas: r?.filas ?? null,
         nombreEnChip: false,
+        // El mismo vocabulario de severidad que todo el producto (`Severidad`: «Señal alta», «Señal media»).
         opciones: [
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
-          { valor: "alta", etiqueta: "Graves", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
-          { valor: "media", etiqueta: "Para revisar", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+          { valor: "alta", etiqueta: "Con señal alta", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
+          { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
           { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.filas - r.conSenales : null },
         ],
       }}
       visibles={visibles}
-      filtros={filtrosExtra}
+      filtros={filtros}
       orden={{ param: P.orden, porDefecto: "senales", opciones: ORDENES_PERSONAS.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
     />
   );
 }
 
-async function CifrasPersonas({ pagina, ruta, base, P }: { pagina: Promise<PaginaPersonas | null>; ruta: string; base: Parametros; P: ParamsPersonas }) {
+async function CifrasPersonas({ pagina, ruta, base, P, deEntidad }: { pagina: Promise<PaginaPersonas | null>; ruta: string; base: Parametros; P: ParamsPersonas; deEntidad: boolean }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores items={cifras(r, ruta, base, P)} />;
+  return <Indicadores items={cifras(r, ruta, base, P, deEntidad)} />;
 }
 
-/** Personas, monto, con señales y graves; las dos últimas abren la lista filtrada. */
-export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: ParamsPersonas): Indicador[] {
+/**
+ * Personas, monto, con señales y con una señal alta; las dos últimas abren la lista filtrada. Cada una dice su unidad:
+ * las personas son personas distintas y las señales se cuentan por contratación (como la lista y la faceta). En una
+ * entidad las dos unidades son la misma.
+ */
+export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: ParamsPersonas, deEntidad = false): Indicador[] {
   const href = (extra: Record<string, string>) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...base, ...extra })) if (v) q.set(k, v);
     return `${ruta}?${q.toString()}`;
   };
+  const porPersona = deEntidad || r.filas === r.personas;
   const anios = r.porAnio.map((a) => a.anio).sort((a, b) => a - b);
-  const periodo = anios.length ? (anios[0] === anios[anios.length - 1] ? `en ${anios[0]}` : `de ${anios[0]} a ${anios[anios.length - 1]}`) : undefined;
+  const periodo = anios.length ? (anios[0] === anios[anios.length - 1] ? `en ${anios[0]}` : `de ${anios[0]} a ${anios[anios.length - 1]}`) : null;
+  const pagos = [porPersona ? null : `en ${plural(r.ordenes, "orden", "órdenes")}`, periodo].filter(Boolean).join(", ");
   return [
-    { valor: numero(r.personas), etiqueta: "personas contratadas", contexto: `con ${numero(r.ordenes)} órdenes de servicio` },
+    {
+      valor: numero(r.personas),
+      etiqueta: "personas contratadas",
+      contexto: porPersona ? `con ${plural(r.ordenes, "orden de servicio", "órdenes de servicio")}` : `en ${plural(r.filas, "contratación", "contrataciones")}: una persona en una entidad`,
+    },
     {
       valor: solesCompacto(r.monto),
       etiqueta: "pagados por órdenes",
       // Lo que CONOSCE publicó con posibles errores (el RUC escrito como monto…) no se borra: se nombra, aparte.
       contexto: r.dudosas?.ordenes
-        ? `${periodo ? `${periodo}; ` : ""}aparte, ${solesCompacto(r.dudosas.monto)} en ${plural(r.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
-        : periodo,
+        ? `${pagos ? `${pagos}; ` : ""}aparte, ${solesCompacto(r.dudosas.monto)} en ${plural(r.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
+        : pagos || undefined,
     },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P.severidad]: "con" }) },
-    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; candidatos del que gobierna, autoridades, inhabilitados`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P.severidad]: "alta" }) },
+    {
+      valor: numero(r.conSenales),
+      etiqueta: porPersona ? "con alguna señal" : "contrataciones con alguna señal",
+      contexto: `de ${porPersona ? plural(r.filas, "persona", "personas") : numero(r.filas)}; lo que dicen otros registros`,
+      href: href({ [P.severidad]: "con" }),
+    },
+    {
+      valor: numero(r.alta),
+      etiqueta: porPersona ? "con una señal alta" : "contrataciones con una señal alta",
+      contexto: `de ${numero(r.filas)}; candidatos del que gobierna, autoridades, inhabilitados`,
+      tono: r.alta > 0 ? "alta" : "neutro",
+      href: href({ [P.severidad]: "alta" }),
+    },
   ];
 }

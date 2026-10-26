@@ -122,7 +122,6 @@ export function CasoLeido({
       <div className="container-page relative py-16 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="min-w-0">
-            <p className="etiqueta-mono mb-4 !text-maiz">Cómo funciona</p>
             <h2 id="caso-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
               Así lee Vigía <span className="text-maiz">un contrato.</span>
             </h2>

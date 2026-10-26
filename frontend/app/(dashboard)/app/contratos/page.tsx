@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, AyudaTermino, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Vistas } from "@/components/listado/Vistas";
 import {
   BarraFiltros,
@@ -11,9 +11,18 @@ import {
   type Indicador,
   type Parametros,
 } from "@/components/listado";
-import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
+import { TablaContratos, TablaContratosCargando } from "@/components/contratos/TablaContratos";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
-import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
+import {
+  SECCIONES_FILTRO,
+  enSeccion,
+  filtroEtapa,
+  filtroMesVisible,
+  filtroOperativo,
+  filtroTipo,
+  filtrosMonto,
+  filtrosVisibles,
+} from "@/components/contratos/filtros";
 import { getEntidad, getRegionesEntidades } from "@/lib/api-client";
 import {
   ORDENES,
@@ -27,9 +36,9 @@ import {
   type ResumenContratos,
 } from "@/lib/contratos";
 import { getOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD } from "@/lib/ordenes";
-import { ListaOrdenes, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
+import { ListaOrdenes, ListaOrdenesCargando, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
 import { getMenores, parseMenoresQuery, menoresParametros, P_MEN } from "@/lib/menores";
-import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
+import { ListaMenores, ListaMenoresCargando, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { numero } from "@/lib/formato";
@@ -47,7 +56,7 @@ const RUTA = "/app/contratos";
 
 /**
  * /app/contratos — plantilla Listado (DESIGN_SYSTEM.md §14.1):
- *   EncabezadoPagina → Indicadores → Listado { BarraFiltros, ZonaResultados { TablaContratos } }
+ *   EncabezadoPagina → Vistas → Indicadores → Listado { BarraFiltros, ZonaResultados { TablaContratos } }
  *
  * Todo el estado (búsqueda, faceta, filtros, orden, página) vive en la URL. El API pagina
  * por cursor (`?cursor=` / `?antes=`, tokens opacos) y la lista dice "Anterior / Siguiente";
@@ -72,7 +81,10 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   // Arrancan ya, en paralelo; cada pieza espera sólo la suya.
   const pagina = getContratos({ ...query, size: SIZE });
   const resumen = getResumenContratos(query);
-  const resumenGlobal = recortada ? getResumenContratos({}) : Promise.resolve(null);
+  // El resumen sin filtros: el denominador de las cifras y el conteo de la vista «Contratos». Sin filtros (ni riesgo, que
+  // también recorta el total) es el mismo `resumen`; si no, una consulta más, la más cacheada del API.
+  const resumenGlobal = recortada || parametros.riesgo ? getResumenContratos({}) : null;
+  const universo = (resumenGlobal ?? resumen).then((r) => r?.total ?? null);
   // Nombres de zona y de entidad para la barra: consultas cacheadas que casi nunca tardan;
   // se esperan acá para que la barra, aun sin conteos, nombre bien lo filtrado.
   const [zonas, entidad, ranking] = await Promise.all([
@@ -98,10 +110,10 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
           </Ayuda>
         }
       />
-      <VistaToggle vista="contratos" />
+      <VistaConConteo vista="contratos" universo={universo} />
 
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
-        <IndicadoresContratos resumen={resumen} global={resumenGlobal} recortada={recortada} parametros={parametros} />
+        <IndicadoresContratos resumen={resumen} global={resumenGlobal ?? Promise.resolve(null)} recortada={recortada} parametros={parametros} />
       </Suspense>
 
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
@@ -116,7 +128,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
           />
         </Suspense>
         <ZonaResultados>
-          <Suspense fallback={<TablaContratosSkeleton />}>
+          <Suspense fallback={<TablaContratosCargando />}>
             <Resultados pagina={pagina} parametros={parametros} query={query} />
           </Suspense>
         </ZonaResultados>
@@ -149,9 +161,14 @@ async function IndicadoresContratos({
   return <Indicadores items={indicadores(r, recortada, g?.total ?? null, parametros)} />;
 }
 
+interface Region {
+  ubigeo: string;
+  nombre: string;
+}
+
 interface DatosBarra {
   parametros: Parametros;
-  regiones: { ubigeo: string; nombre: string }[];
+  regiones: Region[];
   partidos: { clave: string; nombre: string; contratos: number }[];
   entidadNombre: string | null;
 }
@@ -166,14 +183,19 @@ async function BarraConConteos({
   return <Barra resumen={r} filas={p?.data ?? []} {...datos} />;
 }
 
-/** Con `resumen = null` es la misma barra sin números: lo que se ve mientras cuentan (o si no respondió). */
+/**
+ * Con `resumen = null` es la misma barra sin números: lo que se ve mientras cuentan (o si no respondió).
+ *
+ * A la vista, el alcance (región y periodo, como en Órdenes) y las tres preguntas de siempre; en el celular el kit las
+ * pasa solas a «Filtros». Detrás de «Filtros», el resto agrupado: qué, quién compra, cuánto y la cola de lectura.
+ */
 function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }: DatosBarra & { resumen: ResumenContratos | null; filas: ContratoResumen[] }) {
   return (
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
-      visibles={filtrosVisibles(resumen)}
-      filtros={filtros({ resumen, parametros, regiones, partidos, entidadNombre, filas })}
+      visibles={[filtroRegion(parametros, regiones, filas), filtroMesVisible(parametros), ...filtrosVisibles(resumen)]}
+      filtros={filtros({ resumen, parametros, partidos, entidadNombre })}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
   );
@@ -240,7 +262,7 @@ function hrefCon(parametros: Parametros, cambio: Parametros): string {
 
 // ─── Filtros ─────────────────────────────────────────────────────────────────
 // Las preguntas a la vista y los filtros comunes viven en components/contratos/filtros.ts (los usa también la ficha
-// de la entidad); aquí, lo propio de la lista de todo el Perú: zona, partido y entidad.
+// de la entidad); aquí, lo propio de la lista de todo el Perú: región, partido y entidad.
 
 /** Nombre de la zona elegida: departamento de la lista, provincia por su ubigeo, distrito por la fila. */
 function nombreZona(ubigeo: string, filas: ContratoResumen[]): string {
@@ -249,60 +271,74 @@ function nombreZona(ubigeo: string, filas: ContratoResumen[]): string {
   return fila?.zona ?? `Zona ${ubigeo}`;
 }
 
+/**
+ * La región (departamento), a la vista y con el mismo nombre que en Órdenes y Menores. Una provincia o un distrito
+ * llegan por enlace (el mapa): se agregan con su nombre para que el desplegable diga qué zona filtra.
+ */
+function filtroRegion(parametros: Parametros, regiones: Region[], filas: ContratoResumen[]): FiltroSecundario {
+  const opciones = [...regiones].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre }));
+  const ubigeo = parametros.ubigeo;
+  if (ubigeo && !opciones.some((z) => z.valor === ubigeo)) opciones.unshift({ valor: ubigeo, etiqueta: nombreZona(ubigeo, filas) });
+  return { param: "ubigeo", etiqueta: "Región", corta: "Región", todas: "Todo el Perú", opciones };
+}
+
 function filtros({
   resumen,
   parametros,
-  regiones,
   partidos,
   entidadNombre,
-  filas,
 }: {
   resumen: ResumenContratos | null;
   parametros: Parametros;
-  regiones: { ubigeo: string; nombre: string }[];
   partidos: { clave: string; nombre: string; contratos: number }[];
   entidadNombre: string | null;
-  filas: ContratoResumen[];
 }): FiltroSecundario[] {
-  const zonas = [...regiones].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre }));
-  const ubigeo = parametros.ubigeo;
-  if (ubigeo && !zonas.some((z) => z.valor === ubigeo)) zonas.unshift({ valor: ubigeo, etiqueta: nombreZona(ubigeo, filas) });
-
   return [
-    filtroOperativo(resumen),
-    filtroTipo(resumen),
-    filtroEtapa(),
-    { param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", opciones: zonas },
-    {
-      param: "partido",
-      etiqueta: "Partido que gobierna la entidad",
-      todas: "Cualquiera",
-      // Conteo: contratos de sus gobiernos en el período (no cruzado con los demás filtros).
-      // El conteo entre paréntesis, como en todo desplegable de la barra.
-      opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: p.nombre, conteo: p.contratos })),
-    },
-    // La entidad llega por enlace (su ficha, un dictamen): sólo aparece si está puesta, para poder quitarla.
-    ...(parametros.entidad
-      ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
-      : []),
-    filtroMes(parametros),
-    ...filtrosMonto(parametros),
+    ...enSeccion(SECCIONES_FILTRO.que, filtroTipo(resumen), filtroEtapa()),
+    ...enSeccion(
+      SECCIONES_FILTRO.quien,
+      // La entidad se elige desde el panel de un contrato («Ver sólo los contratos de esta entidad»), su ficha o un
+      // dictamen: aquí aparece puesta, con su nombre, para poder quitarla. Un desplegable con todas no cabe (son miles).
+      ...(parametros.entidad
+        ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
+        : []),
+      {
+        param: "partido",
+        etiqueta: "Partido que gobierna la entidad",
+        // ~100 partidos: se escribe y se elige, no se recorre a ojo.
+        buscable: true,
+        todas: "Cualquiera",
+        // Conteo: contratos de sus gobiernos en el período (no cruzado con los demás filtros).
+        // El conteo entre paréntesis, como en todo desplegable de la barra.
+        opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: p.nombre, conteo: p.contratos })),
+      },
+    ),
+    ...enSeccion(SECCIONES_FILTRO.cuanto, ...filtrosMonto(parametros)),
+    ...enSeccion(SECCIONES_FILTRO.lectura, filtroOperativo(resumen)),
   ];
 }
 
-// ─── Vista Órdenes (subsección del mismo índice) ───────────────────────────────
-// Contratos y Órdenes son dos poblaciones del mismo lugar (§14.1 Vistas): un toggle, no un filtro. Las órdenes de
-// compra y de servicio son compras directas del Estado; hasta ahora solo se veían dentro de una persona o empresa.
+// ─── Vistas: Contratos, Órdenes y Menores (subsecciones del mismo índice) ──────
+// Tres poblaciones del mismo lugar (§14.1 Vistas): un toggle, no un filtro. Las órdenes de compra y de servicio son
+// compras directas del Estado; hasta ahora solo se veían dentro de una persona o empresa.
 
-// Tres ángulos del mismo universo: «Contratos» (con concurso) y, como compra directa, «Órdenes» (el pago) y «Menores»
-// (el expediente ≤8 UIT). Órdenes y Menores se solapan (misma compra, dos registros) pero no se suman; el ⓘ lo explica.
-function VistaToggle({ vista }: { vista: "contratos" | "ordenes" | "menores" }) {
+type VistaIndice = "contratos" | "ordenes" | "menores";
+
+/**
+ * Tres ángulos del mismo universo: «Contratos» (con concurso) y, como compra directa, «Órdenes» (el pago) y «Menores»
+ * (el expediente ≤8 UIT). Órdenes y Menores se solapan (misma compra, dos registros) pero no se suman; el ⓘ lo explica.
+ *
+ * Sólo «Contratos» lleva conteo: sale del resumen sin filtros, que ya está (o es la consulta más cacheada del API). Órdenes
+ * y Menores no se cuentan: su API pagina por «hay más» para no contar millones de filas, y un número inventado no va.
+ * `conteo: null` = contando (hueco, nunca un 0); `undefined` = sin número.
+ */
+function VistaToggle({ vista, conteo }: { vista: VistaIndice; conteo?: number | null }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Vistas
         etiqueta="Vista del índice"
         vistas={[
-          { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos" },
+          { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos", conteo },
           { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
           { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
         ]}
@@ -318,10 +354,29 @@ function VistaToggle({ vista }: { vista: "contratos" | "ordenes" | "menores" }) 
   );
 }
 
+/** Las vistas con el conteo de «Contratos» en cuanto llega; mientras, las mismas vistas con el hueco del número. */
+function VistaConConteo({ vista, universo }: { vista: VistaIndice; universo: Promise<number | null> }) {
+  return (
+    <Suspense fallback={<VistaToggle vista={vista} conteo={null} />}>
+      <VistaContada vista={vista} universo={universo} />
+    </Suspense>
+  );
+}
+
+async function VistaContada({ vista, universo }: { vista: VistaIndice; universo: Promise<number | null> }) {
+  // Si el resumen no respondió, la vista va sin número (no con el hueco de "contando" para siempre).
+  const n = await universo.catch(() => null);
+  return <VistaToggle vista={vista} conteo={n ?? undefined} />;
+}
+
+/** El total de contratos de la base, para la vista «Contratos» desde Órdenes y Menores. */
+const totalContratos = () => getResumenContratos({}).then((r) => r?.total ?? null);
+
 async function OrdenesVista({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const oq = parseOrdenesQuery(searchParams);
   const parametros = ordenesParametros(oq);
   const pagina = getOrdenes({ ...oq, size: SIZE_ORD });
+  const universo = totalContratos();
   const regiones = await getRegionesEntidades().catch(() => []);
   return (
     <Pagina className="space-y-5">
@@ -336,17 +391,13 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
           </Ayuda>
         }
       />
-      <VistaToggle vista="ordenes" />
-      <p className="flex flex-wrap items-center gap-1.5 text-meta text-inkSoft">
-        Las órdenes de compra y de servicio: compras directas del Estado, por lo general sin concurso.
-        <AyudaTermino clave="orden-servicio" />
-      </p>
+      <VistaConConteo vista="ordenes" universo={universo} />
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_ORD.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
           <BarraOrdenesGeneral pagina={pagina} regiones={regiones} />
         </Suspense>
         <ZonaResultados>
-          <Suspense fallback={<TablaContratosSkeleton />}>
+          <Suspense fallback={<ListaOrdenesCargando />}>
             <ListaOrdenes pagina={pagina} ruta={RUTA} parametros={parametros} actual={oq.page ?? 1} />
           </Suspense>
         </ZonaResultados>
@@ -363,6 +414,7 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
   const mq = parseMenoresQuery(searchParams);
   const parametros = menoresParametros(mq);
   const pagina = getMenores({ ...mq, size: SIZE_MEN });
+  const universo = totalContratos();
   const regiones = await getRegionesEntidades().catch(() => []);
   return (
     <Pagina className="space-y-5">
@@ -378,17 +430,13 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
           </Ayuda>
         }
       />
-      <VistaToggle vista="menores" />
-      <p className="flex flex-wrap items-center gap-1.5 text-meta text-inkSoft">
-        Contratos menores: compras directas por montos pequeños, con su requerimiento (especificaciones) descargable.
-        <AyudaTermino clave="contrato-menor" />
-      </p>
+      <VistaConConteo vista="menores" universo={universo} />
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
           <BarraMenoresGeneral pagina={pagina} regiones={regiones} />
         </Suspense>
         <ZonaResultados>
-          <Suspense fallback={<TablaContratosSkeleton />}>
+          <Suspense fallback={<ListaMenoresCargando />}>
             <ListaMenores pagina={pagina} ruta={RUTA} parametros={parametros} actual={mq.page ?? 1} />
           </Suspense>
         </ZonaResultados>

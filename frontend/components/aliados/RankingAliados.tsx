@@ -16,9 +16,11 @@ import { ORDEN_LABEL, TAM_PAGINA, hrefPerfil, type ClaveOrden, type FilaRanking,
 
 /**
  * El ranking de /app/aliados (DESIGN_SYSTEM.md §14.1 y §14.6): quién hizo leer más
- * contratos públicos, con su puesto (#1, #2…). Los tres primeros en el podio con sus
- * medallas (`PodioRanking`, el mismo de la portada); del cuarto en adelante, la `Tabla`
- * de todo listado. Cada fila lleva al perfil del aliado.
+ * contratos públicos, con su puesto (#1, #2…). Con tres aliados con nombre o más, los
+ * tres primeros en el podio con sus medallas (`PodioRanking`, el mismo de la portada) y
+ * del cuarto en adelante la `Tabla` de todo listado. Con uno o dos, sin podio: su fila en
+ * la tabla y la invitación (un podio con dos losas vacantes probaba soledad, DIRECCION.md).
+ * Cada fila lleva al perfil del aliado.
  *
  * Se cuenta en contratos, nunca en soles: trescientos vecinos que financian 300 contratos
  * pesan lo mismo que una empresa que financia 300. Va dentro de la `ZonaResultados` de la
@@ -116,7 +118,10 @@ export function RankingAliados({
   /** El nombre buscado: la tabla son los que coinciden, con su puesto de siempre, sin podio. */
   busqueda?: string;
 }) {
-  const { podio, tabla, anonimos, totalNombres, completa, paginas } = ranking;
+  const { podio, tabla: resto, anonimos, totalNombres, completa, paginas } = ranking;
+  // El podio, sólo con tres; con uno o dos, esos van en la tabla como cualquier fila.
+  const conPodio = podio.length >= 3;
+  const tabla = conPodio ? resto : [...podio, ...resto];
 
   if (busqueda && tabla.length === 0) {
     return (
@@ -155,36 +160,28 @@ export function RankingAliados({
 
   return (
     <div className="space-y-4">
-      {/* El podio es el foco: los guardianes. Con uno o dos nombres, los puestos que faltan se ven libres: es también la invitación. */}
-      {podio.length > 0 && (
+      {/* El podio es el foco: los guardianes. Sólo con tres; cómo se gana un puesto está en el ⓘ del título de la página. */}
+      {conPodio && (
         <PodioRanking
           filas={podio}
           financiadosAmbito={financiadosAmbito}
           lugarLibre={LUGAR_LIBRE}
-          etiqueta="Top auditores ciudadanos"
           titulo="Guardianes de los recursos del Perú"
           subtitulo="Cada contrato que hicieron leer es dinero público bajo vigilancia."
-          nota={
-            <>
-              <p>El puesto se gana por contratos financiados; a igualdad, quien aportó primero. Nunca por soles.</p>
-              <p>Nadie elige qué se lee: la cola asigna los contratos por antigüedad.</p>
-              <p>Solo figuran aliados sin sanción vigente del OECE ni alertas activas como proveedor.</p>
-            </>
-          }
         />
       )}
 
-      {/* Las cifras, chicas y discretas: apoyan al podio, no compiten con él. */}
-      {franja && <div className="rounded-2xl bg-granate-50 px-4 py-2.5">{franja}</div>}
+      {/* Las cifras, chicas y discretas: apoyan al ranking, no compiten con él (sin caja alrededor de sus tarjetas). */}
+      {franja}
 
       {tabla.length > 0 && (
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             {/* Con podio, la tabla es "el resto"; sin él, es el ranking entero y el h1 ya lo dice. */}
-            <h2 id="ranking-titulo" className={podio.length || busqueda ? "font-display text-bloque font-bold text-ink" : "sr-only"}>
+            <h2 id="ranking-titulo" className={conPodio || busqueda ? "font-display text-bloque font-bold text-ink" : "sr-only"}>
               {busqueda
                 ? `${numero(totalNombres)} ${totalNombres === 1 ? "aliado coincide" : "aliados coinciden"} con “${busqueda}”`
-                : podio.length
+                : conPodio
                   ? "Del cuarto puesto en adelante"
                   : "Ranking de aliados"}
             </h2>
@@ -203,7 +200,13 @@ export function RankingAliados({
         </section>
       )}
 
-      <LlamadaPodio precio={precio} desglose={desglose} nombreRegion={nombreRegion} />
+      {/* Sin podio todavía, la invitación lo dice: el podio se arma con tres. */}
+      {!busqueda && totalNombres > 0 && totalNombres < 3 && (
+        <p className="text-dato leading-snug text-inkSoft">
+          {totalNombres === 1 ? "Por ahora hay un solo aliado con nombre." : "Por ahora hay dos aliados con nombre."} El podio se arma con tres. {LUGAR_LIBRE}
+        </p>
+      )}
+      <LlamadaPodio precio={precio} desglose={desglose} nombreRegion={nombreRegion} hayPodio={conPodio} />
 
       {recientes && recientes.length > 0 && <CintaAportes items={recientes} total={totalRecientes} />}
       <Anonimos cantidad={anonimos.cantidad} contratos={anonimos.contratos} />

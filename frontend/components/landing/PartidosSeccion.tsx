@@ -59,7 +59,6 @@ export async function PartidosSeccion() {
           variante="portada"
           encabezado={
             <div className="max-w-2xl">
-              <p className="etiqueta-mono mb-3 text-granate">La respuesta: el mapa</p>
               <h2 id="partidos-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] sm:text-5xl lg:text-[2.4rem]">
                 Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
               </h2>

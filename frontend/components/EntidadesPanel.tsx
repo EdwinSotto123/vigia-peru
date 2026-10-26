@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { urlDesde, conDesde } from "@/lib/desde";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
@@ -12,27 +12,21 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * El ranking de entidades sobre la plantilla Listado (§14.1): la `Tabla` compartida
- * —puesto · entidad · con dictamen · adjudicado · puntaje · ›— y la fila entera lleva
- * a la ficha de la entidad.
+ * —puesto · entidad · con dictamen · adjudicado · puntaje · ›— y cada fila abre su VISTA
+ * PREVIA en el panel lateral (`detalle.ficha`), con «Abrir la ficha» al pie: se miran
+ * varias seguidas sin ir y volver a la ficha, que es pesada.
  *
  * QUÉ CUENTA: `alertas` (API) = contratos de la entidad con dictamen PUBLICADO, con o
  * sin señales (un dictamen de score 0 también suma), y `monto` = lo adjudicado en esos
  * contratos. Por eso la columna dice "con dictamen" y nunca "con señales" (§10.1).
  *
- * El puesto es el del ranking por contratos con dictamen (el orden del backend) y se
- * cuenta sobre toda la lista, no sobre la página. `orden` sólo reordena la página
- * actual: el API no ordena por monto ni por puntaje.
+ * El orden es uno solo, el del API (contratos con dictamen, después los que más contratos
+ * tienen): el puesto se cuenta sobre toda la lista. Antes había «Mayor monto» y «Mayor
+ * puntaje» «en esta página», que reordenaban sólo 20 de 3,162 y dejaban el puesto en 1, 5,
+ * 3…: el API no ordena por monto ni por puntaje, así que esas opciones se quitaron.
  *
  * Server-safe: todo llega como datos planos desde page.tsx.
  */
-
-export type OrdenEntidades = "dictamen" | "monto" | "puntaje";
-
-export const ORDENES_ENTIDADES: { valor: OrdenEntidades; etiqueta: string }[] = [
-  { valor: "dictamen", etiqueta: "Más contratos con dictamen" },
-  { valor: "monto", etiqueta: "Mayor monto (en esta página)" },
-  { valor: "puntaje", etiqueta: "Mayor puntaje (en esta página)" },
-];
 
 const COLUMNAS: Columna[] = [
   { clave: "puesto", titulo: "Puesto", ancho: "56px", desde: "md" },
@@ -51,7 +45,6 @@ interface Props {
   pagina: EntidadesPagina | null;
   /** Número de página pedido en la URL. */
   actual: number;
-  orden: OrdenEntidades;
   /** Parámetros de la URL sin la página, para armar los enlaces de la paginación. */
   parametros: Record<string, string | undefined>;
   /** Búsqueda activa (por nombre o por el comienzo del RUC). */
@@ -60,7 +53,7 @@ interface Props {
   aqui: string;
 }
 
-export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: Props) {
+export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
   if (!pagina) {
     return (
       <EstadoError titulo="No pudimos leer las entidades" accion={<Link href={aqui} className={ACCION}>Reintentar</Link>}>
@@ -106,24 +99,17 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
     );
   }
 
-  // Puesto en el ranking por contratos con dictamen (el orden del servidor desempata),
-  // contando las páginas anteriores. Luego, si se pidió, se reordena la página.
+  // Puesto en el ranking por contratos con dictamen (el orden del servidor desempata), contando las páginas anteriores.
   const conPuesto = pagina.data
     .map((e, i) => ({ e, i }))
     .sort((a, b) => b.e.alertas - a.e.alertas || a.i - b.i)
     .map(({ e }, k) => ({ e, puesto: (actual - 1) * tam + k + 1 }));
-  const ordenadas =
-    orden === "monto"
-      ? [...conPuesto].sort((a, b) => b.e.monto - a.e.monto)
-      : orden === "puntaje"
-        ? [...conPuesto].sort((a, b) => b.e.scorePromedio - a.e.scorePromedio)
-        : conPuesto;
 
   // De dónde vino (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
   const desde = urlDesde("/app/entidades", parametros);
-  const filas: Fila[] = ordenadas.map(({ e, puesto }) => filaEntidad(e, puesto, desde));
+  const filas: Fila[] = conPuesto.map(({ e, puesto }) => filaEntidad(e, puesto, desde));
 
-  const pag = (
+  const pag = (subir: boolean) => (
     <Paginacion
       actual={actual}
       paginas={paginas}
@@ -134,17 +120,20 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
       query={parametros}
       cargando={false}
       nombre="entidades"
+      subir={subir}
     />
   );
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">{pag}</div>
+      <div className="flex justify-end">{pag(false)}</div>
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Entidades ordenadas por contratos con dictamen publicado" densidad="compacta" />
-      <div className="flex justify-end">{pag}</div>
+      {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
 }
+
+const NEPOTISMO = "Un pariente declarado en la DJI de un funcionario figura como su proveedor (indicio, no acusación)";
 
 function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
   // El tipo no es un nivel de riesgo: se infiere del nombre oficial cuando el backend
@@ -154,18 +143,18 @@ function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
   // inventada: en esas filas el total de contratos registrados no es confiable.
   const contratosConfiables = e.reportes == null && e.serie == null && e.contratos != null;
   const leida = e.alertas > 0;
+  const nombre = tituloNatural(e.nombre);
   return {
     id: e.ruc,
-    href: conDesde(`/entidad/${e.ruc}`, desde),
     celdas: {
       puesto: <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span>,
       entidad: (
         <CeldaPrincipal
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
-          titulo={tituloNatural(e.nombre)}
+          titulo={nombre}
           meta={[
             e.conNepotismo && (
-              <span key="nep" className="pill border-amber/30 bg-amber-soft text-amberTexto" title="Un pariente declarado en la DJI figura como su proveedor (indicio, no acusación)">
+              <span key="nep" className="pill border-amber/30 bg-amber-soft text-amberTexto" title={NEPOTISMO}>
                 Posible nepotismo
               </span>
             ),
@@ -191,7 +180,55 @@ function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
         <span className="text-meta text-mute">Sin dato</span>
       ),
     },
+    detalle: {
+      titulo: nombre,
+      etiqueta: `Vista previa de ${nombre}`,
+      descripcion: <span className="font-mono tabular-nums">RUC {e.ruc}</span>,
+      ficha: conDesde(`/entidad/${e.ruc}`, desde),
+      contenido: <VistaPrevia e={e} tipo={tipo} puesto={puesto} contratosConfiables={contratosConfiables} />,
+    },
   };
+}
+
+/** El panel de una fila (§14.4), sólo con lo que trae la fila: dónde está y lo que Vigía ya leyó de ella. */
+function VistaPrevia({ e, tipo, puesto, contratosConfiables }: { e: ApiEntidad; tipo: string; puesto: number; contratosConfiables: boolean }) {
+  const leida = e.alertas > 0;
+  const lugar = [e.distrito, e.provincia, e.region].filter((x, i, xs) => x && xs.indexOf(x) === i).map((x) => tituloNatural(x!)).join(", ");
+  const datos: DatoClave[] = [
+    { etiqueta: "Tipo", valor: tipo },
+    { etiqueta: "Dónde", valor: lugar || null },
+    ...(e.pliegoNombreMef ? [{ etiqueta: "Pliego en el MEF", valor: tituloNatural(e.pliegoNombreMef) }] : []),
+    { etiqueta: "Puesto en la lista", valor: numero(puesto), mono: true },
+    {
+      etiqueta: "Contratos con dictamen",
+      valor: contratosConfiables ? `${numero(e.alertas)} de ${numero(e.contratos)} registrados` : numero(e.alertas),
+      mono: true,
+    },
+    { etiqueta: "Adjudicado en esos contratos", valor: leida ? soles(e.monto) : null, mono: true },
+    {
+      etiqueta: "Puntaje promedio",
+      valor: leida ? `${numero(e.scorePromedio)} de 100` : null,
+      mono: true,
+      ayuda: (
+        <Ayuda titulo="¿Qué es el puntaje promedio?">
+          El promedio, de 0 a 100, de sus contratos con dictamen; uno sin señales puntúa 0. No es una probabilidad de delito: la
+          ficha muestra las señales que lo explican.
+        </Ayuda>
+      ),
+    },
+  ];
+  return (
+    <CuerpoDetalle>
+      {e.conNepotismo && (
+        <ChipsDetalle>
+          <span className="pill border-amber/30 bg-amber-soft text-amberTexto">Posible nepotismo</span>
+          <span className="text-meta text-inkSoft">{NEPOTISMO}.</span>
+        </ChipsDetalle>
+      )}
+      <DatosClave items={datos} />
+      {!leida && <p className="text-meta leading-snug text-inkSoft">Vigía todavía no publicó el dictamen de ninguno de sus contratos.</p>}
+    </CuerpoDetalle>
+  );
 }
 
 /** `/app/entidades` con estos parámetros (sin página: vuelve a la 1). */

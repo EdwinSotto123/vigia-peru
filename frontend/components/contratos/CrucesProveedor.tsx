@@ -4,27 +4,44 @@
  * del Tribunal (OSCE), socios compartidos con otro postor (RNP), y su historial con la entidad y los adicionales
  * del contrato (CONOSCE). Cruces automáticos por DNI y RUC (migración 48); los nombres llegan tapados de la API.
  * Son datos de registros oficiales, no conclusiones: cada uno dice de dónde sale.
+ *
+ * Va en su pestaña «Antecedentes» de la ficha del contrato (`CrucesProveedor`), y su resumen, un renglón por tipo con
+ * su severidad y cuántos, en el Resumen (`ResumenAntecedentes`). Antes era un bloque largo ENTRE las cifras y las
+ * pestañas: las empujaba hasta 1,100 px abajo. Las sanciones van en tabla (SancionesCruce.tsx); la explicación de cada
+ * tipo, una vez (la segunda vez que se repite el mismo texto, en el ⓘ).
  */
 
 import type { GobiernoContrato } from "@/lib/contratos";
 import type { ReactNode } from "react";
-import { Ayuda } from "@/components/patrones";
+import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
-import { CuentaGrupo, ListaPaginada } from "@/components/listado";
-import { Partes } from "@/components/ui/Partes";
-import { Dato } from "@/components/ui/Dato";
-import { ArrowUpRight, ChevronDown, CircleDot, Coins, Receipt } from "lucide-react";
-import { TablaEvidencia } from "./TablaEvidencia";
-import { AbrirDetalle } from "./AbrirDetalle";
-import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
-import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { CuentaGrupo } from "@/components/listado";
+import { AlertTriangle, ChevronDown, ChevronRight, CircleAlert, Info } from "lucide-react";
+import type { CruceProveedor } from "@/lib/contratos";
+import { fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { recortar } from "./recortar";
 import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
 import { txt } from "@/lib/utils";
+import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
+import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
+import { BotonPestana } from "./BotonPestana";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
+// La severidad también con ícono (no sólo el color), el mismo de `Severidad` y `CrucesCelda`.
+const ICONO = { alta: AlertTriangle, media: CircleAlert, baja: Info } as const;
+
+/** La severidad de un grupo de antecedentes: color, ícono y palabra. */
+function SeveridadCruce({ s }: { s: "alta" | "media" | "baja" }) {
+  const Icono = ICONO[s];
+  return (
+    <Badge variant={VARIANTE[s]} className="gap-1">
+      <Icono size={12} className="shrink-0" aria-hidden />
+      {SEVERIDAD[s]}
+    </Badge>
+  );
+}
 /** El nombre de cada fuente, en palabras (antes "ONPE · Claridad": el punto medio no va en la interfaz). */
 const FUENTE: Record<string, string> = {
   onpe_aportantes: "Claridad de la ONPE",
@@ -40,38 +57,6 @@ const FUENTE: Record<string, string> = {
   conosce_ordenes: "Órdenes de compra y de servicio de CONOSCE",
   precio_item: "Ítems del OCDS (OECE) y CONOSCE",
 };
-/**
- * Una sanción frente a la buena pro de este proceso (pedido del usuario, 2026-10-22: «Sancionado» no decía si lo estaba
- * cuando contrató o antes): si ya había terminado o si seguía vigente al ganar. Una multa no tiene esa vigencia.
- */
-const vigenteEl = (tipo: string | null, desde: string | null, hasta: string | null, fecha: string) =>
-  tipo !== "multa" && !!desde && desde <= fecha && (!hasta || hasta >= fecha);
-
-function AlGanar({ tipo, desde, hasta, buenaPro }: { tipo: string | null; desde: string | null; hasta: string | null; buenaPro: string | null }) {
-  if (!buenaPro || tipo === "multa" || !desde) return null;
-  if (vigenteEl(tipo, desde, hasta, buenaPro)) return <b className="text-crimsonTexto"> Seguía vigente cuando ganó este proceso.</b>;
-  if (hasta && hasta < buenaPro) return <span className="text-inkSoft"> Ya había terminado cuando ganó este proceso.</span>;
-  return null;
-}
-
-/** El resumen del grupo de sanciones: al ganar este proceso, ¿alguna inhabilitación seguía vigente? Si no, cuándo terminó la última. */
-function SancionesAlGanar({ grupo }: { grupo: CruceProveedor[] }) {
-  const fecha = grupo.find((c) => c.buenaPro?.fecha)?.buenaPro?.fecha ?? null;
-  if (!fecha) return null;
-  const vigentes = grupo.filter((c) => vigenteEl(txt(c.detalle.tipo), txt(c.detalle.desde), txt(c.detalle.hasta), fecha)).length;
-  const hastas = grupo.map((c) => txt(c.detalle.hasta)).filter((h): h is string => !!h && h < fecha).sort();
-  return vigentes > 0 ? (
-    <p className="mb-2 rounded-lg bg-crimson-soft/60 px-2.5 py-1.5 text-meta text-crimsonTexto">
-      Cuando ganó este proceso ({fechaCorta(fecha)}) seguía inhabilitado: {vigentes === 1 ? "una de estas sanciones cubría" : `${numero(vigentes)} de estas sanciones cubrían`} esa fecha.
-    </p>
-  ) : (
-    <p className="mb-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-meta text-ink">
-      Cuando ganó este proceso ({fechaCorta(fecha)}) ninguna inhabilitación estaba vigente
-      {hastas.length ? <>: la última había terminado el <b>{fechaCorta(hastas[hastas.length - 1])}</b></> : ""}. Son antecedentes, no un impedimento.
-    </p>
-  );
-}
-
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
 
@@ -235,6 +220,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <Despues n={n(d.posteriores)} uno="penalidad" varios="penalidades" />
         </>
       );
+    // Las sanciones de cada tipo van en tabla (GrupoSanciones); aquí, la que seguía vigente al ganar ESTE proceso, que es
+    // una sola frase, y la forma de siempre si alguna llega sola por otro camino.
     case "sancion":
     case "sancion_definitiva":
     case "sancion_temporal":
@@ -258,7 +245,6 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
           {txt(d.infraccion) ? `, por ${recortar(txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, ""), 260).toLowerCase()}` : ""}
           {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
-          {c.tipo !== "sancion_vigente" && <AlGanar tipo={tipo} desde={txt(d.desde)} hasta={txt(d.hasta)} buenaPro={c.buenaPro?.fecha ?? null} />}
         </>
       );
     }
@@ -522,152 +508,6 @@ function FilaContenido({ c, gobierna }: { c: CruceProveedor; gobierna?: Gobierno
 }
 
 /**
- * La evidencia de un cruce, plegada debajo de él: cada registro de la fuente en una tabla (en el teléfono, una tarjeta
- * por registro), cómo verificarlo y el enlace a la fuente. Sin DNI ni nombres de personas: los trae así la API.
- */
-function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
-  const n = evidencia.reduce((s, e) => s + (e.total ?? e.filas.length), 0);
-  const despues = evidencia.reduce((s, e) => s + e.filas.filter((f) => f.posterior).length, 0);
-  return (
-    <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-meta font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-        <span className="flex flex-wrap items-center gap-1.5">
-          Ver la evidencia
-          <CuentaGrupo>{n === 1 ? "1 registro" : `${numero(n)} registros`}</CuentaGrupo>
-          {despues > 0 && <span className="text-rotulo font-normal text-mute">{numero(despues)} después de este proceso</span>}
-        </span>
-        <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
-      </summary>
-      <div className="space-y-4 border-t border-line px-3 py-3">
-        {evidencia.map((e) => (
-          <section key={e.titulo} className="space-y-2">
-            <h4 className="flex flex-wrap items-center gap-1.5 text-meta font-semibold text-ink">
-              {e.titulo}
-              <CuentaGrupo>{numero(e.total ?? e.filas.length)}</CuentaGrupo>
-            </h4>
-            {e.total != null && e.total > e.filas.length && (
-              <p className="text-rotulo text-mute">
-                Aquí van los {numero(e.filas.length)} más recientes; la fuente tiene los {numero(e.total)}.
-              </p>
-            )}
-            <TablaEvidencia columnas={e.columnas} filas={e.filas} />
-            {(e.verificar || e.enlace) && (
-              <p className="text-rotulo leading-relaxed text-mute">
-                {e.verificar}{" "}
-                {e.enlace && (
-                  <a href={e.enlace.url} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
-                    {e.enlace.texto} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" />
-                  </a>
-                )}
-              </p>
-            )}
-          </section>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-/**
- * Fraccionamiento: las órdenes de cada día, que el texto sólo cuenta. Plegado debajo del cruce; cada día con lo que
- * suman contra el tope (una barra con la marca del tope) y sus órdenes: descripción, número, estado y monto. Con más
- * de cuatro días, paginado.
- */
-function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
-  const total = dias.reduce((s, d) => s + d.ordenes, 0);
-  const bloques = dias.map((d, i) => ({
-    id: `${d.fecha}-${i}`,
-    contenido: <DiaOrdenes d={d} />,
-    buscable: [fecha(d.fecha), ...d.detalle.map((o) => `${o.orden} ${o.descripcion ?? ""}`)].join(" "),
-  }));
-  return (
-    <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-meta font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-        <span>
-          Ver {total === 1 ? "la orden" : `las ${numero(total)} órdenes`}
-          {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días`}
-        </span>
-        <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
-      </summary>
-      <div className="space-y-3 border-t border-line px-3 py-3">
-        <p className="text-rotulo text-mute">
-          Cada barra es lo que suman las órdenes de ese día; la marca, el tope de 8 UIT de ese año.
-        </p>
-        {bloques.length > 4 ? (
-          <ListaPaginada items={bloques} tam={4} nombre="días" className="space-y-4" buscar={{ placeholder: "Buscar por descripción u orden…", etiqueta: "Buscar en las órdenes de esos días" }} />
-        ) : (
-          <ul className="space-y-4">
-            {bloques.map((b) => (
-              <li key={b.id}>{b.contenido}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function DiaOrdenes({ d }: { d: DiaFraccionado }) {
-  // La barra es lo que suman; la marca, dónde queda el tope (siempre adentro: suman más que el tope).
-  const marca = d.totalSoles > 0 ? Math.min(100, (d.topeSoles / d.totalSoles) * 100) : 100;
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta">
-        <span className="font-semibold text-ink">{fecha(d.fecha)}</span>
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-inkSoft">
-          <Dato icono={Receipt} nombre="Órdenes">{numero(d.ordenes)} órdenes</Dato>
-          <Dato icono={Coins} nombre="Suman">
-            Suman <b className="font-mono tabular-nums text-ink">{soles(d.totalSoles)}</b>
-          </Dato>
-          <span className="text-mute">Tope {solesCompacto(d.topeSoles)}</span>
-          {d.mismaDescripcion && <Badge variant="amber">Misma descripción</Badge>}
-        </span>
-      </div>
-      <div className="relative h-2 w-full rounded-full bg-granate/70" role="img" aria-label={`Suman ${soles(d.totalSoles)}; el tope es ${soles(d.topeSoles)}`}>
-        <span aria-hidden className="absolute -top-1 bottom-[-4px] w-0.5 bg-ink" style={{ left: `${marca}%` }} />
-      </div>
-      <ol className="divide-y divide-line rounded-lg border border-line bg-paper">
-        {d.detalle.map((o, i) => (
-          <li key={`${o.orden}-${i}`}>
-            {/* La orden no tiene ficha propia, pero al hacer clic se abre el drawer con su detalle en la misma pestaña. */}
-            <AbrirDetalle
-              etiqueta={`Ver la orden ${o.orden}`}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-left text-meta transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
-              detalle={{
-                titulo: `Orden ${o.orden}`,
-                descripcion: o.estado ? o.estado.charAt(0) + o.estado.slice(1).toLowerCase() : undefined,
-                filas: [
-                  { k: "Descripción", v: o.descripcion ? oracion(o.descripcion) : "Sin descripción" },
-                  ...(d.entidad ? [{ k: "Entidad", v: tituloNatural(d.entidad) }] : []),
-                  ...(d.objeto ? [{ k: "Rubro", v: d.objeto }] : []),
-                  { k: "Monto", v: soles(o.montoSoles) },
-                  { k: "Fecha", v: fecha(d.fecha) },
-                ],
-              }}
-            >
-              <span className="min-w-0">
-                <span className="block text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</span>
-                <span className="mt-0.5 block text-rotulo text-mute">
-                  <Partes
-                    partes={[
-                      <Dato key="orden" tipo="codigo" nombre="Orden" mono>
-                        <span translate="no">{o.orden}</span>
-                      </Dato>,
-                      o.estado && <Dato key="estado" icono={CircleDot} nombre="Estado">{o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</Dato>,
-                    ]}
-                  />
-                </span>
-              </span>
-              <span className="self-start font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
-            </AbrirDetalle>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-/**
  * Los tipos que son DATOS DEL PROVEEDOR (hechos de quien ganó), no antecedentes de ESTA contratación: una candidatura,
  * un aporte o una venta a una campaña, o ser autoridad electa (en cualquier jurisdicción). Desde la migración 115 no
  * cuentan para el riesgo del contrato y se muestran en una sección aparte, no mezclados con lo de esta entidad. Las
@@ -675,46 +515,84 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
  */
 const DATOS_PROVEEDOR = new Set(["candidato", "aporte", "aporte_empresa", "proveedor_campana", "autoridad"]);
 
-/** Un bloque de cruces agrupados por tipo, en orden de severidad: se reutiliza para los antecedentes y para los datos del proveedor. */
-function GruposCruces({ lista, gobierna }: { lista: CruceProveedor[]; gobierna?: GobiernoContrato | null }) {
-  const grupos = new Map<string, CruceProveedor[]>();
+
+/** Los cruces, una sola vez cada uno y en sus tres partes: antecedentes, datos del proveedor y lo posterior. */
+export function clasificarCruces(todos: CruceProveedor[]) {
   // Dedup de seguridad: la base puede traer cruces idénticos (mismo tipo, persona, aporte y detalle) por un JOIN que
   // multiplica; se muestran una sola vez. El arreglo de raíz está en dedup_cruces_proveedor (migración 120).
   const vistos = new Set<string>();
-  for (const c of lista) {
-    const clave = `${c.tipo}|${c.ocid ?? ""}|${c.severidad}|${c.fecha ?? ""}|${c.montoSoles ?? ""}|${JSON.stringify(c.socios ?? [])}|${JSON.stringify(c.detalle ?? {})}`;
-    if (vistos.has(clave)) continue;
+  const unicos = todos.filter((c) => {
+    const clave = `${c.tipo}|${c.ocid ?? ""}|${c.severidad}|${c.fecha ?? ""}|${c.montoSoles ?? ""}|${c.rucProveedor}|${JSON.stringify(c.socios ?? [])}|${JSON.stringify(c.detalle ?? {})}`;
+    if (vistos.has(clave)) return false;
     vistos.add(clave);
-    grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
-  }
-  const orden = [...grupos.values()].sort((a, b) =>
+    return true;
+  });
+  // Un antecedente es lo que ya había pasado cuando se convocó (migración 83) Y está ligado a esta entidad/proceso. Los
+  // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
+  // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
+  return {
+    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo)),
+    datosProv: unicos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo)),
+    posteriores: unicos.filter((c) => c.posterior),
+  };
+}
+
+/** Los cruces por tipo, el grupo más grave primero (y, a igual severidad, el que tiene más). */
+function agrupar(lista: CruceProveedor[]): CruceProveedor[][] {
+  const grupos = new Map<string, CruceProveedor[]>();
+  for (const c of lista) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
+  return [...grupos.values()].sort((a, b) =>
     RANGO_SEVERIDAD[peorSeveridad(a) ?? "baja"] - RANGO_SEVERIDAD[peorSeveridad(b) ?? "baja"] || b.length - a.length);
+}
+
+/** El ancla de un grupo de antecedentes en su pestaña (el Resumen baja hasta él). */
+const anclaDe = (tipo: string) => `antecedente-${tipo}`;
+
+/**
+ * Un bloque de cruces agrupados por tipo, en orden de severidad: los antecedentes, los datos del proveedor y lo
+ * posterior. Las sanciones van en tabla con su resumen (GrupoSanciones); el resto, una línea por cruce. El «por qué
+ * mirarlo» de un tipo va abierto la primera vez que aparece y en el ⓘ las siguientes (las bandas de un mismo tipo
+ * —definitiva, temporal, multa— comparten el texto: antes se leía tres veces seguidas).
+ */
+function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProveedor[]; gobierna?: GobiernoContrato | null; conAnclas?: boolean }) {
+  const explicados = new Set<string>();
   return (
     <ul className="divide-y divide-line px-4 pb-1">
-      {orden.map((grupo) => {
+      {agrupar(lista).map((grupo) => {
+        const tipo = grupo[0].tipo;
         const sev = peorSeveridad(grupo) ?? grupo[0].severidad;
+        const porQue = POR_QUE[tipo];
+        const primera = !!porQue && !explicados.has(porQue);
+        if (porQue) explicados.add(porQue);
         const filas = [...grupo].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
         return (
-          <li key={grupo[0].tipo} className="py-3">
+          // Bajo la barra de pestañas fija (y, en el celular, la del sitio) al llegar desde el Resumen.
+          <li key={tipo} id={conAnclas ? anclaDe(tipo) : undefined} className="scroll-mt-32 py-3">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <Badge variant={VARIANTE[sev]}>{SEVERIDAD[sev]}</Badge>
+              <SeveridadCruce s={sev} />
               <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
                 {grupo[0].etiqueta}
-                {grupo.length > 1 && <CuentaGrupo>{grupo.length}</CuentaGrupo>}
+                {grupo.length > 1 && <CuentaGrupo>{numero(grupo.length)}</CuentaGrupo>}
               </h3>
+              {porQue && !primera && <Ayuda titulo="¿Por qué mirarlo?">{porQue}</Ayuda>}
             </div>
-            {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
-            {["sancion", "sancion_definitiva", "sancion_temporal", "sancion_multa"].includes(grupo[0].tipo) && <SancionesAlGanar grupo={grupo} />}
-            <ul className="list-disc space-y-1.5 pl-5">
-              {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
-            </ul>
-            {filas.length > VISIBLES && (
-              <details className="mt-1.5">
-                <summary className="cursor-pointer text-meta text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
-                <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
-                  {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
+            {primera && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{porQue}</p>}
+            {TIPOS_SANCION.has(tipo) ? (
+              <GrupoSanciones grupo={filas} fuente={FUENTE[grupo[0].fuente] ?? grupo[0].fuente} />
+            ) : (
+              <>
+                <ul className="list-disc space-y-1.5 pl-5">
+                  {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
                 </ul>
-              </details>
+                {filas.length > VISIBLES && (
+                  <details className="mt-1.5">
+                    <summary className="cursor-pointer text-meta text-inkSoft hover:text-ink">Ver {filas.length - VISIBLES} más</summary>
+                    <ul className="mt-1.5 list-disc space-y-1.5 pl-5">
+                      {filas.slice(VISIBLES).map((c, i) => <Fila key={i} c={c} gobierna={gobierna} />)}
+                    </ul>
+                  </details>
+                )}
+              </>
             )}
           </li>
         );
@@ -723,76 +601,129 @@ function GruposCruces({ lista, gobierna }: { lista: CruceProveedor[]; gobierna?:
   );
 }
 
+/** Lo de quien ganó que no es antecedente de este proceso, plegado al pie: datos del proveedor o lo que pasó después. */
+function Plegado({ titulo, n, aclaracion, children }: { titulo: string; n: number; aclaracion: string; children: ReactNode }) {
+  return (
+    // Grupo con nombre: adentro van otros plegables y tablas, que no deben reaccionar a éste.
+    <details className="group/pleg border-t border-line">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
+            {titulo} <CuentaGrupo>{numero(n)}</CuentaGrupo>
+          </span>
+          <span className="text-inkSoft">{aclaracion}</span>
+        </span>
+        <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open/pleg:rotate-180" />
+      </summary>
+      {children}
+    </details>
+  );
+}
+
+/**
+ * La pestaña «Antecedentes» de la ficha: los antecedentes de quien ganó por tipo, y plegados al pie los datos del
+ * proveedor que no son de esta entidad y lo que pasó después de la convocatoria. Server-safe.
+ */
 export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
   if (!todos.length) return null;
-  // Un antecedente es lo que ya había pasado cuando se convocó (migración 83) Y está ligado a esta entidad/proceso. Los
-  // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
-  // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
-  const antecedentes = todos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo));
-  const datosProv = todos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo));
-  const posteriores = todos.filter((c) => c.posterior);
+  const { antecedentes, datosProv, posteriores } = clasificarCruces(todos);
+  const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
 
   return (
-    <section aria-labelledby="cruces-proveedor" className="rounded-2xl border border-line bg-paper">
-      <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
-        <h2 id="cruces-proveedor" className="font-display text-bloque font-bold text-ink">
-          {varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó"}
-        </h2>
-        <Ayuda titulo="¿De dónde salen estos cruces?">
-          Cruces automáticos por DNI y RUC entre el ganador (y sus socios y representantes del RNP) y los registros de la ONPE, el JNE,
-          las visitas a entidades, CONOSCE, las penalidades y las sanciones del Tribunal. Son datos oficiales verificables en cada fuente: no prueban
-          por sí solos una irregularidad. Sólo cuenta como antecedente lo que ya había pasado cuando se convocó el proceso; lo
-          posterior se muestra aparte.
-        </Ayuda>
-      </div>
-      {!antecedentes.length && (
-        <p className="px-4 pb-3 pt-2 text-meta leading-relaxed text-inkSoft">
-          Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
-        </p>
-      )}
-      {antecedentes.length > 0 && <GruposCruces lista={antecedentes} gobierna={gobierna} />}
-      {datosProv.length > 0 && (
-        <details className="group border-t border-line">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-            <span className="text-meta text-inkSoft">
-              <span className="font-semibold text-ink">Datos del proveedor</span> <CuentaGrupo>{numero(datosProv.length)}</CuentaGrupo> — no relacionados con esta entidad
-            </span>
-            <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
-          </summary>
-          <div>
+    <div>
+      <CabeceraPestana
+        titulo={titulo}
+        ayuda={
+          <Ayuda titulo="¿De dónde salen estos cruces?">
+            Cruces automáticos por DNI y RUC entre el ganador (y sus socios y representantes del RNP) y los registros de la ONPE, el JNE,
+            las visitas a entidades, CONOSCE, las penalidades y las sanciones del Tribunal. Son datos oficiales verificables en cada fuente: no prueban
+            por sí solos una irregularidad. Sólo cuenta como antecedente lo que ya había pasado cuando se convocó el proceso; lo
+            posterior se muestra aparte.
+          </Ayuda>
+        }
+      >
+        Lo que los registros públicos ya decían de {varios ? "quienes ganaron" : "quien ganó"} cuando se convocó este proceso: datos para revisar, no pruebas.
+      </CabeceraPestana>
+      <section aria-label={titulo} className="tarjeta rounded-2xl border border-line bg-paper">
+        {!antecedentes.length && (
+          <p className="px-4 py-3 text-meta leading-relaxed text-inkSoft">
+            Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
+          </p>
+        )}
+        {antecedentes.length > 0 && <GruposCruces lista={antecedentes} gobierna={gobierna} conAnclas />}
+        {datosProv.length > 0 && (
+          <Plegado titulo="Datos del proveedor" n={datosProv.length} aclaracion="No relacionados con esta entidad.">
             <p className="px-4 pb-1 pt-1 text-meta leading-relaxed text-inkSoft">
               Hechos de quien ganó (una candidatura, un aporte o una venta a una campaña, un cargo de autoridad electa), no de
               esta contratación: contexto del proveedor, no cuentan para el riesgo de este contrato.
             </p>
             <GruposCruces lista={datosProv} gobierna={gobierna} />
-          </div>
-        </details>
-      )}
-      {posteriores.length > 0 && (
-        <details className="group border-t border-line">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-            <span className="text-meta text-inkSoft">
-              <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
-                Después de este proceso <CuentaGrupo>{numero(posteriores.length)}</CuentaGrupo>
-              </span>{" "}
-              No eran antecedentes cuando se convocó.
-            </span>
-            <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
-          </summary>
-          <div className="px-4 pb-3">
-            <p className="mb-2 text-meta leading-relaxed text-inkSoft">
+          </Plegado>
+        )}
+        {posteriores.length > 0 && (
+          <Plegado titulo="Después de este proceso" n={posteriores.length} aclaracion="No eran antecedentes cuando se convocó.">
+            <p className="px-4 pb-1 pt-1 text-meta leading-relaxed text-inkSoft">
               Pasó después de la convocatoria: quien adjudicó no podía saberlo. Se muestra como contexto de la empresa, no como señal sobre
               este proceso.
             </p>
-            <ul className="list-disc space-y-1.5 pl-5">
-              {[...posteriores].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? "")).map((c, i) => (
-                <li key={i} className="text-meta leading-relaxed text-inkSoft">
-                  <span className="font-medium text-ink">{c.etiqueta}:</span> <FilaContenido c={c} gobierna={gobierna} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
+            <GruposCruces lista={posteriores} gobierna={gobierna} />
+          </Plegado>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Los antecedentes en el Resumen de la ficha: un renglón por tipo con su severidad (color, ícono y palabra) y cuántos;
+ * cada renglón abre la pestaña «Antecedentes» en ese grupo, con la evidencia. Sin antecedentes ligados a esta entidad,
+ * se dice en una línea (y si hay datos del proveedor o algo posterior, cuántos y dónde verlos).
+ */
+export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
+  const { antecedentes, datosProv, posteriores } = clasificarCruces(cruces);
+  const grupos = agrupar(antecedentes);
+  const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
+  return (
+    <section aria-labelledby="resumen-antecedentes" className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 id="resumen-antecedentes" className="font-display text-bloque font-bold text-ink">
+          {titulo}
+        </h2>
+        <BotonPestana clave="antecedentes" className="inline-flex min-h-8 items-center gap-0.5 rounded text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">
+          Ver la evidencia <ChevronRight size={14} aria-hidden />
+        </BotonPestana>
+      </div>
+      {grupos.length > 0 ? (
+        <ul className="divide-y divide-line/70 rounded-xl border border-line">
+          {grupos.map((g) => (
+            <li key={g[0].tipo}>
+              <BotonPestana
+                clave="antecedentes"
+                ancla={anclaDe(g[0].tipo)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} />
+                  <span className="line-clamp-2 text-dato leading-snug text-ink">{g[0].etiqueta}</span>
+                </span>
+                <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>
+              </BotonPestana>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-meta leading-relaxed text-inkSoft">
+          Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
+        </p>
+      )}
+      {datosProv.length + posteriores.length > 0 && (
+        <p className="text-rotulo text-mute">
+          En la pestaña también van{" "}
+          {datosProv.length > 0 && <>{numero(datosProv.length)} {datosProv.length === 1 ? "dato" : "datos"} del proveedor que no son de esta entidad</>}
+          {datosProv.length > 0 && posteriores.length > 0 && " y "}
+          {posteriores.length > 0 && <>{numero(posteriores.length)} {posteriores.length === 1 ? "registro posterior" : "registros posteriores"} a la convocatoria</>}
+          .
+        </p>
       )}
     </section>
   );

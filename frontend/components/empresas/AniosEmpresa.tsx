@@ -49,7 +49,7 @@ export function AniosEmpresa({ anual, nombre }: { anual: AnioEmpresa[]; nombre: 
           sus listas con su bandera y no entran en estas barras.
         </p>
       )}
-      <details className="group rounded-xl border border-line/80">
+      <details className="group rounded-xl border border-line/80 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
         <summary className="cursor-pointer select-none px-3 py-2 text-meta font-semibold text-granate">Ver la tabla año por año</summary>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[34rem] text-meta">

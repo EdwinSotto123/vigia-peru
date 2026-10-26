@@ -48,7 +48,6 @@ export async function Aliados() {
     >
       <div className="container-page relative py-20 sm:py-24">
         <div className="max-w-3xl">
-          <p className="etiqueta-mono mb-4 text-maiz">Cuánto cuesta</p>
           <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
             Leer un contrato cuesta poco, y lo puede pagar cualquiera.
           </h2>

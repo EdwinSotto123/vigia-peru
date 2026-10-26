@@ -66,12 +66,14 @@ export const CATEGORIA_META: Record<
     color: "#FF5A4D",
     descripcion: "Se declaró concluida o inaugurada, pero físicamente no existe o está incompleta.",
   },
+  // La clave `funcionario_sospechoso` es la que guarda la base (no se cambia); el nombre visible, neutral: la denuncia
+  // trata de los bienes de un funcionario, no lo califica (§10.4 y §12: nunca «sospechoso»). Corto: cabe en el chip.
   funcionario_sospechoso: {
-    label: "Funcionario sospechoso",
+    label: "Bienes de un funcionario",
     icon: UserMinus,
     tone: "bg-paperDeep text-clayTexto border-line",
     color: "#E88C5C",
-    descripcion: "Patrimonio o conducta que no encaja con sus ingresos declarados.",
+    descripcion: "Bienes o gastos de un funcionario que, según el vecino, no cuadran con sus ingresos declarados.",
   },
   irregularidad_general: {
     label: "Irregularidad",

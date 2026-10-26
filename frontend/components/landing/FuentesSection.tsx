@@ -31,7 +31,6 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
   return (
     <section id="fuentes" aria-labelledby="fuentes-titulo" className="scroll-mt-16 bg-paperSoft py-20 sm:py-24">
       <div className="container-page">
-        <p className="etiqueta-mono mb-4 text-granate">Con qué datos</p>
         <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
           Vigía no inventa nada.{" "}
           <span className="text-granate">Cada señal sale de un registro público que puedes revisar.</span>

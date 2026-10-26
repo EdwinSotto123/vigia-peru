@@ -49,7 +49,7 @@
 import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, Cpu, WifiOff } from "lucide-react";
+import { CheckCircle2, Clock, Cpu, Inbox, WifiOff } from "lucide-react";
 import { numero, plural } from "@/lib/formato";
 import {
   ESTADO_PROC,
@@ -585,7 +585,7 @@ export function TableroAuditoria({
       {/* La ÚNICA región viva del tablero: anuncia cambios de estado reales, una vez cada uno. */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{anuncio}</p>
 
-      {titulo && <h2 className="font-display text-2xl font-bold text-ink">{titulo}</h2>}
+      {titulo && <h2 className="font-display text-seccion font-bold leading-tight text-ink">{titulo}</h2>}
 
       {enPestanas ? (
         // El estado en vivo ya está arriba de la página: acá sólo lo que avisa de un problema.
@@ -673,8 +673,11 @@ export function TableroAuditoria({
           {!cargado ? (
             <TablaSkeleton columnas={columnas} filas={4} />
           ) : sinFilas ? (
-            // Todo lo de esta vista ya se leyó (y "Leídos" vive más abajo): una línea, no una tabla vacía.
-            <VacioEnLinea>Nada en espera ni en análisis{filtrado || ubigeo ? " con estos filtros" : ""}.</VacioEnLinea>
+            // Todo lo de esta vista ya se leyó (y "Leídos" vive más abajo): el vacío de una línea del kit, con su ícono y su
+            // filete (antes, una frase suelta sobre el fondo).
+            <VacioEnLinea variante="compacta" icono={<Inbox size={16} />}>
+              Ningún contrato espera turno ni se está leyendo{filtrado || ubigeo ? " con estos filtros" : ""}.
+            </VacioEnLinea>
           ) : (
             <Tabla columnas={columnas} grupos={grupos} etiqueta="Contratos financiados en vivo" />
           )}

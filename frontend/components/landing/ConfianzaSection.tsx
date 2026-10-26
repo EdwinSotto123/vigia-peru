@@ -48,7 +48,6 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
     <section id="organizacion" aria-labelledby="confianza-titulo" className="scroll-mt-16 border-t border-line bg-paperSoft py-20 sm:py-24">
       <div className="container-page grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
         <div>
-          <p className="etiqueta-mono mb-4 text-granate">Por qué creerle</p>
           <h2 id="confianza-titulo" className="max-w-[16ch] text-balance font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
             Hecho para que no tengas que creerle a nadie.
           </h2>

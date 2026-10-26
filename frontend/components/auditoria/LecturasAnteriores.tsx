@@ -1,67 +1,47 @@
-import { rutaContrato } from "@/lib/rutas";
-import Link from "next/link";
-import { ChevronRight, Coins } from "lucide-react";
-import { fechaLima, type Procesamiento } from "@/lib/auditoria";
-import { oracion, plural, solesCompacto } from "@/lib/formato";
-import { tituloNatural } from "@/lib/landing";
-import { Dato } from "@/components/ui/Dato";
-import { Partes } from "@/components/ui/Partes";
+import { CuentaGrupo, CeldaFecha, Tabla, type Columna, type Fila } from "@/components/listado";
+import { IrAPestana } from "@/components/personas/IrAPestana";
+import { numero } from "@/lib/formato";
+import type { Procesamiento } from "@/lib/auditoria";
+import { CeldaContrato, EstadoProcesamiento, hrefProcesamiento } from "./CeldasProcesamiento";
 
 /**
- * Las lecturas que vinieron antes de "Lo último que se leyó": hasta cinco filas de una línea (objeto, entidad y zona,
- * cuándo terminó, qué encontró). Va en la pestaña En curso cuando no hay nada en análisis, que es su estado normal:
- * en vez de una pantalla a medio llenar, la persona ve que el trabajo existe y puede abrir cualquiera. Datos reales
- * de /financiamiento/procesamientos (los mismos de Ya leídos). Una lectura en revisión humana dice solo eso:
- * ni señales ni puntaje. Server-safe.
+ * Las lecturas que vinieron antes de "Lo último que se leyó": hasta cinco, en la `Tabla` del kit con las mismas piezas
+ * que Ya leídos (el resultado en su chip: el peso del riesgo, «Sin señales» o «En revisión»; el contrato con su entidad y
+ * su zona; cuándo terminó). Va en la pestaña En curso cuando no hay nada en análisis, que es su estado normal: en vez de
+ * una pantalla a medio llenar, la persona ve que el trabajo existe y puede abrir cualquiera. Antes eran filas sueltas
+ * sobre el fondo con el estado como texto («2 señales», «sin señales»). Datos reales de
+ * /financiamiento/procesamientos (los mismos de Ya leídos). Una lectura en revisión humana dice solo eso (§10.4).
+ * «Ver todas» cambia a la pestaña Ya leídos sin recargar: con los mismos filtros. Server-safe.
  */
+const COLUMNAS: Columna[] = [
+  { clave: "estado", titulo: "Resultado", ancho: "124px", desde: "md", apilar: true },
+  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
+  { clave: "leido", titulo: "Leído", ancho: "88px", desde: "md" },
+];
+
 export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; total: number | null }) {
   if (items.length === 0) return null;
+  // Las lecturas fuera de "Lo último que se leyó": todas menos esa (o, sin el total, las que hay a la vista).
+  const antes = total != null ? Math.max(total - 1, items.length) : null;
+  const filas: Fila[] = items.map((p) => ({
+    id: p.ocid,
+    href: hrefProcesamiento(p.ocid),
+    celdas: {
+      estado: <EstadoProcesamiento p={p} />,
+      contrato: <CeldaContrato p={p} />,
+      leido: <CeldaFecha fecha={p.finalizadoAt} />,
+    },
+  }));
   return (
-    <section aria-labelledby="lecturas-anteriores" className="space-y-1">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-        <h3 id="lecturas-anteriores" className="text-cuerpo font-semibold text-ink">
-          Antes de esa{total != null ? `, ${plural(Math.max(total - 1, items.length), "lectura más", "lecturas más")}` : ""}
+    <section aria-labelledby="lecturas-anteriores" className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h3 id="lecturas-anteriores" className="flex items-center gap-2 text-cuerpo font-semibold text-ink">
+          Lecturas anteriores
+          {antes != null && <CuentaGrupo>{numero(antes)}</CuentaGrupo>}
         </h3>
-        <Link
-          href="/app/auditoria?seccion=leidos"
-          className="text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-        >
-          Ver todas
-        </Link>
+        <IrAPestana clave="leidos">Ver todas en Ya leídos</IrAPestana>
       </div>
-      <ul className="divide-y divide-line">
-        {items.map((p) => {
-          const enRevision = p.alertaEstado === "revision";
-          return (
-            <li key={p.ocid}>
-              <Link
-                href={rutaContrato(p.ocid, "vivo")}
-                className="group flex items-center gap-3 py-2 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="line-clamp-1 text-dato font-medium text-ink group-hover:text-granate">{p.titulo ? oracion(p.titulo) : p.ocid}</span>
-                  <span className="block truncate text-rotulo text-mute">
-                    <Partes
-                      partes={[
-                        p.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(p.entidad)}</Dato>,
-                        p.zona && <Dato key="zona" tipo="lugar">{p.zona}</Dato>,
-                        p.montoPen ? <Dato key="monto" icono={Coins} nombre="Valor" mono>{solesCompacto(p.montoPen)}</Dato> : null,
-                      ]}
-                    />
-                  </span>
-                </span>
-                <span className="hidden shrink-0 text-right text-rotulo tabular-nums text-mute sm:block">
-                  {p.finalizadoAt ? fechaLima(p.finalizadoAt, { hora: true }) : null}
-                </span>
-                <span className="w-24 shrink-0 text-right text-meta text-inkSoft">
-                  {enRevision ? "En revisión" : p.banderas > 0 ? plural(p.banderas, "señal", "señales") : "sin señales"}
-                </span>
-                <ChevronRight size={14} className="shrink-0 text-mute group-hover:text-granate" aria-hidden />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Las últimas lecturas antes de la más reciente" />
     </section>
   );
 }

@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight } from "lucide-react";
-import { Ayuda, AyudaTermino, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -13,21 +11,22 @@ import {
   TablaSkeleton,
   ZonaResultados,
   type Columna,
+  type FiltroSecundario,
   type Fila,
   type Indicador,
   type Parametros,
 } from "@/components/listado";
-import { Badge } from "@/components/ui/Badge";
+import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, rutaPlanilla, type PaginaPlanilla, type PersonaPlanilla } from "@/lib/planilla";
 import { SenalesPlanillaLista } from "./SenalesPlanilla";
-import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
 import { uno } from "@/lib/utils";
 
 const TAM = 20;
@@ -36,11 +35,35 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
 export const P_PLANILLA = { senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud" } as const;
 
+/** La etiqueta corta de cada señal para la celda (`CrucesCelda`, una línea con su ícono de severidad). */
+const CORTO_PLANILLA = Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].corto]));
+/** Y su explicación (title del chip): la de la señal de planilla, no la del catálogo de cruces de empresas. */
+const EXPLICA_PLANILLA = Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].explica]));
+
 /**
  * La planilla de un alcance (una entidad, una región o todo el país): el personal que publican las entidades en su
- * Portal de Transparencia, con sus señales por fila; cada fila abre su detalle. Server component.
+ * Portal de Transparencia, con sus señales por fila. Cada fila abre su panel (sus datos, sus sueldos mes a mes y sus
+ * señales); con ficha propia, el panel es su vista previa y lleva «Abrir la ficha». Server component.
+ *
+ * Privacidad (docs/PRIVACIDAD.md): el nombre llega con el apellido materno tapado y se ve en la fila y en el panel, pero
+ * nunca va a un `title`, a un `aria-label` ni al `id` de la fila.
  */
-export function ListaPlanilla({ alcance, sp, ruta, base, deEntidad = false }: { alcance: { entidad?: string; dep?: string }; sp: Busqueda; ruta: string; base: Parametros; deEntidad?: boolean }) {
+export function ListaPlanilla({
+  alcance,
+  sp,
+  ruta,
+  base,
+  deEntidad = false,
+  visiblesExtra = [],
+}: {
+  alcance: { entidad?: string; dep?: string };
+  sp: Busqueda;
+  ruta: string;
+  base: Parametros;
+  deEntidad?: boolean;
+  /** Filtros del alcance a la vista (la región en /app/personas). Sus valores ya vienen en `base`. */
+  visiblesExtra?: FiltroSecundario[];
+}) {
   const P = P_PLANILLA;
   const senal = uno(sp?.[P.senal]);
   const sev = uno(sp?.[P.severidad]);
@@ -61,15 +84,17 @@ export function ListaPlanilla({ alcance, sp, ruta, base, deEntidad = false }: { 
     ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
     [P.q]: f.q, [P.dudoso]: f.dudoso,
   };
-  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso);
+  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso) || visiblesExtra.some((x) => !!base[x.param]);
+  // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
+  const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
-        <Suspense fallback={<Barra r={null} />}>
-          <BarraAsync pagina={paginaP} />
+        <Suspense fallback={<Barra r={null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
+          <BarraAsync pagina={paginaP} visiblesExtra={visiblesExtra} entidad={entidad} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad)} filas={10} />}>
@@ -99,16 +124,18 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla |
         : "suma de su último mes publicado",
     },
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P_PLANILLA.severidad]: "con" }) },
-    { valor: numero(r.alta), etiqueta: "con una señal grave", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
+    { valor: numero(r.alta), etiqueta: "con una señal alta", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
   ];
   return <Indicadores items={items} />;
 }
 
-async function BarraAsync({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
-  return <Barra r={(await pagina)?.resumen ?? null} />;
+async function BarraAsync({ pagina, visiblesExtra, entidad }: { pagina: Promise<PaginaPlanilla | null>; visiblesExtra: FiltroSecundario[]; entidad?: string }) {
+  const pg = await pagina;
+  const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
+  return <Barra r={pg?.resumen ?? null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
 }
 
-function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
+function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlanilla["resumen"] | null; visiblesExtra: FiltroSecundario[]; entidad: { ruc: string; nombre: string | null } | null }) {
   const P = P_PLANILLA;
   return (
     <BarraFiltros
@@ -119,14 +146,16 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
         todas: "Todas",
         conteoTodas: r?.personas ?? null,
         nombreEnChip: false,
+        // El vocabulario de severidad de todo el producto (`Severidad`), no «Graves / Para revisar».
         opciones: [
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
-          { valor: "alta", etiqueta: "Graves", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
-          { valor: "media", etiqueta: "Para revisar", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+          { valor: "alta", etiqueta: "Con señal alta", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
+          { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
           { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.personas - r.conSenales : null },
         ],
       }}
       visibles={[
+        ...visiblesExtra,
         {
           param: P.senal,
           etiqueta: "Señal",
@@ -149,6 +178,9 @@ function Barra({ r }: { r: PaginaPlanilla["resumen"] | null }) {
           todas: "Todos los datos",
           opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: r?.dudosos ?? null }],
         },
+        ...(entidad
+          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+          : []),
       ]}
       orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }}
     />
@@ -183,68 +215,66 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
       </EstadoVacio>
     );
   }
-  const pag = (
-    <Paginacion actual={props.actual} paginas={Math.max(1, Math.ceil(pagina.total / pagina.size))} total={pagina.total} tam={pagina.size}
-      navegacion="url" hrefBase={props.ruta} query={props.parametros} paramPagina={P_PLANILLA.page} cargando={false} nombre="personas" />
+  const paginas = Math.max(1, Math.ceil(pagina.total / pagina.size));
+  const pag = (subir: boolean) => (
+    <Paginacion actual={props.actual} paginas={paginas} total={pagina.total} tam={pagina.size}
+      navegacion="url" hrefBase={props.ruta} query={props.parametros} paramPagina={P_PLANILLA.page} cargando={false} nombre="personas" subir={subir} />
   );
+  // Sin la línea suelta «N personas»: el total ya lo dicen el chip «Todas» y el paginador.
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-meta text-inkSoft">{plural(pagina.total, "persona", "personas")}{props.filtrada ? " con estos filtros" : ""}</p>
-        {pag}
-      </div>
-      <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p) => fila(p, props.deEntidad))} etiqueta="Personal en planilla" />
-      <div className="flex justify-end">{pag}</div>
+      <div className="flex justify-end">{pag(false)}</div>
+      <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p, i) => fila(p, i, props.deEntidad))} etiqueta="Personal en planilla" />
+      {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
 }
 
-function Chips({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"] }) {
+/** Las señales en UNA línea (la más grave primero, «+n»), con la bandera de un posible error de carga delante. */
+function Senales({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"] }) {
   const motivo = motivoDudoso(dudoso?.motivo);
-  if (!senales?.length && !motivo) return <span className="text-meta text-mute">Ninguna</span>;
+  if (!senales?.length && !motivo) return <span className="text-meta text-mute">Sin señales</span>;
   return (
-    <ul className="flex flex-wrap gap-1">
-      {motivo && (
-        <li>
-          <BanderaDato motivo={motivo} fuente="pte_personal" />
-        </li>
-      )}
-      {senales.slice(0, 3).map((s) => (
-        <li key={s.tipo} title={SENAL_PLANILLA[s.tipo]?.explica}>
-          <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SENAL_PLANILLA[s.tipo]?.corto ?? s.tipo}</Badge>
-        </li>
-      ))}
-      {senales.length > 3 && <li><Badge variant="neutral">+{senales.length - 3}</Badge></li>}
-    </ul>
+    <span className="flex min-w-0 max-w-full items-center gap-1">
+      {motivo && <BanderaDato motivo={motivo} fuente="pte_personal" className="shrink-0" />}
+      {senales.length > 0 && <CrucesCelda cruces={senales} etiquetas={CORTO_PLANILLA} explicaciones={EXPLICA_PLANILLA} etiquetaLista="Señales de la persona" />}
+    </span>
   );
 }
 
-function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
+function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
   const entidad = p.entidad ? tituloNatural(p.entidad) : null;
   const motivo = motivoDudoso(p.dudoso?.motivo);
-  const cargo = p.cargo ? <Dato key="cargo" tipo="cargo">{tituloNatural(p.cargo)}</Dato> : null;
+  const cargoTexto = p.cargo ? tituloNatural(p.cargo) : null;
+  const cargo = cargoTexto ? <Dato key="cargo" tipo="cargo">{cargoTexto}</Dato> : null;
   const oficina = p.dependencia ? <Dato key="oficina" tipo="dependencia" nombre="Oficina">{tituloNatural(p.dependencia)}</Dato> : null;
   const datos: DatoClave[] = [
-    { etiqueta: "Cargo", valor: p.cargo ? tituloNatural(p.cargo) : null },
+    { etiqueta: "Cargo", valor: cargoTexto },
     { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
     { etiqueta: "Régimen", valor: p.regimen ? REGIMEN[p.regimen] ?? String(p.regimen) : null },
     { etiqueta: "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
     { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
     ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
     { etiqueta: "Meses en planilla", valor: `${numero(p.meses)} (${[p.primerMes, p.ultimoMes].filter(Boolean).join(" a ")})` },
-    ...(!deEntidad && entidad ? [{ etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}`} className="text-granate hover:underline">{entidad}</Link> }] : []),
+    ...(!deEntidad && entidad ? [{ etiqueta: "Entidad", valor: entidad }] : []),
   ];
+  // La señal "tambien_ordenes" trae los meses en que además cobró por órdenes de servicio y su monto total.
+  const det = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
+  const mesesOrden = Array.isArray(det?.meses) ? (det!.meses as unknown[]).map(String) : [];
+  const montoOrden = typeof det?.monto === "number" ? (det!.monto as number) : null;
+  const ficha = p.ficha ? rutaPlanilla(p.ficha) : null;
   return {
-    id: `${p.entidadRuc}-${p.nombre}-${p.ultimoMes}`,
-    ...(p.ficha ? { href: rutaPlanilla(p.ficha) } : {}),
+    // El id va al DOM (`data-fila`): nunca el nombre. La posición en la página y la entidad bastan.
+    id: `pl-${i}-${p.entidadRuc}`,
     celdas: {
       persona: (
         <CeldaPrincipal
-          titulo={p.nombre}
+          // Un nodo y no el texto: así el nombre no va al `title` de la celda.
+          titulo={<>{p.nombre}</>}
           meta={deEntidad ? [cargo, oficina] : [cargo, entidad ? <Dato key="entidad" tipo="entidad">{entidad}</Dato> : null]}
         />
       ),
-      senales: <Chips senales={p.senales} dudoso={p.dudoso} />,
+      senales: <Senales senales={p.senales} dudoso={p.dudoso} />,
       regimen: <span className="text-meta text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
         <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>
@@ -254,51 +284,51 @@ function fila(p: PersonaPlanilla, deEntidad: boolean): Fila {
         </CeldaNumero>
       ),
     },
-    detalle: p.ficha ? undefined : {
-      titulo: p.nombre,
-      etiqueta: `Ver el detalle de ${p.nombre}`,
-      descripcion: p.cargo ? tituloNatural(p.cargo) : undefined,
+    // Todas las filas abren el mismo panel; con ficha propia es su vista previa (antes unas filas navegaban y otras no).
+    detalle: {
+      // Ni el título ni la etiqueta llevan el nombre: van a `title` y `aria-label` (docs/PRIVACIDAD.md).
+      titulo: cargoTexto ?? "Persona en planilla",
+      etiqueta: `Detalle en planilla: ${cargoTexto ?? "persona sin cargo registrado"}${entidad && !deEntidad ? `, ${entidad}` : ""}`,
+      descripcion: <span className="font-medium text-inkSoft">{p.nombre}</span>,
       contenido: (
-        <div className="space-y-4">
+        <CuerpoDetalle>
           {motivo && (
             <AvisoDato motivo={motivo} fuente="pte_personal">
               {`Su planilla de ${p.ultimoMes ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total.`}
             </AvisoDato>
           )}
           <DatosClave items={datos} />
-          {(p.historia?.length ?? 0) > 1 && (() => {
-            // La señal "tambien_ordenes" trae los meses en que además cobró por órdenes de servicio y su monto total.
-            const det = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
-            const mesesOrden = Array.isArray(det?.meses) ? (det!.meses as unknown[]).map(String) : [];
-            const montoOrden = typeof det?.monto === "number" ? (det!.monto as number) : null;
-            return (
-              <section className="space-y-2">
-                <h3 className="font-display text-bloque font-bold text-ink">Cobros al Estado, mes a mes</h3>
-                <LineaMeses
-                  puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
-                  etiqueta={`Cobros al Estado mes a mes de ${p.nombre}`}
-                  ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
-                />
-              </section>
-            );
-          })()}
+          {(p.historia?.length ?? 0) > 1 && (
+            <BloqueDetalle titulo="Cobros al Estado, mes a mes">
+              <LineaMeses
+                puntos={(p.historia ?? []).map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
+                etiqueta="Cobros al Estado mes a mes"
+                ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
+              />
+            </BloqueDetalle>
+          )}
           {p.senales.length > 0 && (
             <>
               <SenalesPlanillaLista senales={p.senales} />
               <p className="text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación ni prueba de un delito.</p>
             </>
           )}
-        </div>
+        </CuerpoDetalle>
       ),
       pie: (
-        <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-rotulo text-mute">Fuente: Portal de Transparencia Estándar, rubro Personal</span>
-          {p.codigo && (
-            <Link href={`/app/personas/${p.codigo}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper hover:bg-granate-deep">
-              Ver sus órdenes de servicio <ArrowRight size={14} aria-hidden />
-            </Link>
-          )}
-        </span>
+        <PieDetalle
+          principal={
+            <>
+              {ficha && <EnlaceAccion href={ficha} flecha>Abrir la ficha</EnlaceAccion>}
+              {p.codigo && (
+                <EnlaceAccion href={`/app/personas/${p.codigo}`} variante={ficha ? "secundario" : "primario"} flecha={!ficha}>
+                  Ver sus órdenes de servicio
+                </EnlaceAccion>
+              )}
+            </>
+          }
+          secundarias={<span className="text-rotulo text-mute">Fuente: Portal de Transparencia Estándar, rubro Personal</span>}
+        />
       ),
     },
   };

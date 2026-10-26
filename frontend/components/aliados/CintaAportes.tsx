@@ -3,8 +3,8 @@ import { numero, relativo } from "@/lib/formato";
 import type { ContribucionReciente } from "@/lib/financiamiento";
 import { NombreEntidad } from "@/components/financiar/NombreEntidad";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { cn } from "@/lib/utils";
 import { AvatarAliado } from "./TarjetaAliado";
+import { PistaCinta } from "./PistaCinta";
 
 /**
  * "Últimos aportes" como una cinta que se desplaza despacio (DESIGN_SYSTEM.md §14.6): cada aporte es una
@@ -13,10 +13,11 @@ import { AvatarAliado } from "./TarjetaAliado";
  * vueltas parece un error. Se cuenta en contratos, nunca en soles.
  *
  * El movimiento es CSS puro (globals.css: .cinta-pista): se detiene al pasar el cursor o al enfocar un
- * aporte, y con "reducir movimiento" no corre y la fila se desliza a mano. La segunda mitad del bucle es una
- * copia decorativa: `inert` y `aria-hidden`, así que ni el teclado ni un lector de pantalla la ven repetida.
+ * aporte, con su botón de detener (WCAG 2.2.2, `PistaCinta`), y con "reducir movimiento" no corre y la fila se
+ * desliza a mano. La segunda mitad del bucle es una copia decorativa: `inert` y `aria-hidden`, así que ni el
+ * teclado ni un lector de pantalla la ven repetida.
  *
- * Server-safe: no tiene estado.
+ * Server-safe: el único estado (detenida o no) vive en `PistaCinta`.
  */
 
 /** Dónde fue el aporte, en una frase corta (partido, entidad o zona). */
@@ -70,31 +71,31 @@ export function CintaAportes({ items, total }: { items: ContribucionReciente[]; 
           Ver todos los aportes{typeof total === "number" && total > items.length ? ` (${numero(total)})` : ""}
         </EnlaceAccion>
       </div>
-      <div className={cn("cinta-marco relative py-3", mueve ? "overflow-hidden" : "overflow-x-auto")}>
-        {mueve && (
-          <>
-            <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-ink to-transparent" />
-            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-ink to-transparent" />
-          </>
-        )}
-        <div
-          className={mueve ? "cinta-pista" : "flex w-max gap-3 px-4 sm:px-5"}
-          style={mueve ? ({ "--cinta-duracion": `${duracion}s` } as React.CSSProperties) : undefined}
-        >
-          <ul className={cn("flex gap-3", mueve && "px-1.5")} aria-label="Últimos aportes" data-lista="avance">
+      {mueve ? (
+        // Se mueve sola, con su botón para detenerla (WCAG 2.2.2): PistaCinta guarda ese estado en el cliente.
+        <PistaCinta duracion={duracion}>
+          <ul className="flex gap-3 px-1.5" aria-label="Últimos aportes" data-lista="avance">
             {items.map((c) => (
               <Pildora key={c.codigo} c={c} />
             ))}
           </ul>
-          {mueve && (
-            <ul className="cinta-copia flex gap-3 px-1.5" aria-hidden {...({ inert: "" } as object)}>
+          <ul className="cinta-copia flex gap-3 px-1.5" aria-hidden {...({ inert: "" } as object)}>
+            {items.map((c) => (
+              <Pildora key={c.codigo} c={c} />
+            ))}
+          </ul>
+        </PistaCinta>
+      ) : (
+        <div className="cinta-marco relative overflow-x-auto py-3">
+          <div className="flex w-max gap-3 px-4 sm:px-5">
+            <ul className="flex gap-3" aria-label="Últimos aportes" data-lista="avance">
               {items.map((c) => (
                 <Pildora key={c.codigo} c={c} />
               ))}
             </ul>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

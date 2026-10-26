@@ -350,7 +350,8 @@ function ResumenTab({
         <>
           <Indicadores
             items={[
-              { valor: enteros(esperando), etiqueta: "esperando lectura", contexto: geo ? `de ${enteros(geo.total)} publicados` : undefined },
+              // "En cola" (§10.1), la misma palabra que financiar y el Inicio para la misma cifra.
+              { valor: enteros(esperando), etiqueta: "en cola", contexto: "esperan que alguien financie su lectura" },
               {
                 valor: enteros(zona.financiados),
                 etiqueta: "financiados",

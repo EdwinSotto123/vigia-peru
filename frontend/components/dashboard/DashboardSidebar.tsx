@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileText, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Home, Activity, FileSearch, Heart, HelpCircle, Crown, Landmark, LayoutGrid, Users } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -13,34 +13,36 @@ import { BuscarGlobal } from "@/components/BuscarGlobal";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { FLAGS } from "@/lib/flags";
 
+type Intencion = "explorar" | "alertas" | "participar";
+
 type Item = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  /** Una línea bajo el nombre: 26 caracteres o menos, para que entre sin cortarse en la barra de 256 px. */
   hint?: string;
   /** Si está true: requiere sesión. Si no, también es público. */
   requiresAuth?: boolean;
   /** Destaca el item como acción núcleo (borde granate y flecha). */
   featured?: boolean;
-  /** Dorado: el reconocimiento a los aliados (ícono en maíz). Sólo "Aliados". */
-  dorado?: boolean;
+  /** El color de la pantalla a la que lleva, si no es el de su grupo (components/dashboard/Intencion.tsx). */
+  intencion?: Intencion;
   match?: (path: string) => boolean;
 };
 
-type Section = { title?: string; intencion?: "explorar" | "alertas" | "participar"; items: Item[] };
+type Section = { title?: string; intencion?: Intencion; items: Item[] };
 
 /**
  * Navegación pública del dashboard.
  *
- * Antes sólo el mapa era puerta de entrada: entidades, hallazgos y denuncias
- * existían como rutas pero no estaban en la barra, y había que descubrirlas
- * haciendo clic en una región. Eso dejaba 2.121 entidades y 94 señales
- * escondidas detrás de una adivinanza, y hacía que el `match` del mapa tuviera
- * que absorber media aplicación — con el efecto de que, estando dentro de un
- * dossier, la navegación decía "Mapa".
+ * Agrupada por la pregunta de quien llega (auditoría UX 2026-10-26): dónde (su región), quién (entidades, empresas,
+ * personas, partidos y el mapa de poder, juntos), qué (contratos, señales y denuncias), cómo participar y cómo trabaja
+ * Vigía. Antes eran 14 entradas en 4 grupos: «Explorar» mezclaba lugar, objetos y política, «Mapa» y «Mapa de poder»
+ * quedaban lejos, «Denuncias» y «Denunciar» en grupos distintos y «Auditoría en vivo» dentro de Participar.
  *
- * Ahora cada objeto del producto tiene su puerta y cada ruta marca activo donde
- * corresponde. El análisis a demanda sigue viviendo en /admin/analisis.
+ * Reglas: un ícono distinto por destino; la caja llena SÓLO en la página activa (antes «Aliados» iba siempre dorado,
+ * dos cajas llenas a la vez); cada ruta marca activo donde corresponde y cada destino tiene UNA entrada (la marca de
+ * arriba lleva a la portada). Compacta desde `md` para entrar entera en 900 px de alto; en el celular, toques de 44 px.
  */
 const SECTIONS: Section[] = [
   {
@@ -55,35 +57,29 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Explorar",
+    title: "Tu región",
     intencion: "explorar",
     items: [
       {
         href: "/app/mapa",
         label: "Mapa",
         icon: <MapPin size={16} />,
-        hint: "Elige tu región",
+        hint: "Qué se contrata en tu zona",
         // El mapa se marca activo sólo cuando es el mapa (o una región): estando dentro
         // de un dossier la navegación no puede decir "Mapa".
         match: (p) => p.startsWith("/app/mapa"),
       },
-      {
-        href: "/app/contratos",
-        label: "Contratos",
-        icon: <FileSearch size={16} />,
-        hint: "Todo el SEACE",
-        // El dossier de un contrato ES un contrato: /app/convocatoria/[id] y
-        // /convocatoria/[id] marcan activo acá, no en "Mapa".
-        match: (p) =>
-          p.startsWith("/app/contratos") ||
-          p.startsWith("/app/convocatoria") ||
-          p.startsWith("/convocatoria"),
-      },
+    ],
+  },
+  {
+    title: "Quién",
+    intencion: "explorar",
+    items: [
       {
         href: "/app/entidades",
         label: "Entidades",
         icon: <Building2 size={16} />,
-        hint: "Quién contrata, y cuánto",
+        hint: "Quién contrata y cuánto",
         match: (p) => p.startsWith("/app/entidades") || p.startsWith("/entidad"),
       },
       {
@@ -93,6 +89,13 @@ const SECTIONS: Section[] = [
         hint: "Quién le vende al Estado",
         // La ficha de una empresa (/empresa/<RUC>) también marca acá.
         match: (p) => p.startsWith("/app/empresas") || p.startsWith("/empresa/"),
+      },
+      {
+        href: "/app/personas",
+        label: "Personas contratadas",
+        icon: <Users size={16} />,
+        hint: "Locadores y asesores",
+        match: (p) => p.startsWith("/app/personas"),
       },
       {
         href: "/app/partidos",
@@ -105,36 +108,44 @@ const SECTIONS: Section[] = [
       {
         href: "/app/poder",
         label: "Mapa de poder",
-        icon: <Crown size={16} />,
-        hint: "Captura por partido en lo que gobierna",
+        icon: <Network size={16} />,
+        hint: "Captura por partido",
         match: (p) => p.startsWith("/app/poder"),
-      },
-      {
-        href: "/app/personas",
-        label: "Personas contratadas",
-        icon: <Users size={16} />,
-        hint: "Locadores y asesores del Estado",
-        match: (p) => p.startsWith("/app/personas"),
       },
     ],
   },
   {
-    title: "Alertas",
-    intencion: "alertas",
+    // Sin color de grupo: Contratos es de Explorar y Señales y Denuncias de Alertas (cada uno con el de su pantalla).
+    title: "Qué",
     items: [
+      {
+        href: "/app/contratos",
+        label: "Contratos",
+        icon: <FileSearch size={16} />,
+        hint: "Todo el SEACE",
+        intencion: "explorar",
+        // El dossier de un contrato ES un contrato: /app/convocatoria/[id] y
+        // /convocatoria/[id] marcan activo acá, no en "Mapa".
+        match: (p) =>
+          p.startsWith("/app/contratos") ||
+          p.startsWith("/app/convocatoria") ||
+          p.startsWith("/convocatoria"),
+      },
       {
         href: "/app/hallazgos",
         label: "Señales",
         icon: <Flag size={16} />,
         hint: "Qué revisar primero",
+        intencion: "alertas",
         match: (p) =>
           p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
       },
       {
         href: "/app/denuncias",
-        label: "Denuncias",
-        icon: <Camera size={16} />,
+        label: "Denuncias ciudadanas",
+        icon: <MessageSquareWarning size={16} />,
         hint: "Lo que reporta la gente",
+        intencion: "alertas",
         match: (p) => p.startsWith("/app/denuncias"),
       },
     ],
@@ -153,25 +164,17 @@ const SECTIONS: Section[] = [
       },
       {
         href: "/reporte/nuevo",
-        label: "Denunciar",
-        icon: <FileText size={16} />,
-        hint: "Foto y ubicación, públicas",
+        label: "Denunciar una obra",
+        icon: <Camera size={16} />,
+        hint: "Con foto y ubicación",
         match: (p) => p.startsWith("/reporte"),
       },
       {
         href: "/app/aliados",
         label: "Aliados",
-        icon: <Crown size={15} />,
+        icon: <Crown size={16} />,
         hint: "Quién financia",
-        dorado: true,
         match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
-      },
-      {
-        href: "/app/auditoria",
-        label: "Auditoría en vivo",
-        icon: <Activity size={16} />,
-        hint: "Lo que se lee ahora",
-        match: (p) => p.startsWith("/app/auditoria"),
       },
       ...(FLAGS.editorial
         ? [
@@ -187,6 +190,26 @@ const SECTIONS: Section[] = [
         : []),
     ],
   },
+  {
+    title: "Cómo trabaja Vigía",
+    items: [
+      {
+        href: "/app/auditoria",
+        label: "Auditoría en vivo",
+        icon: <Activity size={16} />,
+        hint: "Lo que se lee ahora",
+        intencion: "participar",
+        match: (p) => p.startsWith("/app/auditoria"),
+      },
+      {
+        href: "/preguntas",
+        label: "Preguntas frecuentes",
+        icon: <HelpCircle size={16} />,
+        hint: "Las dudas más comunes",
+        match: (p) => p === "/preguntas" || p.startsWith("/preguntas/"),
+      },
+    ],
+  },
 ];
 
 /** El drawer móvil y el `inert` sólo aplican bajo `md` (768 px): arriba, la barra es fija y siempre visible. */
@@ -199,7 +222,6 @@ export function DashboardSidebar() {
   const asideRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const cerrarRef = useRef<HTMLButtonElement>(null);
-  const faqActiva = pathname === "/preguntas" || pathname.startsWith("/preguntas/");
 
   /** Al cerrar a mano (botón, velo, Escape) el foco vuelve al botón "Menú". */
   const volverFoco = useRef(false);
@@ -290,7 +312,7 @@ export function DashboardSidebar() {
             <Menu size={15} aria-hidden /> Menú
           </button>
           {/* Sin prefetch: la portada (GSAP, escenas) bajaba ~112 KB en cada página de la app. */}
-          <Link href="/" prefetch={false} aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
+          <Link href="/" prefetch={false} aria-label="Vigía Perú, ir a la portada" className="ml-1 rounded-lg">
             <Marca tamano="sm" />
           </Link>
           <div className="ml-auto flex items-center gap-2">
@@ -324,21 +346,22 @@ export function DashboardSidebar() {
         {/* Un clic en cualquier link del drawer lo cierra, incluso si lleva a la
             página en la que ya estás (ahí la ruta no cambia). */}
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:px-3 md:py-3"
           onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}
         >
-          {/* La marca lleva al inicio: "Mapa" ya tiene su propia entrada abajo.
-              La misma firma que la cabecera, el pie y el panel de admin; antes
-              iba dentro de una tarjeta y al lado de un escudo que no es de Vigía. */}
-          <div className="mb-5 flex items-center justify-between gap-2">
+          {/* La marca lleva a la portada (la única entrada a ella): "Inicio" y "Mapa" tienen la suya abajo.
+              La misma firma que la cabecera, el pie y el panel de admin. El modo día/noche va a su lado
+              en escritorio (en el celular está en la barra de arriba): en el pie empujaba el menú fuera de los 900 px. */}
+          <div className="mb-5 flex items-center justify-between gap-2 md:mb-3">
             <Link
               href="/"
               prefetch={false}
-              aria-label="Vigía Perú, ir al inicio"
+              aria-label="Vigía Perú, ir a la portada"
               className="rounded-lg py-1 transition-opacity duration-rapido hover:opacity-80"
             >
               <Marca />
             </Link>
+            <BotonModo className="hidden h-9 w-9 md:inline-flex" />
             <button
               ref={cerrarRef}
               type="button"
@@ -351,12 +374,12 @@ export function DashboardSidebar() {
           </div>
 
           {/* Búsqueda global (Ctrl+K) */}
-          <div className="mb-5">
+          <div className="mb-5 md:mb-3">
             <BuscarGlobal />
           </div>
 
           {/* Nav agrupado */}
-          <nav aria-label="Secciones" className="flex flex-col gap-5">
+          <nav aria-label="Secciones" className="flex flex-col gap-5 md:gap-2.5">
             {SECTIONS.map((section, i) => {
               const idTitulo = `menu-lateral-seccion-${i}`;
               return (
@@ -368,7 +391,7 @@ export function DashboardSidebar() {
                   className="flex flex-col gap-0.5"
                 >
                   {section.title && (
-                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-acento-texto">
+                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-micro font-semibold uppercase leading-4 tracking-[0.14em] text-acento-texto md:pb-1">
                       <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-acento" />
                       {section.title}
                     </p>
@@ -385,7 +408,7 @@ export function DashboardSidebar() {
                         active={active}
                         locked={locked}
                         featured={item.featured}
-                        dorado={item.dorado}
+                        intencion={item.intencion}
                         icon={item.icon}
                         hint={item.hint}
                       >
@@ -399,7 +422,7 @@ export function DashboardSidebar() {
           </nav>
 
           {/* Pie de la barra */}
-          <div className="mt-auto space-y-2 pt-6">
+          <div className="mt-auto space-y-2 pt-6 md:pt-3">
             {FLAGS.editorial && !loading && !user && (
               <div className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-3">
                 <p className="flex items-center gap-1.5 text-micro font-semibold text-amberTexto">
@@ -418,28 +441,9 @@ export function DashboardSidebar() {
                 </Link>
               </div>
             )}
-            {/* Un solo menú de usuario: Mi impacto, Configuración y Salir (o Entrar). */}
+            {/* Un solo menú de usuario: Mi impacto, Configuración y Salir (o Entrar). Las preguntas frecuentes
+                están en «Cómo trabaja Vigía» y la portada, en la marca de arriba. */}
             <UserMenu variant="sidebar" />
-            <BotonModo conTexto className="w-full" />
-            <div className="flex flex-col">
-              <Link
-                href="/preguntas"
-                aria-current={faqActiva ? "page" : undefined}
-                className={cn(
-                  "flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-meta transition-colors duration-rapido",
-                  faqActiva ? "bg-granate-50 font-semibold text-granate" : "text-mute hover:bg-paper hover:text-ink",
-                )}
-              >
-                <HelpCircle size={14} aria-hidden /> Preguntas frecuentes
-              </Link>
-              <Link
-                href="/"
-                prefetch={false}
-                className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-meta text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
-              >
-                <Home size={14} aria-hidden /> Portada de Vigía
-              </Link>
-            </div>
           </div>
         </div>
       </aside>
@@ -448,18 +452,19 @@ export function DashboardSidebar() {
 }
 
 /**
- * Un ítem de la barra. Un solo código visual para "estás aquí": fondo granate
- * suave, texto granate y el ícono en su caja granate llena. Ningún otro ítem
- * tiene la caja llena, así que el lugar actual se encuentra de un vistazo.
- * "Financiar" (featured) se destaca con borde y flecha, no con relleno: el
- * relleno completo lo gana sólo cuando es la página activa.
+ * Un ítem de la barra. Un solo código visual para "estás aquí": fondo de acento
+ * suave, texto de acento y el ícono en su caja llena. Ningún otro ítem tiene la
+ * caja llena (tampoco "Aliados", que antes iba dorado siempre), así que el lugar
+ * actual se encuentra de un vistazo. "Financiar" (featured) se destaca con borde
+ * y flecha, no con relleno: el relleno completo lo gana sólo cuando es la página activa.
+ * `intencion` le da al ítem el color de su pantalla cuando no es el de su grupo.
  */
 function SidebarLink({
   href,
   active,
   locked,
   featured,
-  dorado,
+  intencion,
   icon,
   children,
   hint,
@@ -468,7 +473,7 @@ function SidebarLink({
   active?: boolean;
   locked?: boolean;
   featured?: boolean;
-  dorado?: boolean;
+  intencion?: Intencion;
   icon: React.ReactNode;
   children: React.ReactNode;
   hint?: string;
@@ -476,9 +481,11 @@ function SidebarLink({
   return (
     <LinkIntencion
       href={href}
+      data-intencion={intencion}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex min-h-11 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-dato leading-5 transition-colors duration-rapido",
+        // Desde md, 36 px por ítem (dos líneas de texto): las 15 entradas entran en 900 px de alto. En el celular, 44.
+        "group flex min-h-11 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-dato leading-5 transition-colors duration-rapido md:min-h-9 md:py-0.5",
         featured
           ? active
             ? "border-granate bg-granate text-paper"
@@ -497,8 +504,6 @@ function SidebarLink({
               ? active
                 ? "bg-paper/15 text-paper"
                 : "bg-granate-soft text-granate"
-              : dorado
-              ? "bg-maiz text-[rgb(var(--sobre-maiz))] shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
               : active
               ? "bg-acento text-paper"
               : "bg-acento/10 text-acento-texto group-hover:bg-acento/20",

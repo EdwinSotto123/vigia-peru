@@ -180,7 +180,7 @@ export function LineaMeses({
         )}
         {meses.some((m) => m.hueco) && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-mute" aria-hidden />Sin dato ese mes</li>}
       </ul>
-      <details className="group rounded-xl border border-line">
+      <details className="group rounded-xl border border-line [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
         <summary className="cursor-pointer select-none px-3.5 py-2 text-meta font-semibold text-granate">Ver mes por mes</summary>
         <div className="overflow-x-auto border-t border-line">
           <table className="w-full text-meta">
@@ -196,7 +196,7 @@ export function LineaMeses({
             <tbody className="divide-y divide-line/70">
               {[...meses].reverse().map((m) => (
                 <tr key={m.mes} className={fuera(m) ? "bg-amber-soft/40" : undefined}>
-                  <td className="px-3.5 py-1.5 font-mono tabular-nums text-inkSoft">{m.mes}</td>
+                  <td className="px-3.5 py-1.5 tabular-nums text-inkSoft">{mesCorto(m.mes)}</td>
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "Sin dato" : soles(m.base ?? 0)}</td>
                   {conExtra && <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.hueco ? "" : soles(m.extra ?? 0)}</td>}
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "" : soles(m.valor)}</td>

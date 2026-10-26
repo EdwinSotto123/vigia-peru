@@ -116,13 +116,21 @@ export function EscalaDinero({
 
       // Cada número marcado con .cuenta cuenta desde cero, una sola vez. Las tarjetas no se ocultan ni se atenúan:
       // algunas están fuera de pantalla en el carrusel y un hueco se lee como "no cargó".
-      const tl = gsap.timeline({ scrollTrigger: { trigger: ".cifras-escala", start: "top 88%", once: true } });
-      gsap.utils.toArray<HTMLElement>(".cifras-escala .cuenta").forEach((el, i) => {
+      // El cero aparece recién cuando la cuenta ARRANCA (`onStart`), no al montar: antes el DOM decía "0" hasta que la
+      // fila entraba en pantalla, y eso leían el lector de pantalla, Ctrl+F y la impresión (cero es un dato, §10.2).
+      const cuentas = gsap.utils.toArray<HTMLElement>(".cifras-escala .cuenta");
+      const real = (el: HTMLElement) => numero(Number(el.dataset.valor ?? 0));
+      const tl = gsap.timeline({
+        scrollTrigger: { trigger: ".cifras-escala", start: "top 88%", once: true },
+        onStart: () => cuentas.forEach((el) => (el.textContent = "0")),
+      });
+      cuentas.forEach((el, i) => {
         const fin = Number(el.dataset.valor ?? 0);
         const v = { v: 0 };
-        el.textContent = "0";
-        tl.to(v, { v: fin, duration: 1.2, ease: "power2.out", onUpdate: () => (el.textContent = numero(v.v)) }, 0.06 * i);
+        tl.to(v, { v: fin, duration: 1.2, ease: "power2.out", onUpdate: () => (el.textContent = numero(v.v)), onComplete: () => (el.textContent = real(el)) }, 0.06 * i);
       });
+      // Si la escena se desarma a mitad de la cuenta, cada número vuelve a su valor real (nunca queda uno intermedio).
+      return () => cuentas.forEach((el) => (el.textContent = real(el)));
     },
     { diferido: true },
   );
@@ -139,7 +147,6 @@ export function EscalaDinero({
         {/* ── La idea, en una frase ─────────────────────────────── */}
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="max-w-3xl">
-            <p className="etiqueta-mono mb-3 !text-maiz">El problema</p>
             <h2 id="escala-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] tracking-tight sm:text-5xl">
               El Estado publicó <span className="text-maiz">{numero(publicados)}</span> contratos{anio ? ` en ${anio.anio}` : ""} y casi nadie los
               lee.
@@ -299,9 +306,11 @@ function Cifra({
         <Icono size={17} aria-hidden /> {titulo}
       </p>
       <p className={"mt-3 font-display text-5xl font-bold leading-none tabular-nums sm:text-[3.4rem] " + color}>
-        <span className="cuenta" data-valor={valor}>
+        {/* El valor real en el HTML desde el servidor; la cuenta animada es sólo para la vista, el lector oye el número. */}
+        <span className="cuenta" data-valor={valor} aria-hidden>
           {numero(valor)}
         </span>
+        <span className="sr-only">{numero(valor)}</span>
         {sufijo && <span className="ml-1 text-2xl font-semibold text-paper/70 sm:text-3xl">{sufijo}</span>}
       </p>
       {apoyo && <p className="mt-2 text-dato font-medium text-paper/90">{apoyo}</p>}

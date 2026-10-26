@@ -2,24 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { DatosClave } from "@/components/patrones/Detalle";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Indicadores } from "@/components/listado";
 import { baseApiNavegador } from "@/lib/api-client";
 import { getCorrupcionRegion, rutaCorrupcion, type Corrupcion } from "@/lib/corrupcion";
-import { TIPOS, type ResumenContratos } from "@/lib/contratos";
-import { plural, porcentaje, solesCompacto } from "@/lib/formato";
+import type { ResumenContratos } from "@/lib/contratos";
 import type { RegionBudgetSummary } from "@/lib/mef";
-import Link from "next/link";
-import { Banderas, BarrasGasto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
+import { Banderas, BloqueInicio, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
 import { ContenidoPersonas } from "./ContenidoPersonas";
 import { PARAMS_SOLOS, type PaginaPersonas, type ResumenPersonas } from "@/lib/personas";
+import { GastoRegion, anioConGasto, datosContratosRegion } from "@/components/regiones/bloquesRegion";
 
 /**
- * Inicio de una región en el mapa (pestaña "Inicio" del panel de zona): en qué gasta (MEF), sus contratos y las
- * banderas levantadas, con los mismos bloques que la entidad y el partido. Se pide desde el navegador (el panel ya es
- * de cliente); `undefined` = cargando, `null` = el servicio no respondió (se dice, sin inventar ceros).
+ * Inicio de una zona en el mapa (pestaña "Inicio" del panel de zona): en qué gasta (MEF), sus contratos y las banderas
+ * levantadas, con las mismas piezas que la ficha de la región (components/regiones/bloquesRegion.tsx). Se pide desde el
+ * navegador porque el panel ya es de cliente; la ficha /region/[id] arma el suyo en el servidor (InicioRegionFicha).
+ *
+ * `undefined` = cargando: un esqueleto con la forma del bloque. `null` = el servicio no respondió: se dice, sin inventar
+ * ceros. Antes «Casos de corrupción» se pintaba «Cargando…» en la misma caja gris de «sin dato».
  */
 export function InicioRegion({
   ubigeo,
@@ -76,31 +77,11 @@ export function InicioRegion({
   }, [ubigeo]);
 
   const contratos = (f: Record<string, string> = {}) => `/app/contratos?${new URLSearchParams({ ubigeo, ...f })}`;
-  const anio = mef?.byYear?.length ? mef.byYear[mef.byYear.length - 1] : null;
+  const anio = anioConGasto(mef);
+  // La espera, con la forma de lo que viene (nunca el «Sin dato» gris mientras tanto).
   const cargando = <Skeleton className="h-32 rounded-xl" />;
-
   const l = resumen?.porLectura;
-  const datos: DatoClave[] = resumen
-    ? [
-        { etiqueta: "Desde 2015", valor: <Link href={contratos()} className="font-medium text-granate underline-offset-2 hover:underline">{plural(resumen.total, "contrato", "contratos")}</Link> },
-        {
-          etiqueta: "Por tipo",
-          valor: <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} />,
-        },
-        {
-          etiqueta: "¿Lo leyó Vigía?",
-          valor: l ? (
-            <Fichas
-              items={[
-                { etiqueta: "Leídos", n: (l.publicado ?? 0) + (l.revision ?? 0), href: contratos({ lectura: "publicado" }), destacada: true },
-                { etiqueta: "Leyéndose", n: l.leyendo ?? 0, href: contratos({ lectura: "leyendo" }) },
-                { etiqueta: "Aún no", n: l.sin_leer ?? 0, href: contratos({ lectura: "sin_leer" }) },
-              ]}
-            />
-          ) : null,
-        },
-      ]
-    : [];
+  const leidos = (l?.publicado ?? 0) + (l?.revision ?? 0);
 
   return (
     <RejillaInicio>
@@ -115,24 +96,15 @@ export function InicioRegion({
       >
         {mef === undefined ? (
           cargando
-        ) : mef && anio && (mef.topGenericas?.length ?? 0) > 0 ? (
-          <div className="space-y-4">
-            <Indicadores
-              apilado
-              items={[
-                { valor: solesCompacto(anio.pim), etiqueta: "de presupuesto" },
-                { valor: porcentaje(anio.pim > 0 ? (anio.devengado / anio.pim) * 100 : 0), etiqueta: "ya gastado", contexto: solesCompacto(anio.devengado) },
-              ]}
-            />
-            <BarrasGasto rubros={mef.topGenericas!} total={anio.pim} />
-          </div>
+        ) : mef && anio ? (
+          <GastoRegion mef={mef} />
         ) : (
           <SinDato>{mefDept ? "Sin dato del MEF: el servicio no respondió." : "El MEF publica el presupuesto por departamento."}</SinDato>
         )}
       </BloqueInicio>
 
       <BloqueInicio titulo="Sus contratos" enlace={{ href: contratos(), texto: "Ver los contratos" }}>
-        {resumen === undefined ? cargando : resumen ? <DatosClave items={datos} /> : <SinDato>Sin dato: el servicio de contratos no respondió.</SinDato>}
+        {resumen === undefined ? cargando : resumen ? <DatosClave items={datosContratosRegion(resumen, contratos)} /> : <SinDato>Sin dato: el servicio de contratos no respondió.</SinDato>}
       </BloqueInicio>
 
       <BloqueInicio
@@ -145,7 +117,7 @@ export function InicioRegion({
         }
         enlace={{ href: contratos({ cruces: "con" }), texto: "Contratos con antecedentes" }}
       >
-        {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />}
+        {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} conRiesgo={leidos > 0} />}
       </BloqueInicio>
 
       {dep && (
@@ -165,7 +137,16 @@ export function InicioRegion({
         </BloqueInicio>
       )}
 
-      <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.region(ubigeo)} ambito="region" nombreRegion={nombre} />
+      {corrupcion === undefined ? (
+        <BloqueInicio ancho titulo="Casos de corrupción">
+          <div className="space-y-3" aria-hidden>
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
+          </div>
+        </BloqueInicio>
+      ) : (
+        <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.region(ubigeo)} ambito="region" nombreRegion={nombre} />
+      )}
     </RejillaInicio>
   );
 }

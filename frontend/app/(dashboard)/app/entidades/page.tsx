@@ -1,8 +1,9 @@
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Flag } from "lucide-react";
-import { EntidadesPanel, hrefEntidades, ORDENES_ENTIDADES, type OrdenEntidades } from "@/components/EntidadesPanel";
+import { CloudOff, Flag } from "lucide-react";
+import { EntidadesPanel, hrefEntidades } from "@/components/EntidadesPanel";
 import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
@@ -22,23 +23,23 @@ export const metadata: Metadata = {
     "Municipalidades, gobiernos regionales, ministerios y empresas públicas, ordenados por cuántos de sus contratos ya tienen dictamen publicado.",
 };
 
-const ORDENES = new Set<string>(ORDENES_ENTIDADES.map((o) => o.valor));
-
 const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 /**
  * /app/entidades — plantilla Listado (DESIGN_SYSTEM.md §14.1): encabezado →
- * indicadores → barra (búsqueda + orden) → resultados. Búsqueda, orden y página
- * viven en la URL (`?q=&orden=&pagina=`); antes el orden era estado local y se
- * perdía al recargar o al compartir el enlace.
+ * indicadores → barra (búsqueda + filtros) → resultados. Búsqueda, filtros y página
+ * viven en la URL (`?q=&region=&clase=&nepotismo=&pagina=`).
+ *
+ * Un solo orden, el del API (contratos con dictamen publicado): «Mayor monto» y «Mayor
+ * puntaje» reordenaban sólo la página a la vista (20 de 3,162) y el API no ordena por
+ * ellos, así que se quitaron. Un `?orden=` de un enlace viejo se ignora.
  *
  * Filtros de Región y Tipo: el campo `entidades.tipo` está casi todo en NULL, así que el filtro de tipo
  * se deriva del NOMBRE en el backend (param `clase`: ministerio/regional/municipal/organismo), las mismas
  * reglas con que se MUESTRA el tipo (lib/entidad-tipo.ts). La región ya la filtraba el endpoint.
  *
- * Ya no se pide `/alertas?limit=500` para descontar las alertas de demo `ALT-…`: se
- * borraron de la base (0 en la copia de producción del 2026-09-25), así que el descuento
- * no cambiaba ninguna cifra y costaba 178 KB por render.
+ * Las tres consultas van por separado (`allSettled`): si cae el resumen, la lista sigue, y lo que no llegó se dice
+ * en una línea en vez de desaparecer sin aviso.
  */
 export default async function EntidadesPage({
   searchParams,
@@ -49,21 +50,16 @@ export default async function EntidadesPage({
   // `pagina` es el parámetro de todos los listados; `page` queda por los enlaces viejos.
   const query = { ...parseEntidadesQuery({ ...sp, page: texto(sp.pagina) ?? texto(sp.page) }), tipo: undefined };
   const q = query.q?.trim() || undefined;
-  const ordenPedido = texto(sp.orden);
-  const orden = (ordenPedido && ORDENES.has(ordenPedido) ? ordenPedido : "dictamen") as OrdenEntidades;
   const actual = query.page ?? 1;
 
-  let pagina: EntidadesPagina | null = null;
-  let resumen: EntidadesResumen | null = null;
-  let regiones: string[] = [];
-  try {
-    [pagina, resumen, regiones] = await Promise.all([getEntidadesPagina(query), getEntidadesResumen(), getRegionesEntidades()]);
-  } catch (e) {
-    console.error("[entidades] el API no respondió:", (e as Error).message);
-  }
+  const [rPagina, rResumen, rRegiones] = await Promise.allSettled([getEntidadesPagina(query), getEntidadesResumen(), getRegionesEntidades()]);
+  for (const r of [rPagina, rResumen]) if (r.status === "rejected") console.error("[entidades] el API no respondió:", (r.reason as Error)?.message);
+  const pagina: EntidadesPagina | null = rPagina.status === "fulfilled" ? rPagina.value : null;
+  const resumen: EntidadesResumen | null = rResumen.status === "fulfilled" ? rResumen.value : null;
+  const regiones: string[] = rRegiones.status === "fulfilled" ? rRegiones.value : [];
 
   // Datos planos (nunca funciones) hacia los componentes cliente del Listado.
-  const parametros = { q, orden: orden === "dictamen" ? undefined : orden, region: query.region, clase: query.clase, nepotismo: query.nepotismo ? "1" : undefined };
+  const parametros = { q, region: query.region, clase: query.clase, nepotismo: query.nepotismo ? "1" : undefined };
   const aqui = hrefEntidades({ ...parametros, pagina: actual > 1 ? String(actual) : undefined });
 
   // El conteo por entidad (`alertas` del API) es de contratos con dictamen PUBLICADO, tengan
@@ -98,7 +94,7 @@ export default async function EntidadesPage({
         }
       />
 
-      {resumen && (
+      {resumen ? (
         <CifrasEnFila
           items={[
             {
@@ -122,6 +118,13 @@ export default async function EntidadesPage({
             },
           ]}
         />
+      ) : (
+        // Sin las cifras de arriba, se dice (antes desaparecían sin aviso). Si la lista tampoco llegó, su error lo dice.
+        pagina && (
+          <AvisoEnLinea icono={<CloudOff size={16} />} accion={{ href: aqui, etiqueta: "Reintentar" }}>
+            No pudimos leer las cifras de todas las entidades: el servidor no respondió.
+          </AvisoEnLinea>
+        )
       )}
 
       <Listado ruta="/app/entidades" parametros={parametros}>
@@ -155,10 +158,9 @@ export default async function EntidadesPage({
               opciones: [{ valor: "1", etiqueta: "Con posible nepotismo" }],
             },
           ]}
-          orden={{ param: "orden", porDefecto: "dictamen", opciones: ORDENES_ENTIDADES }}
         />
         <ZonaResultados>
-          <EntidadesPanel pagina={pagina} actual={actual} orden={orden} parametros={parametros} q={q} aqui={aqui} />
+          <EntidadesPanel pagina={pagina} actual={actual} parametros={parametros} q={q} aqui={aqui} />
         </ZonaResultados>
       </Listado>
     </Pagina>

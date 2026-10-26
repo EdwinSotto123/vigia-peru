@@ -1,41 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useMemo } from "react";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { Dato } from "@/components/ui/Dato";
 import { numero } from "@/lib/formato";
-import { PERIODOS, cargarAutoridades, cargoRegional, claveOrg, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
+import { cargoRegional, claveOrg, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
+import { ANIOS, mandato, useAutoridades } from "./autoridades";
 
 /**
  * Los gobiernos de una región en las tres elecciones cargadas (2014, 2018 y 2022: mandatos 2015-2018, 2019-2022 y
  * 2023-2026), de los archivos del JNE que ya usa /app/partidos (`public/data/autoridades-<año>.json`):
  *   · `ResumenRegion`: quién la gobierna hoy, cuántas provincias y distritos tiene, cuántas organizaciones los gobiernan.
  *   · `HistoriaGobiernos`: sus gobernadores período por período y qué partidos ganaron sus provincias y distritos.
- *   · `TerritorioRegion`: cada provincia y cada distrito con su alcalde y su partido en cada período, con buscador.
+ * Las provincias y los distritos, con sus alcaldes, van en el árbol de `ArbolTerritorio.tsx`.
  * Pedido del usuario (2026-10-22): «clickeamos la región y vemos su historial, cuántos distritos tiene, quiénes
  * gobernaron, casos de corrupción». Cliente: los tres archivos se bajan una vez y los comparten las tres piezas.
  */
-
-const ANIOS: Anio[] = [2022, 2018, 2014];
-type Datos = Partial<Record<Anio, AutoridadesDatos>>;
-const mandato = (a: Anio) => PERIODOS.find((p) => p.anio === a)?.mandato ?? String(a);
-
-function useAutoridades(): Datos | null | undefined {
-  const [d, setD] = useState<Datos | null | undefined>(undefined);
-  useEffect(() => {
-    let vivo = true;
-    Promise.all(ANIOS.map((a) => cargarAutoridades(a))).then((xs) => {
-      if (!vivo) return;
-      const out: Datos = {};
-      ANIOS.forEach((a, i) => { if (xs[i]) out[a] = xs[i]!; });
-      setD(Object.keys(out).length ? out : null);
-    });
-    return () => { vivo = false; };
-  }, []);
-  return d;
-}
 
 const nombreOrg = (d: AutoridadesDatos | undefined, o: number | undefined) => (d && o != null ? orgDe(d, o).n : null);
 
@@ -88,19 +70,20 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
   if (d === undefined) return <TablaSkeleton columnas={COLS_GOB} filas={3} />;
   if (d === null) return <EstadoVacio>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</EstadoVacio>;
 
+  // La fila es UNA acción: abre la ficha del partido en ese período (antes el partido era un enlace dentro de la celda y,
+  // en el celular, su columna no se veía: justo el tema de la pestaña).
   const filasGob: Fila[] = ANIOS.filter((a) => d[a]).map((a) => {
     const x = d[a]!;
     const g = x.regional.find((r) => r.u === ubigeo);
     const o = g ? orgDe(x, g.o) : null;
     return {
       id: String(a),
+      href: o ? `/app/partidos/${claveOrg(o.n)}?anio=${a}` : undefined,
       celdas: {
         mandato: <span className="font-mono text-meta tabular-nums text-inkSoft">{mandato(a)}</span>,
         gobernador: <CeldaPrincipal titulo={g?.g ?? "Sin dato"} meta={[<Dato key="c" tipo="cargo">{cargoRegional(a)}</Dato>]} />,
-        partido: o ? (
-          <Link href={`/app/partidos/${claveOrg(o.n)}?anio=${a}`} className="text-dato font-medium text-ink underline-offset-2 hover:text-granate hover:underline">{o.n}</Link>
-        ) : <span className="text-meta text-mute">Sin dato</span>,
-        votos: <CeldaNumero>{pct(g?.p) ?? "Sin dato"}</CeldaNumero>,
+        partido: o ? <span className="text-dato font-medium text-ink">{o.n}</span> : undefined,
+        votos: pct(g?.p) ? <CeldaNumero>{pct(g?.p)}</CeldaNumero> : undefined,
       },
     };
   });
@@ -130,11 +113,15 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
       <section className="space-y-2">
         <h3 className="font-display text-bloque font-bold text-ink">Quién gobernó {nombre}</h3>
         <Tabla columnas={COLS_GOB} filas={filasGob} etiqueta={`Gobernadores de ${nombre}`} />
-        <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones regionales y municipales. Las de 2026 aún no tienen resultados.</p>
       </section>
       <section className="space-y-2">
-        <h3 className="font-display text-bloque font-bold text-ink">Qué partidos gobernaron sus provincias y distritos</h3>
-        <p className="text-meta text-inkSoft">Cada organización con lo que ganó en cada período: la región, cuántas provincias y cuántos distritos.</p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="font-display text-bloque font-bold text-ink">Qué partidos gobernaron sus provincias y distritos</h3>
+          <Ayuda titulo="¿Qué cuenta cada columna?">
+            Lo que ganó cada organización en cada período: la región, cuántas provincias y cuántos distritos. La fila abre su
+            ficha con los contratos de sus gobiernos.
+          </Ayuda>
+        </div>
         <TablaPaginada
           columnas={COLS_PARTIDOS}
           filas={filasPartidos}
@@ -144,15 +131,18 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
           buscar={{ placeholder: "Buscar un partido o movimiento…", etiqueta: `Buscar en los partidos de ${nombre}` }}
         />
       </section>
+      <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones regionales y municipales de 2014, 2018 y 2022. Las de 2026 aún no tienen resultados.</p>
     </div>
   );
 }
 
+// En el celular el mandato, el partido y los votos van bajo el gobernador, con su rótulo: el partido es el tema de la
+// pestaña (antes, en el celular, su columna no se veía).
 const COLS_GOB: Columna[] = [
-  { clave: "mandato", titulo: "Mandato", ancho: "104px" },
+  { clave: "mandato", titulo: "Mandato", ancho: "104px", desde: "md", apilar: "con-rotulo" },
   { clave: "gobernador", titulo: "Gobernador o gobernadora", ancho: "minmax(0,1.1fr)" },
-  { clave: "partido", titulo: "Partido u organización", ancho: "minmax(0,1.2fr)", desde: "md" },
-  { clave: "votos", titulo: "Votos", ancho: "76px", alinear: "der", desde: "lg" },
+  { clave: "partido", titulo: "Partido u organización", corto: "Partido", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo" },
+  { clave: "votos", titulo: "Votos", ancho: "76px", alinear: "der", desde: "lg", apilar: "con-rotulo" },
 ];
 
 const COLS_PARTIDOS: Columna[] = [
@@ -160,96 +150,4 @@ const COLS_PARTIDOS: Columna[] = [
   { clave: "p2022", titulo: "2023 a 2026", ancho: "112px", alinear: "der" },
   { clave: "p2018", titulo: "2019 a 2022", ancho: "112px", alinear: "der", desde: "md" },
   { clave: "p2014", titulo: "2015 a 2018", ancho: "112px", alinear: "der", desde: "md" },
-];
-
-/** Provincias y distritos de la región con su alcalde y su partido en cada período. */
-export function TerritorioRegion({ ubigeo, nombre, buscar }: { ubigeo: string; nombre: string; buscar?: string }) {
-  const d = useAutoridades();
-  if (d === undefined) return <TablaSkeleton columnas={COLS_LUGAR} filas={6} />;
-  if (d === null) return <EstadoVacio>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</EstadoVacio>;
-
-  const ganador = (a: Anio, nivel: "provincial" | "distrital", clave: string) => {
-    const x = d[a];
-    if (!x) return null;
-    const lista = nivel === "provincial" ? x.provincial.filter((p) => p.u === clave) : x.distrital.filter((t) => `${t.u}|${t.n}` === clave);
-    const g = lista[0];
-    return g ? { alcalde: g.a, partido: orgDe(x, g.o).n } : null;
-  };
-  const celda = (g: { alcalde: string; partido: string } | null, conNombre: boolean) =>
-    !g ? <span className="text-meta text-mute">Sin dato</span> : (
-      <span className="block min-w-0">
-        {conNombre && <span className="block truncate text-dato font-medium text-ink" title={g.alcalde}>{g.alcalde}</span>}
-        <span className="block truncate text-meta text-inkSoft" title={g.partido}>
-          <Dato tipo="partido">{g.partido}</Dato>
-        </span>
-      </span>
-    );
-
-  const base = d[2022] ?? d[2018] ?? d[2014]!;
-  const provincias = base.provincial.filter((p) => p.u.startsWith(ubigeo)).sort((a, b) => a.n.localeCompare(b.n, "es"));
-  const distritos = base.distrital.filter((t) => t.u.startsWith(ubigeo)).sort((a, b) => a.pv.localeCompare(b.pv, "es") || a.n.localeCompare(b.n, "es"));
-
-  const filasProv: Fila[] = provincias.map((p) => {
-    const g = [ganador(2022, "provincial", p.u), ganador(2018, "provincial", p.u), ganador(2014, "provincial", p.u)];
-    return {
-      id: p.u,
-      href: `/app/mapa?ubigeo=${p.u}`,
-      buscable: [p.n, ...g.flatMap((x) => (x ? [x.alcalde, x.partido] : []))].join(" "),
-      celdas: {
-        lugar: <CeldaPrincipal titulo={p.n} meta={[<Dato key="d" tipo="personas" nombre="Distritos">{numero(distritos.filter((t) => t.u === p.u).length)} distritos</Dato>]} />,
-        p2022: celda(g[0], true),
-        p2018: celda(g[1], false),
-        p2014: celda(g[2], false),
-      },
-    };
-  });
-  const filasDist: Fila[] = distritos.map((t, i) => {
-    const k = `${t.u}|${t.n}`;
-    const g = [ganador(2022, "distrital", k), ganador(2018, "distrital", k), ganador(2014, "distrital", k)];
-    return {
-      id: `${k}-${i}`,
-      buscable: [t.n, t.pv, ...g.flatMap((x) => (x ? [x.alcalde, x.partido] : []))].join(" "),
-      celdas: {
-        lugar: <CeldaPrincipal titulo={t.n} meta={[<Dato key="p" tipo="lugar" nombre="Provincia">{t.pv}</Dato>]} />,
-        p2022: celda(g[0], true),
-        p2018: celda(g[1], false),
-        p2014: celda(g[2], false),
-      },
-    };
-  });
-
-  return (
-    <div className="space-y-6">
-      <section className="space-y-2">
-        <h3 className="font-display text-bloque font-bold text-ink">Sus {numero(provincias.length)} provincias</h3>
-        <TablaPaginada
-          columnas={COLS_LUGAR}
-          filas={filasProv}
-          etiqueta={`Provincias de ${nombre}`}
-          nombre="provincias"
-          tam={15}
-          buscar={{ placeholder: "Buscar una provincia, un alcalde o un partido…", etiqueta: `Buscar en las provincias de ${nombre}`, inicial: buscar }}
-        />
-      </section>
-      <section className="space-y-2">
-        <h3 className="font-display text-bloque font-bold text-ink">Sus {numero(distritos.length)} distritos</h3>
-        <TablaPaginada
-          columnas={COLS_LUGAR}
-          filas={filasDist}
-          etiqueta={`Distritos de ${nombre}`}
-          nombre="distritos"
-          tam={20}
-          buscar={{ placeholder: "Buscar un distrito, una provincia, un alcalde o un partido…", etiqueta: `Buscar en los distritos de ${nombre}`, inicial: buscar }}
-        />
-      </section>
-      <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026).</p>
-    </div>
-  );
-}
-
-const COLS_LUGAR: Columna[] = [
-  { clave: "lugar", titulo: "Lugar", ancho: "minmax(0,1fr)" },
-  { clave: "p2022", titulo: "2023 a 2026", ancho: "minmax(0,1.2fr)" },
-  { clave: "p2018", titulo: "2019 a 2022", ancho: "minmax(0,1fr)", desde: "lg" },
-  { clave: "p2014", titulo: "2015 a 2018", ancho: "minmax(0,1fr)", desde: "xl" },
 ];

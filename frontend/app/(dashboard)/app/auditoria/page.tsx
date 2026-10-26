@@ -1,6 +1,6 @@
 import { BarChart3, BookOpen, CheckCircle2, Radio } from "lucide-react";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
-import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario, type OpcionFaceta } from "@/components/listado";
+import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
@@ -12,6 +12,7 @@ import { ActividadAuditoria } from "@/components/auditoria/ActividadAuditoria";
 import { ComoFunciona } from "@/components/auditoria/ComoFunciona";
 import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
 import { LecturasAnteriores } from "@/components/auditoria/LecturasAnteriores";
+import { SeccionEnUrl } from "@/components/auditoria/SeccionEnUrl";
 import { cuentasAuditoria } from "@/components/auditoria/cuentasAuditoria";
 import {
   DIAS_RITMO,
@@ -108,8 +109,6 @@ export default async function AuditoriaPage({
   const q = qTexto && qTexto.length >= 2 ? qTexto.slice(0, 80) : undefined;
   const paginaActual = Math.max(1, Number.parseInt(leer("pagina") ?? "1", 10) || 1);
   const pedida = leer("seccion");
-  // Un enlace viejo con `?pagina=` (antes lo leído iba abajo, sin pestañas) abre en Ya leídos.
-  const seccion: SeccionAuditoria = esSeccion(pedida) ? pedida : paginaActual > 1 ? "leidos" : "curso";
   const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador, q };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
@@ -136,7 +135,6 @@ export default async function AuditoriaPage({
   const hayFiltros = !!(ubigeo || desde || hasta || financiador || q);
   const departamento = ubigeo && ubigeo.length === 2 ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
   const zonaNombre = ubigeo ? departamento?.nombre ?? nombreSubzona ?? undefined : undefined;
-  const donde = zonaNombre ? `en ${zonaNombre}` : "en todo el Perú";
 
   // ── Conteo de la pestaña En curso. Si la consulta del tablero vino entera, se cuenta sobre
   // ella (respeta los filtros); si vino cortada, sólo el resumen sabe el total, y sólo sin
@@ -153,13 +151,23 @@ export default async function AuditoriaPage({
   // El punto pulsante sólo cuando hay algo en análisis de verdad (§ honestidad del "en vivo").
   const hayAnalisis = (initialCompleto ?? []).some((p) => p.estado === "procesando");
 
-  // ── Faceta principal: la zona. Sólo las que tienen financiados (las demás llevan a cero);
-  // el conteo es de financiados, cola + leídos, y sólo vale sin los otros filtros puestos.
+  // ── La pestaña con que abre: la pedida; un enlace viejo con `?pagina=` (antes lo leído iba abajo, sin pestañas), Ya
+  // leídos; y sin nada pedido, la primera con contenido: con «En curso 0» (lo normal: una corrida dura minutos y entre
+  // corridas pasan horas) abría en una pestaña vacía. Sólo al llegar sin filtros: con filtros se queda en En curso, así
+  // filtrar no cambia de pestaña a quien ya está mirando una.
+  const seccion: SeccionAuditoria = esSeccion(pedida)
+    ? pedida
+    : paginaActual > 1 || (!hayFiltros && conteoEnCurso === 0 && (historico?.total ?? 0) > 0)
+      ? "leidos"
+      : "curso";
+
+  // ── La región, a la vista (un desplegable, como en los demás listados; antes chips con el nombre «Zona»). Sólo las
+  // que tienen financiados (las demás llevan a cero); el conteo es de financiados, cola + leídos, y sólo vale sin los
+  // otros filtros puestos.
   const sinOtros = !desde && !hasta && !financiador && !q;
-  const conFinanciados = (zonas ?? [])
-    .filter((z) => z.financiados > 0)
-    .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"));
-  const opcionesZona: OpcionFaceta[] = conFinanciados.map((z) => ({
+  // En un desplegable se busca por nombre: de la A a la Z.
+  const conFinanciados = (zonas ?? []).filter((z) => z.financiados > 0).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const opcionesZona: FiltroSecundario["opciones"] = conFinanciados.map((z) => ({
     valor: z.ubigeo,
     etiqueta: z.nombre,
     conteo: sinOtros ? z.financiados : undefined,
@@ -167,7 +175,6 @@ export default async function AuditoriaPage({
   if (ubigeo && !opcionesZona.some((o) => o.valor === ubigeo)) {
     opcionesZona.push({ valor: ubigeo, etiqueta: zonaNombre ?? `Ubigeo ${ubigeo}`, conteo: sinOtros && departamento ? departamento.financiados : undefined });
   }
-  const conteoTodas = sinOtros && zonas ? conFinanciados.reduce((s, z) => s + z.financiados, 0) : undefined;
 
   // ── Filtros secundarios. La fecha: los cuatro rangos, calculados sobre el día de Lima; un
   // `desde` que no es ninguno (un enlace de otro día) se nombra, no queda como fecha cruda.
@@ -228,10 +235,11 @@ export default async function AuditoriaPage({
             <div className="space-y-4">
               <BarraFiltros
                 busqueda={{ param: "q", placeholder: "Buscar qué se contrata, una entidad o un código…", etiqueta: "Buscar en la auditoría", min: 2 }}
-                faceta={{ param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", conteoTodas, opciones: opcionesZona }}
+                visibles={[{ param: "ubigeo", etiqueta: "Región", corta: "Región", todas: "Todo el Perú", opciones: opcionesZona }]}
                 filtros={filtrosSecundarios}
               />
 
+              {!esSeccion(pedida) && seccion !== "curso" && <SeccionEnUrl clave={seccion} />}
               <Pestanas
                 etiqueta="Secciones de la auditoría en vivo"
                 activa={seccion}
@@ -243,16 +251,15 @@ export default async function AuditoriaPage({
                     icono: hayAnalisis ? <PulseDot color="amber" size={7} /> : <Radio size={15} aria-hidden />,
                     contenido: (
                       <>
-                        <h2 className="sr-only">En curso {donde}</h2>
+                        {/* El h2 lo pone CabeceraPestana (antes había otro oculto); la ⓘ dice lo que la bajada no dice. */}
                         <CabeceraPestana
                           ayuda={
                             <Ayuda titulo="¿Cuándo entra un contrato aquí?">
-                              En cuanto se confirma el aporte que financia su zona. Espera sus documentos del SEACE y luego su turno,
-                              por antigüedad: nadie elige cuál va primero.
+                              En cuanto se confirma el aporte que financia su región. Antes de su turno espera sus documentos del SEACE.
                             </Ayuda>
                           }
                         >
-                          Lo que se lee ahora y lo que espera turno, {donde}.
+                          Lo que se lee ahora y lo que espera su turno.
                         </CabeceraPestana>
                         {/* Cada pestaña se ve sola: el vacío de esta lleva su llamita (§2.4, una por pantalla). */}
                         <ZonaResultados>
@@ -291,7 +298,6 @@ export default async function AuditoriaPage({
                     icono: <CheckCircle2 size={15} aria-hidden />,
                     contenido: (
                       <>
-                        <h2 className="sr-only">Ya leídos {donde}</h2>
                         <ZonaResultados>
                           <HistoricoProcesados
                             pagina={historico}
@@ -300,7 +306,7 @@ export default async function AuditoriaPage({
                             conFinanciador={conPatrocinador}
                             seccion="leidos"
                             cabecera={{
-                              texto: `Cada contrato financiado cuyo análisis terminó, ${donde}.`,
+                              texto: "Cada contrato financiado cuyo análisis terminó.",
                               ayuda: (
                                 <Ayuda titulo="¿Qué entra aquí?">
                                   Con su resultado y quién pagó esa lectura. Incluye los que están en revisión: se leyeron enteros, pero su
@@ -318,10 +324,7 @@ export default async function AuditoriaPage({
                     etiqueta: "Actividad",
                     icono: <BarChart3 size={15} aria-hidden />,
                     contenido: (
-                      <>
-                        <h2 className="sr-only">Actividad de la auditoría en todo el Perú</h2>
-                        <ActividadAuditoria />
-                      </>
+                      <ActividadAuditoria />
                     ),
                   },
                   {
@@ -329,10 +332,7 @@ export default async function AuditoriaPage({
                     etiqueta: "Cómo funciona",
                     icono: <BookOpen size={15} aria-hidden />,
                     contenido: (
-                      <>
-                        <h2 className="sr-only">Cómo se lee un contrato</h2>
-                        <ComoFunciona />
-                      </>
+                      <ComoFunciona />
                     ),
                   },
                 ]}

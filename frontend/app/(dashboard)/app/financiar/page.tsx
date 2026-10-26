@@ -7,26 +7,27 @@ import { ResultadosEntidades, TAM_ENTIDADES } from "@/components/financiar/Lista
 import { ORDEN_PARTIDOS_DEFECTO, ResultadosPartidos, SelectorPeriodo, TAM_PARTIDOS } from "@/components/financiar/ListaPartidos";
 import { FiltrosFinanciar, ResultadosConEspera } from "@/components/financiar/FiltrosFinanciar";
 import { EXPLICACION_PARTIDO, ORDENES_PARTIDOS, anioDeUrl, esOrdenPartidos, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
-import { RecientesFeed } from "@/components/financiar/RecientesFeed";
+import { AportesPorAliado } from "@/components/financiar/RecientesFeed";
+import { getAportesAgrupados } from "@/components/financiar/aportesAgrupados";
 import { EnlaceAccion, claseAccion, CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 import { Popover } from "@/components/ui/Flotante";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Migas, Pagina, Seccion } from "@/components/patrones";
 import { BarraFiltros, Listado, Vistas, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
-import { numero, plural, porcentaje, soles } from "@/lib/formato";
+import { numero, plural, soles } from "@/lib/formato";
 import {
   alcanceCorto,
   getEntidadesFinanciables,
   getEstadoGlobal,
   getPago,
-  getRecientes,
   getZonas,
   partesTarifa,
   type EstadoGlobal,
   type Zona,
 } from "@/lib/financiamiento";
-import { anioLectura, desdeLectura, getResumenContratos } from "@/lib/contratos";
+import { desdeLectura, getResumenContratos } from "@/lib/contratos";
+import { cifrasDeResumen, pctDe, type CifrasAnio } from "@/lib/cifras";
 
 const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 
@@ -125,10 +126,11 @@ export default async function FinanciarPage({
   const region = /^\d{2}$/.test(searchParams?.region ?? "") ? searchParams!.region! : undefined;
   const qPartido = porPartido && q.length >= 2 ? q : "";
   const ordenPartido = esOrdenPartidos(searchParams?.orden) ? searchParams!.orden : ORDEN_PARTIDOS_DEFECTO;
-  const [zonas, estado, recientes, resumenContratos, pago, provincias, entidades, entidadesSinBusqueda, partidos] = await Promise.all([
+  const [zonas, estado, aportes, resumenContratos, pago, provincias, entidades, entidadesSinBusqueda, partidos] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),
-    getRecientes(),
+    // Todos los aportes (de a 100, hasta 500), agrupados por quien los hizo: una línea por aliado y los tres últimos.
+    getAportesAgrupados(),
     // Los publicados del año en curso (lo que se lee); la base trae además la historia desde 2015.
     getResumenContratos({ desde: desdeLectura() }),
     getPago(),
@@ -158,11 +160,9 @@ export default async function FinanciarPage({
   const precio = estado?.tarifa.precioPen ?? null;
   const pagosAbiertos = !!pago?.configurado;
 
-  // "Leídos" es la misma cifra de la portada y de /app/contratos (DESIGN_SYSTEM.md §10.1):
-  // todo contrato cuyo análisis terminó, por cualquier vía.
-  const r = resumenContratos?.porRiesgo;
-  const leidos = r ? (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0) : null;
-  const publicados = resumenContratos?.total ?? null;
+  // "Leídos" y "publicados" del año: la misma cifra del Inicio, el mapa y la portada (lib/cifras, DESIGN_SYSTEM.md
+  // §10.1): todo contrato cuyo análisis terminó, por cualquier vía, sobre las convocatorias del año.
+  const cifrasAnio = cifrasDeResumen(resumenContratos);
 
   // ─── La lista: regiones con cola, o lo que coincide con la búsqueda ───
   const deptos = (zonas ?? []).filter((z) => z.totalCola > 0);
@@ -243,8 +243,7 @@ export default async function FinanciarPage({
           ]}
         />
         <CifrasFinanciar
-          leidos={leidos}
-          publicados={publicados}
+          anio={cifrasAnio}
           estado={estado}
           regionesConCola={estado?.regionesConCola ?? deptos.length}
           precio={precio}
@@ -262,8 +261,9 @@ export default async function FinanciarPage({
         )}
       </div>
 
-      {/* La lista de zonas (o de entidades) y los últimos aportes, lado a lado: la vista usa el ancho (§10.7). */}
-      {/* Por partido la lista usa TODO el ancho (cabe el costo, la barra y el botón) y los últimos aportes van debajo. */}
+      {/* La lista de zonas (o de entidades) y, al lado, lo que da confianza al pagar (las reglas de independencia) y los
+          últimos aportes: la vista usa el ancho (§10.7). Por partido la lista usa TODO el ancho (cabe el costo, la barra
+          y el botón) y la columna va debajo. */}
       <div className={porPartido ? "grid gap-8" : "grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]"}>
         {porPartido ? (
           /* ─── ELIGE EL PARTIDO (y el período) ─── */
@@ -371,71 +371,81 @@ export default async function FinanciarPage({
           </Seccion>
         )}
 
-        {/* ─── ÚLTIMOS APORTES (el orden por aliado vive en /app/aliados) ─── */}
-        <Seccion
-          titulo="Últimos aportes"
-          descripcion="Contados en contratos, no en soles, con su comprobante público."
-          acciones={
-            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {/* La lista entera, con buscador: aquí van los más recientes. */}
-              <Link href="/app/aliados/aportes" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
-                Todos los aportes <ArrowRight size={14} aria-hidden />
-              </Link>
-              <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
-                Muro de aliados <ArrowRight size={14} aria-hidden />
-              </Link>
-            </span>
-          }
-        >
-          {recientes ? (
-            <RecientesFeed items={recientes} porEntidad={porEntidad} porPartido={porPartido} enColumnas={porPartido} />
-          ) : (
-            <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
-          )}
-        </Seccion>
-      </div>
+        <div className="space-y-8">
+          {/* ─── INDEPENDENCIA: lo que da confianza al pagar, a la vista junto a la lista (antes, al final de tres pantallas) ─── */}
+          <ReglasIndependencia />
 
-      {/* ─── INDEPENDENCIA: el cierre de marca, en granate profundo ─── */}
-      <section
-        id="independencia"
-        aria-labelledby="independencia-titulo"
-        className="sobre-oscuro scroll-mt-20 overflow-hidden rounded-2xl bg-granate-deep text-paper"
-      >
-        <FranjaTextil alto={8} />
-        <div className="space-y-5 px-5 py-6 sm:px-7">
-          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="min-w-0">
-              <h2 id="independencia-titulo" className="inline-flex items-center gap-2 font-display text-xl font-bold leading-tight text-balance">
-                <ShieldCheck size={20} className="shrink-0 text-maiz" aria-hidden />
-                Financias capacidad, no resultados
-              </h2>
-              <p className="mt-1 text-dato leading-5 text-paper/80">
-                Pagas la lectura de contratos que ya son públicos. Las reglas están en el código, no en una promesa.
-              </p>
-            </div>
-            <a href={REPO} target="_blank" rel="noopener noreferrer" className={claseAccion("oscuro", "shrink-0")}>
-              <Code2 size={15} aria-hidden /> Ver el código en GitHub
-            </a>
-          </div>
-          <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-            {REGLAS.map((regla) => (
-              <li key={regla.titulo} className="min-w-0 border-t border-paper/15 pt-3 text-meta leading-snug">
-                <span className="block font-semibold text-paper">{regla.titulo}</span>
-                <span className="text-paper/75">{regla.resumen}</span>{" "}
-                <Popover
-                  titulo={regla.titulo}
-                  anchoClase="w-80"
-                  className="min-h-[24px] align-baseline text-rotulo font-medium text-maiz underline underline-offset-2 hover:text-paper"
-                  trigger={<>cómo</>}
-                >
-                  {regla.detalle}
-                </Popover>
-              </li>
-            ))}
-          </ul>
+          {/* ─── ÚLTIMOS APORTES, por aliado (el orden por aliado vive en /app/aliados) ─── */}
+          <Seccion
+            titulo="Últimos aportes"
+            descripcion="Contados en contratos, no en soles, con su comprobante público."
+            acciones={
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {/* La lista entera, con buscador: aquí van los más recientes. */}
+                <Link href="/app/aliados/aportes" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
+                  Todos los aportes <ArrowRight size={14} aria-hidden />
+                </Link>
+                <Link href="/app/aliados" className="inline-flex min-h-[24px] items-center gap-1.5 text-dato leading-5 font-semibold text-granate underline-offset-2 hover:underline">
+                  Muro de aliados <ArrowRight size={14} aria-hidden />
+                </Link>
+              </span>
+            }
+          >
+            {aportes ? (
+              <AportesPorAliado datos={aportes} porEntidad={porEntidad} porPartido={porPartido} />
+            ) : (
+              <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
+            )}
+          </Seccion>
         </div>
-      </section>
+      </div>
     </Pagina>
+  );
+}
+
+/**
+ * Las reglas que hacen que financiar no compre nada, compactas en la columna de la derecha: una frase por regla y el
+ * detalle a un clic (DESIGN_SYSTEM.md §10.7). Es lo que da confianza al pagar, así que va junto a la lista que se
+ * elige, no al final de tres pantallas. El botón «Reglas de independencia» del encabezado baja hasta aquí.
+ */
+function ReglasIndependencia() {
+  return (
+    <section
+      id="independencia"
+      aria-labelledby="independencia-titulo"
+      className="sobre-oscuro scroll-mt-20 overflow-hidden rounded-2xl bg-granate-deep text-paper"
+    >
+      <FranjaTextil alto={4} />
+      <div className="space-y-3 px-4 py-4 sm:px-5">
+        <div>
+          <h2 id="independencia-titulo" className="inline-flex items-center gap-2 font-display text-bloque font-bold leading-tight text-balance">
+            <ShieldCheck size={18} className="shrink-0 text-maiz" aria-hidden />
+            Financias capacidad, no resultados
+          </h2>
+          <p className="mt-1 text-meta leading-snug text-paper/80">
+            Pagas la lectura de contratos que ya son públicos. Las reglas están en el código, no en una promesa.
+          </p>
+        </div>
+        <ul className="divide-y divide-paper/15 border-y border-paper/15">
+          {REGLAS.map((regla) => (
+            <li key={regla.titulo} className="py-2 text-meta leading-snug">
+              <span className="font-semibold text-paper">{regla.titulo}.</span> <span className="text-paper/75">{regla.resumen}</span>{" "}
+              <Popover
+                titulo={regla.titulo}
+                anchoClase="w-80"
+                className="min-h-[24px] align-baseline text-rotulo font-medium text-maiz underline underline-offset-2 hover:text-paper"
+                trigger={<>cómo</>}
+              >
+                {regla.detalle}
+              </Popover>
+            </li>
+          ))}
+        </ul>
+        <a href={REPO} target="_blank" rel="noopener noreferrer" className={claseAccion("contornoOscuro", "w-full")}>
+          <Code2 size={15} aria-hidden /> Ver el código en GitHub
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -541,15 +551,14 @@ function PaginacionZonas({ pagina, paginas, total, q }: { pagina: number; pagina
  * Lo que no se pudo leer dice "Sin dato"; nunca un cero que parezca un dato.
  */
 function CifrasFinanciar({
-  leidos,
-  publicados,
+  anio,
   estado,
   regionesConCola,
   precio,
   nota,
 }: {
-  leidos: number | null;
-  publicados: number | null;
+  /** Publicados y leídos del año (lib/cifras); `null` si el resumen no respondió. */
+  anio: CifrasAnio | null;
   estado: EstadoGlobal | null;
   /** Regiones con cola, con respaldo en la lista de zonas si el estado no lo trae. */
   regionesConCola: number;
@@ -557,20 +566,18 @@ function CifrasFinanciar({
   /** Desglose de la tarifa (`estado.tarifa.nota`). */
   nota: string | null;
 }) {
-  const pct = publicados && leidos != null ? (leidos / publicados) * 100 : null;
+  // Un formato por cifra (lib/cifras): «0.6 %» aquí, en el Inicio y en la portada (antes, «0.64 %» aquí y «0.7 %» allá).
+  const pct = anio ? pctDe(anio.leidos, anio.publicados) : null;
   const partes = partesTarifa(nota);
   const items: Indicador[] = [
     {
-      valor: leidos != null ? numero(leidos) : null,
+      valor: anio ? numero(anio.leidos) : null,
       etiqueta: "contratos leídos",
-      contexto:
-        publicados != null
-          ? `de ${numero(publicados)} publicados en ${anioLectura()}${pct != null ? ` (${porcentaje(pct, { decimales: pct < 1 ? 2 : 1 })})` : ""}`
-          : undefined,
+      contexto: anio ? `de ${numero(anio.publicados)} publicados en ${anio.anio}${pct ? ` (${pct})` : ""}` : undefined,
       ayuda: (
         <Ayuda titulo="¿Qué cuenta como leído?">
-          Todo contrato cuyo análisis terminó, por cualquier vía, financiado o no. Es la misma cifra de la portada y de
-          Contratos.
+          Todo contrato cuyo análisis terminó, por cualquier vía, financiado o no. Es la misma cifra del Inicio, del mapa y
+          de la portada.
         </Ayuda>
       ),
     },

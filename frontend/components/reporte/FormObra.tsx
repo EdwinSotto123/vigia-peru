@@ -42,7 +42,8 @@ import {
 const CATEGORIAS_OBRA: { id: CategoriaDenuncia; label: string }[] = [
   { id: "obra_paralizada", label: "Obra paralizada" },
   { id: "obra_fantasma", label: "Obra fantasma o inaugurada de mentira" },
-  { id: "funcionario_sospechoso", label: "Funcionario con bienes no declarados" },
+  // El mismo nombre que la lista pública (lib/denuncias-meta): una palabra, una definición (§10.1).
+  { id: "funcionario_sospechoso", label: "Bienes de un funcionario" },
   { id: "irregularidad_general", label: "Otra irregularidad" },
 ];
 

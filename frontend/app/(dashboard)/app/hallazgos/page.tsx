@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
-import { BarraFiltros, Indicadores, Listado, Vistas, ZonaResultados, type FiltroSecundario } from "@/components/listado";
-import { ListaSenales, ListaSenalesSkeleton } from "@/components/alertas/ListaSenales";
+import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, Vistas, ZonaResultados, type FiltroSecundario } from "@/components/listado";
+import { ListaSenales, ListaSenalesCargando } from "@/components/alertas/ListaSenales";
 import { EnRevision, EnRevisionSkeleton, indicadoresRevision } from "@/components/alertas/EnRevision";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
@@ -10,9 +10,11 @@ import { numero, porcentaje, relativo } from "@/lib/formato";
 import { SEVERIDAD } from "@/lib/severidad";
 import {
   MAX_ATRAS,
+  agenteLabel,
   contarContratosConDictamen,
   contarCotejadas,
   contarSenalesPublicadas,
+  etiquetaReglaConApi,
   facetasSenales,
   filtrarSenales,
   getAnalisisEnRevision,
@@ -20,13 +22,23 @@ import {
   getUltimoAnalisisConSenales,
   getUltimoAnalisisPublicado,
   getUniversoSenales,
+  hayFiltrosSenales,
   parseSenalesQuery,
   senalesQueryParams,
   type CatalogoReglas,
   type NivelBandera,
+  type Senal,
   type SenalesQuery,
 } from "@/lib/revision";
-import { TAM_SENALES, getSenalesPagina, getSenalesUniverso, type FacetasApi, type OpcionSenales } from "@/lib/senales";
+import {
+  TAM_SENALES,
+  etiquetaCotejo,
+  getSenalesPagina,
+  getSenalesUniverso,
+  type FacetasApi,
+  type OpcionSenales,
+  type PaginaSenales,
+} from "@/lib/senales";
 
 export const metadata = {
   title: "Señales",
@@ -51,8 +63,12 @@ const RUTA = "/app/hallazgos";
  * `/alertas?limit=500` y un `/contratos/:ocid` por alerta. COMPAT-API-VIEJA: si el API
  * responde 404 en `/senales`, la vista cae a la ruta vieja (`VistaPublicadasRespaldo`).
  *
- * Cada vista va dentro de <Suspense>: el encabezado pinta de inmediato; lo demás entra
- * sobre un esqueleto de su misma forma, nunca con un cero provisional.
+ * Cada pieza va en su propio <Suspense>, SIN `key`: el encabezado pinta de inmediato, la
+ * barra de filtros aparece enseguida (sin conteos mientras llega la página) y al filtrar la
+ * navegación es una transición: la barra y la lista anteriores quedan en pantalla, la lista
+ * atenuada, hasta que llega la nueva. Antes un `<Suspense key={query}>` envolvía todo y cada
+ * filtro volvía a montar la vista: la barra desaparecía y el buscador se desmontaba mientras
+ * se escribía.
  */
 export default async function HallazgosPage({
   searchParams,
@@ -77,13 +93,11 @@ export default async function HallazgosPage({
       />
 
       {query.vista === "revision" ? (
-        <Suspense fallback={<Esperando vista="revision" />}>
+        <Suspense fallback={<Esperando />}>
           <VistaRevision />
         </Suspense>
       ) : (
-        <Suspense key={JSON.stringify(query)} fallback={<Esperando vista="publicadas" />}>
-          <VistaPublicadas query={query} />
-        </Suspense>
+        <VistaPublicadas query={query} />
       )}
     </Pagina>
   );
@@ -101,18 +115,19 @@ function vistas(activa: SenalesQuery["vista"], publicadas: number | null, enRevi
   );
 }
 
-/** Carga: las vistas sin conteos (un "0" provisional se lee como dato) y la tabla en esqueleto. */
-function Esperando({ vista }: { vista: SenalesQuery["vista"] }) {
+/** Carga de la vista en revisión: las vistas sin conteos (un "0" provisional se lee como dato) y la lista en esqueleto. */
+function Esperando() {
   return (
     <div className="space-y-5" role="status" aria-busy>
-      {vistas(vista, null, null)}
-      <span className="sr-only">Cargando las señales…</span>
-      {vista === "revision" ? <EnRevisionSkeleton /> : <ListaSenalesSkeleton />}
+      {vistas("revision", null, null)}
+      <span className="sr-only">Cargando los análisis en revisión…</span>
+      <EnRevisionSkeleton />
     </div>
   );
 }
 
 const ETIQUETA_NIVEL: Record<NivelBandera, string> = { alta: "Alta", media: "Media", baja: "Baja" };
+const NIVELES: NivelBandera[] = ["alta", "media", "baja"];
 
 const catalogo = () => getCatalogoReglas().catch(() => ({}) as CatalogoReglas);
 
@@ -124,34 +139,180 @@ function hrefSenales(params: Record<string, string | undefined>): string {
   return qs ? `${RUTA}?${qs}` : RUTA;
 }
 
+/** Esta misma página, tal como se pidió (filtros, cursor y pila de cursores): adonde vuelve «Reintentar». */
+const hrefActual = (query: SenalesQuery) =>
+  hrefSenales({ ...senalesQueryParams(query), cursor: query.cursor, atras: query.atras.join(",") || undefined });
+
 const conteoDe = (f: OpcionSenales[], ...valores: string[]) => f.filter((x) => valores.includes(x.valor)).reduce((s, x) => s + x.n, 0);
 const cotejadasDe = (f: FacetasApi) => (f.cotejo.length ? f.cotejo.filter((x) => x.etiqueta === "Cotejada").reduce((s, x) => s + x.n, 0) : null);
 
-async function VistaPublicadas({ query }: { query: SenalesQuery }) {
-  const cat = catalogo();
-  const pagina = await getSenalesPagina(query, cat);
-  // COMPAT-API-VIEJA: la API de prod todavía no tiene `/senales`.
-  if (pagina.estado === "sin-endpoint") return <VistaPublicadasRespaldo query={query} />;
+// ─── Vista publicadas: tres piezas que esperan la misma página ─────────────────
 
-  const filtrado = !!(query.severidad || query.regla || query.agente || query.cotejo || query.entidad || query.q);
-  const [universo, resumen, contratos, ultimo] = await Promise.all([
-    // Las cifras de arriba hablan del universo entero: sin filtros, es la misma respuesta.
-    pagina.estado === "ok" && !filtrado ? Promise.resolve({ total: pagina.total, facetas: pagina.facetas }) : cat.then(getSenalesUniverso),
+/**
+ * La página del índice se pide una vez (`pagina`) y la esperan tres piezas, cada una en su `Suspense`: las cifras de
+ * cabecera, la barra (sus opciones y conteos son las facetas de esa página) y la lista. La barra vive dentro del mismo
+ * `Listado` que la lista, fuera de todo `Suspense` que se vuelva a montar.
+ */
+function VistaPublicadas({ query }: { query: SenalesQuery }) {
+  const cat = catalogo();
+  const pagina = getSenalesPagina(query, cat);
+  return (
+    <div className="space-y-5">
+      <Suspense fallback={<CabeceraEsperando />}>
+        <CabeceraPublicadas query={query} pagina={pagina} cat={cat} />
+      </Suspense>
+      <Listado ruta={RUTA} parametros={senalesQueryParams(query)}>
+        <Suspense fallback={<BarraSenales query={query} facetas={null} senales={[]} />}>
+          <BarraConFacetas query={query} pagina={pagina} />
+        </Suspense>
+        <ZonaResultados>
+          <Suspense fallback={<ListaSenalesCargando />}>
+            <ResultadosPublicadas query={query} pagina={pagina} />
+          </Suspense>
+        </ZonaResultados>
+      </Listado>
+    </div>
+  );
+}
+
+/** Mientras cuentan: las vistas con el hueco del número y las cifras en esqueleto. */
+function CabeceraEsperando() {
+  return (
+    <div className="space-y-5">
+      {vistas("publicadas", null, null)}
+      <IndicadoresSkeleton n={4} />
+    </div>
+  );
+}
+
+/** Las vistas y las cifras del universo (sin filtros): sin filtros, son las de la misma página. */
+async function CabeceraPublicadas({ query, pagina, cat }: { query: SenalesQuery; pagina: Promise<PaginaSenales>; cat: Promise<CatalogoReglas> }) {
+  const filtrado = hayFiltrosSenales(query);
+  const [p, universoFiltrado, resumen, contratos, ultimo] = await Promise.all([
+    pagina,
+    // Con filtros, el universo es otra llamada (`limit=1`): arranca junto con la página, no después.
+    filtrado ? cat.then(getSenalesUniverso) : Promise.resolve(null),
     getResumenProcesamientos().catch(() => null),
     contarContratosConDictamen(),
     getUltimoAnalisisConSenales(),
   ]);
+  // COMPAT-API-VIEJA: el respaldo arma su propia cabecera (va en el lugar de la lista).
+  if (p.estado === "sin-endpoint") return null;
+  const universo = p.estado === "ok" && !filtrado ? { total: p.total, facetas: p.facetas } : universoFiltrado ?? (await cat.then(getSenalesUniverso));
+  const enRevision = resumen?.porEstado.revision ?? null;
+  if (p.estado !== "ok") return vistas("publicadas", universo?.total ?? null, enRevision);
 
+  const totalU = universo?.total ?? null;
+  const altas = universo ? conteoDe(universo.facetas.severidad, "alta") : null;
+  const cotejadas = universo ? cotejadasDe(universo.facetas) : null;
+  const dondeU = universo?.facetas.contratos != null
+    ? `en ${numero(universo.facetas.contratos)} contratos`
+    : universo?.facetas.entidades != null
+      ? `en ${numero(universo.facetas.entidades)} entidades`
+      : undefined;
+  return (
+    <div className="space-y-5">
+      {vistas("publicadas", totalU, enRevision)}
+      <Indicadores
+        items={[
+          { valor: totalU != null ? numero(totalU) : null, etiqueta: "señales publicadas", contexto: dondeU },
+          {
+            valor: altas != null ? numero(altas) : null,
+            etiqueta: "señales altas",
+            tono: "alta",
+            contexto: totalU && altas != null ? `${porcentaje((altas / totalU) * 100)} del total` : undefined,
+            href: `${RUTA}?severidad=alta`,
+          },
+          {
+            valor: cotejadas != null ? numero(cotejadas) : null,
+            etiqueta: "cotejadas",
+            contexto: totalU != null ? `de ${numero(totalU)}` : undefined,
+            ayuda: <AyudaCotejo />,
+          },
+          {
+            valor: contratos != null ? numero(contratos) : null,
+            etiqueta: "contratos con dictamen",
+            contexto: ultimo ? `último leído ${relativo(ultimo.analizadoEn)}` : undefined,
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+async function BarraConFacetas({ query, pagina }: { query: SenalesQuery; pagina: Promise<PaginaSenales> }) {
+  const p = await pagina;
+  // COMPAT-API-VIEJA: el respaldo trae su propia barra.
+  if (p.estado === "sin-endpoint") return null;
+  // Si el API falló, la barra queda igual (sin conteos): se puede quitar un filtro o cambiar la búsqueda.
+  return p.estado === "ok" ? <BarraSenales query={query} facetas={p.facetas} senales={p.senales} /> : <BarraSenales query={query} facetas={null} senales={[]} />;
+}
+
+/**
+ * La barra de las señales. Sin `facetas` (mientras llega la página, o si el API no respondió) es la misma barra con las
+ * opciones que no dependen del API (las tres severidades, los tres cotejos) y lo ya elegido, sin números: nunca un 0
+ * provisional. Las dos preguntas a la vista, severidad y regla; entidad, agente y cotejo, en "Filtros".
+ *
+ * El API de señales no acepta orden, fecha ni región (`GET /senales`: severidad, regla, agente, entidad, q y cotejo):
+ * por eso no hay selector de orden ni filtro de fecha o región. La región y la buena pro se ven en el rótulo de cada
+ * contrato.
+ */
+function BarraSenales({ query, facetas, senales }: { query: SenalesQuery; facetas: FacetasApi | null; senales: Senal[] }) {
+  const elegido = (v: string | undefined, etiqueta: (v: string) => string) => (v ? [{ valor: v, etiqueta: etiqueta(v) }] : []);
+  const opcionesEntidad = facetas?.entidad
+    ? facetas.entidad.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n }))
+    : // Sin lista de entidades en el API: la elegida (desde un enlace) se ve y se quita.
+      elegido(query.entidad, (ruc) => senales.find((s) => s.rucEntidad === ruc)?.entidad ?? `RUC ${ruc}`);
+  const visibles: FiltroSecundario[] = [
+    {
+      param: "severidad",
+      etiqueta: "Severidad",
+      corta: "Severidad",
+      todas: "Todas",
+      opciones: facetas
+        ? facetas.severidad.map((f) => ({ valor: f.valor, etiqueta: ETIQUETA_NIVEL[f.valor as NivelBandera] ?? f.etiqueta, conteo: f.n }))
+        : NIVELES.map((n) => ({ valor: n, etiqueta: ETIQUETA_NIVEL[n] })),
+    },
+    {
+      param: "regla",
+      etiqueta: "Regla",
+      corta: "Regla",
+      todas: "Toda regla",
+      desplegable: true,
+      opciones: facetas
+        ? facetas.regla.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n }))
+        : elegido(query.regla, (r) => etiquetaReglaConApi(r, {}, null)),
+    },
+  ];
+  const cotejo = facetas ? facetas.cotejo.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) : ["true", "false", "null"].map((v) => ({ valor: v, etiqueta: etiquetaCotejo(v) }));
+  const filtros: FiltroSecundario[] = [
+    ...(opcionesEntidad.length ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: opcionesEntidad }] : []),
+    {
+      param: "agente",
+      etiqueta: "Agente que la encontró",
+      todas: "Todo agente",
+      opciones: facetas ? facetas.agente.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) : elegido(query.agente, (a) => agenteLabel(a) ?? a),
+    },
+    ...(cotejo.length ? [{ param: "cotejo", etiqueta: "Cotejo", todas: "Todo cotejo", opciones: cotejo }] : []),
+  ];
+  return (
+    <BarraFiltros
+      busqueda={{ param: "q", placeholder: "Buscar por entidad, objeto o código…", etiqueta: "Buscar en las señales", min: 3 }}
+      visibles={visibles}
+      filtros={filtros}
+    />
+  );
+}
+
+async function ResultadosPublicadas({ query, pagina: paginaP }: { query: SenalesQuery; pagina: Promise<PaginaSenales> }) {
+  const pagina = await paginaP;
+  // COMPAT-API-VIEJA: la API de prod todavía no tiene `/senales`.
+  if (pagina.estado === "sin-endpoint") return <VistaPublicadasRespaldo query={query} />;
   if (pagina.estado !== "ok") {
-    return (
-      <div className="space-y-5">
-        {vistas("publicadas", universo?.total ?? null, resumen?.porEstado.revision ?? null)}
-        <ListaSenales senales={[]} total={0} query={query} fallo contratosSinDetalle={0} paginador={null} />
-      </div>
-    );
+    return <ListaSenales senales={[]} total={0} query={query} fallo contratosSinDetalle={0} paginador={null} reintentar={hrefActual(query)} />;
   }
 
-  const { senales, facetas, total, siguiente } = pagina;
+  const { senales, total, siguiente } = pagina;
   const params = senalesQueryParams(query);
 
   // ── Paginación por cursor. `atras` lleva los cursores de las páginas anteriores: con él
@@ -178,92 +339,20 @@ async function VistaPublicadas({ query }: { query: SenalesQuery }) {
         atras: (query.cursor ? [...query.atras, query.cursor] : []).slice(-MAX_ATRAS).join(",") || undefined,
       })
     : null;
-  const paginador = <PaginacionCursor texto={texto} anterior={anterior} siguiente={posterior} />;
-
-  // ── Cifras del universo (sin filtros).
-  const totalU = universo?.total ?? null;
-  const altas = universo ? conteoDe(universo.facetas.severidad, "alta") : null;
-  const cotejadas = universo ? cotejadasDe(universo.facetas) : null;
-  const dondeU = universo?.facetas.contratos != null
-    ? `en ${numero(universo.facetas.contratos)} contratos`
-    : universo?.facetas.entidades != null
-      ? `en ${numero(universo.facetas.entidades)} entidades`
-      : undefined;
-
-  // ── Filtros: las opciones y sus conteos vienen del API (cruzados sobre los otros filtros).
-  const opcionesEntidad = facetas.entidad
-    ? facetas.entidad.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n }))
-    : query.entidad
-      ? // Sin lista de entidades en el API: la elegida (desde un enlace) se ve y se quita.
-        [{ valor: query.entidad, etiqueta: senales.find((s) => s.rucEntidad === query.entidad)?.entidad ?? `RUC ${query.entidad}` }]
-      : [];
-  // Las dos preguntas a la vista, en desplegables como en Contratos (antes la severidad iba en cuatro chips): la
-  // severidad y la regla. Entidad, agente y cotejo, en "Filtros".
-  const visibles: FiltroSecundario[] = [
-    {
-      param: "severidad",
-      etiqueta: "Severidad",
-      corta: "Severidad",
-      todas: "Todas",
-      opciones: facetas.severidad.map((f) => ({ valor: f.valor, etiqueta: ETIQUETA_NIVEL[f.valor as NivelBandera] ?? f.etiqueta, conteo: f.n })),
-    },
-    { param: "regla", etiqueta: "Regla", corta: "Regla", todas: "Toda regla", opciones: facetas.regla.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) },
-  ];
-  const filtros: FiltroSecundario[] = [
-    ...(opcionesEntidad.length ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: opcionesEntidad }] : []),
-    { param: "agente", etiqueta: "Agente que la encontró", todas: "Todo agente", opciones: facetas.agente.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) },
-    ...(facetas.cotejo.length
-      ? [{ param: "cotejo", etiqueta: "Cotejo", todas: "Todo cotejo", opciones: facetas.cotejo.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) }]
-      : []),
-  ];
 
   return (
-    <div className="space-y-5">
-      {vistas("publicadas", totalU, resumen?.porEstado.revision ?? null)}
-
-      <Indicadores
-        items={[
-          { valor: totalU != null ? numero(totalU) : null, etiqueta: "señales publicadas", contexto: dondeU },
-          {
-            valor: altas != null ? numero(altas) : null,
-            etiqueta: "señales altas",
-            tono: "alta",
-            contexto: totalU && altas != null ? `${porcentaje((altas / totalU) * 100)} del total` : undefined,
-            href: `${RUTA}?severidad=alta`,
-          },
-          {
-            valor: cotejadas != null ? numero(cotejadas) : null,
-            etiqueta: "cotejadas",
-            contexto: totalU != null ? `de ${numero(totalU)}` : undefined,
-            ayuda: <AyudaCotejo />,
-          },
-          {
-            valor: contratos != null ? numero(contratos) : null,
-            etiqueta: "contratos con dictamen",
-            contexto: ultimo ? `último leído ${relativo(ultimo.analizadoEn)}` : undefined,
-          },
-        ]}
-      />
-
-      <Listado ruta={RUTA} parametros={params}>
-        <BarraFiltros
-          busqueda={{ param: "q", placeholder: "Buscar por entidad, objeto o código…", etiqueta: "Buscar en las señales", min: 3 }}
-          visibles={visibles}
-          filtros={filtros}
-        />
-        <ZonaResultados>
-          <ListaSenales
-            senales={senales}
-            total={total}
-            query={query}
-            fallo={false}
-            contratosSinDetalle={0}
-            paginador={paginador}
-            paginaVacia={!!query.cursor && senales.length === 0}
-          />
-        </ZonaResultados>
-      </Listado>
-    </div>
+    <ListaSenales
+      senales={senales}
+      total={total}
+      query={query}
+      fallo={false}
+      contratosSinDetalle={0}
+      paginador={<PaginacionCursor texto={texto} anterior={anterior} siguiente={posterior} />}
+      // El de abajo lleva al inicio de los resultados al cambiar de página.
+      paginadorAbajo={<PaginacionCursor texto={texto} anterior={anterior} siguiente={posterior} subir />}
+      paginaVacia={!!query.cursor && senales.length === 0}
+      reintentar={hrefActual(query)}
+    />
   );
 }
 
@@ -281,7 +370,8 @@ function AyudaCotejo() {
  * COMPAT-API-VIEJA: la vista de antes, mientras la API de prod no tenga `/senales`. Arma el
  * universo con `/alertas?limit=500` + un `/contratos/:ocid` por alerta y filtra, cuenta y
  * pagina en memoria (`?pagina=`). Borrar junto con `getUniversoSenales` cuando `/senales`
- * esté en prod.
+ * esté en prod. Va en el lugar de la lista (la cabecera y la barra de arriba no se dibujan en
+ * este caso): trae sus propias vistas, cifras y barra.
  */
 async function VistaPublicadasRespaldo({ query }: { query: SenalesQuery }) {
   const [universo, resumen] = await Promise.all([getUniversoSenales(), getResumenProcesamientos().catch(() => null)]);
@@ -296,6 +386,20 @@ async function VistaPublicadasRespaldo({ query }: { query: SenalesQuery }) {
   const cotejadas = contarCotejadas(universo.senales);
   // La ruta vieja no sabe buscar ni filtrar por cotejo: esos parámetros no se ofrecen acá.
   const params = { ...senalesQueryParams(query), q: undefined, cotejo: undefined };
+  const paginador = (subir: boolean) => (
+    <Paginacion
+      actual={pagina}
+      paginas={Math.max(1, Math.ceil(filtradas.length / TAM_SENALES))}
+      total={filtradas.length}
+      tam={TAM_SENALES}
+      navegacion="url"
+      hrefBase={RUTA}
+      query={params}
+      cargando={false}
+      nombre="señales"
+      subir={subir}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -347,19 +451,9 @@ async function VistaPublicadasRespaldo({ query }: { query: SenalesQuery }) {
             query={query}
             fallo={universo.fallo}
             contratosSinDetalle={universo.contratosSinDetalle}
-            paginador={
-              <Paginacion
-                actual={pagina}
-                paginas={Math.max(1, Math.ceil(filtradas.length / TAM_SENALES))}
-                total={filtradas.length}
-                tam={TAM_SENALES}
-                navegacion="url"
-                hrefBase={RUTA}
-                query={params}
-                cargando={false}
-                nombre="señales"
-              />
-            }
+            paginador={paginador(false)}
+            paginadorAbajo={paginador(true)}
+            reintentar={hrefActual(query)}
           />
         </ZonaResultados>
       </Listado>

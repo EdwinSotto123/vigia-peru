@@ -1,30 +1,49 @@
-import { FileText, FileSignature, Store, TriangleAlert } from "lucide-react";
-import { AyudaTermino, DatosClave, EstadoVacio, type DatoClave } from "@/components/patrones";
+import Link from "next/link";
+import { FileSignature, FileText, Store } from "lucide-react";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import {
-  BarraFiltros,
-  CeldaFecha,
-  CeldaNumero,
-  CeldaPrincipal,
-  Tabla,
-  type Columna,
-  type Fila,
-  type Parametros,
-} from "@/components/listado";
+  CeldaFechaCompra,
+  EstadoCompra,
+  ListaCargando,
+  PaginadorHayMas,
+  SinAntecedentes,
+  datoFecha,
+  hrefPagina,
+} from "@/components/ordenes/ListaOrdenes";
 import { Dato } from "@/components/ui/Dato";
-import { fechaCorta, numero, oracion, soles } from "@/lib/formato";
+import { CLASE_ACCION_LISTA, EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
+import { enlaceProveedor } from "@/lib/empresas";
+import { fecha as fechaLarga, fechaCorta, oracion, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { P_MEN, urlContratoMenor, urlRequerimiento, type MenoresPagina } from "@/lib/menores";
+import { P_MEN, urlContratoMenor, urlRequerimiento, type ContratoMenor, type MenoresPagina } from "@/lib/menores";
 
 /**
  * Lista de CONTRATOS MENORES (≤8 UIT) del SEACE (sección propia y, con filtro, ficha de empresa/entidad). Cada contrato
  * abre su panel con el requerimiento/TDR y el contrato en PDF (servidos por proxy de nuestra API).
+ *
+ * Fila de todo listado (§14.1): estado (chip) · qué se contrató, con entidad, proveedor, bien o servicio y código ·
+ * antecedentes del proveedor en la SUNAT · monto · suscrito. «Hasta 8 UIT, sin concurso» no va en cada fila: lo son
+ * todos, por definición (lo dicen el título y su ⓘ). Las piezas compartidas con Órdenes viven en components/ordenes.
  */
 
+const FUENTE = "el SEACE";
+
 const COLUMNAS: Columna[] = [
-  { clave: "fecha", titulo: "Suscrito", ancho: "92px", desde: "md", apilar: true },
-  { clave: "contrato", titulo: "Contrato menor", ancho: "minmax(0,1.9fr)" },
-  { clave: "estado", titulo: "Estado", ancho: "minmax(0,0.6fr)", desde: "lg", apilar: true },
-  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der" },
+  { clave: "estado", titulo: "Estado", ancho: "112px", desde: "md", apilar: true },
+  { clave: "contrato", titulo: "Contrato menor", ancho: "minmax(0,1.8fr)" },
+  {
+    clave: "antecedentes", titulo: "Antecedentes del proveedor", corto: "Antecedentes", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: true,
+    ayuda: (
+      <Ayuda titulo="¿Qué antecedentes se revisan aquí?">
+        Lo que dice la SUNAT del proveedor: si hoy figura de baja o en suspensión, si es «no habido» o «no hallado», o si
+        firmó con menos de 6 meses de haber empezado sus actividades. Son datos para revisar, no prueban una irregularidad.
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "fecha", titulo: "Suscrito", ancho: "104px", desde: "md", apilar: "con-rotulo" },
 ];
 
 const objetoTxt = (o: string | null) => (o && /bien/i.test(o) ? "Bien" : o && /servicio/i.test(o) ? "Servicio" : o ? tituloNatural(o) : null);
@@ -35,14 +54,15 @@ export async function BarraMenoresGeneral({ pagina, regiones = [] }: { pagina: P
     <BarraFiltros
       busqueda={{ param: P_MEN.q, placeholder: "Buscar por descripción, entidad, proveedor o código…", etiqueta: "Buscar en los contratos menores", min: 3 }}
       visibles={[
-        { param: P_MEN.anio, etiqueta: "Año", corta: "Año", todas: "Todos", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a) })) },
+        { param: P_MEN.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a) })) },
         ...(regiones.length
           ? [{ param: P_MEN.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })) }]
           : []),
         {
-          param: P_MEN.objeto, etiqueta: "Objeto", corta: "Objeto", todas: "Bien y servicio",
+          param: P_MEN.objeto, etiqueta: "Bien o servicio", corta: "Bien o servicio", todas: "Bienes y servicios",
           opciones: [{ valor: "bien", etiqueta: "Bienes" }, { valor: "servicio", etiqueta: "Servicios" }],
         },
+        // Una sola opción: el kit lo dibuja como chip que se prende y se apaga, no como desplegable de una línea.
         {
           param: P_MEN.conReq, etiqueta: "Con requerimiento", corta: "Requerimiento", todas: "Todos",
           opciones: [{ valor: "si", etiqueta: "Con requerimiento (TDR)" }],
@@ -53,46 +73,114 @@ export async function BarraMenoresGeneral({ pagina, regiones = [] }: { pagina: P
   );
 }
 
-function Pager({ ruta, parametros, actual, hayMas }: { ruta: string; parametros: Parametros; actual: number; hayMas: boolean }) {
-  const href = (page: number) => {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(parametros)) if (v) q.set(k, String(v));
-    if (page > 1) q.set(P_MEN.page, String(page)); else q.delete(P_MEN.page);
-    const qs = q.toString();
-    return qs ? `${ruta}?${qs}` : ruta;
-  };
-  const botón = "rounded-lg border border-line px-3 py-1.5 text-meta";
+/** Mientras llega la página de contratos menores. */
+export function ListaMenoresCargando() {
+  return <ListaCargando texto="Cargando los contratos menores…" columnas={COLUMNAS} />;
+}
+
+// ─── Antecedentes del proveedor en la SUNAT ─────────────────────────────────────
+
+interface Antecedente {
+  /** El tipo del catálogo de cruces (lib/cruces) cuando existe: su explicación va en el `title` del chip. */
+  tipo: string;
+  severidad: "alta" | "media" | "baja";
+  /** El chip de la celda: corto y sin género (el proveedor puede ser una persona o una empresa). */
+  chip: string;
+  /** La frase del panel. */
+  titulo: string;
+  explica: string;
+}
+
+/**
+ * Las banderas SUNAT del proveedor (indicio, no acusación), con las mismas reglas que las del ganador de un contrato
+ * (migraciones 116 y 118): de baja o en suspensión (estado), no habido o no hallado (condición) y firmar a menos de 180
+ * días de iniciar actividades. Antes era un «⚠ proveedor» que no decía cuál.
+ */
+function antecedentesSunat(m: ContratoMenor): Antecedente[] {
+  const out: Antecedente[] = [];
+  const estado = (m.provEstado ?? "").trim().toUpperCase();
+  if (estado && estado !== "ACTIVO") {
+    if (estado.startsWith("BAJA")) {
+      out.push({
+        tipo: "dada_de_baja", severidad: "media", chip: "De baja (SUNAT)", titulo: "De baja en la SUNAT",
+        explica: `Hoy figura así en la SUNAT (${oracion(m.provEstado!)}). Es su estado actual: la SUNAT no publica desde cuándo, así que no se afirma que contratara estando de baja.`,
+      });
+    } else if (estado.startsWith("SUSPENSION")) {
+      out.push({ tipo: "suspendida", severidad: "baja", chip: "En suspensión (SUNAT)", titulo: "En suspensión temporal", explica: "Hoy figura en suspensión temporal de actividades en la SUNAT." });
+    } else {
+      out.push({ tipo: "estado_sunat", severidad: "baja", chip: `${oracion(m.provEstado!)} (SUNAT)`, titulo: `${oracion(m.provEstado!)} en la SUNAT`, explica: "Su estado en la SUNAT no es «activo»." });
+    }
+  }
+  const condicion = (m.provCondicion ?? "").trim().toUpperCase();
+  if (condicion.startsWith("NO HABIDO")) {
+    out.push({ tipo: "no_habida", severidad: "media", chip: "No habido (SUNAT)", titulo: "No habido", explica: "Hoy figura como «no habido» en la SUNAT: no lo ubica en su domicilio fiscal." });
+  } else if (condicion.startsWith("NO HALLADO")) {
+    out.push({ tipo: "no_hallado", severidad: "baja", chip: "No hallado (SUNAT)", titulo: "No hallado", explica: "La SUNAT no lo encontró en su domicilio fiscal al notificarlo (condición «no hallado»)." });
+  }
+  const dias = m.provDiasAlGanar;
+  if (dias != null && dias >= 0 && dias < 180) {
+    const meses = Math.floor(dias / 30);
+    const cuando = meses === 0 ? "en su primer mes" : `a los ${meses} ${meses === 1 ? "mes" : "meses"}`;
+    out.push({
+      tipo: "recien_fundada_medio_ano", severidad: "media",
+      chip: meses === 0 ? "Menos de 1 mes de actividad" : `${meses} ${meses === 1 ? "mes" : "meses"} de actividad`,
+      titulo: "Firmó con menos de 6 meses de actividad",
+      explica: `Firmó este contrato ${cuando} de iniciar actividades en la SUNAT${m.provDesde ? ` (el ${fechaLarga(m.provDesde)})` : ""}. No prueba nada por sí solo.`,
+    });
+  }
+  return out;
+}
+
+/** Los antecedentes como banderas, en la celda y en los chips del panel: las de toda lista (CrucesCelda). */
+function BanderasSunat({ antecedentes }: { antecedentes: Antecedente[] }) {
   return (
-    <nav className="flex items-center gap-2" aria-label="Paginación de contratos menores">
-      {actual > 1
-        ? <a href={href(actual - 1)} className={`${botón} text-inkSoft transition-colors duration-rapido hover:text-ink`}>← Anterior</a>
-        : <span className={`${botón} text-mute opacity-50`} aria-disabled>← Anterior</span>}
-      <span className="text-rotulo text-mute">Página {numero(actual)}</span>
-      {hayMas
-        ? <a href={href(actual + 1)} className={`${botón} text-inkSoft transition-colors duration-rapido hover:text-ink`}>Siguiente →</a>
-        : <span className={`${botón} text-mute opacity-50`} aria-disabled>Siguiente →</span>}
-    </nav>
+    <CrucesCelda
+      cruces={antecedentes.map((a) => ({ tipo: a.tipo, severidad: a.severidad }))}
+      etiquetas={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.chip]))}
+      explicaciones={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.explica]))}
+      etiquetaLista="Antecedentes del proveedor"
+    />
   );
 }
 
-const enlacePdf = "inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-meta text-inkSoft transition-colors duration-rapido hover:text-ink hover:border-ink/30";
+// ─── La lista ─────────────────────────────────────────────────────────────────
 
 export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pagina: Promise<MenoresPagina | null>; ruta: string; parametros: Parametros; actual: number }) {
   const pagina = await p;
-  if (!pagina) return <EstadoVacio compacto titulo="No pudimos cargar los contratos menores">Probá con otro año o quita la búsqueda.</EstadoVacio>;
-  if (!pagina.data.length) return <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año, el objeto o la búsqueda.</EstadoVacio>;
+  if (!pagina) {
+    return (
+      <EstadoError
+        titulo="No pudimos cargar los contratos menores"
+        // `<a>` y no `<Link>`: reintentar es pedir la misma página otra vez al servidor, con los mismos filtros.
+        accion={<a href={hrefPagina(ruta, parametros, P_MEN.page, actual)} className={CLASE_ACCION_LISTA}>Reintentar</a>}
+      >
+        Suele ser momentáneo: vuelve a intentarlo en unos segundos. Si se repite, elige un año o acorta la búsqueda.
+      </EstadoError>
+    );
+  }
+  if (!pagina.data.length) {
+    // Una página que ya no existe (la lista cambió o se escribió a mano): hay contratos, sólo que no tantos.
+    return actual > 1 ? (
+      <EstadoVacio
+        compacto
+        titulo="Esta página de la lista ya no tiene contratos"
+        accion={<Link href={hrefPagina(ruta, parametros, P_MEN.page, 1)} prefetch={false} className={CLASE_ACCION_LISTA}>Ir al principio de la lista</Link>}
+      />
+    ) : (
+      <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año, el bien o servicio o la búsqueda.</EstadoVacio>
+    );
+  }
   const filas: Fila[] = pagina.data.map((m, i) => {
     const entidad = m.entidad ? tituloNatural(m.entidad) : null;
     const proveedor = m.proveedor ? tituloNatural(m.proveedor) : null;
     const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
     const objeto = objetoTxt(m.objeto);
     const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaCorta(m.cotizaDesde)} – ${fechaCorta(m.cotizaHasta)}` : null;
-    // Banderas SUNAT del proveedor (indicio, no acusación): dado de baja/suspendido, no habido/no hallado, o recién creado al ganar.
-    const provEstadoMal = m.provEstado && m.provEstado !== "ACTIVO" ? m.provEstado : null;
-    const provCondMal = m.provCondicion && m.provCondicion !== "HABIDO" ? m.provCondicion : null;
-    const mesesAlGanar = m.provDiasAlGanar != null && m.provDiasAlGanar >= 0 ? Math.round(m.provDiasAlGanar / 30) : null;
-    const recienCreada = mesesAlGanar != null && mesesAlGanar < 6;
-    const hayBanderaProv = !!(provEstadoMal || provCondMal || recienCreada);
+    const antecedentes = antecedentesSunat(m);
+    const estado = <EstadoCompra estado={m.estado} />;
+    // La ficha del proveedor (empresas, RUC 20): donde está lo que dice la SUNAT. No desde su propia ficha.
+    const ficha = enlaceProveedor(m.proveedorRuc);
+    const fichaProveedor = ficha && !ruta.startsWith(ficha.split("?")[0]) ? ficha : null;
     const items: (DatoClave | null)[] = [
       { etiqueta: "Qué se contrató", valor: descripcion },
       objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
@@ -101,7 +189,7 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
       m.provTipo ? { etiqueta: "Tipo de proveedor", valor: oracion(m.provTipo) } : null,
       m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
       m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaCorta(m.provDesde), mono: true } : null,
-      { etiqueta: "Suscrito", valor: m.fecha ? fechaCorta(m.fecha) : null, mono: true },
+      datoFecha("Suscrito", m.fecha, FUENTE),
       { etiqueta: "Monto", valor: m.monto != null ? soles(m.monto) : null, mono: true },
       m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
       m.estadoProceso ? { etiqueta: "Estado del proceso", valor: m.estadoProceso } : null,
@@ -110,7 +198,7 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
     return {
       id: `${m.id}`,
       celdas: {
-        fecha: <CeldaFecha fecha={m.fecha} />,
+        estado,
         contrato: (
           <CeldaPrincipal
             titulo={descripcion}
@@ -118,71 +206,81 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
             meta={[
               entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
               proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
-              objeto && <Dato key="objeto" tipo="tipo">{objeto}</Dato>,
+              objeto && <Dato key="objeto" tipo="tipo" nombre="Bien o servicio">{objeto}</Dato>,
               m.codigo && <Dato key="cod" tipo="codigo" nombre="Código del proceso" mono>{m.codigo}</Dato>,
             ]}
           />
         ),
-        estado: (
-          <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-meta text-inkSoft">{m.estado ?? "Sin estado"}</span>
-            {hayBanderaProv && (
-              <span className="pill inline-flex items-center gap-1 border-amber/30 bg-amber-soft text-amberTexto">
-                <TriangleAlert size={12} aria-hidden /> proveedor
-              </span>
-            )}
-          </span>
+        // Un proveedor que no está en el padrón cargado de la SUNAT no se pudo revisar: «Sin dato», no «Ninguno».
+        antecedentes: antecedentes.length ? (
+          <BanderasSunat antecedentes={antecedentes} />
+        ) : (
+          <SinAntecedentes sinDato={m.provEstado == null && m.provCondicion == null && m.provDesde == null} />
         ),
-        monto: <CeldaNumero sub="≤ 8 UIT, sin concurso">{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
+        monto: <CeldaNumero>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
+        fecha: <CeldaFechaCompra fecha={m.fecha} fuente={FUENTE} />,
       },
       detalle: {
         titulo: m.codigo ? `Contrato menor ${m.codigo}` : "Contrato menor",
         etiqueta: `Ver el detalle del contrato ${m.codigo ?? i}`,
         descripcion: entidad ?? undefined,
         contenido: (
-          <div className="space-y-4">
-            {hayBanderaProv && (
-              <div role="note" className="flex gap-3 rounded-xl border border-amber/30 bg-amber-soft/60 p-3.5 text-dato text-ink">
-                <TriangleAlert size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-                <span className="block">
-                  {provCondMal && `El proveedor figura ${provCondMal} en SUNAT (no se le ubica). `}
-                  {provEstadoMal && `El proveedor está en ${oracion(provEstadoMal)} en SUNAT. `}
-                  {recienCreada && `Empezó actividades ${mesesAlGanar} ${mesesAlGanar === 1 ? "mes" : "meses"} antes de ganar este contrato. `}
-                  Es un indicio para revisión humana, no una acusación.
-                </span>
-              </div>
-            )}
+          <CuerpoDetalle>
+            <ChipsDetalle>
+              {estado}
+              {antecedentes.length > 0 && <BanderasSunat antecedentes={antecedentes} />}
+            </ChipsDetalle>
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            {(m.tieneRequerimiento || m.tieneContrato) && (
-              <div className="flex flex-wrap gap-2">
-                {m.tieneRequerimiento && (
-                  <a href={urlRequerimiento(m.id)} target="_blank" rel="noopener noreferrer" className={enlacePdf}>
-                    <FileText className="size-4" aria-hidden /> Requerimiento (TDR)
-                  </a>
+            {antecedentes.length > 0 && (
+              <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">
+                <ul className="space-y-1.5">
+                  {antecedentes.map((a) => (
+                    <li key={a.tipo}>
+                      <span className="font-semibold text-ink">{a.titulo}.</span> <span className="text-inkSoft">{a.explica}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-rotulo text-mute">Fuente: SUNAT, padrón de contribuyentes. Son datos para revisar, no una acusación.</p>
+                {fichaProveedor && (
+                  <EnlaceAccion href={fichaProveedor} prefetch={false} variante="secundario" flecha className="mt-3">
+                    Ver la ficha de la empresa
+                  </EnlaceAccion>
                 )}
-                {m.tieneContrato && (
-                  <a href={urlContratoMenor(m.id)} target="_blank" rel="noopener noreferrer" className={enlacePdf}>
-                    <FileSignature className="size-4" aria-hidden /> Contrato u orden
-                  </a>
-                )}
-              </div>
+              </BloqueDetalle>
             )}
-          </div>
+            {(m.tieneRequerimiento || m.tieneContrato) && (
+              <BloqueDetalle titulo="Documentos">
+                <div className="flex flex-wrap gap-2">
+                  {m.tieneRequerimiento && (
+                    <a href={urlRequerimiento(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                      <FileText className="size-4" aria-hidden /> Requerimiento (TDR)
+                      <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
+                    </a>
+                  )}
+                  {m.tieneContrato && (
+                    <a href={urlContratoMenor(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                      <FileSignature className="size-4" aria-hidden /> Contrato u orden
+                      <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
+                    </a>
+                  )}
+                </div>
+              </BloqueDetalle>
+            )}
+          </CuerpoDetalle>
         ),
         pie: <span className="text-rotulo text-mute">Fuente: SEACE — Buscador de Contratos del Estado (contrato) y buscador de procesos (requerimiento){m.codigo ? ` (${m.codigo})` : ""}</span>,
       },
     };
   });
+  const tam = pagina.size || filas.length;
+  const pag = (subir: boolean) => (
+    <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={P_MEN.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas} subir={subir} />
+  );
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-meta text-inkSoft">Contratos menores{pagina.anio ? ` de ${pagina.anio}` : ""}</p>
-        <Pager ruta={ruta} parametros={parametros} actual={actual} hayMas={pagina.hayMas} />
-      </div>
+      <div className="flex justify-end">{pag(false)}</div>
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos menores ≤ 8 UIT" />
-      <div className="flex justify-end">
-        <Pager ruta={ruta} parametros={parametros} actual={actual} hayMas={pagina.hayMas} />
-      </div>
+      <div className="flex justify-end">{pag(true)}</div>
     </div>
   );
 }

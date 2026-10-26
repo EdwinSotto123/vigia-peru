@@ -29,7 +29,6 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
       <div className="container-page">
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-4">
           <div>
-            <p className="etiqueta-mono mb-4 text-granate">Lo que encontró</p>
             <h2 id="casos-titulo" className="font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
               Lo que ya encontró.
             </h2>

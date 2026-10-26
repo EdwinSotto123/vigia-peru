@@ -1,13 +1,13 @@
 import { dia } from "./EvidenciaContrato";
 import { fechaCorta, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import type { ContratoDetalle } from "@/lib/contratos";
+import { adjudicacionesVigentes, type ContratoDetalle } from "@/lib/contratos";
 
 /**
  * Los hitos del proceso con fecha, en orden: convocatoria, buena pro, adjudicaciones del registro y, si Vigía lo leyó,
  * cuándo. Una placa con los hitos unidos por una línea y, en cada uno, cuántos días pasaron desde el anterior; los del mismo día van
- * juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la convocatoria a la buena pro. Solo lo que el registro
- * trae (nada se estima); con menos de dos hitos no se dibuja. Server-safe.
+ * juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la convocatoria a la buena pro (o, sin esa fecha, a la
+ * adjudicación). Solo lo que el registro trae (nada se estima); con menos de dos hitos no se dibuja. Server-safe.
  */
 interface Hito {
   fecha: string;
@@ -18,7 +18,21 @@ interface Hito {
 const DIA_MS = 86_400_000;
 const dias = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / DIA_MS);
 
-export function LineaTiempoProceso({ c }: { c: ContratoDetalle }) {
+/**
+ * Cuándo ganó quien ganó: la fecha de la buena pro y, si el registro no la trae, la de la primera adjudicación vigente
+ * (la que el OCDS guarda con el ganador; sin vigentes, la primera de todas). La usan la cifra de la convocatoria y esta
+ * línea de tiempo, y es la misma de «cuando ganó» en los antecedentes: antes la cifra decía «buena pro: sin fecha»
+ * mientras la línea de tiempo marcaba la adjudicación del 23 set. y los antecedentes, «cuando ganó (23 set.)».
+ */
+export function fechaGano(c: Pick<ContratoDetalle, "fechaBuenaPro" | "adjudicaciones">): { fecha: string; deAdjudicacion: boolean } | null {
+  const bp = dia(c.fechaBuenaPro);
+  if (bp) return { fecha: bp, deAdjudicacion: false };
+  const vigentes = adjudicacionesVigentes(c);
+  const fechas = (vigentes.length ? vigentes : c.adjudicaciones ?? []).map((a) => dia(a.fecha)).filter((f): f is string => !!f).sort();
+  return fechas.length ? { fecha: fechas[0], deAdjudicacion: true } : null;
+}
+
+export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: ContratoDetalle; idTitulo?: string }) {
   const crudos: { fecha: string; texto: string; vigia?: boolean }[] = [];
   const agregar = (valor: string | null | undefined, texto: string, vigia = false) => {
     const d = valor ? dia(valor) : null;
@@ -41,18 +55,19 @@ export function LineaTiempoProceso({ c }: { c: ContratoDetalle }) {
   if (hitos.length < 2) return null;
 
   const conv = dia(c.fecha);
-  const bp = dia(c.fechaBuenaPro);
-  const hastaBuenaPro = conv && bp && bp >= conv ? dias(conv, bp) : null;
+  const gano = fechaGano(c);
+  const hasta = conv && gano && gano.fecha >= conv ? dias(conv, gano.fecha) : null;
+  const meta = gano?.deAdjudicacion ? "adjudicación" : "buena pro";
 
   return (
-    <section aria-labelledby="linea-tiempo" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
+    <section aria-labelledby={idTitulo} className="rounded-2xl border border-line bg-paper px-4 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id="linea-tiempo" className="font-display text-bloque font-bold text-ink">
+        <h2 id={idTitulo} className="font-display text-bloque font-bold text-ink">
           Línea de tiempo
         </h2>
-        {hastaBuenaPro !== null && (
+        {hasta !== null && (
           <span className="text-rotulo text-mute">
-            {hastaBuenaPro === 0 ? "buena pro el mismo día" : `${plural(hastaBuenaPro, "día", "días")} hasta la buena pro`}
+            {hasta === 0 ? `${meta} el mismo día` : `${plural(hasta, "día", "días")} hasta la ${meta}`}
           </span>
         )}
       </div>

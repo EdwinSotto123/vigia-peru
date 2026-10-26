@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { Shield, ShieldCheck } from "lucide-react";
 import { COLUMNA_PODIO, FranjaTextil, Medalla, PodioEscena } from "@/components/marca";
 import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
@@ -36,8 +34,8 @@ export function Puesto({ n, tamano = "md", className }: { n: number; tamano?: "m
 
 type Lugar = 1 | 2 | 3;
 
-/** Lo que dice un puesto libre, igual en la portada y en /app/aliados. */
-export const LUGAR_LIBRE = "Tu nombre, el de tu colectivo o el de tu empresa.";
+/** La invitación cuando todavía no hay tres aliados con nombre, igual en la portada y en /app/aliados. */
+export const LUGAR_LIBRE = "El siguiente puede ser el tuyo, el de tu colectivo o el de tu empresa.";
 
 /** El escalón que sube (la clase compartida del kit de marca, server-safe). */
 const SUBE = COLUMNA_PODIO;
@@ -124,9 +122,11 @@ const DESPUES_DEL_ESCALON = 500;
  * y la corona cae; el servidor lo pinta quieto y completo, así que sin JS o con
  * movimiento reducido se ve igual, sin animación.
  *
- * Con menos de tres nombres, los puestos que faltan se dibujan libres (`lugarLibre`):
- * decirlo es más honesto que estirar el podio, y es la invitación a subirse. Sin
- * `lugarLibre`, con menos de tres no se dibuja.
+ * El podio existe sólo con TRES aliados con nombre o más. Con uno o dos, una fila honesta
+ * por aliado (sin medallas ni escalones vacíos) y la invitación (`lugarLibre`): un podio con
+ * dos losas «¿Serás tú?» y una medalla para la propia plataforma probaba soledad, justo lo
+ * que DIRECCION.md descarta (tiene que leerse bien con n=1). Sin `lugarLibre`, con menos de
+ * tres no se dibuja.
  */
 export function PodioRanking({
   filas,
@@ -135,7 +135,6 @@ export function PodioRanking({
   nivel = 2,
   lugarLibre,
   destacado = false,
-  etiqueta,
   subtitulo,
   nota,
 }: {
@@ -147,26 +146,27 @@ export function PodioRanking({
   titulo?: string;
   /** Nivel del título: 2 en /app/aliados; 3 dentro de una sección de la portada. */
   nivel?: 2 | 3;
-  /** Qué se dice en un puesto sin nombre. Sin este texto, con menos de tres no hay podio. */
+  /** La invitación cuando todavía no hay tres. Sin este texto, con menos de tres no se dibuja nada. */
   lugarLibre?: string;
   /** La versión de portada: más grande, con halo y chispas. Mismos datos, mismas reglas. */
   destacado?: boolean;
-  /** Rótulo corto sobre el título, con el escudo del guardián ("Top auditores ciudadanos"). */
-  etiqueta?: string;
   /** Una frase bajo el título: qué significa estar acá. Con ella, el podio se pone al lado del texto (desde lg). */
   subtitulo?: string;
   /** Lo que se dice bajo el subtítulo, a la izquierda del podio: cómo se gana un puesto. */
   nota?: React.ReactNode;
 }) {
   const primeros = filas.slice(0, 3);
-  if (primeros.length < 3 && !lugarLibre) return null;
+  const conPodio = primeros.length === 3;
+  if (!conPodio && (!lugarLibre || primeros.length === 0)) return null;
   const Titulo = nivel === 3 ? "h3" : "h2";
-  const texto = titulo ?? (primeros.length === 3 ? "Los tres que más contratos hicieron leer" : "Quienes más contratos hicieron leer");
+  const texto = conPodio
+    ? titulo ?? "Los tres que más contratos hicieron leer"
+    : primeros.length === 1
+      ? "Quien hace leer los contratos"
+      : "Quienes hacen leer los contratos";
   const lugares: Lugar[] = [1, 2, 3];
-  // El botón de "Ocupa este puesto" va una sola vez: en el primer puesto libre. Los otros solo invitan.
-  const primerLibre = lugares.find((l) => !primeros.some((f) => f.puesto === l));
   // Con subtítulo (la versión de la app), el texto va a la izquierda y el podio a la derecha: sin una franja vacía a los lados.
-  const lateral = !!subtitulo && !destacado;
+  const lateral = !!subtitulo && !destacado && conPodio;
 
   return (
     <section
@@ -184,11 +184,7 @@ export function PodioRanking({
         {/* De qué ranking se habla (región, periodo) lo dicen los filtros de la página, no el podio. */}
         <div className={cn(lateral && "lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8")}>
         <div className="min-w-0">
-        {etiqueta && (
-          <p className="etiqueta-mono mb-1.5 flex items-center gap-1.5 px-1 text-maiz sm:px-0">
-            <ShieldCheck size={14} aria-hidden /> {etiqueta}
-          </p>
-        )}
+        {/* Sin rótulo encima del título (DESIGN_SYSTEM.md §4): el título habla solo. */}
         <Titulo
           id="podio-titulo"
           className={cn("px-1 font-display font-bold leading-tight sm:px-0", destacado ? "text-seccion sm:text-cifra" : subtitulo ? "text-seccion sm:text-cifra lg:text-titulo" : "text-bloque")}
@@ -196,21 +192,23 @@ export function PodioRanking({
           {texto}
         </Titulo>
         {subtitulo && <p className="mt-2 max-w-[60ch] px-1 text-dato leading-snug text-paper/80 sm:px-0 sm:text-destacado">{subtitulo}</p>}
-        {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 border-l-2 border-maiz/40 pl-3.5 text-dato leading-snug text-paper/75 lg:block">{nota}</div>}
+        {/* Sin filete de color al costado: una nota es texto, no un cartel. */}
+        {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 text-dato leading-snug text-paper/75 lg:block">{nota}</div>}
         </div>
-        <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : lateral ? "mt-5 max-w-3xl lg:mt-0 lg:max-w-none" : "mt-5 max-w-3xl")}>
-          {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
-          <ol className="grid grid-cols-3 items-end gap-1.5 border-b border-paper/20 sm:gap-3">
-            {lugares.map((lugar) => {
-              const fila = primeros.find((f) => f.puesto === lugar);
-              return fila ? (
-                <Escalon key={fila.id} lugar={lugar} fila={fila} financiadosAmbito={financiadosAmbito} destacado={destacado} />
-              ) : (
-                <EscalonLibre key={`libre-${lugar}`} lugar={lugar} texto={lugarLibre ?? ""} destacado={destacado} conBoton={lugar === primerLibre} />
-              );
-            })}
-          </ol>
-        </PodioEscena>
+        {conPodio ? (
+          <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : lateral ? "mt-5 max-w-3xl lg:mt-0 lg:max-w-none" : "mt-5 max-w-3xl")}>
+            {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
+            <ol className="grid grid-cols-3 items-end gap-1.5 border-b border-paper/20 sm:gap-3">
+              {lugares.map((lugar) => {
+                // Los tres llegan ordenados: si un puesto no coincide (la página del API cuenta también a los anónimos), manda el orden.
+                const fila = primeros.find((f) => f.puesto === lugar) ?? primeros[lugar - 1];
+                return <Escalon key={fila.id} lugar={lugar} fila={fila} financiadosAmbito={financiadosAmbito} destacado={destacado} />;
+              })}
+            </ol>
+          </PodioEscena>
+        ) : (
+          <FilaHonesta filas={primeros} financiadosAmbito={financiadosAmbito} invitacion={lugarLibre ?? ""} />
+        )}
         </div>
       </div>
     </section>
@@ -315,60 +313,63 @@ function Escalon({
 }
 
 /**
- * Un puesto sin nombre: un escalón punteado con el escudo del guardián vacío y la pregunta
- * "¿Serás tú?". Solo el primer puesto libre lleva el botón (`conBoton`): los demás invitan sin
- * repetir el mismo destino tres veces.
+ * Con uno o dos aliados con nombre: una fila por aliado, sin medallas ni escalones (un podio con lugares vacíos y una
+ * medalla para la propia plataforma probaba soledad), con lo mismo que diría su escalón —quién es, cuántos contratos
+ * financió, su parte del total— y, debajo, la invitación en una frase. Cada fila abre al aliado sin salir de la página.
  */
-function EscalonLibre({ lugar, texto, destacado, conBoton }: { lugar: Lugar; texto: string; destacado: boolean; conBoton: boolean }) {
-  const l = (destacado ? LUGAR_DESTACADO : LUGAR)[lugar];
-  const contenido = (
-    <>
-      <span className="flex flex-col items-center px-0.5 pb-3 text-center">
-        <span
-          aria-hidden
-          className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-paper/35 text-paper/55 sm:h-16 sm:w-16"
-        >
-          <Shield size={26} strokeWidth={1.5} />
-          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/15 font-display text-rotulo font-bold text-paper">
-            {lugar}
-          </span>
-        </span>
-        <span className="mt-2.5 font-display text-bloque font-bold leading-snug text-paper sm:text-bloque">
-          ¿Serás tú?<span className="sr-only"> Puesto {lugar} libre</span>
-        </span>
-        {texto && <span className="mt-0.5 hidden text-meta leading-snug text-paper/75 sm:block">{texto}</span>}
-        {conBoton && (
-          /* En el celular cada escalón mide ~110 px: el texto largo no entraba y el botón se salía por los costados. */
-          <span className="mt-2.5 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-meta font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-dato">
-            <span className="sm:hidden">Ocúpalo</span>
-            <span className="hidden sm:inline">Ocupa este puesto</span> <span aria-hidden>→</span>
-          </span>
-        )}
-      </span>
-      <span
-        aria-hidden
-        className={cn(
-          SUBE,
-          "relative flex w-full justify-center rounded-t-xl border-2 border-b-0 border-dashed border-paper/25 pt-1.5 transition-colors sm:pt-2",
-          conBoton && "group-hover/libre:border-maiz/60",
-          l.alto,
-        )}
-        style={{ animationDelay: `${l.sube}ms` }}
-      >
-        <span className={cn("font-display font-extrabold leading-none tabular-nums text-paper/15", l.numeral)}>{lugar}</span>
-      </span>
-    </>
-  );
+function FilaHonesta({ filas, financiadosAmbito, invitacion }: { filas: FilaRanking[]; financiadosAmbito?: number; invitacion: string }) {
   return (
-    <li className={cn("min-w-0", l.orden)}>
-      {conBoton ? (
-        <Link href="/app/financiar" className="group/libre flex h-full flex-col rounded-t-xl">
-          {contenido}
-        </Link>
-      ) : (
-        <div className="flex h-full flex-col rounded-t-xl">{contenido}</div>
-      )}
-    </li>
+    <div className="mt-4">
+      <ul className="divide-y divide-paper/15 border-y border-paper/15">
+        {filas.map((f) => {
+          const href = hrefPerfil(f.slug);
+          const tipo = esFundador(f) ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[f.tipo];
+          const pct = financiadosAmbito ? pctProporcion(f.contratosFinanciados, financiadosAmbito) : null;
+          const clase = "group/aliado flex w-full items-center gap-3 px-1 py-3 text-left sm:gap-4";
+          const cuerpo = (
+            <>
+              <span aria-hidden className="flex shrink-0">
+                <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="lg" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn("block truncate font-display text-bloque font-bold leading-snug text-paper", href && "underline-offset-2 group-hover/aliado:underline")}
+                  title={f.nombre}
+                >
+                  {f.nombre}
+                </span>
+                <span className="block text-meta leading-snug text-paper/75">
+                  {tipo}
+                  {href && <span className="text-maiz"> Ver quién es <span aria-hidden>→</span></span>}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block font-display text-cifra font-extrabold leading-none tabular-nums text-maiz">{numero(f.contratosFinanciados)}</span>
+                <span className="mt-1 block text-rotulo leading-tight text-paper/75">
+                  {f.contratosFinanciados === 1 ? "contrato financiado" : "contratos financiados"}
+                  {pct && <span className="block">{pct} del total</span>}
+                </span>
+              </span>
+            </>
+          );
+          return (
+            <li key={f.id} className="min-w-0">
+              {href ? (
+                <AliadoAbrir fila={f} className={clase}>
+                  {cuerpo}
+                </AliadoAbrir>
+              ) : (
+                <div className={clase}>{cuerpo}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 max-w-[60ch] text-dato leading-snug text-paper/80">
+        {filas.length === 1 ? "Por ahora hay un solo aliado con nombre." : "Por ahora hay dos aliados con nombre."} El podio se arma con
+        tres. {invitacion}
+      </p>
+    </div>
   );
 }
 

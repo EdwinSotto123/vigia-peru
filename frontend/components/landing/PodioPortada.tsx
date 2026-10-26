@@ -16,9 +16,9 @@ import { EnlaceAccion } from "./EnlaceAccion";
  * de la portada (panel con su descripción, sus enlaces y lo que hizo leer).
  *
  * Mismas reglas que el ranking: se cuenta en CONTRATOS, nunca en soles; sólo aliados reales
- * (los puestos que faltan se ven libres, que es una invitación); y si el registro no
- * responde, la sección no se dibuja: una portada que estima lo que no sabe es lo que este
- * producto le reprocha al Estado.
+ * (el podio se arma con tres; con uno o dos, una fila honesta por aliado y la invitación,
+ * nunca escalones vacíos); y si el registro no responde, la sección no se dibuja: una
+ * portada que estima lo que no sabe es lo que este producto le reprocha al Estado.
  */
 
 /** Filas que se piden: los aportes sin nombre no ocupan puesto, y el podio necesita tres con nombre. */
@@ -52,7 +52,6 @@ export async function PodioPortada() {
       <div className="container-page relative py-16 sm:py-24">
         <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="max-w-3xl">
-            <p className="etiqueta-mono mb-4 text-maiz">Top auditores ciudadanos</p>
             <h2
               id="podio-portada-titulo"
               className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl"
@@ -99,6 +98,7 @@ export async function PodioPortada() {
           <LlamadaPodio
             precio={estado?.tarifa?.precioPen ?? null}
             desglose={frasePartesTarifa(partesTarifa(estado?.tarifa?.nota))}
+            hayPodio={podio.length >= 3}
           />
           {recientes && recientes.data.length > 0 && <CintaAportes items={recientes.data} total={recientes.total} />}
         </div>

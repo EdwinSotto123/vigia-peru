@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, Search, SearchX, X } from "lucide-react";
+import { ChevronRight, SearchX } from "lucide-react";
 import { nombreDepartamento } from "@/components/mapa/region-match";
 import { rutaRegion } from "@/lib/regiones";
 import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
-import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import { BarraFiltros, type FiltroSecundario } from "@/components/listado/BarraFiltros";
+import { Listado, ZonaResultados, useListado, type Parametros } from "@/components/listado/Listado";
+import { Vistas, type Vista as OpcionVista } from "@/components/listado/Vistas";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { Nota } from "@/components/patrones";
 import { Partes } from "@/components/ui/Partes";
-import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { listaY, numero, solesCompacto } from "@/lib/formato";
 import {
@@ -38,11 +40,13 @@ import { useModo, type Modo } from "@/lib/modo";
  * El directorio de TODOS los gobiernos del país en un período (Elecciones Regionales y Municipales, JNE):
  * quién gobierna cada región, provincia y distrito, con su partido, y todas las organizaciones, no solo las
  * más grandes. Los datos llegan del archivo público /data/autoridades-<año>.json (179 KB), se piden al
- * montar y se filtran y paginan acá, en el navegador: un filtro no espera al servidor.
+ * montar y se filtran y paginan acá, en el navegador.
  *
- * El estado vive en la URL (`?nivel=&q=&region=&org=&orden=&pagina=`): se comparte, y el botón atrás lo
- * deshace. Los filtros la reescriben con history.replaceState (Next la sigue con useSearchParams); la
- * paginación y las pestañas de vista son enlaces. Cuenta quién ganó, no qué hizo: nada acá acusa a nadie.
+ * Con las piezas del kit, como todo listado (§14.1): `Vistas` para qué mirar, el período y el nivel (una sola fila que
+ * se desliza en el celular, con su conteo: antes el selector se partía en dos renglones y las cifras de arriba repetían
+ * «25, 196, 1,682»), `BarraFiltros` (buscar, región, partido, orden; cada filtro activo con su × y «Quitar todo») y
+ * `Paginacion` arriba y abajo. El estado vive en la URL (`?nivel=&q=&region=&org=&orden=&pagina=`): se comparte, y el
+ * botón atrás lo deshace. Cuenta quién ganó, no qué hizo: nada acá acusa a nadie.
  *
  * Lo que llega del servidor son datos planos y nodos ya armados (`contratosNode`, `mapaNode`), nunca funciones.
  */
@@ -60,10 +64,10 @@ export interface ContratosDeUnPartido {
 
 const TAM = 25;
 
-const NIVELES: { id: Nivel; etiqueta: string }[] = [
-  { id: "regional", etiqueta: "Regiones" },
-  { id: "provincial", etiqueta: "Provincias" },
-  { id: "distrital", etiqueta: "Distritos" },
+const NIVELES: { id: Nivel; etiqueta: string; plural: string }[] = [
+  { id: "regional", etiqueta: "Regiones", plural: "regiones" },
+  { id: "provincial", etiqueta: "Provincias", plural: "provincias" },
+  { id: "distrital", etiqueta: "Distritos", plural: "distritos" },
 ];
 
 const ORDENES = [
@@ -73,24 +77,31 @@ const ORDENES = [
 ] as const;
 type Orden = (typeof ORDENES)[number]["valor"];
 
-const CAMPO =
-  "h-10 rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+const VISTAS: { v: Vista; texto: string }[] = [
+  { v: "gobiernos", texto: "Quién gobierna" },
+  { v: "partidos", texto: "Todos los partidos" },
+  { v: "contratos", texto: "Contratos por partido" },
+  { v: "mapa", texto: "En el mapa" },
+];
 
 /** Colores por organización para TODO el período: las 8 con más gobiernos, el resto «Otras» en gris. */
 function coloresDelPeriodo(d: AutoridadesDatos, modo: Modo) {
   return coloresDeFilas([...d.regional, ...d.provincial, ...d.distrital], modo);
 }
 
-/** El nombre de la organización como una pastilla con su color: el punto lleva el color, el fondo apenas lo insinúa. */
+/**
+ * El nombre de la organización con su color. En el celular va en DOS líneas: recortado en una, ocho «Movimiento
+ * Regional…» distintos se veían iguales; desde md, una línea (el nombre entero en el `title`).
+ */
 function ChipPartido({ nombre, tipo, color }: { nombre: string; tipo: TipoOrg; color: string }) {
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-meta font-medium leading-snug text-ink"
+      className="inline-flex max-w-full items-start gap-1.5 rounded-2xl border px-2.5 py-0.5 text-meta font-medium leading-snug text-ink"
       style={{ backgroundColor: `${color}22`, borderColor: `${color}66` }}
       title={`${nombre}, ${TIPO_ORG_LABEL[tipo].toLowerCase()}`}
     >
-      <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="truncate">{nombre}</span>
+      <span aria-hidden className="mt-[0.35rem] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span className="min-w-0 line-clamp-2 md:line-clamp-1">{nombre}</span>
     </span>
   );
 }
@@ -125,6 +136,12 @@ function filasDe(d: AutoridadesDatos, nivel: Nivel): FilaGobierno[] {
 }
 
 const alfabetico = (a: string, b: string) => a.localeCompare(b, "es", { sensitivity: "base" });
+
+/** Una URL de esta página con estos parámetros (los vacíos fuera). */
+function urlCon(ruta: string, p: Record<string, string | undefined>) {
+  const qs = new URLSearchParams(Object.entries(p).filter((e): e is [string, string] => !!e[1])).toString();
+  return qs ? `${ruta}?${qs}` : ruta;
+}
 
 export function DirectorioGobiernos({
   anio,
@@ -169,21 +186,6 @@ export function DirectorioGobiernos({
   const orden = (ORDENES.find((o) => o.valor === params.get("orden"))?.valor ?? "lugar") as Orden;
   const pagina = Math.max(1, Number(params.get("pagina")) || 1);
 
-  /** Cambia filtros sin pedirle nada al servidor: reescribe la URL; volver a filtrar vuelve a la página 1. */
-  const fijar = useCallback(
-    (cambio: Record<string, string | undefined>) => {
-      const p = new URLSearchParams(window.location.search);
-      for (const [k, v] of Object.entries(cambio)) {
-        if (v) p.set(k, v);
-        else p.delete(k);
-      }
-      if (!("pagina" in cambio)) p.delete("pagina");
-      const qs = p.toString();
-      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
-    },
-    [pathname],
-  );
-
   const modo = useModo();
   const resumen = useMemo(() => {
     if (!datos) return null;
@@ -196,91 +198,38 @@ export function DirectorioGobiernos({
     };
   }, [datos, modo]);
 
-  const hrefVista = (v: Vista) => {
-    const p = new URLSearchParams({ anio: String(anio) });
-    if (v !== "gobiernos") p.set("vista", v);
-    if (v === "gobiernos" && nivel !== "regional") p.set("nivel", nivel);
-    return `${pathname}?${p.toString()}`;
-  };
-  const hrefPeriodo = (a: number) => {
-    const p = new URLSearchParams({ anio: String(a) });
-    if (vista !== "gobiernos") p.set("vista", vista);
-    if (vista === "gobiernos" && nivel !== "regional") p.set("nivel", nivel);
-    return `${pathname}?${p.toString()}`;
-  };
+  const hrefVista = (v: Vista) => urlCon(pathname, { anio: String(anio), vista: v !== "gobiernos" ? v : undefined, nivel: v === "gobiernos" && nivel !== "regional" ? nivel : undefined });
+  const hrefPeriodo = (a: number) => urlCon(pathname, { anio: String(a), vista: vista !== "gobiernos" ? vista : undefined, nivel: vista === "gobiernos" && nivel !== "regional" ? nivel : undefined });
 
-  const periodo = periodos.find((p) => p.anio === anio);
+  // Cada vista con su conteo (§14.3): la de partidos, cuántas organizaciones gobernaron algo (hueco mientras se cuenta).
+  const vistas: OpcionVista[] = VISTAS.map(({ v, texto }) => ({
+    href: hrefVista(v),
+    etiqueta: texto,
+    activa: vista === v,
+    conteo: v === "partidos" ? (resumen ? resumen.organizaciones : fallo ? undefined : null) : undefined,
+  }));
+  const vistasPeriodo: OpcionVista[] = periodos.map((p) => ({ href: hrefPeriodo(p.anio), etiqueta: p.texto, activa: p.anio === anio }));
 
   return (
     <div className="space-y-4">
-      {/* Período y vista: dos filas de pestañas, una sola decisión cada una. */}
+      {/* Qué mirar y de qué período: una sola decisión cada una, y el período una sola vez en la página. */}
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <nav aria-label="Qué mirar" className="inline-flex flex-wrap gap-1 rounded-full border border-granate/25 bg-granate-50 p-1">
-          {(
-            [
-              ["gobiernos", "Quién gobierna"],
-              ["partidos", "Todos los partidos"],
-              ["contratos", "Contratos por partido"],
-              ["mapa", "En el mapa"],
-            ] as const
-          ).map(([v, texto]) => (
-            <Link
-              key={v}
-              href={hrefVista(v)}
-              prefetch={false}
-              aria-current={vista === v ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-9 items-center rounded-full px-3.5 text-dato font-semibold transition-colors",
-                vista === v ? "bg-granate text-paper shadow-sm" : "text-inkSoft hover:text-ink",
-              )}
-            >
-              {texto}
-            </Link>
-          ))}
-        </nav>
-        <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 hidden text-meta text-mute sm:inline">Gobiernos de</span>
-          {periodos.map((p) => (
-            <Link
-              key={p.anio}
-              href={hrefPeriodo(p.anio)}
-              prefetch={false}
-              aria-current={p.anio === anio ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-9 items-center rounded-full border px-3 text-meta font-semibold transition-colors",
-                p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50 hover:text-ink",
-              )}
-            >
-              {p.texto}
-            </Link>
-          ))}
-        </nav>
+        <Vistas vistas={vistas} etiqueta="Qué mirar" />
+        <div className="flex min-w-0 max-w-full items-center gap-2">
+          <span className="hidden shrink-0 text-meta text-mute sm:inline">Gobiernos de</span>
+          <Vistas vistas={vistasPeriodo} etiqueta="Período de gobierno" />
+        </div>
       </div>
 
       {(vista === "gobiernos" || vista === "partidos") && (
         <>
-          {resumen && datos ? (
-            <CifrasEnFila
-              items={[
-                { valor: numero(datos.regional.length), etiqueta: "gobiernos regionales", contexto: `elegidos en ${anio}` },
-                { valor: numero(datos.provincial.length), etiqueta: "provincias" },
-                { valor: numero(datos.distrital.length), etiqueta: "distritos" },
-                { valor: numero(resumen.organizaciones), etiqueta: "organizaciones políticas", contexto: periodo ? `mandato ${periodo.texto}` : undefined },
-              ]}
-            />
-          ) : (
-            <div className="rounded-2xl border border-line bg-paper px-4 py-3" aria-hidden>
-              <Skeleton className="h-8 w-full" />
-            </div>
-          )}
-
           {fallo && <EstadoVacio tono="error">No pudimos leer los resultados de {anio}. Recarga la página para reintentar.</EstadoVacio>}
 
           {datos && resumen && vista === "gobiernos" && (
-            <Gobiernos datos={datos} resumen={resumen} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} fijar={fijar} anio={anio} />
+            <Gobiernos datos={datos} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} anio={anio} claves={resumen.claves} />
           )}
           {datos && resumen && vista === "partidos" && (
-            <TodosLosPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} fijar={fijar} anio={anio} contratos={contratos} hrefGobiernos={(clave, nivelDe) => `${pathname}?${new URLSearchParams({ anio: String(anio), ...(nivelDe !== "regional" ? { nivel: nivelDe } : {}), org: clave }).toString()}`} />
+            <TodosLosPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} anio={anio} contratos={contratos} />
           )}
           {!datos && !fallo && <TablaCargando />}
         </>
@@ -319,65 +268,150 @@ function TablaCargando() {
 
 function Gobiernos({
   datos,
-  resumen,
   nivel,
   q,
   region,
   org,
   orden,
   pagina,
-  fijar,
   anio,
+  claves,
 }: {
   datos: AutoridadesDatos;
-  resumen: Resumen;
   nivel: Nivel;
   q: string;
   region: string;
   org: string;
   orden: Orden;
   pagina: number;
-  fijar: (c: Record<string, string | undefined>) => void;
   anio: number;
+  claves: Map<string, number>;
 }) {
   const pathname = usePathname();
+  const parametros: Parametros = {
+    anio: String(anio),
+    nivel: nivel === "regional" ? undefined : nivel,
+    q: q || undefined,
+    region: region || undefined,
+    org: org || undefined,
+    orden: orden === "lugar" ? undefined : orden,
+  };
   const base = useMemo(() => filasDe(datos, nivel), [datos, nivel]);
-  const orgIndice = org ? resumen.claves.get(org) ?? -1 : null;
+  const totales: Record<Nivel, number> = { regional: datos.regional.length, provincial: datos.provincial.length, distrital: datos.distrital.length };
+  // Regiones | Provincias | Distritos, con cuántos hay de cada uno: el nivel es una población, no un filtro (§14.1).
+  const niveles: OpcionVista[] = NIVELES.map((n) => ({
+    href: urlCon(pathname, { ...parametros, nivel: n.id === "regional" ? undefined : n.id }),
+    etiqueta: n.etiqueta,
+    conteo: totales[n.id],
+    activa: n.id === nivel,
+  }));
+  return (
+    <div className="space-y-3">
+      <Vistas vistas={niveles} etiqueta="Nivel de gobierno" />
+      <Listado ruta={pathname} parametros={parametros}>
+        <ListaGobiernos datos={datos} base={base} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} anio={anio} claves={claves} parametros={parametros} />
+      </Listado>
+      <Nota>
+        Cuenta quién ganó la elección de {anio}, no qué hizo cada gobierno: una vacancia, una revocatoria o un reemplazo dentro del período no está registrado.
+        Una señal de Vigía es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona. Fuente: JNE, Plataforma Electoral (Infogob).
+      </Nota>
+    </div>
+  );
+}
+
+function ListaGobiernos({
+  datos,
+  base,
+  nivel,
+  q,
+  region,
+  org,
+  orden,
+  pagina,
+  anio,
+  claves,
+  parametros,
+}: {
+  datos: AutoridadesDatos;
+  base: FilaGobierno[];
+  nivel: Nivel;
+  q: string;
+  region: string;
+  org: string;
+  orden: Orden;
+  pagina: number;
+  anio: number;
+  claves: Map<string, number>;
+  parametros: Parametros;
+}) {
+  const pathname = usePathname();
+  const { navegar } = useListado();
+  const orgIndice = org ? claves.get(org) ?? -1 : null;
   // Los colores se reparten entre las organizaciones de ESTE nivel: así las regiones, las provincias y los distritos
   // se ven coloreados por quienes de verdad gobiernan ahí (con los de todo el período, casi todo quedaba gris).
   const modo = useModo();
   const otras = paletaOrg(modo).otras;
   const colores = useMemo(() => coloresDeFilas(base, modo), [base, modo]);
 
-  // Cuántos gobiernos tiene cada organización en ESTE nivel: para el reparto, el selector y las pastillas.
+  // Cuántos gobiernos tiene cada organización en ESTE nivel: para el reparto y el orden del desplegable.
   const enEsteNivel = useMemo(() => {
     const m = new Map<number, number>();
     for (const f of base) m.set(f.o, (m.get(f.o) ?? 0) + 1);
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
   }, [base]);
 
-  const filtradas = useMemo(() => {
-    const k = normalizar(q);
-    let f = base;
-    if (region) f = f.filter((x) => x.region === region);
-    if (orgIndice != null) f = f.filter((x) => x.o === orgIndice);
-    if (k) {
-      f = f.filter((x) => normalizar(`${x.lugar} ${x.sub ?? ""} ${x.autoridad} ${orgDe(datos, x.o).n}`).includes(k));
-    }
+  // El texto en que busca el buscador, una vez por fila (lugar, provincia y región, autoridad, organización).
+  const textos = useMemo(() => base.map((x) => normalizar(`${x.lugar} ${x.sub ?? ""} ${x.autoridad} ${orgDe(datos, x.o).n}`)), [base, datos]);
+  const k = normalizar(q);
+
+  // Los conteos de cada opción, sobre los OTROS filtros (ninguna opción lleva a cero): región sobre partido y búsqueda,
+  // partido sobre región y búsqueda.
+  const { porRegion, porOrg, filtradas } = useMemo(() => {
+    const porRegion = new Map<string, number>();
+    const porOrg = new Map<number, number>();
+    const pasan: FilaGobierno[] = [];
+    base.forEach((x, i) => {
+      if (k && !textos[i].includes(k)) return;
+      const enRegion = !region || x.region === region;
+      const enOrg = orgIndice == null || x.o === orgIndice;
+      if (enOrg) porRegion.set(x.region, (porRegion.get(x.region) ?? 0) + 1);
+      if (enRegion) porOrg.set(x.o, (porOrg.get(x.o) ?? 0) + 1);
+      if (enRegion && enOrg) pasan.push(x);
+    });
     const orgNombre = (i: number) => orgDe(datos, i).n;
-    return [...f].sort((a, b) => {
+    pasan.sort((a, b) => {
       if (orden === "votos") return (b.p ?? -1) - (a.p ?? -1) || alfabetico(a.lugar, b.lugar);
       if (orden === "partido") return alfabetico(orgNombre(a.o), orgNombre(b.o)) || alfabetico(a.lugar, b.lugar);
       return alfabetico(a.lugar, b.lugar) || alfabetico(a.sub ?? "", b.sub ?? "");
     });
-  }, [base, region, orgIndice, q, orden, datos]);
+    return { porRegion, porOrg, filtradas: pasan };
+  }, [base, textos, k, region, orgIndice, orden, datos]);
 
   const ultima = Math.max(1, Math.ceil(filtradas.length / TAM));
   const actual = Math.min(pagina, ultima);
   const visibles = filtradas.slice((actual - 1) * TAM, actual * TAM);
-  const hayFiltros = !!q || !!region || !!org || orden !== "lugar";
+  const hayFiltros = !!q || !!region || !!org;
 
-  const regiones = useMemo(() => datos.regional.map((g) => ({ valor: g.u, etiqueta: nombreDepartamento(g.u) })).sort((a, b) => alfabetico(a.etiqueta, b.etiqueta)), [datos]);
+  const opcionesRegion = useMemo(
+    () =>
+      datos.regional
+        .map((g) => ({ valor: g.u, etiqueta: nombreDepartamento(g.u), conteo: porRegion.get(g.u) ?? 0 }))
+        .filter((o) => o.conteo > 0 || o.valor === region)
+        .sort((a, b) => alfabetico(a.etiqueta, b.etiqueta)),
+    [datos, porRegion, region],
+  );
+  const opcionesOrg = useMemo(
+    () =>
+      enEsteNivel
+        .map(([i]) => ({ valor: claveOrg(orgDe(datos, i).n), etiqueta: orgDe(datos, i).n, conteo: porOrg.get(i) ?? 0 }))
+        .filter((o) => o.conteo > 0 || o.valor === org),
+    [enEsteNivel, datos, porOrg, org],
+  );
+  // En el nivel regional, la región sólo deja una fila: el filtro aparece si ya viene puesto (para poder quitarlo).
+  const visiblesBarra: FiltroSecundario[] = [
+    ...(nivel !== "regional" || region ? [{ param: "region", etiqueta: "Región", corta: "Región", todas: "Todo el Perú", opciones: opcionesRegion }] : []),
+    { param: "org", etiqueta: "Partido", corta: "Partido", todas: "Todos los partidos", opciones: opcionesOrg },
+  ];
 
   const columnas: Columna[] = [
     { clave: "lugar", titulo: nivel === "regional" ? "Región" : nivel === "provincial" ? "Provincia" : "Distrito", ancho: "minmax(0,1.1fr)" },
@@ -412,32 +446,13 @@ function Gobiernos({
     };
   });
 
-  const consulta: Record<string, string | undefined> = { anio: String(anio), nivel: nivel === "regional" ? undefined : nivel, q: q || undefined, region: region || undefined, org: org || undefined, orden: orden === "lugar" ? undefined : orden };
+  const plural = NIVELES.find((n) => n.id === nivel)?.plural ?? "gobiernos";
+  const pag = (subir: boolean) => (
+    <Paginacion actual={actual} paginas={ultima} total={filtradas.length} tam={TAM} navegacion="url" hrefBase={pathname} query={parametros} cargando={false} nombre={plural} subir={subir} />
+  );
 
   return (
     <div className="space-y-3">
-      <nav aria-label="Nivel de gobierno" className="flex flex-wrap items-center gap-2">
-        {NIVELES.map((n) => {
-          const total = n.id === "regional" ? datos.regional.length : n.id === "provincial" ? datos.provincial.length : datos.distrital.length;
-          const activo = n.id === nivel;
-          return (
-            <button
-              key={n.id}
-              type="button"
-              aria-pressed={activo}
-              onClick={() => fijar({ nivel: n.id === "regional" ? undefined : n.id, org: org || undefined })}
-              className={cn(
-                "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-dato font-semibold transition-colors",
-                activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50 hover:text-ink",
-              )}
-            >
-              {n.etiqueta}
-              <span className={cn("rounded-full px-1.5 font-mono text-rotulo tabular-nums", activo ? "bg-paper text-granate" : "bg-paperDeep text-mute")}>{numero(total)}</span>
-            </button>
-          );
-        })}
-      </nav>
-
       {/* El reparto del poder en este nivel: cada tramo es una organización, con su color; tocar uno la filtra. */}
       <RepartoDelPoder
         enEsteNivel={enEsteNivel}
@@ -446,43 +461,38 @@ function Gobiernos({
         total={base.length}
         nivel={nivel}
         orgIndice={orgIndice}
-        onElegir={(i) => fijar({ org: i == null || i === orgIndice ? undefined : claveOrg(orgDe(datos, i).n) })}
+        onElegir={(i) => navegar({ org: i == null || i === orgIndice ? undefined : claveOrg(orgDe(datos, i).n) })}
       />
 
-      <FiltrosDirectorio
-        q={q}
-        region={region}
-        regiones={regiones}
-        orden={orden}
-        orgSeleccionada={orgIndice != null && orgIndice >= 0 ? orgDe(datos, orgIndice).n : ""}
-        opcionesOrg={enEsteNivel.map(([i, n]) => ({ clave: claveOrg(orgDe(datos, i).n), nombre: orgDe(datos, i).n, n, color: colores.get(i) ?? otras }))}
-        hayFiltros={hayFiltros}
-        fijar={fijar}
+      <BarraFiltros
+        busqueda={{ param: "q", placeholder: "Buscar un lugar, una autoridad o un partido…", etiqueta: "Buscar por lugar, autoridad o partido", min: 2 }}
+        visibles={visiblesBarra}
+        orden={{ param: "orden", porDefecto: "lugar", opciones: ORDENES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
       />
 
-      {filas.length === 0 ? (
-        <EstadoVacio icono={<SearchX size={16} aria-hidden />} accion={hayFiltros ? <LimpiarFiltros fijar={fijar} /> : undefined}>
-          Ningún gobierno coincide con esos filtros.
-        </EstadoVacio>
-      ) : (
-        <Tabla columnas={columnas} filas={filas} etiqueta={`Gobiernos ${NIVELES.find((n) => n.id === nivel)?.etiqueta.toLowerCase()} ${anio}`} densidad="compacta" />
-      )}
-
-      <PaginacionNumerada actual={actual} total={filtradas.length} tam={TAM} nombre={nivel === "regional" ? "regiones" : nivel === "provincial" ? "provincias" : "distritos"} hrefBase={pathname} query={consulta} />
-
-      <Nota>
-        Cuenta quién ganó la elección de {anio}, no qué hizo cada gobierno: una vacancia, una revocatoria o un reemplazo dentro del período no está registrado.
-        Una señal de Vigía es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona. Fuente: JNE, Plataforma Electoral (Infogob).
-      </Nota>
+      <ZonaResultados>
+        {filas.length === 0 ? (
+          <EstadoVacio
+            icono={<SearchX size={16} aria-hidden />}
+            accion={
+              hayFiltros ? (
+                <button type="button" onClick={() => navegar({ q: undefined, region: undefined, org: undefined })} className="text-dato font-semibold text-granate underline-offset-4 hover:underline">
+                  Quitar los filtros
+                </button>
+              ) : undefined
+            }
+          >
+            Ningún gobierno coincide con esos filtros.
+          </EstadoVacio>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-end">{pag(false)}</div>
+            <Tabla columnas={columnas} filas={filas} etiqueta={`Gobiernos ${plural} ${anio}`} densidad="compacta" />
+            {ultima > 1 && <div className="flex justify-end">{pag(true)}</div>}
+          </div>
+        )}
+      </ZonaResultados>
     </div>
-  );
-}
-
-function LimpiarFiltros({ fijar }: { fijar: (c: Record<string, string | undefined>) => void }) {
-  return (
-    <button type="button" onClick={() => fijar({ q: undefined, region: undefined, org: undefined, orden: undefined })} className="text-dato font-semibold text-granate underline-offset-4 hover:underline">
-      Quitar filtros
-    </button>
   );
 }
 
@@ -507,7 +517,7 @@ function RepartoDelPoder({
   const otrasReparto = paletaOrg(useModo()).otras;
   const grandes = enEsteNivel.slice(0, PALETA_ORG.length);
   const resto = enEsteNivel.slice(PALETA_ORG.length).reduce((s, [, n]) => s + n, 0);
-  const etiqueta = NIVELES.find((n) => n.id === nivel)?.etiqueta.toLowerCase();
+  const etiqueta = NIVELES.find((n) => n.id === nivel)?.plural;
   return (
     <section aria-label={`Reparto de ${etiqueta} entre organizaciones`} className="rounded-2xl border border-granate/20 bg-gradient-to-br from-granate-50 via-paperSoft to-paper p-3 sm:p-4">
       <div className="flex h-3.5 w-full gap-px overflow-hidden rounded-full bg-paperDeep" role="group" aria-label="Tramos por organización">
@@ -526,7 +536,7 @@ function RepartoDelPoder({
         {resto > 0 && <span className="h-full" style={{ width: `${(resto / total) * 100}%`, backgroundColor: otrasReparto }} aria-hidden />}
       </div>
       <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-meta">
-        {grandes.slice(0, 8).map(([i, n]) => (
+        {grandes.map(([i, n]) => (
           <li key={i}>
             <button
               type="button"
@@ -540,154 +550,9 @@ function RepartoDelPoder({
             </button>
           </li>
         ))}
-        {enEsteNivel.length > 8 && <li className="py-0.5 text-mute">y otras {numero(enEsteNivel.length - 8)} organizaciones</li>}
+        {enEsteNivel.length > grandes.length && <li className="py-0.5 text-mute">y otras {numero(enEsteNivel.length - grandes.length)} organizaciones</li>}
       </ul>
     </section>
-  );
-}
-
-// ── Filtros en una sola línea ───────────────────────────────────────────────────────────────────
-
-function FiltrosDirectorio({
-  q,
-  region,
-  regiones,
-  orden,
-  orgSeleccionada,
-  opcionesOrg,
-  hayFiltros,
-  fijar,
-}: {
-  q: string;
-  region: string;
-  regiones: { valor: string; etiqueta: string }[];
-  orden: Orden;
-  orgSeleccionada: string;
-  opcionesOrg: { clave: string; nombre: string; n: number; color: string }[];
-  hayFiltros: boolean;
-  fijar: (c: Record<string, string | undefined>) => void;
-}) {
-  const [texto, setTexto] = useState(q);
-  const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => setTexto(q), [q]);
-  useEffect(() => () => { if (reloj.current) clearTimeout(reloj.current); }, []);
-  const escribir = (v: string) => {
-    setTexto(v);
-    if (reloj.current) clearTimeout(reloj.current);
-    reloj.current = setTimeout(() => {
-      const t = v.trim();
-      fijar({ q: t.length >= 2 ? t : undefined });
-    }, 250);
-  };
-
-  return (
-    <div role="search" className="flex flex-wrap items-center gap-2">
-      <label className="relative block min-w-[220px] flex-1">
-        <span className="sr-only">Buscar por lugar, autoridad o partido</span>
-        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-        <input
-          type="search"
-          value={texto}
-          onChange={(e) => escribir(e.target.value)}
-          placeholder="Buscar un lugar, una autoridad o un partido"
-          autoComplete="off"
-          enterKeyHint="search"
-          className={cn(CAMPO, "w-full pl-9 pr-9")}
-        />
-        {texto && (
-          <button type="button" onClick={() => { setTexto(""); fijar({ q: undefined }); }} aria-label="Borrar la búsqueda" className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-mute hover:text-ink">
-            <X size={15} aria-hidden />
-          </button>
-        )}
-      </label>
-
-      <label className="block">
-        <span className="sr-only">Región</span>
-        <select value={region} onChange={(e) => fijar({ region: e.target.value || undefined })} className={cn(CAMPO, "w-full sm:w-auto", region && "border-granate/60 font-medium")}>
-          <option value="">Todo el Perú</option>
-          {regiones.map((r) => (
-            <option key={r.valor} value={r.valor}>{r.etiqueta}</option>
-          ))}
-        </select>
-      </label>
-
-      <SelectorPartido seleccionada={orgSeleccionada} opciones={opcionesOrg} onElegir={(clave) => fijar({ org: clave })} />
-
-      <label className="block">
-        <span className="sr-only">Ordenar por</span>
-        <select value={orden} onChange={(e) => fijar({ orden: e.target.value === "lugar" ? undefined : e.target.value })} className={cn(CAMPO, "w-full sm:w-auto")}>
-          {ORDENES.map((o) => (
-            <option key={o.valor} value={o.valor}>{o.etiqueta}</option>
-          ))}
-        </select>
-      </label>
-
-      {hayFiltros && <LimpiarFiltros fijar={fijar} />}
-    </div>
-  );
-}
-
-/** Un selector de partido buscable: la lista tiene más de 100 organizaciones, un <select> nativo no se puede buscar. */
-function SelectorPartido({
-  seleccionada,
-  opciones,
-  onElegir,
-}: {
-  seleccionada: string;
-  opciones: { clave: string; nombre: string; n: number; color: string }[];
-  onElegir: (clave: string | undefined) => void;
-}) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  const [filtro, setFiltro] = useState("");
-  const lista = useMemo(() => {
-    const k = normalizar(filtro);
-    return k ? opciones.filter((o) => normalizar(o.nombre).includes(k)) : opciones;
-  }, [opciones, filtro]);
-  const cerrar = () => {
-    if (ref.current) ref.current.open = false;
-    setFiltro("");
-  };
-  return (
-    <details ref={ref} className="relative">
-      <summary
-        className={cn(CAMPO, "flex max-w-[15rem] cursor-pointer list-none items-center gap-2 sm:w-auto [&::-webkit-details-marker]:hidden", seleccionada && "border-granate/60 font-medium")}
-        aria-label="Partido u organización"
-      >
-        <span className="truncate">{seleccionada || "Todos los partidos"}</span>
-        <ChevronDown size={14} className="ml-auto shrink-0 text-mute" aria-hidden />
-      </summary>
-      <div className="absolute left-0 z-20 mt-1 w-[min(22rem,90vw)] rounded-xl border border-line bg-paper p-2 shadow-lg">
-        <label className="relative block">
-          <span className="sr-only">Buscar un partido</span>
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-          <input
-            type="search"
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
-            placeholder="Buscar un partido"
-            autoComplete="off"
-            className="h-9 w-full rounded-lg border border-line bg-paperSoft pl-8 pr-2 text-dato text-ink focus:border-granate"
-          />
-        </label>
-        <ul className="mt-1.5 max-h-64 overflow-y-auto">
-          <li>
-            <button type="button" onClick={() => { onElegir(undefined); cerrar(); }} className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-dato text-ink hover:bg-paperDeep">
-              Todos los partidos
-            </button>
-          </li>
-          {lista.map((o) => (
-            <li key={o.clave}>
-              <button type="button" onClick={() => { onElegir(o.clave); cerrar(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-dato text-ink hover:bg-paperDeep">
-                <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: o.color }} />
-                <span className="min-w-0 flex-1 truncate">{o.nombre}</span>
-                <span className="font-mono text-rotulo tabular-nums text-mute">{o.n}</span>
-              </button>
-            </li>
-          ))}
-          {lista.length === 0 && <li className="px-2.5 py-2 text-meta text-mute">Ningún partido se llama así.</li>}
-        </ul>
-      </div>
-    </details>
   );
 }
 
@@ -698,26 +563,45 @@ function TodosLosPartidos({
   resumen,
   q,
   pagina,
-  fijar,
   anio,
   contratos,
-  hrefGobiernos,
 }: {
   datos: AutoridadesDatos;
   resumen: Resumen;
   q: string;
   pagina: number;
-  fijar: (c: Record<string, string | undefined>) => void;
   anio: number;
   contratos: Record<string, ContratosDeUnPartido> | null;
-  hrefGobiernos: (clave: string, nivel: Nivel) => string;
+}) {
+  const pathname = usePathname();
+  const parametros: Parametros = { anio: String(anio), vista: "partidos", q: q || undefined };
+  return (
+    <Listado ruta={pathname} parametros={parametros}>
+      <ListaPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} anio={anio} contratos={contratos} parametros={parametros} />
+    </Listado>
+  );
+}
+
+function ListaPartidos({
+  datos,
+  resumen,
+  q,
+  pagina,
+  anio,
+  contratos,
+  parametros,
+}: {
+  datos: AutoridadesDatos;
+  resumen: Resumen;
+  q: string;
+  pagina: number;
+  anio: number;
+  contratos: Record<string, ContratosDeUnPartido> | null;
+  parametros: Parametros;
 }) {
   const otrasTodos = paletaOrg(useModo()).otras;
   const pathname = usePathname();
-  const [texto, setTexto] = useState(q);
-  const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => setTexto(q), [q]);
-  useEffect(() => () => { if (reloj.current) clearTimeout(reloj.current); }, []);
+  const hrefGobiernos = (clave: string, nivelDe: Nivel) => urlCon(pathname, { anio: String(anio), nivel: nivelDe !== "regional" ? nivelDe : undefined, org: clave });
 
   const filas = useMemo(() => {
     const k = normalizar(q);
@@ -729,100 +613,87 @@ function TodosLosPartidos({
   const ultima = Math.max(1, Math.ceil(filas.length / TAM));
   const actual = Math.min(pagina, ultima);
   const visibles = filas.slice((actual - 1) * TAM, actual * TAM);
+  const pag = (subir: boolean) => (
+    <Paginacion actual={actual} paginas={ultima} total={filas.length} tam={TAM} navegacion="url" hrefBase={pathname} query={parametros} cargando={false} nombre="organizaciones" subir={subir} />
+  );
 
   return (
     <div className="space-y-3">
-      <div role="search" className="flex flex-wrap items-center gap-2">
-        <label className="relative block min-w-[220px] flex-1">
-          <span className="sr-only">Buscar un partido</span>
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-          <input
-            type="search"
-            value={texto}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              if (reloj.current) clearTimeout(reloj.current);
-              const v = e.target.value.trim();
-              reloj.current = setTimeout(() => fijar({ q: v.length >= 2 ? v : undefined }), 250);
-            }}
-            placeholder="Buscar un partido, movimiento o alianza"
-            autoComplete="off"
-            className={cn(CAMPO, "w-full pl-9")}
-          />
-        </label>
-        <p className="text-meta text-inkSoft">
-          {numero(resumen.organizaciones)} organizaciones gobernaron algo en {anio}, todas aquí, de la que más gobiernos tiene a la que menos.
-        </p>
-      </div>
+      {/* Todas las que gobernaron algo en el período, de la que más gobiernos tiene a la que menos: el total, en la vista. */}
+      <BarraFiltros busqueda={{ param: "q", placeholder: "Buscar un partido, movimiento o alianza…", etiqueta: "Buscar un partido", min: 2 }} />
 
-      {visibles.length === 0 ? (
-        <EstadoVacio icono={<SearchX size={16} aria-hidden />}>Ninguna organización se llama así.</EstadoVacio>
-      ) : (
-        <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-          {visibles.map((c, i) => {
-            const color = resumen.colores.get(c.org) ?? otrasTodos;
-            const k = contratos?.[c.clave];
-            const orden = (actual - 1) * TAM + i + 1;
-            return (
-              // Toda la fila lleva a la ficha del partido (como en "Contratos por partido"): el nombre es el enlace y se
-              // estira sobre la fila; "Ver sus gobiernos" y el conteo quedan encima y siguen siendo sus propios enlaces.
-              <li key={c.org} className="relative grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors focus-within:bg-granate-50 hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
-                <span className="hidden font-mono text-meta tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2">
-                    <span aria-hidden className="h-3 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} title={c.o.n}
-                      className="truncate text-dato font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none">
-                      {c.o.n}
-                    </Link>
-                  </span>
-                  <span className="block truncate pl-3.5 text-rotulo text-mute">
-                    <Partes
-                      partes={[
-                        <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
-                        <Dato key="g" tipo="lugar" nombre="Gobierna">
-                          {listaY([
-                            ...(c.regional > 0 ? [`${numero(c.regional)} ${c.regional === 1 ? "región" : "regiones"}`] : []),
-                            ...(c.provincial > 0 ? [`${numero(c.provincial)} ${c.provincial === 1 ? "provincia" : "provincias"}`] : []),
-                            ...(c.distrital > 0 ? [`${numero(c.distrital)} ${c.distrital === 1 ? "distrito" : "distritos"}`] : []),
-                          ])}
-                        </Dato>,
-                      ]}
-                    />
-                  </span>
-                </span>
-                <span className="min-w-0" role="img" aria-label={`${c.total} gobiernos, frente a ${maximo} de la organización con más`}>
-                  <span className="block h-2 overflow-hidden rounded-full bg-paperDeep">
-                    <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (c.total / maximo) * 100)}%`, backgroundColor: color }} />
-                  </span>
-                  <span className="mt-0.5 block text-rotulo tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
-                </span>
-                <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta sm:justify-end">
-                  <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
-                    Ver sus gobiernos <ChevronRight size={14} aria-hidden />
-                  </Link>
-                  {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
-                    // Sus procesos del OECE (desde 2015); antes, sólo los contratos de la base de Vigía (2026), y los
-                    // períodos anteriores decían "Sin contratos en la base".
-                    <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 flex-col items-end justify-center text-right leading-tight text-inkSoft underline-offset-4 hover:text-ink hover:underline">
-                      <span>
-                        <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
+      <ZonaResultados>
+        {visibles.length === 0 ? (
+          <EstadoVacio icono={<SearchX size={16} aria-hidden />}>Ninguna organización se llama así.</EstadoVacio>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-end">{pag(false)}</div>
+            <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+              {visibles.map((c, i) => {
+                const color = resumen.colores.get(c.org) ?? otrasTodos;
+                const k = contratos?.[c.clave];
+                const orden = (actual - 1) * TAM + i + 1;
+                return (
+                  // Toda la fila lleva a la ficha del partido (como en "Contratos por partido"): el nombre es el enlace y se
+                  // estira sobre la fila; "Ver sus gobiernos" y el conteo quedan encima y siguen siendo sus propios enlaces.
+                  <li key={c.org} className="relative grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors focus-within:bg-granate-50 hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
+                    <span className="hidden font-mono text-meta tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span aria-hidden className="h-3 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                        <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} title={c.o.n}
+                          className="line-clamp-2 text-dato font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none sm:line-clamp-1">
+                          {c.o.n}
+                        </Link>
                       </span>
-                      {(k.montoAdjudicadoPen ?? 0) > 0 && (
-                        <span className="font-mono text-rotulo tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
+                      <span className="block truncate pl-3.5 text-rotulo text-mute">
+                        <Partes
+                          partes={[
+                            <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
+                            <Dato key="g" tipo="lugar" nombre="Gobierna">
+                              {listaY([
+                                ...(c.regional > 0 ? [`${numero(c.regional)} ${c.regional === 1 ? "región" : "regiones"}`] : []),
+                                ...(c.provincial > 0 ? [`${numero(c.provincial)} ${c.provincial === 1 ? "provincia" : "provincias"}`] : []),
+                                ...(c.distrital > 0 ? [`${numero(c.distrital)} ${c.distrital === 1 ? "distrito" : "distritos"}`] : []),
+                              ])}
+                            </Dato>,
+                          ]}
+                        />
+                      </span>
+                    </span>
+                    <span className="min-w-0" role="img" aria-label={`${c.total} gobiernos, frente a ${maximo} de la organización con más`}>
+                      <span className="block h-2 overflow-hidden rounded-full bg-paperDeep">
+                        <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (c.total / maximo) * 100)}%`, backgroundColor: color }} />
+                      </span>
+                      <span className="mt-0.5 block text-rotulo tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta sm:justify-end">
+                      <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                        Ver sus gobiernos <ChevronRight size={14} aria-hidden />
+                      </Link>
+                      {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
+                        // Sus procesos del OECE (desde 2015); antes, sólo los contratos de la base de Vigía (2026), y los
+                        // períodos anteriores decían "Sin contratos en la base".
+                        <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 flex-col items-end justify-center text-right leading-tight text-inkSoft underline-offset-4 hover:text-ink hover:underline">
+                          <span>
+                            <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
+                          </span>
+                          {(k.montoAdjudicadoPen ?? 0) > 0 && (
+                            <span className="font-mono text-rotulo tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
+                          )}
+                        </Link>
+                      ) : (
+                        contratos && <span className="text-mute">Sin procesos registrados</span>
                       )}
-                    </Link>
-                  ) : (
-                    contratos && <span className="text-mute">Sin procesos registrados</span>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-
-      <PaginacionNumerada actual={actual} total={filas.length} tam={TAM} nombre="organizaciones" hrefBase={pathname} query={{ anio: String(anio), vista: "partidos", q: q || undefined }} />
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            {ultima > 1 && <div className="flex justify-end">{pag(true)}</div>}
+          </div>
+        )}
+      </ZonaResultados>
     </div>
   );
 }

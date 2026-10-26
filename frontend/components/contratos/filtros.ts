@@ -100,8 +100,23 @@ export function filtroMes(parametros: Parametros): FiltroSecundario {
   const anios = Array.from({ length: hoy - PRIMER_ANIO_CONTRATOS + 1 }, (_, i) => String(hoy - i)).map((a) => ({ valor: a, etiqueta: `Todo ${a}` }));
   const opciones = [...meses, ...anios];
   if (parametros.mes && !opciones.some((m) => m.valor === parametros.mes)) opciones.push({ valor: parametros.mes, etiqueta: etiquetaMes(parametros.mes) });
-  return { param: "mes", etiqueta: "Mes o año de convocatoria", todas: "Todo el histórico", opciones };
+  return { param: "mes", etiqueta: "Año o mes de convocatoria", todas: "Todo el histórico", opciones };
 }
+
+/**
+ * El mismo filtro de fecha A LA VISTA (en `visibles`): «Año o mes» dentro del desplegable, como «Año» en Órdenes, y el
+ * nombre completo en el chip de «Filtrando por». El periodo es el alcance de la lista: se ve, no se esconde (§12).
+ */
+export const filtroMesVisible = (parametros: Parametros): FiltroSecundario => ({ ...filtroMes(parametros), corta: "Año o mes" });
+
+/**
+ * Los subtítulos con que una lista de contratos agrupa su menú «Filtros» (`FiltroSecundario.seccion`): antes eran ocho
+ * desplegables seguidos, sin orden. Las mismas palabras en toda lista que los use.
+ */
+export const SECCIONES_FILTRO = { que: "Qué", quien: "Quién compra", cuanto: "Cuánto", lectura: "Lectura" } as const;
+
+/** Pone esos filtros bajo un subtítulo del menú «Filtros». */
+export const enSeccion = (seccion: string, ...filtros: FiltroSecundario[]): FiltroSecundario[] => filtros.map((f) => ({ ...f, seccion }));
 
 const MONTOS_DESDE = [50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
 const MONTOS_HASTA = [50_000, 100_000, 500_000, 1_000_000, 5_000_000];

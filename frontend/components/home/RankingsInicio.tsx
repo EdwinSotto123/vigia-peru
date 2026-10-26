@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
  * funciones: un server component no puede pasar funciones a un client component).
  *
  * Cada pestaña dice en una línea CUÁL es la métrica: un ranking sin su regla confunde más de lo que informa.
+ * Cada fila lleva a la FICHA de lo que nombra (la entidad, el partido, el aliado, la región): antes las entidades y las
+ * regiones llevaban directo a pagar. Financiar queda como la acción secundaria de la pestaña, al pie.
  */
 export interface FilaRank {
   id: string;
@@ -19,10 +21,11 @@ export interface FilaRank {
   sub?: string;
   /** Lo que ordena la fila y fija el largo de su barra. */
   valor: number;
-  /** El número, ya con su texto ("116 esperando"). */
+  /** El número, ya con su texto ("116 en cola"). */
   texto: string;
   /** De `valor`, qué parte (0 a 1) va en color pleno; el resto, atenuado (p. ej. lo ya leído). */
   parte?: number;
+  /** La ficha de lo que nombra la fila. */
   href?: string;
 }
 export interface PestanaRank {
@@ -32,6 +35,8 @@ export interface PestanaRank {
   metrica: string;
   filas: FilaRank[];
   verTodos: { href: string; texto: string };
+  /** La acción secundaria de la pestaña (financiar la lectura de lo que ordena), junto a "Ver todos". */
+  accion?: { href: string; texto: string };
   /** Aclaración opcional bajo la lista. */
   nota?: string;
 }
@@ -54,7 +59,7 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
   };
 
   return (
-    <section aria-labelledby={`${base}-t`} className="rounded-2xl border border-line bg-paper">
+    <section aria-labelledby={`${base}-t`} className="tarjeta rounded-2xl border border-line bg-paper">
       <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5">
         <h2 id={`${base}-t`} className="font-display text-bloque font-bold leading-tight text-ink sm:text-seccion">Rankings</h2>
         <div role="tablist" aria-label="Qué ordenar" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:inline-flex">
@@ -91,11 +96,14 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
               const ancho = Math.max(3, (f.valor / max) * 100);
               const cuerpo = (
                 <>
-                  <span aria-hidden className="w-6 shrink-0 text-center font-mono text-meta font-bold tabular-nums text-mute">{i + 1}</span>
+                  <span aria-hidden className="w-6 shrink-0 pt-0.5 text-center font-mono text-meta font-bold tabular-nums text-mute">{i + 1}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-3">
-                      <span className="truncate text-cuerpo font-semibold text-ink">{f.nombre}</span>
-                      <span className="shrink-0 font-mono text-meta font-semibold tabular-nums text-ink">{f.texto}</span>
+                    {/* El nombre en dos líneas en el celular: "Gobierno Regional d…" tres veces no distinguía a nadie. */}
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="line-clamp-2 min-w-0 text-cuerpo font-semibold leading-snug text-ink sm:line-clamp-1" title={f.nombre}>
+                        {f.nombre}
+                      </span>
+                      <span className="shrink-0 pt-0.5 font-mono text-meta font-semibold tabular-nums text-ink">{f.texto}</span>
                     </span>
                     <span aria-hidden className="mt-1.5 block h-2 overflow-hidden rounded-full bg-paperDeep">
                       <span className="relative block h-full rounded-full bg-granate/30" style={{ width: `${ancho}%` }}>
@@ -122,12 +130,22 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
           </ol>
         )}
         {actual.nota && <p className="mt-3 text-meta leading-snug text-mute">{actual.nota}</p>}
-        <Link
-          href={actual.verTodos.href}
-          className="mt-4 inline-flex min-h-10 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"
-        >
-          {actual.verTodos.texto} <ArrowRight size={14} aria-hidden />
-        </Link>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1">
+          <Link
+            href={actual.verTodos.href}
+            className="inline-flex min-h-10 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+          >
+            {actual.verTodos.texto} <ArrowRight size={14} aria-hidden />
+          </Link>
+          {actual.accion && (
+            <Link
+              href={actual.accion.href}
+              className="inline-flex min-h-10 items-center gap-1.5 text-dato font-medium text-inkSoft underline-offset-4 hover:text-ink hover:underline"
+            >
+              {actual.accion.texto}
+            </Link>
+          )}
+        </div>
       </div>
     </section>
   );

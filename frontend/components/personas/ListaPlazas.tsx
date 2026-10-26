@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
-import { Ayuda, AyudaTermino, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
+import { Severidad } from "@/components/ui/Severidad";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -15,17 +15,18 @@ import {
   TablaSkeleton,
   ZonaResultados,
   type Columna,
+  type FiltroSecundario,
   type Fila,
   type Indicador,
   type Parametros,
 } from "@/components/listado";
-import { Badge } from "@/components/ui/Badge";
+import { CrucesCelda } from "@/components/contratos/CrucesCelda";
+import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { SENAL_PLAZA, TIPOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
-import { SEVERIDAD_TEXTO } from "@/lib/personas";
-import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
+import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
 
 const TAM = 20;
@@ -34,11 +35,32 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 /** Los filtros de las plazas en la URL, con `z` delante. */
 export const P_PLAZAS = { senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag", q: "zq" } as const;
 
+/** La etiqueta corta de cada señal para la celda (`CrucesCelda`, una línea con su ícono de severidad). */
+const CORTO_PLAZA = Object.fromEntries(TIPOS_PLAZA.map((t) => [t, SENAL_PLAZA[t].corto]));
+/** Y su explicación (title del chip): la de la señal de la plaza. */
+const EXPLICA_PLAZA = Object.fromEntries(TIPOS_PLAZA.map((t) => [t, SENAL_PLAZA[t].explica]));
+
 /**
  * Las plazas CAS de un alcance (una entidad, una región o todo el país), de SERVIR Talento Perú, con sus señales de
- * plaza a la medida por fila; cada fila abre sus requisitos. Server component.
+ * plaza a la medida por fila; cada fila abre sus requisitos. La severidad, con el vocabulario de todo el producto
+ * (`Severidad`: «Señal alta / media / baja», color, ícono y palabra), no «Grave / Para revisar / Dato». Server component.
  */
-export function ListaPlazas({ alcance, sp, ruta, base, deEntidad = false }: { alcance: { entidad?: string; dep?: string }; sp: Busqueda; ruta: string; base: Parametros; deEntidad?: boolean }) {
+export function ListaPlazas({
+  alcance,
+  sp,
+  ruta,
+  base,
+  deEntidad = false,
+  visiblesExtra = [],
+}: {
+  alcance: { entidad?: string; dep?: string };
+  sp: Busqueda;
+  ruta: string;
+  base: Parametros;
+  deEntidad?: boolean;
+  /** Filtros del alcance a la vista (la región en /app/personas). Sus valores ya vienen en `base`. */
+  visiblesExtra?: FiltroSecundario[];
+}) {
   const P = P_PLAZAS;
   const senal = uno(sp?.[P.senal]);
   const sev = uno(sp?.[P.severidad]);
@@ -53,15 +75,17 @@ export function ListaPlazas({ alcance, sp, ruta, base, deEntidad = false }: { al
   };
   const paginaP = getPlazas({ ...alcance, ...f, size: TAM });
   const parametros: Parametros = { ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.orden]: f.orden, [P.q]: f.q };
-  const filtrada = !!(f.senal || f.severidad || f.q);
+  const filtrada = !!(f.senal || f.severidad || f.q) || visiblesExtra.some((x) => !!base[x.param]);
+  // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
+  const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
-        <Suspense fallback={<Barra r={null} />}>
-          <BarraAsync pagina={paginaP} />
+        <Suspense fallback={<Barra r={null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
+          <BarraAsync pagina={paginaP} visiblesExtra={visiblesExtra} entidad={entidad} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad)} filas={10} />}>
@@ -90,11 +114,13 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlazas | n
   return <Indicadores items={items} />;
 }
 
-async function BarraAsync({ pagina }: { pagina: Promise<PaginaPlazas | null> }) {
-  return <Barra r={(await pagina)?.resumen ?? null} />;
+async function BarraAsync({ pagina, visiblesExtra, entidad }: { pagina: Promise<PaginaPlazas | null>; visiblesExtra: FiltroSecundario[]; entidad?: string }) {
+  const pg = await pagina;
+  const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
+  return <Barra r={pg?.resumen ?? null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
 }
 
-function Barra({ r }: { r: PaginaPlazas["resumen"] | null }) {
+function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlazas["resumen"] | null; visiblesExtra: FiltroSecundario[]; entidad: { ruc: string; nombre: string | null } | null }) {
   const P = P_PLAZAS;
   return (
     <BarraFiltros
@@ -111,6 +137,7 @@ function Barra({ r }: { r: PaginaPlazas["resumen"] | null }) {
         ],
       }}
       visibles={[
+        ...visiblesExtra,
         {
           param: P.senal,
           etiqueta: "Señal",
@@ -119,6 +146,11 @@ function Barra({ r }: { r: PaginaPlazas["resumen"] | null }) {
           opciones: (r?.porSenal ?? []).map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLAZA[s.tipo]?.corto ?? s.tipo, conteo: s.n })),
         },
       ]}
+      filtros={
+        entidad
+          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+          : []
+      }
       orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "reciente", etiqueta: "Más recientes" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }] }}
     />
   );
@@ -150,26 +182,26 @@ async function Resultados(props: { pagina: Promise<PaginaPlazas | null>; paramet
       <EstadoVacio compacto titulo="Sin plazas CAS cargadas">No encontramos plazas de esta entidad en SERVIR Talento Perú desde que las guardamos.</EstadoVacio>
     );
   }
-  const pag = (
-    <Paginacion actual={props.actual} paginas={Math.max(1, Math.ceil(pagina.total / pagina.size))} total={pagina.total} tam={pagina.size}
-      navegacion="url" hrefBase={props.ruta} query={props.parametros} paramPagina={P_PLAZAS.page} cargando={false} nombre="plazas" />
+  const paginas = Math.max(1, Math.ceil(pagina.total / pagina.size));
+  const pag = (subir: boolean) => (
+    <Paginacion actual={props.actual} paginas={paginas} total={pagina.total} tam={pagina.size}
+      navegacion="url" hrefBase={props.ruta} query={props.parametros} paramPagina={P_PLAZAS.page} cargando={false} nombre="plazas" subir={subir} />
   );
+  // Sin la línea suelta «N plazas»: el total ya lo dicen el chip «Todas» y el paginador.
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-meta text-inkSoft">{plural(pagina.total, "plaza", "plazas")}{props.filtrada ? " con estos filtros" : ""}</p>
-        {pag}
-      </div>
+      <div className="flex justify-end">{pag(false)}</div>
       <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p) => fila(p, props.deEntidad))} etiqueta="Plazas CAS" />
-      <div className="flex justify-end">{pag}</div>
+      {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
 }
 
 function fila(p: Plaza, deEntidad: boolean): Fila {
   const titulo = oracion(p.titulo.replace(/^CONTRATACI[OÓ]N ADMINISTRATIVA DE SERVICIOS DE UN\(A\)\s*/i, ""));
+  const entidad = tituloNatural(p.entidad);
   const datos: DatoClave[] = [
-    { etiqueta: "Entidad", valor: p.entidadRuc ? <Link href={`/entidad/${p.entidadRuc}`} className="text-granate hover:underline">{tituloNatural(p.entidad)}</Link> : tituloNatural(p.entidad) },
+    { etiqueta: "Entidad", valor: entidad },
     { etiqueta: "Convocatoria", valor: p.numero, mono: true },
     { etiqueta: "Vacantes", valor: p.vacantes != null ? numero(p.vacantes) : null },
     { etiqueta: "Sueldo", valor: p.remuneracion != null ? soles(p.remuneracion) : null, mono: true },
@@ -179,6 +211,7 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
     { etiqueta: "Especialización", valor: p.especializacion },
     { etiqueta: "Conocimientos", valor: p.conocimiento },
   ];
+  const peor = peorSeveridad(p.senales);
   return {
     id: String(p.aviso),
     celdas: {
@@ -190,27 +223,12 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
           meta={[
             deEntidad
               ? p.servicio && <Dato key="servicio" tipo="servicio">{p.servicio}</Dato>
-              : <Dato key="entidad" tipo="entidad">{tituloNatural(p.entidad)}</Dato>,
+              : <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
             p.ubicacion && <Dato key="lugar" tipo="lugar">{tituloNatural(p.ubicacion)}</Dato>,
           ]}
         />
       ),
-      senales: p.senales.length ? (
-        <ul className="flex flex-wrap gap-1">
-          {p.senales.slice(0, 3).map((s) => (
-            <li key={s.tipo} title={SENAL_PLAZA[s.tipo]?.explica}>
-              <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SENAL_PLAZA[s.tipo]?.corto ?? s.tipo}</Badge>
-            </li>
-          ))}
-          {p.senales.length > 3 && (
-            <li title={p.senales.slice(3).map((s) => SENAL_PLAZA[s.tipo]?.corto ?? s.tipo).join(", ")}>
-              <Badge variant="neutral">{`+${p.senales.length - 3}`}</Badge>
-            </li>
-          )}
-        </ul>
-      ) : (
-        <span className="text-meta text-mute">Ninguna</span>
-      ),
+      senales: p.senales.length ? <CrucesCelda cruces={p.senales} etiquetas={CORTO_PLAZA} explicaciones={EXPLICA_PLAZA} etiquetaLista="Señales de la plaza" /> : <span className="text-meta text-mute">Sin señales</span>,
       sueldo: <CeldaNumero sub={p.vacantes && p.vacantes > 1 ? plural(p.vacantes, "vacante", "vacantes") : undefined}>{p.remuneracion != null ? soles(p.remuneracion) : "Sin dato"}</CeldaNumero>,
     },
     detalle: {
@@ -218,30 +236,52 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
       etiqueta: `Ver los requisitos de la plaza ${p.aviso}`,
       descripcion: <span className="font-mono">Aviso {p.aviso}</span>,
       contenido: (
-        <div className="space-y-4">
-          {p.senales.map((s) => (
-            <div key={s.tipo} className="space-y-1.5 rounded-xl border border-line bg-paperSoft p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={VARIANTE_SEVERIDAD[s.severidad]}>{SEVERIDAD_TEXTO[s.severidad]}</Badge>
-                <span className="text-dato font-semibold text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</span>
-              </div>
-              <p className="text-meta text-inkSoft">{SENAL_PLAZA[s.tipo]?.explica}</p>
-              <DetallePlaza tipo={s.tipo} d={s.detalle} />
-            </div>
-          ))}
-          <DatosClave items={datos} />
-          {p.senales.length > 0 && <p className="text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación.</p>}
-        </div>
+        // §14.4: chips, datos y un bloque por tema; cada señal con su severidad en color, ícono y palabra.
+        <CuerpoDetalle>
+          {peor && (
+            <ChipsDetalle>
+              <Severidad bandera={peor} />
+              <span className="text-meta text-inkSoft">{plural(p.senales.length, "señal de plaza a la medida", "señales de plaza a la medida")}</span>
+            </ChipsDetalle>
+          )}
+          {p.senales.length > 0 && (
+            <BloqueDetalle titulo="Lo que se encontró">
+              <ul className="divide-y divide-line/70">
+                {p.senales.map((s) => (
+                  <li key={s.tipo} className="space-y-1.5 py-3 first:pt-0 last:pb-0">
+                    <Severidad bandera={s.severidad} formato="linea" />
+                    <p className="text-dato font-semibold leading-snug text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</p>
+                    {SENAL_PLAZA[s.tipo]?.explica && <p className="text-meta leading-snug text-inkSoft">{SENAL_PLAZA[s.tipo].explica}</p>}
+                    <DetallePlaza tipo={s.tipo} d={s.detalle} />
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación.</p>
+            </BloqueDetalle>
+          )}
+          <BloqueDetalle titulo="La convocatoria">
+            <DatosClave items={datos} />
+          </BloqueDetalle>
+        </CuerpoDetalle>
       ),
       pie: (
-        <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>
-          {p.detalleUrl && (
-            <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[40px] items-center gap-1.5 text-meta font-semibold text-granate hover:underline">
-              Ver la convocatoria en la entidad <ExternalLink size={13} aria-hidden />
-            </a>
-          )}
-        </span>
+        <PieDetalle
+          principal={
+            <>
+              {p.detalleUrl && (
+                <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className={claseAccion("primario")}>
+                  Ver la convocatoria <ExternalLink size={14} aria-hidden />
+                </a>
+              )}
+              {p.entidadRuc && (
+                <EnlaceAccion href={`/entidad/${p.entidadRuc}`} variante={p.detalleUrl ? "secundario" : "primario"}>
+                  La ficha de la entidad
+                </EnlaceAccion>
+              )}
+            </>
+          }
+          secundarias={<span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>}
+        />
       ),
     },
   };
