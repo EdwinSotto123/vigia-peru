@@ -42,7 +42,7 @@ def destino(out_dir: Path, ruc: str, apellidos: str) -> Path:
 async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
     t0 = time.time()
     pg = await ctx.new_page()
-    pg.set_default_timeout(30000)
+    pg.set_default_timeout(40000)
     try:
         await pg.goto(BASE + ruc)
         await pg.wait_for_timeout(2000)
@@ -60,7 +60,7 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
         await pg.fill("#txtCaptchaPub", cap)
         out_dir.mkdir(parents=True, exist_ok=True)
         dest = destino(out_dir, ruc, apellidos)
-        async with pg.expect_download(timeout=25000) as di:
+        async with pg.expect_download(timeout=55000) as di:
             await pg.click("#btnDownloadDJ")
         d = await di.value
         await d.save_as(str(dest))
