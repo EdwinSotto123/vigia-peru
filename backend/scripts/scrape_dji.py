@@ -35,11 +35,16 @@ OBJETIVOS = [
 ]
 
 
-def destino(out_dir: Path, ruc: str, apellidos: str) -> Path:
-    return out_dir / f"{ruc}_{apellidos.replace(' ', '_').replace('/', '-')}.pdf"
+def _slug(s: str) -> str:
+    return "".join(c if c.isalnum() else "-" for c in s).strip("-")[:40]
 
 
-async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
+def destino(out_dir: Path, ruc: str, apellidos: str, nombres: str = "") -> Path:
+    base = f"{ruc}_{_slug(apellidos)}" + (f"_{_slug(nombres)}" if nombres else "")
+    return out_dir / f"{base}.pdf"
+
+
+async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path, nombres: str = "") -> dict:
     t0 = time.time()
     pg = await ctx.new_page()
     pg.set_default_timeout(40000)
@@ -47,6 +52,8 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
         await pg.goto(BASE + ruc)
         await pg.wait_for_timeout(2000)
         await pg.fill("#txtApellidos", apellidos)
+        if nombres:
+            await pg.fill("#txtNombres", nombres)   # ambos campos → una sola persona → PDF chico
         await pg.click("#btnBuscarDec")
         await pg.wait_for_timeout(3000)
         # ¿hay resultados?
@@ -55,19 +62,19 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
         cap = await pg.eval_on_selector("#hdnCaptchaImg", "e=>e.value")
         cbs = await pg.query_selector_all("#cb_gridBusqueda, tr input[type=checkbox]")
         if not cbs or not cap:
-            return {"ruc": ruc, "apellidos": apellidos, "ok": False, "motivo": "sin resultados/captcha", "seg": round(time.time() - t0, 1)}
+            return {"ruc": ruc, "apellidos": apellidos, "nombres": nombres, "ok": False, "motivo": "sin resultados/captcha", "seg": round(time.time() - t0, 1)}
         await cbs[0].check()
         await pg.fill("#txtCaptchaPub", cap)
         out_dir.mkdir(parents=True, exist_ok=True)
-        dest = destino(out_dir, ruc, apellidos)
+        dest = destino(out_dir, ruc, apellidos, nombres)
         async with pg.expect_download(timeout=55000) as di:
             await pg.click("#btnDownloadDJ")
         d = await di.value
         await d.save_as(str(dest))
-        return {"ruc": ruc, "apellidos": apellidos, "ok": True, "pdf": dest.name,
+        return {"ruc": ruc, "apellidos": apellidos, "nombres": nombres, "ok": True, "pdf": dest.name,
                 "kb": round(dest.stat().st_size / 1024), "seg": round(time.time() - t0, 1)}
     except Exception as e:
-        return {"ruc": ruc, "apellidos": apellidos, "ok": False, "motivo": str(e)[:80], "seg": round(time.time() - t0, 1)}
+        return {"ruc": ruc, "apellidos": apellidos, "nombres": nombres, "ok": False, "motivo": str(e)[:80], "seg": round(time.time() - t0, 1)}
     finally:
         await pg.close()
 
@@ -75,8 +82,9 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
 async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, log_path: Path) -> None:
     t0 = time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
+    objetivos = [(t[0], t[1], t[2] if len(t) > 2 else "") for t in objetivos]
     # resumible: saltar los que ya tienen PDF
-    pendientes = [(r, a) for r, a in objetivos if not destino(out_dir, r, a).exists()]
+    pendientes = [(r, a, n) for r, a, n in objetivos if not destino(out_dir, r, a, n).exists()]
     hechos0 = len(objetivos) - len(pendientes)
     print(f"{len(objetivos)} targets · {hechos0} ya bajados · {len(pendientes)} pendientes · {hilos} hilos")
     sem = asyncio.Semaphore(hilos)
@@ -86,13 +94,13 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True)
 
-        async def tarea(ruc, ape):
+        async def tarea(ruc, ape, nom):
             async with sem:
                 r = None
                 for intento in range(2):  # 2 intentos por pase; los fallos se reintentan en un re-run (resume)
                     ctx = await b.new_context(accept_downloads=True)
                     try:
-                        r = await bajar(ctx, ruc, ape, out_dir)
+                        r = await bajar(ctx, ruc, ape, out_dir, nom)
                         if r["ok"] or "sin resultados" in r.get("motivo", ""):
                             break
                     finally:
@@ -100,7 +108,7 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
                     await asyncio.sleep(2 + intento * 3)
                 done["n"] += 1
                 done["ok" if r and r["ok"] else "fail"] += 1
-                logw.writerow([ruc, ape, r["ok"], r.get("pdf") or r.get("motivo", "")[:60]])
+                logw.writerow([ruc, ape, nom, r["ok"], r.get("pdf") or r.get("motivo", "")[:60]])
                 logf.flush()
                 if done["n"] % 25 == 0:
                     el = time.time() - t0
@@ -108,18 +116,18 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
                     print(f"  {done['n']}/{len(pendientes)} · ok={done['ok']} fail={done['fail']} · {rate:.0f}/h · {el/60:.1f}min", flush=True)
                 return r
 
-        await asyncio.gather(*[tarea(r, a) for r, a in pendientes])
+        await asyncio.gather(*[tarea(r, a, n) for r, a, n in pendientes])
         await b.close()
     logf.close()
     print(f"\n=== fin: ok={done['ok']} fail={done['fail']} de {len(pendientes)} · {(time.time()-t0)/60:.1f} min ===")
 
 
-def leer_targets(csv_path: str) -> list[tuple[str, str]]:
+def leer_targets(csv_path: str) -> list[tuple[str, str, str]]:
     out = []
     with open(csv_path, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             if row.get("ruc") and row.get("apellidos"):
-                out.append((row["ruc"].strip(), row["apellidos"].strip()))
+                out.append((row["ruc"].strip(), row["apellidos"].strip(), (row.get("nombres") or "").strip()))
     return out
 
 
