@@ -60,7 +60,7 @@ export async function InicioPartido({
     <div className="space-y-10">
       <SubseccionInicio
         titulo="Qué se encontró"
-        descripcion="Cruces de datos públicos en los contratos de sus gobiernos y en las personas que contrataron: indicios para revisar, no acusaciones."
+        descripcion="Cruces de datos públicos en los contratos de sus gobiernos y en quienes contrataron: indicios para revisar, no acusaciones."
         ayuda={
           <Ayuda titulo="¿Qué es una bandera?">
             <span className="block">

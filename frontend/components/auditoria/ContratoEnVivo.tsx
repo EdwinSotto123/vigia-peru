@@ -28,7 +28,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, Landmark, Play, WifiOff } from "lucide-react";
-import { numero, soles, solesCompacto } from "@/lib/formato";
+import { numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { limpiarObjeto } from "@/components/contratos/recortar";
 import { BarraCompartir, EstadoError, Seccion, Volver } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import {
@@ -270,7 +271,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       {/* Identidad: el objeto entero (es su propia página); estado, entidad, zona y códigos en una línea. */}
       <header className="space-y-2.5">
         <h1 className="max-w-5xl break-words font-display text-seccion font-bold leading-snug tracking-tight text-ink text-balance sm:text-cifra">
-          {p.titulo ?? "Contrato sin título registrado"}
+          {p.titulo ? oracion(limpiarObjeto(p.titulo)) : "Contrato sin título registrado"}
         </h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-meta text-mute">
           <EstadoPill estado={estado} size="md" intentos={p.intentos} />

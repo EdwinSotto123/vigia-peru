@@ -295,7 +295,7 @@ function FilaTabla({
   if (fila.detalle) {
     const d = fila.detalle;
     return (
-      <BotonFila id={fila.id} etiqueta={d.etiqueta ?? `Ver detalle de ${d.titulo}`} className={clase}>
+      <BotonFila id={fila.id} etiqueta={d.etiqueta} className={clase}>
         {celdas}
       </BotonFila>
     );

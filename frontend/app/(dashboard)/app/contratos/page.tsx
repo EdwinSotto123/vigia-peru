@@ -194,8 +194,10 @@ function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
-      visibles={[filtroRegion(parametros, regiones, filas), filtroMesVisible(parametros), ...filtrosVisibles(resumen)]}
-      filtros={filtros({ resumen, parametros, partidos, entidadNombre })}
+      // A la vista, las preguntas de casi todos (región, cuándo, si lo leyó Vigía, antecedentes del ganador). El riesgo
+      // sólo existe en los contratos ya leídos (unos cientos de 800 mil): va en «Filtros», como en la ficha de una entidad.
+      visibles={[filtroRegion(parametros, regiones, filas), filtroMesVisible(parametros), ...filtrosVisibles(resumen).filter((f) => f.param !== "riesgo")]}
+      filtros={[...filtrosVisibles(resumen).filter((f) => f.param === "riesgo"), ...filtros({ resumen, parametros, partidos, entidadNombre })]}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
   );

@@ -155,8 +155,12 @@ export function ProveedorDetalle({ detalles, nombre, children }: { detalles: Det
   );
 }
 
-/** La fila que abre el panel: un botón de la fila entera, marcado mientras su detalle está abierto. */
-export function BotonFila({ id, etiqueta, className, children }: { id: string; etiqueta: string; className?: string; children: ReactNode }) {
+/**
+ * La fila que abre el panel: un botón de la fila entera, marcado mientras su detalle está abierto.
+ * Sin `etiqueta`, la fila se nombra por su contenido (lo que se ve: estado, qué es, monto, fecha), como las filas que
+ * navegan; `aria-haspopup` avisa que abre un panel. Con `etiqueta`, ésa reemplaza al contenido.
+ */
+export function BotonFila({ id, etiqueta, className, children }: { id: string; etiqueta?: string; className?: string; children: ReactNode }) {
   const c = useContext(Ctx);
   if (!c) throw new Error("BotonFila fuera de <ProveedorDetalle>");
   const sel = c.abierto === id;

@@ -95,7 +95,7 @@ export async function InicioRegionFicha({ r, ruta }: { r: Region; ruta: string }
       {hallazgos.length > 0 && (
         <SubseccionInicio
           titulo="Qué se encontró"
-          descripcion={`Cruces de datos públicos en los contratos de ${r.nombre} y en las personas que contratan sus entidades: indicios para revisar, no acusaciones.`}
+          descripcion="Cruces de datos públicos en sus contratos y en quienes contratan sus entidades: indicios para revisar, no acusaciones."
           ayuda={
             <Ayuda titulo="¿Qué es una bandera?">
               <span className="block">

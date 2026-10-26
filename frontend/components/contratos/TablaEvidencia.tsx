@@ -64,7 +64,8 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
         <>
           {control}
           {/* Escritorio: tabla. */}
-          <div className="hidden overflow-x-auto rounded-lg border border-line bg-paper sm:block">
+          {/* Dentro de una tarjeta, sin marco propio (sólo el filete de arriba): una caja dentro de otra era ruido. */}
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-paper sm:block [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
             <table className="w-full text-left text-meta">
               <thead className="bg-paperDeep/60 text-rotulo text-mute">
                 <tr>
@@ -95,7 +96,7 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
           {/* Teléfono: un registro por tarjeta. */}
           <ul className="space-y-2 sm:hidden">
             {pagina_.map((f, i) => (
-              <li key={i} className={`rounded-lg border border-line bg-paper px-3 py-2 ${f.posterior ? "opacity-55" : ""}`}>
+              <li key={i} className={`rounded-lg border border-line bg-paper px-3 py-2 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-t-0 [.tarjeta_&]:px-0 ${f.posterior ? "opacity-55" : ""}`}>
                 <dl className="space-y-1 text-meta">
                   {columnas.map((col) => (
                     <div key={col.clave} className="flex items-baseline justify-between gap-3">
