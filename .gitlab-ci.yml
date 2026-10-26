@@ -59,6 +59,7 @@ test:prod6:
 # falta confirmar GCP-US. Si pasa, usamos CI como motor en nube para el Tier 2 de DJI. Manual.
 test:djic:
   stage: test
+  needs: []
   image: mcr.microsoft.com/playwright/python:v1.47.0-jammy
   script:
     - echo "== IP del runner =="; curl -s --max-time 20 https://ifconfig.me || true; echo
@@ -79,6 +80,7 @@ test:djic:
 # El ingest a la base y la subida a R2 se hacen en local (donde están las credenciales). Manual en dev.
 scrape:dji:
   stage: test
+  needs: []
   image: mcr.microsoft.com/playwright/python:v1.47.0-jammy
   parallel: 5
   timeout: 3h
