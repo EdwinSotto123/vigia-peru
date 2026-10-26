@@ -24,6 +24,8 @@ const ListQuery = z.object({
   // frontend/lib/entidad-tipo.ts, en regex POSIX sobre nombre_norm (minúsculas, sin tildes). Es un filtro, no una
   // afirmación categórica: "ministerio" incluye al Ministerio Público, etc.
   clase: z.enum(["ministerio", "regional", "municipal", "organismo"]).optional(),
+  // Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador; vista migr. 136).
+  nepotismo: z.enum(["1"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -43,8 +45,9 @@ const CLASE_REGEX: Record<string, string> = {
 entidadesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { q, region, tipo, clase, limit, offset } = parsed.data;
+  const { q, region, tipo, clase, nepotismo, limit, offset } = parsed.data;
   const modelos = await hayModelosLectura();
+  const col = modelos ? "es" : "e";
 
   const conds: string[] = [];
   const vals: any[] = [];
@@ -62,6 +65,7 @@ entidadesRouter.get("/", async (c) => {
     vals.push(CLASE_REGEX[clase]);
     conds.push(`${modelos ? "es.nombre_norm" : "immutable_unaccent(lower(e.nombre))"} ~ $${vals.length}`);
   }
+  if (nepotismo) conds.push(`EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = ${col}.ruc)`);
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const totalVals = [...vals];
@@ -78,7 +82,8 @@ entidadesRouter.get("/", async (c) => {
                 NULL::int AS reportes,
                 es.contratos,
                 es.alertas_activas AS "contratosVigilados",
-                NULL::jsonb AS serie
+                NULL::jsonb AS serie,
+                EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = es.ruc) AS "conNepotismo"
            FROM entidad_stats es
            ${where}
            ORDER BY es.alertas_activas DESC, es.contratos DESC NULLS LAST, es.nombre, es.ruc
@@ -93,7 +98,8 @@ entidadesRouter.get("/", async (c) => {
            NULL::int                   AS reportes,   -- antes metadata.reportes_mock (inventado)
            COALESCE(cv.contratos, 0)::int AS contratos,
            COALESCE(a.alertas, 0)::int AS "contratosVigilados",
-           NULL::jsonb                 AS serie       -- antes metadata.serie_mock (inventado)
+           NULL::jsonb                 AS serie,      -- antes metadata.serie_mock (inventado)
+           EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = e.ruc) AS "conNepotismo"
          FROM entidades e
          LEFT JOIN (
            SELECT c.entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias c WHERE ${convocatoriaNoDemo("c")} GROUP BY c.entidad_ruc

@@ -82,6 +82,8 @@ export interface ApiEntidad {
   contratos: number | null;
   contratosVigilados: number | null;
   serie: number[] | null;
+  /** Tiene indicio de nepotismo (un pariente declarado en la DJI que es su locador). */
+  conNepotismo?: boolean;
 }
 
 export interface ApiReporte extends ReporteCiudadano {
@@ -320,6 +322,8 @@ export interface EntidadesQuery {
   region?: string;
   /** Tipo/nivel de la entidad (derivado del nombre). */
   clase?: ClaseEntidad;
+  /** Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador). */
+  nepotismo?: boolean;
   page?: number;
 }
 
@@ -337,6 +341,7 @@ export function parseEntidadesQuery(sp: Record<string, string | string[] | undef
     tipo: tipo && (TIPOS_ENTIDAD as string[]).includes(tipo) ? (tipo as ApiEntidad["tipo"]) : undefined,
     region: s("region")?.slice(0, 80) || undefined,
     clase: clase && (CLASES_ENTIDAD as readonly string[]).includes(clase) ? (clase as ClaseEntidad) : undefined,
+    nepotismo: s("nepotismo") === "1" || undefined,
   };
 }
 
@@ -356,6 +361,7 @@ export async function getEntidadesPagina(query: EntidadesQuery = {}): Promise<En
   if (query.tipo) qs.set("tipo", query.tipo);
   if (query.region) qs.set("region", query.region);
   if (query.clase) qs.set("clase", query.clase);
+  if (query.nepotismo) qs.set("nepotismo", "1");
   qs.set("limit", String(size));
   qs.set("offset", String((page - 1) * size));
   const r = await get<{ data: ApiEntidad[]; total: number; limit: number; offset: number }>(`/entidades?${qs}`);

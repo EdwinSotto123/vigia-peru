@@ -63,7 +63,7 @@ export default async function EntidadesPage({
   }
 
   // Datos planos (nunca funciones) hacia los componentes cliente del Listado.
-  const parametros = { q, orden: orden === "dictamen" ? undefined : orden, region: query.region, clase: query.clase };
+  const parametros = { q, orden: orden === "dictamen" ? undefined : orden, region: query.region, clase: query.clase, nepotismo: query.nepotismo ? "1" : undefined };
   const aqui = hrefEntidades({ ...parametros, pagina: actual > 1 ? String(actual) : undefined });
 
   // El conteo por entidad (`alertas` del API) es de contratos con dictamen PUBLICADO, tengan
@@ -146,6 +146,13 @@ export default async function EntidadesPage({
               corta: "Región",
               todas: "Todo el Perú",
               opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })),
+            },
+            {
+              param: "nepotismo",
+              etiqueta: "Indicio",
+              corta: "Indicio",
+              todas: "Todas",
+              opciones: [{ valor: "1", etiqueta: "Con posible nepotismo" }],
             },
           ]}
           orden={{ param: "orden", porDefecto: "dictamen", opciones: ORDENES_ENTIDADES }}

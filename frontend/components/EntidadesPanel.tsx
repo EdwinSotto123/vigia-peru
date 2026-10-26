@@ -164,6 +164,11 @@ function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
           titulo={tituloNatural(e.nombre)}
           meta={[
+            e.conNepotismo && (
+              <span key="nep" className="pill border-amber/30 bg-amber-soft text-amberTexto" title="Un pariente declarado en la DJI figura como su proveedor (indicio, no acusación)">
+                Posible nepotismo
+              </span>
+            ),
             <Dato key="tipo" tipo="tipo" nombre="Tipo de entidad">{tipo}</Dato>,
             e.region && <Dato key="region" tipo="lugar">{e.region}</Dato>,
             <Dato key="ruc" tipo="ruc">
