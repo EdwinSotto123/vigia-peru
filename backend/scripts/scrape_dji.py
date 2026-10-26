@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import time
 from pathlib import Path
 
@@ -34,7 +35,11 @@ OBJETIVOS = [
 ]
 
 
-async def bajar(ctx, ruc: str, apellidos: str) -> dict:
+def destino(out_dir: Path, ruc: str, apellidos: str) -> Path:
+    return out_dir / f"{ruc}_{apellidos.replace(' ', '_').replace('/', '-')}.pdf"
+
+
+async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path) -> dict:
     t0 = time.time()
     pg = await ctx.new_page()
     pg.set_default_timeout(30000)
@@ -53,8 +58,8 @@ async def bajar(ctx, ruc: str, apellidos: str) -> dict:
             return {"ruc": ruc, "apellidos": apellidos, "ok": False, "motivo": "sin resultados/captcha", "seg": round(time.time() - t0, 1)}
         await cbs[0].check()
         await pg.fill("#txtCaptchaPub", cap)
-        OUT.mkdir(parents=True, exist_ok=True)
-        dest = OUT / f"{ruc}_{apellidos.replace(' ', '_')}.pdf"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest = destino(out_dir, ruc, apellidos)
         async with pg.expect_download(timeout=25000) as di:
             await pg.click("#btnDownloadDJ")
         d = await di.value
@@ -67,39 +72,69 @@ async def bajar(ctx, ruc: str, apellidos: str) -> dict:
         await pg.close()
 
 
-async def correr(hilos: int, objetivos: list[tuple[str, str]]) -> None:
+async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, log_path: Path) -> None:
     t0 = time.time()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # resumible: saltar los que ya tienen PDF
+    pendientes = [(r, a) for r, a in objetivos if not destino(out_dir, r, a).exists()]
+    hechos0 = len(objetivos) - len(pendientes)
+    print(f"{len(objetivos)} targets · {hechos0} ya bajados · {len(pendientes)} pendientes · {hilos} hilos")
     sem = asyncio.Semaphore(hilos)
+    done = {"ok": 0, "fail": 0, "n": 0}
+    logf = open(log_path, "a", encoding="utf-8", newline="")
+    logw = csv.writer(logf)
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True)
 
         async def tarea(ruc, ape):
             async with sem:
-                for intento in range(3):  # reintentos: el portal se pone lento bajo concurrencia
+                r = None
+                for intento in range(2):  # 2 intentos por pase; los fallos se reintentan en un re-run (resume)
                     ctx = await b.new_context(accept_downloads=True)
                     try:
-                        r = await bajar(ctx, ruc, ape)
+                        r = await bajar(ctx, ruc, ape, out_dir)
                         if r["ok"] or "sin resultados" in r.get("motivo", ""):
-                            return r
+                            break
                     finally:
                         await ctx.close()
                     await asyncio.sleep(2 + intento * 3)
+                done["n"] += 1
+                done["ok" if r and r["ok"] else "fail"] += 1
+                logw.writerow([ruc, ape, r["ok"], r.get("pdf") or r.get("motivo", "")[:60]])
+                logf.flush()
+                if done["n"] % 25 == 0:
+                    el = time.time() - t0
+                    rate = done["n"] / el * 3600
+                    print(f"  {done['n']}/{len(pendientes)} · ok={done['ok']} fail={done['fail']} · {rate:.0f}/h · {el/60:.1f}min", flush=True)
                 return r
 
-        res = await asyncio.gather(*[tarea(r, a) for r, a in objetivos])
+        await asyncio.gather(*[tarea(r, a) for r, a in pendientes])
         await b.close()
-    ok = sum(1 for r in res if r["ok"])
-    print(f"\n=== {ok}/{len(res)} OK · {hilos} hilos · {time.time() - t0:.1f}s total ===")
-    for r in res:
-        print("  ", r)
+    logf.close()
+    print(f"\n=== fin: ok={done['ok']} fail={done['fail']} de {len(pendientes)} · {(time.time()-t0)/60:.1f} min ===")
+
+
+def leer_targets(csv_path: str) -> list[tuple[str, str]]:
+    out = []
+    with open(csv_path, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            if row.get("ruc") and row.get("apellidos"):
+                out.append((row["ruc"].strip(), row["apellidos"].strip()))
+    return out
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--hilos", type=int, default=4)
-    ap.add_argument("--n", type=int, default=4, help="cuántos objetivos de muestra probar")
+    ap.add_argument("--hilos", type=int, default=3)
+    ap.add_argument("--targets", help="CSV con columnas ruc,apellidos")
+    ap.add_argument("--out", default=str(OUT), help="carpeta de PDFs")
+    ap.add_argument("--log", default=None, help="CSV de progreso (por defecto <out>/_log.csv)")
+    ap.add_argument("--n", type=int, default=4, help="si no hay --targets, cuántos objetivos de muestra")
     a = ap.parse_args()
-    asyncio.run(correr(a.hilos, OBJETIVOS[: a.n]))
+    objetivos = leer_targets(a.targets) if a.targets else OBJETIVOS[: a.n]
+    out_dir = Path(a.out)
+    log_path = Path(a.log) if a.log else out_dir / "_log.csv"
+    asyncio.run(correr(a.hilos, objetivos, out_dir, log_path))
 
 
 if __name__ == "__main__":
