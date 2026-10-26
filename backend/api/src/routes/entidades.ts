@@ -426,10 +426,12 @@ entidadesRouter.get("/:ruc", async (c) => {
       [ruc],
     ),
     // Nepotismo (indicio, no acusación): parientes declarados en la DJI que son locadores de ESTA entidad.
-    // Solo el AGREGADO por grado — nunca el DNI ni el nombre del pariente (ver vista dji_nepotismo, migr. 136).
-    pool.query<{ grado: string; n: number; monto: number; ordenes: number }>(
-      `SELECT grado, count(*)::int AS n, COALESCE(sum(monto),0)::float AS monto, COALESCE(sum(ordenes),0)::int AS ordenes
-         FROM dji_nepotismo WHERE entidad_ruc = $1 GROUP BY grado ORDER BY monto DESC NULLS LAST`,
+    // Detalle: el FUNCIONARIO (cargo público, su DJI es pública) + el parentesco + el PROVEEDOR (RUC-10). El nombre
+    // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136).
+    pool.query<{ declarante: string; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; ordenes: number; monto: number }>(
+      `SELECT declarante_norm AS declarante, grado, parentesco, proveedor_ruc AS "proveedorRuc",
+              proveedor_nombre AS "proveedorNombre", ordenes, monto
+         FROM dji_nepotismo WHERE entidad_ruc = $1 ORDER BY monto DESC NULLS LAST LIMIT 40`,
       [ruc],
     ),
   ]);
@@ -441,11 +443,20 @@ entidadesRouter.get("/:ruc", async (c) => {
     for (const k of ENTIDAD_METADATA_MOCK) delete limpia[k];
     entidad.metadata = limpia;
   }
+  const porGradoMap = new Map<string, { grado: string; n: number; monto: number }>();
+  for (const r of nep.rows) {
+    const g = porGradoMap.get(r.grado) ?? { grado: r.grado, n: 0, monto: 0 };
+    g.n += 1;
+    g.monto += r.monto || 0;
+    porGradoMap.set(r.grado, g);
+  }
   const nepotismo = nep.rows.length
     ? {
-        total: nep.rows.reduce((a, r) => a + r.n, 0),
+        total: nep.rows.length,
         monto: nep.rows.reduce((a, r) => a + (r.monto || 0), 0),
-        porGrado: nep.rows,
+        porGrado: [...porGradoMap.values()].sort((a, b) => b.monto - a.monto),
+        // El proveedor (RUC-10) va tapado por publicar() como cualquier locador; el funcionario (cargo público) no.
+        detalle: publicar(nep.rows),
       }
     : null;
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));

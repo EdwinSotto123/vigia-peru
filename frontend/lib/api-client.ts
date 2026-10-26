@@ -261,11 +261,22 @@ export async function getFraccionamientoEntidad(ruc: string, limit = 1000) {
   }
 }
 
-/** Indicio de nepotismo (agregado, sin identidades): parientes declarados en la DJI que son locadores de la entidad. */
+/** Indicio de nepotismo: parientes declarados en la DJI que son locadores de la entidad. El funcionario es cargo
+ *  público (sin tapar); el proveedor (RUC-10) va con un apellido tapado, como cualquier locador. */
+export interface NepotismoIndicio {
+  declarante: string;      // el funcionario que lo declaró (cargo público)
+  grado: string;           // hermano | hijo | padre | conyuge | otro
+  parentesco: string;
+  proveedorRuc: string;
+  proveedorNombre: string; // tapado por el backend (un apellido)
+  ordenes: number;
+  monto: number;
+}
 export interface NepotismoEntidad {
   total: number;
   monto: number;
-  porGrado: { grado: string; n: number; monto: number; ordenes: number }[];
+  porGrado: { grado: string; n: number; monto: number }[];
+  detalle?: NepotismoIndicio[];
 }
 
 export async function getEntidad(ruc: string) {
