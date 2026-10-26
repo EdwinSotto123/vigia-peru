@@ -34,8 +34,8 @@ export const TIPOS_CAPTURA = ["partido_gobernante", "vendio_gobernante", "socio_
 
 /**
  * El filtro de la lista de contratos con los tres lazos: `cruce=` toma CUALQUIERA de los tipos (backend
- * routes/contratos.ts, `k.tipos && $n`), y `cruces=` uno solo. Es la misma cuenta que `n_captura` (refrescar_poder lee
- * casos_cruce, justo después de rehacerlo): Lima, 37 y 37.
+ * routes/contratos.ts, `k.tipos && $n`), y `cruces=` uno solo. Con `desde`/`hasta` del periodo de gobierno es la misma
+ * cuenta que `n_captura` (refrescar_poder, migración 140: lo convocado en el gobierno vigente): Lima, 12 y 12.
  */
 export const CRUCE_CAPTURA = TIPOS_CAPTURA.join(",");
 
@@ -60,7 +60,8 @@ export function filaCaptura(p: PoderEntidad, href: (filtro: Record<string, strin
   return {
     etiqueta: "Ganó una empresa ligada a la gestión",
     n: p.n_captura ?? 0,
-    href: href({ cruce: CRUCE_CAPTURA }),
+    // El periodo del gobierno vigente: la lista cuenta lo mismo que la cifra (no lo de gestiones anteriores).
+    href: href({ cruce: CRUCE_CAPTURA, ...(p.periodoInicio ? { desde: p.periodoInicio } : {}), ...(p.periodoFin ? { hasta: p.periodoFin } : {}) }),
     detalle: comoSeLigan(p) ?? `Ninguna ligada a ${tituloNatural(p.partido)}, que la gobierna, ni a la entidad`,
     grave: (p.n_captura ?? 0) > 0,
   };

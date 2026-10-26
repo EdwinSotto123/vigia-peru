@@ -126,10 +126,17 @@ export function sumarConteos(xs: (ConteosCaptura & { n_captura?: number | null; 
  * backend/api/src/routes/contratos.ts): con un tipo, sólo ese; sin tipo, los tres. Es el mismo universo que cuenta el
  * mapa de poder (casos_cruce de esa entidad), así el número del enlace y el de la lista coinciden.
  */
-export function rutaContratosIndicio(entidadRuc: string, tipo?: TipoCaptura): string {
+/**
+ * La lista de contratos con indicio de una entidad. Con `periodo` (el del gobierno vigente, `periodoInicio`/`periodoFin`)
+ * cuenta lo mismo que su cifra: la captura de un partido es la de SU gobierno (migración 140), no la de gestiones
+ * anteriores.
+ */
+export function rutaContratosIndicio(entidadRuc: string, tipo?: TipoCaptura, periodo?: { desde?: string | null; hasta?: string | null }): string {
   const p = new URLSearchParams({ entidad: entidadRuc });
   if (tipo) p.set("cruces", tipo);
   else p.set("cruce", TIPOS_CAPTURA.map((t) => t.tipo).join(","));
+  if (periodo?.desde) p.set("desde", periodo.desde);
+  if (periodo?.hasta) p.set("hasta", periodo.hasta);
   return `/app/contratos?${p.toString()}`;
 }
 

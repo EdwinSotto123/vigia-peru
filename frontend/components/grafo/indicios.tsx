@@ -75,7 +75,16 @@ export function ChipIndicio({ i, conteo = "numero" }: { i: Indicio; conteo?: "nu
  * Los indicios en un panel, uno por fila: el chip, su ⓘ con qué se cruzó y cuántos contratos lo tienen. Con
  * `entidadRuc`, el conteo es el enlace a esos contratos en la lista (filtrados por la entidad y el tipo).
  */
-export function ListaIndicios({ x, entidadRuc }: { x: ConteosCaptura & { n_captura?: number | null }; entidadRuc?: string }) {
+export function ListaIndicios({
+  x,
+  entidadRuc,
+  periodo,
+}: {
+  x: ConteosCaptura & { n_captura?: number | null };
+  entidadRuc?: string;
+  /** El periodo de gobierno de la cifra: el enlace lista lo mismo que cuenta. */
+  periodo?: { desde?: string | null; hasta?: string | null };
+}) {
   const lista = indiciosDe(x);
   if (!lista.length) {
     return (
@@ -94,7 +103,7 @@ export function ListaIndicios({ x, entidadRuc }: { x: ConteosCaptura & { n_captu
           </span>
           {entidadRuc ? (
             <Link
-              href={rutaContratosIndicio(entidadRuc, i.tipo)}
+              href={rutaContratosIndicio(entidadRuc, i.tipo, periodo)}
               prefetch={false}
               className="inline-flex min-h-[32px] shrink-0 items-center gap-1 font-mono text-dato tabular-nums text-granate underline-offset-4 hover:underline"
             >

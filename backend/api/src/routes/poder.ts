@@ -229,7 +229,7 @@ poderRouter.get("/entidad/:ruc/grafo", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cab = await pool.query(
-    `SELECT entidad, partido, cargo_gob, autoridad FROM poder_entidad WHERE entidad_ruc = $1`, [ruc]);
+    `SELECT entidad, partido, cargo_gob, autoridad, periodo_inicio, periodo_fin FROM poder_entidad WHERE entidad_ruc = $1`, [ruc]);
   if (!cab.rows[0]) return c.json({ error: "not_found" }, 404);
   const emp = await pool.query(
     `SELECT cp.ruc_empresa AS ruc, max(e.razon_social) AS nombre,
@@ -237,12 +237,15 @@ poderRouter.get("/entidad/:ruc/grafo", async (c) => {
             count(DISTINCT cp.ocid)::int AS contratos,
             COALESCE(sum(cp.monto), 0)::float AS monto
        FROM cruces_proveedor cp
+       -- Lo convocado en el periodo de gobierno vigente, igual que n_captura (migración 140): la tabla y la cifra
+       -- cuentan lo mismo. Todas las empresas (antes cortaba en 18): la tabla de la ficha tiene buscador.
        JOIN convocatorias c ON c.ocid = cp.ocid AND c.entidad_ruc = $1
+        AND c.fecha_convocatoria >= $2 AND c.fecha_convocatoria <= $3
        LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
       WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
         AND cp.ruc_empresa ~ '^20[0-9]{9}$'
       GROUP BY cp.ruc_empresa
-      ORDER BY count(DISTINCT cp.ocid) DESC, 5 DESC LIMIT 18`, [ruc]);
+      ORDER BY count(DISTINCT cp.ocid) DESC, 5 DESC LIMIT 200`, [ruc, cab.rows[0].periodo_inicio, cab.rows[0].periodo_fin]);
   c.header("Cache-Control", CACHE);
   return c.json(publicar({ entidad: { ruc, nombre: cab.rows[0].entidad }, partido: cab.rows[0].partido,
     cargoGob: cab.rows[0].cargo_gob, autoridad: cab.rows[0].autoridad, empresas: emp.rows }));

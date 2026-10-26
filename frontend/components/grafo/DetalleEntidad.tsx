@@ -68,7 +68,7 @@ export function detalleEntidad(e: EntidadPoderLigera): Omit<DetalleFila, "id"> {
         }
         secundarias={
           e.n_captura > 0 ? (
-            <EnlaceAccion href={rutaContratosIndicio(e.ruc)} variante="secundario" prefetch={false}>
+            <EnlaceAccion href={rutaContratosIndicio(e.ruc, undefined, { desde: e.periodoInicio, hasta: e.periodoFin })} variante="secundario" prefetch={false}>
               Sus contratos con indicio
             </EnlaceAccion>
           ) : undefined
@@ -103,7 +103,7 @@ function CuerpoEntidad({ e }: { e: EntidadPoderLigera }) {
       <DatosClave items={datos} />
       {e.n_captura > 0 && (
         <BloqueDetalle titulo="Indicios" ayuda={<AyudaTermino clave="captura" />}>
-          <ListaIndicios x={e} entidadRuc={e.ruc} />
+          <ListaIndicios x={e} entidadRuc={e.ruc} periodo={{ desde: e.periodoInicio, hasta: e.periodoFin }} />
         </BloqueDetalle>
       )}
       {e.n_captura > 0 && <ContratosDeMasMonto ruc={e.ruc} />}
