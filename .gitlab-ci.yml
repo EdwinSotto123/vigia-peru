@@ -54,6 +54,25 @@ test:prod6:
       when: manual
       allow_failure: true
 
+# ─── Prueba: ¿el runner de GitLab (GCP-US) pasa el WAF de DJIC y corre el flujo con navegador? ──────
+# DJIC (appdji.contraloria.gob.pe) exige navegador (WebForms + captcha en el DOM). El relay de Zúrich pasó;
+# falta confirmar GCP-US. Si pasa, usamos CI como motor en nube para el Tier 2 de DJI. Manual.
+test:djic:
+  stage: test
+  image: mcr.microsoft.com/playwright/python:v1.47.0-jammy
+  script:
+    - echo "== IP del runner =="; curl -s --max-time 20 https://ifconfig.me || true; echo
+    - UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+    - echo "== GET del formulario DJIC =="
+    - curl -s --max-time 40 -A "$UA" "https://appdji.contraloria.gob.pe/DJIC/ConsultaPublicaDJICRUC.aspx?ruc=20131378034" -o djic.html -w "GET HTTP %{http_code} %{size_download}b\n"
+    - grep -q "txtApellidos" djic.html && echo "FORM OK -> la IP pasa el WAF" || { echo "SIN FORMULARIO -> posible bloqueo"; head -c 300 djic.html; }
+    - pip install --quiet pdfplumber
+    - python backend/scripts/test_djic_ci.py
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+      allow_failure: true
+
 # ─── Anclas reutilizables ────────────────────────────────────────────────────────────────────────
 .web: &web
   stage: deploy
