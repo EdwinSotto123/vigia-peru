@@ -343,6 +343,28 @@ class Recolector {
     if (claves.length >= 2) this.electos.add(Recolector.id(claves));
   }
 
+  /** Nombres que se tapan aunque tengan cargo de elección (ver `parecido`): ganan a `electos`. */
+  forzados = new Set<string>();
+
+  /**
+   * Alguien que COMPARTE los dos apellidos con la persona protegida (señales `apellidos_*`), o que es ella misma sin un
+   * documento que lo confirme (autoridad por nombre): se tapa igual que ella, el mismo apellido, aunque sea autoridad.
+   * Mostrar completo a "QUISPE ROJAS LISSETT" junto a "QUISPE ••• OVIDIO" destapaba justo el apellido escondido.
+   */
+  parecido(nombre: unknown) {
+    if (typeof nombre !== "string" || pareceEmpresa(nombre)) return;
+    this.persona(nombre, "sunat");
+    const { claves, coma } = Recolector.palabras(nombre);
+    const p = this.personas.get(Recolector.id(claves));
+    if (!p) return;
+    // El mismo cálculo que para la persona protegida (orden SUNAT/JNE, apellidos primero): se tapa la misma palabra,
+    // también si esta persona ya se había registrado en otro campo con otro orden.
+    const { apellidos } = partes(claves, coma > 0 ? "sunat" : ordenProbable(claves, "sunat"), coma);
+    p.oculta = apellidos[apellidos.length - 1];
+    p.papel = true;
+    this.forzados.add(p.id);
+  }
+
   documento(v: unknown) {
     const d = typeof v === "number" ? String(v) : typeof v === "string" ? v.replace(/[\s.-]/g, "") : "";
     if (/^\d{8}$/.test(d)) this.documentos.add(d);
@@ -384,18 +406,34 @@ const NOMBRE_CON_DNI = new RegExp(
  */
 const NOMBRE_CON_FIRMA = new RegExp(String.raw`((?:${MAYUS}\s+){1,3}(?:${INICIAL}\s+){0,3}${INICIAL})\s+FIR\s+\d{8}`, "gu");
 
-function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = false, profundidad = 0): void {
+/**
+ * `tapados`: dentro del detalle de una señal que nombra a la persona protegida o a quien comparte sus dos apellidos
+ * (ver abajo): ahí ningún nombre sale completo por su cargo.
+ */
+function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = false, profundidad = 0, tapados = false): void {
   if (profundidad > 60 || v == null) return;
   if (typeof v === "string") {
     r.texto(v);
     return;
   }
   if (Array.isArray(v)) {
-    for (const x of v) recolectar(x, r, clavePadre, autoridades, profundidad + 1);
+    for (const x of v) recolectar(x, r, clavePadre, autoridades, profundidad + 1, tapados);
     return;
   }
   if (typeof v !== "object") return;
   const o = v as Record<string, unknown>;
+
+  // Una señal de persona (personas contratadas, planilla): su tipo decide cómo se leen los nombres de su detalle.
+  //   apellidos_*            la autoridad, el funcionario o el directivo tiene sus MISMOS dos apellidos: completo,
+  //                          destapa el de la persona.
+  //   autoridad por nombre   (autoridad_contratada, es_autoridad sin `por: "dni"`): puede ser ella o un homónimo; sin
+  //                          documento no se la trata como pública. La planilla nunca trae DNI.
+  let tapar = tapados;
+  if (typeof o.tipo === "string") {
+    const det = o.detalle && typeof o.detalle === "object" ? (o.detalle as Record<string, unknown>) : undefined;
+    if (o.tipo.startsWith("apellidos_")) tapar = true;
+    else if ((o.tipo === "autoridad_contratada" || o.tipo === "es_autoridad") && (det?.por ?? o.por) !== "dni") tapar = true;
+  }
 
   let conRuc10 = false;
   for (const [k, x] of Object.entries(o)) {
@@ -411,7 +449,9 @@ function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = fa
   // `identifier: {id: "10…", legalName}` y `{id: "PE-RUC-10…", name}` de los registros OCDS.
   if (conRuc10) for (const k of CLAVES_RAZON) r.persona(o[k], "sunat");
 
-  if (autoridades) {
+  if (tapar) {
+    for (const n of [o.nombre, o.nombre_completo, o.autoridad]) r.parecido(n);
+  } else if (autoridades) {
     r.electo(o.nombre);
     r.electo(o.nombre_completo);
   } else {
@@ -431,7 +471,7 @@ function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = fa
     // {"JUAN PEREZ QUISPE": {onpe, jne, visitas}}: la clave es la persona.
     if (clavePadre === "datos_peru_por_persona") r.persona(k, "nombres-primero", "consulta");
     if (/^\d{8}$/.test(k)) r.documento(k);
-    recolectar(x, r, k, autoridades || k === "autoridades_entidad", profundidad + 1);
+    recolectar(x, r, k, autoridades || k === "autoridades_entidad", profundidad + 1, tapar);
   }
 }
 
@@ -452,7 +492,7 @@ function contexto(r: Recolector, opts: { correos?: boolean } = {}): Contexto {
   const porPrimera = new Map<string, Variante[]>();
   const slugs: string[] = [];
   for (const p of r.personas.values()) {
-    if (r.electos.has(p.id)) continue;
+    if (r.electos.has(p.id) && !r.forzados.has(p.id)) continue;
     for (const claves of p.formas.values()) {
       const lista = porPrimera.get(claves[0]) ?? [];
       // El materno es la última aparición de esa palabra en la forma ("QUISPE QUISPE JUAN" → la segunda).

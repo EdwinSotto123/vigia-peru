@@ -252,7 +252,7 @@ test("no muta la entrada", () => {
   assert.equal(entrada.firmantes[0].nombre_completo, "JUAN PEREZ QUISPE");
 });
 
-test("personas contratadas (migración 91): RUC 10 → ref, un apellido tapado en la fila, sus candidaturas y su orden; la autoridad electa completa", () => {
+test("personas contratadas (migración 91): RUC 10 → ref, un apellido tapado en la fila, sus candidaturas y su orden; quien comparte sus dos apellidos, tapado igual", () => {
   const r = publicar({
     persona: { ruc: "10439608801", nombre: "VARGAS ROJAS LUIS FERNANDO" },
     entidades: [{
@@ -269,8 +269,42 @@ test("personas contratadas (migración 91): RUC 10 → ref, un apellido tapado e
   assert.equal(r.persona.ruc, refRuc10("10439608801"));
   assert.doesNotMatch(t, /VARGAS ROJAS LUIS/);
   assert.match(r.persona.nombre, new RegExp(`VARGAS ${TAPA_NOMBRE} LUIS FERNANDO`));
-  // La autoridad electa (otra persona) sale completa.
-  assert.match(t, /VARGAS ROJAS PEDRO/);
+  // La autoridad tiene sus MISMOS dos apellidos (es la señal): completa, destaparía el de la persona. Va tapada igual.
+  assert.doesNotMatch(t, /ROJAS/);
+  assert.match(t, new RegExp(`VARGAS ${TAPA_NOMBRE} PEDRO`));
+});
+
+test("autoridad por nombre (sin DNI): no destapa a la persona; confirmada por DNI, la autoridad sale completa", () => {
+  const senal = (por: string) => [{ tipo: "autoridad_contratada", detalle: { por, autoridades: [{ nombre: "LLATANCE SILVA ALDO JARVIN", cargo: "REGIDOR PROVINCIAL" }] } }];
+  const porNombre = publicar({ persona: { ruc: "10439608801", nombre: "LLATANCE SILVA ALDO JARVIN" }, senales: senal("nombre") });
+  assert.doesNotMatch(json(porNombre), /SILVA/);
+  assert.match(porNombre.persona.nombre, new RegExp(`LLATANCE ${TAPA_NOMBRE} ALDO JARVIN`));
+  const porDni = publicar({ persona: { ruc: "10439608801", nombre: "LLATANCE SILVA ALDO JARVIN" }, senales: senal("dni") });
+  assert.equal(porDni.persona.nombre, "LLATANCE SILVA ALDO JARVIN");
+});
+
+test("planilla (sin DNI): la autoridad, el directivo y la propia persona como autoridad, con el mismo apellido tapado", () => {
+  const r = publicar({
+    persona: {
+      nombre: `QUISPE ${TAPA_NOMBRE} OVIDIO AMADIO`,
+      senales: [
+        { tipo: "apellidos_autoridad", detalle: { autoridades: [{ nombre: "QUISPE ROJAS LISSETT MONICA", cargo: "REGIDOR DISTRITAL", partido: "X" }] } },
+        { tipo: "apellidos_directivo", detalle: { funcionarios_designados: [{ nombre: "QUISPE ROJAS MARCO ANTONIO", cargo: "GERENTE MUNICIPAL" }] } },
+        { tipo: "es_autoridad", detalle: { autoridades: [{ nombre: "QUISPE ROJAS OVIDIO AMADIO", cargo: "REGIDOR DISTRITAL" }] } },
+      ],
+    },
+    // La misma autoridad, fuera de la señal (la lista de autoridades de la entidad): en esta respuesta también va tapada.
+    autoridades_entidad: { regidores: [{ nombre: "QUISPE ROJAS LISSETT MONICA" }] },
+  });
+  const t = json(r);
+  assert.doesNotMatch(t, /ROJAS/);
+  assert.match(t, new RegExp(`QUISPE ${TAPA_NOMBRE} LISSETT MONICA`));
+  assert.match(t, new RegExp(`QUISPE ${TAPA_NOMBRE} MARCO ANTONIO`));
+});
+
+test("fuera de una señal de apellidos, la autoridad electa sigue completa", () => {
+  const r = publicar({ autoridades_entidad: { alcalde: { nombre: "QUISPE ROJAS LISSETT MONICA" } }, senales: [{ tipo: "aporte", detalle: { partido: "X" } }] });
+  assert.equal(r.autoridades_entidad.alcalde.nombre, "QUISPE ROJAS LISSETT MONICA");
 });
 
 test("orden de servicio: el locador (RUC 10) va con un apellido tapado; la empresa (RUC 20) de una orden de compra queda completa", () => {
