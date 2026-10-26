@@ -109,11 +109,17 @@
     }
     return false;
   };
+  // innerText: sólo lo que se ve (textContent contaba el texto oculto de los globos de Ayuda); y sin el nombre
+  // `sr-only` de los botones ⓘ, que se lee pero no se ve («¿Qué es un proceso de selección?» alargaba la línea).
+  const textoVisible = (p) => {
+    let t = p.innerText || "";
+    for (const s of p.querySelectorAll(".sr-only")) t = t.replace(s.innerText || s.textContent || "", "");
+    return t.replace(/\s+/g, " ").trim();
+  };
   const textoSuelto = [...document.querySelectorAll("main p")]
     // La bajada del encabezado de la página va suelta a propósito (EncabezadoPagina).
-    // innerText: sólo lo que se ve (textContent contaba el texto oculto de los globos de Ayuda).
-    .filter((p) => visible(p) && !p.closest("header") && (p.innerText || "").trim().length > 140 && !enTarjeta(p))
-    .map((p) => ({ texto: corto(p.innerText, 120), donde: ruta(p) }));
+    .filter((p) => visible(p) && !p.closest("header") && textoVisible(p).length > 140 && !enTarjeta(p))
+    .map((p) => ({ texto: corto(textoVisible(p), 120), donde: ruta(p) }));
 
   // ── color fijo en estilos en línea ─────────────────────────────────────────
   const colorFijo = [...document.querySelectorAll("[style]")]
@@ -177,8 +183,15 @@
   const cajas = [...document.querySelectorAll("main div, main section, main article, main li, main aside, main details, main figure")]
     .filter((el) => visible(el) && esCaja(el));
   const enCaja = new Set(cajas);
+  // Una capa flotante (la leyenda sobre el mapa, un globo) no es una caja dentro de otra: necesita su superficie. Flota
+  // si ella o algo entre ella y su caja madre va en `position: absolute` o `fixed`.
+  const flota = (x) => ["absolute", "fixed"].includes(getComputedStyle(x).position);
   const anidadas = cajas.filter((el) => {
-    for (let x = el.parentElement; x && x.tagName !== "MAIN"; x = x.parentElement) if (enCaja.has(x)) return true;
+    let capa = flota(el);
+    for (let x = el.parentElement; x && x.tagName !== "MAIN"; x = x.parentElement) {
+      if (enCaja.has(x)) return !capa;
+      capa = capa || flota(x);
+    }
     return false;
   });
 
