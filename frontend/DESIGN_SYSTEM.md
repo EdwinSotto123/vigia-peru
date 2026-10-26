@@ -668,7 +668,9 @@ para lo largo y secundario. `Paginacion` acepta `paramPagina`. Reglas:
   - `BarraFiltros`: un `visible` de una sola opción es un chip conmutador; un desplegable elegido dice «Etiqueta: valor»;
     en el celular los desplegables visibles pasan dentro de «Filtros (n)»; `seccion` agrupa los de «Filtros».
   - `Paginacion`/`PaginacionCursor`: 44 px táctiles en el celular, miles con separador; `subir` en el de ABAJO lleva al
-    inicio de los resultados (`#resultados` de `ZonaResultados`).
+    inicio de SU lista (el `[data-paginado]` que lo contiene: `ZonaResultados` o las tablas de `Paginado`), sin ancla en
+    la URL (una ficha con una lista por pestaña repetía el id). El margen al subir es `MARGEN_LISTA`: la barra fija de
+    pestañas (`--alto-barra-fija`) más aire.
   - `CrucesCelda`: banderas en UNA línea (las más graves, hasta 2 y «+n»), con ícono de severidad; el chip usa el
     nombre breve `chip` del catálogo (`lib/cruces.ts`, uno por tipo) y el completo va en el title. «Sin ganador aún» ≠
     «Sin antecedentes».
@@ -702,7 +704,9 @@ contrato, "Mi impacto"), **no se apilan**: van en `Pestanas` (`@/components/patr
 
 - Cada pestaña con su conteo ("Señales 31"). La primera es el **Resumen**: lo que se
   entiende en una pantalla (Indicadores + lo más importante).
-- La pestaña va a la URL (`?seccion=`) sin recargar: el enlace comparte esa vista.
+- La pestaña va a la URL (`?seccion=`) sin recargar: el enlace comparte esa vista. Y al revés: un enlace de la página
+  a `?seccion=x&…` abre esa pestaña aunque el servidor ya la tuviera (la página remonta la barra con `key={seccion}`
+  cuando cambia; si no cambió, la barra sigue a la URL).
 - El contenido de todas llega del servidor; cambiar es instantáneo.
 - La barra es una **franja con superficie** (no texto gris sobre el fondo) y, en las fichas, **fija** al bajar (`fija`).
   Si no entra, se difumina en el borde y aparecen flechas; la activa siempre a la vista. En el celular, una sola fila que
