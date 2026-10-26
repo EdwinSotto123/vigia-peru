@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { CalendarRange } from "lucide-react";
+import { CalendarRange, MapPin } from "lucide-react";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { GobiernosPartido, P_GOB, filtrosGobiernos } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
@@ -25,7 +25,7 @@ import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { LECTURAS } from "@/lib/contratos";
-import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { listaY, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import {
   AVISO_PARTIDO,
   PERIODOS_GOBIERNO,
@@ -135,9 +135,14 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             <span className="inline-flex items-center gap-1.5">
               <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {periodoTexto(anio)}
             </span>
-            <span>
-              {plural(partido.gobiernos.regional, "región", "regiones")}, {plural(partido.gobiernos.provincial, "provincia", "provincias")},{" "}
-              {plural(partido.gobiernos.distrital, "distrito", "distritos")}
+            {/* Sólo los niveles donde gobierna: «0 regiones, 2 provincias…» era ruido. */}
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={14} className="shrink-0 text-mute" aria-hidden />
+              {listaY([
+                ...(partido.gobiernos.regional > 0 ? [plural(partido.gobiernos.regional, "región", "regiones")] : []),
+                ...(partido.gobiernos.provincial > 0 ? [plural(partido.gobiernos.provincial, "provincia", "provincias")] : []),
+                ...(partido.gobiernos.distrital > 0 ? [plural(partido.gobiernos.distrital, "distrito", "distritos")] : []),
+              ]) || "Sin gobiernos en este período"}
             </span>
           </span>
         }
