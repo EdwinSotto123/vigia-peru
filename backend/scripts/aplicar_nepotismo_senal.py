@@ -25,13 +25,19 @@ MIG = ROOT / "backend" / "db" / "migrations" / "137_dji_nepotismo_senal.sql"
 
 
 def main() -> int:
-    entorno = sys.argv[1] if len(sys.argv) > 1 else "prod"
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    entorno = args[0] if args else "prod"
+    solo_migracion = "--no-refresh" in sys.argv  # aplica vista+función, sin refrescar (para ir antes del deploy del front)
     sql = MIG.read_text(encoding="utf-8")
-    print(f"→ {entorno}: aplicando 137 + refrescando nepotismo…", flush=True)
+    print(f"→ {entorno}: aplicando 137{'' if solo_migracion else ' + refrescando nepotismo'}…", flush=True)
     with conexion(entorno) as c:
         with c.cursor() as cur:
             cur.execute(sql)
             print("  ✓ migración 137 aplicada (vista + función)", flush=True)
+            if solo_migracion:
+                c.commit()
+                print("✓ listo (solo migración; el refresco va tras el deploy)", flush=True)
+                return 0
             cur.execute("SELECT refrescar_nepotismo_senal()")
             n = cur.fetchone()[0]
             print(f"  ✓ refrescar_nepotismo_senal() → {n} señales", flush=True)

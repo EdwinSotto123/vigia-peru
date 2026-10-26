@@ -13,7 +13,10 @@
 -- 32069) depende del rol del declarante.
 
 -- ── 1. La vista gana el cargo del declarante (de su declaración, por codigo_ddjj) ───────────────────────────────────
-CREATE OR REPLACE VIEW dji_nepotismo AS
+-- DROP + CREATE (no CREATE OR REPLACE): la nueva columna `cargo` va en medio y CREATE OR REPLACE no deja reordenar
+-- columnas. dji_nepotismo es una vista hoja (nada depende de ella), así que recrearla es seguro.
+DROP VIEW IF EXISTS dji_nepotismo;
+CREATE VIEW dji_nepotismo AS
 SELECT v.entidad_ruc,
        v.declarante_norm,
        (array_agg(fc.cargo ORDER BY fc.fecha_inicio_cargo DESC NULLS LAST) FILTER (WHERE fc.cargo IS NOT NULL))[1] AS cargo,
