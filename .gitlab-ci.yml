@@ -66,7 +66,8 @@ test:djic:
     - echo "== GET del formulario DJIC =="
     - curl -s --max-time 40 -A "$UA" "https://appdji.contraloria.gob.pe/DJIC/ConsultaPublicaDJICRUC.aspx?ruc=20131378034" -o djic.html -w "GET HTTP %{http_code} %{size_download}b\n"
     - grep -q "txtApellidos" djic.html && echo "FORM OK -> la IP pasa el WAF" || { echo "SIN FORMULARIO -> posible bloqueo"; head -c 300 djic.html; }
-    - pip install --quiet pdfplumber
+    - pip install --quiet playwright==1.47.0 pdfplumber
+    - python -m playwright install chromium
     - python backend/scripts/test_djic_ci.py
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
