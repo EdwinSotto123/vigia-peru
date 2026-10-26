@@ -49,7 +49,9 @@ export const metadata = {
   description: "Todos los contratos públicos del SEACE que tiene Vigía, con su tipo, etapa, zona y estado de lectura.",
 };
 
-const SIZE = 50;
+// Las tres vistas de la página paginan igual. Con 50 contratos, la lista era 10 pantallas en el celular (cada fila apila
+// su monto y su fecha con el rótulo); con 25, la mitad, y nada se pierde: el paginador de abajo sube al inicio.
+const SIZE = 25;
 const SIZE_ORD = 25;
 const SIZE_MEN = 25;
 const RUTA = "/app/contratos";
