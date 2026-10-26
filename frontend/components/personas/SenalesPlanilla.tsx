@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
 import { CeldaNumero, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { numero, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { clavePartido } from "@/lib/poder";
 import { SENAL_PLANILLA, type SenalConDetalle, type TipoPlanilla } from "@/lib/planilla";
 import { SEVERIDAD_TEXTO } from "@/lib/personas";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
@@ -49,6 +51,16 @@ function TablaChica({ columnas, filas, etiqueta }: { columnas: Columna[]; filas:
 }
 
 const texto = (v: string | null) => <span className="text-meta text-ink">{v ?? "Sin dato"}</span>;
+/** El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto. */
+const partidoCell = (v: unknown) => {
+  const name = t(v);
+  if (!name) return texto(null);
+  return (
+    <Link href={`/app/partidos/${clavePartido(name)}`} className="text-meta text-granate underline-offset-2 hover:underline">
+      {name}
+    </Link>
+  );
+};
 
 export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
@@ -95,7 +107,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           ]}
           filas={lista(d.autoridades).map((a, i) => ({
             id: String(i),
-            celdas: { nombre: texto(t(a.nombre)), cargo: texto(t(a.cargo) ? tituloNatural(t(a.cargo)!) : null), partido: texto(t(a.partido)) },
+            celdas: { nombre: texto(t(a.nombre)), cargo: texto(t(a.cargo) ? tituloNatural(t(a.cargo)!) : null), partido: partidoCell(a.partido) },
           }))}
         />
         {n(d.frecuencia) != null && (
@@ -120,7 +132,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           id: String(i),
           celdas: {
             cargo: texto(t(a.cargo) ? tituloNatural(t(a.cargo)!) : null),
-            partido: texto(t(a.partido)),
+            partido: partidoCell(a.partido),
             mandato: texto([t(a.desde)?.slice(0, 4), t(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || null),
           },
         }))}
@@ -143,7 +155,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
   } else if (tipo === "candidato_gobierna") {
     return (
       <div className="space-y-2">
-        <DatosClave items={[{ etiqueta: "Partido que gobierna la entidad", valor: t(d.partido) }]} />
+        <DatosClave items={[{ etiqueta: "Partido que gobierna la entidad", valor: t(d.partido) ? partidoCell(d.partido) : null }]} />
         <TablaChica
           etiqueta="Sus candidaturas"
           columnas={[
@@ -157,7 +169,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
             celdas: {
               anio: <CeldaNumero>{t(c.anio) ?? "Sin año"}</CeldaNumero>,
               cargo: texto(t(c.cargo) ? tituloNatural(t(c.cargo)!) : null),
-              partido: texto(t(c.partido)),
+              partido: partidoCell(c.partido),
               resultado: texto(t(c.resultado) ? oracionSimple(t(c.resultado)!.replace(/_/g, " ")) : null),
             },
           }))}

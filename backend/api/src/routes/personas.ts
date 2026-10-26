@@ -313,14 +313,42 @@ personasRouter.get("/:codigo", async (c) => {
         ordsNep.set(entidadRuc, l);
       }
     }
+    // La MISMA persona en la planilla de una entidad (enlace inverso locador→planilla, que faltaba): su ficha de planilla
+    // por entidad, para que la señal "también en planilla" / "pasó a planilla" lleve a esa ficha.
+    const planFichas = new Map<string, string>();
+    if (senales.rows.some((s) => s.tipo === "tambien_planilla" || s.tipo === "paso_a_planilla")) {
+      const pf = await pool.query<{ entidadRuc: string; ficha: string }>(
+        `SELECT entidad_ruc AS "entidadRuc", ficha FROM planilla_persona WHERE codigo = $1 AND ficha IS NOT NULL`, [codigo]);
+      for (const r of pf.rows) planFichas.set(r.entidadRuc, r.ficha);
+    }
+    // El funcionario que declaró a este locador como pariente (señal nepotismo) casi siempre está en la planilla de la
+    // misma entidad: su ficha, para cerrar el vínculo locador→funcionario (`${entidad}|${nombre_norm}` → ficha).
+    const declFichas = new Map<string, string>();
+    if (entsNep.length) {
+      const pf = await pool.query<{ entidadRuc: string; nn: string; ficha: string }>(
+        `SELECT entidad_ruc AS "entidadRuc", nombre_norm AS nn, ficha FROM planilla_persona WHERE entidad_ruc = ANY($1) AND ficha IS NOT NULL`, [entsNep]);
+      for (const r of pf.rows) declFichas.set(`${r.entidadRuc}|${r.nn}`, r.ficha);
+    }
     const porEntidad = new Map<string, unknown[]>();
     for (const s of senales.rows) {
       const l = porEntidad.get(s.entidadRuc) ?? [];
       const detalle = s.tipo === "inhabilitado"
         ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsInhab.get(s.entidadRuc) ?? [] }
         : s.tipo === "nepotismo"
-          ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [] }
-          : s.detalle;
+          ? (() => {
+              const det = s.detalle as Record<string, unknown>;
+              const par = det.parientes;
+              return {
+                ...det,
+                parientes: Array.isArray(par)
+                  ? (par as Record<string, unknown>[]).map((pr) => ({ ...pr, ficha: declFichas.get(`${s.entidadRuc}|${String(pr.declarante ?? "")}`) ?? null }))
+                  : par,
+                ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [],
+              };
+            })()
+          : (s.tipo === "tambien_planilla" || s.tipo === "paso_a_planilla") && planFichas.has(s.entidadRuc)
+            ? { ...(s.detalle as Record<string, unknown>), plan_ficha: planFichas.get(s.entidadRuc) }
+            : s.detalle;
       l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl: s.fuenteUrl });
       porEntidad.set(s.entidadRuc, l);
     }

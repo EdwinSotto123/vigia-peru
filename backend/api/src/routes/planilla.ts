@@ -176,7 +176,7 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
         WHERE p.ficha = $1`, [codigo]);
     const f = r.rows[0];
     if (!f) return null;
-    const [historia, otras] = await Promise.all([
+    const [historia, otras, nepotismo] = await Promise.all([
       pool.query(HISTORIA_SQL, [f.entidadRuc, f._nn]),
       // El mismo nombre completo (con el materno) en la planilla de otra entidad: suele ser la misma persona.
       pool.query(
@@ -184,12 +184,21 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
                 p.n_senales AS "nSenales", p.ficha
            FROM planilla_persona p WHERE p.nombre_norm = $1 AND p.entidad_ruc <> $2 ORDER BY p.ultimo_mes DESC, p.base DESC NULLS LAST LIMIT 50`,
         [f._nn, f.entidadRuc]),
+      // Parientes que ESTA persona declaró en su DJI y que son locadores de su MISMA entidad (lado del funcionario del
+      // nepotismo, vista dji_nepotismo migr. 137). El pariente (RUC-10) va tapado por publicar(); enlaza a su ficha.
+      pool.query(
+        `SELECT n.grado, n.parentesco, n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre",
+                pc.codigo AS "proveedorCodigo", n.ordenes, n.monto
+           FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
+          WHERE n.declarante_norm = $1 AND n.entidad_ruc = $2 ORDER BY n.monto DESC NULLS LAST LIMIT 20`,
+        [f._nn, f.entidadRuc]),
     ]);
     const { _nn, paterno, nombres, ...resto } = f;
     return publicar({
       persona: { ...resto, nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") },
       historia: historia.rows,
       otras: otras.rows,
+      nepotismo: nepotismo.rows,
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

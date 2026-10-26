@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TriangleAlert } from "lucide-react";
 import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -15,6 +16,8 @@ import { REGIMEN, getFichaPlanilla, rutaPlanilla, type FichaPlanilla } from "@/l
 import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
+
+const GRADO: Record<string, string> = { hermano: "hermano(a)", conyuge: "cónyuge o conviviente", hijo: "hijo(a)", padre: "padre o madre", otro: "pariente" };
 
 export async function generateMetadata({ params }: { params: { codigo: string } }): Promise<Metadata> {
   const f = await getFichaPlanilla(params.codigo);
@@ -89,6 +92,38 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
         <AvisoDato motivo={motivo} fuente="pte_personal">
           {`Su planilla de ${p.ultimoMes ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total. Mira su sueldo mes a mes.`}
         </AvisoDato>
+      )}
+
+      {/* Lado FUNCIONARIO del nepotismo: los parientes que ESTA persona declaró en su DJI y que le venden a su entidad.
+          Es el dato que faltaba (antes solo vivía en la ficha del proveedor). Oculto si no aplica. */}
+      {f.nepotismo.length > 0 && (
+        <section className="space-y-2.5 rounded-2xl border border-amber/30 bg-amber-soft p-4 sm:p-5" aria-labelledby="nep-plan">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amberTexto" aria-hidden />
+            <div className="min-w-0 space-y-2">
+              <h2 id="nep-plan" className="text-bloque font-semibold text-amberTexto">Parientes suyos que le venden al Estado</h2>
+              <p className="text-dato text-ink">
+                Declaró en su Declaración Jurada de Intereses (Ley 31227) a {plural(f.nepotismo.length, "pariente", "parientes")} que figura
+                {f.nepotismo.length === 1 ? "" : "n"} como proveedor (locador) de {entidad}.
+              </p>
+              <ul className="space-y-1.5">
+                {f.nepotismo.map((x, i) => (
+                  <li key={`${x.proveedorRuc}-${i}`} className="text-dato leading-relaxed text-ink">
+                    <span className="text-mute">Un(a) {GRADO[x.grado] ?? "pariente"} que le vendió </span>
+                    <span className="font-medium">{soles(x.monto)}</span>
+                    <span className="text-mute"> en {numero(x.ordenes)} {x.ordenes === 1 ? "orden" : "órdenes"}: </span>
+                    {x.proveedorCodigo ? (
+                      <Link href={`/app/personas/${x.proveedorCodigo}`} className="font-medium text-amberTexto underline-offset-2 hover:underline">{tituloNatural(x.proveedorNombre)}</Link>
+                    ) : (
+                      <span className="font-medium">{tituloNatural(x.proveedorNombre)}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-meta text-mute">Indicio para revisión humana, no una acusación: la DJI es pública y el impedimento depende del cargo (Ley 32069, art. 30).</p>
+            </div>
+          </div>
+        </section>
       )}
 
       <Pestanas

@@ -207,6 +207,8 @@ export interface FichaPlanilla {
   persona: PersonaPlanilla & { dep: string | null; depNombre: string | null };
   historia: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number; cargo: string | null }[];
   otras: { entidadRuc: string; entidad: string | null; cargo: string | null; regimen: number | null; base: number | null; ultimoMes: string | null; nSenales: number; ficha: string | null }[];
+  /** Parientes que ESTA persona declaró en su DJI y que son locadores de su misma entidad (lado funcionario del nepotismo). */
+  nepotismo: { grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number }[];
 }
 
 export const rutaPlanilla = (ficha: string, seccion?: string) => `/app/personas/planilla/${ficha}${seccion ? `?seccion=${seccion}` : ""}`;

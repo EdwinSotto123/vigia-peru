@@ -5,6 +5,7 @@ import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones"
 import { Tabla, CeldaNumero, type Columna, type Fila } from "@/components/listado";
 import { fecha, listaY, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { clavePartido } from "@/lib/poder";
 import { REGIMEN } from "@/lib/planilla";
 import { FUENTE_TEXTO, SENAL, SEVERIDAD_TEXTO, type EntidadDePersona, type SenalDetalle } from "@/lib/personas";
 import { VARIANTE_SEVERIDAD } from "./SenalesPersona";
@@ -182,6 +183,16 @@ const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" &
 const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fecha(v.slice(0, 10)) : null);
 const porQue = (por: unknown) =>
   por === "dni" ? "Coincide por el documento de identidad." : por === "nombre" ? "Coincide por el nombre completo y el departamento (la fuente no trae documento)." : null;
+/** El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto. */
+const partidoLink = (v: unknown, clase = "text-inkSoft") => {
+  const name = txt(v);
+  if (!name) return <span className={`text-meta ${clase}`}>Sin dato</span>;
+  return (
+    <Link href={`/app/partidos/${clavePartido(name)}`} className="text-meta text-granate underline-offset-2 hover:underline">
+      {name}
+    </Link>
+  );
+};
 
 /** Una tabla chica: la lista de un detalle (candidaturas, aportes, autoridades…). */
 function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila[]; etiqueta: string }) {
@@ -214,7 +225,11 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
         id: String(i),
         celdas: {
           cargo: <span className="text-meta text-ink">{txt(p.cargo) ? tituloNatural(txt(p.cargo)!) : "Funcionario de la entidad"}</span>,
-          quien: <span className="text-meta font-medium text-inkSoft">{primerApellido(p.declarante) ?? "Sin dato"}</span>,
+          quien: txt(p.ficha) ? (
+            <Link href={`/app/personas/planilla/${txt(p.ficha)}`} className="text-meta font-medium text-granate underline-offset-2 hover:underline">{primerApellido(p.declarante) ?? "Sin dato"}</Link>
+          ) : (
+            <span className="text-meta font-medium text-inkSoft">{primerApellido(p.declarante) ?? "Sin dato"}</span>
+          ),
           parentesco: <span className="text-meta text-inkSoft">{GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente"}</span>,
         },
       }));
@@ -302,7 +317,7 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
           celdas: {
             anio: <span className="font-mono text-meta tabular-nums">{txt(c.anio) ?? "Sin año"}</span>,
             cargo: <span className="text-meta text-ink">{txt(c.cargo) ? tituloNatural(txt(c.cargo)!) : "Sin cargo en la fuente"}</span>,
-            partido: <span className="text-meta text-inkSoft">{txt(c.partido) ?? "Sin dato"}</span>,
+            partido: partidoLink(c.partido),
             resultado: <span className="text-meta text-inkSoft">{c.resultado === "electo" ? "Electo" : c.resultado === "no_electo" ? "No electo" : "Sin dato"}</span>,
           },
         }));
@@ -334,7 +349,7 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
         id: String(i),
         celdas: {
           fecha: <span className="text-meta tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
-          partido: <span className="text-meta text-ink">{txt(a.partido) ?? "Sin dato"}</span>,
+          partido: partidoLink(a.partido, "text-ink"),
           monto: <CeldaNumero>{num(a.monto) != null ? soles(num(a.monto)) : "Sin dato"}</CeldaNumero>,
         },
       }));
@@ -365,7 +380,7 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
         celdas: {
           nombre: <span className="text-meta font-medium text-ink">{txt(a.nombre) ?? "Sin nombre"}</span>,
           cargo: <span className="text-meta text-inkSoft">{txt(a.cargo) ? tituloNatural(txt(a.cargo)!) : "Sin cargo"}</span>,
-          partido: <span className="text-meta text-inkSoft">{txt(a.partido) ?? "Sin dato"}</span>,
+          partido: partidoLink(a.partido),
           periodo: <span className="text-meta tabular-nums text-mute">{[txt(a.desde)?.slice(0, 4), txt(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
         },
       }));
@@ -585,7 +600,10 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
               { etiqueta: "Lo que cobró en planilla", valor: num(d.sueldo) != null ? soles(num(d.sueldo)!) : null, mono: true },
             ]}
           />
-          {entidadRuc && <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>Ver sus órdenes de esta entidad</VerOrdenes>}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {entidadRuc && <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>Ver sus órdenes de esta entidad</VerOrdenes>}
+            <VerPlanilla ficha={txt(d.plan_ficha)} />
+          </div>
         </div>
       );
     }
@@ -593,14 +611,17 @@ function Detalle({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; e
       const regimen = num(d.regimen);
       const mes = txt(d.primer_mes_planilla);
       return (
-        <DatosClave
-          items={[
-            { etiqueta: "Primera orden", valor: dia(d.primera_orden), mono: true },
-            { etiqueta: "Entró a la planilla", valor: mes ? mes.slice(0, 7) : null, mono: true },
-            { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
-            { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
-          ]}
-        />
+        <div className="space-y-2">
+          <DatosClave
+            items={[
+              { etiqueta: "Primera orden", valor: dia(d.primera_orden), mono: true },
+              { etiqueta: "Entró a la planilla", valor: mes ? mes.slice(0, 7) : null, mono: true },
+              { etiqueta: "Cargo en la planilla", valor: txt(d.cargo) ? tituloNatural(txt(d.cargo)!) : null },
+              { etiqueta: "Régimen", valor: regimen != null ? REGIMEN[regimen] ?? `Régimen ${regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
+            ]}
+          />
+          <VerPlanilla ficha={txt(d.plan_ficha)} />
+        </div>
       );
     }
     case "visita_previa": {
@@ -637,6 +658,16 @@ function VerOrdenes({ codigo, entidadRuc, anio, children }: { codigo: string; en
   return (
     <Link href={`/app/personas/${codigo}?${qs.toString()}`} className="inline-flex items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline">
       {children} <span aria-hidden>→</span>
+    </Link>
+  );
+}
+
+/** Enlace a la ficha de planilla de la MISMA persona (enlace inverso locador→planilla). Nulo si no está en planilla. */
+function VerPlanilla({ ficha }: { ficha: string | null }) {
+  if (!ficha) return null;
+  return (
+    <Link href={`/app/personas/planilla/${ficha}`} className="inline-flex items-center gap-1 text-meta font-medium text-granate underline-offset-2 hover:underline">
+      Ver su ficha de planilla <span aria-hidden>→</span>
     </Link>
   );
 }

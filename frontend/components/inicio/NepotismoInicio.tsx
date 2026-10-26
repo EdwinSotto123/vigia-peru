@@ -62,9 +62,15 @@ export function NepotismoInicio({
             <li key={`${d.proveedorRuc}-${i}`} className="flex gap-2.5 rounded-xl border border-amber/30 bg-amber-soft p-3">
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amberTexto" aria-hidden />
               <p className="min-w-0 text-dato leading-relaxed text-ink">
-                <span className="font-semibold">
-                  {d.cargo ? tituloNatural(d.cargo) : "Un funcionario"}, {apellido(d.declarante)}
-                </span>
+                {d.declaranteFicha ? (
+                  <Link href={`/app/personas/planilla/${d.declaranteFicha}`} className="font-semibold text-amberTexto underline-offset-2 hover:underline">
+                    {d.cargo ? tituloNatural(d.cargo) : "Un funcionario"}, {apellido(d.declarante)}
+                  </Link>
+                ) : (
+                  <span className="font-semibold">
+                    {d.cargo ? tituloNatural(d.cargo) : "Un funcionario"}, {apellido(d.declarante)}
+                  </span>
+                )}
                 <span className="text-mute"> declaró un(a) {GRADO[d.grado] ?? "pariente"} que le vende: </span>
                 {d.proveedorCodigo ? (
                   <Link href={rutaPersona(d.proveedorCodigo)} className="font-medium text-amberTexto underline-offset-2 hover:underline">

@@ -266,6 +266,7 @@ export async function getFraccionamientoEntidad(ruc: string, limit = 1000) {
 export interface NepotismoIndicio {
   declarante: string;      // el funcionario que lo declaró (cargo público; el frontend muestra el nombre parcial)
   cargo: string | null;    // su cargo en la entidad (de la DJI), p. ej. "JEFE DE ABASTECIMIENTO"
+  declaranteFicha: string | null; // su ficha de planilla (si figura en la planilla de esta entidad): para enlazarlo
   grado: string;           // hermano | hijo | padre | conyuge | otro
   parentesco: string;
   proveedorRuc: string;

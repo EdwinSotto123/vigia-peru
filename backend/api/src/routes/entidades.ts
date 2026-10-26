@@ -428,10 +428,12 @@ entidadesRouter.get("/:ruc", async (c) => {
     // Nepotismo (indicio, no acusación): parientes declarados en la DJI que son locadores de ESTA entidad.
     // Detalle: el FUNCIONARIO (cargo público, su DJI es pública) + el parentesco + el PROVEEDOR (RUC-10). El nombre
     // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136).
-    pool.query<{ declarante: string; cargo: string | null; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number }>(
-      `SELECT n.declarante_norm AS declarante, n.cargo, n.grado, n.parentesco, n.proveedor_ruc AS "proveedorRuc",
-              n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto
-         FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
+    pool.query<{ declarante: string; cargo: string | null; declaranteFicha: string | null; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number }>(
+      `SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco,
+              n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto
+         FROM dji_nepotismo n
+         LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
+         LEFT JOIN planilla_persona pp ON pp.entidad_ruc = n.entidad_ruc AND pp.nombre_norm = n.declarante_norm
         WHERE n.entidad_ruc = $1 ORDER BY n.monto DESC NULLS LAST LIMIT 40`,
       [ruc],
     ),
