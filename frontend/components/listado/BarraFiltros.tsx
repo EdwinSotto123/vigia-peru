@@ -49,6 +49,8 @@ export interface FiltroSecundario {
   todas: string;
   /** Las opciones con `grupo` se dibujan juntas bajo su título (<optgroup>), en el orden en que llegan. */
   opciones: { valor: string; etiqueta: string; conteo?: number | null; grupo?: string }[];
+  /** Dentro de "Filtros", los filtros con la misma `seccion` van juntos bajo ese subtítulo ("Dónde", "Cuándo", "Cuánto"). */
+  seccion?: string;
   /**
    * En `visibles`: el nombre corto que va DENTRO del desplegable cuando no hay nada elegido ("Riesgo"), como un botón de filtro.
    * Así las tres preguntas, la búsqueda, "Filtros" y el orden caben en una fila (antes, con la etiqueta afuera, la
@@ -131,6 +133,9 @@ export function BarraFiltros({
 }) {
   const { parametros, navegar, pendiente } = useListado();
   const activos = filtros.filter((f) => parametros[f.param]);
+  const conmutadores = visibles.filter((f) => f.opciones.length === 1);
+  const desplegables = visibles.filter((f) => f.opciones.length !== 1);
+  const visiblesActivos = desplegables.filter((f) => parametros[f.param]).length;
   const valorFaceta = faceta ? parametros[faceta.param] : undefined;
   const textoBusqueda = busqueda ? parametros[busqueda.param] : undefined;
 
@@ -184,74 +189,77 @@ export function BarraFiltros({
           </div>
         )}
 
-        {visibles.map((f) => (
-          <label key={f.param} className="inline-flex min-w-0 items-center gap-1.5">
-            <span className={f.corta ? "sr-only" : "shrink-0 text-meta font-medium text-inkSoft"}>{f.etiqueta}</span>
-            <select
-              value={parametros[f.param] ?? ""}
-              onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
-              className={cn(
-                "h-10 truncate rounded-full border bg-paper pl-3.5 pr-8 text-dato text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
-                // Ancho fijo con nombre corto: el desplegable no crece con su opción más larga y la barra cabe en una fila.
-                f.corta ? "w-[11.5rem]" : "max-w-[15rem]",
-                parametros[f.param] ? "border-granate font-semibold text-granate" : "border-line",
-              )}
-            >
-              <option value="">{f.corta ?? f.todas}</option>
-              {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
-                <option value={parametros[f.param]}>{parametros[f.param]}</option>
-              )}
-              <Opciones opciones={f.opciones} />
-            </select>
-          </label>
+        {/* Un filtro de una sola opción es un interruptor, no un desplegable de una línea. */}
+        {conmutadores.map((f) => {
+          const o = f.opciones[0];
+          const activo = !!parametros[f.param];
+          return (
+            <Chip key={f.param} activo={activo} onClick={() => navegar({ [f.param]: activo ? undefined : o.valor })}>
+              {o.etiqueta}
+              {o.conteo != null && <Conteo n={o.conteo} />}
+            </Chip>
+          );
+        })}
+
+        {/* En el celular, los desplegables a la vista van dentro de "Filtros": eran 4 renglones antes de la primera fila. */}
+        {desplegables.map((f) => (
+          <span key={f.param} className="hidden sm:inline-flex">
+            <DesplegableVisible filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
+          </span>
         ))}
 
         <div className="ml-auto flex items-center gap-2">
           {pendiente && (
             <Loader2 size={15} className="animate-spin text-mute" aria-hidden />
           )}
-          {filtros.length > 0 && (
-            <Popover
-              titulo="Filtros"
-              anchoClase="w-80"
-              lado="abajo"
-              className={cn(
-                "min-h-[40px] gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido",
-                activos.length ? "border-granate bg-granate-50 text-granate" : "border-line bg-paper text-ink hover:bg-paperSoft",
-              )}
-              trigger={
-                <>
-                  <SlidersHorizontal size={15} aria-hidden />
-                  Filtros
-                  {activos.length > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-micro font-semibold text-paper">
-                      {activos.length}
+          {(filtros.length > 0 || desplegables.length > 0) && (
+            <span className={cn(filtros.length === 0 && "sm:hidden")}>
+              <Popover
+                titulo="Filtros"
+                anchoClase="w-80"
+                lado="abajo"
+                className={cn(
+                  "min-h-[40px] gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido",
+                  activos.length + visiblesActivos > 0 ? "border-granate bg-granate-50 text-granate" : "border-line bg-paper text-ink hover:bg-paperSoft",
+                )}
+                trigger={
+                  <>
+                    <SlidersHorizontal size={15} aria-hidden />
+                    Filtros
+                    {/* En el celular cuenta también los desplegables que van adentro; en escritorio ésos están a la vista. */}
+                    <Contador n={activos.length + visiblesActivos} className="sm:hidden" />
+                    <Contador n={activos.length} className="hidden sm:inline-flex" />
+                  </>
+                }
+              >
+                <span className="block space-y-4">
+                  {desplegables.length > 0 && (
+                    <span className="block space-y-3 sm:hidden">
+                      <span className="block text-rotulo font-semibold text-inkSoft">Lo más usado</span>
+                      {desplegables.map((f) => (
+                        <CampoFiltro key={f.param} filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
+                      ))}
                     </span>
                   )}
-                </>
-              }
-            >
-              <span className="block space-y-3">
-                {filtros.map((f) => (
-                  <label key={f.param} className="block">
-                    <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
-                    <select
-                      value={parametros[f.param] ?? ""}
-                      onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
-                      className={cn(CAMPO, parametros[f.param] && "border-granate/60 font-medium")}
-                      disabled={f.opciones.length === 0}
-                    >
-                      <option value="">{f.todas}</option>
-                      {/* El valor activo puede no estar entre las opciones cruzadas: se agrega para que el select no se vacíe. */}
-                      {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
-                        <option value={parametros[f.param]}>{parametros[f.param]}</option>
+                  {secciones(filtros).map((g, i) => (
+                    <span
+                      key={g.titulo ?? `s${i}`}
+                      className={cn(
+                        "block space-y-3",
+                        i > 0 && "border-t border-line pt-3",
+                        // Bajo "Lo más usado" (sólo en el celular) también va su divisor.
+                        i === 0 && desplegables.length > 0 && "max-sm:border-t max-sm:border-line max-sm:pt-3",
                       )}
-                      <Opciones opciones={f.opciones} />
-                    </select>
-                  </label>
-                ))}
-              </span>
-            </Popover>
+                    >
+                      {g.titulo && <span className="block text-rotulo font-semibold text-inkSoft">{g.titulo}</span>}
+                      {g.filtros.map((f) => (
+                        <CampoFiltro key={f.param} filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
+                      ))}
+                    </span>
+                  ))}
+                </span>
+              </Popover>
+            </span>
           )}
           {orden && (
             <label className="relative inline-flex items-center">
@@ -296,6 +304,75 @@ export function BarraFiltros({
         </div>
       )}
     </div>
+  );
+}
+
+/** Los filtros de "Filtros" agrupados por `seccion`, en el orden en que llegan. */
+function secciones(filtros: FiltroSecundario[]): { titulo?: string; filtros: FiltroSecundario[] }[] {
+  const g: { titulo?: string; filtros: FiltroSecundario[] }[] = [];
+  for (const f of filtros) {
+    const u = g[g.length - 1];
+    if (u && u.titulo === f.seccion) u.filtros.push(f);
+    else g.push({ titulo: f.seccion, filtros: [f] });
+  }
+  return g;
+}
+
+function Contador({ n, className }: { n: number; className?: string }) {
+  if (n <= 0) return null;
+  return (
+    <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-granate px-1 text-micro font-semibold text-paper", className)}>
+      {n}
+    </span>
+  );
+}
+
+/** Un filtro dentro del menú "Filtros": su nombre arriba y el desplegable a todo el ancho. */
+function CampoFiltro({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
+      <select value={valor ?? ""} onChange={(e) => onCambio(e.target.value)} className={cn(CAMPO, valor && "border-granate/60 font-medium")} disabled={f.opciones.length === 0}>
+        <option value="">{f.todas}</option>
+        {/* El valor activo puede no estar entre las opciones cruzadas: se agrega para que el select no se vacíe. */}
+        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{valor}</option>}
+        <Opciones opciones={f.opciones} />
+      </select>
+    </label>
+  );
+}
+
+/**
+ * Un desplegable a la vista en la barra. Con algo elegido dice QUÉ filtra ("Riesgo: Alto"), no sólo el valor: antes,
+ * con tres desplegables elegidos, la barra decía "Alto", "Lima", "Sí" y no se sabía cuál era cuál.
+ */
+function DesplegableVisible({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
+  const elegido = !!valor;
+  const rotulo = elegido && f.corta ? `${f.corta}:` : f.corta ? null : f.etiqueta;
+  return (
+    <label
+      className={cn(
+        "inline-flex h-10 min-w-0 items-center rounded-full border bg-paper transition-colors duration-rapido hover:bg-paperSoft focus-within:border-granate",
+        f.corta ? "w-[13rem]" : "max-w-[17rem]",
+        elegido ? "border-granate" : "border-line",
+      )}
+    >
+      {/* El nombre del filtro: siempre para el lector de pantalla; a la vista cuando hay algo elegido o no hay `corta`. */}
+      {rotulo ? <span className="shrink-0 pl-3.5 text-meta text-mute">{rotulo}</span> : <span className="sr-only">{f.etiqueta}</span>}
+      <select
+        value={valor ?? ""}
+        onChange={(e) => onCambio(e.target.value)}
+        className={cn(
+          "h-full min-w-0 flex-1 truncate rounded-full border-0 bg-transparent pr-8 text-dato text-ink focus:outline-none focus:ring-0",
+          rotulo ? "pl-1.5" : "pl-3.5",
+          elegido && "font-semibold text-granate",
+        )}
+      >
+        <option value="">{f.corta ?? f.todas}</option>
+        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{valor}</option>}
+        <Opciones opciones={f.opciones} />
+      </select>
+    </label>
   );
 }
 

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
 
@@ -28,7 +29,13 @@ export interface DetalleFila {
   descripcion?: ReactNode;
   contenido: ReactNode;
   pie?: ReactNode;
+  /** La ruta de su ficha: sin `pie`, el panel lleva "Abrir la ficha" (vista previa). */
+  ficha?: string;
 }
+
+/** El pie del panel: el que trae la fila, o "Abrir la ficha" si es una vista previa. */
+const pieDe = (d: DetalleFila) =>
+  d.pie ?? (d.ficha ? <EnlaceAccion href={d.ficha} flecha>Abrir la ficha</EnlaceAccion> : undefined);
 
 interface Contexto {
   /** Identifica las filas de ESTA tabla (una página puede tener varias tablas con detalle). */
@@ -127,7 +134,7 @@ export function ProveedorDetalle({ detalles, nombre, children }: { detalles: Det
       {children}
       {anclado ? (
         actual && (
-          <PanelAnclado clave={actual.id} titulo={actual.titulo} descripcion={actual.descripcion} cabecera={cabecera} pie={actual.pie} onCerrar={cerrar} nombre={nombre}>
+          <PanelAnclado clave={actual.id} titulo={actual.titulo} descripcion={actual.descripcion} cabecera={cabecera} pie={pieDe(actual)} onCerrar={cerrar} nombre={nombre}>
             <div key={actual.id}>{actual.contenido}</div>
           </PanelAnclado>
         )
@@ -138,7 +145,7 @@ export function ProveedorDetalle({ detalles, nombre, children }: { detalles: Det
           titulo={actual?.titulo ?? nombre}
           descripcion={actual?.descripcion}
           acciones={cabecera}
-          pie={actual?.pie}
+          pie={actual ? pieDe(actual) : undefined}
           ancho="lg"
         >
           {actual && <div key={actual.id}>{actual.contenido}</div>}

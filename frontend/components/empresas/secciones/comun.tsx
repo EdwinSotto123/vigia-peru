@@ -1,14 +1,23 @@
 import { EstadoError } from "@/components/patrones";
 import { type FiltroSecundario, type Parametros } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { fechaCorta } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import type { Faceta } from "@/lib/empresas";
 
-/** Lo que comparten las pestañas de la ficha de una empresa: severidad, paginación y estados. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
+/**
+ * Lo que comparten las pestañas de la ficha de una empresa: paginación, estados y formatos. (Partido de
+ * SeccionesEmpresa.tsx, 2026-10-22.) La severidad se pinta con `Severidad` (color, ícono y palabra): el «Grave / Para
+ * revisar / Leve» de antes era un segundo vocabulario y cargaba la severidad en el adjetivo.
+ */
 
-export const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
-export const SEV = { alta: "Grave", media: "Para revisar", baja: "Leve" } as const;
 export const entidadTexto = (e: string | null | undefined, ruc?: string | null) => (e ? tituloNatural(e) : ruc ?? "Entidad sin nombre");
+
+/** "13 may. 2026" siempre con el año: al lado de una sanción o de un proceso de otro año, «el 13 may.» no dice de cuál. */
+export const conAnio = (d: string) => {
+  const f = fechaCorta(d);
+  return /\d{4}/.test(f) ? f : `${f} ${d.slice(0, 4)}`;
+};
 
 export function Paginas({ total, size, actual, ruta, parametros, param, nombre }: { total: number; size: number; actual: number; ruta: string; parametros: Parametros; param: string; nombre: string }) {
   if (total <= size) return null;

@@ -1,20 +1,60 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { Suspense } from "react";
-import { BadgeCheck, Ban, CalendarRange, MapPin, Package } from "lucide-react";
-import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type DatoClave } from "@/components/patrones";
+import { notFound, redirect } from "next/navigation";
+import { Suspense, type ReactNode } from "react";
+import {
+  Ban,
+  Briefcase,
+  Building2,
+  CalendarRange,
+  ChevronRight,
+  ClipboardList,
+  FileSearch,
+  HandCoins,
+  Hash,
+  LayoutDashboard,
+  MapPin,
+  Package,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, Seccion, TarjetaDatos, type DatoClave } from "@/components/patrones";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
-import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana } from "@/components/empresas/InicioEmpresa";
+import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
 import { AntecedentesEmpresa, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
-import { fecha, fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { conAnio } from "@/components/empresas/secciones/comun";
+import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { OBJETOS, OBJETO_TEXTO, esRucEmpresa, getAntecedentesEmpresa, getClientesEmpresa, getContratosEmpresa, getFichaEmpresa, getOrdenesEmpresa, getPostulacionesEmpresa, getSociosEmpresa, getVisitasEmpresa, rutaEmpresa, type FichaEmpresa } from "@/lib/empresas";
+import {
+  OBJETOS,
+  OBJETO_TEXTO,
+  PESTANAS_EMPRESA,
+  P_VISTA,
+  SECCIONES_VIEJAS,
+  VISTAS_GENTE,
+  VISTAS_VENTAS,
+  destinoEmpresa,
+  esRucEmpresa,
+  getAntecedentesEmpresa,
+  getClientesEmpresa,
+  getContratosEmpresa,
+  getFichaEmpresa,
+  getOrdenesEmpresa,
+  getPostulacionesEmpresa,
+  getSociosEmpresa,
+  getVisitasEmpresa,
+  nombreCortoEmpresa,
+  parametrosSeccion,
+  rutaEmpresa,
+  type FichaEmpresa,
+  type PestanaEmpresa,
+  type SeccionEmpresa,
+} from "@/lib/empresas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
 import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { uno } from "@/lib/utils";
@@ -26,6 +66,8 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
   return { title: f ? `${f.empresa.nombre}, empresa` : "Empresa" };
 }
 
+type Busqueda = Record<string, string | string[] | undefined> | undefined;
+
 const TAM = 20;
 const texto = (v: string | string[] | undefined) => {
   const t = uno(v)?.slice(0, 80);
@@ -36,36 +78,51 @@ const anio = (v: string | string[] | undefined) => {
   return n >= 2015 && n <= 2100 ? n : undefined;
 };
 const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) || 1);
+/** Las listas llevan su pestaña y su vista en `parametros`: no hace falta leerlas de la URL viva al filtrar. */
+const SIN_CONSERVAR: string[] = [];
+/** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
+const ETIQUETAS_PESTANA: Record<string, string> = { ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente" };
+/** Los parámetros de la URL menos la pestaña y la vista (para llevar un enlace viejo a la pestaña nueva sin perder filtros). */
+const sinSeccion = (sp: Busqueda): Record<string, string | undefined> =>
+  Object.fromEntries(Object.entries(sp ?? {}).filter(([k]) => k !== "seccion" && k !== P_VISTA).map(([k, v]) => [k, uno(v)]));
 
 /**
- * /empresa/[RUC] — una empresa que le vende al Estado (migración 109). Pestañas (?seccion=):
- *   · Inicio: lo que dicen de ella otros registros (por tipo), lo que recibió año por año, cómo gana, sus clientes, quién le
- *     gana, dónde gana y sus datos.
- *   · Contratos: los procesos que ganó, sola o en consorcio, con banderas por fila (CONOSCE).
- *   · Órdenes: sus órdenes de compra y de servicio (CONOSCE).
+ * /empresa/[RUC] — una empresa que le vende al Estado (migración 109). Seis pestañas (?seccion=), las listas largas
+ * agrupadas en vistas (?vista=) desde 2026-10-26 (eran nueve pestañas y a 1366 px «Visitas» quedaba fuera):
+ *   · Inicio: sus cifras, lo que dicen de ella otros registros (por tipo), sus ventas al Estado año por año, cómo y
+ *     dónde gana, sus clientes y quién le gana; en la columna lateral, sus datos (SUNAT y RNP).
+ *   · Ventas al Estado: Contratos (los procesos que ganó, sola o en consorcio, con banderas por fila), Órdenes (de compra
+ *     y de servicio) y Contratos menores (≤8 UIT).
  *   · Clientes: las entidades que le adjudicaron o le compraron.
  *   · Postulaciones: los procesos en que fue postor y quién ganó.
  *   · Antecedentes: cada cruce con su fuente (sanciones, penalidades, campañas, autoridades, visitas…), numerados.
- *   · Socios: su gente en el RNP y las empresas vinculadas.
- *   · Visitas: las visitas registradas de su gente a entidades públicas, y si después la entidad le dio algo.
+ *   · Su gente: Socios y vínculos (su gente en el RNP y las empresas vinculadas) y Visitas (de su gente a entidades
+ *     públicas, y si después la entidad le dio algo).
+ * Los enlaces de antes (`?seccion=contratos`, `ordenes`, `menores`, `socios`, `visitas`) se redirigen a su pestaña y vista.
  */
-export default async function EmpresaPage({ params, searchParams: sp }: { params: { ruc: string }; searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function EmpresaPage({ params, searchParams: sp }: { params: { ruc: string }; searchParams?: Busqueda }) {
   if (!esRucEmpresa(params.ruc)) notFound();
+  const pedida = uno(sp?.seccion);
+  const vieja = SECCIONES_VIEJAS.find((s) => s === pedida);
+  if (vieja) redirect(rutaEmpresa(params.ruc, vieja, sinSeccion(sp)));
   const f = await getFichaEmpresa(params.ruc);
   if (!f) return <NoSePudoLeer ruc={params.ruc} />;
   const e = f.empresa;
   if (e.soloMenores) return <FichaSoloMenores ruc={params.ruc} e={e} sp={sp} />;
   const ruta = rutaEmpresa(e.ruc);
   const desde = leerDesde(sp);
+  // «RAZÓN SOCIAL - NOMBRE CORTO»: el corto de título y la razón social completa en la línea de identidad.
+  const corto = nombreCortoEmpresa(e.nombre);
+  const nombre = corto?.corto ?? e.nombre;
 
-  // Los filtros de cada pestaña, validados como la API (lo que no vale, se ignora).
+  // Los filtros de cada lista, validados como la API (lo que no vale, se ignora).
   const de = <T extends string>(v: string | string[] | undefined, validos: readonly T[]) => (validos.includes(uno(v) as T) ? (uno(v) as T) : undefined);
   const ruc11 = (v: string | string[] | undefined) => (/^\d{11}$/.test(uno(v) ?? "") ? uno(v) : undefined);
-  const corto = (v: string | string[] | undefined) => uno(v)?.slice(0, 60);
+  const corta = (v: string | string[] | undefined) => uno(v)?.slice(0, 60);
   const fc = {
     q: texto(sp?.[P_CONTRATOS.q]), anio: anio(sp?.[P_CONTRATOS.anio]), como: de(sp?.[P_CONTRATOS.como], ["sola", "consorcio"] as const),
-    entidad: ruc11(sp?.[P_CONTRATOS.entidad]), objeto: de(sp?.[P_CONTRATOS.objeto], OBJETOS), familia: corto(sp?.[P_CONTRATOS.familia]),
-    departamento: corto(sp?.[P_CONTRATOS.departamento]),
+    entidad: ruc11(sp?.[P_CONTRATOS.entidad]), objeto: de(sp?.[P_CONTRATOS.objeto], OBJETOS), familia: corta(sp?.[P_CONTRATOS.familia]),
+    departamento: corta(sp?.[P_CONTRATOS.departamento]),
     bandera: de(sp?.[P_CONTRATOS.bandera], ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const),
     cruce: uno(sp?.[P_CONTRATOS.cruce])?.match(/^[a-z_]{2,40}$/)?.[0],
     orden: de(sp?.[P_CONTRATOS.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
@@ -74,7 +131,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const fo = {
     q: texto(sp?.[P_ORDENES.q]), anio: anio(sp?.[P_ORDENES.anio]), tipo: de(sp?.[P_ORDENES.tipo], ["compra", "servicio"] as const),
     dudosa: uno(sp?.[P_ORDENES.dudosa]) === "si" ? "si" : undefined, entidad: ruc11(sp?.[P_ORDENES.entidad]),
-    departamento: corto(sp?.[P_ORDENES.departamento]), estado: de(sp?.[P_ORDENES.estado], ["Emitida", "Comprometida", "Devengada"] as const),
+    departamento: corta(sp?.[P_ORDENES.departamento]), estado: de(sp?.[P_ORDENES.estado], ["Emitida", "Comprometida", "Devengada"] as const),
     orden: de(sp?.[P_ORDENES.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
     page: pagina(sp?.[P_ORDENES.page]),
   };
@@ -86,24 +143,39 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     page: pagina(sp?.[P_POSTULACIONES.page]),
   };
   const fa = { tipo: uno(sp?.[P_ANTECEDENTES.tipo])?.match(/^[a-z_]{2,40}$/)?.[0], gravedad: de(sp?.[P_ANTECEDENTES.gravedad], ["alta", "media", "baja"] as const) };
-  // Los parámetros que conserva cada lista en sus enlaces (los suyos y la pestaña), con los nombres de P_*.
-  const conservar = <K extends string>(seccion: string, P: Record<K, string>, f: Partial<Record<K, string | number | undefined>>): Parametros => {
-    const out: Parametros = { seccion };
-    for (const k of Object.keys(P) as K[]) if (k !== ("page" as K) && f[k] != null) out[P[k]] = String(f[k]);
-    return out;
-  };
   // Contratos menores (≤8 UIT) que ganó: se filtran por su RUC de proveedor (no por URL), con los filtros «m» propios.
   const fm = { ...parseMenoresQuery(sp), entidad: undefined, proveedor: undefined };
-  const pc = conservar("contratos", P_CONTRATOS, fc);
-  const po = conservar("ordenes", P_ORDENES, fo);
-  const pp = conservar("postulaciones", P_POSTULACIONES, fp);
-  const pa = conservar("antecedentes", P_ANTECEDENTES, fa);
-  const pm = conservar("menores", P_MEN, fm as Partial<Record<keyof typeof P_MEN, string | number | undefined>>);
-  const algo = (p: Parametros, pag: number) => Object.keys(p).length > 1 || pag > 1;
-  const seccion =
-    uno(sp?.seccion) ??
-    (algo(pc, fc.page) ? "contratos" : algo(po, fo.page) ? "ordenes" : algo(pp, fp.page) ? "postulaciones"
-      : algo(pm, fm.page ?? 1) ? "menores" : algo(pa, 1) ? "antecedentes" : undefined);
+  // Los filtros puestos de cada lista, con los nombres de P_* (sin la página).
+  const filtros = <K extends string>(P: Record<K, string>, v: Partial<Record<K, string | number | undefined>>): Parametros => {
+    const out: Parametros = {};
+    for (const k of Object.keys(P) as K[]) if (k !== ("page" as K) && v[k] != null) out[P[k]] = String(v[k]);
+    return out;
+  };
+  const fC = filtros(P_CONTRATOS, fc);
+  const fO = filtros(P_ORDENES, fo);
+  const fP = filtros(P_POSTULACIONES, fp);
+  const fA = filtros(P_ANTECEDENTES, fa);
+  const fM = filtros(P_MEN, fm as Partial<Record<keyof typeof P_MEN, string | number | undefined>>);
+  // Lo que conserva cada lista en sus enlaces (filtrar, paginar): su pestaña y su vista, sus filtros y de dónde vino.
+  const lista = (s: SeccionEmpresa, propios: Parametros): Parametros => ({ ...(desde ? { desde } : {}), ...parametrosSeccion(s), ...propios });
+  const pc = lista("contratos", fC);
+  const po = lista("ordenes", fO);
+  const pp = lista("postulaciones", fP);
+  const pa = lista("antecedentes", fA);
+  const pm = lista("menores", fM);
+
+  // La pestaña y la vista abiertas: las de la URL; sin `seccion`, la lista que traiga filtros (un enlace armado a mano).
+  const hay = (p: Parametros, pag: number) => Object.keys(p).length > 0 || pag > 1;
+  const inferida: SeccionEmpresa | undefined =
+    hay(fC, fc.page) ? "contratos" : hay(fO, fo.page) ? "ordenes" : hay(fP, fp.page) ? "postulaciones"
+      : hay(fM, fm.page ?? 1) ? "menores" : hay(fA, 1) ? "antecedentes" : undefined;
+  const valida = PESTANAS_EMPRESA.find((s) => s === pedida);
+  const destino: { seccion: PestanaEmpresa; vista?: string } = valida
+    ? { seccion: valida, vista: uno(sp?.[P_VISTA]) }
+    : inferida ? destinoEmpresa(inferida) : { seccion: "inicio" };
+  const seccion = destino.seccion;
+  const vistaVentas = (seccion === "ventas" && VISTAS_VENTAS.find((v) => v === destino.vista)) || "contratos";
+  const vistaGente = (seccion === "gente" && VISTAS_GENTE.find((v) => v === destino.vista)) || "socios";
 
   const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
   const ordenesP = getOrdenesEmpresa(e.ruc, { ...fo, size: TAM });
@@ -124,149 +196,111 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         items={migasConDesde(desde, [
           { etiqueta: "Inicio", href: "/app" },
           { etiqueta: "Empresas", href: "/app/empresas" },
-          { etiqueta: e.nombre, href: ruta },
+          { etiqueta: nombre, href: ruta },
         ])}
-        pestanas={{
-          primera: "inicio",
-          activa: seccion ?? "inicio",
-          etiquetas: { contratos: "Contratos", ordenes: "Órdenes", menores: "Menores", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", socios: "Socios", visitas: "Visitas" },
-        }}
+        pestanas={{ primera: "inicio", activa: seccion, etiquetas: ETIQUETAS_PESTANA }}
       />
-      <EncabezadoPagina
-        titulo={e.nombre}
-        bajada={
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="inline-flex items-center gap-1.5 font-mono text-meta tabular-nums">
-              <BadgeCheck size={14} className="shrink-0 text-mute" aria-hidden /> RUC {e.ruc}
-            </span>
-            {e.departamento && (
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> Vende sobre todo en {tituloNatural(e.departamento)}
-              </span>
-            )}
-            {e.objeto && (
-              <span className="inline-flex items-center gap-1.5">
-                <Package size={14} className="shrink-0 text-mute" aria-hidden /> {OBJETO_TEXTO[e.objeto] ?? e.objeto}
-              </span>
-            )}
-            {e.primera && e.ultima && (
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden />
-                {e.primera.slice(0, 4) === e.ultima.slice(0, 4) ? `En ${e.primera.slice(0, 4)}` : `De ${e.primera.slice(0, 4)} a ${e.ultima.slice(0, 4)}`}
-              </span>
-            )}
-          </span>
-        }
-        ayuda={
-          <Ayuda titulo="¿De dónde sale esto?">
-            <span className="block">
-              Los contratos, las órdenes y las postulaciones, de CONOSCE (OECE) desde 2018. Su gente, del Registro Nacional de
-              Proveedores. Los antecedentes, de cruzar su RUC y el documento de su gente con el Tribunal de Contrataciones, las
-              penalidades, la ONPE, el JNE y el registro de visitas.
-            </span>
-            {f.empresa.actualizado && <span className="mt-2 block">Actualizado el {fechaCorta(f.empresa.actualizado)}.</span>}
-          </Ayuda>
-        }
-      />
-      {e.inhabilitada && (
-        <p role="note" className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-dato text-crimsonTexto">
-          <Ban size={16} className="mt-0.5 shrink-0" aria-hidden />
-          <span>
-          {e.inhabilitada === "definitiva"
-            ? "El Tribunal de Contrataciones del Estado la inhabilitó de forma definitiva: no puede contratar con el Estado."
-            : `El Tribunal de Contrataciones del Estado la inhabilitó para contratar con el Estado${e.inhabilitadaHasta ? ` hasta el ${fechaCorta(e.inhabilitadaHasta)}` : ""}.`}{" "}
-          <Link href={`${ruta}?seccion=antecedentes`} className="font-semibold underline-offset-2 hover:underline">Ver la sanción</Link>
-          </span>
-        </p>
-      )}
-      <Indicadores items={indicadores(f, ruta)} />
-      {(e.adjDudosos > 0 || e.ordDudosas > 0) && (
-        <AvisoDato motivo={e.adjDudosos > 0 ? "adjudicado_20x" : "mayor_100m"} fuente="conosce_ordenes">
-          {[
-            e.adjDudosos > 0 ? `${plural(e.adjDudosos, "proceso trae", "procesos traen")} ${soles(e.adjMontoDudoso)} adjudicados` : null,
-            e.ordDudosas > 0 ? `${plural(e.ordDudosas, "orden trae", "órdenes traen")} ${soles(e.ordMontoDudoso)}` : null,
-          ].filter(Boolean).join(", y ")}
-          {". No entran en las sumas: están en sus listas, con su bandera."}
-        </AvisoDato>
-      )}
+      <EncabezadoPagina titulo={nombre} bajada={<Identidad f={f} razonSocial={corto?.razonSocial ?? null} />} />
 
       <Pestanas
         fija
-        key={seccion ?? "inicio"}
-        etiqueta={`Secciones de ${e.nombre}`}
+        key={seccion}
+        etiqueta={`Secciones de ${nombre}`}
         activa={seccion}
         pestanas={[
           {
             clave: "inicio",
             etiqueta: "Inicio",
-            contenido: <Inicio f={f} ruta={ruta} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
+            icono: <LayoutDashboard size={15} aria-hidden />,
+            contenido: <Inicio f={f} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
           },
           {
-            clave: "contratos",
-            etiqueta: "Contratos",
-            conteo: contratos,
+            // Contratos, órdenes y contratos menores: tres listas de lo mismo (lo que le pagó el Estado), en vistas.
+            clave: "ventas",
+            etiqueta: "Ventas al Estado",
+            icono: <HandCoins size={15} aria-hidden />,
             contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Los procesos que ganó, sola o en consorcio, del más reciente al más antiguo.</CabeceraPestana>
-                <Listado ruta={ruta} parametros={pc} paramPagina={P_CONTRATOS.page}>
-                  <Suspense fallback={<BarraContratos facetas={null} />}>
-                    <BarraContratosConConteos pagina={contratosP} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Proceso", ancho: "1fr" }]} filas={8} />}>
-                      <ContratosEmpresa pagina={contratosP} ruta={ruta} parametros={pc} actual={fc.page} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
-              </div>
-            ),
-          },
-          {
-            clave: "ordenes",
-            etiqueta: "Órdenes",
-            conteo: e.ordN,
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Sus órdenes de compra y de servicio, sin proceso de selección <AyudaTermino clave="proceso-seleccion" />, de la más reciente a la más antigua.</CabeceraPestana>
-                <Listado ruta={ruta} parametros={po} paramPagina={P_ORDENES.page}>
-                  <Suspense fallback={<BarraOrdenes facetas={null} />}>
-                    <BarraOrdenesConConteos pagina={ordenesP} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Orden", ancho: "1fr" }]} filas={8} />}>
-                      <OrdenesEmpresa pagina={ordenesP} ruta={ruta} parametros={po} actual={fo.page} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
-              </div>
-            ),
-          },
-          {
-            clave: "menores",
-            etiqueta: "Menores",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Los contratos menores (≤8 UIT) que ganó, con su requerimiento descargable, del más reciente al más antiguo. <AyudaTermino clave="contrato-menor" /></CabeceraPestana>
-                <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page}>
-                  <Suspense fallback={<div className="min-h-[52px]" />}>
-                    <BarraMenoresGeneral pagina={menoresP} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
-                      <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
+              <div>
+                <CabeceraPestana>
+                  Lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />, sus órdenes de compra y de servicio y sus
+                  contratos menores <AyudaTermino clave="contrato-menor" />.
+                </CabeceraPestana>
+                <Pestanas
+                  variante="segunda"
+                  key={vistaVentas}
+                  param={P_VISTA}
+                  activa={vistaVentas}
+                  etiqueta={`Ventas de ${nombre} al Estado`}
+                  pestanas={[
+                    {
+                      clave: "contratos",
+                      etiqueta: "Contratos",
+                      conteo: contratos,
+                      contenido: (
+                        <div className="space-y-4">
+                          <Listado ruta={ruta} parametros={pc} paramPagina={P_CONTRATOS.page} conservar={SIN_CONSERVAR}>
+                            <Suspense fallback={<BarraContratos facetas={null} />}>
+                              <BarraContratosConConteos pagina={contratosP} />
+                            </Suspense>
+                            <ZonaResultados>
+                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Proceso", ancho: "1fr" }]} filas={8} />}>
+                                <ContratosEmpresa pagina={contratosP} ruta={ruta} parametros={pc} actual={fc.page} />
+                              </Suspense>
+                            </ZonaResultados>
+                          </Listado>
+                        </div>
+                      ),
+                    },
+                    {
+                      clave: "ordenes",
+                      etiqueta: "Órdenes",
+                      conteo: e.ordN,
+                      contenido: (
+                        <div className="space-y-4">
+                          <Listado ruta={ruta} parametros={po} paramPagina={P_ORDENES.page} conservar={SIN_CONSERVAR}>
+                            <Suspense fallback={<BarraOrdenes facetas={null} />}>
+                              <BarraOrdenesConConteos pagina={ordenesP} />
+                            </Suspense>
+                            <ZonaResultados>
+                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Orden", ancho: "1fr" }]} filas={8} />}>
+                                <OrdenesEmpresa pagina={ordenesP} ruta={ruta} parametros={po} actual={fo.page} />
+                              </Suspense>
+                            </ZonaResultados>
+                          </Listado>
+                        </div>
+                      ),
+                    },
+                    {
+                      clave: "menores",
+                      etiqueta: "Contratos menores",
+                      contenido: (
+                        <div className="space-y-4">
+                          <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page} conservar={SIN_CONSERVAR}>
+                            <Suspense fallback={<div className="min-h-[52px]" />}>
+                              <BarraMenoresGeneral pagina={menoresP} />
+                            </Suspense>
+                            <ZonaResultados>
+                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
+                                <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
+                              </Suspense>
+                            </ZonaResultados>
+                          </Listado>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
               </div>
             ),
           },
           {
             clave: "clientes",
             etiqueta: "Clientes",
+            icono: <Building2 size={15} aria-hidden />,
             conteo: e.entidades,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Las entidades que le adjudicaron o le compraron, de la que más le pagó a la que menos.</CabeceraPestana>
+                <CabeceraPestana>Las entidades que le adjudicaron un proceso o le compraron por órdenes.</CabeceraPestana>
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Entidad", ancho: "1fr" }]} filas={8} />}>
                   <ClientesEmpresa datos={clientesP} />
                 </Suspense>
@@ -276,11 +310,12 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           {
             clave: "postulaciones",
             etiqueta: "Postulaciones",
+            icono: <ClipboardList size={15} aria-hidden />,
             conteo: e.postulaciones,
             contenido: (
               <div className="space-y-4">
                 <CabeceraPestana>Los procesos en que fue postor, sola o en consorcio, y quién ganó cada uno.</CabeceraPestana>
-                <Listado ruta={ruta} parametros={pp} paramPagina={P_POSTULACIONES.page}>
+                <Listado ruta={ruta} parametros={pp} paramPagina={P_POSTULACIONES.page} conservar={SIN_CONSERVAR}>
                   <Suspense fallback={<BarraPostulaciones facetas={null} />}>
                     <BarraPostulacionesConConteos pagina={postulacionesP} />
                   </Suspense>
@@ -296,41 +331,60 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           {
             clave: "antecedentes",
             etiqueta: "Antecedentes",
+            icono: <FileSearch size={15} aria-hidden />,
             conteo: nAntecedentes,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Lo que dicen de la empresa otros registros públicos, de lo más grave a lo más leve, cada uno con su fuente.</CabeceraPestana>
-                <Listado ruta={ruta} parametros={pa} paramPagina="apag">
+                <CabeceraPestana>Lo que dicen de la empresa otros registros públicos, de la señal más alta a la más baja, cada uno con su fuente.</CabeceraPestana>
+                <Listado ruta={ruta} parametros={pa} paramPagina="apag" conservar={SIN_CONSERVAR}>
                   <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
-                    <AntecedentesEmpresa datos={antecedentesP} tipo={fa.tipo} gravedad={fa.gravedad} />
+                    <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} tipo={fa.tipo} gravedad={fa.gravedad} />
                   </Suspense>
                 </Listado>
               </div>
             ),
           },
           {
-            clave: "socios",
-            etiqueta: "Socios",
+            // Socios y visitas: las dos listas de la gente de la empresa, en vistas.
+            clave: "gente",
+            etiqueta: "Su gente",
+            icono: <Users size={15} aria-hidden />,
             conteo: personas || null,
             contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Quiénes están detrás de la empresa según el RNP y qué otras empresas comparten a alguno.</CabeceraPestana>
-                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
-                  <SociosEmpresa datos={sociosP} />
-                </Suspense>
-              </div>
-            ),
-          },
-          {
-            clave: "visitas",
-            etiqueta: "Visitas",
-            conteo: e.visitas,
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana>Las visitas registradas de su gente a entidades públicas, y si después esa entidad le dio un contrato o una orden.</CabeceraPestana>
-                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Visita", ancho: "1fr" }]} filas={6} />}>
-                  <VisitasEmpresa datos={visitasP} />
-                </Suspense>
+              <div>
+                <CabeceraPestana>
+                  Quiénes están detrás de la empresa según el RNP <AyudaTermino clave="rnp" />, qué otras empresas comparten a alguno y
+                  sus visitas a entidades públicas.
+                </CabeceraPestana>
+                <Pestanas
+                  variante="segunda"
+                  key={vistaGente}
+                  param={P_VISTA}
+                  activa={vistaGente}
+                  etiqueta={`La gente de ${nombre}`}
+                  pestanas={[
+                    {
+                      clave: "socios",
+                      etiqueta: "Socios y vínculos",
+                      conteo: personas || null,
+                      contenido: (
+                        <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
+                          <SociosEmpresa datos={sociosP} />
+                        </Suspense>
+                      ),
+                    },
+                    {
+                      clave: "visitas",
+                      etiqueta: "Visitas",
+                      conteo: e.visitas,
+                      contenido: (
+                        <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Visita", ancho: "1fr" }]} filas={6} />}>
+                          <VisitasEmpresa datos={visitasP} />
+                        </Suspense>
+                      ),
+                    },
+                  ]}
+                />
               </div>
             ),
           },
@@ -344,7 +398,88 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   );
 }
 
-function indicadores(f: FichaEmpresa, ruta: string): Indicador[] {
+/** Un dato de la línea de identidad con su ícono (como en la ficha de una entidad); `nombre` es lo que oye el lector de pantalla. */
+function DatoCabecera({ icono: Icono, nombre, title, children }: { icono: LucideIcon; nombre?: string; title?: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5" title={title}>
+      <Icono size={14} className="shrink-0 text-mute" {...(nombre ? { role: "img", "aria-label": `${nombre}:` } : { "aria-hidden": true })} />
+      <span className="min-w-0">{children}</span>
+    </span>
+  );
+}
+
+/**
+ * La línea de identidad bajo el nombre (§14.2): su estado ante el Tribunal en un chip, el RUC, la razón social completa
+ * (si el título es su nombre corto), dónde y qué vende, y desde cuándo; la ⓘ pegada al último dato (antes quedaba sola en
+ * un renglón).
+ */
+function Identidad({ f, razonSocial }: { f: FichaEmpresa; razonSocial: string | null }) {
+  const e = f.empresa;
+  const datos: ReactNode[] = [
+    <DatoCabecera key="ruc" icono={Hash}>
+      RUC <span className="font-mono tabular-nums text-ink" translate="no">{e.ruc}</span>
+    </DatoCabecera>,
+    // El nombre tal como lo publica el registro, en el `title`: para copiarlo exacto.
+    razonSocial && <DatoCabecera key="razon" icono={Briefcase} nombre="Razón social" title={e.nombre}>{razonSocial}</DatoCabecera>,
+    e.departamento && <DatoCabecera key="lugar" icono={MapPin}>Vende sobre todo en {tituloNatural(e.departamento)}</DatoCabecera>,
+    e.objeto && <DatoCabecera key="objeto" icono={Package} nombre="Lo que más vende">{OBJETO_TEXTO[e.objeto] ?? e.objeto}</DatoCabecera>,
+    e.primera && e.ultima && (
+      <DatoCabecera key="anios" icono={CalendarRange} nombre="Le vende al Estado">
+        {e.primera.slice(0, 4) === e.ultima.slice(0, 4) ? `En ${e.primera.slice(0, 4)}` : `De ${e.primera.slice(0, 4)} a ${e.ultima.slice(0, 4)}`}
+      </DatoCabecera>
+    ),
+  ].filter(Boolean);
+  const ultimo = datos.pop();
+  return (
+    <span className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      {e.inhabilitada && <ChipInhabilitada f={f} />}
+      {datos}
+      <span className="inline-flex min-w-0 items-center gap-1">
+        {ultimo}
+        <Ayuda titulo="¿De dónde sale esto?">
+          <span className="block">
+            Los contratos, las órdenes y las postulaciones, de CONOSCE (OECE) desde 2018. Su gente, del Registro Nacional de
+            Proveedores. Los antecedentes, de cruzar su RUC y el documento de su gente con el Tribunal de Contrataciones, las
+            penalidades, la ONPE, el JNE y el registro de visitas.
+          </span>
+          {e.actualizado && <span className="mt-2 block">Actualizado el {fechaCorta(e.actualizado)}.</span>}
+        </Ayuda>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Su inhabilitación vigente como chip de estado en la línea de identidad, que abre su antecedente (la sanción con su
+ * fuente). Antes era un cartel rojo aparte entre el título y las cifras, y la sanción ya figuraba en sus antecedentes y
+ * en cada contrato.
+ */
+function ChipInhabilitada({ f }: { f: FichaEmpresa }) {
+  const e = f.empresa;
+  const hasta = e.inhabilitada === "temporal" && e.inhabilitadaHasta ? conAnio(e.inhabilitadaHasta) : null;
+  const texto = e.inhabilitada === "definitiva" ? "Inhabilitada de forma definitiva" : hasta ? `Inhabilitada hasta el ${hasta}` : "Inhabilitada por el Tribunal";
+  const frase =
+    e.inhabilitada === "definitiva"
+      ? "El Tribunal de Contrataciones del Estado la inhabilitó de forma definitiva: no puede contratar con el Estado."
+      : `El Tribunal de Contrataciones del Estado la inhabilitó para contratar con el Estado${hasta ? ` hasta el ${hasta}` : ""}.`;
+  // El antecedente de la sanción, si está entre los suyos; si no, la pestaña entera.
+  const propio = e.inhabilitada === "definitiva" ? "sancion_definitiva" : "sancion_temporal";
+  const tipo = f.antecedentes.find((a) => a.tipo === propio)?.tipo ?? f.antecedentes.find((a) => a.tipo.startsWith("sancion"))?.tipo;
+  return (
+    <Link
+      href={rutaEmpresa(e.ruc, "antecedentes", { [P_ANTECEDENTES.tipo]: tipo })}
+      title={frase}
+      className="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson-soft px-3 text-meta font-semibold text-crimsonTexto transition-colors duration-rapido hover:border-crimson/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
+    >
+      <Ban size={14} className="shrink-0" aria-hidden />
+      {texto}
+      <span className="sr-only">: ver la sanción con su fuente</span>
+      <ChevronRight size={14} className="shrink-0" aria-hidden />
+    </Link>
+  );
+}
+
+function indicadores(f: FichaEmpresa): Indicador[] {
   const e = f.empresa;
   const tasa = e.postulaciones >= 5 ? Math.round((e.ganadas / e.postulaciones) * 100) : null;
   return [
@@ -354,131 +489,122 @@ function indicadores(f: FichaEmpresa, ruta: string): Indicador[] {
       contexto: e.consProcesos
         ? `${plural(e.adjProcesos, "proceso", "procesos")}; y ${plural(e.consProcesos, "proceso", "procesos")} en consorcio por ${solesCompacto(e.consMonto)}`
         : plural(e.adjProcesos, "proceso", "procesos"),
-      href: `${ruta}?seccion=contratos`,
+      href: rutaEmpresa(e.ruc, "contratos"),
     },
     {
       valor: solesCompacto(e.ordMonto),
       etiqueta: "en órdenes de compra y servicio",
       contexto: plural(e.ordN, "orden", "órdenes"),
-      href: `${ruta}?seccion=ordenes`,
+      href: rutaEmpresa(e.ruc, "ordenes"),
     },
-    { valor: numero(e.entidades), etiqueta: e.entidades === 1 ? "entidad le pagó" : "entidades le pagaron", contexto: "por contratos u órdenes", href: `${ruta}?seccion=clientes` },
+    { valor: numero(e.entidades), etiqueta: e.entidades === 1 ? "entidad le pagó" : "entidades le pagaron", contexto: "por contratos u órdenes", href: rutaEmpresa(e.ruc, "clientes") },
     {
       valor: e.postulaciones ? numero(e.postulaciones) : "Ninguna",
       etiqueta: "postulaciones",
       contexto: e.postulaciones ? `ganó ${numero(e.ganadas)}${tasa != null ? `, el ${tasa} %` : ""}` : "como postor desde 2018",
-      href: `${ruta}?seccion=postulaciones`,
+      href: rutaEmpresa(e.ruc, "postulaciones"),
     },
   ];
 }
 
+/** El "Ver …  ›" de la cabecera de una subsección del Inicio: lleva a la pestaña con el detalle. */
+function EnlaceSeccion({ href, children }: { href: string; children: string }) {
+  return (
+    <Link href={href} className="inline-flex min-h-8 shrink-0 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+      {children} <ChevronRight size={14} aria-hidden />
+    </Link>
+  );
+}
+
+/**
+ * La pestaña Inicio (§14.2 y §14.3): las cifras arriba y, debajo, subsecciones en el orden en que se lee una empresa:
+ * lo que dicen de ella otros registros → sus ventas al Estado (año por año, cómo y dónde gana, sus clientes, quién le
+ * gana); sus datos (SUNAT y RNP) van en la columna lateral desde xl y, más angosto, justo después de los antecedentes.
+ * Antes «Sus datos» era una tarjeta con su caja adentro en el centro de la primera pantalla, y las cifras repetían en la
+ * cabecera los conteos de las pestañas.
+ */
 async function Inicio({
   f,
-  ruta,
   contratos,
   clientes,
   postulaciones,
 }: {
   f: FichaEmpresa;
-  ruta: string;
   contratos: ReturnType<typeof getContratosEmpresa>;
   clientes: ReturnType<typeof getClientesEmpresa>;
   postulaciones: ReturnType<typeof getPostulacionesEmpresa>;
 }) {
   const e = f.empresa;
-  const haySunat = !!(e.estadoSunat || e.fechaAlta || e.domicilio || e.actividad);
-  const personas = e.socios + e.representantes + e.directivos;
+  const registros = f.antecedentes.reduce((t, a) => t + a.n, 0);
   return (
-    <div className="space-y-5">
-      <CabeceraPestana>Quién es la empresa, lo que dicen de ella otros registros públicos y lo que recibió del Estado cada año.</CabeceraPestana>
+    <div className="space-y-6">
+      <Indicadores items={indicadores(f)} />
+      {(e.adjDudosos > 0 || e.ordDudosas > 0) && (
+        <AvisoDato motivo={e.adjDudosos > 0 ? "adjudicado_20x" : "mayor_100m"} fuente="conosce_ordenes">
+          {[
+            e.adjDudosos > 0 ? `${plural(e.adjDudosos, "proceso trae", "procesos traen")} ${soles(e.adjMontoDudoso)} adjudicados` : null,
+            e.ordDudosas > 0 ? `${plural(e.ordDudosas, "orden trae", "órdenes traen")} ${soles(e.ordMontoDudoso)}` : null,
+          ].filter(Boolean).join(", y ")}
+          {". No entran en las sumas: están en sus listas, con su bandera."}
+        </AvisoDato>
+      )}
 
-      {/* 1. Sus datos, ARRIBA: la identidad (SUNAT) y quién está detrás (RNP), en dos columnas, cada vínculo navegable. */}
-      <section className="space-y-3" aria-labelledby="datos-titulo">
-        <h2 id="datos-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h2>
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>
-            <DatosClave
-              items={
-                haySunat
-                  ? [
-                      { etiqueta: "RUC", valor: e.ruc, mono: true },
-                      { etiqueta: "Estado", valor: e.estadoSunat },
-                      { etiqueta: "Inscrita", valor: e.fechaAlta ? fecha(e.fechaAlta) : null },
-                      { etiqueta: "Domicilio fiscal", valor: e.domicilio },
-                      { etiqueta: "Actividad", valor: e.actividad },
-                    ]
-                  : [
-                      { etiqueta: "RUC", valor: e.ruc, mono: true },
-                      { etiqueta: "Datos de la SUNAT", valor: "Todavía no cargados para esta empresa" },
-                    ]
-              }
-            />
-          </article>
-          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Su gente y sus vínculos</h4>
-            <DatosClave
-              items={[
-                {
-                  etiqueta: "Su gente en el RNP",
-                  valor: personas ? (
-                    <EnlaceDato href={`${ruta}?seccion=socios`}>
-                      {[plural(e.socios, "socio", "socios"), plural(e.representantes, "representante", "representantes"), plural(e.directivos, "directivo", "directivos")].join(", ")}
-                    </EnlaceDato>
-                  ) : "Sin registro en el RNP",
-                },
-                {
-                  etiqueta: "Empresas vinculadas",
-                  valor: e.vinculadas ? (
-                    <EnlaceDato href={`${ruta}?seccion=socios`}>{`${plural(e.vinculadas, "empresa comparte", "empresas comparten")} socio, representante o directivo`}</EnlaceDato>
-                  ) : "Ninguna",
-                },
-                {
-                  etiqueta: "Visitas de su gente",
-                  valor: e.visitas ? (
-                    <EnlaceDato href={`${ruta}?seccion=visitas`}>{`${plural(e.visitas, "visita", "visitas")}, ${numero(e.visitasClientes)} a entidades que le pagaron`}</EnlaceDato>
-                  ) : "Ninguna registrada",
-                },
-                { etiqueta: "Primera y última venta al Estado", valor: e.primera && e.ultima ? `${fecha(e.primera)} y ${fecha(e.ultima)}` : null },
-              ]}
-            />
-          </article>
-        </div>
-      </section>
+      {/* Dos columnas desde xl (con la barra lateral del sitio, antes no hay ancho para las dos). En una, el orden del DOM:
+          antecedentes → sus datos → sus ventas. */}
+      <div className="grid items-start gap-x-6 gap-y-8 xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <Seccion
+          id="registros"
+          titulo="Lo que dicen otros registros"
+          descripcion={
+            f.antecedentes.length
+              ? `${plural(f.antecedentes.length, "tipo de registro la nombra", "tipos de registros la nombran")}, ${plural(registros, "vez", "veces")} en total.`
+              : undefined
+          }
+          ayuda={
+            <Ayuda titulo="¿Qué es un antecedente?">
+              <span className="block">
+                Un registro público donde aparece la empresa o su gente: el Tribunal de Contrataciones, las penalidades, la ONPE,
+                el JNE, la SUNAT, CONOSCE. No es una acusación ni prueba una falta: dice qué revisar.
+              </span>
+              <span className="mt-2 block">La severidad (señal alta, media o baja) dice qué tan urgente es mirarlo.</span>
+            </Ayuda>
+          }
+          className="min-w-0 xl:col-start-1 xl:row-start-1"
+        >
+          <ResumenAntecedentes antecedentes={f.antecedentes} ruc={e.ruc} />
+        </Seccion>
 
-      {/* 2. Lo que dicen otros registros (las banderas), con su enlace a cada fuente. */}
-      <section className="space-y-2.5" aria-labelledby="antecedentes-titulo">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 id="antecedentes-titulo" className="font-display text-bloque font-bold text-ink">Lo que dicen otros registros</h3>
-          {f.antecedentes.length > 0 && (
-            <Link href={`${ruta}?seccion=antecedentes`} className="text-meta font-semibold text-granate underline-offset-2 hover:underline">
-              Ver cada antecedente con su fuente
-            </Link>
-          )}
-        </div>
-        <ResumenAntecedentes antecedentes={f.antecedentes} ruta={ruta} />
-      </section>
+        <Seccion id="datos" titulo="Sus datos" className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          <SusDatos e={e} />
+        </Seccion>
 
-      {/* 3. Lo que recibió del Estado, año por año. */}
-      <AniosEmpresa anual={f.anual} nombre={e.nombre} />
-
-      {/* 4. Análisis: cómo gana, sus clientes, quién le gana y dónde. */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruta={ruta} /></Suspense>
-        <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruta={ruta} /></Suspense>
-        <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruta={ruta} /></Suspense>
-        <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruta={ruta} /></Suspense>
+        <Seccion
+          id="ventas-resumen"
+          titulo="Sus ventas al Estado"
+          acciones={<EnlaceSeccion href={rutaEmpresa(e.ruc, "ventas")}>Ver contratos y órdenes</EnlaceSeccion>}
+          className="min-w-0 xl:col-start-1 xl:row-start-2"
+        >
+          <div className="space-y-4">
+            <AniosEmpresa anual={f.anual} nombre={e.nombre} />
+            {/* Dos columnas que miden lo suyo (cómo y dónde gana; quién le paga y quién le gana): en una rejilla 2×2 de
+                alturas iguales, «Dónde gana» con dos filas dejaba 150-200 px vacíos. Por el ancho de la columna, no de la
+                pantalla: al lado de «Sus datos» es más angosta. */}
+            <div className="[container-type:inline-size]">
+              <div className="grid items-start gap-4 [@container(min-width:36rem)]:grid-cols-2">
+                <div className="grid min-w-0 gap-4">
+                  <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruc={e.ruc} /></Suspense>
+                  <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruc={e.ruc} /></Suspense>
+                </div>
+                <div className="grid min-w-0 gap-4">
+                  <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruc={e.ruc} /></Suspense>
+                  <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruc={e.ruc} /></Suspense>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Seccion>
       </div>
     </div>
-  );
-}
-
-/** Un valor de «Sus datos» que lleva a su pestaña (socios, visitas): la cifra es navegable, no texto muerto. */
-function EnlaceDato({ href, children }: { href: string; children: string }) {
-  return (
-    <Link href={href} className="font-medium text-granate underline-offset-2 hover:underline">
-      {children}
-    </Link>
   );
 }
 
@@ -507,7 +633,7 @@ function NoSePudoLeer({ ruc }: { ruc: string }) {
 
 // Ficha REDUCIDA: empresa jurídica que solo aparece en contratos menores (no está en empresa_resumen). Muestra su
 // identidad SUNAT y sus menores; las demás secciones no existen para ella.
-async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["empresa"]; sp?: Record<string, string | string[] | undefined> }) {
+async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["empresa"]; sp?: Busqueda }) {
   const ruta = rutaEmpresa(ruc);
   const desde = leerDesde(sp);
   const nombre = tituloNatural(e.nombre ?? `RUC ${ruc}`);
@@ -547,15 +673,10 @@ async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["
       {noActivo && <Aviso tono="neutro">En SUNAT figura con estado {oracion(e.estadoSunat as string)}. Es un indicio para revisión humana, no una acusación.</Aviso>}
       <section className="space-y-3" aria-labelledby="datos-min-titulo">
         <h2 id="datos-min-titulo" className="font-display text-bloque font-bold text-ink">Sus datos</h2>
+        {/* Dos tarjetas con su subtítulo (h3) y sus filas sin marco: antes, rótulos en mayúsculas sobre una caja adentro. */}
         <div className="grid items-start gap-4 lg:grid-cols-2">
-          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Identidad en la SUNAT</h4>
-            <DatosClave items={identidad.filter(Boolean) as DatoClave[]} />
-          </article>
-          <article className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-            <h4 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Con el Estado (compras menores)</h4>
-            <DatosClave items={conElEstado.filter(Boolean) as DatoClave[]} />
-          </article>
+          <TarjetaDatos titulo="En la SUNAT" items={identidad.filter(Boolean) as DatoClave[]} />
+          <TarjetaDatos titulo="Con el Estado (compras menores)" items={conElEstado.filter(Boolean) as DatoClave[]} />
         </div>
       </section>
       <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page}>

@@ -160,7 +160,9 @@ export function Pestanas({
   const segunda = variante === "segunda";
 
   return (
-    <div className={className}>
+    // Con la barra fija, lo que se pega arriba dentro de la pestaña (rótulos de grupo de una Tabla) va debajo de ella:
+    // `--alto-barra-fija` es su alto (en el celular, más la barra del sitio de 3 rem).
+    <div className={cn(fija && !segunda && "[--alto-barra-fija:6.5rem] md:[--alto-barra-fija:3.5rem]", className)}>
       <div className={cn("relative", fija && !segunda && "sticky top-0 z-barra")}>
         <div
           ref={riel}

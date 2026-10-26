@@ -6,7 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { Memo } from "../lib/cache.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
-import { publicar } from "../lib/privacidad.js";
+import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 
 export const entidadesRouter = new Hono();
@@ -458,8 +458,15 @@ entidadesRouter.get("/:ruc", async (c) => {
         total: nep.rows.length,
         monto: nep.rows.reduce((a, r) => a + (r.monto || 0), 0),
         porGrado: [...porGradoMap.values()].sort((a, b) => b.monto - a.monto),
-        // El proveedor (RUC-10) va tapado por publicar() como cualquier locador; el funcionario (cargo público) no.
-        detalle: publicar(nep.rows),
+        // El proveedor (RUC-10) va tapado por publicar() como cualquier locador. Del funcionario, su cargo y, sólo si no
+        // puede destapar el apellido tapado del pariente, su primer apellido (apellidoFuncionario); nunca el nombre
+        // completo. Su ficha de planilla, tampoco cuando el parentesco no es seguro (ahí se ve su primer apellido).
+        detalle: publicar(
+          nep.rows.map(({ declarante, declaranteFicha, ...r }) => {
+            const funcionarioApellido = apellidoFuncionario(r.parentesco, declarante);
+            return { ...r, funcionarioApellido, declaranteFicha: funcionarioApellido ? declaranteFicha : null };
+          }),
+        ),
       }
     : null;
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));

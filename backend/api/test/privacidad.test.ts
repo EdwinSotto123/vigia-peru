@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  TAPA_DNI, TAPA_NOMBRE, TAPA_RUC10, esRef, limpiarTexto, publicar, publicarTraza, refDocumento, refRuc10, urlPublica,
+  TAPA_DNI, TAPA_NOMBRE, TAPA_RUC10, apellidoFuncionario, esRef, limpiarTexto, publicar, publicarTraza, refDocumento, refRuc10, urlPublica,
 } from "../src/lib/privacidad.js";
 
 // La clave se lee la primera vez que se calcula una ref: basta fijarla antes de los tests.
@@ -322,4 +322,17 @@ test("la Ñ escrita «¿» por el SEACE (NURE¿A) se repone y el apellido se tap
   assert.equal(r.ganador.razon_social, `LEON ${TAPA_NOMBRE} MANUEL ALEXANDER`);
   assert.match(r.nota, /^¿QUÉ PASÓ\?/);
   assert.doesNotMatch(json(r), /NURE/);
+});
+
+test("nepotismo: el primer apellido del funcionario sólo si el parentesco no puede destapar el del pariente", () => {
+  // Seguros: no comparte con el pariente el apellido que a éste se le tapa (el segundo).
+  assert.equal(apellidoFuncionario("HERMANO(A) DEL DECLARANTE", "rojas perez juan"), "rojas");
+  assert.equal(apellidoFuncionario("CONYUGE", "rojas perez juan"), "rojas");
+  assert.equal(apellidoFuncionario("CÓNYUGE", "rojas perez juan"), "rojas"); // con tilde
+  assert.equal(apellidoFuncionario("TÍO (A)", "rojas perez juan"), "rojas");
+  assert.equal(apellidoFuncionario("MADRE DEL DECLARANTE", "rojas perez juan"), "rojas");
+  assert.equal(apellidoFuncionario("CUÑADO(A)", "rojas perez juan"), "rojas");
+  // Con riesgo: el segundo apellido del pariente puede ser el primero del funcionario (la madre, una tía, una hija).
+  for (const p of ["HIJO(A)", "SOBRINO(A)", "PRIMO(A)", "NIETO(A)", "OTRO", ""]) assert.equal(apellidoFuncionario(p, "rojas perez maria"), null, p);
+  assert.equal(apellidoFuncionario(null, "rojas perez maria"), null);
 });

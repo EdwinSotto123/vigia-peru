@@ -1,85 +1,104 @@
-import { getEstructuraEntidad } from "@/lib/api-client";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { AyudaTermino } from "@/components/patrones/AyudaTermino";
+import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { ListaPaginada } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
+import { BloqueInicio } from "@/components/inicio/BloquesInicio";
+import { paraBuscar } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { rad, corto, anguloEnAnillo, anchorDeCos } from "@/lib/grafo";
-import { GrafoSeccion, GrafoMarco } from "@/components/grafo/primitivos";
-import { AyudaTermino } from "@/components/patrones";
+import type { EstructuraEntidad } from "@/lib/api-client";
 
 /**
- * «Quién decide y firma los contratos» de una entidad, del grafo del Estado (migración 126): un grafo pequeño con la
- * entidad al centro, la autoridad que por ley aprueba sus contrataciones (la AGA, destacada, con halo que respira) y los
- * altos funcionarios que hoy la ocupan, cada uno con su cargo. Acerca la responsabilidad: no solo «la entidad contrató»,
- * sino quién decide. Es un corte en el tiempo (no el organigrama en vivo). Server component estático: el latido del halo
- * es CSS puro (animate-latidoNodo), sin JS. Si no hay data del grafo para esta entidad, no muestra nada.
+ * «Quién aprueba sus contratos», del grafo del Estado (migración 126): la autoridad que por ley aprueba las
+ * contrataciones de la entidad (la AGA, Ley 32069, art. 25.1.b) y los altos funcionarios que hoy ocupan sus cargos, con
+ * cargo y nombre completo (son funcionarios públicos). Va en la columna lateral del Inicio.
+ *
+ * Antes era un grafo radial de 720 × 560 con la entidad al centro: 770 px de alto para dos nodos en Lima (la AGA y la
+ * entidad), 520 px de ancho mínimo con scroll lateral en el celular y los nombres cortados a 24 letras. Todas sus
+ * líneas iban de la entidad a una persona: no había relación que dibujar, sólo una lista. Ahora es la lista, en todos
+ * los anchos; con más de 10 funcionarios, con buscador y paginada (la lista completa).
  */
-const W = 720;
-const H = 560;
-const cx = W / 2;
-const cy = H / 2;
-const R = 166;
 
-export async function QuienDecide({ ruc }: { ruc: string }) {
-  const e = await getEstructuraEntidad(ruc).catch(() => null);
-  if (!e?.disponible) return null;
+const MAX_SIN_BUSCADOR = 10;
 
-  const aga = e.apruebaContratos ?? "Autoridad de la gestión administrativa";
-  const funcionarios = (e.funcionarios ?? []).slice(0, 10);
-  const resto = (e.funcionarios?.length ?? 0) - funcionarios.length;
+type Funcionario = NonNullable<EstructuraEntidad["funcionarios"]>[number];
 
-  // Anillo alrededor de la entidad: primero la AGA (destacada) y luego los funcionarios actuales.
-  const nodos = [
-    { aga: true, titulo: aga, sub: "aprueba los contratos" },
-    ...funcionarios.map((f) => ({ aga: false, titulo: f.cargo || "Cargo", sub: tituloNatural(f.persona) })),
+function Persona({ f }: { f: Funcionario }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block text-dato font-semibold leading-snug text-ink">{tituloNatural(f.persona)}</span>
+      <span className="mt-0.5 block text-meta leading-snug text-mute">
+        <Dato tipo="cargo">{f.cargo}</Dato>
+      </span>
+    </span>
+  );
+}
+
+function Lista({ lista }: { lista: Funcionario[] }) {
+  if (lista.length > MAX_SIN_BUSCADOR) {
+    return (
+      <ListaPaginada
+        nombre="funcionarios"
+        tam={MAX_SIN_BUSCADOR}
+        className="divide-y divide-line/70"
+        buscar={{ placeholder: "Buscar un cargo o un nombre…", etiqueta: "Buscar entre los altos funcionarios" }}
+        items={lista.map((f, i) => ({
+          id: `${f.persona}-${f.cargo}-${i}`,
+          buscable: `${f.persona} ${f.cargo} ${f.organo}`,
+          contenido: (
+            <span className="block py-2">
+              <Persona f={f} />
+            </span>
+          ),
+        }))}
+      />
+    );
+  }
+  return (
+    <ul className="divide-y divide-line/70">
+      {lista.map((f, i) => (
+        <li key={`${f.persona}-${f.cargo}-${i}`} className="py-2 first:pt-0 last:pb-0">
+          <Persona f={f} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function QuienDecide({ estructura }: { estructura: EstructuraEntidad | null }) {
+  if (!estructura?.disponible) return null;
+  const aga = estructura.apruebaContratos ?? "Autoridad de la gestión administrativa";
+  const todos = estructura.funcionarios ?? [];
+  // Quien ocupa el órgano que aprueba (la Secretaría General de un ministerio, la Gerencia Municipal): primero y aparte.
+  const esAga = (f: Funcionario) => paraBuscar(f.organo) === paraBuscar(aga);
+  const ocupan = todos.filter(esAga);
+  const resto = todos.filter((f) => !esAga(f));
+
+  const items: DatoClave[] = [
+    { etiqueta: "Los aprueba", valor: <span className="font-semibold">{aga}</span>, ayuda: <AyudaTermino clave="aga" /> },
+    ...(ocupan.length ? [{ etiqueta: ocupan.length === 1 ? "La ocupa" : "La ocupan", valor: <Lista lista={ocupan} /> }] : []),
+    ...(resto.length ? [{ etiqueta: "Altos funcionarios", valor: <Lista lista={resto} /> }] : []),
+    ...(!todos.length ? [{ etiqueta: "Quién la ocupa", valor: <span className="text-mute">El organigrama oficial no lo trae</span> }] : []),
   ];
-  const N = nodos.length;
-  const pos = nodos.map((nd, i) => {
-    const a = anguloEnAnillo(i, N);
-    return { nd, a, x: cx + R * Math.cos(rad(a)), y: cy + R * Math.sin(rad(a)) };
-  });
 
   return (
-    <GrafoSeccion>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-cuerpo font-semibold tracking-tight text-ink">Quién decide y firma los contratos</div>
-        <span className="text-rotulo text-mute">Organigrama oficial (grafo del Estado), corte {e.corte ?? "2026"}</span>
-      </div>
-      <p className="text-meta leading-relaxed text-inkSoft">
-        Por ley, quien aprueba las contrataciones de esta entidad es la <b className="text-ink">{aga}</b> <AyudaTermino clave="aga" />
-        {funcionarios.length > 0 ? ", y estos son los altos funcionarios que hoy la ocupan" : ""}.
-      </p>
-
-      <GrafoMarco>
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[520px]" role="img"
-             aria-label={`Estructura de decisión: la entidad, su autoridad que aprueba contratos (${aga}) y ${funcionarios.length} funcionarios.`}>
-          {pos.map((p, i) => (
-            <line key={`l${i}`} x1={cx} y1={cy} x2={p.x} y2={p.y}
-              className={p.nd.aga ? "stroke-granate" : "stroke-line"} strokeWidth={p.nd.aga ? 2 : 1.2} strokeOpacity={p.nd.aga ? 0.7 : 0.45} strokeLinecap="round" />
-          ))}
-          {pos.map((p, i) => {
-            const anchor = anchorDeCos(Math.cos(rad(p.a)));
-            const r = p.nd.aga ? 15 : 9;
-            const lx = p.x + (anchor === "start" ? r + 8 : -(r + 8));
-            return (
-              <g key={`n${i}`}>
-                {p.nd.aga
-                  ? <circle cx={p.x} cy={p.y} r={r + 6} className="grafo-halo animate-latidoNodo fill-granate/15" />
-                  : <circle cx={p.x} cy={p.y} r={r + 3.5} className="fill-mute/10" />}
-                <circle cx={p.x} cy={p.y} r={r} className={p.nd.aga ? "fill-granate/30 stroke-granate" : "fill-paperSoft stroke-ink"} strokeWidth={p.nd.aga ? 2 : 1.5} />
-                <text x={lx} y={p.y} textAnchor={anchor} className={`${p.nd.aga ? "fill-ink" : "fill-inkSoft"} font-semibold`} style={{ fontSize: "11px" }}>{corto(p.nd.titulo, 24)}</text>
-                {p.nd.sub ? <text x={lx} y={p.y + 12} textAnchor={anchor} className="fill-mute" style={{ fontSize: "10px" }}>{corto(p.nd.sub, 26)}</text> : null}
-              </g>
-            );
-          })}
-          <circle cx={cx} cy={cy} r={34} className="fill-paperSoft stroke-ink" strokeWidth={2.5} />
-          <text x={cx} y={cy - 1} textAnchor="middle" className="fill-ink font-semibold" style={{ fontSize: "12px" }}>La entidad</text>
-          <text x={cx} y={cy + 13} textAnchor="middle" className="fill-mute" style={{ fontSize: "9px" }}>contrata</text>
-        </svg>
-      </GrafoMarco>
-
-      {resto > 0 ? <p className="text-rotulo text-mute">y {resto} funcionarios más.</p> : null}
-      <p className="text-rotulo leading-relaxed text-mute">
-        Es la estructura de decisión según normas oficiales; la confianza varía y es un corte en el tiempo, no el
-        organigrama en vivo.
-      </p>
-    </GrafoSeccion>
+    <BloqueInicio
+      titulo="Quién aprueba sus contratos"
+      ayuda={
+        <Ayuda titulo="¿De dónde sale?">
+          <span className="block">
+            Por ley, las contrataciones de una entidad las aprueba su autoridad de la gestión administrativa: la Gerencia
+            Municipal en una municipalidad, la Gerencia General Regional en un gobierno regional y la Secretaría General
+            en un ministerio.
+          </span>
+          <span className="mt-2 block">
+            Los nombres salen del organigrama oficial (grafo del Estado, corte {estructura.corte ?? "2026"}): es un corte en
+            el tiempo y puede no estar al día.
+          </span>
+        </Ayuda>
+      }
+    >
+      <DatosClave items={items} />
+    </BloqueInicio>
   );
 }

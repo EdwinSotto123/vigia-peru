@@ -3,7 +3,7 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, apellidoFuncionario, publicar } from "../lib/privacidad.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -26,7 +26,7 @@ const listaMemo = new Memo<Record<string, unknown>>({ nombre: "personas:lista", 
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
 export const TIPOS_SENAL = [
-  "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
+  "nepotismo", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
@@ -341,7 +341,12 @@ personasRouter.get("/:codigo", async (c) => {
               return {
                 ...det,
                 parientes: Array.isArray(par)
-                  ? (par as Record<string, unknown>[]).map((pr) => ({ ...pr, ficha: declFichas.get(`${s.entidadRuc}|${String(pr.declarante ?? "")}`) ?? null }))
+                  ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) => {
+                      // Sin el nombre completo del funcionario (ver apellidoFuncionario): su primer apellido y su ficha,
+                      // sólo si el parentesco no puede destapar el apellido tapado de esta persona.
+                      const funcionarioApellido = apellidoFuncionario(pr.parentesco, declarante);
+                      return { ...pr, funcionarioApellido, ficha: funcionarioApellido ? declFichas.get(`${s.entidadRuc}|${String(declarante ?? "")}`) ?? null : null };
+                    })
                   : par,
                 ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [],
               };

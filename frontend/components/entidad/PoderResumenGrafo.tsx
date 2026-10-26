@@ -64,8 +64,8 @@ export function PoderResumenGrafo({ partidos }: { partidos: PoderGrafoPartido[] 
         <span className="text-rotulo text-mute">{numero(N)} partidos, {numero(totInst)} instituciones</span>
       </div>
       <p className="text-meta leading-relaxed text-inkSoft">
-        En el centro, el Estado; alrededor, los partidos que más capturan y las instituciones que gobiernan. Pasá el
-        cursor por un partido para ver sus instituciones; tocá para ir a su ficha.
+        En el centro, el Estado; alrededor, los partidos con más instituciones con indicio y las que gobiernan. Pasa el
+        cursor por un partido para ver sus instituciones; tócalo para ir a su ficha.
       </p>
 
       <GrafoColumnas>
@@ -156,7 +156,7 @@ export function PoderResumenGrafo({ partidos }: { partidos: PoderGrafoPartido[] 
                 <div className="text-cuerpo font-semibold text-ink">Quién controla qué</div>
                 <div className="text-rotulo text-mute">{numero(N)} partidos, {numero(totInst)} instituciones</div>
               </div>
-              <p className="text-meta leading-relaxed text-inkSoft">Pasá el cursor por un partido para ver sus instituciones; tocá para ir a su ficha.</p>
+              <p className="text-meta leading-relaxed text-inkSoft">Pasa el cursor por un partido para ver sus instituciones; tócalo para ir a su ficha.</p>
               <div className="space-y-1.5">
                 <ChipLeyenda tono="granate" forma="punto">partido que gobierna</ChipLeyenda>
                 <ChipLeyenda tono="crimson" forma="halo">una empresa le financió la campaña o es su socio</ChipLeyenda>

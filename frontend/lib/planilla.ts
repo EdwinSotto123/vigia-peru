@@ -4,7 +4,8 @@
  * La API ya tapa el apellido materno y a quienes nombran las señales. Las señales son indicios, no pruebas.
  */
 import { API_BASE } from "./api-client";
-import type { Severidad } from "./personas";
+import { tituloNatural } from "./landing";
+import type { FichaPersona, Severidad } from "./personas";
 
 export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
@@ -155,6 +156,148 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     explica: "Recibió órdenes de servicio de la misma entidad antes de aparecer en su planilla.",
   },
 };
+
+/** De dónde sale cada señal de la planilla (el pie de su evidencia) y, en corto, la línea de la señal. */
+export function fuentePlanilla(tipo: TipoPlanilla | "nepotismo"): { texto: string; corto: string; url: string | null } {
+  if (tipo === "candidato_gobierna") return { texto: "JNE, candidaturas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
+  if (tipo === "apellidos_autoridad" || tipo === "es_autoridad") return { texto: "JNE, autoridades electas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
+  if (tipo === "tambien_ordenes" || tipo === "antes_locador")
+    return { texto: "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)", corto: "CONOSCE y Portal de Transparencia", url: null };
+  if (tipo === "nepotismo")
+    return { texto: "Contraloría, declaraciones juradas de intereses, y OECE, CONOSCE (órdenes)", corto: "Contraloría, DJI", url: "https://appdji.contraloria.gob.pe/DJIC/" };
+  return { texto: "Portal de Transparencia Estándar, personal", corto: "Portal de Transparencia", url: "https://www.transparencia.gob.pe/" };
+}
+
+// ─── Meses ─────────────────────────────────────────────────────────────────────────────────────
+
+/** "2026-09" o "2026-09-01" → "set. 2026" (el mes como lo escribe una tabla, §10.3). Null si no es un mes. */
+export function mes(m: string | null | undefined): string | null {
+  const x = /^(\d{4})-(\d{2})/.exec(m ?? "");
+  if (!x) return null;
+  const [a, n] = [Number(x[1]), Number(x[2])];
+  if (n < 1 || n > 12) return null;
+  return new Intl.DateTimeFormat("es-PE", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(a, n - 1, 1)));
+}
+
+/** El mes sin el año ("set."), para un rango del mismo año (solo, Intl lo escribe con mayúscula: "Mar."). */
+const mesSolo = (m: string) => {
+  const x = /^(\d{4})-(\d{2})/.exec(m);
+  return x
+    ? new Intl.DateTimeFormat("es-PE", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(Number(x[1]), Number(x[2]) - 1, 1))).toLocaleLowerCase("es")
+    : m;
+};
+
+/** "mar. a set. 2026", "nov. 2025 a set. 2026" o "set. 2026"; null sin meses. */
+export function periodoMeses(desde: string | null | undefined, hasta: string | null | undefined): string | null {
+  const a = mes(desde);
+  const b = mes(hasta);
+  if (!a || !b) return a ?? b;
+  if (desde!.slice(0, 7) === hasta!.slice(0, 7)) return b;
+  return desde!.slice(0, 4) === hasta!.slice(0, 4) ? `${mesSolo(desde!)} a ${b}` : `${a} a ${b}`;
+}
+
+/** Una lista de meses ("2026-03", "2026-04") en palabras: "mar. 2026 y abr. 2026". */
+export function listaMeses(meses: readonly unknown[] | null | undefined): string | null {
+  const xs = [...new Set((meses ?? []).map((m) => (typeof m === "string" ? m.slice(0, 7) : "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort();
+  const t = xs.map((m) => mes(m)!).filter(Boolean);
+  if (!t.length) return null;
+  return t.length === 1 ? t[0] : `${t.slice(0, -1).join(", ")} y ${t[t.length - 1]}`;
+}
+
+/**
+ * El nombre de un partido como lo escribe el JNE o la ONPE (en mayúsculas), legible: "PARTIDO POPULAR CRISTIANO - PPC"
+ * → "Partido Popular Cristiano - PPC" (la sigla tras el guion se respeta; `tituloNatural` la dejaba "Ppc").
+ */
+export function nombrePartido(v: unknown): string | null {
+  const t = texto(v);
+  if (!t) return null;
+  const [nombre, ...siglas] = t.split(/\s+-\s+/);
+  return [tituloNatural(nombre), ...siglas.map((x) => (x.length <= 8 && x === x.toLocaleUpperCase("es") ? x : tituloNatural(x)))].join(" - ");
+}
+
+/** Un cargo dentro de una oración: "REGIDOR PROVINCIAL" → "regidor provincial" (o "Regidor provincial" al comienzo). */
+export function cargoEnOracion(v: unknown, inicio = false): string | null {
+  const t = texto(v);
+  if (!t) return null;
+  const baja = tituloNatural(t).toLocaleLowerCase("es");
+  return inicio ? baja.charAt(0).toLocaleUpperCase("es") + baja.slice(1) : baja;
+}
+
+// ─── Nepotismo, del lado del funcionario ───────────────────────────────────────────────────────
+
+/** Una orden de servicio citada como evidencia (la misma forma en que la API cita las de `nepotismo` e `inhabilitado`). */
+export interface OrdenCitada {
+  fecha: string | null;
+  numero: string | null;
+  orden: string | null;
+  descripcion: string | null;
+  entidad: string | null;
+  monto: number | null;
+  servicio: string | null;
+  estado: string | null;
+  tipoContratacion: string | null;
+}
+
+export interface ParienteProveedor {
+  grado: string;
+  /** Con un apellido tapado, como llega de la API. */
+  nombre: string;
+  /** Su ficha de persona contratada. */
+  codigo: string | null;
+  /** Las órdenes que le dio la entidad, una por una (de su ficha); null si no se pudo leer. */
+  ordenes: OrdenCitada[] | null;
+  /** Cuántas y cuánto: lo que se lista cuando hay órdenes; si no, el cruce de la DJI. */
+  n: number;
+  monto: number;
+  anios: number[];
+}
+
+const texto = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
+const numeroDe = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : null);
+
+/** Las órdenes de `ordenes_detalle` (la evidencia que la API ya adjunta a la señal) con sus tipos. */
+export function ordenesCitadas(v: unknown): OrdenCitada[] {
+  if (!Array.isArray(v)) return [];
+  return (v.filter((x) => x && typeof x === "object") as Record<string, unknown>[]).map((o) => ({
+    fecha: texto(o.fecha),
+    numero: texto(o.numero) ?? texto(o.orden),
+    orden: texto(o.orden),
+    descripcion: texto(o.descripcion),
+    entidad: texto(o.entidad),
+    monto: numeroDe(o.monto),
+    servicio: texto(o.servicio),
+    estado: texto(o.estado),
+    tipoContratacion: texto(o.tipoContratacion),
+  }));
+}
+
+/**
+ * Los parientes que esta persona declaró en su DJI y que le venden a su entidad, cada uno con las órdenes concretas que
+ * la entidad le dio: salen de la ficha del pariente (su señal `nepotismo` en esta entidad trae `ordenes_detalle`, una
+ * por una, sin las anuladas), así la cuenta es la de las órdenes que se listan. El cruce de la vista `dji_nepotismo`
+ * sólo se usa si esa ficha no se pudo leer.
+ */
+export function parientesProveedores(f: FichaPlanilla, fichas: (FichaPersona | null)[]): ParienteProveedor[] {
+  return f.nepotismo.map((x, i) => {
+    const ficha = fichas[i];
+    const ent = ficha?.entidades.find((e) => e.entidadRuc === f.persona.entidadRuc);
+    const senal = ent?.senalesDetalle.find((s) => s.tipo === "nepotismo");
+    const ordenes = senal ? ordenesCitadas(senal.detalle?.ordenes_detalle) : null;
+    const conOrdenes = ordenes && ordenes.length > 0;
+    const anios = conOrdenes
+      ? [...new Set(ordenes!.map((o) => Number(o.fecha?.slice(0, 4))).filter((a) => a > 2000))].sort((a, b) => a - b)
+      : ent?.anios ?? [];
+    return {
+      grado: x.grado,
+      nombre: x.proveedorNombre,
+      codigo: x.proveedorCodigo,
+      ordenes: conOrdenes ? ordenes : null,
+      n: conOrdenes ? ordenes!.length : ent?.ordenes ?? x.ordenes,
+      monto: conOrdenes ? ordenes!.reduce((t, o) => t + (o.monto ?? 0), 0) : ent?.monto ?? x.monto,
+      anios,
+    };
+  });
+}
 
 export const SENAL_PLAZA: Record<TipoPlaza, { corto: string; titulo: string; explica: string }> = {
   pide_experiencia_propia: {

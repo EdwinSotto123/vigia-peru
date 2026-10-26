@@ -429,15 +429,81 @@ export const CORTO_EMPRESA: Record<string, string> = {
   sancion_vigente: "Ganó inhabilitada",
 };
 
-export type SeccionEmpresa = "inicio" | "contratos" | "ordenes" | "clientes" | "postulaciones" | "antecedentes" | "socios" | "visitas";
+// ─── Pestañas de la ficha ───────────────────────────────────────────────────────────────────────
 
-/** La ficha de una empresa: /empresa/<RUC> (como /entidad/<RUC>). */
+/**
+ * Las seis pestañas de la ficha (2026-10-26: eran nueve, una por lista, y a 1366 px «Visitas» quedaba fuera de la barra).
+ * «Ventas al Estado» y «Su gente» juntan varias listas: cada una es una vista (`?vista=`) dentro de la pestaña.
+ */
+export const PESTANAS_EMPRESA = ["inicio", "ventas", "clientes", "postulaciones", "antecedentes", "gente"] as const;
+export type PestanaEmpresa = (typeof PESTANAS_EMPRESA)[number];
+/** Las listas de «Ventas al Estado» y de «Su gente»; la primera de cada una va sin parámetro. */
+export const VISTAS_VENTAS = ["contratos", "ordenes", "menores"] as const;
+export const VISTAS_GENTE = ["socios", "visitas"] as const;
+export type VistaEmpresa = (typeof VISTAS_VENTAS)[number] | (typeof VISTAS_GENTE)[number];
+/** Adónde puede llevar un enlace: una pestaña o una de sus listas. */
+export type SeccionEmpresa = PestanaEmpresa | VistaEmpresa;
+/** El parámetro de la lista abierta dentro de una pestaña. */
+export const P_VISTA = "vista";
+
+const DESTINO: Record<SeccionEmpresa, { seccion: PestanaEmpresa; vista?: VistaEmpresa }> = {
+  inicio: { seccion: "inicio" },
+  ventas: { seccion: "ventas" },
+  contratos: { seccion: "ventas" },
+  ordenes: { seccion: "ventas", vista: "ordenes" },
+  menores: { seccion: "ventas", vista: "menores" },
+  clientes: { seccion: "clientes" },
+  postulaciones: { seccion: "postulaciones" },
+  antecedentes: { seccion: "antecedentes" },
+  gente: { seccion: "gente" },
+  socios: { seccion: "gente" },
+  visitas: { seccion: "gente", vista: "visitas" },
+};
+
+/** La pestaña y la vista de un destino (`ordenes` → Ventas al Estado, vista Órdenes). */
+export const destinoEmpresa = (s: SeccionEmpresa) => DESTINO[s];
+
+/**
+ * Los `?seccion=` de antes de agrupar las pestañas, que ya no son una pestaña: los enlaces guardados o compartidos
+ * (`?seccion=socios`, `?seccion=ordenes`…) se redirigen a su pestaña y su vista. Los demás valores no cambiaron.
+ */
+export const SECCIONES_VIEJAS: readonly SeccionEmpresa[] = ["contratos", "ordenes", "menores", "socios", "visitas"];
+
+/** La pestaña y la vista de una lista, como parámetros de su `Listado`: filtrar o paginar no la cambian de lugar. */
+export function parametrosSeccion(s: SeccionEmpresa): Record<string, string> {
+  const d = DESTINO[s];
+  return d.seccion === "inicio" ? {} : { seccion: d.seccion, ...(d.vista ? { [P_VISTA]: d.vista } : {}) };
+}
+
+/** La ficha de una empresa: /empresa/<RUC> (como /entidad/<RUC>), en una pestaña o en una de sus listas. */
 export function rutaEmpresa(ruc: string, seccion?: SeccionEmpresa, extra: Record<string, string | undefined> = {}): string {
-  const q = new URLSearchParams();
-  if (seccion && seccion !== "inicio") q.set("seccion", seccion);
+  const q = new URLSearchParams(seccion ? parametrosSeccion(seccion) : {});
   for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
   const qs = q.toString();
   return `/empresa/${ruc}${qs ? `?${qs}` : ""}`;
+}
+
+/** Palabras que no identifican a una empresa (la forma societaria, rubros frecuentes): no cuentan como «en común». */
+const GENERICAS = new Set(["SOCIEDAD", "ANONIMA", "CERRADA", "ABIERTA", "COMERCIAL", "RESPONSABILIDAD", "LIMITADA", "EMPRESA", "INDIVIDUAL",
+  "EIRL", "PERU", "SERVICIOS", "GENERALES", "CONTRATISTAS", "INVERSIONES", "CORPORACION"]);
+const palabrasNombre = (t: string) =>
+  t.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length >= 4 && !GENERICAS.has(w));
+
+/**
+ * El nombre corto de una empresa, si su razón social lo trae: el registro publica muchas como «RAZÓN SOCIAL - NOMBRE
+ * CORTO» («GRUPO SANTA FE SOCIEDAD ANONIMA CERRADA - GRUPO SANTA FE S.A.C.»), que en el celular ocupaba cinco renglones
+ * de título. Sólo si lo de después del guion es más corto y comparte una palabra propia con lo de antes: una sigla
+ * suelta («Y.I. E.I.R.L.») o un nombre distinto («… - HIDRANDINA») no se toman por nombre corto. `null` si no lo trae.
+ */
+export function nombreCortoEmpresa(nombre: string | null | undefined): { corto: string; razonSocial: string } | null {
+  if (!nombre) return null;
+  const i = nombre.lastIndexOf(" - ");
+  if (i <= 0) return null;
+  const razonSocial = nombre.slice(0, i).trim();
+  const corto = nombre.slice(i + 3).trim();
+  if (corto.length < 3 || corto.length >= razonSocial.length) return null;
+  const propias = new Set(palabrasNombre(razonSocial));
+  return palabrasNombre(corto).some((w) => propias.has(w)) ? { corto, razonSocial } : null;
 }
 
 /** El enlace a la ficha de un proveedor, si es una empresa (RUC 20); null para una persona o un consorcio sin RUC. */

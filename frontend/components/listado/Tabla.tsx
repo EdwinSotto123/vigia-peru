@@ -50,12 +50,19 @@ export interface Columna {
 }
 
 export interface Fila {
+  /** Único en la tabla. Va al DOM (`data-fila`, para el anterior/siguiente del panel): nunca un dato personal (un DNI, un
+   *  RUC 10 sin tapar). Los del API ya llegan como ref (publicar()); un índice o un código de ficha también sirven. */
   id: string;
   celdas: Record<string, ReactNode>;
   href?: string;
   /** `href` a otro sitio (SEACE, OECE): se abre en otra pestaña y la fila lo dice. */
   externo?: boolean;
-  detalle?: { titulo: string; etiqueta?: string; descripcion?: ReactNode; contenido: ReactNode; pie?: ReactNode };
+  /**
+   * El panel lateral de la fila. Con `ficha` (la ruta de su página propia) es una VISTA PREVIA: la lista no se pierde y
+   * el pie lleva "Abrir la ficha" (si no se le da otro `pie`). Para listas de objetos con ficha pesada (entidades,
+   * empresas, personas): mirar varias seguidas sin ir y volver.
+   */
+  detalle?: { titulo: string; etiqueta?: string; descripcion?: ReactNode; contenido: ReactNode; pie?: ReactNode; ficha?: string };
   /** Marca de "elegida" o "en curso": barra granate a la izquierda. */
   resaltada?: boolean;
   /**
@@ -175,8 +182,9 @@ export function Tabla({
       {grupos ? (
         grupos.map((g) => (
           <section key={g.clave} aria-label={typeof g.titulo === "string" ? g.titulo : undefined} className="border-b border-line last:border-b-0">
-            {/* `top-[0px]`, no `top-0`: el layout baja todo `.sticky.top-0` en el celular. */}
-            <h3 className="sticky top-[0px] z-[1] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
+            {/* No `top-0`: el layout baja todo `.sticky.top-0` en el celular. Bajo una barra de pestañas fija, debajo de
+                ella (`--alto-barra-fija` lo pone `Pestanas fija`): si no, el rótulo del grupo quedaba tapado. */}
+            <h3 className="sticky top-[var(--alto-barra-fija,0px)] z-[1] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
               {g.titulo}
             </h3>
             <ul>

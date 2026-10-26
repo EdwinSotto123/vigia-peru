@@ -17,6 +17,8 @@
  *                  toda al mismo nivel). El pie (Footer.tsx) queda fuera: sus h2 son rótulos de columna.
  *   rayaVacia      «—» como valor vacío (`?? "—"`, `>—<`): se escribe «Sin dato» si falta, «Ninguno» si es cero
  *                  (DESIGN_SYSTEM.md §10.2; el panel de administración queda fuera)
+ *   voseo          «Tocá», «Probá», «volvé», «podés»…: la voz es español peruano con tuteo (DESIGN_SYSTEM.md §12). Lista
+ *                  explícita de formas, no "palabra con tilde al final" (está, será y podrá son correctas)
  *
  * Uso: node scripts/auditar-estilo.mjs            informe y código de salida (1 si algo empeoró)
  *      node scripts/auditar-estilo.mjs --base     reescribe la línea base con lo de hoy (después de arreglar)
@@ -41,7 +43,16 @@ function archivos(dir) {
   return out;
 }
 
-const casos = { separador: [], hexEnClase: [], tamanoLibre: [], paginaSinMigas: [], recorteMudo: [], tamanoTailwind: [], tituloChico: [], rayaVacia: [] };
+const casos = { separador: [], hexEnClase: [], tamanoLibre: [], paginaSinMigas: [], recorteMudo: [], tamanoTailwind: [], tituloChico: [], rayaVacia: [], voseo: [] };
+
+// Cada terminación con su conjugación (-ar en -á, -er en -é, -ir en -í): «revisé» (yo revisé) no es voseo, «revisá» sí.
+const VOSEO = new RegExp(
+  String.raw`(?<!\p{L})(?:(?:toc|pas|prob|mir|busc|cerr|us|filtr|ingres|revis|agreg|cont|empez|esper|intent|llam|mand|sac|tom|` +
+    String.raw`quit|cambi|descarg|record|dej|seleccion|apret|presion|desliz|arrastr|acerc|explor|and)á|` +
+    String.raw`(?:volv|hac|pon|conoc|aprend|le|ten)é|(?:compart|eleg|escrib|abr|segu|ven|dec|sub)í|` +
+    String.raw`fijate|podés|tenés|querés|sabés|sumate|unite)(?!\p{L})`,
+  "iu",
+);
 
 for (const carpeta of CARPETAS) {
   for (const f of archivos(join(RAIZ, carpeta))) {
@@ -66,6 +77,7 @@ for (const carpeta of CARPETAS) {
       // (el logotipo sobre fondo claro lleva sus colores fijos en los dos modos: components/marca/).
       if (/(?:bg|text|border|fill|stroke|from|to|via|ring|shadow)-\[#[0-9a-fA-F]{3,8}\]/.test(codigo) && !rel.startsWith("components/marca/")) casos.hexEnClase.push(donde);
       if (/["'`]—["'`]|>\s*—\s*</.test(codigo) && !/(^|\/)admin/.test(rel) && !/!==\s*"—"/.test(codigo)) casos.rayaVacia.push(donde);
+      if (VOSEO.test(codigo) && !/(^|\/)admin/.test(rel)) casos.voseo.push(`${donde} «${codigo.match(VOSEO)[0]}»`);
       const tam = codigo.match(/\btext-\[\d+(?:\.\d+)?px\]/g);
       if (tam) for (const x of tam) casos.tamanoLibre.push(`${donde} ${x}`);
       if (!/sr-only/.test(codigo) && !/admin|Footer\.tsx/.test(rel) &&

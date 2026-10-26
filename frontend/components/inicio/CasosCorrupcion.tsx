@@ -1,30 +1,34 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { ExternalLink, Info } from "lucide-react";
+import { ChevronRight, ExternalLink, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
+import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { BloqueInicio, SinDato } from "./BloquesInicio";
 
 /**
- * "Casos de corrupción" del Inicio (entidad, región, partido), con los rótulos de docs/CORRUPCION.md y en dos partes
- * que nunca se suman:
+ * "Casos de corrupción" del Inicio (región, partido), con los rótulos de docs/CORRUPCION.md y en dos partes que nunca
+ * se suman:
  *   · Procuraduría Anticorrupción: lo COMPROBADO (casos con sentencia firme, en ejecución de sentencia) y los casos en
  *     trámite, en cifras; por sede, que es casi siempre un departamento. Con su tabla de sedes si hay más de una.
  *   · Contraloría: sus cifras y TODOS los informes con responsabilidad PRESUNTA en una tabla paginada, filtrable por
  *     tipo; cada fila abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia).
  * `ruta` es la de la API (lib/corrupcion.ts, rutaCorrupcion): la tabla pide ahí las páginas siguientes.
  *
- * En la ficha de una ENTIDAD va primero la Contraloría (sus informes son de esa entidad) y después la Procuraduría,
- * rotulada como lo que es: las cifras de TODO el departamento. La Procuraduría publica por sede (distrito fiscal), no
- * por entidad agraviada; el usuario leyó las de Lima en la ficha de la UNI como si fueran de la UNI (2026-10-22).
+ * La ficha de una ENTIDAD ya no usa este bloque (ocupaba ~1,850 px de su Inicio, ~600 de ellos con cifras de la
+ * Procuraduría que, como decía su nota, no eran de esa entidad): su Inicio lleva `ResumenContraloria` (cuatro cifras y
+ * los tres informes más recientes) y la tabla entera va en su pestaña «Control» (`InformesContraloria`). La
+ * Procuraduría publica por sede (distrito fiscal), no por entidad agraviada: la entidad enlaza a la ficha de su región,
+ * que es donde esas cifras significan algo (el usuario leyó las de Lima en la ficha de la UNI como si fueran de la UNI,
+ * 2026-10-22).
  */
 export function CasosCorrupcion({
   datos,
@@ -164,15 +168,102 @@ function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambi
   );
 }
 
+// En el celular las cifras van bajo el nombre de la sede, con su rótulo: con las tres columnas a la vista, la sede
+// quedaba en 34 px y se leía «1,909 / 7,592» sin saber de qué sede.
 const COLUMNAS_SEDES: Columna[] = [
   { clave: "sede", titulo: "Sede", ancho: "minmax(0,1fr)" },
-  { clave: "firme", titulo: "Con sentencia firme", ancho: "150px", alinear: "der" },
-  { clave: "tramite", titulo: "En trámite", ancho: "110px", alinear: "der" },
+  { clave: "firme", titulo: "Con sentencia firme", corto: "Sentencia firme", ancho: "150px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "tramite", titulo: "En trámite", ancho: "110px", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
 const VARIANTE: Record<string, "crimson" | "amber" | "neutral"> = { penal: "crimson", civil: "amber" };
 
-function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string }) {
+/**
+ * Las columnas de la tabla de informes. Con `conEntidad` (región, partido) la entidad de cada informe va en su columna
+ * desde lg y, antes, debajo del asunto: en el celular se perdía de qué entidad era cada informe.
+ */
+function columnasInformes(conEntidad: boolean): Columna[] {
+  return [
+    { clave: "fecha", titulo: "Fecha", ancho: "92px", desde: "md", apilar: true },
+    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg" },
+    { clave: "asunto", titulo: "Asunto", ancho: "minmax(0,1.5fr)" },
+    ...(conEntidad ? [{ clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg" as const, apilar: true }] : []),
+    { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
+  ];
+}
+
+/** Una fila por informe: abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia). */
+function filaInforme(i: InformeControl): Fila {
+  return {
+    id: i.numero,
+    href: i.urlPdf ?? undefined,
+    externo: true,
+    celdas: {
+      fecha: <CeldaFecha fecha={i.fecha} />,
+      numero: <span className="font-mono text-meta text-inkSoft">{i.numero}</span>,
+      asunto: (
+        <CeldaPrincipal
+          titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"}
+          dosLineas
+          meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
+        />
+      ),
+      entidad: (
+        <Dato tipo="entidad" className="line-clamp-2 text-meta text-inkSoft">
+          {i.entidad ? tituloNatural(i.entidad) : "Sin dato"}
+        </Dato>
+      ),
+      tipo: (
+        <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
+          {i.responsabilidades.map((r) => (
+            <li key={r}><Badge variant={VARIANTE[r] ?? "neutral"}>{TIPO_RESPONSABILIDAD[r] ?? r}</Badge></li>
+          ))}
+        </ul>
+      ),
+    },
+  };
+}
+
+/** Las cuatro cifras de la Contraloría: cuántos informes, cuántos con responsabilidad penal o civil y a cuántos funcionarios. */
+function cifrasInformes(inf: InformesControl, conEntidad: boolean): Indicador[] {
+  return [
+    { valor: numero(inf.total), etiqueta: "informes de control", contexto: inf.desde ? `de ${inf.desde.slice(0, 4)} a ${inf.hasta?.slice(0, 4)}` : undefined },
+    { valor: numero(inf.penal), etiqueta: "con presunta responsabilidad penal", tono: "alta" },
+    { valor: numero(inf.civil), etiqueta: "con presunta responsabilidad civil", tono: "media" },
+    { valor: numero(inf.funcionarios), etiqueta: "funcionarios comprendidos", contexto: conEntidad ? `en ${numero(inf.entidades)} entidades` : undefined },
+  ];
+}
+
+/**
+ * Lo de la Contraloría en el Inicio de una entidad: las cuatro cifras, los tres informes más recientes y el enlace a
+ * la pestaña con todos. `href` es esa pestaña (`?seccion=control`).
+ */
+export function ResumenContraloria({ informes, href }: { informes: InformesControl; href: string }) {
+  // Los tres más recientes (la API los ordena por fecha); todos, con buscador y filtros, en la pestaña.
+  const recientes = informes.pagina.filas.slice(0, 3);
+  return (
+    <div className="space-y-4">
+      <Indicadores items={cifrasInformes(informes, false)} apilado />
+      <Tabla columnas={columnasInformes(false)} filas={recientes.map(filaInforme)} etiqueta="Los informes más recientes de la Contraloría" medida="contenedor" />
+      {informes.total > recientes.length && (
+        <Link href={href} prefetch={false} className="inline-flex min-h-9 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+          Ver los {numero(informes.total)} informes <ChevronRight size={14} aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Todos los informes de la Contraloría, con buscador, filtro por tipo de responsabilidad y paginación (las páginas se
+ * piden a la API). `conTitulo={false}` cuando ya lo pone la cabecera de la pestaña (la ficha de la entidad).
+ */
+export function InformesContraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: Corrupcion | null; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string; conTitulo?: boolean }) {
+  if (!datos) return <SinDato>Sin dato: el servicio de la Contraloría no respondió.</SinDato>;
+  return <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} conTitulo={conTitulo} />;
+}
+
+function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: Corrupcion; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string; conTitulo?: boolean }) {
   const inf = datos.informes;
   const [tipo, setTipo] = useState<TipoInforme | null>(null);
   const [busca, setBusca] = useState("");
@@ -198,37 +289,8 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
   };
 
   const conEntidad = ambito !== "entidad";
-  const columnas: Columna[] = [
-    { clave: "fecha", titulo: "Fecha", ancho: "92px", desde: "md" },
-    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg" },
-    { clave: "asunto", titulo: "Asunto", ancho: "minmax(0,1.5fr)" },
-    ...(conEntidad ? [{ clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg" as const }] : []),
-    { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
-  ];
-  const filas: Fila[] = pagina.filas.map((i) => ({
-    id: i.numero,
-    href: i.urlPdf ?? undefined,
-    externo: true,
-    celdas: {
-      fecha: <CeldaFecha fecha={i.fecha} />,
-      numero: <span className="font-mono text-meta text-inkSoft">{i.numero}</span>,
-      asunto: (
-        <CeldaPrincipal
-          titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"}
-          dosLineas
-          meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
-        />
-      ),
-      entidad: <span className="line-clamp-2 text-meta text-inkSoft" title={i.entidad ?? undefined}>{i.entidad ? tituloNatural(i.entidad) : "Sin dato"}</span>,
-      tipo: (
-        <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
-          {i.responsabilidades.map((r) => (
-            <li key={r}><Badge variant={VARIANTE[r] ?? "neutral"}>{TIPO_RESPONSABILIDAD[r] ?? r}</Badge></li>
-          ))}
-        </ul>
-      ),
-    },
-  }));
+  const columnas = columnasInformes(conEntidad);
+  const filas: Fila[] = pagina.filas.map(filaInforme);
   const opciones: { t: TipoInforme | null; etiqueta: string; n: number }[] = [
     { t: null, etiqueta: "Todos", n: inf.total },
     { t: "penal", etiqueta: "Penal", n: inf.penal },
@@ -239,10 +301,12 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
 
   return (
     <section>
-      <Subtitulo
-        titulo={ambito === "entidad" ? "Contraloría: informes sobre esta entidad" : "Contraloría"}
-        bajada={ambito === "entidad" ? "Presunta responsabilidad de sus funcionarios: no es una condena." : "Presunta responsabilidad de funcionarios: no es una condena."}
-      />
+      {conTitulo && (
+        <Subtitulo
+          titulo={ambito === "entidad" ? "Contraloría: informes sobre esta entidad" : "Contraloría"}
+          bajada={ambito === "entidad" ? "Presunta responsabilidad de sus funcionarios: no es una condena." : "Presunta responsabilidad de funcionarios: no es una condena."}
+        />
+      )}
       {nota && <p className="-mt-1 mb-3 max-w-3xl text-meta text-mute">{nota}</p>}
       {inf.total === 0 ? (
         <SinDato>
@@ -252,14 +316,7 @@ function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: s
         </SinDato>
       ) : (
         <div className="space-y-4">
-          <Indicadores
-            items={[
-              { valor: numero(inf.total), etiqueta: "informes de control", contexto: inf.desde ? `de ${inf.desde.slice(0, 4)} a ${inf.hasta?.slice(0, 4)}` : undefined },
-              { valor: numero(inf.penal), etiqueta: "con presunta responsabilidad penal", tono: "alta" },
-              { valor: numero(inf.civil), etiqueta: "con presunta responsabilidad civil", tono: "media" },
-              { valor: numero(inf.funcionarios), etiqueta: "funcionarios comprendidos", contexto: conEntidad ? `en ${numero(inf.entidades)} entidades` : undefined },
-            ]}
-          />
+          <Indicadores items={cifrasInformes(inf, conEntidad)} />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Buscador
               placeholder="Buscar un asunto, un número de informe o una entidad…"

@@ -9,17 +9,16 @@ import {
   type Fila,
   type Parametros,
 } from "@/components/listado";
-import { Badge } from "@/components/ui/Badge";
 import { BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
+import { numero, oracion, plural, soles } from "@/lib/formato";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { OBJETO_TEXTO, type ContratoEmpresa, type FacetasContratos, type Pagina } from "@/lib/empresas";
-import { entidadEtq, entidadTexto, NoCargo, opcionesDe, ORDEN_LISTA, Paginas } from "./comun";
+import { conAnio, entidadEtq, entidadTexto, NoCargo, opcionesDe, ORDEN_LISTA, Paginas } from "./comun";
 
 /** La pestaña Contratos de la ficha de una empresa: lo que ganó, con filtros en la URL. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
@@ -31,22 +30,73 @@ const COLUMNAS_CONTRATOS: Columna[] = [
   { clave: "fecha", titulo: "Buena pro", ancho: "92px", desde: "md", apilar: true },
   { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.8fr)" },
   {
-    clave: "banderas", titulo: "Banderas", ancho: "minmax(0,0.8fr)", desde: "lg", apilar: true,
+    // Una sola línea de banderas (las dos de señal más alta y «+n»): antes la sanción, su frase y los chips hacían filas
+    // de 170 px en escritorio y 310 en el celular.
+    clave: "banderas", titulo: "Banderas", ancho: "minmax(0,1fr)", desde: "lg", apilar: true,
     ayuda: (
       <Ayuda titulo="¿Qué son estas banderas?">
-        Las sanciones del Tribunal frente a la fecha de la buena pro: «Inhabilitada al ganar» (no podía contratar), «Sancionada
-        antes» (ya no estaban vigentes al ganar) o «Sancionada después». Luego, los demás antecedentes que pesan sobre ese proceso
-        (visitas, postores con el mismo socio, el partido que gobierna…) y un monto con posible error de carga, que no se suma.
+        <span className="block">
+          Las sanciones del Tribunal frente a la fecha de la buena pro: «Inhabilitada al ganar» (no podía contratar),
+          «Sancionada antes» (ya no estaba vigente al ganar) o «Sancionada después». Luego, los demás antecedentes que pesan
+          sobre ese proceso (visitas, postores con el mismo socio, el partido que gobierna…) y un monto con posible error de
+          carga, que no se suma.
+        </span>
+        <span className="mt-2 block">Se ven las dos de señal más alta; las demás, en «+n» y en la ficha del proceso, con sus fechas y su fuente.</span>
       </Ayuda>
     ),
   },
-  { clave: "monto", titulo: "Adjudicado", ancho: "120px", alinear: "der" },
+  // En el celular el monto va bajo el título, con su nombre: en su columna de 120 px le dejaba 160 al título.
+  { clave: "monto", titulo: "Adjudicado", ancho: "120px", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
+/** Las banderas de sanción de un proceso, como antecedentes más de la celda (las etiquetas, en `ETIQUETAS_SANCION`). */
+const ETIQUETAS_SANCION: Record<string, string> = {
+  sancion_vigente: "Inhabilitada al ganar",
+  sancionada_antes: "Sancionada antes",
+  sancionada_despues: "Sancionada después",
+};
+
 /**
- * Los filtros de sus contratos, con cuántos procesos tiene cada opción: las banderas a la vista (inhabilitada al ganar,
- * sancionada antes, con antecedentes, posible error de carga), año, entidad y tipo de proceso; detrás de «Filtros», el
- * rubro, la región y si la ganó sola o en consorcio. `facetas` null mientras carga: los mismos filtros sin conteos.
+ * Lo que va en la celda de banderas de un proceso: su sanción del Tribunal frente a la buena pro (inhabilitada al
+ * ganar, o sancionada antes; y sancionada después) y los antecedentes que pesan sobre él. `CrucesCelda` los ordena por
+ * severidad y deja los dos primeros a la vista.
+ */
+function banderasDe(c: ContratoEmpresa): { tipo: string; severidad: "alta" | "media" | "baja" }[] {
+  const s = c.sancion;
+  return [
+    ...(s?.alGanar ? [{ tipo: "sancion_vigente", severidad: "alta" as const }] : s && s.antes > 0 ? [{ tipo: "sancionada_antes", severidad: "media" as const }] : []),
+    ...(s && s.despues > 0 ? [{ tipo: "sancionada_despues", severidad: "baja" as const }] : []),
+    ...c.antecedentes,
+  ];
+}
+
+/**
+ * La sanción en palabras, con sus fechas (pedido del usuario, 2026-10-22: «Sancionado» no decía si lo estaba cuando
+ * contrató o antes). Va en el `title` de la celda: la ficha del proceso la trae completa con su resolución.
+ */
+function fraseSancion(s: ContratoEmpresa["sancion"]): string | undefined {
+  if (!s) return undefined;
+  const partes: string[] = [];
+  if (s.alGanar) {
+    const cual = s.alGanar.tipo === "definitivo" ? " definitiva" : s.alGanar.tipo === "temporal" ? " temporal" : "";
+    partes.push(
+      `Ganó con una inhabilitación${cual} vigente${s.alGanar.desde ? ` desde el ${conAnio(s.alGanar.desde)}` : ""}${s.alGanar.hasta ? ` hasta el ${conAnio(s.alGanar.hasta)}` : ""}${s.alGanar.resolucion ? ` (Res. ${s.alGanar.resolucion})` : ""}: no podía contratar con el Estado.`,
+    );
+  } else if (s.antes > 0) {
+    partes.push(`${plural(s.antes, "sanción anterior", "sanciones anteriores")} a la buena pro, ninguna vigente al ganar${s.antesHasta ? `: la última terminó el ${conAnio(s.antesHasta)}` : ""}.`);
+  }
+  if (s.despues > 0) {
+    partes.push(`${plural(s.despues, "sanción posterior", "sanciones posteriores")} a la buena pro${s.despuesDesde ? `, desde el ${conAnio(s.despuesDesde)}` : ""}: al ganar no las tenía.`);
+  }
+  return partes.join(" ") || undefined;
+}
+
+/**
+ * Los filtros de sus contratos, con cuántos procesos tiene cada opción (§14.1): la faceta de banderas en chips
+ * (inhabilitada al ganar, sancionada antes, posible error de carga…) y los antecedentes del ganador a la vista; detrás de
+ * «Filtros», el año, la entidad, el tipo de proceso, el rubro, la región y si la ganó sola o en consorcio. Antes eran 12
+ * controles en la barra y 4 renglones en el celular antes de la primera fila. `facetas` null mientras carga: los mismos
+ * filtros sin conteos.
  */
 export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | null }) {
   const b = f?.banderas;
@@ -80,7 +130,7 @@ export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | nul
           todas: "Todos",
           opciones: [
             { valor: "con", etiqueta: "Con alguno", conteo: k?.con ?? null },
-            { valor: "alta", etiqueta: "Con uno grave", conteo: k?.alta ?? null },
+            { valor: "alta", etiqueta: "Con alguno de señal alta", conteo: k?.alta ?? null },
             ...(k
               ? GRUPOS_CRUCE.flatMap((g) =>
                   g.tipos
@@ -89,15 +139,15 @@ export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | nul
               : []),
           ],
         },
-        { param: P_CONTRATOS.anio, etiqueta: "Año de la buena pro", corta: "Año", todas: "Todos los años", opciones: opcionesDe(f?.anios) },
-        { param: P_CONTRATOS.entidad, etiqueta: "Entidad que contrató", corta: "Entidad", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq) },
-        { param: P_CONTRATOS.familia, etiqueta: "Tipo de proceso", corta: "Proceso", todas: "Todo tipo de proceso", opciones: opcionesDe(f?.familias) },
       ]}
       filtros={[
-        { param: P_CONTRATOS.objeto, etiqueta: "Rubro", todas: "Todo rubro", opciones: opcionesDe(f?.objetos, (x) => OBJETO_TEXTO[String(x.valor)] ?? String(x.valor)) },
-        { param: P_CONTRATOS.departamento, etiqueta: "Región de la entidad", todas: "Todo el Perú", opciones: opcionesDe(f?.departamentos, (x) => tituloNatural(String(x.valor))) },
+        { param: P_CONTRATOS.anio, etiqueta: "Año de la buena pro", todas: "Todos los años", opciones: opcionesDe(f?.anios), seccion: "Cuándo y dónde" },
+        { param: P_CONTRATOS.entidad, etiqueta: "Entidad que contrató", todas: "Toda entidad", opciones: opcionesDe(f?.entidades, entidadEtq), seccion: "Cuándo y dónde" },
+        { param: P_CONTRATOS.departamento, etiqueta: "Región de la entidad", todas: "Todo el Perú", opciones: opcionesDe(f?.departamentos, (x) => tituloNatural(String(x.valor))), seccion: "Cuándo y dónde" },
+        { param: P_CONTRATOS.familia, etiqueta: "Tipo de proceso", todas: "Todo tipo de proceso", opciones: opcionesDe(f?.familias), seccion: "Qué y cómo" },
+        { param: P_CONTRATOS.objeto, etiqueta: "Rubro", todas: "Todo rubro", opciones: opcionesDe(f?.objetos, (x) => OBJETO_TEXTO[String(x.valor)] ?? String(x.valor)), seccion: "Qué y cómo" },
         {
-          param: P_CONTRATOS.como, etiqueta: "Cómo la ganó", todas: "Sola y en consorcio",
+          param: P_CONTRATOS.como, etiqueta: "Cómo la ganó", todas: "Sola y en consorcio", seccion: "Qué y cómo",
           opciones: [{ valor: "sola", etiqueta: "Sola", conteo: f?.como.sola ?? null }, { valor: "consorcio", etiqueta: "En consorcio", conteo: f?.como.consorcio ?? null }],
         },
       ]}
@@ -118,15 +168,16 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
   const filas: Fila[] = pagina.data.map((c) => {
     const entidad = entidadTexto(c.entidad, c.entidadRuc);
     const titulo = c.descripcion ? oracion(c.descripcion) : c.nomenclatura ?? "Proceso sin descripción";
+    const banderas = banderasDe(c);
     return {
       id: `${c.codigo}-${c.entidadRuc}`,
       href: rutaContrato(c.ocid ?? c.codigo),
       celdas: {
         fecha: <CeldaFecha fecha={c.fecha} />,
+        // Una línea en escritorio y dos en el celular (§10.7); el texto completo, en el `title`.
         proceso: (
           <CeldaPrincipal
             titulo={titulo}
-            dosLineas
             meta={[
               <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
               c.objeto && <Dato key="tipo" tipo="tipo">{OBJETO_TEXTO[c.objeto] ?? c.objeto}</Dato>,
@@ -137,11 +188,9 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
           />
         ),
         banderas: (
-          <span className="flex flex-wrap gap-1">
-            {c.sancion && <SancionAlGanar s={c.sancion} />}
+          <span className="flex min-w-0 max-w-full flex-nowrap items-center gap-1" title={fraseSancion(c.sancion)}>
             {c.dudoso && <BanderaDato motivo={motivoDudoso(c.dudoso) ?? "adjudicado_20x"} fuente="conosce_ordenes" />}
-            {c.antecedentes.length > 0 && <CrucesCelda cruces={c.antecedentes} />}
-            {!c.sancion && !c.dudoso && !c.antecedentes.length && <span className="text-meta text-mute">Ninguna</span>}
+            {(banderas.length > 0 || !c.dudoso) && <CrucesCelda cruces={banderas} etiquetas={ETIQUETAS_SANCION} />}
           </span>
         ),
         monto: (
@@ -161,51 +210,5 @@ export async function ContratosEmpresa({ pagina: p, ruta, parametros, actual }: 
       <Tabla columnas={COLUMNAS_CONTRATOS} filas={filas} etiqueta="Contratos que ganó" />
       <Paginas total={pagina.total} size={pagina.size} actual={actual} ruta={ruta} parametros={parametros} param={P_CONTRATOS.page} nombre="contratos" />
     </div>
-  );
-}
-
-/**
- * Las sanciones del Tribunal frente a la fecha de la buena pro de un contrato, con la fecha que importa escrita al lado
- * (no sólo en el `title`: en el celular no hay cursor). Pedido del usuario (2026-10-22): «Sancionado» no decía si lo
- * estaba cuando contrató o antes.
- */
-/** "13 may. 2026" siempre con el año: al lado de un contrato de 2022, «desde el 13 may.» no dice de qué año. */
-const conAnio = (d: string) => {
-  const f = fechaCorta(d);
-  return /\d{4}/.test(f) ? f : `${f} ${d.slice(0, 4)}`;
-};
-
-function SancionAlGanar({ s }: { s: NonNullable<ContratoEmpresa["sancion"]> }) {
-  const cual = (t: string) => (t === "definitivo" ? "definitiva" : t === "temporal" ? "temporal" : "");
-  return (
-    <span className="flex w-full flex-col gap-1">
-      {s.alGanar ? (
-        <span
-          className="flex flex-wrap items-center gap-1"
-          title={`Ganó con una inhabilitación ${cual(s.alGanar.tipo)} vigente${s.alGanar.desde ? ` desde el ${conAnio(s.alGanar.desde)}` : ""}${s.alGanar.hasta ? ` hasta el ${conAnio(s.alGanar.hasta)}` : ""}${s.alGanar.resolucion ? ` (Res. ${s.alGanar.resolucion})` : ""}: no podía contratar con el Estado.`}
-        >
-          <Badge variant="crimson">Inhabilitada al ganar</Badge>
-          <span className="text-rotulo text-crimsonTexto">
-            {s.alGanar.hasta ? `hasta el ${conAnio(s.alGanar.hasta)}` : `inhabilitación ${cual(s.alGanar.tipo)}`}
-          </span>
-        </span>
-      ) : s.antes > 0 ? (
-        <span
-          className="flex flex-wrap items-center gap-1"
-          title={`${plural(s.antes, "sanción anterior", "sanciones anteriores")} a la buena pro; ninguna inhabilitación vigente al ganar${s.antesHasta ? `: la última terminó el ${conAnio(s.antesHasta)}` : ""}.`}
-        >
-          <Badge variant="amber">Sancionada antes</Badge>
-          <span className="text-rotulo text-inkSoft">
-            {s.antesHasta ? `ya cumplida el ${conAnio(s.antesHasta)}` : `${plural(s.antes, "sanción", "sanciones")}, ninguna vigente al ganar`}
-          </span>
-        </span>
-      ) : null}
-      {s.despues > 0 && (
-        <span className="flex flex-wrap items-center gap-1" title={`${plural(s.despues, "sanción", "sanciones")} posteriores a la buena pro${s.despuesDesde ? `, desde el ${conAnio(s.despuesDesde)}` : ""}: al ganar no las tenía.`}>
-          <Badge variant="neutral">Sancionada después</Badge>
-          {s.despuesDesde && <span className="text-rotulo text-mute">{`desde el ${conAnio(s.despuesDesde)}`}</span>}
-        </span>
-      )}
-    </span>
   );
 }

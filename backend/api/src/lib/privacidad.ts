@@ -690,6 +690,21 @@ const SIN_NOMBRES: Contexto = { porPrimera: new Map(), slugs: [], documentos: ne
  * JSON. No muta la entrada. `extra`: más JSON del que salen nombres pero que no se devuelve (p. ej. el
  * dossier de la alerta para tapar su traza).
  */
+/**
+ * Nepotismo: el PRIMER apellido del funcionario que declaró al pariente, sólo si mostrarlo no puede destapar el apellido
+ * tapado del pariente (el segundo, el materno). Con hijo(a) de una declarante, sobrino(a) o primo(a) por la rama de una
+ * hermana o una tía, o nieto(a) por una hija, el segundo apellido del pariente ES el primero del funcionario: ahí no se
+ * da ningún apellido (sólo el cargo). Un parentesco que no está en la lista, tampoco. El nombre completo del funcionario
+ * nunca sale en estas respuestas: con "hermano(a)" (comparten los dos apellidos) destapaba el del pariente.
+ */
+const PARENTESCO_SEGURO = /^(CONYUGE|CONVIVIENTE|PADRE|MADRE|HERMANO\(A\) DEL|TIO|CUNADO|HIJASTRO|ABUELO|SUEGRO|YERNO|NUERA)/;
+export function apellidoFuncionario(parentesco: unknown, declarante: unknown): string | null {
+  if (typeof parentesco !== "string" || typeof declarante !== "string") return null;
+  const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().trim();
+  if (!PARENTESCO_SEGURO.test(p)) return null;
+  return declarante.trim().split(/\s+/)[0] || null;
+}
+
 export function publicar<T>(valor: T, opts: { correos?: boolean; extra?: unknown } = {}): T {
   const r = new Recolector();
   const v = conEnie(valor);

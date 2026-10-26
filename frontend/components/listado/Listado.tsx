@@ -84,7 +84,8 @@ export function Listado({
 export function ZonaResultados({ children, className }: { children: React.ReactNode; className?: string }) {
   const { pendiente } = useListado();
   return (
-    <div className={cn("relative", className)} aria-busy={pendiente || undefined}>
+    // `#resultados`: adonde lleva el paginador de abajo (`subir`); el margen deja ver la fila bajo la barra fija.
+    <div id="resultados" data-paginado className={cn("relative scroll-mt-20", className)} aria-busy={pendiente || undefined}>
       <div
         aria-hidden
         className={cn(

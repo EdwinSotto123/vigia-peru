@@ -16,21 +16,24 @@ export function PaginacionCursor({
   texto,
   anterior,
   siguiente,
+  subir = false,
 }: {
   texto: string;
   anterior: string | null;
   siguiente: string | null;
+  /** El paginador de ABAJO: lleva al inicio de los resultados (`#resultados` de `ZonaResultados`). */
+  subir?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-rotulo text-mute">
       {/* Sin aria-live: la vista muestra dos paginadores (arriba y abajo). */}
       <span className="font-mono tabular-nums">{texto}</span>
       <span className="inline-flex items-center gap-1.5">
-        <Paso href={anterior}>
+        <Paso href={anterior} subir={subir}>
           <ChevronLeft size={13} aria-hidden />
           Anterior
         </Paso>
-        <Paso href={siguiente}>
+        <Paso href={siguiente} subir={subir}>
           Siguiente
           <ChevronRight size={13} aria-hidden />
         </Paso>
@@ -39,11 +42,12 @@ export function PaginacionCursor({
   );
 }
 
+// 44 px de alto en el celular (acción principal de una lista), 36 desde sm.
 const PASO =
-  "inline-flex h-8 items-center gap-1 rounded-full border border-line bg-paper px-3 text-rotulo font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2";
+  "inline-flex h-11 items-center gap-1 rounded-full border border-line bg-paper px-3.5 text-meta font-medium text-ink sm:h-9 sm:px-3 sm:text-rotulo transition-colors duration-rapido hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2";
 
 /** El texto visible ("Anterior", "Siguiente") es el nombre accesible: sin aria-label que lo contradiga. */
-function Paso({ href, children }: { href: string | null; children: React.ReactNode }) {
+function Paso({ href, subir, children }: { href: string | null; subir: boolean; children: React.ReactNode }) {
   if (!href) {
     return (
       <span aria-disabled="true" className={`${PASO} pointer-events-none opacity-40`}>
@@ -52,7 +56,7 @@ function Paso({ href, children }: { href: string | null; children: React.ReactNo
     );
   }
   return (
-    <Link href={href} prefetch={false} scroll={false} className={PASO}>
+    <Link href={subir ? `${href}#resultados` : href} prefetch={false} scroll={subir} className={PASO}>
       {children}
     </Link>
   );

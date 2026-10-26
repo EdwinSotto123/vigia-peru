@@ -287,6 +287,97 @@ export const FUENTE_TEXTO: Record<string, string> = {
   visitas_entidades: "Registro de visitas a entidades",
 };
 
+/** La fuente en corto, para la línea de la señal (la completa, con su enlace, va en la evidencia). */
+export const FUENTE_CORTA: Record<string, string> = {
+  jne_candidaturas: "JNE",
+  jne_autoridades: "JNE",
+  onpe_aportantes: "ONPE",
+  dji_contraloria: "Contraloría, DJI",
+  osce_sancionados: "Tribunal de Contrataciones",
+  conosce_ordenes: "CONOSCE",
+  pte_personal: "Portal de Transparencia",
+  visitas_entidades: "Registro de visitas",
+};
+
+/** El parentesco declarado en la DJI, como lo dice la ficha ("hijo" → "hijo(a)"). */
+export const GRADO_PARIENTE: Record<string, string> = {
+  hermano: "hermano(a)",
+  conyuge: "cónyuge o conviviente",
+  hijo: "hijo(a)",
+  padre: "padre o madre",
+  otro: "pariente",
+};
+
+// ─── Señales distintas ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Qué hace iguales a dos señales de entidades distintas: el mismo tipo, la misma severidad y el mismo detalle. Lo que es
+ * de la persona y no de una entidad (un aporte, una candidatura, ser autoridad de otro gobierno) llega igual en cada
+ * entidad que la contrató; las de una entidad (nepotismo, meses seguidos, también en planilla) traen su propio detalle.
+ */
+export const claveSenal = (s: Pick<SenalDetalle, "tipo" | "severidad" | "detalle">) => `${s.tipo}|${s.severidad}|${JSON.stringify(s.detalle ?? {})}`;
+
+export interface SenalDistinta {
+  clave: string;
+  senal: SenalDetalle;
+  /** Las entidades (RUC) en que vale, en el orden de la ficha. */
+  en: string[];
+}
+
+const RANGO: Record<Severidad, number> = { alta: 0, media: 1, baja: 2 };
+const ORDEN_TIPO = new Map<string, number>(TIPOS_SENAL.map((t, i): [string, number] => [t, i]));
+
+/** De la más grave a la más leve; a igual severidad, primero la de una sola entidad y después por tipo. */
+export function compararSenales(a: SenalDistinta, b: SenalDistinta): number {
+  return (
+    RANGO[a.senal.severidad] - RANGO[b.senal.severidad] ||
+    Number(a.en.length > 1) - Number(b.en.length > 1) ||
+    (ORDEN_TIPO.get(a.senal.tipo) ?? 99) - (ORDEN_TIPO.get(b.senal.tipo) ?? 99)
+  );
+}
+
+/**
+ * Las señales de una persona contadas UNA vez (K13 de la auditoría 2026-10-26: la cifra decía 14 y la ficha mostraba 8,
+ * porque la API manda una fila por entidad). `total` es lo que dicen la cifra, la pestaña y el índice; `enVarias`, cuántas
+ * valen en más de una entidad (por eso las de cada entidad suman más que el total).
+ */
+export function senalesDistintas(entidades: EntidadDePersona[]) {
+  const por = new Map<string, SenalDistinta>();
+  for (const e of entidades) {
+    for (const s of e.senalesDetalle) {
+      const k = claveSenal(s);
+      const x = por.get(k);
+      if (!x) por.set(k, { clave: k, senal: s, en: [e.entidadRuc] });
+      else if (!x.en.includes(e.entidadRuc)) x.en.push(e.entidadRuc);
+    }
+  }
+  const lista = [...por.values()].sort(compararSenales);
+  const cuenta = (sev: Severidad) => lista.filter((x) => x.senal.severidad === sev).length;
+  return { lista, porClave: por, total: lista.length, altas: cuenta("alta"), medias: cuenta("media"), bajas: cuenta("baja"), enVarias: lista.filter((x) => x.en.length > 1).length };
+}
+
+/** "2020 a 2024", "2026" o null. */
+export function aniosTexto(anios: readonly number[] | null | undefined): string | null {
+  const a = [...(anios ?? [])].filter((x) => Number.isFinite(x)).sort((x, y) => x - y);
+  if (!a.length) return null;
+  return a[0] === a[a.length - 1] ? String(a[0]) : `${a[0]} a ${a[a.length - 1]}`;
+}
+
+/** Los filtros de la pestaña Órdenes de una persona (`oent`, `oanio`, `oq`, `opag`), validados como la API. */
+export function filtrosOrdenesDeUrl(sp: Busqueda) {
+  const entidad = uno(sp?.oent);
+  const anio = Number(uno(sp?.oanio));
+  const q = uno(sp?.oq);
+  return {
+    entidad: entidad && /^\d{11}$/.test(entidad) ? entidad : undefined,
+    anio: anio >= 2018 && anio <= 2100 ? anio : undefined,
+    q: q && q.length >= 2 ? q.slice(0, 80) : undefined,
+    page: Math.max(1, Number(uno(sp?.opag)) || 1),
+  };
+}
+
+export const hayFiltrosOrdenes = (f: ReturnType<typeof filtrosOrdenesDeUrl>) => Boolean(f.entidad || f.anio || f.q || f.page > 1);
+
 // ─── Parámetros de la lista ─────────────────────────────────────────────────────────────────────
 
 /** Nombres de los filtros en la URL. Dentro de otra ficha (entidad, partido) van con `p` delante: no chocan con los suyos. */

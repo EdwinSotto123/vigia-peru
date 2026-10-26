@@ -1,10 +1,12 @@
-import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
-import { Ayuda } from "@/components/patrones";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, CuerpoDetalle, DatosClave, PieDetalle } from "@/components/patrones/Detalle";
+import { CeldaNumero, CeldaPrincipal, CeldaTexto, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { Dato } from "@/components/ui/Dato";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { BloqueInicio } from "./BloquesInicio";
-import { numero, soles } from "@/lib/formato";
+import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { rutaPersona, PARAMS_EN_FICHA } from "@/lib/personas";
+import { rutaPersona, PARAMS_EN_FICHA, SENAL } from "@/lib/personas";
 import type { NepotismoEntidad } from "@/lib/api-client";
 
 const GRADO: Record<string, string> = {
@@ -15,14 +17,28 @@ const GRADO: Record<string, string> = {
   otro: "pariente",
 };
 
-/** El funcionario, no completo: cargo + su primer apellido. La DJI es pública, pero basta para ubicarlo. */
-const apellido = (n: string) => tituloNatural(n).split(/\s+/)[0] ?? n;
+/**
+ * El funcionario, no completo: cargo + su primer apellido. La DJI es pública, pero basta para ubicarlo; y el nombre
+ * completo junto al del pariente (que va tapado) destaparía justo el apellido escondido (docs/PRIVACIDAD.md).
+ */
+const funcionario = (cargo: string | null, apellido: string | null) => {
+  const quien = cargo ? tituloNatural(cargo) : "Un funcionario";
+  // Sin apellido cuando el parentesco podría destaparlo (lo decide el API): queda el cargo.
+  return apellido ? `${quien}, ${tituloNatural(apellido)}` : quien;
+};
+
+const COLUMNAS: Columna[] = [
+  { clave: "funcionario", titulo: "Funcionario que lo declaró", ancho: "minmax(0,1.3fr)" },
+  { clave: "pariente", titulo: "Pariente que le vende", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo", corto: "Pariente" },
+  { clave: "monto", titulo: "En órdenes", ancho: "112px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+];
 
 /**
- * Bandera de nepotismo en el Inicio de la entidad, con el mismo mecanismo que las demás señales: un funcionario (cargo
- * público) declaró a un pariente que figura como locador (proveedor) de ESTA entidad. Se nombra el cargo y el apellido
- * del funcionario y qué pariente se beneficia; el proveedor (RUC-10) va tapado como cualquier locador, y su ficha
- * guarda la evidencia (cada orden). Indicio para revisión humana, no una acusación. Server-safe.
+ * La evidencia de la bandera de nepotismo en el Inicio de la entidad: un funcionario (cargo público) declaró en su DJI
+ * a un pariente que figura como locador (proveedor) de ESTA entidad. La bandera es una fila de las Banderas de las
+ * personas («Un funcionario de la entidad lo declaró como su pariente», con la lista filtrada); aquí va el detalle de
+ * cada caso, una fila por caso, que abre el panel lateral con sus órdenes. Antes eran cajas ámbar sueltas (un cartel
+ * aparte, contra la regla de banderas). Del pariente se tapa un apellido, como de cualquier locador. Server-safe.
  */
 export function NepotismoInicio({
   nepotismo,
@@ -31,64 +47,86 @@ export function NepotismoInicio({
   nepotismo: NepotismoEntidad | null;
   href: (filtro: Record<string, string>) => string;
 }) {
-  if (!nepotismo || nepotismo.total === 0) return null;
-  const detalle = nepotismo.detalle ?? [];
-  const muestra = detalle.slice(0, 6);
+  const detalle = nepotismo?.detalle ?? [];
+  if (!nepotismo || nepotismo.total === 0 || !detalle.length) return null;
+
+  const filas: Fila[] = detalle.map((d, i) => {
+    const quien = funcionario(d.cargo, d.funcionarioApellido);
+    const grado = GRADO[d.grado] ?? "pariente";
+    const pariente = tituloNatural(d.proveedorNombre);
+    return {
+      // El id va al DOM (`data-fila`): el código de su ficha, nunca el RUC 10 del locador (docs/PRIVACIDAD.md).
+      id: `${d.proveedorCodigo ?? "caso"}-${i}`,
+      buscable: `${d.cargo ?? ""} ${grado}`,
+      celdas: {
+        funcionario: <CeldaPrincipal titulo={quien} meta={[<Dato key="g" tipo="personas" nombre="Parentesco">Declaró a un(a) {grado}</Dato>]} />,
+        pariente: <CeldaTexto>{pariente}</CeldaTexto>,
+        monto: <CeldaNumero sub={plural(d.ordenes, "orden", "órdenes")}>{solesCompacto(d.monto)}</CeldaNumero>,
+      },
+      detalle: {
+        titulo: quien,
+        descripcion: `Declaró a un(a) ${grado} que le vende a la entidad`,
+        contenido: (
+          <CuerpoDetalle>
+            <DatosClave
+              items={[
+                { etiqueta: "Funcionario", valor: quien },
+                { etiqueta: "Parentesco declarado", valor: grado },
+                { etiqueta: "Pariente que le vende", valor: pariente },
+                { etiqueta: "Órdenes de servicio", valor: numero(d.ordenes), mono: true },
+                { etiqueta: "Monto de esas órdenes", valor: soles(d.monto), mono: true },
+              ]}
+            />
+            <BloqueDetalle titulo="Qué se cruzó">
+              <p className="text-dato leading-relaxed text-inkSoft">{SENAL.nepotismo.explica}</p>
+            </BloqueDetalle>
+          </CuerpoDetalle>
+        ),
+        pie: (
+          <PieDetalle
+            principal={
+              d.proveedorCodigo ? (
+                <EnlaceAccion href={rutaPersona(d.proveedorCodigo)} flecha>
+                  Ver sus órdenes
+                </EnlaceAccion>
+              ) : undefined
+            }
+            secundarias={
+              d.declaranteFicha ? (
+                <EnlaceAccion href={`/app/personas/planilla/${d.declaranteFicha}`} variante="secundario">
+                  El funcionario en la planilla
+                </EnlaceAccion>
+              ) : undefined
+            }
+          />
+        ),
+      },
+    };
+  });
+
   return (
     <BloqueInicio
+      nivel={3}
       titulo="Parientes de funcionarios que le venden"
       ayuda={
-        <Ayuda titulo="¿Qué es esta bandera?">
-          Por ley, los funcionarios presentan una Declaración Jurada de Intereses (Ley 31227) donde declaran a sus
-          parientes. Aquí cruzamos esos parientes con los proveedores (locadores) de su propia entidad. Se nombra el
-          cargo y el apellido del funcionario, no su nombre completo; del proveedor tapamos un apellido, como con
-          cualquier locador, y su ficha guarda cada orden. Es un indicio para revisión humana, no una acusación: la
-          declaración es pública y el impedimento depende del cargo (Ley 32069, art. 30).
+        <Ayuda titulo="¿De dónde sale?">
+          Por ley, los funcionarios presentan una Declaración Jurada de Intereses (Ley 31227) donde declaran a sus parientes.
+          Aquí se cruzan esos parientes con los locadores de su propia entidad. Del funcionario va el cargo y el primer
+          apellido; del pariente se tapa un apellido. El impedimento depende del cargo (Ley 32069, art. 30).
         </Ayuda>
       }
       enlace={{ href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), texto: "Ver en personas" }}
-      ancho
     >
-      <div className="space-y-3">
-        <p className="text-dato text-ink">
-          {numero(nepotismo.total)}{" "}
-          {nepotismo.total === 1
-            ? "pariente declarado de un funcionario figura"
-            : "parientes declarados de funcionarios figuran"}{" "}
-          como proveedor de esta entidad, por {soles(nepotismo.monto)} en órdenes.
-        </p>
-        <ul className="space-y-2">
-          {muestra.map((d, i) => (
-            <li key={`${d.proveedorRuc}-${i}`} className="flex gap-2.5 rounded-xl border border-amber/30 bg-amber-soft p-3">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amberTexto" aria-hidden />
-              <p className="min-w-0 text-dato leading-relaxed text-ink">
-                {d.declaranteFicha ? (
-                  <Link href={`/app/personas/planilla/${d.declaranteFicha}`} className="font-semibold text-amberTexto underline-offset-2 hover:underline">
-                    {d.cargo ? tituloNatural(d.cargo) : "Un funcionario"}, {apellido(d.declarante)}
-                  </Link>
-                ) : (
-                  <span className="font-semibold">
-                    {d.cargo ? tituloNatural(d.cargo) : "Un funcionario"}, {apellido(d.declarante)}
-                  </span>
-                )}
-                <span className="text-mute"> declaró un(a) {GRADO[d.grado] ?? "pariente"} que le vende: </span>
-                {d.proveedorCodigo ? (
-                  <Link href={rutaPersona(d.proveedorCodigo)} className="font-medium text-amberTexto underline-offset-2 hover:underline">
-                    {tituloNatural(d.proveedorNombre)}
-                  </Link>
-                ) : (
-                  <span className="font-medium">{tituloNatural(d.proveedorNombre)}</span>
-                )}
-                <span className="text-mute">, por {soles(d.monto)} en {numero(d.ordenes)} {d.ordenes === 1 ? "orden" : "órdenes"}.</span>
-              </p>
-            </li>
-          ))}
-        </ul>
-        {detalle.length > muestra.length && (
-          <p className="text-meta text-mute">Y {numero(detalle.length - muestra.length)} más en la pestaña de personas.</p>
-        )}
-        <p className="text-meta text-mute">Indicio para revisión humana, no una acusación.</p>
-      </div>
+      <TablaPaginada
+        columnas={COLUMNAS}
+        filas={filas}
+        etiqueta="Parientes de funcionarios que le venden"
+        nombre="casos"
+        tam={6}
+        densidad="compacta"
+        medida="contenedor"
+        buscar={{ placeholder: "Buscar un cargo o un parentesco…", etiqueta: "Buscar entre los casos de parientes" }}
+      />
     </BloqueInicio>
   );
 }

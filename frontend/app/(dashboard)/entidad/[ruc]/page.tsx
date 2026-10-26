@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Briefcase, Building2, Flag, Hash, MapPin } from "lucide-react";
+import { Building2, CloudOff, Flag, Hash, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -9,6 +9,8 @@ import { tituloNatural } from "@/lib/landing";
 import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
 import { normalizar } from "@/lib/partidos";
+import { TIPO_CRUCE } from "@/lib/cruces";
+import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
 import { ORDENES, contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
@@ -16,37 +18,51 @@ import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/T
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
-import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
+import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
+import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";
+import { CRUCE_CAPTURA } from "@/components/entidad/CapturaEntidad";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
 import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
-import { QuienDecide } from "@/components/entidad/QuienDecide";
-import { GrafoCaptura } from "@/components/entidad/GrafoCaptura";
-import { CapturaEntidad } from "@/components/entidad/CapturaEntidad";
-import { CadenaCapturaEntidad } from "@/components/entidad/CadenaCapturaEntidad";
-import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
- *   volver → identidad (nombre; tipo, RUC y zona; seguir, denunciar, financiar) → tres cifras (contratos y lo leído,
+ *   volver → identidad (nombre; tipo, RUC y zona; financiar, denunciar, seguir) → tres cifras (contratos y lo leído,
  *   antecedentes de los ganadores, presupuesto; cada una abre su pestaña o su filtro) → pestañas (`?seccion=`):
+ *     · Inicio: qué se encontró (banderas, con la captura política), dinero y control, con la columna lateral de quién
+ *       la gobierna y quién aprueba sus contratos (components/inicio/InicioEntidad.tsx).
  *     · Contratos: TODOS los suyos desde 2015 (con su ganador), con los filtros de /app/contratos ("¿Lo leyó Vigía?",
- *       riesgo, antecedentes, año…) y la misma tabla; la URL guarda el filtro.
+ *       antecedentes, riesgo, año…) y la misma tabla; la URL guarda el filtro.
  *     · Cuánto gasta: presupuesto del MEF de su unidad ejecutora (migración 62) y en qué lo gasta (63).
- *     · Denuncias: cómo denunciarla y qué pasa con la denuncia (no se publica).
+ *     · Control: todos los informes de la Contraloría sobre ella (en el Inicio van las cifras y los tres últimos).
  *
  * Historia: la primera versión listaba sólo los contratos con dictamen (4 de 271) y tenía una pestaña con los mismos
  * contratos para los antecedentes (hoy columna y filtro). La segunda fue una página larga con un índice que sólo
  * desplazaba, y "Órdenes del mismo día" como sección aparte: el usuario pidió pestañas de verdad. La tercera tuvo
  * "Contratos en Vigía" y "Procesos desde 2015" (CONOSCE) por separado y las órdenes fraccionadas bajo "Cuánto gasta":
  * con la historia del OECE en la base son una sola lista, y el fraccionamiento es un antecedente de cada contrato
- * (filtro Antecedentes y la ficha del contrato), no un gasto.
+ * (filtro Antecedentes y la ficha del contrato), no un gasto. Hubo una pestaña "Denuncias" cuyo único contenido era el
+ * mismo botón "Denunciar" de la cabecera (el formulario ya explica que la denuncia queda en reserva): se quitó.
  */
+
+/** Lo que la ficha usa de la entidad (`GET /entidades/:ruc`). Sin respuesta del API, se arma con lo que sí llegó. */
+interface EntidadFicha {
+  ruc: string;
+  nombre: string | null;
+  tipo?: string | null;
+  region?: string | null;
+  provincia?: string | null;
+  distrito?: string | null;
+  ubigeo?: string | null;
+  contratos?: number | null;
+  contratosEnCola?: number | null;
+}
 
 const TAM = 20;
 
@@ -76,20 +92,29 @@ export default async function EntidadProfile({
   const pagina = getContratos({ ...query, size: TAM });
   const resumenFiltrado = getResumenContratos(query);
   const resumenEntidadP = filtrada ? getResumenContratos({ entidad: ruc }) : resumenFiltrado;
-  // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con datos inventados. Ahora: sin respuesta, se
-  // dice; RUC desconocido, 404.
+  // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con datos inventados; después, si `GET /entidades`
+  // fallaba no se mostraba NADA, aunque sus contratos, la captura o la Contraloría sí respondían. Ahora: RUC
+  // desconocido, 404; sin respuesta de la entidad pero con contratos suyos en la base (existe), la ficha se arma con lo
+  // que llegó y un aviso arriba (falta su nombre, ubicación y presupuesto; el nombre sale de sus contratos); sin nada, se
+  // dice que no se pudo leer.
   let apiResp: Awaited<ReturnType<typeof getEntidad>> = null;
+  let falloEntidad = false;
   try {
     apiResp = await getEntidad(ruc);
-  } catch (e) {
-    console.error("[entidad] el API no respondió:", (e as Error).message);
-    return <NoSePudoLeer ruc={ruc} />;
+  } catch (err) {
+    console.error("[entidad] el API no respondió:", (err as Error).message);
+    falloEntidad = true;
   }
-  if (!apiResp?.entidad) notFound();
+  if (!falloEntidad && !apiResp?.entidad) notFound();
 
   const resumenEntidad = await resumenEntidadP;
-  const e = apiResp.entidad;
-  const nombre = tituloNatural(String(e.nombre ?? ""));
+  let e: EntidadFicha | undefined = apiResp?.entidad;
+  if (!e) {
+    if (!resumenEntidad?.total) return <NoSePudoLeer ruc={ruc} />;
+    const primera = await pagina;
+    e = { ruc, nombre: primera?.data.find((c) => c.entidadRuc === ruc && c.entidad)?.entidad ?? null, contratos: resumenEntidad.total };
+  }
+  const nombre = e.nombre ? tituloNatural(String(e.nombre)) : `Entidad con RUC ${ruc}`;
   const region: string | null = e.region || null;
   const enCola = Number(e.contratosEnCola || 0);
   const totalContratos = resumenEntidad?.total ?? Number(e.contratos || 0);
@@ -118,10 +143,12 @@ export default async function EntidadProfile({
     <Pagina>
       <Migas
         items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }])}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", menores: "Menores", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", menores: "Menores", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" } }}
       />
 
-      {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. */}
+      {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. Una acción primaria
+          (financiar su lectura, si tiene cola) y el resto compacto: antes eran cuatro botones del mismo peso, uno por
+          renglón en el celular. "Sus proveedores" pasó a "Sus contratos" y a "Ver también" del Inicio. */}
       <EncabezadoPagina
         titulo={nombre}
         bajada={
@@ -144,29 +171,32 @@ export default async function EntidadProfile({
         }
         acciones={
           <>
-            <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
-            {/* Las empresas que le vendieron, con su puntaje de antecedentes (/app/empresas?entidad=). */}
-            <EnlaceAccion href={`/app/empresas?entidad=${e.ruc}`} variante="secundario">
-              <Briefcase size={14} aria-hidden /> Sus proveedores
-            </EnlaceAccion>
-            <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario">
-              <Flag size={14} aria-hidden /> Denunciar
-            </EnlaceAccion>
             {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
             {enCola > 0 && (
               <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
                 Financiar su auditoría
               </EnlaceAccion>
             )}
+            <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">
+              <Flag size={14} aria-hidden /> Denunciar
+            </EnlaceAccion>
+            <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
           </>
         }
       />
 
-      {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
-      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
+      {/* La entidad no respondió pero sus contratos sí: se dice qué falta, una vez, y se sigue con lo que llegó. */}
+      {falloEntidad && (
+        <AvisoEnLinea variante="compacta" tono="error" icono={<CloudOff size={16} />} accion={{ href: ruta, etiqueta: "Reintentar" }}>
+          No pudimos leer la ficha de la entidad: faltan su ubicación y su presupuesto. Lo de abajo sí llegó.
+        </AvisoEnLinea>
+      )}
 
-      {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Inicio | Contratos | Cuánto gasta | Denuncias. `key`: un
-          enlace de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
+      {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
+      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp?.mef ?? null, ruta })} />
+
+      {/* 3. Pestañas, como la ficha de un contrato (?seccion=). `key`: un enlace de las cifras de arriba a otra pestaña
+          la abre (sin la clave, la pestaña ya montada no cambiaba). */}
       <Pestanas
         fija
         key={seccion ?? "inicio"}
@@ -176,27 +206,19 @@ export default async function EntidadProfile({
           {
             clave: "inicio",
             etiqueta: "Inicio",
+            // Qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide. Cada parte
+            // espera lo suyo (Suspense adentro).
             contenido: (
-              <div className="space-y-5">
-                {/* Primero el resumen escaneable (en qué gasta, sus contratos, banderas, personas, nepotismo); luego, más
-                    abajo, el análisis más profundo: quién la controla (grafo del Estado migr. 126 y captura política migr.
-                    125). Cada grafo trae su data y se oculta si no aplica. */}
-                <Suspense fallback={<div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>}>
-                  <InicioEntidad ruc={e.ruc} ruta={ruta} resumen={resumenEntidad} totalContratos={totalContratos} enCola={enCola} region={region} nepotismo={apiResp.nepotismo} />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <QuienDecide ruc={e.ruc} />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <GrafoCaptura ruc={e.ruc} />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <CapturaEntidad ruc={e.ruc} />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <CadenaCapturaEntidad ruc={e.ruc} />
-                </Suspense>
-              </div>
+              <InicioEntidad
+                ruc={e.ruc}
+                ruta={ruta}
+                resumen={resumenEntidad}
+                enCola={enCola}
+                region={region}
+                ubigeo={e.ubigeo ?? null}
+                regionDenuncias={regionDenuncias}
+                nepotismo={apiResp?.nepotismo ?? null}
+              />
             ),
           },
           {
@@ -205,23 +227,23 @@ export default async function EntidadProfile({
             conteo: totalContratos,
             contenido: (
               <div className="space-y-4">
+                {/* Sólo el título y su ⓘ: la bajada repetía la pestaña y, con la barra de filtros, el primer contrato
+                    quedaba a 1.6 pantallas en el celular. */}
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿Qué contratos hay aquí?">
                       <span className="block">
-                        Cada convocatoria de esta entidad desde 2015, con su ganador y lo que se le adjudicó (registro OCDS
-                        del OECE). Las de 2026 entran a la cola de lectura; «¿Lo leyó Vigía?» filtra las que ya se leyeron.
-                        Cada fila abre su resumen; el dossier completo, con el dictamen si ya se leyó, está en su ficha.
+                        Todas sus convocatorias desde 2015, con su ganador y lo que se le adjudicó (registro OCDS del OECE),
+                        lo que leyó Vigía y los antecedentes de quien ganó. Las de 2026 entran a la cola de lectura; «¿Lo
+                        leyó Vigía?» filtra las que ya se leyeron.
                       </span>
                       <span className="mt-2 block">
-                        Vigía no acusa a nadie: las señales y los antecedentes salen del cruce automático de datos
-                        públicos y son motivos para revisar, no pruebas.
+                        Cada fila abre su resumen; el dossier completo, con el dictamen si ya se leyó, está en su ficha.
+                        Los antecedentes salen del cruce automático de datos públicos: son motivos para revisar, no pruebas.
                       </span>
                     </Ayuda>
                   }
-                >
-                  Todas sus convocatorias desde 2015, con su ganador, lo que leyó Vigía y los antecedentes de quien ganó.
-                </CabeceraPestana>
+                />
                 <Listado ruta={ruta} parametros={parametrosLista} paramPagina="page">
                   <Suspense fallback={<BarraEntidad resumen={null} parametros={parametrosLista} />}>
                     <BarraConConteos resumen={resumenFiltrado} parametros={parametrosLista} />
@@ -348,31 +370,34 @@ export default async function EntidadProfile({
             ),
           },
           {
-            clave: "denuncias",
-            etiqueta: "Denuncias",
+            // La tabla entera de la Contraloría (en el Inicio van sus cifras y los tres últimos informes). Ocupaba ~1,850
+            // px del Inicio.
+            clave: "control",
+            etiqueta: "Control",
+            titulo: "Informes de la Contraloría",
             contenido: (
               <div>
-                <CabeceraPestana>¿Viste algo irregular en esta entidad? Cuéntalo.</CabeceraPestana>
-                <div className="flex flex-col gap-4 rounded-2xl border border-line bg-paperSoft p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                  <div className="max-w-prose space-y-1.5 text-dato leading-5 text-inkSoft">
-                    <p>
-                      Una denuncia sobre una entidad <strong className="font-semibold text-ink">no se publica</strong>: queda
-                      en reserva y la revisa el equipo de Vigía. Si los datos la respaldan, lo que se publica es un dictamen
-                      en esta ficha, nunca la denuncia ni quién la hizo.
-                    </p>
-                    <p>Si es una obra que se puede ver y fotografiar, denúnciala como obra: esa sí aparece en el mapa.</p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`}>
-                      <Flag size={14} aria-hidden /> Denunciar a esta entidad
-                    </EnlaceAccion>
-                    {regionDenuncias && (
-                      <EnlaceAccion href={`/app/denuncias?region=${encodeURIComponent(regionDenuncias)}`} variante="secundario" flecha>
-                        Obras denunciadas en {regionDenuncias}
-                      </EnlaceAccion>
-                    )}
-                  </div>
-                </div>
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Qué es un informe de control?">
+                      La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta
+                      (penal, civil o administrativa) de sus funcionarios y la deriva a quien corresponde. No es una
+                      condena. El informe nombra a los funcionarios: aquí se enlaza, no se copia.
+                    </Ayuda>
+                  }
+                >
+                  Todos sus informes de control, con la responsabilidad presunta que señalan. Cada fila abre el informe oficial.
+                </CabeceraPestana>
+                <Suspense
+                  fallback={
+                    <div className="space-y-4">
+                      <IndicadoresSkeleton n={4} />
+                      <TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />
+                    </div>
+                  }
+                >
+                  <InformesEntidad ruc={e.ruc} />
+                </Suspense>
               </div>
             ),
           },
@@ -382,22 +407,53 @@ export default async function EntidadProfile({
   );
 }
 
+/** Los informes de la Contraloría de la entidad, para su pestaña (las páginas siguientes las pide la tabla). */
+async function InformesEntidad({ ruc }: { ruc: string }) {
+  const datos = await getCorrupcionEntidad(ruc);
+  return <InformesContraloria datos={datos} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" conTitulo={false} />;
+}
+
 // ─── Lista de contratos ──────────────────────────────────────────────────────
 
 async function BarraConConteos({ resumen, parametros }: { resumen: Promise<ResumenContratos | null>; parametros: Parametros }) {
   return <BarraEntidad resumen={await resumen} parametros={parametros} />;
 }
 
-/** La barra de /app/contratos sin zona, partido ni entidad (los fija la ficha). Sin resumen, sin números. */
+/**
+ * La barra de /app/contratos sin zona, partido ni entidad (los fija la ficha). Sin resumen, sin números.
+ *
+ * A la vista, las dos preguntas de una entidad («¿Lo leyó Vigía?» y los antecedentes del ganador); el riesgo, que sólo
+ * existe para lo leído (unos pocos de sus contratos), va en «Filtros»: en el celular eran cinco controles en cinco
+ * renglones antes del primer contrato.
+ */
 function BarraEntidad({ resumen, parametros }: { resumen: ResumenContratos | null; parametros: Parametros }) {
+  const vistas = filtrosVisibles(resumen);
   return (
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar en sus contratos…", etiqueta: "Buscar en sus contratos por objeto o código", min: 3 }}
-      visibles={filtrosVisibles(resumen)}
-      filtros={[filtroOperativo(resumen), filtroTipo(resumen), filtroEtapa(), filtroMes(parametros), ...filtrosMonto(parametros)]}
+      visibles={vistas.filter((f) => f.param !== "riesgo")}
+      filtros={[
+        ...vistas.filter((f) => f.param === "riesgo"),
+        filtroOperativo(resumen),
+        filtroTipo(resumen),
+        filtroEtapa(),
+        filtroMes(parametros),
+        ...filtrosMonto(parametros),
+        ...(parametros.cruce ? [filtroCaptura(parametros.cruce, resumen)] : []),
+      ]}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
   );
+}
+
+/**
+ * El filtro de varios tipos de cruce a la vez (`cruce=`): llega desde la fila «Ganó una empresa ligada a la gestión»
+ * del Inicio (financió o le vendió a la campaña del partido que gobierna, o un socio trabaja en la entidad). Va sólo si
+ * viene en la URL, para que la lista diga por qué es la que es y se pueda quitar con su ×.
+ */
+function filtroCaptura(valor: string, resumen: ResumenContratos | null): FiltroSecundario {
+  const etiqueta = valor === CRUCE_CAPTURA ? "Con la gestión que la gobierna" : valor.split(",").map((t) => TIPO_CRUCE[t]?.corto ?? t).join(" o ");
+  return { param: "cruce", etiqueta: "Lazo del ganador", todas: "Cualquiera", opciones: [{ valor, etiqueta, conteo: resumen ? resumen.total : null }] };
 }
 
 async function Resultados({

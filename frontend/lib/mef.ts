@@ -101,10 +101,10 @@ export function ejecucionPct(row: MefBudgetRow): number {
  */
 export function formatPEN(v: number): string {
   if (!v) return "S/ 0";
-  if (v >= 1_000_000_000) return `S/ ${(v / 1_000_000_000).toFixed(2)} mil M`;
-  if (v >= 1_000_000) return `S/ ${(v / 1_000_000).toFixed(2)} M`;
-  if (v >= 1_000) return `S/ ${(v / 1_000).toFixed(0)} mil`;
-  return `S/ ${v.toLocaleString("es-PE")}`;
+  if (v >= 1_000_000_000) return `S/ ${(v / 1_000_000_000).toFixed(2)} mil M`;
+  if (v >= 1_000_000) return `S/ ${(v / 1_000_000).toFixed(2)} M`;
+  if (v >= 1_000) return `S/ ${(v / 1_000).toFixed(0)} mil`;
+  return `S/ ${v.toLocaleString("es-PE")}`;
 }
 
 /**

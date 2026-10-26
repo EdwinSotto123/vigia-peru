@@ -88,20 +88,22 @@ poderRouter.get("/dependencia", async (c) => {
 
 /** Árbol territorial del Estado para el explorador (migración 125): una entidad electa por nivel —el gobierno regional
  * de cada departamento (uno por depto), las municipalidades provinciales y las distritales— con su autoridad (el
- * afiliado que la gobierna), partido y captura. El front arma el árbol depto → provincia → distrito y deja explorar
- * in-situ. Indicios para revisión, no acusación. */
+ * afiliado que la gobierna), partido y captura, con el desglose por tipo de indicio (contratos que financiaron, que le
+ * vendieron, con un socio en la entidad: las mismas columnas de poder_entidad, sin otra consulta). El front arma el
+ * árbol depto → provincia → distrito. Indicios para revisión, no acusación. */
 poderRouter.get("/territorio", async (c) => {
   const r = await pool.query(
     `WITH reg AS (
        SELECT DISTINCT ON (departamento) entidad_ruc, entidad, 'regional'::text AS nivel, departamento,
-              NULL::text AS provincia, NULL::text AS distrito, autoridad, partido, n_captura, monto_captura
+              NULL::text AS provincia, NULL::text AS distrito, autoridad, partido, n_captura, monto_captura,
+              n_financiaron, n_vendieron, n_socio
          FROM poder_entidad WHERE nivel = 'regional' AND departamento IS NOT NULL
         ORDER BY departamento, n_captura DESC)
      SELECT entidad_ruc AS ruc, entidad AS nombre, nivel, departamento, provincia, distrito, autoridad, partido,
-            n_captura::int, monto_captura::float FROM reg
+            n_captura::int, monto_captura::float, n_financiaron::int, n_vendieron::int, n_socio::int FROM reg
      UNION ALL
      SELECT entidad_ruc AS ruc, entidad AS nombre, nivel, departamento, provincia, distrito, autoridad, partido,
-            n_captura::int, monto_captura::float
+            n_captura::int, monto_captura::float, n_financiaron::int, n_vendieron::int, n_socio::int
        FROM poder_entidad WHERE nivel IN ('provincial', 'distrital') AND departamento IS NOT NULL`);
   c.header("Cache-Control", CACHE);
   return c.json(publicar({ nodos: r.rows }));
@@ -123,6 +125,7 @@ poderRouter.get("/instituciones", async (c) => {
      ent AS (
        SELECT c.ruc, e.nombre, e.tipo, c.n AS n_contratos, c.monto,
               pe.partido, pe.n_captura::int AS captura, pe.monto_captura::float AS captura_monto, pe.departamento,
+              pe.n_financiaron::int AS n_financiaron, pe.n_vendieron::int AS n_vendieron, pe.n_socio::int AS n_socio,
               CASE WHEN upper(e.nombre) LIKE '%MINISTERIO%' THEN 'ministerios'
                    WHEN upper(e.nombre) LIKE '%GOBIERNO REGIONAL%' OR e.tipo = 'gobierno_regional' THEN 'regional'
                    WHEN upper(e.nombre) LIKE '%MUNICIPALIDAD%' OR e.tipo LIKE 'municipal%' THEN 'local'
@@ -134,7 +137,8 @@ poderRouter.get("/instituciones", async (c) => {
               row_number() OVER (PARTITION BY rama ORDER BY n_contratos DESC) AS rn,
               row_number() OVER (PARTITION BY rama, departamento ORDER BY n_contratos DESC) AS rn_rd
          FROM ent)
-     SELECT ruc, nombre, tipo, departamento AS region, n_contratos, monto, rama, partido, captura, captura_monto
+     SELECT ruc, nombre, tipo, departamento AS region, n_contratos, monto, rama, partido, captura, captura_monto,
+            n_financiaron, n_vendieron, n_socio
        FROM rk
       WHERE (rama = 'regional' AND departamento IS NOT NULL AND rn_rd = 1)
          OR (rama IN ('ministerios', 'local', 'organismos') AND rn <= 24)
@@ -145,7 +149,9 @@ poderRouter.get("/instituciones", async (c) => {
   return c.json(publicar({ ramas }));
 });
 
-/** Ranking de ENTIDADES por captura (las más capturadas primero): para bajar del partido al municipio concreto. */
+/** Ranking de ENTIDADES por captura (las más capturadas primero): para bajar del partido al municipio concreto. Sin
+ * filtros devuelve TODAS las que tienen captura (~1,400 de las ~2,400 de poder_entidad, una tabla chica con índice por
+ * n_captura): la pestaña «Entidades» de /app/poder es la lista completa con buscador; antes cortaba en 300. */
 poderRouter.get("/entidades", async (c) => {
   const nivel = c.req.query("nivel");
   const dep = (c.req.query("departamento") ?? "").trim();
@@ -156,7 +162,7 @@ poderRouter.get("/entidades", async (c) => {
   if (dep.length >= 2) { vals.push(dep); conds.push(`departamento ILIKE $${vals.length}`); }
   if (q.length >= 3) { vals.push(`%${q}%`); conds.push(`(entidad ILIKE $${vals.length} OR partido ILIKE $${vals.length} OR autoridad ILIKE $${vals.length})`); }
   const r = await pool.query(
-    `SELECT ${COLS_ENTIDAD} FROM poder_entidad WHERE ${conds.join(" AND ")} ORDER BY n_captura DESC, monto_captura DESC NULLS LAST LIMIT 300`,
+    `SELECT ${COLS_ENTIDAD} FROM poder_entidad WHERE ${conds.join(" AND ")} ORDER BY n_captura DESC, monto_captura DESC NULLS LAST LIMIT 3000`,
     vals);
   c.header("Cache-Control", CACHE);
   return c.json(publicar({ data: r.rows }));

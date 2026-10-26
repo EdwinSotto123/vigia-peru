@@ -1,14 +1,21 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { ChevronRight, X } from "lucide-react";
 
 /**
  * Primitivos visuales compartidos de los grafos del mapa de poder. Un solo lenguaje: nodos con brillo por capas
- * (halo translúcido del mismo token, nunca un filtro ni un hex), hover suave, halo que respira en el enfocado,
- * halo persistente en los que tienen indicio, anillo punteado para los autónomos (3er canal, no sólo color),
- * aristas con flujo direccional opcional, y el marco de dos columnas (grafo + panel). Todo por token → día/noche
- * gratis. Las animaciones son transform/opacity y las define app/globals.css + tailwind.config.ts
- * (grafoBrota, latidoNodo, fluirDatos); prefers-reduced-motion ya las neutraliza globalmente.
+ * (halo translúcido del mismo token, nunca un filtro ni un hex), halo fijo en el enfocado y en los que tienen indicio,
+ * anillo punteado para los autónomos (3er canal, no sólo color) y el marco de dos columnas (grafo + panel). Todo por
+ * token → día/noche gratis.
+ *
+ * Sin movimiento decorativo (auditoría 2026-10-26): las aristas ya no «fluyen», los nodos no brotan en cascada y el halo
+ * no respira; en una superficie de trabajo el movimiento sólo responde a lo que hace quien la usa (el radio del nodo al
+ * enfocarlo, el zoom al abrir una rama). Las props `flujo`, `entra` e `indice` siguen aceptándose por compatibilidad:
+ * `flujo` resalta la arista (más gruesa, sin animar) y `entra`/`indice` ya no hacen nada.
+ *
+ * Dentro de una tarjeta (`GrafoSeccion`, clase `tarjeta`) el lienzo y el panel van sin marco propio: una caja con borde
+ * dentro de otra era ruido.
  */
 
 export type Tono = "granate" | "crimson" | "amber" | "anil" | "neutro";
@@ -33,13 +40,13 @@ export interface NodoProps {
   /** Factor de zoom del lienzo: los grosores/offsets/letra se dividen por él para verse constantes. */
   k?: number;
   hovered?: boolean; selected?: boolean;
-  /** Halo que respira (rama abierta / seleccionado). */
+  /** Halo fijo del nodo abierto (la rama que se está viendo). */
   foco?: boolean;
-  /** Halo persistente, sin respirar (p. ej. tiene indicio de captura): el 3er canal junto a color+palabra. */
+  /** Halo persistente (p. ej. tiene indicio de captura): el 3er canal junto a color+palabra. */
   resalta?: boolean;
   /** Anillo punteado = «autónomo/independiente» (3er canal). */
   punteado?: boolean;
-  /** Entrada en cascada (sólo para lo que aparece al abrir un nodo). */
+  /** Sin efecto (antes: entrada en cascada). Se acepta por compatibilidad. */
   entra?: boolean; indice?: number;
   /** Atenuado (hermanos de una rama no abierta). */
   atenuado?: boolean;
@@ -56,9 +63,9 @@ export function Nodo(p: NodoProps) {
   const anchor = p.anchor ?? "start";
   const lx = anchor === "start" ? rr + 3 * inv : anchor === "end" ? -(rr + 3 * inv) : 0;
 
-  const nodo = (
+  return (
     <g
-      className="grafo-nodo cursor-pointer"
+      className="grafo-nodo cursor-pointer focus:outline-none [&:focus-visible>circle.grafo-nodo-circulo]:stroke-[3px]"
       opacity={p.atenuado ? 0.3 : 1}
       onPointerEnter={p.onEnter}
       onPointerLeave={p.onLeave}
@@ -70,10 +77,8 @@ export function Nodo(p: NodoProps) {
       tabIndex={p.atenuado ? -1 : 0}
       aria-label={p.aria ?? p.label}
     >
-      {p.foco ? (
-        <circle cx={p.x} cy={p.y} r={rr + 7 * inv} className={`grafo-halo animate-latidoNodo ${c.halo} pointer-events-none`} />
-      ) : p.resalta || activo ? (
-        <circle cx={p.x} cy={p.y} r={rr + (activo ? 5 : 4) * inv} className={`${c.halo} pointer-events-none`} />
+      {p.foco || p.resalta || activo ? (
+        <circle cx={p.x} cy={p.y} r={rr + (p.foco ? 7 : activo ? 5 : 4) * inv} className={`${c.halo} pointer-events-none`} />
       ) : null}
       {p.selected && (
         <circle cx={p.x} cy={p.y} r={rr + 3.5 * inv} className="fill-none stroke-ink pointer-events-none" strokeWidth={1.2 * inv} />
@@ -107,24 +112,20 @@ export function Nodo(p: NodoProps) {
       ))}
     </g>
   );
-
-  if (!p.entra) return nodo;
-  return (
-    <g className="grafo-brota" style={{ "--i": `${Math.min((p.indice ?? 0) * 22, 360)}ms` } as CSSProperties}>
-      {nodo}
-    </g>
-  );
 }
 
 /** Nodo central del grafo (El Estado / Gobierno Nacional): núcleo con una o dos líneas de texto. */
-export function NodoCentro({ x, y, k = 1, lineas, onClick, aria }: { x: number; y: number; k?: number; lineas: string[]; onClick?: () => void; aria?: string }) {
+export function NodoCentro({ x, y, k = 1, lineas, onClick, aria, fontSize = 7 }: { x: number; y: number; k?: number; lineas: string[]; onClick?: () => void; aria?: string; fontSize?: number }) {
   const inv = 1 / k;
+  // El círculo crece con su texto (la línea más larga y cuántas son), para que el nombre no se salga.
+  const largo = Math.max(1, ...lineas.map((l) => l.length));
+  const r = Math.max(16, largo * fontSize * 0.3 + fontSize * 0.8, lineas.length * fontSize * 0.95) * inv;
   return (
     <g className="cursor-pointer" onClick={onClick} role="button" tabIndex={-1} aria-label={aria}>
-      <circle cx={x} cy={y} r={20} className="fill-granate/15 pointer-events-none" />
-      <circle cx={x} cy={y} r={16} className="fill-paperSoft stroke-ink" strokeWidth={1.6 * inv} />
+      <circle cx={x} cy={y} r={r + 4 * inv} className="fill-granate/15 pointer-events-none" />
+      <circle cx={x} cy={y} r={r} className="fill-paperSoft stroke-ink" strokeWidth={1.6 * inv} />
       {lineas.map((t, i) => (
-        <text key={i} x={x} y={y + (i - (lineas.length - 1) / 2) * 7.2 * inv + 1 * inv} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${7 * inv}px` }}>
+        <text key={i} x={x} y={y + (i - (lineas.length - 1) / 2) * fontSize * 1.05 * inv + fontSize * 0.35 * inv} textAnchor="middle" className="pointer-events-none fill-ink font-semibold" style={{ fontSize: `${fontSize * inv}px` }}>
           {t}
         </text>
       ))}
@@ -132,24 +133,25 @@ export function NodoCentro({ x, y, k = 1, lineas, onClick, aria }: { x: number; 
   );
 }
 
+/** Una arista. `flujo` la resalta (la rama abierta): más gruesa, quieta. */
 export function Arista({ x1, y1, x2, y2, tono, opacity = 0.4, k = 1, flujo }: { x1: number; y1: number; x2: number; y2: number; tono: Tono; opacity?: number; k?: number; flujo?: boolean }) {
   const c = TONO[tono];
   return (
     <line
       x1={x1} y1={y1} x2={x2} y2={y2}
-      className={`${c.arista} ${flujo ? "animate-fluirDatos" : ""}`}
-      strokeWidth={1 / k}
+      className={c.arista}
+      strokeWidth={(flujo ? 1.6 : 1) / k}
       strokeOpacity={opacity}
       strokeLinecap="round"
-      strokeDasharray={flujo ? "8 8" : undefined}
     />
   );
 }
 
 /* ── Marco y paneles ─────────────────────────────────────────────────────── */
 
+/** La caja de primer nivel de un grafo: una tarjeta. Lo de adentro (lienzo, panel) va sin marco propio. */
 export function GrafoSeccion({ children }: { children: ReactNode }) {
-  return <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">{children}</section>;
+  return <section className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">{children}</section>;
 }
 
 /** Cabecera: migas a la izquierda, un extra opcional (select, año) a la derecha. */
@@ -162,29 +164,70 @@ export function GrafoCabecera({ migas, extra }: { migas: ReactNode; extra?: Reac
   );
 }
 
-/** Separador de migas (sin «·», que lo caza la guardia de estilo: una guilla). */
+/** Separador de migas: el mismo chevrón de `Migas` (un ícono dibujado, no un glifo). */
 export function MigaSep() {
-  return <span className="text-mute" aria-hidden>›</span>;
+  return <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />;
 }
 
 export function GrafoColumnas({ children }: { children: ReactNode }) {
   return <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">{children}</div>;
 }
 
+/**
+ * El lienzo del grafo. Fuera de una tarjeta, con su marco; dentro de una (`GrafoSeccion`), sólo el fondo apenas hundido.
+ * overflow-x-auto (no -hidden): en móvil el SVG de min-w ~520px se desplaza en vez de recortarse; el auto-zoom sigue
+ * encuadrando porque el propio <svg> recorta lo que sale de su viewBox.
+ */
 export function GrafoMarco({ children }: { children: ReactNode }) {
-  // overflow-x-auto (no -hidden): en móvil el SVG de min-w ~520px se desplaza en vez de recortarse; el auto-zoom
-  // sigue encuadrando porque el propio <svg> recorta lo que sale de su viewBox.
-  return <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40">{children}</div>;
-}
-
-export function GrafoAside({ children }: { children: ReactNode }) {
-  return <aside className="rounded-xl border border-line bg-paperSoft/50 p-4">{children}</aside>;
-}
-
-export function BotonFicha({ onClick, children = "Ver ficha completa →" }: { onClick: () => void; children?: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="mt-1 w-full rounded-lg bg-granate px-3 py-2 text-meta font-semibold text-sobreMaiz transition-opacity duration-rapido hover:opacity-90">
+    <div className="overflow-x-auto rounded-xl border border-line bg-fondo/40 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft">
       {children}
+    </div>
+  );
+}
+
+/**
+ * El panel junto al grafo. Dentro de una tarjeta no es otra caja: una raya lo separa del lienzo (arriba en el celular,
+ * a la izquierda desde lg).
+ */
+export function GrafoAside({ children }: { children: ReactNode }) {
+  return (
+    <aside
+      className={
+        "rounded-xl border border-line bg-paperSoft/50 p-4 " +
+        "[.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:p-0 [.tarjeta_&]:pt-4 " +
+        "lg:[.tarjeta_&]:border-l lg:[.tarjeta_&]:border-t-0 lg:[.tarjeta_&]:pl-4 lg:[.tarjeta_&]:pt-0"
+      }
+    >
+      {children}
+    </aside>
+  );
+}
+
+/** La acción del panel: la píldora primaria del sitio (como `Button`). */
+export function BotonFicha({ onClick, children = "Ver ficha completa" }: { onClick: () => void; children?: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-1 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 py-2 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Cerrar un detalle: el ícono X de lucide (no el glifo «✕»), con su nombre para el lector de pantalla. */
+export function BotonCerrar({ onClick, etiqueta = "Cerrar detalle" }: { onClick: () => void; etiqueta?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={etiqueta}
+      title={etiqueta}
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+    >
+      <X size={16} aria-hidden />
     </button>
   );
 }

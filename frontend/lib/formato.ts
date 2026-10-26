@@ -21,6 +21,11 @@ const NUM_2 = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 2 });
 const esNumero = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 /** Número entero con separador de miles: 18,393. Sin dato → "Sin dato". */
+/** Espacio no separable (entre "S/", la cifra y su unidad) y fino no separable (antes de "%", §10.3): un monto no se
+ * parte en dos renglones ("S/ 23.9" arriba y "M" abajo). */
+const NBSP = " ";
+const FINO = " ";
+
 export function numero(n: number | null | undefined): string {
   return esNumero(n) ? NUM.format(Math.round(n)) : "Sin dato";
 }
@@ -28,7 +33,7 @@ export function numero(n: number | null | undefined): string {
 /** Soles completos, para tablas y textos: S/ 45,000 (≥ 1 000 sin decimales; < 1 000 hasta 2). */
 export function soles(n: number | null | undefined): string {
   if (!esNumero(n)) return "Sin dato";
-  return `S/ ${Math.abs(n) >= 1000 ? NUM.format(Math.round(n)) : NUM_2.format(n)}`;
+  return `S/${NBSP}${Math.abs(n) >= 1000 ? NUM.format(Math.round(n)) : NUM_2.format(n)}`;
 }
 
 /**
@@ -41,12 +46,12 @@ export function solesCompacto(n: number | null | undefined): string {
   // Un billón en español es un millón de millones (los montos imposibles que publica el Estado llegan ahí).
   if (a >= 1_000_000_000_000) {
     const t = NUM_1.format(n / 1_000_000_000_000);
-    return `S/ ${t} ${t === NUM_1.format(1) ? "billón" : "billones"}`;
+    return `S/${NBSP}${t}${NBSP}${t === NUM_1.format(1) ? "billón" : "billones"}`;
   }
-  if (a >= 1_000_000_000) return `S/ ${NUM_1.format(n / 1_000_000_000)} mil M`;
-  if (a >= 1_000_000) return `S/ ${NUM_1.format(n / 1_000_000)} M`;
-  if (a >= 1_000) return `S/ ${NUM.format(Math.round(n / 1_000))} mil`;
-  return `S/ ${NUM.format(Math.round(n))}`;
+  if (a >= 1_000_000_000) return `S/${NBSP}${NUM_1.format(n / 1_000_000_000)}${NBSP}mil${NBSP}M`;
+  if (a >= 1_000_000) return `S/${NBSP}${NUM_1.format(n / 1_000_000)}${NBSP}M`;
+  if (a >= 1_000) return `S/${NBSP}${NUM.format(Math.round(n / 1_000))}${NBSP}mil`;
+  return `S/${NBSP}${NUM.format(Math.round(n))}`;
 }
 
 /** Compatibilidad: el nombre que ya usan 12 archivos. Es `solesCompacto`. */
@@ -56,7 +61,7 @@ export const formatSoles = (n: number) => solesCompacto(n);
 export function porcentaje(n: number | null | undefined, { decimales = 0 } = {}): string {
   if (!esNumero(n)) return "Sin dato";
   const f = decimales ? new Intl.NumberFormat("es-PE", { maximumFractionDigits: decimales }) : NUM;
-  return `${f.format(decimales ? n : Math.round(n))} %`;
+  return `${f.format(decimales ? n : Math.round(n))}${FINO}%`;
 }
 
 /** "a", "a y b", "a, b y c": una enumeración en palabras, en vez de datos sueltos con un separador. */

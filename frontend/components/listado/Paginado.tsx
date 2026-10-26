@@ -27,11 +27,11 @@ function usePaginas(n: number, tam: number) {
   return { actual, paginas, desde: (actual - 1) * tam, hasta: actual * tam, setPagina };
 }
 
-function Control({ actual, paginas, total, tam, nombre, onChange }: { actual: number; paginas: number; total: number; tam: number; nombre: string; onChange: (n: number) => void }) {
+function Control({ actual, paginas, total, tam, nombre, onChange, subir = false }: { actual: number; paginas: number; total: number; tam: number; nombre: string; onChange: (n: number) => void; subir?: boolean }) {
   if (total <= tam) return null;
   return (
     <div className="flex justify-end">
-      <Paginacion actual={actual} paginas={paginas} total={total} tam={tam} navegacion="interna" onChange={onChange} cargando={false} nombre={nombre} />
+      <Paginacion actual={actual} paginas={paginas} total={total} tam={tam} navegacion="interna" onChange={onChange} cargando={false} nombre={nombre} subir={subir} />
     </div>
   );
 }
@@ -69,6 +69,7 @@ export function TablaPaginada({
   const vistas = useMemo(() => (buscar && q ? filas.filter((_, i) => coincide(indice[i], q)) : filas), [filas, indice, q, buscar]);
   const p = usePaginas(vistas.length, tam);
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
+  const controlAbajo = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} subir />;
   // Con un texto ya puesto, el buscador se ve siempre: si no, no habría cómo quitarlo.
   const barra = buscar && (filas.length > MIN_BUSCAR || consulta !== "") && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -89,7 +90,7 @@ export function TablaPaginada({
     </div>
   );
   return (
-    <div className="space-y-3">
+    <div data-paginado className="scroll-mt-20 space-y-3">
       {barra}
       {vistas.length === 0 && q ? (
         <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
@@ -97,7 +98,7 @@ export function TablaPaginada({
         <>
           {control}
           <Tabla columnas={columnas} filas={vistas.slice(p.desde, p.hasta)} etiqueta={etiqueta} densidad={densidad} medida={medida} className={className} />
-          {control}
+          {controlAbajo}
         </>
       )}
     </div>
@@ -123,8 +124,9 @@ export function ListaPaginada({
   const vistos = useMemo(() => (buscar && q ? items.filter((_, i) => coincide(indice[i], q)) : items), [items, indice, q, buscar]);
   const p = usePaginas(vistos.length, tam);
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistos.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
+  const controlAbajo = <Control actual={p.actual} paginas={p.paginas} total={vistos.length} tam={tam} nombre={nombre} onChange={p.setPagina} subir />;
   return (
-    <div className="space-y-3">
+    <div data-paginado className="scroll-mt-20 space-y-3">
       {buscar && items.length > MIN_BUSCAR && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Buscador
@@ -153,7 +155,7 @@ export function ListaPaginada({
               <li key={x.id}>{x.contenido}</li>
             ))}
           </ul>
-          {control}
+          {controlAbajo}
         </>
       )}
     </div>
@@ -244,10 +246,11 @@ export function TablaFiltrable({
   }, [filas, indice, q, elegidos, orden]);
   const p = usePaginas(vistas.length, tam);
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
+  const controlAbajo = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} subir />;
   const filtrando = !!q || Object.values(elegidos).some(Boolean);
   const conBarra = filas.length > MIN_BUSCAR || filtrando;
   return (
-    <div className="space-y-3">
+    <div data-paginado className="scroll-mt-20 space-y-3">
       {conBarra && (
         <div className="flex flex-wrap items-center gap-2">
           {buscar && (
@@ -327,7 +330,7 @@ export function TablaFiltrable({
         <>
           {control}
           <Tabla columnas={columnas} filas={vistas.slice(p.desde, p.hasta)} etiqueta={etiqueta} densidad={densidad} medida={medida} className={className} />
-          {control}
+          {controlAbajo}
         </>
       )}
     </div>

@@ -12,6 +12,7 @@ import {
   type Fila,
 } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
+import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { rutaEmpresa, type SociosEmpresa } from "@/lib/empresas";
@@ -111,7 +112,7 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
       ) : v.antecedentes ? (
         <span className="flex flex-wrap items-center gap-1 text-meta text-ink">
           {plural(v.antecedentes, "tipo", "tipos")}
-          {v.graves > 0 && <Badge variant="crimson">Alguno grave</Badge>}
+          {v.graves > 0 && <Severidad bandera="alta" />}
         </span>
       ) : (
         <span className="text-meta text-mute">Ninguno</span>
@@ -164,7 +165,7 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
               {
                 clave: "antecedentes", etiqueta: "Sus antecedentes", corta: "Antecedentes",
                 opciones: [
-                  { valor: "grave", etiqueta: "Con alguno grave" }, { valor: "con", etiqueta: "Con antecedentes, ninguno grave" },
+                  { valor: "grave", etiqueta: "Con alguno de señal alta" }, { valor: "con", etiqueta: "Con antecedentes, sin señal alta" },
                   { valor: "sin", etiqueta: "Sin antecedentes" }, { valor: "no_vende", etiqueta: "No le vende al Estado" },
                 ],
               },

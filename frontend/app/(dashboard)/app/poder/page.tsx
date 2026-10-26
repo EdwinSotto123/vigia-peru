@@ -1,166 +1,84 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Migas, Pagina, EncabezadoPagina, Ayuda } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
-import { Badge } from "@/components/ui/Badge";
-import { numero, solesCompacto } from "@/lib/formato";
-import { tituloNatural } from "@/lib/landing";
-import { getPoderPartidos, getPoderEntidades, getMapaInstituciones, getPoderTerritorio, getPoderDependencia, clavePartido } from "@/lib/poder";
 import { PoderVista } from "@/components/entidad/PoderVista";
-import { MapaInstituciones } from "@/components/entidad/MapaInstituciones";
-import { ExploradorTerritorio } from "@/components/entidad/ExploradorTerritorio";
-import { ExploradorDependencia } from "@/components/entidad/ExploradorDependencia";
+import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { parte, VISTAS_PODER } from "@/lib/grafo";
+import { getPoderPartidos } from "@/lib/poder";
+import { uno } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Mapa de poder",
   description: "Qué partido gobierna cada entidad y cuánta de su contratación fue a empresas ligadas a ese partido.",
 };
 
-// ISR como el resto de los listados: si no, la página queda estática del build (y el build, sin el binding
-// VIGIA_API_URL, pegaba al Cloud Run muerto y la dejaba en cero). Con revalidate se rearma en runtime con datos.
+// Los datos se cachean 10 minutos (`next.revalidate` en lib/poder); la página lee `?vista=`, así que se arma por pedido.
 export const revalidate = 600;
 
 /**
- * Mapa de poder: ranking de partidos por «captura» — de las entidades que gobiernan (municipios y gobiernos regionales,
- * periodo vigente, JNE), cuántos contratos ganaron empresas que les financiaron, les vendieron a su campaña o tienen un
- * socio contratado por la misma entidad. Son INDICIOS agregados para revisar, nunca una acusación.
+ * Mapa de poder: de las entidades que gobierna cada partido (alcaldías y gobiernos regionales, periodo vigente, JNE),
+ * cuántas tienen contratos ganados por empresas que le financiaron, le vendieron a la campaña o tienen un socio
+ * contratado por la misma entidad. Son INDICIOS agregados para revisar.
+ *
+ * El servidor pide sólo el ranking de partidos (la primera pestaña y las cifras de arriba); cada otra pestaña pide lo
+ * suyo al abrirse (components/entidad/PoderVista.tsx). Antes eran cinco consultas en cada visita.
  */
-export default async function PoderPage() {
-  const [r, re, m, t, dep] = await Promise.all([getPoderPartidos(), getPoderEntidades(), getMapaInstituciones(), getPoderTerritorio(), getPoderDependencia()]);
-  const todos = r?.data ?? [];
-  const partidos = todos.filter((p) => p.n_captura > 0).sort((a, b) => b.n_captura - a.n_captura);
-  const entidades = (re?.data ?? []).slice(0, 15);
-  const mapa = m ?? { ramas: { ministerios: [], organismos: [], regional: [], local: [] } };
-  const territorio = t?.nodos ?? [];
-  const dependencia = dep ?? { anio: new Date().getFullYear(), nodos: [] };
+export default async function PoderPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+  const vista = uno(searchParams?.vista);
+  const activa = vista && Object.keys(VISTAS_PODER).includes(vista) ? vista : undefined;
+  const r = await getPoderPartidos();
+  const partidos = r?.data ?? [];
 
-  const totEnt = partidos.reduce((s, p) => s + p.n_entidades, 0);
-  const totCap = partidos.reduce((s, p) => s + p.n_captura, 0);
-  const totEmp = partidos.reduce((s, p) => s + p.n_empresas, 0);
+  // Las cifras de arriba: la suma de entidades con indicio sobre las gobernadas (antes, «98 de 103 partidos tienen
+  // indicios», que no distinguía a nadie).
+  const gobernadas = partidos.reduce((s, p) => s + p.n_entidades, 0);
+  const conIndicio = partidos.reduce((s, p) => s + p.n_entidades_con_captura, 0);
+  const contratos = partidos.reduce((s, p) => s + p.n_captura, 0);
+  const monto = partidos.reduce((s, p) => s + p.monto_captura, 0);
   const cifras: Indicador[] = [
-    { valor: numero(partidos.length), etiqueta: "partidos con indicios", contexto: `de ${numero(todos.length)} que gobiernan alguna entidad hoy` },
-    { valor: numero(totEnt), etiqueta: "entidades que gobiernan", contexto: "municipios y gobiernos regionales, periodo vigente" },
-    { valor: numero(totCap), etiqueta: "contratos con indicio de captura", contexto: "ganados por empresas ligadas al partido que gobierna" },
-    { valor: numero(totEmp), etiqueta: "empresas involucradas", contexto: "para revisión; no prueban nada por sí solas" },
+    {
+      valor: `${numero(conIndicio)} de ${numero(gobernadas)}`,
+      etiqueta: "entidades con contratos con indicio",
+      contexto: `${porcentaje(parte(conIndicio, gobernadas) * 100)} de las alcaldías y gobiernos regionales que hoy gobierna algún partido`,
+    },
+    { valor: numero(contratos), etiqueta: "contratos con indicio", contexto: "ganados por empresas ligadas al partido que gobierna la entidad" },
+    { valor: solesCompacto(monto), etiqueta: "monto de esos contratos", contexto: "lo adjudicado a esas empresas (OECE)" },
   ];
 
   return (
     <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Mapa de poder" }]} />
+      <Migas
+        items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Mapa de poder", href: "/app/poder" }]}
+        pestanas={{ param: "vista", primera: "partidos", activa, etiquetas: VISTAS_PODER }}
+      />
       <EncabezadoPagina
         titulo="Mapa de poder"
-        bajada="Qué partido gobierna cada entidad y cuánta de su contratación fue a empresas ligadas a ese partido. Indicios para revisar, nunca una acusación."
+        bajada="Qué partido gobierna cada alcaldía y gobierno regional, y cuántos de sus contratos ganaron empresas ligadas a él."
         ayuda={
           <Ayuda titulo="¿Qué mide la «captura»?">
-            De las entidades que un partido gobierna hoy (alcaldías y gobiernos regionales, JNE), cuántos de sus contratos los
-            ganaron empresas que <b>le financiaron</b> la campaña, que <b>le vendieron</b> a la campaña, o que tienen un
-            <b> socio contratado por la misma entidad</b> (puerta giratoria). Son cruces de registros públicos: señalan dónde
-            mirar, no prueban corrupción.
+            <span className="block">
+              De las entidades que un partido gobierna hoy (alcaldías y gobiernos regionales, según el JNE), cuántos de sus
+              contratos los ganaron empresas que <b>le financiaron</b> la campaña, que <b>le vendieron</b> a la campaña o que
+              tienen un <b>socio contratado por la misma entidad</b>.
+            </span>
+            <span className="mt-1.5 block">Son cruces de registros públicos: señalan dónde mirar.</span>
           </Ayuda>
         }
       />
-      <Indicadores items={cifras} />
 
-      <PoderVista
-        dependencia={<ExploradorDependencia anio={dependencia.anio} nodos={dependencia.nodos} />}
-        territorio={<ExploradorTerritorio nodos={territorio} />}
-        instituciones={<MapaInstituciones datos={mapa} />}
-        lista={
-          <div className="space-y-6">
-          <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
-        <table className="w-full min-w-[720px] text-meta">
-          <thead>
-            <tr className="border-b border-line text-rotulo uppercase tracking-wide text-mute">
-              <th className="px-4 py-2.5 text-left font-semibold">Partido</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Entidades que gobierna</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Contratos con indicio</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Monto</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Empresas</th>
-              <th className="px-4 py-2.5 text-left font-semibold">Desglose</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line/70">
-            {partidos.map((p) => (
-              <tr key={p.partido} className="transition-colors duration-rapido hover:bg-paperSoft">
-                <td className="px-4 py-2.5">
-                  <Link href={`/app/poder/${clavePartido(p.partido)}`} className="font-semibold text-ink hover:text-granate hover:underline underline-offset-2">
-                    {p.partido}
-                  </Link>
-                  <span className="block text-rotulo text-mute">{numero(p.n_departamentos)} {p.n_departamentos === 1 ? "departamento" : "departamentos"}</span>
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums">
-                  <span className="text-ink">{numero(p.n_entidades)}</span>
-                  <span className="block text-rotulo text-mute">{numero(p.n_entidades_con_captura)} con indicio</span>
-                </td>
-                <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{numero(p.n_captura)}</td>
-                <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{solesCompacto(p.monto_captura)}</td>
-                <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{numero(p.n_empresas)}</td>
-                <td className="px-4 py-2.5">
-                  <span className="flex flex-wrap gap-1">
-                    {p.n_financiaron > 0 && <Badge variant="crimson">{numero(p.n_financiaron)} le financiaron</Badge>}
-                    {p.n_vendieron > 0 && <Badge variant="amber">{numero(p.n_vendieron)} vendieron a su campaña</Badge>}
-                    {p.n_socio > 0 && <Badge variant="amber">{numero(p.n_socio)} socio en la entidad</Badge>}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {entidades.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-seccion font-semibold text-ink">Entidades más capturadas</h2>
-          <p className="text-meta leading-relaxed text-inkSoft">
-            Las 15 entidades donde más contratos ganaron empresas ligadas al partido que las gobierna: baja del partido al
-            municipio o gobierno regional concreto. Toca una entidad para ver su ficha.
-          </p>
-          <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
-            <table className="w-full min-w-[720px] text-meta">
-              <thead>
-                <tr className="border-b border-line text-rotulo uppercase tracking-wide text-mute">
-                  <th className="px-4 py-2.5 text-left font-semibold">Entidad</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">La gobierna</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Contratos con indicio</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Monto</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">Desglose</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/70">
-                {entidades.map((e) => (
-                  <tr key={e.entidad_ruc} className="transition-colors duration-rapido hover:bg-paperSoft">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/entidad/${e.entidad_ruc}`} className="font-semibold text-ink hover:text-granate hover:underline underline-offset-2">
-                        {tituloNatural(e.entidad)}
-                      </Link>
-                      <span className="block text-rotulo text-mute">{[e.distrito, e.provincia, e.departamento].filter(Boolean).map((x) => tituloNatural(String(x))).join(", ")}</span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Link href={`/app/poder/${clavePartido(e.partido)}`} className="text-inkSoft hover:text-granate hover:underline underline-offset-2">{tituloNatural(e.partido)}</Link>
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{numero(e.n_captura)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-ink">{solesCompacto(e.monto_captura)}</td>
-                    <td className="px-4 py-2.5">
-                      <span className="flex flex-wrap gap-1">
-                        {e.n_financiaron > 0 && <Badge variant="crimson">{numero(e.n_financiaron)} le financiaron</Badge>}
-                        {e.n_vendieron > 0 && <Badge variant="amber">{numero(e.n_vendieron)} vendieron a su campaña</Badge>}
-                        {e.n_socio > 0 && <Badge variant="amber">{numero(e.n_socio)} socio adentro</Badge>}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      {r ? (
+        <>
+          <Indicadores items={cifras} />
+          <PoderVista partidos={partidos} activa={activa} entidadesConIndicio={conIndicio} />
+        </>
+      ) : (
+        <EstadoError titulo="No pudimos leer el mapa de poder">Suele ser momentáneo. Vuelve a cargar la página en unos segundos.</EstadoError>
       )}
-          </div>
-        }
-      />
 
-      <p className="text-rotulo leading-relaxed text-mute">
-        Fuente: JNE (quién gobierna cada entidad), ONPE (aportes y gastos de campaña), RNP/SEACE (socios y contratos). Cada
-        indicio es un cruce de registros públicos para revisión humana; no es una acusación ni una condena.
-      </p>
+      <Nota>
+        Fuentes: JNE (quién gobierna cada entidad), ONPE (aportes y gastos de campaña), RNP y SEACE (socios y contratos). Cada
+        indicio es un cruce de registros públicos para revisar: no es una acusación.
+      </Nota>
     </Pagina>
   );
 }

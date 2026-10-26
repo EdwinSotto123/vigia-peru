@@ -28,7 +28,8 @@ const COLUMNAS_ORDENES: Columna[] = [
   { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
   { clave: "orden", titulo: "Orden", ancho: "minmax(0,1.8fr)" },
   { clave: "estado", titulo: "Estado y banderas", ancho: "minmax(0,0.7fr)", desde: "lg", apilar: true },
-  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der" },
+  // En el celular el monto va bajo la descripción, con su nombre (como en Contratos): en su columna le quitaba el ancho.
+  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
 /** Los filtros de sus órdenes, con su conteo: año, entidad y tipo a la vista; región, estado y posible error, detrás. */
