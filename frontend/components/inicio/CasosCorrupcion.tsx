@@ -12,6 +12,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { limpiarObjeto } from "@/components/contratos/recortar";
 import { BloqueInicio, SinDato } from "./BloquesInicio";
 
 /**
@@ -203,7 +204,7 @@ function filaInforme(i: InformeControl): Fila {
       numero: <span className="font-mono text-meta text-inkSoft">{i.numero}</span>,
       asunto: (
         <CeldaPrincipal
-          titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"}
+          titulo={i.titulo ? tituloNatural(limpiarObjeto(i.titulo)) : "Sin asunto registrado"}
           dosLineas
           meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
         />
