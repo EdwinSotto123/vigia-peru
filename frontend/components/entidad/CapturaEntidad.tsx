@@ -166,7 +166,7 @@ export function EmpresasLigadas({
           <span className="mt-2 block">Sólo empresas (RUC 20): de las personas naturales no se publica el lazo.</span>
         </Ayuda>
       }
-      enlace={{ href: href({ cruce: CRUCE_CAPTURA }), texto: `Ver sus ${numero(poder.n_captura)} contratos` }}
+      enlace={{ href: href({ cruce: CRUCE_CAPTURA, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) }), texto: `Ver sus ${numero(poder.n_captura)} contratos` }}
     >
       <div className="space-y-4">
         <DatosClave
@@ -181,7 +181,8 @@ export function EmpresasLigadas({
                   items={TIPOS_CAPTURA.map((t) => ({
                     etiqueta: TIPO_CRUCE[t]?.corto ?? t,
                     n: t === "partido_gobernante" ? poder.n_financiaron : t === "vendio_gobernante" ? poder.n_vendieron : poder.n_socio,
-                    href: href({ cruces: t }),
+                    // Del mismo periodo que su conteo (migración 140), como la fila de las banderas.
+                    href: href({ cruces: t, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) }),
                   }))}
                 />
               ),

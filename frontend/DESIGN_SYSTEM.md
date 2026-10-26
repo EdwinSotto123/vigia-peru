@@ -539,7 +539,7 @@ y la prosa del dictamen. `Ayuda` lleva texto o `<span className="block">`, nunca
 | `Badge` | `variant`: `marca` · `amber` · `crimson` · `ink` · `neutral`. Etiqueta, no severidad |
 | `Severidad` | la severidad de una señal: `score` o `bandera`; `formato` `pastilla` · `linea` · `punto`; siempre color + ícono + palabra |
 | `Cifras` | fila de cifras comparables con su contexto |
-| `Paginacion` | "Mostrando X–Y de Z" + páginas; por enlaces (`href`) o por estado (`onChange`) |
+| `Paginacion` | "Mostrando X–Y de Z" + páginas; por enlaces (`href`) o por estado (`onChange`); `subir` en el de abajo |
 | `Panel` | `<dialog>` nativo; `posicion` `lateral` · `centro` · `hoja` (desde abajo en el celular) |
 | `Revelar` | un disparador que abre un `Panel` con `detalle` ya armado (ReactNode, nunca una función) |
 | `Tooltip` / `Popover` | (`Flotante.tsx`) ayuda breve; nunca la única vía a un dato |
@@ -579,6 +579,8 @@ error en línea, `autocomplete`/`inputMode`), `Pestanas` (`role="tablist"`, flec
 - Sin notas internas ("todavía no se lee", "en construcción"): si algo no funciona, no se muestra como si funcionara, y tampoco se explica la cocina.
 - Botones con verbo específico: "Financiar la lectura de Lima", no "Continuar".
 - Errores con salida: qué pasó + qué hacer.
+- **Tuteo, nunca voseo** («Toca», no «Tocá»; «Prueba», no «Probá»): la guardia (`scripts/auditar-estilo.mjs`, regla
+  `voseo`) no deja que vuelva.
 - **Sin "·" como separador**, nunca, en ningún texto visible (tampoco en `title`, `aria-label` ni imágenes para compartir). Dos datos seguidos se separan con layout (`flex gap-x-3`, cada uno en su `span`), con una coma o "y" si se leen como frase, o en dos líneas. Un conteo junto a su rótulo va en su pastilla ("En espera" + `47`), no "En espera · 47".
 - **Sin texto de relleno**: cada frase responde algo que quien lee se pregunta. "Siempre en el mismo orden" no le cambia nada a nadie; qué se revisa, sí. Si el dato se puede dibujar (cajitas, barra, pastilla con número), se dibuja en vez de narrarlo.
 - **El alcance de una vista va como filtro, no como texto**: si la región o el periodo se pueden elegir, se ven en su chip o selector; no se repite "Todo el Perú, desde el inicio" en plano encima del dato.
@@ -656,6 +658,20 @@ para lo largo y secundario. `Paginacion` acepta `paramPagina`. Reglas:
 - **Si el kit no alcanza, se amplía el kit** (con un caso concreto), nunca se copia una
   variante en la página: así llegaron `apilar`, `grupos`, `externo`, `Volver` y
   `Seccion plegable`.
+- **Ampliaciones del 2026-10-26** (auditoría de Impeccable, `docs/auditoria-ui/UX_2026-10-26.md`):
+  - El `detalle` de las filas de una tabla comparte UN panel (`listado/DetalleFilas.tsx`): en escritorio queda
+    **anclado y no modal** a la derecha (la lista sigue a la vista y se toca otra fila sin cerrar), con anterior/siguiente
+    («3 de 25», Alt+↑/↓) y Escape; en el celular, la hoja de siempre. `detalle.ficha` = **vista previa**: el pie lleva
+    «Abrir la ficha». El `id` de la fila va al DOM (`data-fila`): nunca un dato personal.
+  - `apilar: "con-rotulo"` + `corto`: en el celular la celda se apila CON su nombre («Valor S/ 1.2 M»), y lo apilado va en
+    una sola línea. Monto y fecha no desaparecen.
+  - `BarraFiltros`: un `visible` de una sola opción es un chip conmutador; un desplegable elegido dice «Etiqueta: valor»;
+    en el celular los desplegables visibles pasan dentro de «Filtros (n)»; `seccion` agrupa los de «Filtros».
+  - `Paginacion`/`PaginacionCursor`: 44 px táctiles en el celular, miles con separador; `subir` en el de ABAJO lleva al
+    inicio de los resultados (`#resultados` de `ZonaResultados`).
+  - `CrucesCelda`: banderas en UNA línea (las más graves, hasta 2 y «+n»), con ícono de severidad; el chip usa el
+    nombre breve `chip` del catálogo (`lib/cruces.ts`, uno por tipo) y el completo va en el title. «Sin ganador aún» ≠
+    «Sin antecedentes».
 
 ### 14.2 Ficha
 
@@ -669,6 +685,16 @@ Pagina
    └─ columna lateral (lg)   datos de proceso, enlaces, "cómo se hizo"
 ```
 
+El Inicio de una ficha institucional (entidad; molde para partido y región) se ordena en **subsecciones** y no en una
+pared de tarjetas iguales (`inicio/BloquesInicio.tsx`): `SubseccionInicio` (h2 + una línea + ⓘ) «Qué se encontró»
+(las banderas, una fila por tipo con su lista filtrada), «Dinero» y «Control»; la columna lateral (desde xl) dice quién
+gobierna y quién aprueba los contratos; lo que no tiene dato va al final en `LineasSinDato`, una línea cada uno.
+
+**Una caja por bloque.** `.tarjeta` marca la caja de primer nivel (`BloqueInicio`, `TarjetaDatos`, `Seccion plegable`,
+`GrafoSeccion`): dentro de ella `DatosClave`, `ListaConteos`, `CifrasEnFila` y `Tabla` van sin marco propio (divisores
+y aire). El tinte y el filete de color de la intención sólo los lleva la caja de primer nivel (`globals.css`). Nunca una
+caja con borde dentro de otra.
+
 ### 14.3 Pestañas dentro de una página
 
 Cuando una página junta 3 o más secciones largas (el perfil de un aliado, una ficha de
@@ -678,7 +704,12 @@ contrato, "Mi impacto"), **no se apilan**: van en `Pestanas` (`@/components/patr
   entiende en una pantalla (Indicadores + lo más importante).
 - La pestaña va a la URL (`?seccion=`) sin recargar: el enlace comparte esa vista.
 - El contenido de todas llega del servidor; cambiar es instantáneo.
-- En el celular la barra es una sola fila que se desliza.
+- La barra es una **franja con superficie** (no texto gris sobre el fondo) y, en las fichas, **fija** al bajar (`fija`).
+  Si no entra, se difumina en el borde y aparecen flechas; la activa siempre a la vista. En el celular, una sola fila que
+  se desliza.
+- Pestañas dentro de una pestaña: `variante="segunda"` (píldora chica), para que no se confundan con la de la ficha.
+- Cada panel abre con `CabeceraPestana`: su **h2** es el nombre de la pestaña (o `titulo`), con una línea de qué muestra,
+  la ⓘ y las acciones. Nada de una caja de texto sin título.
 
 ### 14.4 Contenido de un panel lateral
 
