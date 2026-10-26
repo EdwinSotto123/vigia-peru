@@ -35,10 +35,10 @@ export function SenalesPorEntidad({ entidades, codigo }: { entidades: EntidadDeP
   }
   const propias = (e: EntidadDePersona) => e.senalesDetalle.filter((s) => !repetida(s));
   return (
-    <div className="space-y-5">
+    <div className={con.length > 1 ? "gap-6 lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start" : "space-y-5"}>
       {con.length > 1 && (
-        <nav aria-label="Entidades con señales" className="rounded-2xl border border-line bg-paper p-4">
-          <p className="mb-2 text-dato font-semibold text-ink">Tiene señales en {numero(con.length)} entidades</p>
+        <nav aria-label="Entidades con señales" className="mb-5 rounded-2xl border border-line bg-paper p-4 lg:sticky lg:top-24 lg:mb-0">
+          <p className="mb-2 text-rotulo font-semibold uppercase tracking-wide text-mute">Señales en {numero(con.length)} entidades</p>
           <ol className="space-y-1.5">
             {con.map((e, i) => {
               const graves = e.senalesDetalle.filter((s) => s.severidad === "alta").length;
@@ -58,6 +58,7 @@ export function SenalesPorEntidad({ entidades, codigo }: { entidades: EntidadDeP
           </ol>
         </nav>
       )}
+      <div className="min-w-0 space-y-5">
       {comunes.length > 0 && (
         <section className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
           <header className="space-y-0.5">
@@ -101,6 +102,7 @@ export function SenalesPorEntidad({ entidades, codigo }: { entidades: EntidadDeP
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

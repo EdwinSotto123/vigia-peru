@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
 
@@ -166,12 +167,16 @@ export function Pestanas({
 /** La primera línea de una pestaña: qué muestra (una oración, ⓘ) y su acción, a la derecha. */
 export function CabeceraPestana({ children, ayuda, acciones }: { children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <p className="inline-flex items-center gap-1 text-dato text-inkSoft">
-        {children}
-        {ayuda}
-      </p>
-      {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      {children && (
+        <p className="flex min-w-0 flex-1 items-start gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-dato leading-relaxed text-inkSoft">
+          <Info size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+          <span className="min-w-0">
+            {children} {ayuda}
+          </span>
+        </p>
+      )}
+      {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
     </div>
   );
 }
