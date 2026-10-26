@@ -355,28 +355,43 @@ async function BarraProcesos({ pagina, d, ubigeo }: { pagina: Promise<ProcesosPa
 
 /** Búsqueda, las tres preguntas de Vigía (como en /app/contratos) y nivel, región y objeto; el gobierno, si viene. */
 function BarraDeProcesos({ d, facetas, ubigeo }: { d: DetallePartido; facetas: ProcesosPartido["facetas"] | null; ubigeo?: string }) {
+  const gobierno = filtroGobierno(d, ubigeo);
   return (
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus contratos", min: 3 }}
       visibles={[...filtrosVisibles(facetas ?? null), ...visibles(d)]}
-      filtros={ubigeo ? [filtroGobierno(d, ubigeo)] : []}
+      filtros={gobierno ? [gobierno] : []}
       orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
     />
   );
 }
 
 /**
- * El gobierno elegido en su panel (pestaña Gobiernos → «Ver sus contratos»): va como filtro sólo si viene en la URL, para
- * que la lista diga por qué es la que es y se quite con su ×.
+ * Uno de sus gobiernos, en «Filtros»: con muchos (un partido grande tiene cientos) se escribe y se elige. También es el
+ * que llega del panel de la pestaña Gobiernos («Ver sus contratos»), para que la lista diga por qué es la que es y se
+ * quite con su ×. Los homónimos (hay muchos distritos «San Juan») llevan su provincia (o su región) y, si aún se repiten,
+ * su ubigeo: la opción se elige por su nombre y dos iguales filtrarían el equivocado.
  */
-function filtroGobierno(d: DetallePartido, ubigeo: string): FiltroSecundario {
-  const g = (d.gobiernos ?? []).find((x) => x.ubigeo === ubigeo);
-  return {
-    param: "ubigeo",
-    etiqueta: "Gobierno",
-    todas: "Todos sus gobiernos",
-    opciones: [{ valor: ubigeo, etiqueta: g ? `${NIVEL[g.nivel]} de ${g.lugar ?? ubigeo}` : `Ubigeo ${ubigeo}`, conteo: g ? g.procesos : null }],
+function filtroGobierno(d: DetallePartido, ubigeo?: string): FiltroSecundario | null {
+  const gobiernos = (d.gobiernos ?? []).filter((x) => x.procesos > 0 || x.ubigeo === ubigeo);
+  const base = (g: (typeof gobiernos)[number]) => `${NIVEL[g.nivel]} de ${g.lugar ?? g.ubigeo}`;
+  const repetidos = (nombres: string[]) => {
+    const veces = new Map<string, number>();
+    for (const n of nombres) veces.set(n, (veces.get(n) ?? 0) + 1);
+    return (n: string) => (veces.get(n) ?? 0) > 1;
   };
+  const conLugar = (g: (typeof gobiernos)[number]) => `${base(g)} (${(g.nivel === "distrital" ? g.provincia : null) ?? g.region ?? g.ubigeo})`;
+  const r1 = repetidos(gobiernos.map(base));
+  const r2 = repetidos(gobiernos.map((g) => (r1(base(g)) ? conLugar(g) : base(g))));
+  const opciones: FiltroSecundario["opciones"] = gobiernos
+    .map((g) => {
+      const nombre = r1(base(g)) ? conLugar(g) : base(g);
+      return { valor: g.ubigeo, etiqueta: r2(nombre) ? `${base(g)} (${[g.provincia ?? g.region, g.ubigeo].filter(Boolean).join(", ")})` : nombre, conteo: g.procesos };
+    })
+    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+  if (ubigeo && !opciones.some((o) => o.valor === ubigeo)) opciones.unshift({ valor: ubigeo, etiqueta: `Ubigeo ${ubigeo}`, conteo: null });
+  if (opciones.length < 2 && !ubigeo) return null;
+  return { param: "ubigeo", etiqueta: "Gobierno", todas: "Todos sus gobiernos", buscable: opciones.length > 12, opciones };
 }
 
 const COLUMNAS_SKELETON: Columna[] = [

@@ -6,7 +6,7 @@ import { EnRevision, EnRevisionSkeleton, indicadoresRevision } from "@/component
 import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { getResumenProcesamientos } from "@/lib/auditoria";
-import { numero, porcentaje, relativo } from "@/lib/formato";
+import { numero, plural, porcentaje, relativo } from "@/lib/formato";
 import { SEVERIDAD } from "@/lib/severidad";
 import {
   MAX_ATRAS,
@@ -326,7 +326,7 @@ async function ResultadosPublicadas({ query, pagina: paginaP }: { query: Senales
       ? `0 de ${numero(total)}`
       : tramoConocido
         ? `${numero(desde)}–${numero(desde + senales.length - 1)} de ${numero(total)}`
-        : `${numero(senales.length)} de ${numero(total)}`;
+        : `${plural(senales.length, "señal", "señales")} de ${numero(total)}`;
   const anterior = !query.cursor
     ? null
     : query.atras.length

@@ -193,11 +193,11 @@ export function TablaContratos({
   let pag: (subir: boolean) => React.ReactNode;
   if (porCursor) {
     // Primera página: se sabe el rango ("1–50 de 18,393"). Después, sólo cuántos se ven
-    // de cuántos: con un cursor no hay número de página que decir.
+    // de cuántos ("50 contratos de 18,393"; un "50 de 18,393" a secas se leía como el n.º 50):
+    // con un cursor no hay número de página que decir.
     // Por la URL, no por la respuesta: con cursor el API puede no mandar `page`.
     const primera = !cursor && !antes && actual <= 1;
-    const cuantos = numero(data.length);
-    const texto = `${primera ? `1–${cuantos}` : cuantos} de ${totalContratosTexto(pagina)}`;
+    const texto = `${primera ? `1–${numero(data.length)}` : plural(data.length, "contrato", "contratos")} de ${totalContratosTexto(pagina)}`;
     pag = (subir) => (
       <PaginacionCursor
         texto={texto}
