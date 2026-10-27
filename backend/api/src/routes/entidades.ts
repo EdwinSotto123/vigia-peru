@@ -890,7 +890,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas, nep, ban] = await Promise.all([
+  const [ent, mef, alertas, nep, ban, gente] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (EN_COLA).
       ? `SELECT e.*,
@@ -974,6 +974,16 @@ entidadesRouter.get("/:ruc", async (c) => {
     // columnas que la lista, por la llave de la entidad. Si falla, la ficha sale sin ellas (no sin la ficha).
     pool.query(`SELECT ${COLS_LISTA_ENTIDAD} FROM (SELECT $1::char(11) AS ruc) pag ${JOINS_LISTA_ENTIDAD}`, [ruc])
       .catch((e) => { console.warn(`[entidades] banderas de ${ruc}: ${(e as Error).message}`); return null; }),
+    // Las señales de su gente que no están en la lista (migración 179), para sus banderas: locadores con órdenes al borde
+    // del tope o con un pariente en otra entidad del mismo gobierno; en su planilla, quienes cobran también en otra
+    // entidad y los socios de una empresa que le vende. Por la llave de la entidad; sin ellas, la ficha sale igual.
+    pool.query<{ alBorde: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number }>(
+      `SELECT (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'al_borde_del_tope' = ANY(pe.tipos))::int AS "alBorde",
+              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'nepotismo_gobierno' = ANY(pe.tipos))::int AS "nepotismoGobierno",
+              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'doble_planilla' = ANY(p.tipos))::int AS "doblePlanilla",
+              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor"`,
+      [ruc],
+    ).catch((e) => { console.warn(`[entidades] señales de su gente en ${ruc}: ${(e as Error).message}`); return null; }),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -1009,6 +1019,7 @@ entidadesRouter.get("/:ruc", async (c) => {
       }
     : null;
   const b = ban?.rows[0];
+  const g = gente?.rows[0];
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json({
     entidad,
@@ -1022,6 +1033,7 @@ entidadesRouter.get("/:ruc", async (c) => {
           captura: b.captura ?? 0, capturaPartido: b.capturaPartido ?? null, capturaDesde: b.capturaDesde ?? null, capturaHasta: b.capturaHasta ?? null,
           planillaAlta: b.planillaAlta ?? 0, plazasSenales: b.plazasSenales ?? 0,
           financioLocadores: b.financioLocadores ?? 0, financioPlanilla: b.financioPlanilla ?? 0, financioPartido: b.financioPartido ?? null,
+          ...(g ? { alBorde: g.alBorde, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor } : {}),
         }
       : null,
   });

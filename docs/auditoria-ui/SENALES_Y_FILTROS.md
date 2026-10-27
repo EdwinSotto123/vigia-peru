@@ -52,7 +52,7 @@ antecedentes (sección 1). En `empresas`: capital social, RNP vigente.
 - **A**: tambien_ordenes, candidato_gobierna, pariente_locador (declaró en su DJI a un pariente que es locador de su
   entidad, 179; el pariente nunca se muestra). **A/M**: financio_campana y aporte_gobierna (177), socio_proveedor (socio,
   representante o directivo en el RNP de una empresa que le vende a su entidad: alta si le vendió estando él en la
-  planilla, 179), doble_planilla (179, abajo). **M**: brecha_cargo, apellidos_directivo. **M/B**: apellidos_autoridad.
+  planilla y el nombre es poco ambiguo; sin apellidos muy comunes, 179), doble_planilla (179, abajo). **M**: brecha_cargo, apellidos_directivo. **M/B**: apellidos_autoridad.
 - **B**: antes_locador, pago_extraordinario, es_autoridad.
 - doble_planilla: el mismo nombre con sueldo en dos entidades del mismo departamento, dos meses o más. Por nombre (la
   planilla no trae DNI), así que se sacan los apellidos muy comunes (más de 30 personas con los dos mismos) y lo que no

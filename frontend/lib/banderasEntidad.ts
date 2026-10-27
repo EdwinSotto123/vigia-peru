@@ -69,6 +69,43 @@ export function banderasEntidad(
       href: `${ficha}?seccion=planilla&lsev=alta`,
     });
   }
+  // Las señales de su gente de la migración 179 (sólo la ficha las trae): cada una lleva a sus casos.
+  if ((s.socioProveedor ?? 0) > 0) {
+    const n = s.socioProveedor!;
+    out.push({
+      tipo: "socio_proveedor", severidad: "alta", chip: "Socios de sus proveedores", n,
+      titulo: `${plural(n, "persona de su planilla es socia", "personas de su planilla son socias")} o ${n === 1 ? "representante" : "representantes"} de una empresa que le vende`,
+      explica: "Según el RNP son socios, representantes o directivos de una empresa que le vendió a la entidad (órdenes o contratos). Coincide por el nombre completo, que en el RNP es de una sola persona. Es un conflicto de interés a revisar.",
+      href: `${ficha}?seccion=planilla&lsenal=socio_proveedor`,
+    });
+  }
+  if ((s.doblePlanilla ?? 0) > 0) {
+    const n = s.doblePlanilla!;
+    out.push({
+      tipo: "doble_planilla", severidad: "media", chip: "En dos planillas", n,
+      titulo: `${plural(n, "persona de su planilla cobra", "personas de su planilla cobran")} también en otra entidad del departamento`,
+      explica: "El mismo nombre completo con sueldo en otra planilla del Estado los mismos meses, sin contar la docencia, el residentado ni las demás excepciones. Puede ser un homónimo: es un dato para revisar.",
+      href: `${ficha}?seccion=planilla&lsenal=doble_planilla`,
+    });
+  }
+  if ((s.alBorde ?? 0) > 0) {
+    const n = s.alBorde!;
+    out.push({
+      tipo: "al_borde_del_tope", severidad: "media", chip: "Órdenes al borde del tope", n,
+      titulo: `${plural(n, "locador recibe", "locadores reciben")} casi siempre órdenes justo debajo del tope`,
+      explica: "La mitad o más de sus órdenes quedaron entre el 95 % y el 100 % del tope de su año, el monto desde el cual la entidad debe hacer un proceso de selección.",
+      href: `${ficha}?seccion=personas&psenal=al_borde_del_tope`,
+    });
+  }
+  if ((s.nepotismoGobierno ?? 0) > 0) {
+    const n = s.nepotismoGobierno!;
+    out.push({
+      tipo: "nepotismo_gobierno", severidad: "media", chip: "Parientes en el mismo gobierno", n,
+      titulo: `${plural(n, "locador fue declarado", "locadores fueron declarados")} como pariente por un funcionario de otra entidad del mismo gobierno`,
+      explica: "Un funcionario de otra entidad del mismo gobierno (el gobierno regional y sus UGEL u hospitales, o la municipalidad y sus organismos) lo declaró como pariente en su Declaración Jurada de Intereses. Es un indicio para revisar.",
+      href: `${ficha}?seccion=personas&psenal=nepotismo_gobierno`,
+    });
+  }
   if (inf.penal > 0) {
     out.push({
       tipo: "penal", severidad: "media", chip: "Resp. penal presunta", n: inf.penal,

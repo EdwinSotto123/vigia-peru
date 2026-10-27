@@ -196,7 +196,7 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     corto: "Socio de un proveedor",
     titulo: "Es socio o representante de una empresa que le vende a su entidad",
     explica:
-      "Según el RNP es socio, representante o directivo de una empresa que le vendió a la misma entidad donde trabaja (órdenes o contratos). Es un conflicto de interés a revisar: quien trabaja en la entidad no debe intervenir en las compras a su empresa. Coincide por el nombre completo, que en el RNP es de una sola persona.",
+      "Según el RNP es socio, representante o directivo de una empresa que le vendió a la misma entidad donde trabaja (órdenes o contratos). Es un conflicto de interés a revisar: quien trabaja en la entidad no debe intervenir en las compras a su empresa. Coincide por el nombre completo (la planilla no publica el DNI), que en el RNP es de una sola persona y cuyos apellidos no son de los más comunes.",
   },
   financio_campana: {
     corto: "Financió la campaña del que gobierna",

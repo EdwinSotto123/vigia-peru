@@ -106,6 +106,12 @@ export interface ApiEntidad {
     financioLocadores?: number;
     financioPlanilla?: number;
     financioPartido?: string | null;
+    /** Sólo en la ficha (migración 179): locadores con órdenes al borde del tope o con un pariente en el mismo gobierno,
+     *  y personas de su planilla que cobran también en otra entidad o son socias de una empresa que le vende. */
+    alBorde?: number;
+    nepotismoGobierno?: number;
+    doblePlanilla?: number;
+    socioProveedor?: number;
   };
 }
 

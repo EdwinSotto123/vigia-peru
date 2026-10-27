@@ -52,8 +52,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "43": señales de la migración 179 (doble planilla, socio de un proveedor, pariente locador, nepotismo en el mismo
  *        gobierno, al borde del tope); /ordenes trae `senalesPersona`, `alBorde` y `personaCodigo` y filtra por los
  *        antecedentes de la persona y la inhabilitación; /contratos/resumen trae `porObra` (el filtro «La obra»).
+ * "44": /entidades/:ruc trae en `senales` las de su gente de la migración 179 (alBorde, nepotismoGobierno,
+ *        doblePlanilla, socioProveedor) para sus banderas; socio_proveedor sin apellidos muy comunes.
  */
-const VERSION_CACHE = "43";
+const VERSION_CACHE = "44";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

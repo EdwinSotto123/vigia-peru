@@ -8,8 +8,9 @@
 --     los Jurados Electorales Especiales, gerentes públicos de SERVIR y el mismo puesto declarado por un pliego y por su
 --     unidad ejecutora (el MINSA y su DIRIS). Es por nombre (la planilla no trae DNI): fuera los apellidos muy comunes (más
 --     de 30 personas con los mismos dos apellidos); alta sólo con apellidos poco comunes (10 o menos) y tres meses o más.
---   · socio_proveedor (planilla, alta): trabaja en la entidad y es socio, representante o directivo (RNP) de una empresa
---     que le vende a esa misma entidad. Por nombre (la planilla no trae DNI), sólo si el nombre es de una sola persona en
+--   · socio_proveedor (planilla, alta o media): trabaja en la entidad y es socio, representante o directivo (RNP) de una
+--     empresa que le vende a esa misma entidad (alta si le vendió estando él en la planilla y el nombre es poco ambiguo;
+--     fuera los apellidos muy comunes). Por nombre (la planilla no trae DNI), sólo si el nombre es de una sola persona en
 --     el RNP. 1,362 personas.
 --   · pariente_locador (planilla, alta): declaró en su DJI a un pariente que es locador de su misma entidad. Ya se veía en
 --     la fila (dji_nepotismo), pero fuera del sistema de señales: «Con señal alta» no lo contaba.
@@ -220,12 +221,17 @@ BEGIN
      WHERE p.nombre_norm ~ '^\S+ \S+ \S+'
      GROUP BY p.entidad_ruc, p.nombre_norm, p.primer_mes, r.ruc)
   SELECT pe.entidad_ruc, pe.nombre_norm, 'socio_proveedor',
-         -- Alta si le vendió mientras la persona estaba en la planilla (su primer año en ella o después); media si fue antes.
-         CASE WHEN max(pe.hasta) >= extract(year FROM min(pe.primer_mes)) THEN 'alta' ELSE 'media' END,
+         -- Alta si le vendió mientras la persona estaba en la planilla (su primer año en ella o después) y el nombre es
+         -- poco ambiguo (cuatro palabras o más, o apellidos de 10 personas o menos); si no, media.
+         CASE WHEN max(pe.hasta) >= extract(year FROM min(pe.primer_mes)) AND (pe.nombre_norm ~ '^\S+ \S+ \S+ \S+' OR max(ap.f) <= 10)
+              THEN 'alta' ELSE 'media' END,
          jsonb_build_object('empresas', jsonb_agg(jsonb_build_object('ruc', pe.ruc, 'nombre', er.nombre, 'rol', pe.rol,
                                                                      'monto', pe.monto, 'desde', pe.desde, 'hasta', pe.hasta) ORDER BY pe.monto DESC NULLS LAST),
                             'monto', sum(pe.monto), 'primer_mes', min(pe.primer_mes))
     FROM pe LEFT JOIN empresa_resumen er ON er.ruc = pe.ruc
+    -- Fuera los apellidos muy comunes (más de 30 personas con los mismos dos en las planillas), como en doble_planilla:
+    -- ahí, un nombre único en el RNP todavía puede ser de otra persona en la planilla (59 de 1,362 en producción).
+    JOIN _xap ap ON ap.par = split_part(pe.nombre_norm, ' ', 1) || ' ' || split_part(pe.nombre_norm, ' ', 2) AND ap.f <= 30
    GROUP BY pe.entidad_ruc, pe.nombre_norm;
   RAISE NOTICE 'senales extra: socio de un proveedor (% s)', round(extract(epoch FROM clock_timestamp() - t0));
 
