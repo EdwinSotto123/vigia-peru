@@ -158,11 +158,14 @@ export const escaparLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
  * para lecturas acotadas a una ficha; el plazo del rol sigue protegiendo todo lo demás.
  */
 export async function consultaConPlazo<T extends pg.QueryResultRow = any>(sql: string, vals: unknown[], plazoMs = 20_000): Promise<pg.QueryResult<T>> {
+  const plazo = Math.max(1_000, Math.min(60_000, Math.round(plazoMs)));
   const cliente = await pool.connect();
   try {
     await cliente.query("BEGIN READ ONLY");
-    await cliente.query(`SET LOCAL statement_timeout = ${Math.max(1_000, Math.min(60_000, Math.round(plazoMs)))}`);
-    const r = await cliente.query<T>(sql, vals);
+    await cliente.query(`SET LOCAL statement_timeout = ${plazo}`);
+    // El `query_timeout` del pool (12 s: el del rol más 2) cortaba la espera del lado del cliente antes que este plazo
+    // («Query read timeout» a los ~19 s con la conexión): esta sentencia lleva el suyo, un poco más que el de la base.
+    const r = await cliente.query<T>({ text: sql, values: vals, query_timeout: plazo + 2_000 } as pg.QueryConfig);
     await cliente.query("COMMIT");
     return r;
   } catch (e) {
