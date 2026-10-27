@@ -15,8 +15,7 @@ import {
   type FiltrosPersonas,
   type PaginaPersonas,
   type ParamsPersonas,
-  type ResumenPersonas,
-} from "@/lib/personas";
+  type ResumenPersonas, GRUPO_SENAL, GRUPOS_SENAL } from "@/lib/personas";
 import { TablaPersonas, TablaPersonasSkeleton } from "./TablaPersonas";
 
 const TAM = 20;
@@ -181,7 +180,10 @@ function Barra({
       etiqueta: "Señal",
       corta: "Señal",
       todas: "Toda señal",
-      opciones: (r?.porSenal ?? []).map((s) => ({ valor: s.tipo, etiqueta: SENAL[s.tipo]?.corto ?? s.tipo, conteo: s.n })),
+      // Por familia (Política, Familia y funcionarios…), y dentro de cada una por cuántas hay.
+      opciones: [...(r?.porSenal ?? [])]
+        .sort((a, b) => GRUPOS_SENAL.indexOf(GRUPO_SENAL[a.tipo] ?? "Otros registros") - GRUPOS_SENAL.indexOf(GRUPO_SENAL[b.tipo] ?? "Otros registros") || b.n - a.n)
+        .map((s) => ({ valor: s.tipo, etiqueta: SENAL[s.tipo]?.corto ?? s.tipo, conteo: s.n, grupo: GRUPO_SENAL[s.tipo] ?? "Otros registros" })),
     },
     {
       param: P.servicio,
@@ -241,6 +243,8 @@ function Barra({
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
           { valor: "alta", etiqueta: "Con señal alta", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
           { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+          // La API ya filtraba «baja»; faltaba ofrecerla. Su conteo: con señales, menos las altas y las medias.
+          { valor: "baja", etiqueta: "Con señal baja", conteo: r ? Math.max(0, r.conSenales - (r.alta ?? 0) - (r.media ?? 0)) : null, icono: "info" },
           { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.filas - r.conSenales : null },
         ],
       }}

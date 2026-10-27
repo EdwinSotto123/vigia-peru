@@ -59,8 +59,17 @@ export const MONTO_ORDEN = {
   mas_500k: "o.monto > 500000",
 } as const;
 
-/** Antecedentes de la orden que se pueden filtrar: el parentesco con un funcionario y las órdenes partidas. */
-export const ANTECEDENTES_ORDEN = ["nepotismo", "fraccionamiento"] as const;
+/**
+ * Antecedentes de la orden que se pueden filtrar. Los de la persona (RUC 10) con la entidad que le dio la orden, de
+ * persona_senal (migraciones 91, 137, 177 y 179): el parentesco con un funcionario, haber financiado la campaña o
+ * postulado con el partido que gobierna, ser autoridad electa y cobrar casi siempre al borde del tope (de éste, sólo las
+ * órdenes de la franja). Los de la orden misma: partida con otras del mismo día y emitida a un proveedor inhabilitado.
+ */
+export const ANTECEDENTES_ORDEN = ["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope",
+                                   "fraccionamiento", "inhabilitado"] as const;
+const DE_PERSONA = new Set<string>(["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]);
+/** Las señales de la persona con la entidad que la fila muestra como bandera (el nepotismo va aparte, en `conNepotismo`). */
+const SENALES_FILA = ["financio_campana", "candidato_gobierna", "autoridad_contratada", "aporte_gobierna", "nepotismo_gobierno"];
 
 const enumDe = <T extends Record<string, unknown>>(o: T) => z.enum(Object.keys(o) as [Extract<keyof T, string>, ...Extract<keyof T, string>[]]);
 
@@ -102,6 +111,32 @@ const FRACCIONADA = `FROM ordenes_fraccionadas f WHERE f.entidad_ruc = o.entidad
 const INHABILITADO = `FROM osce_sancionados s WHERE s.ruc = o.ruc_contratista AND s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
                        AND o.fecha_emision BETWEEN s.fecha_desde AND COALESCE(s.fecha_hasta, CASE WHEN s.tipo = 'definitivo' THEN DATE '9999-12-31' END)`;
 
+/**
+ * Los periodos de inhabilitación de cada RUC (la misma regla), con los que se superponen fundidos en uno: unidos a las
+ * órdenes sin fundir, una orden dentro de dos sanciones salía dos veces y la página quedaba corta (61 → 20 tras el dedup).
+ * Son ~13 mil sanciones: la ventana se calcula en cada consulta (unos ms).
+ */
+const PERIODOS_INHABILITADO = `
+  SELECT ruc, min(desde) AS desde, max(hasta) AS hasta FROM (
+    SELECT ruc, desde, hasta, sum(nuevo) OVER (PARTITION BY ruc ORDER BY desde, hasta) AS isla FROM (
+      SELECT ruc, desde, hasta,
+             CASE WHEN desde <= max(hasta) OVER (PARTITION BY ruc ORDER BY desde, hasta ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+                  THEN 0 ELSE 1 END AS nuevo
+        FROM (SELECT s.ruc, s.fecha_desde AS desde, COALESCE(s.fecha_hasta, DATE '9999-12-31') AS hasta FROM osce_sancionados s
+               WHERE s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
+                 AND (s.fecha_hasta IS NOT NULL OR s.tipo = 'definitivo')) s0) s1) s2
+   GROUP BY ruc, isla`;
+
+/**
+ * El tope de la orden: el que dice su texto («hasta 8 UIT»; «hasta 9 UIT» con el D.U. 016-2022); sin el dato, 8 UIT,
+ * salvo en 2022, cuando pudo ser cualquiera de los dos (NULL). La misma regla que la señal «al borde del tope» (179).
+ */
+const TOPE_ORDEN = `(CASE WHEN o.tipo_contratacion ~ 'hasta [0-9]+ UIT'
+                            THEN substring(o.tipo_contratacion FROM 'hasta ([0-9]+) UIT')::int * uit_soles(extract(year FROM o.fecha_emision)::int)
+                          WHEN extract(year FROM o.fecha_emision) <> 2022 THEN 8 * uit_soles(extract(year FROM o.fecha_emision)::int) END)`;
+/** La orden de servicio quedó entre el 95 % y el 100 % de su tope: una de las que sostienen «al borde del tope». */
+const EN_EL_BORDE = `o.tipo_orden = 'Orden de Servicio' AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
+
 const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
               o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
               o.ruc_contratista AS "rucContratista", COALESCE(o.monto, o.monto_dudoso)::float AS monto,
@@ -111,6 +146,18 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
               to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso",
               EXISTS (SELECT 1 FROM persona_senal ps WHERE ps.tipo = 'nepotismo'
                         AND ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista) AS "conNepotismo",
+              -- Las demás señales de la persona con esta entidad (sólo el tipo y la severidad: la evidencia está en su ficha).
+              (SELECT jsonb_agg(jsonb_build_object('tipo', ps.tipo, 'severidad', ps.severidad) ORDER BY ps.tipo)
+                 FROM persona_senal ps WHERE ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista
+                  AND ps.tipo IN (${SENALES_FILA.map((t) => `'${t}'`).join(", ")})) AS "senalesPersona",
+              -- Esta orden es una de las que sostienen «al borde del tope»: su tope, para decir a qué porcentaje quedó.
+              CASE WHEN o.ruc_contratista LIKE '10%' AND ${EN_EL_BORDE}
+                        AND EXISTS (SELECT 1 FROM persona_senal ps WHERE ps.tipo = 'al_borde_del_tope'
+                                      AND ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista)
+                   THEN jsonb_build_object('tope', ${TOPE_ORDEN}::float) END AS "alBorde",
+              -- La ficha de la persona (un código al azar, no su RUC), donde está la evidencia de sus señales.
+              CASE WHEN o.ruc_contratista LIKE '10%'
+                   THEN (SELECT pc.codigo FROM persona_codigo pc WHERE pc.ruc = o.ruc_contratista) END AS "personaCodigo",
               -- La evidencia de cada antecedente de la fila, para su bandera y su panel (subconsultas por fila de la página).
               (SELECT jsonb_build_object('ordenes', f.ordenes, 'total', f.total::float, 'tope', f.tope::float,
                                          'mismaDescripcion', f.misma_descripcion, 'severidad', f.severidad, 'detalle', f.detalle)
@@ -167,12 +214,21 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   const acotada = texto.length > 0 || (forzarAcotada && columnas.length > 0);
   const enVentana = acotada ? base : [...base, ...columnas];
   const despuesDe = acotada ? [...columnas, ...texto] : [];
-  // El parentesco parte de persona_senal: ~400 parejas entidad × persona y ~2 mil órdenes en total (50 ms con la caché
-  // caliente). Recorrer el índice por fecha buscando esas parejas leía cientos de miles de órdenes recientes.
-  const desde = q.antecedente === "nepotismo"
+  // Los antecedentes de la persona parten de persona_senal (de 600 a 11 mil parejas entidad × persona según el tipo) y la
+  // inhabilitación, de sus periodos: el índice por proveedor trae sólo esas órdenes (de 4 mil a 87 mil). Recorrer el índice
+  // por fecha buscando esas parejas leía cientos de miles de órdenes recientes (nepotismo 7 s, candidato del que gobierna
+  // 35 s, inhabilitados de EsSalud 39 s en frío).
+  const dePersona = !!q.antecedente && DE_PERSONA.has(q.antecedente);
+  const desde = dePersona
     ? `persona_senal ps JOIN conosce_ordenes o ON o.entidad_ruc = ps.entidad_ruc AND o.ruc_contratista = ps.ruc`
-    : `conosce_ordenes o`;
-  if (q.antecedente === "nepotismo") enVentana.unshift(`ps.tipo = 'nepotismo'`);
+    : q.antecedente === "inhabilitado"
+      ? `(${PERIODOS_INHABILITADO}) s JOIN conosce_ordenes o ON o.ruc_contratista = s.ruc AND o.fecha_emision BETWEEN s.desde AND s.hasta`
+      : `conosce_ordenes o`;
+  if (dePersona) enVentana.unshift(`ps.tipo = '${q.antecedente}'`);
+  if (q.antecedente === "al_borde_del_tope") enVentana.push(EN_EL_BORDE);
+  // Con esos puntos de partida se ordena por `fecha_emision + 0`: una expresión sin índice, para que el planificador no
+  // vuelva a recorrer el de fecha con el LIMIT (un top-N sobre las candidatas: 0,2-0,6 s en caliente, medido 2026-10-27).
+  const porFecha = dePersona || q.antecedente === "inhabilitado" ? "o.fecha_emision + 0" : "o.fecha_emision";
   const dir = q.orden === "antiguo" ? "ASC" : "DESC";
   const offset = (q.page - 1) * q.size;
   const lim = q.size + 1; // una de más para saber si hay página siguiente
@@ -193,7 +249,7 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   //   · posible error → conosce_ordenes_dudoso (parcial, ~1 300 órdenes)                  [migración 98]
   //   · monto de más de S/ 50 mil → conosce_ordenes_grandes_fecha (parcial), si existe     [migración 143]
   const sql = `WITH c AS (
-       SELECT o.* FROM ${desde} WHERE ${enVentana.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}
+       SELECT o.* FROM ${desde} WHERE ${enVentana.join(" AND ")} ORDER BY ${porFecha} ${dir} LIMIT ${ventana}
      ), d AS (
        SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o ORDER BY ${dedupOrden})
      SELECT ${COLS} FROM d o ${despues} ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${lim} OFFSET ${offset}`;
@@ -210,6 +266,8 @@ ordenesRouter.get("/", async (c) => {
   const parsed = ListaOrdenesQuery.safeParse(sinVacios(c));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
+  // Sin plazo propio, el de consultaConPlazo (20 s): los antecedentes que parten de las parejas o de las sanciones tardan
+  // menos de 1 s en caliente y hasta 11 s en frío (medido 2026-10-27), más que los 10 s del rol de la API.
   const cuerpo = await memo.obtener(JSON.stringify(q), async () => {
     let consulta = sqlListaOrdenes(q);
     let r: Awaited<ReturnType<typeof consultaConPlazo>>;

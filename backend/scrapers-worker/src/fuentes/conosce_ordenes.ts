@@ -255,6 +255,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   // Financió la campaña del que gobierna, y lo nacional (el partido del Presidente en el Ejecutivo) para locadores y
   // planilla (migración 177): también tras las señales de persona, y antes del resumen, que las cuenta.
   resumen.senales_politicas = await siExiste("refrescar_senales_politicas", "refrescar_senales_politicas()", "SELECT refrescar_senales_politicas() AS n");
+  // Doble planilla, socio de un proveedor, pariente locador, nepotismo en el mismo gobierno y órdenes al borde del tope
+  // (migración 179).
+  resumen.senales_extra = await siExiste("refrescar_senales_extra", "refrescar_senales_extra()", "SELECT refrescar_senales_extra() AS n");
   // Y cuántos de ellos trabajan en cada entidad, para su bandera (migración 178).
   await siExiste("refrescar_entidad_senal_politica", "refrescar_entidad_senal_politica()", "SELECT refrescar_entidad_senal_politica() AS n");
   resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");

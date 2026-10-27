@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2, CalendarRange, ListOrdered } from "lucide-react";
+import { Building2, CalendarRange, Flag, ListOrdered, Receipt, Wallet } from "lucide-react";
 import {
   Ayuda,
   BloqueDetalle,
@@ -12,6 +12,7 @@ import {
   BanderasFicha,
   EncabezadoPagina,
   EstadoVacio,
+  SinSenalesEstado,
   FichaNoLeida,
   Migas,
   Pagina,
@@ -149,6 +150,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
         pestanas={[
           {
             clave: "senales",
+            icono: <Flag size={15} aria-hidden />,
             etiqueta: "Señales",
             conteo: cuenta.total,
             contenido: (
@@ -172,27 +174,30 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
                 {cuenta.total ? (
                   <SenalesPorEntidad entidades={f.entidades} codigo={params.codigo} elegida={sent} />
                 ) : (
-                  <EstadoVacio compacto titulo="Ningún otro registro coincide">
+                  <SinSenalesEstado titulo="Sin señales: ningún otro registro coincide">
                     No figura como candidato, aportante, autoridad ni inhabilitado, no comparte apellidos con autoridades de sus
                     entidades, y lo que cobra no se aparta de lo que pagan por lo mismo.
-                  </EstadoVacio>
+                  </SinSenalesEstado>
                 )}
               </div>
             ),
           },
           {
             clave: "pagos",
+            icono: <Wallet size={15} aria-hidden />,
             etiqueta: "Lo que cobró",
             contenido: <Pagos ficha={f} nombre={nombre} ruta={ruta} />,
           },
           {
             clave: "ordenes",
+            icono: <Receipt size={15} aria-hidden />,
             etiqueta: "Órdenes",
             conteo: p.ordenes,
             contenido: <PestanaOrdenes ruta={ruta} pagina={ordenesP} filtros={filtrosOrdenes} ficha={f} />,
           },
           {
             clave: "entidades",
+            icono: <Building2 size={15} aria-hidden />,
             etiqueta: "Entidades",
             conteo: p.entidades,
             contenido: (

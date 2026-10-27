@@ -139,6 +139,9 @@ export async function BarraMenoresGeneral({
       ]}
       filtros={filtros}
       orden={{ param: P_MEN.orden, porDefecto: "reciente", opciones: [{ valor: "reciente", etiqueta: "Más recientes" }, { valor: "antiguo", etiqueta: "Más antiguos" }] }}
+      // El estado del contrato llega sólo por enlace (casi todos dicen «Culminado»: un desplegable no distinguiría nada),
+      // pero si viene se nombra y se puede quitar; antes filtraba sin que la barra lo dijera.
+      chips={parametros[P_MEN.estado] ? [{ clave: P_MEN.estado, texto: `Estado: ${parametros[P_MEN.estado]}`, params: [P_MEN.estado] }] : []}
     />
   );
 }

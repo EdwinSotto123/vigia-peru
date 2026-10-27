@@ -1,5 +1,6 @@
 import { API_BASE } from "./api-client";
 import type { OrdenEmpresa } from "./empresas";
+import { SENAL } from "./personas";
 
 /**
  * Lista GENERAL de órdenes de compra y de servicio (subsección de Contratos). Fuente: GET /ordenes (no atada a un RUC).
@@ -19,6 +20,12 @@ export type OrdenGeneral = OrdenEmpresa & {
   fraccionamiento?: OrdenFraccionada | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día en que se emitió. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
+  /** Las demás señales de la persona con esta entidad (financió la campaña, candidato del que gobierna…): sólo el tipo. */
+  senalesPersona?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
+  /** La orden quedó entre el 95 % y el 100 % de su tope y la persona tiene la señal «al borde del tope» con la entidad. */
+  alBorde?: { tope: number } | null;
+  /** La ficha de la persona (RUC 10), donde está la evidencia de sus señales: un código al azar, no su RUC. */
+  personaCodigo?: string | null;
 };
 
 /** El grupo de órdenes del mismo día al que pertenece una orden partida: la evidencia de su bandera. */
@@ -86,10 +93,20 @@ export const MONTOS_ORDEN = [
   { valor: "mas_500k", etiqueta: "Más de S/ 500 mil" },
 ] as const;
 
-/** Los antecedentes de la orden que se pueden filtrar (la inhabilitación del proveedor se ve en la fila, no filtra). */
+/**
+ * Los antecedentes de la orden que se pueden filtrar, en dos grupos: los de la persona con la entidad que le dio la orden
+ * (los mismos nombres que sus banderas) y los de la orden misma.
+ */
+const DE_LA_PERSONA = "De la persona con la entidad";
+const DE_LA_ORDEN = "De la orden";
 export const ANTECEDENTES_ORDEN = [
-  { valor: "nepotismo", etiqueta: "Posible nepotismo (pariente de un funcionario)" },
-  { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT" },
+  { valor: "nepotismo", etiqueta: `${SENAL.nepotismo.corto} (pariente de un funcionario)`, grupo: DE_LA_PERSONA },
+  { valor: "financio_campana", etiqueta: SENAL.financio_campana.corto, grupo: DE_LA_PERSONA },
+  { valor: "candidato_gobierna", etiqueta: SENAL.candidato_gobierna.corto, grupo: DE_LA_PERSONA },
+  { valor: "autoridad_contratada", etiqueta: SENAL.autoridad_contratada.corto, grupo: DE_LA_PERSONA },
+  { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 % de 8 UIT)", grupo: DE_LA_PERSONA },
+  { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT", grupo: DE_LA_ORDEN },
+  { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },
 ] as const;
 
 const valida = (lista: readonly { valor: string }[], v: string | undefined) => (v && lista.some((x) => x.valor === v) ? v : undefined);

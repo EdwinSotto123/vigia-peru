@@ -33,6 +33,7 @@ const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:f
 
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
+  "nepotismo_gobierno", "al_borde_del_tope",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
@@ -434,6 +435,23 @@ personasRouter.get("/:codigo", async (c) => {
         `SELECT entidad_ruc AS "entidadRuc", nombre_norm AS nn, ficha FROM planilla_persona WHERE entidad_ruc = ANY($1) AND ficha IS NOT NULL`, [entsNep]);
       for (const r of pf.rows) declFichas.set(`${r.entidadRuc}|${r.nn}`, r.ficha);
     }
+    // Nepotismo en el mismo gobierno (migración 179): el funcionario es de OTRA entidad; su ficha de planilla, de ésa.
+    const declOtras = new Map<string, string>();
+    const paresOtras = senales.rows
+      .filter((s) => s.tipo === "nepotismo_gobierno")
+      .flatMap((s) => {
+        const par = (s.detalle as Record<string, unknown>)?.parientes;
+        return Array.isArray(par) ? (par as Record<string, unknown>[]).map((pr) => [String(pr.entidad_ruc ?? ""), String(pr.declarante ?? "")] as const) : [];
+      })
+      .filter(([e, d]) => e && d);
+    if (paresOtras.length) {
+      const pf = await pool.query<{ entidadRuc: string; nn: string; ficha: string }>(
+        `SELECT p.entidad_ruc AS "entidadRuc", p.nombre_norm AS nn, p.ficha FROM planilla_persona p
+           JOIN unnest($1::text[], $2::text[]) AS x(e, n) ON p.entidad_ruc = x.e AND p.nombre_norm = x.n
+          WHERE p.ficha IS NOT NULL`,
+        [paresOtras.map(([e]) => e), paresOtras.map(([, d]) => d)]);
+      for (const r of pf.rows) declOtras.set(`${r.entidadRuc}|${r.nn}`, r.ficha);
+    }
     const porEntidad = new Map<string, unknown[]>();
     for (const s of senales.rows) {
       const l = porEntidad.get(s.entidadRuc) ?? [];
@@ -456,6 +474,22 @@ personasRouter.get("/:codigo", async (c) => {
                 ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [],
               };
             })()
+          : s.tipo === "nepotismo_gobierno"
+            ? (() => {
+                // Como en el nepotismo: nunca el nombre completo del funcionario; su primer apellido y su ficha sólo si el
+                // parentesco no puede destapar el apellido tapado de esta persona.
+                const det = s.detalle as Record<string, unknown>;
+                const par = det.parientes;
+                return {
+                  ...det,
+                  parientes: Array.isArray(par)
+                    ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) => {
+                        const funcionarioApellido = apellidoFuncionario(pr.parentesco, declarante);
+                        return { ...pr, funcionarioApellido, ficha: funcionarioApellido ? declOtras.get(`${String(pr.entidad_ruc ?? "")}|${String(declarante ?? "")}`) ?? null : null };
+                      })
+                    : par,
+                };
+              })()
           : (s.tipo === "tambien_planilla" || s.tipo === "paso_a_planilla") && planFichas.has(s.entidadRuc)
             ? { ...(s.detalle as Record<string, unknown>), plan_ficha: planFichas.get(s.entidadRuc) }
             : s.detalle;

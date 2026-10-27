@@ -122,6 +122,14 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     if (q.cruce) k.push(`k.tipos && ${add(q.cruce.split(","))}::text[]`);
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
+  // La obra del contrato (INFOBRAS e Invierte.pe): sus banderas viven en casos_cruce como las demás, pero son hechos de la
+  // ejecución, no antecedentes de quien ganó. Filtro aparte, que se combina con el de antecedentes.
+  if (q.obra && !excluir.has("obra")) {
+    const ko = q.obra === "con"
+      ? `EXISTS (SELECT 1 FROM unnest(ko.tipos) t WHERE t ~ '^(obra|inversion)_')`
+      : `${add(q.obra)} = ANY(ko.tipos)`;
+    conds.push(`EXISTS (SELECT 1 FROM casos_cruce ko WHERE ko.ocid = ${m.ocid} AND ${ko})`);
+  }
   // Un dato de la empresa que ganó (de baja en la SUNAT, un socio candidato…): conjunto de OCIDs partiendo de las
   // empresas que lo tienen (contratos_sql.ts). Vale igual con convocatorias o con contrato_estado manejando el recorrido.
   if (q.ganadora && !excluir.has("ganadora")) conds.push(`${m.ocid} IN (${ocidsDeGanadora(q.ganadora)})`);
@@ -139,7 +147,7 @@ function esFinDeMes(d: string): boolean {
 }
 /** Filtros que `contratos_agregado` responde exacto: sin q, entidad ni montos, y fechas en meses enteros. */
 const agregable = (q: Partial<Filtros>) =>
-  !q.q && !q.cruces && !q.cruce && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso
+  !q.q && !q.cruces && !q.cruce && !q.obra && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
 /** WHERE sobre contratos_agregado (columnas: ubigeo, tipo, etapa, mes, riesgo, estado_proc, operativo). */
@@ -174,7 +182,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true, partido: true, ganadora: true, dudoso: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, obra: true, lectura: true, partido: true, ganadora: true, dudoso: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -212,17 +220,22 @@ contratosRouter.get("/resumen", async (c) => {
     const k = celda.operativo ?? "sin_clasificar";
     porOperativoSinLeer[k] = (porOperativoSinLeer[k] ?? 0) + celda.n;
   }
-  const [porCruces, porLectura, porDudoso] = rt
-    ? [rt.cruces, rt.lectura, rt.dudosos]
+  const [porCruces, porLectura, porDudoso, porObraAparte] = rt
+    ? [rt.cruces, rt.lectura, rt.dudosos, null]
     : await Promise.all([
-        crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
+        crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q, "cruces")).catch(() => null),
         lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
         dudosoMemo.obtener(JSON.stringify({ ...q, dudoso: undefined }), () => contarDudosos(q)).catch(() => null),
+        // «La obra» se cuenta sin su propio filtro y con el de antecedentes: sin ninguno de los dos, es el mismo conteo.
+        q.obra || q.cruces
+          ? crucesMemo.obtener(JSON.stringify({ ...q, obra: undefined, faceta: "obra" }), () => contarCruces(q, "obra")).catch(() => null)
+          : null,
       ]);
-  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura, porDudoso }, CACHE_LISTA);
+  const porObra = porObraAparte ?? porCruces;
+  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porObra, porLectura, porDudoso }, CACHE_LISTA);
 });
 
-interface ResumenTexto { celdas: Celda[]; cruces: { con: number; alta: number; tipos: Record<string, number> }; lectura: Record<string, number>; dudosos: number }
+interface ResumenTexto { celdas: Celda[]; cruces: ConteoCruces; lectura: Record<string, number>; dudosos: number }
 const textoMemo = new Memo<ResumenTexto>({ nombre: "contratos:resumen:solo-texto", ttlMs: 60_000, max: 50 });
 
 /**
@@ -239,16 +252,17 @@ async function resumenTexto(q: z.infer<typeof ResumenQuery>): Promise<ResumenTex
     `WITH m AS MATERIALIZED (SELECT ce.ocid, ce.tipo, ce.operativo, ce.riesgo, ${casoLectura("ce.")} AS lectura
                               FROM contrato_estado ce WHERE ${conds.join(" AND ")}),
           k AS MATERIALIZED (SELECT k.ocid, k.n_alta, k.tipos FROM m JOIN casos_cruce k ON k.ocid = m.ocid),
-          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta, bool_or(${CON_OBRA}) AS obra FROM k GROUP BY 1),
           t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
      SELECT (SELECT COALESCE(json_agg(c), '[]'::json) FROM (SELECT tipo, operativo, riesgo, count(*)::int AS n FROM m GROUP BY 1, 2, 3) c) AS celdas,
+            (SELECT count(*)::int FROM o WHERE obra) AS obra,
             (SELECT COALESCE(json_object_agg(l.lectura, l.n), '{}'::json) FROM (SELECT lectura, count(*)::int AS n FROM m GROUP BY 1) l) AS lectura,
             (SELECT count(*)::int FROM o) AS con,
             (SELECT count(*)::int FROM o WHERE alta) AS alta,
             (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos,
             (SELECT count(*)::int FROM m JOIN contrato_dudoso d ON d.ocid = m.ocid) AS dudosos`, vals);
   const f = r.rows[0];
-  return { celdas: f.celdas, cruces: { con: f.con, alta: f.alta, tipos: f.tipos }, lectura: f.lectura, dudosos: f.dudosos };
+  return { celdas: f.celdas, cruces: { con: f.con, alta: f.alta, tipos: f.tipos, obra: f.obra }, lectura: f.lectura, dudosos: f.dudosos };
 }
 
 const dudosoMemo = new Memo<number>({ nombre: "contratos:resumen:dudoso", ttlMs: 60_000, staleMs: 60_000, max: 200 });
@@ -264,33 +278,38 @@ async function contarDudosos(q: z.infer<typeof ResumenQuery>): Promise<number> {
   return r.rows[0]?.n ?? 0;
 }
 
-const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, number> }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
+/** Los conteos de los antecedentes del ganador y de la obra: con alguno, con uno grave, por tipo y con alguna bandera de obra. */
+interface ConteoCruces { con: number; alta: number; tipos: Record<string, number>; obra: number | null }
+/** La fila de casos_cruce `k` trae alguna bandera de la obra (INFOBRAS o Invierte.pe). */
+const CON_OBRA = `array_to_string(k.tipos, ',') ~ '(^|,)(obra|inversion)_'`;
+const crucesMemo = new Memo<ConteoCruces>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
 
 /**
  * Contratos con cruces del ganador (con alguno, con uno grave y con cada tipo) bajo los demás filtros: los conteos del
  * desplegable "Antecedentes". Todo por GROUP BY (hash): count(DISTINCT) ordena los ocid como texto y sin filtros eran
  * 2,2 s sobre los 161 mil casos; así, 0,8 s (con filtros, de 0,43 a 0,23 s). Mismos números (2026-10-20).
  */
-async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number; tipos: Record<string, number> }> {
+async function contarCruces(q: z.infer<typeof ResumenQuery>, sin: "cruces" | "obra"): Promise<ConteoCruces> {
   const vals: unknown[] = [];
-  const { conds } = filtros({ ...q, cruces: undefined }, vals, MAPA_CE);
+  const { conds } = filtros({ ...q, [sin]: undefined }, vals, MAPA_CE);
   // Sin filtros de usuario (sólo el de las convocatorias de demo) la faceta es la de TODOS los contratos, que sólo
   // cambia con casos_cruce: está precomputada en casos_cruce_totales (migración 114) y se lee en O(1). Antes recorría
   // los 174 mil casos (seq scan + unnest + agregados con volcado a disco): ~0,9-1,2 s en frío, la consulta de usuario
-  // más cara del camino caliente.
+  // más cara del camino caliente. Los de alguna bandera de obra no están ahí, y contarlos recorre casos_cruce (0,5 s):
+  // sin filtros, esa opción va sin cifra.
   if (conds.length === 1) {
-    const r = await pool.query<{ con: number; alta: number; tipos: Record<string, number> }>(
-      `SELECT con, alta, tipos FROM casos_cruce_totales`);
-    return r.rows[0] ?? { con: 0, alta: 0, tipos: {} };
+    const r = await pool.query<ConteoCruces>(`SELECT con, alta, tipos, NULL::int AS obra FROM casos_cruce_totales`);
+    return r.rows[0] ?? { con: 0, alta: 0, tipos: {}, obra: null };
   }
   const base = `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(
     `WITH k AS MATERIALIZED (${base}),
-          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta, bool_or(${CON_OBRA}) AS obra FROM k GROUP BY 1),
           t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
      SELECT (SELECT count(*)::int FROM o) AS con,
             (SELECT count(*)::int FROM o WHERE alta) AS alta,
-            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos`, vals);
+            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos,
+            (SELECT count(*)::int FROM o WHERE obra) AS obra`, vals);
   return r.rows[0];
 }
 
@@ -498,7 +517,7 @@ function ordenDe(q: ListaQ): Orden {
 /** Sólo texto libre, sin otro filtro: la página y el total salen de las coincidencias mismas. */
 function soloTexto(q: Partial<Filtros>): boolean {
   return !!q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
-    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.ganadora && !q.dudoso;
+    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.obra && !q.ganadora && !q.dudoso;
 }
 
 /**
@@ -628,7 +647,7 @@ async function lista(q: ListaQ) {
 const GeoQuery = ListQuery.pick({
   tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true, desde: true, hasta: true,
   // Los filtros del mapa: lectura, antecedentes del ganador y partido que gobierna.
-  lectura: true, cruces: true, cruce: true, partido: true,
+  lectura: true, cruces: true, cruce: true, obra: true, partido: true,
 }).extend({
   nivel: z.enum(["distrito", "provincia", "departamento"]).default("distrito"),
 });

@@ -58,7 +58,8 @@ for (const carpeta of CARPETAS) {
   for (const f of archivos(join(RAIZ, carpeta))) {
     const rel = relative(RAIZ, f).replace(/\\/g, "/");
     const texto = readFileSync(f, "utf8");
-    const lineas = texto.split("\n");
+    // Con CRLF (core.autocrlf en Windows) el «\r» final dejaba el comentario de fin de línea sin quitar.
+    const lineas = texto.split(/\r?\n/);
     let enComentario = false;
     lineas.forEach((l, i) => {
       const donde = `${rel}:${i + 1}`;

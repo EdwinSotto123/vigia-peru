@@ -434,6 +434,8 @@ export interface ContratosQuery {
   partido?: string;
   /** Tipos de cruce separados por coma (cualquiera de ellos). */
   cruce?: string;
+  /** Las banderas de la obra del contrato (INFOBRAS e Invierte.pe): "con" (alguna) o un tipo (`obra_…`, `inversion_…`). */
+  obra?: string;
   /** Un dato de la empresa que ganó (DATOS_GANADORA): de baja en la SUNAT, un socio candidato… */
   ganadora?: string;
   /** Sólo los contratos con posible error de carga del OECE. */
@@ -712,6 +714,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
     cruces: /^[a-z_]{2,40}$/.test(s("cruces") ?? "") ? s("cruces") : undefined,
     cruce: /^[a-z_]+(,[a-z_]+)*$/.test(s("cruce") ?? "") ? s("cruce")!.slice(0, 300) : undefined,
+    obra: /^(con|(obra|inversion)_[a-z_]{2,40})$/.test(s("obra") ?? "") ? s("obra") : undefined,
     partido: /^[a-z0-9-]{2,120}$/.test(s("partido") ?? "") ? s("partido") : undefined,
     ganadora: conDatosGanadora && DATOS_GANADORA.some((d) => d.valor === s("ganadora")) ? s("ganadora") : undefined,
     dudoso: conDatosGanadora && s("dudoso") === "si" ? "si" : undefined,
@@ -743,6 +746,7 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
     orden: q.orden && q.orden !== "fecha" ? q.orden : undefined,
     cruces: txt(q.cruces),
     cruce: txt(q.cruce),
+    obra: txt(q.obra),
     partido: txt(q.partido),
     ganadora: txt(q.ganadora),
     dudoso: txt(q.dudoso),
@@ -773,12 +777,24 @@ export interface ResumenContratos {
   porOperativoSinLeer?: Partial<Record<EstadoOperativo, number>> | null;
   /** Contratos cuyo ganador tiene cruces (y uno grave), con los demás filtros. Falta en la API vieja. */
   /** Con alguno, con uno grave y por tipo (`tipos`, falta en la API vieja), bajo los demás filtros. */
-  porCruces?: { con: number; alta: number; tipos?: Record<string, number> } | null;
+  porCruces?: ConteoCruces | null;
+  /** Los mismos conteos para el filtro «La obra»: sin su propio filtro y con el de antecedentes. Falta en la API vieja. */
+  porObra?: ConteoCruces | null;
   /** Conteos de "¿Lo leyó Vigía?" con los demás filtros. Falta en la API vieja. */
   porLectura?: Partial<Record<Lectura, number>> | null;
   /** Contratos con posible error de carga del OECE, con los demás filtros. Falta en la API vieja. */
   porDudoso?: number | null;
 }
+/** Contratos con antecedentes del ganador (con alguno, con uno grave, por tipo) y con alguna bandera de su obra. */
+export interface ConteoCruces {
+  con: number;
+  alta: number;
+  /** Falta en la API vieja. */
+  tipos?: Record<string, number>;
+  /** Con alguna bandera de la obra; null sin filtros (contarlos recorre todos los casos). Falta en la API vieja. */
+  obra?: number | null;
+}
+
 export const getResumenContratos = (q: ContratosQuery = {}) =>
   getJson<ResumenContratos>(
     `/contratos/resumen?${contratosQueryString({ ...q, page: undefined, size: undefined, orden: undefined, cursor: undefined, antes: undefined })}`,

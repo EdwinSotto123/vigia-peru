@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { AyudaTermino, DatosClave } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
+import { FrenteMediana } from "@/components/charts/FrenteMediana";
+import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { fecha, fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
@@ -49,6 +51,30 @@ export const gobiernoTexto = (d: Obj): string | null => {
   const quien = nacional && txt(d.presidente) ? `${txt(d.presidente)}${partido ? ` (${partido})` : ""}` : partido;
   return [quien, periodo].filter(Boolean).join(", ") || null;
 };
+/** El día de cada elección (en las generales, la primera vuelta): el hito entre el aporte y el gobierno. */
+const FECHA_ELECCION: Record<string, string> = {
+  ERM2014: "2014-10-05", ERM2018: "2018-10-07", ERM2022: "2022-10-02", EG2016: "2016-04-10", EG2021: "2021-04-11", ECE2020: "2020-01-26",
+};
+/**
+ * La secuencia de «financió la campaña»: cada aporte a la campaña, la elección, cuándo asumió el gobierno y el trabajo que
+ * vino después (`final`: la primera orden, o el primer mes en la planilla). Para `LineaHitos`.
+ */
+export function hitosCampana(d: Obj, final: { fecha: unknown; texto: string } | null): Hito[] {
+  const out: Hito[] = [];
+  const iso = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+  for (const a of lista(d.aportes).filter((x) => x.campana === true)) {
+    const f = iso(a.fecha);
+    if (f) out.push({ fecha: f, texto: `Aportó ${soles(num(a.monto) ?? 0)} a la campaña` });
+  }
+  const e = txt(d.eleccion);
+  const fe = e ? FECHA_ELECCION[e] : undefined;
+  if (fe) out.push({ fecha: fe, texto: e!.startsWith("EG") ? "Elecciones generales" : "Elecciones regionales y municipales" });
+  const gd = iso(d.gobierno_desde);
+  if (gd) out.push({ fecha: gd, texto: d.nivel === "nacional" && txt(d.presidente) ? `Asumió ${txt(d.presidente)}` : "Asumió el gobierno" });
+  const ff = final ? iso(final.fecha) : null;
+  if (ff && final) out.push({ fecha: ff, texto: final.texto, destacado: true });
+  return out;
+}
 
 /** El parentesco con mayúscula inicial: "Hijo(a)". */
 const gradoTitulo = (g: unknown) => {
@@ -105,6 +131,19 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
           ? `Pariente de ${numero(par.length)} funcionarios de la entidad`
           : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
       return `${quien}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
+    }
+    case "nepotismo_gobierno": {
+      const par = lista(d.parientes);
+      const ent = natural(par[0]?.entidad);
+      const cargo = par.length === 1 ? cargoEnOracion(par[0].cargo, true) : null;
+      return par.length > 1
+        ? `Pariente de ${numero(par.length)} funcionarios de otras entidades del mismo gobierno`
+        : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : " de otra entidad del mismo gobierno"}`;
+    }
+    case "al_borde_del_tope": {
+      const n = num(d.en_el_borde) ?? lista(d.citadas).length;
+      const total = num(d.ordenes);
+      return `${plural(n, "orden", "órdenes")}${total ? ` de ${numero(total)}` : ""} entre el 95 % y el 100 % del tope de 8 UIT, por ${soles(num(d.monto) ?? 0)}`;
     }
     case "financio_campana": {
       const deCampana = lista(d.aportes).filter((a) => a.campana === true);
@@ -252,6 +291,99 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         </div>
       );
     }
+    case "nepotismo_gobierno": {
+      // Como el nepotismo, pero el funcionario es de OTRA entidad del mismo gobierno: su entidad enlaza a su ficha.
+      const parientes: Fila[] = lista(d.parientes).map((p, i) => ({
+        id: String(i),
+        ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
+        celdas: {
+          quien: (
+            <CeldaPrincipal
+              titulo={natural(p.cargo) ?? "Funcionario"}
+              meta={[
+                txt(p.funcionarioApellido) ? <Dato key="ap" tipo="personas" nombre="Funcionario">{primerApellido(p.funcionarioApellido)}</Dato> : null,
+                txt(p.entidad) ? <Dato key="en" tipo="entidad" nombre="Su entidad">{natural(p.entidad)}</Dato> : null,
+              ]}
+            />
+          ),
+          parentesco: texto(GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente", "text-inkSoft"),
+        },
+      }));
+      return (
+        <div className="space-y-3">
+          <DatosClave
+            items={[
+              { etiqueta: "Órdenes de esta entidad", valor: plural(num(d.ordenes) ?? 0, "orden", "órdenes"), mono: true },
+              { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
+              { etiqueta: "Años", valor: [num(d.desde), num(d.hasta)].filter((x) => x != null).filter((x, i, a) => a.indexOf(x) === i).join(" a ") || null, mono: true },
+            ]}
+          />
+          <Lista
+            etiqueta="Funcionarios del mismo gobierno que lo declararon como pariente"
+            columnas={[
+              { clave: "quien", titulo: "Lo declaró", ancho: "minmax(0,1fr)" },
+              { clave: "parentesco", titulo: "Parentesco declarado", corto: "Parentesco", ancho: "minmax(0,11rem)", desde: "md", apilar: "con-rotulo" },
+            ]}
+            filas={parientes}
+          />
+          <Nota>
+            El funcionario trabaja en otra entidad del mismo gobierno (por ejemplo, el gobierno regional y una de sus UGEL). No se
+            muestra su nombre completo. Es un dato para revisar si medió una recomendación o un favor cruzado, no una prueba de falta.
+          </Nota>
+          <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
+            {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
+          </VerOrdenes>
+        </div>
+      );
+    }
+    case "al_borde_del_tope": {
+      // Cada orden de la franja con su tope del año y cuánto de él usó: la barra muestra lo cerca que quedó.
+      const filas: Fila[] = lista(d.citadas).map((o, i) => {
+        const monto = num(o.monto) ?? 0;
+        const tope = num(o.tope) ?? 0;
+        const parte = tope > 0 ? monto / tope : 0;
+        const pct = `${(parte * 100).toFixed(1).replace(".", ",")} %`;
+        return {
+          id: String(i),
+          celdas: {
+            orden: <CeldaPrincipal titulo={txt(o.numero) ? `N.° ${txt(o.numero)}` : "Orden sin número"} meta={[<Dato key="f" tipo="fecha">{dia(o.fecha) ?? "Sin fecha"}</Dato>]} />,
+            monto: <CeldaNumero sub={tope ? `tope ${soles(tope)}` : undefined}>{soles(monto)}</CeldaNumero>,
+            parte: (
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="text-meta tabular-nums text-ink">{pct}</span>
+                <CeldaBarra parte={parte} resumen={`${pct} del tope de su año`} />
+              </span>
+            ),
+          },
+        };
+      });
+      return (
+        <div className="space-y-3">
+          <DatosClave
+            items={[
+              { etiqueta: "Al borde del tope", valor: `${plural(num(d.en_el_borde) ?? filas.length, "orden", "órdenes")} de ${plural(num(d.ordenes) ?? filas.length, "orden", "órdenes")}`, mono: true },
+              { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
+            ]}
+          />
+          <Lista
+            etiqueta="Cada orden entre el 95 % y el 100 % del tope"
+            columnas={[
+              { clave: "orden", titulo: "Orden", ancho: "minmax(0,1fr)" },
+              { clave: "monto", titulo: "Monto", ancho: "8rem", alinear: "der" },
+              { clave: "parte", titulo: "Del tope", ancho: "7rem", desde: "md", apilar: "con-rotulo" },
+            ]}
+            filas={filas}
+          />
+          <Nota>
+            El tope de 8 UIT es el monto desde el cual la entidad debe hacer un proceso de selección (la UIT de cada año). Muchas
+            órdenes que se quedan justo debajo pueden ser un mismo servicio partido: vale ver si eran meses seguidos o el mismo trabajo.
+          </Nota>
+          <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
+            {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
+          </VerOrdenes>
+        </div>
+      );
+    }
     case "financio_campana": {
       const ordenes = num(d.ordenes);
       const filas: Fila[] = lista(d.aportes).map((a, i) => ({
@@ -281,6 +413,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
                 : []),
             ]}
           />
+          <LineaHitos hitos={hitosCampana(d, { fecha: d.primera_orden, texto: "Primera orden de ese gobierno" })} etiqueta="De la campaña a la primera orden" />
           <Lista
             etiqueta="Aportes"
             columnas={[
@@ -511,17 +644,26 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
           suyo: <CeldaNumero>{soles(num(a.por_mes) ?? 0)}</CeldaNumero>,
         },
       }));
+      // El año en que más se aleja de la mediana, dibujado: las dos barras en la misma escala.
+      const top = [...lista(d.anios)].sort((x, y) => (num(y.veces) ?? 0) - (num(x.veces) ?? 0))[0];
+      const suyo = top ? num(top.por_mes) : null;
+      const med = top ? num(top.mediana_mes) : null;
       return (
-        <Lista
-          etiqueta="Lo que cobra por mes frente a la mediana de la entidad (toca un año para ver sus órdenes)"
-          columnas={[
-            { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)" },
-            { clave: "mediana", titulo: "Mediana de la entidad", corto: "Mediana", ancho: "8.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", ayuda: <AyudaTermino clave="mediana" /> },
-            { clave: "veces", titulo: "Diferencia", ancho: "6rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
-            { clave: "suyo", titulo: "Cobró por mes", corto: "Por mes", ancho: "6.5rem", alinear: "der" },
-          ]}
-          filas={filas}
-        />
+        <div className="space-y-3">
+          {suyo != null && med != null && (
+            <FrenteMediana valor={suyo} mediana={med} etiquetaValor={`Cobró por mes${txt(top!.anio) ? ` en ${txt(top!.anio)}` : ""}`} etiquetaMediana="Mediana de la entidad" />
+          )}
+          <Lista
+            etiqueta="Lo que cobra por mes frente a la mediana de la entidad (toca un año para ver sus órdenes)"
+            columnas={[
+              { clave: "servicio", titulo: "Servicio", ancho: "minmax(0,1fr)" },
+              { clave: "mediana", titulo: "Mediana de la entidad", corto: "Mediana", ancho: "8.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", ayuda: <AyudaTermino clave="mediana" /> },
+              { clave: "veces", titulo: "Diferencia", ancho: "6rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+              { clave: "suyo", titulo: "Cobró por mes", corto: "Por mes", ancho: "6.5rem", alinear: "der" },
+            ]}
+            filas={filas}
+          />
+        </div>
       );
     }
     case "tambien_planilla": {

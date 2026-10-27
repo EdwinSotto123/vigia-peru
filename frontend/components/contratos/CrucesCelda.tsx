@@ -1,5 +1,6 @@
 import { AlertTriangle, CircleAlert, Info } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
 
 const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -55,6 +56,8 @@ export function CrucesCelda({
           <li key={x.tipo} className="min-w-0" title={explica(x.tipo) ? `${completo(x.tipo)}: ${explica(x.tipo)}` : completo(x.tipo)}>
             <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 rounded-2xl px-2 py-1 font-semibold leading-tight">
               <Icono size={12} className="shrink-0" aria-hidden />
+              {/* En un panel (todas a la vista) también el ícono del tipo; en la celda angosta, sólo la severidad. */}
+              {max > MAX_CRUCES && <IconoBandera tipo={x.tipo} size={12} className="opacity-70" />}
               <span className="min-w-0 break-words">{corto(x.tipo)}</span>
             </Badge>
           </li>
@@ -95,6 +98,7 @@ export function ChipsCruces({
           <li key={x.tipo} title={explica ? `${nombre}: ${explica}` : nombre}>
             <Badge variant={VARIANTE_CRUCE[x.severidad]} className="gap-1 px-2">
               <Icono size={12} className="shrink-0" aria-hidden />
+              <IconoBandera tipo={x.tipo} size={12} className="opacity-70" />
               {nombre}
             </Badge>
           </li>

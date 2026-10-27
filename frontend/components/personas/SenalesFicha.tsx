@@ -161,6 +161,7 @@ function FilaDeSenal({ x, entidadRuc, nombres, codigo }: { x: SenalDistinta; ent
   return (
     <FilaSenal
       severidad={s.severidad}
+      tipo={s.tipo}
       titulo={SENAL[s.tipo]?.titulo ?? s.tipo}
       dato={datoClaveSenal(s)}
       fuente={s.fuente ? FUENTE_CORTA[s.fuente] ?? FUENTE_TEXTO[s.fuente] ?? s.fuente : null}

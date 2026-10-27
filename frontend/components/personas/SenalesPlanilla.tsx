@@ -19,7 +19,9 @@ import {
   type TipoPlanilla,
 } from "@/lib/planilla";
 import { FilaSenal, FuenteSenal, ListaSenales, SenalBreve } from "./FilaSenal";
-import { OrdenesCitadas, eleccionTexto, gobiernoTexto } from "./EvidenciaSenal";
+import { OrdenesCitadas, eleccionTexto, gobiernoTexto, hitosCampana } from "./EvidenciaSenal";
+import { FrenteMediana } from "@/components/charts/FrenteMediana";
+import { LineaHitos } from "@/components/charts/LineaHitos";
 
 /**
  * Las señales de una persona de la planilla, cada una en su fila (`FilaSenal`: severidad, qué registro coincide, el
@@ -65,7 +67,7 @@ export function SenalesPlanillaBreves({ senales, nepotismo }: { senales: SenalCo
 function FilaPlanilla({ s }: { s: SenalConDetalle<TipoPlanilla> }) {
   const fuente = fuentePlanilla(s.tipo);
   return (
-    <FilaSenal severidad={s.severidad} titulo={SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo} dato={datoClavePlanilla(s.tipo, s.detalle)} fuente={fuente.corto}>
+    <FilaSenal severidad={s.severidad} tipo={s.tipo} titulo={SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo} dato={datoClavePlanilla(s.tipo, s.detalle)} fuente={fuente.corto}>
       <p className="max-w-prose text-dato leading-relaxed text-inkSoft">{SENAL_PLANILLA[s.tipo]?.explica}</p>
       <DetalleSenalPlanilla tipo={s.tipo} d={s.detalle} />
       <FuenteSenal texto={fuente.texto} url={fuente.url} />
@@ -96,7 +98,7 @@ function datoNepotismo(parientes: ParienteProveedor[]): string {
 function FilaNepotismo({ parientes, entidad }: { parientes: ParienteProveedor[]; entidad?: string }) {
   const fuente = fuentePlanilla("nepotismo");
   return (
-    <FilaSenal severidad="alta" titulo={tituloNepotismo(parientes.length)} dato={datoNepotismo(parientes)} fuente={fuente.corto}>
+    <FilaSenal severidad="alta" tipo="pariente_locador" titulo={tituloNepotismo(parientes.length)} dato={datoNepotismo(parientes)} fuente={fuente.corto}>
       <p className="max-w-prose text-dato leading-relaxed text-inkSoft">
         En su Declaración Jurada de Intereses (Ley 31227) declaró como{" "}
         {parientes.length === 1 ? "pariente a quien figura como locador (proveedor)" : "parientes a quienes figuran como locadores (proveedores)"} de{" "}
@@ -166,6 +168,23 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       const meses = listaMeses(lista(d.meses));
       const cuantas = n(d.ordenes);
       return [cuantas != null ? `${plural(cuantas, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)}` : null, meses ? `en ${meses}` : null].filter(Boolean).join(" ") || null;
+    }
+    case "pariente_locador": {
+      const par = lista(d.parientes);
+      const grados = [...new Set(par.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
+      return `${plural(par.length, "pariente", "parientes")} (${grados.join(", ")}) con ${plural(n(d.ordenes) ?? 0, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)} de la entidad`;
+    }
+    case "doble_planilla": {
+      const meses = listaMeses(lista(d.meses));
+      const otra = natural(d.otra_entidad) ?? "otra entidad";
+      return `También en la planilla de ${otra}${t(d.otro_cargo) ? ` (${natural(d.otro_cargo)})` : ""}${meses ? ` en ${meses}` : ""}`;
+    }
+    case "socio_proveedor": {
+      const emp = lista(d.empresas);
+      const e = emp[0];
+      if (!e) return null;
+      const rol = t(e.rol) ? oracionSimple(t(e.rol)!.replace(/_/g, " ")) : "Socio";
+      return `${rol} de ${t(e.nombre) ?? `RUC ${t(e.ruc)}`}, que le vendió ${soles(n(e.monto) ?? 0)} a la entidad${emp.length > 1 ? ` (y ${plural(emp.length - 1, "empresa más", "empresas más")})` : ""}`;
     }
     case "financio_campana": {
       const total = lista(d.aportes).reduce((s, a) => s + (n(a.monto) ?? 0), 0) || n(d.monto) || 0;
@@ -344,6 +363,74 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
         }))}
       />
     );
+  } else if (tipo === "pariente_locador") {
+    // Del pariente sólo el parentesco y lo que cobró: nunca quién es (ni su nombre ni su documento).
+    return (
+      <TablaChica
+        etiqueta="Parientes locadores que declaró"
+        columnas={[
+          { clave: "parentesco", titulo: "Parentesco declarado", ancho: "minmax(0,1fr)" },
+          { clave: "ordenes", titulo: "Órdenes", ancho: "5rem", alinear: "der" },
+          { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der" },
+          { clave: "anios", titulo: "Años", ancho: "6rem", desde: "md", apilar: "con-rotulo" },
+        ]}
+        filas={lista(d.parientes).map((x, i) => ({
+          id: String(i),
+          celdas: {
+            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
+            ordenes: texto(n(x.ordenes) != null ? numero(n(x.ordenes)!) : null),
+            monto: texto(n(x.monto) != null ? soles(n(x.monto)) : null),
+            anios: texto([t(x.desde), t(x.hasta)].filter((y, j, a) => y && a.indexOf(y) === j).join(" a ") || null),
+          },
+        }))}
+      />
+    );
+  } else if (tipo === "doble_planilla") {
+    const otra = t(d.otra_entidad_ruc);
+    return (
+      <DatosClave
+        items={[
+          {
+            etiqueta: "La otra entidad",
+            valor: otra ? (
+              <Link href={`/entidad/${otra}?seccion=planilla`} className="text-granate underline-offset-2 hover:underline">
+                {natural(d.otra_entidad) ?? `RUC ${otra}`}
+              </Link>
+            ) : natural(d.otra_entidad),
+          },
+          { etiqueta: "Su cargo allá", valor: natural(d.otro_cargo) },
+          { etiqueta: "Su sueldo allá", valor: n(d.otra_base) != null ? soles(n(d.otra_base)) : null, mono: true },
+          { etiqueta: "Su cargo aquí", valor: natural(d.cargo) },
+          { etiqueta: "Su sueldo aquí", valor: n(d.base) != null ? soles(n(d.base)) : null, mono: true },
+          { etiqueta: "Meses en las dos", valor: listaMeses(lista(d.meses)) },
+        ]}
+      />
+    );
+  } else if (tipo === "socio_proveedor") {
+    return (
+      <TablaChica
+        etiqueta="Empresas de las que es parte y que le venden a su entidad"
+        columnas={[
+          { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1fr)" },
+          { clave: "rol", titulo: "Su papel", ancho: "minmax(0,9rem)", desde: "md", apilar: "con-rotulo" },
+          { clave: "monto", titulo: "Le vendió a la entidad", ancho: "8rem", alinear: "der" },
+        ]}
+        filas={lista(d.empresas).map((e, i) => ({
+          id: String(i),
+          ...(t(e.ruc) ? { href: `/empresa/${t(e.ruc)}` } : {}),
+          celdas: {
+            empresa: (
+              <CeldaPrincipal
+                titulo={t(e.nombre) ?? `RUC ${t(e.ruc)}`}
+                meta={[t(e.ruc) ? <Dato key="r" tipo="codigo" nombre="RUC" mono>{t(e.ruc)}</Dato> : null, t(e.desde) ? <Dato key="a" tipo="fecha" nombre="Años">{[t(e.desde), t(e.hasta)].filter((y, j, a) => y && a.indexOf(y) === j).join(" a ")}</Dato> : null]}
+              />
+            ),
+            rol: texto(t(e.rol) ? oracionSimple(t(e.rol)!.replace(/_/g, " ")) : null),
+            monto: texto(n(e.monto) != null ? soles(n(e.monto)) : null),
+          },
+        }))}
+      />
+    );
   } else if (tipo === "financio_campana" || tipo === "aporte_gobierna") {
     const campana = tipo === "financio_campana";
     return (
@@ -362,6 +449,12 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
               : []),
           ]}
         />
+        {campana && (
+          <LineaHitos
+            hitos={hitosCampana(d, { fecha: d.primer_mes, texto: d.entro_en_lo_visto === true ? "Entró a la planilla" : "Ya figuraba en la planilla (primer mes cargado)" })}
+            etiqueta="De la campaña a la planilla"
+          />
+        )}
         <TablaChica
           etiqueta="Sus aportes"
           columnas={[
@@ -410,5 +503,17 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
       </div>
     );
   }
-  return items.length ? <DatosClave items={items} /> : null;
+  if (!items.length) return null;
+  // La brecha con su cargo, dibujada: su sueldo y la mediana de su cargo en la misma escala.
+  const total = n(d.total);
+  const mediana = n(d.mediana);
+  if (tipo === "brecha_cargo" && total != null && mediana != null) {
+    return (
+      <div className="space-y-3">
+        <FrenteMediana valor={total} mediana={mediana} etiquetaValor="Su sueldo" etiquetaMediana="Mediana de su cargo" />
+        <DatosClave items={items} />
+      </div>
+    );
+  }
+  return <DatosClave items={items} />;
 }

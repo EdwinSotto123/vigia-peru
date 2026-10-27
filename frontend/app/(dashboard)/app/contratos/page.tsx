@@ -14,16 +14,8 @@ import {
 import { TablaContratos, TablaContratosCargando } from "@/components/contratos/TablaContratos";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import {
-  SECCIONES_FILTRO,
-  enSeccion,
-  filtroDudoso,
-  filtroEtapa,
-  filtroGanadora,
-  filtroMesVisible,
-  filtroOperativo,
-  filtroTipo,
-  filtrosMonto,
-  filtrosVisibles,
+  chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtrosMonto,
+  filtrosVisibles, filtroTipo, SECCIONES_FILTRO,
 } from "@/components/contratos/filtros";
 import { getEntidad, getRegionesEntidades } from "@/lib/api-client";
 import {
@@ -44,6 +36,7 @@ import { ListaMenores, ListaMenoresCargando, BarraMenoresGeneral } from "@/compo
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { numero } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 
 export const metadata = {
   // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
@@ -79,8 +72,8 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   if (vistaParam === "ordenes") return <OrdenesVista searchParams={searchParams} />;
   if (vistaParam === "menores") return <MenoresVista searchParams={searchParams} />;
   // Con los filtros que sólo tiene esta lista (datos de la empresa ganadora, posible error de carga).
-  const query = parseContratosQuery(searchParams, { conDatosGanadora: true });
-  const parametros = contratosParametros(query);
+  const query = parseContratosQuery(conProvincia(searchParams), { conDatosGanadora: true });
+  const parametros = conProvinciaAparte(contratosParametros(query));
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
   const recortada = Object.entries(parametros).some(([k, v]) => k !== "riesgo" && k !== "orden" && !!v);
   // Arrancan ya, en paralelo; cada pieza espera sólo la suya.
@@ -201,9 +194,10 @@ function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
       // A la vista, las preguntas de casi todos (región, cuándo, si lo leyó Vigía, antecedentes del ganador). El riesgo
       // sólo existe en los contratos ya leídos (unos cientos de 800 mil): va en «Filtros», como en la ficha de una entidad.
-      visibles={[filtroRegion(parametros, regiones, filas), filtroMesVisible(parametros), ...filtrosVisibles(resumen).filter((f) => f.param !== "riesgo")]}
-      filtros={[...filtrosVisibles(resumen).filter((f) => f.param === "riesgo"), ...filtros({ resumen, parametros, partidos, entidadNombre })]}
+      visibles={[filtroRegion(parametros, regiones, filas), ...filtroProvincia(parametros), filtroMesVisible(parametros), ...filtrosVisibles(resumen, true).filter((f) => f.param !== "riesgo")]}
+      filtros={[...filtrosVisibles(resumen, true).filter((f) => f.param === "riesgo"), ...filtros({ resumen, parametros, partidos, entidadNombre })]}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
+      chips={chipsDeEnlace(parametros)}
     />
   );
 }
@@ -280,8 +274,37 @@ function nombreZona(ubigeo: string, filas: ContratoResumen[]): string {
 }
 
 /**
- * La región (departamento), a la vista y con el mismo nombre que en Órdenes y Menores. Una provincia o un distrito
- * llegan por enlace (el mapa): se agregan con su nombre para que el desplegable diga qué zona filtra.
+ * La provincia va en su propio desplegable (`prov`, sólo en la URL de esta lista): la región se queda en el
+ * departamento y «Toda la región» quita sólo la provincia. A la API le llega el ubigeo de la provincia (4 dígitos). Una
+ * provincia de otro departamento (quedó en la URL al cambiar de región) no cuenta.
+ */
+function conProvincia(sp?: Record<string, string | string[] | undefined>): Record<string, string | string[] | undefined> | undefined {
+  const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const dep = uno(sp?.ubigeo);
+  const prov = uno(sp?.prov);
+  return dep && prov && /^\d{2}$/.test(dep) && /^\d{4}$/.test(prov) && prov.startsWith(dep) ? { ...sp, ubigeo: prov } : sp;
+}
+
+/** Los parámetros de la barra: una provincia (por la URL o por un enlace del mapa con `ubigeo` de 4 dígitos) en `prov`. */
+function conProvinciaAparte(p: Record<string, string | undefined>): Record<string, string | undefined> {
+  return p.ubigeo && /^\d{4}$/.test(p.ubigeo) ? { ...p, ubigeo: p.ubigeo.slice(0, 2), prov: p.ubigeo } : p;
+}
+
+/** Las provincias de la región elegida, para elegir una (el nombre del mapa, con sus tildes). */
+function filtroProvincia(parametros: Parametros): FiltroSecundario[] {
+  const dep = parametros.ubigeo;
+  if (!dep || !/^\d{2}$/.test(dep)) return [];
+  const opciones = Object.entries(PROVINCIA_NOMBRE)
+    .filter(([k]) => k.startsWith(dep))
+    .map(([k, n]) => ({ valor: k, etiqueta: tituloNatural(n) }))
+    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+  if (opciones.length < 2) return [];
+  return [{ param: "prov", etiqueta: "Provincia", corta: "Provincia", todas: "Toda la región", buscable: opciones.length > 12, opciones }];
+}
+
+/**
+ * La región (departamento), a la vista y con el mismo nombre que en Órdenes y Menores. Un distrito llega por enlace (el
+ * mapa): se agrega con su nombre para que el desplegable diga qué zona filtra.
  */
 function filtroRegion(parametros: Parametros, regiones: Region[], filas: ContratoResumen[]): FiltroSecundario {
   const opciones = [...regiones].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre }));
@@ -302,7 +325,7 @@ function filtros({
   entidadNombre: string | null;
 }): FiltroSecundario[] {
   return [
-    ...enSeccion(SECCIONES_FILTRO.que, filtroTipo(resumen), filtroEtapa()),
+    ...enSeccion(SECCIONES_FILTRO.que, filtroTipo(resumen), filtroEtapa(), filtroObra(resumen)),
     ...enSeccion(
       SECCIONES_FILTRO.quien,
       // La entidad se elige desde el panel de un contrato («Ver sólo los contratos de esta entidad»), su ficha o un

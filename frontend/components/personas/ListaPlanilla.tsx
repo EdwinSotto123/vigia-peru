@@ -36,8 +36,7 @@ import {
   rutaPlanilla,
   type FacetasPlanilla,
   type PaginaPlanilla,
-  type PersonaPlanilla,
-} from "@/lib/planilla";
+  type PersonaPlanilla, GRUPO_PLANILLA, GRUPOS_PLANILLA } from "@/lib/planilla";
 import { SenalesPlanillaLista } from "./SenalesPlanilla";
 import { uno } from "@/lib/utils";
 
@@ -229,7 +228,10 @@ function Barra({
           etiqueta: "Señal",
           corta: "Señal",
           todas: "Toda señal",
-          opciones: (r?.porSenal ?? []).map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLANILLA[s.tipo]?.corto ?? s.tipo, conteo: s.n })),
+          // Por familia (Política, Familia y conflictos, Cómo se le paga) y dentro por cuántas hay.
+          opciones: [...(r?.porSenal ?? [])]
+            .sort((a, b) => GRUPOS_PLANILLA.indexOf(GRUPO_PLANILLA[a.tipo] ?? "Cómo se le paga") - GRUPOS_PLANILLA.indexOf(GRUPO_PLANILLA[b.tipo] ?? "Cómo se le paga") || b.n - a.n)
+            .map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLANILLA[s.tipo]?.corto ?? s.tipo, conteo: s.n, grupo: GRUPO_PLANILLA[s.tipo] ?? "Cómo se le paga" })),
         },
         {
           param: P.regimen,
@@ -331,7 +333,9 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
  */
 function Senales({ senales, dudoso, pariente }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"]; pariente: boolean }) {
   const motivo = motivoDudoso(dudoso?.motivo);
-  const todas = [...(pariente ? [{ tipo: PARIENTE, severidad: "alta" as const }] : []), ...(senales ?? [])];
+  // Desde la migración 179 el pariente locador es una señal más («pariente_locador»): la marca aparte, sólo con la API vieja.
+  const yaEsSenal = (senales ?? []).some((x) => x.tipo === "pariente_locador");
+  const todas = [...(pariente && !yaEsSenal ? [{ tipo: PARIENTE, severidad: "alta" as const }] : []), ...(senales ?? [])];
   if (!todas.length && !motivo) return <span className="text-meta text-mute">Sin señales</span>;
   return (
     <span className="flex min-w-0 max-w-full items-center gap-1">

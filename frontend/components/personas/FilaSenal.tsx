@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import type { Severidad as NivelSenal } from "@/lib/personas";
 
 /**
@@ -16,6 +17,7 @@ import type { Severidad as NivelSenal } from "@/lib/personas";
  */
 export function FilaSenal({
   severidad,
+  tipo,
   titulo,
   dato,
   fuente,
@@ -24,6 +26,8 @@ export function FilaSenal({
   children,
 }: {
   severidad: NivelSenal;
+  /** El tipo de la señal: su ícono va junto al título (`IconoBandera`), el mismo en todas las listas. */
+  tipo?: string;
   titulo: string;
   /** El dato que la sostiene, en una línea: "S/ 107 a Sentimiento Amazonense Regional en 2022". */
   dato?: string | null;
@@ -49,7 +53,10 @@ export function FilaSenal({
             <Severidad bandera={severidad} />
           </span>
           <span className="col-span-2 col-start-1 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
-            <span className="block text-dato font-semibold leading-snug text-ink text-pretty">{titulo}</span>
+            <span className="flex items-start gap-1.5 text-dato font-semibold leading-snug text-ink text-pretty">
+              {tipo && <IconoBandera tipo={tipo} size={15} className="mt-0.5 text-inkSoft" />}
+              <span className="min-w-0">{titulo}</span>
+            </span>
             {dato && <span className="mt-0.5 block text-meta leading-snug text-inkSoft text-pretty">{dato}</span>}
             {(fuente || extra) && (
               <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-rotulo text-mute">

@@ -7,7 +7,7 @@ import { API_BASE } from "./api-client";
 import { tituloNatural } from "./landing";
 import type { FichaPersona, Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 // Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
@@ -164,11 +164,39 @@ export const REGIMEN: Record<number, string> = {
   1: "CAS", 2: "Régimen 276", 3: "Régimen 728 y otros", 4: "PAC", 5: "FAG", 6: "PNUD", 7: "Alto funcionario", 9: "Ley Servir",
 };
 
+/** La familia de cada señal de la planilla, para agrupar su desplegable (como GRUPO_SENAL en las personas). */
+export const GRUPOS_PLANILLA = ["Política", "Familia y conflictos", "Cómo se le paga"] as const;
+export const GRUPO_PLANILLA: Record<TipoPlanilla, (typeof GRUPOS_PLANILLA)[number]> = {
+  financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", es_autoridad: "Política",
+  pariente_locador: "Familia y conflictos", socio_proveedor: "Familia y conflictos", apellidos_autoridad: "Familia y conflictos",
+  apellidos_directivo: "Familia y conflictos",
+  tambien_ordenes: "Cómo se le paga", doble_planilla: "Cómo se le paga", brecha_cargo: "Cómo se le paga", pago_extraordinario: "Cómo se le paga",
+  antes_locador: "Cómo se le paga",
+};
+
 export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: string; explica: string }> = {
   tambien_ordenes: {
     corto: "Cobra también por órdenes",
     titulo: "Está en la planilla y además recibe órdenes de servicio",
     explica: "El mismo mes en que figura en la planilla, la misma entidad le dio órdenes de servicio. Cobrar dos veces del Estado está prohibido, salvo por docencia.",
+  },
+  pariente_locador: {
+    corto: "Pariente locador",
+    titulo: "Declaró en su DJI a un pariente que es locador de su entidad",
+    explica:
+      "Declaró en su Declaración Jurada de Intereses a un pariente que es locador (proveedor) de esta misma entidad. Del pariente sólo se dice el parentesco y lo que cobró, nunca quién es. Es un indicio de posible nepotismo para revisión, no una acusación.",
+  },
+  doble_planilla: {
+    corto: "En dos planillas a la vez",
+    titulo: "Cobra sueldo en dos entidades el mismo mes",
+    explica:
+      "Figura con sueldo en la planilla de otra entidad del mismo departamento en los mismos meses. Cobrar dos remuneraciones del Estado está prohibido, salvo por docencia o por dietas de directorio (Ley 28175, art. 3). No se cuentan los cargos de docencia, el residentado médico, los jurados electorales, los gerentes públicos de SERVIR ni dos oficinas de una misma entidad. Coincide por el nombre completo (la planilla no publica el DNI), de cuatro palabras o más, que sólo aparece en esas dos entidades y con apellidos poco comunes. Aun así, puede ser un homónimo o un cambio de trabajo: por eso se piden dos meses o más.",
+  },
+  socio_proveedor: {
+    corto: "Socio de un proveedor",
+    titulo: "Es socio o representante de una empresa que le vende a su entidad",
+    explica:
+      "Según el RNP es socio, representante o directivo de una empresa que le vendió a la misma entidad donde trabaja (órdenes o contratos). Es un conflicto de interés a revisar: quien trabaja en la entidad no debe intervenir en las compras a su empresa. Coincide por el nombre completo, que en el RNP es de una sola persona.",
   },
   financio_campana: {
     corto: "Financió la campaña del que gobierna",
@@ -225,6 +253,12 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
 /** De dónde sale cada señal de la planilla (el pie de su evidencia) y, en corto, la línea de la señal. */
 export function fuentePlanilla(tipo: TipoPlanilla | "nepotismo"): { texto: string; corto: string; url: string | null } {
   if (tipo === "candidato_gobierna") return { texto: "JNE, candidaturas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
+  if (tipo === "pariente_locador")
+    return { texto: "Contraloría, declaraciones juradas de intereses, y OECE, CONOSCE (órdenes)", corto: "Contraloría, DJI", url: "https://appdji.contraloria.gob.pe/DJIC/" };
+  if (tipo === "doble_planilla")
+    return { texto: "Portal de Transparencia Estándar, planillas de las dos entidades", corto: "Portal de Transparencia", url: "https://www.transparencia.gob.pe/" };
+  if (tipo === "socio_proveedor")
+    return { texto: "OECE, RNP (socios y representantes) y CONOSCE (órdenes y adjudicaciones)", corto: "RNP y CONOSCE", url: "https://www.gob.pe/oece" };
   if (tipo === "financio_campana" || tipo === "aporte_gobierna")
     return { texto: "ONPE, Claridad (aportes a organizaciones políticas)", corto: "ONPE", url: "https://claridad.onpe.gob.pe/" };
   if (tipo === "apellidos_autoridad" || tipo === "es_autoridad") return { texto: "JNE, autoridades electas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };

@@ -194,6 +194,8 @@ export const SENALES_ENTIDAD = {
   // Sus plazas CAS (SERVIR): alguna con señales de plaza a la medida, o alguna publicada.
   plazasSenales: (r: string) => `EXISTS (SELECT 1 FROM servir_convocatoria s WHERE s.entidad_ruc = ${r} AND s.n_senales > 0)`,
   plazas: (r: string) => `EXISTS (SELECT 1 FROM servir_convocatoria s WHERE s.entidad_ruc = ${r})`,
+  // Quienes financiaron la campaña del que gobierna trabajan para ella (locadores o planilla, migraciones 177-178).
+  financio: (r: string) => `EXISTS (SELECT 1 FROM entidad_senal_politica esp WHERE esp.ruc = ${r}::text)`,
 } as const;
 
 export const ListQuery = z.object({
@@ -215,6 +217,8 @@ export const ListQuery = z.object({
   plazas: z.enum(["senales", "con"]).optional(),
   // Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador; vista migr. 136).
   nepotismo: z.enum(["1"]).optional(),
+  // Las que tienen locadores o personas de planilla que financiaron la campaña del que la gobierna (migración 178).
+  financio: z.enum(["1"]).optional(),
   // Por defecto, las que más contratos tienen desde 2015: un dato que toda entidad tiene (con dictamen hay ~180 de 3,162
   // y la lista ordenada por eso se leía vacía: «0 de 426, Sin dato, Sin dato»).
   orden: z.enum(["contratos", "dictamen", "nombre"]).default("contratos"),
@@ -256,6 +260,7 @@ export function filtrosEntidades(
   if (q.planilla) conds.push(SENALES_ENTIDAD[q.planilla === "alta" ? "planillaAlta" : "planilla"](ruc));
   if (q.plazas) conds.push(SENALES_ENTIDAD[q.plazas === "senales" ? "plazasSenales" : "plazas"](ruc));
   if (q.nepotismo) conds.push(enNepotismo(ruc, nepotismo && p(nepotismo)));
+  if (q.financio) conds.push(SENALES_ENTIDAD.financio(ruc));
   // Siempre: una entidad cuyo nombre es «nan» no se lista ni se cuenta (su ficha sigue abriéndose por el RUC).
   conds.push(NOMBRE_VALIDO(nombre));
   return { conds, vals };

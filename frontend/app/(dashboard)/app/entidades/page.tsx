@@ -95,7 +95,8 @@ export default async function EntidadesPage({
   // Datos planos (nunca funciones) hacia los componentes cliente del Listado.
   const parametros = {
     q, region: query.region, clase: query.clase, provincia: query.provincia, partido: query.partido, captura: query.captura ? "1" : undefined,
-    control: query.control, planilla: query.planilla, plazas: query.plazas, nepotismo: query.nepotismo ? "1" : undefined, orden: query.orden,
+    control: query.control, planilla: query.planilla, plazas: query.plazas, nepotismo: query.nepotismo ? "1" : undefined,
+    financio: query.financio ? "1" : undefined, orden: query.orden,
   };
   const aqui = hrefEntidades({ ...parametros, pagina: actual > 1 ? String(actual) : undefined });
 
@@ -226,6 +227,10 @@ function BarraEntidades({
     {
       param: "captura", etiqueta: "Captura política", todas: "Todas", seccion: "Quién la gobierna",
       opciones: [{ valor: "1", etiqueta: "Con ganadores ligados a quien la gobierna", conteo: n("captura") }],
+    },
+    {
+      param: "financio", etiqueta: "Financiaron su campaña", todas: "Todas", seccion: "Quién la gobierna",
+      opciones: [{ valor: "1", etiqueta: "Con locadores o planilla que financiaron la campaña del que gobierna", conteo: n("financio") }],
     },
     {
       param: "control", etiqueta: "Informes de la Contraloría", todas: "Con o sin informes", seccion: "Control",

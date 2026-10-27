@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, ExternalLink, Flag, Hash, MapPin } from "lucide-react";
+import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, IdCard, LayoutDashboard, MapPin, Ruler, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -214,6 +214,7 @@ export default async function EntidadProfile({
   const todas: Pestana[] = [
     {
       clave: "inicio",
+      icono: <LayoutDashboard size={15} aria-hidden />,
       etiqueta: "Inicio",
       // Las cifras → qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide.
       // Cada parte espera lo suyo (Suspense adentro).
@@ -235,6 +236,7 @@ export default async function EntidadProfile({
     },
     {
       clave: "contratos",
+      icono: <FileText size={15} aria-hidden />,
       etiqueta: "Contratos",
       // Sin número propio: son tres listas que no se suman (cada vista lleva el suyo). Sin ninguna, 0.
       conteo: sinCompras ? 0 : null,
@@ -261,6 +263,7 @@ export default async function EntidadProfile({
       // Sus obras públicas (INFOBRAS) y sus inversiones (Invierte.pe), en dos vistas con su número cada una (no se suman:
       // una obra es parte de una inversión). components/obras/ObrasEntidad.tsx.
       clave: "obras",
+      icono: <HardHat size={15} aria-hidden />,
       etiqueta: "Obras",
       conteo: sinObras ? 0 : null,
       contenido: sinObras ? (
@@ -271,6 +274,7 @@ export default async function EntidadProfile({
     },
     {
       clave: "personas",
+      icono: <Users size={15} aria-hidden />,
       etiqueta: "Personas contratadas",
       conteo: n.personas,
       contenido: vacias.has("personas") ? (
@@ -290,6 +294,7 @@ export default async function EntidadProfile({
     },
     {
       clave: "planilla",
+      icono: <IdCard size={15} aria-hidden />,
       etiqueta: "Planilla",
       conteo: n.planilla,
       contenido: vacias.has("planilla") ? (
@@ -305,6 +310,7 @@ export default async function EntidadProfile({
     },
     {
       clave: "plazas",
+      icono: <Ruler size={15} aria-hidden />,
       etiqueta: "Plazas CAS",
       conteo: n.plazas,
       contenido: vacias.has("plazas") ? (
@@ -327,6 +333,7 @@ export default async function EntidadProfile({
     },
     {
       clave: "presupuesto",
+      icono: <Wallet size={15} aria-hidden />,
       etiqueta: "Cuánto gasta",
       contenido: sinMef ? (
         empresaDelEstado || fueraSiaf ? (
@@ -355,6 +362,7 @@ export default async function EntidadProfile({
       // La tabla entera de la Contraloría (en el Inicio van sus cifras y los tres últimos informes). Ocupaba ~1,850
       // px del Inicio.
       clave: "control",
+      icono: <FileSearch size={15} aria-hidden />,
       etiqueta: "Control",
       titulo: "Informes de la Contraloría",
       conteo: n.informes,

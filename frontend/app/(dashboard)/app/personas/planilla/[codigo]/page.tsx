@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Flag, LayoutDashboard } from "lucide-react";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, SinSenalesEstado, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { LineaMeses } from "@/components/charts/LineaMeses";
@@ -54,8 +55,11 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
     Promise.all(f.nepotismo.map((x) => (x.proveedorCodigo ? getFichaPersona(x.proveedorCodigo) : Promise.resolve(null)))),
   ]);
   const parientes = parientesProveedores(f, fichasParientes);
-  const nSenales = p.senales.length + (parientes.length ? 1 : 0);
-  const altas = p.senales.filter((s) => s.severidad === "alta").length + (parientes.length ? 1 : 0);
+  // El pariente locador también llega como señal (migración 179); con la evidencia rica de arriba (sus órdenes y su ficha),
+  // la señal simple sobra: se muestra una vez.
+  const senalesPlanilla = parientes.length ? p.senales.filter((s) => s.tipo !== "pariente_locador") : p.senales;
+  const nSenales = senalesPlanilla.length + (parientes.length ? 1 : 0);
+  const altas = senalesPlanilla.filter((s) => s.severidad === "alta").length + (parientes.length ? 1 : 0);
   // Sus banderas, fijas bajo el nombre en todas las pestañas: el nepotismo (parientes que declaró en su DJI y que le
   // venden a su entidad) primero, después sus señales de la planilla, lo grave antes; todas hacia la pestaña Señales.
   const aSenales = `${ruta}?seccion=senales`;
@@ -63,7 +67,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
     ...(parientes.length
       ? [{ tipo: "nepotismo", severidad: "alta" as const, nombre: "Posible nepotismo", n: parientes.length > 1 ? parientes.length : null, explica: "Declaró en su DJI a un pariente que es locador de su misma entidad", href: aSenales }]
       : []),
-    ...p.senales.map((x) => ({ tipo: x.tipo, severidad: x.severidad, nombre: SENAL_PLANILLA[x.tipo]?.corto ?? x.tipo, explica: SENAL_PLANILLA[x.tipo]?.titulo, href: aSenales })),
+    ...senalesPlanilla.map((x) => ({ tipo: x.tipo, severidad: x.severidad, nombre: SENAL_PLANILLA[x.tipo]?.corto ?? x.tipo, explica: SENAL_PLANILLA[x.tipo]?.titulo, href: aSenales })),
   ];
   const ordenesP = p.codigo ? getOrdenesPersona(p.codigo, { ...filtrosOrdenes, size: TAM_ORDENES }) : null;
   // Meses en que además cobró por órdenes de servicio (señal tambien_ordenes), para marcarlos en el cuadro mes a mes.
@@ -122,6 +126,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
         pestanas={[
           {
             clave: "resumen",
+            icono: <LayoutDashboard size={15} aria-hidden />,
             etiqueta: "Resumen",
             contenido: (
               <Resumen
@@ -138,6 +143,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
           },
           {
             clave: "senales",
+            icono: <Flag size={15} aria-hidden />,
             etiqueta: "Señales",
             conteo: nSenales,
             contenido: (
@@ -155,13 +161,13 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                 </CabeceraPestana>
                 {nSenales ? (
                   <section aria-label="Sus señales" className="tarjeta rounded-2xl border border-line bg-paper px-4 pb-1 pt-1 sm:px-5">
-                    <SenalesPlanillaLista senales={p.senales} nepotismo={parientes} entidad={entidad} />
+                    <SenalesPlanillaLista senales={senalesPlanilla} nepotismo={parientes} entidad={entidad} />
                   </section>
                 ) : (
-                  <EstadoVacio compacto titulo="Ningún otro registro coincide">
+                  <SinSenalesEstado titulo="Sin señales: ningún otro registro coincide">
                     No cobra también por órdenes de la entidad, no fue candidato del partido que la gobierna, no comparte apellidos
                     con sus autoridades ni sus directivos y su sueldo no se aparta del de su mismo cargo.
-                  </EstadoVacio>
+                  </SinSenalesEstado>
                 )}
               </div>
             ),
@@ -255,6 +261,8 @@ function Resumen({
   const p = f.persona;
   const periodo = periodoMeses(p.primerMes, p.ultimoMes);
   const l = locador?.persona;
+  // Como arriba: con la evidencia rica de los parientes, la señal simple «pariente_locador» no se repite.
+  const senalesPlanilla = parientes.length ? p.senales.filter((s) => s.tipo !== "pariente_locador") : p.senales;
   return (
     <div className="space-y-4">
       <CabeceraPestana>Quién es en la planilla de {entidad}, qué señales tiene y cuánto cobró cada mes.</CabeceraPestana>
@@ -268,7 +276,7 @@ function Resumen({
             {nSenales > 0 && <IrAPestana clave="senales">Ver cada una con su evidencia</IrAPestana>}
           </div>
           {nSenales ? (
-            <SenalesPlanillaBreves senales={p.senales} nepotismo={parientes} />
+            <SenalesPlanillaBreves senales={senalesPlanilla} nepotismo={parientes} />
           ) : (
             <p className="text-dato text-inkSoft">Ningún otro registro público coincide con esta persona en {entidad}.</p>
           )}

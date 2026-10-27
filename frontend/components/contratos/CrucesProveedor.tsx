@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import { CuentaGrupo } from "@/components/listado";
 import { AlertTriangle, ChevronDown, ChevronRight, CircleAlert, Info } from "lucide-react";
 import type { CruceProveedor } from "@/lib/contratos";
@@ -744,6 +745,7 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <SeveridadCruce s={sev} />
               <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
+                <IconoBandera tipo={tipo} size={15} className="text-inkSoft" />
                 {grupo[0].etiqueta}
                 {grupo.length > 1 && <CuentaGrupo>{numero(grupo.length)}</CuentaGrupo>}
               </h3>
@@ -876,6 +878,7 @@ function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
           >
             <span className="flex min-w-0 items-center gap-2">
               <SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} />
+              <IconoBandera tipo={g[0].tipo} size={14} className="text-inkSoft" />
               <span className="line-clamp-2 text-dato leading-snug text-ink">{g[0].etiqueta}</span>
             </span>
             <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>

@@ -160,6 +160,9 @@ export const ListQuery = z.object({
   // "con" (alguno), "alta" (uno grave) o un tipo de cruce (el desplegable "Antecedentes" los ofrece todos).
   cruces: z.string().max(40).regex(/^[a-z_]+$/).optional(),
   cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
+  // Las banderas de la obra del contrato (INFOBRAS e Invierte.pe, migración 160), aparte de los antecedentes del ganador:
+  // «con» (alguna) o un tipo.
+  obra: z.string().max(40).regex(/^(con|(obra|inversion)_[a-z_]+)$/).optional(),
   // Partido u organización que gobernaba la entidad al convocar (contrato_partido, migración 41): su clave.
   partido: z.string().max(120).regex(/^[a-z0-9-]+$/).optional(),
   // Un dato de la EMPRESA que ganó (empresa_resumen.tipos, migraciones 109-117): su estado de hoy en la SUNAT o un hecho

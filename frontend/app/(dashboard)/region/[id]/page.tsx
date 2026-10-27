@@ -5,7 +5,7 @@ import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } fro
 import { BarraFiltros, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
-import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
+import { filtroEtapa, filtroMes, filtroObra, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { HistoriaGobiernos, ResumenRegion } from "@/components/regiones/GobiernosRegion";
 import { TerritorioRegion } from "@/components/regiones/ArbolTerritorio";
 import { InicioRegionEsqueleto, InicioRegionFicha } from "@/components/regiones/InicioRegionFicha";
@@ -249,7 +249,7 @@ function BarraRegion({
   todas?: ZonaRegion[] | null;
   sub?: string;
 }) {
-  const vistas = filtrosVisibles(resumen);
+  const vistas = filtrosVisibles(resumen, true);
   const donde = filtroDonde(region, zonas, todas ?? zonas, sub, parametros);
   return (
     <BarraFiltros
@@ -261,6 +261,7 @@ function BarraRegion({
         filtroOperativo(resumen),
         filtroTipo(resumen),
         filtroEtapa(),
+        filtroObra(resumen),
         filtroMes(parametros),
         ...filtrosMonto(parametros),
       ]}

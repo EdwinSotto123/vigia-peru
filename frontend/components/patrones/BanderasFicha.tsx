@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ChevronRight, CircleAlert, Info } from "lucide-react";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +62,8 @@ export function BanderasFicha({
           <>
             <e.Icono size={14} className="shrink-0" aria-hidden />
             <span className="sr-only">{e.palabra}: </span>
+            {/* El ícono del tipo, después del de severidad y más tenue: qué clase de hecho es (un aporte, un pariente…). */}
+            <IconoBandera tipo={b.tipo} size={13} className="opacity-70" />
             <span>{b.nombre}</span>
             {b.n != null && b.n > 0 && <span className="font-mono tabular-nums">{numero(b.n)}</span>}
             {b.href && <ChevronRight size={14} className="-mr-1 shrink-0 opacity-70" aria-hidden />}

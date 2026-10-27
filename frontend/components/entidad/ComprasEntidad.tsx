@@ -3,7 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import { Ayuda, CabeceraPestana, EstadoVacio, Pestanas, type Pestana } from "@/components/patrones";
 import { BarraFiltros, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario, type Parametros } from "@/components/listado";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
-import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
+import { chipsDeEnlace, filtroEtapa, filtroMes, filtroObra, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { BarraMenoresGeneral, ListaMenores } from "@/components/menores/ListaMenores";
 import { BarraOrdenesGeneral, ListaOrdenes } from "@/components/ordenes/ListaOrdenes";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
@@ -198,7 +198,7 @@ async function BarraConConteos({ resumen, parametros }: { resumen: Promise<Resum
  * renglones antes del primer contrato.
  */
 function BarraEntidad({ resumen, parametros }: { resumen: ResumenContratos | null; parametros: Parametros }) {
-  const vistas = filtrosVisibles(resumen);
+  const vistas = filtrosVisibles(resumen, true);
   return (
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar en sus contratos…", etiqueta: "Buscar en sus contratos por objeto o código", min: 3 }}
@@ -208,11 +208,14 @@ function BarraEntidad({ resumen, parametros }: { resumen: ResumenContratos | nul
         filtroOperativo(resumen),
         filtroTipo(resumen),
         filtroEtapa(),
+        filtroObra(resumen),
         filtroMes(parametros),
         ...filtrosMonto(parametros),
         ...(parametros.cruce ? [filtroCaptura(parametros.cruce, resumen)] : []),
       ]}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
+      // El período del gobierno con que llega la bandera de captura (la captura ya tiene su filtro: sin chip de cruce).
+      chips={chipsDeEnlace(parametros, false)}
     />
   );
 }

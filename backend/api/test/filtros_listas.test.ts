@@ -65,6 +65,35 @@ test("órdenes: el parentesco parte de persona_senal; las órdenes partidas, de 
   assert.match(fr, /\(SELECT true FROM ordenes_fraccionadas f WHERE .* LIMIT 1\) IS NOT NULL/s);
 });
 
+test("órdenes: los antecedentes de la persona parten de sus parejas y ordenan sin el índice por fecha", () => {
+  for (const tipo of ["financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]) {
+    const { sql } = sqlListaOrdenes(ordenes({ antecedente: tipo }));
+    assert.match(sql, new RegExp(`FROM persona_senal ps JOIN conosce_ordenes o .* WHERE ps\\.tipo = '${tipo}'`, "s"));
+    assert.match(sql, /ORDER BY o\.fecha_emision \+ 0 DESC LIMIT/);
+  }
+  // «Al borde del tope»: sólo las órdenes de servicio de la franja, con el tope que dice cada orden.
+  const borde = sqlListaOrdenes(ordenes({ antecedente: "al_borde_del_tope" })).sql.split("), d AS (")[0];
+  assert.match(borde, /o\.tipo_orden = 'Orden de Servicio' AND o\.monto >= 0\.95 \* \(CASE WHEN o\.tipo_contratacion ~ 'hasta \[0-9\]\+ UIT'/);
+  // Sin antecedente, el índice por fecha de siempre.
+  assert.match(sqlListaOrdenes(ordenes({})).sql, /ORDER BY o\.fecha_emision DESC LIMIT/);
+  assert.equal(ListaOrdenesQuery.safeParse({ antecedente: "aporte" }).success, false);
+});
+
+test("órdenes: la inhabilitación parte de sus periodos fundidos (una orden en dos sanciones no sale dos veces)", () => {
+  const { sql } = sqlListaOrdenes(ordenes({ antecedente: "inhabilitado" }));
+  assert.match(sql, /sum\(nuevo\) OVER \(PARTITION BY ruc ORDER BY desde, hasta\) AS isla/);
+  assert.match(sql, /\) s JOIN conosce_ordenes o ON o\.ruc_contratista = s\.ruc AND o\.fecha_emision BETWEEN s\.desde AND s\.hasta/);
+  assert.match(sql, /ORDER BY o\.fecha_emision \+ 0 DESC LIMIT/);
+});
+
+test("contratos: la obra es un filtro aparte, «con» o un tipo de obra o de inversión", () => {
+  assert.equal(ListQuery.safeParse({ obra: "con" }).success, true);
+  assert.equal(ListQuery.safeParse({ obra: "obra_paralizada_larga" }).success, true);
+  assert.equal(ListQuery.safeParse({ obra: "inversion_laudo" }).success, true);
+  assert.equal(ListQuery.safeParse({ obra: "unico_postor" }).success, false); // un antecedente va en «cruces»
+  assert.equal(ListQuery.safeParse({ obra: "obra_x'; --" }).success, false);
+});
+
 test("órdenes: la región compara el Callao de CONOSCE con el de las entidades, y va como parámetro", () => {
   const { sql, vals } = sqlListaOrdenes(ordenes({ region: "Callao" }));
   assert.match(sql, /mef_norm\(replace\(COALESCE\(o\.departamento, ''\), 'PROV\.CONSTITUC\.DEL ', ''\)\) = mef_norm\(\$1\)/);

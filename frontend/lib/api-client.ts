@@ -428,6 +428,8 @@ export interface EntidadesQuery {
   plazas?: (typeof PLAZAS_ENTIDAD)[number];
   /** Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador). */
   nepotismo?: boolean;
+  /** Solo las que tienen locadores o personas de planilla que financiaron la campaña del que la gobierna (migración 178). */
+  financio?: boolean;
   orden?: OrdenEntidades;
   page?: number;
 }
@@ -441,7 +443,8 @@ export interface FacetasEntidades {
   tipos: { valor: string; n: number }[];
   provincias: { valor: string; etiqueta: string; n: number }[];
   partidos: { valor: string; n: number }[];
-  senales: Record<"captura" | "penal" | "civil" | "administrativa" | "informes" | "planillaAlta" | "planilla" | "plazasSenales" | "plazas" | "nepotismo", number>;
+  senales: Record<"captura" | "penal" | "civil" | "administrativa" | "informes" | "planillaAlta" | "planilla" | "plazasSenales" | "plazas" | "nepotismo", number> &
+    Partial<Record<"financio", number>>;
 }
 
 export const ENTIDADES_PAGE_SIZE = 20;
@@ -467,6 +470,7 @@ export function parseEntidadesQuery(sp: Record<string, string | string[] | undef
     planilla: de("planilla", PLANILLAS_ENTIDAD),
     plazas: de("plazas", PLAZAS_ENTIDAD),
     nepotismo: s("nepotismo") === "1" || undefined,
+    financio: s("financio") === "1" || undefined,
     // El orden por defecto no va en la URL. Un `?orden=` de un enlace viejo («Mayor monto», que ordenaba sólo la página) se ignora.
     orden: de("orden", ORDENES_ENTIDADES.map((o) => o.valor)),
   };
@@ -492,6 +496,7 @@ export async function getEntidadesPagina(query: EntidadesQuery = {}): Promise<En
   }
   if (query.captura) qs.set("captura", "1");
   if (query.nepotismo) qs.set("nepotismo", "1");
+  if (query.financio) qs.set("financio", "1");
   qs.set("facetas", "1");
   qs.set("limit", String(size));
   qs.set("offset", String((page - 1) * size));

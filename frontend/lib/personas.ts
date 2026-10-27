@@ -194,8 +194,9 @@ export interface OrdenesPersona {
 // ─── Señales ───────────────────────────────────────────────────────────────────────────────────
 
 export const TIPOS_SENAL = [
-  "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
-  "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
+  "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "nepotismo_gobierno",
+  "apellidos_autoridad", "apellidos_funcionario", "funcionario_contratado", "meses_seguidos", "pago_alto", "al_borde_del_tope", "candidato", "aporte",
+  "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
 
@@ -203,6 +204,21 @@ export type TipoSenal = (typeof TIPOS_SENAL)[number];
  * Cómo se nombra cada señal: `corto` en un chip, `titulo` en la ficha y `explica` para quien no sabe qué es. Ninguna
  * acusa: dicen qué registro coincide.
  */
+/**
+ * La familia de cada señal, para agrupar el desplegable «Señal» (<optgroup>) en el orden de GRUPOS_SENAL: antes era una
+ * lista plana de 20 ordenada por cuántas había.
+ */
+export const GRUPOS_SENAL = ["Política", "Familia y funcionarios", "Cómo se le paga", "Otros registros"] as const;
+export const GRUPO_SENAL: Record<TipoSenal, (typeof GRUPOS_SENAL)[number]> = {
+  financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", autoridad_contratada: "Política",
+  candidato: "Política", aporte: "Política",
+  nepotismo: "Familia y funcionarios", nepotismo_gobierno: "Familia y funcionarios", apellidos_autoridad: "Familia y funcionarios",
+  apellidos_funcionario: "Familia y funcionarios", funcionario_contratado: "Familia y funcionarios",
+  meses_seguidos: "Cómo se le paga", pago_alto: "Cómo se le paga", al_borde_del_tope: "Cómo se le paga", tambien_planilla: "Cómo se le paga",
+  paso_a_planilla: "Cómo se le paga",
+  inhabilitado: "Otros registros", visita_previa: "Otros registros",
+};
+
 export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: string }> = {
   nepotismo: {
     // El mismo nombre que la bandera de la entidad y de la cabecera de la ficha (antes «Pariente de un funcionario»).
@@ -216,6 +232,18 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     titulo: "Aportó a la campaña del que gobierna y después recibió sus órdenes",
     explica:
       "Aportó dinero (ONPE) a la campaña de la organización política en la misma elección que la llevó a gobernar esta entidad (o, en un ministerio, al partido del Presidente), y después ese gobierno le dio órdenes de servicio. Aportar es legal: lo que se señala es que quien financió la campaña luego cobra de ese gobierno. Es un dato para revisar, no una prueba de favor.",
+  },
+  nepotismo_gobierno: {
+    corto: "Pariente en el mismo gobierno",
+    titulo: "Un funcionario de otra entidad del mismo gobierno lo declaró como su pariente",
+    explica:
+      "Un funcionario de otra entidad del mismo gobierno (el gobierno regional y sus UGEL u hospitales, o la municipalidad y sus organismos) lo declaró como pariente en su Declaración Jurada de Intereses, y él es locador de esta entidad. Entre entidades de un mismo gobierno pueden cruzarse favores; es un indicio para revisar, no una acusación.",
+  },
+  al_borde_del_tope: {
+    corto: "Órdenes al borde del tope",
+    titulo: "Sus órdenes van justo debajo del tope de 8 UIT",
+    explica:
+      "La mitad o más de las órdenes que le dio la entidad (y al menos tres) quedaron entre el 95 % y el 100 % del tope de 8 UIT de su año, el monto desde el cual se debe hacer un proceso de selección. Puede ser casualidad o la forma de no hacer un proceso: vale revisar si el servicio se partió en órdenes.",
   },
   candidato_gobierna: {
     corto: "Candidato del que gobierna",

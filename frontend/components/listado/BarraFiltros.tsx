@@ -49,6 +49,11 @@ export interface FiltroSecundario {
   todas: string;
   /** Las opciones con `grupo` se dibujan juntas bajo su título (<optgroup>), en el orden en que llegan. */
   opciones: { valor: string; etiqueta: string; conteo?: number | null; grupo?: string }[];
+  /**
+   * Los nombres de valores que no están entre las `opciones` (una opción sin coincidencias se oculta, pero puede seguir
+   * elegida por un enlace): el chip y el desplegable los nombran así, no con la clave cruda («obra_controversia»).
+   */
+  etiquetas?: Record<string, string>;
   /** Dentro de "Filtros", los filtros con la misma `seccion` van juntos bajo ese subtítulo ("Dónde", "Cuándo", "Cuánto"). */
   seccion?: string;
   /**
@@ -110,12 +115,16 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
 const CAMPO =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
+/** El nombre de un valor que no está entre las opciones: su etiqueta conocida o la clave legible («obra controversia»). */
+const nombreDe = (f: FiltroSecundario, v: string) => f.etiquetas?.[v] ?? (v.charAt(0).toUpperCase() + v.slice(1)).replace(/_/g, " ");
+
 export function BarraFiltros({
   busqueda,
   faceta,
   visibles = [],
   filtros = [],
   orden,
+  chips = [],
   className,
 }: {
   /**
@@ -139,6 +148,12 @@ export function BarraFiltros({
   visibles?: FiltroSecundario[];
   filtros?: FiltroSecundario[];
   orden?: Orden;
+  /**
+   * Filtros que llegan por enlace y no tienen un control propio (el período de un gobierno con `desde` y `hasta`, varios
+   * antecedentes a la vez): se nombran en «Filtrando por» y su × quita todos sus parámetros. Antes quedaban activos e
+   * invisibles: la lista filtraba y la barra decía «Todo el histórico».
+   */
+  chips?: { clave: string; texto: string; params: string[] }[];
   className?: string;
 }) {
   const { parametros, navegar, pendiente } = useListado();
@@ -161,11 +176,16 @@ export function BarraFiltros({
   for (const f of [...visibles.filter((x) => parametros[x.param]), ...activos]) {
     const v = parametros[f.param]!;
     const o = f.opciones.find((x) => x.valor === v);
-    chipsActivos.push({ clave: f.param, texto: `${f.etiqueta}: ${o?.etiqueta ?? v}`, quitar: () => navegar({ [f.param]: undefined }) });
+    chipsActivos.push({ clave: f.param, texto: `${f.etiqueta}: ${o?.etiqueta ?? nombreDe(f, v)}`, quitar: () => navegar({ [f.param]: undefined }) });
+  }
+  for (const c of chips) {
+    if (!c.params.some((p) => parametros[p])) continue;
+    chipsActivos.push({ clave: c.clave, texto: c.texto, quitar: () => navegar(Object.fromEntries(c.params.map((p) => [p, undefined]))) });
   }
   const quitarTodo = () => {
     const cambio: Record<string, undefined> = {};
     for (const c of chipsActivos) cambio[c.clave] = undefined;
+    for (const c of chips) for (const p of c.params) cambio[p] = undefined;
     navegar(cambio);
   };
 
@@ -347,7 +367,7 @@ function CampoFiltro({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario;
       <select value={valor ?? ""} onChange={(e) => onCambio(e.target.value)} className={cn(CAMPO, valor && "border-granate/60 font-medium")} disabled={f.opciones.length === 0}>
         <option value="">{f.todas}</option>
         {/* El valor activo puede no estar entre las opciones cruzadas: se agrega para que el select no se vacíe. */}
-        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{valor}</option>}
+        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{nombreDe(f, valor)}</option>}
         <Opciones opciones={f.opciones} />
       </select>
     </label>
@@ -422,7 +442,7 @@ function DesplegableVisible({ filtro: f, valor, onCambio }: { filtro: FiltroSecu
         )}
       >
         <option value="">{f.corta ?? f.todas}</option>
-        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{valor}</option>}
+        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{nombreDe(f, valor)}</option>}
         <Opciones opciones={f.opciones} />
       </select>
     </label>

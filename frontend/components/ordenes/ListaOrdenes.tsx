@@ -16,6 +16,8 @@ import {
 } from "@/components/listado";
 import { enSeccion } from "@/components/contratos/filtros";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
+import { BarraTope } from "@/components/charts/BarraTope";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import { Llamita } from "@/components/marca/Llamita";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
@@ -23,7 +25,7 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha as fechaLarga, fechaCorta, hoyLima, numero, oracion, soles } from "@/lib/formato";
+import { fecha as fechaLarga, fechaCorta, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { FUENTE_TEXTO, SENAL, tipoContratacion } from "@/lib/personas";
 import {
@@ -336,7 +338,7 @@ export async function BarraOrdenesGeneral({
             { valor: "servicio", etiqueta: "Órdenes de servicio" },
           ],
         },
-        // Los antecedentes que filtran (la inhabilitación se ve en la fila; filtrarla pediría recorrer las 28 M órdenes).
+        // Los antecedentes que filtran, en dos grupos: los de la persona con la entidad y los de la orden misma.
         { param: P_ORD.antecedente, etiqueta: "Antecedentes", corta: "Antecedentes", todas: "Todos", opciones: opcionesDe(ANTECEDENTES_ORDEN) },
       ]}
       filtros={filtros}
@@ -402,11 +404,30 @@ export function BloqueInhabilitacion({ i, cuando }: { i: InhabilitacionProveedor
   );
 }
 
+/** Una señal de la persona por su tipo (las que llegan de la API y la web aún no conoce, no se muestran). */
+const senalPersona = (tipo: string) => (SENAL as Record<string, { corto: string; titulo: string; explica: string } | undefined>)[tipo];
+
+/** A qué porcentaje de su tope quedó la orden («96,8 %»). */
+const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) / tope, { decimales: 1 });
+
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
 function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
   const out: Antecedente[] = [];
   if (o.conNepotismo) out.push({ tipo: "nepotismo", severidad: "alta", chip: SENAL.nepotismo.corto, explica: SENAL.nepotismo.titulo });
   if (o.inhabilitacion) out.push(antecedenteInhabilitado(o.inhabilitacion, "Inhabilitado al emitirse"));
+  // Las demás señales de la persona con esta entidad, con el mismo nombre que en su ficha.
+  for (const s of o.senalesPersona ?? []) {
+    const def = senalPersona(s.tipo);
+    if (def) out.push({ tipo: s.tipo, severidad: s.severidad, chip: def.corto, explica: def.titulo });
+  }
+  if (o.alBorde && o.monto != null) {
+    out.push({
+      tipo: "al_borde_del_tope",
+      severidad: "media",
+      chip: SENAL.al_borde_del_tope.corto,
+      explica: `Quedó en el ${parteDelTope(o.monto, o.alBorde.tope)} del tope de su año (${soles(o.alBorde.tope)}), como la mayoría de las órdenes que la entidad le dio.`,
+    });
+  }
   const f = o.fraccionamiento;
   if (f) {
     out.push({
@@ -416,7 +437,56 @@ function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
       explica: `Una de ${f.ordenes} órdenes que la entidad le emitió ese día: suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`,
     });
   }
-  return out;
+  const rango = { alta: 0, media: 1, baja: 2 } as const;
+  return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);
+}
+
+/**
+ * Las señales de la persona (RUC 10) con la entidad que le dio la orden: qué se encontró, y, si la orden es una de las
+ * que quedaron al borde del tope, a qué porcentaje. La evidencia de cada una (el aporte, la candidatura, las órdenes)
+ * está en su ficha.
+ */
+function BloqueSenalesPersona({ o }: { o: OrdenGeneral }) {
+  const senales = (o.senalesPersona ?? []).filter((s) => senalPersona(s.tipo));
+  const borde = o.alBorde && o.monto != null ? o.alBorde : null;
+  if (!senales.length && !borde) return null;
+  return (
+    <BloqueDetalle titulo="Lo que se sabe de esta persona con la entidad">
+      <ul className="space-y-2.5">
+        {senales.map((s) => {
+          const def = senalPersona(s.tipo)!;
+          return (
+            <li key={s.tipo} className="flex gap-2">
+              <IconoBandera tipo={s.tipo} size={15} className="mt-0.5 text-inkSoft" />
+              <span className="min-w-0">
+                <span className="block font-semibold text-ink">{def.titulo}</span>
+                <span className="block text-inkSoft">{def.explica}</span>
+              </span>
+            </li>
+          );
+        })}
+        {borde && (
+          <li className="flex gap-2">
+            <IconoBandera tipo="al_borde_del_tope" size={15} className="mt-0.5 text-inkSoft" />
+            <span className="min-w-0 flex-1 space-y-2">
+              <span className="block font-semibold text-ink">{SENAL.al_borde_del_tope.titulo}</span>
+              <span className="block text-inkSoft">
+                Esta orden quedó en el {parteDelTope(o.monto!, borde.tope)} del tope de su año, como la mayoría de las que la entidad
+                le dio. Puede ser casualidad o la forma de no hacer un proceso de selección.
+              </span>
+              <BarraTope monto={o.monto!} tope={borde.tope} />
+            </span>
+          </li>
+        )}
+      </ul>
+      <p className="mt-2 text-rotulo text-mute">Fuentes: ONPE (aportes), JNE (candidaturas y autoridades) y OECE (órdenes). Es un dato para revisar, no una acusación.</p>
+      {o.personaCodigo && (
+        <EnlaceAccion href={`/app/personas/${o.personaCodigo}?seccion=senales`} prefetch={false} variante="secundario" flecha className="mt-3">
+          Ver la evidencia en su ficha
+        </EnlaceAccion>
+      )}
+    </BloqueDetalle>
+  );
 }
 
 /** Las órdenes del mismo día que juntas pasan 8 UIT, en el panel: cuántas, cuánto suman frente al tope y cada una. */
@@ -584,6 +654,7 @@ export async function ListaOrdenes({
                 )}
               </BloqueDetalle>
             )}
+            <BloqueSenalesPersona o={o} />
             {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
             {o.inhabilitacion && <BloqueInhabilitacion i={o.inhabilitacion} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />}
             {(soloEntidad || soloProveedor) && (

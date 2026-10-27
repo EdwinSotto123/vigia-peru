@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { CircleCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Llamita } from "@/components/marca/Llamita";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -123,4 +124,20 @@ export function Cargando({
 function Titulo({ nivel, className, children }: { nivel: NivelTitulo; className: string; children: ReactNode }) {
   const Etiqueta = nivel;
   return <Etiqueta className={className}>{children}</Etiqueta>;
+}
+
+/**
+ * Un resultado bueno, no un vacío: la persona o el contrato que ningún registro señala. Antes salía como estado vacío (la
+ * mascota y el borde punteado), que se lee «no hay datos». Lleva el check y el verde de lo positivo (SIN_SENALES).
+ */
+export function SinSenalesEstado({ titulo = "Sin señales", children, className }: { titulo?: string; children?: ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex items-start gap-3 rounded-2xl border border-moss/40 bg-moss/10 px-4 py-3.5", className)}>
+      <CircleCheck size={20} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
+      <div className="min-w-0">
+        <p className="text-dato font-semibold text-mossTexto">{titulo}</p>
+        {children && <p className="mt-0.5 text-meta leading-relaxed text-inkSoft">{children}</p>}
+      </div>
+    </div>
+  );
 }

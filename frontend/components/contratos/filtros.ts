@@ -9,8 +9,8 @@
 import type { FiltroSecundario, Parametros } from "@/components/listado";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
 import { DATOS_GANADORA, ETAPAS, LECTURAS, OPERATIVOS, PRIMER_ANIO_CONTRATOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
-import { soles } from "@/lib/formato";
-import { GRUPOS_CRUCE } from "@/lib/cruces";
+import { fechaCorta, listaY, soles } from "@/lib/formato";
+import { esTipoObra, GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
 
 /** Conteo de una opción: del resumen si respondió (0 es un dato); si no, sin número. */
 const conteoDe = (resumen: ResumenContratos | null, m: Partial<Record<string, number>> | undefined, k: string) =>
@@ -24,7 +24,11 @@ const conteoDe = (resumen: ResumenContratos | null, m: Partial<Record<string, nu
  *   · Antecedentes del ganador: con uno grave, con alguno y cada tipo (aportes, sanciones, visitas, socios comunes…),
  *     agrupados en el mismo desplegable. Antes los tipos eran un panel de chips que se abría arriba de la lista.
  */
-export function filtrosVisibles(resumen: Pick<ResumenContratos, "porLectura" | "porRiesgo" | "porCruces"> | null): FiltroSecundario[] {
+export function filtrosVisibles(
+  resumen: Pick<ResumenContratos, "porLectura" | "porRiesgo" | "porCruces"> | null,
+  /** La obra va en su propio filtro (`filtroObra`): fuera de «Antecedentes». Donde no lo hay, la obra sigue ahí. */
+  obraAparte = false,
+): FiltroSecundario[] {
   const l = resumen?.porLectura;
   const r = resumen?.porRiesgo;
   const k = resumen?.porCruces;
@@ -54,6 +58,8 @@ export function filtrosVisibles(resumen: Pick<ResumenContratos, "porLectura" | "
       etiqueta: "Antecedentes del ganador",
       corta: "Antecedentes",
       todas: "Todos",
+      // Un tipo sin coincidencias no se ofrece, pero un enlace puede traerlo elegido: el chip lo nombra igual.
+      etiquetas: Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t.corto]))),
       opciones: [
         { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },
         { valor: "con", etiqueta: "Con alguno", conteo: k ? k.con : null },
@@ -62,11 +68,42 @@ export function filtrosVisibles(resumen: Pick<ResumenContratos, "porLectura" | "
         // empresa, migración 115—, así que no se ofrecen en este filtro; se ven en /app/empresas y en «datos del proveedor».
         ...GRUPOS_CRUCE.flatMap((g) =>
           g.tipos
+            .filter((t) => !(obraAparte && esTipoObra(t.tipo)))
             .filter((t) => !k?.tipos || (k.tipos[t.tipo] ?? 0) > 0)
             .map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo, conteo: k?.tipos ? k.tipos[t.tipo] ?? 0 : null }))),
       ],
     },
   ];
+}
+
+/**
+ * La obra del contrato (INFOBRAS e Invierte.pe): paralizada, atrasada, pagada sin avance, con adicionales… Son hechos de
+ * la ejecución de ESTE contrato, no antecedentes de quien ganó: van en su propio desplegable (`obra`), que se combina con
+ * el de antecedentes. Cada tipo con su conteo, sin este filtro y con los demás.
+ */
+export function filtroObra(resumen: Pick<ResumenContratos, "porObra" | "porCruces"> | null): FiltroSecundario {
+  const k = resumen?.porObra ?? resumen?.porCruces;
+  const tipos = GRUPOS_CRUCE.flatMap((g) => g.tipos).filter((t) => esTipoObra(t.tipo));
+  return {
+    param: "obra",
+    etiqueta: "La obra del contrato",
+    corta: "La obra",
+    todas: "Toda obra o compra",
+    etiquetas: Object.fromEntries(tipos.map((t) => [t.tipo, t.corto])),
+    opciones: [
+      { valor: "con", etiqueta: "Con alguna bandera de obra", conteo: k?.obra ?? null },
+      ...tipos
+        .filter((t) => !k?.tipos || (k.tipos[t.tipo] ?? 0) > 0)
+        .map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: grupoObra(t.tipo), conteo: k?.tipos ? k.tipos[t.tipo] ?? 0 : null })),
+    ],
+  };
+}
+
+/** Las banderas de la obra en tres grupos: cómo avanza, cuánto se pagó y añadió, y los conflictos. */
+function grupoObra(tipo: string): string {
+  if (/^obra_(paraliza|atraso|plazo)/.test(tipo)) return "Avance y plazo";
+  if (/^obra_(pag|adicional)|^inversion_sobrecosto/.test(tipo)) return "Pagos, adicionales y costo";
+  return "Controversias y control";
 }
 
 /** La cola de financiamiento y los documentos: la pregunta de quien va a financiar (va en "Filtros"). */
@@ -152,3 +189,20 @@ export const filtrosMonto = (parametros: Parametros): FiltroSecundario[] => [
   { param: "monto_min", etiqueta: "Valor referencial desde", todas: "Sin mínimo", opciones: opcionesMonto(MONTOS_DESDE, parametros.monto_min) },
   { param: "monto_max", etiqueta: "Valor referencial hasta", todas: "Sin máximo", opciones: opcionesMonto(MONTOS_HASTA, parametros.monto_max) },
 ];
+
+/**
+ * Lo que llega por enlace sin un control propio, como chip de «Filtrando por» que se puede quitar: varios antecedentes a
+ * la vez (`cruce`, la bandera de captura de una entidad) y el período de un gobierno (`desde`/`hasta`; un mes entero va
+ * como `mes`, que sí tiene control). Antes la lista filtraba y la barra decía «Todos» y «Todo el histórico».
+ */
+export function chipsDeEnlace(parametros: Parametros, conCruce = true): { clave: string; texto: string; params: string[] }[] {
+  const out: { clave: string; texto: string; params: string[] }[] = [];
+  if (conCruce && parametros.cruce) {
+    const nombres = parametros.cruce.split(",").filter(Boolean).map((t) => TIPO_CRUCE[t]?.corto ?? t.replace(/_/g, " "));
+    out.push({ clave: "cruce", texto: `Antecedentes: ${listaY(nombres)}`, params: ["cruce"] });
+  }
+  const d = parametros.desde && /^\d{4}-\d{2}-\d{2}$/.test(parametros.desde) ? fechaCorta(parametros.desde) : null;
+  const h = parametros.hasta && /^\d{4}-\d{2}-\d{2}$/.test(parametros.hasta) ? fechaCorta(parametros.hasta) : null;
+  if (d || h) out.push({ clave: "periodo", texto: d && h ? `Período: del ${d} al ${h}` : d ? `Desde el ${d}` : `Hasta el ${h}`, params: ["desde", "hasta"] });
+  return out;
+}
