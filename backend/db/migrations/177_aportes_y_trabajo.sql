@@ -202,6 +202,15 @@ BEGIN
    WHERE a.nivel = 'nacional'
      AND NOT EXISTS (SELECT 1 FROM persona_senal f WHERE f.entidad_ruc = a.entidad_ruc AND f.ruc = a.ruc AND f.tipo = 'financio_campana')
    GROUP BY a.entidad_ruc, a.ruc;
+  -- En el Ejecutivo, refrescar_personas_senales() no conoce al partido del Presidente y marca ese aporte o esa candidatura
+  -- como «a otro partido» (baja): si todo lo que lista es del partido que ahora sí gobierna, sale (ya está arriba).
+  DELETE FROM persona_senal a
+   USING (SELECT entidad_ruc, ruc, max(detalle->>'partido') AS partido FROM persona_senal
+           WHERE tipo = 'financio_campana' OR (tipo IN ('aporte_gobierna', 'candidato_gobierna') AND detalle->>'nivel' = 'nacional')
+           GROUP BY 1, 2) g
+   WHERE a.entidad_ruc = g.entidad_ruc AND a.ruc = g.ruc AND a.tipo IN ('aporte', 'candidato')
+     AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(a.detalle->CASE a.tipo WHEN 'aporte' THEN 'aportes' ELSE 'candidaturas' END, '[]')) x
+                      WHERE NOT mismo_partido(mef_norm(x->>'partido'), mef_norm(g.partido)));
   RAISE NOTICE 'senales politicas: locadores (% s)', round(extract(epoch FROM clock_timestamp() - t0));
 
   -- C3. El resumen de cada par tocado (como refrescar_nepotismo_senal): se vacía y se rehace desde persona_senal.
@@ -238,21 +247,22 @@ BEGIN
      WHERE entidad_ruc IN (SELECT DISTINCT p.entidad_ruc FROM planilla_persona p JOIN _spn n ON n.nombre_norm = p.nombre_norm)
      GROUP BY entidad_ruc;
   CREATE TEMP TABLE _spl ON COMMIT DROP AS
-    SELECT p.entidad_ruc, p.nombre_norm, p.primer_mes, p.ultimo_mes, (p.primer_mes > d.desde) AS entro_en_lo_visto,
+    SELECT p.entidad_ruc, p.nombre_norm, p.primer_mes, p.ultimo_mes, (p.primer_mes > d.desde) AS entro_en_lo_visto, p.regimen,
            g.nivel, g.desde, g.hasta, g.org_nombre, g.gob_n, g.eleccion, g.presidente
       FROM planilla_persona p
       JOIN _spn n ON n.nombre_norm = p.nombre_norm
       JOIN _sgp g ON g.ruc = p.entidad_ruc AND p.ultimo_mes >= g.desde AND p.primer_mes <= g.hasta
       LEFT JOIN _sdesde d ON d.entidad_ruc = p.entidad_ruc;
   CREATE TEMP TABLE _sps (entidad_ruc text, nombre_norm text, tipo text, severidad text, detalle jsonb) ON COMMIT DROP;
-  -- financio_campana: alta si entró a la planilla dentro de los meses cargados (después del aporte y ya con ese gobierno);
-  -- media si ya figuraba en el primer mes cargado (no se ve cuándo entró).
+  -- financio_campana: alta si entró a la planilla dentro de los meses cargados (después del aporte y ya con ese gobierno) o
+  -- si es alto funcionario (régimen 7: un cargo que el gobierno designa); media si ya figuraba en el primer mes cargado.
   INSERT INTO _sps
   SELECT l.entidad_ruc, l.nombre_norm, 'financio_campana',
-         CASE WHEN bool_or(l.entro_en_lo_visto) THEN 'alta' ELSE 'media' END,
+         CASE WHEN bool_or(l.entro_en_lo_visto) OR bool_or(l.regimen = 7) THEN 'alta' ELSE 'media' END,
          jsonb_build_object('partido', max(l.org_nombre), 'nivel', max(l.nivel), 'presidente', max(l.presidente), 'por', 'nombre',
                             'eleccion', max(l.eleccion), 'gobierno_desde', max(l.desde), 'gobierno_hasta', max(l.hasta),
-                            'primer_mes', min(l.primer_mes), 'entro_en_lo_visto', bool_or(l.entro_en_lo_visto), 'monto', sum(a.monto),
+                            'primer_mes', min(l.primer_mes), 'entro_en_lo_visto', bool_or(l.entro_en_lo_visto), 'alto_funcionario', bool_or(l.regimen = 7),
+                            'monto', sum(a.monto),
                             'aportes', jsonb_agg(DISTINCT jsonb_build_object('nombre', a.nombre, 'partido', a.partido, 'monto', a.monto, 'fecha', a.fecha,
                                                                              'anio', a.anio, 'proceso', a.proceso, 'campana', true)))
     FROM _spl l JOIN _snu u ON u.nom_n = l.nombre_norm JOIN _sap a ON a.dni = u.dni

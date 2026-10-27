@@ -173,6 +173,7 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       const desde = mes(t(d.primer_mes));
       return [
         `${soles(total)} a la campaña de ${nombrePartido(d.partido) ?? "su partido"}${eleccion ? ` en ${eleccion}` : ""}`,
+        d.alto_funcionario === true ? "es alto funcionario" : null,
         desde ? (d.entro_en_lo_visto === true ? `entró a la planilla en ${desde}` : `en la planilla desde ${desde} o antes`) : null,
       ].filter(Boolean).join("; ");
     }
@@ -352,6 +353,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
             { etiqueta: d.nivel === "nacional" ? "Gobierno nacional" : "Gobierno de la entidad", valor: gobiernoTexto(d) },
             ...(campana ? [{ etiqueta: "La campaña que financió", valor: eleccionTexto(d.eleccion) }] : []),
             ...(n(d.monto) != null ? [{ etiqueta: campana ? "Total aportado a su campaña" : "Total aportado", valor: soles(n(d.monto)), mono: true }] : []),
+            ...(campana && d.alto_funcionario === true ? [{ etiqueta: "Su régimen", valor: "Alto funcionario: un cargo que designa el gobierno" }] : []),
             ...(campana && t(d.primer_mes)
               ? [{
                   etiqueta: "En la planilla",
