@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "infrastructure" / "aws"))
 from tunel_rds import conexion  # noqa: E402
 
 SQL = (ROOT / "backend/db/migrations/148_entidad_orden_anual.sql").read_text(encoding="utf-8")
-MUESTRA = ("20601429706", "20172357271")  # UNA Chupaca (124 órdenes en 2026) y Arahuay (504)
+MUESTRA = ("20613796909", "20211843579")  # UNA Chupaca (124 órdenes en 2026) y Arahuay
 
 
 def refrescar(env: str, anio: int, ultimo: bool) -> None:
