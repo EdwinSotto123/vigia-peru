@@ -88,7 +88,7 @@ export const MONTOS_ORDEN = [
 
 /** Los antecedentes de la orden que se pueden filtrar (la inhabilitación del proveedor se ve en la fila, no filtra). */
 export const ANTECEDENTES_ORDEN = [
-  { valor: "nepotismo", etiqueta: "Pariente de un funcionario de la entidad" },
+  { valor: "nepotismo", etiqueta: "Posible nepotismo (pariente de un funcionario)" },
   { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT" },
 ] as const;
 

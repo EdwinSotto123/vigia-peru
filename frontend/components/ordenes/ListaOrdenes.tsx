@@ -238,7 +238,7 @@ const COLUMNAS: Columna[] = [
     ayuda: (
       <Ayuda titulo="¿Qué antecedentes se revisan aquí?">
         <span className="block">
-          Pariente de un funcionario: el proveedor figura como pariente de un funcionario de la entidad que le dio la orden,
+          Posible nepotismo: el proveedor figura como pariente de un funcionario de la entidad que le dio la orden,
           según su Declaración Jurada de Intereses (Contraloría, Ley 31227).
         </span>
         <span className="mt-2 block">

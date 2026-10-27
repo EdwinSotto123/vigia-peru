@@ -205,7 +205,8 @@ export type TipoSenal = (typeof TIPOS_SENAL)[number];
  */
 export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: string }> = {
   nepotismo: {
-    corto: "Pariente de un funcionario",
+    // El mismo nombre que la bandera de la entidad y de la cabecera de la ficha (antes «Pariente de un funcionario»).
+    corto: "Posible nepotismo",
     titulo: "Un funcionario de la entidad lo declaró como su pariente",
     explica:
       "Un funcionario de esta entidad lo declaró como pariente en su Declaración Jurada de Intereses (Ley 31227), y él figura como locador (proveedor) de la misma entidad. Es un indicio de posible nepotismo para revisión humana, no una acusación: la declaración es pública y el impedimento depende del cargo del funcionario (Ley 32069, art. 30).",
