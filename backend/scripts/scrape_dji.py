@@ -67,7 +67,9 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path, nombres: str = "")
         await pg.fill("#txtCaptchaPub", cap)
         out_dir.mkdir(parents=True, exist_ok=True)
         dest = destino(out_dir, ruc, apellidos, nombres)
-        async with pg.expect_download(timeout=55000) as di:
+        # 40 s: una descarga buena llega en segundos; las que no llegan no llegan nunca (el portal no genera el PDF de esa
+        # persona: las mismas 234 fallaron en todas las rondas), y esperar 55 s dos veces se comía la ronda.
+        async with pg.expect_download(timeout=40000) as di:
             await pg.click("#btnDownloadDJ")
         d = await di.value
         await d.save_as(str(dest))
@@ -107,7 +109,9 @@ async def correr(hilos: int, objetivos: list[tuple[str, str]], out_dir: Path, lo
                     ctx = await b.new_context(accept_downloads=True)
                     try:
                         r = await bajar(ctx, ruc, ape, out_dir, nom)
-                        if r["ok"] or "sin resultados" in r.get("motivo", ""):
+                        # Sin resultados, o con resultados pero sin PDF (no llegó la descarga): reintentar en el mismo pase
+                        # no lo cambia; el orquestador lo reintenta en otra ronda.
+                        if r["ok"] or "sin resultados" in r.get("motivo", "") or 'event "download"' in r.get("motivo", ""):
                             break
                     finally:
                         await ctx.close()

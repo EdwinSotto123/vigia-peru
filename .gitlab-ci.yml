@@ -87,7 +87,9 @@ scrape:dji:
   timeout: 3h
   variables:
     TARGETS: backend/scrapers-worker/dji_targets/targets_pendientes.csv
-    HILOS: "2"
+    # 4 hilos por nodo (40 sesiones): con los fallos rápidos de scrape_dji.py (2026-10-27) son ~3,600 intentos por hora,
+    # menos que los ~5,000 que el portal ya aguantó en las primeras rondas con 2 hilos y casi todo descargas.
+    HILOS: "4"
     # El script para solo a los 150 min para que los artefactos suban: si GitLab corta el job por tiempo, no sube nada.
     MINUTOS: "150"
     # Red de seguridad: si el script se colgara, a las 2 h 45 m se corta SÓLO el script y los artefactos igual suben.
