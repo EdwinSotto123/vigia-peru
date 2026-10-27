@@ -17,6 +17,7 @@ import csv
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infrastructure" / "aws"))
@@ -60,6 +61,31 @@ def parsear(pdf: str) -> tuple[list[dict], str]:
     return [], ("sin_texto" if not tiene_texto(pdf) else "parser_fallo")   # sin texto: escaneado → GLM/OCR luego
 
 
+def lecturas_seguras(pdfs: list[Path], procesos: int, tanda: int = 40):
+    """(familiares, parse_estado) de cada PDF, en orden, sin que un PDF que tumba su proceso tumbe la corrida.
+
+    El 2026-10-26 un proceso de lectura murió a los 500 PDFs (BrokenProcessPool) y se llevó todo. Ahora se lee por
+    tandas con un pool nuevo cada vez (pdfplumber acumula memoria), y si el pool se rompe, esa tanda se repite PDF por
+    PDF, cada uno en su propio proceso: el que lo vuelve a romper queda como «parser_fallo».
+    """
+    for i in range(0, len(pdfs), tanda):
+        lote = [str(x) for x in pdfs[i:i + tanda]]
+        try:
+            with ProcessPoolExecutor(max_workers=procesos) as pool:
+                for r in pool.map(parsear, lote):
+                    yield r
+            continue
+        except BrokenProcessPool:
+            print(f"  un PDF tumbó la lectura en la tanda {i // tanda + 1}: se repite de a uno", flush=True)
+        for pdf in lote:
+            try:
+                with ProcessPoolExecutor(max_workers=1) as uno:
+                    yield uno.submit(parsear, pdf).result(timeout=300)
+            except Exception:  # noqa: BLE001 — el proceso murió o se colgó con ESTE PDF
+                print(f"  no se pudo leer {Path(pdf).name}", flush=True)
+                yield [], "parser_fallo"
+
+
 def claves_de_logs(logdir: Path) -> tuple[dict[str, tuple[str, str, str]], list[tuple[str, str, str]]]:
     """Del _log.csv de cada nodo: el PDF de cada declarante (clave EXACTA del ledger) y los que fallaron.
 
@@ -85,7 +111,7 @@ def main() -> None:
     ap.add_argument("--pdfs", required=True)
     ap.add_argument("--logs", help="dir con _log.csv (por defecto = --pdfs)")
     ap.add_argument("--r2", action="store_true", help="subir PDFs a R2")
-    ap.add_argument("--hilos-r2", type=int, default=8, help="subidas a R2 en paralelo")
+    ap.add_argument("--hilos-r2", type=int, default=4, help="subidas a R2 en paralelo (cada una es un npx wrangler)")
     ap.add_argument("--procesos", type=int, default=4, help="PDFs leídos en paralelo")
     ap.add_argument("--lote", type=int, default=50, help="PDFs por escritura en la base")
     a = ap.parse_args()
@@ -96,7 +122,7 @@ def main() -> None:
     subir = ThreadPoolExecutor(max_workers=a.hilos_r2) if a.r2 else None
     subidas = []
     v = ok = fallo_parse = 0
-    with conexion(a.entorno) as c, ProcessPoolExecutor(max_workers=a.procesos) as leer:
+    with conexion(a.entorno) as c:
         cur = c.cursor()
         # 1) errores de descarga desde los logs, de una vez
         if errores:
@@ -114,7 +140,7 @@ def main() -> None:
                 partes = pdf.stem.split("_")
                 claves.append((partes[0], partes[1].replace("-", " ") if len(partes) > 1 else "",
                                partes[2].replace("-", " ") if len(partes) > 2 else ""))
-        lecturas = leer.map(parsear, [str(x) for x in pdfs], chunksize=8)
+        lecturas = lecturas_seguras(pdfs, a.procesos)
         lote_borrar, lote_vinc, lote_ledger = [], [], []
 
         def escribir() -> None:
