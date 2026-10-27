@@ -1,1 +1,4 @@
-ab_out/
+# Salidas de modelos y fixtures con datos de personas (DNI de funcionarios, representantes y familiares de la DJI):
+# nunca al repositorio, que se espeja a un GitHub público. Las copias locales van en dataset/ (también ignorado).
+ab_out*/
+dji_fixtures/
