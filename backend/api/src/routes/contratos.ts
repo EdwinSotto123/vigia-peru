@@ -30,7 +30,7 @@
 import { Hono } from "hono";
 import { publicar } from "../lib/privacidad.js";
 import { z } from "zod";
-import { OCID_CANDIDATOS, escaparLike, pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, consultaConPlazo, escaparLike, pool } from "../lib/db.js";
 import { Memo, responderConEtag, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor } from "../lib/cursor.js";
@@ -123,12 +123,13 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
   // La obra del contrato (INFOBRAS e Invierte.pe): sus banderas viven en casos_cruce como las demás, pero son hechos de la
-  // ejecución, no antecedentes de quien ganó. Filtro aparte, que se combina con el de antecedentes.
+  // ejecución, no antecedentes de quien ganó. Filtro aparte, que se combina con el de antecedentes. Como conjunto de
+  // OCIDs calculado una vez (OFFSET 0, como `ganadora`): un EXISTS por contrato sondeaba casos_cruce 829 mil veces y, junto
+  // con el de antecedentes, el resumen pasaba los 10 s. Un tipo va por el índice GIN de `tipos`; «con» (alguna bandera de
+  // obra o de inversión), por su prefijo: así no depende de una lista de tipos repetida aquí.
   if (q.obra && !excluir.has("obra")) {
-    const ko = q.obra === "con"
-      ? `EXISTS (SELECT 1 FROM unnest(ko.tipos) t WHERE t ~ '^(obra|inversion)_')`
-      : `${add(q.obra)} = ANY(ko.tipos)`;
-    conds.push(`EXISTS (SELECT 1 FROM casos_cruce ko WHERE ko.ocid = ${m.ocid} AND ${ko})`);
+    const ko = q.obra === "con" ? `array_to_string(ko.tipos, ',') ~ '(^|,)(obra|inversion)_'` : `ko.tipos @> ARRAY[${add(q.obra)}]::text[]`;
+    conds.push(`${m.ocid} IN (SELECT ko.ocid FROM casos_cruce ko WHERE ${ko} OFFSET 0)`);
   }
   // Un dato de la empresa que ganó (de baja en la SUNAT, un socio candidato…): conjunto de OCIDs partiendo de las
   // empresas que lo tienen (contratos_sql.ts). Vale igual con convocatorias o con contrato_estado manejando el recorrido.
@@ -339,11 +340,12 @@ async function cubo(q: z.infer<typeof ResumenQuery>): Promise<Celda[]> {
         WHERE ${filtrosAgregado(q, vals, sinFacetas)} GROUP BY 1, 2, 3`, vals);
     return r.rows;
   }
-  // q, entidad o montos: la consulta base sobre contrato_estado (+ convocatorias sólo para `q`).
+  // q, entidad o montos: la consulta base sobre contrato_estado (+ convocatorias sólo para `q`). Con su propio plazo: con
+  // antecedentes y obra a la vez, en frío y junto a los otros cuatro conteos del resumen, pasaba los 10 s del rol (500).
   const { conds } = filtros(q, vals, MAPA_CE, sinFacetas);
-  const r = await pool.query<Celda>(
+  const r = await consultaConPlazo<Celda>(
     `SELECT ce.tipo, ce.operativo, ce.riesgo, count(*)::int AS n FROM contrato_estado ce
-      WHERE ${conds.join(" AND ")} GROUP BY 1, 2, 3`, vals);
+      WHERE ${conds.join(" AND ")} GROUP BY 1, 2, 3`, vals, 25_000);
   return r.rows;
 }
 
