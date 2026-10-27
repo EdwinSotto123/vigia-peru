@@ -96,7 +96,9 @@ export function LineaMeses({
   const marca = (m: Mes, i: number) => i === 0 || m.mes.endsWith("-01");
 
   return (
-    <figure className="space-y-3">
+    // data-lista="grafico": la tabla plegada de abajo son los datos del gráfico (su versión accesible), no una lista
+    // para buscar (e2e/visual/chequeos.js).
+    <figure className="space-y-3" data-lista="grafico">
       <p className="text-meta leading-snug text-inkSoft">
         {tipico > 0 && <>Su mes típico: <b className="font-mono tabular-nums text-ink">{soles(tipico)}</b>. </>}
         {raros.length === 0

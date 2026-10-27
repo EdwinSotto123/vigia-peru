@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Seccion } from "@/components/patrones";
-import { CeldaBarra, CeldaNumero, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaBarra, CeldaNumero, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import type { ContratoZona } from "@/lib/contratos";
 
@@ -14,7 +14,8 @@ import type { ContratoZona } from "@/lib/contratos";
  * montos, con `solesCompacto` en su columna (no se parten en dos renglones).
  *
  * Server component: recibe ya las zonas de la API (datos planos). La región es la sede de la entidad que contrata.
- * Todas las regiones con obras, de la que más tiene a la que menos.
+ * Todas las regiones con obras, de la que más tiene a la que menos, con buscador y orden por valor (las 25 en una
+ * página: es una lista entera, regla de las listas con buscador).
  */
 const COLUMNAS: Columna[] = [
   { clave: "region", titulo: "Región", ancho: "minmax(0,1fr)" },
@@ -27,9 +28,11 @@ export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
   const lista = [...zonas].filter((z) => z.total > 0).sort((a, b) => b.total - a.total);
   if (lista.length === 0) return null;
   const max = Math.max(1, ...lista.map((z) => z.total));
-  const filas: Fila[] = lista.map((z) => ({
+  const filas: FilaFiltrable[] = lista.map((z) => ({
     id: z.ubigeo,
     href: `/app/mapa?region=${z.ubigeo}`,
+    buscable: z.nombre,
+    claves: { obras: z.total, monto: z.montoPen ?? null },
     celdas: {
       region: <span className="block truncate text-dato font-semibold text-ink">{z.nombre}</span>,
       barra: <CeldaBarra parte={z.total / max} resumen={`${plural(z.total, "contrato de obras", "contratos de obras")} en ${z.nombre}`} />,
@@ -49,7 +52,19 @@ export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
         </Link>
       }
     >
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de obras por región (cada una abre su región en el mapa)" densidad="compacta" />
+      <TablaFiltrable
+        columnas={COLUMNAS}
+        filas={filas}
+        etiqueta="Contratos de obras por región (cada una abre su región en el mapa)"
+        densidad="compacta"
+        tam={25}
+        nombre="regiones"
+        buscar={{ placeholder: "Buscar una región…", etiqueta: "Buscar una región" }}
+        ordenes={[
+          { valor: "obras", etiqueta: "Más contratos de obras", clave: "obras", dir: "desc" },
+          { valor: "monto", etiqueta: "Mayor valor", clave: "monto", dir: "desc" },
+        ]}
+      />
     </Seccion>
   );
 }
