@@ -68,6 +68,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // (paralizada, atrasada, adicionales, sobrecosto…) como cruces del contrato. Antes lee el CUI de los procesos nuevos.
   // Las obras y las inversiones las carga backend/scripts/cargar_obras.py desde la PC (la Contraloría no responde afuera).
   await siExiste("refrescar_cruce_obras");
+  // «Visitó la entidad antes de ganar» reconociendo a la entidad por todos sus nombres (migración 174): rehace el tipo que
+  // refrescar_cruces() deja con la regla vieja (el nombre letra por letra: 46 cruces en todo el país).
+  await siExiste("refrescar_cruce_visita_previa");
   // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
   // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
   await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");

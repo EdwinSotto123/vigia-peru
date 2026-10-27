@@ -19,7 +19,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, Seccion, TarjetaDatos, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, Seccion, TarjetaDatos, type BanderaFicha, type DatoClave } from "@/components/patrones";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
@@ -194,6 +194,22 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const contratos = e.adjProcesos + e.consProcesos;
   const nAntecedentes = e.nAlta + e.nMedia + e.nBaja;
   const personas = e.socios + e.representantes + e.directivos;
+  // Sus banderas, fijas bajo el nombre en todas las pestañas: cada antecedente por tipo (lo grave primero) hacia su lista
+  // filtrada, y las visitas de su gente a entidades que le pagaron, hacia la lista de visitas (antes sólo una línea al pie
+  // de «Sus datos»: «la visita nunca aparece»).
+  const banderas: BanderaFicha[] = [
+    ...f.antecedentes.map((a) => ({
+      tipo: a.tipo, severidad: a.severidad, nombre: a.etiqueta, n: a.n > 1 ? a.n : null,
+      href: `${ruta}?seccion=antecedentes&${P_ANTECEDENTES.tipo}=${encodeURIComponent(a.tipo)}`,
+    })),
+    ...(e.visitasClientes > 0
+      ? [{
+          tipo: "visitas_clientes", severidad: "media" as const, nombre: "Visitó a sus clientes", n: e.visitasClientes,
+          explica: `Su gente registra ${plural(e.visitasClientes, "visita", "visitas")} a entidades que le pagaron (registro de visitas a entidades públicas)`,
+          href: `${ruta}?seccion=gente&${P_VISTA}=visitas`,
+        }]
+      : []),
+  ];
   const nObras = await obras.total;
 
   return (
@@ -206,7 +222,11 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         ])}
         pestanas={{ primera: "inicio", activa: seccion, etiquetas: ETIQUETAS_PESTANA }}
       />
-      <EncabezadoPagina titulo={nombre} bajada={<Identidad f={f} razonSocial={corto?.razonSocial ?? null} />} />
+      <EncabezadoPagina
+        titulo={nombre}
+        bajada={<Identidad f={f} razonSocial={corto?.razonSocial ?? null} />}
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta empresa" banderas={banderas} todas={`${ruta}?seccion=antecedentes`} /> : undefined}
+      />
 
       <Pestanas
         fija
