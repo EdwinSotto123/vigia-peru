@@ -114,9 +114,10 @@ const INHABILITADO = `FROM osce_sancionados s WHERE s.ruc = o.ruc_contratista AN
 /**
  * Los periodos de inhabilitación de cada RUC (la misma regla), con los que se superponen fundidos en uno: unidos a las
  * órdenes sin fundir, una orden dentro de dos sanciones salía dos veces y la página quedaba corta (61 → 20 tras el dedup).
- * Son ~13 mil sanciones: la ventana se calcula en cada consulta (unos ms).
+ * Son ~13 mil sanciones: la ventana se calcula en cada consulta (unos ms). Con un proveedor elegido, sólo los suyos (su
+ * RUC son 11 dígitos validados: va como literal).
  */
-const PERIODOS_INHABILITADO = `
+const periodosInhabilitado = (ruc?: string) => `
   SELECT ruc, min(desde) AS desde, max(hasta) AS hasta FROM (
     SELECT ruc, desde, hasta, sum(nuevo) OVER (PARTITION BY ruc ORDER BY desde, hasta) AS isla FROM (
       SELECT ruc, desde, hasta,
@@ -124,7 +125,7 @@ const PERIODOS_INHABILITADO = `
                   THEN 0 ELSE 1 END AS nuevo
         FROM (SELECT s.ruc, s.fecha_desde AS desde, COALESCE(s.fecha_hasta, DATE '9999-12-31') AS hasta FROM osce_sancionados s
                WHERE s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
-                 AND (s.fecha_hasta IS NOT NULL OR s.tipo = 'definitivo')) s0) s1) s2
+                 AND (s.fecha_hasta IS NOT NULL OR s.tipo = 'definitivo')${ruc ? ` AND s.ruc = '${ruc}'` : ""}) s0) s1) s2
    GROUP BY ruc, isla`;
 
 /**
@@ -222,7 +223,11 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   const desde = dePersona
     ? `persona_senal ps JOIN conosce_ordenes o ON o.entidad_ruc = ps.entidad_ruc AND o.ruc_contratista = ps.ruc`
     : q.antecedente === "inhabilitado"
-      ? `(${PERIODOS_INHABILITADO}) s JOIN conosce_ordenes o ON o.ruc_contratista = s.ruc AND o.fecha_emision BETWEEN s.desde AND s.hasta`
+      // LATERAL con OFFSET 0: siempre desde los periodos y por el índice del proveedor. Con una entidad elegida, un JOIN
+      // dejaba al planificador recorrer todas las órdenes de la entidad buscando proveedores sancionados (EsSalud: más
+      // de 45 s); así lee sólo las ~64 mil órdenes emitidas a inhabilitados y después filtra la entidad (unos segundos).
+      ? `(${periodosInhabilitado(q.proveedor)}) s CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = s.ruc
+           AND x.fecha_emision BETWEEN s.desde AND s.hasta OFFSET 0) o`
       : `conosce_ordenes o`;
   if (dePersona) enVentana.unshift(`ps.tipo = '${q.antecedente}'`);
   if (q.antecedente === "al_borde_del_tope") enVentana.push(EN_EL_BORDE);

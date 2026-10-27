@@ -82,8 +82,12 @@ test("órdenes: los antecedentes de la persona parten de sus parejas y ordenan s
 test("órdenes: la inhabilitación parte de sus periodos fundidos (una orden en dos sanciones no sale dos veces)", () => {
   const { sql } = sqlListaOrdenes(ordenes({ antecedente: "inhabilitado" }));
   assert.match(sql, /sum\(nuevo\) OVER \(PARTITION BY ruc ORDER BY desde, hasta\) AS isla/);
-  assert.match(sql, /\) s JOIN conosce_ordenes o ON o\.ruc_contratista = s\.ruc AND o\.fecha_emision BETWEEN s\.desde AND s\.hasta/);
+  // Siempre desde los periodos, por el índice del proveedor (con una entidad elegida, el JOIN recorría sus órdenes).
+  assert.match(sql, /\) s CROSS JOIN LATERAL \(SELECT x\.\* FROM conosce_ordenes x WHERE x\.ruc_contratista = s\.ruc\s+AND x\.fecha_emision BETWEEN s\.desde AND s\.hasta OFFSET 0\) o/);
   assert.match(sql, /ORDER BY o\.fecha_emision \+ 0 DESC LIMIT/);
+  assert.doesNotMatch(sql, /AND s\.ruc = '/);
+  // Con un proveedor elegido, sólo sus periodos.
+  assert.match(sqlListaOrdenes(ordenes({ antecedente: "inhabilitado", proveedor: "20100047218" })).sql, /AND s\.ruc = '20100047218'/);
 });
 
 test("contratos: la obra es un filtro aparte, «con» o un tipo de obra o de inversión", () => {
