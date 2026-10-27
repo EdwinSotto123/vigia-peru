@@ -61,14 +61,17 @@ async def bajar(ctx, ruc: str, apellidos: str, out_dir: Path, nombres: str = "")
             "els => els.map(e=>e.innerText.replace(/\\s+/g,' ').trim()).filter(t=>/declaracion/i.test(t)).length")
         cap = await pg.eval_on_selector("#hdnCaptchaImg", "e=>e.value")
         cbs = await pg.query_selector_all("#cb_gridBusqueda, tr input[type=checkbox]")
-        if not cbs or not cap:
+        # Una fila por declaración: jqg_gridBusqueda_1, _2… Con la búsqueda vacía («Página de 0») sólo queda el «marcar
+        # todo» de la cabecera (cb_gridBusqueda): antes eso pasaba por resultado, se pedía la descarga sin nada marcado y
+        # se esperaba un PDF que no existe (55 s, dos veces). Así se marcaron 1,295 «fallas» que eran búsquedas vacías.
+        declaraciones = await pg.eval_on_selector_all("input[id^=jqg_gridBusqueda_]", "els => els.length")
+        if not cbs or not cap or not declaraciones:
             return {"ruc": ruc, "apellidos": apellidos, "nombres": nombres, "ok": False, "motivo": "sin resultados/captcha", "seg": round(time.time() - t0, 1)}
         await cbs[0].check()
         await pg.fill("#txtCaptchaPub", cap)
         out_dir.mkdir(parents=True, exist_ok=True)
         dest = destino(out_dir, ruc, apellidos, nombres)
-        # 40 s: una descarga buena llega en segundos; las que no llegan no llegan nunca (el portal no genera el PDF de esa
-        # persona: las mismas 234 fallaron en todas las rondas), y esperar 55 s dos veces se comía la ronda.
+        # 40 s de sobra: con declaraciones marcadas, el PDF llega en 0 a 1 s (medido 2026-10-27 con 12 autoridades).
         async with pg.expect_download(timeout=40000) as di:
             await pg.click("#btnDownloadDJ")
         d = await di.value
