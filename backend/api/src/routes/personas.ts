@@ -22,7 +22,11 @@ import { PERIODOS_GOBIERNO } from "./partidos.js";
 export const personasRouter = new Hono();
 
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
-/** Hasta dónde se cuenta una lista con filtros: más allá, "más de 10 000" (`totalExacto: false`). */
+/**
+ * Hasta dónde se cuenta una lista con filtros: más allá, "más de 10 000" (`totalExacto: false`). También decide cómo se
+ * arma la página: hasta el tope, juntando todas las coincidencias; más, recorriendo el índice del orden. Con 30 000 el
+ * conteo de una palabra común se volvía lento («limpieza»: 5,4 s contra 1,8 s).
+ */
 const TOPE_CONTEO = 10_000;
 const listaMemo = new Memo<Record<string, unknown>>({ nombre: "personas:lista", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
@@ -266,19 +270,31 @@ personasRouter.get("/", async (c) => {
     // filtros van sin números). El total con filtros se cuenta hasta TOPE_CONTEO + 1, como en /contratos: "limpieza" son
     // 134 mil coincidencias y contarlas todas pasaba los 25 s (la búsqueda daba 500); si el conteo igual falla, la página
     // sale con un total aproximado en vez de un error.
-    const [filas, rs, cuenta, facetas] = await Promise.all([
-      pool.query(
+    const cuentaP = conds.length > sinFiltros
+      ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM (SELECT 1 FROM persona_entidad pe ${donde} LIMIT ${TOPE_CONTEO + 1}) x`, vals, 15_000)
+          .catch((e) => { console.warn(`[personas] conteo: ${(e as Error).message}`); return "fallo" as const; })
+      : Promise.resolve(null);
+    // Con pocas coincidencias (hasta el tope del conteo) se juntan todas por el índice de sus filtros (el de trigramas
+    // para el texto) y recién se ordenan; con muchas, se recorre el índice del orden hasta llenar la página. Recorrer el
+    // orden con una palabra poco común («construccion»: 18 mil de 3,2 millones, casi todas sin señales, al fondo del
+    // orden) leía decenas de miles de filas sueltas en frío y pasaba los 10 s: la búsqueda daba 500.
+    const filasP = cuentaP.then((cu) => {
+      const pocas = cu !== null && cu !== "fallo" && (cu.rows[0]?.n ?? 0) <= TOPE_CONTEO;
+      const origen = pocas ? `(SELECT * FROM persona_entidad pe ${donde} OFFSET 0) pe` : `persona_entidad pe ${donde}`;
+      // Con plazo propio: en frío, recorrer el orden con una palabra de 10 a 50 mil coincidencias puede pasar los 10 s del
+      // rol; mejor una página que tarda que un error.
+      return consultaConPlazo(
         `WITH pag AS (
-           SELECT pe.* FROM persona_entidad pe ${donde}
+           SELECT pe.* FROM ${origen}
             ORDER BY ${ORDEN[q.orden]}, pe.entidad_ruc, pe.ruc
             LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size})
          SELECT ${FILA.replace(/pe\./g, "pag.")}, ${GOBIERNOS("pag.gobiernos")} AS gobiernos
-           FROM pag ORDER BY ${ORDEN[q.orden].replace(/pe\./g, "pag.")}, pag.entidad_ruc, pag.ruc`, vals),
+           FROM pag ORDER BY ${ORDEN[q.orden].replace(/pe\./g, "pag.")}, pag.entidad_ruc, pag.ruc`, vals, 25_000);
+    });
+    const [filas, rs, cuenta, facetas] = await Promise.all([
+      filasP,
       res,
-      conds.length > sinFiltros
-        ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM (SELECT 1 FROM persona_entidad pe ${donde} LIMIT ${TOPE_CONTEO + 1}) x`, vals, 15_000)
-            .catch((e) => { console.warn(`[personas] conteo: ${(e as Error).message}`); return "fallo" as const; })
-        : null,
+      cuentaP,
       facetasDe(q).catch((e) => { console.warn(`[personas] facetas: ${(e as Error).message}`); return null; }),
     ]);
     // Sin conteo (falló): lo que se sabe es que hay al menos lo de esta página y, si vino llena, algo más.
