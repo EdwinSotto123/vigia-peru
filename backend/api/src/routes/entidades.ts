@@ -333,12 +333,15 @@ export const COLS_LISTA_ENTIDAD = `ic.informes, ic.penal AS "informesPenal",
        COALESCE(pe.n_captura, 0)::int AS captura, pe.partido AS "capturaPartido",
        to_char(pe.periodo_inicio, 'YYYY-MM-DD') AS "capturaDesde", to_char(pe.periodo_fin, 'YYYY-MM-DD') AS "capturaHasta",
        (SELECT count(*) FROM planilla_persona pp WHERE pp.entidad_ruc = pag.ruc::text AND pp.sev = 3)::int AS "planillaAlta",
-       (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = pag.ruc::text AND s.n_senales > 0)::int AS "plazasSenales"`;
+       (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = pag.ruc::text AND s.n_senales > 0)::int AS "plazasSenales",
+       COALESCE(esp.locadores, 0)::int AS "financioLocadores", COALESCE(esp.planilla, 0)::int AS "financioPlanilla", esp.partido AS "financioPartido"`;
 export const JOINS_LISTA_ENTIDAD = `LEFT JOIN LATERAL (
          SELECT count(*)::int AS informes, (count(*) FILTER (WHERE 'penal' = ANY (i.responsabilidades)))::int AS penal
            FROM informes_control i WHERE i.entidad_ruc = pag.ruc) ic ON true
        LEFT JOIN mef_entity_budget b ON b.entidad_ruc = pag.ruc
-       LEFT JOIN poder_entidad pe ON pe.entidad_ruc = pag.ruc::text`;
+       LEFT JOIN poder_entidad pe ON pe.entidad_ruc = pag.ruc::text
+       -- Quienes financiaron la campaña del que gobierna y trabajan aquí (migraciones 177-178).
+       LEFT JOIN entidad_senal_politica esp ON esp.ruc = pag.ruc::text`;
 
 const facetasMemo = new Memo<Record<string, unknown>>({ nombre: "entidades:facetas", ttlMs: 600_000, staleMs: 3_600_000, max: 300 });
 
@@ -470,7 +473,8 @@ entidadesRouter.get("/", async (c) => {
     q.facetas ? facetasEntidades(q, modelos, nepotismo, porTipo).catch((e) => { console.warn(`[entidades] facetas: ${(e as Error).message}`); return null; }) : null,
     antecedentesPorEntidad(),
   ]);
-  const data = r.rows.map(({ _n, informes, informesPenal, mefAnios, mefCruce, mefKind, captura, capturaPartido, capturaDesde, capturaHasta, planillaAlta, plazasSenales, ...e }) => ({
+  const data = r.rows.map(({ _n, informes, informesPenal, mefAnios, mefCruce, mefKind, captura, capturaPartido, capturaDesde, capturaHasta, planillaAlta, plazasSenales,
+                             financioLocadores, financioPlanilla, financioPartido, ...e }) => ({
     ...e,
     // null: no se pudieron contar (la fila dice «Sin dato», no un cero que no es).
     antecedentes: antecedentes ? { con: antecedentes[String(e.ruc).trim()]?.[0] ?? 0, alta: antecedentes[String(e.ruc).trim()]?.[1] ?? 0 } : null,
@@ -481,6 +485,7 @@ entidadesRouter.get("/", async (c) => {
       // El partido que la gobierna y el período con que se cuenta la captura (el filtro de sus contratos usa las mismas fechas).
       capturaPartido: capturaPartido ?? null, capturaDesde: capturaDesde ?? null, capturaHasta: capturaHasta ?? null,
       planillaAlta: planillaAlta ?? 0, plazasSenales: plazasSenales ?? 0,
+      financioLocadores: financioLocadores ?? 0, financioPlanilla: financioPlanilla ?? 0, financioPartido: financioPartido ?? null,
     },
   }));
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
@@ -1011,6 +1016,7 @@ entidadesRouter.get("/:ruc", async (c) => {
       ? {
           captura: b.captura ?? 0, capturaPartido: b.capturaPartido ?? null, capturaDesde: b.capturaDesde ?? null, capturaHasta: b.capturaHasta ?? null,
           planillaAlta: b.planillaAlta ?? 0, plazasSenales: b.plazasSenales ?? 0,
+          financioLocadores: b.financioLocadores ?? 0, financioPlanilla: b.financioPlanilla ?? 0, financioPartido: b.financioPartido ?? null,
         }
       : null,
   });

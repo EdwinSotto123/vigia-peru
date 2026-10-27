@@ -42,6 +42,17 @@ export function banderasEntidad(
   const out: BanderaEntidad[] = [];
   // El nepotismo primero entre las graves: es lo que más pesa y lo que menos se ve (está en sus locadores).
   if (nep != null) out.push(banderaNepotismo(ruc, nep));
+  // Quienes financiaron la campaña del que gobierna y después trabajaron para él (migración 177): locadores y planilla.
+  const financio = (s.financioLocadores ?? 0) + (s.financioPlanilla ?? 0);
+  if (financio > 0) {
+    const partidoF = s.financioPartido ? tituloNatural(s.financioPartido) : null;
+    out.push({
+      tipo: "financio_campana", severidad: "alta", chip: "Financiaron su campaña", n: financio,
+      titulo: `${plural(financio, "persona que aportó", "personas que aportaron")} a la campaña${partidoF ? ` de ${partidoF}` : " del que gobierna"} ${financio === 1 ? "trabaja" : "trabajan"} para la entidad`,
+      explica: "Aportaron (ONPE) a la campaña de la organización en la elección que la llevó a gobernar la entidad y después recibieron órdenes de servicio o entraron a su planilla. Aportar es legal: es un dato para revisar.",
+      href: (s.financioLocadores ?? 0) > 0 ? `${ficha}?seccion=personas&psenal=financio_campana` : `${ficha}?seccion=planilla&lsenal=financio_campana`,
+    });
+  }
   if (s.captura > 0) {
     out.push({
       tipo: "captura", severidad: "alta", chip: "Captura política", n: s.captura,

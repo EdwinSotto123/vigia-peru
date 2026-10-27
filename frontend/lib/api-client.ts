@@ -102,6 +102,10 @@ export interface ApiEntidad {
     planillaAlta: number;
     /** Plazas CAS con señales de plaza a la medida. */
     plazasSenales: number;
+    /** Locadores y personas de su planilla que financiaron la campaña del que gobierna (migraciones 177-178). */
+    financioLocadores?: number;
+    financioPlanilla?: number;
+    financioPartido?: string | null;
   };
 }
 
