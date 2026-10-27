@@ -12,11 +12,14 @@ Por ronda:
      del CSV, en un worktree aparte (la copia de trabajo no se toca). El push dispara el pipeline de esa rama: sólo
      `scrape:dji`, en 10 nodos con tope de 150 min para que los artefactos alcancen a subir.
   2. Espera el pipeline.
-  3. Baja los artefactos (`bajar_artefactos_dji.py`) y los procesa (`procesar_dji.py --r2`: vínculos, ledger, R2).
-  4. Refresca la señal de nepotismo (`refrescar_nepotismo_senal()`).
-Para cuando no quedan pendientes, se acaban las rondas, o una ronda no avanza (el portal o el CI fallan: hay que mirar).
+  3. Baja los artefactos (`bajar_artefactos_dji.py`) y los procesa (`procesar_dji.py --r2`: vínculos, ledger, R2) EN
+     PARALELO con la descarga de la ronda siguiente: procesar 6,500 PDFs tardaba más que bajarlos y el CI esperaba.
+     Lo bajado y aún sin procesar sigue «pendiente» en el ledger: se saca de la ronda siguiente por sus logs.
+  4. Al terminar cada procesamiento, refresca la señal de nepotismo (`refrescar_nepotismo_senal()`).
+Para cuando no quedan pendientes, se acaban las rondas, o una ronda no deja PDFs (el portal o el CI fallan: hay que mirar).
 
-  python backend/scripts/orquestar_dji.py [--rondas 8] [--worktree C:/Users/usuario/Desktop/PROYECTOS/vigia-dji]
+  python backend/scripts/orquestar_dji.py [--rondas 8] [--desde-ronda 1] [--procesar-primero <carpeta>]
+                                          [--worktree C:/Users/usuario/Desktop/PROYECTOS/vigia-dji]
 El avance queda en dataset/declaracion_jurada/orquestar_dji.log (y en la salida).
 """
 from __future__ import annotations
@@ -168,6 +171,43 @@ def py(script: str, *args: str, timeout: int = 6 * 3600) -> str:
     return sh([sys.executable, str(ROOT / "backend" / "scripts" / script), *args], timeout=timeout)
 
 
+def claves_bajadas(carpeta: Path) -> set[tuple[str, str]]:
+    """(ruc, apellidos) de lo que una ronda bajó bien, por los _log*.csv de sus nodos."""
+    out: set[tuple[str, str]] = set()
+    for lg in carpeta.rglob("_log*.csv"):
+        with open(lg, encoding="utf-8", errors="replace", newline="") as f:
+            for row in csv.reader(f):
+                if len(row) >= 5 and row[3] == "True":
+                    out.add((row[0], row[1]))
+    return out
+
+
+class Procesando:
+    """El procesamiento de una ronda, en un proceso aparte, mientras la siguiente baja en CI."""
+
+    def __init__(self) -> None:
+        self.p: subprocess.Popen | None = None
+        self.carpeta: Path | None = None
+        self.claves: set[tuple[str, str]] = set()
+
+    def empezar(self, carpeta: Path) -> None:
+        self.esperar()
+        self.carpeta, self.claves = carpeta, claves_bajadas(carpeta)
+        salida = open(carpeta / "_procesar.log", "w", encoding="utf-8")
+        self.p = subprocess.Popen([sys.executable, str(ROOT / "backend" / "scripts" / "procesar_dji.py"), "--entorno", "prod",
+                                   "--pdfs", str(carpeta), "--r2"], stdout=salida, stderr=subprocess.STDOUT)
+        log(f"  procesando {carpeta.name} ({len(self.claves)} declarantes) en paralelo")
+
+    def esperar(self) -> None:
+        if not self.p:
+            return
+        codigo = self.p.wait()
+        cola = (self.carpeta / "_procesar.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-2:]
+        log(f"  {self.carpeta.name} procesada (salida {codigo}): " + " | ".join(x.strip() for x in cola))
+        log(f"  señal de nepotismo refrescada: {refrescar_senal()}")
+        self.p, self.carpeta, self.claves = None, None, set()
+
+
 def refrescar_senal() -> int:
     with conexion("prod") as c:
         cur = c.cursor()
@@ -181,6 +221,8 @@ def refrescar_senal() -> int:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rondas", type=int, default=8)
+    ap.add_argument("--desde-ronda", type=int, default=1, help="número de la primera ronda (para nombrar las carpetas)")
+    ap.add_argument("--procesar-primero", help="carpeta de una ronda ya bajada y sin procesar: se procesa mientras baja la siguiente")
     ap.add_argument("--worktree", default=str(ROOT.parent / "vigia-dji"))
     a = ap.parse_args()
     os.environ.setdefault("AWS_PROFILE", "founder.edwin")
@@ -188,19 +230,27 @@ def main() -> None:
     wt = Path(a.worktree)
     todos = universo()
     log(f"universo: {len(todos)} declarantes con nombre; registrados ahora en el ledger: {registrar(todos)}")
-    for ronda in range(1, a.rondas + 1):
+    proc = Procesando()
+    if a.procesar_primero:
+        proc.empezar(Path(a.procesar_primero))
+    for ronda in range(a.desde_ronda, a.desde_ronda + a.rondas):
         en_ledger = pendientes()
-        faltan = en_ledger & todos
-        if ronda == 1:
+        # Lo que la ronda en proceso ya bajó sigue «pendiente» hasta que se procese: no se vuelve a pedir.
+        faltan = (en_ledger & todos) - proc.claves
+        if ronda == a.desde_ronda:
             log(f"pendientes del ledger sin nombre (no se bajan): {len(en_ledger - todos)}")
         if not faltan:
-            log("no quedan pendientes: listo")
-            return
+            proc.esperar()
+            if not ((pendientes() & todos) - proc.claves):
+                log("no quedan pendientes: listo")
+                return
+            continue
         preparar_worktree(wt)
         n = escribir_csv(wt / CSV_REL, faltan)
         log(f"ronda {ronda}: {len(faltan)} pendientes en el ledger, {n} con nombre en el CSV")
         if n == 0:
             log("ningún pendiente tiene fila en targets_dji.csv: nada que bajar")
+            proc.esperar()
             return
         sha = publicar_ronda(wt, ronda, n)
         p = esperar_pipeline(sha)
@@ -210,17 +260,11 @@ def main() -> None:
         log("  " + (salida.strip().splitlines() or ["(sin salida)"])[-1])
         if not any(carpeta.glob("*.pdf")):
             log("la ronda no dejó PDFs: paro para revisar (portal caído, CI sin artefactos o el tope no alcanzó)")
+            proc.esperar()
             return
-        salida = py("procesar_dji.py", "--entorno", "prod", "--pdfs", str(carpeta), "--r2")
-        for linea in salida.strip().splitlines()[-3:]:
-            log("  " + linea.strip())
-        log(f"  señal de nepotismo refrescada: {refrescar_senal()}")
-        despues = len(pendientes() & todos)
-        log(f"  quedan {despues} pendientes (antes {len(faltan)})")
-        if despues >= len(faltan):
-            log("la ronda no avanzó: paro para revisar")
-            return
-    log(f"se acabaron las {a.rondas} rondas")
+        proc.empezar(carpeta)
+    proc.esperar()
+    log(f"se acabaron las {a.rondas} rondas; quedan {len(pendientes() & todos)} pendientes")
 
 
 if __name__ == "__main__":
