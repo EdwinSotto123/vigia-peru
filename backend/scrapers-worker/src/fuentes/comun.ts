@@ -5,6 +5,7 @@
 import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import type { Env } from "../config.ts";
 import { conDb } from "../db.ts";
+import { registrar } from "../registro.ts";
 
 /** Lecturas (páginas de la PNDA, zonas, comprobación de sha256): idempotentes, con reintentos. */
 export const LECTURA: WorkflowStepConfig = { retries: { limit: 3, delay: "10 seconds", backoff: "exponential" }, timeout: "5 minutes" };
@@ -36,6 +37,17 @@ export function sumarDias(fecha: string, n: number): string {
 export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise<number> {
   const uno = (nombre: string, sql: string) =>
     step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0)));
+  // Un cruce de una migración que puede no estar aplicada todavía en esta base (DEV va antes que PROD): sin su función se
+  // salta con un aviso en vez de cortar la cadena entera (casos_cruce, empresas y poder van después).
+  const siExiste = (nombre: string) =>
+    step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${nombre}()`]);
+      if (!existe) {
+        registrar("WARNING", `   ${nombre}() no existe en esta base: se salta`, { fuente: "cruces" });
+        return 0;
+      }
+      return Number((await db.filas<{ n: number }>(`SELECT ${nombre}() AS n`))[0]?.n ?? 0);
+    }));
   await uno("refrescar_precio_item", "SELECT refrescar_precio_item() AS n");
   await uno("refrescar_contrato_partido", "SELECT refrescar_contrato_partido() AS n");
   await uno("refrescar_cruce_otro_postor", "SELECT refrescar_cruce_otro_postor() AS n");
@@ -49,6 +61,13 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // Dos cruces más de la migración 123: mismo domicilio fiscal que otro postor, y proveedor cautivo de una entidad.
   await uno("refrescar_cruce_domicilio_compartido", "SELECT refrescar_cruce_domicilio_compartido() AS n");
   await uno("refrescar_cruce_proveedor_cautivo", "SELECT refrescar_cruce_proveedor_cautivo() AS n");
+  // Un funcionario declaró en su DJI acciones, un poder, un directorio o un empleo en la empresa que le ganó a su entidad
+  // (migración 170; las secciones 1 a 6 las carga backend/scripts/procesar_dji_intereses.py desde la PC).
+  await siExiste("refrescar_cruce_interes_dji");
+  // La obra de INFOBRAS que ejecuta o supervisa cada contrato y la inversión de su CUI (migración 160): sus banderas
+  // (paralizada, atrasada, adicionales, sobrecosto…) como cruces del contrato. Antes lee el CUI de los procesos nuevos.
+  // Las obras y las inversiones las carga backend/scripts/cargar_obras.py desde la PC (la Contraloría no responde afuera).
+  await siExiste("refrescar_cruce_obras");
   // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
   // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
   await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");
