@@ -135,7 +135,7 @@ def _filas_tabla(tb, words: list[dict]) -> list[dict]:
 
 def intereses_pdf(ruta: str) -> dict:
     """{'declaraciones': [{'ejercicio', 'oportunidad', 'marcas': {k: 'si'|'no'}, 'filas': [{seccion, ruc, nombre,
-    detalle, periodo, desde, hasta}]}]} para las secciones 1 a 6."""
+    detalle, periodo, desde, hasta}]}]}: las filas de las secciones 1 a 6 y las marcas de la 1 a la 7."""
     import pdfplumber  # perezoso: sólo al leer un PDF
     decls: list[dict] = []
     actual: dict | None = None
@@ -173,7 +173,8 @@ def intereses_pdf(ruta: str) -> dict:
                     if actual is None:
                         actual = {"ejercicio": None, "oportunidad": None, "marcas": {}, "filas": []}
                         decls.append(actual)
-                    if k <= 6 and marca and k not in actual["marcas"]:
+                    # La de la 7 también: un «No» ahí es «no declaró familiares», no una falla del lector de familiares.
+                    if k <= 7 and marca and k not in actual["marcas"]:
                         actual["marcas"][k] = marca
                 elif tipo == "tabla" and actual is not None and seccion and 1 <= seccion <= 6:
                     if actual["marcas"].get(seccion) == "no":

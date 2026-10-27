@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -50,6 +51,22 @@ def subir_r2(pdf: Path, key: str) -> bool:
         return False
 
 
+# La marca de la sección 7 («Relación de personas con la que tiene vínculo de consanguinidad…»): «7 Sí [ ] No [X]».
+RE_SIETE = re.compile(r"\b7\s+S[ií]\s*\[\s*(X?)\s*\]\s*No\s*\[\s*(X?)\s*\]", re.I)
+
+
+def solo_no_en_7(pdf: str) -> bool:
+    """Todas las declaraciones del PDF marcan «No» en la sección 7: no declaró familiares (2026-10-27: los 783
+    «parser_fallo» de las primeras rondas eran casi todos esto, no una falla del lector)."""
+    try:
+        with pdfplumber.open(pdf) as d:
+            texto = "\n".join((p.extract_text() or "") for p in d.pages)
+    except Exception:
+        return False
+    marcas = [m for m in RE_SIETE.finditer(texto) if "consanguinidad" in texto[max(0, m.start() - 400): m.start()]]
+    return bool(marcas) and all(not m.group(1) and m.group(2) for m in marcas)
+
+
 def parsear(pdf: str) -> tuple[list[dict], str]:
     """Los familiares de un PDF y cómo salió la lectura (en un proceso aparte: pdfplumber es lo lento)."""
     try:
@@ -58,7 +75,9 @@ def parsear(pdf: str) -> tuple[list[dict], str]:
         fams = []
     if fams:
         return fams, "ok"
-    return [], ("sin_texto" if not tiene_texto(pdf) else "parser_fallo")   # sin texto: escaneado → GLM/OCR luego
+    if not tiene_texto(pdf):
+        return [], "sin_texto"   # escaneado → GLM/OCR luego
+    return [], ("sin_familiares" if solo_no_en_7(pdf) else "parser_fallo")
 
 
 def lecturas_seguras(pdfs: list[Path], procesos: int, tanda: int = 40):
