@@ -136,6 +136,8 @@ test("entidades: el presupuesto es el PIM del último año del MEF, como en su f
   assert.equal(presupuestoDe([anio(2026, 100), anio(2025, 100)], null, "ok")?.anio, 2025);
   assert.equal(presupuestoDe([anio(2026, 80)], "pliego REGION PUNO", "ok")?.deTodoElGobierno, true);
   assert.equal(presupuestoDe([anio(2026, 0)], null, "ok"), null);
+  // Una unidad que se cierra trae un año más con sólo el PIA y el PIM en cero (migración 152): va el último con PIM.
+  assert.equal(presupuestoDe([anio(2019, 1210), { year: 2020, pia: 1905, pim: 0, devengado: 0, girado: 0 }], null, "ok")?.anio, 2019);
   assert.equal(presupuestoDe([anio(2026, 80)], null, "sin_match"), null);
   assert.equal(presupuestoDe(null, null, "ok"), null);
 });

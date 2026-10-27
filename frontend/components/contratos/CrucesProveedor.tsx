@@ -27,6 +27,8 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
+import { esTipoObra } from "@/lib/cruces";
+import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
@@ -60,6 +62,9 @@ const FUENTE: Record<string, string> = {
   sunat: "Consulta RUC de la SUNAT",
   oece_ocds: "Contrataciones Abiertas del OECE",
   persona_entidad: "Órdenes de servicio de CONOSCE",
+  // La obra del contrato y su inversión (migración 160).
+  infobras: "INFOBRAS (Contraloría)",
+  invierte_pe: "Invierte.pe (MEF)",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -160,6 +165,8 @@ const POR_QUE: Record<string, string> = {
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
+  interes_declarado: "La Ley 31227 obliga a los funcionarios a declarar sus intereses para que se aparten de las decisiones sobre las empresas en las que los tienen. Que una de ellas le gane un contrato a su propia entidad merece ver en el expediente si se apartó.",
+  empleo_declarado: "Haber trabajado para una empresa no impide comprarle, pero quien decide debe apartarse si el vínculo es reciente. Pesa más si la buena pro llegó mientras todavía trabajaba para ella.",
   domicilio_compartido: "Dos empresas con la misma dirección fiscal que se presentan al mismo proceso pueden ser la misma mano detrás de las dos: la competencia sería solo aparente. No prueba un vínculo por sí solo (puede ser un estudio contable o un edificio de oficinas); por eso no cuentan las direcciones con más de 5 empresas.",
   proveedor_cautivo: "Una empresa que vive casi por completo de una sola entidad es muy dependiente de ella: vale ver si se creó para servirla o si hay una relación demasiado estrecha. No es una irregularidad por sí misma.",
   recien_fundada: RECIEN_FUNDADA_POR_QUE,
@@ -167,6 +174,28 @@ const POR_QUE: Record<string, string> = {
   recien_fundada_un_ano: RECIEN_FUNDADA_POR_QUE,
   recien_fundada_dos_anos: RECIEN_FUNDADA_POR_QUE,
 };
+// La obra del contrato en INFOBRAS y su inversión en Invierte.pe (migración 160): por qué mirar cada banda.
+const POR_QUE_OBRA: Record<string, string> = {
+  obra_paralizada: "Una obra paralizada deja a la gente sin lo que se pagó y suele encarecerse al retomarse. La causa puede ser de la entidad (falta de pago o de presupuesto, un expediente técnico deficiente) o del contratista: INFOBRAS dice la que registró la entidad.",
+  obra_atraso: "El avance físico se compara con lo que la obra debía llevar a esa fecha según su calendario. Un atraso grande anticipa ampliaciones de plazo, penalidades o una paralización.",
+  obra_pago: "Si lo pagado va muy por encima de lo construido, el Estado adelantó dinero por obra que todavía no existe: el riesgo es quedarse con la plata entregada y la obra a medias. Puede haber un adelanto contractual; vale revisarlo.",
+  obra_adicionales: "Los adicionales de obra (trabajos extra que se pagan aparte) tienen un tope: hasta el 15 % del contrato, restando los deductivos, con la sola aprobación de la entidad; por encima, hace falta la autorización previa de la Contraloría.",
+  obra_plazo: "Las ampliaciones de plazo son normales en una obra, pero cuando suman tanto como el plazo original suelen traer más costos (mayores gastos generales) y retrasan el servicio.",
+  obra_controversia: "Una controversia que llega a un arbitraje o una conciliación suele terminar en pagos extra o en una obra detenida mientras se resuelve.",
+  obra_informe_control: "La Contraloría revisa obras durante su ejecución y señala riesgos o problemas. Que haya un informe no es una condena: dice que vale leerlo.",
+  inversion_sobrecosto: "Comparar el monto con que se aprobó una inversión con lo que cuesta hoy muestra cuánto se encareció. Puede tener explicación (un expediente técnico más completo, precios nuevos), pero un sobrecosto grande merece revisarse.",
+  inversion_laudo: "Un laudo arbitral es la decisión de los árbitros en una controversia entre la entidad y el contratista: suele significar pagos que no estaban en el contrato.",
+};
+POR_QUE.obra_paralizada = POR_QUE.obra_paralizada_larga = POR_QUE.obra_paralizacion = POR_QUE_OBRA.obra_paralizada;
+POR_QUE.obra_atraso = POR_QUE.obra_atraso_grave = POR_QUE_OBRA.obra_atraso;
+POR_QUE.obra_pago_adelantado = POR_QUE.obra_pagado_sin_avance = POR_QUE_OBRA.obra_pago;
+POR_QUE.obra_adicionales = POR_QUE.obra_adicionales_altos = POR_QUE.obra_adicionales_sobre_tope = POR_QUE_OBRA.obra_adicionales;
+POR_QUE.obra_plazo_ampliado = POR_QUE.obra_plazo_duplicado = POR_QUE_OBRA.obra_plazo;
+POR_QUE.obra_controversia = POR_QUE_OBRA.obra_controversia;
+POR_QUE.obra_informe_control = POR_QUE_OBRA.obra_informe_control;
+POR_QUE.inversion_sobrecosto = POR_QUE.inversion_sobrecosto_extremo = POR_QUE_OBRA.inversion_sobrecosto;
+POR_QUE.inversion_laudo = POR_QUE_OBRA.inversion_laudo;
+
 // Las bandas de un cruce comparten el "por qué" de su tipo padre (migración 121).
 POR_QUE.recurrente_dominante = POR_QUE.recurrente_frecuente = POR_QUE.recurrente;
 POR_QUE.sancion_definitiva = POR_QUE.sancion_temporal = POR_QUE.sancion_multa = POR_QUE.sancion;
@@ -543,9 +572,74 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
+    case "interes_declarado":
+    case "empleo_declarado": {
+      // La DJI de un funcionario de la entidad (migración 170): quién (cargo y un apellido tapado), qué declaró y si la buena
+      // pro cae dentro del periodo de ese vínculo.
+      const p = c.socios[0];
+      const sec = n(d.seccion);
+      const desde = txt(d.desde);
+      const hasta = txt(d.hasta);
+      const empleo = c.tipo === "empleo_declarado";
+      const que = empleo
+        ? "haber trabajado o asesorado a"
+        : sec === 1
+          ? "tener participación (acciones o similares) en"
+          : sec === 2
+            ? "tener un poder o la representación de"
+            : "tener un asiento en el directorio de";
+      return (
+        <>
+          {p?.nombre ? <span className="font-semibold">{p.nombre}</span> : "Un funcionario"}
+          <span className="text-inkSoft"> ({p?.rol ? oracion(p.rol) : "funcionario"} de la entidad)</span> declaró en su Declaración
+          Jurada de Intereses {que} <Emp c={c} />
+          {txt(d.detalle) ? <> ({oracion(txt(d.detalle)!).slice(0, 80)})</> : ""}
+          {desde ? <>, desde el {fechaCorta(desde)}{hasta ? <> hasta el {fechaCorta(hasta)}</> : " hasta hoy"}</> : ""}.{" "}
+          {d.dentro === true
+            ? empleo
+              ? "La buena pro llegó mientras trabajaba para esa empresa."
+              : "La buena pro llegó mientras declaraba ese vínculo."
+            : d.dentro === false
+              ? empleo
+                ? "La buena pro llegó después, cuando ya estaba en la entidad."
+                : "La buena pro cae fuera del periodo que declaró."
+              : ""}
+        </>
+      );
+    }
     default:
+      // La obra de este contrato (INFOBRAS) y su inversión (Invierte.pe), migración 160: la frase sale de su evidencia.
+      if (esTipoObra(c.tipo)) return <TextoObra c={c} />;
       return <>{c.etiqueta}.</>;
   }
+}
+
+/** Una bandera de la obra o de la inversión de este contrato: de qué obra se habla y lo que registra la fuente. */
+function TextoObra({ c }: { c: CruceProveedor }) {
+  const d = c.detalle;
+  const b = { ...d, tipo: c.tipo, severidad: c.severidad } as BanderaObra;
+  const supervisa = d.rol === "supervision";
+  const nombre = txt(String(d.nombre_obra ?? ""));
+  const nombreInv = txt(String(d.nombre_inversion ?? ""));
+  if (c.tipo.startsWith("inversion_")) {
+    return (
+      <>
+        {nombreInv ? <>La inversión <b>{oracion(nombreInv)}</b>{txt(String(d.cui ?? "")) ? ` (CUI ${String(d.cui)})` : ""}: </> : null}
+        {fraseBandera(b, "La inversión")}
+      </>
+    );
+  }
+  return (
+    <>
+      {nombre ? (
+        <>
+          {supervisa ? "Este contrato supervisa la obra" : "Este contrato ejecuta la obra"} <b>{oracion(nombre)}</b>
+          {n(d.obra) ? ` (INFOBRAS ${String(d.obra)})` : ""}.{" "}
+        </>
+      ) : null}
+      {fraseBandera(b, "La obra")}
+    </>
+  );
 }
 
 function Fila({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato | null }) {
@@ -589,6 +683,8 @@ const DATOS_PROVEEDOR = new Set(["candidato", "aporte", "aporte_empresa", "prove
  * evidencia (2026-10-27: «Único postor» salía como un antecedente del ganador, que no es: no dice nada de la empresa).
  */
 const HECHOS_DEL_PROCESO = new Set(["unico_postor"]);
+/** La obra y la inversión de ESTE contrato (INFOBRAS, Invierte.pe; migración 160) también son del proceso, no de quien ganó. */
+const esDelProceso = (tipo: string) => HECHOS_DEL_PROCESO.has(tipo) || esTipoObra(tipo);
 
 /** Los cruces, una sola vez cada uno y en sus partes: antecedentes, hechos del proceso, datos del proveedor y lo posterior. */
 export function clasificarCruces(todos: CruceProveedor[]) {
@@ -596,7 +692,9 @@ export function clasificarCruces(todos: CruceProveedor[]) {
   // multiplica; se muestran una sola vez. El arreglo de raíz está en dedup_cruces_proveedor (migración 120).
   const vistos = new Set<string>();
   const unicos = todos.filter((c) => {
-    const clave = `${c.tipo}|${c.ocid ?? ""}|${c.severidad}|${c.fecha ?? ""}|${c.montoSoles ?? ""}|${c.rucProveedor}|${JSON.stringify(c.socios ?? [])}|${JSON.stringify(c.detalle ?? {})}`;
+    // Una bandera de la obra es del contrato, no de cada integrante del consorcio que lo ganó: va una vez (sin el RUC).
+    const quien = esTipoObra(c.tipo) ? "" : c.rucProveedor;
+    const clave = `${c.tipo}|${c.ocid ?? ""}|${c.severidad}|${c.fecha ?? ""}|${c.montoSoles ?? ""}|${quien}|${JSON.stringify(c.socios ?? [])}|${JSON.stringify(c.detalle ?? {})}`;
     if (vistos.has(clave)) return false;
     vistos.add(clave);
     return true;
@@ -605,8 +703,8 @@ export function clasificarCruces(todos: CruceProveedor[]) {
   // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
   // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
   return {
-    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo) && !HECHOS_DEL_PROCESO.has(c.tipo)),
-    delProceso: unicos.filter((c) => !c.posterior && HECHOS_DEL_PROCESO.has(c.tipo)),
+    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo) && !esDelProceso(c.tipo)),
+    delProceso: unicos.filter((c) => !c.posterior && esDelProceso(c.tipo)),
     datosProv: unicos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo)),
     posteriores: unicos.filter((c) => c.posterior),
   };
@@ -726,10 +824,20 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
           </p>
         )}
         {antecedentes.length > 0 && <GruposCruces lista={antecedentes} gobierna={gobierna} conAnclas />}
-        {delProceso.length > 0 && (
+        {delProceso.some((c) => !esTipoObra(c.tipo)) && (
           <div className="border-t border-line">
             <h3 className="px-4 pt-3 text-cuerpo font-semibold text-ink">En este proceso</h3>
-            <GruposCruces lista={delProceso} gobierna={gobierna} conAnclas />
+            <GruposCruces lista={delProceso.filter((c) => !esTipoObra(c.tipo))} gobierna={gobierna} conAnclas />
+          </div>
+        )}
+        {delProceso.some((c) => esTipoObra(c.tipo)) && (
+          <div className="border-t border-line">
+            <h3 className="px-4 pt-3 text-cuerpo font-semibold text-ink">En la obra de este contrato</h3>
+            <p className="px-4 pt-1 text-meta leading-relaxed text-inkSoft">
+              Lo que registra la entidad en INFOBRAS (Contraloría) y en Invierte.pe (MEF) sobre la obra que ejecuta o supervisa este contrato: no
+              son antecedentes de quien ganó, son hechos de la ejecución. Su detalle completo está en «Adjudicación y contrato».
+            </p>
+            <GruposCruces lista={delProceso.filter((c) => esTipoObra(c.tipo))} gobierna={gobierna} conAnclas />
           </div>
         )}
         {datosProv.length > 0 && (
@@ -786,7 +894,8 @@ function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
 export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
   const { antecedentes, delProceso, datosProv, posteriores } = clasificarCruces(cruces);
   const grupos = agrupar(antecedentes);
-  const gruposProceso = agrupar(delProceso);
+  const gruposProceso = agrupar(delProceso.filter((c) => !esTipoObra(c.tipo)));
+  const gruposObra = agrupar(delProceso.filter((c) => esTipoObra(c.tipo)));
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
   return (
     <section aria-labelledby="resumen-antecedentes" className="space-y-2">
@@ -810,6 +919,13 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
         <div className="space-y-1.5 pt-1">
           <h3 className="text-cuerpo font-semibold text-ink">En este proceso</h3>
           <RenglonesGrupos grupos={gruposProceso} />
+        </div>
+      )}
+      {/* La obra de este contrato en INFOBRAS y su inversión en Invierte.pe (migración 160). */}
+      {gruposObra.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <h3 className="text-cuerpo font-semibold text-ink">En la obra de este contrato</h3>
+          <RenglonesGrupos grupos={gruposObra} />
         </div>
       )}
       {datosProv.length + posteriores.length > 0 && (

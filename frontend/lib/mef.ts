@@ -30,10 +30,22 @@ export interface MefBudgetSummary {
   /** Con `cruce = "pliego"`: el pliego cuyas cifras se muestran ("GOBIERNO REGIONAL DEL DEPARTAMENTO DE CUSCO"). */
   pliego?: string | null;
   totalRows: number;
+  /** Todos los años cargados, de menor a mayor (desde 2015; migración 152). */
   byYear: MefBudgetRow[];
   /** Fecha del archivo del MEF (ISO). `null` si no se registró. */
   fechaDescarga?: string | null;
+  /**
+   * De qué archivo del MEF salen las cifras (migración 152): el del SIAF (casi todas), el de los organismos públicos
+   * descentralizados (`opds`: SAT, Serpar…) o el de las empresas municipales (`etes`: EPS de agua…). En las ETE el
+   * `devengado` es lo ejecutado que reporta la empresa: no lo separan en devengado y girado (girado va en 0).
+   */
+  origen?: OrigenMef | null;
+  /** El último año que el MEF publica de ese archivo: si el último de la entidad es anterior, su unidad ya no gasta. */
+  ultimoAnioMef?: number | null;
 }
+
+/** El archivo del MEF de una entidad: el SIAF, los organismos públicos descentralizados o las empresas municipales. */
+export type OrigenMef = "siaf" | "opds" | "etes";
 
 export type MefBudgetResult =
   | { kind: "ok"; data: MefBudgetSummary }
@@ -56,6 +68,10 @@ export interface DatoGasto {
 export interface GastoEntidad {
   anio: number | null;
   cruce: string | null;
+  /** Migración 152: con `etes`, cada `devengado` es lo ejecutado que reporta la empresa (falta en respuestas viejas). */
+  origen?: OrigenMef | null;
+  /** El último año con desglose que el MEF publica de ese archivo (falta en respuestas viejas). */
+  ultimoAnioMef?: number | null;
   genericas: { nombre: string; pim: number; devengado: number; partidas: (DatoGasto & { especificas?: DatoGasto[] })[] }[];
   funciones: DatoGasto[];
   proyectos: { total: number; pim: number; devengado: number; lista: DatoGasto[] };
@@ -84,6 +100,12 @@ export interface RegionBudgetSummary {
   /** Fecha del archivo del MEF (ISO). `null` si no se registró. */
   fechaDescarga?: string | null;
 }
+
+/**
+ * El nombre del monto gastado según el archivo del MEF: «devengado» (SIAF y OPD) o «ejecutado» en las empresas municipales
+ * (ETE), que reportan un solo monto ejecutado, sin separar el devengado del girado.
+ */
+export const palabraGasto = (origen?: OrigenMef | null): "devengado" | "ejecutado" => (origen === "etes" ? "ejecutado" : "devengado");
 
 /**
  * % de ejecución del año = Devengado / PIM × 100.
@@ -126,6 +148,16 @@ export function sinAnioRepetido(byYear: MefBudgetRow[]): { years: MefBudgetRow[]
   const igual =
     ult.pim > 0 && ult.pia === ant.pia && ult.pim === ant.pim && ult.devengado === ant.devengado && ult.girado === ant.girado;
   return igual ? { years: byYear.slice(0, -1), repetido: ult.year } : { years: byYear, repetido: null };
+}
+
+/**
+ * El índice del último año con presupuesto vigente (PIM > 0); si ninguno lo tiene, el último. Cuando una unidad ejecutora
+ * se cierra, el MEF suele dejar un año más con sólo el inicial (PIA) y el PIM en cero (Progresa del MIDIS: S/ 1.9 mil M de
+ * PIA en 2020, PIM S/ 0): ese no es «su presupuesto» de ese año.
+ */
+export function ultimoConPim(years: MefBudgetRow[]): number {
+  for (let i = years.length - 1; i >= 0; i--) if (years[i].pim > 0) return i;
+  return years.length - 1;
 }
 
 /** "16 may. 2026" en hora de Lima, o `null` si no hay fecha válida. */

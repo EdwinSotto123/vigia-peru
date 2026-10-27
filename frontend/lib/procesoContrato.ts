@@ -9,6 +9,7 @@ import { esRucPersonaNatural } from "./privacidad";
 import { TIPO_CRUCE } from "./cruces";
 import { CORTO_EMPRESA } from "./empresas";
 import { oracion, plural } from "./formato";
+import type { InversionDelContrato, ObraDelContrato } from "./obras";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -110,6 +111,9 @@ export interface ProcesoContrato {
   presupuesto?: PresupuestoProceso | null;
   /** De dónde salió la fecha de la buena pro: los agentes, CONOSCE o la adjudicación del OCDS. */
   fechaBuenaProFuente?: "analisis" | "conosce" | "ocds" | null;
+  /** La obra de INFOBRAS que ejecuta o supervisa este contrato y la inversión de su CUI en Invierte.pe (migración 160). */
+  obras?: ObraDelContrato[];
+  inversiones?: InversionDelContrato[];
 }
 
 /** Ganó, presentó oferta o sólo se registró. Sin postores en CONOSCE no se sabe quién ofertó: «Registrado». */

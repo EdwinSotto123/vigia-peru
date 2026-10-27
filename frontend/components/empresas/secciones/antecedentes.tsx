@@ -3,7 +3,8 @@ import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, PieDetalle } from "@/com
 import { BarraFiltros, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
-import { TIPO_CRUCE } from "@/lib/cruces";
+import { TIPO_CRUCE, esTipoObra } from "@/lib/cruces";
+import { fraseBandera, type BanderaObra } from "@/lib/obras";
 import { fechaCorta, hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
@@ -30,6 +31,9 @@ const FUENTE: Record<string, string> = {
   conosce_contratos: "Contratos de CONOSCE",
   conosce_ordenes: "Órdenes de compra y de servicio de CONOSCE",
   precio_item: "Ítems del OCDS (OECE) y CONOSCE",
+  // La obra del contrato (INFOBRAS) y su inversión (Invierte.pe), migración 160.
+  infobras: "INFOBRAS (Contraloría)",
+  invierte_pe: "Invierte.pe (MEF)",
 };
 
 const txt = txtONumero;
@@ -91,6 +95,16 @@ function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | nul
       { etiqueta: "Mediana de otras entidades", valor: typeof peor.mediana === "number" ? `${soles(peor.mediana)} (${numero(Number(peor.entidades ?? 0))} entidades)` : null },
       { etiqueta: "Pagó de más en total", valor: typeof d.exceso === "number" ? soles(d.exceso) : null, mono: true },
     );
+  } else if (esTipoObra(a.tipo)) {
+    // La obra que construye o supervisa en ese contrato (INFOBRAS) o la inversión de su CUI (Invierte.pe): la frase con sus
+    // números, la obra y la inversión. La causa de una paralización o de un atraso puede ser de la entidad.
+    const obra = txt(d.nombre_obra);
+    const inversion = txt(d.nombre_inversion);
+    items.push(
+      { etiqueta: "Lo que registra la fuente", valor: fraseBandera({ ...d, tipo: a.tipo, severidad: a.severidad } as BanderaObra, d.rol === "supervision" ? "La obra que supervisa" : a.tipo.startsWith("inversion_") ? "La inversión" : "La obra") },
+      { etiqueta: d.rol === "supervision" ? "Obra que supervisa" : "Obra", valor: obra ? `${oracion(obra)}${txt(d.obra) ? ` (INFOBRAS ${txt(d.obra)})` : ""}` : null },
+      { etiqueta: "Inversión", valor: inversion ? `${oracion(inversion)}${txt(d.cui) ? ` (CUI ${txt(d.cui)})` : ""}` : null },
+    );
   } else {
     const org = txt(d.organizacion) ?? txt(d.partido);
     if (org) items.push({ etiqueta: "Organización política", valor: org });
@@ -98,7 +112,7 @@ function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | nul
     if (txt(d.proceso)) items.push({ etiqueta: "Proceso electoral", valor: txt(d.proceso) });
     if (txt(d.entidad_contratante)) items.push({ etiqueta: "Entidad", valor: tituloNatural(txt(d.entidad_contratante)!) });
   }
-  if (a.montoSoles != null && !items.some((i) => i.etiqueta.startsWith("Juntas") || i.etiqueta.startsWith("Pagó"))) {
+  if (a.montoSoles != null && !esTipoObra(a.tipo) && !items.some((i) => i.etiqueta.startsWith("Juntas") || i.etiqueta.startsWith("Pagó"))) {
     items.push({ etiqueta: "Monto", valor: soles(a.montoSoles), mono: true });
   }
   if (a.fecha && !items.some((i) => i.etiqueta === "Vigencia" || i.etiqueta === "Días" || i.etiqueta === "Entre")) {

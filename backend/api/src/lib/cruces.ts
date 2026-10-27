@@ -13,6 +13,7 @@
 
 import { pool } from "./db.js";
 import { evidenciasDe, ofertasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
+import { ETIQUETA_OBRA } from "./obras.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
   aporte: "Aportó a una organización política",
@@ -31,6 +32,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
   socio_en_entidad: "Un socio del proveedor trabaja en la entidad",
+  // La DJI de un funcionario de la entidad (migración 170): acciones, poder o directorio, y empleo previo.
+  interes_declarado: "Un funcionario de la entidad declaró un interés en el ganador",
+  empleo_declarado: "Un funcionario de la entidad trabajó para el ganador",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",
@@ -58,6 +62,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   dada_de_baja: "Dada de baja en la SUNAT",
   suspendida: "Suspendida en la SUNAT",
   no_habida: "No habida en la SUNAT",
+  // La obra del contrato en INFOBRAS y su inversión en Invierte.pe (migración 160).
+  ...ETIQUETA_OBRA,
 };
 
 /** La etiqueta de un cruce posterior a la convocatoria, donde la de siempre diría "anteriores". */

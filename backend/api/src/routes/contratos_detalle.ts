@@ -17,6 +17,7 @@ import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publi
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
 import { crucesDeProceso } from "../lib/cruces.js";
+import { obraDelContrato } from "../lib/obras.js";
 import {
   CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
   filasParticipantes, ganadoresDe, presupuestoDe, registradosDe, vinculosDelProceso,
@@ -122,7 +123,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const itemsLista: any[] = Array.isArray(items_raw) ? items_raw : [];
   const anioConvocatoria = row.fecha ? Number(String(row.fecha).slice(0, 4)) : null;
 
-  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios, datoDudoso, conosce, filasP, filasV, filasK, presupuesto] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios, datoDudoso, conosce, filasP, filasV, filasK, presupuesto, obra] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     // Mismas columnas que el tablero (score/banderas en null si la alerta no está publicada).
@@ -148,6 +149,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // El proyecto de inversión (CUI) en el presupuesto de la entidad (MEF).
     presupuestoDe(budget_raw, [...itemsLista.map((it) => it?.description), row.titulo, resumen.descripcion], row.entidadRuc ?? null, anioConvocatoria)
       .catch(() => null as Presupuesto | null),
+    // La obra de INFOBRAS que ejecuta o supervisa este contrato y la inversión de su CUI en Invierte.pe (migración 160).
+    obraDelContrato(row.ocid).catch(() => ({ obras: [], inversiones: [] })),
   ]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
@@ -293,6 +296,10 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     cronograma,
     contrato,
     presupuesto,
+    // INFOBRAS e Invierte.pe (migración 160): la obra (estado, avance físico y financiero, paralización, adicionales) y la
+    // inversión (monto viable y costo actualizado). Sus banderas van en `cruces`, con su evidencia.
+    obras: obra.obras,
+    inversiones: obra.inversiones,
     alerta: alertaRow,
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,

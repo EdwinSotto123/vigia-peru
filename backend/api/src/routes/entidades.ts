@@ -8,6 +8,7 @@ import { hayModelosLectura } from "../lib/esquema.js";
 import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
 import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
+import { hayObras } from "./obras.js";
 
 export const entidadesRouter = new Hono();
 
@@ -304,10 +305,15 @@ export function presupuestoDe(porAnio: unknown, keyword: string | null | undefin
     .map((x) => ({ year: Number(x?.year), pia: n(x?.pia), pim: n(x?.pim), devengado: n(x?.devengado), girado: n(x?.girado) }))
     .filter((x) => Number.isInteger(x.year))
     .sort((a, b) => a.year - b.year);
-  let u = anios[anios.length - 1];
-  const a = anios[anios.length - 2];
-  if (u && a && u.pim > 0 && u.pia === a.pia && u.pim === a.pim && u.devengado === a.devengado && u.girado === a.girado) u = a;
-  if (!u || !(u.pim > 0)) return null;
+  let fin = anios.length - 1;
+  const u0 = anios[fin];
+  const a = anios[fin - 1];
+  if (u0 && a && u0.pim > 0 && u0.pia === a.pia && u0.pim === a.pim && u0.devengado === a.devengado && u0.girado === a.girado) fin--;
+  // El último año con presupuesto vigente (migración 152: la historia desde 2015). Una unidad que se cierra suele traer un
+  // año más con sólo el PIA y el PIM en cero (Progresa del MIDIS en 2020): ese no es su presupuesto.
+  while (fin >= 0 && !(anios[fin].pim > 0)) fin--;
+  const u = anios[fin];
+  if (!u) return null;
   return { anio: u.year, pim: u.pim, devengado: u.devengado, deTodoElGobierno: (keyword ?? "").startsWith("pliego ") };
 }
 
@@ -538,7 +544,7 @@ entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
 });
 
 // ─── GET /entidades/:ruc/gasto — en qué gasta, según el MEF (migraciones 63 y 64) ─
-// Suma las unidades ejecutoras con que cruzó la entidad (`mef_entity_budget.sec_ejecs`) en el último año cargado. Si la
+// Suma las unidades ejecutoras con que cruzó la entidad (`mef_entity_budget.sec_ejecs`) en su último año con desglose. Si la
 // entidad cruzó con el pliego regional entero (`keyword` 'pliego …'), son las cifras de todo el gobierno regional:
 // `cruce` lo dice y la ficha lo avisa. Ocho miradas, armadas en árbol donde corresponde:
 //   genéricas › partidas › específicas · funciones · proyectos · fuentes › rubros · meses · programas › productos
@@ -563,14 +569,34 @@ function sumarPorNombre<T extends Dato>(lista: T[], d: T): T {
 entidadesRouter.get("/:ruc/gasto", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
-  const r = await pool.query<FilaGasto & { anio: number; cruce: string | null }>(
-    `WITH e AS (SELECT sec_ejecs, split_part(keyword, ' ', 1) AS cruce FROM mef_entity_budget WHERE entidad_ruc = $1),
-          u AS (SELECT max(g.anio) AS anio FROM mef_ejecutora_gasto g, e WHERE g.sec_ejec = ANY(e.sec_ejecs))
-     SELECT u.anio, e.cruce, g.tipo, g.codigo, max(g.nombre) AS nombre, max(g.grupo) AS grupo,
+  // El último año con desglose de sus unidades, que puede no ser el actual (una unidad que dejó de gastar en 2019): se
+  // prueba año por año, de este para atrás, por la llave (anio, sec_ejec) de cada tabla; un max(anio) sobre sec_ejec
+  // recorrería la tabla entera (~6 M de filas con la historia desde 2015). Las OPD y ETE (migración 152) tienen su propia
+  // tabla; en las ETE, `devengado` es la ejecución que reporta la empresa (`origen` lo dice).
+  const r = await pool.query<FilaGasto & { anio: number; cruce: string | null; origen: string | null; ultimoAnioMef: number | null }>(
+    `WITH e AS (SELECT sec_ejecs, split_part(keyword, ' ', 1) AS cruce, COALESCE(origen, 'siaf') AS origen
+                  FROM mef_entity_budget WHERE entidad_ruc = $1),
+          -- el último año con desglose que hay de ese archivo del MEF (si el de la entidad es anterior, ya no gasta)
+          m AS (SELECT CASE WHEN e.origen = 'siaf' THEN (SELECT max(anio) FROM mef_ejecutora_gasto)
+                            ELSE (SELECT max(x.anio) FROM mef_opds_etes_gasto x WHERE x.origen = e.origen) END::int AS ultimo
+                  FROM e),
+          -- con algo de PIM o devengado: una unidad que se cierra trae un año más con sólo el PIA (Progresa en 2020)
+          u AS (SELECT y.anio::smallint AS anio
+                  FROM e, generate_series(extract(year FROM now())::int + 1, 2009, -1) AS y(anio)
+                 WHERE EXISTS (SELECT 1 FROM mef_ejecutora_gasto x
+                                WHERE x.anio = y.anio AND x.sec_ejec = ANY(e.sec_ejecs) AND (x.pim > 0 OR x.devengado > 0))
+                    OR EXISTS (SELECT 1 FROM mef_opds_etes_gasto x
+                                WHERE x.anio = y.anio AND x.sec_ejec = ANY(e.sec_ejecs) AND (x.pim > 0 OR x.devengado > 0))
+                 ORDER BY y.anio DESC LIMIT 1)
+     SELECT u.anio, e.cruce, e.origen, m.ultimo AS "ultimoAnioMef", g.tipo, g.codigo, max(g.nombre) AS nombre, max(g.grupo) AS grupo,
             sum(g.pim)::float AS pim, sum(g.devengado)::float AS devengado
-       FROM mef_ejecutora_gasto g, e, u
-      WHERE g.anio = u.anio AND g.sec_ejec = ANY(e.sec_ejecs)
-      GROUP BY u.anio, e.cruce, g.tipo, g.codigo
+       FROM e, m, u, LATERAL (
+              SELECT x.tipo, x.codigo, x.nombre, x.grupo, x.pim, x.devengado FROM mef_ejecutora_gasto x
+               WHERE x.anio = u.anio AND x.sec_ejec = ANY(e.sec_ejecs)
+              UNION ALL
+              SELECT x.tipo, x.codigo, x.nombre, x.grupo, x.pim, x.devengado FROM mef_opds_etes_gasto x
+               WHERE x.anio = u.anio AND x.sec_ejec = ANY(e.sec_ejecs)) g
+      GROUP BY u.anio, e.cruce, e.origen, m.ultimo, g.tipo, g.codigo
      HAVING sum(g.pim) > 0 OR sum(g.devengado) > 0`,
     [ruc],
   );
@@ -641,6 +667,10 @@ entidadesRouter.get("/:ruc/gasto", async (c) => {
   return c.json({
     anio: filas[0]?.anio ?? null,
     cruce: filas[0]?.cruce ?? null,
+    // 'siaf' | 'opds' | 'etes' (migración 152): con 'etes', cada `devengado` es lo ejecutado que reporta la empresa.
+    origen: filas[0]?.origen ?? null,
+    // El último año con desglose de ese archivo del MEF: si `anio` es anterior, la unidad ya no gasta.
+    ultimoAnioMef: filas[0]?.ultimoAnioMef ?? null,
     genericas: [...genericas.values()].sort(porPim),
     funciones: de("funcion").map(dato).sort(porPim),
     proyectos: {
@@ -774,7 +804,7 @@ const ORDEN_LISTADA = `o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM '
  * /ordenes: con un parámetro, Hyperdrive prepara la sentencia y el plan genérico puede dejar el índice de lado; el literal
  * sirve igual para las columnas text y char(11).
  */
-export function sqlConteosEntidad(ruc: string, conResumen: boolean): string {
+export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = false): string {
   if (!/^\d{11}$/.test(ruc)) throw new Error("RUC inválido");
   const r = `'${ruc}'`;
   const resumen = (tabla: string) => `COALESCE((SELECT (x.resumen->>'personas')::int FROM ${tabla} x WHERE x.alcance = 'ent:${ruc}'), 0)`;
@@ -791,6 +821,11 @@ export function sqlConteosEntidad(ruc: string, conResumen: boolean): string {
          ? `,
        (SELECT sum(a.ordenes)::int FROM entidad_orden_anual a WHERE a.entidad_ruc = ${r}) AS ordenes,
        (SELECT sum(a.monto)::float FROM entidad_orden_anual a WHERE a.entidad_ruc = ${r}) AS "ordenesMonto"`
+         : ""}${conObras
+         // Sus obras de INFOBRAS y sus inversiones de Invierte.pe (migración 160), por el índice de la entidad.
+         ? `,
+       (SELECT count(*) FROM obra_infobras ob WHERE ob.entidad_ruc = ${r} AND NOT ob.retirada)::int AS obras,
+       (SELECT count(*) FROM inversion_mef iv WHERE iv.entidad_ruc = ${r} AND NOT iv.retirada)::int AS inversiones`
          : ""}`;
 }
 
@@ -813,9 +848,11 @@ entidadesRouter.get("/:ruc/conteos", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await conteosMemo.obtener(ruc, async () => {
-    const conResumen = await hayResumenOrdenes();
-    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
+    const [conResumen, conObras] = await Promise.all([hayResumenOrdenes(), hayObras()]);
+    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen, conObras))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
     const { hayOrdenes, ordenes, ordenesMonto, ...resto } = f;
+    // Sin la migración 160, null: no se sabe (la pestaña Obras va sin número, nunca con un 0 que no es).
+    if (!conObras) Object.assign(resto, { obras: null, inversiones: null });
     // Sin ninguna orden, 0. Con alguna, su número si el resumen ya la contó; si no (sin la migración, o antes de su primer
     // refresco), null: tiene órdenes, pero no se sabe cuántas (nunca un 0 que no es).
     const contadas = hayOrdenes && typeof ordenes === "number" && ordenes > 0;
@@ -864,19 +901,36 @@ entidadesRouter.get("/:ruc", async (c) => {
           WHERE e.ruc = $1`,
       [ruc],
     ),
-    // `corte`: la fecha del archivo del MEF del que salió (last_refreshed es cuándo se recalculó). Va siempre, con o sin
-    // presupuesto (sin él, kind y by_year en null): `fuente` dice de dónde salió su unidad ejecutora ('oece': el CODIGO_SIAF
-    // del registro de la OECE; 'heuristica': ubigeo o nombre; 'ninguno': sin presupuesto), `fueraSiaf` que la OECE la
-    // registra fuera del SIAF (empresas de FONAFE, EsSalud, EPS…: su presupuesto no está en los datos abiertos del MEF) y
-    // `secEjecSiaf`, la unidad que la OECE le da (migraciones 150 y 151).
+    // `corte`: la fecha del archivo del MEF del que salió su último año (last_refreshed es cuándo se recalculó); sin
+    // presupuesto, la del último archivo del SIAF. Va siempre, con o sin presupuesto (sin él, kind y by_year en null):
+    // `fuente` dice de dónde salió su unidad ejecutora ('oece': el CODIGO_SIAF del registro de la OECE; 'heuristica': ubigeo
+    // o nombre; 'ninguno': sin presupuesto), `fueraSiaf` que la OECE la registra fuera del SIAF (empresas de FONAFE,
+    // EsSalud…: su presupuesto no está en los datos abiertos del MEF) y `secEjecSiaf`, la unidad que la OECE le da
+    // (migraciones 150 y 151). Migración 152: `by_year` trae todos los años cargados (desde 2015), `origen` de qué archivo
+    // del MEF sale ('siaf'; 'opds', un organismo público descentralizado; 'etes', una empresa municipal, cuyo «devengado»
+    // es la ejecución que reporta, sin girado ni comprometido: van en null) y `ultimoAnioMef` el último año que el MEF
+    // publica de ese archivo: si el último de la entidad es anterior, su unidad ejecutora ya no tiene presupuesto.
     pool.query(
       `SELECT b.entidad_ruc, b.keyword, b.total_rows, b.by_year, b.matched_pliegos, b.kind, b.last_refreshed, b.sec_ejecs,
-              (SELECT max(corte) FROM mef_ejecutora_anual) AS corte,
+              COALESCE(c.corte, (SELECT max(corte) FROM mef_ejecutora_anual
+                                  WHERE anio = (SELECT max(anio) FROM mef_ejecutora_anual))) AS corte,
               CASE WHEN b.entidad_ruc IS NULL THEN 'ninguno' ELSE COALESCE(b.fuente, 'heuristica') END AS fuente,
-              (b.entidad_ruc IS NULL AND COALESCE(s.fuera_siaf, false)) AS "fueraSiaf", s.sec_ejec AS "secEjecSiaf"
+              (b.entidad_ruc IS NULL AND COALESCE(s.fuera_siaf, false)) AS "fueraSiaf", s.sec_ejec AS "secEjecSiaf",
+              CASE WHEN b.entidad_ruc IS NOT NULL THEN COALESCE(b.origen, 'siaf') END AS origen,
+              CASE WHEN b.entidad_ruc IS NULL THEN NULL
+                   WHEN b.origen IN ('opds', 'etes') THEN (SELECT max(anio) FROM mef_opds_etes_anual o WHERE o.origen = b.origen)
+                   ELSE (SELECT max(anio) FROM mef_ejecutora_anual) END::int AS "ultimoAnioMef"
          FROM (SELECT $1::char(11) AS ruc) k
          LEFT JOIN mef_entity_budget b ON b.entidad_ruc = k.ruc
-         LEFT JOIN entidad_siaf s ON s.ruc = k.ruc`,
+         LEFT JOIN entidad_siaf s ON s.ruc = k.ruc
+         -- el archivo de su último año (by_year va por año, de menor a mayor), por la llave de cada tabla
+         LEFT JOIN LATERAL (
+           SELECT max(u.corte) AS corte
+             FROM (SELECT a.corte FROM mef_ejecutora_anual a
+                    WHERE a.anio = (b.by_year->-1->>'year')::smallint AND a.sec_ejec = ANY(b.sec_ejecs)
+                   UNION ALL
+                   SELECT o.corte FROM mef_opds_etes_anual o
+                    WHERE o.anio = (b.by_year->-1->>'year')::smallint AND o.sec_ejec = ANY(b.sec_ejecs)) u) c ON true`,
       [ruc],
     ),
     // Solo alertas PUBLICADAS y no demo: antes salían también las que están en revisión humana o

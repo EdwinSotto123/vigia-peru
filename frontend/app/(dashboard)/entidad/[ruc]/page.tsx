@@ -7,7 +7,7 @@ import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
+import { ejecucionPct, sinAnioRepetido, ultimoConPim, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
 import { normalizar } from "@/lib/partidos";
 import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
@@ -33,6 +33,7 @@ import { Acciones, Diferida, EsqueletoPestana, PestanaVacia } from "@/components
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
+import { ObrasEntidad, ObrasVacia } from "@/components/obras/ObrasEntidad";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
@@ -78,7 +79,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { contratos: "Contratos", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
@@ -168,8 +169,10 @@ export default async function EntidadProfile({
   // Sin presupuesto del MEF sólo si la entidad respondió (sin respuesta, no se sabe).
   const sinMef = !falloEntidad && !(mef?.kind === "ok" && mef.by_year?.length);
   const sinCompras = VISTAS.every((v) => n[v] === 0);
+  // Sus obras de INFOBRAS y sus inversiones de Invierte.pe (migración 160): sin ninguna de las dos, la pestaña va al final.
+  const sinObras = conteos?.obras === 0 && conteos?.inversiones === 0;
   const vacias = new Set<string>(
-    [sinCompras && "contratos", n.personas === 0 && "personas", n.planilla === 0 && "planilla", n.plazas === 0 && "plazas", sinMef && "presupuesto", n.informes === 0 && "control"].filter(
+    [sinCompras && "contratos", sinObras && "obras", n.personas === 0 && "personas", n.planilla === 0 && "planilla", n.plazas === 0 && "plazas", sinMef && "presupuesto", n.informes === 0 && "control"].filter(
       (x): x is string => !!x,
     ),
   );
@@ -248,6 +251,18 @@ export default async function EntidadProfile({
           ordenes={fo}
           menores={fm}
         />
+      ),
+    },
+    {
+      // Sus obras públicas (INFOBRAS) y sus inversiones (Invierte.pe), en dos vistas con su número cada una (no se suman:
+      // una obra es parte de una inversión). components/obras/ObrasEntidad.tsx.
+      clave: "obras",
+      etiqueta: "Obras",
+      conteo: sinObras ? 0 : null,
+      contenido: sinObras ? (
+        <ObrasVacia />
+      ) : (
+        <ObrasEntidad ruc={e.ruc} ruta={ruta} sp={searchParams} conteo={{ obras: conteos?.obras ?? null, inversiones: conteos?.inversiones ?? null }} />
       ),
     },
     {
@@ -552,7 +567,8 @@ function AyudaControl() {
 function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | null | undefined): MefBudgetRow | null {
   if (!mef || mef.kind !== "ok" || !mef.by_year?.length) return null;
   const { years } = sinAnioRepetido(mef.by_year.map((r) => ({ ...r, pia: Number(r.pia), pim: Number(r.pim), devengado: Number(r.devengado), girado: Number(r.girado) })));
-  return years[years.length - 1] ?? null;
+  // El último con presupuesto vigente: el año que una unidad que se cierra trae sólo con el PIA (PIM 0) no lo es.
+  return years[ultimoConPim(years)] ?? null;
 }
 
 /**
@@ -571,7 +587,7 @@ function indicadores({
   resumen: ResumenContratos | null;
   totalContratos: number;
   enCola: number;
-  mef: { by_year?: MefBudgetRow[] | null; kind?: string; keyword?: string | null } | null;
+  mef: { by_year?: MefBudgetRow[] | null; kind?: string; keyword?: string | null; origen?: string | null } | null;
   ordenes: number | null;
   ordenesMonto: number | null;
   ruta: string;
@@ -649,7 +665,8 @@ function indicadores({
           {
             valor: solesCompacto(anio.pim),
             etiqueta: `presupuesto ${anio.year}${deTodoElGobierno ? " del gobierno regional" : ""}`,
-            contexto: anio.pim > 0 ? `${porcentaje(ejecucionPct(anio), { decimales: 0 })} ya gastado (devengado)` : undefined,
+            // Las empresas municipales (ETE, migración 152) reportan un solo monto ejecutado, no un devengado.
+            contexto: anio.pim > 0 ? `${porcentaje(ejecucionPct(anio), { decimales: 0 })} ${mef?.origen === "etes" ? "ya ejecutado" : "ya gastado (devengado)"}` : undefined,
             href: `${ruta}?seccion=presupuesto`,
           },
         ]

@@ -286,6 +286,9 @@ export interface ConteosEntidad {
   ordenes: number | null;
   /** Lo que suman, sin las de monto dudoso; null si no están contadas. */
   ordenesMonto: number | null;
+  /** Sus obras públicas en INFOBRAS y sus inversiones en Invierte.pe (migración 160); null/ausente = sin dato. */
+  obras?: number | null;
+  inversiones?: number | null;
 }
 
 export async function getConteosEntidad(ruc: string): Promise<ConteosEntidad | null> {

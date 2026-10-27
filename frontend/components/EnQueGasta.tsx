@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { Ayuda, Pestanas, type Pestana } from "@/components/patrones";
 import { ListaPaginada } from "@/components/listado";
-import type { DatoGasto, GastoEntidad } from "@/lib/mef";
+import { palabraGasto, type DatoGasto, type GastoEntidad } from "@/lib/mef";
 import { numero, oracion, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -18,8 +18,9 @@ import { cn } from "@/lib/utils";
  *   · Mes a mes: lo devengado cada mes.
  * Cada fila en columnas fijas (rubro · su parte del PIM en una barra · el PIM · % gastado), alineadas a la derecha en
  * todos los niveles, con su encabezado: antes la barra corría bajo cada nombre a todo el ancho y doce pistas grises
- * competían con el texto. El tramo oscuro de la barra es lo ya devengado. Son datos del presupuesto, no señales: sin
- * rojos ni juicios.
+ * competían con el texto. El tramo oscuro de la barra es lo ya devengado (en las empresas municipales, lo ejecutado que
+ * reportan: migración 152). Son datos del presupuesto, no señales: sin rojos ni juicios. Si el año que se muestra es el
+ * último de la unidad (dejó de gastar), el título lo dice.
  */
 export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
   if (!gasto?.anio || gasto.genericas.length === 0) return null;
@@ -28,6 +29,9 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
   const programas = gasto.programas ?? [];
   const fuentes = gasto.fuentes ?? [];
   const meses = gasto.meses ?? [];
+  const gastado = palabraGasto(gasto.origen);
+  // El año es el último de su unidad y el MEF ya publica otros más nuevos: la unidad dejó de gastar.
+  const ultimoDeLaUnidad = gasto.ultimoAnioMef != null && gasto.anio < gasto.ultimoAnioMef;
 
   const pestanas: Pestana[] = [
     {
@@ -111,7 +115,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
           },
         ]
       : []),
-    ...(meses.some((m) => m.devengado > 0) ? [{ clave: "meses", etiqueta: "Mes a mes", contenido: <Meses meses={meses} anio={gasto.anio} /> }] : []),
+    ...(meses.some((m) => m.devengado > 0) ? [{ clave: "meses", etiqueta: "Mes a mes", contenido: <Meses meses={meses} anio={gasto.anio} gastado={gastado} /> }] : []),
   ];
 
   return (
@@ -120,10 +124,12 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
         <h3 className="flex items-center gap-1.5 text-destacado font-semibold text-ink">
           En qué gasta en {gasto.anio}
           {deTodo && <span className="text-meta font-normal text-amberTexto">(todo el gobierno regional)</span>}
+          {ultimoDeLaUnidad && <span className="text-meta font-normal text-inkSoft">(su último año en el MEF)</span>}
           <Ayuda titulo="¿De dónde sale este desglose?">
             Del archivo de presupuesto y ejecución de gasto del MEF, fila por fila. La barra es la parte de su presupuesto
-            (PIM) que va a cada rubro; el tramo oscuro, lo que ya gastó (devengado). Un rubro con poco gastado no es una
-            irregularidad: el año puede estar en curso.
+            (PIM) que va a cada rubro; el tramo oscuro, lo que ya gastó (
+            {gastado === "ejecutado" ? "lo ejecutado que reporta la empresa: el MEF no lo separa en devengado y girado" : "devengado"}
+            ). Un rubro con poco gastado no es una irregularidad: el año puede estar en curso.
           </Ayuda>
         </h3>
         <Leyenda />
@@ -302,18 +308,21 @@ function Proyectos({ p, total }: { p: GastoEntidad["proyectos"]; total: number }
   );
 }
 
-/** El devengado de cada mes en columnas; los meses sin devengado (aún no llegan) quedan vacíos. */
-function Meses({ meses, anio }: { meses: { mes: number; devengado: number }[]; anio: number }) {
+/**
+ * El devengado de cada mes en columnas; los meses sin devengado (aún no llegan) quedan vacíos. En las empresas municipales,
+ * lo ejecutado que reportan (algunas, cada trimestre: tres meses vacíos y uno lleno).
+ */
+function Meses({ meses, anio, gastado }: { meses: { mes: number; devengado: number }[]; anio: number; gastado: "devengado" | "ejecutado" }) {
   const max = Math.max(...meses.map((m) => m.devengado), 1);
   const total = meses.reduce((s, m) => s + m.devengado, 0);
   const mayor = meses.reduce((a, b) => (b.devengado > a.devengado ? b : a), meses[0]);
   return (
     <div className="space-y-3 py-2">
       <p className="text-meta text-inkSoft">
-        <span className="font-semibold text-ink">{solesCompacto(total)}</span> devengados en {anio}. El mes de más gasto fue{" "}
+        <span className="font-semibold text-ink">{solesCompacto(total)}</span> {gastado}s en {anio}. El mes de más gasto fue{" "}
         {MESES[mayor.mes - 1]}, con {solesCompacto(mayor.devengado)}.
       </p>
-      <ol className="grid h-48 grid-cols-12 items-end gap-1 sm:gap-2" aria-label={`Devengado por mes en ${anio}`}>
+      <ol className="grid h-48 grid-cols-12 items-end gap-1 sm:gap-2" aria-label={`${gastado === "ejecutado" ? "Ejecutado" : "Devengado"} por mes en ${anio}`}>
         {meses.map((m) => (
           <li key={m.mes} className="flex h-full flex-col items-center justify-end gap-1" title={`${MESES[m.mes - 1]}: ${solesCompacto(m.devengado)}`}>
             <span className="hidden text-micro tabular-nums text-mute sm:block">{m.devengado > 0 ? solesCompacto(m.devengado).replace("S/ ", "") : ""}</span>
@@ -327,7 +336,10 @@ function Meses({ meses, anio }: { meses: { mes: number; devengado: number }[]; a
         ))}
       </ol>
       <p className="text-rotulo text-mute">
-        Devengado: el gasto que la entidad ya reconoció como obligación de pago, en el mes en que lo registró. {numero(meses.filter((m) => m.devengado > 0).length)} meses con datos.
+        {gastado === "ejecutado"
+          ? "Ejecutado: lo que la empresa le reportó al MEF en cada mes (algunas lo reportan cada trimestre)."
+          : "Devengado: el gasto que la entidad ya reconoció como obligación de pago, en el mes en que lo registró."}{" "}
+        {numero(meses.filter((m) => m.devengado > 0).length)} meses con datos.
       </p>
     </div>
   );

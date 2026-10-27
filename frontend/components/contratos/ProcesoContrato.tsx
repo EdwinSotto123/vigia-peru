@@ -22,6 +22,7 @@ import { monto, OCDS } from "./EvidenciaContrato";
 import { fecha, fechaCorta, listaY, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type ContratoDetalle as Detalle } from "@/lib/contratos";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
+import { ObrasDelContrato } from "@/components/obras/ObraContrato";
 
 /**
  * Las tres pestañas, o null la que no tiene nada. «Participantes» sólo sin las actas del dictamen (con ellas va
@@ -36,7 +37,8 @@ export function pestanasProceso({ c }: { c: Detalle }): { participantes: Pestana
   const hayAdjudicado = !!k && (k.items.some((i) => i.adjudicado != null || i.proveedores.length > 0) || k.firmados.length > 0);
   return {
     participantes: !conActas && ps.length > 0 ? { clave: "participantes", etiqueta: "Participantes", conteo: ps.length, contenido: <SeccionParticipantes c={c} /> } : null,
-    adjudicacion: hayAdjudicado || c.presupuesto
+    // También con sólo la obra de INFOBRAS o la inversión de Invierte.pe de su CUI (migración 160).
+    adjudicacion: hayAdjudicado || c.presupuesto || (c.obras?.length ?? 0) > 0 || (c.inversiones?.length ?? 0) > 0
       ? { clave: "adjudicacion", etiqueta: "Adjudicación y contrato", contenido: <SeccionAdjudicacion c={c} /> }
       : null,
     cronograma: hitos.length >= 2 ? { clave: "cronograma", etiqueta: "Cronograma", conteo: hitos.length, contenido: <SeccionCronograma c={c} /> } : null,
@@ -135,6 +137,8 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
           <FuenteDato fuente="CONOSCE (OECE) y el registro OCDS" className="border-t border-line px-4 py-2 sm:px-5" />
         </section>
         {c.presupuesto && <BloquePresupuesto c={c} />}
+        {/* La obra que ejecuta o supervisa este contrato (INFOBRAS) y la inversión de su CUI (Invierte.pe). */}
+        <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
       </div>
     </>
   );

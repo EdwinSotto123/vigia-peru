@@ -522,6 +522,92 @@ async function socioComun(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
   };
 }
 
+// ─── Obras e inversiones (migración 160) ────────────────────────────────────
+
+const pct = (v: unknown) => (v == null || v === "" ? null : Number(v));
+const solesNum = (v: unknown) => (v == null || v === "" || Number(v) === 0 ? null : Number(v));
+
+/**
+ * La obra de INFOBRAS de una bandera de obra (`detalle.obra`): su estado, su avance físico y financiero a la fecha del
+ * último avance que registró la entidad, su paralización, sus adicionales y sus ampliaciones de plazo, con el enlace a su
+ * ficha en INFOBRAS. Una fila: la obra que ejecuta o supervisa este contrato. Sin nombres de personas (el residente y el
+ * supervisor de obra no se guardan).
+ */
+async function obraInfobras(f: FilaCruce): Promise<Evidencia | null> {
+  const codigo = Number(f.detalle?.obra);
+  if (!Number.isInteger(codigo) || codigo <= 0) return null;
+  const r = await filas(
+    `SELECT codigo, nombre, estado, fisico_prog, fisico_real, financiero_pct, to_char(avance_fecha, 'YYYY-MM-DD') AS avance_fecha,
+            paralizada, causal_paralizacion, to_char(fecha_paralizacion, 'YYYY-MM-DD') AS fecha_paralizacion, dias_paralizada,
+            contrato_monto, costo_et, adicionales_n, adicionales_monto, deductivos_monto, plazo_dias, dias_ampliacion,
+            controversias, informes_control
+       FROM obra_infobras WHERE codigo = $1`, [codigo]);
+  if (!r.length) return null;
+  const x = r[0];
+  const base = solesNum(x.contrato_monto) ?? solesNum(x.costo_et);
+  return {
+    titulo: "La obra en INFOBRAS",
+    columnas: [
+      { clave: "obra", titulo: "Obra", tipo: "enlace" },
+      { clave: "estado", titulo: "Estado" },
+      { clave: "fisico", titulo: "Avance físico (real)", tipo: "pct" },
+      { clave: "programado", titulo: "Programado", tipo: "pct" },
+      { clave: "financiero", titulo: "Ejecución financiera", tipo: "pct" },
+      { clave: "corte", titulo: "Al", tipo: "fecha" },
+      { clave: "paralizacion", titulo: "Paralización" },
+      { clave: "adicionales", titulo: "Adicionales", tipo: "soles" },
+      { clave: "adicionalesPct", titulo: "Del contrato", tipo: "pct" },
+      { clave: "ampliacion", titulo: "Ampliaciones de plazo" },
+    ],
+    filas: [{
+      obra: { texto: `Obra ${x.codigo}`, url: `https://infobras.contraloria.gob.pe/InfobrasWeb/Mapa/Sumario?ObraId=${x.codigo}` },
+      estado: x.estado ?? null, fisico: pct(x.fisico_real), programado: pct(x.fisico_prog), financiero: pct(x.financiero_pct),
+      corte: x.avance_fecha ?? null,
+      paralizacion: x.paralizada || x.estado === "Paralizada"
+        ? [x.fecha_paralizacion ? `desde el ${fechaTexto(x.fecha_paralizacion)}` : null, x.dias_paralizada ? `${x.dias_paralizada} días` : null,
+           x.causal_paralizacion ?? null].filter(Boolean).join(", ") || "Sí"
+        : "No registra",
+      adicionales: solesNum(x.adicionales_monto),
+      adicionalesPct: base && Number(x.adicionales_monto) > 0 ? (100 * Number(x.adicionales_monto)) / base : null,
+      ampliacion: Number(x.plazo_dias) > 0 && Number(x.dias_ampliacion) > 0 ? `${x.dias_ampliacion} días sobre ${x.plazo_dias}` : "Ninguna",
+    }],
+    verificar: `En INFOBRAS (Contraloría), la ficha de la obra ${x.codigo}: la registra y la actualiza la entidad que la ejecuta. La Contraloría responde desde el Perú.`,
+    enlace: { texto: "Ficha de la obra en INFOBRAS", url: `https://infobras.contraloria.gob.pe/InfobrasWeb/Mapa/Sumario?ObraId=${x.codigo}` },
+  };
+}
+
+/** La inversión de Invierte.pe de una bandera de inversión (`detalle.cui`): lo aprobado frente a lo que cuesta hoy. */
+async function inversionMef(f: FilaCruce): Promise<Evidencia | null> {
+  const cui = String(f.detalle?.cui ?? "");
+  if (!/^\d{7}$/.test(cui)) return null;
+  const r = await filas(
+    `SELECT cui, estado, situacion, monto_viable, costo_actualizado, monto_laudo, devengado_acumulado, avance_fisico,
+            to_char(fecha_viabilidad, 'YYYY-MM-DD') AS fecha_viabilidad
+       FROM inversion_mef WHERE cui = $1`, [cui]);
+  if (!r.length) return null;
+  const x = r[0];
+  const url = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${cui}&tipo=2`;
+  return {
+    titulo: "La inversión en Invierte.pe",
+    columnas: [
+      { clave: "inversion", titulo: "CUI", tipo: "enlace" },
+      { clave: "estado", titulo: "Estado" },
+      { clave: "viabilidad", titulo: "Declarada viable", tipo: "fecha" },
+      { clave: "viable", titulo: "Monto viable", tipo: "soles" },
+      { clave: "actualizado", titulo: "Costo actualizado", tipo: "soles" },
+      { clave: "laudo", titulo: "Laudos", tipo: "soles" },
+      { clave: "devengado", titulo: "Gastado (devengado)", tipo: "soles" },
+    ],
+    filas: [{
+      inversion: { texto: cui, url }, estado: [x.estado, x.situacion].filter(Boolean).join(", ") || null,
+      viabilidad: x.fecha_viabilidad ?? null, viable: solesNum(x.monto_viable), actualizado: solesNum(x.costo_actualizado),
+      laudo: solesNum(x.monto_laudo), devengado: solesNum(x.devengado_acumulado),
+    }],
+    verificar: `En el Sistema de Seguimiento de Inversiones del MEF, el CUI ${cui}: el monto con que se declaró viable y su costo actualizado. Datos abiertos del MEF (Invierte.pe).`,
+    enlace: { texto: "Seguimiento de la inversión (MEF)", url },
+  };
+}
+
 /** La evidencia de cada fila (mismo orden), [] donde no hay nada que agregar a lo que el cruce ya trae. */
 export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<Evidencia[][]> {
   return Promise.all(rows.map(async (f): Promise<Evidencia[]> => {
@@ -560,7 +646,11 @@ export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<
       case "recien_fundada_medio_ano":
       case "recien_fundada_un_ano":
       case "recien_fundada_dos_anos": ev.push(await fundacion(f)); break;
-      default: break;
+      default:
+        // Las banderas de una obra (INFOBRAS) y de una inversión (Invierte.pe), migración 160.
+        if (f.tipo.startsWith("obra_")) ev.push(await obraInfobras(f));
+        else if (f.tipo.startsWith("inversion_")) ev.push(await inversionMef(f));
+        break;
     }
     return ev.filter((e): e is Evidencia => !!e && e.filas.length > 0);
   }));

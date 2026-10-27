@@ -7,6 +7,8 @@ export const MOTIVOS_DUDOSO = [
   "igual_ruc", "igual_numero", "mayor_100m", "tope_uit", "persona_sin_proceso",
   "negativo", "total_no_cuadra", "mes_1m", "sueldo_100k",
   "referencial_simbolico", "adjudicado_20x",
+  // Obras de INFOBRAS e inversiones de Invierte.pe (migración 160).
+  "avance_imposible", "financiero_imposible", "adicionales_imposibles", "plazo_imposible", "fecha_imposible", "costo_imposible",
 ] as const;
 export type MotivoDudoso = (typeof MOTIVOS_DUDOSO)[number];
 
@@ -28,6 +30,15 @@ export const MOTIVO_DUDOSO: Record<MotivoDudoso, { corto: string; explica: strin
     corto: "20 veces el valor referencial",
     explica: "Lo adjudicado es 20 veces o más el valor referencial de todo el proceso: suelen ser decimales corridos o un valor mal escrito.",
   },
+  avance_imposible: { corto: "Avance de más del 100 %", explica: "El avance físico registrado pasa el 100 % (o es negativo): una obra no puede estar construida más de una vez." },
+  financiero_imposible: {
+    corto: "Ejecución financiera imposible",
+    explica: "La ejecución financiera registrada pasa el 300 % del costo de la obra: suele ser un monto escrito en la casilla del porcentaje.",
+  },
+  adicionales_imposibles: { corto: "Adicionales imposibles", explica: "Los adicionales registrados pasan tres veces el costo de toda la obra: suele ser un error al escribir el monto." },
+  plazo_imposible: { corto: "Ampliación imposible", explica: "Las ampliaciones de plazo registradas pasan veinte veces el plazo de la obra." },
+  fecha_imposible: { corto: "Fecha imposible", explica: "Una fecha registrada (de inicio o de paralización) es posterior al día en que se publicó el dato." },
+  costo_imposible: { corto: "Costo imposible", explica: "El costo actualizado pasa mil veces el monto con que se declaró viable la inversión." },
 };
 
 /** El motivo, si la API manda uno que la web conoce. */
@@ -39,6 +50,8 @@ export const FUENTE_DUDOSO = {
   conosce_ordenes: "CONOSCE del OECE",
   pte_personal: "la entidad en su Portal de Transparencia",
   oece_ocds: "el SEACE del OECE",
+  infobras: "la entidad en INFOBRAS (Contraloría)",
+  invierte_pe: "la entidad en Invierte.pe (MEF)",
 } as const;
 export type FuenteDudoso = keyof typeof FUENTE_DUDOSO;
 
@@ -47,4 +60,6 @@ export const QUIEN_CARGA: Record<FuenteDudoso, string> = {
   conosce_ordenes: "de CONOSCE",
   pte_personal: "de la entidad",
   oece_ocds: "del SEACE",
+  infobras: "de la entidad en INFOBRAS",
+  invierte_pe: "de la entidad en Invierte.pe",
 };

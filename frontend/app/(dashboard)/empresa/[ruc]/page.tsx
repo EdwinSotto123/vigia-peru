@@ -11,6 +11,7 @@ import {
   ClipboardList,
   FileSearch,
   HandCoins,
+  HardHat,
   Hash,
   LayoutDashboard,
   MapPin,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/empresas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
 import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
+import { ObrasEmpresa, obrasDeEmpresa } from "@/components/obras/ObrasEmpresa";
 import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
@@ -81,7 +83,7 @@ const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) 
 /** Las listas llevan su pestaña y su vista en `parametros`: no hace falta leerlas de la URL viva al filtrar. */
 const SIN_CONSERVAR: string[] = [];
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS_PESTANA: Record<string, string> = { ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente" };
+const ETIQUETAS_PESTANA: Record<string, string> = { ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente", obras: "Obras" };
 /** Los parámetros de la URL menos la pestaña y la vista (para llevar un enlace viejo a la pestaña nueva sin perder filtros). */
 const sinSeccion = (sp: Busqueda): Record<string, string | undefined> =>
   Object.fromEntries(Object.entries(sp ?? {}).filter(([k]) => k !== "seccion" && k !== P_VISTA).map(([k, v]) => [k, uno(v)]));
@@ -105,6 +107,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const pedida = uno(sp?.seccion);
   const vieja = SECCIONES_VIEJAS.find((s) => s === pedida);
   if (vieja) redirect(rutaEmpresa(params.ruc, vieja, sinSeccion(sp)));
+  // Sus obras de INFOBRAS (migración 160): se piden ya, a la vez que la ficha; la pestaña va sólo si tiene alguna.
+  const obras = obrasDeEmpresa(params.ruc, sp);
   const f = await getFichaEmpresa(params.ruc);
   if (!f) return <NoSePudoLeer ruc={params.ruc} />;
   const e = f.empresa;
@@ -190,6 +194,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const contratos = e.adjProcesos + e.consProcesos;
   const nAntecedentes = e.nAlta + e.nMedia + e.nBaja;
   const personas = e.socios + e.representantes + e.directivos;
+  const nObras = await obras.total;
 
   return (
     <Pagina>
@@ -389,6 +394,16 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
               </div>
             ),
           },
+          // Las obras públicas que construye o supervisa (INFOBRAS): hechos, sin puntaje. Sólo si tiene alguna.
+          ...(nObras
+            ? [{
+                clave: "obras",
+                etiqueta: "Obras",
+                icono: <HardHat size={15} aria-hidden />,
+                conteo: nObras,
+                contenido: <ObrasEmpresa ruc={e.ruc} ruta={ruta} sp={sp} pagina={obras.pagina} base={lista("obras", {})} />,
+              }]
+            : []),
         ]}
       />
       <Aviso tono="neutro">

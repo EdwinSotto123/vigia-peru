@@ -28,6 +28,8 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "socio_comun", chip: "Socio común", corto: "Socio común entre postores", explica: "Dos postores del mismo proceso comparten socio o representante (RNP): competencia aparente." },
       { tipo: "unico_postor", corto: "Único postor", explica: "El proceso tuvo un solo postor (OCDS): no hubo competencia real. Pesa más si además se adjudicó pegado al valor referencial o es millonario: posible direccionamiento." },
       { tipo: "socio_en_entidad", chip: "Socio en la entidad", corto: "Socio del proveedor trabaja en la entidad", explica: "Un socio o representante del ganador es, además, una persona contratada por la MISMA entidad que le dio el contrato (RNP × registro de contratados): conflicto de interés directo." },
+      { tipo: "interes_declarado", chip: "Interés de un funcionario", corto: "Un funcionario declaró un interés en el ganador", explica: "Un funcionario de la entidad declaró en su Declaración Jurada de Intereses (Contraloría) tener acciones, un poder o un asiento en el directorio de la empresa que ganó: conflicto de interés directo." },
+      { tipo: "empleo_declarado", chip: "Trabajó ahí un funcionario", corto: "Un funcionario trabajó para el ganador", explica: "Un funcionario de la entidad declaró en su Declaración Jurada de Intereses haber trabajado o asesorado a la empresa que ganó: puerta giratoria." },
       { tipo: "domicilio_compartido", chip: "Mismo domicilio", corto: "Mismo domicilio que otro participante", explica: "El ganador comparte su domicilio fiscal en la SUNAT con otra empresa que participó en el mismo proceso: posible competencia aparente o empresas vinculadas. Pesa más si la otra también presentó oferta. No cuentan las direcciones con más de 5 empresas (centros de oficinas)." },
       { tipo: "visita_previa", chip: "Visita previa", corto: "Visita antes de la buena pro", explica: "Un socio o representante visitó una entidad pública en los 180 días previos a la buena pro (registro de visitas)." },
       { tipo: "otro_postor", chip: "Buena pro de otro", corto: "Buena pro de otro postor", explica: "La buena pro fue primero de otro postor y se le adjudicó después a este, con su propia oferta (OCDS × CONOSCE): suele costar más." },
@@ -75,7 +77,35 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "no_habida", corto: "No habida", explica: "Hoy figura como «no habido» en la SUNAT: la autoridad no la ubica en su domicilio fiscal." },
     ],
   },
+  {
+    // La obra del contrato en INFOBRAS (Contraloría) y su inversión en Invierte.pe (MEF), migración 160. Son hechos de la
+    // ejecución de ESTE contrato (la obra que construye o supervisa), no antecedentes de la empresa.
+    titulo: "En la obra",
+    tipos: [
+      { tipo: "obra_paralizada_larga", chip: "Paralizada 6+ meses", corto: "Obra paralizada hace 6 meses o más", explica: "La obra de este contrato está paralizada hace 180 días o más según INFOBRAS, que la entidad registra. La causa puede ser de la entidad (falta de pago o de presupuesto) o del contratista." },
+      { tipo: "obra_paralizada", chip: "Obra paralizada", corto: "Obra paralizada", explica: "La obra de este contrato está paralizada hoy, hace menos de 180 días, según INFOBRAS." },
+      { tipo: "obra_paralizacion", chip: "Estuvo paralizada", corto: "La obra estuvo paralizada", explica: "La obra se paralizó en algún momento y después siguió o terminó (INFOBRAS dice cuántos días y por qué)." },
+      { tipo: "obra_atraso_grave", chip: "Atraso de 40+ puntos", corto: "Obra atrasada 40 puntos o más", explica: "En ejecución, la obra lleva 40 puntos porcentuales o más de avance físico por debajo de lo que debía llevar a esa fecha (INFOBRAS)." },
+      { tipo: "obra_atraso", chip: "Obra atrasada", corto: "Obra atrasada de 20 a 40 puntos", explica: "En ejecución, la obra lleva de 20 a 40 puntos porcentuales de avance físico por debajo de lo programado (INFOBRAS)." },
+      { tipo: "obra_pagado_sin_avance", chip: "Pagada sin avance", corto: "Pagada 50 puntos por encima de lo construido", explica: "La ejecución financiera (lo pagado) pasa en 50 puntos o más al avance físico (lo construido), con la obra sin terminar (INFOBRAS)." },
+      { tipo: "obra_pago_adelantado", chip: "Pago adelantado", corto: "Pagada 30 a 50 puntos por encima de lo construido", explica: "Lo pagado pasa en 30 a 50 puntos al avance físico de la obra (INFOBRAS). Puede haber un adelanto contractual: vale revisar." },
+      { tipo: "obra_adicionales_sobre_tope", chip: "Adicionales sobre 15 %", corto: "Adicionales de obra por más del 15 %", explica: "La obra es por contrata y sus adicionales, restados los deductivos, pasan el 15 % del contrato: el tope que la ley permite sin la autorización previa de la Contraloría (INFOBRAS)." },
+      { tipo: "obra_adicionales_altos", chip: "Adicionales sobre 10 %", corto: "Adicionales de obra por más del 10 %", explica: "Los adicionales de obra, restados los deductivos, pasan el 10 % del contrato (o del expediente técnico, si la obra no tiene contrato). En una obra por contrata, cerca del tope legal del 15 % (INFOBRAS)." },
+      { tipo: "obra_adicionales", chip: "Adicionales de obra", corto: "La obra tuvo adicionales", explica: "La obra sumó adicionales (trabajos extra que se pagan aparte) por hasta el 10 % del contrato (INFOBRAS)." },
+      { tipo: "obra_plazo_duplicado", chip: "Plazo duplicado", corto: "Plazo de la obra duplicado o más", explica: "Las ampliaciones de plazo suman el plazo original de la obra o más: se le dio el doble de tiempo (INFOBRAS)." },
+      { tipo: "obra_plazo_ampliado", chip: "Plazo ampliado", corto: "Plazo ampliado a la mitad o más", explica: "Las ampliaciones de plazo suman la mitad del plazo original o más (INFOBRAS)." },
+      { tipo: "obra_controversia", chip: "Controversia", corto: "Obra con controversias", explica: "INFOBRAS registra controversias entre la entidad y el contratista: arbitrajes o conciliaciones por pagos, plazos o adicionales." },
+      { tipo: "obra_informe_control", chip: "Informe de control", corto: "Obra con informes de la Contraloría", explica: "La Contraloría emitió informes de control sobre esta obra: revisiones que señalan riesgos o problemas. No son una condena." },
+      { tipo: "inversion_sobrecosto_extremo", chip: "Cuesta 2× o más", corto: "La inversión cuesta 2 veces o más lo aprobado", explica: "El costo actualizado de la inversión de este contrato es 2 veces o más el monto con que se declaró viable (Invierte.pe, MEF)." },
+      { tipo: "inversion_sobrecosto", chip: "Cuesta 1.5× o más", corto: "La inversión cuesta 1.5 veces o más lo aprobado", explica: "El costo actualizado de la inversión es de 1.5 a 2 veces el monto con que se declaró viable, con S/ 100 mil de diferencia o más (Invierte.pe)." },
+      { tipo: "inversion_laudo", chip: "Laudo arbitral", corto: "La inversión registra un laudo arbitral", explica: "Invierte.pe registra laudos arbitrales en la inversión de este contrato: la entidad y el contratista resolvieron una controversia en un arbitraje." },
+    ],
+  },
 ];
+
+/** ¿Es una bandera de «En la obra» (INFOBRAS e Invierte.pe)? Hechos de la ejecución del contrato, no antecedentes de quien ganó. */
+export const esTipoObra = (tipo: string) => tipo.startsWith("obra_") || tipo.startsWith("inversion_");
+export const TIPOS_OBRA = GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => t.tipo)).filter(esTipoObra);
 
 export const TIPO_CRUCE = Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t])));
 

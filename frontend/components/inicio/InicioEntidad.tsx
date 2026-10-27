@@ -17,6 +17,8 @@ import { rutaRegion } from "@/lib/regiones";
 import { Banderas, BarrasGasto, BloqueInicio, Fichas, LineasSinDato, ListaConteos, SubseccionInicio, TarjetaInicio, type FilaConteo } from "./BloquesInicio";
 import { ResumenContraloria } from "./CasosCorrupcion";
 import { NepotismoInicio } from "./NepotismoInicio";
+import { ObrasInicio } from "@/components/obras/ObrasInicio";
+import { TIPOS_OBRA } from "@/lib/cruces";
 
 /**
  * Inicio de una entidad (/entidad/[ruc], primera pestaña), con la plantilla de ficha (DESIGN_SYSTEM.md §14.2) y el
@@ -255,7 +257,8 @@ async function Principal({
             porCruces={resumen?.porCruces}
             href={contratos}
             extra={poder ? [filaCaptura(poder, contratos)] : []}
-            sinTipos={poder ? TIPOS_CAPTURA : []}
+            // Las banderas de la obra de cada contrato (INFOBRAS, Invierte.pe) van en «En sus obras e inversiones», abajo.
+            sinTipos={[...(poder ? TIPOS_CAPTURA : []), ...TIPOS_OBRA]}
             conRiesgo={leidos > 0}
             // "Con algún antecedente" ya es la segunda cifra de la cabecera de la ficha: aquí, el enlace de arriba.
             conAlguno={false}
@@ -268,17 +271,25 @@ async function Principal({
           </BloqueInicio>
         )}
         <NepotismoInicio nepotismo={nepotismo} href={enPersonas} />
+        {/* Sus obras de INFOBRAS y sus inversiones de Invierte.pe (migración 160): cada bandera con su lista filtrada. */}
+        <ObrasInicio ruc={ruc} ruta={ruta} />
       </SubseccionInicio>
 
       <SubseccionInicio id="inicio-dinero" titulo="Dinero" descripcion="En qué gasta según el MEF y lo que contrata.">
         {hayGasto && gasto && (
           <BloqueInicio
             nivel={3}
-            titulo={gasto.anio ? `En qué gasta (${gasto.anio})` : "En qué gasta"}
+            titulo={
+              gasto.anio
+                ? // Su último año, si su unidad ya no gasta (migración 152: la historia del MEF desde 2015).
+                  `En qué gasta (${gasto.anio}${gasto.ultimoAnioMef != null && gasto.anio < gasto.ultimoAnioMef ? ", su último año en el MEF" : ""})`
+                : "En qué gasta"
+            }
             ayuda={
               <Ayuda titulo="¿De dónde sale?">
                 Del MEF (Consulta Amigable): el presupuesto modificado (PIM) de cada función del Estado y la parte ya gastada
-                (devengado). {gasto.cruce === "pliego" ? "Es el de todo el gobierno regional, no sólo esta sede." : ""}
+                ({gasto.origen === "etes" ? "lo ejecutado que reporta la empresa municipal" : "devengado"}).{" "}
+                {gasto.cruce === "pliego" ? "Es el de todo el gobierno regional, no sólo esta sede." : ""}
               </Ayuda>
             }
             enlace={{ href: `${ruta}?seccion=presupuesto`, texto: "Todo el presupuesto" }}

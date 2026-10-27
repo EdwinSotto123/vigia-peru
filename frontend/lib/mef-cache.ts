@@ -15,7 +15,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { EN_WORKERS, leerAssetPublico } from "./entorno";
 import { ApiError, getEntidad, getMefRegion } from "./api-client";
-import type { MefBudgetResult, MefBudgetRow, RegionBudgetSummary } from "./mef";
+import type { MefBudgetResult, MefBudgetRow, OrigenMef, RegionBudgetSummary } from "./mef";
 
 /** Un JSON de `public/`: del disco en Node; en Cloudflare Workers (sin disco), de los assets. */
 async function leerPublico(nombre: string): Promise<string> {
@@ -51,9 +51,15 @@ interface FilaMefEntidad {
   matched_pliegos: string[] | null;
   kind: string;
   last_refreshed: string | null;
-  /** Fecha del archivo del MEF (la API la agrega desde mef_ejecutora_anual). */
+  /** Fecha del archivo del MEF de su último año (la API la agrega desde mef_ejecutora_anual o mef_opds_etes_anual). */
   corte?: string | null;
+  /** Migración 152: 'siaf' | 'opds' | 'etes', y el último año que el MEF publica de ese archivo. */
+  origen?: OrigenMef | null;
+  ultimoAnioMef?: number | null;
 }
+
+/** Un monto de by_year: en las ETE certificado, comprometido y girado vienen en null (no los publican). */
+const monto = (v: unknown) => (Number.isFinite(Number(v)) && v !== null ? Number(v) : 0);
 
 /**
  * Presupuesto de una entidad: la fila `mef` de GET /entidades/:ruc (unidad ejecutora cruzada por ubigeo, por su
@@ -80,8 +86,13 @@ export async function getEntityBudget(keyword: string, ruc?: string): Promise<Me
       pliego: cruce === "pliego" ? resto.join(" ") : null,
       matchedPliegos: fila.matched_pliegos ?? [],
       totalRows: Number(fila.total_rows ?? 0),
-      byYear: fila.by_year,
+      byYear: fila.by_year.map((r) => ({
+        year: Number(r.year), pia: monto(r.pia), pim: monto(r.pim), certificado: monto(r.certificado),
+        comprometido: monto(r.comprometido), devengado: monto(r.devengado), girado: monto(r.girado),
+      })),
       fechaDescarga: fila.corte ?? fila.last_refreshed,
+      origen: fila.origen ?? "siaf",
+      ultimoAnioMef: fila.ultimoAnioMef ?? null,
     },
   };
 }

@@ -37,6 +37,7 @@ import { privacidadRouter } from "./routes/privacidad.js";
 import { mefRouter } from "./routes/mef.js";
 import { estructuraRouter } from "./routes/estructura.js";
 import { cadenaRouter } from "./routes/cadena.js";
+import { obrasRouter } from "./routes/obras.js";
 
 export const app = new Hono();
 
@@ -126,6 +127,7 @@ api.route("/contribuciones", contribucionesRouter);
 api.route("/contratos", contratosRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
+api.route("/obras", obrasRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);
