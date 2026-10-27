@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infrastructure" / "aws"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tunel_rds import conexion                       # noqa: E402
-from parse_dji_intereses import intereses_pdf        # noqa: E402
+from parse_dji_intereses import declarante, es_el_mismo, intereses_pdf  # noqa: E402
 from procesar_dji import claves_de_logs              # noqa: E402
 from psycopg2.extras import execute_values           # noqa: E402
 
@@ -89,6 +89,7 @@ def main() -> None:
             print(f"  {len(pdfs) - len(quedan)} ya cargados; quedan {len(quedan)}", flush=True)
             pdfs, claves = [p for p, _ in quedan], [k for _, k in quedan]
         borrar, filas, marcas = [], [], []
+        con_otros: list[str] = []
 
         def escribir() -> None:
             if not borrar:
@@ -114,16 +115,25 @@ def main() -> None:
             if r is None:
                 n_fallos += 1
                 continue
-            decl = _norm(f"{ape} {nom}")
-            borrar.append((ruc, decl))
+            del_archivo = _norm(f"{ape} {nom}")
+            # Cada declaración va a nombre de quien la firma (un PDF puede traer a otros funcionarios de la entidad).
+            hay_otros = any(d.get("persona") and not es_el_mismo(d["persona"], del_archivo) for d in r["declaraciones"])
+            if hay_otros:
+                con_otros.append(pdf.name)
+            borrar.append((ruc, del_archivo))
             vistos = set()
             for d in r["declaraciones"]:
+                decl = declarante(d.get("persona"), del_archivo, hay_otros)
+                if decl is None:
+                    continue
+                if decl != del_archivo:
+                    borrar.append((ruc, decl))
                 ej, op = d.get("ejercicio"), (d.get("oportunidad") or "")
                 for k, m in d["marcas"].items():
                     marcas.append((ruc, decl, ej or 0, op, int(k), m))
                 for f in d["filas"]:
                     # la misma fila se repite en cada declaración del PDF: una vez, con el ejercicio más nuevo
-                    clave = (f["seccion"], f["ruc"], (f["detalle"] or "")[:80], f["desde"])
+                    clave = (decl, f["seccion"], f["ruc"], (f["detalle"] or "")[:80], f["desde"])
                     if clave in vistos:
                         continue
                     vistos.add(clave)
@@ -136,6 +146,12 @@ def main() -> None:
                 print(f"  {n_pdf} PDFs, {n_filas} filas, {n_fallos} sin leer ({time.time() - t0:.0f} s)", flush=True)
         escribir()
         print(f"✓ {a.entorno}: {n_pdf} PDFs, {n_filas} filas, {n_fallos} sin leer ({time.time() - t0:.0f} s)", flush=True)
+        # Los PDF con declaraciones de otras personas: sus familiares (dji_vinculos) se cargaron a nombre del dueño del
+        # archivo antes del 2026-10-27; procesar_dji.py --lista <este archivo> los rehace bien.
+        salida = Path("dataset/declaracion_jurada/pdfs_con_otras_personas.txt")
+        previos = set(salida.read_text(encoding="utf-8").split()) if salida.exists() else set()
+        salida.write_text("\n".join(sorted(previos | set(con_otros))) + "\n", encoding="utf-8")
+        print(f"  {len(con_otros)} PDF traen declaraciones de otras personas → {salida}", flush=True)
         if a.sin_refresco:
             return
         cur.execute("SET statement_timeout = 0")

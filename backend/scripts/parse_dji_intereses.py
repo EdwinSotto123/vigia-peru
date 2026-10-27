@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import unicodedata
 
 TITULOS = {
     1: re.compile(r"participaci[oó]n\s+patrimonial", re.I),
@@ -36,6 +37,42 @@ TITULOS = {
 }
 RE_MARCA = re.compile(r"S[ií]\s*\[\s*(X?)\s*\]\s*No\s*\[\s*(X?)\s*\]", re.I)
 RE_EJERCICIO = re.compile(r"EJERCICIO:\s*(\d{4})\s+OPORTUNIDAD:\s*([A-ZÁÉÍÓÚ ]+?)\s*$", re.M)
+# Quién declara: «3 Apellido Paterno : X 4 Apellido Materno : Y» y, en el renglón siguiente, «5 Nombres : Z». Un PDF del
+# portal puede traer declaraciones de OTROS funcionarios de la entidad (2026-10-27: uno con 34 declaraciones de 31
+# personas): cada declaración es de quien dice aquí, no del dueño del archivo.
+RE_PATERNO = re.compile(r"Apellido\s+Paterno\s*:\s*(.*?)\s+4\s+Apellido\s+Materno\s*:\s*(.*?)\s*$", re.I)
+RE_NOMBRES = re.compile(r"^\s*5\s+Nombres\s*:\s*(.*?)\s*$", re.I)
+_norm = lambda s: re.sub(r"\s+", " ", s or "").strip().upper()
+
+
+def _sin_tildes(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+
+def es_el_mismo(persona: str | None, del_archivo: str) -> bool:
+    return bool(persona) and _sin_tildes(_norm(persona)) == _sin_tildes(_norm(del_archivo))
+
+
+def declarante(persona: str | None, del_archivo: str, hay_otros: bool) -> str | None:
+    """A nombre de quién va una declaración: el dueño del archivo si la firma él (sin mirar tildes), quien la firma si es
+    otro funcionario, y nadie (None: se descarta) si no se leyó quién la firma en un PDF que trae a otras personas."""
+    if es_el_mismo(persona, del_archivo):
+        return del_archivo
+    if persona:
+        return _norm(persona)
+    return None if hay_otros else del_archivo
+
+
+def persona_de(lineas: list[dict], i: int) -> str | None:
+    """«PATERNO MATERNO NOMBRES» (como declarante_norm) si el renglón i es el de los apellidos y el siguiente, nombres."""
+    m = RE_PATERNO.search(lineas[i]["texto"])
+    if not m:
+        return None
+    nombres = next((RE_NOMBRES.match(l["texto"]).group(1) for l in lineas[i + 1: i + 3] if RE_NOMBRES.match(l["texto"])), "")
+    p = _norm(f"{m.group(1)} {m.group(2)} {nombres}")
+    return p or None
+
+
 RE_FECHA = re.compile(r"(\d{1,2})/(\d{2})/(\d{4})")
 RE_PERIODO = re.compile(r"(\d{1,2}/\d{2}/\d{4})\s*-\s*(\d{1,2}/\d{2}/\d{4}|Actualidad)", re.I)
 # Encabezados de columna: no son filas.
@@ -134,8 +171,9 @@ def _filas_tabla(tb, words: list[dict]) -> list[dict]:
 
 
 def intereses_pdf(ruta: str) -> dict:
-    """{'declaraciones': [{'ejercicio', 'oportunidad', 'marcas': {k: 'si'|'no'}, 'filas': [{seccion, ruc, nombre,
-    detalle, periodo, desde, hasta}]}]}: las filas de las secciones 1 a 6 y las marcas de la 1 a la 7."""
+    """{'declaraciones': [{'ejercicio', 'oportunidad', 'persona', 'marcas': {k: 'si'|'no'}, 'filas': [{seccion, ruc,
+    nombre, detalle, periodo, desde, hasta}]}]}: las filas de las secciones 1 a 6 y las marcas de la 1 a la 7.
+    `persona` es quien firma esa declaración («PATERNO MATERNO NOMBRES»), que puede no ser el dueño del archivo."""
     import pdfplumber  # perezoso: sólo al leer un PDF
     decls: list[dict] = []
     actual: dict | None = None
@@ -152,6 +190,10 @@ def intereses_pdf(ruta: str) -> dict:
                 top = next((l["top"] for l in lineas if m.group(0).strip() in l["texto"]), 0)
                 eventos.append((top - 0.5, "decl", (m.group(1), m.group(2).strip())))
             for i, l in enumerate(lineas):
+                quien = persona_de(lineas, i)
+                if quien:
+                    eventos.append((l["top"], "persona", quien))
+                    continue
                 for k, rx in TITULOS.items():
                     if rx.search(l["texto"]):
                         # la marca Sí/No va en el mismo renglón o en los dos de abajo/arriba del título (partido en 3)
@@ -164,14 +206,19 @@ def intereses_pdf(ruta: str) -> dict:
                 eventos.append((tb.bbox[1] + 0.1, "tabla", tb))
             for _, tipo, dato in sorted(eventos, key=lambda e: e[0]):
                 if tipo == "decl":
-                    actual = {"ejercicio": int(dato[0]), "oportunidad": dato[1], "marcas": {}, "filas": []}
+                    actual = {"ejercicio": int(dato[0]), "oportunidad": dato[1], "persona": None, "marcas": {}, "filas": []}
                     decls.append(actual)
                     seccion = None
+                elif tipo == "persona":
+                    if actual is None or actual.get("persona"):
+                        actual = {"ejercicio": None, "oportunidad": None, "persona": None, "marcas": {}, "filas": []}
+                        decls.append(actual)
+                    actual["persona"] = dato
                 elif tipo == "titulo":
                     k, marca = dato
                     seccion = k
                     if actual is None:
-                        actual = {"ejercicio": None, "oportunidad": None, "marcas": {}, "filas": []}
+                        actual = {"ejercicio": None, "oportunidad": None, "persona": None, "marcas": {}, "filas": []}
                         decls.append(actual)
                     # La de la 7 también: un «No» ahí es «no declaró familiares», no una falla del lector de familiares.
                     if k <= 7 and marca and k not in actual["marcas"]:

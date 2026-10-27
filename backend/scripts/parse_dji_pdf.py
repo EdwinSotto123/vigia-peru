@@ -85,15 +85,28 @@ COL1_FIN, COL2_FIN, COL3_FIN = 108, 250, 345
 
 def familiares_pdf(ruta: str) -> list[dict]:
     """Extrae la sección 7 (familiares) por coordenadas: ancla en el DNI (col1), cada palabra se asigna a la
-    fila del DNI más cercano. Robusto ante el parentesco que envuelve en dos líneas y ante celdas pegadas."""
+    fila del DNI más cercano. Robusto ante el parentesco que envuelve en dos líneas y ante celdas pegadas.
+
+    Cada familiar lleva `declarante`: quien firma la declaración en la que aparece («PATERNO MATERNO NOMBRES», de sus
+    datos personales). Un PDF del portal puede traer declaraciones de OTROS funcionarios de la entidad (2026-10-27:
+    uno traía 34 de 31 personas y sus 241 familiares se cargaban a nombre del dueño del archivo)."""
     import pdfplumber  # import perezoso: solo si se parsea un PDF
-    vistos: dict[str, dict] = {}
+    from parse_dji_intereses import _lineas, persona_de
+    vistos: dict[tuple, dict] = {}
+    persona: str | None = None   # quien firma la declaración en curso (viene de una página anterior)
     with pdfplumber.open(ruta) as pdf:
         for pg in pdf.pages:
-            txt = pg.extract_text() or ""
+            ws = pg.extract_words(use_text_flow=False, keep_blank_chars=False)
+            if not ws:
+                continue
+            lineas = _lineas(ws)
+            cambios = [(lineas[i]["top"], p) for i in range(len(lineas)) if (p := persona_de(lineas, i))]
+            txt = "\n".join(l["texto"] for l in lineas)
+            antes = persona
+            if cambios:
+                persona = cambios[-1][1]
             if "LUGAR DE TRABAJO" not in txt and "vínculo de consanguinidad" not in txt:
                 continue
-            ws = pg.extract_words(use_text_flow=False, keep_blank_chars=False)
             anclas = [w for w in ws if w["x0"] < COL1_FIN and RE_DNI.match(w["text"])]
             if not anclas:
                 continue
@@ -117,9 +130,11 @@ def familiares_pdf(ruta: str) -> list[dict]:
                 mp = RE_PAR.search(par_txt)
                 parentesco = mp.group(1) if mp else (par_txt or None)
                 doc = a["text"]
-                if doc not in vistos and nom:
-                    vistos[doc] = {"doc": doc, "nombre": nom, "parentesco": parentesco,
-                                   "grado": grado(parentesco) if parentesco else "otro"}
+                # la declaración de esta fila: la del último «Apellido Paterno» que quedó encima en la página, o la que venía
+                quien = next((p for t_p, p in reversed(cambios) if t_p <= t), antes)
+                if (quien, doc) not in vistos and nom:
+                    vistos[(quien, doc)] = {"doc": doc, "nombre": nom, "parentesco": parentesco,
+                                            "grado": grado(parentesco) if parentesco else "otro", "declarante": quien}
     return list(vistos.values())
 
 

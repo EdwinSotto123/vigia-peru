@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infrastructure" / 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tunel_rds import conexion                 # noqa: E402
 from parse_dji_pdf import familiares_pdf        # noqa: E402
+from parse_dji_intereses import declarante, es_el_mismo  # noqa: E402
 import pdfplumber                               # noqa: E402
 from psycopg2.extras import execute_values      # noqa: E402
 
@@ -133,14 +134,19 @@ def main() -> None:
     ap.add_argument("--hilos-r2", type=int, default=4, help="subidas a R2 en paralelo (cada una es un npx wrangler)")
     ap.add_argument("--procesos", type=int, default=4, help="PDFs leídos en paralelo")
     ap.add_argument("--lote", type=int, default=50, help="PDFs por escritura en la base")
+    ap.add_argument("--lista", help="sólo los PDF de este archivo (un nombre por renglón), p. ej. "
+                                    "dataset/declaracion_jurada/pdfs_con_otras_personas.txt para rehacerlos")
     a = ap.parse_args()
     pdfs = sorted(Path(a.pdfs).rglob("*.pdf"))
+    if a.lista:
+        nombres = set(Path(a.lista).read_text(encoding="utf-8").split())
+        pdfs = [p for p in pdfs if p.name in nombres]
     por_pdf, errores = claves_de_logs(Path(a.logs or a.pdfs))
     print(f"{len(pdfs)} PDFs, {len(por_pdf)} con su clave en los logs, {len(errores)} descargas fallidas", flush=True)
     # Las subidas a R2 van en un pool aparte: el ledger dice dónde quedará cada PDF y la base no espera a wrangler.
     subir = ThreadPoolExecutor(max_workers=a.hilos_r2) if a.r2 else None
     subidas = []
-    v = ok = fallo_parse = 0
+    v = ok = fallo_parse = con_otros = 0
     with conexion(a.entorno) as c:
         cur = c.cursor()
         # 1) errores de descarga desde los logs, de una vez
@@ -172,7 +178,8 @@ def main() -> None:
                                                                  pariente_norm, parentesco, grado) VALUES %s""",
                                lote_vinc, template="(NULL, %s, %s, %s, %s, %s, %s)")
             execute_values(cur, """UPDATE dji_descargas d SET estado = 'ok', parse_estado = v.parse_estado,
-                                          n_familiares = v.n::int, pdf_r2 = v.pdf_r2, descargado = now(), actualizado = now()
+                                          n_familiares = v.n::int, pdf_r2 = COALESCE(v.pdf_r2, d.pdf_r2),
+                                          descargado = COALESCE(d.descargado, now()), actualizado = now()
                                      FROM (VALUES %s) AS v(ruc, apellidos, parse_estado, n, pdf_r2)
                                     WHERE d.ruc = v.ruc AND d.apellidos = v.apellidos""", lote_ledger)
             c.commit()
@@ -181,22 +188,29 @@ def main() -> None:
         for pdf, (ruc, ape, nom), (fams, parse_estado) in zip(pdfs, claves, lecturas):
             if not ruc.isdigit():
                 continue
-            decl = _norm(f"{ape} {nom}")
+            # Cada familiar a nombre de quien firma su declaración: un PDF puede traer a otros funcionarios de la entidad
+            # (antes del 2026-10-27 todo iba a nombre del dueño del archivo).
+            del_archivo = _norm(f"{ape} {nom}")
+            hay_otros = any(f.get("declarante") and not es_el_mismo(f["declarante"], del_archivo) for f in fams)
+            lote_borrar.append((ruc, del_archivo))
             vistos = set()
             for f in fams:
-                d = f["doc"]
-                if d in vistos:
+                decl = declarante(f.get("declarante"), del_archivo, hay_otros)
+                if decl is None or (decl, f["doc"]) in vistos:
                     continue
-                vistos.add(d)
-                lote_vinc.append((decl, ruc, d, _norm(f.get("nombre")), f.get("parentesco"), f.get("grado")))
-            lote_borrar.append((ruc, decl))
+                vistos.add((decl, f["doc"]))
+                if decl != del_archivo and (ruc, decl) not in lote_borrar:
+                    lote_borrar.append((ruc, decl))
+                lote_vinc.append((decl, ruc, f["doc"], _norm(f.get("nombre")), f.get("parentesco"), f.get("grado")))
             key = f"dji/pdfs/{pdf.name}"
             if subir:
                 subidas.append(subir.submit(subir_r2, pdf, key))
-            lote_ledger.append((ruc, ape, parse_estado, len(vistos), key if a.r2 else None))
+            propios = sum(1 for k in vistos if k[0] == del_archivo)
+            lote_ledger.append((ruc, ape, parse_estado, propios, key if a.r2 else None))
             v += len(vistos)
             ok += 1
             fallo_parse += (parse_estado == "parser_fallo")
+            con_otros += hay_otros
             if len(lote_ledger) >= a.lote:
                 escribir()
             if ok % 500 == 0:
@@ -209,6 +223,7 @@ def main() -> None:
         subir.shutdown()
         print(f"  R2: {hechas} de {len(subidas)} PDFs subidos", flush=True)
     print(f"\n✓ {a.entorno}: {ok} PDFs, {v} vínculos insertados (parser_fallo: {fallo_parse}), {len(errores)} errores de descarga marcados")
+    print(f"  {con_otros} PDF traían declaraciones de otros funcionarios: sus familiares quedaron a nombre de quien firma cada una")
     print(f"  dji_vinculos total: {tot[0]} vínculos · {tot[1]} entidades · {tot[2]} parientes")
 
 
