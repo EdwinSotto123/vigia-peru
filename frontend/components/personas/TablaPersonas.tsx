@@ -111,6 +111,7 @@ export function TablaPersonas({
       actual={actual}
       paginas={paginas}
       total={pagina.total}
+      aproximado={pagina.totalExacto === false}
       tam={pagina.size}
       navegacion="url"
       hrefBase={ruta}

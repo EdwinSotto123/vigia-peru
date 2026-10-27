@@ -92,9 +92,9 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     } else {
       const p = add(q.q);
       const like = add(`%${escaparLike(q.q.toLowerCase())}%`);
-      // convocatoria_busqueda (migración 86): sólo ocid + vector, cabe en memoria; leer convocatorias por cada
-      // coincidencia eran 19 mil lecturas de disco con "cemento".
-      conds.push(`${m.ocid} IN (SELECT b.ocid FROM convocatoria_busqueda b WHERE b.texto @@ websearch_to_tsquery('spanish', ${p})
+      // convocatoria_texto (migración 173, antes convocatoria_busqueda de la 86): ocid + vector + claves del orden, cabe
+      // en memoria; leer convocatorias por cada coincidencia eran 19 mil lecturas de disco con "cemento".
+      conds.push(`${m.ocid} IN (SELECT b.ocid FROM convocatoria_texto b WHERE b.texto @@ websearch_to_tsquery('spanish', ${p})
                                UNION SELECT c3.ocid FROM entidad_stats es JOIN convocatorias c3 ON c3.entidad_ruc = es.ruc
                                       WHERE es.nombre_norm LIKE immutable_unaccent(${like}))`);
     }
@@ -435,6 +435,7 @@ function ordenDe(q: ListaQ): Orden {
     };
   }
   // Fecha (por defecto): índice convocatorias_keyset_fecha_idx (con texto libre, contrato_estado).
+  if (soloTexto(q)) return ordenTexto(q);
   const d = driverDe(q);
   const F = `COALESCE(${d.fecha}, '-infinity'::date)`;
   return {
@@ -459,6 +460,58 @@ function ordenDe(q: ListaQ): Orden {
   };
 }
 
+/** Sólo texto libre, sin otro filtro: la página y el total salen de las coincidencias mismas. */
+function soloTexto(q: Partial<Filtros>): boolean {
+  return !!q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
+    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.ganadora && !q.dudoso;
+}
+
+/**
+ * Orden por fecha de una búsqueda sólo de texto (migración 173). Cada rama trae su propio tope ya ordenado y se juntan:
+ * el texto desde convocatoria_texto, que lleva las claves del orden (recorre su índice de fecha si la palabra es común o
+ * el GIN si es rara), y los contratos de las entidades cuyo nombre coincide desde contrato_estado. Antes las ~73 mil
+ * coincidencias de "agua" se cruzaban con contrato_estado entero para ordenarlas (1,6 s en frío; 500 con varias a la vez).
+ * Las claves y el token son los del orden por fecha de siempre (fecha, alta, ocid): los cursores siguen valiendo.
+ */
+function ordenTexto(q: ListaQ): Orden {
+  return {
+    pagina(vals, dir, claves, n, offset) {
+      vals.push(q.q, `%${escaparLike(q.q!.toLowerCase())}%`);
+      const texto = `$${vals.length - 1}`;
+      const like = `$${vals.length}`;
+      let corteB = "";
+      let corteE = "";
+      if (claves) {
+        vals.push(claves[0], claves[1], claves[2]);
+        const i = vals.length;
+        const op = dir === "adelante" ? "<" : ">";
+        corteB = `AND (b.fecha, b.alta, b.ocid) ${op} ($${i - 2}::date, $${i - 1}::timestamptz, $${i})`;
+        corteE = `AND (COALESCE(ce.fecha_convocatoria, '-infinity'::date), ce.created_at, ce.ocid) ${op} ($${i - 2}::date, $${i - 1}::timestamptz, $${i})`;
+      }
+      const o = dir === "adelante" ? "DESC" : "ASC";
+      const tope = n + offset;
+      // GROUP BY: un contrato que sale por las dos ramas va una vez (las claves son las mismas: los dos espejos se
+      // actualizan en la misma transacción que convocatorias).
+      return `SELECT ocid, max(k1) AS k1, max(k2) AS k2 FROM (
+                (SELECT b.ocid, b.fecha AS k1, b.alta AS k2 FROM convocatoria_texto b
+                  WHERE b.texto @@ websearch_to_tsquery('spanish', ${texto}) AND b.ocid NOT LIKE 'ocds-vigia-%' ${corteB}
+                  ORDER BY b.fecha ${o}, b.alta ${o}, b.ocid ${o} LIMIT ${tope})
+                UNION ALL
+                (SELECT ce.ocid, COALESCE(ce.fecha_convocatoria, '-infinity'::date), ce.created_at
+                   FROM entidad_stats es JOIN contrato_estado ce ON ce.entidad_ruc = es.ruc
+                  WHERE es.nombre_norm LIKE immutable_unaccent(${like}) AND ce.ocid NOT LIKE 'ocds-vigia-%' ${corteE}
+                  ORDER BY 2 ${o}, 3 ${o}, 1 ${o} LIMIT ${tope})) t
+              GROUP BY ocid
+              ORDER BY k1 ${o}, k2 ${o}, ocid ${o}
+              LIMIT ${n} OFFSET ${offset}`;
+    },
+    orden: `pag.k1 DESC, pag.k2 DESC, pag.ocid DESC`,
+    ordenAtras: `pag.k1 ASC, pag.k2 ASC, pag.ocid ASC`,
+    claves: `pag.k1::text AS _k1, pag.k2::text AS _k2`,
+    token: (f) => codificarCursor("f", [f._k1 as string, f._k2 as string, f.ocid as string]),
+  };
+}
+
 async function pagina(q: ListaQ, o: Orden, dir: "adelante" | "atras", claves: (string | number | null)[] | null, offset: number) {
   const vals: unknown[] = [];
   const sql = `WITH pag AS (${o.pagina(vals, dir, claves, q.size + 1, offset)})
@@ -474,15 +527,13 @@ async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boo
     const r = await pool.query(`SELECT COALESCE(sum(n), 0)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(q, vals)}`, vals);
     return { total: r.rows[0].n, totalExacto: true };
   }
-  // Sólo texto (sin otros filtros): se cuenta sobre las coincidencias mismas (convocatoria_busqueda, en memoria), sin
+  // Sólo texto (sin otros filtros): se cuenta sobre las coincidencias mismas (convocatoria_texto, en memoria), sin
   // buscar cada una en contrato_estado: con "cemento" eran 10 mil lecturas sueltas en frío (8,6 s, la API daba 500).
-  const soloTexto = q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
-    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.ganadora && !q.dudoso;
-  if (soloTexto) {
+  if (soloTexto(q)) {
     const r = await pool.query(
       `SELECT count(*)::int AS n FROM (
-         SELECT u.ocid FROM (SELECT b.ocid FROM convocatoria_busqueda b WHERE b.texto @@ websearch_to_tsquery('spanish', $1)
-                             UNION SELECT c3.ocid FROM entidad_stats es JOIN convocatorias c3 ON c3.entidad_ruc = es.ruc
+         SELECT u.ocid FROM (SELECT b.ocid FROM convocatoria_texto b WHERE b.texto @@ websearch_to_tsquery('spanish', $1)
+                             UNION SELECT ce.ocid FROM entidad_stats es JOIN contrato_estado ce ON ce.entidad_ruc = es.ruc
                                     WHERE es.nombre_norm LIKE immutable_unaccent($2)) u
           WHERE u.ocid NOT LIKE 'ocds-vigia-%' LIMIT ${TOPE_CONTEO + 1}) x`,
       [q.q, `%${escaparLike(q.q!.toLowerCase())}%`]);
@@ -503,8 +554,9 @@ async function lista(q: ListaQ) {
   const tipo = q.orden === "monto" ? "m" : q.orden === "score" ? "s" : "f";
   const n = tipo === "m" ? 2 : tipo === "s" ? 4 : 3;
   const quitar = (filas: Record<string, unknown>[]) => filas.map(({ _k0, _k1, _k2, ...fila }) => fila);
+  // Si el total no sale a tiempo, la página igual: con un total que es un piso (lo visto y, si hay más, uno más).
   const [tot, filas] = await Promise.all([
-    contarTotal(q),
+    contarTotal(q).catch((e) => { console.warn(`[contratos] conteo: ${(e as Error).message}`); return null; }),
     (async () => {
       if (q.antes) {
         const atras = await pagina(q, o, "atras", decodificarCursor(q.antes, tipo, n), 0);
@@ -533,7 +585,8 @@ async function lista(q: ListaQ) {
   // Para el panel de cada fila: los integrantes del consorcio que ganó y de quién es cada antecedente (lib/ganadores.ts).
   const limpias = quitar(data);
   await conGanadores(limpias);
-  return { data: limpias, total: tot.total, totalExacto: tot.totalExacto, page: q.page, size: q.size, siguiente, anterior };
+  const total = tot ?? { total: (q.page - 1) * q.size + data.length + (siguiente ? 1 : 0), totalExacto: !siguiente };
+  return { data: limpias, total: total.total, totalExacto: total.totalExacto, page: q.page, size: q.size, siguiente, anterior };
 }
 
 // ─── GET /contratos/geo ──────────────────────────────────────────────────────

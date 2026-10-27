@@ -338,7 +338,7 @@ def precalentar():
         cur.execute("CREATE EXTENSION IF NOT EXISTS pg_prewarm")
         cur.execute("""SELECT c.oid::regclass::text, pg_relation_size(c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                        WHERE n.nspname IN ('public', 'pg_toast') AND c.relkind IN ('r', 'i', 'm', 't') AND pg_relation_size(c.oid) > 0
-                       ORDER BY (c.relname ~ '^(contrato_estado|casos_cruce|convocatoria_busqueda|precio_|cruces_proveedor|entidad_stats|contratos_agregado|partido_)') DESC,
+                       ORDER BY (c.relname ~ '^(contrato_estado|casos_cruce|convocatoria_texto|convocatoria_busqueda|precio_|cruces_proveedor|entidad_stats|contratos_agregado|partido_)') DESC,
                                 pg_relation_size(c.oid)""")
         rels = cur.fetchall()
         t0, total = time.time(), 0

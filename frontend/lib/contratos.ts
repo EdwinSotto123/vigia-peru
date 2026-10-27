@@ -383,9 +383,13 @@ export interface ContratosPagina {
  */
 export const TOPE_CONTEO_CONTRATOS = 10_000;
 
-/** "18,393" o "10,000+" (conteo acotado que llegó al tope). Nunca un total que la API no dio. */
+/**
+ * "18,393", "10,000+" (conteo acotado que llegó al tope) o "más de 50" (el conteo no salió a tiempo y la API dio lo
+ * visto más uno). Nunca un total que la API no dio.
+ */
 export function totalContratosTexto(p: Pick<ContratosPagina, "total" | "totalExacto">): string {
   if (p.totalExacto === false && p.total > TOPE_CONTEO_CONTRATOS) return `${numero(TOPE_CONTEO_CONTRATOS)}+`;
+  if (p.totalExacto === false) return `más de ${numero(Math.max(1, p.total - 1))}`;
   return numero(p.total);
 }
 

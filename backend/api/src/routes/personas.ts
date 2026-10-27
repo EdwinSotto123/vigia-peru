@@ -22,6 +22,8 @@ import { PERIODOS_GOBIERNO } from "./partidos.js";
 export const personasRouter = new Hono();
 
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
+/** Hasta dónde se cuenta una lista con filtros: más allá, "más de 10 000" (`totalExacto: false`). */
+const TOPE_CONTEO = 10_000;
 const listaMemo = new Memo<Record<string, unknown>>({ nombre: "personas:lista", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
@@ -261,7 +263,9 @@ personasRouter.get("/", async (c) => {
     // alcance (1,2 M filas en el país) para devolver 20. Sin filtros, el total es el del resumen. Con filtros en el país,
     // el total recorre las 3,2 M contrataciones si ningún índice lo acota (un año, unos meses: 1 s con la caché caliente,
     // más de 10 s en frío): va con plazo propio, como las órdenes de una empresa. Sin las facetas, la lista sigue (los
-    // filtros van sin números).
+    // filtros van sin números). El total con filtros se cuenta hasta TOPE_CONTEO + 1, como en /contratos: "limpieza" son
+    // 134 mil coincidencias y contarlas todas pasaba los 25 s (la búsqueda daba 500); si el conteo igual falla, la página
+    // sale con un total aproximado en vez de un error.
     const [filas, rs, cuenta, facetas] = await Promise.all([
       pool.query(
         `WITH pag AS (
@@ -271,12 +275,18 @@ personasRouter.get("/", async (c) => {
          SELECT ${FILA.replace(/pe\./g, "pag.")}, ${GOBIERNOS("pag.gobiernos")} AS gobiernos
            FROM pag ORDER BY ${ORDEN[q.orden].replace(/pe\./g, "pag.")}, pag.entidad_ruc, pag.ruc`, vals),
       res,
-      conds.length > sinFiltros ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM persona_entidad pe ${donde}`, vals, 25_000) : null,
+      conds.length > sinFiltros
+        ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM (SELECT 1 FROM persona_entidad pe ${donde} LIMIT ${TOPE_CONTEO + 1}) x`, vals, 15_000)
+            .catch((e) => { console.warn(`[personas] conteo: ${(e as Error).message}`); return "fallo" as const; })
+        : null,
       facetasDe(q).catch((e) => { console.warn(`[personas] facetas: ${(e as Error).message}`); return null; }),
     ]);
-    const total = cuenta ? cuenta.rows[0]?.n ?? 0 : rs.filas;
+    // Sin conteo (falló): lo que se sabe es que hay al menos lo de esta página y, si vino llena, algo más.
+    const vistas = (q.page - 1) * q.size + filas.rows.length;
+    const total = cuenta === "fallo" ? vistas + (filas.rows.length === q.size ? 1 : 0) : cuenta ? cuenta.rows[0]?.n ?? 0 : rs.filas;
+    const totalExacto = cuenta === "fallo" ? filas.rows.length < q.size : total <= TOPE_CONTEO || !cuenta;
     return publicar({
-      total, page: q.page, size: q.size, data: filas.rows.map((f) => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre })), resumen: rs, facetas,
+      total, totalExacto, page: q.page, size: q.size, data: filas.rows.map((f) => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre })), resumen: rs, facetas,
     });
   });
   c.header("Cache-Control", CACHE);

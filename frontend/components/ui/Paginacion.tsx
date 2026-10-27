@@ -43,6 +43,8 @@ interface Props {
   query?: Record<string, string | undefined>;
   /** Nombre del parámetro de página en la URL (`pagina` por defecto; el API de contratos usa `page`). */
   paramPagina?: string;
+  /** El total es un piso (la API dejó de contar en un tope): se lee "de más de N", con N = total − 1. */
+  aproximado?: boolean;
   /**
    * El paginador de ABAJO: al cambiar de página lleva al inicio de SU lista (el `[data-paginado]` que lo contiene:
    * `ZonaResultados` o las tablas de `Paginado`). Sin esto, quedaba al pie de la página siguiente.
@@ -93,7 +95,7 @@ export function EnlacePagina({
   );
 }
 
-export function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando, nombre, hrefBase, query, paramPagina = "pagina", subir = false }: Props) {
+export function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando, nombre, hrefBase, query, paramPagina = "pagina", subir = false, aproximado = false }: Props) {
   const resolvedHref = href ?? ((n: number) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(query ?? {})) if (v) params.set(k, v);
@@ -121,7 +123,7 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
       {/* Sin aria-live: varias páginas muestran dos paginadores (arriba y abajo) y el
           lector de pantalla anunciaba el mismo rango dos veces en cada cambio. */}
       <span className="font-mono tabular-nums">
-        {cargando ? "cargando…" : total === 0 ? `0 ${nombre}` : `${desde.toLocaleString("es-PE")}–${hasta.toLocaleString("es-PE")} de ${total.toLocaleString("es-PE")}`}
+        {cargando ? "cargando…" : total === 0 ? `0 ${nombre}` : `${desde.toLocaleString("es-PE")}–${hasta.toLocaleString("es-PE")} de ${aproximado ? `más de ${Math.max(1, total - 1).toLocaleString("es-PE")}` : total.toLocaleString("es-PE")}`}
       </span>
       <span className="inline-flex items-center gap-1.5">
         {navegacion === "url" ? (

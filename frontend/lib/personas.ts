@@ -65,6 +65,8 @@ export interface ResumenPersonas {
 
 export interface PaginaPersonas {
   total: number;
+  /** false: la API contó hasta un tope (10 001) o no pudo contar; `total` es un piso. */
+  totalExacto?: boolean;
   page: number;
   size: number;
   data: PersonaEntidad[];
