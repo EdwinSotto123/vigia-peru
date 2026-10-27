@@ -79,6 +79,8 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // posible error de carga. ~30 s en producción.
   await uno("refrescar_contratos_dudosos", "SELECT refrescar_contratos_dudosos() AS n");
   const n = await uno("refrescar_casos_cruce_base", "SELECT refrescar_casos_cruce_base() AS n");
+  // Cuántos contratos con antecedentes tiene cada entidad, para su lista (migración 175): sale de casos_cruce recién hecho.
+  await siExiste("refrescar_entidad_antecedentes");
   // Empresas (migración 109): sus órdenes por entidad y año (~3 min en producción) y después el resumen con el puntaje de
   // antecedentes, que lee los cruces y los casos recién rehechos.
   await uno("refrescar_empresa_ordenes", "SELECT refrescar_empresa_ordenes() AS n");

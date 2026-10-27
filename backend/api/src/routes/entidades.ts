@@ -283,8 +283,13 @@ const antecedentesMemo = new Memo<Record<string, [con: number, alta: number]>>({
 export const antecedentesPorEntidad = () =>
   antecedentesMemo
     .obtener("todas", async () => {
-      const r = await consultaConPlazo<{ ruc: string; con: number; alta: number }>(SQL_ANTECEDENTES_POR_ENTIDAD, [], 30_000);
-      return Object.fromEntries(r.rows.map((x) => [x.ruc.trim(), [x.con, x.alta] as [number, number]]));
+      // La cuenta ya hecha (migración 175: la rehace el Worker de scrapers con los cruces): agregar casos_cruce en cada
+      // Worker frío costaba 1 a 10 s por pedido. Sin la tabla (una base sin la migración), en vivo como antes.
+      const hecha = await pool.query<{ ruc: string; con: number; alta: number }>("SELECT ruc, con, alta FROM entidad_antecedentes").catch(() => null);
+      const filas = hecha?.rows.length
+        ? hecha.rows
+        : (await consultaConPlazo<{ ruc: string; con: number; alta: number }>(SQL_ANTECEDENTES_POR_ENTIDAD, [], 30_000)).rows;
+      return Object.fromEntries(filas.map((x) => [x.ruc.trim(), [x.con, x.alta] as [number, number]]));
     })
     .catch((e) => { console.warn(`[entidades] antecedentes: ${(e as Error).message}`); return null; });
 
