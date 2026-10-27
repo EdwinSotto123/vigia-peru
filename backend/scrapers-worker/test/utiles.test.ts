@@ -49,7 +49,7 @@ test("calendario: mismas agendas que Cloud Scheduler (hora de Lima)", () => {
   const en = (iso: string) => Date.parse(iso);
   assert.deepEqual(fuentesDelCron(CRON_DIARIO, en("2026-10-14T11:00:00Z")), ["oece_ocds"]);
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-14T13:00:00Z")), ["onpe_claridad", "onpe_gastos"]);  // miércoles 14
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-13T13:00:00Z")), []);                      // martes 13
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-13T13:00:00Z")), ["mef_opds_etes"]);       // martes 13 (migración 152)
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-19T13:00:00Z")), ["mef_presupuesto"]);     // lunes 19
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-18T13:00:00Z")), ["pnda_sancionados"]);    // domingo
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-01T13:00:00Z")), ["pnda_sancionados", "pnda_visitas", "pnda_oece"]);  // domingo 1

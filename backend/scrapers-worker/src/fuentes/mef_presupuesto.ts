@@ -18,6 +18,11 @@
  *
  * Semanal (lunes). Entre enero y marzo corre también el año anterior: el MEF cierra diciembre recién en febrero.
  * Con `desde`/`hasta` (AAAA) se elige el rango de años.
+ *
+ * Los años cerrados (hasta ULTIMO_ANUAL) vienen en `<año>-Gasto.zip`, no en el diario: el MEF los regeneró del 18 al 20
+ * de octubre de 2026 (2009-2024; 2018: 509 MB, 2024: 689 MB), con las mismas 63 columnas que el diario (verificado año
+ * por año, de 2014 a 2024, con la cabecera del ZIP). Un año por corrida: cada lectura usa ~150 s de CPU y la CPU de los
+ * pasos de una instancia se suma (ver `mef_detalle`).
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -32,7 +37,11 @@ import { CARGA, LECTURA, fechaLima } from "./comun.ts";
 
 const FUENTE = "mef_presupuesto";
 const DATASET_URL = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
-export const zipDelAnio = (anio: number) => `https://fs.datosabiertos.mef.gob.pe/datastorefiles/${anio}-Gasto-Diario.zip`;
+/** El último año con archivo anual cerrado (`<año>-Gasto.zip`). Desde el siguiente, el MEF publica sólo el diario. */
+export const ULTIMO_ANUAL = 2024;
+/** El archivo de un año: `<año>-Gasto.zip` hasta ULTIMO_ANUAL, `<año>-Gasto-Diario.zip` después (2025: ya no hay anual). */
+export const archivoDelAnio = (anio: number) => (anio <= ULTIMO_ANUAL ? `${anio}-Gasto.zip` : `${anio}-Gasto-Diario.zip`);
+export const zipDelAnio = (anio: number) => `https://fs.datosabiertos.mef.gob.pe/datastorefiles/${archivoDelAnio(anio)}`;
 const COLS_EJEC = "anio, sec_ejec, ejecutora, ejecutora_nombre, pliego, pliego_nombre, sector, sector_nombre, nivel_gobierno, departamento, " +
   "departamento_nombre, provincia, provincia_nombre, distrito, distrito_nombre, pia, pim, certificado, comprometido_anual, comprometido, " +
   "devengado, girado, filas, corte";
@@ -176,7 +185,7 @@ export async function correrMef(env: Env, p: ParamsCorrida, step: WorkflowStep, 
         // (≈ 28 MB con 2026) y no se guarda en R2: se rehace del ZIP, que es la fuente.
         await cargarGasto(db, anio, MIRADAS_POR_PASO[0], a);
         await registrarCarga(db, {
-          fuente: FUENTE, clave: String(anio), tabla: "mef_ejecutora_anual", archivo: `${anio}-Gasto-Diario.zip`,
+          fuente: FUENTE, clave: String(anio), tabla: "mef_ejecutora_anual", archivo: archivoDelAnio(anio),
           gcs_uri: `r2://${BUCKET}/${base}-ejecutoras.csv`, sha256: sha256 || `sin-sha-${hoy}`, bytes, filas: a.filas,
           fuente_url: DATASET_URL, descargado_at: corte,
         });

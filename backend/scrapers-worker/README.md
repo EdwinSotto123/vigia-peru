@@ -15,7 +15,8 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `pnda_dji` | `dji_funcionarios` / `dji_empleos` (CSV de 268 y 442 MB) | día 5, 08:00 |
 | `jne_infogob` | `jne_autoridades` (XLS del JNE) + DNI desde `onpe_candidatos` | día 5, 08:00 |
 | `pnda_oece` | solo crudos (datasets del OECE en la PNDA) | día 1, 08:00 |
-| `mef_presupuesto` | `mef_ejecutora_anual` + `mef_departamento_desglose` desde `<año>-Gasto-Diario.zip` → `refrescar_mef_presupuesto()` (migración 47) | lunes 08:00 |
+| `mef_presupuesto` | `mef_ejecutora_anual` + `mef_departamento_desglose` desde `<año>-Gasto-Diario.zip` (o `<año>-Gasto.zip` hasta 2024) → `refrescar_mef_presupuesto()` (migraciones 47 y 152) | lunes 08:00 |
+| `mef_opds_etes` | `mef_opds_etes_anual` + `mef_opds_etes_gasto`: organismos públicos descentralizados (`<año>-Gasto-OPDS.zip`, desde 2018) y empresas municipales (`<año>-Gastos-ETES.zip`, desde 2015), sólo para las fichas de entidad → `refrescar_mef_presupuesto()` (migración 152) | martes 08:00 |
 | `onpe_claridad` | `onpe_aportantes` + `onpe_candidatos` con Browser Rendering (Cloudflare de la ONPE pasa con Chromium real) | miércoles 08:00 |
 | `onpe_gastos` | `onpe_gastos_proveedores`: a quién le compró cada organización política en campaña (RUC o DNI y monto), mismo portal | miércoles 08:00 |
 | `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` / `conosce_consorcios` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
@@ -32,8 +33,18 @@ Lo que no se pasó:
 El MEF quitó `datastore_search_sql`. Lo que queda completo es el ZIP diario por año (2026: 549 MB, 8,95 M filas,
 ZIP64). Se baja en streaming, se infla con `fflate` de forma síncrona (`DecompressionStream` acumulaba más de
 1 GB y el Worker se caía por memoria) y se agrega por unidad ejecutora y por departamento (`src/mef_agregado.ts`).
-Un año por paso, ~125 s de CPU. Los ZIP de 2022-2024 ya no se publican y el API por páginas tarda 60 s cada
-32 000 filas: esos años quedan con los datos regionales que ya había en la base.
+Un año por paso, ~125 s de CPU. Los años cerrados vienen en `<año>-Gasto.zip` (el MEF regeneró 2009-2024 del 18 al
+20 de octubre de 2026, con las mismas 63 columnas; `ULTIMO_ANUAL` en `src/fuentes/mef_presupuesto.ts`): un año por
+corrida (`{"fuente":"mef_presupuesto","desde":"2019","hasta":"2019"}`), porque la CPU de los pasos de una instancia se
+suma y cada lectura del ZIP usa ~150-200 s. La ficha de cada entidad lleva todos los años cargados; la de la región,
+los 5 últimos.
+
+Las OPD (SAT, Serpar, Parque de las Leyendas…) y las empresas municipales (EPS de agua…) no están en ese archivo: la
+fuente `mef_opds_etes` (`src/mef_agregado_opds_etes.ts`) lee sus ZIP propios (~2 MB cada uno, todos los años en una
+corrida, ~1 s de CPU por archivo) y los carga aparte, en `mef_opds_etes_*`: nunca se suman a las cifras por departamento.
+En las ETE sólo hay PIA, PIM y lo ejecutado (va donde el devengado; girado y comprometido quedan en NULL). Hasta 2018 el
+archivo de ETES trae también las OPD con una «ejecución» que no cuadra con su devengado: se saltan (las OPD salen sólo del
+de OPDS). Corre los martes, el día después del SIAF, para que sus refrescos no se crucen.
 
 ### CONOSCE
 
@@ -42,6 +53,21 @@ sin login ni WAF, y se regeneran los viernes. Algunos años vienen sólo en XLSX
 rangos desde R2 con `src/xlsx_flujo.ts` (directorio central del ZIP, textos compartidos y la hoja inflada en
 streaming con fflate) y salen como CSV, igual que los CSV, a COPY en una tabla temporal con la cabecera del archivo.
 SheetJS no entra: la hoja de postores 2024 son 78 MB de XML. Cada año se reemplaza en una transacción.
+
+Dos cambios de formato del 2026-10-22/23 (cargas caídas desde el 2026-10-24):
+- Los CSV escapan la comilla con barra (`\"`) en vez de doblarla, y COPY partía esos registros ("missing data for
+  column"). Pasan por `NormalizadorCsv` (`src/csv.ts`): lee `\"` y `""`, deja todo como CSV estándar del ancho de la
+  cabecera, y lo que tenga que completar, recortar o descartar lo avisa (WARNING y `arreglos` en el resumen); con más
+  de 0,5 % (y 50 registros) completados o descartados la carga falla.
+- Las órdenes traen todo el texto en `xl/sharedStrings.xml` (agosto de 2026: 722 mil textos, 53 MB de XML; un
+  diciembre, ~110 MB). `TextosCompartidos` (`src/xlsx_flujo.ts`) los guarda compactos: una pasada previa por la hoja
+  cuenta los usos; los repetidos quedan tal cual y los que se usan una vez, comprimidos por bloque (node:zlib). Con
+  las órdenes de agosto ocupan ~20 MB (antes, ~95 MB de heap).
+- Y cada archivo de órdenes trae otra cosa: `<MES><año>` ya no son las registradas en ese mes sino las registradas en
+  ese año con emisión en ese mes, de cualquier año (AGOSTO2026: emitidas en agosto de 2021 a 2026). `conosce_ordenes`
+  reconoce la partición por las fechas de las filas: con la nueva reemplaza las órdenes del año con ese mes de
+  emisión, y anio/mes siguen siendo los de registro. Por eso el sábado carga el año entero (los 12 archivos, también los
+  meses que no llegaron), y en enero y febrero también el anterior.
 
 Las órdenes (`conosce_ordenes`) vienen un XLSX por mes de registro (`ordenes/<año>/CONOSCE_ORDENESCOMPRA<MES><año>_0.xlsx`,
 60–90 MB): cada mes se reemplaza en una transacción; por defecto los últimos 3 (`desde`/`hasta` en AAAA o AAAA-MM

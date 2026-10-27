@@ -10,6 +10,10 @@
  *   pnda_oece          día 1 (era 09:00; ahora 08:00)  │
  *   mef_presupuesto    lunes 08:00 (antes día 12; el   │
  *                      MEF regenera el archivo a diario)│
+ *   mef_opds_etes      martes 08:00 (OPD y empresas    │
+ *                      municipales del MEF, migr. 152; │
+ *                      el día después del SIAF para que│
+ *                      sus refrescos no se crucen)     │
  *   onpe_claridad      miércoles 08:00 (semanal mien-  │
  *   onpe_gastos        tras dure la rendición de ERM2026; antes era manual)
  *   conosce            sábados 08:00 (CONOSCE regenera │
@@ -45,6 +49,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados");
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
+  if (lima.getUTCDay() === 2) out.push("mef_opds_etes");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 6) out.push("conosce", "conosce_ordenes");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");

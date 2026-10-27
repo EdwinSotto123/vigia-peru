@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { CRON_DATOS, fuentesDelCron } from "../src/calendario.ts";
-import { aniosPedidos } from "../src/fuentes/mef_presupuesto.ts";
+import { aniosPedidos, archivoDelAnio, zipDelAnio } from "../src/fuentes/mef_presupuesto.ts";
 import { agregar, agregarZip, csvAgregado, entradaZip, flujoGasto, montosGasto } from "../src/mef_agregado.ts";
 
 interface VectorMef {
@@ -85,7 +85,18 @@ test("años del MEF: el actual, el anterior hasta marzo, o el rango pedido; corr
   assert.deepEqual(aniosPedidos({ desde: "2025", hasta: "2026" }, "2026-10-14"), [2025, 2026]);
   assert.deepEqual(aniosPedidos({ desde: "2025" }, "2026-10-14"), [2025]);
   assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-19T13:00:00Z")).includes("mef_presupuesto"));   // lunes
-  assert.ok(!fuentesDelCron(CRON_DATOS, Date.parse("2026-10-14T13:00:00Z")).includes("mef_presupuesto"));  // martes
+  assert.ok(!fuentesDelCron(CRON_DATOS, Date.parse("2026-10-14T13:00:00Z")).includes("mef_presupuesto"));  // miércoles
+  // Las OPD y ETES (migración 152), el martes: el día después del SIAF, para que sus refrescos no se crucen.
+  assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-20T13:00:00Z")).includes("mef_opds_etes"));     // martes
+  assert.ok(!fuentesDelCron(CRON_DATOS, Date.parse("2026-10-19T13:00:00Z")).includes("mef_opds_etes"));    // lunes
+});
+
+test("archivo del MEF: el anual cerrado hasta 2024, el diario desde 2025", () => {
+  assert.equal(archivoDelAnio(2015), "2015-Gasto.zip");
+  assert.equal(archivoDelAnio(2024), "2024-Gasto.zip");
+  assert.equal(archivoDelAnio(2025), "2025-Gasto-Diario.zip");
+  assert.equal(archivoDelAnio(2026), "2026-Gasto-Diario.zip");
+  assert.equal(zipDelAnio(2018), "https://fs.datosabiertos.mef.gob.pe/datastorefiles/2018-Gasto.zip");
 });
 
 test("agregar: en qué gasta cada unidad ejecutora (partida, función y proyecto; sin claves para filas en cero)", async () => {

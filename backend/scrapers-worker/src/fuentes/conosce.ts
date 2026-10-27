@@ -5,8 +5,9 @@
  * Los reportes del SEACE están sueltos en el portal CONOSCE, sin login ni WAF, y se regeneran los viernes:
  *   <BASE>/<carpeta>/<año>/CONOSCE_<PREFIJO><año>_<n>.csv   (o .xlsx: 2019, 2023 y 2024 sólo vienen así,
  *                                                            y los postores siempre)
- * Cada archivo se baja a R2 y va a COPY en streaming: el CSV tal cual; el XLSX leído por rangos desde R2 y
- * convertido a CSV al vuelo (src/xlsx_flujo.ts). COPY va a una tabla temporal con las columnas de la cabecera
+ * Cada archivo se baja a R2 y va a COPY en streaming: el CSV normalizado al vuelo (desde el 2026-10-22 CONOSCE escapa
+ * la comilla con barra, `\"`, y COPY partía esos registros: `NormalizadorCsv` en src/csv.ts); el XLSX leído por rangos
+ * desde R2 y convertido a CSV al vuelo (src/xlsx_flujo.ts). COPY va a una tabla temporal con las columnas de la cabecera
  * del archivo (los nombres cambian un poco entre años); de ahí un INSERT … SELECT elige cada columna por sus
  * nombres posibles y convierte fechas y montos (`conosce_fecha`, `conosce_num`). El año se borra y se vuelve a
  * cargar en una transacción; si los archivos no cambiaron (sha256), no se toca.
@@ -20,12 +21,13 @@ import { Almacen, nombreArchivo, uri } from "../almacen.ts";
 import type { Entrada } from "../almacen.ts";
 import { registrarCarga, yaCargado } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
-import { leerCsv } from "../csv.ts";
+import { cuentaCsv, leerCsv, normalizarCsv } from "../csv.ts";
+import type { CuentaCsv } from "../csv.ts";
 import { conDb } from "../db.ts";
 import type { Db } from "../db.ts";
 import { UA } from "../http.ts";
 import { registrar } from "../registro.ts";
-import { xlsxComoCsv } from "../xlsx_flujo.ts";
+import { cuentaXlsx, xlsxComoCsv } from "../xlsx_flujo.ts";
 import { CARGA, fechaLima, refrescarCasosCruce } from "./comun.ts";
 import { copiarEnTramos } from "./pnda_dji.ts";
 
@@ -143,9 +145,9 @@ export function normalizarCabecera(cabecera: string[]): string[] {
 
 /**
  * El SELECT que pasa de la tabla temporal (columnas = cabecera) a la tabla destino. `fijos`: columnas con un
- * valor constante (el año, o año y mes); un número es `{ anio }`.
+ * valor constante (el año, o año y mes) o una expresión SQL sobre la temporal; un número es `{ anio }`.
  */
-export function selectDestino(mapa: Mapa, columnas: Set<string>, fijos: number | Record<string, number>): { cols: string; select: string } {
+export function selectDestino(mapa: Mapa, columnas: Set<string>, fijos: number | Record<string, number | string>): { cols: string; select: string } {
   const f = typeof fijos === "number" ? { anio: fijos } : fijos;
   const exprs = mapa.map(([, origenes, tipo]) => {
     const o = origenes.find((x) => columnas.has(x));
@@ -186,33 +188,90 @@ export async function separarCabecera(origen: ReadableStream<Uint8Array>): Promi
   return { cabecera, flujo };
 }
 
+/** Más registros que esto (y que 50) completados o descartados: no son unas filas rotas, cambió el formato. */
+const MAX_DEFECTUOSOS = 0.005;
+
+/** Lo que hubo que arreglar en un archivo, para el aviso y el resumen de la corrida (sólo lo que no es cero). */
+export interface Arreglos {
+  archivo: string;
+  realineados?: number;
+  rellenados?: number;
+  recortados?: number;
+  descartados?: number;
+  vacios?: number;
+  /** XLSX: filas con texto más allá de la última columna de la cabecera (sale cortado). */
+  recortadas?: number;
+  ejemplos?: string[];
+}
+
+/**
+ * Lo que se arregló al normalizar un CSV (null si nada). Con demasiados registros completados o descartados corta la
+ * carga (la transacción se deshace): es un formato nuevo que hay que mirar, no unas filas rotas.
+ */
+export function revisarCuenta(archivo: string, c: CuentaCsv): Arreglos | null {
+  const malos = c.rellenados + c.descartados;
+  const total = c.registros + c.descartados;
+  if (malos > Math.max(50, MAX_DEFECTUOSOS * total)) {
+    throw new Error(`${archivo}: ${malos} de ${total} registros con otro número de campos que la cabecera (${c.rellenados} completados, ` +
+      `${c.descartados} descartados): ¿cambió el formato? Ej.: ${c.ejemplos[0] ?? ""}`);
+  }
+  if (!malos && !c.realineados && !c.recortados && !c.vacios) return null;
+  const a: Arreglos = { archivo };
+  for (const k of ["realineados", "rellenados", "recortados", "descartados", "vacios"] as const) if (c[k]) a[k] = c[k];
+  if (c.ejemplos.length) a.ejemplos = c.ejemplos;
+  return a;
+}
+
+/** "CONOSCE_X_0.csv: 3 releídos sin \", 2 completados con vacíos (ej.: …)", para el aviso. */
+export function describirArreglos(a: Arreglos): string {
+  const partes = [
+    a.realineados && `${a.realineados} releídos sin \\"`, a.rellenados && `${a.rellenados} completados con vacíos`,
+    a.recortados && `${a.recortados} con campos vacíos de más`, a.descartados && `${a.descartados} descartados (campos de más)`,
+    a.vacios && `${a.vacios} líneas en blanco`, a.recortadas && `${a.recortadas} filas con texto más allá de la cabecera (cortado)`,
+  ].filter(Boolean);
+  return `${a.archivo}: ${partes.join(", ")}${a.ejemplos?.length ? ` (ej.: ${a.ejemplos[0]})` : ""}`;
+}
+
 /**
  * Copia los archivos (CSV o XLSX, ya en R2) a la tabla temporal `_st`, con una columna de texto por columna de
  * la cabecera (normalizada). Las partes tienen que traer la misma cabecera. Va dentro de una transacción abierta.
+ * El CSV pasa por `NormalizadorCsv`: lo que haya arreglado vuelve en `arreglos` (y con demasiado, falla).
  */
-export async function copiarATemporal(env: Env, db: Db, almacen: Almacen, entradas: Entrada[]): Promise<{ columnas: string[]; copiadas: number }> {
+export async function copiarATemporal(env: Env, db: Db, almacen: Almacen, entradas: Entrada[]):
+    Promise<{ columnas: string[]; copiadas: number; arreglos: Arreglos[] }> {
   let columnas: string[] | null = null;
   let copiadas = 0;
+  const arreglos: Arreglos[] = [];
   for (const e of entradas) {
     const obj = await almacen.abrir(e);
-    const origen = nombreArchivo(e).toLowerCase().endsWith(".xlsx")
+    const archivo = nombreArchivo(e);
+    const xlsx = archivo.toLowerCase().endsWith(".xlsx");
+    const cuenta = cuentaCsv();
+    const cx = cuentaXlsx();
+    const origen = xlsx
       ? (await obj.body.cancel(), xlsxComoCsv(async (o, l) => {
           const parte = await env.CRUDOS.get(`raw/${e.file}`, { range: { offset: o, length: l } });
           if (!parte) throw new Error(`falta el crudo raw/${e.file}`);
           return parte.body;
-        }, e.bytes))
-      : obj.body;
+        }, e.bytes, undefined, cx))
+      : normalizarCsv(obj.body, cuenta);
     const { cabecera, flujo } = await separarCabecera(origen);
     const cols = normalizarCabecera(cabecera);
     if (!columnas) {
       columnas = cols;
       await db.ejecutar(`CREATE TEMP TABLE _st (${cols.map((x) => `"${x}" text`).join(", ")}) ON COMMIT DROP`);
     } else if (cols.join() !== columnas.join()) {
-      throw new Error(`${nombreArchivo(e)}: cabecera distinta a la de la primera parte`);
+      throw new Error(`${archivo}: cabecera distinta a la de la primera parte`);
     }
-    copiadas += (await copiarEnTramos(db, "_st", cols.map((x) => `"${x}"`), flujo)).filas;
+    const filas = (await copiarEnTramos(db, "_st", cols.map((x) => `"${x}"`), flujo)).filas;
+    // COPY tiene que haber leído los mismos registros que se contaron al armar el CSV.
+    const contadas = xlsx ? cx.filas : cuenta.registros;
+    if (filas !== contadas) throw new Error(`${archivo}: COPY cargó ${filas} filas y el archivo tiene ${contadas}`);
+    copiadas += filas;
+    const a = xlsx ? (cx.recortadas ? { archivo, recortadas: cx.recortadas } : null) : revisarCuenta(archivo, cuenta);
+    if (a) arreglos.push(a);
   }
-  return { columnas: columnas ?? [], copiadas };
+  return { columnas: columnas ?? [], copiadas, arreglos };
 }
 
 const urlParte = (c: Conjunto, anio: number, parte: number, ext: string) => `${BASE}/${c.carpeta}/${anio}/${c.prefijo}${anio}_${parte}.${ext}`;
@@ -277,13 +336,15 @@ export async function correrConosce(env: Env, p: ParamsCorrida, step: WorkflowSt
           const t0 = Date.now();
           await db.ejecutar("BEGIN");
           try {
-            const { columnas, copiadas } = await copiarATemporal(env, db, almacen, entradas);
+            const { columnas, copiadas, arreglos } = await copiarATemporal(env, db, almacen, entradas);
+            for (const a of arreglos) registrar("WARNING", `   ${clave}: ${describirArreglos(a)}`, { fuente: FUENTE, instancia: id });
+            const arreglado = arreglos.length ? arreglos : undefined;
             const { cols, select } = selectDestino(c.mapa, new Set(columnas), anio);
             const faltan = c.mapa.filter(([, o]) => !o.some((x) => columnas.includes(x))).map(([d]) => d);
             if (faltan.length) registrar("WARNING", `   ${clave}: sin columna para ${faltan.join(", ")}`, { fuente: FUENTE, instancia: id });
             if (p.seco) {
               await db.ejecutar("ROLLBACK");
-              return { seco: true, filas: copiadas, columnas, faltan };
+              return { seco: true, filas: copiadas, columnas, faltan, arreglos: arreglado };
             }
             await db.ejecutar(`DELETE FROM ${c.tabla} WHERE anio = $1`, [anio]);
             const filas = await db.ejecutar(`INSERT INTO ${c.tabla} (${cols}) SELECT ${select} FROM _st`);
@@ -294,7 +355,7 @@ export async function correrConosce(env: Env, p: ParamsCorrida, step: WorkflowSt
             await db.ejecutar("COMMIT");
             const segundos = Math.round((Date.now() - t0) / 1000);
             registrar("INFO", `   ${clave}: ${filas} filas → ${c.tabla} (${entradas.map(nombreArchivo).join(", ")}, ${segundos}s)`, { fuente: FUENTE, instancia: id });
-            return { filas, faltan, segundos };
+            return { filas, faltan, segundos, arreglos: arreglado };
           } catch (err) {
             await db.ejecutar("ROLLBACK").catch(() => undefined);
             throw err;
