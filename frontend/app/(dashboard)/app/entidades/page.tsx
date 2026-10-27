@@ -17,7 +17,7 @@ import {
   type EntidadesResumen,
   type FacetasEntidades,
 } from "@/lib/api-client";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { etiquetasUnicas } from "@/lib/personas";
 import { nombrePartido } from "@/lib/planilla";
@@ -25,7 +25,7 @@ import { nombrePartido } from "@/lib/planilla";
 export const metadata: Metadata = {
   title: "Entidades del Estado",
   description:
-    "Municipalidades, gobiernos regionales, ministerios y empresas públicas, ordenados por cuántos de sus contratos ya tienen dictamen publicado.",
+    "Municipalidades, gobiernos regionales, ministerios, hospitales, universidades y empresas públicas: sus contratos desde 2015, los antecedentes de quienes ganan, su presupuesto y sus informes de control.",
 };
 
 const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
@@ -37,15 +37,22 @@ const CLASE: Record<ClaseEntidad, { etiqueta: string; tipos: string[] }> = {
   municipal: { etiqueta: "Municipalidad (todas)", tipos: ["municipal_provincial", "municipal_distrital"] },
   provincial: { etiqueta: "Municipalidad provincial", tipos: ["municipal_provincial"] },
   distrital: { etiqueta: "Municipalidad distrital", tipos: ["municipal_distrital"] },
+  salud: { etiqueta: "Salud (hospitales, redes, DIRIS)", tipos: ["salud"] },
+  educacion: { etiqueta: "Educación (UGEL, DRE)", tipos: ["educacion"] },
+  universidad: { etiqueta: "Universidad pública", tipos: ["universidad"] },
+  programa: { etiqueta: "Programa o proyecto especial", tipos: ["programa"] },
+  fuerzas: { etiqueta: "Fuerzas Armadas o Policía", tipos: ["fuerzas_armadas"] },
   empresa: { etiqueta: "Empresa pública", tipos: ["empresa_publica"] },
+  beneficencia: { etiqueta: "Sociedad de beneficencia", tipos: ["beneficencia"] },
   organismo: { etiqueta: "Organismo autónomo", tipos: ["organismo_autonomo"] },
+  publico: { etiqueta: "Organismo público", tipos: ["organismo_publico"] },
   sin: { etiqueta: "Sin clasificar", tipos: ["sin"] },
 };
 
 /** Lo que dice la bajada según el orden elegido. */
 const BAJADA: Record<string, string> = {
+  contratos: "Ordenadas por cuántos contratos tienen desde 2015, con lo que otros registros dicen de cada una.",
   dictamen: "Ordenadas por cuántos de sus contratos ya tienen dictamen publicado.",
-  contratos: "Ordenadas por cuántos contratos tienen registrados.",
   nombre: "En orden alfabético.",
 };
 
@@ -54,12 +61,14 @@ const BAJADA: Record<string, string> = {
  * indicadores → barra (búsqueda + filtros) → resultados. Búsqueda, filtros, orden y página
  * viven en la URL (`?q=&clase=&region=&provincia=&partido=&control=…&orden=&pagina=`).
  *
- * El orden lo hace el API sobre toda la lista: contratos con dictamen (por defecto), contratos registrados o nombre.
+ * El orden lo hace el API sobre toda la lista: contratos desde 2015 (por defecto), contratos con dictamen o nombre.
  * Antes «Mayor monto» y «Mayor puntaje» reordenaban sólo la página a la vista (20 de 3,162) y se quitaron; un `?orden=`
- * de esos enlaces viejos se ignora.
+ * de esos enlaces viejos se ignora. Hasta el 2026-10-27 el de por defecto fue el de dictamen, con sus columnas: sólo ~180
+ * entidades tienen uno y la lista se leía vacía («0 de 426, Sin dato, Sin dato»). Ahora cada fila dice lo que toda
+ * entidad tiene (EntidadesPanel.tsx) y las cifras de arriba, lo mismo para todas.
  *
- * Filtros: a la vista el tipo (el que se MUESTRA en cada fila, lib/entidad-tipo.ts: el backend lo deriva igual del tipo
- * declarado o del nombre, porque `entidades.tipo` está casi todo en NULL), la región y el indicio de nepotismo; en
+ * Filtros: a la vista el tipo (el que se MUESTRA en cada fila, lib/entidad-tipo.ts: el backend lo deriva igual, del
+ * nombre y, si no dice nada, del tipo declarado, porque `entidades.tipo` está casi todo en NULL), la región y el indicio de nepotismo; en
  * «Filtros», la provincia, quién la gobierna (partido y captura), los informes de la Contraloría y sus personas
  * (planilla, plazas CAS). Cada opción con cuántas entidades tiene en la región, la provincia y el tipo elegidos.
  *
@@ -99,16 +108,16 @@ export default async function EntidadesPage({
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades" }]} />
       <EncabezadoPagina
         titulo="Entidades del Estado"
-        bajada={BAJADA[query.orden ?? "dictamen"]}
+        bajada={BAJADA[query.orden ?? "contratos"]}
         ayuda={
-          <Ayuda titulo="¿Qué cuenta esta lista?">
+          <Ayuda titulo="¿Qué dice cada fila?">
             <span className="block">
-              &ldquo;Con dictamen&rdquo; cuenta los contratos de la entidad leídos y publicados, tengan o no señales, sobre
-              los que tiene registrados.
+              Sus contratos en el SEACE desde 2015; cuántos los ganó alguien con antecedentes en otros registros (y cuántos con
+              alguno grave); su presupuesto del año según el MEF y los informes de la Contraloría sobre ella.
             </span>
             <span className="mt-2 block">
-              El puntaje promedio va de 0 a 100 y un contrato sin señales puntúa 0. No es una probabilidad de delito: la
-              ficha de cada entidad muestra las señales que lo explican y su ejecución presupuestal según el MEF.
+              Las banderas son lo que otros registros dicen de la entidad: indicios para revisar, no acusaciones. Cada fila
+              abre su vista previa con la evidencia; el dictamen de Vigía, cuando lo hay, también va ahí.
             </span>
           </Ayuda>
         }
@@ -126,23 +135,38 @@ export default async function EntidadesPage({
         <CifrasEnFila
           items={[
             {
-              valor: numero(resumen.conAlertas),
-              etiqueta: "entidades con dictamen publicado",
-              contexto: `de ${numero(resumen.totalEntidades)} registradas`,
+              valor: numero(resumen.totalEntidades),
+              etiqueta: "entidades del Estado",
+              contexto:
+                resumen.conContratos == null
+                  ? "que compran por el SEACE"
+                  : resumen.conContratos === resumen.totalEntidades
+                    ? "todas con contratos en el SEACE desde 2015"
+                    : `${numero(resumen.conContratos)} con contratos desde 2015`,
               ayuda: (
                 <Ayuda titulo="¿Qué cuentan estas cifras?">
                   <span className="block">
-                    Las entidades con al menos un contrato leído y publicado, con o sin señales, sobre todas las
-                    compradoras del Estado que Vigía tiene registradas.
+                    Todas las compradoras del Estado que Vigía tiene registradas y, de ellas, cuántas tienen contratos con
+                    antecedentes del ganador, informes de la Contraloría o un dictamen de Vigía publicado.
                   </span>
-                  <span className="mt-2 block text-mute">Son cifras de toda la base: no cambian con la búsqueda.</span>
+                  <span className="mt-2 block text-mute">Son cifras de toda la base: no cambian con la búsqueda ni con los filtros.</span>
                 </Ayuda>
               ),
             },
             {
-              valor: solesCompacto(resumen.monto),
-              etiqueta: "adjudicado en contratos con dictamen",
-              contexto: `de ${plural(resumen.conAlertas, "entidad", "entidades")}`,
+              valor: resumen.conAntecedentes != null ? numero(resumen.conAntecedentes) : null,
+              etiqueta: "con antecedentes del ganador",
+              contexto: resumen.conGraves != null ? `en algún contrato; ${numero(resumen.conGraves)} con alguno grave` : "en algún contrato",
+            },
+            {
+              valor: resumen.conInformes != null ? numero(resumen.conInformes) : null,
+              etiqueta: "con informes de la Contraloría",
+              contexto: "con responsabilidad presunta de sus funcionarios",
+            },
+            {
+              valor: numero(resumen.conAlertas),
+              etiqueta: "con dictamen publicado",
+              contexto: `${solesCompacto(resumen.monto)} adjudicados en esos contratos`,
             },
           ]}
         />
@@ -258,7 +282,7 @@ function BarraEntidades({
         },
       ]}
       filtros={filtros}
-      orden={{ param: "orden", porDefecto: "dictamen", opciones: ORDENES_ENTIDADES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
+      orden={{ param: "orden", porDefecto: "contratos", opciones: ORDENES_ENTIDADES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
     />
   );
 }

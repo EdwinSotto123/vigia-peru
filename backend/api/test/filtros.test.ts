@@ -39,7 +39,7 @@ test("entidades: tipo, provincia, partido, Contraloría, planilla, plazas y orde
   const q = ListQuery.parse({ clase: "distrital", provincia: "1501", partido: "ALIANZA PARA EL PROGRESO", control: "penal", planilla: "alta", plazas: "senales", captura: "1", orden: "nombre" });
   const { conds, vals } = filtrosEntidades(q, "es", "es.nombre_norm");
   assert.equal(q.orden, "nombre");
-  assert.ok(conds.some((c) => c.includes("= 'municipal_distrital'")));
+  assert.ok(conds.some((c) => c.includes("IN ('municipal_distrital')")));
   assert.ok(conds.some((c) => c.startsWith("left(es.ubigeo, 4) = $")));
   assert.ok(conds.some((c) => c.includes("poder_entidad pp") && c.includes("pp.partido = $")));
   assert.ok(conds.some((c) => c.includes("'penal' = ANY (i.responsabilidades)")));
@@ -51,10 +51,11 @@ test("entidades: tipo, provincia, partido, Contraloría, planilla, plazas y orde
 
 test("entidades: los valores viejos de `clase` siguen valiendo; lo desconocido, no", () => {
   for (const c of ["ministerio", "regional", "municipal", "organismo", "provincial", "empresa", "sin"]) assert.ok(ListQuery.safeParse({ clase: c }).success, c);
-  assert.equal(ListQuery.safeParse({ clase: "universidad" }).success, false);
+  assert.equal(ListQuery.safeParse({ clase: "club" }).success, false);
   assert.equal(ListQuery.safeParse({ provincia: "15" }).success, false);
   assert.equal(ListQuery.safeParse({ orden: "puntaje" }).success, false);
-  assert.equal(ListQuery.parse({}).orden, "dictamen");
+  // Por contratos desde el 2026-10-27 (con dictamen hay ~180 de 3,162); `orden=dictamen` sigue valiendo.
+  assert.equal(ListQuery.parse({}).orden, "contratos");
 });
 
 test("entidades: el nepotismo mira la lista ya calculada; sin ella, la condición va entidad por entidad", () => {

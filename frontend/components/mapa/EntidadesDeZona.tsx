@@ -96,7 +96,8 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
     const ctrl = new AbortController();
     setError(false);
     setPagina(null);
-    const qs = new URLSearchParams({ region, limit: String(POR_PAGINA), offset: String((numPagina - 1) * POR_PAGINA) });
+    // El orden por dictamen, explícito: el de por defecto de la API pasó a ser por contratos (2026-10-27).
+    const qs = new URLSearchParams({ region, orden: "dictamen", limit: String(POR_PAGINA), offset: String((numPagina - 1) * POR_PAGINA) });
     if (qDebounced) qs.set("q", qDebounced);
     fetch(`${PUBLIC_API_BASE}/entidades?${qs}`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))

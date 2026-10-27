@@ -26,7 +26,7 @@ import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
-import { AntecedentesEmpresa, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
+import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -123,7 +123,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     q: texto(sp?.[P_CONTRATOS.q]), anio: anio(sp?.[P_CONTRATOS.anio]), como: de(sp?.[P_CONTRATOS.como], ["sola", "consorcio"] as const),
     entidad: ruc11(sp?.[P_CONTRATOS.entidad]), objeto: de(sp?.[P_CONTRATOS.objeto], OBJETOS), familia: corta(sp?.[P_CONTRATOS.familia]),
     departamento: corta(sp?.[P_CONTRATOS.departamento]),
-    bandera: de(sp?.[P_CONTRATOS.bandera], ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const),
+    bandera: de(sp?.[P_CONTRATOS.bandera], BANDERAS_CONTRATO),
+    dudoso: uno(sp?.[P_CONTRATOS.dudoso]) === "si" ? "si" : undefined,
     cruce: uno(sp?.[P_CONTRATOS.cruce])?.match(/^[a-z_]{2,40}$/)?.[0],
     orden: de(sp?.[P_CONTRATOS.orden], ["reciente", "antiguo", "monto", "monto_asc"] as const),
     page: pagina(sp?.[P_CONTRATOS.page]),

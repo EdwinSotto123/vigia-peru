@@ -21,6 +21,7 @@ import { cachePublico } from "../lib/http.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { registrar } from "../lib/registro.js";
 import { alertaPublica, convocatoriaNoDemo } from "../lib/publicacion.js";
+import { NOMBRE_VALIDO } from "./entidades.js";
 import { palabrasBusqueda } from "./personas.js";
 
 export const buscarRouter = new Hono();
@@ -85,37 +86,47 @@ buscarRouter.get("/", async (c) => {
             WHERE ${convocatoriaNoDemo("c")}
             ORDER BY top.r DESC, c.fecha_convocatoria DESC NULLS LAST, c.ocid LIMIT 5`,
           [q]).catch(vacio("contratos")),
-    // Entidades: RUC exacto o nombre (sin tildes), con sus contratos ya contados.
+    // Entidades: RUC exacto o nombre (sin tildes), con sus contratos ya contados. Sin las de nombre inválido («nan»).
     (modelos
       ? pool.query(
           `SELECT es.ruc, es.nombre, es.tipo, es.region, es.contratos
              FROM entidad_stats es
-            WHERE ($2::boolean AND es.ruc = $1) OR (NOT $2::boolean AND es.nombre_norm LIKE immutable_unaccent($3))
+            WHERE (($2::boolean AND es.ruc = $1) OR (NOT $2::boolean AND es.nombre_norm LIKE immutable_unaccent($3)))
+              AND ${NOMBRE_VALIDO("es.nombre_norm")}
             ORDER BY es.contratos DESC, es.nombre, es.ruc LIMIT 5`, [q, esRuc, like])
       : pool.query(
           `SELECT e.ruc, e.nombre, e.tipo, e.region,
                   (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc AND ${convocatoriaNoDemo("c")})::int AS contratos
              FROM entidades e
-            WHERE ($2::boolean AND e.ruc = $1) OR (NOT $2::boolean AND immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($3))
+            WHERE (($2::boolean AND e.ruc = $1) OR (NOT $2::boolean AND immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($3)))
+              AND ${NOMBRE_VALIDO("immutable_unaccent(lower(e.nombre))")}
             ORDER BY contratos DESC, e.nombre LIMIT 5`, [q, esRuc, like])
     ).catch(vacio("entidades")),
     // Empresas (RUC 20, migración 109): RUC exacto o las palabras del nombre (trigramas sobre `texto`). Sin puntaje: no se
-    // muestra sin el desglose que lo explica.
+    // muestra sin el desglose que lo explica. Una entidad del Estado que también recibió órdenes (una municipalidad a la
+    // que le compra otra entidad) va en «Entidades», no aquí: antes la Municipalidad de Cayma salía como empresa «de
+    // Lima» (el lugar donde más vende).
     /^20\d{9}$/.test(q) || palabras.length
       ? pool.query(
           `SELECT e.ruc, e.nombre, e.departamento, (e.adj_procesos + e.cons_procesos)::int AS contratos, e.ord_n AS ordenes
              FROM empresa_resumen e
             WHERE ${/^20\d{9}$/.test(q) ? "e.ruc = $1" : palabras.map((_, i) => `e.texto LIKE $${i + 1}`).join(" AND ")}
+              AND NOT EXISTS (SELECT 1 FROM entidades x WHERE x.ruc = e.ruc::bpchar)
             ORDER BY (e.adj_monto + e.cons_monto + e.ord_monto) DESC, e.ruc LIMIT 5`,
           /^20\d{9}$/.test(q) ? [q] : palabras.map((w) => `%${w}%`)).catch(vacio("empresas"))
       : Promise.resolve({ rows: [] as any[] }),
-    // Zonas: departamentos primero, luego provincias/distritos con cola.
+    // Zonas: departamentos primero, luego provincias/distritos con cola; con su provincia y su región (la ficha de la
+    // región abre ahí su lista de provincias y distritos, ya buscada).
     pool.query(
-      `SELECT z.ubigeo, z.nombre, z.nivel, COALESCE(ze.total_cola, 0)::int AS "totalCola", COALESCE(ze.financiados, 0)::int AS financiados
+      `SELECT z.ubigeo, z.nombre, z.nivel, COALESCE(ze.total_cola, 0)::int AS "totalCola", COALESCE(ze.financiados, 0)::int AS financiados,
+              (SELECT p.nombre FROM zonas p WHERE p.ubigeo = left(z.ubigeo, 4) AND length(z.ubigeo) = 6) AS provincia,
+              (SELECT d.nombre FROM zonas d WHERE d.ubigeo = left(z.ubigeo, 2) AND length(z.ubigeo) > 2) AS departamento
        FROM zonas z LEFT JOIN zona_estado ze ON ze.ubigeo = z.ubigeo
        WHERE immutable_unaccent(lower(z.nombre)) LIKE immutable_unaccent($1)
-       ORDER BY CASE z.nivel WHEN 'departamento' THEN 0 WHEN 'provincia' THEN 1 ELSE 2 END, "totalCola" DESC, z.nombre LIMIT 5`,
-      [like]).catch(vacio("zonas")),
+       -- El lugar que se llama exactamente así va primero («Cayma» antes que «Chilcaymarca»).
+       ORDER BY (immutable_unaccent(lower(z.nombre)) = immutable_unaccent($2)) DESC,
+                CASE z.nivel WHEN 'departamento' THEN 0 WHEN 'provincia' THEN 1 ELSE 2 END, "totalCola" DESC, z.nombre LIMIT 5`,
+      [like, q.toLowerCase()]).catch(vacio("zonas")),
     // Aportes (comprobantes públicos): solo por código.
     esAporte
       ? pool.query(

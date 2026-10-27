@@ -1,46 +1,54 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, Flag, Hash, MapPin } from "lucide-react";
-import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
+import { Building2, CloudOff, ExternalLink, Flag, Hash, MapPin } from "lucide-react";
+import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
-import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
 import { normalizar } from "@/lib/partidos";
-import { TIPO_CRUCE } from "@/lib/cruces";
 import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
-import { ORDENES, contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
+import { contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
+import { getConteosEntidad, getEntidad } from "@/lib/api-client";
+import { parseMenoresQuery, P_MEN } from "@/lib/menores";
+import { parseOrdenesQuery, P_ORD } from "@/lib/ordenes";
+import { PARAMS_EN_FICHA } from "@/lib/personas";
+import { rutaRegion } from "@/lib/regiones";
+import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
-import { getEntidad } from "@/lib/api-client";
-import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
-import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
-import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
+import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
 import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";
-import { CRUCE_CAPTURA } from "@/components/entidad/CapturaEntidad";
+import { AyudaCompras, ComprasEntidad, TAM, VISTAS, type VistaCompras } from "@/components/entidad/ComprasEntidad";
+import { MarcoFicha } from "@/components/entidad/MarcoFicha";
+import { Acciones, Diferida, EsqueletoPestana, PestanaVacia } from "@/components/entidad/PestanasEntidad";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
-import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
-import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
-import { PARAMS_EN_FICHA } from "@/lib/personas";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
- *   volver → identidad (nombre; tipo, RUC y zona; financiar, denunciar, seguir) → tres cifras (contratos y lo leído,
- *   antecedentes de los ganadores, presupuesto; cada una abre su pestaña o su filtro) → pestañas (`?seccion=`):
- *     · Inicio: qué se encontró (banderas, con la captura política), dinero y control, con la columna lateral de quién
- *       la gobierna y quién aprueba sus contratos (components/inicio/InicioEntidad.tsx).
- *     · Contratos: TODOS los suyos desde 2015 (con su ganador), con los filtros de /app/contratos ("¿Lo leyó Vigía?",
- *       antecedentes, riesgo, año…) y la misma tabla; la URL guarda el filtro.
+ *   volver → identidad (nombre; tipo, RUC y zona; financiar, denunciar, seguir) → pestañas (`?seccion=`), cada una con su
+ *   número y las vacías al final:
+ *     · Inicio: sus cifras (contratos y lo leído, antecedentes de los ganadores, órdenes, presupuesto; cada una abre su
+ *       pestaña o su filtro), qué se encontró (banderas, con la captura política), dinero y control, con la columna
+ *       lateral de quién la gobierna y quién aprueba sus contratos (components/inicio/InicioEntidad.tsx).
+ *     · Contratos: lo que compró, en tres vistas (`?vista=`): sus convocatorias desde 2015 (con los filtros de
+ *       /app/contratos; la URL guarda el filtro), sus órdenes de compra y de servicio y sus contratos menores
+ *       (components/entidad/ComprasEntidad.tsx).
+ *     · Personas contratadas, Planilla y Plazas CAS: quiénes trabajan para ella, por órdenes, en planilla o por concurso.
  *     · Cuánto gasta: presupuesto del MEF de su unidad ejecutora (migración 62) y en qué lo gasta (63).
  *     · Control: todos los informes de la Contraloría sobre ella (en el Inicio van las cifras y los tres últimos).
+ *   Una pestaña sin nada muestra su título y UN estado vacío que dice por qué y dónde mirar. La abierta se arma primero;
+ *   las demás después, en la misma respuesta (`Diferida`), así que cambiar de pestaña sigue siendo instantáneo.
  *
  * Historia: la primera versión listaba sólo los contratos con dictamen (4 de 271) y tenía una pestaña con los mismos
  * contratos para los antecedentes (hoy columna y filtro). La segunda fue una página larga con un índice que sólo
@@ -48,7 +56,10 @@ import { PARAMS_EN_FICHA } from "@/lib/personas";
  * "Contratos en Vigía" y "Procesos desde 2015" (CONOSCE) por separado y las órdenes fraccionadas bajo "Cuánto gasta":
  * con la historia del OECE en la base son una sola lista, y el fraccionamiento es un antecedente de cada contrato
  * (filtro Antecedentes y la ficha del contrato), no un gasto. Hubo una pestaña "Denuncias" cuyo único contenido era el
- * mismo botón "Denunciar" de la cabecera (el formulario ya explica que la denuncia queda en reserva): se quitó.
+ * mismo botón "Denunciar" de la cabecera (el formulario ya explica que la denuncia queda en reserva): se quitó. La
+ * cuarta (auditoría del 2026-10-26) tenía siempre ocho pestañas, sólo Contratos con número: «Menores» estaba vacía en 14
+ * de 14 fichas y las vacías mostraban tarjetas en 0 antes de decirlo; las órdenes no estaban, y las cifras de arriba se
+ * repetían en todas las pestañas (en el celular, el primer contrato quedaba debajo de la primera pantalla).
  */
 
 /** Lo que la ficha usa de la entidad (`GET /entidades/:ruc`). Sin respuesta del API, se arma con lo que sí llegó. */
@@ -64,7 +75,14 @@ interface EntidadFicha {
   contratosEnCola?: number | null;
 }
 
-const TAM = 20;
+type Busqueda = Record<string, string | string[] | undefined> | undefined;
+
+/** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
+const ETIQUETAS: Record<string, string> = { contratos: "Contratos", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
+/** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
+const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
+const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
+const BUSCADOR_CONTRALORIA = "https://buscadorinformes.contraloria.gob.pe/";
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const r = await getEntidad(params.ruc).catch(() => null);
@@ -72,26 +90,35 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
   return { title: nombre ? tituloNatural(nombre) : `Entidad ${params.ruc}` };
 }
 
+/** Las que cumplen `vacia`, al final, cada grupo en su orden. */
+const alFinal = <T,>(xs: readonly T[], vacia: (x: T) => boolean): T[] => [...xs.filter((x) => !vacia(x)), ...xs.filter(vacia)];
+
 export default async function EntidadProfile({
   params,
   searchParams,
 }: {
   params: { ruc: string };
-  /** Los filtros de su lista de contratos (los mismos parámetros que /app/contratos). */
-  searchParams?: Record<string, string | string[] | undefined>;
+  /** Los filtros de sus listas (los de contratos, con los mismos parámetros que /app/contratos). */
+  searchParams?: Busqueda;
 }) {
   const ruc = params.ruc;
   const ruta = `/entidad/${ruc}`;
+  // «Menores» era una pestaña; hoy es una vista de Contratos. El enlace viejo lleva a la vista, con sus filtros.
+  if (uno(searchParams?.seccion) === "menores") redirect(conCambios(ruta, searchParams, { seccion: "contratos", vista: "menores" }));
   const desde = leerDesde(searchParams);
   // La entidad la fija la ruta: de la URL sólo se leen los demás filtros (zona y partido no aplican).
   const query: ContratosQuery = { ...parseContratosQuery(searchParams), entidad: ruc, ubigeo: undefined, partido: undefined };
   const parametros = contratosParametros({ ...query, entidad: undefined });
   const filtrada = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
+  // Sus órdenes y sus contratos menores, también por la ruta: con sus filtros «o» y «m», sin la entidad ni la región.
+  const fo = { ...parseOrdenesQuery(searchParams), entidad: undefined, region: undefined };
+  const fm = { ...parseMenoresQuery(searchParams), entidad: undefined, proveedor: undefined };
 
-  // Todo arranca a la vez; la lista y su barra esperan cada una lo suyo (`Suspense`).
-  const pagina = getContratos({ ...query, size: TAM });
+  // Lo que esperan la cabecera y la barra de pestañas, todo a la vez: la entidad, el resumen de sus contratos (las cifras
+  // y el Inicio) y cuántas filas tiene cada pestaña (su número y su orden). Lo demás lo pide cada pestaña.
   const resumenFiltrado = getResumenContratos(query);
   const resumenEntidadP = filtrada ? getResumenContratos({ entidad: ruc }) : resumenFiltrado;
+  const conteosP = getConteosEntidad(ruc);
   // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con datos inventados; después, si `GET /entidades`
   // fallaba no se mostraba NADA, aunque sus contratos, la captura o la Contraloría sí respondían. Ahora: RUC
   // desconocido, 404; sin respuesta de la entidad pero con contratos suyos en la base (existe), la ficha se arma con lo
@@ -107,83 +134,309 @@ export default async function EntidadProfile({
   }
   if (!falloEntidad && !apiResp?.entidad) notFound();
 
-  const resumenEntidad = await resumenEntidadP;
+  const [resumenEntidad, conteos] = await Promise.all([resumenEntidadP, conteosP]);
   let e: EntidadFicha | undefined = apiResp?.entidad;
   if (!e) {
     if (!resumenEntidad?.total) return <NoSePudoLeer ruc={ruc} />;
-    const primera = await pagina;
+    // El mismo pedido que la lista de contratos (Next lo hace una vez).
+    const primera = await getContratos({ ...query, size: TAM });
     e = { ruc, nombre: primera?.data.find((c) => c.entidadRuc === ruc && c.entidad)?.entidad ?? null, contratos: resumenEntidad.total };
   }
   const nombre = e.nombre ? tituloNatural(String(e.nombre)) : `Entidad con RUC ${ruc}`;
   const region: string | null = e.region || null;
+  const dep = e.ubigeo?.slice(0, 2) || null;
   const enCola = Number(e.contratosEnCola || 0);
   const totalContratos = resumenEntidad?.total ?? Number(e.contratos || 0);
   const regionDenuncias = region ? REGIONES.find((r) => normalizar(r.nombre) === normalizar(region))?.nombre : undefined;
+  const mef = apiResp?.mef ?? null;
+  const empresaDelEstado = tipoEntidad(e.tipo ?? null, e.nombre) === "empresa_publica" || SOCIEDAD.test(e.nombre ?? "");
+  // La OECE la registra fuera del SIAF (FONAFE, EsSalud, EPS…): su presupuesto no está en los datos abiertos del MEF.
+  const fueraSiaf = mef?.fueraSiaf === true;
+  const tipoVisible = etiquetaTipoVisible(e.tipo ?? null, e.nombre);
 
-  // Un enlace con filtros de la lista y sin pestaña (`?mes=2016`, `?cruces=con` desde otras páginas) abre los contratos,
-  // no el Inicio.
+  // Cuántas filas tiene cada pestaña. null = sin dato (la API no respondió): la pestaña va sin número y en su lugar,
+  // nunca como vacía. Las órdenes, null también si las tiene pero aún no están contadas (migración 148).
+  const n = {
+    contratos: resumenEntidad ? resumenEntidad.total : e.contratos != null ? Number(e.contratos) : null,
+    ordenes: conteos ? conteos.ordenes : null,
+    menores: conteos?.menores ?? null,
+    personas: conteos?.personas ?? null,
+    planilla: conteos?.planilla ?? null,
+    plazas: conteos?.plazas ?? null,
+    informes: conteos?.informes ?? null,
+  };
+  // Sin presupuesto del MEF sólo si la entidad respondió (sin respuesta, no se sabe).
+  const sinMef = !falloEntidad && !(mef?.kind === "ok" && mef.by_year?.length);
+  const sinCompras = VISTAS.every((v) => n[v] === 0);
+  const vacias = new Set<string>(
+    [sinCompras && "contratos", n.personas === 0 && "personas", n.planilla === 0 && "planilla", n.plazas === 0 && "plazas", sinMef && "presupuesto", n.informes === 0 && "control"].filter(
+      (x): x is string => !!x,
+    ),
+  );
+
+  // La pestaña abierta: la de la URL o, sin ella, la lista que traen sus filtros (`?mes=2016`, `?cruces=con` desde otras
+  // páginas abren los contratos, no el Inicio). Y dentro de Contratos, la vista: la de la URL, la de sus filtros o la
+  // primera (las vacías van al final).
   const con = (nombres: readonly string[]) => nombres.some((k) => typeof searchParams?.[k] === "string");
+  const vistaPorFiltros: VistaCompras | undefined = con(Object.values(P_ORD))
+    ? "ordenes"
+    : con(Object.values(P_MEN))
+      ? "menores"
+      : filtrada || con(["page", "cursor", "antes"])
+        ? "contratos"
+        : undefined;
+  const ordenVistas = alFinal(VISTAS, (v) => n[v] === 0);
+  const vista = VISTAS.find((v) => v === uno(searchParams?.vista)) ?? vistaPorFiltros ?? ordenVistas[0];
   const seccion =
-    (typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined) ??
-    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_PLANILLA)) ? "planilla" : con(Object.values(P_PLAZAS)) ? "plazas" : filtrada ? "contratos" : undefined);
-  // "Inicio" es la primera pestaña (sin `seccion` en la URL): la lista de contratos lleva la suya en sus enlaces
-  // (paginación, filtros), o volverían a Inicio.
-  const parametrosLista: Parametros = { ...parametros, seccion: "contratos" };
-  // Contratos menores (≤8 UIT) de esta entidad: por su RUC, con los filtros «m» propios.
-  const fm = { ...parseMenoresQuery(searchParams), entidad: undefined, proveedor: undefined };
-  const pmMenores: Parametros = { seccion: "menores" };
-  for (const [k, key] of Object.entries(P_MEN)) {
-    if (k === "page") continue;
-    const v = (fm as Record<string, unknown>)[k];
-    if (v != null) pmMenores[key] = String(v);
-  }
-  const menoresP = getMenores({ ...fm, entidad: e.ruc, size: 25 });
+    uno(searchParams?.seccion) ??
+    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_PLANILLA)) ? "planilla" : con(Object.values(P_PLAZAS)) ? "plazas" : vistaPorFiltros ? "contratos" : "inicio");
+
+  const enlace = (s: string, extra: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: s, ...extra })}`;
+  const accion = (href: string, texto: string) => (
+    <Link href={href} prefetch={false} className={CLASE_ACCION_LISTA}>
+      {texto}
+    </Link>
+  );
+  const externa = (href: string, texto: string) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={`${CLASE_ACCION_LISTA} gap-1.5`}>
+      {texto} <ExternalLink size={13} aria-hidden />
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+
+  const todas: Pestana[] = [
+    {
+      clave: "inicio",
+      etiqueta: "Inicio",
+      // Las cifras → qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide.
+      // Cada parte espera lo suyo (Suspense adentro).
+      contenido: (
+        <InicioEntidad
+          ruc={e.ruc}
+          ruta={ruta}
+          cifras={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef, ordenes: n.ordenes, ordenesMonto: conteos?.ordenesMonto ?? null, ruta })}
+          resumen={resumenEntidad}
+          enCola={enCola}
+          conteos={conteos}
+          region={region}
+          ubigeo={e.ubigeo ?? null}
+          regionDenuncias={regionDenuncias}
+          nepotismo={apiResp?.nepotismo ?? null}
+          fueraDelMef={fueraSiaf || empresaDelEstado}
+        />
+      ),
+    },
+    {
+      clave: "contratos",
+      etiqueta: "Contratos",
+      // Sin número propio: son tres listas que no se suman (cada vista lleva el suyo). Sin ninguna, 0.
+      conteo: sinCompras ? 0 : null,
+      contenido: sinCompras ? (
+        <PestanaVacia titulo="No registra compras" ayuda={<AyudaCompras />} accion={!sinMef ? accion(enlace("presupuesto"), "Ver cuánto gasta") : undefined}>
+          Ni el OECE ni el SEACE tienen compras con su RUC: ni convocatorias desde 2015, ni órdenes de compra o de servicio desde
+          2018, ni contratos menores.
+        </PestanaVacia>
+      ) : (
+        <ComprasEntidad
+          ruc={e.ruc}
+          ruta={ruta}
+          orden={ordenVistas}
+          activa={vista}
+          conteo={{ contratos: n.contratos, ordenes: n.ordenes, menores: n.menores }}
+          menoresDesde={conteos?.menoresDesde ?? null}
+          contratos={{ query, parametros, resumen: resumenFiltrado }}
+          ordenes={fo}
+          menores={fm}
+        />
+      ),
+    },
+    {
+      clave: "personas",
+      etiqueta: "Personas contratadas",
+      conteo: n.personas,
+      contenido: vacias.has("personas") ? (
+        <PestanaVacia
+          titulo="No registra órdenes de servicio a personas"
+          ayuda={<AyudaPersonas />}
+          accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : n.ordenes !== 0 ? accion(enlace("contratos", { vista: "ordenes" }), "Ver sus órdenes") : undefined}
+        >
+          CONOSCE (OECE) no tiene órdenes de servicio de esta entidad a personas naturales (RUC 10) desde 2018.
+        </PestanaVacia>
+      ) : (
+        <div className="space-y-4">
+          <CabeceraPestana ayuda={<AyudaPersonas />}>A quién le dio órdenes de servicio como persona, cuánto le pagó y qué dicen de cada una otros registros.</CabeceraPestana>
+          <ListaPersonas alcance={{ entidad: e.ruc }} sp={searchParams} P={PARAMS_EN_FICHA} ruta={ruta} base={{ seccion: "personas" }} deEntidad conIndicadores />
+        </div>
+      ),
+    },
+    {
+      clave: "planilla",
+      etiqueta: "Planilla",
+      conteo: n.planilla,
+      contenido: vacias.has("planilla") ? (
+        <PestanaVacia titulo="Sin planilla publicada" ayuda={<AyudaPlanilla />} accion={n.personas ? accion(enlace("personas"), "Ver a las personas que contrató") : undefined}>
+          La entidad no publicó su personal en el Portal de Transparencia en los meses cargados, o aún no lo encontramos.
+        </PestanaVacia>
+      ) : (
+        <div className="space-y-4">
+          <CabeceraPestana ayuda={<AyudaPlanilla />}>Quiénes trabajan en la entidad, cuánto cobran y qué dicen de cada uno otros registros.</CabeceraPestana>
+          <ListaPlanilla alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "planilla" }} deEntidad />
+        </div>
+      ),
+    },
+    {
+      clave: "plazas",
+      etiqueta: "Plazas CAS",
+      conteo: n.plazas,
+      contenido: vacias.has("plazas") ? (
+        empresaDelEstado ? (
+          <PestanaVacia titulo="Las empresas del Estado no convocan plazas CAS" ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
+            El régimen CAS (D. Leg. 1057) no se aplica a las empresas del Estado: su personal está en el régimen laboral privado.
+          </PestanaVacia>
+        ) : (
+          <PestanaVacia titulo="Sin plazas CAS publicadas" ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
+            No encontramos convocatorias CAS de esta entidad en SERVIR Talento Perú
+            {conteos?.plazasDesde ? ` desde el ${fecha(conteos.plazasDesde)}, cuando Vigía empezó a guardarlas` : " desde que Vigía empezó a guardarlas"}.
+          </PestanaVacia>
+        )
+      ) : (
+        <div className="space-y-4">
+          <CabeceraPestana ayuda={<AyudaPlazas />}>Las plazas CAS que convocó, con lo que pedían y lo que pagaban.</CabeceraPestana>
+          <ListaPlazas alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "plazas" }} deEntidad />
+        </div>
+      ),
+    },
+    {
+      clave: "presupuesto",
+      etiqueta: "Cuánto gasta",
+      contenido: sinMef ? (
+        empresaDelEstado || fueraSiaf ? (
+          <PestanaVacia titulo={empresaDelEstado ? "Las empresas del Estado no están en el presupuesto del MEF" : "Esta entidad no está en el presupuesto público del MEF"}>
+            {fueraSiaf
+              ? "El registro de entidades de la OECE la marca fuera del SIAF, el sistema con el que el MEF registra el gasto público (pasa con las empresas de FONAFE, EsSalud y las EPS de agua): su presupuesto no sale en los datos abiertos del MEF."
+              : "Su presupuesto no es parte del presupuesto público que el MEF publica por unidad ejecutora."}
+          </PestanaVacia>
+        ) : (
+          <PestanaVacia titulo="No encontramos su presupuesto en el MEF" accion={externa(CONSULTA_AMIGABLE, "Buscarla en la Consulta Amigable")}>
+            No coincidió con ninguna unidad ejecutora del presupuesto público: puede figurar con otro nombre en el MEF o no
+            ejecutar presupuesto propio.
+          </PestanaVacia>
+        )
+      ) : (
+        <div>
+          <CabeceraPestana>Su presupuesto de cada año, en qué lo gasta y cuánto ya gastó, según el MEF.</CabeceraPestana>
+          {/* El MEF llega por streaming: la pestaña muestra su esqueleto hasta que responde. */}
+          <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
+            <EjecucionPresupuestal query={mefSearchKeywordFor(String(e.nombre ?? ""))} ruc={e.ruc} />
+          </Suspense>
+        </div>
+      ),
+    },
+    {
+      // La tabla entera de la Contraloría (en el Inicio van sus cifras y los tres últimos informes). Ocupaba ~1,850
+      // px del Inicio.
+      clave: "control",
+      etiqueta: "Control",
+      titulo: "Informes de la Contraloría",
+      conteo: n.informes,
+      contenido: vacias.has("control") ? (
+        <PestanaVacia
+          titulo="Sin informes de control"
+          ayuda={<AyudaControl />}
+          accion={
+            <Acciones>
+              {dep && accion(rutaRegion(dep), `Ver los casos de ${region ?? "su región"}`)}
+              {externa(BUSCADOR_CONTRALORIA, "Buscador de la Contraloría")}
+            </Acciones>
+          }
+        >
+          La Contraloría no tiene informes con responsabilidad sobre esta entidad en su buscador. Lo comprobado (casos con
+          sentencia firme) lo publica la Procuraduría Anticorrupción por departamento.
+        </PestanaVacia>
+      ) : (
+        <div>
+          <CabeceraPestana ayuda={<AyudaControl />}>Todos sus informes de control, con la responsabilidad presunta que señalan. Cada fila abre el informe oficial.</CabeceraPestana>
+          <Suspense
+            fallback={
+              <div className="space-y-4">
+                <IndicadoresSkeleton n={4} />
+                <TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />
+              </div>
+            }
+          >
+            <InformesEntidad ruc={e.ruc} />
+          </Suspense>
+        </div>
+      ),
+    },
+  ];
+  // La abierta se arma ya; las demás, después de lo suyo (Diferida) y con su esqueleto por si alguien las abre antes. Una
+  // vacía no pide nada: va tal cual.
+  const activa = todas.some((p) => p.clave === seccion) ? seccion : "inicio";
+  const pestanas = alFinal(todas, (p) => vacias.has(p.clave)).map((p) =>
+    p.clave === activa || vacias.has(p.clave)
+      ? p
+      : {
+          ...p,
+          contenido: (
+            <Suspense fallback={<Espera clave={p.clave} />}>
+              <Diferida>{p.contenido}</Diferida>
+            </Suspense>
+          ),
+        },
+  );
 
   return (
     <Pagina>
       <Migas
         items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }])}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", menores: "Menores", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" } }}
+        pestanas={{ primera: "inicio", activa, etiquetas: ETIQUETAS }}
       />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. Una acción primaria
           (financiar su lectura, si tiene cola) y el resto compacto: antes eran cuatro botones del mismo peso, uno por
-          renglón en el celular. "Sus proveedores" pasó a "Sus contratos" y a "Ver también" del Inicio. */}
-      <EncabezadoPagina
-        titulo={nombre}
-        bajada={
-          <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="inline-flex items-center gap-1.5">
-              <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, e.nombre)}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Hash size={14} className="shrink-0 text-mute" aria-hidden /> RUC{" "}
-              <span className="font-mono text-ink" translate="no">
-                {e.ruc}
-              </span>
-            </span>
-            {region && (
+          renglón en el celular. "Sus proveedores" pasó a "Sus contratos" y a "Ver también" del Inicio. Fuera del Inicio,
+          en el celular, sin la línea de tipo, RUC y zona (MarcoFicha): la lista empieza en la primera pantalla. */}
+      <MarcoFicha activa={activa} primera="inicio">
+        <EncabezadoPagina
+          titulo={nombre}
+          bajada={
+            <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1 max-sm:group-data-[compacta]/ficha:hidden">
+              {/* Sin tipo que se pueda inferir del nombre, no se muestra (antes, «Entidad del Estado», que no dice nada). */}
+              {tipoVisible && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {tipoVisible}
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
-                <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+                <Hash size={14} className="shrink-0 text-mute" aria-hidden /> RUC{" "}
+                <span className="font-mono text-ink" translate="no">
+                  {e.ruc}
+                </span>
               </span>
-            )}
-          </span>
-        }
-        acciones={
-          <>
-            {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
-            {enCola > 0 && (
-              <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
-                Financiar su auditoría
+              {region && (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </span>
+          }
+          acciones={
+            <>
+              {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
+              {enCola > 0 && (
+                <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
+                  Financiar su auditoría
+                </EnlaceAccion>
+              )}
+              <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">
+                <Flag size={14} aria-hidden /> Denunciar
               </EnlaceAccion>
-            )}
-            <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">
-              <Flag size={14} aria-hidden /> Denunciar
-            </EnlaceAccion>
-            <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
-          </>
-        }
-      />
+              <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
+            </>
+          }
+        />
+      </MarcoFicha>
 
       {/* La entidad no respondió pero sus contratos sí: se dice qué falta, una vez, y se sigue con lo que llegó. */}
       {falloEntidad && (
@@ -192,219 +445,50 @@ export default async function EntidadProfile({
         </AvisoEnLinea>
       )}
 
-      {/* 2. Lo que se sabe de ella, en tres cifras; cada una abre su pestaña o su filtro. */}
-      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp?.mef ?? null, ruta })} />
-
-      {/* 3. Pestañas, como la ficha de un contrato (?seccion=). `key`: un enlace de las cifras de arriba a otra pestaña
+      {/* 2. Pestañas, como la ficha de un contrato (?seccion=). `key`: un enlace de las cifras del Inicio a otra pestaña
           la abre (sin la clave, la pestaña ya montada no cambiaba). */}
-      <Pestanas
-        fija
-        key={seccion ?? "inicio"}
-        etiqueta="Secciones de la entidad"
-        activa={seccion}
-        pestanas={[
-          {
-            clave: "inicio",
-            etiqueta: "Inicio",
-            // Qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide. Cada parte
-            // espera lo suyo (Suspense adentro).
-            contenido: (
-              <InicioEntidad
-                ruc={e.ruc}
-                ruta={ruta}
-                resumen={resumenEntidad}
-                enCola={enCola}
-                region={region}
-                ubigeo={e.ubigeo ?? null}
-                regionDenuncias={regionDenuncias}
-                nepotismo={apiResp?.nepotismo ?? null}
-              />
-            ),
-          },
-          {
-            clave: "contratos",
-            etiqueta: "Contratos",
-            conteo: totalContratos,
-            contenido: (
-              <div className="space-y-4">
-                {/* Sólo el título y su ⓘ: la bajada repetía la pestaña y, con la barra de filtros, el primer contrato
-                    quedaba a 1.6 pantallas en el celular. */}
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿Qué contratos hay aquí?">
-                      <span className="block">
-                        Todas sus convocatorias desde 2015, con su ganador y lo que se le adjudicó (registro OCDS del OECE),
-                        lo que leyó Vigía y los antecedentes de quien ganó. Las de 2026 entran a la cola de lectura; «¿Lo
-                        leyó Vigía?» filtra las que ya se leyeron.
-                      </span>
-                      <span className="mt-2 block">
-                        Cada fila abre su resumen; el dossier completo, con el dictamen si ya se leyó, está en su ficha.
-                        Los antecedentes salen del cruce automático de datos públicos: son motivos para revisar, no pruebas.
-                      </span>
-                    </Ayuda>
-                  }
-                />
-                <Listado ruta={ruta} parametros={parametrosLista} paramPagina="page">
-                  <Suspense fallback={<BarraEntidad resumen={null} parametros={parametrosLista} />}>
-                    <BarraConConteos resumen={resumenFiltrado} parametros={parametrosLista} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaContratosSkeleton />}>
-                      <Resultados pagina={pagina} parametros={parametrosLista} query={query} ruta={ruta} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
-              </div>
-            ),
-          },
-          {
-            clave: "menores",
-            etiqueta: "Menores",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿Qué son los contratos menores?">
-                      <span className="block">
-                        Compras de esta entidad por montos pequeños (hasta 8 UIT, unos S/ 42,800). Por ley se contratan de
-                        forma directa, sin concurso; aquí sí suele publicarse el requerimiento (las especificaciones) y una
-                        ventana de cotización (SEACE). El módulo es facultativo, así que no están todas.
-                      </span>
-                    </Ayuda>
-                  }
-                >
-                  Sus contratos menores (≤8 UIT), con el proveedor que ganó y el requerimiento descargable.
-                </CabeceraPestana>
-                <Listado ruta={ruta} parametros={pmMenores} paramPagina={P_MEN.page}>
-                  <Suspense fallback={<div className="min-h-[52px]" />}>
-                    <BarraMenoresGeneral pagina={menoresP} />
-                  </Suspense>
-                  <ZonaResultados>
-                    <Suspense fallback={<TablaContratosSkeleton />}>
-                      <ListaMenores pagina={menoresP} ruta={ruta} parametros={pmMenores} actual={fm.page ?? 1} />
-                    </Suspense>
-                  </ZonaResultados>
-                </Listado>
-              </div>
-            ),
-          },
-          {
-            clave: "personas",
-            etiqueta: "Personas contratadas",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿Quiénes son?">
-                      <span className="block">
-                        Las personas a las que esta entidad pagó por órdenes de servicio de hasta 8 UIT, sin concurso:
-                        asistentes, asesores, choferes, profesionales (OECE, CONOSCE). Por privacidad no se muestra su DNI
-                        ni su RUC y se tapa un apellido.
-                      </span>
-                      <span className="mt-2 block">
-                        Las señales dicen qué otro registro público coincide con cada una. No prueban un delito ni un
-                        parentesco: son motivos para revisar.
-                      </span>
-                    </Ayuda>
-                  }
-                >
-                  A quién le dio órdenes de servicio como persona, cuánto le pagó y qué dicen de cada una otros registros.
-                </CabeceraPestana>
-                <ListaPersonas alcance={{ entidad: e.ruc }} sp={searchParams} P={PARAMS_EN_FICHA} ruta={ruta} base={{ seccion: "personas" }} deEntidad conIndicadores />
-              </div>
-            ),
-          },
-          {
-            clave: "planilla",
-            etiqueta: "Planilla",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿De dónde sale la planilla?">
-                      <span className="block">
-                        Del Portal de Transparencia Estándar de la entidad, rubro Personal: cada mes publica a quienes trabajan
-                        en ella (CAS, 276, 728, funcionarios), con su cargo, su oficina y lo que cobran. No trae DNI: los cruces
-                        son por nombre completo. Se tapa un apellido.
-                      </span>
-                      <span className="mt-2 block">Las señales no prueban un delito ni un parentesco: son motivos para revisar.</span>
-                    </Ayuda>
-                  }
-                >
-                  Quiénes trabajan en la entidad, cuánto cobran y qué dicen de cada uno otros registros.
-                </CabeceraPestana>
-                <ListaPlanilla alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "planilla" }} deEntidad />
-              </div>
-            ),
-          },
-          {
-            clave: "plazas",
-            etiqueta: "Plazas CAS",
-            contenido: (
-              <div className="space-y-4">
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿De dónde salen las plazas?">
-                      De SERVIR Talento Perú: las convocatorias CAS que la entidad publicó, con sus requisitos y su sueldo. Las
-                      señales marcan rasgos de una plaza hecha a la medida de alguien; no prueban un direccionamiento.
-                    </Ayuda>
-                  }
-                >
-                  Las plazas CAS que convocó, con lo que pedían y lo que pagaban.
-                </CabeceraPestana>
-                <ListaPlazas alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "plazas" }} deEntidad />
-              </div>
-            ),
-          },
-          {
-            clave: "presupuesto",
-            etiqueta: "Cuánto gasta",
-            contenido: (
-              <div>
-                <CabeceraPestana>Su presupuesto de cada año, en qué lo gasta y cuánto ya gastó, según el MEF.</CabeceraPestana>
-                {/* El MEF llega por streaming: la pestaña muestra su esqueleto hasta que responde. */}
-                <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
-                  <EjecucionPresupuestal query={mefSearchKeywordFor(String(e.nombre ?? ""))} ruc={e.ruc} />
-                </Suspense>
-              </div>
-            ),
-          },
-          {
-            // La tabla entera de la Contraloría (en el Inicio van sus cifras y los tres últimos informes). Ocupaba ~1,850
-            // px del Inicio.
-            clave: "control",
-            etiqueta: "Control",
-            titulo: "Informes de la Contraloría",
-            contenido: (
-              <div>
-                <CabeceraPestana
-                  ayuda={
-                    <Ayuda titulo="¿Qué es un informe de control?">
-                      La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta
-                      (penal, civil o administrativa) de sus funcionarios y la deriva a quien corresponde. No es una
-                      condena. El informe nombra a los funcionarios: aquí se enlaza, no se copia.
-                    </Ayuda>
-                  }
-                >
-                  Todos sus informes de control, con la responsabilidad presunta que señalan. Cada fila abre el informe oficial.
-                </CabeceraPestana>
-                <Suspense
-                  fallback={
-                    <div className="space-y-4">
-                      <IndicadoresSkeleton n={4} />
-                      <TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />
-                    </div>
-                  }
-                >
-                  <InformesEntidad ruc={e.ruc} />
-                </Suspense>
-              </div>
-            ),
-          },
-        ]}
-      />
+      <Pestanas fija key={activa} etiqueta="Secciones de la entidad" activa={activa} pestanas={pestanas} />
     </Pagina>
   );
+}
+
+/** La URL de la ficha con la búsqueda de ahora y `cambios` encima (un enlace viejo llevado a su pestaña nueva). */
+function conCambios(ruta: string, sp: Busqueda, cambios: Record<string, string>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp ?? {})) {
+    const valor = uno(v);
+    if (valor) q.set(k, valor);
+  }
+  for (const [k, v] of Object.entries(cambios)) q.set(k, v);
+  return `${ruta}?${q}`;
+}
+
+/** Mientras llega una pestaña que no se abrió al cargar, con la forma de lo suyo. */
+function Espera({ clave }: { clave: string }) {
+  if (clave === "inicio") {
+    return (
+      <div className="space-y-8" aria-busy="true">
+        <IndicadoresSkeleton n={3} />
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+    );
+  }
+  if (clave === "presupuesto") {
+    return (
+      <div>
+        <CabeceraPestana />
+        <EjecucionPresupuestalSkeleton />
+      </div>
+    );
+  }
+  const forma: Record<string, { cifras?: number; columna: string }> = {
+    contratos: { columna: "Contrato" },
+    personas: { cifras: 4, columna: "Persona" },
+    planilla: { cifras: 4, columna: "Persona" },
+    plazas: { cifras: 4, columna: "Plaza" },
+    control: { cifras: 4, columna: "Informe" },
+  };
+  return <EsqueletoPestana {...(forma[clave] ?? { columna: "Detalle" })} />;
 }
 
 /** Los informes de la Contraloría de la entidad, para su pestaña (las páginas siguientes las pide la tabla). */
@@ -413,76 +497,56 @@ async function InformesEntidad({ ruc }: { ruc: string }) {
   return <InformesContraloria datos={datos} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" conTitulo={false} />;
 }
 
-// ─── Lista de contratos ──────────────────────────────────────────────────────
+// ─── Las ⓘ de las pestañas (las usa también su versión vacía) ─────────────────
 
-async function BarraConConteos({ resumen, parametros }: { resumen: Promise<ResumenContratos | null>; parametros: Parametros }) {
-  return <BarraEntidad resumen={await resumen} parametros={parametros} />;
-}
-
-/**
- * La barra de /app/contratos sin zona, partido ni entidad (los fija la ficha). Sin resumen, sin números.
- *
- * A la vista, las dos preguntas de una entidad («¿Lo leyó Vigía?» y los antecedentes del ganador); el riesgo, que sólo
- * existe para lo leído (unos pocos de sus contratos), va en «Filtros»: en el celular eran cinco controles en cinco
- * renglones antes del primer contrato.
- */
-function BarraEntidad({ resumen, parametros }: { resumen: ResumenContratos | null; parametros: Parametros }) {
-  const vistas = filtrosVisibles(resumen);
+function AyudaPersonas() {
   return (
-    <BarraFiltros
-      busqueda={{ param: "q", placeholder: "Buscar en sus contratos…", etiqueta: "Buscar en sus contratos por objeto o código", min: 3 }}
-      visibles={vistas.filter((f) => f.param !== "riesgo")}
-      filtros={[
-        ...vistas.filter((f) => f.param === "riesgo"),
-        filtroOperativo(resumen),
-        filtroTipo(resumen),
-        filtroEtapa(),
-        filtroMes(parametros),
-        ...filtrosMonto(parametros),
-        ...(parametros.cruce ? [filtroCaptura(parametros.cruce, resumen)] : []),
-      ]}
-      orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
-    />
+    <Ayuda titulo="¿Quiénes son?">
+      <span className="block">
+        Las personas a las que esta entidad pagó por órdenes de servicio de hasta 8 UIT, sin concurso: asistentes, asesores,
+        choferes, profesionales (OECE, CONOSCE). Por privacidad no se muestra su DNI ni su RUC y se tapa un apellido.
+      </span>
+      <span className="mt-2 block">
+        Las señales dicen qué otro registro público coincide con cada una. No prueban un delito ni un parentesco: son motivos
+        para revisar.
+      </span>
+    </Ayuda>
   );
 }
 
-/**
- * El filtro de varios tipos de cruce a la vez (`cruce=`): llega desde la fila «Ganó una empresa ligada a la gestión»
- * del Inicio (financió o le vendió a la campaña del partido que gobierna, o un socio trabaja en la entidad). Va sólo si
- * viene en la URL, para que la lista diga por qué es la que es y se pueda quitar con su ×.
- */
-function filtroCaptura(valor: string, resumen: ResumenContratos | null): FiltroSecundario {
-  const etiqueta = valor === CRUCE_CAPTURA ? "Con la gestión que la gobierna" : valor.split(",").map((t) => TIPO_CRUCE[t]?.corto ?? t).join(" o ");
-  return { param: "cruce", etiqueta: "Lazo del ganador", todas: "Cualquiera", opciones: [{ valor, etiqueta, conteo: resumen ? resumen.total : null }] };
-}
-
-async function Resultados({
-  pagina,
-  parametros,
-  query,
-  ruta,
-}: {
-  pagina: Promise<ContratosPagina | null>;
-  parametros: Parametros;
-  query: ContratosQuery;
-  ruta: string;
-}) {
-  const p = await pagina;
+function AyudaPlanilla() {
   return (
-    <TablaContratos
-      pagina={p}
-      parametros={parametros}
-      actual={query.page ?? 1}
-      cursor={query.cursor}
-      antes={query.antes}
-      tam={TAM}
-      ruta={ruta}
-      deEntidad
-    />
+    <Ayuda titulo="¿De dónde sale la planilla?">
+      <span className="block">
+        Del Portal de Transparencia Estándar de la entidad, rubro Personal: cada mes publica a quienes trabajan en ella (CAS,
+        276, 728, funcionarios), con su cargo, su oficina y lo que cobran. No trae DNI: los cruces son por nombre completo. Se
+        tapa un apellido.
+      </span>
+      <span className="mt-2 block">Las señales no prueban un delito ni un parentesco: son motivos para revisar.</span>
+    </Ayuda>
   );
 }
 
-// ─── Las cuatro cifras ───────────────────────────────────────────────────────
+function AyudaPlazas() {
+  return (
+    <Ayuda titulo="¿De dónde salen las plazas?">
+      De SERVIR Talento Perú: las convocatorias CAS que la entidad publicó, con sus requisitos y su sueldo. Las señales marcan
+      rasgos de una plaza hecha a la medida de alguien; no prueban un direccionamiento.
+    </Ayuda>
+  );
+}
+
+function AyudaControl() {
+  return (
+    <Ayuda titulo="¿Qué es un informe de control?">
+      La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta (penal, civil o
+      administrativa) de sus funcionarios y la deriva a quien corresponde. No es una condena. El informe nombra a los
+      funcionarios: aquí se enlaza, no se copia.
+    </Ayuda>
+  );
+}
+
+// ─── Las cifras del Inicio ───────────────────────────────────────────────────
 
 /** El último año del MEF con datos propios (sin el que repite al anterior). */
 function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | null | undefined): MefBudgetRow | null {
@@ -492,20 +556,24 @@ function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | nu
 }
 
 /**
- * Tres cifras, cada una con su fuente dicha en su nombre: sus contratos desde 2015 (y lo leído y el riesgo, del mismo
- * resumen que la lista), los antecedentes de los ganadores y su presupuesto.
+ * Hasta cuatro cifras, cada una con su fuente dicha en su nombre: sus contratos desde 2015 (y lo leído y el riesgo, del
+ * mismo resumen que la lista), los antecedentes de los ganadores, sus órdenes (cuando están contadas) y su presupuesto.
  */
 function indicadores({
   resumen,
   totalContratos,
   enCola,
   mef,
+  ordenes,
+  ordenesMonto,
   ruta,
 }: {
   resumen: ResumenContratos | null;
   totalContratos: number;
   enCola: number;
   mef: { by_year?: MefBudgetRow[] | null; kind?: string; keyword?: string | null } | null;
+  ordenes: number | null;
+  ordenesMonto: number | null;
   ruta: string;
 }): Indicador[] {
   const lect = resumen?.porLectura;
@@ -528,7 +596,8 @@ function indicadores({
           : // La misma medida que la lista de entidades ("Con dictamen 13 de 331"): con dictamen publicado.
             `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
         : undefined,
-      href: leidos > 0 ? `${ruta}?seccion=contratos&lectura=publicado` : `${ruta}?seccion=contratos`,
+      // Sin contratos no lleva a una lista vacía.
+      href: totalContratos === 0 ? undefined : leidos > 0 ? `${ruta}?seccion=contratos&lectura=publicado` : `${ruta}?seccion=contratos&vista=contratos`,
       ayuda: (
         <Ayuda titulo="¿Qué contratos puede leer Vigía?">
           <span className="block">
@@ -562,7 +631,19 @@ function indicadores({
         </Ayuda>
       ),
     },
-    // Sin presupuesto del MEF no hay tarjeta (una que sólo diga «Sin dato» no informa): lo dice el bloque «En qué gasta».
+    // Sus órdenes de compra y de servicio, sólo contadas (migración 148): «1 contrato desde 2015» decía poco de una
+    // universidad con 124 órdenes en el año.
+    ...(ordenes
+      ? [
+          {
+            valor: numero(ordenes),
+            etiqueta: ordenes === 1 ? "orden de compra o de servicio" : "órdenes de compra y de servicio",
+            contexto: ordenesMonto ? `por ${solesCompacto(ordenesMonto)} desde 2018 (CONOSCE)` : "desde 2018 (CONOSCE)",
+            href: `${ruta}?seccion=contratos&vista=ordenes`,
+          },
+        ]
+      : []),
+    // Sin presupuesto del MEF no hay tarjeta (una que sólo diga «Sin dato» no informa): lo dice la pestaña Cuánto gasta.
     ...(anio
       ? [
           {

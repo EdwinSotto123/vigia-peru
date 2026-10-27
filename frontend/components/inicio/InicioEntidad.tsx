@@ -3,10 +3,11 @@ import Link from "next/link";
 import { ChevronRight, Flag, Info, MapPin } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { Indicadores, type Indicador } from "@/components/listado";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmpresasLigadas, QuienGobierna, TIPOS_CAPTURA, filaCaptura } from "@/components/entidad/CapturaEntidad";
 import { QuienDecide } from "@/components/entidad/QuienDecide";
-import { getEstructuraEntidad, getGastoEntidad, type NepotismoEntidad } from "@/lib/api-client";
+import { getEstructuraEntidad, getGastoEntidad, type ConteosEntidad, type NepotismoEntidad } from "@/lib/api-client";
 import { getCorrupcionEntidad } from "@/lib/corrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { plural, solesCompacto } from "@/lib/formato";
@@ -33,25 +34,34 @@ import { NepotismoInicio } from "./NepotismoInicio";
  *
  * Antes: diez bloques del mismo peso en dos columnas, lo que explica el poder al final (a 3,500 px), ~600 px de
  * cifras de la Procuraduría que "no son de esta entidad" y "En qué gasta" vacío en el primer lugar (evaluación
- * 2026-10-26). Las cifras de la cabecera de la ficha (contratos desde 2015, presupuesto y lo gastado) no se repiten.
+ * 2026-10-26). Las cifras de la ficha (contratos desde 2015, antecedentes, órdenes, presupuesto) van arriba, sólo aquí:
+ * en las otras pestañas eran media pantalla del celular antes de la lista (como en la ficha de una empresa).
  *
  * Dos columnas desde xl, no desde lg: con la barra lateral del sitio (256 px), a 1024 px la columna principal quedaba
- * en ~316 px. Entre sm y xl, lo lateral va debajo, en dos columnas.
+ * en ~316 px. Entre sm y xl, lo lateral va debajo, en dos columnas; salvo quién la gobierna, que va justo después de las
+ * cifras (en el celular quedaba al final, a 6.8 pantallas).
  */
 export function InicioEntidad({
   ruc,
   ruta,
+  cifras,
   resumen,
   enCola,
+  conteos,
   region,
   ubigeo,
   regionDenuncias,
   nepotismo,
+  fueraDelMef = false,
 }: {
   ruc: string;
   ruta: string;
+  /** Las cifras de la ficha (`Indicadores`). */
+  cifras: Indicador[];
   resumen: ResumenContratos | null;
   enCola: number;
+  /** Cuántas órdenes y contratos menores tiene (GET /entidades/:ruc/conteos); null si no respondió. */
+  conteos: ConteosEntidad | null;
   /** Su departamento, por nombre ("Lima"). */
   region: string | null;
   /** Su ubigeo ("150101"): los dos primeros dígitos son su región (la ficha de la región, la Procuraduría). */
@@ -60,23 +70,44 @@ export function InicioEntidad({
   regionDenuncias?: string;
   /** Parientes declarados en la DJI que son locadores de esta entidad (indicio). Va con las banderas de las personas. */
   nepotismo: NepotismoEntidad | null;
+  /** Fuera del SIAF o empresa del Estado: su presupuesto no está en los datos abiertos del MEF (no es que falte). */
+  fueraDelMef?: boolean;
 }) {
   return (
-    <div className="grid items-start gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0 space-y-10">
-        <Suspense fallback={<EsqueletoPrincipal />}>
-          <Principal ruc={ruc} ruta={ruta} resumen={resumen} enCola={enCola} region={region} ubigeo={ubigeo} nepotismo={nepotismo} />
+    <div className="space-y-8">
+      <Indicadores items={cifras} />
+      <div className="grid items-start gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Hasta xl, quién la gobierna antes que todo lo demás; desde xl, en la columna lateral (Lateral). */}
+        <Suspense fallback={null}>
+          <GobiernaArriba ruc={ruc} />
         </Suspense>
+        <div className="min-w-0 space-y-10">
+          <Suspense fallback={<EsqueletoPrincipal />}>
+            <Principal ruc={ruc} ruta={ruta} resumen={resumen} enCola={enCola} conteos={conteos} region={region} ubigeo={ubigeo} nepotismo={nepotismo} fueraDelMef={fueraDelMef} />
+          </Suspense>
+        </div>
+        {/* Fija al bajar, con su propio scroll si no entra (un ministerio con muchos funcionarios). */}
+        <aside
+          aria-label="Quién la gobierna y quién decide"
+          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-6rem)] xl:grid-cols-1 xl:overflow-y-auto xl:overscroll-contain"
+        >
+          <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
+            <Lateral ruc={ruc} region={region} ubigeo={ubigeo} regionDenuncias={regionDenuncias} />
+          </Suspense>
+        </aside>
       </div>
-      {/* Fija al bajar, con su propio scroll si no entra (un ministerio con muchos funcionarios). */}
-      <aside
-        aria-label="Quién la gobierna y quién decide"
-        className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-6rem)] xl:grid-cols-1 xl:overflow-y-auto xl:overscroll-contain"
-      >
-        <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
-          <Lateral ruc={ruc} region={region} ubigeo={ubigeo} regionDenuncias={regionDenuncias} />
-        </Suspense>
-      </aside>
+    </div>
+  );
+}
+
+/** Quién la gobierna, primero, hasta xl (después va en la columna lateral). Sin autoridad electa (un ministerio), nada. */
+async function GobiernaArriba({ ruc }: { ruc: string }) {
+  // El mismo `fetch` que la columna principal y la lateral: Next lo hace una sola vez.
+  const poder = await getPoderEntidad(ruc);
+  if (!poder?.partido) return null;
+  return (
+    <div className="min-w-0 xl:hidden">
+      <QuienGobierna poder={poder} />
     </div>
   );
 }
@@ -98,17 +129,21 @@ async function Principal({
   ruta,
   resumen,
   enCola,
+  conteos,
   region,
   ubigeo,
   nepotismo,
+  fueraDelMef,
 }: {
   ruc: string;
   ruta: string;
   resumen: ResumenContratos | null;
   enCola: number;
+  conteos: ConteosEntidad | null;
   region: string | null;
   ubigeo: string | null;
   nepotismo: NepotismoEntidad | null;
+  fueraDelMef: boolean;
 }) {
   // Todo a la vez. El poder lo pide también la columna lateral: es el mismo `fetch` y Next lo hace una sola vez.
   const [gasto, corrupcion, personas, poder, grafo] = await Promise.all([
@@ -118,7 +153,9 @@ async function Principal({
     getPoderEntidad(ruc),
     getPoderGrafoEntidad(ruc),
   ]);
-  const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", ...f })}`;
+  // Los enlaces a la lista de contratos llevan su vista: si la entidad no tiene contratos, la primera vista es otra.
+  const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", vista: "contratos", ...f })}`;
+  const enVista = (vista: "ordenes" | "menores") => `${ruta}?${new URLSearchParams({ seccion: "contratos", vista })}`;
   const enPersonas = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "personas", ...f })}`;
   const l = resumen?.porLectura;
   const leidos = (l?.publicado ?? 0) + (l?.revision ?? 0);
@@ -129,7 +166,13 @@ async function Principal({
 
   // Lo que no tiene dato va al final, en una línea cada uno (antes, una tarjeta vacía del mismo peso que las llenas).
   const sinDato: { titulo: string; motivo: string }[] = [];
-  if (!hayGasto) sinDato.push({ titulo: "En qué gasta", motivo: "Sin dato. Vigía no encontró su presupuesto en el MEF (Consulta Amigable)." });
+  if (!hayGasto)
+    sinDato.push({
+      titulo: "En qué gasta",
+      motivo: fueraDelMef
+        ? "No está en el SIAF del MEF: su presupuesto no sale en los datos abiertos del MEF."
+        : "Sin dato. Vigía no encontró su presupuesto en el MEF (Consulta Amigable).",
+    });
   if (!r) sinDato.push({ titulo: "Personas contratadas", motivo: "Sin dato: el servicio de personas no respondió." });
   else if (!r.filas) sinDato.push({ titulo: "Personas contratadas", motivo: "No registra órdenes de servicio a personas." });
   if (!corrupcion) sinDato.push({ titulo: "Contraloría", motivo: "Sin dato: el servicio no respondió." });
@@ -157,6 +200,24 @@ async function Principal({
       etiqueta: "Esperan lectura",
       valor: enCola > 0 ? <Link href={contratos({ lectura: "sin_leer" })} className={enlace}>{plural(enCola, "contrato en la cola", "contratos en la cola")}</Link> : "Ninguno en la cola",
     },
+    // Sus órdenes de compra y de servicio (CONOSCE) y sus contratos menores: la pestaña Contratos los tiene en sus vistas.
+    ...(conteos && conteos.ordenes !== 0
+      ? [
+          {
+            etiqueta: "Órdenes de compra y de servicio",
+            valor: (
+              <Link href={enVista("ordenes")} className={enlace}>
+                {conteos.ordenes == null
+                  ? "Ver sus órdenes desde 2018"
+                  : `${plural(conteos.ordenes, "orden", "órdenes")}${conteos.ordenesMonto ? ` por ${solesCompacto(conteos.ordenesMonto)}` : ""}`}
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    ...(conteos && conteos.menores > 0
+      ? [{ etiqueta: "Contratos menores", valor: <Link href={enVista("menores")} className={enlace}>{plural(conteos.menores, "contrato de hasta 8 UIT", "contratos de hasta 8 UIT")}</Link> }]
+      : []),
     ...(r && r.filas
       ? [
           {
@@ -309,7 +370,12 @@ async function Lateral({ ruc, region, ubigeo, regionDenuncias }: { ruc: string; 
   ];
   return (
     <>
-      <QuienGobierna poder={poder} />
+      {/* Hasta xl va arriba de todo (GobiernaArriba). */}
+      {poder?.partido && (
+        <div className="hidden min-w-0 xl:block">
+          <QuienGobierna poder={poder} />
+        </div>
+      )}
       <QuienDecide estructura={estructura} />
       {enlaces.length > 0 && (
         <BloqueInicio titulo="Ver también">

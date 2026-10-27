@@ -38,6 +38,7 @@ import { hayModelosLectura } from "../lib/esquema.js";
 import { casoLectura, lecturaSql } from "../lib/lectura.js";
 import { BANDERAS_DE_FILA, COL_DUDOSO, crucesDeFila, joinDudoso } from "../lib/estadoFila.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
+import { conGanadores } from "../lib/ganadores.js";
 import { ListQuery, cuboAnterior, geoAnterior, listaAnterior, ocidsDeGanadora } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
 
@@ -529,7 +530,10 @@ async function lista(q: ListaQ) {
     siguiente = hayMas && data.length ? o.token(data[data.length - 1]) : null;
     anterior = filas.modo !== "primera" && data.length ? o.token(data[0]) : null;
   }
-  return { data: quitar(data), total: tot.total, totalExacto: tot.totalExacto, page: q.page, size: q.size, siguiente, anterior };
+  // Para el panel de cada fila: los integrantes del consorcio que ganó y de quién es cada antecedente (lib/ganadores.ts).
+  const limpias = quitar(data);
+  await conGanadores(limpias);
+  return { data: limpias, total: tot.total, totalExacto: tot.totalExacto, page: q.page, size: q.size, siguiente, anterior };
 }
 
 // ─── GET /contratos/geo ──────────────────────────────────────────────────────

@@ -365,7 +365,14 @@ const FAMILIA_PROCESO = (c: string) => `CASE
   WHEN ${c} IS NULL THEN 'Sin dato'
   ELSE 'Otro' END`;
 
-export const BANDERAS_CONTRATO = ["inhabilitada", "sancionada_antes", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const;
+/**
+ * Las banderas de un proceso de la empresa. La faceta de la ficha (chips) es una PARTICIÓN por la sanción del Tribunal
+ * frente a la buena pro: inhabilitada al ganar, sancionada antes, sancionada sólo después y sin sanciones suman todos sus
+ * procesos (2026-10-27: «Todos 321, Sancionada antes 149, Sancionada después 172, Sin banderas 171» no sumaba, porque
+ * «después» se cruzaba con las otras dos). `sancionada_despues`, `antecedentes`, `dudoso` y `sin` siguen valiendo por los
+ * enlaces de antes; el posible error de carga tiene su propio filtro (`dudoso=si`).
+ */
+export const BANDERAS_CONTRATO = ["inhabilitada", "sancionada_antes", "solo_despues", "sin_sancion", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const;
 
 const Contratos = z.object({
   q: z.string().trim().min(2).max(80).optional(),
@@ -376,6 +383,8 @@ const Contratos = z.object({
   familia: z.string().trim().min(3).max(60).optional(),
   departamento: z.string().trim().min(2).max(40).optional(),
   bandera: z.enum(BANDERAS_CONTRATO).optional(),
+  // Sólo los de monto con posible error de carga (se cruza con cualquier sanción: va aparte de la faceta).
+  dudoso: z.enum(["si"]).optional(),
   // Un antecedente concreto del ganador sobre ESTE proceso (casos_cruce): "con" (cualquiera), "alta" (alguno grave) o un
   // tipo (penalidad, visita_previa, partido_gobernante…). Desglosa la vieja bandera "Con antecedentes" en la lista completa.
   cruce: z.string().trim().min(2).max(40).regex(/^[a-z_]+$/).optional(),
@@ -392,9 +401,12 @@ const ORDEN_CONTRATOS: Record<z.infer<typeof Contratos>["orden"], string> = {
 };
 
 /** Las banderas de un proceso ya calculadas en `x` (ver la consulta): para filtrar y para contar. */
-const BANDERA_SQL: Record<(typeof BANDERAS_CONTRATO)[number], string> = {
+export const BANDERA_SQL: Record<(typeof BANDERAS_CONTRATO)[number], string> = {
+  // La partición (cada proceso en una sola): inhabilitada > sancionada antes > sólo después > sin sanciones.
   inhabilitada: `x.al_ganar IS NOT NULL`,
   sancionada_antes: `x.al_ganar IS NULL AND x.s_antes > 0`,
+  solo_despues: `x.al_ganar IS NULL AND COALESCE(x.s_antes, 0) = 0 AND x.s_despues > 0`,
+  sin_sancion: `x.al_ganar IS NULL AND COALESCE(x.s_antes, 0) = 0 AND COALESCE(x.s_despues, 0) = 0`,
   sancionada_despues: `x.s_despues > 0`,
   antecedentes: `x.n_antecedentes > 0`,
   dudoso: `x.dudoso IS NOT NULL`,
@@ -418,6 +430,7 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
     if (q.familia) conds.push(`x.familia = ${p(q.familia)}`);
     if (q.departamento) conds.push(`mef_norm(x.departamento) = ${p(norm(q.departamento))}`);
     if (q.bandera) conds.push(BANDERA_SQL[q.bandera]);
+    if (q.dudoso) conds.push(BANDERA_SQL.dudoso);
     if (q.cruce === "con") conds.push(`x.n_antecedentes > 0`);
     else if (q.cruce === "alta") conds.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(x.cruces, '[]')) e WHERE e->>'severidad' = 'alta' AND e->>'tipo' NOT IN ('sancion', 'sancion_vigente'))`);
     else if (q.cruce) conds.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(x.cruces, '[]')) e WHERE e->>'tipo' = ${p(q.cruce)})`);

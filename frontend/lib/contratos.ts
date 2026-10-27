@@ -84,7 +84,24 @@ export interface ContratoResumen {
    * son antecedentes de este contrato. La fila los muestra cuando se filtra por uno. Falta en la API vieja.
    */
   datosGanadora?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
+  /**
+   * Quién ganó, para el panel de la fila (lib/ganadores.ts del API): los integrantes del consorcio que ganó (con su RUC) y,
+   * de cada ganador, sus antecedentes en este contrato. Sólo en las filas con antecedentes o ganadas por un consorcio sin
+   * RUC; falta en la API vieja. Una persona natural llega tapada (RUC como ref, un apellido).
+   */
+  ganadores?: GanadorContrato[] | null;
 }
+
+/** Un ganador de un contrato: la empresa o persona, o un integrante del consorcio que ganó (`consorcio`). */
+export interface GanadorContrato {
+  ruc: string;
+  nombre: string | null;
+  consorcio: string | null;
+  cruces: { tipo: string; severidad: "alta" | "media" | "baja" }[];
+}
+
+/** El código que el SEACE le da a un consorcio sin RUC propio (4 a 10 dígitos): no es un RUC y no tiene ficha. */
+export const esCodigoConsorcio = (v: string | null | undefined): v is string => !!v && /^\d{4,10}$/.test(v);
 
 /**
  * Los datos de la empresa ganadora que filtran la lista (?ganadora=): son de la empresa, no del contrato (casos_cruce no

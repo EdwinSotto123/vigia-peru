@@ -4,7 +4,7 @@ import { CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/lis
 import { Dato } from "@/components/ui/Dato";
 import { fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { clavePartido } from "@/lib/poder";
+import { rutaPartido } from "@/lib/partidos";
 import { RANGO_SEVERIDAD } from "@/lib/severidad";
 import { GRADO_PARIENTE, type Severidad } from "@/lib/personas";
 import {
@@ -215,15 +215,24 @@ function TablaChica({ columnas, filas, etiqueta }: { columnas: Columna[]; filas:
 }
 
 const texto = (v: string | null) => <span className="text-meta text-ink">{v ?? "Sin dato"}</span>;
-/** El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto. */
-const partidoCell = (v: unknown) => {
+/**
+ * El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto.
+ * Por su clave (`rutaPartido`) y, con el año del dato, en ese período: con el nombre crudo la ficha no lo encontraba.
+ */
+const partidoCell = (v: unknown, anio?: unknown) => {
   const name = t(v);
   if (!name) return texto(null);
   return (
-    <Link href={`/app/partidos/${clavePartido(name)}`} className="text-meta text-granate underline-offset-2 hover:underline">
+    <Link href={rutaPartido(name, anio)} className="text-meta text-granate underline-offset-2 hover:underline">
       {nombrePartido(name) ?? name}
     </Link>
   );
+};
+
+/** El último año de una lista de años (las órdenes del período del partido que gobernaba). */
+const ultimoAnio = (xs: unknown): number | null => {
+  const anios = (Array.isArray(xs) ? xs : []).map((x) => Number(String(x ?? "").slice(0, 4))).filter((y) => Number.isInteger(y) && y > 1900);
+  return anios.length ? Math.max(...anios) : null;
 };
 
 export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
@@ -276,7 +285,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
             celdas: {
               // La autoridad va tapada como la persona (privacidad, P0 del 2026-10-26): se muestra como llega.
               cargo: <CeldaPrincipal titulo={natural(a.cargo) ?? "Sin cargo"} meta={t(a.nombre) ? [<Dato key="n" tipo="personas" nombre="Autoridad">{t(a.nombre)}</Dato>] : undefined} />,
-              partido: partidoCell(a.partido),
+              partido: partidoCell(a.partido, a.desde),
             },
           }))}
         />
@@ -302,7 +311,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           id: String(i),
           celdas: {
             cargo: texto(natural(a.cargo)),
-            partido: partidoCell(a.partido),
+            partido: partidoCell(a.partido, a.desde),
             mandato: texto([t(a.desde)?.slice(0, 4), t(a.hasta)?.slice(0, 4)].filter(Boolean).join(" a ") || null),
           },
         }))}
@@ -322,7 +331,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
   } else if (tipo === "candidato_gobierna") {
     return (
       <div className="space-y-2">
-        <DatosClave items={[{ etiqueta: "Partido que gobierna la entidad", valor: t(d.partido) ? partidoCell(d.partido) : null }]} />
+        <DatosClave items={[{ etiqueta: "Partido que gobierna la entidad", valor: t(d.partido) ? partidoCell(d.partido, ultimoAnio(d.anios)) : null }]} />
         <TablaChica
           etiqueta="Sus candidaturas"
           columnas={[
@@ -334,7 +343,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
             id: String(i),
             celdas: {
               cargo: <CeldaPrincipal titulo={natural(c.cargo) ?? "Sin cargo en la fuente"} meta={[<Dato key="a" tipo="fecha" nombre="Elección">{t(c.anio) ?? "Sin año"}</Dato>]} />,
-              partido: partidoCell(c.partido),
+              partido: partidoCell(c.partido, c.anio),
               resultado: texto(t(c.resultado) ? oracionSimple(t(c.resultado)!.replace(/_/g, " ")) : null),
             },
           }))}

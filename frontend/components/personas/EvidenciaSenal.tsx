@@ -4,7 +4,7 @@ import { CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type F
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { clavePartido } from "@/lib/poder";
+import { rutaPartido } from "@/lib/partidos";
 import { REGIMEN, cargoEnOracion, listaMeses, mes, nombrePartido, ordenesCitadas, type OrdenCitada } from "@/lib/planilla";
 import { GRADO_PARIENTE, type SenalDetalle } from "@/lib/personas";
 import { txtONumero } from "@/lib/utils";
@@ -44,15 +44,26 @@ function primerApellido(nombre: unknown): string | null {
   return tituloNatural(t).split(/\s+/)[0] ?? null;
 }
 
-/** El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto. */
-const partidoLink = (v: unknown) => {
+/**
+ * El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto.
+ * Por su clave (`rutaPartido`) y, con el año del dato, en ese período: con el nombre crudo la ficha no lo encontraba.
+ */
+const partidoLink = (v: unknown, anio?: unknown) => {
   const nombre = txt(v);
   if (!nombre) return <span className="text-meta text-mute">Sin dato</span>;
   return (
-    <Link href={`/app/partidos/${clavePartido(nombre)}`} className="text-meta text-granate underline-offset-2 hover:underline">
+    <Link href={rutaPartido(nombre, anio)} className="text-meta text-granate underline-offset-2 hover:underline">
       {nombrePartido(nombre) ?? nombre}
     </Link>
   );
+};
+/** El último año de una lista de años u objetos con `anio`/`fecha` (el período del partido que gobernaba). */
+const ultimoAnio = (xs: unknown): number | null => {
+  const anios = (Array.isArray(xs) ? xs : [])
+    .map((x) => (x && typeof x === "object" ? (x as Obj).anio ?? (x as Obj).fecha : x))
+    .map((x) => Number(String(x ?? "").slice(0, 4)))
+    .filter((y) => Number.isInteger(y) && y > 1900);
+  return anios.length ? Math.max(...anios) : null;
 };
 
 // ─── El dato de la fila ───────────────────────────────────────────────────────────────────────────
@@ -219,13 +230,13 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
           id: String(i),
           celdas: {
             cargo: <CeldaPrincipal titulo={natural(c.cargo) ?? "Sin cargo en la fuente"} meta={[<Dato key="a" tipo="fecha" nombre="Elección">{txt(c.anio) ?? "Sin año"}</Dato>]} />,
-            partido: partidoLink(c.partido),
+            partido: partidoLink(c.partido, c.anio),
             resultado: texto(c.resultado === "electo" ? "Electo" : c.resultado === "no_electo" ? "No electo" : "Sin dato", "text-inkSoft"),
           },
         }));
       return (
         <div className="space-y-3">
-          {s.tipo === "candidato_gobierna" && txt(d.partido) && <DatosClave items={[{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido) }]} />}
+          {s.tipo === "candidato_gobierna" && txt(d.partido) && <DatosClave items={[{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.anios)) }]} />}
           <Lista
             etiqueta="Candidaturas"
             columnas={[
@@ -248,7 +259,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       const filas: Fila[] = lista(d.aportes).map((a, i) => ({
         id: String(i),
         celdas: {
-          partido: partidoLink(a.partido),
+          partido: partidoLink(a.partido, a.fecha ?? a.anio),
           fecha: <span className="text-meta tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
           monto: <CeldaNumero>{num(a.monto) != null ? soles(num(a.monto)) : "Sin dato"}</CeldaNumero>,
         },
@@ -257,7 +268,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         <div className="space-y-3">
           <DatosClave
             items={[
-              ...(s.tipo === "aporte_gobierna" && txt(d.partido) ? [{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido) }] : []),
+              ...(s.tipo === "aporte_gobierna" && txt(d.partido) ? [{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.aportes)) }] : []),
               ...(num(d.monto) != null ? [{ etiqueta: "Total aportado", valor: soles(num(d.monto)), mono: true }] : []),
             ]}
           />
@@ -281,7 +292,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         celdas: {
           // La autoridad con sus dos apellidos va tapada como la persona (privacidad, P0 del 2026-10-26).
           cargo: <CeldaPrincipal titulo={natural(a.cargo) ?? "Sin cargo"} meta={otro && txt(a.nombre) ? [<Dato key="n" tipo="personas" nombre="Autoridad">{txt(a.nombre)}</Dato>] : undefined} />,
-          partido: partidoLink(a.partido),
+          partido: partidoLink(a.partido, a.desde),
           periodo: <span className="text-meta tabular-nums text-mute">{[anio(a.desde), anio(a.hasta)].filter(Boolean).join(" a ") || "Sin dato"}</span>,
         },
       }));

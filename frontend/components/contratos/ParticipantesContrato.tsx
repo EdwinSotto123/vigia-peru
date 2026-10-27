@@ -190,8 +190,23 @@ function filaDe(p: Participante, ctx: Contexto): Fila {
           meta={[
             ruc && <Dato key="ruc" tipo="ruc" mono>{ruc}</Dato>,
             natural && <Dato key="persona" icono={UserRound} nombre="Tipo">Persona natural</Dato>,
+            // Quiénes lo forman, con sus nombres (antes «Consorcio de 2», sin decir quiénes): en el panel, cada uno con su ficha.
             p.tipo === "consorcio" && (
-              <Dato key="consorcio" tipo="personas" nombre="Tipo">{p.integrantes.length ? `Consorcio de ${numero(p.integrantes.length)}` : "Consorcio"}</Dato>
+              <Dato key="consorcio" tipo="personas" nombre="Integrantes del consorcio">
+                {p.integrantes.length ? (
+                  <>
+                    Consorcio de{" "}
+                    {p.integrantes.map((x, i) => (
+                      <span key={x.ruc}>
+                        {i > 0 && (i === p.integrantes.length - 1 ? " y " : ", ")}
+                        <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  "Consorcio"
+                )}
+              </Dato>
             ),
             s?.distrito && <Dato key="lugar" tipo="lugar" nombre="Distrito de su domicilio fiscal">{tituloNatural(s.distrito)}</Dato>,
           ]}
@@ -206,9 +221,13 @@ function filaDe(p: Participante, ctx: Contexto): Fila {
       descripcion: ruc ? <span className="font-mono tabular-nums">RUC {ruc}</span> : natural ? "Persona natural con negocio" : p.tipo === "consorcio" ? "Consorcio" : undefined,
       ficha,
       // El panel se arma en el navegador a partir del participante (ParticipanteDetalle.tsx): no viaja armado por fila.
-      contenido: <DetalleParticipante p={p} conOfertas={ctx.conOfertas} hayGanador={ctx.hayGanador} />,
+      contenido: <DetalleParticipante p={p} conOfertas={ctx.conOfertas} hayGanador={ctx.hayGanador} aqui={aqui} />,
     },
-    // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por lo que hizo.
-    buscable: [natural ? null : titulo, ruc, estado, natural ? "persona natural" : null, s?.distrito].filter(Boolean).join(" "),
+    // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por lo que hizo. Un consorcio,
+    // también por sus integrantes que son empresas.
+    buscable: [
+      natural ? null : titulo, ruc, estado, natural ? "persona natural" : null, s?.distrito,
+      ...p.integrantes.filter((x) => !esPersonaNatural(x.ruc)).flatMap((x) => [x.nombre, x.ruc]),
+    ].filter(Boolean).join(" "),
   };
 }

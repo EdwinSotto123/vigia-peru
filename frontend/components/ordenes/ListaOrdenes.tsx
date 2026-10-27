@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ListFilter, Scale, Store, TriangleAlert } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, Nota, type DatoClave } from "@/components/patrones";
 import {
@@ -450,7 +451,23 @@ function textoRevisadas(revisadas: number, anio: number | null): string {
     (anio ? "Quita un filtro o acorta la búsqueda para ver más." : "Elige un año para buscar en todo ese año.");
 }
 
-export async function ListaOrdenes({ pagina: p, ruta, parametros, actual }: { pagina: Promise<OrdenesPagina | null>; ruta: string; parametros: Parametros; actual: number }) {
+export async function ListaOrdenes({
+  pagina: p,
+  ruta,
+  parametros,
+  actual,
+  vacia,
+}: {
+  pagina: Promise<OrdenesPagina | null>;
+  ruta: string;
+  parametros: Parametros;
+  actual: number;
+  /**
+   * La lista de una ficha (una entidad): lo que se muestra si no tiene ninguna orden sin filtros puestos, que no es lo
+   * mismo que «ninguna con estos filtros». En la lista general siempre hay órdenes.
+   */
+  vacia?: ReactNode;
+}) {
   const pagina = await p;
   if (!pagina) {
     return (
@@ -466,6 +483,9 @@ export async function ListaOrdenes({ pagina: p, ruta, parametros, actual }: { pa
   // La lista se acotó y esta página es la última que salió: puede no ser el final de verdad.
   const acotada = pagina.revisadas != null && !pagina.hayMas ? textoRevisadas(pagina.revisadas, pagina.anio) : null;
   if (!pagina.data.length) {
+    // Sin filtros de esta lista (no cuentan la pestaña, la vista ni el orden), no hay órdenes: lo dice la ficha.
+    const filtrada = Object.entries(P_ORD).some(([k, param]) => k !== "orden" && k !== "page" && !!parametros[param]);
+    if (vacia && !filtrada && actual <= 1) return <>{vacia}</>;
     // Una página que ya no existe (la lista cambió o se escribió a mano): hay órdenes, sólo que no tantas.
     return actual > 1 ? (
       <EstadoVacio

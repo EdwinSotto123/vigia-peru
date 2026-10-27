@@ -101,7 +101,7 @@ function FilaPartidoEnlace({ f, i, anio, maximo }: { f: FilaPartido; i: number; 
               <Dato key="p" tipo="documento" nombre="Procesos">{numero(procesos)} {procesos === 1 ? "proceso" : "procesos"}</Dato>,
               f.contratos > 0 && (
                 <Dato key="v" icono={Eye} nombre="En la base de Vigía">
-                  {numero(f.contratos)} en Vigía, {numero(f.leidos)} leídos
+                  {numero(f.contratos)} en Vigía, {numero(f.leidos)} {f.leidos === 1 ? "leído" : "leídos"}
                 </Dato>
               ),
             ]}

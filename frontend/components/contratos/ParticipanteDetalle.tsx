@@ -9,8 +9,11 @@
  * pesaba 2.5 MB más; ~20 KB por participante, la mayoría íconos y clases repetidas). Así viaja su JSON (~1 KB).
  */
 
+import Link from "next/link";
 import { AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones";
 import { PersonName } from "@/components/Redact";
+import { conDesde } from "@/lib/desde";
+import { rutaEmpresa } from "@/lib/empresas";
 import { Severidad } from "@/components/ui/Severidad";
 import { CrucesCelda } from "./CrucesCelda";
 import { CORTO_EMPRESA } from "@/lib/empresas";
@@ -49,7 +52,18 @@ export function ChipEstado({ estado }: { estado: ReturnType<typeof estadoPartici
 
 const items = (xs: number[]) => (xs.length === 1 ? `el ítem ${xs[0]}` : `los ítems ${listaY(xs.map(String))}`);
 
-export function DetalleParticipante({ p, conOfertas, hayGanador }: { p: Participante; conOfertas: boolean; hayGanador: boolean }) {
+export function DetalleParticipante({
+  p,
+  conOfertas,
+  hayGanador,
+  aqui,
+}: {
+  p: Participante;
+  conOfertas: boolean;
+  hayGanador: boolean;
+  /** La ruta de esta pestaña: la vuelta desde la ficha de un integrante. */
+  aqui?: string;
+}) {
   const estado = estadoParticipante(p, conOfertas);
   const s = p.sunat;
   const h = p.historial;
@@ -163,12 +177,27 @@ export function DetalleParticipante({ p, conOfertas, hayGanador }: { p: Particip
       {p.integrantes.length > 0 && (
         <BloqueDetalle titulo="Integrantes del consorcio">
           <ul className="space-y-1.5">
-            {p.integrantes.map((x) => (
-              <li key={x.ruc} className="text-dato text-ink">
-                <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
-                {rucVisibleDe(x) && <span className="ml-2 font-mono text-meta tabular-nums text-mute">{rucVisibleDe(x)}</span>}
-              </li>
-            ))}
+            {p.integrantes.map((x) => {
+              // Una empresa (RUC 20) abre su ficha; una persona natural va tapada y sin enlace (no tiene ficha pública).
+              const ruc = rucVisibleDe(x);
+              const href = ruc && /^20\d{9}$/.test(ruc) ? conDesde(rutaEmpresa(ruc), aqui) : null;
+              return (
+                <li key={x.ruc} className="text-dato text-ink">
+                  {href ? (
+                    <Link href={href} className="font-semibold text-granate underline-offset-2 hover:underline">
+                      <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
+                    </Link>
+                  ) : (
+                    <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
+                  )}
+                  {ruc ? (
+                    <span className="ml-2 font-mono text-meta tabular-nums text-mute">{ruc}</span>
+                  ) : (
+                    esRucPersonaNatural(x.ruc) && <span className="ml-2 text-meta text-mute">Persona natural</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </BloqueDetalle>
       )}

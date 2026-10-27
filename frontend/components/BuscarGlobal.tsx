@@ -25,8 +25,10 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, FileSearch, Building2, Briefcase, MapPin, Heart, Flag, Loader2, CornerDownLeft, X } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
-import { UBIGEO_REGION } from "@/components/mapa/region-match";
+import { limpiarObjeto } from "@/components/contratos/recortar";
+import { etiquetaTipoVisible } from "@/lib/entidad-tipo";
 import { numero, plural, soles } from "@/lib/formato";
+import { rutaRegion } from "@/lib/regiones";
 import { cn } from "@/lib/utils";
 import { tituloNatural } from "@/lib/landing";
 import { Partes } from "@/components/ui/Partes";
@@ -37,9 +39,35 @@ interface Resultados {
   entidades: { ruc: string; nombre: string; tipo: string | null; region: string | null; contratos: number }[];
   /** Empresas (RUC 20) que le venden al Estado. Una API anterior no lo trae. */
   empresas?: { ruc: string; nombre: string; departamento: string | null; contratos: number; ordenes: number }[];
-  zonas: { ubigeo: string; nombre: string; nivel: string; totalCola: number; financiados: number }[];
+  /** `provincia` (de un distrito) y `departamento` (de una provincia o un distrito): una API anterior no los trae. */
+  zonas: { ubigeo: string; nombre: string; nivel: string; totalCola: number; financiados: number; provincia?: string | null; departamento?: string | null }[];
   aportes: { codigo: string; estado: string; contratos: number; zona: string; financiador: string }[];
   alertas: { codigo: string; ocid: string | null; score: number | null; objeto: string | null; region: string | null; banderas: number }[];
+}
+
+/** Sin tildes y en minúsculas: «Cayma» y «CAYMA» son el mismo lugar. */
+const normal = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+
+/**
+ * ¿La búsqueda es un lugar? Una zona que se llama así (o empieza así, con 4 letras o más). Entonces los lugares y las
+ * entidades van antes que los contratos: quien escribe «Cayma» busca el distrito y su municipalidad, no los cinco
+ * contratos que dicen «Cayma» en el objeto (antes iban primero).
+ */
+function esLugar(q: string, zonas: Resultados["zonas"]): boolean {
+  const n = normal(q);
+  if (n.length < 3 || /\d/.test(n)) return false;
+  return zonas.some((z) => {
+    const nombre = normal(z.nombre);
+    return nombre === n || (n.length >= 4 && nombre.startsWith(`${n} `));
+  });
+}
+
+/** Dónde queda una zona, en palabras, como su panel en la ficha de la región: «Distrito de la provincia de Castilla, Arequipa». */
+function dondeQueda(z: Resultados["zonas"][number]): string {
+  if (z.nivel === "departamento") return "Región";
+  if (z.nivel === "provincia") return z.departamento ? `Provincia de la región ${z.departamento}` : "Provincia";
+  if (z.provincia) return `Distrito de la provincia de ${z.provincia}${z.departamento && z.departamento !== z.provincia ? `, ${z.departamento}` : ""}`;
+  return "Distrito";
 }
 
 /** `detalle`: datos sueltos (código, entidad, zona, monto); se muestran separados por aire, sin comas: "S/ 45,000" ya lleva una. */
@@ -165,18 +193,27 @@ export function BuscarGlobal({
   // señal nunca se pinta con él. Sin puntaje: el puntaje no se muestra sin las
   // señales que lo explican (§10.4).
   const items = useMemo<Item[]>(() => {
-    const out: Item[] = [];
-    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null], icon: <FileSearch size={14} aria-hidden /> });
-    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: rutaContrato(a.codigo.replace(/^OECE-/, ""), "dictamen"), titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> });
-    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")], icon: <Building2 size={14} aria-hidden /> });
-    for (const e of res.empresas ?? []) out.push({ key: `m-${e.ruc}`, grupo: "Empresas", href: `/empresa/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.departamento ? tituloNatural(e.departamento) : null, e.contratos ? plural(e.contratos, "contrato", "contratos") : e.ordenes ? plural(e.ordenes, "orden", "órdenes") : null], icon: <Briefcase size={14} aria-hidden /> });
-    for (const z of res.zonas) {
-      const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
-      const href = z.nivel === "departamento" && regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;
-      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${numero(z.totalCola)} en cola` : null, z.financiados > 0 ? plural(z.financiados, "financiado", "financiados") : null], icon: <MapPin size={14} aria-hidden /> });
-    }
-    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")], icon: <Heart size={14} aria-hidden /> });
-    return out;
+    // Cada grupo por su lado; el orden de los grupos, después (un lugar antes que los contratos que lo nombran).
+    const contratos: Item[] = res.contratos.map((c) => ({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ? limpiarObjeto(c.titulo) : c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null], icon: <FileSearch size={14} aria-hidden /> }));
+    const alertas: Item[] = res.alertas.map((a) => ({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: rutaContrato(a.codigo.replace(/^OECE-/, ""), "dictamen"), titulo: a.objeto ? limpiarObjeto(a.objeto) : a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> }));
+    const entidades: Item[] = res.entidades.map((e) => ({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [etiquetaTipoVisible(e.tipo, e.nombre, "corto"), `RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")], icon: <Building2 size={14} aria-hidden /> }));
+    // Las entidades del Estado que también venden (una municipalidad con órdenes de otra) ya van en «Entidades»: la API
+    // nueva no las manda aquí y, con una vieja, no se repiten.
+    const deEntidades = new Set(res.entidades.map((e) => e.ruc));
+    const empresas: Item[] = (res.empresas ?? []).filter((e) => !deEntidades.has(e.ruc)).map((e) => ({ key: `m-${e.ruc}`, grupo: "Empresas", href: `/empresa/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.departamento ? tituloNatural(e.departamento) : null, e.contratos ? plural(e.contratos, "contrato", "contratos") : e.ordenes ? plural(e.ordenes, "orden", "órdenes") : null], icon: <Briefcase size={14} aria-hidden /> }));
+    // Un lugar abre la ficha de su región: la región misma, o su lista de provincias y distritos ya buscada (cada fila
+    // abre su panel con quién la gobierna y sus contratos). Antes un distrito llevaba al formulario de pago de la zona.
+    const zonas: Item[] = res.zonas.map((z) => ({
+      key: `z-${z.ubigeo}`, grupo: "Zonas",
+      href: z.nivel === "departamento" ? rutaRegion(z.ubigeo) : rutaRegion(z.ubigeo, "territorio", z.nombre),
+      titulo: z.nombre,
+      detalle: [dondeQueda(z), z.totalCola > 0 ? `${numero(z.totalCola)} en cola` : null, z.financiados > 0 ? plural(z.financiados, "financiado", "financiados") : null],
+      icon: <MapPin size={14} aria-hidden />,
+    }));
+    const aportes: Item[] = res.aportes.map((p) => ({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")], icon: <Heart size={14} aria-hidden /> }));
+    return esLugar(res.q, res.zonas)
+      ? [...zonas, ...entidades, ...contratos, ...alertas, ...empresas, ...aportes]
+      : [...contratos, ...alertas, ...entidades, ...empresas, ...zonas, ...aportes];
   }, [res]);
 
   const ir = useCallback((it: Item) => { navegando.current = true; setOpen(false); router.push(it.href); }, [router]);

@@ -84,6 +84,25 @@ export interface ApiEntidad {
   serie: number[] | null;
   /** Tiene indicio de nepotismo (un pariente declarado en la DJI que es su locador). */
   conNepotismo?: boolean;
+  /**
+   * Lo que toda entidad tiene, para la lista (GET /entidades, 2026-10-27; la API vieja no lo trae): sus contratos con un
+   * ganador con antecedentes y con uno grave (null: no se pudieron contar), su presupuesto del MEF del año (null: sin
+   * cruce con el MEF), sus informes de la Contraloría y las señales que cuentan los filtros.
+   */
+  antecedentes?: { con: number; alta: number } | null;
+  presupuesto?: { anio: number; pim: number; devengado: number; deTodoElGobierno: boolean } | null;
+  informes?: { total: number; penal: number };
+  senales?: {
+    /** Contratos que ganó una empresa ligada a quien la gobierna, en el período de `capturaDesde` a `capturaHasta`. */
+    captura: number;
+    capturaPartido: string | null;
+    capturaDesde: string | null;
+    capturaHasta: string | null;
+    /** Personas de su planilla con una señal alta. */
+    planillaAlta: number;
+    /** Plazas CAS con señales de plaza a la medida. */
+    plazasSenales: number;
+  };
 }
 
 export interface ApiReporte extends ReporteCiudadano {
@@ -244,6 +263,39 @@ export async function getMefRegion(dept: string) {
   return get<import("./mef").RegionBudgetSummary>(`/mef/region/${encodeURIComponent(dept)}`);
 }
 
+/**
+ * Cuántas filas tiene cada pestaña de la ficha de una entidad (GET /entidades/:ruc/conteos): con ellas cada pestaña lleva
+ * su número y las vacías van al final. null si la API no responde (la ficha sigue sin números, en su orden de siempre).
+ */
+export interface ConteosEntidad {
+  /** Contratos menores (≤8 UIT) del SEACE. */
+  menores: number;
+  /** El primer año con contratos menores en la base (el módulo del SEACE es reciente). */
+  menoresDesde: number | null;
+  /** Personas a las que pagó por órdenes de servicio (persona_resumen). */
+  personas: number;
+  /** Personas en su planilla del Portal de Transparencia (planilla_resumen). */
+  planilla: number;
+  /** Plazas CAS que publicó en SERVIR Talento Perú. */
+  plazas: number;
+  /** Desde cuándo guarda Vigía las plazas de SERVIR ("AAAA-MM-DD"). */
+  plazasDesde: string | null;
+  /** Informes de la Contraloría sobre ella. */
+  informes: number;
+  /** Sus órdenes de compra y de servicio (CONOSCE). null = tiene, pero todavía no están contadas (migración 148). */
+  ordenes: number | null;
+  /** Lo que suman, sin las de monto dudoso; null si no están contadas. */
+  ordenesMonto: number | null;
+}
+
+export async function getConteosEntidad(ruc: string): Promise<ConteosEntidad | null> {
+  try {
+    return await get<ConteosEntidad>(`/entidades/${ruc}/conteos`);
+  } catch {
+    return null;
+  }
+}
+
 /** En qué gasta la entidad según el MEF (migración 63). null si la API no responde o no lo tiene. */
 export async function getGastoEntidad(ruc: string) {
   try {
@@ -328,19 +380,23 @@ const TIPOS_ENTIDAD: ApiEntidad["tipo"][] = [
 ];
 
 /**
- * El tipo de la entidad como lo muestra la web (lib/entidad-tipo.ts): el backend lo deriva igual, del tipo declarado o
- * del nombre. `municipal` junta las dos municipalidades; `sin`, las que no se pueden clasificar.
+ * El tipo de la entidad como lo muestra la web (lib/entidad-tipo.ts): el backend lo deriva igual, del nombre y, si no
+ * dice nada, del tipo declarado. `municipal` junta las dos municipalidades; `sin`, las que no se pueden clasificar.
  */
-export const CLASES_ENTIDAD = ["ministerio", "regional", "municipal", "provincial", "distrital", "empresa", "organismo", "sin"] as const;
+export const CLASES_ENTIDAD = [
+  "ministerio", "regional", "municipal", "provincial", "distrital", "universidad", "salud", "educacion", "programa",
+  "beneficencia", "fuerzas", "empresa", "organismo", "publico", "sin",
+] as const;
 export type ClaseEntidad = (typeof CLASES_ENTIDAD)[number];
 
 /** Lo que otros registros dicen de la entidad (los filtros de «Filtros»), con sus valores en la URL. */
 export const CONTROLES_ENTIDAD = ["penal", "civil", "administrativa", "alguno"] as const;
 export const PLANILLAS_ENTIDAD = ["alta", "con"] as const;
 export const PLAZAS_ENTIDAD = ["senales", "con"] as const;
+/** El primero es el de por defecto (no va en la URL): por contratos, que toda entidad tiene. */
 export const ORDENES_ENTIDADES = [
+  { valor: "contratos", etiqueta: "Más contratos" },
   { valor: "dictamen", etiqueta: "Más contratos con dictamen" },
-  { valor: "contratos", etiqueta: "Más contratos registrados" },
   { valor: "nombre", etiqueta: "Por nombre" },
 ] as const;
 export type OrdenEntidades = (typeof ORDENES_ENTIDADES)[number]["valor"];
@@ -449,12 +505,26 @@ export interface EntidadesResumen {
   totalEntidades: number;
   conAlertas: number;
   monto: number;
+  /** Las que tienen contratos en la base (desde 2015). null: la API no lo trae. */
+  conContratos: number | null;
+  /** Las que tienen algún contrato con un ganador con antecedentes, y con alguno grave. null: no se pudieron contar. */
+  conAntecedentes: number | null;
+  conGraves: number | null;
+  /** Las que tienen informes de la Contraloría (responsabilidad presunta). */
+  conInformes: number | null;
 }
 
 /** KPIs globales de todo el universo de entidades (no respeta filtros de búsqueda): GET /entidades/summary. */
 export async function getEntidadesResumen(): Promise<EntidadesResumen> {
-  const r = await get<{ total_entidades: number; con_alertas: number; monto: number }>(`/entidades/summary`);
-  return { totalEntidades: r.total_entidades, conAlertas: r.con_alertas, monto: r.monto };
+  const r = await get<{
+    total_entidades: number; con_alertas: number; monto: number;
+    con_contratos?: number | null; con_antecedentes?: number | null; con_graves?: number | null; con_informes?: number | null;
+  }>(`/entidades/summary`);
+  return {
+    totalEntidades: r.total_entidades, conAlertas: r.con_alertas, monto: r.monto,
+    conContratos: r.con_contratos ?? null, conAntecedentes: r.con_antecedentes ?? null, conGraves: r.con_graves ?? null,
+    conInformes: r.con_informes ?? null,
+  };
 }
 
 export interface MediaItem {

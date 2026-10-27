@@ -584,8 +584,13 @@ function FilaContenido({ c, gobierna }: { c: CruceProveedor; gobierna?: Gobierno
  */
 const DATOS_PROVEEDOR = new Set(["candidato", "aporte", "aporte_empresa", "proveedor_campana", "autoridad"]);
 
+/**
+ * Los hechos de ESTE proceso y no de quien ganó: que haya tenido un solo postor. Van aparte, «En este proceso», con su
+ * evidencia (2026-10-27: «Único postor» salía como un antecedente del ganador, que no es: no dice nada de la empresa).
+ */
+const HECHOS_DEL_PROCESO = new Set(["unico_postor"]);
 
-/** Los cruces, una sola vez cada uno y en sus tres partes: antecedentes, datos del proveedor y lo posterior. */
+/** Los cruces, una sola vez cada uno y en sus partes: antecedentes, hechos del proceso, datos del proveedor y lo posterior. */
 export function clasificarCruces(todos: CruceProveedor[]) {
   // Dedup de seguridad: la base puede traer cruces idénticos (mismo tipo, persona, aporte y detalle) por un JOIN que
   // multiplica; se muestran una sola vez. El arreglo de raíz está en dedup_cruces_proveedor (migración 120).
@@ -600,7 +605,8 @@ export function clasificarCruces(todos: CruceProveedor[]) {
   // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
   // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
   return {
-    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo)),
+    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo) && !HECHOS_DEL_PROCESO.has(c.tipo)),
+    delProceso: unicos.filter((c) => !c.posterior && HECHOS_DEL_PROCESO.has(c.tipo)),
     datosProv: unicos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo)),
     posteriores: unicos.filter((c) => c.posterior),
   };
@@ -695,7 +701,7 @@ function Plegado({ titulo, n, aclaracion, children }: { titulo: string; n: numbe
  */
 export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
   if (!todos.length) return null;
-  const { antecedentes, datosProv, posteriores } = clasificarCruces(todos);
+  const { antecedentes, delProceso, datosProv, posteriores } = clasificarCruces(todos);
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
 
   return (
@@ -720,6 +726,12 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
           </p>
         )}
         {antecedentes.length > 0 && <GruposCruces lista={antecedentes} gobierna={gobierna} conAnclas />}
+        {delProceso.length > 0 && (
+          <div className="border-t border-line">
+            <h3 className="px-4 pt-3 text-cuerpo font-semibold text-ink">En este proceso</h3>
+            <GruposCruces lista={delProceso} gobierna={gobierna} conAnclas />
+          </div>
+        )}
         {datosProv.length > 0 && (
           <Plegado titulo="Datos del proveedor" n={datosProv.length} aclaracion="No relacionados con esta entidad.">
             <p className="px-4 pb-1 pt-1 text-meta leading-relaxed text-inkSoft">
@@ -743,14 +755,38 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
   );
 }
 
+/** Un renglón por tipo con su severidad y cuántos; cada uno abre la pestaña «Antecedentes» en ese grupo. */
+function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
+  return (
+    <ul className="divide-y divide-line/70 rounded-xl border border-line">
+      {grupos.map((g) => (
+        <li key={g[0].tipo}>
+          <BotonPestana
+            clave="antecedentes"
+            ancla={anclaDe(g[0].tipo)}
+            className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} />
+              <span className="line-clamp-2 text-dato leading-snug text-ink">{g[0].etiqueta}</span>
+            </span>
+            <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>
+          </BotonPestana>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Los antecedentes en el Resumen de la ficha: un renglón por tipo con su severidad (color, ícono y palabra) y cuántos;
  * cada renglón abre la pestaña «Antecedentes» en ese grupo, con la evidencia. Sin antecedentes ligados a esta entidad,
  * se dice en una línea (y si hay datos del proveedor o algo posterior, cuántos y dónde verlos).
  */
 export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
-  const { antecedentes, datosProv, posteriores } = clasificarCruces(cruces);
+  const { antecedentes, delProceso, datosProv, posteriores } = clasificarCruces(cruces);
   const grupos = agrupar(antecedentes);
+  const gruposProceso = agrupar(delProceso);
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
   return (
     <section aria-labelledby="resumen-antecedentes" className="space-y-2">
@@ -763,27 +799,18 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
         </BotonPestana>
       </div>
       {grupos.length > 0 ? (
-        <ul className="divide-y divide-line/70 rounded-xl border border-line">
-          {grupos.map((g) => (
-            <li key={g[0].tipo}>
-              <BotonPestana
-                clave="antecedentes"
-                ancla={anclaDe(g[0].tipo)}
-                className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} />
-                  <span className="line-clamp-2 text-dato leading-snug text-ink">{g[0].etiqueta}</span>
-                </span>
-                <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>
-              </BotonPestana>
-            </li>
-          ))}
-        </ul>
+        <RenglonesGrupos grupos={grupos} />
       ) : (
         <p className="text-meta leading-relaxed text-inkSoft">
           Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
         </p>
+      )}
+      {/* Lo que es del proceso y no de quien ganó (un solo postor), aparte: no es un antecedente de la empresa. */}
+      {gruposProceso.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <h3 className="text-cuerpo font-semibold text-ink">En este proceso</h3>
+          <RenglonesGrupos grupos={gruposProceso} />
+        </div>
       )}
       {datosProv.length + posteriores.length > 0 && (
         <p className="text-rotulo text-mute">

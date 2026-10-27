@@ -252,3 +252,26 @@ export const claveOrg = (nombre: string) =>
     .trim()
     .replace(/\s+/g, "-")
     .slice(0, 80);
+
+/**
+ * El período de gobierno (el año de su elección: 2014, 2018 o 2022) de un dato con fecha: un año de elección es el suyo
+ * (una candidatura de 2018, el gobierno 2019 a 2022) y cualquier otro, el gobierno en curso ese año. null fuera de
+ * 2014 a 2026 o sin año (la ficha abre entonces el período vigente). Acepta 2021, "2021" o "2021-05-04".
+ */
+export function anioDeGobierno(v: unknown): 2014 | 2018 | 2022 | null {
+  const y = Number(String(v ?? "").slice(0, 4));
+  if (!Number.isInteger(y) || y < 2014 || y > 2026) return null;
+  if (y === 2014 || y === 2018 || y === 2022) return y;
+  return y < 2018 ? 2014 : y < 2022 ? 2018 : 2022;
+}
+
+/**
+ * La ficha de un partido desde un dato que sólo trae su nombre (una candidatura, un aporte, una autoridad electa): su
+ * clave (`claveOrg`, la que usa la API) y, si el dato tiene fecha, su período. Antes se enlazaba con el nombre tal cual
+ * (`/app/partidos/SENTIMIENTO%20AMAZONENSE%20REGIONAL`, la forma de /app/poder) y la ficha decía «No pudimos leer este
+ * partido».
+ */
+export function rutaPartido(nombre: string, anio?: unknown): string {
+  const a = anioDeGobierno(anio);
+  return `/app/partidos/${claveOrg(nombre)}${a ? `?anio=${a}` : ""}`;
+}

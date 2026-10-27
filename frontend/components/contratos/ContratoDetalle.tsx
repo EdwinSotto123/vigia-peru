@@ -52,7 +52,7 @@ import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
 import { fecha, fechaCorta, numero, oracion, plural, solesCompacto } from "@/lib/formato";
 import {
-  adjudicacionesVigentes, cambioDeGanador, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel, validacionLabel,
+  adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,12 @@ export interface AlcanceActivo {
   tipos_activos?: string[];
   etapas_activas?: string[];
   nota?: string;
+}
+
+/** Cuántos lleva la pestaña «Antecedentes»: los del ganador y los del proceso (sin los datos del proveedor ni lo posterior). */
+function conteoAntecedentes(cruces: Parameters<typeof clasificarCruces>[0]): number {
+  const { antecedentes, delProceso } = clasificarCruces(cruces);
+  return antecedentes.length + delProceso.length;
 }
 
 /** Cifra de cabecera: compacta, como en toda tarjeta (§10.3). En otra moneda, el número entero con su código. */
@@ -143,8 +149,9 @@ export function ContratoDetalle({
     { clave: "resumen", etiqueta: "Resumen", contenido: resumen },
     // El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. Su pestaña, con
     // cuántos antecedentes hay (lo que ya había pasado cuando se convocó y es de esta entidad).
+    // El conteo, con lo que es del proceso (un solo postor), que va en la misma pestaña bajo «En este proceso».
     ...(cruces.length > 0
-      ? [{ clave: "antecedentes", etiqueta: "Antecedentes", conteo: clasificarCruces(cruces).antecedentes.length, contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
+      ? [{ clave: "antecedentes", etiqueta: "Antecedentes", conteo: conteoAntecedentes(cruces), contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
       : []),
     ...conProceso(pestanasEvidencia({ c, enRevision, catalogo }), pestanasProceso({ c })),
   ];
@@ -356,6 +363,10 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
   const proveedor = queda?.proveedor ?? c.proveedor;
   const proveedorRuc = queda?.proveedorRuc ?? c.proveedorRuc;
   const natural = esPersonaNatural(proveedorRuc);
+  // Un consorcio sin RUC propio llega con el código del SEACE (1830304): se dice así, y quiénes lo forman (antes «RUC
+  // 1830304», sin integrantes ni enlace).
+  const codigoConsorcio = esCodigoConsorcio(proveedorRuc) ? proveedorRuc : null;
+  const integrantes = codigoConsorcio ? (c.participantes ?? []).find((p) => p.ruc === codigoConsorcio)?.integrantes ?? [] : [];
   const descripcion = c.descripcion && c.descripcion !== c.titulo ? c.descripcion : null;
   return (
     <div className="rounded-2xl border border-line bg-paper">
@@ -368,10 +379,20 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
             <>
               {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
               <span className="font-semibold">{natural ? <PersonName name={proveedor} orden="sunat" /> : proveedor}</span>
-              {proveedorRuc && (
-                <span className="block font-mono text-rotulo text-mute">
-                  RUC <Ruc value={proveedorRuc} />
+              {codigoConsorcio ? (
+                <span className="flex items-center gap-1 font-mono text-rotulo text-mute">
+                  Código del consorcio {codigoConsorcio}
+                  <Ayuda titulo="¿Por qué no tiene RUC?">
+                    Un consorcio se forma para participar en un proceso y no tiene RUC propio: el SEACE le da este código. Sus
+                    integrantes sí tienen RUC, y cada empresa su ficha en Vigía.
+                  </Ayuda>
                 </span>
+              ) : (
+                proveedorRuc && (
+                  <span className="block font-mono text-rotulo text-mute">
+                    RUC <Ruc value={proveedorRuc} />
+                  </span>
+                )
               )}
               {queda && <span className="block text-rotulo text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
               {enlaceProveedor(proveedorRuc) && (
@@ -384,6 +405,31 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
             <span className="text-mute">Sin adjudicar todavía</span>
           )}
         </Dato>
+        {codigoConsorcio && (
+          <Dato k="Integrantes del consorcio">
+            {integrantes.length ? (
+              <ul className="space-y-1.5">
+                {integrantes.map((x) => (
+                  <li key={x.ruc}>
+                    {/* Una empresa, con el enlace a su ficha; una persona natural, tapada y sin enlace. */}
+                    {enlaceProveedor(x.ruc) ? (
+                      <Link href={enlaceProveedor(x.ruc)!} className="font-semibold text-granate underline-offset-2 hover:underline">
+                        {x.nombre ?? `RUC ${x.ruc}`}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold">{x.nombre ? (esPersonaNatural(x.ruc) ? <PersonName name={x.nombre} orden="sunat" /> : x.nombre) : "Sin razón social"}</span>
+                    )}
+                    <span className="block font-mono text-rotulo text-mute">
+                      {esPersonaNatural(x.ruc) ? "Persona natural" : <>RUC <Ruc value={x.ruc} /></>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="text-mute">CONOSCE todavía no publica sus integrantes</span>
+            )}
+          </Dato>
+        )}
         {descripcion && (
           <Dato k="Descripción">
             {/* div y no span: la descripción larga se pliega en un <details>. */}
@@ -590,16 +636,21 @@ function ClasificacionCard({ c }: { c: Detalle }) {
   );
 }
 
+/**
+ * Lo que le falta al registro para poder leerlo, en palabras del ciudadano. Las validaciones internas de la lectura
+ * («proveedor_sin_ruc» de un consorcio, el avance de INFOBRAS, ítems sin precio de mercado) no se muestran: son la cocina
+ * (DESIGN_SYSTEM.md §12) y nadie puede hacer nada con ellas. Antes la ficha decía «Validaciones pendientes: proveedor sin
+ * ruc» debajo de un contrato ganado por un consorcio.
+ */
+const FALTA_PARA_LEER: Record<string, string> = {
+  sin_documentos_descargables: "El SEACE todavía no publica documentos descargables de este proceso, y sin ellos no se puede leer.",
+  document_parser: "El SEACE todavía no publica documentos descargables de este proceso, y sin ellos no se puede leer.",
+};
+
 function Pendientes({ v }: { v: string[] | null }) {
-  if (!v?.length) return null;
-  return (
-    <div className="mt-3">
-      <div className="text-rotulo font-semibold text-inkSoft">Validaciones pendientes</div>
-      <ul className="mt-1 space-y-0.5 text-meta text-ink">
-        {v.map((x) => <li key={x} className="flex items-start gap-1.5"><span aria-hidden className="mt-2 inline-block h-1 w-1 shrink-0 rounded-full bg-mute" />{validacionLabel(x)}</li>)}
-      </ul>
-    </div>
-  );
+  const textos = [...new Set((v ?? []).map((x) => FALTA_PARA_LEER[x]).filter((x): x is string => !!x))];
+  if (!textos.length) return null;
+  return <p className="mt-2 text-meta leading-snug text-inkSoft">{textos.join(" ")}</p>;
 }
 
 /**

@@ -8,7 +8,7 @@ import { ResultadoView } from "@/components/convocatoria/ResultadoView";
 import { getProcesamiento } from "@/lib/auditoria";
 import { cargarDossier, idLegible } from "@/lib/dossier-servidor";
 import { rutaContrato, type VistaContrato } from "@/lib/rutas";
-import { recortar as corto } from "@/components/contratos/recortar";
+import { limpiarObjeto, recortar as corto } from "@/components/contratos/recortar";
 import { Pagina } from "@/components/patrones";
 import { leerDesde } from "@/lib/desde";
 import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
@@ -34,7 +34,8 @@ export async function generateMetadata({
   if (!c) return { title: "Contrato no encontrado" };
   const vista = vistaDe(searchParams?.vista);
   // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
-  const objeto = corto(c.titulo ?? `Contrato ${c.codigo}`, 70);
+  // Sin los «¿» que el SEACE dejó donde iban comillas (la pestaña del navegador también lo muestra).
+  const objeto = corto(c.titulo ? limpiarObjeto(c.titulo) : `Contrato ${c.codigo}`, 70);
   const base = c.entidad ? `${objeto}, ${corto(c.entidad, 48)}` : objeto;
   const titulo = vista === "dictamen" ? `Análisis: ${base}` : vista === "vivo" ? `${base}, lectura en vivo` : base;
   const desc = [

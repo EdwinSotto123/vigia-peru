@@ -24,7 +24,10 @@ import { conAnio, entidadEtq, entidadTexto, NoCargo, opcionesDe, ORDEN_LISTA, Pa
 
 // ─── Contratos ────────────────────────────────────────────────────────────────
 
-export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", cruce: "ccruce", orden: "cord", page: "cpag" } as const;
+export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", dudoso: "cdud", cruce: "ccruce", orden: "cord", page: "cpag" } as const;
+
+/** Los valores de la faceta de sanciones (la partición) y los de los enlaces de antes, que siguen filtrando. */
+export const BANDERAS_CONTRATO = ["inhabilitada", "sancionada_antes", "solo_despues", "sin_sancion", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const;
 
 const COLUMNAS_CONTRATOS: Columna[] = [
   { clave: "fecha", titulo: "Buena pro", ancho: "92px", desde: "md", apilar: true },
@@ -56,15 +59,20 @@ const ETIQUETAS_SANCION: Record<string, string> = {
   sancionada_despues: "Sancionada después",
 };
 
+/** Los antecedentes que YA son una sanción del Tribunal anterior al proceso, con su tipo (casos_cruce, migración 121). */
+const SANCIONES_CON_TIPO = new Set(["sancion_definitiva", "sancion_temporal", "sancion_multa"]);
+
 /**
  * Lo que va en la celda de banderas de un proceso: su sanción del Tribunal frente a la buena pro (inhabilitada al
- * ganar, o sancionada antes; y sancionada después) y los antecedentes que pesan sobre él. `CrucesCelda` los ordena por
- * severidad y deja los dos primeros a la vista.
+ * ganar, o sancionada antes; y sancionada después) y los antecedentes que pesan sobre él, UNA vez cada hecho: si un
+ * antecedente ya dice qué sanción tuvo antes («Multa del Tribunal antes»), no va además «Sancionada antes» (era la misma
+ * multa dos veces en la fila, 2026-10-27). `CrucesCelda` los ordena por severidad y deja los dos primeros a la vista.
  */
 function banderasDe(c: ContratoEmpresa): { tipo: string; severidad: "alta" | "media" | "baja" }[] {
   const s = c.sancion;
+  const conTipo = c.antecedentes.some((a) => SANCIONES_CON_TIPO.has(a.tipo));
   return [
-    ...(s?.alGanar ? [{ tipo: "sancion_vigente", severidad: "alta" as const }] : s && s.antes > 0 ? [{ tipo: "sancionada_antes", severidad: "media" as const }] : []),
+    ...(s?.alGanar ? [{ tipo: "sancion_vigente", severidad: "alta" as const }] : s && s.antes > 0 && !conTipo ? [{ tipo: "sancionada_antes", severidad: "media" as const }] : []),
     ...(s && s.despues > 0 ? [{ tipo: "sancionada_despues", severidad: "baja" as const }] : []),
     ...c.antecedentes,
   ];
@@ -92,11 +100,15 @@ function fraseSancion(s: ContratoEmpresa["sancion"]): string | undefined {
 }
 
 /**
- * Los filtros de sus contratos, con cuántos procesos tiene cada opción (§14.1): la faceta de banderas en chips
- * (inhabilitada al ganar, sancionada antes, posible error de carga…) y los antecedentes del ganador a la vista; detrás de
- * «Filtros», el año, la entidad, el tipo de proceso, el rubro, la región y si la ganó sola o en consorcio. Antes eran 12
- * controles en la barra y 4 renglones en el celular antes de la primera fila. `facetas` null mientras carga: los mismos
- * filtros sin conteos.
+ * Los filtros de sus contratos, con cuántos procesos tiene cada opción (§14.1): la faceta de la sanción del Tribunal en
+ * chips y los antecedentes del ganador a la vista; detrás de «Filtros», el año, la entidad, el tipo de proceso, el
+ * rubro, la región y si la ganó sola o en consorcio. Antes eran 12 controles en la barra y 4 renglones en el celular
+ * antes de la primera fila. `facetas` null mientras carga: los mismos filtros sin conteos.
+ *
+ * La faceta es una PARTICIÓN de sus procesos por la sanción del Tribunal frente a la buena pro (cada proceso en un solo
+ * chip y los chips suman «Todos»): antes decía «Todos 321, Sancionada antes 149, Sancionada después 172, Sin banderas
+ * 171», que no sumaba (un proceso podía estar en «antes» y en «después», y «sin banderas» contaba los de «después»). El
+ * posible error de carga se cruza con cualquiera: va aparte, en su conmutador.
  */
 export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | null }) {
   const b = f?.banderas;
@@ -105,22 +117,24 @@ export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | nul
     <BarraFiltros
       busqueda={{ param: P_CONTRATOS.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus contratos", min: 3 }}
       faceta={{
-        // La faceta guarda sólo las banderas propias del PROCESO (sanción del Tribunal frente a la buena pro, monto
-        // dudoso, sin nada). El "Con antecedentes" agrupado se abrió en el desplegable "Antecedentes del ganador".
         param: P_CONTRATOS.bandera,
-        etiqueta: "Banderas",
+        etiqueta: "Sanción del Tribunal",
         todas: "Todos",
         conteoTodas: f ? f.como.sola + f.como.consorcio : null,
         nombreEnChip: false,
         opciones: [
           { valor: "inhabilitada", etiqueta: "Inhabilitada al ganar", conteo: b?.inhabilitada ?? null, tono: "alta" as const, icono: "alerta" as const },
           { valor: "sancionada_antes", etiqueta: "Sancionada antes", conteo: b?.sancionada_antes ?? null, tono: "media" as const, icono: "atencion" as const },
-          { valor: "dudoso", etiqueta: "Posible error de carga", conteo: b?.dudoso ?? null },
-          { valor: "sancionada_despues", etiqueta: "Sancionada después", conteo: b?.sancionada_despues ?? null },
-          { valor: "sin", etiqueta: "Sin banderas", conteo: b?.sin ?? null },
+          { valor: "solo_despues", etiqueta: "Sancionada sólo después", conteo: b?.solo_despues ?? null },
+          { valor: "sin_sancion", etiqueta: "Sin sanciones", conteo: b?.sin_sancion ?? null },
         ].filter((o) => o.conteo == null || o.conteo > 0),
       }}
       visibles={[
+        // Un conmutador (una sola opción): el monto que el Estado publicó y no se puede creer.
+        // Mientras cargan los conteos (o si no llegaron), va igual: si está puesto, tiene que poder quitarse.
+        ...(!b || b.dudoso > 0
+          ? [{ param: P_CONTRATOS.dudoso, etiqueta: "Posible error de carga", corta: "Error de carga", todas: "Todos", opciones: [{ valor: "si", etiqueta: "Posible error de carga", conteo: b?.dudoso ?? null }] }]
+          : []),
         {
           // Cada antecedente del ganador sobre estos procesos, segmentado por familia (Política, En el proceso, Registro
           // SUNAT…), como en /app/contratos. Sólo los tipos que aparecen en sus contratos.

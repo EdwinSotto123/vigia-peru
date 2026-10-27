@@ -33,6 +33,8 @@ import { aFilaVivo, deAnalisis, deProcesamiento, esAnalisisReal, unirLecturas, t
 
 const INTERVALO_MS = 10_000;
 const MAX_FILAS = 6;
+/** Sin una lectura terminada en este tiempo (y nada en análisis), la lectura está en pausa. */
+const PAUSA_MS = 48 * 3_600_000;
 
 async function pedir(ruta: string): Promise<unknown | null> {
   try {
@@ -164,12 +166,17 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
   if (!vivo && foto.lecturas.length === 0) return null;
 
   const ultima = foto.lecturas[0]?.fecha ?? null;
+  // Sin nada en análisis y sin terminar una lectura en dos días, la lectura está en pausa, y se dice así. Antes decía
+  // «Sin lecturas desde el 12 oct.», que se leía como un hueco de los datos y no como un estado (auditoría 2026-10-27).
+  const enPausa = !!ultima && Date.now() - new Date(ultima).getTime() > PAUSA_MS;
   // El estado, en una línea: late sólo si de verdad hay algo en análisis; si no, la fecha real de la última lectura.
   const estado = vivo
     ? `${numero(foto.totalEnAnalisis)} en análisis ahora`
     : !foto.vivoConocido
       ? ultima ? `La última terminó ${relativo(ultima)}` : null
-      : ultima ? `Sin lecturas desde ${desdeCuando(ultima)}` : "Ninguna en análisis ahora";
+      : ultima
+        ? enPausa ? `La lectura está en pausa desde ${desdeCuando(ultima)}` : `Ninguna en análisis ahora; la última terminó ${relativo(ultima)}`
+        : "Ninguna en análisis ahora";
 
   const detalles: DetalleFila[] = [
     ...foto.enAnalisis.map((f) => detalleVivo(f, extra)),

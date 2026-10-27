@@ -60,7 +60,7 @@ export function GraficoMeses({
 
   return (
     <figure className="space-y-3">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: ${numero(total)} ${unidad.plural} en ${todos.length} meses${conLectura ? `, ${numero(leidos)} ya leídos` : ""}`} className="h-auto w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: ${numero(total)} ${unidad.plural} en ${todos.length} meses${conLectura ? `, ${numero(leidos)} ya ${leidos === 1 ? "leído" : "leídos"}` : ""}`} className="h-auto w-full">
         <line x1="0" x2={W} y1={H - PAD_B} y2={H - PAD_B} className="stroke-line" strokeWidth="1" />
         {meses.map((m, i) => {
           const x = i * paso + (paso - ancho) / 2;
@@ -68,7 +68,7 @@ export function GraficoMeses({
           const hLei = (m.leidos / maximo) * alto;
           return (
             <g key={m.mes}>
-              <title>{`${mesCorto(m.mes)}: ${numero(m.contratos)} ${m.contratos === 1 ? unidad.singular : unidad.plural}${conLectura ? `, ${numero(m.leidos)} leídos` : ""}`}</title>
+              <title>{`${mesCorto(m.mes)}: ${numero(m.contratos)} ${m.contratos === 1 ? unidad.singular : unidad.plural}${conLectura ? `, ${numero(m.leidos)} ${m.leidos === 1 ? "leído" : "leídos"}` : ""}`}</title>
               <rect x={x} y={H - PAD_B - hTot} width={ancho} height={Math.max(hTot, m.contratos > 0 ? 1 : 0)} rx="1.5" className={conLectura ? "fill-granate/25" : "fill-granate"} />
               {m.leidos > 0 && <rect x={x} y={H - PAD_B - hLei} width={ancho} height={Math.max(hLei, 1)} rx="1.5" className="fill-granate" />}
             </g>

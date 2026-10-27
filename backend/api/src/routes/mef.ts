@@ -6,7 +6,10 @@ import { cachePublico } from "../lib/http.js";
  * Presupuesto del MEF por departamento, desde la base. Lo carga el scraper `mef_presupuesto` (archivo
  * <año>-Gasto-Diario.zip → mef_ejecutora_anual → refrescar_mef_presupuesto(), migración 47). Antes el
  * frontend consultaba el portal del MEF en vivo, pero el MEF quitó `datastore_search_sql` y
- * `datastore_search` con filtros tarda 30-110 s. El de cada entidad viene en GET /entidades/:ruc (`mef`).
+ * `datastore_search` con filtros tarda 30-110 s. El de cada entidad viene en GET /entidades/:ruc (`mef`): su unidad
+ * ejecutora sale del CODIGO_SIAF del registro de entidades de la OECE (`entidad_siaf`, migraciones 150 y 151) y, para las
+ * que la OECE no registra, del ubigeo o el nombre; `mef.fuente` dice cuál ('oece' | 'heuristica' | 'ninguno') y
+ * `mef.fueraSiaf`, si la entidad no está en el SIAF (su presupuesto no se publica en los datos abiertos del MEF).
  */
 export const mefRouter = new Hono();
 

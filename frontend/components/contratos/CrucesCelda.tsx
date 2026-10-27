@@ -66,3 +66,35 @@ export function CrucesCelda({
     </ul>
   );
 }
+
+/**
+ * Las mismas banderas para un panel, donde hay ancho: todas, con su nombre completo (el `corto` del catálogo) y en
+ * renglones si no entran. Mismo color, ícono y orden que `CrucesCelda`; qué significa cada una, en su title.
+ */
+export function ChipsCruces({
+  cruces,
+  etiquetaLista = "Antecedentes",
+}: {
+  cruces: { tipo: string; severidad: "alta" | "media" | "baja" }[];
+  etiquetaLista?: string;
+}) {
+  if (!cruces.length) return null;
+  const orden = [...cruces].sort((a, b) => RANGO[a.severidad] - RANGO[b.severidad]);
+  return (
+    <ul className="flex flex-wrap items-center gap-1" aria-label={etiquetaLista}>
+      {orden.map((x) => {
+        const Icono = ICONO_CRUCE[x.severidad];
+        const nombre = TIPO_CRUCE[x.tipo]?.corto ?? chipCruce(x.tipo);
+        const explica = TIPO_CRUCE[x.tipo]?.explica;
+        return (
+          <li key={x.tipo} title={explica ? `${nombre}: ${explica}` : nombre}>
+            <Badge variant={VARIANTE_CRUCE[x.severidad]} className="gap-1 px-2">
+              <Icono size={12} className="shrink-0" aria-hidden />
+              {nombre}
+            </Badge>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

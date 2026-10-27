@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { FileSignature, FileText, ListFilter, Store } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
@@ -198,7 +199,31 @@ function antecedentesSunat(m: ContratoMenor): AntecedenteSunat[] {
 
 // ─── La lista ─────────────────────────────────────────────────────────────────
 
-export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pagina: Promise<MenoresPagina | null>; ruta: string; parametros: Parametros; actual: number }) {
+/**
+ * Sin ningún contrato menor (y sin filtros): por qué puede no haber. Cada ficha puede decir lo suyo (`vacia`). Sin la
+ * llamita: sale en la ficha de una entidad o de una empresa (§2.3).
+ */
+const SIN_MENORES = (
+  <EstadoVacio compacto conLlamita={false} titulo="Sin contratos menores registrados">
+    El módulo de contratos menores del SEACE (hasta 8 UIT) es facultativo y se usa desde 2025: no todas las compras chicas
+    pasan por él.
+  </EstadoVacio>
+);
+
+export async function ListaMenores({
+  pagina: p,
+  ruta,
+  parametros,
+  actual,
+  vacia = SIN_MENORES,
+}: {
+  pagina: Promise<MenoresPagina | null>;
+  ruta: string;
+  parametros: Parametros;
+  actual: number;
+  /** Lo que se muestra si no hay ninguno sin filtros puestos (no es lo mismo que «ninguno con estos filtros»). */
+  vacia?: ReactNode;
+}) {
   const pagina = await p;
   if (!pagina) {
     return (
@@ -213,15 +238,19 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
   }
   if (!pagina.data.length) {
     // Una página que ya no existe (la lista cambió o se escribió a mano): hay contratos, sólo que no tantos.
-    return actual > 1 ? (
-      <EstadoVacio
-        compacto
-        titulo="Esta página de la lista ya no tiene contratos"
-        accion={<Link href={hrefPagina(ruta, parametros, P_MEN.page, 1)} prefetch={false} className={CLASE_ACCION_LISTA}>Ir al principio de la lista</Link>}
-      />
-    ) : (
-      <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año o la búsqueda, o quita un filtro.</EstadoVacio>
-    );
+    if (actual > 1) {
+      return (
+        <EstadoVacio
+          compacto
+          titulo="Esta página de la lista ya no tiene contratos"
+          accion={<Link href={hrefPagina(ruta, parametros, P_MEN.page, 1)} prefetch={false} className={CLASE_ACCION_LISTA}>Ir al principio de la lista</Link>}
+        />
+      );
+    }
+    // Sólo cuentan los filtros de esta lista (no la pestaña, la vista ni el orden): sin ninguno, no hay datos, y decir
+    // «con estos filtros» (Cambia el año…) mandaba a buscar un filtro que nadie puso.
+    const filtrada = Object.entries(P_MEN).some(([k, param]) => k !== "orden" && k !== "page" && !!parametros[param]);
+    return filtrada ? <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año o la búsqueda, o quita un filtro.</EstadoVacio> : <>{vacia}</>;
   }
   // «Ver sólo los de esta entidad / de este proveedor»: sólo en la lista general (en una ficha la lista ya está anclada)
   // y para una empresa (el RUC 10 de una persona lleva su DNI: no va en un enlace).

@@ -40,9 +40,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * (entidad_gobierno_amplia), migración 124; "28": el detalle de una orden del fraccionamiento trae su entidad y rubro;
  * "29": nuevos /poder/grafo y /poder/instituciones (mapa de instituciones del Estado) y su forma de respuesta;
  * "34": privacidad — el locador (RUC 10) de una orden va con un apellido tapado (claves contratista/rucContratista),
- *        y la señal de nepotismo como bandera atada a la orden: hay que invalidar lo cacheado sin tapar).
+ *        y la señal de nepotismo como bandera atada a la orden: hay que invalidar lo cacheado sin tapar);
+ * "39": `mef` de la ficha de entidad va siempre (fuente, fueraSiaf, secEjecSiaf), la lista de contratos trae sus ganadores
+ *        (consorciados) y las entidades, sus banderas y su tipo por el nombre.
  */
-const VERSION_CACHE = "38";
+const VERSION_CACHE = "39";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
