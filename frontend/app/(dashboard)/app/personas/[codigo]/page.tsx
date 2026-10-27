@@ -9,6 +9,7 @@ import {
   ChipsDetalle,
   CuerpoDetalle,
   DatosClave,
+  BanderasFicha,
   EncabezadoPagina,
   EstadoVacio,
   FichaNoLeida,
@@ -38,6 +39,7 @@ import {
   getFichaPersona,
   getOrdenesPersona,
   hayFiltrosOrdenes,
+  banderasPersona,
   senalesDistintas,
   type AnioDePersona,
   type EntidadDePersona,
@@ -77,6 +79,8 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const p = f.persona;
   const nombre = p.nombre ?? "Persona contratada";
   const cuenta = senalesDistintas(f.entidades);
+  // Sus banderas, fijas bajo el nombre en todas las pestañas (el nepotismo ya no se queda en la de señales).
+  const banderas = banderasPersona(cuenta.lista, `${ruta}?seccion=senales`);
   const filtrosOrdenes = filtrosOrdenesDeUrl(searchParams);
   const seccionUrl = uno(searchParams?.seccion);
   const seccion = seccionUrl ?? (hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : undefined);
@@ -109,6 +113,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
             )}
           </span>
         }
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} todas={`${ruta}?seccion=senales`} /> : undefined}
         ayuda={
           <Ayuda titulo="¿Por qué está esta persona aquí?">
             <span className="block">

@@ -20,7 +20,8 @@ import { rutaRegion } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { banderasEntidad } from "@/lib/banderasEntidad";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
 import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
@@ -154,6 +155,9 @@ export default async function EntidadProfile({
   // La OECE la registra fuera del SIAF (FONAFE, EsSalud, EPS…): su presupuesto no está en los datos abiertos del MEF.
   const fueraSiaf = mef?.fueraSiaf === true;
   const tipoVisible = etiquetaTipoVisible(e.tipo ?? null, e.nombre);
+  // Sus banderas, fijas bajo el nombre en todas las pestañas: las mismas que su fila en la lista, con cuántos casos y el
+  // enlace a la evidencia (el nepotismo ya no se queda en el Inicio). Sin respuesta de la entidad, ninguna.
+  const banderas = apiResp ? (banderasEntidad(ruc, apiResp.senales, apiResp.informes, apiResp.nepotismo?.total ?? 0) ?? []) : [];
 
   // Cuántas filas tiene cada pestaña. null = sin dato (la API no respondió): la pestaña va sin número y en su lugar,
   // nunca como vacía. Las órdenes, null también si las tiene pero aún no están contadas (migración 148).
@@ -435,6 +439,14 @@ export default async function EntidadProfile({
                 </span>
               )}
             </span>
+          }
+          banderas={
+            banderas.length ? (
+              <BanderasFicha
+                etiqueta="Banderas de esta entidad"
+                banderas={banderas.map((b) => ({ tipo: b.tipo, severidad: b.severidad, nombre: b.chip, n: b.n, explica: b.titulo, href: b.href }))}
+              />
+            ) : undefined
           }
           acciones={
             <>

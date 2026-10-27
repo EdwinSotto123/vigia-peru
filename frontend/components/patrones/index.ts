@@ -8,5 +8,6 @@ export { Migas, type Miga } from "./Migas";
 export { FichaNoLeida } from "./FichaNoLeida";
 export { CuerpoDetalle, ChipsDetalle, DatosClave, BloqueDetalle, CitaDetalle, PieDetalle, type DatoClave } from "./Detalle";
 export { TarjetaDatos } from "./TarjetaDatos";
+export { BanderasFicha, type BanderaFicha } from "./BanderasFicha";
 export { BarraCompartir } from "./Compartir";
 export { Franja, Beneficios, type Beneficio } from "./Franja";

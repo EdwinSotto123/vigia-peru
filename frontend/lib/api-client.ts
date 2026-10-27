@@ -341,7 +341,8 @@ export interface NepotismoEntidad {
 
 export async function getEntidad(ruc: string) {
   try {
-    return await get<{ entidad: any; mef: any; alertas: any[]; nepotismo: NepotismoEntidad | null }>(
+    // `informes` y `senales`: lo mismo que la lista cuenta para sus banderas (null o sin la clave: no se pudieron leer).
+    return await get<{ entidad: any; mef: any; alertas: any[]; nepotismo: NepotismoEntidad | null; informes?: ApiEntidad["informes"] | null; senales?: ApiEntidad["senales"] | null }>(
       `/entidades/${ruc}`,
     );
   } catch (e) {

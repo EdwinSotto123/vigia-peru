@@ -324,7 +324,7 @@ export async function ListaMenores({
           <CuerpoDetalle>
             <ChipsDetalle>
               {estado}
-              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />}
+              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" todas />}
             </ChipsDetalle>
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
             {m.inhabilitacion && <BloqueInhabilitacion i={m.inhabilitacion} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />}

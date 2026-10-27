@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { LineaMeses } from "@/components/charts/LineaMeses";
@@ -14,7 +14,7 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { filtrosOrdenesDeUrl, getFichaPersona, getOrdenesPersona, hayFiltrosOrdenes, type FichaPersona } from "@/lib/personas";
-import { REGIMEN, getFichaPlanilla, mes, parientesProveedores, periodoMeses, rutaPlanilla, type FichaPlanilla, type ParienteProveedor } from "@/lib/planilla";
+import { REGIMEN, SENAL_PLANILLA, getFichaPlanilla, mes, parientesProveedores, periodoMeses, rutaPlanilla, type FichaPlanilla, type ParienteProveedor } from "@/lib/planilla";
 import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
@@ -56,6 +56,15 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
   const parientes = parientesProveedores(f, fichasParientes);
   const nSenales = p.senales.length + (parientes.length ? 1 : 0);
   const altas = p.senales.filter((s) => s.severidad === "alta").length + (parientes.length ? 1 : 0);
+  // Sus banderas, fijas bajo el nombre en todas las pestañas: el nepotismo (parientes que declaró en su DJI y que le
+  // venden a su entidad) primero, después sus señales de la planilla, lo grave antes; todas hacia la pestaña Señales.
+  const aSenales = `${ruta}?seccion=senales`;
+  const banderas = [
+    ...(parientes.length
+      ? [{ tipo: "nepotismo", severidad: "alta" as const, nombre: "Posible nepotismo", n: parientes.length > 1 ? parientes.length : null, explica: "Declaró en su DJI a un pariente que es locador de su misma entidad", href: aSenales }]
+      : []),
+    ...p.senales.map((x) => ({ tipo: x.tipo, severidad: x.severidad, nombre: SENAL_PLANILLA[x.tipo]?.corto ?? x.tipo, explica: SENAL_PLANILLA[x.tipo]?.titulo, href: aSenales })),
+  ];
   const ordenesP = p.codigo ? getOrdenesPersona(p.codigo, { ...filtrosOrdenes, size: TAM_ORDENES }) : null;
   // Meses en que además cobró por órdenes de servicio (señal tambien_ordenes), para marcarlos en el cuadro mes a mes.
   const detOrden = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
@@ -84,6 +93,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
             {p.regimen != null && <Dato tipo="regimen">{REGIMEN[p.regimen] ?? `Régimen ${p.regimen}`}</Dato>}
           </span>
         }
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} todas={aSenales} /> : undefined}
         ayuda={
           <Ayuda titulo="¿Por qué está esta persona aquí?">
             <span className="block">

@@ -10,6 +10,7 @@
 import { API_BASE } from "./api-client";
 import { esAnioGobierno } from "./partidosApi";
 import { uno } from "@/lib/utils";
+import type { BanderaFicha } from "@/components/patrones/BanderasFicha";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -369,6 +370,23 @@ export function senalesDistintas(entidades: EntidadDePersona[]) {
   const lista = [...por.values()].sort(compararSenales);
   const cuenta = (sev: Severidad) => lista.filter((x) => x.senal.severidad === sev).length;
   return { lista, porClave: por, total: lista.length, altas: cuenta("alta"), medias: cuenta("media"), bajas: cuenta("baja"), enVarias: lista.filter((x) => x.en.length > 1).length };
+}
+
+/**
+ * Las banderas de la cabecera de una persona (las de su ficha, fijas en todas las pestañas): una por tipo de señal, con
+ * la peor severidad entre sus entidades, el nepotismo primero (el orden del catálogo desempata) y todas hacia la
+ * pestaña Señales, donde está la evidencia. El nepotismo se nombra como en la entidad: «Posible nepotismo».
+ */
+export function banderasPersona(lista: SenalDistinta[], hrefSenales: string): BanderaFicha[] {
+  const por = new Map<string, BanderaFicha>();
+  for (const x of lista) {
+    const t = x.senal.tipo;
+    const previa = por.get(t);
+    if (!previa) {
+      por.set(t, { tipo: t, severidad: x.senal.severidad, nombre: t === "nepotismo" ? "Posible nepotismo" : SENAL[t]?.corto ?? t, explica: SENAL[t]?.titulo, href: hrefSenales });
+    } else if (RANGO[x.senal.severidad] < RANGO[previa.severidad]) previa.severidad = x.senal.severidad;
+  }
+  return [...por.values()].sort((a, b) => RANGO[a.severidad] - RANGO[b.severidad] || (ORDEN_TIPO.get(a.tipo) ?? 99) - (ORDEN_TIPO.get(b.tipo) ?? 99));
 }
 
 /** "2020 a 2024", "2026" o null. */

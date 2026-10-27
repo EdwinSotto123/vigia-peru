@@ -361,9 +361,11 @@ export interface Antecedente {
 }
 
 /** Los antecedentes como banderas, en la celda y en los chips del panel: las de toda lista (CrucesCelda). */
-export function BanderasAntecedentes({ antecedentes, etiqueta = "Antecedentes" }: { antecedentes: Antecedente[]; etiqueta?: string }) {
+/** En la celda, la más grave entera y «+n»; en un panel (`todas`), todas: ahí hay ancho. */
+export function BanderasAntecedentes({ antecedentes, etiqueta = "Antecedentes", todas = false }: { antecedentes: Antecedente[]; etiqueta?: string; todas?: boolean }) {
   return (
     <CrucesCelda
+      max={todas ? antecedentes.length : undefined}
       cruces={antecedentes.map((a) => ({ tipo: a.tipo, severidad: a.severidad }))}
       etiquetas={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.chip]))}
       explicaciones={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.explica]))}
@@ -552,7 +554,7 @@ export async function ListaOrdenes({
           <CuerpoDetalle>
             <ChipsDetalle>
               {estado}
-              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} />}
+              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} todas />}
             </ChipsDetalle>
             {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}</AvisoDato>}
             <DatosClave

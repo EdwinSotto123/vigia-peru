@@ -47,6 +47,7 @@ export function EncabezadoPagina({
   bajada,
   ayuda,
   acciones,
+  banderas,
   className,
 }: {
   titulo: ReactNode;
@@ -54,6 +55,11 @@ export function EncabezadoPagina({
   /** `<Ayuda titulo="¿Qué es…?">…</Ayuda>` ya armado. */
   ayuda?: ReactNode;
   acciones?: ReactNode;
+  /**
+   * Las banderas de la ficha (`BanderasFicha` ya armado): van bajo el título en todas las pestañas y también en el
+   * celular, donde fuera del Inicio la bajada se esconde.
+   */
+  banderas?: ReactNode;
   className?: string;
 }) {
   return (
@@ -75,6 +81,7 @@ export function EncabezadoPagina({
             {ayuda}
           </div>
         )}
+        {banderas && <div className="mt-3">{banderas}</div>}
       </div>
       {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
     </header>

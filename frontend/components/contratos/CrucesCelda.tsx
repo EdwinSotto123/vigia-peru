@@ -6,12 +6,16 @@ const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as c
 // La severidad también con ícono (no sólo el color: WCAG 1.4.1), el mismo de `Severidad`.
 const ICONO_CRUCE = { alta: AlertTriangle, media: CircleAlert, baja: Info } as const;
 const RANGO = { alta: 0, media: 1, baja: 2 } as const;
-const MAX_CRUCES = 2;
+// Una bandera ENTERA y «+n»: con dos en una columna angosta se leían «Posible n…» y «Planill…» (2026-10-27, el dueño:
+// «NEPOTISMO no está como bandera sino como etiqueta de columna»). El nombre ya no se recorta: si no entra, parte en dos
+// renglones dentro de su insignia.
+const MAX_CRUCES = 1;
 
 /**
- * Los antecedentes del ganador en una celda, en UNA línea: los más graves primero, hasta dos y "+n" (la lista entera en
- * el `title`). Antes iban hasta tres insignias que se partían en renglones y hacían filas de 140 a 300 px; la bandera que
- * distinguía a una fila se perdía entre las repetidas.
+ * Los antecedentes del ganador en una celda: los más graves primero, la primera entera y "+n" (la lista entera en el
+ * `title` y para el lector de pantalla). Antes iban hasta tres insignias que se partían en renglones y hacían filas de 140
+ * a 300 px; la bandera que distinguía a una fila se perdía entre las repetidas. A igual severidad, el orden en que llegan
+ * (quien arma la lista pone primero lo que más pesa: el nepotismo).
  * Sin antecedentes no es lo mismo que sin ganador: "Ninguno" en una convocatoria que aún no adjudica se leía "limpio".
  * La usan la lista de contratos, las de procesos de un partido y de una entidad, y la de empresas.
  */
@@ -43,14 +47,15 @@ export function CrucesCelda({
   const orden = [...cruces].sort((a, b) => RANGO[a.severidad] - RANGO[b.severidad]);
   const resto = orden.length - max;
   return (
-    <ul className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden" aria-label={etiquetaLista} title={orden.map((x) => completo(x.tipo)).join(", ")}>
+    // Todas a la vista (un panel): en renglones; en una celda, una línea.
+    <ul className={`flex min-w-0 max-w-full items-center gap-1 ${resto > 0 ? "flex-nowrap" : "flex-wrap"}`} aria-label={etiquetaLista} title={orden.map((x) => completo(x.tipo)).join(", ")}>
       {orden.slice(0, max).map((x) => {
         const Icono = ICONO_CRUCE[x.severidad];
         return (
           <li key={x.tipo} className="min-w-0" title={explica(x.tipo) ? `${completo(x.tipo)}: ${explica(x.tipo)}` : completo(x.tipo)}>
-            <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 px-2">
+            <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 rounded-2xl px-2 py-1 font-semibold leading-tight">
               <Icono size={12} className="shrink-0" aria-hidden />
-              <span className="truncate">{corto(x.tipo)}</span>
+              <span className="min-w-0 break-words">{corto(x.tipo)}</span>
             </Badge>
           </li>
         );

@@ -34,6 +34,9 @@ const clave = (t: string) => `persona:${t}`;
 const CORTO_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [clave(t), SENAL[t].corto]));
 // Y su explicación, la de la señal de PERSONA (CrucesCelda `explicaciones`): sin ella el title quedaba en «Etiqueta: ».
 const EXPLICA_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [clave(t), SENAL[t].explica]));
+// A igual severidad, el orden del catálogo (el nepotismo primero): la celda muestra una bandera entera y es la que más pesa.
+const ORDEN_SENAL = new Map<string, number>(TIPOS_SENAL.map((t, i): [string, number] => [t, i]));
+const porCatalogo = (a: { tipo: string }, b: { tipo: string }) => (ORDEN_SENAL.get(a.tipo) ?? 99) - (ORDEN_SENAL.get(b.tipo) ?? 99);
 
 const columnas = (deEntidad: boolean): Columna[] => [
   {
@@ -159,7 +162,7 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
       ),
       senales: p.senales?.length ? (
         <CrucesCelda
-          cruces={p.senales.map((s) => ({ tipo: clave(s.tipo), severidad: s.severidad }))}
+          cruces={[...p.senales].sort(porCatalogo).map((s) => ({ tipo: clave(s.tipo), severidad: s.severidad }))}
           etiquetas={CORTO_SENAL}
           explicaciones={EXPLICA_SENAL}
           etiquetaLista="Señales de la persona"

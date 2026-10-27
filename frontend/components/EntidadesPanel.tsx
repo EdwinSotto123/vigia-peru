@@ -8,6 +8,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { Severidad } from "@/components/ui/Severidad";
 import { etiquetaTipoVisible } from "@/lib/entidad-tipo";
 import type { ApiEntidad, EntidadesPagina } from "@/lib/api-client";
+import { banderasEntidad, type BanderaEntidad as Bandera } from "@/lib/banderasEntidad";
 import { numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { Dato } from "@/components/ui/Dato";
@@ -201,76 +202,8 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui, orden = "c
 
 // ─── Banderas de una entidad ─────────────────────────────────────────────────
 
-type Sev = "alta" | "media" | "baja";
-
-/** Una bandera de la entidad: su chip, qué significa, cuántos y dónde está la evidencia en su ficha. */
-interface Bandera {
-  tipo: string;
-  severidad: Sev;
-  chip: string;
-  titulo: string;
-  explica: string;
-  href: string;
-}
-
-const NEPOTISMO = "Un pariente que un funcionario declaró en su DJI figura entre sus locadores (indicio, no acusación)";
-const TIPOS_CAPTURA = "partido_gobernante,vendio_gobernante,socio_en_entidad";
-
-/**
- * Las banderas de la fila, de lo que ya cuentan los filtros de la lista (captura, informes penales, nepotismo, planilla
- * con señal alta, plazas a la medida), cada una con su cuenta y el enlace a la evidencia en la ficha (los mismos filtros
- * que usa su Inicio). `null`: la API vieja no las trae (la celda dice «Sin dato», no «Ninguna»).
- */
-function banderasDe(e: ApiEntidad): Bandera[] | null {
-  const s = e.senales;
-  const inf = e.informes;
-  if (!s || !inf) return e.conNepotismo ? [banderaNepotismo(e.ruc)] : null;
-  const ficha = `/entidad/${e.ruc}`;
-  const partido = s.capturaPartido ? tituloNatural(s.capturaPartido) : null;
-  const periodo = new URLSearchParams({ seccion: "contratos", vista: "contratos", cruce: TIPOS_CAPTURA, ...(s.capturaDesde ? { desde: s.capturaDesde } : {}), ...(s.capturaHasta ? { hasta: s.capturaHasta } : {}) });
-  const out: Bandera[] = [];
-  if (s.captura > 0) {
-    out.push({
-      tipo: "captura", severidad: "alta", chip: "Captura política",
-      titulo: s.captura === 1 ? "1 contrato lo ganó una empresa ligada a la gestión" : `${numero(s.captura)} contratos los ganaron empresas ligadas a la gestión`,
-      explica: `La empresa ganadora, o alguien detrás de ella, financió${partido ? ` a ${partido}, que la gobierna,` : " al partido que la gobierna"} o le vendió a su campaña, o un socio suyo trabaja en la entidad (ONPE, JNE, RNP). Contratos de su gobierno actual.`,
-      href: `${ficha}?${periodo}`,
-    });
-  }
-  if (s.planillaAlta > 0) {
-    out.push({
-      tipo: "planilla", severidad: "alta", chip: "Planilla: señal alta",
-      titulo: `${plural(s.planillaAlta, "persona de su planilla tiene", "personas de su planilla tienen")} una señal alta`,
-      explica: "En su planilla del Portal de Transparencia: por ejemplo, cobran también por órdenes de servicio o fueron candidatos del partido que la gobierna.",
-      href: `${ficha}?seccion=planilla&lsev=alta`,
-    });
-  }
-  if (inf.penal > 0) {
-    out.push({
-      tipo: "penal", severidad: "media", chip: "Resp. penal presunta",
-      titulo: `${plural(inf.penal, "informe de la Contraloría señala", "informes de la Contraloría señalan")} presunta responsabilidad penal`,
-      explica: "De sus funcionarios, según los informes de control de la Contraloría. Es una presunción: no es una condena.",
-      href: `${ficha}?seccion=control`,
-    });
-  }
-  if (e.conNepotismo) out.push(banderaNepotismo(e.ruc));
-  if (s.plazasSenales > 0) {
-    out.push({
-      tipo: "plazas", severidad: "media", chip: "Plazas a la medida",
-      titulo: `${plural(s.plazasSenales, "plaza CAS tiene", "plazas CAS tienen")} señales de plaza a la medida`,
-      explica: "Convocatorias de SERVIR Talento Perú con rasgos de una plaza hecha a la medida de alguien: piden experiencia en la propia entidad, pagan mucho y piden poco o estuvieron publicadas muy poco tiempo. No prueban un direccionamiento.",
-      href: `${ficha}?seccion=plazas&zsev=con`,
-    });
-  }
-  return out;
-}
-
-function banderaNepotismo(ruc: string): Bandera {
-  return {
-    tipo: "nepotismo", severidad: "media", chip: "Posible nepotismo", titulo: "Posible nepotismo", explica: `${NEPOTISMO}.`,
-    href: `/entidad/${ruc}?seccion=personas&psenal=nepotismo`,
-  };
-}
+/** Las de la fila: las mismas que la cabecera de su ficha (lib/banderasEntidad.ts). */
+const banderasDe = (e: ApiEntidad): Bandera[] | null => banderasEntidad(e.ruc, e.senales, e.informes, e.conNepotismo);
 
 /** Las banderas en UNA línea (`CrucesCelda`): las graves primero, hasta dos y «+n»; sin ninguna, «Ninguna». */
 function CeldaBanderas({ banderas }: { banderas: Bandera[] | null }) {

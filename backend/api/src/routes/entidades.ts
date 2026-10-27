@@ -875,7 +875,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas, nep] = await Promise.all([
+  const [ent, mef, alertas, nep, ban] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (EN_COLA).
       ? `SELECT e.*,
@@ -954,6 +954,11 @@ entidadesRouter.get("/:ruc", async (c) => {
         WHERE n.entidad_ruc = $1 ORDER BY n.monto DESC NULLS LAST LIMIT 40`,
       [ruc],
     ),
+    // Lo que cuentan sus banderas en la lista (captura, planilla con señal alta, plazas a la medida, informes con
+    // responsabilidad penal presunta): la ficha las lleva fijas bajo el título, en todas las pestañas. Las mismas
+    // columnas que la lista, por la llave de la entidad. Si falla, la ficha sale sin ellas (no sin la ficha).
+    pool.query(`SELECT ${COLS_LISTA_ENTIDAD} FROM (SELECT $1::char(11) AS ruc) pag ${JOINS_LISTA_ENTIDAD}`, [ruc])
+      .catch((e) => { console.warn(`[entidades] banderas de ${ruc}: ${(e as Error).message}`); return null; }),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -988,11 +993,20 @@ entidadesRouter.get("/:ruc", async (c) => {
         ),
       }
     : null;
+  const b = ban?.rows[0];
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json({
     entidad,
     mef: mef.rows[0] ?? null,
     alertas: alertas.rows,
     nepotismo,
+    // La misma forma que en la lista (GET /entidades); null si no se pudieron leer.
+    informes: b ? { total: b.informes ?? 0, penal: b.informesPenal ?? 0 } : null,
+    senales: b
+      ? {
+          captura: b.captura ?? 0, capturaPartido: b.capturaPartido ?? null, capturaDesde: b.capturaDesde ?? null, capturaHasta: b.capturaHasta ?? null,
+          planillaAlta: b.planillaAlta ?? 0, plazasSenales: b.plazasSenales ?? 0,
+        }
+      : null,
   });
 });
