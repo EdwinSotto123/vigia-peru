@@ -1,11 +1,11 @@
-import { AlertTriangle, CircleAlert, Info } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { IconoBandera } from "@/components/ui/IconoBandera";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
 
 const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 // La severidad también con ícono (no sólo el color: WCAG 1.4.1), el mismo de `Severidad`.
-const ICONO_CRUCE = { alta: AlertTriangle, media: CircleAlert, baja: Info } as const;
+const ICONO_CRUCE = ICONO_NIVEL;
 const RANGO = { alta: 0, media: 1, baja: 2 } as const;
 // Una bandera ENTERA y «+n»: con dos en una columna angosta se leían «Posible n…» y «Planill…» (2026-10-27, el dueño:
 // «NEPOTISMO no está como bandera sino como etiqueta de columna»). El nombre ya no se recorta: si no entra, parte en dos

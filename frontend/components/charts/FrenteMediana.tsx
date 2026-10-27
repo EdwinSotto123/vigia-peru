@@ -1,4 +1,4 @@
-import { soles } from "@/lib/formato";
+import { decimal, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,7 +41,7 @@ export function FrenteMediana({
       </dl>
       <figcaption className="text-rotulo text-mute">
         {veces >= 1.05
-          ? `${veces.toFixed(1).replace(".", ",")} veces la mediana.`
+          ? `${decimal(veces)} veces la mediana.`
           : veces <= 0.95
             ? `Por debajo de la mediana.`
             : "Casi igual a la mediana."}{" "}

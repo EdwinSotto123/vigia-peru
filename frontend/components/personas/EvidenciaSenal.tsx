@@ -4,7 +4,7 @@ import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Col
 import { Dato } from "@/components/ui/Dato";
 import { FrenteMediana } from "@/components/charts/FrenteMediana";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
-import { fecha, fechaCorta, numero, plural, soles } from "@/lib/formato";
+import { decimal, fecha, fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
 import { REGIMEN, cargoEnOracion, listaMeses, mes, nombrePartido, ordenesCitadas, type OrdenCitada } from "@/lib/planilla";
@@ -27,7 +27,7 @@ const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(
 const anio = (v: unknown) => (typeof v === "string" && /^\d{4}/.test(v) ? v.slice(0, 4) : typeof v === "number" ? String(v) : null);
 const natural = (v: unknown) => (txt(v) ? tituloNatural(txt(v)!) : null);
 /** "3,7 veces" (coma decimal). */
-const veces = (v: unknown) => (num(v) != null ? `${String(num(v)).replace(".", ",")} veces` : null);
+const veces = (v: unknown) => (num(v) != null ? `${decimal(num(v))} veces` : null);
 const porQue = (por: unknown) =>
   por === "dni" ? "Coincide por el documento de identidad." : por === "nombre" ? "Coincide por el nombre completo y el departamento (la fuente no trae documento)." : null;
 const unicos = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
@@ -143,7 +143,7 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
     case "al_borde_del_tope": {
       const n = num(d.en_el_borde) ?? lista(d.citadas).length;
       const total = num(d.ordenes);
-      return `${plural(n, "orden", "órdenes")}${total ? ` de ${numero(total)}` : ""} entre el 95 % y el 100 % del tope de 8 UIT, por ${soles(num(d.monto) ?? 0)}`;
+      return `${plural(n, "orden", "órdenes")}${total ? ` de ${numero(total)}` : ""} entre el 95 % y el 100 % del tope de su año, por ${soles(num(d.monto) ?? 0)}`;
     }
     case "financio_campana": {
       const deCampana = lista(d.aportes).filter((a) => a.campana === true);
@@ -342,7 +342,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         const monto = num(o.monto) ?? 0;
         const tope = num(o.tope) ?? 0;
         const parte = tope > 0 ? monto / tope : 0;
-        const pct = `${(parte * 100).toFixed(1).replace(".", ",")} %`;
+        const pct = porcentaje(parte * 100, { decimales: 1 });
         return {
           id: String(i),
           celdas: {
@@ -375,8 +375,9 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
             filas={filas}
           />
           <Nota>
-            El tope de 8 UIT es el monto desde el cual la entidad debe hacer un proceso de selección (la UIT de cada año). Muchas
-            órdenes que se quedan justo debajo pueden ser un mismo servicio partido: vale ver si eran meses seguidos o el mismo trabajo.
+            El tope (8 UIT de cada año; 9 UIT en 2022, con el D.U. 016-2022) es el monto desde el cual la entidad debe hacer un
+            proceso de selección. Muchas órdenes que se quedan justo debajo pueden ser un mismo servicio partido: vale ver si eran
+            meses seguidos o el mismo trabajo.
           </Nota>
           <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
             {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}

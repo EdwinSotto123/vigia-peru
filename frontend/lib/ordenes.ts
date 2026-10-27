@@ -104,7 +104,7 @@ export const ANTECEDENTES_ORDEN = [
   { valor: "financio_campana", etiqueta: SENAL.financio_campana.corto, grupo: DE_LA_PERSONA },
   { valor: "candidato_gobierna", etiqueta: SENAL.candidato_gobierna.corto, grupo: DE_LA_PERSONA },
   { valor: "autoridad_contratada", etiqueta: SENAL.autoridad_contratada.corto, grupo: DE_LA_PERSONA },
-  { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 % de 8 UIT)", grupo: DE_LA_PERSONA },
+  { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 %)", grupo: DE_LA_PERSONA },
   { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT", grupo: DE_LA_ORDEN },
   { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },
 ] as const;

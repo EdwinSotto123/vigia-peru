@@ -1,4 +1,5 @@
 import type { Modo } from "./modo";
+import { porcentaje } from "./formato";
 /**
  * Quién gobierna dónde: las autoridades electas en las Elecciones Regionales y Municipales de
  * 2014, 2018 y 2022, de la Plataforma Electoral del JNE (Infogob). Los archivos
@@ -225,7 +226,7 @@ export function coloresPorOrg(d: AutoridadesDatos, nivel: Nivel, modo: Modo = "n
   return coloresDeFilas(nivel === "regional" ? d.regional : nivel === "provincial" ? d.provincial : d.distrital, modo);
 }
 
-export const pct = (p: number | null | undefined) => (p == null ? null : `${(p * 100).toFixed(1).replace(".", ",")} %`);
+export const pct = (p: number | null | undefined) => (p == null ? null : porcentaje(p * 100, { decimales: 1 }));
 
 /** Sin tildes, mayúsculas y sólo letras y cifras: la forma de comparar nombres de lugares. */
 export const normalizar = (s: string) =>

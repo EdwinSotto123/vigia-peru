@@ -25,7 +25,7 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha as fechaLarga, fechaCorta, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
+import { fecha as fechaLarga, fechaCorta, hoyLima, listaY, numero, oracion, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { FUENTE_TEXTO, SENAL, tipoContratacion } from "@/lib/personas";
 import {
@@ -407,7 +407,7 @@ export function BloqueInhabilitacion({ i, cuando }: { i: InhabilitacionProveedor
 /** Una señal de la persona por su tipo (las que llegan de la API y la web aún no conoce, no se muestran). */
 const senalPersona = (tipo: string) => (SENAL as Record<string, { corto: string; titulo: string; explica: string } | undefined>)[tipo];
 
-/** A qué porcentaje de su tope quedó la orden («96,8 %»). */
+/** A qué porcentaje de su tope quedó la orden («96.8 %»). */
 const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) / tope, { decimales: 1 });
 
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
@@ -439,6 +439,18 @@ function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
   }
   const rango = { alta: 0, media: 1, baja: 2 } as const;
   return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);
+}
+
+/** De dónde sale cada señal de la persona, sin repetir: sólo las fuentes de las que están (las órdenes, siempre). */
+function fuentesSenales(tipos: string[]): string[] {
+  const f = new Set<string>();
+  for (const t of tipos) {
+    if (t === "financio_campana" || t === "aporte_gobierna") f.add("ONPE (aportes)");
+    if (t === "candidato_gobierna" || t === "autoridad_contratada") f.add("JNE (candidaturas y autoridades)");
+    if (t === "nepotismo_gobierno") f.add("Contraloría (declaraciones juradas de intereses)");
+  }
+  f.add("OECE (órdenes)");
+  return [...f];
 }
 
 /**
@@ -479,7 +491,7 @@ function BloqueSenalesPersona({ o }: { o: OrdenGeneral }) {
           </li>
         )}
       </ul>
-      <p className="mt-2 text-rotulo text-mute">Fuentes: ONPE (aportes), JNE (candidaturas y autoridades) y OECE (órdenes). Es un dato para revisar, no una acusación.</p>
+      <p className="mt-2 text-rotulo text-mute">Fuente: {listaY(fuentesSenales(senales.map((s) => s.tipo)))}. Es un dato para revisar, no una acusación.</p>
       {o.personaCodigo && (
         <EnlaceAccion href={`/app/personas/${o.personaCodigo}?seccion=senales`} prefetch={false} variante="secundario" flecha className="mt-3">
           Ver la evidencia en su ficha

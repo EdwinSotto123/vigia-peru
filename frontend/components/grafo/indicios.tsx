@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, CircleAlert, Info } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { Badge } from "@/components/ui/Badge";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { CeldaBarra } from "@/components/listado/Tabla";
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 // La severidad también con ícono (no sólo el color: WCAG 1.4.1), los mismos de `CrucesCelda` y `Severidad`.
-const ICONO = { alta: AlertTriangle, media: CircleAlert, baja: Info } as const;
+const ICONO = ICONO_NIVEL;
 
 const unidad = (n: number) => plural(n, "contrato", "contratos");
 

@@ -35,17 +35,30 @@ antecedentes (sección 1). En `empresas`: capital social, RNP vigente.
 ## 3. Personas contratadas por órdenes (RUC 10)
 
 `persona_senal` → `persona_entidad.tipos/sev`. Catálogo `frontend/lib/personas.ts`.
-- **A**: nepotismo (pariente declarado en la DJI de un funcionario de la entidad), candidato_gobierna, inhabilitado,
+- **A**: nepotismo (pariente declarado en la DJI de un funcionario de la entidad), financio_campana (aportó a la
+  campaña del que gobierna y después recibió sus órdenes, migración 177), candidato_gobierna, inhabilitado,
   tambien_planilla.
 - **A/M/B**: autoridad_contratada.
-- **M**: aporte_gobierna, apellidos_funcionario, funcionario_contratado, meses_seguidos, pago_alto.
+- **M**: aporte_gobierna, nepotismo_gobierno (lo declaró como pariente un funcionario de OTRA entidad del mismo gobierno,
+  179), al_borde_del_tope (la mitad o más de sus órdenes, y 3 o más, entre el 95 % y el 100 % del tope que dice cada
+  orden, 179), apellidos_funcionario, funcionario_contratado, meses_seguidos, pago_alto.
 - **M/B**: apellidos_autoridad. **B**: candidato, aporte, visita_previa, paso_a_planilla.
+- El filtro de señal va por grupos: en personas, Política, Familia y funcionarios, Cómo se le paga y Otros registros;
+  en planilla, Política, Familia y conflictos y Cómo se le paga.
 
 ## 4. Planilla (Portal de Transparencia)
 
 `planilla_persona.tipos/sev`. Catálogo `frontend/lib/planilla.ts`.
-- **A**: tambien_ordenes, candidato_gobierna. **M**: brecha_cargo, apellidos_directivo. **M/B**: apellidos_autoridad.
+- **A**: tambien_ordenes, candidato_gobierna, pariente_locador (declaró en su DJI a un pariente que es locador de su
+  entidad, 179; el pariente nunca se muestra). **A/M**: financio_campana y aporte_gobierna (177), socio_proveedor (socio,
+  representante o directivo en el RNP de una empresa que le vende a su entidad: alta si le vendió estando él en la
+  planilla, 179), doble_planilla (179, abajo). **M**: brecha_cargo, apellidos_directivo. **M/B**: apellidos_autoridad.
 - **B**: antes_locador, pago_extraordinario, es_autoridad.
+- doble_planilla: el mismo nombre con sueldo en dos entidades del mismo departamento, dos meses o más. Por nombre (la
+  planilla no trae DNI), así que se sacan los apellidos muy comunes (más de 30 personas con los dos mismos) y lo que no
+  es doble sueldo: docencia (también AUXILIAR TIEMPO PARCIAL, TC3, FACULTAD…), residentado e internado, jurados
+  electorales, gerentes públicos de SERVIR y dos unidades de un mismo pliego (el MINSA y su DIRIS). Medido en DEV: de
+  3,907 filas a 467. Alta con apellidos poco comunes (10 o menos) y 3 meses o más.
 - El nepotismo visto desde el funcionario (`dji_nepotismo`) sale en su ficha, nunca con la identidad del pariente.
 
 ## 5. Plazas CAS (SERVIR)
@@ -83,8 +96,8 @@ Entre paréntesis, el parámetro.
 
 | Lista | Antes | Agregado |
 |---|---|---|
-| Contratos | texto, región, mes, lectura, antecedentes, riesgo, tipo, etapa, entidad, partido, monto, operativo | **Quién ganó** (`ganadora`): de baja, suspendida o no habida hoy en la SUNAT; socio candidato, autoridad electa, su gente o la empresa aportó, vendió a una campaña (la fila lo dice en «Antecedentes»). **Calidad del dato** (`dudoso`) |
-| Órdenes | texto, año, región, tipo | **Antecedentes** (`oant`): pariente de un funcionario, órdenes del mismo día que pasan 8 UIT. Entidad y proveedor ahora con su chip (antes quedaban activos e invisibles), persona o empresa (`oper`), estado (`oest`), cómo se contrató (`ocomo`), monto (`omonto`), posible error (`odud`). La fila marca nepotismo, fraccionamiento (con las órdenes del día) e inhabilitación al emitirse |
+| Contratos | texto, región, mes, lectura, antecedentes, riesgo, tipo, etapa, entidad, partido, monto, operativo | **Provincia** de la región elegida (`prov`) y **La obra** (`obra`, aparte de los antecedentes del ganador: avance y plazo, pagos y adicionales, controversias; también en la ficha de la entidad y en la región; 2026-10-27). **Quién ganó** (`ganadora`): de baja, suspendida o no habida hoy en la SUNAT; socio candidato, autoridad electa, su gente o la empresa aportó, vendió a una campaña (la fila lo dice en «Antecedentes»). **Calidad del dato** (`dudoso`) |
+| Órdenes | texto, año, región, tipo | **Antecedentes** (`oant`), en dos grupos: de la persona con la entidad (nepotismo, financió la campaña del que gobierna, candidato del que gobierna, autoridad electa, al borde del tope: sólo las órdenes de la franja) y de la orden (órdenes del mismo día que pasan 8 UIT, proveedor inhabilitado al emitirse; 2026-10-27). Entidad y proveedor ahora con su chip (antes quedaban activos e invisibles), persona o empresa (`oper`), estado (`oest`), cómo se contrató (`ocomo`), monto (`omonto`), posible error (`odud`). La fila marca nepotismo, fraccionamiento (con las órdenes del día) e inhabilitación al emitirse |
 | Menores | texto, año, región (daba error 500), objeto, con requerimiento (dejaba pasar ~1,000 sin PDF) | **Antecedentes del proveedor** (`mant`, en el servidor y con conteo): de baja, suspendido, no habido, no hallado, menos de 6 meses, inhabilitado al firmar; consultoría y obra en objeto; persona o empresa (`mper`); monto con «cerca del tope de 8 UIT» (`mmonto`); entidad y proveedor con chip |
 | Empresas | texto, antecedentes (con, grave, sin), tipo, objeto, departamento, inhabilitada, visitas, monto, actividad, vinculadas, entidad | Antecedente **medio**; visitas **a quienes le compraron**; antigüedad desde su alta SUNAT (`antiguedad`), a cuántas entidades vende (`clientes`), tasa de éxito (`exito`), año de su última venta (`ultima`), datos dudosos (`dudoso`). «Filtros» por secciones con conteos |
 | Entidades | texto, clase (4), región, nepotismo; sin orden | Clase con 8 opciones (como la fila), **provincia** y **partido que gobierna** (buscables), captura (`captura`), **informes de Contraloría** por responsabilidad penal, civil o administrativa (`control`), planilla y plazas con señales, **orden** (dictamen, contratos, nombre) |

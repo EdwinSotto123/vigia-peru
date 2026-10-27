@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, CircleAlert, Info } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -20,9 +21,9 @@ export interface BanderaFicha {
 
 // Los tres canales de la severidad (color, forma y palabra), como `Severidad`; la palabra, para el lector de pantalla.
 const ESTILO = {
-  alta: { clase: "border-crimson/30 bg-crimson-soft text-crimsonTexto hover:border-crimson/70", Icono: AlertTriangle, palabra: "Bandera grave" },
-  media: { clase: "border-amber/30 bg-amber-soft text-amberTexto hover:border-amber/70", Icono: CircleAlert, palabra: "Bandera media" },
-  baja: { clase: "border-mute/20 bg-line text-inkSoft hover:border-mute/50", Icono: Info, palabra: "Bandera leve" },
+  alta: { clase: "border-crimson/30 bg-crimson-soft text-crimsonTexto hover:border-crimson/70", Icono: ICONO_NIVEL.alta, palabra: "Bandera grave" },
+  media: { clase: "border-amber/30 bg-amber-soft text-amberTexto hover:border-amber/70", Icono: ICONO_NIVEL.media, palabra: "Bandera media" },
+  baja: { clase: "border-mute/20 bg-line text-inkSoft hover:border-mute/50", Icono: ICONO_NIVEL.baja, palabra: "Bandera leve" },
 } as const;
 const RANGO = { alta: 0, media: 1, baja: 2 } as const;
 

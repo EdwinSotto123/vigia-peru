@@ -57,6 +57,15 @@ export function solesCompacto(n: number | null | undefined): string {
 /** Compatibilidad: el nombre que ya usan 12 archivos. Es `solesCompacto`. */
 export const formatSoles = (n: number) => solesCompacto(n);
 
+/**
+ * Un número con hasta `decimales` decimales, como el resto del sitio (es-PE: punto decimal y coma de miles): «4.5», no
+ * «4,5», que junto a «S/ 43,900» se leía como cuarenta y cinco.
+ */
+export function decimal(n: number | null | undefined, decimales = 1): string {
+  if (!esNumero(n)) return "Sin dato";
+  return new Intl.NumberFormat("es-PE", { maximumFractionDigits: decimales }).format(n);
+}
+
 /** Porcentaje entero con espacio fino no separable: "12 %". */
 export function porcentaje(n: number | null | undefined, { decimales = 0 } = {}): string {
   if (!esNumero(n)) return "Sin dato";

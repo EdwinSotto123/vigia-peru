@@ -1,5 +1,5 @@
 import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed, Info } from "lucide-react";
-import { severidadDeScore, severidadDeBandera, type SeveridadUI } from "@/lib/severidad";
+import { SEVERIDAD, severidadDeScore, severidadDeBandera, type SeveridadUI } from "@/lib/severidad";
 import { cn } from "@/lib/utils";
 
 /** Un ícono por clave de `SeveridadUI.icono` (§7). Es el único mapa: quien pinte severidad lo importa de aquí. */
@@ -9,6 +9,16 @@ export const ICONO_SEVERIDAD = {
   info: Info,
   ok: CircleCheck,
   vacio: CircleDashed,
+} as const;
+
+/**
+ * El ícono de cada severidad de una señal o bandera (alta, media, baja), sacado de `SEVERIDAD`: las banderas de las
+ * fichas, las celdas de antecedentes, los indicios del mapa de poder y los grupos de cruces usan éste, no uno propio.
+ */
+export const ICONO_NIVEL = {
+  alta: ICONO_SEVERIDAD[SEVERIDAD.alta.icono],
+  media: ICONO_SEVERIDAD[SEVERIDAD.media.icono],
+  baja: ICONO_SEVERIDAD[SEVERIDAD.baja.icono],
 } as const;
 
 /**

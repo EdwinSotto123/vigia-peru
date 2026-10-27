@@ -18,7 +18,8 @@ import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { CuentaGrupo } from "@/components/listado";
-import { AlertTriangle, ChevronDown, ChevronRight, CircleAlert, Info } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import type { CruceProveedor } from "@/lib/contratos";
 import { fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -34,7 +35,7 @@ import { fraseBandera, type BanderaObra } from "@/lib/obras";
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
 // La severidad también con ícono (no sólo el color), el mismo de `Severidad` y `CrucesCelda`.
-const ICONO = { alta: AlertTriangle, media: CircleAlert, baja: Info } as const;
+const ICONO = ICONO_NIVEL;
 
 /** La severidad de un grupo de antecedentes: color, ícono y palabra. */
 function SeveridadCruce({ s }: { s: "alta" | "media" | "baja" }) {

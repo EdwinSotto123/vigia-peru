@@ -14,7 +14,7 @@
 --   · pariente_locador (planilla, alta): declaró en su DJI a un pariente que es locador de su misma entidad. Ya se veía en
 --     la fila (dji_nepotismo), pero fuera del sistema de señales: «Con señal alta» no lo contaba.
 --   · nepotismo_gobierno (personas, media): un funcionario de OTRA entidad del mismo gobierno (el regional y sus UGEL y
---     hospitales, la municipalidad y sus empresas) lo declaró como pariente en su DJI. 738 casos.
+--     hospitales, la municipalidad y sus empresas) lo declaró como pariente en su DJI. 703 en producción (2026-10-27).
 --   · al_borde_del_tope (personas, media): de las órdenes de servicio que le dio la entidad, la mitad o más (y tres o más)
 --     quedaron entre el 95 % y el 100 % del tope de 8 UIT de su año: justo debajo del monto que obliga a un proceso. En
 --     2025 hubo 58 mil órdenes en esa franja contra 33 mil entre el 90 % y el 95 %: se acumulan bajo el tope. El tope es

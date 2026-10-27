@@ -24,7 +24,7 @@ import {
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
+import { decimal, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
@@ -328,6 +328,6 @@ function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown>
   let items: DatoClave[] = [];
   if (tipo === "plazo_corto") items = [{ etiqueta: "Días publicada", valor: n(d.dias) != null ? numero(n(d.dias)) : null }];
   else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null, ayuda: <AyudaTermino clave="locacion" /> }];
-  else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${String(n(d.exp_general)).replace(".", ",")} años` : "No la pide" }];
+  else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${decimal(n(d.exp_general))} años` : "No la pide" }];
   return items.length ? <DatosClave items={items} /> : null;
 }

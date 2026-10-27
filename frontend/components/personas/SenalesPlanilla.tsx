@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
 import { CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { fechaCorta, numero, plural, soles } from "@/lib/formato";
+import { decimal, fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
 import { RANGO_SEVERIDAD } from "@/lib/severidad";
@@ -210,7 +210,7 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
     case "brecha_cargo": {
       const m = mesDe(d);
       const v = n(d.veces);
-      return `${soles(n(d.total) ?? 0)} frente a ${soles(n(d.mediana) ?? 0)} de mediana de su cargo${v != null ? `: ${String(v).replace(".", ",")} veces` : ""}${m ? `, en ${m}` : ""}`;
+      return `${soles(n(d.total) ?? 0)} frente a ${soles(n(d.mediana) ?? 0)} de mediana de su cargo${v != null ? `: ${decimal(v)} veces` : ""}${m ? `, en ${m}` : ""}`;
     }
     case "apellidos_autoridad":
     case "apellidos_directivo": {
@@ -284,7 +284,7 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
       { etiqueta: "Mes", valor: mesDe(d) },
       { etiqueta: "Su sueldo", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
       { etiqueta: "Mediana de su cargo", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${plural(n(d.personas) ?? 0, "persona", "personas")})` : null, ayuda: <AyudaTermino clave="mediana" /> },
-      { etiqueta: "Diferencia", valor: n(d.veces) != null ? `${String(n(d.veces)).replace(".", ",")} veces` : null },
+      { etiqueta: "Diferencia", valor: n(d.veces) != null ? `${decimal(n(d.veces))} veces` : null },
       ...(n(d.ganan_tanto) != null
         ? [{ etiqueta: "Con su cargo ganan tanto", valor: n(d.ganan_tanto) === 1 ? "Sólo esta persona" : `${numero(n(d.ganan_tanto) ?? 0)} personas` }]
         : []),
