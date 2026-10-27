@@ -28,11 +28,12 @@ export function PartidoQueGobierna({ g, completo = false }: { g: GobiernoContrat
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
       <Landmark size={14} className="shrink-0 text-mute" aria-hidden />
-      <span className="text-mute">Gobernaba</span>
+      {/* inkSoft y no mute: sobre el encabezado teñido, mute quedaba en 4.0:1 (pide 4.5). */}
+      <span className="text-inkSoft">Gobernaba</span>
       <Link href={href} prefetch={false} className="font-semibold text-ink underline-offset-2 hover:text-granate hover:underline">
         {g.nombre}
       </Link>
-      <span className="text-mute">
+      <span className="text-inkSoft">
         {nombreGobierno(g)}, {periodoTexto(g.anio as AnioGobierno)}
       </span>
     </span>

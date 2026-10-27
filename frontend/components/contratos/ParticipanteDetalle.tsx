@@ -15,6 +15,7 @@ import { Severidad } from "@/components/ui/Severidad";
 import { CrucesCelda } from "./CrucesCelda";
 import { CORTO_EMPRESA } from "@/lib/empresas";
 import { fecha, listaY, numero, oracion, plural, soles } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import { esRucPersonaNatural } from "@/lib/privacidad";
 import {
   ETIQUETAS_PARTICIPANTE, EXPLICA_VINCULO, antiguedad, estadoParticipante, explicaBandera, nombreBandera, rucVisibleDe, tipoVinculo,
@@ -80,8 +81,8 @@ export function DetalleParticipante({ p, conOfertas, hayGanador }: { p: Particip
         },
         { etiqueta: "Actividad", valor: s.actividad ? oracion(s.actividad) : null },
         // La dirección sólo llega de una empresa (la API no manda la de una persona natural).
-        ...(s.domicilio ? [{ etiqueta: "Domicilio fiscal", valor: s.domicilio }] : []),
-        ...(s.distrito ? [{ etiqueta: "Distrito", valor: oracion(s.distrito) }] : []),
+        ...(s.domicilio ? [{ etiqueta: "Domicilio fiscal", valor: tituloNatural(s.domicilio) }] : []),
+        ...(s.distrito ? [{ etiqueta: "Distrito", valor: tituloNatural(s.distrito) }] : []),
         { etiqueta: "RNP vigente", valor: p.rnpVigente == null ? null : p.rnpVigente ? "Sí" : "No", ayuda: <AyudaTermino clave="rnp" /> },
       ]
     : [{ etiqueta: "Ficha RUC", valor: "Vigía no tiene su ficha de la SUNAT" }];
@@ -111,7 +112,7 @@ export function DetalleParticipante({ p, conOfertas, hayGanador }: { p: Particip
                         <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
                       </span>
                     ))}
-                    {v.tipo === "domicilio_compartido" && v.domicilio ? `: ${v.domicilio}` : ""}.
+                    {v.tipo === "domicilio_compartido" && v.domicilio ? `: ${tituloNatural(v.domicilio)}` : ""}.
                   </span>
                   <span className="mt-0.5 block text-rotulo text-mute">
                     {v.tipo === "domicilio_compartido" ? "Fuente: SUNAT (ficha RUC)" : "Fuente: RNP (socios y representantes)"}

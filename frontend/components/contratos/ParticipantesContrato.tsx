@@ -20,6 +20,7 @@ import { ChipEstado, DetalleParticipante, NombreParticipante } from "./Participa
 import { conDesde } from "@/lib/desde";
 import { rutaEmpresa } from "@/lib/empresas";
 import { fechaCorta, numero, oracion, plural } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import { esPersonaNatural, type ContratoDetalle as Detalle } from "@/lib/contratos";
 import {
   ETIQUETAS_PARTICIPANTE, EXPLICA_VINCULO, antecedentesDe, antiguedad, estadoParticipante, estadoSunat, rucVisibleDe,
@@ -192,7 +193,7 @@ function filaDe(p: Participante, ctx: Contexto): Fila {
             p.tipo === "consorcio" && (
               <Dato key="consorcio" tipo="personas" nombre="Tipo">{p.integrantes.length ? `Consorcio de ${numero(p.integrantes.length)}` : "Consorcio"}</Dato>
             ),
-            s?.distrito && <Dato key="lugar" tipo="lugar" nombre="Distrito de su domicilio fiscal">{oracion(s.distrito)}</Dato>,
+            s?.distrito && <Dato key="lugar" tipo="lugar" nombre="Distrito de su domicilio fiscal">{tituloNatural(s.distrito)}</Dato>,
           ]}
         />
       ),

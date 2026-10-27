@@ -77,7 +77,7 @@ function OtraEmpresa({ ruc, nombre, conRuc = false }: { ruc: string; nombre: str
   return (
     <>
       <Link href={`/empresa/${ruc}`} className="font-semibold text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
-        {nombre ? tituloNatural(nombre) : `RUC ${ruc}`}
+        {nombre ?? `RUC ${ruc}`}
       </Link>
       {conRuc && nombre ? <span className="font-mono text-rotulo"> (RUC {ruc})</span> : null}
     </>
