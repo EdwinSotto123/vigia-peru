@@ -184,7 +184,11 @@ contratosRouter.get("/resumen", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
   const { tipo: _t, operativo: _o, riesgo: _r, ...base } = q;
-  const celdas = await (q.q ? cuboTextoMemo : cuboMemo).obtener(JSON.stringify(base), () => cubo(q));
+  // Sólo texto: los cuatro conteos en una consulta (resumenTexto); si falla, por separado como antes.
+  const rt = soloTexto(q)
+    ? await textoMemo.obtener(q.q!, () => resumenTexto(q)).catch((e) => { console.warn(`[contratos] resumen de texto: ${(e as Error).message}`); return null; })
+    : null;
+  const celdas = rt?.celdas ?? (await (q.q ? cuboTextoMemo : cuboMemo).obtener(JSON.stringify(base), () => cubo(q)));
   const pasa = (celda: Celda, salvo: Faceta | null) => FACETAS.every((f) => f === salvo || q[f] == null || celda[f] === q[f]);
   const contar = (f: Faceta) => {
     const out: Record<string, number> = {};
@@ -208,13 +212,44 @@ contratosRouter.get("/resumen", async (c) => {
     const k = celda.operativo ?? "sin_clasificar";
     porOperativoSinLeer[k] = (porOperativoSinLeer[k] ?? 0) + celda.n;
   }
-  const [porCruces, porLectura, porDudoso] = await Promise.all([
-    crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
-    lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
-    dudosoMemo.obtener(JSON.stringify({ ...q, dudoso: undefined }), () => contarDudosos(q)).catch(() => null),
-  ]);
+  const [porCruces, porLectura, porDudoso] = rt
+    ? [rt.cruces, rt.lectura, rt.dudosos]
+    : await Promise.all([
+        crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
+        lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
+        dudosoMemo.obtener(JSON.stringify({ ...q, dudoso: undefined }), () => contarDudosos(q)).catch(() => null),
+      ]);
   return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura, porDudoso }, CACHE_LISTA);
 });
+
+interface ResumenTexto { celdas: Celda[]; cruces: { con: number; alta: number; tipos: Record<string, number> }; lectura: Record<string, number>; dudosos: number }
+const textoMemo = new Memo<ResumenTexto>({ nombre: "contratos:resumen:solo-texto", ttlMs: 60_000, max: 50 });
+
+/**
+ * Una búsqueda sólo de texto: sus cuatro conteos (facetas, «¿Lo leyó Vigía?», antecedentes y posibles errores de carga)
+ * en UNA consulta sobre las coincidencias, buscadas una vez. Eran cuatro consultas que repetían la búsqueda entera sobre
+ * contrato_estado: 9 s con «agua», al borde de los 10 s de la API. Sin otros filtros, las cuatro bases son la misma (cada
+ * conteo excluye sólo su propio filtro, que aquí no está). Mismos números que cubo, contarLectura, contarCruces y
+ * contarDudosos.
+ */
+async function resumenTexto(q: z.infer<typeof ResumenQuery>): Promise<ResumenTexto> {
+  const vals: unknown[] = [];
+  const { conds } = filtros(q, vals, MAPA_CE);
+  const r = await pool.query(
+    `WITH m AS MATERIALIZED (SELECT ce.ocid, ce.tipo, ce.operativo, ce.riesgo, ${casoLectura("ce.")} AS lectura
+                              FROM contrato_estado ce WHERE ${conds.join(" AND ")}),
+          k AS MATERIALIZED (SELECT k.ocid, k.n_alta, k.tipos FROM m JOIN casos_cruce k ON k.ocid = m.ocid),
+          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+          t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
+     SELECT (SELECT COALESCE(json_agg(c), '[]'::json) FROM (SELECT tipo, operativo, riesgo, count(*)::int AS n FROM m GROUP BY 1, 2, 3) c) AS celdas,
+            (SELECT COALESCE(json_object_agg(l.lectura, l.n), '{}'::json) FROM (SELECT lectura, count(*)::int AS n FROM m GROUP BY 1) l) AS lectura,
+            (SELECT count(*)::int FROM o) AS con,
+            (SELECT count(*)::int FROM o WHERE alta) AS alta,
+            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos,
+            (SELECT count(*)::int FROM m JOIN contrato_dudoso d ON d.ocid = m.ocid) AS dudosos`, vals);
+  const f = r.rows[0];
+  return { celdas: f.celdas, cruces: { con: f.con, alta: f.alta, tipos: f.tipos }, lectura: f.lectura, dudosos: f.dudosos };
+}
 
 const dudosoMemo = new Memo<number>({ nombre: "contratos:resumen:dudoso", ttlMs: 60_000, staleMs: 60_000, max: 200 });
 

@@ -7,7 +7,7 @@
 -- fecha cuando la palabra es común (las 26 primeras aparecen enseguida) o el GIN cuando es rara. La búsqueda global
 -- rankea sólo entre las coincidencias más recientes (antes calculaba ts_rank sobre todas: 3,8 s con "construccion").
 --
--- Va en paralelo a convocatoria_busqueda (la API vieja la sigue leyendo hasta desplegar la nueva); la migración 174 la
+-- Va en paralelo a convocatoria_busqueda (la API vieja la sigue leyendo hasta desplegar la nueva); la migración 176 la
 -- borra. La mantienen tres triggers por sentencia, como contrato_estado (migración 35).
 --
 -- Cómo aplicarla: python infrastructure/dev/dev.py migrar backend/db/migrations/173_busqueda_con_fecha.sql (DEV); en

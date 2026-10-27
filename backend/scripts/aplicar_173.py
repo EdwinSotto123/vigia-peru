@@ -58,6 +58,13 @@ def main() -> None:
         malos = [r[0] for r in cur.fetchall()]
         if malos:
             sys.exit(f"índices inválidos (DROP INDEX y volver a correr): {malos}")
+        # La tabla vieja (migración 86) se borra en la 176: sin ella, sólo el conteo de la nueva.
+        cur.execute("SELECT to_regclass('convocatoria_busqueda') IS NOT NULL")
+        if not cur.fetchone()[0]:
+            cur.execute("SELECT count(*), count(*) FILTER (WHERE alta IS NULL) FROM convocatoria_texto")
+            n, sin_alta = cur.fetchone()
+            print(f"convocatoria_texto {n:,}, sin alta {sin_alta:,}")
+            return
         cur.execute("""SELECT (SELECT count(*) FROM convocatoria_texto), (SELECT count(*) FROM convocatoria_busqueda),
                               (SELECT count(*) FROM convocatoria_texto t WHERE NOT EXISTS (SELECT 1 FROM convocatoria_busqueda b WHERE b.ocid = t.ocid)),
                               (SELECT count(*) FROM convocatoria_texto WHERE alta IS NULL)""")
