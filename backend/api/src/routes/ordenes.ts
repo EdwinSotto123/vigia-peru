@@ -266,18 +266,20 @@ ordenesRouter.get("/", async (c) => {
   const parsed = ListaOrdenesQuery.safeParse(sinVacios(c));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
-  // Sin plazo propio, el de consultaConPlazo (20 s): los antecedentes que parten de las parejas o de las sanciones tardan
-  // menos de 1 s en caliente y hasta 11 s en frío (medido 2026-10-27), más que los 10 s del rol de la API.
+  // Los antecedentes que parten de las parejas o de las sanciones leen órdenes dispersas por la tabla: menos de 1 s en
+  // caliente, de 3 a 12 s en frío y más de 20 s con la base ocupada en un refresco (medido 2026-10-27). Son filtros raros
+  // y después quedan en la caché: mejor una primera respuesta lenta que un error.
+  const plazoAntecedente = q.antecedente && q.antecedente !== "fraccionamiento" ? 45_000 : undefined;
   const cuerpo = await memo.obtener(JSON.stringify(q), async () => {
     let consulta = sqlListaOrdenes(q);
     let r: Awaited<ReturnType<typeof consultaConPlazo>>;
     try {
-      r = await consultaConPlazo(consulta.sql, consulta.vals, consulta.acotable ? PLAZO_COMPLETA_MS : undefined);
+      r = await consultaConPlazo(consulta.sql, consulta.vals, consulta.acotable ? PLAZO_COMPLETA_MS : plazoAntecedente);
     } catch (e) {
       // Se pasó del plazo (57014): la misma página con los filtros sobre las órdenes más recientes, y la web lo dice.
       if (!consulta.acotable || !esErrorPg(e, "57014")) throw e;
       consulta = sqlListaOrdenes(q, true);
-      r = await consultaConPlazo(consulta.sql, consulta.vals);
+      r = await consultaConPlazo(consulta.sql, consulta.vals, plazoAntecedente);
     }
     const hayMas = r.rows.length > q.size;
     // `revisadas`: con la lista acotada, cuántas órdenes recientes se revisaron (puede haber más antes de esas).
