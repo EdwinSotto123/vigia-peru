@@ -46,9 +46,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * "40": el MEF de 2015 en adelante con OPDS/ETES (`mef.origen`, `ultimoAnioMef`), las obras e inversiones (conteos de la
  *        entidad, `obras`/`inversiones` del contrato, /obras) y las banderas de obra y de la DJI de los funcionarios;
  * "41": /entidades/:ruc trae `senales` e `informes` (las banderas fijas de la ficha), /personas `totalExacto` (conteo
- *        acotado) y la búsqueda de contratos ordenada desde convocatoria_texto (migración 173).
+ *        acotado) y la búsqueda de contratos ordenada desde convocatoria_texto (migración 173);
+ * "42": señales nuevas de personas y planilla (financio_campana, aporte_gobierna en planilla y las del partido del
+ *        Presidente en el Ejecutivo, migración 177): las listas de personas se guardan hasta un día.
  */
-const VERSION_CACHE = "41";
+const VERSION_CACHE = "42";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

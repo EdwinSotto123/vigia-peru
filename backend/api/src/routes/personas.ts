@@ -32,7 +32,7 @@ const listaMemo = new Memo<Record<string, unknown>>({ nombre: "personas:lista", 
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
 export const TIPOS_SENAL = [
-  "nepotismo", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
+  "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 

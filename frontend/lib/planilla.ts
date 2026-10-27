@@ -7,7 +7,7 @@ import { API_BASE } from "./api-client";
 import { tituloNatural } from "./landing";
 import type { FichaPersona, Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 // Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
@@ -170,6 +170,18 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     titulo: "Está en la planilla y además recibe órdenes de servicio",
     explica: "El mismo mes en que figura en la planilla, la misma entidad le dio órdenes de servicio. Cobrar dos veces del Estado está prohibido, salvo por docencia.",
   },
+  financio_campana: {
+    corto: "Financió la campaña del que gobierna",
+    titulo: "Aportó a la campaña del que gobierna y está en su planilla",
+    explica:
+      "Aportó dinero (ONPE) a la campaña de la organización política en la elección que la llevó a gobernar la entidad (en un ministerio, al partido del Presidente) y figura en la planilla de ese gobierno. Coincide por el nombre completo (la planilla no trae DNI) y sólo si ese nombre es de una sola persona entre los aportantes. Aportar es legal: es un dato para revisar.",
+  },
+  aporte_gobierna: {
+    corto: "Aportó al que gobierna",
+    titulo: "Aportó al partido que gobierna la entidad",
+    explica:
+      "Aportó dinero (ONPE) al partido o movimiento que gobierna la entidad (en un ministerio, al partido del Presidente). Coincide por el nombre completo, sólo si es de una sola persona entre los aportantes. Aportar es legal: es un dato para revisar.",
+  },
   candidato_gobierna: {
     corto: "Candidato del que gobierna",
     titulo: "Fue candidato del partido que gobierna la entidad",
@@ -213,6 +225,8 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
 /** De dónde sale cada señal de la planilla (el pie de su evidencia) y, en corto, la línea de la señal. */
 export function fuentePlanilla(tipo: TipoPlanilla | "nepotismo"): { texto: string; corto: string; url: string | null } {
   if (tipo === "candidato_gobierna") return { texto: "JNE, candidaturas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
+  if (tipo === "financio_campana" || tipo === "aporte_gobierna")
+    return { texto: "ONPE, Claridad (aportes a organizaciones políticas)", corto: "ONPE", url: "https://claridad.onpe.gob.pe/" };
   if (tipo === "apellidos_autoridad" || tipo === "es_autoridad") return { texto: "JNE, autoridades electas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
   if (tipo === "tambien_ordenes" || tipo === "antes_locador")
     return { texto: "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)", corto: "CONOSCE y Portal de Transparencia", url: null };

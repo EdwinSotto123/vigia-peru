@@ -194,7 +194,7 @@ export interface OrdenesPersona {
 // ─── Señales ───────────────────────────────────────────────────────────────────────────────────
 
 export const TIPOS_SENAL = [
-  "nepotismo", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
+  "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
@@ -210,6 +210,12 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     titulo: "Un funcionario de la entidad lo declaró como su pariente",
     explica:
       "Un funcionario de esta entidad lo declaró como pariente en su Declaración Jurada de Intereses (Ley 31227), y él figura como locador (proveedor) de la misma entidad. Es un indicio de posible nepotismo para revisión humana, no una acusación: la declaración es pública y el impedimento depende del cargo del funcionario (Ley 32069, art. 30).",
+  },
+  financio_campana: {
+    corto: "Financió la campaña del que gobierna",
+    titulo: "Aportó a la campaña del que gobierna y después recibió sus órdenes",
+    explica:
+      "Aportó dinero (ONPE) a la campaña de la organización política en la misma elección que la llevó a gobernar esta entidad (o, en un ministerio, al partido del Presidente), y después ese gobierno le dio órdenes de servicio. Aportar es legal: lo que se señala es que quien financió la campaña luego cobra de ese gobierno. Es un dato para revisar, no una prueba de favor.",
   },
   candidato_gobierna: {
     corto: "Candidato del que gobierna",

@@ -353,6 +353,14 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
   // Las órdenes de los años de la planilla cargada (tambien_planilla, paso_a_planilla) y el resumen.
   const [primerAnio] = mesesPte(p, fechaLima())[0];
   resumen.personas = await uno("refrescar_personas_senales", `SELECT refrescar_personas_senales(make_date(${Number(primerAnio)}, 1, 1)) AS n`);
+  // Lo que refrescar_planilla() y refrescar_personas_senales() acaban de borrar: el nepotismo (137) y las señales de
+  // aportes y del partido del Presidente (177), que parchan persona_entidad, planilla_persona y su resumen.
+  for (const f of ["refrescar_nepotismo_senal", "refrescar_senales_politicas"]) {
+    resumen[f] = await step.do(f, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${f}()`]);
+      return existe ? Number((await db.filas<{ n: number }>(`SELECT ${f}() AS n`))[0]?.n ?? 0) : null;
+    }));
+  }
   resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
   return resumen;
 }

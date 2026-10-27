@@ -19,7 +19,7 @@ import {
   type TipoPlanilla,
 } from "@/lib/planilla";
 import { FilaSenal, FuenteSenal, ListaSenales, SenalBreve } from "./FilaSenal";
-import { OrdenesCitadas } from "./EvidenciaSenal";
+import { OrdenesCitadas, eleccionTexto, gobiernoTexto } from "./EvidenciaSenal";
 
 /**
  * Las señales de una persona de la planilla, cada una en su fila (`FilaSenal`: severidad, qué registro coincide, el
@@ -166,6 +166,21 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       const meses = listaMeses(lista(d.meses));
       const cuantas = n(d.ordenes);
       return [cuantas != null ? `${plural(cuantas, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)}` : null, meses ? `en ${meses}` : null].filter(Boolean).join(" ") || null;
+    }
+    case "financio_campana": {
+      const total = lista(d.aportes).reduce((s, a) => s + (n(a.monto) ?? 0), 0) || n(d.monto) || 0;
+      const eleccion = eleccionTexto(d.eleccion);
+      const desde = mes(t(d.primer_mes));
+      return [
+        `${soles(total)} a la campaña de ${nombrePartido(d.partido) ?? "su partido"}${eleccion ? ` en ${eleccion}` : ""}`,
+        desde ? (d.entro_en_lo_visto === true ? `entró a la planilla en ${desde}` : `en la planilla desde ${desde} o antes`) : null,
+      ].filter(Boolean).join("; ");
+    }
+    case "aporte_gobierna": {
+      const ap = lista(d.aportes);
+      const total = n(d.monto) ?? ap.reduce((s, a) => s + (n(a.monto) ?? 0), 0);
+      const anios = [...new Set(ap.map((a) => t(a.anio) ?? t(a.fecha)?.slice(0, 4) ?? null).filter((x): x is string => !!x))].sort();
+      return `${soles(total)} a ${nombrePartido(d.partido) ?? "el partido que gobierna"}${anios.length ? ` en ${anios.join(", ")}` : ""}`;
     }
     case "candidato_gobierna": {
       const c = [...lista(d.candidaturas)].sort((a, b) => (n(b.anio) ?? 0) - (n(a.anio) ?? 0))[0];
@@ -328,10 +343,52 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
         }))}
       />
     );
+  } else if (tipo === "financio_campana" || tipo === "aporte_gobierna") {
+    const campana = tipo === "financio_campana";
+    return (
+      <div className="space-y-2">
+        <DatosClave
+          items={[
+            { etiqueta: d.nivel === "nacional" ? "Gobierno nacional" : "Gobierno de la entidad", valor: gobiernoTexto(d) },
+            ...(campana ? [{ etiqueta: "La campaña que financió", valor: eleccionTexto(d.eleccion) }] : []),
+            ...(n(d.monto) != null ? [{ etiqueta: campana ? "Total aportado a su campaña" : "Total aportado", valor: soles(n(d.monto)), mono: true }] : []),
+            ...(campana && t(d.primer_mes)
+              ? [{
+                  etiqueta: "En la planilla",
+                  valor: d.entro_en_lo_visto === true ? `Entró en ${mes(t(d.primer_mes))}, con ese gobierno` : `Desde ${mes(t(d.primer_mes))} o antes (el primer mes cargado)`,
+                }]
+              : []),
+          ]}
+        />
+        <TablaChica
+          etiqueta="Sus aportes"
+          columnas={[
+            { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)" },
+            { clave: "aporte", titulo: "Aporte", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+            { clave: "fecha", titulo: "Fecha", ancho: "7rem", desde: "md", apilar: "con-rotulo" },
+            { clave: "monto", titulo: "Monto", ancho: "6.5rem", alinear: "der" },
+          ]}
+          filas={lista(d.aportes).map((a, i) => ({
+            id: String(i),
+            celdas: {
+              partido: partidoCell(a.partido, a.fecha ?? a.anio),
+              aporte: texto(a.campana === true ? `A su campaña (${eleccionTexto(a.proceso) ?? "sin proceso"})` : t(a.proceso) ? `Aporte (${eleccionTexto(a.proceso)})` : "Aporte"),
+              fecha: texto(dia(a.fecha) ?? t(a.anio)),
+              monto: texto(n(a.monto) != null ? soles(n(a.monto)) : null),
+            },
+          }))}
+        />
+      </div>
+    );
   } else if (tipo === "candidato_gobierna") {
     return (
       <div className="space-y-2">
-        <DatosClave items={[{ etiqueta: "Partido que gobierna la entidad", valor: t(d.partido) ? partidoCell(d.partido, ultimoAnio(d.anios)) : null }]} />
+        <DatosClave
+          items={[
+            { etiqueta: d.nivel === "nacional" ? "Partido del Presidente" : "Partido que gobierna la entidad", valor: t(d.partido) ? partidoCell(d.partido, ultimoAnio(d.anios)) : null },
+            ...(d.nivel === "nacional" ? [{ etiqueta: "Gobierno nacional", valor: gobiernoTexto(d) }] : []),
+          ]}
+        />
         <TablaChica
           etiqueta="Sus candidaturas"
           columnas={[

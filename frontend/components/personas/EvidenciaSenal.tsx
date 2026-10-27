@@ -30,6 +30,25 @@ const porQue = (por: unknown) =>
   por === "dni" ? "Coincide por el documento de identidad." : por === "nombre" ? "Coincide por el nombre completo y el departamento (la fuente no trae documento)." : null;
 const unicos = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
 const enPalabras = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+/** «las elecciones regionales y municipales de 2022»: el proceso ONPE de una campaña (ERM2022, EG2021). */
+export const eleccionTexto = (e: unknown): string | null => {
+  const t = txt(e);
+  if (!t) return null;
+  const m = /^(ERM|EG|ECE|EMC)(\d{4})$/.exec(t);
+  if (!m) return t;
+  const nombre = { ERM: "las elecciones regionales y municipales", EG: "las elecciones generales", ECE: "las elecciones congresales", EMC: "las elecciones municipales complementarias" }[m[1]];
+  return `${nombre} de ${m[2]}`;
+};
+/** El gobierno de la señal: «Pedro Castillo (Perú Libre), del 28 jul. 2021 al 30 jun. 2022» o «Contigo Región, 2023 a 2026». */
+export const gobiernoTexto = (d: Obj): string | null => {
+  const partido = nombrePartido(d.partido) ?? txt(d.partido);
+  const nacional = d.nivel === "nacional";
+  const desde = nacional ? dia(d.gobierno_desde) : anio(d.gobierno_desde);
+  const hasta = nacional ? dia(d.gobierno_hasta) : anio(d.gobierno_hasta);
+  const periodo = desde && hasta ? (nacional ? `del ${desde} al ${hasta}` : `${desde} a ${hasta}`) : null;
+  const quien = nacional && txt(d.presidente) ? `${txt(d.presidente)}${partido ? ` (${partido})` : ""}` : partido;
+  return [quien, periodo].filter(Boolean).join(", ") || null;
+};
 
 /** El parentesco con mayúscula inicial: "Hijo(a)". */
 const gradoTitulo = (g: unknown) => {
@@ -86,6 +105,17 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
           ? `Pariente de ${numero(par.length)} funcionarios de la entidad`
           : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
       return `${quien}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
+    }
+    case "financio_campana": {
+      const deCampana = lista(d.aportes).filter((a) => a.campana === true);
+      const total = deCampana.reduce((t, a) => t + (num(a.monto) ?? 0), 0) || num(d.monto) || 0;
+      const eleccion = eleccionTexto(d.eleccion);
+      const ordenes = num(d.ordenes);
+      const primera = dia(d.primera_orden);
+      return [
+        `${soles(total)} a la campaña de ${nombrePartido(d.partido) ?? "su partido"}${eleccion ? ` en ${eleccion}` : ""}`,
+        ordenes ? `después, ${plural(ordenes, "orden", "órdenes")} de ese gobierno${primera ? ` desde el ${primera}` : ""}` : null,
+      ].filter(Boolean).join("; ");
     }
     case "candidato_gobierna":
     case "candidato": {
@@ -222,6 +252,55 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         </div>
       );
     }
+    case "financio_campana": {
+      const ordenes = num(d.ordenes);
+      const filas: Fila[] = lista(d.aportes).map((a, i) => ({
+        id: String(i),
+        celdas: {
+          partido: partidoLink(a.partido, a.fecha ?? a.anio),
+          aporte: texto(
+            a.campana === true ? `A su campaña (${eleccionTexto(a.proceso) ?? "sin proceso"})` : txt(a.proceso) ? `Otro aporte (${eleccionTexto(a.proceso)})` : "Otro aporte",
+            a.campana === true ? "font-semibold text-ink" : "text-inkSoft",
+          ),
+          fecha: <span className="text-meta tabular-nums text-mute">{dia(a.fecha) ?? txt(a.anio) ?? "Sin fecha"}</span>,
+          monto: <CeldaNumero>{num(a.monto) != null ? soles(num(a.monto)) : "Sin dato"}</CeldaNumero>,
+        },
+      }));
+      return (
+        <div className="space-y-3">
+          <DatosClave
+            items={[
+              { etiqueta: d.nivel === "nacional" ? "Gobierno nacional" : "Gobierno de la entidad", valor: gobiernoTexto(d) },
+              { etiqueta: "La campaña que financió", valor: eleccionTexto(d.eleccion) },
+              ...(num(d.monto) != null ? [{ etiqueta: "Total aportado a ese partido", valor: soles(num(d.monto)), mono: true }] : []),
+              ...(ordenes
+                ? [{
+                    etiqueta: "Después, de ese gobierno",
+                    valor: `${plural(ordenes, "orden", "órdenes")} por ${soles(num(d.monto_ordenes) ?? 0)}${dia(d.primera_orden) ? `, la primera el ${dia(d.primera_orden)}` : ""}`,
+                  }]
+                : []),
+            ]}
+          />
+          <Lista
+            etiqueta="Aportes"
+            columnas={[
+              { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)" },
+              { clave: "aporte", titulo: "Aporte", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+              { clave: "fecha", titulo: "Fecha", ancho: "7rem", desde: "md", apilar: "con-rotulo" },
+              { clave: "monto", titulo: "Monto", ancho: "6.5rem", alinear: "der" },
+            ]}
+            filas={filas}
+          />
+          <Nota>
+            La ONPE publica cada aporte con el documento de quien aporta; va a la organización política, no a un candidato con nombre.
+            Aportar es legal: lo que se señala es que quien financió la campaña después cobró de ese gobierno.
+          </Nota>
+          <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
+            {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
+          </VerOrdenes>
+        </div>
+      );
+    }
     case "candidato_gobierna":
     case "candidato": {
       const filas: Fila[] = lista(d.candidaturas)
@@ -236,7 +315,14 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         }));
       return (
         <div className="space-y-3">
-          {s.tipo === "candidato_gobierna" && txt(d.partido) && <DatosClave items={[{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.anios)) }]} />}
+          {s.tipo === "candidato_gobierna" && txt(d.partido) && (
+            <DatosClave
+              items={[
+                { etiqueta: d.nivel === "nacional" ? "Partido del Presidente" : "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.anios)) },
+                ...(d.nivel === "nacional" ? [{ etiqueta: "Gobierno nacional", valor: gobiernoTexto(d) }] : []),
+              ]}
+            />
+          )}
           <Lista
             etiqueta="Candidaturas"
             columnas={[
@@ -268,7 +354,10 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         <div className="space-y-3">
           <DatosClave
             items={[
-              ...(s.tipo === "aporte_gobierna" && txt(d.partido) ? [{ etiqueta: "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.aportes)) }] : []),
+              ...(s.tipo === "aporte_gobierna" && txt(d.partido)
+                ? [{ etiqueta: d.nivel === "nacional" ? "Partido del Presidente" : "Partido que gobernaba", valor: partidoLink(d.partido, ultimoAnio(d.aportes)) }]
+                : []),
+              ...(s.tipo === "aporte_gobierna" && d.nivel === "nacional" ? [{ etiqueta: "Gobierno nacional", valor: gobiernoTexto(d) }] : []),
               ...(num(d.monto) != null ? [{ etiqueta: "Total aportado", valor: soles(num(d.monto)), mono: true }] : []),
             ]}
           />
