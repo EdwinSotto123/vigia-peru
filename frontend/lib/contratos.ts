@@ -12,6 +12,7 @@ import { fechaCorta, numero, soles } from "./formato";
 import { nivelDeScore } from "./severidad";
 import { esRucPersonaNatural } from "./privacidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
+import type { ProcesoContrato } from "./procesoContrato";
 export type { CitaDocumento };
 
 export type TipoContrato = "bienes" | "servicios" | "consultoria" | "obras" | "convenio" | "directa" | "otro";
@@ -78,7 +79,27 @@ export interface ContratoResumen {
   gobierno?: GobiernoContrato | null;
   /** Posible error de carga del OECE (migración 102); null o ausente si el dato se puede creer. */
   datoDudoso?: DatoDudosoContrato | null;
+  /**
+   * Datos de la EMPRESA que ganó (su estado de hoy en la SUNAT, hechos políticos de su gente: empresa_resumen), que no
+   * son antecedentes de este contrato. La fila los muestra cuando se filtra por uno. Falta en la API vieja.
+   */
+  datosGanadora?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
 }
+
+/**
+ * Los datos de la empresa ganadora que filtran la lista (?ganadora=): son de la empresa, no del contrato (casos_cruce no
+ * los cuenta, migración 115), así que van en su propio filtro y no en «Antecedentes del ganador».
+ */
+export const DATOS_GANADORA: { valor: string; etiqueta: string; grupo: string }[] = [
+  { valor: "dada_de_baja", etiqueta: "De baja en la SUNAT", grupo: "En la SUNAT, hoy" },
+  { valor: "suspendida", etiqueta: "Suspendida en la SUNAT", grupo: "En la SUNAT, hoy" },
+  { valor: "no_habida", etiqueta: "No habida (la SUNAT no la ubica)", grupo: "En la SUNAT, hoy" },
+  { valor: "candidato", etiqueta: "Un socio o representante fue candidato", grupo: "Política" },
+  { valor: "autoridad", etiqueta: "Un socio o representante es autoridad electa", grupo: "Política" },
+  { valor: "aporte", etiqueta: "Su gente aportó a un partido", grupo: "Política" },
+  { valor: "aporte_empresa", etiqueta: "La empresa aportó a un partido", grupo: "Política" },
+  { valor: "proveedor_campana", etiqueta: "Le vendió a una campaña electoral", grupo: "Política" },
+];
 
 /**
  * Un contrato cuyo registro en el OECE no se puede creer (migración 102, `contrato_dudoso`): lo adjudicado es 20 veces
@@ -257,12 +278,15 @@ export interface FraccionamientoEntidad {
   }[];
 }
 
-export interface ContratoDetalle extends ContratoResumen {
+/** Participantes, cronograma, adjudicación y contrato, presupuesto: lo demás del registro del proceso (lib/procesoContrato.ts). */
+export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
+  /** La de los agentes; si no, la de CONOSCE o la de la adjudicación vigente del OCDS (`fechaBuenaProFuente`). */
   fechaBuenaPro: string | null;
   tipoProceso: string | null;
   fuenteFinanciamiento: string | null;
   nomenclatura: string | null;
   descripcion: string | null;
+  /** Los participantes REGISTRADOS según el OCDS (`numberOfTenderers`): no todos presentan oferta (`ofertas`). */
   postores: number | null;
   items: ContratoItem[];
   documentos: ContratoDocumento[];
@@ -389,6 +413,10 @@ export interface ContratosQuery {
   partido?: string;
   /** Tipos de cruce separados por coma (cualquiera de ellos). */
   cruce?: string;
+  /** Un dato de la empresa que ganó (DATOS_GANADORA): de baja en la SUNAT, un socio candidato… */
+  ganadora?: string;
+  /** Sólo los contratos con posible error de carga del OECE. */
+  dudoso?: "si";
 }
 
 export const TIPOS: { value: TipoContrato; label: string }[] = [
@@ -623,8 +651,11 @@ export function mesDeRango(desde: string | undefined, hasta: string | undefined)
 /**
  * Lee `searchParams` de Next (strings sueltos) y deja solo lo válido. `mes=AAAA-MM` (el
  * filtro "Mes de convocatoria" de la lista) se traduce a `desde`/`hasta` para el API.
+ *
+ * `conDatosGanadora`: también los filtros que sólo ofrece /app/contratos (datos de la empresa ganadora, posible error de
+ * carga). Las fichas de entidad y de región no los muestran: si los leyeran de la URL, filtrarían sin un chip que lo diga.
  */
-export function parseContratosQuery(sp: Record<string, string | string[] | undefined> = {}): ContratosQuery {
+export function parseContratosQuery(sp: Record<string, string | string[] | undefined> = {}, { conDatosGanadora = false } = {}): ContratosQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   // `?pagina=` es el nombre del parámetro en los demás listados: un enlace escrito así también abre su página.
   const page = Math.max(1, Number(s("page") ?? s("pagina") ?? 1) || 1);
@@ -661,6 +692,8 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     cruces: /^[a-z_]{2,40}$/.test(s("cruces") ?? "") ? s("cruces") : undefined,
     cruce: /^[a-z_]+(,[a-z_]+)*$/.test(s("cruce") ?? "") ? s("cruce")!.slice(0, 300) : undefined,
     partido: /^[a-z0-9-]{2,120}$/.test(s("partido") ?? "") ? s("partido") : undefined,
+    ganadora: conDatosGanadora && DATOS_GANADORA.some((d) => d.valor === s("ganadora")) ? s("ganadora") : undefined,
+    dudoso: conDatosGanadora && s("dudoso") === "si" ? "si" : undefined,
   };
 }
 
@@ -690,6 +723,8 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
     cruces: txt(q.cruces),
     cruce: txt(q.cruce),
     partido: txt(q.partido),
+    ganadora: txt(q.ganadora),
+    dudoso: txt(q.dudoso),
   };
 }
 
@@ -720,6 +755,8 @@ export interface ResumenContratos {
   porCruces?: { con: number; alta: number; tipos?: Record<string, number> } | null;
   /** Conteos de "¿Lo leyó Vigía?" con los demás filtros. Falta en la API vieja. */
   porLectura?: Partial<Record<Lectura, number>> | null;
+  /** Contratos con posible error de carga del OECE, con los demás filtros. Falta en la API vieja. */
+  porDudoso?: number | null;
 }
 export const getResumenContratos = (q: ContratosQuery = {}) =>
   getJson<ResumenContratos>(

@@ -79,10 +79,16 @@ const COLUMNAS: Columna[] = [
     clave: "cruces", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo",
     ayuda: (
       <Ayuda titulo="¿Qué son estos antecedentes?">
-        Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña (ONPE),
-        candidaturas y autoridades (JNE), sanciones y penalidades, visitas a entidades, socios comunes con otros postores y
-        órdenes del mismo día que juntas pasan 8 UIT (CONOSCE). No prueban una irregularidad: el dossier trae cada uno con
-        su fuente.
+        <span className="block">
+          Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña (ONPE),
+          candidaturas y autoridades (JNE), sanciones y penalidades, visitas a entidades, socios comunes con otros postores y
+          órdenes del mismo día que juntas pasan 8 UIT (CONOSCE). No prueban una irregularidad: el dossier trae cada uno con
+          su fuente.
+        </span>
+        <span className="mt-2 block">
+          Con el filtro «Datos de la empresa ganadora», la fila muestra además ese dato de la empresa (su estado de hoy en la
+          SUNAT, o un hecho de su gente): es de la empresa, no de este contrato.
+        </span>
       </Ayuda>
     ),
   },
@@ -218,13 +224,22 @@ export function TablaContratos({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc)))} etiqueta="Contratos" />
+      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))} etiqueta="Contratos" />
       <div className="flex justify-end">{pag(true)}</div>
     </div>
   );
 }
 
-function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null): Fila {
+/**
+ * Los antecedentes de la fila y, si la lista filtra por un dato de la empresa ganadora (`?ganadora=`), ese dato: así se
+ * ve por qué está el contrato en la lista. Sin ese filtro no van (son de la empresa, no del contrato: migración 115).
+ */
+function crucesDeFila(c: ContratoResumen, datoGanadora?: string) {
+  const deLaEmpresa = datoGanadora ? (c.datosGanadora ?? []).filter((d) => d.tipo === datoGanadora) : [];
+  return deLaEmpresa.length ? [...deLaEmpresa, ...(c.cruces ?? [])] : c.cruces;
+}
+
+function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null, datoGanadora?: string): Fila {
   // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
   const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
@@ -258,7 +273,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM). Dos líneas en
       // escritorio (tres en el celular): «qué se compra» es el dato de la fila, y en una línea se cortaba a ~30 letras.
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas />,
-      cruces: <CrucesCelda cruces={c.cruces} sinGanador={!c.proveedor} />,
+      cruces: <CrucesCelda cruces={crucesDeFila(c, datoGanadora)} sinGanador={!c.proveedor} />,
       tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,

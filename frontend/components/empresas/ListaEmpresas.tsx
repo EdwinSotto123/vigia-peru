@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { hoyLima, numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
 import {
@@ -9,11 +9,14 @@ import {
   MONTOS_MIN,
   OBJETO_TEXTO,
   ORDENES_EMPRESAS,
+  TRAMOS_EMPRESA,
   filtrosEmpresasDeUrl,
   getEmpresas,
+  ultimasVentas,
   type FiltrosEmpresas,
   type PaginaEmpresas,
   type ResumenEmpresas,
+  type TramoEmpresa,
 } from "@/lib/empresas";
 import { TablaEmpresas, TablaEmpresasSkeleton } from "./TablaEmpresas";
 
@@ -22,26 +25,29 @@ const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /**
- * El directorio de empresas: cifras, barra de filtros (buscador por nombre o RUC, si tiene antecedentes, cuál, lo que
- * vende, región, inhabilitadas, con visitas) y la tabla. Los filtros van en la URL. Server component: cifras, barra y
- * tabla esperan la misma página (`Suspense`).
+ * El directorio de empresas: cifras, barra de filtros y la tabla. A la vista, el buscador (nombre o RUC), la gravedad de
+ * sus antecedentes, cuál, lo que vende y dónde; en «Filtros», lo que dicen otros registros (Tribunal, visitas,
+ * vinculadas, datos con posible error), desde cuándo existe en la SUNAT, cómo le vende al Estado (a cuántas entidades,
+ * cómo le va cuando postula), cuánto recibió y su última venta. Los filtros van en la URL. Server component: cifras,
+ * barra y tabla esperan la misma página (`Suspense`).
  */
 export function ListaEmpresas({ sp, ruta }: { sp: Busqueda; ruta: string }) {
   const f = filtrosEmpresasDeUrl(sp);
   const paginaP = getEmpresas({ ...f, size: TAM });
   const parametros: Parametros = {
     q: f.q, antecedentes: f.antecedentes, tipo: f.tipo, departamento: f.departamento, objeto: f.objeto, inhabilitada: f.inhabilitada, visitas: f.visitas,
-    montoMin: f.montoMin, actividad: f.actividad, vinculadas: f.vinculadas, entidad: f.entidad, orden: f.orden,
+    montoMin: f.montoMin, actividad: f.actividad, vinculadas: f.vinculadas, antiguedad: f.antiguedad, clientes: f.clientes, exito: f.exito,
+    ultima: f.ultima, dudoso: f.dudoso, entidad: f.entidad, orden: f.orden,
   };
-  const filtrada = !!(f.q || f.antecedentes || f.tipo || f.departamento || f.objeto || f.inhabilitada || f.visitas || f.montoMin || f.actividad || f.vinculadas || f.entidad);
+  const filtrada = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <Cifras pagina={paginaP} ruta={ruta} f={f} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-        <Suspense fallback={<Barra resumen={null} entidad={f.entidad ? { ruc: f.entidad, nombre: null } : null} />}>
-          <BarraConConteos pagina={paginaP} entidad={f.entidad} />
+        <Suspense fallback={<Barra resumen={null} f={f} entidad={f.entidad ? { ruc: f.entidad, nombre: null } : null} />}>
+          <BarraConConteos pagina={paginaP} f={f} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaEmpresasSkeleton />}>
@@ -57,12 +63,17 @@ async function Resultados(props: { pagina: Promise<PaginaEmpresas | null>; param
   return <TablaEmpresas pagina={await props.pagina} parametros={props.parametros} ruta={props.ruta} actual={props.actual} filtrada={props.filtrada} />;
 }
 
-async function BarraConConteos({ pagina, entidad }: { pagina: Promise<PaginaEmpresas | null>; entidad?: string }) {
+async function BarraConConteos({ pagina, f }: { pagina: Promise<PaginaEmpresas | null>; f: FiltrosEmpresas }) {
   const pg = await pagina;
-  return <Barra resumen={pg?.resumen ?? null} entidad={entidad ? { ruc: entidad, nombre: pg?.entidad ?? null } : null} />;
+  return <Barra resumen={pg?.resumen ?? null} f={f} entidad={f.entidad ? { ruc: f.entidad, nombre: pg?.entidad ?? null } : null} />;
 }
 
-function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entidad: { ruc: string; nombre: string | null } | null }) {
+function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f: FiltrosEmpresas; entidad: { ruc: string; nombre: string | null } | null }) {
+  // Cada opción de un tramo con cuántas empresas caen en él (sobre los demás filtros). Con ese mismo filtro ya puesto, sin
+  // números: las otras opciones contarían 0, que no es lo que darían al elegirlas.
+  const conConteo = (t: TramoEmpresa, opciones: readonly { valor: string; etiqueta: string }[], activo: string | undefined) =>
+    opciones.map((o) => ({ ...o, conteo: activo || !r?.tramos ? null : r.tramos[t]?.[o.valor] ?? 0 }));
+  const anio = Number(hoyLima().slice(0, 4));
   // Sin nombre corto (`corta`): el desplegable y su chip dicen lo mismo ("Donde más vende: Lima"), y ninguno se llama
   // casi igual que la faceta de al lado (antes, chips «Antecedentes» junto al desplegable «Antecedente»; «Región» y
   // «Rubro» en el control y «Donde más vende» y «Lo que más vende» en el chip).
@@ -96,15 +107,27 @@ function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entid
         .map((d) => ({ valor: d.departamento, etiqueta: tituloNatural(d.departamento), conteo: d.n })),
     },
   ];
+  // En «Filtros», por tema: lo que dicen otros registros, la empresa misma, cómo le vende al Estado, cuánto y cuándo.
   const filtros: FiltroSecundario[] = [
-    { param: "inhabilitada", etiqueta: "Tribunal de Contrataciones", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Inhabilitadas hoy", conteo: r?.inhabilitadas ?? null }] },
-    { param: "visitas", etiqueta: "Registro de visitas", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Con visitas de su gente", conteo: r?.conVisitas ?? null }] },
-    { param: "montoMin", etiqueta: "Lo que recibió del Estado", todas: "Cualquier monto", opciones: MONTOS_MIN.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
-    { param: "actividad", etiqueta: "Cómo le vende al Estado", todas: "De cualquier forma", opciones: ACTIVIDADES.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
-    { param: "vinculadas", etiqueta: "Empresas vinculadas", todas: "Todas", opciones: [{ valor: "si", etiqueta: "Comparte socio o representante con otra" }] },
+    { param: "inhabilitada", etiqueta: "Tribunal de Contrataciones", todas: "Todas", seccion: "Antecedentes", opciones: [{ valor: "si", etiqueta: "Inhabilitadas hoy", conteo: r?.inhabilitadas ?? null }] },
+    {
+      param: "visitas", etiqueta: "Registro de visitas", todas: "Todas", seccion: "Antecedentes",
+      opciones: [
+        { valor: "si", etiqueta: "Con visitas de su gente", conteo: f.visitas ? null : r?.conVisitas ?? null },
+        { valor: "clientes", etiqueta: "Con visitas a entidades que le compraron", conteo: f.visitas ? null : r?.conVisitasClientes ?? null },
+      ],
+    },
+    { param: "vinculadas", etiqueta: "Empresas vinculadas", todas: "Todas", seccion: "Antecedentes", opciones: [{ valor: "si", etiqueta: "Comparte socio o representante con otra" }] },
+    { param: "dudoso", etiqueta: "Calidad del dato", todas: "Todos los datos", seccion: "Antecedentes", opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: r?.conDudosos ?? null }] },
+    { param: "antiguedad", etiqueta: "Desde su alta en la SUNAT", todas: "Cualquier antigüedad", seccion: "La empresa", opciones: conConteo("antiguedad", TRAMOS_EMPRESA.antiguedad, f.antiguedad) },
+    { param: "actividad", etiqueta: "Cómo le vende al Estado", todas: "De cualquier forma", seccion: "Cómo vende", opciones: ACTIVIDADES.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
+    { param: "clientes", etiqueta: "Entidades que le compraron", todas: "Cualquier número", seccion: "Cómo vende", opciones: conConteo("clientes", TRAMOS_EMPRESA.clientes, f.clientes) },
+    { param: "exito", etiqueta: "Si postuló 5 veces o más", todas: "Gane o no", seccion: "Cómo vende", opciones: conConteo("exito", TRAMOS_EMPRESA.exito, f.exito) },
+    { param: "montoMin", etiqueta: "Lo que recibió del Estado", todas: "Cualquier monto", seccion: "Cuánto y cuándo", opciones: MONTOS_MIN.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta })) },
+    { param: "ultima", etiqueta: "Su última venta al Estado", todas: "En cualquier año", seccion: "Cuánto y cuándo", opciones: conConteo("ultima", ultimasVentas(anio), f.ultima) },
     // Desde la ficha de una entidad (?entidad=<RUC>): el chip «Le vendió a…» y cómo quitarlo.
     ...(entidad
-      ? [{ param: "entidad", etiqueta: "Le vendió a", todas: "Cualquier entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+      ? [{ param: "entidad", etiqueta: "Le vendió a", todas: "Cualquier entidad", seccion: "Cliente", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
       : []),
   ];
   return (
@@ -119,6 +142,8 @@ function Barra({ resumen: r, entidad }: { resumen: ResumenEmpresas | null; entid
         opciones: [
           { valor: "con", etiqueta: "Con antecedentes", conteo: r?.conAntecedentes ?? null },
           { valor: "grave", etiqueta: "Con alguno grave", conteo: r?.conGrave ?? null, tono: "alta", icono: "alerta" },
+          // El más grave que tiene es de gravedad media (ninguno grave).
+          { valor: "media", etiqueta: "Con alguno medio", conteo: r?.conMedia ?? null, tono: "media", icono: "atencion" },
           { valor: "sin", etiqueta: "Sin antecedentes", conteo: r ? r.empresas - r.conAntecedentes : null },
         ],
       }}

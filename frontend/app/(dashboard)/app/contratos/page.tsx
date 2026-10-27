@@ -16,7 +16,9 @@ import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import {
   SECCIONES_FILTRO,
   enSeccion,
+  filtroDudoso,
   filtroEtapa,
+  filtroGanadora,
   filtroMesVisible,
   filtroOperativo,
   filtroTipo,
@@ -76,7 +78,8 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   const vistaParam = Array.isArray(searchParams?.vista) ? searchParams.vista[0] : searchParams?.vista;
   if (vistaParam === "ordenes") return <OrdenesVista searchParams={searchParams} />;
   if (vistaParam === "menores") return <MenoresVista searchParams={searchParams} />;
-  const query = parseContratosQuery(searchParams);
+  // Con los filtros que sólo tiene esta lista (datos de la empresa ganadora, posible error de carga).
+  const query = parseContratosQuery(searchParams, { conDatosGanadora: true });
   const parametros = contratosParametros(query);
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
   const recortada = Object.entries(parametros).some(([k, v]) => k !== "riesgo" && k !== "orden" && !!v);
@@ -266,7 +269,8 @@ function hrefCon(parametros: Parametros, cambio: Parametros): string {
 
 // ─── Filtros ─────────────────────────────────────────────────────────────────
 // Las preguntas a la vista y los filtros comunes viven en components/contratos/filtros.ts (los usa también la ficha
-// de la entidad); aquí, lo propio de la lista de todo el Perú: región, partido y entidad.
+// de la entidad); aquí, lo propio de la lista de todo el Perú: región, partido, entidad, los datos de la empresa ganadora
+// y el posible error de carga.
 
 /** Nombre de la zona elegida: departamento de la lista, provincia por su ubigeo, distrito por la fila. */
 function nombreZona(ubigeo: string, filas: ContratoResumen[]): string {
@@ -317,7 +321,9 @@ function filtros({
         opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: p.nombre, conteo: p.contratos })),
       },
     ),
-    ...enSeccion(SECCIONES_FILTRO.cuanto, ...filtrosMonto(parametros)),
+    // Hechos de la empresa que ganó, no de este contrato: la fila los muestra cuando se filtra por uno (TablaContratos).
+    ...enSeccion(SECCIONES_FILTRO.ganador, filtroGanadora()),
+    ...enSeccion(SECCIONES_FILTRO.cuanto, ...filtrosMonto(parametros), filtroDudoso(resumen)),
     ...enSeccion(SECCIONES_FILTRO.lectura, filtroOperativo(resumen)),
   ];
 }
@@ -381,7 +387,11 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
   const parametros = ordenesParametros(oq);
   const pagina = getOrdenes({ ...oq, size: SIZE_ORD });
   const universo = totalContratos();
-  const regiones = await getRegionesEntidades().catch(() => []);
+  // El nombre de la entidad elegida (desde el panel de una orden), para su chip aunque ninguna orden cumpla los filtros.
+  const [regiones, entidad] = await Promise.all([
+    getRegionesEntidades().catch(() => []),
+    oq.entidad ? getEntidad(oq.entidad).catch(() => null) : Promise.resolve(null),
+  ]);
   return (
     <Pagina className="space-y-5">
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
@@ -398,7 +408,7 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
       <VistaConConteo vista="ordenes" universo={universo} />
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_ORD.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraOrdenesGeneral pagina={pagina} regiones={regiones} />
+          <BarraOrdenesGeneral pagina={pagina} regiones={regiones} parametros={parametros} entidadNombre={entidad?.entidad?.nombre ?? null} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<ListaOrdenesCargando />}>
@@ -419,7 +429,11 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
   const parametros = menoresParametros(mq);
   const pagina = getMenores({ ...mq, size: SIZE_MEN });
   const universo = totalContratos();
-  const regiones = await getRegionesEntidades().catch(() => []);
+  // El nombre de la entidad elegida (desde el panel de un contrato), para su chip aunque ninguno cumpla los filtros.
+  const [regiones, entidad] = await Promise.all([
+    getRegionesEntidades().catch(() => []),
+    mq.entidad ? getEntidad(mq.entidad).catch(() => null) : Promise.resolve(null),
+  ]);
   return (
     <Pagina className="space-y-5">
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
@@ -428,16 +442,16 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
         bajada="Las compras chicas del Estado (hasta 8 UIT) con su requerimiento y ventana de cotización (SEACE)."
         ayuda={
           <Ayuda titulo="¿Qué son los contratos menores?">
-            Compras del Estado por montos pequeños (hasta 8 UIT, unos S/ 42,800). Por ley se contratan de forma directa,
-            sin concurso. A diferencia de una orden, aquí sí suele publicarse el requerimiento (las especificaciones) y
-            una ventana de cotización. El módulo es facultativo, así que no están todas las del país.
+            Compras del Estado por montos pequeños (hasta 8 UIT: S/ 44,000 en 2026, S/ 42,800 en 2025). Por ley se
+            contratan de forma directa, sin concurso. A diferencia de una orden, aquí sí suele publicarse el requerimiento
+            (las especificaciones) y una ventana de cotización. El módulo es facultativo, así que no están todas las del país.
           </Ayuda>
         }
       />
       <VistaConConteo vista="menores" universo={universo} />
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraMenoresGeneral pagina={pagina} regiones={regiones} />
+          <BarraMenoresGeneral pagina={pagina} regiones={regiones} parametros={parametros} entidadNombre={entidad?.entidad?.nombre ?? null} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<ListaMenoresCargando />}>

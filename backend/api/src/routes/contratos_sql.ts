@@ -162,7 +162,22 @@ export const ListQuery = z.object({
   cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
   // Partido u organización que gobernaba la entidad al convocar (contrato_partido, migración 41): su clave.
   partido: z.string().max(120).regex(/^[a-z0-9-]+$/).optional(),
+  // Un dato de la EMPRESA que ganó (empresa_resumen.tipos, migraciones 109-117): su estado de hoy en la SUNAT o un hecho
+  // político de su gente. No son antecedentes de este contrato (casos_cruce no los cuenta, migración 115).
+  ganadora: z.enum(["dada_de_baja", "suspendida", "no_habida", "candidato", "autoridad", "aporte", "aporte_empresa", "proveedor_campana"]).optional(),
+  // Posible error de carga del OECE (contrato_dudoso, migración 102).
+  dudoso: z.enum(["si"]).optional(),
 });
+
+/**
+ * Los contratos cuyo ganador (el primer proveedor del OCDS, `proveedor_ruc`) es una empresa con ese dato en su ficha.
+ * Parte de las empresas (índice GIN de `tipos`) y busca sus contratos por el índice de proveedor: el LATERAL con
+ * `OFFSET 0` impide que el planificador lo convierta en un hash join que recorría las 830 mil convocatorias (7 s en frío;
+ * así, de 30 ms con 180 empresas a ~1 s con las 55 mil dadas de baja). El tipo sale de una lista cerrada: va como literal.
+ */
+export const ocidsDeGanadora = (tipo: string) => `SELECT gx.ocid FROM empresa_resumen er
+    CROSS JOIN LATERAL (SELECT c5.ocid FROM convocatorias c5 WHERE c5.proveedor_ruc = er.ruc::bpchar OFFSET 0) gx
+   WHERE er.tipos @> ARRAY['${tipo}']::text[]`;
 
 /** Condiciones WHERE compartidas por /contratos, /contratos/geo y /contratos/resumen. Los alias
  *  c/cz/a/p/e deben existir en el FROM. `excluir` salta una condición (facetas: el conteo de
@@ -195,6 +210,8 @@ export function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknow
   if (q.riesgo && !salta("riesgo")) w.push(`${ex.riesgo} = ${add(q.riesgo)}`);
   if (q.estado && !salta("estado")) w.push(`${ex.estadoProc} = ${add(q.estado)}`);
   if (q.operativo && !salta("operativo")) w.push(`${ex.operativo} = ${add(q.operativo)}`);
+  if (q.ganadora && !salta("ganadora")) w.push(`c.ocid IN (${ocidsDeGanadora(q.ganadora)})`);
+  if (q.dudoso && !salta("dudoso")) w.push(`c.ocid IN (SELECT cdu.ocid FROM contrato_dudoso cdu)`);
   return w;
 }
 

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, AyudaTermino, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -21,11 +21,23 @@ import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Severidad } from "@/components/ui/Severidad";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { REGIMEN, SENAL_PLANILLA, TIPOS_PLANILLA, getPlanilla, rutaPlanilla, type PaginaPlanilla, type PersonaPlanilla } from "@/lib/planilla";
+import { etiquetasUnicas } from "@/lib/personas";
+import {
+  REGIMEN,
+  SENAL_PLANILLA,
+  SUELDOS_PLANILLA,
+  TIPOS_PLANILLA,
+  getPlanilla,
+  rutaPlanilla,
+  type FacetasPlanilla,
+  type PaginaPlanilla,
+  type PersonaPlanilla,
+} from "@/lib/planilla";
 import { SenalesPlanillaLista } from "./SenalesPlanilla";
 import { uno } from "@/lib/utils";
 
@@ -33,12 +45,23 @@ const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
-export const P_PLANILLA = { senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud" } as const;
+export const P_PLANILLA = {
+  senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud",
+  sueldo: "lsueldo", oficina: "lofi", cargo: "lcargo", pariente: "lpar",
+} as const;
+
+/**
+ * Declaró en su DJI a un pariente que es locador de su misma entidad (el lado del funcionario del nepotismo): una bandera
+ * más de la fila, con la severidad de esa señal del locador. La evidencia (el pariente, tapado, y sus órdenes) va en la ficha.
+ */
+const PARIENTE = "pariente_locador";
+const EXPLICA_PARIENTE =
+  "Declaró en su Declaración Jurada de Intereses a un pariente que es locador (proveedor) de esta misma entidad. Es un indicio de posible nepotismo para revisión, no una acusación.";
 
 /** La etiqueta corta de cada señal para la celda (`CrucesCelda`, una línea con su ícono de severidad). */
-const CORTO_PLANILLA = Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].corto]));
+const CORTO_PLANILLA = { ...Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].corto])), [PARIENTE]: "Pariente locador" };
 /** Y su explicación (title del chip): la de la señal de planilla, no la del catálogo de cruces de empresas. */
-const EXPLICA_PLANILLA = Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].explica]));
+const EXPLICA_PLANILLA = { ...Object.fromEntries(TIPOS_PLANILLA.map((t) => [t, SENAL_PLANILLA[t].explica])), [PARIENTE]: EXPLICA_PARIENTE };
 
 /**
  * La planilla de un alcance (una entidad, una región o todo el país): el personal que publican las entidades en su
@@ -70,6 +93,9 @@ export function ListaPlanilla({
   const reg = Number(uno(sp?.[P.regimen]));
   const orden = uno(sp?.[P.orden]);
   const q = uno(sp?.[P.q])?.slice(0, 80);
+  const sueldo = uno(sp?.[P.sueldo]);
+  // La oficina y el cargo, sólo dentro de una entidad (en el país serían decenas de miles): como los agrupa la API.
+  const texto = (k: string) => { const v = alcance.entidad ? uno(sp?.[k])?.slice(0, 200) : undefined; return v && v.length >= 2 ? v : undefined; };
   const f = {
     senal: senal && (TIPOS_PLANILLA as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
@@ -77,14 +103,18 @@ export function ListaPlanilla({
     orden: orden && ["senales", "sueldo", "meses"].includes(orden) ? orden : undefined,
     q: q && q.length >= 2 ? q : undefined,
     dudoso: uno(sp?.[P.dudoso]) === "si" ? "si" : undefined,
+    sueldo: sueldo && SUELDOS_PLANILLA.some((o) => o.valor === sueldo) ? sueldo : undefined,
+    oficina: texto(P.oficina),
+    cargo: texto(P.cargo),
+    pariente: uno(sp?.[P.pariente]) === "si" ? "si" : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlanilla({ ...alcance, ...f, size: TAM });
   const parametros: Parametros = {
     ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
-    [P.q]: f.q, [P.dudoso]: f.dudoso,
+    [P.q]: f.q, [P.dudoso]: f.dudoso, [P.sueldo]: f.sueldo, [P.oficina]: f.oficina, [P.cargo]: f.cargo, [P.pariente]: f.pariente,
   };
-  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso) || visiblesExtra.some((x) => !!base[x.param]);
+  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso || f.sueldo || f.oficina || f.cargo || f.pariente) || visiblesExtra.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
   const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
@@ -93,8 +123,8 @@ export function ListaPlanilla({
         <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
-        <Suspense fallback={<Barra r={null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
-          <BarraAsync pagina={paginaP} visiblesExtra={visiblesExtra} entidad={entidad} />
+        <Suspense fallback={<Barra r={null} facetas={null} deUnaEntidad={!!alcance.entidad} elegidos={f} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
+          <BarraAsync pagina={paginaP} deUnaEntidad={!!alcance.entidad} elegidos={f} visiblesExtra={visiblesExtra} entidad={entidad} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad)} filas={10} />}>
@@ -129,14 +159,52 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla |
   return <Indicadores items={items} />;
 }
 
-async function BarraAsync({ pagina, visiblesExtra, entidad }: { pagina: Promise<PaginaPlanilla | null>; visiblesExtra: FiltroSecundario[]; entidad?: string }) {
+/** La oficina y el cargo elegidos: su filtro se queda aunque no haya opciones (si no, su chip no se podría quitar). */
+type Elegidos = { oficina?: string; cargo?: string };
+
+async function BarraAsync({
+  pagina,
+  deUnaEntidad,
+  elegidos,
+  visiblesExtra,
+  entidad,
+}: {
+  pagina: Promise<PaginaPlanilla | null>;
+  deUnaEntidad: boolean;
+  elegidos: Elegidos;
+  visiblesExtra: FiltroSecundario[];
+  entidad?: string;
+}) {
   const pg = await pagina;
   const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
-  return <Barra r={pg?.resumen ?? null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
+  return <Barra r={pg?.resumen ?? null} facetas={pg?.facetas ?? null} deUnaEntidad={deUnaEntidad} elegidos={elegidos} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
 }
 
-function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlanilla["resumen"] | null; visiblesExtra: FiltroSecundario[]; entidad: { ruc: string; nombre: string | null } | null }) {
+/**
+ * Señales (faceta), y a la vista la región (si la hay), qué señal y el régimen; en «Filtros», dónde trabaja (la entidad
+ * que llega de su ficha y, dentro de una entidad, la oficina y el cargo), cuánto gana, si declaró a un pariente locador y
+ * la calidad del dato. Los conteos son del alcance, como el resumen.
+ */
+function Barra({
+  r,
+  facetas,
+  deUnaEntidad,
+  elegidos,
+  visiblesExtra,
+  entidad,
+}: {
+  r: PaginaPlanilla["resumen"] | null;
+  facetas: FacetasPlanilla | null;
+  deUnaEntidad: boolean;
+  elegidos: Elegidos;
+  visiblesExtra: FiltroSecundario[];
+  entidad: { ruc: string; nombre: string | null } | null;
+}) {
   const P = P_PLANILLA;
+  // Las oficinas y los cargos con el nombre como se lee (vienen en mayúsculas, como los agrupa la API).
+  const nombres = (xs: FacetasPlanilla["oficinas"]) => etiquetasUnicas((xs ?? []).map((x) => ({ valor: x.valor, etiqueta: tituloNatural(x.valor), conteo: x.n })));
+  // Una entidad sin planilla (o sin oficinas ni cargos escritos) no los ofrece: no habría nada que elegir.
+  const hay = (xs: FacetasPlanilla["oficinas"] | undefined, elegido: string | undefined) => !facetas || (xs?.length ?? 0) > 0 || !!elegido;
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por nombre, cargo, oficina o entidad…", etiqueta: "Buscar en la planilla", min: 3 }}
@@ -172,15 +240,42 @@ function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlanilla["resumen"] | n
         },
       ]}
       filtros={[
+        ...(entidad
+          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", seccion: "Dónde trabaja", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+          : []),
+        ...(deUnaEntidad
+          ? [
+              // Los 500 con más personas; los demás, con el buscador (busca también en la oficina y el cargo).
+              ...(hay(facetas?.oficinas, elegidos.oficina)
+                ? [{ param: P.oficina, etiqueta: "Oficina", todas: "Toda oficina", seccion: "Dónde trabaja", buscable: true, opciones: nombres(facetas?.oficinas ?? null) }]
+                : []),
+              ...(hay(facetas?.cargos, elegidos.cargo)
+                ? [{ param: P.cargo, etiqueta: "Cargo", todas: "Todo cargo", seccion: "Dónde trabaja", buscable: true, opciones: nombres(facetas?.cargos ?? null) }]
+                : []),
+            ]
+          : []),
+        {
+          param: P.sueldo,
+          etiqueta: "Sueldo del último mes",
+          todas: "Cualquier sueldo",
+          seccion: "Cuánto",
+          opciones: SUELDOS_PLANILLA.map((o) => ({ ...o, conteo: facetas?.tramos?.sueldo?.[o.valor] ?? null })),
+        },
+        {
+          // Lo que dijo en su declaración jurada de intereses: un pariente suyo es locador de su misma entidad.
+          param: P.pariente,
+          etiqueta: "Indicio",
+          todas: "Todas",
+          seccion: "Señales",
+          opciones: [{ valor: "si", etiqueta: "Declaró a un pariente locador", conteo: facetas?.pariente ?? null }],
+        },
         {
           param: P.dudoso,
           etiqueta: "Calidad del dato",
           todas: "Todos los datos",
+          seccion: "Señales",
           opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: r?.dudosos ?? null }],
         },
-        ...(entidad
-          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
-          : []),
       ]}
       orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }}
     />
@@ -230,14 +325,18 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
   );
 }
 
-/** Las señales en UNA línea (la más grave primero, «+n»), con la bandera de un posible error de carga delante. */
-function Senales({ senales, dudoso }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"] }) {
+/**
+ * Las señales en UNA línea (la más grave primero, «+n»), con la bandera de un posible error de carga delante; si declaró
+ * a un pariente locador, esa bandera va con las demás.
+ */
+function Senales({ senales, dudoso, pariente }: { senales: PersonaPlanilla["senales"]; dudoso: PersonaPlanilla["dudoso"]; pariente: boolean }) {
   const motivo = motivoDudoso(dudoso?.motivo);
-  if (!senales?.length && !motivo) return <span className="text-meta text-mute">Sin señales</span>;
+  const todas = [...(pariente ? [{ tipo: PARIENTE, severidad: "alta" as const }] : []), ...(senales ?? [])];
+  if (!todas.length && !motivo) return <span className="text-meta text-mute">Sin señales</span>;
   return (
     <span className="flex min-w-0 max-w-full items-center gap-1">
       {motivo && <BanderaDato motivo={motivo} fuente="pte_personal" className="shrink-0" />}
-      {senales.length > 0 && <CrucesCelda cruces={senales} etiquetas={CORTO_PLANILLA} explicaciones={EXPLICA_PLANILLA} etiquetaLista="Señales de la persona" />}
+      {todas.length > 0 && <CrucesCelda cruces={todas} etiquetas={CORTO_PLANILLA} explicaciones={EXPLICA_PLANILLA} etiquetaLista="Señales de la persona" />}
     </span>
   );
 }
@@ -274,7 +373,7 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
           meta={deEntidad ? [cargo, oficina] : [cargo, entidad ? <Dato key="entidad" tipo="entidad">{entidad}</Dato> : null]}
         />
       ),
-      senales: <Senales senales={p.senales} dudoso={p.dudoso} />,
+      senales: <Senales senales={p.senales} dudoso={p.dudoso} pariente={!!p.parienteLocador} />,
       regimen: <span className="text-meta text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
         <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>
@@ -296,6 +395,15 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
             <AvisoDato motivo={motivo} fuente="pte_personal">
               {`Su planilla de ${p.ultimoMes ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total.`}
             </AvisoDato>
+          )}
+          {p.parienteLocador && (
+            <ChipsDetalle>
+              <Severidad bandera="alta" />
+              <span className="text-meta text-inkSoft">
+                {EXPLICA_PARIENTE}
+                {ficha ? " Su ficha muestra al pariente, con un apellido tapado, y las órdenes que recibió." : ""}
+              </span>
+            </ChipsDetalle>
           )}
           <DatosClave items={datos} />
           {(p.historia?.length ?? 0) > 1 && (

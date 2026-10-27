@@ -20,10 +20,11 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
  * sin señales (un dictamen de score 0 también suma), y `monto` = lo adjudicado en esos
  * contratos. Por eso la columna dice "con dictamen" y nunca "con señales" (§10.1).
  *
- * El orden es uno solo, el del API (contratos con dictamen, después los que más contratos
- * tienen): el puesto se cuenta sobre toda la lista. Antes había «Mayor monto» y «Mayor
- * puntaje» «en esta página», que reordenaban sólo 20 de 3,162 y dejaban el puesto en 1, 5,
- * 3…: el API no ordena por monto ni por puntaje, así que esas opciones se quitaron.
+ * El orden lo hace el API sobre toda la lista (`orden`): por defecto, contratos con dictamen y
+ * después los que más contratos tienen, y entonces el puesto se cuenta sobre toda la lista; con
+ * otro orden (más contratos, por nombre) la columna Puesto no va. Antes había «Mayor monto» y
+ * «Mayor puntaje» «en esta página», que reordenaban sólo 20 de 3,162 y dejaban el puesto en 1, 5,
+ * 3…: se quitaron.
  *
  * Server-safe: todo llega como datos planos desde page.tsx.
  */
@@ -51,9 +52,18 @@ interface Props {
   q?: string;
   /** Enlace a esta misma vista, para reintentar. */
   aqui: string;
+  /** El orden elegido; sin él, el de contratos con dictamen (el único con puesto). */
+  orden?: string;
 }
 
-export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
+/** Cómo dice la tabla, a quien no la ve, en qué orden van las filas. */
+const ETIQUETA_ORDEN: Record<string, string> = {
+  dictamen: "Entidades ordenadas por contratos con dictamen publicado",
+  contratos: "Entidades ordenadas por contratos registrados",
+  nombre: "Entidades en orden alfabético",
+};
+
+export function EntidadesPanel({ pagina, actual, parametros, q, aqui, orden = "dictamen" }: Props) {
   if (!pagina) {
     return (
       <EstadoError titulo="No pudimos leer las entidades" accion={<Link href={aqui} className={ACCION}>Reintentar</Link>}>
@@ -75,6 +85,15 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
       );
     }
     const sinBusqueda = hrefEntidades({ ...parametros, q: undefined });
+    // Sin búsqueda pero con filtros: lo que no da resultados es la combinación (se quitan en la barra, uno a uno).
+    const conFiltros = Object.entries(parametros).some(([k, v]) => k !== "q" && k !== "orden" && !!v);
+    if (!q && conFiltros) {
+      return (
+        <EstadoVacio compacto titulo="Ninguna entidad coincide con estos filtros">
+          Quita el filtro más restrictivo.
+        </EstadoVacio>
+      );
+    }
     return (
       <EstadoVacio
         compacto
@@ -99,15 +118,14 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
     );
   }
 
-  // Puesto en el ranking por contratos con dictamen (el orden del servidor desempata), contando las páginas anteriores.
-  const conPuesto = pagina.data
-    .map((e, i) => ({ e, i }))
-    .sort((a, b) => b.e.alertas - a.e.alertas || a.i - b.i)
-    .map(({ e }, k) => ({ e, puesto: (actual - 1) * tam + k + 1 }));
+  // Puesto en el ranking por contratos con dictamen (el orden del servidor), contando las páginas anteriores. Con otro
+  // orden no hay ranking: sin puesto.
+  const conPuesto = orden === "dictamen";
+  const columnas = conPuesto ? COLUMNAS : COLUMNAS.filter((c) => c.clave !== "puesto");
 
   // De dónde vino (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
   const desde = urlDesde("/app/entidades", parametros);
-  const filas: Fila[] = conPuesto.map(({ e, puesto }) => filaEntidad(e, puesto, desde));
+  const filas: Fila[] = pagina.data.map((e, k) => filaEntidad(e, conPuesto ? (actual - 1) * tam + k + 1 : null, desde));
 
   const pag = (subir: boolean) => (
     <Paginacion
@@ -127,7 +145,7 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Entidades ordenadas por contratos con dictamen publicado" densidad="compacta" />
+      <Tabla columnas={columnas} filas={filas} etiqueta={ETIQUETA_ORDEN[orden] ?? ETIQUETA_ORDEN.dictamen} densidad="compacta" />
       {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
@@ -135,7 +153,7 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui }: Props) {
 
 const NEPOTISMO = "Un pariente declarado en la DJI de un funcionario figura como su proveedor (indicio, no acusación)";
 
-function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
+function filaEntidad(e: ApiEntidad, puesto: number | null, desde?: string): Fila {
   // El tipo no es un nivel de riesgo: se infiere del nombre oficial cuando el backend
   // no lo declara, y si no se puede, dice "Sin clasificar".
   const tipo = etiquetaTipoEntidad(e.tipo, e.nombre, "corto");
@@ -147,7 +165,7 @@ function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
   return {
     id: e.ruc,
     celdas: {
-      puesto: <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span>,
+      puesto: puesto != null ? <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span> : null,
       entidad: (
         <CeldaPrincipal
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
@@ -191,14 +209,14 @@ function filaEntidad(e: ApiEntidad, puesto: number, desde?: string): Fila {
 }
 
 /** El panel de una fila (§14.4), sólo con lo que trae la fila: dónde está y lo que Vigía ya leyó de ella. */
-function VistaPrevia({ e, tipo, puesto, contratosConfiables }: { e: ApiEntidad; tipo: string; puesto: number; contratosConfiables: boolean }) {
+function VistaPrevia({ e, tipo, puesto, contratosConfiables }: { e: ApiEntidad; tipo: string; puesto: number | null; contratosConfiables: boolean }) {
   const leida = e.alertas > 0;
   const lugar = [e.distrito, e.provincia, e.region].filter((x, i, xs) => x && xs.indexOf(x) === i).map((x) => tituloNatural(x!)).join(", ");
   const datos: DatoClave[] = [
     { etiqueta: "Tipo", valor: tipo },
     { etiqueta: "Dónde", valor: lugar || null },
     ...(e.pliegoNombreMef ? [{ etiqueta: "Pliego en el MEF", valor: tituloNatural(e.pliegoNombreMef) }] : []),
-    { etiqueta: "Puesto en la lista", valor: numero(puesto), mono: true },
+    ...(puesto != null ? [{ etiqueta: "Puesto en la lista", valor: numero(puesto), mono: true }] : []),
     {
       etiqueta: "Contratos con dictamen",
       valor: contratosConfiables ? `${numero(e.alertas)} de ${numero(e.contratos)} registrados` : numero(e.alertas),

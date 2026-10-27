@@ -38,7 +38,7 @@ import { hayModelosLectura } from "../lib/esquema.js";
 import { casoLectura, lecturaSql } from "../lib/lectura.js";
 import { BANDERAS_DE_FILA, COL_DUDOSO, crucesDeFila, joinDudoso } from "../lib/estadoFila.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
-import { ListQuery, cuboAnterior, geoAnterior, listaAnterior } from "./contratos_sql.js";
+import { ListQuery, cuboAnterior, geoAnterior, listaAnterior, ocidsDeGanadora } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
 
 export const contratosRouter = new Hono();
@@ -121,6 +121,11 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     if (q.cruce) k.push(`k.tipos && ${add(q.cruce.split(","))}::text[]`);
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
+  // Un dato de la empresa que ganó (de baja en la SUNAT, un socio candidato…): conjunto de OCIDs partiendo de las
+  // empresas que lo tienen (contratos_sql.ts). Vale igual con convocatorias o con contrato_estado manejando el recorrido.
+  if (q.ganadora && !excluir.has("ganadora")) conds.push(`${m.ocid} IN (${ocidsDeGanadora(q.ganadora)})`);
+  // Posible error de carga del OECE: son ~20 contratos (contrato_dudoso), se buscan por su PK.
+  if (q.dudoso && !excluir.has("dudoso")) conds.push(`${m.ocid} IN (SELECT cdu.ocid FROM contrato_dudoso cdu)`);
   return { conds, usaCe };
 }
 
@@ -133,7 +138,7 @@ function esFinDeMes(d: string): boolean {
 }
 /** Filtros que `contratos_agregado` responde exacto: sin q, entidad ni montos, y fechas en meses enteros. */
 const agregable = (q: Partial<Filtros>) =>
-  !q.q && !q.cruces && !q.cruce && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null
+  !q.q && !q.cruces && !q.cruce && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
 /** WHERE sobre contratos_agregado (columnas: ubigeo, tipo, etapa, mes, riesgo, estado_proc, operativo). */
@@ -168,7 +173,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true, partido: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true, partido: true, ganadora: true, dudoso: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -202,12 +207,26 @@ contratosRouter.get("/resumen", async (c) => {
     const k = celda.operativo ?? "sin_clasificar";
     porOperativoSinLeer[k] = (porOperativoSinLeer[k] ?? 0) + celda.n;
   }
-  const [porCruces, porLectura] = await Promise.all([
+  const [porCruces, porLectura, porDudoso] = await Promise.all([
     crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
     lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
+    dudosoMemo.obtener(JSON.stringify({ ...q, dudoso: undefined }), () => contarDudosos(q)).catch(() => null),
   ]);
-  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura }, CACHE_LISTA);
+  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura, porDudoso }, CACHE_LISTA);
 });
+
+const dudosoMemo = new Memo<number>({ nombre: "contratos:resumen:dudoso", ttlMs: 60_000, staleMs: 60_000, max: 200 });
+
+/**
+ * Cuántos contratos con posible error de carga (contrato_dudoso, ~20) cumplen los demás filtros: el conteo de su opción.
+ * Parte de esos pocos OCIDs y los busca por PK en contrato_estado.
+ */
+async function contarDudosos(q: z.infer<typeof ResumenQuery>): Promise<number> {
+  const vals: unknown[] = [];
+  const { conds } = filtros({ ...q, dudoso: "si" }, vals, MAPA_CE);
+  const r = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM contrato_estado ce WHERE ${conds.join(" AND ")}`, vals);
+  return r.rows[0]?.n ?? 0;
+}
 
 const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, number> }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
 
@@ -314,7 +333,12 @@ const COLS_FILA = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.
   -- Posible error de carga del OECE (migración 102): adjudicado 20 veces el referencial o referencial de S/ 1.
   ${COL_DUDOSO},
   -- El partido que gobernaba la entidad cuando se convocó (lib/gobiernoFila.ts).
-  ${COL_GOBIERNO}`;
+  ${COL_GOBIERNO},
+  -- Los datos de la empresa que ganó (no del contrato): la fila los muestra cuando se filtra por uno (?ganadora=).
+  dg.datos AS "datosGanadora"`;
+
+/** Los tipos de empresa_resumen que son datos de la empresa y no antecedentes del contrato (?ganadora=). */
+const TIPOS_GANADORA = ListQuery.shape.ganadora.unwrap().options;
 
 const JOIN_FILA = `JOIN convocatorias c ON c.ocid = pag.ocid
   JOIN contrato_estado ce ON ce.ocid = pag.ocid
@@ -324,7 +348,12 @@ const JOIN_FILA = `JOIN convocatorias c ON c.ocid = pag.ocid
   ${BANDERAS_DE_FILA}
   ${crucesDeFila("c.ocid")}
   ${joinDudoso("c.ocid")}
-  ${gobiernoDeFila("c.ocid")}`;
+  ${gobiernoDeFila("c.ocid")}
+  LEFT JOIN LATERAL (
+    SELECT jsonb_agg(jsonb_build_object('tipo', x->>'tipo', 'severidad', x->>'severidad') ORDER BY x->>'tipo') AS datos
+      FROM empresa_resumen er, jsonb_array_elements(er.cruces) x
+     WHERE er.ruc = c.proveedor_ruc::text AND x->>'tipo' IN (${TIPOS_GANADORA.map((t) => `'${t}'`).join(", ")})
+  ) dg ON TRUE`;
 
 interface Orden {
   /** SELECT de la página (ocid + claves tipadas k0..k2) con WHERE/ORDER/LIMIT ya puestos. */
@@ -447,7 +476,7 @@ async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boo
   // Sólo texto (sin otros filtros): se cuenta sobre las coincidencias mismas (convocatoria_busqueda, en memoria), sin
   // buscar cada una en contrato_estado: con "cemento" eran 10 mil lecturas sueltas en frío (8,6 s, la API daba 500).
   const soloTexto = q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
-    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce;
+    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.ganadora && !q.dudoso;
   if (soloTexto) {
     const r = await pool.query(
       `SELECT count(*)::int AS n FROM (

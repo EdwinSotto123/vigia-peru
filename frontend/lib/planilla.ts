@@ -9,7 +9,8 @@ import type { FichaPersona, Severidad } from "./personas";
 
 export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
-export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
+// Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
+export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
 export type TipoPlaza = (typeof TIPOS_PLAZA)[number];
 
 export interface SenalConDetalle<T extends string> {
@@ -45,6 +46,8 @@ export interface PersonaPlanilla {
   historia?: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }[];
   /** Un posible error de carga del Estado en su último mes (migración 102): no entra en sumas, medianas ni señales. */
   dudoso: { motivo: string; base: number | null; extra: number | null; total: number | null; anio: number; mes: number } | null;
+  /** Declaró en su DJI a un pariente que es locador de su misma entidad (su ficha lo cita). */
+  parienteLocador?: boolean;
 }
 
 export interface ResumenPlanilla {
@@ -66,7 +69,29 @@ export interface PaginaPlanilla {
   size: number;
   data: PersonaPlanilla[];
   resumen: ResumenPlanilla;
+  /** Las opciones de los filtros que dependen del alcance (null si no se pudieron leer). */
+  facetas?: FacetasPlanilla | null;
 }
+
+/**
+ * Lo que dan los filtros en este alcance: cuántos declararon a un pariente locador y, en una entidad, sus oficinas y
+ * cargos (los 500 con más personas, en mayúsculas) y cuántos caen en cada tramo de sueldo.
+ */
+export interface FacetasPlanilla {
+  pariente: number;
+  oficinas: { valor: string; n: number }[] | null;
+  cargos: { valor: string; n: number }[] | null;
+  tramos: { sueldo: Record<string, number> } | null;
+}
+
+/** El sueldo del último mes (sin gratificaciones ni liquidaciones), por tramos; uno con posible error no cae en ninguno. */
+export const SUELDOS_PLANILLA = [
+  { valor: "menos3", etiqueta: "Menos de S/ 3 mil" },
+  { valor: "3a5", etiqueta: "De S/ 3 mil a 5 mil" },
+  { valor: "5a10", etiqueta: "De S/ 5 mil a 10 mil" },
+  { valor: "10a20", etiqueta: "De S/ 10 mil a 20 mil" },
+  { valor: "mas20", etiqueta: "S/ 20 mil o más" },
+] as const;
 
 export interface Plaza {
   aviso: number;
@@ -94,10 +119,38 @@ export interface ResumenPlazas {
   plazas: number;
   vacantes: number;
   conSenales: number;
+  /** Por la señal más grave. Opcionales: una respuesta guardada de antes no los trae. */
+  alta?: number;
+  media?: number;
+  baja?: number;
+  /** Con la postulación abierta hoy. */
+  abiertas?: number;
+  /** Cuántas caen en cada tramo de los filtros (sueldo, experiencia, vacantes). */
+  tramos?: Record<"sueldo" | "experiencia" | "vacantes", Record<string, number>>;
   medianaSueldo: number | null;
   desde: string | null;
   porSenal: { tipo: TipoPlaza; n: number }[];
 }
+
+/** Los tramos de las plazas (los mismos de la API, `TRAMOS_PLAZA`). La experiencia sin un dato que se lea no cae en ninguno. */
+export const TRAMOS_PLAZA: Record<"sueldo" | "experiencia" | "vacantes", readonly { valor: string; etiqueta: string }[]> = {
+  sueldo: [
+    { valor: "menos2500", etiqueta: "Menos de S/ 2,500" },
+    { valor: "2500a4000", etiqueta: "De S/ 2,500 a 4,000" },
+    { valor: "4000a6000", etiqueta: "De S/ 4,000 a 6,000" },
+    { valor: "6000a10000", etiqueta: "De S/ 6,000 a 10,000" },
+    { valor: "mas10000", etiqueta: "S/ 10,000 o más" },
+  ],
+  experiencia: [
+    { valor: "menos1", etiqueta: "Menos de 1 año" },
+    { valor: "1a3", etiqueta: "De 1 a 3 años" },
+    { valor: "mas3", etiqueta: "3 años o más" },
+  ],
+  vacantes: [
+    { valor: "una", etiqueta: "Una sola" },
+    { valor: "varias", etiqueta: "Dos o más" },
+  ],
+};
 
 export interface PaginaPlazas {
   total: number;
@@ -315,11 +368,6 @@ export const SENAL_PLAZA: Record<TipoPlaza, { corto: string; titulo: string; exp
     titulo: "Estuvo publicada 3 días o menos",
     explica: "Con tan poco tiempo, casi nadie de afuera se entera ni alcanza a postular.",
   },
-  sueldo_alto: {
-    corto: "Sueldo alto",
-    titulo: "Paga el doble o más que plazas parecidas",
-    explica: "Ofrece el doble o más que la mediana de las plazas del mismo tipo de servicio en todo el país.",
-  },
   ya_hay_locadores: {
     corto: "Ya hay locadores",
     titulo: "La entidad ya pagaba ese servicio por órdenes",
@@ -342,8 +390,10 @@ const qs = (f: Record<string, unknown>) => {
   return p.toString();
 };
 
-export const getPlanilla = (f: { entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string; page?: number; size?: number }) =>
-  leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
+export const getPlanilla = (f: {
+  entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string;
+  sueldo?: string; oficina?: string; cargo?: string; pariente?: string; page?: number; size?: number;
+}) => leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
 
 /** La ficha de una persona de la planilla: sus datos, lo que cobró cada mes y la misma persona en otras planillas. */
 export interface FichaPlanilla {
@@ -359,5 +409,7 @@ export const rutaPlanilla = (ficha: string, seccion?: string) => `/app/personas/
 export const getFichaPlanilla = (ficha: string) =>
   /^[0-9a-f]{12}$/.test(ficha) ? leer<FichaPlanilla>(`/planilla/ficha/${ficha}`) : Promise.resolve(null);
 
-export const getPlazas = (f: { entidad?: string; dep?: string; senal?: string; severidad?: string; orden?: string; q?: string; page?: number; size?: number }) =>
-  leer<PaginaPlazas>(`/plazas?${qs(f)}`);
+export const getPlazas = (f: {
+  entidad?: string; dep?: string; senal?: string; severidad?: string; orden?: string; q?: string;
+  abierta?: string; sueldo?: string; experiencia?: string; vacantes?: string; page?: number; size?: number;
+}) => leer<PaginaPlazas>(`/plazas?${qs(f)}`);

@@ -14,7 +14,7 @@
 
 import type { ReactNode } from "react";
 import { PersonName, Ruc } from "@/components/Redact";
-import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
+import { Ayuda, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, ListaPaginada, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
 import { Dato } from "@/components/ui/Dato";
@@ -171,6 +171,7 @@ function SeccionItems({ c }: { c: Detalle }) {
   });
   return (
     <>
+      <CabeceraPestana>Lo que se compra, ítem por ítem, con su cantidad y su valor referencial.</CabeceraPestana>
       {c.items.length ? (
         <TablaPaginada
           columnas={columnas}
@@ -311,6 +312,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   });
   return (
     <>
+      <CabeceraPestana>Quién presentó oferta, por cuánto y en qué quedó, según las actas del expediente.</CabeceraPestana>
       <TablaPaginada
         columnas={columnas}
         filas={filas}
@@ -396,6 +398,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
   });
   return (
     <>
+      <CabeceraPestana>El precio por unidad de cada ítem frente a su referencia unitaria.</CabeceraPestana>
       <TablaPaginada
         columnas={columnas}
         filas={filas}
@@ -414,6 +417,7 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
   const personas = personasNaturalesDe(c);
   return (
     <>
+      <CabeceraPestana>Cada señal del dictamen con las páginas del expediente que la sostienen.</CabeceraPestana>
       {/* Se busca por la señal, no por la evidencia: trae nombres de personas que la página tapa. */}
       <ListaPaginada
         nombre="señales"
@@ -496,7 +500,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
   });
   return (
     <>
-      {nota && <p className="mb-3 text-dato leading-5 text-inkSoft">{nota}</p>}
+      <CabeceraPestana>Los documentos que el SEACE publica de este proceso.{nota ? ` ${nota}` : ""}</CabeceraPestana>
       {docs.length ? (
         <TablaPaginada
           columnas={columnas}

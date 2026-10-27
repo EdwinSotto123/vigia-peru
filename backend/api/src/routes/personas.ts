@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, apellidoFuncionario, publicar } from "../lib/privacidad.js";
@@ -30,15 +30,47 @@ export const TIPOS_SENAL = [
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
-const Lista = z.object({
+/**
+ * Los filtros por tramos de la lista, con su condición sobre `persona_entidad pe` (texto fijo, sin nada del pedido): lo
+ * que le pagó la entidad en todos sus años y en cuántos meses le dio órdenes (12 o más: un año de trabajo pagado como
+ * locación; la señal «meses seguidos» mira 10 en un mismo año).
+ */
+export const TRAMOS_PERSONA = {
+  monto: {
+    menos5: `pe.monto < 5000`,
+    "5a20": `pe.monto >= 5000 AND pe.monto < 20000`,
+    "20a100": `pe.monto >= 20000 AND pe.monto < 100000`,
+    "100a300": `pe.monto >= 100000 AND pe.monto < 300000`,
+    mas300: `pe.monto >= 300000`,
+  },
+  meses: {
+    "1": `pe.meses = 1`,
+    "2a6": `pe.meses BETWEEN 2 AND 6`,
+    "7a11": `pe.meses BETWEEN 7 AND 11`,
+    "12a23": `pe.meses BETWEEN 12 AND 23`,
+    "24mas": `pe.meses >= 24`,
+  },
+} as const;
+type OpcionTramo<T extends keyof typeof TRAMOS_PERSONA> = keyof (typeof TRAMOS_PERSONA)[T] & string;
+const tramo = <T extends keyof typeof TRAMOS_PERSONA>(t: T) => z.enum(Object.keys(TRAMOS_PERSONA[t]) as [OpcionTramo<T>, ...OpcionTramo<T>[]]);
+
+/** Un gobierno de persona_entidad.gobiernos: 'clave del partido:año de su elección' (2014, 2018 o 2022). */
+const GOBIERNO = /^[a-z0-9-]{1,80}:(\d{4})$/;
+
+export const Lista = z.object({
   entidad: z.string().regex(/^\d{11}$/).optional(),
   dep: z.string().regex(/^\d{2}$/).optional(),
   partido: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
   periodo: z.coerce.number().int().refine((n) => PERIODOS_GOBIERNO.some((p) => p.anio === n)).optional(),
+  // El partido que gobernaba la entidad cuando le dio las órdenes, en ese período: un filtro dentro del alcance (el
+  // `partido` + `periodo` de arriba ES el alcance: la ficha de un partido).
+  gobierno: z.string().regex(GOBIERNO).refine((g) => PERIODOS_GOBIERNO.some((p) => p.anio === Number(GOBIERNO.exec(g)?.[1]))).optional(),
   senal: z.enum(TIPOS_SENAL).optional(),
   severidad: z.enum(["alta", "media", "baja", "con", "sin"]).optional(),
   servicio: z.string().trim().min(2).max(60).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
+  monto: tramo("monto").optional(),
+  meses: tramo("meses").optional(),
   // El buscador: la entidad y el tipo de servicio, nunca el nombre de la persona (docs/PRIVACIDAD.md).
   q: z.string().trim().min(2).max(80).optional(),
   orden: z.enum(["senales", "monto", "ordenes", "meses", "reciente"]).default("senales"),
@@ -88,7 +120,10 @@ function alcance(q: ListaQ): { conds: string[]; vals: unknown[] } {
 }
 
 /** Los filtros de la lista dentro del alcance. */
-function filtros(q: ListaQ, conds: string[], vals: unknown[]) {
+export function filtros(q: ListaQ, conds: string[], vals: unknown[]) {
+  if (q.gobierno) { vals.push([q.gobierno]); conds.push(`pe.gobiernos @> $${vals.length}::text[]`); }
+  if (q.monto) conds.push(TRAMOS_PERSONA.monto[q.monto]);
+  if (q.meses) conds.push(TRAMOS_PERSONA.meses[q.meses]);
   if (q.senal) { vals.push([q.senal]); conds.push(`pe.tipos @> $${vals.length}::text[]`); }
   if (q.severidad === "con") conds.push(`pe.sev > 0`);
   else if (q.severidad === "sin") conds.push(`pe.sev = 0`);
@@ -171,6 +206,44 @@ async function resumen(conds: string[], vals: unknown[]) {
   return r.rows[0];
 }
 
+const facetasMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:facetas", ttlMs: 600_000, staleMs: 3_600_000, max: 400 });
+
+/** Cuántas contrataciones del alcance caen en cada tramo de `TRAMOS_PERSONA`, en una pasada. */
+const CONTEO_TRAMOS = `jsonb_build_object(${Object.entries(TRAMOS_PERSONA)
+  .map(([t, opciones]) => `'${t}', jsonb_build_object(${Object.entries(opciones).map(([v, cond]) => `'${v}', count(*) FILTER (WHERE ${cond})`).join(", ")})`)
+  .join(", ")})`;
+
+/**
+ * Las opciones de los filtros que dependen del alcance, guardadas por alcance (no por los demás filtros, como el resumen):
+ *   · gobiernos: los partidos que gobernaban las entidades, con su nombre y período. En una entidad, los suyos con cuántas
+ *     contrataciones; en el país, con las de cada partido ya contadas en persona_resumen; en una región, los que gobernaron
+ *     allí, sin número (contarlos recorre cientos de miles de filas: 15 s en Lima). En la ficha de un partido no va.
+ *   · tramos: cuántas caen en cada tramo de monto y de meses. Sólo en una entidad, donde se cuentan al instante; en el país
+ *     o una región, las opciones van sin número.
+ */
+async function facetasDe(q: ListaQ) {
+  if (q.partido) return null;
+  return facetasMemo.obtener(JSON.stringify({ entidad: q.entidad, dep: q.entidad ? undefined : q.dep }), async () => {
+    const [gobiernos, tramos] = await Promise.all([
+      pool.query<{ valor: string; nombre: string | null; anio: number; n: number | null }>(
+        `WITH g AS (${q.entidad
+          ? `SELECT g AS valor, count(*)::int AS n FROM persona_entidad pe, unnest(pe.gobiernos) g WHERE pe.entidad_ruc = $1 GROUP BY 1`
+          : q.dep
+            ? `SELECT DISTINCT org_clave || ':' || anio_eleccion AS valor, NULL::int AS n FROM gobierno_periodo WHERE left(ubigeo, 2) = $1`
+            : `SELECT substr(alcance, 5) AS valor, (resumen->>'filas')::int AS n FROM persona_resumen WHERE alcance LIKE 'par:%'`}),
+              nombres AS (SELECT DISTINCT ON (org_clave, anio_eleccion) org_clave || ':' || anio_eleccion AS valor, org_nombre AS nombre
+                            FROM gobierno_periodo ORDER BY org_clave, anio_eleccion, org_nombre)
+         SELECT g.valor, nombres.nombre, split_part(g.valor, ':', 2)::int AS anio, g.n
+           FROM g LEFT JOIN nombres ON nombres.valor = g.valor
+          WHERE g.n IS NULL OR g.n > 0
+          ORDER BY nombres.nombre NULLS LAST, anio DESC`,
+        q.entidad ? [q.entidad] : q.dep ? [q.dep] : []),
+      q.entidad ? pool.query<{ t: Record<string, Record<string, number>> }>(`SELECT ${CONTEO_TRAMOS} AS t FROM persona_entidad pe WHERE pe.entidad_ruc = $1`, [q.entidad]) : null,
+    ]);
+    return { gobiernos: gobiernos.rows, tramos: tramos?.rows[0]?.t ?? null };
+  });
+}
+
 // ─── GET /personas ──────────────────────────────────────────────────────────────────────────────
 personasRouter.get("/", async (c) => {
   const crudos = Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null));
@@ -185,8 +258,11 @@ personasRouter.get("/", async (c) => {
     filtros(q, conds, vals);
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // La página va sola (con LIMIT usa el índice del orden) y el total aparte: con count(*) OVER () se ordenaba todo el
-    // alcance (1,2 M filas en el país) para devolver 20. Sin filtros, el total es el del resumen.
-    const [filas, rs, cuenta] = await Promise.all([
+    // alcance (1,2 M filas en el país) para devolver 20. Sin filtros, el total es el del resumen. Con filtros en el país,
+    // el total recorre las 3,2 M contrataciones si ningún índice lo acota (un año, unos meses: 1 s con la caché caliente,
+    // más de 10 s en frío): va con plazo propio, como las órdenes de una empresa. Sin las facetas, la lista sigue (los
+    // filtros van sin números).
+    const [filas, rs, cuenta, facetas] = await Promise.all([
       pool.query(
         `WITH pag AS (
            SELECT pe.* FROM persona_entidad pe ${donde}
@@ -195,10 +271,13 @@ personasRouter.get("/", async (c) => {
          SELECT ${FILA.replace(/pe\./g, "pag.")}, ${GOBIERNOS("pag.gobiernos")} AS gobiernos
            FROM pag ORDER BY ${ORDEN[q.orden].replace(/pe\./g, "pag.")}, pag.entidad_ruc, pag.ruc`, vals),
       res,
-      conds.length > sinFiltros ? pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM persona_entidad pe ${donde}`, vals) : null,
+      conds.length > sinFiltros ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM persona_entidad pe ${donde}`, vals, 25_000) : null,
+      facetasDe(q).catch((e) => { console.warn(`[personas] facetas: ${(e as Error).message}`); return null; }),
     ]);
     const total = cuenta ? cuenta.rows[0]?.n ?? 0 : rs.filas;
-    return publicar({ total, page: q.page, size: q.size, data: filas.rows.map((f) => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre })), resumen: rs });
+    return publicar({
+      total, page: q.page, size: q.size, data: filas.rows.map((f) => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre })), resumen: rs, facetas,
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

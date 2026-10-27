@@ -56,13 +56,23 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "la buena pro",
     definicion: "La decisión oficial que declara ganadora a una empresa en un proceso de selección.",
   },
+  "participante": {
+    termino: "un participante",
+    definicion: "Una empresa o persona que se registró en un proceso de selección para poder ofertar. Registrarse no es competir: muchas se registran y no presentan oferta. Las que sí ofertan son los postores.",
+    fuente: "registro OCDS del OECE (los llama «tenderers»)",
+  },
   "postor": {
     termino: "un postor",
-    definicion: "Una empresa que se presentó a competir por un contrato del Estado.",
+    definicion: "Una empresa o persona que presentó una oferta en un proceso de selección. No es lo mismo que un participante, que solo se registró para poder ofertar.",
+    fuente: "CONOSCE (OECE)",
   },
   "unico-postor": {
     termino: "un único postor",
-    definicion: "Cuando solo una empresa se presentó a competir: no hubo competencia real.",
+    definicion: "Cuando solo una empresa presentó oferta: no hubo competencia real, aunque se hayan registrado varias.",
+  },
+  "consentimiento": {
+    termino: "el consentimiento de la buena pro",
+    definicion: "El momento en que la buena pro queda firme: pasó el plazo para apelarla, o se resolvió la apelación. Desde ahí la entidad y el ganador firman el contrato.",
   },
   "valor-referencial": {
     termino: "el valor referencial",

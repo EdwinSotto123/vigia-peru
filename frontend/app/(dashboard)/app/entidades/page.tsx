@@ -4,18 +4,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CloudOff, Flag } from "lucide-react";
 import { EntidadesPanel, hrefEntidades } from "@/components/EntidadesPanel";
-import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
+import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
+  ORDENES_ENTIDADES,
   getEntidadesPagina,
   getEntidadesResumen,
   getRegionesEntidades,
   parseEntidadesQuery,
+  type ClaseEntidad,
   type EntidadesPagina,
   type EntidadesResumen,
+  type FacetasEntidades,
 } from "@/lib/api-client";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { etiquetasUnicas } from "@/lib/personas";
+import { nombrePartido } from "@/lib/planilla";
 
 export const metadata: Metadata = {
   title: "Entidades del Estado",
@@ -25,18 +30,38 @@ export const metadata: Metadata = {
 
 const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
+/** El nombre de cada tipo en el filtro, y los tipos de la faceta (`FacetasEntidades.tipos`) que cuenta. */
+const CLASE: Record<ClaseEntidad, { etiqueta: string; tipos: string[] }> = {
+  ministerio: { etiqueta: "Ministerio", tipos: ["ministerio"] },
+  regional: { etiqueta: "Gobierno regional", tipos: ["gobierno_regional"] },
+  municipal: { etiqueta: "Municipalidad (todas)", tipos: ["municipal_provincial", "municipal_distrital"] },
+  provincial: { etiqueta: "Municipalidad provincial", tipos: ["municipal_provincial"] },
+  distrital: { etiqueta: "Municipalidad distrital", tipos: ["municipal_distrital"] },
+  empresa: { etiqueta: "Empresa pública", tipos: ["empresa_publica"] },
+  organismo: { etiqueta: "Organismo autónomo", tipos: ["organismo_autonomo"] },
+  sin: { etiqueta: "Sin clasificar", tipos: ["sin"] },
+};
+
+/** Lo que dice la bajada según el orden elegido. */
+const BAJADA: Record<string, string> = {
+  dictamen: "Ordenadas por cuántos de sus contratos ya tienen dictamen publicado.",
+  contratos: "Ordenadas por cuántos contratos tienen registrados.",
+  nombre: "En orden alfabético.",
+};
+
 /**
  * /app/entidades — plantilla Listado (DESIGN_SYSTEM.md §14.1): encabezado →
- * indicadores → barra (búsqueda + filtros) → resultados. Búsqueda, filtros y página
- * viven en la URL (`?q=&region=&clase=&nepotismo=&pagina=`).
+ * indicadores → barra (búsqueda + filtros) → resultados. Búsqueda, filtros, orden y página
+ * viven en la URL (`?q=&clase=&region=&provincia=&partido=&control=…&orden=&pagina=`).
  *
- * Un solo orden, el del API (contratos con dictamen publicado): «Mayor monto» y «Mayor
- * puntaje» reordenaban sólo la página a la vista (20 de 3,162) y el API no ordena por
- * ellos, así que se quitaron. Un `?orden=` de un enlace viejo se ignora.
+ * El orden lo hace el API sobre toda la lista: contratos con dictamen (por defecto), contratos registrados o nombre.
+ * Antes «Mayor monto» y «Mayor puntaje» reordenaban sólo la página a la vista (20 de 3,162) y se quitaron; un `?orden=`
+ * de esos enlaces viejos se ignora.
  *
- * Filtros de Región y Tipo: el campo `entidades.tipo` está casi todo en NULL, así que el filtro de tipo
- * se deriva del NOMBRE en el backend (param `clase`: ministerio/regional/municipal/organismo), las mismas
- * reglas con que se MUESTRA el tipo (lib/entidad-tipo.ts). La región ya la filtraba el endpoint.
+ * Filtros: a la vista el tipo (el que se MUESTRA en cada fila, lib/entidad-tipo.ts: el backend lo deriva igual del tipo
+ * declarado o del nombre, porque `entidades.tipo` está casi todo en NULL), la región y el indicio de nepotismo; en
+ * «Filtros», la provincia, quién la gobierna (partido y captura), los informes de la Contraloría y sus personas
+ * (planilla, plazas CAS). Cada opción con cuántas entidades tiene en la región, la provincia y el tipo elegidos.
  *
  * Las tres consultas van por separado (`allSettled`): si cae el resumen, la lista sigue, y lo que no llegó se dice
  * en una línea en vez de desaparecer sin aviso.
@@ -59,7 +84,10 @@ export default async function EntidadesPage({
   const regiones: string[] = rRegiones.status === "fulfilled" ? rRegiones.value : [];
 
   // Datos planos (nunca funciones) hacia los componentes cliente del Listado.
-  const parametros = { q, region: query.region, clase: query.clase, nepotismo: query.nepotismo ? "1" : undefined };
+  const parametros = {
+    q, region: query.region, clase: query.clase, provincia: query.provincia, partido: query.partido, captura: query.captura ? "1" : undefined,
+    control: query.control, planilla: query.planilla, plazas: query.plazas, nepotismo: query.nepotismo ? "1" : undefined, orden: query.orden,
+  };
   const aqui = hrefEntidades({ ...parametros, pagina: actual > 1 ? String(actual) : undefined });
 
   // El conteo por entidad (`alertas` del API) es de contratos con dictamen PUBLICADO, tengan
@@ -71,7 +99,7 @@ export default async function EntidadesPage({
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades" }]} />
       <EncabezadoPagina
         titulo="Entidades del Estado"
-        bajada="Ordenadas por cuántos de sus contratos ya tienen dictamen publicado."
+        bajada={BAJADA[query.orden ?? "dictamen"]}
         ayuda={
           <Ayuda titulo="¿Qué cuenta esta lista?">
             <span className="block">
@@ -128,41 +156,109 @@ export default async function EntidadesPage({
       )}
 
       <Listado ruta="/app/entidades" parametros={parametros}>
-        <BarraFiltros
-          busqueda={{ param: "q", placeholder: "Buscar por nombre o RUC…", etiqueta: "Buscar una entidad por su nombre" }}
-          visibles={[
-            {
-              param: "clase",
-              etiqueta: "Tipo",
-              corta: "Tipo",
-              todas: "Todos los tipos",
-              opciones: [
-                { valor: "ministerio", etiqueta: "Ministerio" },
-                { valor: "regional", etiqueta: "Gobierno regional" },
-                { valor: "municipal", etiqueta: "Municipalidad" },
-                { valor: "organismo", etiqueta: "Organismo autónomo" },
-              ],
-            },
-            {
-              param: "region",
-              etiqueta: "Región",
-              corta: "Región",
-              todas: "Todo el Perú",
-              opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })),
-            },
-            {
-              param: "nepotismo",
-              etiqueta: "Indicio",
-              corta: "Indicio",
-              todas: "Todas",
-              opciones: [{ valor: "1", etiqueta: "Con posible nepotismo" }],
-            },
-          ]}
-        />
+        <BarraEntidades facetas={pagina?.facetas ?? null} conConteos={!q} regiones={regiones} elegidos={{ provincia: query.provincia, partido: query.partido }} />
         <ZonaResultados>
-          <EntidadesPanel pagina={pagina} actual={actual} parametros={parametros} q={q} aqui={aqui} />
+          <EntidadesPanel pagina={pagina} actual={actual} parametros={parametros} q={q} aqui={aqui} orden={query.orden} />
         </ZonaResultados>
       </Listado>
     </Pagina>
+  );
+}
+
+/**
+ * La barra de la lista. Cada opción con cuántas entidades la tienen (`facetas`, sobre la región, la provincia y el tipo
+ * elegidos); con una búsqueda por texto, sin números (`conConteos`: las facetas no la miran), pero con sus nombres.
+ */
+function BarraEntidades({
+  facetas: f,
+  conConteos,
+  regiones,
+  elegidos,
+}: {
+  facetas: FacetasEntidades | null;
+  conConteos: boolean;
+  regiones: string[];
+  /** La provincia y el partido elegidos: su filtro se queda aunque no haya opciones (si no, su chip no se podría quitar). */
+  elegidos: { provincia?: string; partido?: string };
+}) {
+  const tipos = new Map((f?.tipos ?? []).map((t) => [t.valor, t.n]));
+  const cuenta = (x: number | null | undefined) => (conConteos && x != null ? x : null);
+  const n = (k: keyof FacetasEntidades["senales"]) => cuenta(f?.senales?.[k]);
+  // Un buscable sin opciones (sólo ministerios: ninguno tiene partido) no va, salvo que ya esté elegido.
+  const hay = (xs: unknown[] | undefined, elegido: string | undefined) => !f || (xs?.length ?? 0) > 0 || !!elegido;
+  const filtros: FiltroSecundario[] = [
+    ...(hay(f?.provincias, elegidos.provincia)
+      ? [{
+          param: "provincia", etiqueta: "Provincia", todas: "Todas las provincias", seccion: "Dónde", buscable: true,
+          opciones: etiquetasUnicas((f?.provincias ?? []).map((p) => ({ valor: p.valor, etiqueta: p.etiqueta, conteo: cuenta(p.n) }))),
+        }]
+      : []),
+    ...(hay(f?.partidos, elegidos.partido)
+      ? [{
+          param: "partido", etiqueta: "Partido que la gobierna", todas: "Cualquier partido", seccion: "Quién la gobierna", buscable: true,
+          opciones: etiquetasUnicas((f?.partidos ?? []).map((p) => ({ valor: p.valor, etiqueta: nombrePartido(p.valor) ?? p.valor, conteo: cuenta(p.n) }))),
+        }]
+      : []),
+    {
+      param: "captura", etiqueta: "Captura política", todas: "Todas", seccion: "Quién la gobierna",
+      opciones: [{ valor: "1", etiqueta: "Con ganadores ligados a quien la gobierna", conteo: n("captura") }],
+    },
+    {
+      param: "control", etiqueta: "Informes de la Contraloría", todas: "Con o sin informes", seccion: "Control",
+      opciones: [
+        { valor: "penal", etiqueta: "Presunta responsabilidad penal", conteo: n("penal") },
+        { valor: "civil", etiqueta: "Presunta responsabilidad civil", conteo: n("civil") },
+        { valor: "administrativa", etiqueta: "Presunta responsabilidad administrativa", conteo: n("administrativa") },
+        { valor: "alguno", etiqueta: "Con algún informe de control", conteo: n("informes") },
+      ],
+    },
+    {
+      param: "planilla", etiqueta: "Su planilla (Portal de Transparencia)", todas: "Con o sin planilla", seccion: "Personas",
+      opciones: [
+        { valor: "alta", etiqueta: "Con alguien con señal alta", conteo: n("planillaAlta") },
+        { valor: "con", etiqueta: "Publicada", conteo: n("planilla") },
+      ],
+    },
+    {
+      param: "plazas", etiqueta: "Sus plazas CAS (SERVIR)", todas: "Con o sin plazas", seccion: "Personas",
+      opciones: [
+        { valor: "senales", etiqueta: "Con señales de plaza a la medida", conteo: n("plazasSenales") },
+        { valor: "con", etiqueta: "Publicó alguna", conteo: n("plazas") },
+      ],
+    },
+  ];
+  return (
+    <BarraFiltros
+      busqueda={{ param: "q", placeholder: "Buscar por nombre o RUC…", etiqueta: "Buscar una entidad por su nombre" }}
+      visibles={[
+        {
+          param: "clase",
+          etiqueta: "Tipo",
+          corta: "Tipo",
+          todas: "Todos los tipos",
+          opciones: (Object.entries(CLASE) as [ClaseEntidad, (typeof CLASE)[ClaseEntidad]][]).map(([valor, c]) => ({
+            valor,
+            etiqueta: c.etiqueta,
+            conteo: f ? cuenta(c.tipos.reduce((t, x) => t + (tipos.get(x) ?? 0), 0)) : null,
+          })),
+        },
+        {
+          param: "region",
+          etiqueta: "Región",
+          corta: "Región",
+          todas: "Todo el Perú",
+          opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })),
+        },
+        {
+          param: "nepotismo",
+          etiqueta: "Indicio",
+          corta: "Indicio",
+          todas: "Todas",
+          opciones: [{ valor: "1", etiqueta: "Con posible nepotismo", conteo: n("nepotismo") }],
+        },
+      ]}
+      filtros={filtros}
+      orden={{ param: "orden", porDefecto: "dictamen", opciones: ORDENES_ENTIDADES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
+    />
   );
 }

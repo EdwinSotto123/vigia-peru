@@ -54,7 +54,8 @@ export async function generateMetadata({
 /**
  * /app/contratos/[ocid]: LA página de un contrato. Acepta el OCID (2026-425-9, 1249514), el OCID largo
  * (ocds-dgv273-seacev3-1249514) o el código SEACE (1235259), que redirige a su OCID.
- *   · ficha (por defecto); `?seccion=` abre esa pestaña (items, postores, precios, citas, documentos);
+ *   · ficha (por defecto); `?seccion=` abre esa pestaña (items, participantes, postores, adjudicacion, precios,
+ *     cronograma, citas, documentos);
  *   · `?vista=dictamen` (`&tab=`): el informe de la lectura, armado en el servidor (antes /app/convocatoria/[id]);
  *   · `?vista=vivo`: la lectura en vivo (antes /app/auditoria/[ocid]).
  * Las tres llevan arriba el selector de vistas (VistasContrato) con las que existen.

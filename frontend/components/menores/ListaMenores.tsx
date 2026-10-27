@@ -1,31 +1,50 @@
 import Link from "next/link";
-import { FileSignature, FileText, Store } from "lucide-react";
+import { FileSignature, FileText, ListFilter, Store } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
-import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
-import { CrucesCelda } from "@/components/contratos/CrucesCelda";
+import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
+import { enSeccion } from "@/components/contratos/filtros";
 import {
+  BanderasAntecedentes,
+  BloqueInhabilitacion,
   CeldaFechaCompra,
   EstadoCompra,
   ListaCargando,
+  PERSONAS_PROVEEDOR,
   PaginadorHayMas,
   SinAntecedentes,
+  antecedenteInhabilitado,
   datoFecha,
+  filtroRuc,
+  hrefConFiltro,
   hrefPagina,
+  opcionesDe,
+  type Antecedente,
 } from "@/components/ordenes/ListaOrdenes";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { enlaceProveedor } from "@/lib/empresas";
 import { fecha as fechaLarga, fechaCorta, oracion, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { P_MEN, urlContratoMenor, urlRequerimiento, type ContratoMenor, type MenoresPagina } from "@/lib/menores";
+import {
+  ANTECEDENTES_MENOR,
+  MONTOS_MENOR,
+  OBJETOS_MENOR,
+  P_MEN,
+  claveRegion,
+  urlContratoMenor,
+  urlRequerimiento,
+  type ContratoMenor,
+  type MenoresPagina,
+} from "@/lib/menores";
 
 /**
  * Lista de CONTRATOS MENORES (≤8 UIT) del SEACE (sección propia y, con filtro, ficha de empresa/entidad). Cada contrato
  * abre su panel con el requerimiento/TDR y el contrato en PDF (servidos por proxy de nuestra API).
  *
  * Fila de todo listado (§14.1): estado (chip) · qué se contrató, con entidad, proveedor, bien o servicio y código ·
- * antecedentes del proveedor en la SUNAT · monto · suscrito. «Hasta 8 UIT, sin concurso» no va en cada fila: lo son
- * todos, por definición (lo dicen el título y su ⓘ). Las piezas compartidas con Órdenes viven en components/ordenes.
+ * antecedentes del proveedor (SUNAT y Tribunal de Contrataciones) · monto · suscrito. «Hasta 8 UIT, sin concurso» no
+ * va en cada fila: lo son todos, por definición (lo dicen el título y su ⓘ); sí el monto que pasa ese tope. Las piezas
+ * compartidas con Órdenes viven en components/ordenes.
  */
 
 const FUENTE = "el SEACE";
@@ -37,37 +56,87 @@ const COLUMNAS: Columna[] = [
     clave: "antecedentes", titulo: "Antecedentes del proveedor", corto: "Antecedentes", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: true,
     ayuda: (
       <Ayuda titulo="¿Qué antecedentes se revisan aquí?">
-        Lo que dice la SUNAT del proveedor: si hoy figura de baja o en suspensión, si es «no habido» o «no hallado», o si
-        firmó con menos de 6 meses de haber empezado sus actividades. Son datos para revisar, no prueban una irregularidad.
+        <span className="block">
+          Lo que dice la SUNAT del proveedor: si hoy figura de baja o en suspensión, si es «no habido» (la SUNAT no lo ubica)
+          o «no hallado» (no lo encontró al notificarlo), o si firmó con menos de 6 meses de haber empezado sus actividades.
+        </span>
+        <span className="mt-2 block">Y si el Tribunal de Contrataciones lo tenía inhabilitado el día en que firmó.</span>
+        <span className="mt-2 block">Son datos para revisar, no prueban una irregularidad.</span>
       </Ayuda>
     ),
   },
-  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  {
+    clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo",
+    ayuda: (
+      <Ayuda titulo="¿Hasta cuánto es un contrato menor?">
+        Hasta 8 UIT: S/ 44,000 en 2026 y S/ 42,800 en 2025 (la UIT de cada año). «Cerca del tope» es el 90 % o más de ese
+        monto; uno que lo pasa puede ser un error de carga o una compra que debía ir por un proceso.
+      </Ayuda>
+    ),
+  },
   { clave: "fecha", titulo: "Suscrito", ancho: "104px", desde: "md", apilar: "con-rotulo" },
 ];
 
 const objetoTxt = (o: string | null) => (o && /bien/i.test(o) ? "Bien" : o && /servicio/i.test(o) ? "Servicio" : o ? tituloNatural(o) : null);
 
-export async function BarraMenoresGeneral({ pagina, regiones = [] }: { pagina: Promise<MenoresPagina | null>; regiones?: string[] }) {
-  const anios = (await pagina)?.anios ?? [];
+/**
+ * La barra de los contratos menores, por pregunta: a la vista el alcance (año, región), los antecedentes del proveedor y
+ * si tiene el requerimiento; en «Filtros», qué (bien, servicio…), quién (entidad, proveedor, persona o empresa) y cuánto.
+ * Cada opción con su conteo (la API cuenta cada filtro con los demás puestos). En la ficha de una empresa no van los
+ * filtros del proveedor: es uno solo.
+ */
+export async function BarraMenoresGeneral({
+  pagina,
+  regiones = [],
+  parametros = {},
+  entidadNombre = null,
+}: {
+  pagina: Promise<MenoresPagina | null>;
+  regiones?: string[];
+  parametros?: Parametros;
+  /** El nombre de la entidad filtrada, si la página lo buscó (para el chip cuando ningún contrato cumple los filtros). */
+  entidadNombre?: string | null;
+}) {
+  const p = await pagina;
+  const anios = p?.anios ?? [];
+  const f = p?.facetas ?? null;
+  const filas = p?.data ?? [];
+  // Un solo proveedor (su ficha, o el filtro): sin los filtros del proveedor. Los chips de entidad y proveedor salen de
+  // los parámetros de la lista general; las fichas no los pasan (ahí la entidad o el proveedor es la ficha misma).
+  const deUnProveedor = p?.ancla === "proveedor";
+  const entidad = parametros[P_MEN.entidad];
+  const proveedor = parametros[P_MEN.proveedor];
+  const nombreEntidad = entidad ? filas.find((m) => m.entidadRuc === entidad)?.entidad ?? entidadNombre : null;
+  const nombreProveedor = proveedor ? filas.find((m) => m.proveedorRuc === proveedor)?.proveedor : null;
+  const conteoRegion = (r: string) => (f?.region ? f.region[claveRegion(r)] ?? 0 : null);
+  const filtros: FiltroSecundario[] = [
+    ...enSeccion("Qué", { param: P_MEN.objeto, etiqueta: "Bien o servicio", todas: "Todo", opciones: opcionesDe(OBJETOS_MENOR, f?.objeto) }),
+    ...enSeccion(
+      "Quién",
+      ...filtroRuc(P_MEN.entidad, "Entidad", "Toda entidad", entidad, nombreEntidad),
+      ...filtroRuc(P_MEN.proveedor, "Proveedor", "Todo proveedor", proveedor, nombreProveedor),
+      ...(deUnProveedor ? [] : [{ param: P_MEN.persona, etiqueta: "Tipo de proveedor", todas: "Personas y empresas", opciones: opcionesDe(PERSONAS_PROVEEDOR, f?.persona) }]),
+    ),
+    ...enSeccion("Cuánto", { param: P_MEN.monto, etiqueta: "Monto", todas: "Cualquier monto", opciones: opcionesDe(MONTOS_MENOR, f?.monto) }),
+  ];
   return (
     <BarraFiltros
       busqueda={{ param: P_MEN.q, placeholder: "Buscar por descripción, entidad, proveedor o código…", etiqueta: "Buscar en los contratos menores", min: 3 }}
       visibles={[
-        { param: P_MEN.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a) })) },
+        { param: P_MEN.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a), conteo: f?.anio ? f.anio[String(a)] ?? 0 : null })) },
         ...(regiones.length
-          ? [{ param: P_MEN.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r) })) }]
+          ? [{ param: P_MEN.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r), conteo: conteoRegion(r) })) }]
           : []),
-        {
-          param: P_MEN.objeto, etiqueta: "Bien o servicio", corta: "Bien o servicio", todas: "Bienes y servicios",
-          opciones: [{ valor: "bien", etiqueta: "Bienes" }, { valor: "servicio", etiqueta: "Servicios" }],
-        },
+        ...(deUnProveedor
+          ? []
+          : [{ param: P_MEN.antecedente, etiqueta: "Antecedentes del proveedor", corta: "Antecedentes", todas: "Todos", opciones: opcionesDe(ANTECEDENTES_MENOR, f?.antecedente) }]),
         // Una sola opción: el kit lo dibuja como chip que se prende y se apaga, no como desplegable de una línea.
         {
           param: P_MEN.conReq, etiqueta: "Con requerimiento", corta: "Requerimiento", todas: "Todos",
-          opciones: [{ valor: "si", etiqueta: "Con requerimiento (TDR)" }],
+          opciones: [{ valor: "si", etiqueta: "Con requerimiento (TDR)", conteo: f?.conReq ? f.conReq.si ?? 0 : null }],
         },
       ]}
+      filtros={filtros}
       orden={{ param: P_MEN.orden, porDefecto: "reciente", opciones: [{ valor: "reciente", etiqueta: "Más recientes" }, { valor: "antiguo", etiqueta: "Más antiguos" }] }}
     />
   );
@@ -80,24 +149,20 @@ export function ListaMenoresCargando() {
 
 // ─── Antecedentes del proveedor en la SUNAT ─────────────────────────────────────
 
-interface Antecedente {
-  /** El tipo del catálogo de cruces (lib/cruces) cuando existe: su explicación va en el `title` del chip. */
-  tipo: string;
-  severidad: "alta" | "media" | "baja";
-  /** El chip de la celda: corto y sin género (el proveedor puede ser una persona o una empresa). */
-  chip: string;
-  /** La frase del panel. */
-  titulo: string;
-  explica: string;
-}
+/**
+ * Un antecedente SUNAT: el `tipo` del catálogo de cruces (lib/cruces) cuando existe, el chip de la celda (corto y sin
+ * género: el proveedor puede ser una persona o una empresa), lo que significa y la frase del panel (`titulo`).
+ */
+type AntecedenteSunat = Antecedente & { titulo: string };
 
 /**
  * Las banderas SUNAT del proveedor (indicio, no acusación), con las mismas reglas que las del ganador de un contrato
- * (migraciones 116 y 118): de baja o en suspensión (estado), no habido o no hallado (condición) y firmar a menos de 180
- * días de iniciar actividades. Antes era un «⚠ proveedor» que no decía cuál.
+ * (migraciones 116 y 118) y que el filtro «Antecedentes del proveedor» de la API: de baja o en suspensión (estado), no
+ * habido o no hallado (condición) y firmar a menos de 180 días de iniciar actividades. Antes era un «⚠ proveedor» que no
+ * decía cuál.
  */
-function antecedentesSunat(m: ContratoMenor): Antecedente[] {
-  const out: Antecedente[] = [];
+function antecedentesSunat(m: ContratoMenor): AntecedenteSunat[] {
+  const out: AntecedenteSunat[] = [];
   const estado = (m.provEstado ?? "").trim().toUpperCase();
   if (estado && estado !== "ACTIVO") {
     if (estado.startsWith("BAJA")) {
@@ -131,18 +196,6 @@ function antecedentesSunat(m: ContratoMenor): Antecedente[] {
   return out;
 }
 
-/** Los antecedentes como banderas, en la celda y en los chips del panel: las de toda lista (CrucesCelda). */
-function BanderasSunat({ antecedentes }: { antecedentes: Antecedente[] }) {
-  return (
-    <CrucesCelda
-      cruces={antecedentes.map((a) => ({ tipo: a.tipo, severidad: a.severidad }))}
-      etiquetas={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.chip]))}
-      explicaciones={Object.fromEntries(antecedentes.map((a) => [a.tipo, a.explica]))}
-      etiquetaLista="Antecedentes del proveedor"
-    />
-  );
-}
-
 // ─── La lista ─────────────────────────────────────────────────────────────────
 
 export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pagina: Promise<MenoresPagina | null>; ruta: string; parametros: Parametros; actual: number }) {
@@ -167,20 +220,29 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
         accion={<Link href={hrefPagina(ruta, parametros, P_MEN.page, 1)} prefetch={false} className={CLASE_ACCION_LISTA}>Ir al principio de la lista</Link>}
       />
     ) : (
-      <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año, el bien o servicio o la búsqueda.</EstadoVacio>
+      <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año o la búsqueda, o quita un filtro.</EstadoVacio>
     );
   }
+  // «Ver sólo los de esta entidad / de este proveedor»: sólo en la lista general (en una ficha la lista ya está anclada)
+  // y para una empresa (el RUC 10 de una persona lleva su DNI: no va en un enlace).
+  const enGeneral = ruta === "/app/contratos";
   const filas: Fila[] = pagina.data.map((m, i) => {
     const entidad = m.entidad ? tituloNatural(m.entidad) : null;
     const proveedor = m.proveedor ? tituloNatural(m.proveedor) : null;
     const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
     const objeto = objetoTxt(m.objeto);
     const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaCorta(m.cotizaDesde)} – ${fechaCorta(m.cotizaHasta)}` : null;
-    const antecedentes = antecedentesSunat(m);
+    const sunat = antecedentesSunat(m);
+    // Las banderas de la fila: lo de la SUNAT y, si el Tribunal lo tenía inhabilitado al firmar, eso (lo más grave).
+    const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []), ...sunat];
     const estado = <EstadoCompra estado={m.estado} />;
     // La ficha del proveedor (empresas, RUC 20): donde está lo que dice la SUNAT. No desde su propia ficha.
     const ficha = enlaceProveedor(m.proveedorRuc);
     const fichaProveedor = ficha && !ruta.startsWith(ficha.split("?")[0]) ? ficha : null;
+    const soloEntidad = enGeneral && m.entidadRuc && parametros[P_MEN.entidad] !== m.entidadRuc
+      ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.entidad]: m.entidadRuc }) : null;
+    const soloProveedor = enGeneral && /^20\d{9}$/.test(m.proveedorRuc ?? "") && parametros[P_MEN.proveedor] !== m.proveedorRuc
+      ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.proveedor]: m.proveedorRuc! }) : null;
     const items: (DatoClave | null)[] = [
       { etiqueta: "Qué se contrató", valor: descripcion },
       objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
@@ -190,7 +252,11 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
       m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
       m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaCorta(m.provDesde), mono: true } : null,
       datoFecha("Suscrito", m.fecha, FUENTE),
-      { etiqueta: "Monto", valor: m.monto != null ? soles(m.monto) : null, mono: true },
+      {
+        etiqueta: "Monto",
+        valor: m.monto != null ? (m.sobreTope && m.tope ? `${soles(m.monto)}, más que el tope de 8 UIT de ese año (${soles(m.tope)})` : soles(m.monto)) : null,
+        mono: true,
+      },
       m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
       m.estadoProceso ? { etiqueta: "Estado del proceso", valor: m.estadoProceso } : null,
       cotiza ? { etiqueta: "Pudo cotizarse", valor: cotiza, mono: true, ayuda: <AyudaTermino clave="cotizacion" /> } : null,
@@ -213,11 +279,12 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
         ),
         // Un proveedor que no está en el padrón cargado de la SUNAT no se pudo revisar: «Sin dato», no «Ninguno».
         antecedentes: antecedentes.length ? (
-          <BanderasSunat antecedentes={antecedentes} />
+          <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />
         ) : (
           <SinAntecedentes sinDato={m.provEstado == null && m.provCondicion == null && m.provDesde == null} />
         ),
-        monto: <CeldaNumero>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
+        // Más que el tope de 8 UIT de su año: no debería existir un contrato menor así (o el monto está mal cargado).
+        monto: <CeldaNumero sub={m.sobreTope ? "más de 8 UIT" : undefined}>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
         fecha: <CeldaFechaCompra fecha={m.fecha} fuente={FUENTE} />,
       },
       detalle: {
@@ -228,13 +295,14 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
           <CuerpoDetalle>
             <ChipsDetalle>
               {estado}
-              {antecedentes.length > 0 && <BanderasSunat antecedentes={antecedentes} />}
+              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />}
             </ChipsDetalle>
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            {antecedentes.length > 0 && (
+            {m.inhabilitacion && <BloqueInhabilitacion i={m.inhabilitacion} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />}
+            {sunat.length > 0 && (
               <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">
                 <ul className="space-y-1.5">
-                  {antecedentes.map((a) => (
+                  {sunat.map((a) => (
                     <li key={a.tipo}>
                       <span className="font-semibold text-ink">{a.titulo}.</span> <span className="text-inkSoft">{a.explica}</span>
                     </li>
@@ -265,6 +333,22 @@ export async function ListaMenores({ pagina: p, ruta, parametros, actual }: { pa
                   )}
                 </div>
               </BloqueDetalle>
+            )}
+            {(soloEntidad || soloProveedor) && (
+              <div className="flex flex-wrap gap-2">
+                {soloEntidad && (
+                  <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+                    <ListFilter size={15} aria-hidden />
+                    Ver sólo los de esta entidad
+                  </EnlaceAccion>
+                )}
+                {soloProveedor && (
+                  <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
+                    <ListFilter size={15} aria-hidden />
+                    Ver sólo los de este proveedor
+                  </EnlaceAccion>
+                )}
+              </div>
             )}
           </CuerpoDetalle>
         ),

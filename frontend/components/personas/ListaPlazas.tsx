@@ -18,6 +18,7 @@ import {
   type FiltroSecundario,
   type Fila,
   type Indicador,
+  type OpcionFaceta,
   type Parametros,
 } from "@/components/listado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
@@ -25,7 +26,7 @@ import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { SENAL_PLAZA, TIPOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
+import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
 
@@ -33,7 +34,12 @@ const TAM = 20;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** Los filtros de las plazas en la URL, con `z` delante. */
-export const P_PLAZAS = { senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag", q: "zq" } as const;
+export const P_PLAZAS = {
+  senal: "zsenal", severidad: "zsev", orden: "zord", page: "zpag", q: "zq", abierta: "zabierta", sueldo: "zsueldo", experiencia: "zexp", vacantes: "zvac",
+} as const;
+/** Cada tramo de `TRAMOS_PLAZA` y su parámetro en la URL. */
+const P_TRAMO = { sueldo: P_PLAZAS.sueldo, experiencia: P_PLAZAS.experiencia, vacantes: P_PLAZAS.vacantes } as const;
+type TramoPlaza = keyof typeof P_TRAMO;
 
 /** La etiqueta corta de cada señal para la celda (`CrucesCelda`, una línea con su ícono de severidad). */
 const CORTO_PLAZA = Object.fromEntries(TIPOS_PLAZA.map((t) => [t, SENAL_PLAZA[t].corto]));
@@ -66,16 +72,24 @@ export function ListaPlazas({
   const sev = uno(sp?.[P.severidad]);
   const orden = uno(sp?.[P.orden]);
   const q = uno(sp?.[P.q])?.slice(0, 80);
+  const tramo = (t: TramoPlaza) => { const v = uno(sp?.[P_TRAMO[t]]); return v && TRAMOS_PLAZA[t].some((o) => o.valor === v) ? v : undefined; };
   const f = {
     senal: senal && (TIPOS_PLAZA as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
     orden: orden && ["senales", "reciente", "sueldo"].includes(orden) ? orden : undefined,
     q: q && q.length >= 2 ? q : undefined,
+    abierta: uno(sp?.[P.abierta]) === "si" ? "si" : undefined,
+    sueldo: tramo("sueldo"),
+    experiencia: tramo("experiencia"),
+    vacantes: tramo("vacantes"),
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlazas({ ...alcance, ...f, size: TAM });
-  const parametros: Parametros = { ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.orden]: f.orden, [P.q]: f.q };
-  const filtrada = !!(f.senal || f.severidad || f.q) || visiblesExtra.some((x) => !!base[x.param]);
+  const parametros: Parametros = {
+    ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.orden]: f.orden, [P.q]: f.q, [P.abierta]: f.abierta,
+    [P.sueldo]: f.sueldo, [P.experiencia]: f.experiencia, [P.vacantes]: f.vacantes,
+  };
+  const filtrada = !!(f.senal || f.severidad || f.q || f.abierta || f.sueldo || f.experiencia || f.vacantes) || visiblesExtra.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
   const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
@@ -120,8 +134,24 @@ async function BarraAsync({ pagina, visiblesExtra, entidad }: { pagina: Promise<
   return <Barra r={pg?.resumen ?? null} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
 }
 
+/**
+ * Señales (faceta: con alguna, por la más grave, o sin), y a la vista la región (si la hay), qué señal y las que se
+ * pueden postular hoy; en «Filtros», cómo es la plaza (lo que paga, la experiencia que pide, cuántas vacantes) y la
+ * entidad. Los conteos son del alcance, como las cifras de arriba.
+ */
 function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlazas["resumen"] | null; visiblesExtra: FiltroSecundario[]; entidad: { ruc: string; nombre: string | null } | null }) {
   const P = P_PLAZAS;
+  const tramo = (t: TramoPlaza, etiqueta: string, todas: string): FiltroSecundario => ({
+    param: P_TRAMO[t], etiqueta, todas, seccion: "La plaza",
+    opciones: TRAMOS_PLAZA[t].map((o) => ({ ...o, conteo: r?.tramos?.[t]?.[o.valor] ?? null })),
+  });
+  // Por la señal más grave. Ninguna señal de plaza es alta (plaza a la medida: media; ya hay locadores: baja): la opción
+  // alta aparece sólo si alguna llegara a serlo.
+  const porGravedad: OpcionFaceta[] = [
+    ...(r?.alta ? [{ valor: "alta", etiqueta: "Con señal alta", conteo: r.alta, tono: "alta", icono: "alerta" } as const] : []),
+    { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+    { valor: "baja", etiqueta: "Con señal baja", conteo: r?.baja ?? null, tono: "baja", icono: "info" },
+  ];
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por puesto, entidad o lugar…", etiqueta: "Buscar en las plazas CAS", min: 3 }}
@@ -133,6 +163,7 @@ function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlazas["resumen"] | nul
         nombreEnChip: false,
         opciones: [
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
+          ...porGravedad,
           { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.plazas - r.conSenales : null },
         ],
       }}
@@ -143,14 +174,19 @@ function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlazas["resumen"] | nul
           etiqueta: "Señal",
           corta: "Señal",
           todas: "Toda señal",
-          opciones: (r?.porSenal ?? []).map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLAZA[s.tipo]?.corto ?? s.tipo, conteo: s.n })),
+          opciones: (r?.porSenal ?? []).filter((s) => SENAL_PLAZA[s.tipo]).map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLAZA[s.tipo].corto, conteo: s.n })),
         },
+        // Un interruptor: las que todavía reciben postulaciones (según SERVIR, al día de su carga).
+        { param: P.abierta, etiqueta: "Postulación", todas: "Abiertas o cerradas", opciones: [{ valor: "si", etiqueta: "Abiertas hoy", conteo: r?.abiertas ?? null }] },
       ]}
-      filtros={
-        entidad
-          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
-          : []
-      }
+      filtros={[
+        tramo("sueldo", "Lo que paga", "Cualquier sueldo"),
+        tramo("experiencia", "Experiencia general que pide", "Cualquier experiencia"),
+        tramo("vacantes", "Vacantes", "Cualquier número"),
+        ...(entidad
+          ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", seccion: "Dónde", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+          : []),
+      ]}
       orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "reciente", etiqueta: "Más recientes" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }] }}
     />
   );
@@ -164,8 +200,7 @@ const columnas = (deEntidad: boolean): Columna[] => [
     ayuda: (
       <Ayuda titulo="¿Qué son estas señales?">
         Rasgos de una plaza hecha a la medida de alguien: pide experiencia en la propia entidad, paga mucho y pide poco,
-        estuvo publicada muy poco tiempo, paga el doble que plazas parecidas o la entidad ya pagaba ese trabajo por órdenes.
-        No prueban un direccionamiento.
+        estuvo publicada muy poco tiempo o la entidad ya pagaba ese trabajo por órdenes. No prueban un direccionamiento.
       </Ayuda>
     ),
   },
@@ -292,7 +327,6 @@ const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && 
 function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
   if (tipo === "plazo_corto") items = [{ etiqueta: "Días publicada", valor: n(d.dias) != null ? numero(n(d.dias)) : null }];
-  else if (tipo === "sueldo_alto") items = [{ etiqueta: "Mediana de plazas parecidas", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.plazas) ?? 0)} plazas)` : null, ayuda: <AyudaTermino clave="mediana" /> }];
   else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null, ayuda: <AyudaTermino clave="locacion" /> }];
   else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${String(n(d.exp_general)).replace(".", ",")} años` : "No la pide" }];
   return items.length ? <DatosClave items={items} /> : null;

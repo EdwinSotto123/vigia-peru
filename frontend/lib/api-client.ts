@@ -327,20 +327,57 @@ const TIPOS_ENTIDAD: ApiEntidad["tipo"][] = [
   "organismo_autonomo",
 ];
 
-/** Clase (tipo/nivel) derivada del nombre en el backend: ministerio, gobierno regional, municipalidad, organismo autónomo. */
-export const CLASES_ENTIDAD = ["ministerio", "regional", "municipal", "organismo"] as const;
+/**
+ * El tipo de la entidad como lo muestra la web (lib/entidad-tipo.ts): el backend lo deriva igual, del tipo declarado o
+ * del nombre. `municipal` junta las dos municipalidades; `sin`, las que no se pueden clasificar.
+ */
+export const CLASES_ENTIDAD = ["ministerio", "regional", "municipal", "provincial", "distrital", "empresa", "organismo", "sin"] as const;
 export type ClaseEntidad = (typeof CLASES_ENTIDAD)[number];
+
+/** Lo que otros registros dicen de la entidad (los filtros de «Filtros»), con sus valores en la URL. */
+export const CONTROLES_ENTIDAD = ["penal", "civil", "administrativa", "alguno"] as const;
+export const PLANILLAS_ENTIDAD = ["alta", "con"] as const;
+export const PLAZAS_ENTIDAD = ["senales", "con"] as const;
+export const ORDENES_ENTIDADES = [
+  { valor: "dictamen", etiqueta: "Más contratos con dictamen" },
+  { valor: "contratos", etiqueta: "Más contratos registrados" },
+  { valor: "nombre", etiqueta: "Por nombre" },
+] as const;
+export type OrdenEntidades = (typeof ORDENES_ENTIDADES)[number]["valor"];
 
 export interface EntidadesQuery {
   q?: string;
   tipo?: ApiEntidad["tipo"];
   /** Región (nombre de departamento tal como lo trae el backend). */
   region?: string;
-  /** Tipo/nivel de la entidad (derivado del nombre). */
+  /** Tipo de la entidad (derivado del nombre, como se muestra). */
   clase?: ClaseEntidad;
+  /** La provincia: los cuatro primeros dígitos del ubigeo. */
+  provincia?: string;
+  /** El partido que la gobierna (gobiernos regionales y municipalidades), como lo escribe el JNE. */
+  partido?: string;
+  /** Con contratos cuyo ganador está ligado al partido que la gobierna (captura). */
+  captura?: boolean;
+  /** Informes de la Contraloría con ese tipo de responsabilidad presunta, o alguno. */
+  control?: (typeof CONTROLES_ENTIDAD)[number];
+  planilla?: (typeof PLANILLAS_ENTIDAD)[number];
+  plazas?: (typeof PLAZAS_ENTIDAD)[number];
   /** Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador). */
   nepotismo?: boolean;
+  orden?: OrdenEntidades;
   page?: number;
+}
+
+/**
+ * Cuántas entidades hay en cada opción de los filtros (GET /entidades?facetas=1), sobre la región, la provincia y el
+ * tipo elegidos (cada faceta, sin su propio filtro). No miran la búsqueda por texto.
+ */
+export interface FacetasEntidades {
+  /** Por el tipo que se muestra (`municipal_distrital`…; `sin` = sin clasificar). */
+  tipos: { valor: string; n: number }[];
+  provincias: { valor: string; etiqueta: string; n: number }[];
+  partidos: { valor: string; n: number }[];
+  senales: Record<"captura" | "penal" | "civil" | "administrativa" | "informes" | "planillaAlta" | "planilla" | "plazasSenales" | "plazas" | "nepotismo", number>;
 }
 
 export const ENTIDADES_PAGE_SIZE = 20;
@@ -348,16 +385,26 @@ export const ENTIDADES_PAGE_SIZE = 20;
 /** Lee `searchParams` de Next (strings sueltos) y deja solo lo válido — mismo patrón que parseContratosQuery. */
 export function parseEntidadesQuery(sp: Record<string, string | string[] | undefined> = {}): EntidadesQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
+  const de = <T extends string>(k: string, valores: readonly T[]) => { const v = s(k); return v && (valores as readonly string[]).includes(v) ? (v as T) : undefined; };
   const page = Math.max(1, Number(s("page") ?? 1) || 1);
   const tipo = s("tipo");
-  const clase = s("clase");
+  const provincia = s("provincia");
+  const partido = s("partido")?.trim();
   return {
     page,
     q: s("q")?.slice(0, 120) || undefined,
     tipo: tipo && (TIPOS_ENTIDAD as string[]).includes(tipo) ? (tipo as ApiEntidad["tipo"]) : undefined,
     region: s("region")?.slice(0, 80) || undefined,
-    clase: clase && (CLASES_ENTIDAD as readonly string[]).includes(clase) ? (clase as ClaseEntidad) : undefined,
+    clase: de("clase", CLASES_ENTIDAD),
+    provincia: provincia && /^\d{4}$/.test(provincia) ? provincia : undefined,
+    partido: partido && partido.length >= 2 ? partido.slice(0, 120) : undefined,
+    captura: s("captura") === "1" || undefined,
+    control: de("control", CONTROLES_ENTIDAD),
+    planilla: de("planilla", PLANILLAS_ENTIDAD),
+    plazas: de("plazas", PLAZAS_ENTIDAD),
     nepotismo: s("nepotismo") === "1" || undefined,
+    // El orden por defecto no va en la URL. Un `?orden=` de un enlace viejo («Mayor monto», que ordenaba sólo la página) se ignora.
+    orden: de("orden", ORDENES_ENTIDADES.map((o) => o.valor)),
   };
 }
 
@@ -366,22 +413,26 @@ export interface EntidadesPagina {
   total: number;
   page: number;
   size: number;
+  /** null si la API no las pudo contar (los filtros van sin números). */
+  facetas: FacetasEntidades | null;
 }
 
-/** Página real del ranking de entidades con filtros server-side: GET /entidades?...&limit=&offset=. */
+/** Página real del ranking de entidades con filtros server-side: GET /entidades?...&limit=&offset=, con sus facetas. */
 export async function getEntidadesPagina(query: EntidadesQuery = {}): Promise<EntidadesPagina> {
   const page = Math.max(1, query.page ?? 1);
   const size = ENTIDADES_PAGE_SIZE;
   const qs = new URLSearchParams();
-  if (query.q) qs.set("q", query.q);
-  if (query.tipo) qs.set("tipo", query.tipo);
-  if (query.region) qs.set("region", query.region);
-  if (query.clase) qs.set("clase", query.clase);
+  for (const k of ["q", "tipo", "region", "clase", "provincia", "partido", "control", "planilla", "plazas", "orden"] as const) {
+    const v = query[k];
+    if (v) qs.set(k, v);
+  }
+  if (query.captura) qs.set("captura", "1");
   if (query.nepotismo) qs.set("nepotismo", "1");
+  qs.set("facetas", "1");
   qs.set("limit", String(size));
   qs.set("offset", String((page - 1) * size));
-  const r = await get<{ data: ApiEntidad[]; total: number; limit: number; offset: number }>(`/entidades?${qs}`);
-  return { data: r.data, total: r.total, page, size };
+  const r = await get<{ data: ApiEntidad[]; total: number; limit: number; offset: number; facetas?: FacetasEntidades | null }>(`/entidades?${qs}`);
+  return { data: r.data, total: r.total, page, size, facetas: r.facetas ?? null };
 }
 
 /** Las regiones (departamentos) para poblar el filtro de la lista de entidades. */

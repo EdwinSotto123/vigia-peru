@@ -21,6 +21,7 @@ export function CrucesCelda({
   sinGanador = false,
   explicaciones,
   etiquetaLista = "Registros donde aparece el ganador",
+  max = MAX_CRUCES,
 }: {
   cruces: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null | undefined;
   /** Otra etiqueta corta para algún tipo (la lista de empresas: «Sancionada», no «Sancionado antes» de un proceso). */
@@ -31,6 +32,8 @@ export function CrucesCelda({
   explicaciones?: Record<string, string>;
   /** El nombre de la lista para el lector de pantalla. Por defecto, los registros donde aparece el ganador. */
   etiquetaLista?: string;
+  /** Cuántas banderas a la vista antes del «+n» (en una columna angosta, una entera se lee mejor que dos recortadas). */
+  max?: number;
 }) {
   // En el chip, el nombre breve; el completo (y qué significa) en su title, y la lista entera en el de la fila.
   const corto = (t: string) => etiquetas?.[t] ?? chipCruce(t);
@@ -38,10 +41,10 @@ export function CrucesCelda({
   const explica = (t: string) => explicaciones?.[t] ?? TIPO_CRUCE[t]?.explica;
   if (!cruces?.length) return <span className="text-meta text-mute">{sinGanador ? "Sin ganador aún" : "Sin antecedentes"}</span>;
   const orden = [...cruces].sort((a, b) => RANGO[a.severidad] - RANGO[b.severidad]);
-  const resto = orden.length - MAX_CRUCES;
+  const resto = orden.length - max;
   return (
     <ul className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden" aria-label={etiquetaLista} title={orden.map((x) => completo(x.tipo)).join(", ")}>
-      {orden.slice(0, MAX_CRUCES).map((x) => {
+      {orden.slice(0, max).map((x) => {
         const Icono = ICONO_CRUCE[x.severidad];
         return (
           <li key={x.tipo} className="min-w-0" title={explica(x.tipo) ? `${completo(x.tipo)}: ${explica(x.tipo)}` : completo(x.tipo)}>
@@ -56,7 +59,7 @@ export function CrucesCelda({
         <li className="shrink-0">
           <Badge variant="neutral" className="px-2">
             +{resto}
-            <span className="sr-only"> más: {orden.slice(MAX_CRUCES).map((x) => completo(x.tipo)).join(", ")}</span>
+            <span className="sr-only"> más: {orden.slice(max).map((x) => completo(x.tipo)).join(", ")}</span>
           </Badge>
         </li>
       )}

@@ -179,6 +179,8 @@ function VistaPrevia({ e, lugar, vende }: { e: EmpresaFila; lugar: string | null
     { etiqueta: "Primera y última venta", valor: e.primera && e.ultima ? `${fecha(e.primera)} a ${fecha(e.ultima)}` : e.ultima ? fecha(e.ultima) : null },
     ...(e.visitas ? [{ etiqueta: "Visitas de su gente a entidades", valor: numero(e.visitas), mono: true }] : []),
     { etiqueta: "Estado en la SUNAT", valor: e.estadoSunat ? e.estadoSunat.charAt(0) + e.estadoSunat.slice(1).toLowerCase() : null },
+    // De ella sale el filtro «Desde su alta en la SUNAT» (una respuesta guardada de antes no la trae: entonces no se dice nada).
+    ...(e.fechaAlta !== undefined ? [{ etiqueta: "Alta en la SUNAT", valor: e.fechaAlta ? fecha(e.fechaAlta) : null }] : []),
   ];
   return (
     <CuerpoDetalle>

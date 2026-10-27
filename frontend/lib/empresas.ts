@@ -40,6 +40,8 @@ export interface EmpresaFila {
   visitas: number;
   inhabilitada: "temporal" | "definitiva" | null;
   inhabilitadaHasta: string | null;
+  /** Su alta en la SUNAT (en la lista desde 2026-10-26; la ficha siempre la trajo). */
+  fechaAlta?: string | null;
   tipos: string[];
   nAlta: number;
   nMedia: number;
@@ -59,6 +61,14 @@ export interface ResumenEmpresas {
   conAntecedentes: number;
   /** Con algún antecedente grave (inhabilitación, partido que gobierna, socio común entre postores…). */
   conGrave: number;
+  /** Con alguno de gravedad media y ninguno grave. Opcionales: una respuesta guardada de antes no los trae. */
+  conMedia?: number;
+  /** Con visitas de su gente a una entidad que le adjudicó o le compró. */
+  conVisitasClientes?: number;
+  /** Con algún contrato u orden de monto con posible error de carga. */
+  conDudosos?: number;
+  /** Cuántas caen en cada tramo de los filtros (`antiguedad`, `clientes`, `exito`, `ultima`). */
+  tramos?: Record<TramoEmpresa, Record<string, number>>;
   porTipo: { tipo: string; n: number; etiqueta: string }[];
   porDepartamento: { departamento: string; n: number }[];
   porObjeto: { objeto: string; n: number }[];
@@ -331,6 +341,11 @@ export interface FiltrosEmpresas {
   montoMin?: string;
   actividad?: string;
   vinculadas?: string;
+  antiguedad?: string;
+  clientes?: string;
+  exito?: string;
+  ultima?: string;
+  dudoso?: string;
   entidad?: string;
   orden?: string;
   page?: number;
@@ -351,6 +366,41 @@ export const ACTIVIDADES = [
   { valor: "solo_postula", etiqueta: "Sólo postuló, nunca ganó" },
 ] as const;
 
+/**
+ * Los filtros por tramos (los mismos de la API, `TRAMOS_EMPRESA`): cada opción con su nombre. Una empresa sin el dato
+ * (sin fecha de alta en la SUNAT, con menos de 5 postulaciones) no cae en ninguno.
+ */
+export type TramoEmpresa = "antiguedad" | "clientes" | "exito" | "ultima";
+export const TRAMOS_EMPRESA: Record<Exclude<TramoEmpresa, "ultima">, readonly { valor: string; etiqueta: string }[]> = {
+  antiguedad: [
+    { valor: "hasta1", etiqueta: "Menos de 1 año" },
+    { valor: "1a2", etiqueta: "De 1 a 2 años" },
+    { valor: "2a5", etiqueta: "De 2 a 5 años" },
+    { valor: "mas5", etiqueta: "Más de 5 años" },
+  ],
+  clientes: [
+    { valor: "1", etiqueta: "Una sola entidad" },
+    { valor: "2a5", etiqueta: "De 2 a 5 entidades" },
+    { valor: "6a20", etiqueta: "De 6 a 20 entidades" },
+    { valor: "mas20", etiqueta: "Más de 20 entidades" },
+  ],
+  // Sólo entre las que postularon 5 veces o más (lo dice el nombre del filtro).
+  exito: [
+    { valor: "alto", etiqueta: "Gana 8 de cada 10 o más" },
+    { valor: "bajo", etiqueta: "Gana menos de 1 de cada 10" },
+  ],
+};
+
+/** La última venta, con los años escritos: este año, el anterior o antes (la API corta por el 1 de enero). */
+export function ultimasVentas(anio: number): { valor: string; etiqueta: string }[] {
+  return [
+    { valor: "este", etiqueta: `En ${anio}` },
+    { valor: "pasado", etiqueta: `En ${anio - 1}` },
+    { valor: "antes", etiqueta: `Antes de ${anio - 1}` },
+  ];
+}
+const ULTIMAS = ["este", "pasado", "antes"];
+
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** Lee de la URL los filtros de la lista, validados como la API. */
@@ -362,15 +412,20 @@ export function filtrosEmpresasDeUrl(sp: Busqueda): FiltrosEmpresas {
   const q = uno(sp?.q)?.slice(0, 80);
   return {
     q: q && q.length >= 2 ? q : undefined,
-    antecedentes: antecedentes && ["con", "grave", "sin"].includes(antecedentes) ? antecedentes : undefined,
+    antecedentes: antecedentes && ["con", "grave", "media", "sin"].includes(antecedentes) ? antecedentes : undefined,
     tipo: tipo && /^[a-z_]{2,40}$/.test(tipo) ? tipo : undefined,
     departamento: uno(sp?.departamento)?.slice(0, 40),
     objeto: objeto && (OBJETOS as readonly string[]).includes(objeto) ? objeto : undefined,
     inhabilitada: uno(sp?.inhabilitada) === "si" ? "si" : undefined,
-    visitas: uno(sp?.visitas) === "si" ? "si" : undefined,
+    visitas: ["si", "clientes"].includes(uno(sp?.visitas) ?? "") ? uno(sp?.visitas) : undefined,
     montoMin: MONTOS_MIN.some((m) => m.valor === uno(sp?.montoMin)) ? uno(sp?.montoMin) : undefined,
     actividad: ACTIVIDADES.some((m) => m.valor === uno(sp?.actividad)) ? uno(sp?.actividad) : undefined,
     vinculadas: uno(sp?.vinculadas) === "si" ? "si" : undefined,
+    antiguedad: TRAMOS_EMPRESA.antiguedad.some((t) => t.valor === uno(sp?.antiguedad)) ? uno(sp?.antiguedad) : undefined,
+    clientes: TRAMOS_EMPRESA.clientes.some((t) => t.valor === uno(sp?.clientes)) ? uno(sp?.clientes) : undefined,
+    exito: TRAMOS_EMPRESA.exito.some((t) => t.valor === uno(sp?.exito)) ? uno(sp?.exito) : undefined,
+    ultima: ULTIMAS.includes(uno(sp?.ultima) ?? "") ? uno(sp?.ultima) : undefined,
+    dudoso: uno(sp?.dudoso) === "si" ? "si" : undefined,
     entidad: /^\d{11}$/.test(uno(sp?.entidad) ?? "") ? uno(sp?.entidad) : undefined,
     orden: orden && ORDENES_EMPRESAS.some((o) => o.valor === orden) ? orden : undefined,
     page: Math.max(1, Number(uno(sp?.page)) || 1),

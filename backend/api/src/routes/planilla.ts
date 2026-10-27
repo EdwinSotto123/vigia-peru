@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
+import { PARIENTE_LOCADOR, funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
 
 /**
  * Planilla (migración 92) y plazas CAS (migración 93).
@@ -15,7 +16,7 @@ import { palabrasBusqueda } from "./personas.js";
  *   GET /planilla/ficha/:codigo   la ficha de una persona de la planilla (migración 107): sus datos, señales con detalle,
  *                                 lo que cobró cada mes cargado y la misma persona en la planilla de otras entidades.
  *   GET /plazas[?entidad=|dep=]   las plazas CAS que publicó en SERVIR, con sus señales (pide experiencia en la propia
- *                                 entidad, paga mucho y pide poco, plazo corto, sueldo alto, ya hay locadores).
+ *                                 entidad, paga mucho y pide poco, plazo corto, ya hay locadores).
  *
  * Privacidad (docs/PRIVACIDAD.md): el PTE no trae DNI. El nombre sale con el apellido materno tapado acá mismo (no
  * lleva RUC 10 para que publicar() la reconozca); publicar() tapa además a quienes nombran las señales.
@@ -28,7 +29,9 @@ const memo = new Memo<Record<string, unknown>>({ nombre: "planilla", ttlMs: 600_
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "planilla:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
 export const TIPOS_PLANILLA = ["tambien_ordenes", "candidato_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
-export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "sueldo_alto", "ya_hay_locadores"] as const;
+// Sin `sueldo_alto`: no se calcula desde la migración 95 (el tipo de servicio es muy amplio para comparar sueldos), y un
+// filtro que nunca encuentra nada no se ofrece.
+export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
 const SEV: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
 const Alcance = {
@@ -45,6 +48,14 @@ const Alcance = {
 const leer = <T extends z.ZodRawShape>(c: Parameters<typeof parametros>[0], forma: T) =>
   z.object(forma).safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
 
+/** Las opciones de un tramo de `tramos` como enum de zod. */
+const enumDe = <T extends Record<string, string>>(tramos: T) => z.enum(Object.keys(tramos) as [keyof T & string, ...(keyof T & string)[]]);
+/** Cuántas filas caen en cada tramo (`{grupo: {opción: n}}`), en una pasada; `extra`, una condición que va con todas. */
+const conteoTramos = (tramos: Record<string, Record<string, string>>, extra = "TRUE") =>
+  `jsonb_build_object(${Object.entries(tramos)
+    .map(([t, opciones]) => `'${t}', jsonb_build_object(${Object.entries(opciones).map(([v, cond]) => `'${v}', count(*) FILTER (WHERE ${extra} AND ${cond})`).join(", ")})`)
+    .join(", ")})`;
+
 function sevCond(s: string | undefined, conds: string[], vals: unknown[], t: string) {
   if (s === "con") conds.push(`${t}.n_senales > 0`);
   else if (s === "sin") conds.push(`${t}.n_senales = 0`);
@@ -52,14 +63,94 @@ function sevCond(s: string | undefined, conds: string[], vals: unknown[], t: str
 }
 
 // ─── GET /planilla ──────────────────────────────────────────────────────────────────────────────
-const ListaPlanilla = {
+/**
+ * El sueldo del último mes (`base`: remuneraciones y honorarios, sin gratificaciones ni liquidaciones; migración 98), por
+ * tramos. Un sueldo con posible error de carga del Estado no cae en ninguno: va aparte de toda comparación (`SIN_DUDA`).
+ */
+export const TRAMOS_PLANILLA = {
+  sueldo: {
+    menos3: `p.base < 3000`,
+    "3a5": `p.base >= 3000 AND p.base < 5000`,
+    "5a10": `p.base >= 5000 AND p.base < 10000`,
+    "10a20": `p.base >= 10000 AND p.base < 20000`,
+    mas20: `p.base >= 20000`,
+  },
+} as const;
+const SIN_DUDA = `p.dudoso IS NULL`;
+
+/** La oficina o el cargo como se agrupan: en mayúsculas y con los espacios juntos (el PTE los escribe de varias formas). */
+const NORMAL = (col: string) => `regexp_replace(upper(btrim(${col})), '\\s+', ' ', 'g')`;
+
+/**
+ * La persona de la planilla (alias `t`) declaró en su DJI a un pariente que es locador de su misma entidad (el lado del
+ * funcionario del nepotismo, como la ficha de planilla): con los pares ya calculados, una búsqueda por la llave
+ * (entidad, nombre); sin ellos, fila por fila.
+ */
+export const conPariente = (t: string, pares: FuncionariosConPariente | null, p: (v: unknown) => string) =>
+  pares
+    ? `(${t}.entidad_ruc, ${t}.nombre_norm) IN (SELECT x.e, x.d FROM unnest(${p(pares.entidades)}::text[], ${p(pares.declarantes)}::text[]) AS x(e, d))`
+    : `EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = ${t}.entidad_ruc AND v.declarante_norm = ${t}.nombre_norm AND ${PARIENTE_LOCADOR})`;
+
+export const ListaPlanilla = {
   ...Alcance,
   senal: z.enum(TIPOS_PLANILLA).optional(),
   regimen: z.coerce.number().int().min(1).max(9).optional(),
   // Sólo las filas con un posible error de carga del Estado (migración 102).
   dudoso: z.enum(["si"]).optional(),
+  sueldo: enumDe(TRAMOS_PLANILLA.sueldo).optional(),
+  // La oficina y el cargo (como `NORMAL`), dentro de una entidad: en el país o una región serían decenas de miles.
+  oficina: z.string().trim().min(2).max(200).optional(),
+  cargo: z.string().trim().min(2).max(200).optional(),
+  // Declaró a un pariente que es locador de su entidad.
+  pariente: z.enum(["si"]).optional(),
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
+type ListaPlanillaQ = z.infer<z.ZodObject<typeof ListaPlanilla>>;
+
+/** Los filtros de la lista dentro del alcance (`conds` y `vals` ya traen el alcance). */
+export function filtrosPlanilla(q: ListaPlanillaQ, conds: string[], vals: unknown[], pares: FuncionariosConPariente | null) {
+  const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+  if (q.senal) conds.push(`p.tipos @> ${p([q.senal])}::text[]`);
+  if (q.regimen) conds.push(`p.regimen = ${p(q.regimen)}`);
+  if (q.dudoso) conds.push(`p.dudoso IS NOT NULL`);
+  if (q.sueldo) conds.push(`${SIN_DUDA} AND ${TRAMOS_PLANILLA.sueldo[q.sueldo]}`);
+  if (q.entidad && q.oficina) conds.push(`${NORMAL("p.dependencia")} = ${p(q.oficina)}`);
+  if (q.entidad && q.cargo) conds.push(`${NORMAL("p.cargo")} = ${p(q.cargo)}`);
+  if (q.pariente) conds.push(conPariente("p", pares, p));
+  for (const w of palabrasBusqueda(q.q)) { const v = p(`%${w}%`); conds.push(`(${NOMBRE_PLANILLA} LIKE ${v} OR ${TEXTO_PLANILLA} LIKE ${v})`); }
+  sevCond(q.severidad, conds, vals, "p");
+}
+
+const facetasPlanillaMemo = new Memo<Record<string, unknown>>({ nombre: "planilla:facetas", ttlMs: 600_000, staleMs: 3_600_000, max: 400 });
+
+/**
+ * Las opciones de los filtros que dependen del alcance, guardadas por alcance (como el resumen, no miran los demás
+ * filtros): cuántos declararon a un pariente locador; y en una entidad, sus oficinas y cargos (los 500 con más personas;
+ * los demás se encuentran con el buscador) y cuántos caen en cada tramo de sueldo. En el país o una región los tramos van
+ * sin número: contarlos recorre las 640 mil filas (3 s).
+ */
+async function facetasPlanilla(q: ListaPlanillaQ, alc: string[], vals: unknown[], paresP: Promise<FuncionariosConPariente | null>) {
+  const pares = await paresP;
+  return facetasPlanillaMemo.obtener(JSON.stringify({ entidad: q.entidad, dep: q.dep, pares: !!pares }), async () => {
+    const v = [...vals];
+    const p = (x: unknown) => { v.push(x); return `$${v.length}`; };
+    const pariente = conPariente("p", pares, p);
+    const donde = alc.join(" AND ");
+    const grupo = (col: string) =>
+      pool.query<{ valor: string; n: number }>(
+        `SELECT ${NORMAL(`p.${col}`)} AS valor, count(*)::int AS n FROM planilla_persona p
+          WHERE ${donde} AND p.${col} IS NOT NULL AND btrim(p.${col}) <> '' GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 500`, vals);
+    const [conPar, oficinas, cargos, tramos] = await Promise.all([
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM planilla_persona p WHERE ${donde} AND ${pariente}`, v),
+      q.entidad ? grupo("dependencia") : null,
+      q.entidad ? grupo("cargo") : null,
+      q.entidad
+        ? pool.query<{ t: Record<string, Record<string, number>> }>(`SELECT ${conteoTramos(TRAMOS_PLANILLA, SIN_DUDA)} AS t FROM planilla_persona p WHERE ${donde}`, vals)
+        : null,
+    ]);
+    return { pariente: conPar.rows[0]?.n ?? 0, oficinas: oficinas?.rows ?? null, cargos: cargos?.rows ?? null, tramos: tramos?.rows[0]?.t ?? null };
+  });
+}
 
 /** Las expresiones indexadas de planilla_persona: cargo, oficina y entidad (migración 103); paterno y nombres (105). */
 const TEXTO_PLANILLA = `mef_norm(COALESCE(p.cargo, '') || ' ' || COALESCE(p.dependencia, '') || ' ' || COALESCE(p.entidad, ''))`;
@@ -95,23 +186,30 @@ planillaRouter.get("/", async (c) => {
               COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT regimen, count(*)::int AS n FROM s GROUP BY regimen) x), '[]') AS "porRegimen"`,
       vals);
     if (q.size === 0) return publicar({ total: 0, page: 1, size: 0, data: [], resumen: (await resumenP).rows[0] });
+    // Los pares funcionario × entidad del indicio (calculados una vez): la lista sólo los espera si filtra por él.
+    const paresP = funcionariosConPariente();
     const conds = [...alc];
     const v2 = [...vals];
-    if (q.senal) { v2.push([q.senal]); conds.push(`p.tipos @> $${v2.length}::text[]`); }
-    if (q.regimen) { v2.push(q.regimen); conds.push(`p.regimen = $${v2.length}`); }
-    if (q.dudoso) conds.push(`p.dudoso IS NOT NULL`);
-    for (const w of palabrasBusqueda(q.q)) { v2.push(`%${w}%`); conds.push(`(${NOMBRE_PLANILLA} LIKE $${v2.length} OR ${TEXTO_PLANILLA} LIKE $${v2.length})`); }
-    sevCond(q.severidad, conds, v2, "p");
-    const [filas, res] = await Promise.all([
+    filtrosPlanilla(q, conds, v2, q.pariente ? await paresP : null);
+    // La página va sola (con LIMIT) y el total aparte, como en /personas: con count(*) OVER () se ordenaban las 640 mil
+    // filas del país para devolver 20. Sin filtros, el total es el del resumen; con filtros, con plazo propio (en el país
+    // recorre la tabla: 0,2 s con la caché caliente, más de 10 s en frío). Si declaró a un pariente locador se mira sólo
+    // en las filas de la página. Sin las facetas, la lista sigue (los filtros van sin números).
+    const [filas, res, cuenta, facetas] = await Promise.all([
       pool.query(
-        `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
+        `WITH pag AS (
+           SELECT p.* FROM planilla_persona p WHERE ${conds.join(" AND ")}
+            ORDER BY ${ORDEN_PLANILLA[q.orden]}, p.nombre_norm
+            LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size})
+         SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
                 p.base::float AS base, p.extra::float AS extra, p.dudoso,
                 p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes",
-                p.senales, p.n_senales AS "nSenales", p.codigo, p.ficha, p.nombre_norm AS "_nn", count(*) OVER ()::int AS n
-           FROM planilla_persona p WHERE ${conds.join(" AND ")}
-          ORDER BY ${ORDEN_PLANILLA[q.orden]}, p.nombre_norm
-          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, v2),
+                p.senales, p.n_senales AS "nSenales", p.codigo, p.ficha, p.nombre_norm AS "_nn",
+                ${conPariente("p", null, () => "")} AS "parienteLocador"
+           FROM pag p ORDER BY ${ORDEN_PLANILLA[q.orden]}, p.nombre_norm`, v2),
       resumenP,
+      conds.length > alc.length ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM planilla_persona p WHERE ${conds.join(" AND ")}`, v2, 25_000) : null,
+      facetasPlanilla(q, alc, vals, paresP).catch((e) => { console.warn(`[planilla] facetas: ${(e as Error).message}`); return null; }),
     ]);
     // Lo que cobró cada mes cargado (línea de tiempo de sueldos): así se ve si un monto raro es de un solo mes (un pago
     // acumulado, un error de carga) o su sueldo de siempre. Una consulta para las filas de la página, por el índice del
@@ -137,13 +235,14 @@ planillaRouter.get("/", async (c) => {
         historia.set(k, l);
       }
     }
-    const data = filas.rows.map(({ n: _n, _nn, paterno, nombres, ...f }) => ({
+    const data = filas.rows.map(({ _nn, paterno, nombres, ...f }) => ({
       ...f,
       // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
       nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" "),
       historia: historia.get(`${f.entidadRuc}|${_nn}`) ?? [],
     }));
-    return publicar({ total: filas.rows[0]?.n ?? 0, page: q.page, size: q.size, data, resumen: res.rows[0] });
+    const total = cuenta ? cuenta.rows[0]?.n ?? 0 : (res.rows[0] as { personas?: number } | undefined)?.personas ?? 0;
+    return publicar({ total, page: q.page, size: q.size, data, resumen: res.rows[0], facetas });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
@@ -207,12 +306,52 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
 });
 
 // ─── GET /plazas ────────────────────────────────────────────────────────────────────────────────
-const ListaPlazas = {
+/**
+ * Los filtros por tramos de las plazas, sobre `servir_convocatoria s`: lo que paga, la experiencia general que pide (en
+ * años; sin dato si SERVIR no la escribe en un formato que se lea) y cuántas vacantes ofrece.
+ */
+export const TRAMOS_PLAZA = {
+  sueldo: {
+    menos2500: `s.remuneracion < 2500`,
+    "2500a4000": `s.remuneracion >= 2500 AND s.remuneracion < 4000`,
+    "4000a6000": `s.remuneracion >= 4000 AND s.remuneracion < 6000`,
+    "6000a10000": `s.remuneracion >= 6000 AND s.remuneracion < 10000`,
+    mas10000: `s.remuneracion >= 10000`,
+  },
+  experiencia: {
+    menos1: `s.exp_general < 1`,
+    "1a3": `s.exp_general >= 1 AND s.exp_general < 3`,
+    mas3: `s.exp_general >= 3`,
+  },
+  vacantes: {
+    una: `s.vacantes = 1`,
+    varias: `s.vacantes > 1`,
+  },
+} as const;
+/** Se puede postular hoy (en Lima): ya empezó y no terminó su plazo. */
+const HOY_LIMA = `(now() AT TIME ZONE 'America/Lima')::date`;
+const ABIERTA = `s.fecha_fin >= ${HOY_LIMA} AND (s.fecha_inicio IS NULL OR s.fecha_inicio <= ${HOY_LIMA})`;
+
+export const ListaPlazas = {
   ...Alcance,
   senal: z.enum(TIPOS_PLAZA).optional(),
+  abierta: z.enum(["si"]).optional(),
+  sueldo: enumDe(TRAMOS_PLAZA.sueldo).optional(),
+  experiencia: enumDe(TRAMOS_PLAZA.experiencia).optional(),
+  vacantes: enumDe(TRAMOS_PLAZA.vacantes).optional(),
   orden: z.enum(["senales", "reciente", "sueldo"]).default("senales"),
 };
+type ListaPlazasQ = z.infer<z.ZodObject<typeof ListaPlazas>>;
 const ORDEN_PLAZAS = { senales: "s.sev DESC, s.n_senales DESC, s.fecha_inicio DESC NULLS LAST", reciente: "s.fecha_inicio DESC NULLS LAST", sueldo: "s.remuneracion DESC NULLS LAST" };
+
+/** Los filtros de las plazas dentro del alcance (`conds` y `vals` ya traen el alcance). */
+export function filtrosPlazas(q: ListaPlazasQ, conds: string[], vals: unknown[]) {
+  if (q.senal) { vals.push([q.senal]); conds.push(`s.tipos @> $${vals.length}::text[]`); }
+  if (q.abierta) conds.push(ABIERTA);
+  if (q.sueldo) conds.push(TRAMOS_PLAZA.sueldo[q.sueldo]);
+  if (q.experiencia) conds.push(TRAMOS_PLAZA.experiencia[q.experiencia]);
+  if (q.vacantes) conds.push(TRAMOS_PLAZA.vacantes[q.vacantes]);
+}
 
 plazasRouter.get("/", async (c) => {
   const parsed = leer(c, ListaPlazas);
@@ -223,11 +362,19 @@ plazasRouter.get("/", async (c) => {
     const vals: unknown[] = [];
     if (q.entidad) { vals.push(q.entidad); alc.push(`s.entidad_ruc = $${vals.length}`); }
     if (q.dep) { vals.push(q.dep); alc.push(`left(e.ubigeo, 2) = $${vals.length}`); }
-    const desde = `FROM servir_convocatoria s LEFT JOIN entidades e ON e.ruc = s.entidad_ruc`;
+    // La entidad (por su ubigeo) sólo hace falta para la región. Y por su RUC como char(11): comparada con el texto de
+    // servir_convocatoria, el planificador no usaba su llave y cruzaba cada plaza con cada entidad (3 s por pedido).
+    const desde = q.dep ? `FROM servir_convocatoria s JOIN entidades e ON e.ruc = s.entidad_ruc::char(11)` : `FROM servir_convocatoria s`;
     const resumenP = pool.query(
-      `WITH x AS MATERIALIZED (SELECT s.vacantes, s.remuneracion, s.n_senales, s.sev, s.tipos, s.fecha_inicio ${desde} WHERE ${alc.join(" AND ")})
+      `WITH x AS MATERIALIZED (SELECT s.vacantes, s.remuneracion, s.n_senales, s.sev, s.tipos, s.fecha_inicio, s.fecha_fin, s.exp_general
+                                 ${desde} WHERE ${alc.join(" AND ")})
        SELECT (SELECT count(*) FROM x)::int AS plazas, (SELECT COALESCE(sum(vacantes), 0) FROM x)::int AS vacantes,
               (SELECT count(*) FROM x WHERE n_senales > 0)::int AS "conSenales",
+              (SELECT count(*) FROM x WHERE sev = 3)::int AS alta,
+              (SELECT count(*) FROM x WHERE sev = 2)::int AS media,
+              (SELECT count(*) FROM x WHERE sev = 1)::int AS baja,
+              (SELECT count(*) FROM x s WHERE ${ABIERTA})::int AS abiertas,
+              (SELECT ${conteoTramos(TRAMOS_PLAZA)} FROM x s) AS tramos,
               (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY remuneracion) FROM x WHERE remuneracion > 0)::float AS "medianaSueldo",
               (SELECT to_char(min(fecha_inicio), 'YYYY-MM-DD') FROM x) AS desde,
               COALESCE((SELECT json_agg(y ORDER BY y.n DESC) FROM (SELECT t AS tipo, count(*)::int AS n FROM x, unnest(x.tipos) t GROUP BY t) y), '[]') AS "porSenal"`,
@@ -235,7 +382,7 @@ plazasRouter.get("/", async (c) => {
     if (q.size === 0) return publicar({ total: 0, page: 1, size: 0, data: [], resumen: (await resumenP).rows[0] });
     const conds = [...alc];
     const v2 = [...vals];
-    if (q.senal) { v2.push([q.senal]); conds.push(`s.tipos @> $${v2.length}::text[]`); }
+    filtrosPlazas(q, conds, v2);
     for (const w of palabrasBusqueda(q.q)) {
       v2.push(`%${w}%`);
       conds.push(`mef_norm(COALESCE(s.titulo, '') || ' ' || COALESCE(s.entidad, '') || ' ' || COALESCE(s.ubicacion, '') || ' ' || COALESCE(s.servicio, '')) LIKE $${v2.length}`);

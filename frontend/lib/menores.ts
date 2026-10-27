@@ -1,4 +1,5 @@
 import { API_BASE } from "./api-client";
+import type { InhabilitacionProveedor } from "./ordenes";
 
 /**
  * Contratos menores (≤8 UIT) del SEACE. Fuente: GET /menores (prod4 contrato + prod6 requerimiento, unidos por código CM).
@@ -33,22 +34,68 @@ export interface ContratoMenor {
   provDesde: string | null;           // fecha de inicio de actividades
   provTipo: string | null;            // tipo de contribuyente SUNAT
   provDiasAlGanar: number | null;     // días entre inicio de actividades y la firma del contrato
+  /** El tope de 8 UIT del año de la firma y si el monto (en soles) lo pasa. Faltan en la API vieja. */
+  tope?: number | null;
+  sobreTope?: boolean | null;
+  /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día de la firma. Falta en la API vieja. */
+  inhabilitacion?: InhabilitacionProveedor | null;
 }
+
+/** Los conteos de cada opción de los filtros, con los demás filtros puestos (la región, por su nombre normalizado). */
+export type FacetasMenores = Partial<Record<"antecedente" | "persona" | "objeto" | "monto" | "conReq" | "anio" | "region", Record<string, number>>>;
 
 export interface MenoresPagina {
   page: number;
   size: number;
   hayMas: boolean;
   anclado: boolean;
+  /** Qué fija la lista: la ficha de una empresa (proveedor) o de una entidad. Falta en la API vieja. */
+  ancla?: "proveedor" | "entidad" | null;
   anio: number | null;
   anios: number[];
+  /** null si no se pudieron contar (la barra filtra igual, sin números). Falta en la API vieja. */
+  facetas?: FacetasMenores | null;
   data: ContratoMenor[];
 }
 
 export type FiltrosMenores = {
   q?: string; anio?: number; entidad?: string; proveedor?: string; region?: string;
-  objeto?: string; estado?: string; conReq?: string; orden?: string; page?: number; size?: number;
+  objeto?: string; estado?: string; conReq?: string; antecedente?: string; persona?: string; monto?: string;
+  orden?: string; page?: number; size?: number;
 };
+
+/** Bien, servicio, consultoría u obra (el objeto del contrato menor). */
+export const OBJETOS_MENOR = [
+  { valor: "bien", etiqueta: "Bienes" },
+  { valor: "servicio", etiqueta: "Servicios" },
+  { valor: "consultoria", etiqueta: "Consultorías" },
+  { valor: "obra", etiqueta: "Obras" },
+] as const;
+
+/**
+ * Los antecedentes del proveedor que filtran la lista (la API los calcula con las mismas reglas que las banderas de la
+ * fila): lo que dice HOY la SUNAT, si empezó actividades hace menos de 6 meses al firmar y si estaba inhabilitado.
+ */
+export const ANTECEDENTES_MENOR = [
+  { valor: "con", etiqueta: "Con alguno", grupo: undefined },
+  { valor: "baja", etiqueta: "De baja", grupo: "En la SUNAT, hoy" },
+  { valor: "suspendida", etiqueta: "En suspensión temporal", grupo: "En la SUNAT, hoy" },
+  { valor: "no_habido", etiqueta: "No habido (la SUNAT no lo ubica)", grupo: "En la SUNAT, hoy" },
+  { valor: "no_hallado", etiqueta: "No hallado en su domicilio fiscal", grupo: "En la SUNAT, hoy" },
+  { valor: "reciente", etiqueta: "Menos de 6 meses de actividad al firmar", grupo: "En la SUNAT, hoy" },
+  { valor: "inhabilitado", etiqueta: "Inhabilitado por el Tribunal al firmar", grupo: "Tribunal de Contrataciones" },
+] as const;
+
+/** El monto en tramos; el tope es el de 8 UIT del año de la firma. */
+export const MONTOS_MENOR = [
+  { valor: "hasta_5k", etiqueta: "Hasta S/ 5 mil" },
+  { valor: "5k_20k", etiqueta: "De S/ 5 mil a 20 mil" },
+  { valor: "mas_20k", etiqueta: "Más de S/ 20 mil" },
+  { valor: "cerca_tope", etiqueta: "Cerca del tope de 8 UIT (90 % o más)" },
+  { valor: "sobre_tope", etiqueta: "Por encima del tope de 8 UIT" },
+] as const;
+
+const valida = (lista: readonly { valor: string }[], v: string | undefined) => (v && lista.some((x) => x.valor === v) ? v : undefined);
 
 async function leer<T>(ruta: string, revalidate = 300): Promise<T | null> {
   try {
@@ -74,21 +121,27 @@ export const urlContratoMenor = (id: number) => `${API_BASE}/menores/${id}/contr
 /** Claves en la URL (prefijo «m»), para no pisar los filtros de Contratos/Órdenes. */
 export const P_MEN = {
   q: "mq", anio: "manio", entidad: "ment", proveedor: "mprov", region: "mreg",
-  objeto: "mobj", estado: "mest", conReq: "mreq", orden: "mord", page: "mpag",
+  objeto: "mobj", estado: "mest", conReq: "mreq", antecedente: "mant", persona: "mper", monto: "mmonto",
+  orden: "mord", page: "mpag",
 } as const;
 
 export function parseMenoresQuery(sp?: Record<string, string | string[] | undefined>): FiltrosMenores {
   const g = (k: string) => { const v = sp?.[k]; return Array.isArray(v) ? v[0] : v; };
   const num = (k: string) => { const v = g(k); const x = v ? parseInt(v, 10) : NaN; return Number.isFinite(x) ? x : undefined; };
+  // Lo que la API no acepta se ignora (con ello respondía 400 y la lista decía «No pudimos cargar»).
+  const ruc = (k: string) => (/^\d{11}$/.test(g(k) ?? "") ? g(k) : undefined);
   return {
     q: g(P_MEN.q) || undefined,
     anio: num(P_MEN.anio),
-    entidad: g(P_MEN.entidad) || undefined,
-    proveedor: g(P_MEN.proveedor) || undefined,
+    entidad: ruc(P_MEN.entidad),
+    proveedor: ruc(P_MEN.proveedor),
     region: g(P_MEN.region) || undefined,
-    objeto: g(P_MEN.objeto) || undefined,
+    objeto: valida(OBJETOS_MENOR, g(P_MEN.objeto)),
     estado: g(P_MEN.estado) || undefined,
-    conReq: g(P_MEN.conReq) || undefined,
+    conReq: g(P_MEN.conReq) === "si" ? "si" : undefined,
+    antecedente: valida(ANTECEDENTES_MENOR, g(P_MEN.antecedente)),
+    persona: g(P_MEN.persona) === "natural" || g(P_MEN.persona) === "empresa" ? g(P_MEN.persona) : undefined,
+    monto: valida(MONTOS_MENOR, g(P_MEN.monto)),
     orden: g(P_MEN.orden) || undefined,
     page: num(P_MEN.page),
   };
@@ -100,6 +153,11 @@ export function menoresParametros(q: FiltrosMenores): Record<string, string> {
   const set = (k: string, v: unknown) => { if (v != null && v !== "") out[k] = String(v); };
   set(P_MEN.q, q.q); set(P_MEN.anio, q.anio); set(P_MEN.entidad, q.entidad); set(P_MEN.proveedor, q.proveedor);
   set(P_MEN.region, q.region);
-  set(P_MEN.objeto, q.objeto); set(P_MEN.estado, q.estado); set(P_MEN.conReq, q.conReq); set(P_MEN.orden, q.orden);
+  set(P_MEN.objeto, q.objeto); set(P_MEN.estado, q.estado); set(P_MEN.conReq, q.conReq);
+  set(P_MEN.antecedente, q.antecedente); set(P_MEN.persona, q.persona); set(P_MEN.monto, q.monto);
+  set(P_MEN.orden, q.orden);
   return out;
 }
+
+/** El nombre de una región como lo cuenta la API (mayúsculas, sin tildes): «Áncash» → «ANCASH». */
+export const claveRegion = (r: string) => r.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().trim();

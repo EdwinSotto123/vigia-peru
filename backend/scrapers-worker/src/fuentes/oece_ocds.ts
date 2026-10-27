@@ -96,6 +96,68 @@ export interface Fila {
   payload: Dict;
   /** Las adjudicaciones recortadas (migración 71): el payload guardado no trae `awards`. null si no hay. */
   adjudicaciones: Dict[] | null;
+  /**
+   * Lo que la ficha del contrato usa del release y el payload de Python no guardaba: `planning` (el presupuesto y su
+   * CUI), `contracts` (firma, vigencia, monto y documentos del contrato) y `partes`. Se une al payload al cargar
+   * (`payloadDe`); va aparte para que `payload` siga siendo el de Python (test/ocds.test.ts). null si el release no
+   * trae nada de eso; falta en los crudos de R2 de antes.
+   */
+  extra?: Dict | null;
+}
+
+/** planning.budget del release, sólo de dónde sale la plata: monto, fuente (`description`), proyecto y su CUI (`projectID`). */
+export function recortarPresupuesto(rel: Dict): Dict | null {
+  const b = dictDe(get(dictDe(get(rel, "planning")), "budget"));
+  const monto = dictDe(get(b, "amount"));
+  const out: Dict = {};
+  if (Object.keys(monto).length) out.amount = { amount: get(monto, "amount"), currency: get(monto, "currency") };
+  for (const k of ["description", "project", "projectID"]) if (verdad(get(b, k))) out[k] = get(b, k);
+  return Object.keys(out).length ? { budget: out } : null;
+}
+
+/** contracts del release sin sus ítems (ya están en tender.items): número, adjudicación, estado, firma, vigencia, monto y documentos. */
+export function recortarContratos(rel: Dict): Dict[] | null {
+  const out: Dict[] = [];
+  for (const k of iterar(get(rel, "contracts"))) {
+    if (!esDict(k)) continue;
+    const periodo = dictDe(get(k, "period"));
+    const valor = dictDe(get(k, "value"));
+    out.push({
+      id: get(k, "id"),
+      awardID: get(k, "awardID"),
+      title: get(k, "title"),
+      status: get(k, "status"),
+      dateSigned: get(k, "dateSigned"),
+      period: Object.keys(periodo).length ? { startDate: get(periodo, "startDate"), endDate: get(periodo, "endDate"), durationInDays: get(periodo, "durationInDays") } : null,
+      value: Object.keys(valor).length ? { amount: get(valor, "amount"), currency: get(valor, "currency") } : null,
+      documents: iterar(get(k, "documents")).filter(esDict).map((d) => ({
+        id: get(d, "id"), url: get(d, "url"), title: get(d, "title"), format: get(d, "format"),
+        documentType: get(d, "documentType"), datePublished: get(d, "datePublished"),
+      })),
+    });
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * parties del release con su id, nombre y papeles, y nada más: ni el contactPoint (nombre, correo y teléfono de un
+ * funcionario), ni la dirección, ni los identificadores. Se guardan como `partes` y NO como `parties`: `parties` es la
+ * marca del record COMPLETO que baja documentos.ts (el dispatcher le pasa al orquestador el payload que la trae, sin
+ * pedir el record; la vista cobertura_contratos lo cuenta como completo). Un payload recortado con `parties` le
+ * habría llegado al agente sin awards ni direcciones.
+ */
+export function recortarPartes(rel: Dict): Dict[] | null {
+  const out = iterar(get(rel, "parties")).filter(esDict).map((p) => ({
+    id: get(p, "id"),
+    name: get(p, "name"),
+    roles: iterar(get(p, "roles")).filter((r) => typeof r === "string"),
+  }));
+  return out.length ? out : null;
+}
+
+/** El payload que se guarda: el recortado de siempre más `extra` (planning, contracts, partes). */
+export function payloadDe(f: Pick<Fila, "payload" | "extra">): Dict {
+  return f.extra ? { ...f.payload, ...f.extra } : f.payload;
 }
 
 /** awards del release → lo que la ficha necesita: id, fecha, estado, monto, proveedores (id, nombre) e ids de ítems. */
@@ -132,6 +194,13 @@ export function normalizarRelease(rel: Dict, ix: ZonaIndex): Fila | null {
   const clas = clasificar(rel, ruc);
   const payload: Dict = {};
   for (const k of ["ocid", "id", "date", "tag", "buyer", "tender"]) if (Object.hasOwn(rel, k)) payload[k] = rel[k] ?? null;
+  const extra: Dict = {};
+  const planning = recortarPresupuesto(rel);
+  const contratos = recortarContratos(rel);
+  const partes = recortarPartes(rel);
+  if (planning) extra.planning = planning;
+  if (contratos) extra.contracts = contratos;
+  if (partes) extra.partes = partes;
   return {
     ocid,
     codigo: str(o(get(tender, "id"), ocid)),
@@ -150,6 +219,7 @@ export function normalizarRelease(rel: Dict, ix: ZonaIndex): Fila | null {
     clasificacion: clas,
     payload,
     adjudicaciones: recortarAdjudicaciones(rel),
+    extra: Object.keys(extra).length ? extra : null,
   };
 }
 
@@ -246,7 +316,7 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
       const tuplas = tanda.map((f) => {
         const c = f.clasificacion;
         vals.push(f.ocid, f.codigo, f.entidad_ruc, f.objeto, f.cuantia ?? null, f.fecha, f.region, f.ubigeo, f.categoria ?? null,
-          f.estado_tender ?? null, "ocds_api", JSON.stringify(f.payload), c.tipo, c.etapa, c.modalidad, c.procesable,
+          f.estado_tender ?? null, "ocds_api", JSON.stringify(payloadDe(f)), c.tipo, c.etapa, c.modalidad, c.procesable,
           c.motivo_no_procesable, c.agentes, c.validaciones_pendientes, c.proveedor_ruc,
           f.adjudicaciones ? JSON.stringify(f.adjudicaciones) : null);
         const b = vals.length - (COLS_CONV - 1);
@@ -256,6 +326,9 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
       });
       // No se pisa lo que ya cargó el orquestador (objeto, cuantía, payload completo).
       // La clasificación SÍ se actualiza siempre: el release nuevo trae la etapa más reciente.
+      // El payload recortado, sí, si el release es MÁS NUEVO que el guardado: antes quedaba congelado en el primero que
+      // se vio (los participantes de cuando recién se convocó, sin el contrato). El record completo (con `parties`, de
+      // documentos.ts o del batch) no se toca: trae más que cualquier release recortado.
       await db.ejecutar(`
         INSERT INTO convocatorias (ocid, codigo, entidad_ruc, objeto, cuantia_referencial, fecha_convocatoria,
                                    region, ubigeo, categoria, estado_tender, fuente, ocds_payload,
@@ -270,6 +343,10 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
           region              = COALESCE(convocatorias.region, EXCLUDED.region),
           categoria           = COALESCE(convocatorias.categoria, EXCLUDED.categoria),
           estado_tender       = COALESCE(EXCLUDED.estado_tender, convocatorias.estado_tender),
+          ocds_payload        = CASE WHEN convocatorias.ocds_payload ? 'parties' THEN convocatorias.ocds_payload
+                                     WHEN COALESCE(EXCLUDED.ocds_payload->>'date', '') > COALESCE(convocatorias.ocds_payload->>'date', '')
+                                       THEN EXCLUDED.ocds_payload
+                                     ELSE convocatorias.ocds_payload END,
           tipo_contratacion   = EXCLUDED.tipo_contratacion,
           etapa               = EXCLUDED.etapa,
           modalidad           = EXCLUDED.modalidad,
@@ -305,7 +382,8 @@ export interface ResumenOcds {
 /**
  * Relleno histórico (p.relleno): un paso por día que baja, guarda su crudo y carga ese mismo día. Así un tramo de un
  * mes de 2024 (~25 páginas por día) no junta 100 MB en memoria, y un reintento rehace sólo su día. Un proceso que
- * cae en dos días (cambió su tenderPeriod) queda con el primero que se cargó: el upsert no pisa objeto ni payload.
+ * cae en dos días (cambió su tenderPeriod) queda con el objeto del primero que se cargó y el payload del release más
+ * reciente (el upsert sólo pisa el payload recortado con uno más nuevo).
  * Sin refrescos al final: los tramos corren en paralelo y refresh_financiamiento / cruces se corren una vez.
  */
 async function rellenar(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string, ix: ZonaIndex, lista: string[]): Promise<ResumenOcds> {

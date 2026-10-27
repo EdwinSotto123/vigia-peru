@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { escaparLike, pool } from "../lib/db.js";
+import { consultaConPlazo, escaparLike, pool } from "../lib/db.js";
 import { COLS_ESTADO_FILA, joinsEstadoFila } from "../lib/estadoFila.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { Memo } from "../lib/cache.js";
@@ -16,61 +16,222 @@ export const entidadesRouter = new Hono();
 // contratos, contratos_vigilados…): eran cifras inventadas. Ver lib/publicacion.ts §1.
 const ALERTAS_ACTIVAS = `a.estado = 'activa' AND ${alertaNoDemo("a")}`;
 
-const ListQuery = z.object({
+/**
+ * El tipo de la entidad como lo MUESTRA la web (frontend/lib/entidad-tipo.ts): el declarado en `tipo` (casi todo NULL)
+ * o, si no, el que dice su nombre oficial, con las mismas reglas y en el mismo orden (una municipalidad de centro
+ * poblado es distrital; una sin calificativo, provincial). NULL = sin clasificar. `t` es el alias de la tabla y
+ * `nombre`, su nombre en minúsculas y sin tildes.
+ */
+export const CLASE_SQL = (t: string, nombre: string) => `CASE
+  WHEN ${t}.tipo IN ('municipal_distrital', 'municipal_provincial', 'gobierno_regional', 'ministerio', 'empresa_publica', 'organismo_autonomo') THEN ${t}.tipo
+  WHEN ${nombre} ~ '\\mmunicipalidad\\s+(distrital|de\\s+centro\\s+poblado)\\M' THEN 'municipal_distrital'
+  WHEN ${nombre} ~ '\\mmunicipalidad\\M' THEN 'municipal_provincial'
+  WHEN ${nombre} ~ '\\mgobierno\\s+regional\\M|\\mregion\\s+[a-z]' THEN 'gobierno_regional'
+  WHEN ${nombre} ~ '\\mministerio\\M' THEN 'ministerio'
+  WHEN ${nombre} ~ '\\m(empresa|e\\.?p\\.?s\\.?|sedapal|electro|egemsa|enapu|serpost)\\M' THEN 'empresa_publica'
+  WHEN ${nombre} ~ '\\m(organismo|superintendencia|instituto|autoridad|contraloria|defensoria|jurado|registro)\\M' THEN 'organismo_autonomo'
+END`;
+
+/** Cada `clase` del filtro y los tipos de `CLASE_SQL` que junta (`municipal`: las dos municipalidades). */
+const CLASES: Record<string, string> = {
+  ministerio: `= 'ministerio'`,
+  regional: `= 'gobierno_regional'`,
+  municipal: `IN ('municipal_provincial', 'municipal_distrital')`,
+  provincial: `= 'municipal_provincial'`,
+  distrital: `= 'municipal_distrital'`,
+  empresa: `= 'empresa_publica'`,
+  organismo: `= 'organismo_autonomo'`,
+  sin: `IS NULL`,
+};
+export const CLASES_ENTIDAD = Object.keys(CLASES) as [string, ...string[]];
+
+/**
+ * Las entidades donde un pariente que un funcionario declaró en su DJI es su locador: lo mismo que la vista
+ * dji_nepotismo (migraciones 136-139), sin agruparla. La vista cruza `substr(ruc, 3, 8)` con el DNI del pariente y
+ * recorre todas las órdenes de cada entidad (la lista tardaba 2,6 s, y 6 s con el filtro puesto); el RUC 10 es «10» +
+ * DNI + un dígito, así que basta un rango sobre la llave de persona_orden_anual (entidad, ruc). Son ~115 de 3,162: se
+ * calculan una vez para todas (`entidadesConNepotismo`) y la lista y sus conteos sólo miran si el RUC está entre ellas.
+ */
+export const PARIENTE_LOCADOR = `length(v.pariente_doc) = 8
+     AND EXISTS (SELECT 1 FROM persona_orden_anual po
+                  WHERE po.entidad_ruc = v.entidad_ruc AND po.ruc BETWEEN '10' || v.pariente_doc || '0' AND '10' || v.pariente_doc || '9')`;
+/** Los funcionarios (entidad y nombre normalizado, el de la planilla) que declararon a un pariente que es su locador. */
+export const SQL_NEPOTISMO = `SELECT DISTINCT v.entidad_ruc AS entidad, v.declarante_norm AS declarante FROM dji_vinculos v
+   WHERE v.declarante_norm IS NOT NULL AND ${PARIENTE_LOCADOR}`;
+
+export interface FuncionariosConPariente { entidades: string[]; declarantes: string[] }
+const nepotismoMemo = new Memo<FuncionariosConPariente>({ nombre: "entidades:nepotismo", ttlMs: 600_000, staleMs: 3_600_000, max: 1 });
+/**
+ * Los pares entidad × funcionario del indicio (~320), calculados una vez para todas las listas (la de entidades y la de
+ * planilla), o null si no se pudo (entonces cada condición va fila por fila, con `PARIENTE_LOCADOR`).
+ */
+export const funcionariosConPariente = () =>
+  nepotismoMemo
+    .obtener("todos", async () => {
+      const r = await consultaConPlazo<{ entidad: string; declarante: string }>(SQL_NEPOTISMO, [], 30_000);
+      return { entidades: r.rows.map((x) => x.entidad), declarantes: r.rows.map((x) => x.declarante) };
+    })
+    .catch((e) => { console.warn(`[nepotismo] ${(e as Error).message}`); return null; });
+
+/** La lista de entidades con el indicio, o null si no se pudo calcular. */
+const entidadesConNepotismo = async () => {
+  const f = await funcionariosConPariente();
+  return f ? [...new Set(f.entidades)] : null;
+};
+
+/** El RUC (`ruc`, la columna) tiene el indicio: está en la lista (`param`, su `$n`) o, sin ella, por su cuenta. */
+const enNepotismo = (ruc: string, param: string | null) =>
+  param ? `${ruc}::text = ANY (${param}::text[])` : `EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = ${ruc} AND ${PARIENTE_LOCADOR})`;
+
+/**
+ * Lo que otros registros dicen de la entidad, como condición sobre su RUC (`r`): la misma filtra la lista y cuenta cada
+ * opción. Todas van por un índice de su tabla (entidad primero).
+ */
+export const SENALES_ENTIDAD = {
+  // Contratos con indicio de captura por el partido que la gobierna (financió, vendió a su campaña, socio en la entidad).
+  captura: (r: string) => `EXISTS (SELECT 1 FROM poder_entidad p WHERE p.entidad_ruc = ${r} AND p.n_captura > 0)`,
+  // Informes de control de la Contraloría, con responsabilidad presunta (no es una condena).
+  penal: (r: string) => `EXISTS (SELECT 1 FROM informes_control i WHERE i.entidad_ruc = ${r} AND 'penal' = ANY (i.responsabilidades))`,
+  civil: (r: string) => `EXISTS (SELECT 1 FROM informes_control i WHERE i.entidad_ruc = ${r} AND 'civil' = ANY (i.responsabilidades))`,
+  administrativa: (r: string) =>
+    `EXISTS (SELECT 1 FROM informes_control i WHERE i.entidad_ruc = ${r} AND i.responsabilidades && ARRAY['administrativa_entidad', 'administrativa_pas', 'administrativa'])`,
+  informes: (r: string) => `EXISTS (SELECT 1 FROM informes_control i WHERE i.entidad_ruc = ${r})`,
+  // Su planilla (Portal de Transparencia): alguien con una señal alta, o que la publica.
+  planillaAlta: (r: string) => `EXISTS (SELECT 1 FROM planilla_persona pp WHERE pp.entidad_ruc = ${r} AND pp.sev = 3)`,
+  planilla: (r: string) => `EXISTS (SELECT 1 FROM planilla_persona pp WHERE pp.entidad_ruc = ${r})`,
+  // Sus plazas CAS (SERVIR): alguna con señales de plaza a la medida, o alguna publicada.
+  plazasSenales: (r: string) => `EXISTS (SELECT 1 FROM servir_convocatoria s WHERE s.entidad_ruc = ${r} AND s.n_senales > 0)`,
+  plazas: (r: string) => `EXISTS (SELECT 1 FROM servir_convocatoria s WHERE s.entidad_ruc = ${r})`,
+} as const;
+
+export const ListQuery = z.object({
   q: z.string().trim().max(120).optional(),
   region: z.string().max(80).optional(),
   tipo: z.string().max(60).optional(),
-  // `clase` = tipo/nivel derivado del NOMBRE (el campo `entidades.tipo` está casi todo en NULL). Mismas reglas que
-  // frontend/lib/entidad-tipo.ts, en regex POSIX sobre nombre_norm (minúsculas, sin tildes). Es un filtro, no una
-  // afirmación categórica: "ministerio" incluye al Ministerio Público, etc.
-  clase: z.enum(["ministerio", "regional", "municipal", "organismo"]).optional(),
+  // El tipo de la entidad (`CLASE_SQL`). Es un filtro, no una afirmación categórica: "ministerio" incluye al
+  // Ministerio Público, etc.
+  clase: z.enum(CLASES_ENTIDAD).optional(),
+  // La provincia: los cuatro primeros dígitos del ubigeo.
+  provincia: z.string().regex(/^\d{4}$/).optional(),
+  // El partido que la gobierna (poder_entidad: gobiernos regionales y municipalidades) y si tiene contratos con indicio
+  // de captura por él (migraciones 125 y 140).
+  partido: z.string().trim().min(2).max(120).optional(),
+  captura: z.enum(["1"]).optional(),
+  // Informes de la Contraloría por el tipo de responsabilidad (presunta) que señalan, o cualquiera (migración 90).
+  control: z.enum(["penal", "civil", "administrativa", "alguno"]).optional(),
+  planilla: z.enum(["alta", "con"]).optional(),
+  plazas: z.enum(["senales", "con"]).optional(),
   // Solo las entidades con indicio de nepotismo (un pariente declarado en la DJI que es su locador; vista migr. 136).
   nepotismo: z.enum(["1"]).optional(),
+  orden: z.enum(["dictamen", "contratos", "nombre"]).default("dictamen"),
+  // Con `facetas=1`, cuántas entidades hay en cada opción de los filtros (lo pide /app/entidades).
+  facetas: z.enum(["1"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+type ListaEntidadesQ = z.infer<typeof ListQuery>;
 
-const CLASE_REGEX: Record<string, string> = {
-  ministerio: "ministerio",
-  regional: "gobierno regional",
-  municipal: "municipalidad",
-  organismo: "organismo|superintendencia|instituto|autoridad|contraloria|defensoria|jurado|registro",
+const CONTROL: Record<NonNullable<ListaEntidadesQ["control"]>, keyof typeof SENALES_ENTIDAD> = {
+  penal: "penal", civil: "civil", administrativa: "administrativa", alguno: "informes",
 };
+
+/**
+ * Las condiciones de la lista sobre la tabla `t` (`nombre`: su nombre normalizado), con sus valores en `vals` (que puede
+ * traer otros: las facetas juntan varias en una consulta). `nepotismo`: las entidades con ese indicio.
+ */
+export function filtrosEntidades(
+  q: Partial<ListaEntidadesQ>, t: string, nombre: string, vals: unknown[] = [], nepotismo: string[] | null = null,
+): { conds: string[]; vals: unknown[] } {
+  const conds: string[] = [];
+  const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+  const ruc = `${t}.ruc`;
+  // Un RUC (o su comienzo): el placeholder dice "por nombre o RUC" y antes sólo miraba el nombre.
+  if (q.q && /^\d{4,11}$/.test(q.q)) conds.push(`${ruc}::text LIKE ${p(`${q.q}%`)}`);
+  else if (q.q) conds.push(`${nombre} LIKE immutable_unaccent(${p(`%${escaparLike(q.q.toLowerCase())}%`)})`);
+  if (q.region) conds.push(`${t}.region = ${p(q.region)}`);
+  if (q.tipo) conds.push(`${t}.tipo = ${p(q.tipo)}`);
+  if (q.clase) conds.push(`(${CLASE_SQL(t, nombre)}) ${CLASES[q.clase]}`);
+  if (q.provincia) conds.push(`left(${t}.ubigeo, 4) = ${p(q.provincia)}`);
+  if (q.partido) conds.push(`EXISTS (SELECT 1 FROM poder_entidad pp WHERE pp.entidad_ruc = ${ruc} AND pp.partido = ${p(q.partido)})`);
+  if (q.captura) conds.push(SENALES_ENTIDAD.captura(ruc));
+  if (q.control) conds.push(SENALES_ENTIDAD[CONTROL[q.control]](ruc));
+  if (q.planilla) conds.push(SENALES_ENTIDAD[q.planilla === "alta" ? "planillaAlta" : "planilla"](ruc));
+  if (q.plazas) conds.push(SENALES_ENTIDAD[q.plazas === "senales" ? "plazasSenales" : "plazas"](ruc));
+  if (q.nepotismo) conds.push(enNepotismo(ruc, nepotismo && p(nepotismo)));
+  return { conds, vals };
+}
+
+const ORDEN_ENTIDADES: Record<ListaEntidadesQ["orden"], { es: string; e: string }> = {
+  dictamen: { es: "es.alertas_activas DESC, es.contratos DESC NULLS LAST, es.nombre, es.ruc", e: "a.alertas DESC NULLS LAST, cv.contratos DESC NULLS LAST, e.nombre, e.ruc" },
+  contratos: { es: "es.contratos DESC NULLS LAST, es.nombre, es.ruc", e: "cv.contratos DESC NULLS LAST, e.nombre, e.ruc" },
+  nombre: { es: "es.nombre_norm, es.ruc", e: "immutable_unaccent(lower(e.nombre)), e.ruc" },
+};
+
+const facetasMemo = new Memo<Record<string, unknown>>({ nombre: "entidades:facetas", ttlMs: 600_000, staleMs: 3_600_000, max: 300 });
+
+/**
+ * Cuántas entidades hay en cada opción de los filtros, sobre lo que fija el lugar y el tipo (región, provincia, tipo) y
+ * sin el filtro de cada faceta (los tipos, sin el tipo elegido; las provincias, sin la provincia): así ninguna opción
+ * lleva a cero. Las señales se cuentan sobre ese mismo alcance, no sobre las otras señales. Una sola consulta (con
+ * plazo propio: en frío, las señales de las 3,162 entidades pasan los 10 s del rol), guardada por alcance.
+ */
+export function sqlFacetasEntidades(q: Partial<ListaEntidadesQ>, modelos: boolean, nepotismo: string[] | null): { sql: string; vals: unknown[] } {
+  const tabla = modelos ? "entidad_stats x" : "entidades x";
+  const nombre = modelos ? "x.nombre_norm" : "immutable_unaccent(lower(x.nombre))";
+  const vals: unknown[] = [];
+  const donde = (f: Partial<ListaEntidadesQ>) => {
+    const { conds } = filtrosEntidades(f, "x", nombre, vals);
+    return conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  };
+  const sinClase = donde({ region: q.region, provincia: q.provincia });
+  const sinProvincia = donde({ region: q.region, clase: q.clase });
+  const alcance = donde({ region: q.region, provincia: q.provincia, clase: q.clase });
+  if (nepotismo) vals.push(nepotismo);
+  const senales = [
+    ...Object.entries(SENALES_ENTIDAD).map(([k, f]) => `'${k}', count(*) FILTER (WHERE ${f("x.ruc")})`),
+    `'nepotismo', count(*) FILTER (WHERE ${enNepotismo("x.ruc", nepotismo && `$${vals.length}`)})`,
+  ].join(", ");
+  const sql = `SELECT
+      (SELECT COALESCE(json_agg(json_build_object('valor', COALESCE(t.v, 'sin'), 'n', t.n) ORDER BY t.n DESC), '[]')
+         FROM (SELECT ${CLASE_SQL("x", nombre)} AS v, count(*)::int AS n FROM ${tabla} ${sinClase} GROUP BY 1) t) AS tipos,
+      (SELECT COALESCE(json_agg(json_build_object('valor', t.v, 'etiqueta', t.e, 'n', t.n) ORDER BY t.e), '[]')
+         FROM (SELECT left(x.ubigeo, 4) AS v, z.nombre AS e, count(*)::int AS n
+                 FROM ${tabla} JOIN zonas z ON z.ubigeo = left(x.ubigeo, 4) ${sinProvincia} GROUP BY 1, 2) t) AS provincias,
+      (SELECT COALESCE(json_agg(json_build_object('valor', t.v, 'n', t.n) ORDER BY t.v), '[]')
+         FROM (SELECT pe.partido AS v, count(*)::int AS n FROM ${tabla} JOIN poder_entidad pe ON pe.entidad_ruc = x.ruc ${alcance} GROUP BY 1) t) AS partidos,
+      (SELECT json_build_object(${senales}) FROM ${tabla} ${alcance}) AS senales`;
+  return { sql, vals };
+}
+
+async function facetasEntidades(q: ListaEntidadesQ, modelos: boolean, nepotismo: string[] | null) {
+  const clave = JSON.stringify({ modelos, region: q.region, provincia: q.provincia, clase: q.clase, nepotismo: !!nepotismo });
+  return facetasMemo.obtener(clave, async () => {
+    const { sql, vals } = sqlFacetasEntidades(q, modelos, nepotismo);
+    return (await consultaConPlazo(sql, vals, 30_000)).rows[0] as Record<string, unknown>;
+  });
+}
 
 // ─── GET /entidades — lista con contadores agregados (paginada) ─
 // Fase 2 (auditoría C9): desde la vista materializada `entidad_stats` (migración 35), una fila por
 // entidad con sus conteos ya hechos; antes cada pedido agrupaba TODAS las convocatorias. Mismas
-// filas. Orden: dictámenes publicados, después las que más contratos tienen desde 2015, nombre. La provincia sale de
-// `zonas` (con tildes, migración 72) y no del texto del SEACE. Va hasta un refresco detrás.
+// filas. Orden por defecto: dictámenes publicados, después las que más contratos tienen desde 2015, nombre; o más
+// contratos, o por nombre. La provincia sale de `zonas` (con tildes, migración 72) y no del texto del SEACE. Va hasta un
+// refresco detrás.
 entidadesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { q, region, tipo, clase, nepotismo, limit, offset } = parsed.data;
-  const modelos = await hayModelosLectura();
+  const q = parsed.data;
+  const { limit, offset } = q;
+  const [modelos, nepotismo] = await Promise.all([hayModelosLectura(), entidadesConNepotismo()]);
   const col = modelos ? "es" : "e";
-
-  const conds: string[] = [];
-  const vals: any[] = [];
-  if (q && /^\d{4,11}$/.test(q)) {
-    // Un RUC (o su comienzo): el placeholder dice "por nombre o RUC" y antes sólo miraba el nombre.
-    vals.push(`${q}%`);
-    conds.push(`${modelos ? "es" : "e"}.ruc::text LIKE $${vals.length}`);
-  } else if (q) {
-    vals.push(`%${escaparLike(q.toLowerCase())}%`);
-    conds.push(modelos ? `es.nombre_norm LIKE immutable_unaccent($${vals.length})` : `immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($${vals.length})`);
-  }
-  if (region) { vals.push(region); conds.push(`${modelos ? "es" : "e"}.region = $${vals.length}`); }
-  if (tipo)   { vals.push(tipo);   conds.push(`${modelos ? "es" : "e"}.tipo = $${vals.length}`); }
-  if (clase && CLASE_REGEX[clase]) {
-    vals.push(CLASE_REGEX[clase]);
-    conds.push(`${modelos ? "es.nombre_norm" : "immutable_unaccent(lower(e.nombre))"} ~ $${vals.length}`);
-  }
-  if (nepotismo) conds.push(`EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = ${col}.ruc)`);
+  const { conds, vals } = filtrosEntidades(q, col, modelos ? "es.nombre_norm" : "immutable_unaccent(lower(e.nombre))", [], nepotismo);
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const totalVals = [...vals];
+  if (nepotismo) vals.push(nepotismo);
+  const conNepotismo = enNepotismo(`${col}.ruc`, nepotismo && `$${vals.length}`);
   vals.push(limit, offset);
-  const [r, total] = await Promise.all([
+  const [r, total, facetas] = await Promise.all([
     pool.query(modelos
       ? `SELECT es.ruc, es.nombre, es.tipo, es.region,
                 COALESCE((SELECT z.nombre FROM entidades e2 JOIN zonas z ON z.ubigeo = left(e2.ubigeo::text, 4) WHERE e2.ruc = es.ruc), es.provincia) AS provincia,
@@ -83,10 +244,10 @@ entidadesRouter.get("/", async (c) => {
                 es.contratos,
                 es.alertas_activas AS "contratosVigilados",
                 NULL::jsonb AS serie,
-                EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = es.ruc) AS "conNepotismo"
+                ${conNepotismo} AS "conNepotismo"
            FROM entidad_stats es
            ${where}
-           ORDER BY es.alertas_activas DESC, es.contratos DESC NULLS LAST, es.nombre, es.ruc
+           ORDER BY ${ORDEN_ENTIDADES[q.orden].es}
            LIMIT $${vals.length - 1} OFFSET $${vals.length}`
       : `SELECT
            e.ruc, e.nombre, e.tipo, e.region,
@@ -99,7 +260,7 @@ entidadesRouter.get("/", async (c) => {
            COALESCE(cv.contratos, 0)::int AS contratos,
            COALESCE(a.alertas, 0)::int AS "contratosVigilados",
            NULL::jsonb                 AS serie,      -- antes metadata.serie_mock (inventado)
-           EXISTS (SELECT 1 FROM dji_nepotismo n WHERE n.entidad_ruc = e.ruc) AS "conNepotismo"
+           ${conNepotismo} AS "conNepotismo"
          FROM entidades e
          LEFT JOIN (
            SELECT c.entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias c WHERE ${convocatoriaNoDemo("c")} GROUP BY c.entidad_ruc
@@ -110,14 +271,16 @@ entidadesRouter.get("/", async (c) => {
            GROUP BY a.entidad_ruc
          ) a ON a.entidad_ruc = e.ruc
          ${where}
-         ORDER BY a.alertas DESC NULLS LAST, cv.contratos DESC NULLS LAST, e.nombre, e.ruc
+         ORDER BY ${ORDEN_ENTIDADES[q.orden].e}
          LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
       vals,
     ),
     pool.query(`SELECT count(*)::int AS n FROM ${modelos ? "entidad_stats es" : "entidades e"} ${where}`, totalVals),
+    // Sin las facetas, la lista sigue: los filtros van sin números.
+    q.facetas ? facetasEntidades(q, modelos, nepotismo).catch((e) => { console.warn(`[entidades] facetas: ${(e as Error).message}`); return null; }) : null,
   ]);
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
-  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
+  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset, ...(q.facetas ? { facetas } : {}) });
 });
 
 // ─── GET /entidades/summary ── KPIs globales ────────────────────

@@ -2,7 +2,8 @@
  * Detalle de un contrato:
  *   GET /contratos/:ocid/documento?url=<url_origen SEACE>   URL firmada (15 min) del documento guardado
  *   GET /contratos/:ocid                                    ContratoResumen & { items, documentos, alerta,
- *                                                           procesamiento, clasificacion, postoresDetalle, itemsAnalizados }
+ *                                                           procesamiento, clasificacion, postoresDetalle, itemsAnalizados,
+ *                                                           participantes, ofertas, cronograma, contrato, presupuesto }
  * Se monta al final de contratosRouter (las rutas fijas /resumen y /geo van antes que `/:ocid`).
  */
 
@@ -16,6 +17,11 @@ import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publi
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
 import { crucesDeProceso } from "../lib/cruces.js";
+import {
+  CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
+  filasParticipantes, ganadoresDe, presupuestoDe, registradosDe, vinculosDelProceso,
+  type FilaContrato, type FilaParticipante, type FilaVinculo, type Presupuesto,
+} from "../lib/proceso.js";
 import {
   EXPEDIENTE_SQL, FROM_FILA, JOIN_RESUMEN, alcanceActivo, col, colsDisponibles, exprs, selectResumen,
 } from "./contratos_sql.js";
@@ -85,6 +91,13 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
                                                 jsonb_array_elements(COALESCE(k->'documents', '[]'::jsonb)) d) x) AS docs_raw,
             -- Sin record completo, las adjudicaciones recortadas que guarda oece_ocds (migración 71).
             COALESCE(c.ocds_payload->'awards', c.adjudicaciones) AS awards_raw,
+            -- Lo demás que trae el registro del proceso (lib/proceso.ts): quiénes se registraron, el plazo de consultas,
+            -- el presupuesto y los contratos (estos dos, del record completo o de la ingesta desde el 2026-10-26).
+            c.ocds_payload->'tender'->'tenderers' AS tenderers_raw,
+            ${PARTES_TENDERER_SQL} AS partes_raw,
+            c.ocds_payload->'tender'->'enquiryPeriod' AS consultas_raw,
+            c.ocds_payload->'planning'->'budget' AS budget_raw,
+            ${CONTRATOS_OCDS_SQL} AS contratos_raw,
             a.id AS alerta_id, a.codigo AS "alertaCodigo",
             ${ex.motivo} AS "motivoNoProcesable", ${ex.agentes} AS "agentesAplicables", ${ex.validaciones} AS "validacionesPendientes",
             ${col(cols, "clasificado_at", "timestamptz")} AS "clasificadoAt",
@@ -100,9 +113,16 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   );
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
   const row = r.rows[0];
-  const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
+  const {
+    items_raw, docs_raw, awards_raw, tenderers_raw, partes_raw, consultas_raw, budget_raw, contratos_raw,
+    alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen
+  } = row;
+  const codigo = String(row.codigo ?? row.ocid);
+  const registrados = registradosDe(tenderers_raw, partes_raw);
+  const itemsLista: any[] = Array.isArray(items_raw) ? items_raw : [];
+  const anioConvocatoria = row.fecha ? Number(String(row.fecha).slice(0, 4)) : null;
 
-  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios, datoDudoso] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios, datoDudoso, conosce, filasP, filasV, filasK, presupuesto] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     // Mismas columnas que el tablero (score/banderas en null si la alerta no está publicada).
@@ -119,6 +139,15 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // Migración 102: posible error de carga del OECE (adjudicado 20 veces el referencial, referencial de S/ 1).
     pool.query(`SELECT motivo, referencial::float AS referencial, adjudicado::float AS adjudicado FROM contrato_dudoso WHERE ocid = $1`, [row.ocid])
       .then((q) => (q.rows[0] as { motivo: string; referencial: number | null; adjudicado: number | null } | undefined) ?? null).catch(() => null),
+    // Lo que CONOSCE registra como adjudicado/contratado por ítem: dice cuál de las adjudicaciones del OCDS quedó.
+    adjudicadoConosce(codigo),
+    // Quiénes participaron, quiénes ofertaron, qué los une y el contrato firmado (lib/proceso.ts); sin tablas, vacío.
+    filasParticipantes(registrados, codigo).catch(() => [] as FilaParticipante[]),
+    vinculosDelProceso(row.ocid).catch(() => [] as FilaVinculo[]),
+    contratosConosce(codigo).catch(() => [] as FilaContrato[]),
+    // El proyecto de inversión (CUI) en el presupuesto de la entidad (MEF).
+    presupuestoDe(budget_raw, [...itemsLista.map((it) => it?.description), row.titulo, resumen.descripcion], row.entidadRuc ?? null, anioConvocatoria)
+      .catch(() => null as Presupuesto | null),
   ]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
@@ -127,7 +156,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const expediente = alertaRow && esPublicada(alertaRow.estado) ? expedienteRaw : null;
 
   const preciosPorItem = new Map(precios.map((p) => [Number(p.posicion), p]));
-  const items = (Array.isArray(items_raw) ? items_raw : []).map((it: any, i: number) => ({
+  const items = itemsLista.map((it: any, i: number) => ({
     precio: precioDe(preciosPorItem.get(Number(it?.position ?? i + 1))),
     id: String(it?.id ?? i + 1),
     posicion: Number(it?.position ?? i + 1),
@@ -154,8 +183,6 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const docsGcsResumen = docsGcs
     ? { n: docsGcs.length, expiraAt: docsGcs.reduce<string | null>((m, v) => (!m || v.expiraAt > m ? v.expiraAt : m), null) }
     : null;
-  // Lo que CONOSCE registra como adjudicado/contratado por ítem: dice cuál de las adjudicaciones del OCDS quedó.
-  const conosce = await adjudicadoConosce(row.codigo ?? row.ocid);
   const adjudicaciones = adjudicacionesVigentes((Array.isArray(awards_raw) ? awards_raw : []).map((aw: any) => ({
     id: aw?.id ?? null,
     fecha: aw?.date ? String(aw.date).slice(0, 10) : null,
@@ -167,6 +194,34 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
 
   // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
   const cruces = await crucesDeProceso(row.ocid, adjudicaciones);
+
+  // ── El registro del proceso (lib/proceso.ts): participantes, adjudicación y contrato, cronograma ──
+  // Sólo lo de ESTA convocatoria: el record de un OCID de procedimiento trae también la buena pro y el contrato de otra.
+  const adjProceso = adjudicaciones.filter((a) => deEstaConvocatoria(a.id, codigo));
+  const contratosOcds = (Array.isArray(contratos_raw) ? contratos_raw : []).filter((k: any) => deEstaConvocatoria(k?.awardID, codigo));
+  const ganadores = ganadoresDe(adjProceso, conosce, new Map(items.map((it) => [it.id, it.posicion])));
+  const participantes = armarParticipantes(filasP, { fechaConvocatoria: row.fecha ?? null, ganadores, vinculos: filasV });
+  const conOferta = participantes.filter((p) => p.oferta);
+  // Cuántos presentaron oferta según CONOSCE; null si CONOSCE no trae postores del proceso (sin dato ≠ 0).
+  const ofertas = conOferta.length ? conOferta.length : null;
+  const nombres = new Map<string, string | null>([
+    ...adjProceso.filter((a) => a.proveedorRuc).map((a) => [a.proveedorRuc!, a.proveedor] as [string, string | null]),
+    ...conosce.filter((k) => k.ruc).map((k) => [k.ruc!, k.proveedor] as [string, string | null]),
+    ...participantes.map((p) => [p.ruc, p.nombre] as [string, string | null]),
+  ]);
+  const contrato = armarContrato({ items, conosce, adjudicaciones: adjProceso, filas: filasK, contratosOcds, nombres });
+  const desdeOfertas = conOferta.map((p) => p.oferta!.desde).filter((x): x is string => !!x).sort();
+  const hastaOfertas = conOferta.map((p) => p.oferta!.hasta).filter((x): x is string => !!x).sort();
+  const cronograma = armarCronograma({
+    convocatoria: row.fecha ?? null,
+    consultas: consultas_raw,
+    documentos,
+    ofertas: conOferta.length ? { desde: desdeOfertas[0] ?? null, hasta: hastaOfertas[hastaOfertas.length - 1] ?? null, n: conOferta.length } : null,
+    conosce,
+    adjudicaciones: adjProceso,
+    firmados: contrato.firmados,
+  });
+  const buenaPro = fechaBuenaProDe(resumen.fechaBuenaPro ?? null, conosce, adjProceso);
 
   // ── U5: expediente leído por los agentes (postores, ítems con precio, citas con página) ──
   const enVigiaUrls = new Set(documentos.filter((d) => d.enVigia).map((d) => d.url));
@@ -220,9 +275,11 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   }
 
   cache(c, 60);
-  // Proveedor persona natural (nombre y RUC 10), postores, citas y señales: tapados (lib/privacidad.ts).
+  // Proveedor persona natural (nombre y RUC 10), postores, participantes, citas y señales: tapados (lib/privacidad.ts).
   return c.json(publicar({
     ...resumen,
+    fechaBuenaPro: buenaPro.fecha,
+    fechaBuenaProFuente: buenaPro.fuente,
     items,
     documentos,
     adjudicaciones,
@@ -231,6 +288,11 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     cruces,
     postoresDetalle: postores,
     itemsAnalizados,
+    participantes,
+    ofertas,
+    cronograma,
+    contrato,
+    presupuesto,
     alerta: alertaRow,
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,
@@ -250,13 +312,19 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
 
 // ─── Adjudicaciones vigentes ─────────────────────────────────────────────────
 
-export interface FilaConosce { item: number; ruc: string | null; proveedor: string | null; cantidad: number | null; montoPen: number | null; estado: string | null }
+export interface FilaConosce {
+  item: number; ruc: string | null; proveedor: string | null; cantidad: number | null; montoPen: number | null; estado: string | null;
+  /** El valor referencial del ítem, su buena pro y su consentimiento (la pestaña «Adjudicación y contrato» y el cronograma). */
+  referencial?: number | null; fechaBuenaPro?: string | null; fechaConsentimiento?: string | null;
+}
 
 /** Ítems adjudicados del proceso en CONOSCE (una fila por ítem y proveedor). Sin la tabla, vacío. */
 async function adjudicadoConosce(codigo: string): Promise<FilaConosce[]> {
   if (!/^\d+$/.test(String(codigo))) return [];
   const r = await pool.query(
-    `SELECT n_item::int AS item, ruc_proveedor AS ruc, proveedor, cantidad::float AS cantidad, monto_adjudicado::float AS "montoPen", estado_item AS estado
+    `SELECT n_item::int AS item, ruc_proveedor AS ruc, proveedor, cantidad::float AS cantidad, monto_adjudicado::float AS "montoPen", estado_item AS estado,
+            monto_referencial::float AS referencial, to_char(fecha_buenapro, 'YYYY-MM-DD') AS "fechaBuenaPro",
+            to_char(fecha_consentimiento, 'YYYY-MM-DD') AS "fechaConsentimiento"
        FROM conosce_adjudicaciones WHERE codigo_convocatoria = $1 ORDER BY n_item, proveedor`, [String(codigo)]).catch(() => null);
   return (r?.rows ?? []) as FilaConosce[];
 }

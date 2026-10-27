@@ -2,8 +2,11 @@
  * Ficha de un contrato (DESIGN_SYSTEM.md §14.2), en el orden de la plantilla:
  *   volver → identidad (el objeto; código, entidad y zona en una línea; chips de estado)
  *   → Indicadores (cuánto y cuándo) → pestañas (§14.3): Resumen (el estado de su lectura y sus
- *   antecedentes en un renglón por tipo) | Antecedentes | Ítems | Postores y ofertas | Precio contratado |
- *   Dónde dice cada señal | Documentos oficiales, cada una con su conteo y su fuente al pie.
+ *   antecedentes en un renglón por tipo) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
+ *   ofertas (las actas leídas) | Adjudicación y contrato | Precio contratado | Dónde dice cada señal | Cronograma |
+ *   Documentos oficiales, cada una con su conteo y su fuente al pie. Participantes, adjudicación y cronograma salen
+ *   del registro del proceso (OCDS, CONOSCE, SUNAT, MEF: ProcesoContrato.tsx), así una ficha sin leer también dice
+ *   quién compitió, quién ganó, qué se firmó y cuándo.
  *   Antes esas cinco tablas se apilaban debajo del estado y había que bajar y bajar; después, los
  *   antecedentes del ganador iban ENTRE las cifras y las pestañas (hasta 1,100 px de sanciones en prosa) y
  *   en el celular «quién ganó» quedaba al final, a 3.6 pantallas (evaluación 2026-10-26).
@@ -32,6 +35,7 @@ import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
 import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
+import { pestanasProceso } from "./ProcesoContrato";
 import { recortar, limpiarObjeto } from "./recortar";
 import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
 import { LineaTiempoProceso, fechaGano } from "./LineaTiempoProceso";
@@ -46,7 +50,7 @@ import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaCorta, numero, oracion, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, plural, solesCompacto } from "@/lib/formato";
 import {
   adjudicacionesVigentes, cambioDeGanador, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel, validacionLabel,
   type ContratoDetalle as Detalle,
@@ -142,7 +146,7 @@ export function ContratoDetalle({
     ...(cruces.length > 0
       ? [{ clave: "antecedentes", etiqueta: "Antecedentes", conteo: clasificarCruces(cruces).antecedentes.length, contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
       : []),
-    ...pestanasEvidencia({ c, enRevision, catalogo }),
+    ...conProceso(pestanasEvidencia({ c, enRevision, catalogo }), pestanasProceso({ c })),
   ];
 
   return (
@@ -272,6 +276,25 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
   );
 }
 
+/**
+ * Las pestañas de evidencia con las del registro del proceso (ProcesoContrato.tsx) en su lugar: «Participantes» donde
+ * irían «Postores y ofertas» (después de Ítems), «Adjudicación y contrato» enseguida, y «Cronograma» antes de los
+ * documentos. Sin dictamen la ficha queda: Resumen, Ítems, Participantes, Adjudicación y contrato, Cronograma, Documentos.
+ */
+function conProceso(evidencia: Pestana[], proceso: ReturnType<typeof pestanasProceso>): Pestana[] {
+  const conActas = evidencia.some((p) => p.clave === "postores");
+  const out: Pestana[] = [];
+  for (const p of evidencia) {
+    if (p.clave === "documentos" && proceso.cronograma) out.push(proceso.cronograma);
+    out.push(p);
+    if (p.clave === (conActas ? "postores" : "items")) {
+      if (!conActas && proceso.participantes) out.push(proceso.participantes);
+      if (proceso.adjudicacion) out.push(proceso.adjudicacion);
+    }
+  }
+  return out;
+}
+
 /** "Sin dato" como cifra: en `mute` y más chico, para que no se lea como un número (§10.2). */
 function SinDato({ texto = "Sin dato" }: { texto?: string }) {
   return <span className="text-bloque font-semibold text-mute">{texto}</span>;
@@ -283,6 +306,7 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
   const nAdjudicaciones = adjudicacionesVigentes(c).length;
   const reemplazadas = (c.adjudicaciones ?? []).length - nAdjudicaciones;
   const conOferta = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null).length;
+  const registrados = c.postores ?? ((c.participantes ?? []).filter((p) => p.registrado).length || null);
   const unir = (xs: (string | null | false)[]) => xs.filter(Boolean).join(" ") || undefined;
   const gano = fechaGano(c);
   return [
@@ -313,10 +337,14 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
       contexto: gano ? `${gano.deAdjudicacion ? "adjudicada el" : "buena pro:"} ${fechaCorta(gano.fecha)}` : "buena pro: sin fecha",
     },
     {
-      valor: c.postores != null ? numero(c.postores) : <SinDato />,
-      etiqueta: c.postores === 1 ? "postor" : "postores",
-      ayuda: <AyudaTermino clave={c.postores === 1 ? "unico-postor" : "postor"} />,
-      contexto: conOferta > 0 ? `${numero(conOferta)} con oferta leída del expediente` : undefined,
+      // Los que se REGISTRARON (el OCDS los llama «tenderers»); los que ofertaron van debajo. Antes decía «17 postores»
+      // de un proceso en que ofertaron 3.
+      valor: registrados != null ? numero(registrados) : <SinDato />,
+      etiqueta: registrados === 1 ? "participante" : "participantes",
+      ayuda: <AyudaTermino clave="participante" />,
+      contexto: c.ofertas != null
+        ? plural(c.ofertas, "oferta", "ofertas")
+        : conOferta > 0 ? `${numero(conOferta)} con oferta leída del expediente` : "ofertas: sin dato",
     },
   ];
 }

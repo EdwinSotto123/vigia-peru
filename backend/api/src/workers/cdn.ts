@@ -42,7 +42,7 @@ const GUARDADO = "X-Vigia-Guardado";
  * "34": privacidad — el locador (RUC 10) de una orden va con un apellido tapado (claves contratista/rucContratista),
  *        y la señal de nepotismo como bandera atada a la orden: hay que invalidar lo cacheado sin tapar).
  */
-const VERSION_CACHE = "37";
+const VERSION_CACHE = "38";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

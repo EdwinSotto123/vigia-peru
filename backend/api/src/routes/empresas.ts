@@ -42,20 +42,69 @@ const sinVacios = (c: Parameters<typeof parametros>[0]) =>
   Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null));
 
 // ─── GET /empresas ──────────────────────────────────────────────────────────────────────────────
-const Lista = z.object({
+/**
+ * Los filtros por tramos de la lista, cada uno con su condición sobre `empresa_resumen e` (texto fijo, sin nada del
+ * pedido): la misma condición filtra la lista y cuenta cada opción en el resumen. Una empresa sin el dato (sin fecha de
+ * alta, sin postulaciones) no cae en ningún tramo: «Sin dato» no es 0. Las fechas de corte van en una subconsulta suelta
+ * (se calcula una vez, no por fila) y las proporciones en enteros: el resumen las cuenta sobre 236 mil empresas.
+ */
+const HACE = (intervalo: string) => `(SELECT (current_date - interval '${intervalo}')::date)`;
+const ENERO = (anios: number) => `(SELECT (date_trunc('year', current_date) - interval '${anios} years')::date)`;
+export const TRAMOS_EMPRESA = {
+  // Cuánto lleva en la SUNAT, por su fecha de alta.
+  antiguedad: {
+    hasta1: `e.fecha_alta > ${HACE("1 year")}`,
+    "1a2": `e.fecha_alta <= ${HACE("1 year")} AND e.fecha_alta > ${HACE("2 years")}`,
+    "2a5": `e.fecha_alta <= ${HACE("2 years")} AND e.fecha_alta > ${HACE("5 years")}`,
+    mas5: `e.fecha_alta <= ${HACE("5 years")}`,
+  },
+  // A cuántas entidades les vendió (contratos u órdenes).
+  clientes: {
+    "1": `e.entidades = 1`,
+    "2a5": `e.entidades BETWEEN 2 AND 5`,
+    "6a20": `e.entidades BETWEEN 6 AND 20`,
+    mas20: `e.entidades > 20`,
+  },
+  // Cómo le va cuando postula, entre las que postularon 5 veces o más: gana 8 de cada 10 o más, o menos de 1 de cada 10.
+  exito: {
+    alto: `e.postulaciones >= 5 AND 5 * e.ganadas >= 4 * e.postulaciones`,
+    bajo: `e.postulaciones >= 5 AND 10 * e.ganadas < e.postulaciones`,
+  },
+  // Su última venta al Estado (contrato u orden): este año, el anterior o antes.
+  ultima: {
+    este: `e.ultima >= ${ENERO(0)}`,
+    pasado: `e.ultima >= ${ENERO(1)} AND e.ultima < ${ENERO(0)}`,
+    antes: `e.ultima < ${ENERO(1)}`,
+  },
+} as const;
+type Tramo = keyof typeof TRAMOS_EMPRESA;
+type Opcion<T extends Tramo> = keyof (typeof TRAMOS_EMPRESA)[T] & string;
+const tramo = <T extends Tramo>(t: T) => z.enum(Object.keys(TRAMOS_EMPRESA[t]) as [Opcion<T>, ...Opcion<T>[]]);
+
+/** Con un monto que puede ser un error de carga del Estado, en un contrato o en una orden (migración 102). */
+const DUDOSA = `(e.adj_dudosos > 0 OR e.ord_dudosas > 0)`;
+
+export const Lista = z.object({
   // El nombre (palabras) o el RUC (sus primeras cifras).
   q: z.string().trim().min(2).max(80).optional(),
-  // Con antecedentes en otros registros, con alguno grave (inhabilitación, partido que gobierna…) o sin ninguno.
-  antecedentes: z.enum(["con", "grave", "sin"]).optional(),
+  // Con antecedentes en otros registros, con alguno grave (inhabilitación, partido que gobierna…), con alguno medio y
+  // ninguno grave, o sin ninguno.
+  antecedentes: z.enum(["con", "grave", "media", "sin"]).optional(),
   tipo: z.string().regex(/^[a-z_]{2,40}$/).optional(),
   departamento: z.string().trim().min(2).max(40).optional(),
   objeto: z.enum(OBJETOS).optional(),
   inhabilitada: z.enum(["si"]).optional(),
-  visitas: z.enum(["si"]).optional(),
+  // Visitas de su gente a cualquier entidad (`si`) o a una que le adjudicó o le compró (`clientes`).
+  visitas: z.enum(["si", "clientes"]).optional(),
   // Lo que recibió (contratos sola + órdenes), desde: 100 mil, 1 M, 10 M, 100 M.
   montoMin: z.coerce.number().refine((n) => [1e5, 1e6, 1e7, 1e8].includes(n)).optional(),
   actividad: z.enum(["contratos", "ordenes", "solo_postula", "consorcios"]).optional(),
   vinculadas: z.enum(["si"]).optional(),
+  antiguedad: tramo("antiguedad").optional(),
+  clientes: tramo("clientes").optional(),
+  exito: tramo("exito").optional(),
+  ultima: tramo("ultima").optional(),
+  dudoso: z.enum(["si"]).optional(),
   // Las que le vendieron a esta entidad (contratos u órdenes): lo pide la ficha de la entidad.
   entidad: z.string().regex(/^\d{11}$/).optional(),
   orden: z.enum(["monto", "contratos", "ordenes", "reciente", "nombre"]).default("monto"),
@@ -77,7 +126,7 @@ const ORDEN: Record<ListaQ["orden"], string> = {
 /** "lima" → "LIMA", como mef_norm. */
 const norm = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/[^A-Z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
-function filtros(q: ListaQ): { conds: string[]; vals: unknown[] } {
+export function filtros(q: ListaQ): { conds: string[]; vals: unknown[] } {
   const conds: string[] = [];
   const vals: unknown[] = [];
   const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
@@ -88,18 +137,25 @@ function filtros(q: ListaQ): { conds: string[]; vals: unknown[] } {
   }
   if (q.antecedentes === "con") conds.push(`cardinality(e.tipos) > 0`);
   else if (q.antecedentes === "grave") conds.push(`e.n_alta > 0`);
+  else if (q.antecedentes === "media") conds.push(`e.n_alta = 0 AND e.n_media > 0`);
   else if (q.antecedentes === "sin") conds.push(`cardinality(e.tipos) = 0`);
   if (q.tipo) conds.push(`e.tipos @> ${p([q.tipo])}::text[]`);
   if (q.departamento) conds.push(`e.departamento = ${p(norm(q.departamento))}`);
   if (q.objeto) conds.push(`e.objeto = ${p(q.objeto)}`);
   if (q.inhabilitada) conds.push(`e.inhabilitada IS NOT NULL`);
-  if (q.visitas) conds.push(`e.visitas > 0`);
+  if (q.visitas === "si") conds.push(`e.visitas > 0`);
+  else if (q.visitas === "clientes") conds.push(`e.visitas_clientes > 0`);
   if (q.montoMin) conds.push(`${MONTO} >= ${p(q.montoMin)}`);
   if (q.actividad === "contratos") conds.push(`e.adj_procesos > 0`);
   else if (q.actividad === "ordenes") conds.push(`e.ord_n > 0 AND e.adj_procesos = 0 AND e.cons_procesos = 0`);
   else if (q.actividad === "solo_postula") conds.push(`e.postulaciones > 0 AND e.adj_procesos = 0 AND e.cons_procesos = 0 AND e.ord_n = 0`);
   else if (q.actividad === "consorcios") conds.push(`e.cons_procesos > 0`);
   if (q.vinculadas) conds.push(`e.vinculadas > 0`);
+  if (q.antiguedad) conds.push(TRAMOS_EMPRESA.antiguedad[q.antiguedad]);
+  if (q.clientes) conds.push(TRAMOS_EMPRESA.clientes[q.clientes]);
+  if (q.exito) conds.push(TRAMOS_EMPRESA.exito[q.exito]);
+  if (q.ultima) conds.push(TRAMOS_EMPRESA.ultima[q.ultima]);
+  if (q.dudoso) conds.push(DUDOSA);
   if (q.entidad) {
     const ent = p(q.entidad);
     conds.push(`e.ruc IN (SELECT ruc FROM empresa_orden_anual WHERE entidad_ruc = ${ent}
@@ -116,26 +172,43 @@ export const FILA_EMPRESA = `e.ruc, e.nombre, e.departamento, e.objeto, e.estado
   e.tipos, e.n_alta AS "nAlta", e.n_media AS "nMedia", e.n_baja AS "nBaja",
   e.cruces`;  // [{tipo, severidad, n}]: cada tipo de antecedente con su gravedad más alta y cuántos registros (migración 112)
 
-async function resumen(conds: string[], vals: unknown[]) {
-  const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  const r = await pool.query(
-    `WITH s AS MATERIALIZED (SELECT e.ruc, e.n_alta, e.tipos, e.departamento, e.objeto, e.inhabilitada, e.visitas, e.adj_monto, e.cons_monto,
-                                    e.ord_monto, e.adj_dudosos, e.adj_monto_dudoso, e.ord_dudosas, e.ord_monto_dudoso
-                               FROM empresa_resumen e ${donde})
-     SELECT (SELECT count(*) FROM s)::int AS empresas,
-            (SELECT COALESCE(sum(adj_monto), 0) FROM s)::float AS "adjMonto",
-            (SELECT COALESCE(sum(cons_monto), 0) FROM s)::float AS "consMonto",
-            (SELECT COALESCE(sum(ord_monto), 0) FROM s)::float AS "ordMonto",
-            (SELECT count(*) FROM s WHERE inhabilitada IS NOT NULL)::int AS inhabilitadas,
-            (SELECT count(*) FROM s WHERE visitas > 0)::int AS "conVisitas",
-            (SELECT jsonb_build_object('procesos', COALESCE(sum(adj_dudosos), 0), 'monto', COALESCE(sum(adj_monto_dudoso), 0),
-                                       'ordenes', COALESCE(sum(ord_dudosas), 0), 'montoOrdenes', COALESCE(sum(ord_monto_dudoso), 0)) FROM s) AS dudosos,
-            (SELECT count(*) FROM s WHERE cardinality(tipos) > 0)::int AS "conAntecedentes",
-            (SELECT count(*) FROM s WHERE n_alta > 0)::int AS "conGrave",
+/** Cuántas empresas caen en cada tramo de `TRAMOS_EMPRESA`: `{antiguedad: {hasta1: n, …}, …}`, en la misma pasada. */
+const CONTEO_TRAMOS = `jsonb_build_object(${Object.entries(TRAMOS_EMPRESA)
+  .map(([t, opciones]) => `'${t}', jsonb_build_object(${Object.entries(opciones).map(([v, cond]) => `'${v}', count(*) FILTER (WHERE ${cond})`).join(", ")})`)
+  .join(", ")})`;
+
+/**
+ * El resumen de la lista: todas las cifras en UNA pasada sobre las empresas filtradas (antes, una subconsulta por cifra:
+ * diez pasadas sobre las 236 mil). Exportada para medirla con EXPLAIN tal como corre.
+ */
+export const sqlResumen = (donde: string) =>
+  `WITH s AS MATERIALIZED (SELECT e.ruc, e.n_alta, e.n_media, e.tipos, e.departamento, e.objeto, e.inhabilitada, e.visitas, e.visitas_clientes,
+                                    e.adj_monto, e.cons_monto, e.ord_monto, e.adj_dudosos, e.adj_monto_dudoso, e.ord_dudosas, e.ord_monto_dudoso,
+                                    e.fecha_alta, e.entidades, e.postulaciones, e.ganadas, e.ultima
+                               FROM empresa_resumen e ${donde}),
+          cifras AS (SELECT count(*)::int AS empresas,
+                       COALESCE(sum(e.adj_monto), 0)::float AS "adjMonto",
+                       COALESCE(sum(e.cons_monto), 0)::float AS "consMonto",
+                       COALESCE(sum(e.ord_monto), 0)::float AS "ordMonto",
+                       (count(*) FILTER (WHERE e.inhabilitada IS NOT NULL))::int AS inhabilitadas,
+                       (count(*) FILTER (WHERE e.visitas > 0))::int AS "conVisitas",
+                       (count(*) FILTER (WHERE e.visitas_clientes > 0))::int AS "conVisitasClientes",
+                       jsonb_build_object('procesos', COALESCE(sum(e.adj_dudosos), 0), 'monto', COALESCE(sum(e.adj_monto_dudoso), 0),
+                                          'ordenes', COALESCE(sum(e.ord_dudosas), 0), 'montoOrdenes', COALESCE(sum(e.ord_monto_dudoso), 0)) AS dudosos,
+                       (count(*) FILTER (WHERE ${DUDOSA}))::int AS "conDudosos",
+                       (count(*) FILTER (WHERE cardinality(e.tipos) > 0))::int AS "conAntecedentes",
+                       (count(*) FILTER (WHERE e.n_alta > 0))::int AS "conGrave",
+                       (count(*) FILTER (WHERE e.n_alta = 0 AND e.n_media > 0))::int AS "conMedia",
+                       ${CONTEO_TRAMOS} AS tramos
+                  FROM s e)
+     SELECT cifras.*,
             COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT t AS tipo, count(*)::int AS n FROM s, unnest(s.tipos) t GROUP BY t) x), '[]') AS "porTipo",
             COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT departamento, count(*)::int AS n FROM s WHERE departamento IS NOT NULL GROUP BY 1) x), '[]') AS "porDepartamento",
-            COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT objeto, count(*)::int AS n FROM s WHERE objeto IS NOT NULL GROUP BY 1) x), '[]') AS "porObjeto"`,
-    vals);
+            COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT objeto, count(*)::int AS n FROM s WHERE objeto IS NOT NULL GROUP BY 1) x), '[]') AS "porObjeto"
+       FROM cifras`;
+
+async function resumen(conds: string[], vals: unknown[]) {
+  const r = await pool.query(sqlResumen(conds.length ? `WHERE ${conds.join(" AND ")}` : ""), vals);
   const fila = r.rows[0];
   return { ...fila, porTipo: (fila.porTipo as { tipo: string; n: number }[]).map((t) => ({ ...t, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo })) };
 }
@@ -148,8 +221,9 @@ empresasRouter.get("/", async (c) => {
     const { conds, vals } = filtros(q);
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const [filas, rs] = await Promise.all([
+      // Con su fecha de alta en la SUNAT: la vista previa la dice (el filtro de antigüedad sale de ella).
       q.size === 0 ? null : pool.query(
-        `SELECT ${FILA_EMPRESA} FROM empresa_resumen e ${donde}
+        `SELECT ${FILA_EMPRESA}, to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta" FROM empresa_resumen e ${donde}
           ORDER BY ${ORDEN[q.orden]}, e.ruc LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
       resumen(conds, vals),
     ]);

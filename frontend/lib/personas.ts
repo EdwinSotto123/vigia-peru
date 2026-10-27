@@ -8,6 +8,7 @@
  * Los GET devuelven `null` si la API no responde: quien llama no dibuja lo que no pudo leer.
  */
 import { API_BASE } from "./api-client";
+import { esAnioGobierno } from "./partidosApi";
 import { uno } from "@/lib/utils";
 
 export type Severidad = "alta" | "media" | "baja";
@@ -69,6 +70,18 @@ export interface PaginaPersonas {
   data: PersonaEntidad[];
   /** Del alcance (entidad, región o partido), sin los demás filtros: las cifras y los conteos de los filtros. */
   resumen: ResumenPersonas;
+  /** Las opciones de los filtros que dependen del alcance (null en la ficha de un partido o si no se pudieron leer). */
+  facetas?: FacetasPersonas | null;
+}
+
+/**
+ * Lo que dan los filtros de gobierno y de tramos en este alcance: los partidos que gobernaban las entidades (`valor` =
+ * 'clave:año de la elección'), con cuántas contrataciones si se pudieron contar (`n` null en una región), y cuántas caen
+ * en cada tramo de monto y de meses (sólo en una entidad).
+ */
+export interface FacetasPersonas {
+  gobiernos: { valor: string; nombre: string | null; anio: number; n: number | null }[];
+  tramos: Record<"monto" | "meses", Record<string, number>> | null;
 }
 
 export interface SenalDetalle {
@@ -386,13 +399,56 @@ export interface ParamsPersonas {
   severidad: string;
   servicio: string;
   anio: string;
+  /** El partido que gobernaba la entidad, en un período ('clave:año'). */
+  gobierno: string;
+  monto: string;
+  meses: string;
   orden: string;
   page: string;
   /** El buscador: la entidad y el tipo de servicio (nunca el nombre de la persona). */
   q: string;
 }
-export const PARAMS_SOLOS: ParamsPersonas = { senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", orden: "orden", page: "page", q: "q" };
-export const PARAMS_EN_FICHA: ParamsPersonas = { senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", orden: "pord", page: "ppag", q: "pq" };
+export const PARAMS_SOLOS: ParamsPersonas = {
+  senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", gobierno: "gobierno", monto: "monto", meses: "meses", orden: "orden", page: "page", q: "q",
+};
+export const PARAMS_EN_FICHA: ParamsPersonas = {
+  senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", gobierno: "pgob", monto: "pmonto", meses: "pmeses", orden: "pord", page: "ppag", q: "pq",
+};
+
+/**
+ * Los filtros por tramos (los mismos de la API, `TRAMOS_PERSONA`): lo que le pagó la entidad en todos sus años y en
+ * cuántos meses le dio órdenes.
+ */
+export const TRAMOS_PERSONA: Record<"monto" | "meses", readonly { valor: string; etiqueta: string }[]> = {
+  monto: [
+    { valor: "menos5", etiqueta: "Menos de S/ 5 mil" },
+    { valor: "5a20", etiqueta: "De S/ 5 mil a 20 mil" },
+    { valor: "20a100", etiqueta: "De S/ 20 mil a 100 mil" },
+    { valor: "100a300", etiqueta: "De S/ 100 mil a 300 mil" },
+    { valor: "mas300", etiqueta: "Más de S/ 300 mil" },
+  ],
+  meses: [
+    { valor: "1", etiqueta: "Un mes" },
+    { valor: "2a6", etiqueta: "De 2 a 6 meses" },
+    { valor: "7a11", etiqueta: "De 7 a 11 meses" },
+    { valor: "12a23", etiqueta: "De 12 a 23 meses" },
+    { valor: "24mas", etiqueta: "24 meses o más" },
+  ],
+};
+const esTramo = (t: "monto" | "meses", v: string | undefined) => (v && TRAMOS_PERSONA[t].some((o) => o.valor === v) ? v : undefined);
+
+/**
+ * Las opciones de un filtro buscable con nombres únicos: el campo elige la opción por su nombre (`<datalist>`), así que
+ * dos iguales no se distinguirían. La segunda lleva «(2)».
+ */
+export function etiquetasUnicas<T extends { valor: string; etiqueta: string }>(opciones: T[]): T[] {
+  const vistas = new Map<string, number>();
+  return opciones.map((o) => {
+    const n = (vistas.get(o.etiqueta) ?? 0) + 1;
+    vistas.set(o.etiqueta, n);
+    return n === 1 ? o : { ...o, etiqueta: `${o.etiqueta} (${n})` };
+  });
+}
 
 export const ORDENES_PERSONAS = [
   { valor: "senales", etiqueta: "Más señales" },
@@ -407,10 +463,13 @@ export interface FiltrosPersonas {
   dep?: string;
   partido?: string;
   periodo?: number;
+  gobierno?: string;
   senal?: string;
   severidad?: string;
   servicio?: string;
   anio?: number;
+  monto?: string;
+  meses?: string;
   orden?: string;
   q?: string;
   page?: number;
@@ -426,11 +485,15 @@ export function filtrosDeUrl(sp: Busqueda, P: ParamsPersonas): FiltrosPersonas {
   const anio = Number(uno(sp?.[P.anio]));
   const orden = uno(sp?.[P.orden]);
   const q = uno(sp?.[P.q])?.slice(0, 80);
+  const gobierno = uno(sp?.[P.gobierno]);
   return {
     senal: senal && (TIPOS_SENAL as readonly string[]).includes(senal) ? senal : undefined,
     severidad: sev && ["alta", "media", "baja", "con", "sin"].includes(sev) ? sev : undefined,
     servicio: uno(sp?.[P.servicio])?.slice(0, 60),
     anio: anio >= 2018 && anio <= 2100 ? anio : undefined,
+    gobierno: gobierno && /^[a-z0-9-]{1,80}:\d{4}$/.test(gobierno) && esAnioGobierno(Number(gobierno.split(":")[1])) ? gobierno : undefined,
+    monto: esTramo("monto", uno(sp?.[P.monto])),
+    meses: esTramo("meses", uno(sp?.[P.meses])),
     orden: orden && ORDENES_PERSONAS.some((o) => o.valor === orden) ? orden : undefined,
     q: q && q.length >= 2 ? q : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
@@ -444,6 +507,9 @@ export function parametrosDe(f: FiltrosPersonas, P: ParamsPersonas): Record<stri
     [P.severidad]: f.severidad,
     [P.servicio]: f.servicio,
     [P.anio]: f.anio ? String(f.anio) : undefined,
+    [P.gobierno]: f.gobierno,
+    [P.monto]: f.monto,
+    [P.meses]: f.meses,
     [P.orden]: f.orden,
     [P.q]: f.q,
   };

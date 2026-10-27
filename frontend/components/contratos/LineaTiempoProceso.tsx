@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils";
 import { adjudicacionesVigentes, type ContratoDetalle } from "@/lib/contratos";
 
 /**
- * Los hitos del proceso con fecha, en orden: convocatoria, buena pro, adjudicaciones del registro y, si Vigía lo leyó,
- * cuándo. Una placa con los hitos unidos por una línea y, en cada uno, cuántos días pasaron desde el anterior; los del mismo día van
- * juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la convocatoria a la buena pro (o, sin esa fecha, a la
- * adjudicación). Solo lo que el registro trae (nada se estima); con menos de dos hitos no se dibuja. Server-safe.
+ * Los hitos del proceso con fecha, en orden: convocatoria, ofertas, buena pro, adjudicaciones del registro,
+ * consentimiento, firma del contrato (los tres de CONOSCE, del `cronograma` de la API) y, si Vigía lo leyó, cuándo; cada
+ * uno con su fuente, en la pestaña Cronograma. Una placa con los hitos unidos por una línea y, en cada uno, cuántos días
+ * pasaron desde el anterior; los del mismo día van juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la
+ * convocatoria a la buena pro (o, sin esa fecha, a la adjudicación). Solo lo que el registro trae (nada se estima); con
+ * menos de dos hitos no se dibuja. Server-safe.
  */
 interface Hito {
   fecha: string;
@@ -41,6 +43,10 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
   agregar(c.fecha, "Convocatoria");
   agregar(c.fechaBuenaPro, "Buena pro");
   for (const a of c.adjudicaciones ?? []) agregar(a.fecha, "Adjudicación");
+  const HITO: Partial<Record<NonNullable<ContratoDetalle["cronograma"]>[number]["clave"], string>> = {
+    ofertas: "Ofertas", consentimiento: "Consentimiento", contrato: "Contrato firmado",
+  };
+  for (const h of c.cronograma ?? []) if (HITO[h.clave]) agregar(h.fecha, HITO[h.clave]!);
   if (c.alerta && c.alerta.estado !== "revision") agregar(c.alerta.analizadoEn, "Leído por Vigía", true);
 
   // Un hito por día, con sus textos sin repetir.

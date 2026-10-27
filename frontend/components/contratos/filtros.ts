@@ -8,7 +8,7 @@
 
 import type { FiltroSecundario, Parametros } from "@/components/listado";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
-import { ETAPAS, LECTURAS, OPERATIVOS, PRIMER_ANIO_CONTRATOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
+import { DATOS_GANADORA, ETAPAS, LECTURAS, OPERATIVOS, PRIMER_ANIO_CONTRATOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { soles } from "@/lib/formato";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
 
@@ -113,7 +113,27 @@ export const filtroMesVisible = (parametros: Parametros): FiltroSecundario => ({
  * Los subtítulos con que una lista de contratos agrupa su menú «Filtros» (`FiltroSecundario.seccion`): antes eran ocho
  * desplegables seguidos, sin orden. Las mismas palabras en toda lista que los use.
  */
-export const SECCIONES_FILTRO = { que: "Qué", quien: "Quién compra", cuanto: "Cuánto", lectura: "Lectura" } as const;
+export const SECCIONES_FILTRO = { que: "Qué", quien: "Quién compra", ganador: "Quién ganó", cuanto: "Cuánto", lectura: "Lectura" } as const;
+
+/**
+ * Los datos de la EMPRESA que ganó (su estado de hoy en la SUNAT, hechos políticos de su gente): van aparte de
+ * «Antecedentes del ganador», que sólo cuenta lo ligado a ESTE contrato (migración 115). Sin conteo: contarlos pide
+ * cruzar cada empresa con todos sus contratos, y un 0 provisional no va.
+ */
+export const filtroGanadora = (): FiltroSecundario => ({
+  param: "ganadora",
+  etiqueta: "Datos de la empresa ganadora",
+  todas: "Cualquier empresa",
+  opciones: DATOS_GANADORA.map((d) => ({ valor: d.valor, etiqueta: d.etiqueta, grupo: d.grupo })),
+});
+
+/** El posible error de carga del OECE (S/ 1 de valor referencial, o 20 veces lo adjudicado): las mismas palabras que en Empresas. */
+export const filtroDudoso = (resumen: Pick<ResumenContratos, "porDudoso"> | null): FiltroSecundario => ({
+  param: "dudoso",
+  etiqueta: "Calidad del dato",
+  todas: "Todos los datos",
+  opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: resumen?.porDudoso ?? null }],
+});
 
 /** Pone esos filtros bajo un subtítulo del menú «Filtros». */
 export const enSeccion = (seccion: string, ...filtros: FiltroSecundario[]): FiltroSecundario[] => filtros.map((f) => ({ ...f, seccion }));

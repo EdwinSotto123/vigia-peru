@@ -2,12 +2,16 @@ import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
 import {
   ORDENES_PERSONAS,
   SENAL,
+  TRAMOS_PERSONA,
+  etiquetasUnicas,
   filtrosDeUrl,
   getPersonas,
   parametrosDe,
+  type FacetasPersonas,
   type FiltrosPersonas,
   type PaginaPersonas,
   type ParamsPersonas,
@@ -59,10 +63,12 @@ export function ListaPersonas({
   const paginaP = getPersonas({ ...alcance, ...f, page: f.page, size: TAM });
   const parametros: Parametros = { ...base, ...parametrosDe(f, P) };
   const extras = [...visiblesExtra, ...filtrosExtra];
-  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.q) || extras.some((x) => !!base[x.param]);
+  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.gobierno || f.monto || f.meses || f.q) || extras.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha (/app/personas?entidad=<RUC>): se nombra en su chip y se quita con su ×. En la ficha
   // de la propia entidad no (es el alcance, no un filtro).
   const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
+  // En la ficha de un partido, el partido que gobernaba es el alcance: su filtro no va.
+  const conGobierno = !alcance.partido;
   return (
     <div className="space-y-4">
       {conIndicadores && (
@@ -71,8 +77,12 @@ export function ListaPersonas({
         </Suspense>
       )}
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
-        <Suspense fallback={<Barra resumen={null} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
-          <BarraConConteos pagina={paginaP} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad} />
+        <Suspense
+          fallback={
+            <Barra resumen={null} facetas={null} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} conGobierno={conGobierno} gobierno={f.gobierno} />
+          }
+        >
+          <BarraConConteos pagina={paginaP} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad} conGobierno={conGobierno} gobierno={f.gobierno} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaPersonasSkeleton deEntidad={deEntidad} />}>
@@ -112,35 +122,58 @@ async function BarraConConteos({
   visiblesExtra,
   filtrosExtra,
   entidad,
+  conGobierno,
+  gobierno,
 }: {
   pagina: Promise<PaginaPersonas | null>;
   P: ParamsPersonas;
   visiblesExtra: FiltroSecundario[];
   filtrosExtra: FiltroSecundario[];
   entidad?: string;
+  conGobierno: boolean;
+  gobierno?: string;
 }) {
   const pg = await pagina;
   // Con la entidad elegida, todas las filas son de ella: su nombre sale de la primera.
   const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
-  return <Barra resumen={pg?.resumen ?? null} P={P} visiblesExtra={visiblesExtra} filtrosExtra={filtrosExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
+  return (
+    <Barra
+      resumen={pg?.resumen ?? null}
+      facetas={pg?.facetas ?? null}
+      P={P}
+      visiblesExtra={visiblesExtra}
+      filtrosExtra={filtrosExtra}
+      entidad={entidad ? { ruc: entidad, nombre } : null}
+      conGobierno={conGobierno}
+      gobierno={gobierno}
+    />
+  );
 }
 
 /**
- * Señales (faceta), y a la vista la región (si la hay), qué señal y el tipo de servicio; el año y la entidad, dentro de
- * «Filtros». Sin resumen, sin números. Los conteos de la faceta son contrataciones, como la lista.
+ * Señales (faceta), y a la vista la región (si la hay), qué señal y el tipo de servicio; en «Filtros», cuándo (el año y
+ * el partido que gobernaba la entidad), cuánto (lo que le pagó y en cuántos meses) y la entidad. Sin resumen, sin
+ * números. Los conteos de la faceta son contrataciones, como la lista; los de gobierno y tramos, del alcance.
  */
 function Barra({
   resumen: r,
+  facetas,
   P,
   visiblesExtra,
   filtrosExtra,
   entidad,
+  conGobierno,
+  gobierno,
 }: {
   resumen: ResumenPersonas | null;
+  facetas: FacetasPersonas | null;
   P: ParamsPersonas;
   visiblesExtra: FiltroSecundario[];
   filtrosExtra: FiltroSecundario[];
   entidad: { ruc: string; nombre: string | null } | null;
+  conGobierno: boolean;
+  /** El gobierno elegido: su filtro se queda aunque no haya opciones (si no, su chip no se podría quitar). */
+  gobierno?: string;
 }) {
   const propios: FiltroSecundario[] = [
     {
@@ -162,17 +195,36 @@ function Barra({
       etiqueta: "Año de la orden",
       corta: "Año",
       todas: "Todos los años",
+      seccion: "Cuándo",
       opciones: [...(r?.porAnio ?? [])].sort((a, b) => b.anio - a.anio).map((a) => ({ valor: String(a.anio), etiqueta: String(a.anio), conteo: a.n })),
     },
   ];
   // La región va primero (es la pregunta de casi todos); si con ella pasan de tres, el año baja a «Filtros».
   const enFila = [...visiblesExtra, ...propios];
   const visibles = enFila.slice(0, MAX_VISIBLES);
+  const tramo = (t: keyof typeof TRAMOS_PERSONA, param: string, etiqueta: string, todas: string): FiltroSecundario => ({
+    param, etiqueta, todas, seccion: "Cuánto",
+    opciones: TRAMOS_PERSONA[t].map((o) => ({ ...o, conteo: facetas?.tramos?.[t]?.[o.valor] ?? null })),
+  });
   const filtros: FiltroSecundario[] = [
     ...enFila.slice(MAX_VISIBLES),
+    // Sin partidos que la gobernaran (una entidad nacional), el filtro no va: no tendría nada que elegir.
+    ...(conGobierno && (!facetas || facetas.gobiernos.length > 0 || gobierno)
+      ? [{
+          // Con el período: el mismo partido gobernó otras entidades (u otra vez la misma) en otros años.
+          param: P.gobierno, etiqueta: "Partido que gobernaba la entidad", todas: "Cualquier partido", seccion: "Cuándo", buscable: true,
+          opciones: etiquetasUnicas((facetas?.gobiernos ?? []).map((g) => ({
+            valor: g.valor,
+            etiqueta: `${g.nombre ?? g.valor.split(":")[0]} (${esAnioGobierno(g.anio) ? periodoTexto(g.anio) : g.anio})`,
+            conteo: g.n,
+          }))),
+        }]
+      : []),
+    tramo("monto", P.monto, "Lo que le pagó la entidad", "Cualquier monto"),
+    tramo("meses", P.meses, "Meses con órdenes", "Cualquier número de meses"),
     ...filtrosExtra,
     ...(entidad
-      ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
+      ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", seccion: "Dónde", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
       : []),
   ];
   return (
