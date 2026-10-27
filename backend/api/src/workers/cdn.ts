@@ -44,9 +44,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * "39": `mef` de la ficha de entidad va siempre (fuente, fueraSiaf, secEjecSiaf), la lista de contratos trae sus ganadores
  *        (consorciados) y las entidades, sus banderas y su tipo por el nombre;
  * "40": el MEF de 2015 en adelante con OPDS/ETES (`mef.origen`, `ultimoAnioMef`), las obras e inversiones (conteos de la
- *        entidad, `obras`/`inversiones` del contrato, /obras) y las banderas de obra y de la DJI de los funcionarios.
+ *        entidad, `obras`/`inversiones` del contrato, /obras) y las banderas de obra y de la DJI de los funcionarios;
+ * "41": /entidades/:ruc trae `senales` e `informes` (las banderas fijas de la ficha), /personas `totalExacto` (conteo
+ *        acotado) y la búsqueda de contratos ordenada desde convocatoria_texto (migración 173).
  */
-const VERSION_CACHE = "40";
+const VERSION_CACHE = "41";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
