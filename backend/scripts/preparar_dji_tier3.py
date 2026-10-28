@@ -1,7 +1,7 @@
 """
 DJI tier 3 (fase 5 del plan del 2026-10-27): prepara la descarga de las declaraciones del registro completo de la
-Contraloría, priorizada. Aplica la migración 185 (el RUC de cada entidad del registro: dji_entidad_ruc), y agrega al final
-de targets_dji.csv los declarantes vigentes que todavía no están en el ledger (dji_descargas), los que deciden primero:
+Contraloría, priorizada. Aplica la migración 185 (el RUC de cada entidad del registro: dji_entidad_ruc), y agrega a
+targets_dji.csv los declarantes vigentes que todavía no están en el ledger (dji_descargas), los que deciden primero:
 
   1. alta dirección, compras y finanzas (alcalde, gobernador, gerente, director, jefe, administrador, logística,
      abastecimiento, contrataciones, tesorería, comités, ministro, presidente, secretario general, procurador);
@@ -9,7 +9,10 @@ de targets_dji.csv los declarantes vigentes que todavía no están en el ledger 
   3. el resto.
 
 Dentro de cada grupo, las entidades que más contratan primero. Con --tope, sólo los primeros N (una tanda: el orquestador
-los baja en rondas de CI). Luego, desacoplado: python -u backend/scripts/orquestar_dji.py --rondas N --desde-ronda M.
+los baja en rondas de CI). Los del grupo 1 van al PRINCIPIO del CSV y el resto al final: el orquestador pide los pendientes
+en el orden del CSV, y un alcalde de una entidad que recién tiene RUC no debe esperar detrás de todo el tier 3. El
+orquestador lee el universo al arrancar: los nuevos entran en su próxima corrida. Luego, desacoplado:
+python -u backend/scripts/orquestar_dji.py --rondas N --desde-ronda M.
 
     MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin python backend/scripts/preparar_dji_tier3.py [--tope 60000] [--seco]
 """
@@ -18,16 +21,19 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import os
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "infrastructure" / "aws"))
 from tunel_rds import conexion  # noqa: E402
 
-# La 185 y la 190 (el paso «por todos sus nombres»): la 190 redefine la función de la 185, así que van en ese orden.
-MIGRACIONES = [ROOT / "backend" / "db" / "migrations" / f for f in ("185_dji_entidad_ruc.sql", "190_dji_entidad_nombres.sql")]
+# La 185, la 190 (el paso «por todos sus nombres») y la 194 (variantes con guarda): cada una redefine la función de la
+# anterior, así que van en ese orden.
+MIGRACIONES = [ROOT / "backend" / "db" / "migrations" / f for f in ("185_dji_entidad_ruc.sql", "190_dji_entidad_nombres.sql", "194_dji_entidad_variantes.sql")]
 TODOS = ROOT / "backend" / "scrapers-worker" / "dji_targets" / "targets_dji.csv"
 
 PRIORIDAD = r"""CASE
@@ -79,11 +85,32 @@ def main() -> None:
     print(f"nuevos para el CSV: {len(nuevos)} (tope {a.tope})", flush=True)
     if a.seco or not nuevos:
         return
-    with open(TODOS, "a", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
-        for ruc, apellidos, nombres, _ in nuevos:
-            w.writerow([ruc, apellidos, nombres])
-    print(f"agregados al final de {TODOS.relative_to(ROOT)}", flush=True)
+    primero = [x for x in nuevos if x[3] == 1]
+    despues = [x for x in nuevos if x[3] != 1]
+
+    def lineas(xs: list) -> str:
+        buf = io.StringIO()
+        csv.writer(buf).writerows([ruc, apellidos, nombres] for ruc, apellidos, nombres, _ in xs)
+        return buf.getvalue()
+
+    with open(TODOS, encoding="utf-8", newline="") as f:
+        texto = f.read()
+    cabecera, _, resto = texto.partition("\n")
+    if resto and not resto.endswith("\n"):
+        resto += "\r\n"
+    # Se escribe aparte y se reemplaza de una vez: el orquestador relee el CSV al armar cada ronda.
+    tmp = TODOS.with_name(TODOS.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="") as f:
+        f.write(cabecera + "\n" + lineas(primero) + resto + lineas(despues))
+    for intento in range(20):
+        try:
+            os.replace(tmp, TODOS)
+            break
+        except PermissionError:  # el orquestador lo tiene abierto (unos segundos por ronda)
+            if intento == 19:
+                raise
+            time.sleep(3)
+    print(f"{len(primero)} al principio y {len(despues)} al final de {TODOS.relative_to(ROOT)}", flush=True)
 
 
 if __name__ == "__main__":
