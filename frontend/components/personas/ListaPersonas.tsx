@@ -229,10 +229,15 @@ function Barra({
       ? []
       : [{
           param: P.ingreso,
-          etiqueta: facetas?.gestion ? `Cuándo entró (la gestión empezó el ${fechaCorta(facetas.gestion.desde)})` : "Cuándo entró",
+          etiqueta: "Cuándo entró",
           todas: "Cuando sea",
           seccion: "Cuándo",
-          opciones: INGRESO_PERSONA.map((o) => ({ ...o, conteo: facetas?.gestion?.conteo[o.valor] ?? null })),
+          // En una entidad, desde cuándo gobierna su gestión: «Entró con la gestión actual (desde el 1 ene. 2023)».
+          opciones: INGRESO_PERSONA.map((o) => ({
+            ...o,
+            etiqueta: facetas?.gestion && o.valor === "gestion" ? `${o.etiqueta} (desde el ${fechaCorta(facetas.gestion.desde)})` : o.etiqueta,
+            conteo: facetas?.gestion?.conteo[o.valor] ?? null,
+          })),
         }]),
     tramo("monto", P.monto, "Lo que le pagó la entidad", "Cualquier monto"),
     tramo("meses", P.meses, "Meses con órdenes", "Cualquier número de meses"),

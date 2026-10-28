@@ -101,6 +101,20 @@ export function LineaMeses({
   const normales = conDato.filter((m) => !fuera(m));
   const techo = Math.max(1, (normales.length ? Math.max(...normales.map((m) => m.valor)) : Math.max(...conDato.map((m) => m.valor), 1)) * 1.12);
   const raros = meses.filter(fuera);
+  // El monto escrito sobre las barras que pasan la escala, sin encimarse: con muchos meses las columnas son angostas y
+  // dos vecinos («S/ 155 mil» y «S/ 139 mil») se pisaban. Se escribe uno si el anterior escrito quedó a una distancia de
+  // al menos el 6 % de los meses (y dos columnas); los demás conservan el triángulo, y su monto va en el título y la tabla.
+  const conMonto = new Set<string>();
+  {
+    const brecha = Math.max(2, Math.ceil(meses.length * 0.06));
+    let ultimo = -Infinity;
+    meses.forEach((m, i) => {
+      if (fuera(m) && m.valor > techo && i - ultimo >= brecha) {
+        conMonto.add(m.mes);
+        ultimo = i;
+      }
+    });
+  }
   const conExtra = meses.some((m) => (m.extra ?? 0) > 0);
 
   const marca = (m: Mes, i: number) => i === 0 || m.mes.endsWith("-01");
@@ -152,7 +166,7 @@ export function LineaMeses({
                 )}
                 {raro && (
                   <span className="relative mb-0.5 flex justify-center">
-                    {pasa && (
+                    {pasa && conMonto.has(m.mes) && (
                       <span className="absolute bottom-full mb-0.5 whitespace-nowrap font-mono text-micro tabular-nums text-amberTexto">{solesCompacto(m.valor)}</span>
                     )}
                     <TriangleAlert size={11} strokeWidth={2.5} className="text-amberTexto" aria-hidden />
