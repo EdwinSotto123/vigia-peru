@@ -43,6 +43,16 @@ test("ola de gestión: los seis meses desde que asumió contra los mismos del a�
   assert.match(s[0].explica, /120/);
   assert.equal(s[0].pasos.length, 3);
 
+  // Desde cero no es una ola (antes no se reportaba): hace falta una base de 5.
+  const cero = Object.fromEntries(["2022-01", "2022-02", "2022-03", "2022-04", "2022-05", "2022-06"].map((m) => [m, 0]));
+  assert.equal(olasDeGestion({ unidad: "x", huecos: "cero", puntos: serie("2021-01", "2024-12", 20, { ...ola, ...cero }) }, [{ fecha: "2023-01-01", quien: "g" }], { tipo: "t", minimo: 30, que: "x", fuente: "f" }).length, 0);
+  // Si todas sus órdenes crecieron igual, no es una ola de personas.
+  const todo = serie("2021-01", "2024-12", 100, Object.fromEntries(Object.keys(ola).map((m) => [m, 450])));
+  assert.equal(olasDeGestion({ unidad: "x", huecos: "cero", puntos: serie("2021-01", "2024-12", 20, ola) }, [{ fecha: "2023-01-01", quien: "g" }], { tipo: "t", minimo: 30, que: "x", fuente: "f", otros: todo }).length, 0);
+  // Y si las demás no crecieron, sí, con su comparación en la explicación.
+  const quietas = olasDeGestion({ unidad: "órdenes a personas", huecos: "cero", puntos: serie("2021-01", "2024-12", 20, ola) }, [{ fecha: "2023-01-01", quien: "g" }], { tipo: "t", minimo: 30, que: "las órdenes a personas", fuente: "f", otros: serie("2021-01", "2024-12", 100) });
+  assert.equal(quietas.length, 1);
+  assert.match(quietas[0].explica, /Sus demás órdenes, en los mismos meses: de 600 a 600/);
   // Sin cambio, o con un cambio chico, no hay ola.
   assert.equal(olasDeGestion({ unidad: "x", huecos: "cero", puntos: serie("2021-01", "2024-12", 20) }, [{ fecha: "2023-01-01", quien: "g" }], { tipo: "t", minimo: 30, que: "x", fuente: "f" }).length, 0);
   const poco = Object.fromEntries(["2023-01", "2023-02"].map((m) => [m, 30]));

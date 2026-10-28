@@ -217,14 +217,17 @@ export interface CambioGestion {
 
 /**
  * Los seis meses desde que asumió una gestión frente a los mismos seis meses del año anterior (la misma época: un enero
- * no se parece a un diciembre). Es una ola si lo de después es al menos el doble y suma al menos `minimo` más; alta si
- * es el cuádruple. Con `huecos: "sin_dato"` (la planilla), los doce meses tienen que estar publicados; con «cero» (las
- * órdenes), basta que la serie cubra los dos tramos.
+ * no se parece a un diciembre). Es una ola si lo de después es al menos el doble y suma al menos `minimo` más, con una
+ * base (al menos 5 antes: desde cero no se distingue de que antes no se reportaba). Con `otros` (las demás órdenes de
+ * la entidad en los mismos meses), además tiene que crecer 1,5 veces más que ellas (todo crece de un año a otro) y la
+ * entidad tener al menos 30 órdenes en total antes. Alta si es el cuádruple (y, con `otros`, el doble que ellas). Con
+ * `huecos: "sin_dato"` (la planilla), los doce meses tienen que estar publicados; con «cero» (las órdenes), basta que
+ * la serie cubra los dos tramos. La misma regla que refrescar_ola_gestion() (migración 188).
  */
 export function olasDeGestion(
   serie: Pick<SerieHistoria, "puntos" | "huecos" | "unidad">,
   cambios: CambioGestion[],
-  opts: { tipo: string; minimo: number; que: string; href?: string | null; fuente: string },
+  opts: { tipo: string; minimo: number; que: string; href?: string | null; fuente: string; otros?: PuntoSerie[] },
 ): SecuenciaHistoria[] {
   const valor = new Map(serie.puntos.map((p) => [p.periodo, p.n]));
   const meses = [...valor.keys()].sort();
@@ -239,21 +242,32 @@ export function olasDeGestion(
     const antes = despues.map((m) => sumarMeses(m, -12));
     if (antes[0] < primero || despues[5] > ultimo) continue;
     if (serie.huecos === "sin_dato" && [...antes, ...despues].some((m) => !valor.has(m))) continue;
-    const suma = (xs: string[]) => xs.reduce((s, m) => s + (valor.get(m) ?? 0), 0);
+    const suma = (xs: string[], m: Map<string, number> = valor) => xs.reduce((s, k) => s + (m.get(k) ?? 0), 0);
     const a = suma(antes);
     const d = suma(despues);
-    if (d < 2 * a || d - a < opts.minimo) continue;
-    const veces = a > 0 ? d / a : null;
+    if (a < 5 || d < 2 * a || d - a < opts.minimo) continue;
+    let crecenOtros = 1;
+    let otrosTexto = "";
+    if (opts.otros) {
+      const om = new Map(opts.otros.map((p) => [p.periodo, p.n]));
+      const oa = suma(antes, om);
+      const od = suma(despues, om);
+      if (a + oa < 30) continue;
+      crecenOtros = od / Math.max(oa, 1);
+      if (d / a < 1.5 * crecenOtros) continue;
+      otrosTexto = ` Sus demás órdenes, en los mismos meses: de ${miles(oa)} a ${miles(od)}.`;
+    }
+    const veces = d / a;
     const fin = sumarMeses(despues[5], 0);
     out.push({
       id: `${opts.tipo}:${c.fecha}`,
       tipo: opts.tipo,
-      severidad: veces == null || veces >= 4 ? "alta" : "media",
-      titulo: `${capital(opts.que)} se ${veces == null ? "dispararon" : veces >= 3 ? `multiplicaron por ${Math.floor(veces)}` : "duplicaron"} con ${c.quien}`,
+      severidad: veces >= 4 && veces >= 2 * crecenOtros ? "alta" : "media",
+      titulo: `${capital(opts.que)} se ${veces >= 3 ? `multiplicaron por ${Math.floor(veces)}` : "duplicaron"} con ${c.quien}`,
       explica:
         `En los seis meses desde que asumió (${mesLargo(despues[0])} a ${mesLargo(fin)}): ${miles(d)} ${serie.unidad}; ` +
-        `en los mismos meses del año anterior, ${miles(a)}. Un cambio así puede tener razones legítimas (un programa nuevo, ` +
-        `una emergencia): es para revisar, no prueba nada.`,
+        `en los mismos meses del año anterior, ${miles(a)}.${otrosTexto} Un cambio así puede tener razones legítimas (un ` +
+        `programa nuevo, una emergencia): es para revisar, no prueba nada.`,
       pasos: [
         { fecha: `${antes[0]}-01`, texto: `${miles(a)} ${serie.unidad} en los seis meses de un año antes` },
         { fecha: c.fecha, texto: `Asumió ${c.quien}` },

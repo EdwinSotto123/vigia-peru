@@ -13,8 +13,12 @@
 --
 -- 3. «La ola que siguió a un cambio de gestión». Las órdenes de servicio a personas (locadores) en los seis meses desde
 --    que asumió una gestión (la local del JNE o, en el Ejecutivo, el Presidente) frente a los mismos seis meses del año
---    anterior (la misma época: un enero no se parece a un diciembre). Ola si se duplicaron y sumaron al menos 30 más; alta
---    si se cuadruplicaron. La misma regla que lib/historia.ts (olasDeGestion), sobre entidad_orden_mes (187).
+--    anterior (la misma época: un enero no se parece a un diciembre). Ola si se duplicaron, sumaron al menos 30 más y
+--    crecieron al menos 1,5 veces más que sus demás órdenes (todo crece de un año a otro: 2,1 M de órdenes a personas en
+--    2022, 2,8 M en 2023); alta si se cuadruplicaron y crecieron el doble que las demás. Hace falta una base: 5 órdenes a
+--    personas y 30 en total en los meses del año anterior (la primera versión marcaba 426 entidades que en 2022 no tenían
+--    ninguna: no es una ola, es que no reportaban). Un Presidente de menos de 60 días (Merino) no cuenta como gestión. La
+--    misma regla que lib/historia.ts (olasDeGestion), sobre entidad_orden_mes (187).
 --
 -- Refrescos: refrescar_cruce_visita_previa() la llama el Worker de scrapers (comun.ts, siExiste) como antes;
 -- refrescar_visita_pariente() tras las cargas de visitas y las rondas de la DJI (orquestar_dji.py); refrescar_ola_gestion()
@@ -160,9 +164,13 @@ CREATE TABLE IF NOT EXISTS entidad_ola_gestion (
   antes        INT NOT NULL,           -- órdenes a personas en los seis meses de un año antes
   despues      INT NOT NULL,           -- en sus primeros seis meses
   mes_desde    DATE NOT NULL,          -- el primer mes de los seis
+  otros_antes  INT,                    -- sus demás órdenes en los mismos tramos (la comparación)
+  otros_despues INT,
   severidad    TEXT NOT NULL,
   PRIMARY KEY (entidad_ruc, desde)
 );
+
+ALTER TABLE entidad_ola_gestion ADD COLUMN IF NOT EXISTS otros_antes INT, ADD COLUMN IF NOT EXISTS otros_despues INT;
 
 CREATE OR REPLACE FUNCTION refrescar_ola_gestion() RETURNS integer
 LANGUAGE plpgsql AS $$
@@ -175,10 +183,12 @@ BEGIN
     SELECT a.ruc, g.desde, 'la gestión de ' || COALESCE(g.org_nombre, 'una organización sin nombre en el registro') AS quien
       FROM entidad_gobierno_amplia a JOIN gobierno_periodo g ON g.nivel = a.nivel AND g.ubigeo = a.ubigeo
     UNION ALL
-    -- El Ejecutivo: cada Presidente que asumió.
+    -- El Ejecutivo: cada Presidente que asumió y gobernó al menos 60 días (Merino, cinco, no).
     SELECT eg.ruc, n.desde,
            CASE WHEN n.presidente ~* '^Elegido' THEN 'el Presidente ' || lower(left(n.presidente, 1)) || substr(n.presidente, 2) ELSE n.presidente END
-      FROM entidad_gestion eg CROSS JOIN gobierno_nacional_inicio n WHERE eg.nivel = 'nacional'
+      FROM entidad_gestion eg
+     CROSS JOIN (SELECT desde, presidente, lead(desde) OVER (ORDER BY desde) AS sig FROM gobierno_nacional_inicio) n
+     WHERE eg.nivel = 'nacional' AND (n.sig IS NULL OR n.sig - n.desde >= 60)
   ), c AS (
     SELECT ruc, desde, quien,
            -- Si asumió pasado el día 15, su primer mes es el siguiente.
@@ -188,20 +198,25 @@ BEGIN
     SELECT entidad_ruc, min(mes) AS primero, max(mes) AS ultimo FROM entidad_orden_mes GROUP BY 1
   ), sumas AS (
     SELECT c.ruc, c.desde, c.quien, c.m0,
-           (SELECT COALESCE(sum(o.a_personas), 0) FROM entidad_orden_mes o
-             WHERE o.entidad_ruc = c.ruc AND o.mes >= (c.m0 - interval '12 months')::date AND o.mes < (c.m0 - interval '6 months')::date)::int AS antes,
-           (SELECT COALESCE(sum(o.a_personas), 0) FROM entidad_orden_mes o
-             WHERE o.entidad_ruc = c.ruc AND o.mes >= c.m0 AND o.mes < (c.m0 + interval '6 months')::date)::int AS despues
-      FROM c JOIN rango r ON r.entidad_ruc = c.ruc
+           COALESCE(sum(o.a_personas) FILTER (WHERE o.mes >= (c.m0 - interval '12 months')::date AND o.mes < (c.m0 - interval '6 months')::date), 0)::int AS antes,
+           COALESCE(sum(o.a_personas) FILTER (WHERE o.mes >= c.m0 AND o.mes < (c.m0 + interval '6 months')::date), 0)::int AS despues,
+           COALESCE(sum(o.ordenes - o.a_personas) FILTER (WHERE o.mes >= (c.m0 - interval '12 months')::date AND o.mes < (c.m0 - interval '6 months')::date), 0)::int AS otros_antes,
+           COALESCE(sum(o.ordenes - o.a_personas) FILTER (WHERE o.mes >= c.m0 AND o.mes < (c.m0 + interval '6 months')::date), 0)::int AS otros_despues
+      FROM c JOIN rango r ON r.entidad_ruc = c.ruc JOIN entidad_orden_mes o ON o.entidad_ruc = c.ruc
      -- Los dos tramos dentro de lo que hay: desde un año antes hasta seis meses después (el mes en curso, incompleto, no).
      WHERE r.primero <= (c.m0 - interval '12 months')::date
        AND (c.m0 + interval '5 months')::date <= LEAST(r.ultimo, (date_trunc('month', current_date) - interval '1 month')::date)
+     GROUP BY 1, 2, 3, 4
   )
-  INSERT INTO entidad_ola_gestion (entidad_ruc, desde, quien, antes, despues, mes_desde, severidad)
+  INSERT INTO entidad_ola_gestion (entidad_ruc, desde, quien, antes, despues, mes_desde, severidad, otros_antes, otros_despues)
   SELECT DISTINCT ON (ruc, desde) ruc, desde, quien, antes, despues, m0,
-         CASE WHEN despues >= 4 * antes THEN 'alta' ELSE 'media' END
+         CASE WHEN despues >= 4 * antes AND (despues::float / antes) >= 2 * (otros_despues::float / GREATEST(otros_antes, 1))
+              THEN 'alta' ELSE 'media' END,
+         otros_antes, otros_despues
     FROM sumas
-   WHERE despues >= 2 * antes AND despues - antes >= 30
+   WHERE antes >= 5 AND antes + otros_antes >= 30
+     AND despues >= 2 * antes AND despues - antes >= 30
+     AND (despues::float / antes) >= 1.5 * (otros_despues::float / GREATEST(otros_antes, 1))
    ORDER BY ruc, desde, despues DESC;
   GET DIAGNOSTICS n = ROW_COUNT;
   ANALYZE entidad_ola_gestion;

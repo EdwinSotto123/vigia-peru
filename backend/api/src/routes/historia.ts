@@ -238,7 +238,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     });
     if (p.desde > DESDE && p.desde <= hasta) {
       marcas.push({ fecha: p.desde, tipo: "gobierno", texto: `Asumió ${quien}` });
-      cambios.push({ fecha: p.desde, quien });
+      // Un Presidente de menos de 60 días (Merino) no es una gestión que pueda traer una ola.
+      if (!sig || (Date.parse(sig) - Date.parse(p.desde)) / 86_400_000 >= 60) cambios.push({ fecha: p.desde, quien });
     }
   });
   marcas.push(...marcasEleccion(DESDE, hasta, nacional.length ? "general" : gobLocal.length ? "regional" : undefined));
@@ -282,7 +283,11 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
 
   // La ola que siguió a cada cambio de gestión: órdenes a personas, plazas CAS y altas en la planilla.
   const secuencias: SecuenciaHistoria[] = [
-    ...olasDeGestion(personas, cambios, { tipo: "ola_personas", minimo: 30, que: "las órdenes a personas", href: `${base}?seccion=personas`, fuente: "CONOSCE (OECE)" }),
+    ...olasDeGestion(personas, cambios, {
+      tipo: "ola_personas", minimo: 30, que: "las órdenes a personas", href: `${base}?seccion=personas`, fuente: "CONOSCE (OECE)",
+      // Contra sus demás órdenes en los mismos meses: que no sea que todo creció.
+      otros: ord.map((r) => ({ periodo: r.mes, n: r.ordenes - r.a_personas })),
+    }),
     ...olasDeGestion({ unidad: "convocatorias CAS", huecos: "cero", puntos: plz.map((r) => ({ periodo: r.mes, n: r.n })) }, cambios, { tipo: "ola_plazas", minimo: 10, que: "las plazas CAS", href: `${base}?seccion=plazas`, fuente: "SERVIR Talento Perú" }),
     ...olasDeGestion({ unidad: "personas que entraron", huecos: "sin_dato", puntos: pla.filter((r) => r.altas != null && !r.incompleto).map((r) => ({ periodo: r.mes, n: r.altas ?? 0 })) }, cambios, { tipo: "ola_planilla", minimo: 30, que: "las entradas a la planilla", href: `${base}?seccion=planilla`, fuente: "Portal de Transparencia Estándar" }),
   ];

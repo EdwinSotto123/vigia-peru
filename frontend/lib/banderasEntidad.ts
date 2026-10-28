@@ -123,7 +123,7 @@ export function banderasEntidad(
     out.push({
       tipo: "ola_gestion", severidad: o.severidad === "alta" ? "alta" : "media", chip: "Ola de locadores", n: s.olaGestion ?? null,
       titulo: `Las órdenes a personas pasaron de ${numero(o.antes ?? 0)} a ${numero(o.despues ?? 0)} en los seis meses desde que asumió ${o.quien ?? "la gestión"}`,
-      explica: "Las órdenes de servicio a personas naturales (locadores) en los seis meses desde que asumió una gestión, frente a los mismos meses del año anterior (OECE). Puede tener razones legítimas: es para revisar.",
+      explica: "Las órdenes de servicio a personas naturales (locadores) en los seis meses desde que asumió una gestión se duplicaron frente a los mismos meses del año anterior, y crecieron bastante más que sus demás órdenes (OECE). Puede tener razones legítimas, como un programa nuevo: es para revisar.",
       href: `${ficha}?seccion=historia`,
     });
   }
