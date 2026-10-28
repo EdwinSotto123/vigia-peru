@@ -76,11 +76,33 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
       else n.add(id);
       return n;
     });
-  /** Abre las ramas hasta una oficina, la elige y la trae a la vista. */
+  /**
+   * Elige una oficina y la trae a la vista, a la izquierda del panel de su detalle (que se abre encima del mapa, a la
+   * derecha): si quedaba debajo del panel, el mapa se corre.
+   */
+  const elegir = (id: string) => {
+    setSel(id);
+    // Después de dibujar (al venir del buscador, la rama recién abierta todavía no estaba).
+    window.setTimeout(() => {
+      const el = lienzo.current;
+      const g = el?.querySelector(`[data-org="${CSS.escape(id)}"]`);
+      if (!el || !g) return;
+      const a = el.getBoundingClientRect();
+      const b = g.getBoundingClientRect();
+      const visible = el.clientWidth - Math.min(368, el.clientWidth * 0.5);
+      const x = b.left - a.left;
+      const y = b.top - a.top;
+      el.scrollBy({
+        left: x < 16 || x + b.width > visible - 16 ? x - (visible - b.width) / 2 : 0,
+        top: y < 16 || y + b.height > el.clientHeight - 16 ? y - (el.clientHeight - b.height) / 2 : 0,
+        behavior: "smooth",
+      });
+    }, 60);
+  };
+  /** Abre las ramas hasta una oficina y la elige (el buscador, «Depende de» en el detalle). */
   const ir = (id: string) => {
     setAbiertos((s) => new Set([...s, ...rutaDe(id, porId).slice(0, -1)]));
-    setSel(id);
-    requestAnimationFrame(() => document.querySelector(`[data-org="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" }));
+    elegir(id);
   };
 
   const raizLineas = useMemo(() => {
@@ -101,7 +123,8 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
     if (!el || !red) return;
     const x = (-plano.vista.x) * escala;
     const y = (-plano.vista.y) * escala;
-    el.scrollLeft = Math.max(0, x - el.clientWidth * 0.35);
+    // La rama grande va a la derecha: la entidad, cerca del borde izquierdo (lo de su izquierda sigue a la vista).
+    el.scrollLeft = Math.max(0, x - el.clientWidth * 0.25);
     el.scrollTop = Math.max(0, y - el.clientHeight / 2);
     // Sólo al montar o al volver al mapa: no cada vez que se abre una rama.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,7 +201,7 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
                   elegida={sel === n.id}
                   abierta={abiertos.has(n.id)}
                   nHijos={hijos.get(n.id)?.length ?? 0}
-                  alElegir={() => setSel(n.id)}
+                  alElegir={() => elegir(n.id)}
                   alAlternar={() => alternar(n.id)}
                 />
               );
