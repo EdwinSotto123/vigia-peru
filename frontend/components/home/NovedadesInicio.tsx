@@ -24,6 +24,7 @@ interface Novedades {
 }
 
 const NOMBRE_CRUCE = new Map(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t.chip ?? t.corto] as const)));
+const COLUMNAS: Record<number, string> = { 2: "sm:grid-cols-2", 3: "sm:grid-cols-3" };
 const FILA = "block px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5";
 
 async function getNovedades(): Promise<Novedades | null> {
@@ -44,7 +45,8 @@ export async function NovedadesInicio() {
     { n: t.contratos, uno: "contrato con antecedentes graves", varios: "contratos con antecedentes graves", sub: d.contratosHasta ? `buena pro en los 7 días al ${fechaCorta(d.contratosHasta)}` : "la última semana", icono: ShieldAlert, href: "/app/novedades#nuevo-contratos" },
     { n: t.sanciones, uno: "sanción nueva a una empresa", varios: "sanciones nuevas a empresas", sub: "del Tribunal, último mes", icono: Gavel, href: "/app/novedades#nuevo-sanciones" },
     { n: t.informes, uno: "informe de control nuevo", varios: "informes de control nuevos", sub: "de la Contraloría, último mes", icono: FileWarning, href: "/app/novedades#nuevo-informes" },
-  ];
+    // Sin ceros: un «0 sanciones» diría que no hubo, cuando puede ser que la fuente no publicó (/fuentes dice desde cuándo).
+  ].filter((c) => c.n > 0);
   // recorte: el Inicio muestra los tres primeros (ya vienen con más antecedentes graves y de mayor monto); la lista entera está en /app/novedades.
   const top = d.contratos.slice(0, 3);
   return (
@@ -57,7 +59,7 @@ export async function NovedadesInicio() {
           Ver todo lo nuevo <ArrowRight size={13} aria-hidden />
         </Link>
       </div>
-      <ul className="grid grid-cols-1 divide-y divide-line border-b border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <ul className={`grid grid-cols-1 divide-y divide-line border-b border-line sm:divide-x sm:divide-y-0 ${COLUMNAS[cifras.length] ?? ""}`}>
         {cifras.map((c) => (
           <li key={c.href}>
             <Link href={c.href} className="flex h-full items-start gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft sm:px-5">
