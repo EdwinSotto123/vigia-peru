@@ -33,6 +33,7 @@ import { MarcoFicha } from "@/components/entidad/MarcoFicha";
 import { Acciones, Diferida, EsqueletoPestana, PestanaVacia } from "@/components/entidad/PestanasEntidad";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
+import { EvolucionPlanilla } from "@/components/personas/EvolucionPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { ObrasEntidad, ObrasVacia } from "@/components/obras/ObrasEntidad";
 
@@ -304,6 +305,10 @@ export default async function EntidadProfile({
       ) : (
         <div className="space-y-4">
           <CabeceraPestana ayuda={<AyudaPlanilla />}>Quiénes trabajan en la entidad, cuánto cobran y qué dicen de cada uno otros registros.</CabeceraPestana>
+          {/* Cuánta gente tuvo cada mes y cuántos entraron y salieron, con los cambios de gobierno (migración 182). */}
+          <Suspense fallback={null}>
+            <EvolucionPlanilla entidad={e.ruc} />
+          </Suspense>
           <ListaPlanilla alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "planilla" }} deEntidad />
         </div>
       ),

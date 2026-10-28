@@ -7,7 +7,7 @@ import { API_BASE } from "./api-client";
 import { tituloNatural } from "./landing";
 import type { FichaPersona, Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 // Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
@@ -81,8 +81,18 @@ export interface FacetasPlanilla {
   pariente: number;
   oficinas: { valor: string; n: number }[] | null;
   cargos: { valor: string; n: number }[] | null;
-  tramos: { sueldo: Record<string, number> } | null;
+  tramos: { sueldo: Record<string, number>; antiguedad?: Record<string, number> } | null;
+  /** En una entidad: cuántos tienen un cargo de jefatura. */
+  jefatura?: number | null;
 }
+
+/** Cuántos meses lleva en la planilla desde que se carga (enero de 2025): lo que se ve en los datos, no su antigüedad. */
+export const ANTIGUEDAD_PLANILLA = [
+  { valor: "1", etiqueta: "Un mes" },
+  { valor: "2a6", etiqueta: "De 2 a 6 meses" },
+  { valor: "7a12", etiqueta: "De 7 a 12 meses" },
+  { valor: "13mas", etiqueta: "13 meses o más" },
+] as const;
 
 /** El sueldo del último mes (sin gratificaciones ni liquidaciones), por tramos; uno con posible error no cae en ninguno. */
 export const SUELDOS_PLANILLA = [
@@ -168,10 +178,11 @@ export const REGIMEN: Record<number, string> = {
 export const GRUPOS_PLANILLA = ["Política", "Familia y conflictos", "Cómo se le paga"] as const;
 export const GRUPO_PLANILLA: Record<TipoPlanilla, (typeof GRUPOS_PLANILLA)[number]> = {
   financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", es_autoridad: "Política",
-  pariente_locador: "Familia y conflictos", socio_proveedor: "Familia y conflictos", apellidos_autoridad: "Familia y conflictos",
+  pariente_locador: "Familia y conflictos", pariente_planilla: "Familia y conflictos", familiar_en_planilla: "Familia y conflictos",
+  socio_proveedor: "Familia y conflictos", apellidos_autoridad: "Familia y conflictos",
   apellidos_directivo: "Familia y conflictos",
   tambien_ordenes: "Cómo se le paga", doble_planilla: "Cómo se le paga", brecha_cargo: "Cómo se le paga", pago_extraordinario: "Cómo se le paga",
-  antes_locador: "Cómo se le paga",
+  antes_locador: "Cómo se le paga", ascenso_expres: "Cómo se le paga",
 };
 
 export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: string; explica: string }> = {
@@ -185,6 +196,24 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     titulo: "Declaró en su DJI a un pariente que es locador de su entidad",
     explica:
       "Declaró en su Declaración Jurada de Intereses a un pariente que es locador (proveedor) de esta misma entidad. Del pariente sólo se dice el parentesco y lo que cobró, nunca quién es. Es un indicio de posible nepotismo para revisión, no una acusación.",
+  },
+  pariente_planilla: {
+    corto: "Pariente de un funcionario",
+    titulo: "Un funcionario de su entidad lo declaró como pariente",
+    explica:
+      "Un funcionario de esta misma entidad lo declaró como pariente en su Declaración Jurada de Intereses, y figura en la planilla. La Ley 26771 prohíbe a quien tiene poder de nombrar o contratar hacerlo con sus parientes en su entidad. Coincide por el nombre completo (la planilla no publica el DNI) y sólo con apellidos que no son de los más comunes. Del funcionario se muestra su cargo y, cuando no destapa el apellido tapado de esta persona, su primer apellido. Es un indicio para revisar, no una acusación.",
+  },
+  familiar_en_planilla: {
+    corto: "Familiar en su planilla",
+    titulo: "Declaró a un pariente que trabaja en su misma entidad",
+    explica:
+      "En su Declaración Jurada de Intereses declaró a un pariente que figura en la planilla de esta misma entidad. Del pariente sólo se dice el parentesco y su cargo, nunca quién es. La Ley 26771 prohíbe nombrar o contratar a parientes en la propia entidad a quien tiene ese poder: es un indicio para revisar, no una acusación.",
+  },
+  ascenso_expres: {
+    corto: "Ascenso exprés",
+    titulo: "Pasó a una jefatura y su sueldo subió mucho en pocos meses",
+    explica:
+      "En 12 meses o menos pasó de un cargo que no es de jefatura a uno de jefatura (jefe, director, gerente, coordinador, administrador) y su sueldo base subió 1,5 veces o más (y al menos S/ 2,000), y se mantuvo el mes siguiente. Ascender no es una falta: un salto así, rápido, es un dato para revisar junto a sus otras señales. No se cuenta su primer mes (suele venir pagado por días) ni los meses con un posible error de carga.",
   },
   doble_planilla: {
     corto: "En dos planillas a la vez",
@@ -440,8 +469,17 @@ const qs = (f: Record<string, unknown>) => {
 
 export const getPlanilla = (f: {
   entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string;
-  sueldo?: string; oficina?: string; cargo?: string; pariente?: string; page?: number; size?: number;
+  sueldo?: string; oficina?: string; cargo?: string; pariente?: string; jefatura?: string; antiguedad?: string; page?: number; size?: number;
 }) => leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
+
+/** La planilla de una entidad mes a mes (migración 182) y los cambios de gobierno de esos meses. */
+export interface PlanillaMensual {
+  meses: { mes: string; personas: number; base: number | null; altas: number | null; bajas: number | null }[];
+  cambios: { mes: string; nivel: string; quien: string | null }[];
+}
+
+export const getPlanillaMensual = (entidad: string) =>
+  /^\d{11}$/.test(entidad) ? leer<PlanillaMensual>(`/planilla/mensual?entidad=${entidad}`) : Promise.resolve(null);
 
 /** La ficha de una persona de la planilla: sus datos, lo que cobró cada mes y la misma persona en otras planillas. */
 export interface FichaPlanilla {

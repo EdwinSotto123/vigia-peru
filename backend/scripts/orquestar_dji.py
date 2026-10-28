@@ -208,9 +208,11 @@ class Procesando:
         self.p, self.carpeta, self.claves = None, None, set()
 
 
-# Las señales que salen de los vínculos de la DJI, en orden: nepotismo en la entidad (137), en el mismo gobierno (179) y la
-# familia en otras entidades (180); luego el resumen de personas que las cuenta. Las que aún no existen se saltan.
-PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_personas_resumen")
+# Las señales que salen de los vínculos de la DJI, en orden: nepotismo en la entidad (137), en el mismo gobierno (179), la
+# familia en otras entidades (180) y el pariente en la planilla de su entidad (182); luego el resumen de personas que las
+# cuenta. Las que aún no existen se saltan.
+PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_planilla_extra",
+               "refrescar_personas_resumen")
 
 
 def refrescar_senal() -> int:

@@ -174,6 +174,24 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       const grados = [...new Set(par.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
       return `${plural(par.length, "pariente", "parientes")} (${grados.join(", ")}) con ${plural(n(d.ordenes) ?? 0, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)} de la entidad`;
     }
+    case "pariente_planilla": {
+      const f = lista(d.funcionarios);
+      if (f.length > 1) return `Pariente de ${numero(f.length)} funcionarios de su entidad`;
+      const cargo = cargoEnOracion(f[0]?.cargo, true);
+      return `${oracionSimple(GRADO_PARIENTE[t(f[0]?.grado) ?? "otro"] ?? "pariente")} de un funcionario de su entidad${cargo ? ` (${cargo})` : ""}`;
+    }
+    case "familiar_en_planilla": {
+      const par = lista(d.parientes);
+      const grados = [...new Set(par.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
+      const cargo = par.length === 1 ? natural(par[0].cargo) : null;
+      return `Declaró ${par.length === 1 ? "a un pariente" : `a ${numero(par.length)} parientes`} (${grados.join(", ")}) que ${par.length === 1 ? "trabaja" : "trabajan"} en su entidad${cargo ? `, como ${cargo}` : ""}`;
+    }
+    case "ascenso_expres": {
+      const a = (d.antes ?? {}) as Record<string, unknown>;
+      const b = (d.despues ?? {}) as Record<string, unknown>;
+      const meses = n(d.meses);
+      return `De ${natural(a.cargo) ?? "otro cargo"} (${soles(n(a.base) ?? 0)}) a ${natural(b.cargo) ?? "una jefatura"} (${soles(n(b.base) ?? 0)})${meses != null ? ` en ${plural(meses, "mes", "meses")}` : ""}${n(d.veces) != null ? `: ${decimal(n(d.veces))} veces` : ""}`;
+    }
     case "doble_planilla": {
       const meses = listaMeses(lista(d.meses));
       const otra = natural(d.otra_entidad) ?? "otra entidad";
@@ -384,6 +402,65 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           },
         }))}
       />
+    );
+  } else if (tipo === "pariente_planilla") {
+    // Del funcionario: su cargo y, sólo si no destapa el apellido tapado de esta persona, su primer apellido y su ficha
+    // (lo decide la migración 182 con la regla de la API). Nunca su nombre completo.
+    return (
+      <TablaChica
+        etiqueta="Funcionarios de su entidad que lo declararon como pariente"
+        columnas={[
+          { clave: "quien", titulo: "Lo declaró", ancho: "minmax(0,1fr)" },
+          { clave: "parentesco", titulo: "Parentesco declarado", corto: "Parentesco", ancho: "minmax(0,11rem)", desde: "md", apilar: "con-rotulo" },
+        ]}
+        filas={lista(d.funcionarios).map((f, i) => ({
+          id: String(i),
+          ...(t(f.ficha) ? { href: `/app/personas/planilla/${t(f.ficha)}` } : {}),
+          celdas: {
+            quien: <CeldaPrincipal titulo={natural(f.cargo) ?? "Funcionario de la entidad"} meta={t(f.apellido) ? [<Dato key="a" tipo="personas" nombre="Funcionario">{t(f.apellido)}</Dato>] : undefined} />,
+            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(f.grado) ?? "otro"] ?? "pariente")),
+          },
+        }))}
+      />
+    );
+  } else if (tipo === "familiar_en_planilla") {
+    // Del pariente sólo el parentesco y su cargo: nunca quién es.
+    return (
+      <TablaChica
+        etiqueta="Parientes que declaró y que trabajan en su entidad"
+        columnas={[
+          { clave: "parentesco", titulo: "Parentesco declarado", ancho: "minmax(0,1fr)" },
+          { clave: "cargo", titulo: "Su cargo en la entidad", corto: "Cargo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+        ]}
+        filas={lista(d.parientes).map((x, i) => ({
+          id: String(i),
+          celdas: {
+            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
+            cargo: texto(natural(x.cargo)),
+          },
+        }))}
+      />
+    );
+  } else if (tipo === "ascenso_expres") {
+    const a = (d.antes ?? {}) as Record<string, unknown>;
+    const b = (d.despues ?? {}) as Record<string, unknown>;
+    const antes = n(a.base);
+    const despues = n(b.base);
+    return (
+      <div className="space-y-3">
+        {antes != null && despues != null && (
+          <FrenteMediana valor={despues} mediana={antes} etiquetaValor={`Sueldo en ${mes(t(b.mes)) ?? "la jefatura"}`} etiquetaMediana={`Sueldo en ${mes(t(a.mes)) ?? "su cargo anterior"}`} />
+        )}
+        <DatosClave
+          items={[
+            { etiqueta: "Antes", valor: [natural(a.cargo), mes(t(a.mes))].filter(Boolean).join(", ") || null },
+            { etiqueta: "Sueldo antes", valor: antes != null ? soles(antes) : null, mono: true },
+            { etiqueta: "Después", valor: [natural(b.cargo), mes(t(b.mes))].filter(Boolean).join(", ") || null },
+            { etiqueta: "Sueldo después", valor: despues != null ? soles(despues) : null, mono: true },
+            { etiqueta: "Subió", valor: n(d.veces) != null ? `${decimal(n(d.veces))} veces en ${plural(n(d.meses) ?? 0, "mes", "meses")}` : null },
+          ]}
+        />
+      </div>
     );
   } else if (tipo === "doble_planilla") {
     const otra = t(d.otra_entidad_ruc);

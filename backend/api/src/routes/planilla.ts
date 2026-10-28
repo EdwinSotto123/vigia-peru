@@ -15,6 +15,8 @@ import { PARIENTE_LOCADOR, funcionariosConPariente, type FuncionariosConPariente
  *                                 directivo, candidato del que gobierna, fue locador antes). Paginado, con su resumen.
  *   GET /planilla/ficha/:codigo   la ficha de una persona de la planilla (migración 107): sus datos, señales con detalle,
  *                                 lo que cobró cada mes cargado y la misma persona en la planilla de otras entidades.
+ *   GET /planilla/mensual?entidad= la planilla de la entidad mes a mes (personas, sueldos, quiénes entraron y salieron) y
+ *                                 los cambios de gobierno de esos meses (migración 182).
  *   GET /plazas[?entidad=|dep=]   las plazas CAS que publicó en SERVIR, con sus señales (pide experiencia en la propia
  *                                 entidad, paga mucho y pide poco, plazo corto, ya hay locadores).
  *
@@ -28,7 +30,7 @@ const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Record<string, unknown>>({ nombre: "planilla", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "planilla:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 // Sin `sueldo_alto`: no se calcula desde la migración 95 (el tipo de servicio es muy amplio para comparar sueldos), y un
 // filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
@@ -78,6 +80,22 @@ export const TRAMOS_PLANILLA = {
 } as const;
 const SIN_DUDA = `p.dudoso IS NULL`;
 
+/**
+ * Cuántos meses lleva en la planilla desde que se carga (enero de 2025; migración 92): no es su antigüedad en el Estado,
+ * sino lo que se ve en los datos.
+ */
+export const TRAMOS_ANTIGUEDAD = {
+  antiguedad: {
+    "1": `p.meses = 1`,
+    "2a6": `p.meses BETWEEN 2 AND 6`,
+    "7a12": `p.meses BETWEEN 7 AND 12`,
+    "13mas": `p.meses >= 13`,
+  },
+} as const;
+
+/** Un cargo de jefatura (jefe, director, gerente, coordinador, administrador…), como en el ascenso exprés (migración 182). */
+export const JEFATURA = String.raw`mef_norm(p.cargo) ~ '\m(JEFE|JEFA|DIRECTOR|DIRECTORA|GERENTE|SUBGERENTE|SUB GERENTE|COORDINADOR|COORDINADORA|ADMINISTRADOR|ADMINISTRADORA|SECRETARIO GENERAL|SECRETARIA GENERAL|SUBDIRECTOR|SUBDIRECTORA|PROCURADOR|PROCURADORA)\M'`;
+
 /** La oficina o el cargo como se agrupan: en mayúsculas y con los espacios juntos (el PTE los escribe de varias formas). */
 const NORMAL = (col: string) => `regexp_replace(upper(btrim(${col})), '\\s+', ' ', 'g')`;
 
@@ -103,6 +121,9 @@ export const ListaPlanilla = {
   cargo: z.string().trim().min(2).max(200).optional(),
   // Declaró a un pariente que es locador de su entidad.
   pariente: z.enum(["si"]).optional(),
+  // Un cargo de jefatura, y cuántos meses lleva en la planilla cargada.
+  jefatura: z.enum(["si"]).optional(),
+  antiguedad: enumDe(TRAMOS_ANTIGUEDAD.antiguedad).optional(),
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
 type ListaPlanillaQ = z.infer<z.ZodObject<typeof ListaPlanilla>>;
@@ -117,6 +138,8 @@ export function filtrosPlanilla(q: ListaPlanillaQ, conds: string[], vals: unknow
   if (q.entidad && q.oficina) conds.push(`${NORMAL("p.dependencia")} = ${p(q.oficina)}`);
   if (q.entidad && q.cargo) conds.push(`${NORMAL("p.cargo")} = ${p(q.cargo)}`);
   if (q.pariente) conds.push(conPariente("p", pares, p));
+  if (q.jefatura) conds.push(JEFATURA);
+  if (q.antiguedad) conds.push(TRAMOS_ANTIGUEDAD.antiguedad[q.antiguedad]);
   for (const w of palabrasBusqueda(q.q)) { const v = p(`%${w}%`); conds.push(`(${NOMBRE_PLANILLA} LIKE ${v} OR ${TEXTO_PLANILLA} LIKE ${v})`); }
   sevCond(q.severidad, conds, vals, "p");
 }
@@ -145,10 +168,17 @@ async function facetasPlanilla(q: ListaPlanillaQ, alc: string[], vals: unknown[]
       q.entidad ? grupo("dependencia") : null,
       q.entidad ? grupo("cargo") : null,
       q.entidad
-        ? pool.query<{ t: Record<string, Record<string, number>> }>(`SELECT ${conteoTramos(TRAMOS_PLANILLA, SIN_DUDA)} AS t FROM planilla_persona p WHERE ${donde}`, vals)
+        ? pool.query<{ t: Record<string, Record<string, number>>; a: Record<string, Record<string, number>>; jefes: number }>(
+            `SELECT ${conteoTramos(TRAMOS_PLANILLA, SIN_DUDA)} AS t, ${conteoTramos(TRAMOS_ANTIGUEDAD)} AS a,
+                    count(*) FILTER (WHERE ${JEFATURA})::int AS jefes
+               FROM planilla_persona p WHERE ${donde}`, vals)
         : null,
     ]);
-    return { pariente: conPar.rows[0]?.n ?? 0, oficinas: oficinas?.rows ?? null, cargos: cargos?.rows ?? null, tramos: tramos?.rows[0]?.t ?? null };
+    const tr = tramos?.rows[0];
+    return {
+      pariente: conPar.rows[0]?.n ?? 0, oficinas: oficinas?.rows ?? null, cargos: cargos?.rows ?? null,
+      tramos: tr ? { ...tr.t, ...tr.a } : null, jefatura: tr?.jefes ?? null,
+    };
   });
 }
 
@@ -301,6 +331,42 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /planilla/mensual?entidad= ─────────────────────────────────────────────────────────────
+/**
+ * La planilla de una entidad mes a mes (planilla_entidad_mes, migración 182): cuántas personas tuvo, su sueldo base sumado
+ * y cuántas entraron y salieron frente al mes anterior que publicó; y los cambios de gobierno de esos meses (la gestión
+ * local nueva o el Presidente que asumió), para marcarlos en el gráfico de la pestaña Planilla.
+ */
+const Mensual = z.object({ entidad: z.string().regex(/^\d{11}$/) });
+
+planillaRouter.get("/mensual", async (c) => {
+  const parsed = Mensual.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const { entidad } = parsed.data;
+  const cuerpo = await memo.obtener(`mensual:${entidad}`, async () => {
+    const [meses, cambios] = await Promise.all([
+      pool.query(
+        `SELECT to_char(mes, 'YYYY-MM') AS mes, personas, base::float AS base, altas, bajas
+           FROM planilla_entidad_mes WHERE entidad_ruc = $1 ORDER BY mes`, [entidad]),
+      pool.query<{ mes: string; nivel: string; quien: string | null }>(
+        `WITH r AS (SELECT min(mes) AS d0, max(mes) AS d1 FROM planilla_entidad_mes WHERE entidad_ruc = $1),
+              t AS (
+                SELECT g.desde, g.nivel, g.org_nombre AS quien
+                  FROM entidad_gobierno_amplia a JOIN gobierno_periodo g ON g.nivel = a.nivel AND g.ubigeo = a.ubigeo
+                 WHERE a.ruc = $1
+                UNION ALL
+                SELECT n.desde, 'nacional', n.presidente
+                  FROM entidad_gestion eg CROSS JOIN gobierno_nacional_inicio n
+                 WHERE eg.ruc = $1 AND eg.nivel = 'nacional')
+         SELECT DISTINCT to_char(t.desde, 'YYYY-MM') AS mes, t.nivel, t.quien
+           FROM t, r WHERE t.desde > r.d0 AND t.desde <= r.d1 ORDER BY 1`, [entidad]).catch(() => ({ rows: [] })),
+    ]);
+    return { meses: meses.rows, cambios: cambios.rows };
+  });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

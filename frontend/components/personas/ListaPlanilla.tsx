@@ -28,6 +28,7 @@ import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { etiquetasUnicas } from "@/lib/personas";
 import {
+  ANTIGUEDAD_PLANILLA,
   REGIMEN,
   SENAL_PLANILLA,
   SUELDOS_PLANILLA,
@@ -46,7 +47,7 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
 export const P_PLANILLA = {
   senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud",
-  sueldo: "lsueldo", oficina: "lofi", cargo: "lcargo", pariente: "lpar",
+  sueldo: "lsueldo", oficina: "lofi", cargo: "lcargo", pariente: "lpar", jefatura: "ljef", antiguedad: "lant",
 } as const;
 
 /**
@@ -106,14 +107,17 @@ export function ListaPlanilla({
     oficina: texto(P.oficina),
     cargo: texto(P.cargo),
     pariente: uno(sp?.[P.pariente]) === "si" ? "si" : undefined,
+    jefatura: uno(sp?.[P.jefatura]) === "si" ? "si" : undefined,
+    antiguedad: ANTIGUEDAD_PLANILLA.some((o) => o.valor === uno(sp?.[P.antiguedad])) ? uno(sp?.[P.antiguedad]) : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlanilla({ ...alcance, ...f, size: TAM });
   const parametros: Parametros = {
     ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
     [P.q]: f.q, [P.dudoso]: f.dudoso, [P.sueldo]: f.sueldo, [P.oficina]: f.oficina, [P.cargo]: f.cargo, [P.pariente]: f.pariente,
+    [P.jefatura]: f.jefatura, [P.antiguedad]: f.antiguedad,
   };
-  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso || f.sueldo || f.oficina || f.cargo || f.pariente) || visiblesExtra.some((x) => !!base[x.param]);
+  const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso || f.sueldo || f.oficina || f.cargo || f.pariente || f.jefatura || f.antiguedad) || visiblesExtra.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
   const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
   return (
@@ -256,6 +260,21 @@ function Barra({
                 : []),
             ]
           : []),
+        {
+          // Jefe, director, gerente, coordinador, administrador… (como los cuenta el ascenso exprés).
+          param: P.jefatura,
+          etiqueta: "Tipo de cargo",
+          todas: "Todo cargo",
+          seccion: "Dónde trabaja",
+          opciones: [{ valor: "si", etiqueta: "Cargo de jefatura", conteo: facetas?.jefatura ?? null }],
+        },
+        {
+          param: P.antiguedad,
+          etiqueta: "Meses en la planilla cargada",
+          todas: "Cualquier tiempo",
+          seccion: "Cuándo",
+          opciones: ANTIGUEDAD_PLANILLA.map((o) => ({ ...o, conteo: facetas?.tramos?.antiguedad?.[o.valor] ?? null })),
+        },
         {
           param: P.sueldo,
           etiqueta: "Sueldo del último mes",
