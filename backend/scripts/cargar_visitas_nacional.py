@@ -213,8 +213,11 @@ def main() -> None:
             cur.copy_expert(f"COPY _vn ({', '.join(COPIA)}) FROM STDIN WITH (FORMAT csv)", a_csv(filas))
             # Lo que ya está por otra fuente del mismo registro (exportación manual, PNDA) no se repite.
             cur.execute(
-                f"""INSERT INTO visitas_entidades ({', '.join(COPIA)}, fuente, sha256, descargado_at)
-                    SELECT {', '.join('t.' + c for c in COPIA)}, %s, %s, %s FROM _vn t
+                # Con la marca de quien decide ya puesta (migración 200: marcarla después, con un UPDATE de 10 M filas,
+                # reescribía la tabla entera).
+                f"""INSERT INTO visitas_entidades ({', '.join(COPIA)}, decisor, fuente, sha256, descargado_at)
+                    SELECT {', '.join('t.' + c for c in COPIA)}, visita_decisor(t.funcionario_cargo, t.funcionario_area),
+                           %s, %s, %s FROM _vn t
                      WHERE NOT EXISTS (SELECT 1 FROM visitas_entidades o
                                         WHERE o.fuente <> %s AND o.entidad_visitada_norm = t.entidad_visitada_norm
                                           AND o.fecha_visita = t.fecha_visita
