@@ -500,6 +500,44 @@ export interface PlanillaMensual {
   cambios: { mes: string; nivel: string; quien: string | null }[];
 }
 
+/** La organización de una entidad según su planilla del último mes (GET /planilla/organizacion, fase 3). */
+export interface OficinaEntidad {
+  oficina: string;
+  funcion: "alta_direccion" | "compras" | "finanzas" | "presupuesto" | "personal" | "legal" | "control" | "obras" | "otras";
+  /** 1 alta dirección, 2 gerencia o dirección, 3 oficina o unidad, 4 otra área. */
+  nivel: number;
+  personas: number;
+  planilla: number;
+  cas: number;
+  conSenales: number;
+  altas: number;
+  jefaturas: number;
+  /** Quién la encabeza: con el materno tapado. */
+  jefes: { nombre: string; cargo: string | null; ficha: string | null; base: number | null }[];
+}
+export interface OrganizacionEntidad {
+  mes: string | null;
+  oficinas: OficinaEntidad[];
+  resumen: { oficinas: number; personas: number; jefaturas: number; planilla: number };
+}
+
+export const FUNCION_OFICINA: Record<OficinaEntidad["funcion"], string> = {
+  alta_direccion: "Alta dirección",
+  compras: "Compras y logística",
+  finanzas: "Administración y finanzas",
+  presupuesto: "Presupuesto y planeamiento",
+  personal: "Recursos humanos",
+  legal: "Asesoría legal",
+  control: "Control interno",
+  obras: "Obras e infraestructura",
+  otras: "Otras áreas",
+};
+
+export const NIVEL_OFICINA: Record<number, string> = { 1: "Alta dirección", 2: "Gerencia o dirección", 3: "Oficina o unidad", 4: "Otra área" };
+
+export const getOrganizacion = (entidad: string) =>
+  /^\d{11}$/.test(entidad) ? leer<OrganizacionEntidad>(`/planilla/organizacion?entidad=${entidad}`) : Promise.resolve(null);
+
 export const getPlanillaMensual = (entidad: string) =>
   /^\d{11}$/.test(entidad) ? leer<PlanillaMensual>(`/planilla/mensual?entidad=${entidad}`) : Promise.resolve(null);
 

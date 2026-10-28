@@ -371,6 +371,79 @@ planillaRouter.get("/mensual", async (c) => {
   return c.json(cuerpo);
 });
 
+// ─── GET /planilla/organizacion?entidad= ────────────────────────────────────────────────────────
+/**
+ * La organización de una entidad según su planilla del último mes publicado (fase 3 del plan del 2026-10-27): cada
+ * oficina (la dependencia como la agrupa `NORMAL`) con cuántas personas tiene, cuánto suman sus sueldos, cuántas tienen
+ * señales y quién la encabeza (los de cargo de jefatura, con el materno tapado y su ficha). La planilla no dice de quién
+ * depende cada oficina: no se inventa un árbol. Se ordenan por nivel (alta dirección, gerencias y direcciones, oficinas y
+ * unidades, otras) y se les pone su función por su nombre (compras, finanzas, presupuesto…), para ver quién compra, quién
+ * paga y quién decide.
+ */
+const FUNCION_OFICINA: [string, string][] = [
+  ["alta_direccion", String.raw`\m(ALCALDIA|ALCALDE|GOBERNACION|GOBERNADOR|DESPACHO|PRESIDENCIA|GERENCIA (GENERAL|MUNICIPAL|REGIONAL)|SECRETARIA GENERAL|JEFATURA (INSTITUCIONAL|NACIONAL)|VICEMINISTERIO|CONSEJO (MUNICIPAL|REGIONAL))\M`],
+  ["compras", String.raw`\m(LOGISTICA|ABASTECIMIENTO|ADQUISICIONES|CONTRATACIONES|COMPRAS|BIENES Y SERVICIOS|ALMACEN)\M`],
+  ["presupuesto", String.raw`\m(PRESUPUESTO|PLANEAMIENTO|PLANIFICACION|PROGRAMACION|INVERSIONES|MODERNIZACION)\M`],
+  ["personal", String.raw`\m(RECURSOS HUMANOS|PERSONAL|TALENTO|GESTION HUMANA)\M`],
+  ["legal", String.raw`\m(ASESORIA JURIDICA|ASUNTOS JURIDICOS|PROCURADURIA|LEGAL)\M`],
+  ["control", String.raw`\m(CONTROL INSTITUCIONAL|AUDITORIA|INTEGRIDAD|OCI)\M`],
+  ["obras", String.raw`\m(OBRAS|INFRAESTRUCTURA|DESARROLLO URBANO|PROYECTOS|ESTUDIOS)\M`],
+  ["finanzas", String.raw`\m(ADMINISTRACION|TESORERIA|CONTABILIDAD|FINANZAS|ECONOMIA|RENTAS|RECAUDACION)\M`],
+];
+const FUNCION_SQL = `CASE ${FUNCION_OFICINA.map(([f, re]) => `WHEN mef_norm(ofi) ~ '${re}' THEN '${f}'`).join(" ")} ELSE 'otras' END`;
+const NIVEL_SQL = String.raw`CASE WHEN mef_norm(ofi) ~ '^(SUB ?GERENCIA|DIRECCION|OFICINA|UNIDAD|DEPARTAMENTO|DIVISION|AREA|COORDINACION)' AND mef_norm(ofi) !~ '^(DIRECCION GENERAL|OFICINA GENERAL|DIRECCION REGIONAL|DIRECCION EJECUTIVA)' THEN 3
+                                  WHEN mef_norm(ofi) ~ '^(GERENCIA|DIRECCION GENERAL|OFICINA GENERAL|DIRECCION REGIONAL|DIRECCION EJECUTIVA)' THEN 2
+                                  ELSE 4 END`;
+
+planillaRouter.get("/organizacion", async (c) => {
+  const parsed = Mensual.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const { entidad } = parsed.data;
+  const cuerpo = await memo.obtener(`organizacion:${entidad}`, async () => {
+    const r = await pool.query(
+      `WITH u AS (SELECT max(ultimo_mes) AS m FROM planilla_persona WHERE entidad_ruc = $1),
+            p AS (
+              SELECT p.paterno, p.nombres, p.cargo, p.ficha, p.base, p.dudoso, p.regimen, p.n_senales, p.sev,
+                     ${NORMAL("p.dependencia")} AS ofi, ${JEFATURA} AS jefe
+                FROM planilla_persona p, u
+               WHERE p.entidad_ruc = $1 AND p.ultimo_mes = u.m AND p.dependencia IS NOT NULL AND btrim(p.dependencia) <> ''),
+            j AS (
+              -- Quién encabeza cada oficina: sus cargos de jefatura, el mejor pagado primero (hasta tres).
+              SELECT ofi, jsonb_agg(jsonb_build_object('paterno', paterno, 'nombres', nombres, 'cargo', cargo, 'ficha', ficha, 'base', base)
+                                    ORDER BY base DESC NULLS LAST) AS jefes
+                FROM (SELECT p.*, row_number() OVER (PARTITION BY ofi ORDER BY base DESC NULLS LAST) AS k FROM p WHERE jefe) x
+               WHERE k <= 3 GROUP BY ofi),
+            o AS (
+              SELECT ofi, count(*)::int AS personas, COALESCE(sum(base) FILTER (WHERE dudoso IS NULL), 0)::float AS planilla,
+                     count(*) FILTER (WHERE regimen = 1)::int AS cas, count(*) FILTER (WHERE n_senales > 0)::int AS "conSenales",
+                     count(*) FILTER (WHERE sev = 3)::int AS altas, count(*) FILTER (WHERE jefe)::int AS jefaturas
+                FROM p GROUP BY ofi)
+       SELECT o.ofi AS oficina, ${FUNCION_SQL} AS funcion, ${NIVEL_SQL} AS nivel, o.personas, o.planilla, o.cas, o."conSenales",
+              o.altas, o.jefaturas, j.jefes, to_char((SELECT m FROM u), 'YYYY-MM') AS mes
+         FROM o LEFT JOIN j USING (ofi)
+        ORDER BY 3, o.personas DESC, o.ofi
+        LIMIT 800`, [entidad]);
+    const oficinas = r.rows.map(({ mes: _m, jefes, ...o }) => ({
+      ...o,
+      // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
+      jefes: ((jefes as { paterno: string | null; nombres: string | null; cargo: string | null; ficha: string | null; base: number | null }[] | null) ?? [])
+        .map(({ paterno, nombres, ...x }) => ({ ...x, nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") })),
+    }));
+    return publicar({
+      mes: r.rows[0]?.mes ?? null,
+      oficinas,
+      resumen: {
+        oficinas: oficinas.length,
+        personas: oficinas.reduce((t, o) => t + o.personas, 0),
+        jefaturas: oficinas.reduce((t, o) => t + o.jefaturas, 0),
+        planilla: oficinas.reduce((t, o) => t + o.planilla, 0),
+      },
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 // ─── GET /plazas ────────────────────────────────────────────────────────────────────────────────
 /**
  * Los filtros por tramos de las plazas, sobre `servir_convocatoria s`: lo que paga, la experiencia general que pide (en

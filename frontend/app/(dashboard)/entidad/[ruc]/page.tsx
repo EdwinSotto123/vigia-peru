@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, IdCard, LayoutDashboard, MapPin, Ruler, Users, Wallet } from "lucide-react";
+import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -20,7 +20,8 @@ import { rutaRegion } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { OrganizacionEntidad } from "@/components/entidad/OrganizacionEntidad";
 import { banderasEntidad } from "@/lib/banderasEntidad";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
 import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -81,7 +82,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
@@ -310,6 +311,39 @@ export default async function EntidadProfile({
             <EvolucionPlanilla entidad={e.ruc} />
           </Suspense>
           <ListaPlanilla alcance={{ entidad: e.ruc }} sp={searchParams} ruta={ruta} base={{ seccion: "planilla" }} deEntidad />
+        </div>
+      ),
+    },
+    {
+      clave: "organizacion",
+      icono: <Network size={15} aria-hidden />,
+      etiqueta: "Organización",
+      contenido: vacias.has("planilla") ? (
+        <PestanaVacia titulo="Sin planilla para armar su organización" ayuda={<AyudaPlanilla />} accion={n.personas ? accion(enlace("personas"), "Ver a las personas que contrató") : undefined}>
+          Su organización sale de la planilla que publica en el Portal de Transparencia (en qué oficina trabaja cada persona), y
+          no la publicó en los meses cargados.
+        </PestanaVacia>
+      ) : (
+        <div className="space-y-4">
+          <CabeceraPestana
+            ayuda={
+              <Ayuda titulo="¿De dónde sale su organización?">
+                <span className="block">
+                  De la planilla del último mes que la entidad publicó en el Portal de Transparencia: cada persona con su cargo y su
+                  oficina. Se juntan las personas por oficina, se marca a quien tiene un cargo de jefatura y se le pone a cada oficina
+                  su función por su nombre.
+                </span>
+                <span className="mt-2 block">
+                  La planilla no dice de quién depende cada oficina: no hay un árbol oficial que dibujar.
+                </span>
+              </Ayuda>
+            }
+          >
+            Sus oficinas, quién las encabeza, cuánta gente tienen y cuánto suman sus sueldos.
+          </CabeceraPestana>
+          <Suspense fallback={<Cargando texto="Armando su organización…" />}>
+            <OrganizacionEntidad ruc={e.ruc} ruta={ruta} />
+          </Suspense>
         </div>
       ),
     },
