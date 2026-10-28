@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "infrastructure" / "aws"))
 from tunel_rds import conexion  # noqa: E402
 
-MIGRACION = ROOT / "backend" / "db" / "migrations" / "185_dji_entidad_ruc.sql"
+# La 185 y la 190 (el paso «por todos sus nombres»): la 190 redefine la función de la 185, así que van en ese orden.
+MIGRACIONES = [ROOT / "backend" / "db" / "migrations" / f for f in ("185_dji_entidad_ruc.sql", "190_dji_entidad_nombres.sql")]
 TODOS = ROOT / "backend" / "scrapers-worker" / "dji_targets" / "targets_dji.csv"
 
 PRIORIDAD = r"""CASE
@@ -44,7 +45,8 @@ def main() -> None:
         c.autocommit = True
         cur = c.cursor()
         cur.execute("SET statement_timeout = 0")
-        cur.execute(MIGRACION.read_text(encoding="utf-8"))
+        for m in MIGRACIONES:
+            cur.execute(m.read_text(encoding="utf-8"))
         cur.execute("SELECT refrescar_dji_entidad_ruc()")
         print(f"entidades del registro con RUC: {cur.fetchone()[0]}", flush=True)
         cur.execute("SELECT como, count(*) FROM dji_entidad_ruc GROUP BY 1 ORDER BY 2 DESC")
