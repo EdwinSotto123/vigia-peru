@@ -6,7 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
 import { djiEntidad, personalPte } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
-import { armarOrganigrama, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type VisitaArea } from "../lib/organigrama.js";
+import { adscritosDe, armarOrganigrama, plantillaPorNombre, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type UnidadGobierno, type VisitaArea } from "../lib/organigrama.js";
 import { palabrasBusqueda } from "./personas.js";
 import { PARIENTE_LOCADOR, funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
 
@@ -534,11 +534,40 @@ planillaRouter.get("/organigrama", async (c) => {
     const enlaces = { planilla: idPte != null ? personalPte(idPte) : null, dji: djiEntidad(entidad) };
     const mes = (ofis.rows[0]?.mes as string | undefined) ?? null;
     const g = grafo.rows[0];
+    // El gobierno entero: en la sede de un gobierno regional, sus otras unidades con RUC propio; en un ministerio, sus
+    // organismos adscritos (del grafo). Con la gente de su última planilla.
+    const plantilla = ((g?.plantilla as PlantillaId | null | undefined) ?? null) ?? plantillaPorNombre(e.nombre ?? "");
+    let unidades: UnidadGobierno[] = [];
+    if (plantilla === "TPL-GR") {
+      const r = await pool.query<{ ruc: string; nombre: string }>(
+        `SELECT a.ruc, e.nombre FROM entidad_gobierno_amplia a JOIN entidades e ON e.ruc::text = a.ruc
+          WHERE a.nivel = 'regional' AND a.ruc <> $1 AND e.nombre IS NOT NULL
+            AND a.ubigeo = (SELECT x.ubigeo FROM entidad_gobierno_amplia x WHERE x.ruc = $1 AND x.nivel = 'regional' LIMIT 1)
+          ORDER BY e.nombre LIMIT 120`, [entidad]).catch(() => ({ rows: [] as { ruc: string; nombre: string }[] }));
+      unidades = r.rows.map((x) => ({ ruc: x.ruc, nombre: x.nombre, personas: 0, tipo: "regional" as const }));
+    } else if (plantilla === "TPL-MIN" && g?.nodo_id) {
+      const ads = adscritosDe(g.nodo_id);
+      const r = ads.length
+        ? await pool.query<{ ruc: string; nodo_id: string }>(`SELECT ruc, nodo_id FROM grafo_entidad WHERE nodo_id = ANY($1::text[])`, [ads.map((a) => a.entidad)])
+            .catch(() => ({ rows: [] as { ruc: string; nodo_id: string }[] }))
+        : { rows: [] as { ruc: string; nodo_id: string }[] };
+      unidades = r.rows.flatMap((x) => {
+        const a = ads.find((y) => y.entidad === x.nodo_id);
+        return a ? [{ ruc: x.ruc, nombre: a.organismo ?? a.sigla ?? x.ruc, personas: 0, tipo: "adscrito" as const, calificacion: a.calificacion, url: a.url }] : [];
+      });
+    }
+    if (unidades.length) {
+      const p = await pool.query<{ entidad_ruc: string; personas: number }>(
+        `SELECT DISTINCT ON (entidad_ruc) entidad_ruc, personas FROM planilla_entidad_mes WHERE entidad_ruc = ANY($1::text[])
+          ORDER BY entidad_ruc, mes DESC`, [unidades.map((u) => u.ruc)]).catch(() => ({ rows: [] as { entidad_ruc: string; personas: number }[] }));
+      const por = new Map(p.rows.map((x) => [x.entidad_ruc, Number(x.personas)]));
+      unidades = unidades.map((u) => ({ ...u, personas: por.get(u.ruc) ?? 0 }));
+    }
     const org = armarOrganigrama({
       entidad: { ruc: entidad, nombre: e.nombre ?? "", region: e.region, nivelGobierno: e.nivel },
       plantilla: (g?.plantilla as PlantillaId | null | undefined) ?? null,
       nodoGrafo: g?.nodo_id ?? null,
-      oficinas, cargos: dji, globales, visitas: visitas.rows, mesPlanilla: mes, enlaces,
+      oficinas, cargos: dji, globales, visitas: visitas.rows, mesPlanilla: mes, enlaces, unidades,
     });
     return publicar({ mes, idPte, enlaces, visitasHasta: await visitasHasta(), ...org });
   });

@@ -8,7 +8,8 @@ cada entidad (backend/api/src/lib/organigrama.ts):
   - rof: los órganos de las entidades cuyo ROF o designaciones se leyeron (ORGANOS_OFICINAS_AREAS), con su padre y la
     norma publicada en El Peruano;
   - fuentes: el catálogo de fuentes del grafo (FUENTES_CATALOGO, FTE-xxx → título, institución y dirección), para que
-    cada arista del grafo lleve su enlace.
+    cada arista del grafo lleve su enlace;
+  - adscritos: los organismos públicos adscritos a cada ministerio (ADSCRIPCION_ORGANISMOS), para el gobierno entero.
 
 Es un snapshot: se vuelve a correr cuando cambia el libro. Sin red ni base.
 
@@ -75,10 +76,17 @@ def main() -> None:
             "funciones": txt(f["funciones_resumen"]), "norma": txt(f["norma_documento"]), "fuente": txt(f["fuente"]), "url": txt(f["url"]),
         })
 
-    salida = {"corte": "2026-10-23", "fuentes": fuentes, "plantillas": plantillas, "rof": rof}
+    # Los organismos adscritos a cada ministerio (DS 097-2021-PCM, calificación de la LOPE).
+    adscritos = [
+        {"entidad": f["entity_id"], "organismo": txt(f["organismo"]), "sigla": txt(f["sigla"]), "ministerio": f["ministerio_id"],
+         "calificacion": txt(f["calificacion_lope"]), "fuente": txt(f["fuente"]), "url": txt(f["url_fuente"])}
+        for f in hoja(wb, "ADSCRIPCION_ORGANISMOS") if f.get("entity_id") and f.get("ministerio_id")
+    ]
+
+    salida = {"corte": "2026-10-23", "fuentes": fuentes, "plantillas": plantillas, "rof": rof, "adscritos": adscritos}
     SALIDA.write_text(json.dumps(salida, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"{SALIDA.relative_to(ROOT)}: {len(fuentes)} fuentes, {len(plantillas)} plantillas, "
-          f"{sum(len(e['organos']) for e in rof.values())} órganos de {len(rof)} entidades")
+          f"{sum(len(e['organos']) for e in rof.values())} órganos de {len(rof)} entidades, {len(adscritos)} organismos adscritos")
 
 
 if __name__ == "__main__":

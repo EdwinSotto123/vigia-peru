@@ -94,7 +94,9 @@ export async function OrganizacionEntidad({ ruc, ruta, entidad }: { ruc: string;
     { clave: "senales", titulo: "Con señales", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
   ];
   const porId = new Map(o.nodos.map((n) => [n.id, n]));
-  const filas: FilaFiltrable[] = reales.filter((n) => n.enDatos).map((x) => {
+  // Las unidades con su propio RUC van aparte (el gobierno entero): su gente es de su propia planilla.
+  const unidades = reales.filter((n) => n.ruc).sort((a, b) => b.personas - a.personas);
+  const filas: FilaFiltrable[] = reales.filter((n) => n.enDatos && !n.ruc).map((x) => {
     const padre = x.padre ? porId.get(x.padre) : undefined;
     return {
       id: x.id,
@@ -175,6 +177,35 @@ export async function OrganizacionEntidad({ ruc, ruta, entidad }: { ruc: string;
         </div>
         <OrganigramaMapa org={o} ruta={ruta} entidad={entidad} />
       </section>
+      {unidades.length > 0 && (
+        <section aria-labelledby="org-gobierno" className="space-y-2">
+          <div className="flex items-center gap-1">
+            <h3 id="org-gobierno" className="font-display text-bloque font-bold text-ink">El gobierno entero</h3>
+            <Ayuda titulo="¿Qué son estas unidades?">
+              {o.plantilla?.id === "TPL-MIN"
+                ? "Los organismos públicos adscritos al ministerio: tienen su propio RUC, su propia organización y su propia planilla, pero responden a su sector."
+                : "Las unidades del gobierno regional con su propio RUC (salud, educación, hospitales, UGEL, programas): cada una tiene su planilla y su organización. En el mapa cuelgan de la gerencia a la que la LOGR le asigna su tema, inferido."}
+            </Ayuda>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {unidades.map((u) => (
+              <li key={u.id}>
+                <Link
+                  href={`/entidad/${u.ruc}?seccion=organizacion`}
+                  prefetch={false}
+                  className="tarjeta group flex min-h-[56px] flex-col justify-center rounded-xl border border-line bg-paper px-3.5 py-2.5 transition-colors duration-rapido hover:border-granate/40"
+                >
+                  <span className="text-meta font-semibold text-ink group-hover:text-granate">{nombreOficina(u)}</span>
+                  <span className="mt-0.5 flex flex-wrap gap-x-3 text-rotulo text-inkSoft">
+                    <Dato tipo="ruc" nombre="RUC" mono>{u.ruc}</Dato>
+                    <Dato tipo="personas" nombre="Personas">{u.personas ? plural(u.personas, "persona", "personas") : "Sin planilla cargada"}</Dato>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section aria-labelledby="org-todas" className="space-y-2">
         <h3 id="org-todas" className="font-display text-bloque font-bold text-ink">Todas sus oficinas</h3>
         <TablaFiltrable

@@ -273,6 +273,7 @@ function FlechaRiel({ lado, onClick }: { lado: "izq" | "der"; onClick: () => voi
       type="button"
       tabIndex={-1}
       aria-hidden
+      aria-label={lado === "izq" ? "Ver las pestañas anteriores" : "Ver más pestañas"}
       onClick={onClick}
       className={cn(
         "absolute top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-paper text-inkSoft shadow-[0_1px_3px_rgb(var(--ink)/0.12)] transition-colors duration-rapido hover:text-ink sm:inline-flex",

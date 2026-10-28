@@ -203,3 +203,26 @@ test("nombres cortados por el portal y erratas: se juntan con el bien escrito", 
   assert.equal(sin.padre, "SIN DEPENDENCIA EN LOS DATOS");
   assert.ok(o.nodos.some((n) => n.id === "SIN DEPENDENCIA EN LOS DATOS" && n.grupo));
 });
+
+test("el gobierno entero: las unidades del gobierno regional, bajo la gerencia que tiene su tema", () => {
+  const o = armarOrganigrama({
+    ...ayacucho,
+    unidades: [
+      { ruc: "20181079968", nombre: "GOBIERNO REGIONAL DE AYACUCHO-SALUD", personas: 900, tipo: "regional" },
+      { ruc: "20495097073", nombre: "GOBIERNO REGIONAL DE AYACUCHO - UNIDAD DE GESTION EDUCATIVA LOCAL DE HUAMANGA", personas: 300, tipo: "regional" },
+      { ruc: "20365228109", nombre: "GOBIERNO REGIONAL DE AYACUCHO-TRANSPORTES", personas: 40, tipo: "regional" },
+      { ruc: "20494642078", nombre: "GOBIERNO REGIONAL DE AYACUCHO - PROGRAMA REGIONAL DE IRRIGACION Y DESARROLLO RURAL INTEGRADO", personas: 20, tipo: "regional" },
+      { ruc: "20999999999", nombre: "GOBIERNO REGIONAL DE AYACUCHO - ALDEA INFANTIL", personas: 5, tipo: "regional" },
+    ],
+  });
+  const u = (ruc: string) => o.nodos.find((n) => n.ruc === ruc)!;
+  assert.match(u("20181079968").padre!, /DESARROLLO SOCIAL/);
+  assert.match(u("20495097073").padre!, /DESARROLLO SOCIAL/);
+  assert.match(u("20365228109").padre!, /INFRAESTRUCTURA/);
+  assert.match(u("20494642078").padre!, /DESARROLLO ECONOMICO/);
+  assert.equal(u("20181079968").arista?.tipo, "funcion");
+  assert.equal(u("20181079968").personas, 900);
+  // La que no calza con ningún tema, en su agrupador.
+  assert.equal(u("20999999999").padre, "UNIDADES DEL GOBIERNO REGIONAL");
+  assert.equal(o.resumen.unidades, 5);
+});

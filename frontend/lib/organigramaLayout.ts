@@ -2,7 +2,7 @@
  * El plano del mapa mental de una organización (components/entidad/OrganigramaMapa.tsx): la entidad al centro y sus
  * ramas a los dos lados, cada una creciendo hacia afuera en columnas, con la letra a su tamaño real (12 a 13 px; los
  * grafos radiales de antes la achicaban a 4-9 px y no se leía). Función pura: recibe lo abierto y devuelve cajas y
- * líneas en píxeles.
+ * líneas en píxeles. Cada caja mide lo que su nombre: una línea o dos (nunca encima de su línea de datos).
  */
 import type { NodoOrganigrama } from "@/lib/organigrama";
 
@@ -28,7 +28,8 @@ export interface PlanoOrg {
   vista: { x: number; y: number; w: number; h: number };
 }
 
-export const MEDIDA = { col: 252, fila: 58, w: 214, h: 46, raizW: 232, raizH: 76, margen: 28, porLinea: 28 } as const;
+/** Columnas de 252 px, filas de 66; una caja de una línea mide 44 de alto y una de dos, 58. */
+export const MEDIDA = { col: 252, fila: 66, w: 214, h1: 44, h2: 58, hMas: 34, raizW: 232, raizH: 76, margen: 28, porLinea: 28 } as const;
 
 /** Parte un nombre en hasta `max` líneas de `porLinea` caracteres (aprox. a 12.5 px en 214 px); si sobra, «…». */
 export function partirEnLineas(t: string, porLinea: number = MEDIDA.porLinea, max = 2): string[] {
@@ -62,11 +63,19 @@ export function planoOrganigrama(
   maxHijos = 24,
 ): PlanoOrg {
   const M = MEDIDA;
+  const porId = new Map<string, NodoOrganigrama>();
+  for (const l of hijos.values()) for (const n of l) porId.set(n.id, n);
   const visibles = (id: string) => (abiertos.has(id) ? hijos.get(id) ?? [] : []);
   // El peso de una rama: cuántas filas ocupa abierta como está.
+  const pesos = new Map<string, number>();
   const peso = (n: NodoOrganigrama): number => {
+    const ya = pesos.get(n.id);
+    if (ya !== undefined) return ya;
     const k = visibles(n.id);
-    return k.length ? Math.max(1, k.slice(0, todos.has(n.id) ? k.length : maxHijos).reduce((t, h) => t + peso(h), 0) + (k.length > maxHijos && !todos.has(n.id) ? 1 : 0)) : 1;
+    const ver = todos.has(n.id) ? k : k.slice(0, maxHijos);
+    const p = ver.length ? Math.max(1, ver.reduce((t, h) => t + peso(h), 0) + (k.length > ver.length ? 1 : 0)) : 1;
+    pesos.set(n.id, p);
+    return p;
   };
   // Los de primer nivel, a los dos lados: el más pesado a la derecha y cada siguiente al lado más liviano (en su orden).
   const top = hijos.get(null) ?? [];
@@ -81,70 +90,66 @@ export function planoOrganigrama(
 
   const cajas: CajaOrg[] = [];
   const lineas: LineaOrg[] = [];
+  const centro = (c: CajaOrg) => c.y + c.h / 2;
   const lado = (lista: NodoOrganigrama[], s: -1 | 1) => {
     let fila = 0;
+    const propias: CajaOrg[] = [];
+    const propiasLineas: LineaOrg[] = [];
     const xDe = (prof: number) => (s === 1 ? M.raizW / 2 + M.margen + (prof - 1) * M.col : -(M.raizW / 2 + M.margen + (prof - 1) * M.col) - M.w);
+    /** Una caja centrada en el medio de su fila. */
+    const enFila = (h: number) => {
+      const y = fila * M.fila + (M.fila - h) / 2;
+      fila++;
+      return y;
+    };
     const poner = (n: NodoOrganigrama, prof: number): CajaOrg => {
       const k = visibles(n.id);
       const ver = todos.has(n.id) ? k : k.slice(0, maxHijos);
+      const ls = partirEnLineas(nombre(n));
       const caja: CajaOrg = {
-        id: n.id, x: xDe(prof), y: 0, w: M.w, h: M.h, lado: s, profundidad: prof, lineas: partirEnLineas(nombre(n)),
+        id: n.id, x: xDe(prof), y: 0, w: M.w, h: ls.length > 1 ? M.h2 : M.h1, lado: s, profundidad: prof, lineas: ls,
         ocultos: (hijos.get(n.id)?.length ?? 0) - ver.length,
       };
       if (!ver.length) {
-        caja.y = fila * M.fila;
-        fila++;
+        caja.y = enFila(caja.h);
       } else {
         const hs = ver.map((h) => poner(h, prof + 1));
         if (k.length > ver.length) {
           // «y N oficinas más»: una caja que abre la rama entera.
-          const mas: CajaOrg = { id: `${n.id}::mas`, x: xDe(prof + 1), y: fila * M.fila, w: M.w, h: 34, lado: s, profundidad: prof + 1, lineas: [`y ${k.length - ver.length} oficinas más`], ocultos: 0, mas: { de: n.id } };
-          fila++;
-          cajas.push(mas);
+          const mas: CajaOrg = { id: `${n.id}::mas`, x: xDe(prof + 1), y: enFila(M.hMas), w: M.w, h: M.hMas, lado: s, profundidad: prof + 1, lineas: [`y ${k.length - ver.length} oficinas más`], ocultos: 0, mas: { de: n.id } };
+          propias.push(mas);
           hs.push(mas);
         }
-        caja.y = (hs[0].y + hs[hs.length - 1].y) / 2;
-        for (const h of hs) lineas.push({ a: h.id, d: curva(caja, h, s), inferida: !h.mas && esInferida(hijos, h.id) });
+        caja.y = (centro(hs[0]) + centro(hs[hs.length - 1])) / 2 - caja.h / 2;
+        for (const h of hs) propiasLineas.push({ a: h.id, d: curva(caja, h, s), inferida: !h.mas && esInferida(porId.get(h.id)) });
       }
-      cajas.push(caja);
+      propias.push(caja);
       return caja;
     };
     const raices = lista.map((n) => poner(n, 1));
-    return { raices, alto: fila * M.fila };
+    // El lado entero, centrado en la entidad.
+    const dy = -(fila * M.fila) / 2;
+    for (const c of propias) c.y += dy;
+    for (const l of propiasLineas) l.d = desplazar(l.d, dy);
+    cajas.push(...propias);
+    lineas.push(...propiasLineas);
+    return raices;
   };
   const D = lado(orden(der), 1);
   const I = lado(orden(izq), -1);
-  // Cada lado, centrado en la entidad.
-  const mover = (s: -1 | 1, alto: number) => {
-    const dy = -alto / 2 + M.fila / 2 - M.h / 2;
-    for (const c of cajas) if (c.lado === s) c.y += dy;
-    for (const l of lineas) {
-      const c = cajas.find((x) => x.id === l.a);
-      if (c?.lado === s) l.d = desplazar(l.d, dy);
-    }
-  };
-  mover(1, D.alto);
-  mover(-1, I.alto);
   const r = { x: -M.raizW / 2, y: -M.raizH / 2, w: M.raizW, h: M.raizH, lineas: raiz };
-  for (const c of [...D.raices, ...I.raices]) {
-    lineas.push({ a: c.id, d: curvaRaiz(r, c), inferida: esInferida(hijos, c.id) });
-  }
+  for (const c of [...D, ...I]) lineas.push({ a: c.id, d: curvaRaiz(r, c), inferida: esInferida(porId.get(c.id)) });
+  // El margen deja lugar al botón de abrir y cerrar, que va por fuera de la caja.
+  const pad = 48;
   const xs = [r.x, r.x + r.w, ...cajas.flatMap((c) => [c.x, c.x + c.w])];
   const ys = [r.y, r.y + r.h, ...cajas.flatMap((c) => [c.y, c.y + c.h])];
-  const pad = 16;
   const minX = Math.min(...xs) - pad;
-  const minY = Math.min(...ys) - pad;
-  return { cajas, lineas, raiz: r, vista: { x: minX, y: minY, w: Math.max(...xs) + pad - minX, h: Math.max(...ys) + pad - minY } };
+  const minY = Math.min(...ys) - 16;
+  return { cajas, lineas, raiz: r, vista: { x: minX, y: minY, w: Math.max(...xs) + pad - minX, h: Math.max(...ys) + 16 - minY } };
 }
 
 /** ¿La oficina cuelga de su padre por inferencia o sin dato (línea punteada)? */
-function esInferida(hijos: Map<string | null, NodoOrganigrama[]>, id: string): boolean {
-  for (const l of hijos.values()) {
-    const n = l.find((x) => x.id === id);
-    if (n) return n.arista?.tipo === "funcion" || n.arista?.tipo === "nivel";
-  }
-  return false;
-}
+const esInferida = (n: NodoOrganigrama | undefined) => n?.arista?.tipo === "funcion" || n?.arista?.tipo === "nivel";
 
 /** La curva de un padre a su hijo: sale del costado del padre y entra por el costado del hijo. */
 function curva(p: CajaOrg, h: CajaOrg, s: -1 | 1): string {

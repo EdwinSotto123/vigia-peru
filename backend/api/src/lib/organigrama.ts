@@ -49,7 +49,7 @@ export interface NodoOrg {
   /** null: cuelga de la entidad. */
   padre: string | null;
   arista: { tipo: TipoArista; texto: string; url: string | null } | null;
-  evidencias: { tipo: "planilla" | "dji" | "ley" | "rof"; texto: string; url: string | null }[];
+  evidencias: { tipo: "planilla" | "dji" | "ley" | "rof" | "entidad"; texto: string; url: string | null }[];
   jefes: Jefe[];
   /** Cómo la escribe la planilla (para abrir su gente filtrada por la oficina). */
   dependencias: string[];
@@ -66,6 +66,8 @@ export interface NodoOrg {
   enDatos: boolean;
   /** El Portal de Transparencia cortó su nombre (a 45 caracteres) y ninguna otra fuente lo trae entero. */
   cortado: boolean;
+  /** Una unidad del mismo gobierno con su propio RUC (una UGEL, un hospital, un organismo adscrito): su organización es otra. */
+  ruc: string | null;
 }
 
 export interface OficinaPlanilla {
@@ -82,6 +84,8 @@ export interface OficinaPlanilla {
 export interface CargoDji { cargo: string; nombre: string; ficha: string | null; desde: string | null }
 export interface NombreGlobal { texto: string; fuente: "planilla" | "dji"; entidades: number }
 export interface VisitaArea { area: string; n: number; ultima: string | null }
+/** Una unidad del gobierno entero: del gobierno regional (con su propio RUC) o un organismo adscrito al ministerio. */
+export interface UnidadGobierno { ruc: string; nombre: string; personas: number; tipo: "regional" | "adscrito"; calificacion?: string | null; url?: string | null }
 
 export interface DatosOrganigrama {
   entidad: { ruc: string; nombre: string; region: string | null; nivelGobierno: string | null };
@@ -96,12 +100,14 @@ export interface DatosOrganigrama {
   mesPlanilla: string | null;
   /** Las páginas oficiales de la entidad: su personal en el Portal de Transparencia, sus DJI en la Contraloría. */
   enlaces: { planilla: string | null; dji: string | null };
+  /** El gobierno entero: las unidades del gobierno regional o los organismos adscritos al ministerio. */
+  unidades?: UnidadGobierno[];
 }
 
 export interface Organigrama {
   plantilla: { id: PlantillaId; nombre: string; ley: Enlace | null } | null;
   nodos: NodoOrg[];
-  resumen: { oficinas: number; personas: number; jefaturas: number; planilla: number; siglas: number; siglasExpandidas: number; inferidas: number; visitas: number; visitasSinOficina: number };
+  resumen: { oficinas: number; personas: number; jefaturas: number; planilla: number; siglas: number; siglasExpandidas: number; inferidas: number; visitas: number; visitasSinOficina: number; unidades: number };
 }
 
 // ─── Texto ───────────────────────────────────────────────────────────────────
@@ -359,6 +365,9 @@ interface Plantilla { nombre: string | null; aplica: string | null; organos: Org
 interface OrganoRof { id: string; nombre: string | null; tipo: string | null; padre: string | null; nivel: number | null; funciones: string | null; norma: string | null; fuente: string | null; url: string | null }
 
 const PLANTILLAS = (estado as unknown as { plantillas: Record<string, Plantilla> }).plantillas;
+const ADSCRITOS = (estado as unknown as { adscritos: { entidad: string; organismo: string | null; sigla: string | null; ministerio: string; calificacion: string | null; url: string | null }[] }).adscritos ?? [];
+/** Los organismos adscritos a un ministerio (su nodo en el grafo), con su calificación y la norma. */
+export const adscritosDe = (nodoMinisterio: string | null) => (nodoMinisterio ? ADSCRITOS.filter((a) => a.ministerio === nodoMinisterio) : []);
 const ROF = (estado as unknown as { rof: Record<string, { entidad: string | null; organos: OrganoRof[] }> }).rof;
 
 /** El nombre corto de cada plantilla y la ley que la funda (con su texto oficial). */
@@ -446,8 +455,8 @@ const REGLAS_LEY: Partial<Record<PlantillaId, { re: RegExp; padre: string; texto
  * subgerencia de ese tema cuelga, inferido, de la gerencia que tiene la función.
  */
 const SECTORES_GR: { re: RegExp; gerencia: RegExp; texto: string }[] = [
-  { re: /\b(INDUSTRIA|COMERCIO|TURISMO|ARTESANIA|PESQUERIA|PRODUCCION|MINERIA|MINAS|ENERGIA|HIDROCARBUROS|AGRICULTURA|AGRARIA)\b/, gerencia: /^GERENCIA REGIONAL DE DESARROLLO ECONOMICO/, texto: "Desarrollo Económico (industria, comercio, turismo, pesquería, minería, energía y agricultura)" },
-  { re: /\b(EDUCACION|CULTURA|DEPORTES|SALUD|VIVIENDA|TRABAJO|EMPLEO|POBLACION|SANEAMIENTO|DESARROLLO SOCIAL|IGUALDAD)\b/, gerencia: /^GERENCIA REGIONAL DE DESARROLLO SOCIAL/, texto: "Desarrollo Social (educación, cultura, salud, vivienda, trabajo y promoción del empleo)" },
+  { re: /\b(INDUSTRIA|COMERCIO|TURISMO|ARTESANIA|PESQUERIA|PRODUCCION|MINERIA|MINAS|ENERGIA|HIDROCARBUROS|AGRICULTURA|AGRARIA|IRRIGACION|RIEGO)\b/, gerencia: /^GERENCIA REGIONAL DE DESARROLLO ECONOMICO/, texto: "Desarrollo Económico (industria, comercio, turismo, pesquería, minería, energía y agricultura)" },
+  { re: /\b(EDUCACION|EDUCATIVA|CULTURA|DEPORTES|SALUD|HOSPITAL|VIVIENDA|TRABAJO|EMPLEO|POBLACION|SANEAMIENTO|DESARROLLO SOCIAL|IGUALDAD)\b/, gerencia: /^GERENCIA REGIONAL DE DESARROLLO SOCIAL/, texto: "Desarrollo Social (educación, cultura, salud, vivienda, trabajo y promoción del empleo)" },
   { re: /\b(VIALIDAD|TRANSPORTES|TELECOMUNICACIONES|CONSTRUCCION)\b/, gerencia: /^GERENCIA REGIONAL DE INFRAESTRUCTURA/, texto: "Infraestructura (vialidad, transportes, comunicaciones y construcción)" },
   { re: /\b(RECURSOS NATURALES|MEDIO AMBIENTE|AMBIENTAL|AREAS PROTEGIDAS|DEFENSA CIVIL)\b/, gerencia: /^GERENCIA REGIONAL DE RECURSOS NATURALES/, texto: "Recursos Naturales y Gestión del Medio Ambiente (áreas protegidas, medio ambiente y defensa civil)" },
   { re: /\b(PLANEAMIENTO|PRESUPUESTO|ACONDICIONAMIENTO TERRITORIAL|PROGRAMACION|INVERSIONES|PREINVERSION|ESTADISTICA|DESARROLLO INSTITUCIONAL)\b/, gerencia: /^GERENCIA REGIONAL DE PLANEAMIENTO/, texto: "Planeamiento, Presupuesto y Acondicionamiento Territorial" },
@@ -476,7 +485,7 @@ export const SIN_DEPENDENCIA = "SIN DEPENDENCIA EN LOS DATOS";
 const vacio = (id: string, nombre: string): NodoOrg => ({
   id, nombre, sigla: null, expansion: null, nivel: nivelDe(nombre), funcion: funcionDe(nombre), grupo: false, padre: null, arista: null,
   evidencias: [], jefes: [], dependencias: [], personas: 0, planilla: 0, cas: 0, conSenales: 0, altas: 0, conFamilia: 0, visitas: 0,
-  ultimaVisita: null, rol: null, enDatos: false, cortado: false,
+  ultimaVisita: null, rol: null, enDatos: false, cortado: false, ruc: null,
 });
 
 /** Distancia de edición entre dos textos, o más que `tope` (se corta apenas lo pasa). */
@@ -803,6 +812,49 @@ export function armarOrganigrama(d: DatosOrganigrama): Organigrama {
     for (const n of huerfanas) setPadre(n, g, { tipo: "nivel", texto: "Sin dato de su dependencia: su planilla, su ROF y la ley no la dicen", url: null });
   }
 
+  // 9b. El gobierno entero: las unidades del gobierno regional con su propio RUC (salud, educación, hospitales, UGEL),
+  // bajo la gerencia a la que la LOGR le asigna su tema (inferido), y los organismos adscritos al ministerio. Cada una
+  // tiene su propia organización: se abre en su ficha.
+  const unidades = d.unidades ?? [];
+  const grupoUnidades = (id: string, nombre: string) => {
+    let g = nodos.get(id);
+    if (!g) {
+      g = vacio(id, nombre);
+      g.grupo = true;
+      g.nivel = 2;
+      g.funcion = "otras";
+      nodos.set(id, g);
+    }
+    return g;
+  };
+  for (const u of unidades) {
+    const corto = canon(u.nombre.replace(/^GOBIERNO REGIONAL[^-]*-\s*/i, "")).texto || canon(u.nombre).texto;
+    const n = vacio(`RUC ${u.ruc}`, u.tipo === "adscrito" ? u.nombre : corto);
+    n.ruc = u.ruc;
+    n.enDatos = true;
+    n.nivel = 3;
+    n.personas = u.personas;
+    n.evidencias.push({ tipo: "entidad", texto: u.tipo === "adscrito"
+      ? `Es un organismo público adscrito al ministerio${u.calificacion ? ` (${u.calificacion.toLowerCase()})` : ""}, con su propio RUC y su propia organización`
+      : "Es una unidad del gobierno regional con su propio RUC y su propia planilla", url: u.url ?? null });
+    nodos.set(n.id, n);
+    if (u.tipo === "adscrito") {
+      setPadre(n, grupoUnidades("ORGANISMOS ADSCRITOS", "Organismos adscritos"), {
+        tipo: "ley", texto: "Adscrito al ministerio según la calificación de los organismos públicos (DS 097-2021-PCM)", url: u.url ?? null,
+      });
+      continue;
+    }
+    const s = SECTORES_GR.find((x) => x.re.test(corto));
+    const g = s ? lista().find((p) => !p.ruc && s.gerencia.test(canon(p.nombre).texto)) : undefined;
+    if (s && g) {
+      setPadre(n, g, { tipo: "funcion", texto: `Inferido: unidad del gobierno regional con su propio RUC; la LOGR le asigna su tema a la Gerencia Regional de ${s.texto} (art. 29-A)`, url: leyDe("LOGR art. 29-A")?.url ?? null });
+    } else {
+      setPadre(n, grupoUnidades("UNIDADES DEL GOBIERNO REGIONAL", "Otras unidades del gobierno regional"), {
+        tipo: "nivel", texto: "Unidad del gobierno regional con su propio RUC: ningún dato dice de qué gerencia depende", url: null,
+      });
+    }
+  }
+
   // 10. Las visitas por el área visitada (el nombre que escribe el registro, leído como las oficinas).
   let visitasSinOficina = 0;
   let visitasTotal = 0;
@@ -835,6 +887,7 @@ export function armarOrganigrama(d: DatosOrganigrama): Organigrama {
       inferidas: reales.filter((n) => n.arista && (n.arista.tipo === "funcion" || n.arista.tipo === "nivel")).length,
       visitas: visitasTotal,
       visitasSinOficina,
+      unidades: unidades.length,
     },
   };
 }

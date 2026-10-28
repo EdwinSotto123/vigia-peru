@@ -14,7 +14,7 @@ export type TipoArista = "rof" | "planilla" | "ley" | "funcion" | "nivel";
 export type ComoSigla = "dji" | "planilla" | "ley" | "rof" | "diccionario" | "global" | "abreviatura" | "region";
 
 export interface JefeOficina { nombre: string; cargo: string | null; ficha: string | null; fuente: "planilla" | "dji"; desde: string | null }
-export interface EvidenciaOficina { tipo: "planilla" | "dji" | "ley" | "rof"; texto: string; url: string | null }
+export interface EvidenciaOficina { tipo: "planilla" | "dji" | "ley" | "rof" | "entidad"; texto: string; url: string | null }
 
 export interface NodoOrganigrama {
   id: string;
@@ -40,6 +40,8 @@ export interface NodoOrganigrama {
   rol: "titular" | "aga" | null;
   enDatos: boolean;
   cortado: boolean;
+  /** Una unidad del mismo gobierno con su propio RUC (una UGEL, un hospital, un organismo adscrito). */
+  ruc: string | null;
 }
 
 export interface Organigrama {
@@ -52,7 +54,7 @@ export interface Organigrama {
   nodos: NodoOrganigrama[];
   resumen: {
     oficinas: number; personas: number; jefaturas: number; planilla: number; siglas: number; siglasExpandidas: number;
-    inferidas: number; visitas: number; visitasSinOficina: number;
+    inferidas: number; visitas: number; visitasSinOficina: number; unidades: number;
   };
 }
 

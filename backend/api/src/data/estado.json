@@ -2683,5 +2683,664 @@
     }
    ]
   }
- }
+ },
+ "adscritos": [
+  {
+   "entidad": "ENT-GN-13-163",
+   "organismo": "Instituto Nacional de Innovación Agraria",
+   "sigla": "INIA",
+   "ministerio": "ENT-GN-13-013",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-13-164",
+   "organismo": "Autoridad Nacional del Agua - ANA",
+   "sigla": "ANA",
+   "ministerio": "ENT-GN-13-013",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-13-160",
+   "organismo": "Servicio Nacional de Sanidad Agraria - SENASA",
+   "sigla": "SENASA",
+   "ministerio": "ENT-GN-13-013",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-13-165",
+   "organismo": "Servicio Nacional Forestal y de Fauna Silvestre - SERFOR",
+   "sigla": "SERFOR",
+   "ministerio": "ENT-GN-13-013",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-055",
+   "organismo": "Instituto de Investigaciones de la Amazonía Peruana",
+   "sigla": "IIAP",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-051",
+   "organismo": "Organismo de Evaluación y Fiscalización Ambiental - OEFA",
+   "sigla": "OEFA",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-050",
+   "organismo": "Servicio Nacional de Áreas Naturales Protegidas por el Estado - SERNANP",
+   "sigla": "SERNANP",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-052",
+   "organismo": "Servicio Nacional de Certificación Ambiental para las Inversiones Sostenibles - SENACE",
+   "sigla": "SENACE",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-056",
+   "organismo": "Instituto Nacional de Investigación en Glaciares y Ecosistemas de Montaña",
+   "sigla": "INAIGEM",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-112",
+   "organismo": "Instituto Geofísico del Perú",
+   "sigla": "IGP",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-05-331",
+   "organismo": "Servicio Nacional de Meteorología e Hidrología",
+   "sigla": "SENAMHI",
+   "ministerio": "ENT-GN-05-005",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-35-008",
+   "organismo": "Comisión de Promoción del Perú para la Exportación y el Turismo - PROMPERU",
+   "sigla": "PROMPERU",
+   "ministerio": "ENT-GN-35-035",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-35-180",
+   "organismo": "Centro de Formación en Turismo",
+   "sigla": "CENFOTUR",
+   "ministerio": "ENT-GN-35-035",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-03-060",
+   "organismo": "Archivo General de la Nación",
+   "sigla": "AGN",
+   "ministerio": "ENT-GN-03-003",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-03-113",
+   "organismo": "Biblioteca Nacional del Perú",
+   "sigla": "BNP",
+   "ministerio": "ENT-GN-03-003",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-03-116",
+   "organismo": "Instituto Nacional de Radio y Televisión del Perú - IRTP",
+   "sigla": "IRTP",
+   "ministerio": "ENT-GN-03-003",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-26-332",
+   "organismo": "Instituto Geográfico Nacional",
+   "sigla": "IGN",
+   "ministerio": "ENT-GN-26-026",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-26-335",
+   "organismo": "Agencia de Compras de las Fuerzas Armadas",
+   "sigla": "ACFFAA",
+   "ministerio": "ENT-GN-26-026",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-26-006",
+   "organismo": "Instituto Nacional de Defensa Civil",
+   "sigla": "INDECI",
+   "ministerio": "ENT-GN-26-026",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-26-025",
+   "organismo": "Centro Nacional de Estimación, Prevención y Reducción del Riesgo de Desastres - CENEPRED",
+   "sigla": "CENEPRED",
+   "ministerio": "ENT-GN-26-026",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-055",
+   "organismo": "Agencia de Promoción de la Inversión Privada",
+   "sigla": "PROINVERSION",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-057",
+   "organismo": "Superintendencia Nacional de Aduanas y de Administración Tributaria",
+   "sigla": "SUNAT",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-058",
+   "organismo": "Superintendencia del Mercado de Valores",
+   "sigla": "SMV",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-095",
+   "organismo": "Oficina de Normalización Previsional - ONP",
+   "sigla": "ONP",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-059",
+   "organismo": "Organismo Especializado para las Contrataciones Públicas Eficientes (OECE)",
+   "sigla": "OECE",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-09-096",
+   "organismo": "Central de Compras Públicas - Perú Compras",
+   "sigla": "PERUCOMPRAS",
+   "ministerio": "ENT-GN-09-009",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-10-117",
+   "organismo": "Sistema Nacional de Evaluación, Acreditación y Certificación de la Calidad Educativa",
+   "sigla": "SINEACE",
+   "ministerio": "ENT-GN-10-010",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-10-118",
+   "organismo": "Superintendencia Nacional de Educación Superior Universitaria",
+   "sigla": "SUNEDU",
+   "ministerio": "ENT-GN-10-010",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-10-342",
+   "organismo": "Instituto Peruano del Deporte",
+   "sigla": "IPD",
+   "ministerio": "ENT-GN-10-010",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-16-221",
+   "organismo": "Instituto Geológico Minero y Metalúrgico",
+   "sigla": "INGEMMET",
+   "ministerio": "ENT-GN-16-016",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-16-220",
+   "organismo": "Instituto Peruano de Energía Nuclear",
+   "sigla": "IPEN",
+   "ministerio": "ENT-GN-16-016",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-07-072",
+   "organismo": "Superintendencia Nacional de Control de Servicios de Seguridad, Armas, Municiones y Explosivos de Uso Civil",
+   "sigla": "SUCAMEC",
+   "ministerio": "ENT-GN-07-007",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-07-073",
+   "organismo": "Superintendencia Nacional de Migraciones",
+   "sigla": "MIGRACIONES",
+   "ministerio": "ENT-GN-07-007",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-07-070",
+   "organismo": "Intendencia Nacional de Bomberos del Perú - INBP",
+   "sigla": "INBP",
+   "ministerio": "ENT-GN-07-007",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-06-067",
+   "organismo": "Superintendencia Nacional de los Registros Públicos",
+   "sigla": "SUNARP",
+   "ministerio": "ENT-GN-06-006",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-06-068",
+   "organismo": "Procuraduría General del Estado",
+   "sigla": "PGE",
+   "ministerio": "ENT-GN-06-006",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-06-061",
+   "organismo": "Instituto Nacional Penitenciario",
+   "sigla": "INPE",
+   "ministerio": "ENT-GN-06-006",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-39-345",
+   "organismo": "Consejo Nacional para la Integración de la Persona con Discapacidad - CONADIS",
+   "sigla": "CONADIS",
+   "ministerio": "ENT-GN-39-039",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-022",
+   "organismo": "Organismo Supervisor de la Inversión en Infraestructura de Transporte de Uso Público",
+   "sigla": "OSITRAN",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Regulador",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-020",
+   "organismo": "Organismo Supervisor de la Inversión en Energía y Minería",
+   "sigla": "OSINERGMIN",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Regulador",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-019",
+   "organismo": "Organismo Supervisor de la Inversión Privada en Telecomunicaciones",
+   "sigla": "OSIPTEL",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Regulador",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-021",
+   "organismo": "Superintendencia Nacional de Servicios de Saneamiento",
+   "sigla": "SUNASS",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Regulador",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-023",
+   "organismo": "Autoridad Nacional del Servicio Civil",
+   "sigla": "SERVIR",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-016",
+   "organismo": "Centro Nacional de Planeamiento Estratégico - CEPLAN",
+   "sigla": "CEPLAN",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-183",
+   "organismo": "Instituto Nacional de Defensa de la Competencia y de la Protección de la Propiedad Intelectual",
+   "sigla": "INDECOPI",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-002",
+   "organismo": "Instituto Nacional de Estadística e Informática",
+   "sigla": "INEI",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-114",
+   "organismo": "Consejo Nacional de Ciencia, Tecnología e Innovación Tecnológica",
+   "sigla": "CONCYTEC",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-011",
+   "organismo": "Despacho Presidencial",
+   "sigla": "DP-PRES",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-012",
+   "organismo": "Comisión Nacional para el Desarrollo y Vida sin Drogas - DEVIDA",
+   "sigla": "DEVIDA",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-010",
+   "organismo": "Dirección Nacional de Inteligencia",
+   "sigla": "DINI",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-01-024",
+   "organismo": "Organismo de Supervisión de los Recursos Forestales y de Fauna Silvestre",
+   "sigla": "OSINFOR",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-100",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  {
+   "entidad": "ENT-GN-38-240",
+   "organismo": "Instituto del Mar del Perú - IMARPE",
+   "sigla": "IMARPE",
+   "ministerio": "ENT-GN-38-038",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-38-241",
+   "organismo": "Instituto Tecnológico de la Producción - ITP",
+   "sigla": "ITP",
+   "ministerio": "ENT-GN-38-038",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-38-243",
+   "organismo": "Autoridad Nacional de Sanidad e Inocuidad en Pesca y Acuicultura - SANIPES",
+   "sigla": "SANIPES",
+   "ministerio": "ENT-GN-38-038",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-38-244",
+   "organismo": "Instituto Nacional de Calidad - INACAL",
+   "sigla": "INACAL",
+   "ministerio": "ENT-GN-38-038",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-38-059",
+   "organismo": "Fondo Nacional de Desarrollo Pesquero - FONDEPES",
+   "sigla": "FONDEPES",
+   "ministerio": "ENT-GN-38-038",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-08-080",
+   "organismo": "Agencia Peruana de Cooperación Internacional - APCI",
+   "sigla": "APCI",
+   "ministerio": "ENT-GN-08-008",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-11-134",
+   "organismo": "Superintendencia Nacional de Salud",
+   "sigla": "SUSALUD",
+   "ministerio": "ENT-GN-11-011",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-11-136",
+   "organismo": "Instituto Nacional de Enfermedades Neoplásicas - INEN",
+   "sigla": "INEN",
+   "ministerio": "ENT-GN-11-011",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-11-131",
+   "organismo": "Instituto Nacional de Salud",
+   "sigla": "INS",
+   "ministerio": "ENT-GN-11-011",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-11-135",
+   "organismo": "Seguro Integral de Salud",
+   "sigla": "SIS",
+   "ministerio": "ENT-GN-11-011",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-36-214",
+   "organismo": "Autoridad Portuaria Nacional",
+   "sigla": "APN",
+   "ministerio": "ENT-GN-36-036",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-36-203",
+   "organismo": "Autoridad de Transporte Urbano para Lima y Callao - ATU",
+   "sigla": "ATU",
+   "ministerio": "ENT-GN-36-036",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-36-202",
+   "organismo": "Superintendencia de Transporte Terrestre de Personas, Carga y Mercancías - SUTRAN",
+   "sigla": "SUTRAN",
+   "ministerio": "ENT-GN-36-036",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-12-121",
+   "organismo": "Superintendencia Nacional de Fiscalización Laboral",
+   "sigla": "SUNAFIL",
+   "ministerio": "ENT-GN-12-012",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-37-207",
+   "organismo": "Organismo Técnico de la Administración de los Servicios de Saneamiento",
+   "sigla": "OTASS",
+   "ministerio": "ENT-GN-37-037",
+   "calificacion": "Técnico especializado",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-37-056",
+   "organismo": "Superintendencia Nacional de Bienes Estatales",
+   "sigla": "SBN",
+   "ministerio": "ENT-GN-37-037",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-37-211",
+   "organismo": "Organismo de Formalización de la Propiedad Informal",
+   "sigla": "COFOPRI",
+   "ministerio": "ENT-GN-37-037",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-37-205",
+   "organismo": "Servicio Nacional de Capacitación para la Industria de la Construcción",
+   "sigla": "SENCICO",
+   "ministerio": "ENT-GN-37-037",
+   "calificacion": "Ejecutor",
+   "fuente": "FTE-101",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  {
+   "entidad": "ENT-GN-01-029",
+   "organismo": "Autoridad Nacional de Infraestructura",
+   "sigla": "ANIN",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Por confirmar",
+   "fuente": "FTE-099",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Anexo_4.PDF"
+  },
+  {
+   "entidad": "ENT-GN-01-031",
+   "organismo": "Organismo de Estudios y Diseño de Proyectos de Inversión",
+   "sigla": "ODEPI",
+   "ministerio": "ENT-GN-01-001",
+   "calificacion": "Por confirmar",
+   "fuente": "FTE-099",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Anexo_4.PDF"
+  },
+  {
+   "entidad": "ENT-GN-40-041",
+   "organismo": "Organismo de Focalización e Información Social",
+   "sigla": "OFIS",
+   "ministerio": "ENT-GN-40-040",
+   "calificacion": "Por confirmar",
+   "fuente": "FTE-099",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Anexo_4.PDF"
+  },
+  {
+   "entidad": "ENT-GN-13-018",
+   "organismo": "Agromercado",
+   "sigla": "AGROMERCADO",
+   "ministerio": "ENT-GN-13-013",
+   "calificacion": "Por confirmar",
+   "fuente": "FTE-099",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Anexo_4.PDF"
+  }
+ ]
 }

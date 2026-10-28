@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronsDownUp, ChevronsUpDown, Search } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minus, Plus, Search } from "lucide-react";
 import { ArbolTabla, type NodoArbol } from "@/components/grafo/ArbolTabla";
 import { SelectorVista, TablaORed } from "@/components/grafo/vista";
-import { BotonCerrar, ChipLeyenda, GrafoAside, GrafoColumnas, GrafoMarco, type Tono } from "@/components/grafo/primitivos";
+import { BotonCerrar, ChipLeyenda, GrafoMarco, type Tono } from "@/components/grafo/primitivos";
 import { AyudaTermino, DatosClave, EnlaceFuente, type DatoClave } from "@/components/patrones";
 import type { Columna } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
@@ -39,6 +39,7 @@ const BARRA: Record<Tono, string> = { granate: "fill-granate", amber: "fill-ambe
 
 const metaCaja = (n: NodoOrganigrama, t: { oficinas: number; personas: number } | undefined) => {
   if (n.grupo) return plural(t?.oficinas ?? 0, "oficina", "oficinas");
+  if (n.ruc) return `Con RUC propio${n.personas ? `, ${plural(n.personas, "persona", "personas")}` : ""}`;
   const rol = n.rol === "titular" ? "Titular" : n.rol === "aga" ? "AGA" : null;
   const gente = !n.enDatos ? "Sólo en la ley" : n.personas ? plural(n.personas, "persona", "personas") : "Sin gente en su planilla";
   return [rol, gente].filter(Boolean).join(", ");
@@ -64,6 +65,8 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   const [sel, setSel] = useState<string | null>(null);
   const [red, setRed] = useState(true);
   const [q, setQ] = useState("");
+  // El tamaño: 1 es la letra real (12 a 13 px); alejar sirve para ver la forma entera, no para leer.
+  const [escala, setEscala] = useState(1);
   const lienzo = useRef<HTMLDivElement>(null);
 
   const alternar = (id: string) =>
@@ -92,15 +95,24 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   }, [entidad]);
   const plano = useMemo(() => planoOrganigrama(hijos, abiertos, todos, nombreOficina, raizLineas), [hijos, abiertos, todos, raizLineas]);
 
-  // Al abrir el mapa, la entidad al centro de la vista.
+  // Al abrir el mapa: la entidad a un tercio del ancho (la rama grande va a la derecha) y en el medio de la altura.
   useEffect(() => {
     const el = lienzo.current;
     if (!el || !red) return;
-    el.scrollLeft = -plano.vista.x - el.clientWidth / 2;
-    el.scrollTop = Math.max(0, -plano.vista.y - el.clientHeight / 2);
+    const x = (-plano.vista.x) * escala;
+    const y = (-plano.vista.y) * escala;
+    el.scrollLeft = Math.max(0, x - el.clientWidth * 0.35);
+    el.scrollTop = Math.max(0, y - el.clientHeight / 2);
     // Sólo al montar o al volver al mapa: no cada vez que se abre una rama.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [red]);
+  /** Que entre entero (sin achicar la letra a menos de la mitad). */
+  const verTodo = () => {
+    const el = lienzo.current;
+    if (!el) return;
+    setEscala(Math.max(0.5, Math.min(1, el.clientWidth / plano.vista.w, (el.clientHeight || 600) / plano.vista.h)));
+    el.scrollTo({ left: 0, top: 0 });
+  };
 
   const encontradas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -114,16 +126,18 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   const detalle = elegido ? <DetalleOficina n={elegido} porId={porId} totales={totales} ruta={ruta} alElegir={ir} /> : null;
 
   const mapa = (
-    <GrafoColumnas>
+    <div className="space-y-2">
+      <Leyenda />
       <GrafoMarco>
-        <div ref={lienzo} className="max-h-[72vh] overflow-auto">
+        <div className="relative">
+        <div ref={lienzo} className="max-h-[72vh] min-h-[420px] overflow-auto">
           <svg
-            width={plano.vista.w}
-            height={plano.vista.h}
+            width={plano.vista.w * escala}
+            height={plano.vista.h * escala}
             viewBox={`${plano.vista.x} ${plano.vista.y} ${plano.vista.w} ${plano.vista.h}`}
             role="group"
             aria-label={`Organización de ${tituloNatural(conTildes(entidad))}: ${plural(org.resumen.oficinas, "oficina", "oficinas")}`}
-            className="block"
+            className="mx-auto block"
           >
             {plano.lineas.map((l) => (
               <path
@@ -171,25 +185,33 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
             })}
           </svg>
         </div>
-      </GrafoMarco>
-      <GrafoAside>
-        {elegido ? (
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
+        {/* El tamaño, en la esquina del lienzo. */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-sm">
+          <BotonZoom etiqueta="Alejar" onClick={() => setEscala((e) => Math.max(0.5, Math.round((e - 0.15) * 100) / 100))}><Minus size={15} aria-hidden /></BotonZoom>
+          <BotonZoom etiqueta="Acercar" onClick={() => setEscala((e) => Math.min(1.3, Math.round((e + 0.15) * 100) / 100))}><Plus size={15} aria-hidden /></BotonZoom>
+          <BotonZoom etiqueta="Ver todo el mapa" onClick={verTodo}><Maximize2 size={14} aria-hidden /></BotonZoom>
+          {escala !== 1 && (
+            <button type="button" onClick={() => setEscala(1)} className="min-h-[32px] rounded-full px-2.5 text-rotulo font-semibold text-granate hover:bg-paperSoft">
+              Tamaño real
+            </button>
+          )}
+        </div>
+        {/* El detalle de la oficina elegida, encima del mapa a la derecha (el mapa usa todo el ancho). */}
+        {elegido && (
+          <aside
+            aria-label={`Detalle de ${nombreOficina(elegido)}`}
+            className="absolute inset-y-0 right-0 w-full max-w-[23rem] overflow-y-auto border-l border-line bg-paper p-4 shadow-xl"
+          >
+            <div className="mb-3 flex items-start justify-between gap-2">
               <h4 className="font-display text-dato font-bold leading-snug text-ink text-pretty">{nombreOficina(elegido)}</h4>
               <BotonCerrar onClick={() => setSel(null)} />
             </div>
             {detalle}
-          </div>
-        ) : (
-          <div className="space-y-3 text-meta text-inkSoft">
-            <p className="font-semibold text-ink">Toca una oficina</p>
-            <p>Para ver quién la encabeza, su gente, de dónde sale y de quién depende, con su fuente.</p>
-            <Leyenda />
-          </div>
+          </aside>
         )}
-      </GrafoAside>
-    </GrafoColumnas>
+        </div>
+      </GrafoMarco>
+    </div>
   );
 
   return (
@@ -295,11 +317,11 @@ function Caja({
         />
         {!n.grupo && <rect x={0} y={6} width={4} height={c.h - 12} rx={2} className={BARRA[tono]} />}
         {c.lineas.map((t, i) => (
-          <text key={i} x={12} y={17 + i * 15} className={cn("font-semibold", n.enDatos || n.grupo ? "fill-ink" : "fill-inkSoft")} style={{ fontSize: "12.5px" }}>
+          <text key={i} x={12} y={18 + i * 15} className={cn("font-semibold", n.enDatos || n.grupo ? "fill-ink" : "fill-inkSoft")} style={{ fontSize: "12.5px" }}>
             {t}
           </text>
         ))}
-        <text x={12} y={c.h - 8} className="fill-inkSoft" style={{ fontSize: "12px" }}>{meta}</text>
+        <text x={12} y={c.h - 9} className="fill-inkSoft" style={{ fontSize: "12px" }}>{meta}</text>
       </g>
       {nHijos > 0 && (
         <g
@@ -322,10 +344,24 @@ function Caja({
   );
 }
 
+function BotonZoom({ etiqueta, onClick, children }: { etiqueta: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={etiqueta}
+      title={etiqueta}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-inkSoft transition-colors duration-rapido hover:bg-paperSoft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+    >
+      {children}
+    </button>
+  );
+}
+
 function Leyenda() {
   return (
-    <div className="space-y-2">
-      <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">Cómo leerlo</p>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      <span className="text-rotulo font-semibold uppercase tracking-wide text-mute">Cómo leerlo</span>
       <ChipLeyenda tono="granate">Quién decide (alta dirección)</ChipLeyenda>
       <ChipLeyenda tono="amber">Quién compra</ChipLeyenda>
       <ChipLeyenda tono="anil">Quién paga y arma el presupuesto</ChipLeyenda>
@@ -447,12 +483,30 @@ export function DetalleOficina({
           {n.evidencias.map((e, i) => (
             <li key={i} className="text-inkSoft">
               {e.texto}.{" "}
-              {e.url && <EnlaceFuente href={e.url}>{e.tipo === "ley" ? "La ley" : e.tipo === "rof" ? "La norma en El Peruano" : e.tipo === "dji" ? "Sus declaraciones juradas" : "Su planilla en el Portal de Transparencia"}</EnlaceFuente>}
+              {e.url && <EnlaceFuente href={e.url}>{e.tipo === "ley" ? "La ley" : e.tipo === "rof" ? "La norma en El Peruano" : e.tipo === "dji" ? "Sus declaraciones juradas" : e.tipo === "entidad" ? "La norma (copia del texto oficial)" : "Su planilla en el Portal de Transparencia"}</EnlaceFuente>}
             </li>
           ))}
           {n.grupo && <li className="text-inkSoft">Agrupa oficinas: no es una oficina.</li>}
         </ul>
       </section>
+      {n.ruc && (
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/entidad/${n.ruc}?seccion=organizacion`}
+            prefetch={false}
+            className="inline-flex min-h-[40px] items-center rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+          >
+            Ver su organización
+          </Link>
+          <Link
+            href={`/entidad/${n.ruc}`}
+            prefetch={false}
+            className="inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-meta font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+          >
+            Abrir su ficha
+          </Link>
+        </div>
+      )}
       {conPlanilla && (
         <Link
           href={`${ruta}?seccion=planilla&lofi=${encodeURIComponent(conPlanilla)}`}

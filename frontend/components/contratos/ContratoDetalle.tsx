@@ -262,7 +262,7 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
       <span className="inline-flex items-center gap-1.5">
         <Hash size={14} className="shrink-0 text-mute" aria-hidden /> Código SEACE{" "}
         {/* El código abre el proceso en Contrataciones Abiertas del OECE (con el OCID completo: con el código solo, no abre). */}
-        <EnlaceFuente href={c.ocid ? procesoOece(c.ocid) : busquedaOece(c.codigo)} className="font-mono">
+        <EnlaceFuente href={c.ocid ? procesoOece(c.ocid) : busquedaOece(c.codigo)} className="font-mono text-ink decoration-ink/40 hover:decoration-ink">
           <span translate="no">{c.codigo}</span>
         </EnlaceFuente>
       </span>

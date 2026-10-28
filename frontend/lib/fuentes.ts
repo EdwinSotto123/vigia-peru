@@ -17,7 +17,7 @@
  * Un RUC 10 nunca va en un enlace: lleva el DNI, y Vigía no lo publica.
  */
 
-import { fechaCorta } from "@/lib/formato";
+import { fecha } from "@/lib/formato";
 
 /** Un enlace a la fuente: lo que dice y adónde lleva. */
 export interface EnlaceFuente {
@@ -130,6 +130,6 @@ export function avisoVisitas(hasta: string | null | undefined): string | null {
   if (!hasta) return null;
   const dias = (Date.now() - new Date(`${hasta}T12:00:00`).getTime()) / 86_400_000;
   return dias > 60
-    ? `El registro de visitas llega hasta el ${fechaCorta(hasta)}: la Plataforma Nacional de Datos Abiertos no publicó los meses siguientes.`
-    : `El registro de visitas llega hasta el ${fechaCorta(hasta)}.`;
+    ? `El registro de visitas llega hasta el ${fecha(hasta)}: la Plataforma Nacional de Datos Abiertos no publicó los meses siguientes.`
+    : `El registro de visitas llega hasta el ${fecha(hasta)}.`;
 }
