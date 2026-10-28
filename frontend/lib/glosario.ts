@@ -278,6 +278,27 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "el control concurrente",
     definicion: "La revisión que hace la Contraloría mientras la obra se ejecuta, y no al final, para avisar a tiempo de los problemas. La ley la exige en las inversiones grandes: tenerla no es una mala señal.",
   },
+  // ── Historia, visitas y redes (fases 2 a 4 del plan del 2026-10-27) ─────────────
+  "ola-locadores": {
+    termino: "una ola de locadores",
+    definicion: "Cuando las órdenes de servicio a personas se duplican en los seis meses desde que asume una gestión, frente a los mismos meses del año anterior, y crecen bastante más que las demás compras de la entidad. Puede tener razones legítimas: es para revisar.",
+  },
+  "visita-decisor": {
+    termino: "una visita a quien decide",
+    definicion: "Una visita registrada a quien decide una compra: la titular, la gerencia general o municipal, la administración, logística, abastecimiento, contrataciones o un comité. Antes de una buena pro, merece revisión.",
+  },
+  "turno-postores": {
+    termino: "postores que se turnan",
+    definicion: "Dos empresas con los mismos dueños o la misma dirección que compiten una y otra vez en los mismos procesos y se reparten las buenas pro: la competencia puede ser sólo aparente.",
+  },
+  "pariente-funcionario": {
+    termino: "un familiar de un funcionario en el ganador",
+    definicion: "Un pariente que un funcionario de la entidad declaró en su declaración jurada de intereses figura como socio, representante o directivo de la empresa que ganó allí. La ley impide contratar a los parientes de ciertos funcionarios.",
+  },
+  "linea-tiempo": {
+    termino: "la línea de tiempo",
+    definicion: "Todos los registros de una entidad, una empresa o un partido sobre el mismo eje de meses: quién gobernaba, qué compró o ganó, sus visitas, su planilla y lo que encontró la Contraloría. Sirve para ver qué pasó antes y después de cada cosa.",
+  },
 };
 
 /** Devuelve el término si la clave existe (para usos que lo necesiten en lógica). */

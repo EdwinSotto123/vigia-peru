@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { EstadoDatos } from "@/components/fuentes/EstadoDatos";
 import { EncabezadoPagina, EnlaceFuente, Migas, Pagina } from "@/components/patrones";
 import {
   BUSCADOR_CONTRALORIA,
@@ -172,6 +174,11 @@ export default function FuentesPage() {
         titulo="De dónde salen los datos"
         bajada="Todo lo que ves en Vigía viene de registros públicos del Estado. Acá está cada fuente, qué aporta y hasta dónde llega —sin esconder los límites."
       />
+
+      {/* Hasta cuándo llega cada fuente y si está al día (GET /estado/datos); sin respuesta, la página sigue sin esta parte. */}
+      <Suspense fallback={null}>
+        <EstadoDatos />
+      </Suspense>
 
       <Seccion
         titulo="El SEACE, por dos puertas"

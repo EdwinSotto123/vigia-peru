@@ -23,6 +23,7 @@ import { empresasRouter } from "./routes/empresas.js";
 import { planillaRouter, plazasRouter } from "./routes/planilla.js";
 import { historiaRouter } from "./routes/historia.js";
 import { visitasRouter } from "./routes/visitas.js";
+import { estadoRouter } from "./routes/estado.js";
 import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
 import { financiamientoRouter } from "./routes/financiamiento.js";
@@ -123,6 +124,7 @@ api.route("/planilla", planillaRouter);
 api.route("/plazas", plazasRouter);
 api.route("/historia", historiaRouter);
 api.route("/visitas", visitasRouter);
+api.route("/estado", estadoRouter);
 api.route("/reportes", reportesRouter);
 api.route("/upload", uploadRouter);
 api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)
