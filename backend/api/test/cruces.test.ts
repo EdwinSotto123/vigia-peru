@@ -35,6 +35,23 @@ test("visita previa: visitante y funcionario van bajo `visitas` y se tapan; el d
   assert.doesNotMatch(json(c), /TICONA|APAZA|00000789/);
 });
 
+test("patrones de visitas: cada visita bajo `visitas`, sin el nombre de quien recibió ni el DNI del visitante", () => {
+  const fila = { ...base, tipo: "visita_repetida", severidad: "alta", fuente: "visitas_entidades", fuente_url: "https://visitas.servicios.gob.pe/consultas",
+    persona_doc: "00000789", persona_nombre: "CCAHUANA TICONA FILOMENO",
+    persona_rol: "GERENTE_GENERAL", ocid: "ocds-dgv273-seacev3-2",
+    detalle: { entidad_visitada: "GOBIERNO REGIONAL X", misma_entidad: true, cargo_funcionario: "SUB GERENTE", area_funcionario: "LOGISTICA",
+      decisor: true, dias: 3, visitas_n: 4, dias_antes: 9, fuente_visita: "portal_visitas_nacional",
+      visitas: [{ fecha: "2025-08-01", hora: "09:10", minutos: 40 }, { fecha: "2025-08-12", hora: "16:05", minutos: 20 }, { fecha: "2025-09-02", hora: "10:00", minutos: 90 }] } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.socios.length, 0);
+  assert.equal(c.visitas.length, 3);
+  assert.equal(c.visitas[0].cargoFuncionario, "SUB GERENTE");
+  assert.equal(c.visitas[0].decisor, true);
+  assert.equal(c.detalle.visitas, undefined);
+  assert.equal(c.fuenteUrl, "https://visitas.servicios.gob.pe/");
+  assert.doesNotMatch(json(c), /TICONA|00000789/);
+});
+
 test("penalidad de empresa: sin personas, montos numéricos", () => {
   const c = aCruce({ ...base, tipo: "penalidad", severidad: "media", persona_doc: null, persona_nombre: null, persona_rol: null,
     detalle: { penalidades: 3 } });

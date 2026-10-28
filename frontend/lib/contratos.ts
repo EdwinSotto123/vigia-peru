@@ -247,7 +247,8 @@ export interface CruceProveedor {
   montoSoles: number | null;
   detalle: Record<string, unknown>;
   socios: { nombre: string; rol: string | null; cargo?: string | null }[];
-  visitas: { visitante: string | null; rol?: string | null; funcionario: string | null; cargoFuncionario: string | null; areaFuncionario?: string | null; decisor?: boolean; entidad: string | null; fecha: string | null; motivo: string | null }[];
+  /** Visita previa: una; los patrones de visitas (migración 193): cada una, con su hora, sus minutos y por qué cuenta. */
+  visitas: { visitante: string | null; rol?: string | null; funcionario?: string | null; cargoFuncionario: string | null; areaFuncionario?: string | null; decisor?: boolean; entidad: string | null; fecha: string | null; motivo?: string | null; hora?: string | null; minutos?: number | null; por?: string | null }[];
   fuente: string;
   fuenteUrl: string | null;
 }

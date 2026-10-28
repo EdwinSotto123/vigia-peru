@@ -50,8 +50,13 @@ test("con lo que trae la fila, el enlace va al registro exacto", () => {
     "https://appdji.contraloria.gob.pe/DJIC/ConsultaPublicaDJICRUC.aspx?ruc=20131368829");
   assert.equal(enlaceFuente("pte_personal", "https://www.transparencia.gob.pe/", { idPte: 10202 }),
     "https://www.transparencia.gob.pe/personal/pte_transparencia_personal.aspx?id_entidad=10202&id_tema=32&ver=");
-  assert.equal(enlaceFuente("visitas_entidades", "https://visitas.servicios.gob.pe/", { detalle: { visitas: [{ fecha: "2026-05-06" }] } }),
+  // Cada visita a su registro (migración 193): el reporte mensual de la PNDA es sólo del Gobierno Regional de Loreto; el
+  // Congreso tiene el suyo; lo demás (la plataforma nacional, la exportación manual), el Registro de Visitas en Línea.
+  assert.equal(enlaceFuente("visitas_entidades", "https://visitas.servicios.gob.pe/", { detalle: { fuente_visita: "pnda_visitas", visitas: [{ fecha: "2026-05-06" }] } }),
     "https://www.datosabiertos.gob.pe/dataset/reporte-de-registro-de-visitas-en-linea-mayo-2026");
+  assert.equal(enlaceFuente("visitas_entidades", null, { detalle: { fuente_visita: "congreso_visitas" } }), "https://wb2server.congreso.gob.pe/regvisitastransparencia/");
+  assert.equal(enlaceFuente("visitas_entidades", null, { detalle: { fuente_visita: "portal_visitas_nacional", visitas: [{ fecha: "2026-05-06" }] } }), "https://visitas.servicios.gob.pe/");
+  assert.equal(enlaceFuente("visitas_entidades", null, { detalle: { visitas: [{ fecha: "2025-09-14" }] } }), "https://visitas.servicios.gob.pe/");
 });
 
 test("un RUC 10 nunca va en un enlace (lleva el DNI)", () => {

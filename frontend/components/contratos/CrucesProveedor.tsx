@@ -125,6 +125,43 @@ function quien(c: CruceProveedor, rol = c.socios[0]?.rol, nombre = c.socios[0]?.
   );
 }
 
+const DIA_SEMANA = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone: "UTC" });
+const POR_VISITA: Record<string, string> = { fin_de_semana: "fin de semana", temprano: "antes de las 7", noche: "desde las 19" };
+
+/** «el sábado 4 ago. a las 20:15 (3 h 10 min)»: una visita en palabras (la hora, si la hay). */
+function unaVisita(v: CruceProveedor["visitas"][number], conPorque = false): string {
+  const f = v.fecha ? `el ${DIA_SEMANA.format(new Date(`${v.fecha}T12:00:00Z`))} ${fechaCorta(v.fecha)}` : "un día sin fecha";
+  const h = v.hora ? ` a las ${v.hora}` : "";
+  const m = v.minutos != null && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
+  const por = conPorque && v.por && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";
+  return `${f}${h}${m}${por}`;
+}
+
+/** Las visitas de un patrón en una línea: las seis primeras y cuántas más. */
+function VisitasEnLinea({ visitas, conPorque = false }: { visitas: CruceProveedor["visitas"]; conPorque?: boolean }) {
+  if (!visitas.length) return null;
+  // recorte: la línea lleva seis visitas; la cuenta dice cuántas más hubo.
+  const vistas = visitas.slice(0, 6);
+  return (
+    <>
+      {" "}Las visitas: {vistas.map((v) => unaVisita(v, conPorque)).join("; ")}
+      {visitas.length > vistas.length ? `; y ${numero(visitas.length - vistas.length)} más` : ""}.
+    </>
+  );
+}
+
+/** «lo recibió quien tiene el cargo de gerente en logística (decide las compras de la entidad)». */
+function Recibio({ v }: { v?: CruceProveedor["visitas"][number] }) {
+  if (!v?.cargoFuncionario && !v?.areaFuncionario) return null;
+  return (
+    <>
+      {" "}y lo recibió quien tiene el cargo de {(v.cargoFuncionario ?? "funcionario").toLowerCase()}
+      {v.areaFuncionario ? <> en {v.areaFuncionario.toLowerCase()}</> : ""}
+      {v.decisor ? <b> (decide las compras de la entidad)</b> : ""}
+    </>
+  );
+}
+
 /** " Después, EMPRESA ganó este proceso el 31 ago. por S/ 217 mil." */
 function Gano({ c, dias }: { c: CruceProveedor; dias?: number | null }) {
   const bp = c.buenaPro;
@@ -157,6 +194,9 @@ const POR_QUE: Record<string, string> = {
   sancion_vigente: "Con una inhabilitación vigente la empresa no podía contratar con el Estado: la entidad debía verificarlo en el RNP antes de dar la buena pro.",
   visita_previa: "Reunirse con funcionarios antes de la buena pro no es ilegal, pero el registro de visitas existe para transparentarlo. Una reunión con quien decide, o una visita «personal», merece revisión.",
   socio_comun: "Si dos postores que compiten comparten dueños o representantes, la competencia puede ser solo aparente (ofertas concertadas). Es una de las señales clásicas de colusión.",
+  visita_repetida: "Ir varias veces donde el mismo funcionario puede ser seguir un trámite, pero también la forma de influir en una decisión. Pesa más si ese funcionario decide la compra; el registro de visitas existe para que se vea.",
+  visita_fuera_horario: "Las visitas se registran en horario de atención: una de noche, de madrugada o en fin de semana es poco común y vale revisarla junto con el proceso que después ganó.",
+  visita_antes_convocatoria: "La semana antes de convocar es cuando la entidad cierra las bases y los requisitos. Una reunión del futuro ganador en esos días merece revisar si las bases quedaron a su medida.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
   vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
@@ -319,6 +359,50 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           ) : ""}
           .{v?.motivo ? <> Motivo declarado: «{v.motivo.slice(0, 120)}».</> : ""}
           <Gano c={c} dias={dias} />
+        </>
+      );
+    }
+    case "visita_repetida": {
+      const v = c.visitas[0];
+      const dias = n(d.dias) ?? c.visitas.length;
+      const total = n(d.visitas_n);
+      return (
+        <>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó en <b>{numero(dias)} días distintos</b> a quien tiene el cargo de{" "}
+          {(v?.cargoFuncionario ?? "funcionario").toLowerCase()}
+          {v?.areaFuncionario ? <> en {v.areaFuncionario.toLowerCase()}</> : ""} de <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>
+          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""}
+          {v?.decisor ? <b>, que decide las compras de la entidad</b> : ""}, en los 180 días antes de la buena pro
+          {total != null && total > dias ? ` (${numero(total)} visitas en total)` : ""}.
+          <VisitasEnLinea visitas={c.visitas} />
+          <Gano c={c} dias={n(d.dias_antes)} />
+        </>
+      );
+    }
+    case "visita_fuera_horario": {
+      const v = c.visitas[0];
+      return (
+        <>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>
+          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} fuera del horario de atención (de noche, de madrugada
+          o en fin de semana), en los 180 días antes de la buena pro.
+          <VisitasEnLinea visitas={c.visitas} conPorque />
+          <Gano c={c} dias={n(d.dias_antes)} />
+        </>
+      );
+    }
+    case "visita_antes_convocatoria": {
+      const v = c.visitas[c.visitas.length - 1];
+      const antes = n(d.dias_antes_convocatoria);
+      const conv = txt(d.convocatoria);
+      return (
+        <>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>{" "}
+          {antes === 0 ? "el mismo día" : <b>{numero(antes ?? 0)} {antes === 1 ? "día" : "días"} antes</b>} de que se convocara este proceso
+          {conv ? ` (convocatoria del ${fechaCorta(conv)})` : ""}
+          <Recibio v={v} />.
+          {c.visitas.length > 1 && <VisitasEnLinea visitas={c.visitas} />}
+          <Gano c={c} />
         </>
       );
     }

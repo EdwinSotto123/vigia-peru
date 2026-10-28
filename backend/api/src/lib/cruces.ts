@@ -29,6 +29,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   sancion_multa: "Multa del Tribunal antes de este proceso",
   sancion_vigente: "Ganó con una inhabilitación vigente",
   visita_previa: "Visitó una entidad antes de la buena pro",
+  // Patrones de visitas (migración 193): al mismo funcionario una y otra vez, fuera de horario, antes de la convocatoria.
+  visita_repetida: "Visitó al mismo funcionario una y otra vez antes de ganar",
+  visita_fuera_horario: "Visitó la entidad fuera del horario de atención antes de ganar",
+  visita_antes_convocatoria: "Visitó la entidad la semana antes de que se convocara el proceso",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
@@ -123,6 +127,9 @@ export interface Cruce {
 
 const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.slice(0, 10) : null);
 
+/** Los patrones de visitas (migración 193): sus visitas van en `visitas`, como la visita previa. */
+export const PATRONES_VISITA = new Set(["visita_repetida", "visita_fuera_horario", "visita_antes_convocatoria"]);
+
 /** Fila de cruces_proveedor → lo que ve el público (sin el DNI; personas bajo `socios` / `visitas`). */
 export function aCruce(r: Record<string, any>): Cruce {
   const d: Record<string, unknown> = { ...(r.detalle ?? {}) };
@@ -139,8 +146,21 @@ export function aCruce(r: Record<string, any>): Cruce {
     delete d.cargo_funcionario;
     delete d.area_funcionario;
     delete d.motivo;
+  } else if (PATRONES_VISITA.has(r.tipo)) {
+    // Cada visita del patrón (migración 193): fecha, hora, minutos y, de quien la recibió, sólo su cargo y su área. En la
+    // repetida el funcionario es uno (su cargo va en el detalle); en las demás, cada visita trae el suyo.
+    for (const v of Array.isArray(d.visitas) ? (d.visitas as Record<string, unknown>[]) : []) {
+      visitas.push({
+        visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), entidad: d.entidad_visitada ?? null,
+        fecha: fecha(v.fecha), hora: v.hora ?? null, minutos: v.minutos ?? null, por: v.por ?? null,
+        cargoFuncionario: (v.cargo ?? d.cargo_funcionario ?? null) as string | null,
+        areaFuncionario: (v.area ?? d.area_funcionario ?? null) as string | null,
+        decisor: (v.decisor ?? d.decisor) === true,
+      });
+    }
+    delete d.visitas;
   }
-  const socios = r.persona_nombre && r.tipo !== "visita_previa"
+  const socios = r.persona_nombre && r.tipo !== "visita_previa" && !PATRONES_VISITA.has(r.tipo)
     ? [{ nombre: String(r.persona_nombre), rol: rolLegible(r.persona_rol), ...(r.tipo === "autoridad" ? { cargo: (d.cargo as string) ?? null } : {}) }]
     : [];
   return {

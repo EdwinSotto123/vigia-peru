@@ -59,6 +59,8 @@ export const CLARIDAD_ONPE = "https://claridadportal.onpe.gob.pe/";
 export const PLATAFORMA_JNE = "https://plataformaelectoral.jne.gob.pe/";
 export const CONSULTA_RUC_SUNAT = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp";
 export const VISITAS_EN_LINEA = "https://visitas.servicios.gob.pe/";
+/** El registro de visitas del Congreso (su propio sistema, con la consulta pública por día). */
+export const VISITAS_CONGRESO = "https://wb2server.congreso.gob.pe/regvisitastransparencia/";
 export const PORTAL_TRANSPARENCIA = "https://www.transparencia.gob.pe/";
 export const DJI_CONSULTA = "https://appdji.contraloria.gob.pe/DJIC/";
 
@@ -193,10 +195,16 @@ export function enlaceFuente(fuente: string | null | undefined, url: string | nu
       if (ctx.idPte != null && String(ctx.idPte).trim()) return personalPte(ctx.idPte);
       break;
     case "visitas_entidades": {
-      const primera = lista(d.visitas)[0];
-      const fecha = texto(primera?.fecha) ?? texto(ctx.fecha);
-      if (fecha) return datasetVisitas(fecha);
-      break;
+      // Cada visita a su registro (migración 193 guarda de dónde salió): el del Congreso, el reporte mensual de la PNDA
+      // (que es sólo del Gobierno Regional de Loreto) o, lo demás, el Registro de Visitas en Línea de la PCM.
+      const de = texto(d.fuente_visita);
+      if (de === "congreso_visitas") return VISITAS_CONGRESO;
+      if (de === "pnda_visitas") {
+        const primera = lista(d.visitas)[0];
+        const fecha = texto(primera?.fecha) ?? texto(ctx.fecha);
+        if (fecha) return datasetVisitas(fecha);
+      }
+      return VISITAS_EN_LINEA;
     }
   }
   return arreglarUrl(f, url);
