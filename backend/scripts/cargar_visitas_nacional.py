@@ -63,7 +63,10 @@ REFRESCOS = ["refrescar_visita_entidad_ruc", "refrescar_cruce_visita_previa", "r
              # en cada visita si quien la recibió decide las compras.
              "refrescar_persona_visita_previa",
              # Y en la planilla, quien visitó la entidad antes de entrar (migración 196, dentro de refrescar_planilla_extra).
-             "refrescar_planilla_extra"]
+             "refrescar_planilla_extra",
+             # Las empresas de quienes visitan cada entidad (también por su socio o representante) y lo que ganaron después
+             # (migración 203): tras refrescar_empresas, que atribuye las visitas a las empresas.
+             "refrescar_visita_empresa"]
 
 
 def parser():

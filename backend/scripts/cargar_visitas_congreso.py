@@ -244,8 +244,10 @@ def main() -> None:
         cur.execute("SELECT refrescar_visita_entidad_ruc()")
         n = cur.fetchone()[0]
         # Con la migración 188: las visitas de familiares de funcionarios y lo que cuenta la pestaña Visitas; con la 195, la
-        # visita de un locador antes de su primera orden; con la 196, la de quien entra a la planilla.
-        for fn in ("refrescar_visita_pariente", "refrescar_visitas_entidad", "refrescar_persona_visita_previa", "refrescar_planilla_extra"):
+        # visita de un locador antes de su primera orden; con la 196, la de quien entra a la planilla; con la 203, las empresas
+        # de quienes la visitan y lo que ganaron después.
+        for fn in ("refrescar_visita_pariente", "refrescar_visitas_entidad", "refrescar_persona_visita_previa", "refrescar_planilla_extra",
+                   "refrescar_visita_empresa"):
             cur.execute("SELECT to_regprocedure(%s) IS NOT NULL", (f"{fn}()",))
             if cur.fetchone()[0]:
                 cur.execute(f"SELECT {fn}()")

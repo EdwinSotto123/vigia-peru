@@ -67,8 +67,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       primera orden de un locador (195) y antes de entrar a la planilla (196), y el perfil con sus visitas por entidad.
  * "54": la planilla de hoy es la del último mes completo (202: el GORE Ayacucho salía con 12 de 1,190 por un mes publicado
  *       a medias) y /planilla de una entidad trae salieron, mesParcial y la lista «Trabajó antes» (situacion=antes).
+ * "55": /visitas/entidad trae `empresas`: las de quienes la visitan, también por su socio, representante o directivo, y
+ *       lo que ganaron después (migración 203).
  */
-const VERSION_CACHE = "54";
+const VERSION_CACHE = "55";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

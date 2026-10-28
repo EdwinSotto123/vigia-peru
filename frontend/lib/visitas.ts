@@ -23,6 +23,44 @@ export interface OrganizacionVisitante {
   montoDespues: number;
 }
 
+/**
+ * Una empresa cuya gente visitó la entidad (migración 203): se la reconoce por el documento de quien visita (su socio,
+ * representante legal o directivo en el RNP) o porque dijo venir de ella, y lo que la entidad le dio desde la primera
+ * visita. Sin nombres ni documentos de quienes visitan.
+ */
+export interface EmpresaVisitante {
+  ruc: string;
+  empresa: string | null;
+  visitas: number;
+  visitantes: number;
+  decisores: number;
+  /** Visitas según cómo se reconoce a quien visita. */
+  socio: number;
+  representante: number;
+  directivo: number;
+  porNombre: number;
+  /** Visitas que declararon a la empresa como su organización (0: el vínculo sólo se ve por su gente). */
+  declaradas: number;
+  personal: number;
+  /** Visitas de alguien que figura en más de una empresa: no se sabe por cuál fue. */
+  compartidas: number;
+  /** La otra organización que más declararon, si no declararon a la empresa. */
+  otraOrg: string | null;
+  primera: string;
+  ultima: string;
+  /** Contratos y órdenes que la entidad le dio antes de la primera visita (0: la primera vez que le vende). */
+  antes: number;
+  despues: string;
+  despuesTipo: "contrato" | "consorcio" | "orden";
+  /** Días entre la última visita hasta ese día y lo primero que le dio. */
+  dias: number | null;
+  contratos: number;
+  consorcios: number;
+  ordenes: number;
+  /** Lo que suman sus contratos (sola) y órdenes desde la primera visita, sin montos dudosos. */
+  monto: number;
+}
+
 export interface VisitaEntidad {
   clave: string;
   fecha: string | null;
@@ -54,6 +92,15 @@ export interface VisitasEntidad {
   fuentes?: { texto: string; href: string }[];
   /** «Lo que le dio después» no alcanzó el plazo de la API (entidades con muchísimas órdenes): las organizaciones van sin él. */
   despuesSinCalcular?: boolean;
+  /** Las empresas de quienes la visitan (migración 203): cuántas, cuántas ganaron algo después y la lista de esas. */
+  empresas?: {
+    empresas: number;
+    soloSuGente: number;
+    ganaron: number;
+    ganaronSoloSuGente: number;
+    primeraVez: number;
+    lista: EmpresaVisitante[];
+  };
 }
 
 export async function getVisitasEntidad(ruc: string): Promise<VisitasEntidad | null> {

@@ -9,9 +9,11 @@ import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuent
  * Las visitas que recibió una entidad (fase 2.3 del plan del 2026-10-27):
  *
  *   GET /visitas/entidad/:ruc   cuántas y desde cuándo; quiénes la visitan (cada organización, la empresa que es si se
- *                               reconoce y si después le ganó un contrato o le dio órdenes), a qué oficinas (cargo y área
- *                               de quien recibe, y si decide la compra), las de familiares declarados de sus funcionarios
- *                               (migración 188) y las 1,000 más recientes.
+ *                               reconoce y si después le ganó un contrato o le dio órdenes), las empresas cuya gente la
+ *                               visitó (por su socio, representante o directivo, aunque no la declarara) y lo que ganaron
+ *                               después (migración 203), a qué oficinas (cargo y área de quien recibe, y si decide la
+ *                               compra), las de familiares declarados de sus funcionarios (migración 188) y las 1,000 más
+ *                               recientes.
  *
  * Privacidad: nunca el documento de quien visita; su nombre con un apellido tapado (publicar), y ni eso si es el familiar
  * de un funcionario (no se lo identifica). De quien recibe, sólo su cargo y su área.
@@ -34,18 +36,19 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await memo.obtener(ruc, async () => {
-    const [conParientes, conDecisor, pre] = await Promise.all([
+    const [conParientes, conDecisor, pre, conEmpresas] = await Promise.all([
       tabla("entidad_visita_pariente"),
       pool.query(`SELECT 1 FROM pg_proc WHERE proname = 'visita_decisor'`).then((r) => r.rowCount! > 0).catch(() => false),
       // El resumen, las organizaciones y las oficinas precalculados (migración 188): en vivo, el GORE Loreto tardaba 12 s.
       tabla("entidad_visita_resumen"),
+      tabla("entidad_visita_empresa"),
     ]);
     // La marca de quien decide ya va en la visita (migración 188); la de una visita recién cargada, en vivo.
     const decisor = pre ? `COALESCE(v.decisor, ${DECISOR})` : conDecisor ? DECISOR : "false";
     // Las visitas de la entidad por todos los nombres con que la registra el portal (migración 186).
     const V = `(SELECT v.* FROM visitas_entidades v WHERE v.entidad_visitada IN (SELECT entidad_visitada FROM visita_entidad_ruc WHERE ruc = $1))`;
     let despuesSinCalcular = false;
-    const [resumen, orgs, areas, parientes, lista] = await Promise.all([
+    const [resumen, orgs, areas, parientes, lista, empresas] = await Promise.all([
       pre
         ? pool.query(
             `SELECT total, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, privadas, publicas, personas,
@@ -133,6 +136,28 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
               ORDER BY x.fecha_visita DESC, x.id DESC LIMIT 1000) v
           WHERE m.ruc = $1
           ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 1000`, [ruc]),
+      // Las empresas cuya gente la visitó (migración 203) y, de ellas, las que recibieron algo desde la primera visita: en
+      // PROD a lo más 930 por entidad. Sin nombres ni documentos de quienes visitan.
+      conEmpresas
+        ? Promise.all([
+            pool.query(
+              `SELECT count(*)::int AS empresas, count(*) FILTER (WHERE declaradas = 0)::int AS "soloSuGente",
+                      count(*) FILTER (WHERE despues IS NOT NULL)::int AS ganaron,
+                      count(*) FILTER (WHERE despues IS NOT NULL AND declaradas = 0)::int AS "ganaronSoloSuGente",
+                      count(*) FILTER (WHERE despues IS NOT NULL AND antes = 0)::int AS "primeraVez"
+                 FROM entidad_visita_empresa WHERE entidad_ruc = $1`, [ruc]),
+            pool.query(
+              `SELECT e.ruc, r.nombre AS empresa, e.visitas, e.visitantes, e.decisores, e.socio, e.representante, e.directivo,
+                      e.nombre AS "porNombre", e.declaradas, e.personal, e.compartidas, e.otra_org AS "otraOrg",
+                      to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.ultima, 'YYYY-MM-DD') AS ultima, e.antes,
+                      to_char(e.despues, 'YYYY-MM-DD') AS despues, e.despues_tipo AS "despuesTipo", e.dias,
+                      e.contratos, e.consorcios, e.ordenes, e.monto::float AS monto
+                 FROM entidad_visita_empresa e LEFT JOIN empresa_resumen r ON r.ruc = e.ruc
+                WHERE e.entidad_ruc = $1 AND e.despues IS NOT NULL
+                -- Primero las que nunca le habían vendido (como la web por defecto), luego por lo que ganaron.
+                ORDER BY (e.antes = 0) DESC, e.monto DESC, e.visitas DESC, e.ruc LIMIT 1000`, [ruc]),
+          ]).catch((e) => { console.warn(`[visitas] empresas: ${(e as Error).message}`); return null; })
+        : Promise.resolve(null),
     ]);
     const r = resumen.rows[0];
     if (!r || !r.total) return { total: 0, hasta: null };
@@ -153,6 +178,15 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
       organizaciones: orgs.rows.map((o) => ({ ...o, ruc: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.ruc : null, empresa: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.empresa : null })),
       // «Lo que le dio después» no alcanzó el plazo: las organizaciones van sin esa columna (la web no dice «nada después»).
       ...(despuesSinCalcular ? { despuesSinCalcular: true } : {}),
+      // Las empresas de quienes la visitan (también por su socio, representante o directivo) y lo que ganaron después.
+      ...(empresas
+        ? {
+            empresas: {
+              ...empresas[0].rows[0],
+              lista: empresas[1].rows,
+            },
+          }
+        : {}),
       areas: areas.rows,
       parientes: parientes.rows,
       // Bajo `visitas`: publicar() le tapa un apellido a quien visita. El familiar de un funcionario va sin nombre.
