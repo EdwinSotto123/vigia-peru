@@ -295,6 +295,11 @@ export async function correrVisitas(env: Env, p: ParamsCorrida, step: WorkflowSt
       const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure('refrescar_visita_pariente()') IS NOT NULL AS existe");
       return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_pariente() AS n"))[0]?.n ?? 0) : null;
     }));
+    // Lo que la pestaña Visitas cuenta de cada entidad (migración 188).
+    await step.do("refrescar_visitas_entidad", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure('refrescar_visitas_entidad()') IS NOT NULL AS existe");
+      return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_visitas_entidad() AS n"))[0]?.n ?? 0) : null;
+    }));
   }
   return { meses: meses.map(([a, m]) => `${a}-${String(m).padStart(2, "0")}`), archivos: resumen, visita_entidad_ruc: entidades };
 }

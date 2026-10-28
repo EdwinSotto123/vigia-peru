@@ -26,6 +26,8 @@ PASOS = [
     "refrescar_entidad_antecedentes",
 ]
 EMPRESAS = ["refrescar_empresas", "refrescar_poder"]
+# Al final: lo que la pestaña Visitas cuenta de cada entidad (lee empresa_visita, que rehace refrescar_empresas).
+ULTIMOS = ["refrescar_visitas_entidad"]
 
 
 def paso(env: str, fn: str) -> None:
@@ -59,7 +61,7 @@ def main() -> None:
             cur.execute(SQL)
             c.commit()
         print(f"{a.entorno}: migración 188 aplicada", flush=True)
-    for fn in PASOS + (EMPRESAS if a.empresas else []):
+    for fn in PASOS + (EMPRESAS if a.empresas else []) + ULTIMOS:
         paso(a.entorno, fn)
     with conexion(a.entorno) as c:
         cur = c.cursor()

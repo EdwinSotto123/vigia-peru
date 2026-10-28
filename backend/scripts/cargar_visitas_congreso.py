@@ -243,6 +243,11 @@ def main() -> None:
         cur.execute("SET statement_timeout = 0")
         cur.execute("SELECT refrescar_visita_entidad_ruc()")
         n = cur.fetchone()[0]
+        # Con la migración 188: las visitas de familiares de funcionarios y lo que cuenta la pestaña Visitas.
+        for fn in ("refrescar_visita_pariente", "refrescar_visitas_entidad"):
+            cur.execute("SELECT to_regprocedure(%s) IS NOT NULL", (f"{fn}()",))
+            if cur.fetchone()[0]:
+                cur.execute(f"SELECT {fn}()")
         cur.execute("SELECT count(*), min(fecha_visita), max(fecha_visita) FROM visitas_entidades WHERE fuente = %s", (FUENTE,))
         return n, cur.fetchone()
 

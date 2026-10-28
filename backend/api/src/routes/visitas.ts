@@ -34,15 +34,23 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await memo.obtener(ruc, async () => {
-    const [conParientes, conDecisor] = await Promise.all([
+    const [conParientes, conDecisor, pre] = await Promise.all([
       tabla("entidad_visita_pariente"),
       pool.query(`SELECT 1 FROM pg_proc WHERE proname = 'visita_decisor'`).then((r) => r.rowCount! > 0).catch(() => false),
+      // El resumen, las organizaciones y las oficinas precalculados (migración 188): en vivo, el GORE Loreto tardaba 12 s.
+      tabla("entidad_visita_resumen"),
     ]);
-    const decisor = conDecisor ? DECISOR : "false";
+    // La marca de quien decide ya va en la visita (migración 188); la de una visita recién cargada, en vivo.
+    const decisor = pre ? `COALESCE(v.decisor, ${DECISOR})` : conDecisor ? DECISOR : "false";
     // Las visitas de la entidad por todos los nombres con que la registra el portal (migración 186).
     const V = `(SELECT v.* FROM visitas_entidades v WHERE v.entidad_visitada IN (SELECT entidad_visitada FROM visita_entidad_ruc WHERE ruc = $1))`;
     const [resumen, orgs, areas, parientes, lista] = await Promise.all([
-      pool.query(
+      pre
+        ? pool.query(
+            `SELECT total, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, privadas, publicas, personas,
+                    visitantes, decisores, fuera_de_hora AS "fueraDeHora", largas, fuentes
+               FROM entidad_visita_resumen WHERE entidad_ruc = $1`, [ruc])
+        : pool.query(
         `SELECT count(*)::int AS total, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS desde, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS hasta,
                 count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas,
                 count(*) FILTER (WHERE v.tipo_entidad_visitante = 'publica')::int AS publicas,
@@ -56,14 +64,17 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
       // Quiénes la visitan: cada organización declarada, la empresa que es (por las visitas que ya se le atribuyen) y lo
       // primero que le dio la entidad después de su primera visita.
       pool.query(
-        `WITH o AS (
+        `WITH o AS (${pre
+           ? `SELECT org, tipo, visitas, visitantes, primera, ultima, decisores, ruc FROM entidad_visita_org
+               WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT 300`
+           : `
            SELECT upper(btrim(v.entidad_visitante)) AS org, max(v.tipo_entidad_visitante) AS tipo, count(*)::int AS visitas,
                   count(DISTINCT v.numero_documento)::int AS visitantes, min(v.fecha_visita) AS primera, max(v.fecha_visita) AS ultima,
                   count(*) FILTER (WHERE ${decisor})::int AS decisores,
                   mode() WITHIN GROUP (ORDER BY ev.ruc) AS ruc
              FROM ${V} v LEFT JOIN empresa_visita ev ON ev.visita_id = v.id
             WHERE v.entidad_visitante IS NOT NULL AND btrim(v.entidad_visitante) <> '' AND v.tipo_entidad_visitante <> 'persona_natural'
-            GROUP BY 1 ORDER BY 3 DESC LIMIT 300)
+            GROUP BY 1 ORDER BY 3 DESC LIMIT 300`})
          SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
                 o.decisores, o.ruc, r.nombre AS empresa,
                 to_char(LEAST(ad.f, od.f), 'YYYY-MM-DD') AS "despues",
@@ -80,7 +91,11 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                                  AND x.estado IS DISTINCT FROM 'Anulada') od ON true
           ORDER BY o.visitas DESC`, [ruc]),
       // A qué oficinas: el área y el cargo de quien recibe (nunca su nombre).
-      pool.query(
+      pre
+        ? pool.query(
+            `SELECT area, NULLIF(cargo, '') AS cargo, visitas, privadas, decisor FROM entidad_visita_area
+              WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT 60`, [ruc])
+        : pool.query(
         `SELECT COALESCE(NULLIF(btrim(v.funcionario_area), ''), 'Sin área en el registro') AS area, v.funcionario_cargo AS cargo,
                 count(*)::int AS visitas, count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas,
                 bool_or(${decisor}) AS decisor
@@ -97,7 +112,7 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                 ${decisor} AS decisor, ${FUERA_DE_HORA} AS "fueraDeHora",
                 ${conParientes ? `EXISTS (SELECT 1 FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1 AND p.visita_id = v.id)` : "false"} AS pariente,
                 (SELECT ev.ruc FROM empresa_visita ev WHERE ev.visita_id = v.id LIMIT 1) AS ruc
-           FROM ${V} v ORDER BY v.fecha_visita DESC NULLS LAST, v.hora_ingreso DESC NULLS LAST LIMIT 1000`, [ruc]),
+           FROM ${V} v WHERE v.fecha_visita IS NOT NULL ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 1000`, [ruc]),
     ]);
     const r = resumen.rows[0];
     if (!r || !r.total) return { total: 0, hasta: null };
