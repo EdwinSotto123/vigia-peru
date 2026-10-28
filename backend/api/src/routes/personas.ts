@@ -609,7 +609,7 @@ personasRouter.get("/:codigo/perfil", async (c) => {
     const ruc = p.rows[0]?.ruc;
     if (!ruc || !/^10[0-9]{9}$/.test(ruc)) return null;
     const dni = ruc.slice(2, 10);
-    const [empresas, candidaturas, autoridades, aportes, visitas, familia, planilla, entidades] = await Promise.all([
+    const [empresas, candidaturas, autoridades, aportes, visitas, familia, planilla, entidades, porEntidad, previas] = await Promise.all([
       pool.query(
         `SELECT r.ruc_empresa::text AS ruc, er.nombre, string_agg(DISTINCT r.tipo_rol, ', ' ORDER BY r.tipo_rol) AS rol,
                 to_char(min(r.fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde,
@@ -655,6 +655,21 @@ personasRouter.get("/:codigo/perfil", async (c) => {
         `SELECT entidad_ruc AS "entidadRuc", entidad, to_char(primera, 'YYYY-MM-DD') AS primera, to_char(ultima, 'YYYY-MM-DD') AS ultima,
                 ordenes, monto::float AS monto
            FROM persona_entidad WHERE ruc = $1 ORDER BY monto DESC NULLS LAST LIMIT 40`, [ruc]),
+      // Para la línea de vida: sus visitas por entidad (todas, no sólo las 100 últimas) y las que precedieron a su primera
+      // orden en esa entidad (la señal visita_previa, migración 195).
+      pool.query(
+        `SELECT entidad_visitada AS entidad, count(*)::int AS n, to_char(min(fecha_visita), 'YYYY-MM-DD') AS primera,
+                to_char(max(fecha_visita), 'YYYY-MM-DD') AS ultima, count(*) FILTER (WHERE decisor)::int AS "aQuienDecide"
+           FROM visitas_entidades WHERE numero_documento = $1 AND entidad_visitada IS NOT NULL
+          GROUP BY entidad_visitada ORDER BY count(*) DESC, min(fecha_visita) LIMIT 12`, [dni]),
+      pool.query(
+        `SELECT s.entidad_ruc AS "entidadRuc", pe.entidad, s.severidad, s.detalle->>'primera_orden' AS "primeraOrden",
+                (SELECT min(v->>'fecha') FROM jsonb_array_elements(s.detalle->'visitas') v) AS "primeraVisita",
+                COALESCE((s.detalle->>'n_visitas')::int, jsonb_array_length(s.detalle->'visitas')) AS n,
+                COALESCE((s.detalle->>'a_quien_decide')::int, 0) AS "aQuienDecide"
+           FROM persona_senal s LEFT JOIN persona_entidad pe ON pe.entidad_ruc = s.entidad_ruc AND pe.ruc = s.ruc
+          WHERE s.ruc = $1 AND s.tipo = 'visita_previa' AND jsonb_typeof(s.detalle->'visitas') = 'array'
+          LIMIT 20`, [ruc]),
     ]);
     const totalVisitas = (visitas.rows[0]?.total as number | undefined) ?? 0;
     return publicar({
@@ -662,7 +677,14 @@ personasRouter.get("/:codigo/perfil", async (c) => {
       candidaturas: candidaturas.rows,
       autoridades: autoridades.rows,
       aportes: aportes.rows,
-      visitas: { total: totalVisitas, ultimas: visitas.rows.map(({ total: _t, ...v }) => v), hasta: await visitasHasta() },
+      visitas: {
+        total: totalVisitas,
+        ultimas: visitas.rows.map(({ total: _t, ...v }) => v),
+        hasta: await visitasHasta(),
+        porEntidad: porEntidad.rows,
+        // Las visitas antes de su primera orden en una entidad: van destacadas en la línea de vida.
+        antesDeOrden: previas.rows,
+      },
       // Sin el nombre del funcionario (apellidoFuncionario): su primer apellido y su ficha, si el parentesco lo permite.
       familia: familia.rows.map(({ declarante, ficha, ...f }) => {
         const funcionarioApellido = apellidoFuncionario(f.parentesco, declarante);

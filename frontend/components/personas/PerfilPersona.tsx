@@ -53,8 +53,9 @@ const rolCorto = (rol: string | null) =>
   /SOCIO/i.test(rol ?? "") ? "Socio" : /REPRESENTANTE/i.test(rol ?? "") ? "Representante" : /ADMINISTRACI|DIRECTOR|GERENTE/i.test(rol ?? "") ? "Directivo" : "Integrante";
 
 /**
- * Los hechos con fecha, en orden: aportes, candidaturas, cargos de elección, empresas, planilla y la primera orden de las
- * entidades que más le pagaron (no todas: con decenas de entidades la línea se volvía una lista). Sin fecha no entra.
+ * Los hechos con fecha, en orden: aportes, candidaturas, cargos de elección, empresas, planilla, la primera orden de las
+ * entidades que más le pagaron (no todas: con decenas de entidades la línea se volvía una lista), sus visitas a las
+ * entidades que más visitó y, destacadas, las que hizo antes de su primera orden en esa entidad. Sin fecha no entra.
  */
 function hitosPerfil(p: PerfilPersona): Hito[] {
   const h: Hito[] = [];
@@ -67,6 +68,25 @@ function hitosPerfil(p: PerfilPersona): Hito[] {
   for (const e of p.empresas) if (e.desde) h.push({ fecha: e.desde, texto: `${rolCorto(e.rol)} de ${e.nombre ? tituloNatural(e.nombre) : "una empresa"}` });
   for (const pl of p.planilla) if (pl.desde) h.push({ fecha: `${pl.desde}-01`, texto: `En la planilla de ${tituloNatural(pl.entidad ?? "una entidad")}` });
   for (const e of p.entidades.slice(0, 4)) if (e.primera) h.push({ fecha: e.primera, texto: `Primera orden de ${tituloNatural(e.entidad ?? "una entidad")}`, destacado: true });
+  // Las visitas antes de su primera orden van con su propio hito; esas entidades no se repiten como visita común.
+  const previas = p.visitas.antesDeOrden ?? [];
+  for (const v of previas) {
+    if (!v.primeraVisita) continue;
+    const dias = v.primeraOrden ? Math.round((Date.parse(v.primeraOrden) - Date.parse(v.primeraVisita)) / 86_400_000) : null;
+    const veces = v.n > 1 ? `${plural(v.n, "vez", "veces")}` : "una vez";
+    const decide = v.aQuienDecide > 0 ? ", a quien decide las compras" : "";
+    h.push({
+      fecha: v.primeraVisita,
+      texto: `Visitó ${tituloNatural(v.entidad ?? "la entidad")} ${veces}${decide} antes de su primera orden ahí${dias != null && dias > 0 ? ` (${plural(dias, "día", "días")} antes)` : ""}`,
+      destacado: true,
+    });
+  }
+  const conPrevia = new Set(previas.map((v) => (v.entidad ?? "").toUpperCase()));
+  for (const v of (p.visitas.porEntidad ?? []).slice(0, 4)) {
+    if (!v.primera || conPrevia.has((v.entidad ?? "").toUpperCase())) continue;
+    const hasta = v.ultima && v.ultima !== v.primera ? `, hasta el ${fechaCorta(v.ultima)}` : "";
+    h.push({ fecha: v.primera, texto: `Visitó ${tituloNatural(v.entidad ?? "una entidad")}${v.n > 1 ? ` ${plural(v.n, "vez", "veces")}${hasta}` : ""}` });
+  }
   return h;
 }
 
