@@ -27,6 +27,7 @@ import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, ty
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
+import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import { Cargando } from "@/components/patrones";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
@@ -229,6 +230,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
         titulo={nombre}
         bajada={<Identidad f={f} razonSocial={corto?.razonSocial ?? null} />}
         banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta empresa" banderas={banderas} todas={`${ruta}?seccion=antecedentes`} /> : undefined}
+        acciones={<SeguirBoton tipo="empresa" id={e.ruc} nombre={nombre} />}
       />
 
       <Pestanas
@@ -733,6 +735,7 @@ async function FichaSoloMenores({ ruc, e, sp }: { ruc: string; e: FichaEmpresa["
       <Migas items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Empresas", href: "/app/empresas" }, { etiqueta: nombre, href: ruta }])} />
       <EncabezadoPagina
         titulo={nombre}
+        acciones={<SeguirBoton tipo="empresa" id={ruc} nombre={nombre} />}
         bajada="Esta empresa solo figura en contratos menores (≤8 UIT); no tiene otra actividad registrada con el Estado en la base de Vigía."
         ayuda={
           <Ayuda titulo="¿Por qué una ficha reducida?">

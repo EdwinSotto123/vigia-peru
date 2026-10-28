@@ -9,6 +9,7 @@ import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
+import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import {
   BarraFiltros,
   Indicadores,
@@ -148,13 +149,17 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           </span>
         }
         acciones={
-          // Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
-          // la cola están en la base pero no se financian, y el aporte no tendría qué asignar.
-          t.enCola > 0 ? (
-            <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`} flecha>
-              Financiar la lectura de sus contratos
-            </EnlaceAccion>
-          ) : undefined
+          <>
+            {/* Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
+                la cola están en la base pero no se financian, y el aporte no tendría qué asignar. */}
+            {t.enCola > 0 && (
+              <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`} flecha>
+                Financiar la lectura de sus contratos
+              </EnlaceAccion>
+            )}
+            {/* Lo nuevo de sus gobiernos (los del período vigente), en Mi impacto. */}
+            <SeguirBoton tipo="partido" id={partido.clave} nombre={partido.nombre} />
+          </>
         }
       />
 

@@ -12,8 +12,9 @@
  *                                 `ruc` se fija una sola vez (otro distinto → 409 ruc_inmutable) y corre el mismo
  *                                 chequeo de conflicto de interés que POST /contribuciones (lib/aportes.ts).
  *   GET    /cuentas/me/impacto    mis aportes (progreso en vivo desde asignaciones/alertas; `entidad` si fue por entidad),
- *                                 mis denuncias (estado de moderación), zonas/entidades seguidas
- *   POST   /cuentas/me/seguir     { tipo: "zona"|"entidad", id }
+ *                                 mis denuncias (estado de moderación), zonas/entidades/empresas/partidos seguidos y
+ *                                 `novedades`: lo nuevo de lo que sigo (lib/seguidos.ts)
+ *   POST   /cuentas/me/seguir     { tipo: "zona"|"entidad"|"empresa"|"partido", id }: una empresa, sólo RUC 20 (191)
  *   DELETE /cuentas/me/seguir     { tipo, id }
  *   POST   /cuentas/me/reclamar   { codigo, email } asocia a la cuenta un aporte hecho como invitado (código + correo usado)
  *   GET    /cuentas/me/exportar   JSON con todo lo que guardamos del usuario
@@ -34,6 +35,7 @@ import {
   CAMPO_DEL_CHECK, CamposPerfil, esProblema, normalizarPerfil, problemaDeZod, setsDelPerfil, tocaPerfil,
 } from "../lib/perfilAliado.js";
 import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
+import { COLUMNA_SEGUIDO, TOPE_SEGUIDOS, empresasSeguidas, errorSeguido, novedadesSeguidas, partidosSeguidos } from "../lib/seguidos.js";
 
 export const cuentasRouter = new Hono();
 // Todo es de la persona que entró: nunca en un CDN ni en la caché compartida (también los 401).
@@ -58,12 +60,23 @@ const perfilSql = (conPerfil: boolean) => `
   SELECT u.firebase_uid AS uid, u.financiador_id AS "financiadorId",
          COALESCE(u.nombre_publico, f.nombre_publico) AS "nombrePublico",
          u.visible, u.zonas_seguidas AS "zonasSeguidas", u.entidades_seguidas AS "entidadesSeguidas",
+         u.empresas_seguidas AS "empresasSeguidas", u.partidos_seguidos AS "partidosSeguidos",
          u.notificaciones, u.correo, u.created_at AS "createdAt", u.updated_at AS "updatedAt",
          f.slug, f.logo_url AS "logoUrl", f.tipo, f.ruc, f.visible AS "aliadoVisible", f.motivo_no_visible AS "motivoNoVisible",
          (SELECT json_agg(json_build_object('ubigeo', z.ubigeo, 'nombre', z.nombre, 'nivel', z.nivel) ORDER BY z.nombre)
             FROM zonas z WHERE z.ubigeo = ANY(u.zonas_seguidas)) AS "zonas",
          (SELECT json_agg(json_build_object('ruc', e.ruc, 'nombre', e.nombre) ORDER BY e.nombre)
-            FROM entidades e WHERE e.ruc = ANY(u.entidades_seguidas)) AS "entidades"${conPerfil ? COLS_PERFIL_PUBLICO : ""}
+            FROM entidades e WHERE e.ruc = ANY(u.entidades_seguidas)) AS "entidades",
+         -- Empresas (sólo RUC 20) y partidos que sigue (191), con su nombre: el de su ficha, o el de la SUNAT si sólo
+         -- ganó compras menores; el partido, con el de su organización política.
+         (SELECT json_agg(json_build_object('ruc', x.ruc, 'nombre', COALESCE(r.nombre, sp.razon_social, 'Empresa con RUC ' || x.ruc)) ORDER BY COALESCE(r.nombre, sp.razon_social))
+            FROM unnest(u.empresas_seguidas) AS x(ruc)
+            LEFT JOIN empresa_resumen r ON r.ruc = x.ruc
+            LEFT JOIN seace_proveedor_sunat sp ON sp.ruc = x.ruc AND r.ruc IS NULL) AS "empresas",
+         (SELECT json_agg(json_build_object('clave', g.clave, 'nombre', g.nombre) ORDER BY g.nombre)
+            FROM (SELECT x.clave, COALESCE(max(gp.org_nombre), x.clave) AS nombre
+                    FROM unnest(u.partidos_seguidos) AS x(clave) LEFT JOIN gobierno_periodo gp ON gp.org_clave = x.clave
+                   GROUP BY x.clave) g) AS "partidos"${conPerfil ? COLS_PERFIL_PUBLICO : ""}
   FROM usuarios u LEFT JOIN financiadores f ON f.id = u.financiador_id
   WHERE u.firebase_uid = $1`;
 
@@ -82,7 +95,11 @@ async function perfil(uid: string) {
   const editable = await perfilEditableDesdeCuenta();
   const { valor: r } = await conPerfilAliado((conPerfil) => pool.query(perfilSql(conPerfil && editable), [uid]));
   const p = r.rows[0];
-  return { ...p, zonas: p.zonas ?? [], entidades: p.entidades ?? [] };
+  return {
+    ...p,
+    zonas: p.zonas ?? [], entidades: p.entidades ?? [], empresas: p.empresas ?? [], partidos: p.partidos ?? [],
+    empresasSeguidas: p.empresasSeguidas ?? [], partidosSeguidos: p.partidosSeguidos ?? [],
+  };
 }
 
 // ─── GET /cuentas/me ─────────────────────────────────────────────────────────
@@ -225,7 +242,8 @@ cuentasRouter.get("/me/impacto", async (c) => {
   const u = c.get("user");
   const p = await perfil(u.uid);
   const conEntidad = await hayAporteEntidad();
-  const [aportes, denuncias, zonas] = await Promise.all([
+  const nombrePartido = new Map<string, string>((p.partidos as { clave: string; nombre: string }[]).map((x) => [x.clave, x.nombre]));
+  const [aportes, denuncias, zonas, empresas, partidos, novedades] = await Promise.all([
     p.financiadorId
       ? pool.query(
           `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
@@ -254,6 +272,9 @@ cuentasRouter.get("/me/impacto", async (c) => {
                   en_revision AS "enRevision", documentos_listos AS "documentosListos"
            FROM zona_estado WHERE ubigeo = ANY($1) ORDER BY nombre`, [p.zonasSeguidas])
       : Promise.resolve({ rows: [] as any[] }),
+    empresasSeguidas(p.empresasSeguidas),
+    partidosSeguidos(p.partidosSeguidos),
+    novedadesSeguidas({ entidades: p.entidadesSeguidas ?? [], empresas: p.empresasSeguidas, partidos: p.partidosSeguidos }, nombrePartido),
   ]);
   c.header("Cache-Control", "private, no-store");
   return c.json({
@@ -262,6 +283,9 @@ cuentasRouter.get("/me/impacto", async (c) => {
     denuncias: denuncias.rows,
     zonasSeguidas: zonas.rows,
     entidadesSeguidas: p.entidades,
+    empresasSeguidas: empresas,
+    partidosSeguidos: partidos,
+    novedades,
     resumen: {
       aportes: aportes.rows.length,
       contratosFinanciados: aportes.rows.filter((a: any) => ["pagada", "en_proceso", "procesada"].includes(a.estado)).reduce((n: number, a: any) => n + a.contratos, 0),
@@ -274,22 +298,33 @@ cuentasRouter.get("/me/impacto", async (c) => {
 
 // ─── POST/DELETE /cuentas/me/seguir ──────────────────────────────────────────
 const SeguirBody = z.object({
-  tipo: z.enum(["zona", "entidad"]),
-  id: z.string().trim().min(2).max(20),
+  tipo: z.enum(["zona", "entidad", "empresa", "partido"]),
+  id: z.string().trim().min(2).max(80),
 });
+
+/** ¿Existe lo que se quiere seguir? Una empresa, con ficha (o con compras menores); un partido, con algún gobierno ganado. */
+async function existeSeguible(tipo: "empresa" | "partido", id: string): Promise<boolean> {
+  const r = tipo === "empresa"
+    ? await pool.query(`SELECT 1 FROM empresa_resumen WHERE ruc = $1 UNION ALL SELECT 1 FROM seace_proveedor_sunat WHERE ruc = $1 LIMIT 1`, [id])
+    : await pool.query(`SELECT 1 FROM gobierno_periodo WHERE org_clave = $1 LIMIT 1`, [id]);
+  return r.rows.length > 0;
+}
 
 cuentasRouter.post("/me/seguir", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = SeguirBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
   const { tipo, id } = body.data;
-  if (tipo === "zona" && !/^\d{2}(\d{2}(\d{2})?)?$/.test(id)) return c.json({ error: "invalid_ubigeo" }, 400);
-  if (tipo === "entidad" && !/^\d{11}$/.test(id)) return c.json({ error: "invalid_ruc" }, 400);
+  const error = errorSeguido(tipo, id);
+  if (error) return c.json({ error }, 400);
+  if ((tipo === "empresa" || tipo === "partido") && !(await existeSeguible(tipo, id))) return c.json({ error: "not_found" }, 404);
   await asegurarUsuario(u.uid);
-  const col = tipo === "zona" ? "zonas_seguidas" : "entidades_seguidas";
-  await pool.query(
+  const col = COLUMNA_SEGUIDO[tipo];
+  // Sin repetidos y con tope (el CHECK de la 191 dice lo mismo para empresas y partidos): pasado el tope, no se agrega.
+  const r = await pool.query(
     `UPDATE usuarios SET ${col} = (SELECT array_agg(DISTINCT x) FROM unnest(array_append(${col}, $2)) x), updated_at = now()
-     WHERE firebase_uid = $1`, [u.uid, id]);
+     WHERE firebase_uid = $1 AND ($2 = ANY(${col}) OR cardinality(${col}) < $3)`, [u.uid, id, TOPE_SEGUIDOS]);
+  if (r.rowCount === 0) return c.json({ error: "demasiados", detail: `Puedes seguir hasta ${TOPE_SEGUIDOS}. Deja de seguir alguna para agregar otra.` }, 400);
   c.header("Cache-Control", "private, no-store");
   return c.json(await perfil(u.uid));
 });
@@ -299,7 +334,7 @@ cuentasRouter.delete("/me/seguir", limiteEscritura, async (c) => {
   const body = SeguirBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
   const { tipo, id } = body.data;
-  const col = tipo === "zona" ? "zonas_seguidas" : "entidades_seguidas";
+  const col = COLUMNA_SEGUIDO[tipo];
   await pool.query(`UPDATE usuarios SET ${col} = array_remove(${col}, $2), updated_at = now() WHERE firebase_uid = $1`, [u.uid, id]);
   c.header("Cache-Control", "private, no-store");
   return c.json(await perfil(u.uid));
@@ -372,7 +407,10 @@ cuentasRouter.get("/me/exportar", async (c) => {
       portadaUrl: p.portadaUrl ?? null, redes: p.redes ?? {},
       telefono: p.telefono ?? null, ubicacion: p.ubicacion ?? null, enlaces: p.enlaces ?? [],
     },
-    configuracion: { notificaciones: p.notificaciones, zonasSeguidas: p.zonasSeguidas, entidadesSeguidas: p.entidadesSeguidas },
+    configuracion: {
+      notificaciones: p.notificaciones, zonasSeguidas: p.zonasSeguidas, entidadesSeguidas: p.entidadesSeguidas,
+      empresasSeguidas: p.empresasSeguidas, partidosSeguidos: p.partidosSeguidos,
+    },
     aportes: aportes.rows,
     contratosAsignados: asignaciones.rows,
     denuncias: denuncias.rows,

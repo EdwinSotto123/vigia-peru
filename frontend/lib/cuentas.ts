@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Cliente de cuentas (perfil, configuración, "Mi impacto", seguir zonas/entidades).
- * Backend: backend/api/src/routes/cuentas.ts · migración 26 · docs/design/CUENTAS.md
+ * Cliente de cuentas (perfil, configuración, "Mi impacto", seguir zonas, entidades, empresas y partidos).
+ * Backend: backend/api/src/routes/cuentas.ts · migraciones 26 y 191 · docs/design/CUENTAS.md
  *
  * Sin sesión, nada de esto se llama: el sitio funciona igual. Con sesión, `useCuenta()`
  * carga el perfil UNA vez (caché en memoria compartida entre componentes) y expone las
@@ -25,6 +25,10 @@ import type { CambiosPerfilPublico } from "./perfilAliado";
 
 export interface ZonaSeguida { ubigeo: string; nombre: string; nivel: "departamento" | "provincia" | "distrito" }
 export interface EntidadSeguida { ruc: string; nombre: string }
+/** Sólo empresas (RUC 20): una persona natural no se sigue (migración 191). */
+export interface EmpresaSeguida { ruc: string; nombre: string }
+export interface PartidoSeguido { clave: string; nombre: string }
+export type TipoSeguido = "zona" | "entidad" | "empresa" | "partido";
 
 export interface Perfil {
   uid: string;
@@ -55,8 +59,13 @@ export interface Perfil {
   enlaces?: { titulo: string; url: string }[];
   zonasSeguidas: string[];
   entidadesSeguidas: string[];
+  /** Migración 191. Opcionales: una API anterior no los devuelve. */
+  empresasSeguidas?: string[];
+  partidosSeguidos?: string[];
   zonas: ZonaSeguida[];
   entidades: EntidadSeguida[];
+  empresas?: EmpresaSeguida[];
+  partidos?: PartidoSeguido[];
   notificaciones: Record<string, boolean>;
   correo: string | null;
   createdAt: string;
@@ -76,12 +85,39 @@ export interface DenunciaMia {
   fecha: string | null; createdAt: string; moderacionEstado: string; confirmado: boolean; confirmaciones: number;
   convergenciaId: string | null; fotoUrl: string | null;
 }
+/** Una empresa que sigo, con lo que dice su ficha (o, si sólo ganó compras menores, su nombre en la SUNAT). */
+export interface EmpresaSeguidaResumen {
+  ruc: string; nombre: string | null; estadoSunat: string | null; entidades: number; adjProcesos: number; adjMonto: number;
+  ordN: number; ordMonto: number; nAlta: number; nMedia: number; ultima: string | null; inhabilitada: string | null;
+  inhabilitadaHasta: string | null; soloMenores: boolean;
+}
+/** Un partido que sigo, con dónde gobierna en el período vigente (`anio`: año de su elección). */
+export interface PartidoSeguidoResumen { clave: string; nombre: string | null; regional: number; provincial: number; distrital: number; anio: number }
+/** Por qué algo está en lo nuevo de lo que sigo: la entidad, la empresa o el partido que lo trae. */
+export interface PorQueSeguido { tipo: "entidad" | "empresa" | "partido"; id: string; nombre: string }
+export interface NovedadesSeguidas {
+  /** Último día con buenas pro y cruces calculados (los contratos son de los `dias` hasta ese día). */
+  hasta: string | null;
+  dias: number;
+  diasInformes: number;
+  contratos: {
+    ocid: string; ruc: string | null; proveedor: string | null; entidad: string | null; entidadRuc: string; tipo: string | null;
+    objeto: string | null; fecha: string; monto: number | null; tipos: string[] | null; nAlta: number; nMedia: number;
+    severidad: "alta" | "media"; por: PorQueSeguido[];
+  }[];
+  informes: { codigo: string; numero: string | null; titulo: string | null; entidad: string | null; entidadRuc: string; responsabilidades: string[] | null; fecha: string; url: string | null; por: PorQueSeguido[] }[];
+  sanciones: { id: number; ruc: string; nombre: string | null; tipo: string | null; resolucion: string | null; fecha: string; desde: string | null; hasta: string | null; multa: number | null }[];
+}
 export interface Impacto {
   perfil: Perfil;
   aportes: AporteMio[];
   denuncias: DenunciaMia[];
   zonasSeguidas: { ubigeo: string; nivel: string; nombre: string; pendientes: number; financiados: number; procesados: number; senales: number; totalCola: number; estado: string; enRevision: number; documentosListos: number }[];
   entidadesSeguidas: EntidadSeguida[];
+  /** Migración 191 (opcionales: una API anterior no los devuelve). */
+  empresasSeguidas?: EmpresaSeguidaResumen[];
+  partidosSeguidos?: PartidoSeguidoResumen[];
+  novedades?: NovedadesSeguidas;
   resumen: { aportes: number; contratosFinanciados: number; procesados: number; senales: number; denuncias: number };
 }
 
@@ -188,10 +224,10 @@ export async function subirImagenPerfil(f: File): Promise<string> {
   return j.url;
 }
 
-export const seguir = (tipo: "zona" | "entidad", id: string) =>
+export const seguir = (tipo: TipoSeguido, id: string) =>
   authFetch("/cuentas/me/seguir", { method: "POST", body: JSON.stringify({ tipo, id }) }).then((r) => json<Perfil>(r)).then((p) => { setPerfil(p); return p; });
 
-export const dejarDeSeguir = (tipo: "zona" | "entidad", id: string) =>
+export const dejarDeSeguir = (tipo: TipoSeguido, id: string) =>
   authFetch("/cuentas/me/seguir", { method: "DELETE", body: JSON.stringify({ tipo, id }) }).then((r) => json<Perfil>(r)).then((p) => { setPerfil(p); return p; });
 
 export const reclamarAporte = (codigo: string, email: string) =>
@@ -208,6 +244,13 @@ export const exportarDatos = () => authFetch("/cuentas/me/exportar").then((r) =>
 
 export const borrarCuentaApi = () =>
   authFetch("/cuentas/me", { method: "DELETE" }).then((r) => json<{ ok: true; aportesConservados: number; mensaje: string }>(r)).then((x) => { setPerfil(null); return x; });
+
+/** ¿Sigue esa entidad, empresa o partido? (Las zonas, con `sigueZona`.) */
+export function sigue(p: Perfil | null | undefined, tipo: Exclude<TipoSeguido, "zona">, id: string): boolean {
+  if (!p) return false;
+  const lista = tipo === "entidad" ? p.entidadesSeguidas : tipo === "empresa" ? p.empresasSeguidas : p.partidosSeguidos;
+  return (lista ?? []).includes(id);
+}
 
 /** ¿La zona (o su departamento) está entre las seguidas? Acepta ubigeo de 2/4/6 dígitos. */
 export function sigueZona(p: Perfil | null | undefined, ubigeo: string | null | undefined): boolean {

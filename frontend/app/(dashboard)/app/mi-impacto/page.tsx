@@ -2,7 +2,8 @@
 
 /**
  * Mi impacto (con sesión): mis aportes con progreso en vivo, contratos con señales y comprobante;
- * mis denuncias con su estado; zonas y entidades que sigo.
+ * mis denuncias con su estado; zonas, entidades, empresas y partidos que sigo, y lo nuevo de lo que
+ * sigo (migración 191: contratos con antecedentes, informes de control y sanciones).
  * Sin sesión → invitación a entrar (todo lo demás del sitio sigue funcionando sin cuenta).
  * `?aporte=VIG-…` (viene del comprobante) → formulario para asociar un aporte hecho como invitado.
  *
@@ -11,7 +12,8 @@
  * sueltas.
  *
  * Estructura (§14): las cifras de la cuenta en `Indicadores` y, debajo, una pestaña por lista
- * (§14.3) —Aportes | Denuncias | Zonas seguidas | Entidades seguidas, cada una con su conteo—
+ * (§14.3) —Lo nuevo (si sigue algo) | Aportes | Denuncias | Zonas | Entidades | Empresas | Partidos
+ * seguidos, cada una con su conteo—
  * en la `Tabla` de todo listado, con su detalle en el panel lateral armado con las piezas de
  * §14.4. Antes las cuatro listas se apilaban y había que bajar hasta la que uno buscaba.
  */
@@ -20,7 +22,7 @@ import { rutaContrato } from "@/lib/rutas";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, CircleDot, HandCoins, type LucideIcon } from "lucide-react";
+import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, CircleDot, HandCoins, Briefcase, Landmark, Newspaper, type LucideIcon } from "lucide-react";
 import { Ayuda, Beneficios, BloqueDetalle, CabeceraPestana, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, type DatoClave, DatosClave, EncabezadoPagina, EstadoError, Franja, Migas, Pagina, Pestanas, PieDetalle } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
@@ -29,11 +31,13 @@ import { SubirComprobante } from "@/components/financiar/SubirComprobante";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Partes, Separador } from "@/components/ui/Partes";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { dejarDeSeguir, getImpacto, reclamarAporte, type AporteMio, type DenunciaMia, type Impacto } from "@/lib/cuentas";
+import { dejarDeSeguir, getImpacto, reclamarAporte, type AporteMio, type DenunciaMia, type EmpresaSeguidaResumen, type Impacto, type PartidoSeguidoResumen } from "@/lib/cuentas";
+import { NovedadesSeguidas } from "@/components/cuenta/NovedadesSeguidas";
+import { tituloNatural } from "@/lib/landing";
 import { ESTADO_LABEL, ESTADO_PUNTO, type ZonaEstado } from "@/lib/financiamiento";
 import { AliadosDelPais, CifrasDelPais, RecientesDelPais } from "@/components/cuenta/ResumenPublico";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
-import { fechaCorta, numero, plural, soles } from "@/lib/formato";
+import { fechaCorta, listaY, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { cn } from "@/lib/utils";
 
@@ -50,11 +54,11 @@ export default function MiImpactoPage() {
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Mi impacto", href: "/app/mi-impacto" }]} />
       <EncabezadoPagina
         titulo="Mi impacto"
-        bajada="Tus aportes, tus denuncias y las zonas que sigues, en un solo lugar."
+        bajada="Tus aportes, tus denuncias y lo que sigues, con lo nuevo de cada cosa, en un solo lugar."
         ayuda={
           <Ayuda titulo="¿Qué reúne esta página?">
-            Tus aportes con su progreso en vivo, las denuncias que enviaste con sesión y las zonas y entidades que
-            sigues. Todo lo que financias es público; esta página sólo lo reúne para ti.
+            Tus aportes con su progreso en vivo, las denuncias que enviaste con sesión y las zonas, entidades, empresas y
+            partidos que sigues, con lo nuevo de cada uno. Todo lo que financias es público; lo que sigues es sólo tuyo.
           </Ayuda>
         }
       />
@@ -101,9 +105,13 @@ function Contenido() {
   }
   if (!data) return null;
 
-  const { aportes, denuncias, zonasSeguidas, entidadesSeguidas, resumen } = data;
+  const { aportes, denuncias, zonasSeguidas, entidadesSeguidas, resumen, novedades } = data;
+  const empresasSeguidas = data.empresasSeguidas ?? [];
+  const partidosSeguidos = data.partidosSeguidos ?? [];
   const yaTiene = aporteParam ? aportes.some((a) => a.codigo === aporteParam.toUpperCase()) : false;
-  const nada = !aportes.length && !denuncias.length && !zonasSeguidas.length && !entidadesSeguidas.length;
+  const sigueAlgo = entidadesSeguidas.length + empresasSeguidas.length + partidosSeguidos.length > 0;
+  const nada = !aportes.length && !denuncias.length && !zonasSeguidas.length && !sigueAlgo;
+  const nNuevo = novedades ? novedades.contratos.length + novedades.informes.length + novedades.sanciones.length : 0;
 
   // Todavía nada con esta cuenta: un solo vacío (con la llamita) en vez de cuatro secciones vacías.
   if (nada) {
@@ -144,6 +152,18 @@ function Contenido() {
         etiqueta="Secciones de mi impacto"
         activa={search.get("seccion") ?? undefined}
         pestanas={[
+          // Lo nuevo de lo que sigue, primero (si sigue algo): es lo que cambia de una visita a otra.
+          ...(sigueAlgo
+            ? [
+                {
+                  clave: "novedades",
+                  etiqueta: "Lo nuevo",
+                  icono: <Newspaper size={15} aria-hidden />,
+                  conteo: nNuevo,
+                  contenido: <NovedadesSeguidas d={novedades} sigueAlgo={sigueAlgo} />,
+                },
+              ]
+            : []),
           {
             clave: "aportes",
             etiqueta: "Aportes",
@@ -243,6 +263,48 @@ function Contenido() {
                   tam={10}
                   nombre="entidades"
                   buscar={{ placeholder: "Buscar una entidad o su RUC…", etiqueta: "Buscar en las entidades que sigo" }}
+                />
+              ),
+          },
+          {
+            clave: "empresas",
+            etiqueta: "Empresas seguidas",
+            conteo: empresasSeguidas.length,
+            contenido:
+              empresasSeguidas.length === 0 ? (
+                <VacioSeccion icon={Briefcase}>
+                  <p>Sigue una empresa desde su ficha para ver aquí sus contratos con antecedentes y sus sanciones nuevas.</p>
+                  <Link href="/app/empresas" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Ver empresas <ArrowRight size={14} aria-hidden /></Link>
+                </VacioSeccion>
+              ) : (
+                <TablaPaginada
+                  columnas={COLUMNAS_EMPRESAS}
+                  filas={empresasSeguidas.map((e) => filaEmpresa(e, cargar))}
+                  etiqueta="Empresas que sigo"
+                  tam={10}
+                  nombre="empresas"
+                  buscar={{ placeholder: "Buscar una empresa o su RUC…", etiqueta: "Buscar en las empresas que sigo" }}
+                />
+              ),
+          },
+          {
+            clave: "partidos",
+            etiqueta: "Partidos seguidos",
+            conteo: partidosSeguidos.length,
+            contenido:
+              partidosSeguidos.length === 0 ? (
+                <VacioSeccion icon={Landmark}>
+                  <p>Sigue un partido desde su ficha para ver aquí los contratos con antecedentes de los gobiernos que ganó.</p>
+                  <Link href="/app/partidos" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Ver partidos <ArrowRight size={14} aria-hidden /></Link>
+                </VacioSeccion>
+              ) : (
+                <TablaPaginada
+                  columnas={COLUMNAS_PARTIDOS}
+                  filas={partidosSeguidos.map((p) => filaPartido(p, cargar))}
+                  etiqueta="Partidos que sigo"
+                  tam={10}
+                  nombre="partidos"
+                  buscar={{ placeholder: "Buscar un partido…", etiqueta: "Buscar en los partidos que sigo" }}
                 />
               ),
           },
@@ -634,6 +696,130 @@ function filaEntidad(e: Impacto["entidadesSeguidas"][number], recargar: () => vo
   };
 }
 
+const COLUMNAS_EMPRESAS: Columna[] = [
+  { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1fr)" },
+  { clave: "gano", titulo: "Ganó", ancho: "112px", alinear: "der", desde: "md" },
+  { clave: "graves", titulo: "Antecedentes graves", ancho: "120px", alinear: "der", desde: "lg" },
+];
+
+/**
+ * Una empresa que sigo (migración 191, sólo RUC 20): su nombre, a cuántas entidades vende, lo que ganó y sus
+ * antecedentes graves; en el panel, lo de su ficha en filas, y abrirla o dejar de seguirla al pie.
+ */
+function filaEmpresa(e: EmpresaSeguidaResumen, recargar: () => void): Fila {
+  const nombre = e.nombre ? tituloNatural(e.nombre) : `Empresa con RUC ${e.ruc}`;
+  const datos: DatoClave[] = [
+    { etiqueta: "RUC", valor: e.ruc, mono: true },
+    { etiqueta: "En la SUNAT", valor: e.estadoSunat },
+    { etiqueta: "Le vende a", valor: e.soloMenores ? "Sólo compras menores" : plural(e.entidades, "entidad", "entidades") },
+    { etiqueta: "Procesos ganados", valor: e.adjProcesos ? `${numero(e.adjProcesos)} por ${soles(e.adjMonto)}` : null, mono: true },
+    { etiqueta: "Órdenes de compra y servicio", valor: e.ordN ? `${numero(e.ordN)} por ${soles(e.ordMonto)}` : null, mono: true },
+    { etiqueta: "Última buena pro", valor: e.ultima ? fechaCorta(e.ultima) : null, mono: true },
+    { etiqueta: "Inhabilitada", valor: e.inhabilitada ? (e.inhabilitadaHasta ? `Hasta el ${fechaCorta(e.inhabilitadaHasta)}` : "Sí") : null },
+  ];
+  return {
+    id: e.ruc,
+    buscable: [nombre, e.ruc].join(" "),
+    celdas: {
+      empresa: (
+        <CeldaPrincipal
+          titulo={nombre}
+          meta={[
+            <Dato key="r" tipo="ruc" mono>RUC {e.ruc}</Dato>,
+            e.soloMenores ? <Dato key="m" icono={Building2} nombre="Le vende a">Sólo compras menores</Dato> : <Dato key="n" icono={Building2} nombre="Le vende a">{plural(e.entidades, "entidad", "entidades")}</Dato>,
+          ]}
+        />
+      ),
+      gano: <CeldaNumero sub={e.adjProcesos ? plural(e.adjProcesos, "proceso", "procesos") : undefined}>{e.adjMonto ? solesCompacto(e.adjMonto) : "Nada"}</CeldaNumero>,
+      graves: <CeldaNumero sub={e.nMedia ? `${numero(e.nMedia)} para revisar` : undefined}>{numero(e.nAlta)}</CeldaNumero>,
+    },
+    detalle: {
+      titulo: nombre,
+      etiqueta: `Ver ${nombre}`,
+      descripcion: "Empresa que sigues",
+      contenido: (
+        <CuerpoDetalle>
+          <DatosClave items={datos} />
+          {e.nAlta + e.nMedia > 0 && (
+            <BloqueDetalle titulo="Sus antecedentes">
+              <p className="text-inkSoft">
+                {plural(e.nAlta, "antecedente grave", "antecedentes graves")} y {plural(e.nMedia, "para revisar", "para revisar")}: datos
+                oficiales que coinciden con la empresa (sanciones, vínculos, aportes). Son indicios para revisar, no acusaciones.
+              </p>
+            </BloqueDetalle>
+          )}
+        </CuerpoDetalle>
+      ),
+      pie: (
+        <PieDetalle
+          principal={
+            <EnlaceAccion href={`/empresa/${e.ruc}`} flecha>
+              <Briefcase size={14} aria-hidden /> Abrir su ficha
+            </EnlaceAccion>
+          }
+          secundarias={<DejarDeSeguir onClick={() => dejarDeSeguir("empresa", e.ruc).then(recargar)} />}
+        />
+      ),
+    },
+  };
+}
+
+const COLUMNAS_PARTIDOS: Columna[] = [
+  { clave: "partido", titulo: "Partido", ancho: "minmax(0,1fr)" },
+  { clave: "gobiernos", titulo: "Gobiernos", ancho: "104px", alinear: "der", desde: "md" },
+];
+
+/** Dónde gobierna en el período vigente, en palabras: sólo los niveles con alguno. */
+function dondeGobierna(p: PartidoSeguidoResumen): string {
+  return (
+    listaY([
+      ...(p.regional > 0 ? [plural(p.regional, "región", "regiones")] : []),
+      ...(p.provincial > 0 ? [plural(p.provincial, "provincia", "provincias")] : []),
+      ...(p.distrital > 0 ? [plural(p.distrital, "distrito", "distritos")] : []),
+    ]) || "Sin gobiernos en este período"
+  );
+}
+
+/** Un partido que sigo (migración 191): dónde gobierna hoy; abrir su ficha o dejar de seguirlo, al pie del panel. */
+function filaPartido(p: PartidoSeguidoResumen, recargar: () => void): Fila {
+  const nombre = p.nombre ?? p.clave;
+  const periodo = `${p.anio + 1} a ${p.anio + 4}`;
+  const total = p.regional + p.provincial + p.distrital;
+  return {
+    id: p.clave,
+    buscable: nombre,
+    celdas: {
+      partido: <CeldaPrincipal titulo={nombre} meta={[<Dato key="g" tipo="lugar" nombre={`Gobierna en ${periodo}`}>{dondeGobierna(p)}</Dato>]} />,
+      gobiernos: <CeldaNumero sub={periodo}>{numero(total)}</CeldaNumero>,
+    },
+    detalle: {
+      titulo: nombre,
+      etiqueta: `Ver ${nombre}`,
+      descripcion: "Partido que sigues",
+      contenido: (
+        <CuerpoDetalle>
+          <DatosClave
+            items={[
+              { etiqueta: `Gobierna (${periodo})`, valor: dondeGobierna(p) },
+              { etiqueta: "Lo nuevo", valor: "Los contratos con antecedentes de esos gobiernos, en la pestaña «Lo nuevo»" },
+            ]}
+          />
+        </CuerpoDetalle>
+      ),
+      pie: (
+        <PieDetalle
+          principal={
+            <EnlaceAccion href={`/app/partidos/${p.clave}`} flecha>
+              <Landmark size={14} aria-hidden /> Abrir su ficha
+            </EnlaceAccion>
+          }
+          secundarias={<DejarDeSeguir onClick={() => dejarDeSeguir("partido", p.clave).then(recargar)} />}
+        />
+      ),
+    },
+  };
+}
+
 /** "Dejar de seguir": neutro (no es un error ni un riesgo), al pie del panel. */
 function DejarDeSeguir({ onClick }: { onClick: () => Promise<unknown> }) {
   const [enviando, setEnviando] = useState(false);
@@ -720,7 +906,7 @@ function SinSesion() {
             { icono: <Link2 size={16} />, titulo: "Tus aportes", texto: "Su progreso en vivo, los contratos con señales y tu comprobante." },
             { icono: <Camera size={16} />, titulo: "Tus denuncias", texto: "Las que enviaste con sesión y en qué estado están." },
             { icono: <MapPin size={16} />, titulo: "Zonas que sigues", texto: "Lo nuevo en las regiones que te importan." },
-            { icono: <Building2 size={16} />, titulo: "Entidades que sigues", texto: "Lo nuevo de las entidades que quieres vigilar." },
+            { icono: <Building2 size={16} />, titulo: "Entidades, empresas y partidos", texto: "Lo nuevo de lo que quieres vigilar: contratos con antecedentes, informes y sanciones." },
           ]}
         />
         <CifrasDelPais />
