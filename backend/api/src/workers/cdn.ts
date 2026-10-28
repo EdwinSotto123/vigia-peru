@@ -55,7 +55,7 @@ const GUARDADO = "X-Vigia-Guardado";
  * "44": /entidades/:ruc trae en `senales` las de su gente de la migración 179 (alBorde, nepotismoGobierno,
  *        doblePlanilla, socioProveedor) para sus banderas; socio_proveedor sin apellidos muy comunes.
  */
-const VERSION_CACHE = "47";
+const VERSION_CACHE = "48";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
