@@ -56,7 +56,7 @@ test("calendario: mismas agendas que Cloud Scheduler (hora de Lima)", () => {
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-01T13:00:00Z")), ["pnda_sancionados", "conosce_ordenes", "pnda_visitas", "pnda_oece"]);  // domingo 1
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-15T13:00:00Z")), ["congreso_visitas", "pnda_visitas"]);  // jueves 15
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-22T13:00:00Z")), ["congreso_visitas"]);                 // jueves
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-05T13:00:00Z")), ["pnda_dji", "jne_infogob"]);
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-05T13:00:00Z")), ["congreso_visitas", "pnda_dji", "jne_infogob"]);  // jueves 5
   assert.deepEqual(fuentesDelCron("*/5 * * * *", en("2026-11-05T13:00:00Z")), []);
 });
 
