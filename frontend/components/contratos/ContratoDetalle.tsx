@@ -21,6 +21,7 @@
  */
 
 import Link from "next/link";
+import { rutaContrato } from "@/lib/rutas";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
 import { Building2, Clock, Hash, History, MapPin, ShieldAlert } from "lucide-react";
@@ -157,15 +158,28 @@ export function ContratoDetalle({
       : []),
     // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): el proceso, las visitas del ganador a la entidad, sus
     // antecedentes en la fecha de cada hecho, sus sanciones y la obra. GET /historia/contrato/:ocid, en su propia lectura.
+    // Sólo cuando se abre (?seccion=historia): hay cientos de miles de contratos y los buscadores los recorren todos;
+    // armarla en cada ficha eran ocho consultas más por visita. Con la pestaña cerrada, el enlace que la abre.
     {
       clave: "historia",
       etiqueta: "Historia",
       icono: <History size={15} aria-hidden />,
-      contenido: (
-        <Suspense fallback={<Cargando texto="Armando la historia del contrato…" />}>
-          <HistoriaFicha tipo="contrato" id={c.ocid} nombre="este contrato" />
-        </Suspense>
-      ),
+      contenido:
+        seccion === "historia" ? (
+          <Suspense fallback={<Cargando texto="Armando la historia del contrato…" />}>
+            <HistoriaFicha tipo="contrato" id={c.ocid} nombre="este contrato" />
+          </Suspense>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-line bg-paper px-4 py-4">
+            <p className="text-meta text-inkSoft">
+              Una línea de tiempo con el proceso (convocatoria, ofertas, buena pro y contrato), las visitas de la gente del ganador a la
+              entidad, sus antecedentes en la fecha de cada hecho, sus sanciones y la obra que ejecuta.
+            </p>
+            <Link href={rutaContrato(c.ocid, "ficha", { seccion: "historia" })} prefetch={false} className="inline-flex min-h-[32px] items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline">
+              <History size={14} aria-hidden /> Ver la historia del contrato
+            </Link>
+          </div>
+        ),
     },
     ...conProceso(pestanasEvidencia({ c, enRevision, catalogo }), pestanasProceso({ c })),
   ];
