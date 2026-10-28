@@ -262,10 +262,10 @@ function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["empresas"]
           «Después» es lo primero que la entidad le dio desde la primera de esas visitas: un contrato (sola o en consorcio) o una orden.
         </Ayuda>
       </div>
+      {/* Corto (menos de 140 caracteres, la guardia visual): el cómo va en el «?» del título. */}
       <p className="text-meta text-inkSoft">
         {numero(e.ganaron)} de {plural(e.empresas, "empresa", "empresas")} cuya gente la visitó {e.ganaron === 1 ? "recibió" : "recibieron"} algo
-        después. En {numero(e.ganaronSoloSuGente)} nadie dijo venir de la empresa: se la reconoce sólo por su gente.{" "}
-        {e.primeraVez === 1 ? "Una nunca le había vendido antes." : `${numero(e.primeraVez)} nunca le habían vendido antes.`}
+        después: {numero(e.ganaronSoloSuGente)} sin decir que venían de ella, {numero(e.primeraVez)} por primera vez.
       </p>
       <TablaFiltrable
         columnas={columnas}
@@ -336,8 +336,7 @@ function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos[
         Quiénes la visitan
       </h3>
       <p className="text-meta text-inkSoft">
-        Cada organización que declaró quien visitó. Si es una empresa que se reconoce, «Después» dice lo primero que le dio la entidad
-        tras su primera visita (un contrato o una orden) y cuánto suma desde entonces.
+        Cada organización que declaró quien visitó. «Después»: lo primero que la entidad le dio tras su primera visita y cuánto suma.
       </p>
       <TablaFiltrable
         columnas={columnas}
