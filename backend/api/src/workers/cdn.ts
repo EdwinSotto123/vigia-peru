@@ -60,8 +60,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "50": /planilla/organigrama con el gobierno entero (unidades con RUC propio, adscritos) y su resumen sin ellas.
  * "51": /historia (línea de tiempo), /visitas/entidad, las banderas de visitas de familiares y de ola tras un cambio de
  *       gestión en /entidades/:ruc, el conteo de visitas en /conteos y la visita previa con quien decide (migraciones 187-188).
+ * "52": las visitas de la plataforma nacional de la PCM (desde 2020, ~500 entidades), los patrones de visitas (193) con su
+ *       registro de origen, /historia/contrato, «Seguir» empresas y partidos y los totales de /novedades.
  */
-const VERSION_CACHE = "51";
+const VERSION_CACHE = "52";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

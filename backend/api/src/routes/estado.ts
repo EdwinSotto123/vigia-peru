@@ -51,7 +51,7 @@ const FUENTES: Fuente[] = [
     hasta: `SELECT to_char(max(actualizado), 'YYYY-MM-DD') AS v FROM dji_descargas WHERE estado = 'ok'` },
   { clave: "planilla", nombre: "Planillas del Estado", que: "El personal que cada entidad publica (Portal de Transparencia).", cada: 40, cadencia: "Mensual", corridas: ["pte_personal"],
     hasta: `SELECT to_char((max(mes) + interval '1 month' - interval '1 day')::date, 'YYYY-MM-DD') AS v FROM planilla_entidad_mes` },
-  { clave: "visitas", nombre: "Registro de visitas", que: "Visitas a entidades (reportes publicados) y al Congreso (su registro, semanal).", cada: 10, cadencia: "Semanal (Congreso)", corridas: ["congreso_visitas", "pnda_visitas"],
+  { clave: "visitas", nombre: "Registro de visitas", que: "Visitas a ~500 entidades desde 2020 (Registro de Visitas en Línea de la PCM) y al Congreso (su registro, semanal).", cada: 10, cadencia: "Semanal (Congreso); la plataforma nacional, por cargas", corridas: ["congreso_visitas", "pnda_visitas"],
     hasta: `SELECT to_char(max(fecha_visita), 'YYYY-MM-DD') AS v FROM visitas_entidades WHERE fecha_visita <= current_date` },
   { clave: "contraloria", nombre: "Informes de control", que: "Informes con responsabilidad de la Contraloría (se cargan desde el Perú: el buscador no responde afuera).", cada: null, cadencia: "Mensual, a mano", corridas: [],
     hasta: `SELECT to_char(max(fecha_emision), 'YYYY-MM-DD') AS v FROM informes_control WHERE fecha_emision <= current_date` },
