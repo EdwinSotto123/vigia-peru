@@ -54,6 +54,8 @@ SEVERIDADES = {"alta", "media", "baja"}
 # Lo que sí se guarda a propósito y la API quita antes de responder: (fuente, tipo, clave) → dónde se quita.
 EXCEPCIONES = {
     ("persona_senal", "familia_estado", "declarante"): "routes/personas.ts lo quita y deja sólo un apellido del funcionario",
+    ("persona_senal", "nepotismo", "declarante"): "routes/personas.ts lo quita y deja sólo un apellido del funcionario",
+    ("persona_senal", "nepotismo_gobierno", "declarante"): "routes/personas.ts lo quita y deja sólo un apellido del funcionario",
 }
 
 
