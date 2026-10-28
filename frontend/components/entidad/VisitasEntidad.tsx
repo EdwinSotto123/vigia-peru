@@ -33,6 +33,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
   const r = d.resumen;
   const orgs = d.organizaciones ?? [];
   const ganaron = orgs.filter((o) => o.despues).length;
+  const sinDespues = d.despuesSinCalcular === true;
   const cifras: Indicador[] = [
     {
       valor: numero(d.total),
@@ -43,7 +44,9 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
     {
       valor: numero(r.privadas),
       etiqueta: "de empresas y organizaciones privadas",
-      contexto: `${porcentaje((r.privadas / d.total) * 100, { decimales: 0 })} del total; ${plural(ganaron, "ganó algo después", "ganaron algo después")}`,
+      contexto: sinDespues
+        ? `${porcentaje((r.privadas / d.total) * 100, { decimales: 0 })} del total`
+        : `${porcentaje((r.privadas / d.total) * 100, { decimales: 0 })} del total; ${plural(ganaron, "ganó algo después", "ganaron algo después")}`,
     },
     {
       valor: numero(r.decisores),
@@ -74,7 +77,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
         {d.hasta ? fecha(d.hasta) : "último día cargado"}. De quien recibe la visita se muestra sólo su cargo y su área; de quien visita,
         su nombre con un apellido tapado, y nada si es familiar de un funcionario.
       </Nota>
-      {orgs.length > 0 && <Organizaciones orgs={orgs} />}
+      {orgs.length > 0 && <Organizaciones orgs={orgs} sinDespues={sinDespues} />}
       {(d.parientes ?? []).length > 0 && <Parientes d={d} />}
       {(d.areas ?? []).length > 0 && <Areas d={d} />}
       <Lista d={d} />
@@ -83,7 +86,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
   );
 }
 
-function Organizaciones({ orgs }: { orgs: NonNullable<Datos["organizaciones"]> }) {
+function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos["organizaciones"]>; sinDespues?: boolean }) {
   const columnas: Columna[] = [
     { clave: "org", titulo: "Quién la visita", ancho: "minmax(0,1fr)" },
     { clave: "visitas", titulo: "Visitas", ancho: "6rem", alinear: "der" },
@@ -107,7 +110,7 @@ function Organizaciones({ orgs }: { orgs: NonNullable<Datos["organizaciones"]> }
       visitas: <CeldaNumero>{numero(o.visitas)}</CeldaNumero>,
       despues: (
         <CeldaNumero sub={o.despues ? `${o.despuesTipo === "contrato" ? "Contrato" : "Orden"} desde el ${fechaCorta(o.despues)}` : undefined}>
-          {o.despues ? solesCompacto(o.montoDespues) : "Nada después"}
+          {o.despues ? solesCompacto(o.montoDespues) : sinDespues ? "Sin calcular" : "Nada después"}
         </CeldaNumero>
       ),
     },
@@ -135,7 +138,9 @@ function Organizaciones({ orgs }: { orgs: NonNullable<Datos["organizaciones"]> }
         buscar={{ placeholder: "Buscar una empresa u organización…", etiqueta: "Buscar entre quienes la visitan" }}
         filtros={[
           { clave: "tipo", etiqueta: "Tipo", corta: "Tipo", opciones: [{ valor: "privada", etiqueta: "Privada" }, { valor: "publica", etiqueta: "Entidad pública" }] },
-          { clave: "despues", etiqueta: "Ganó algo después", corta: "Después", opciones: [{ valor: "si", etiqueta: "Ganó algo después" }, { valor: "no", etiqueta: "Nada después" }] },
+          ...(sinDespues
+            ? []
+            : [{ clave: "despues", etiqueta: "Ganó algo después", corta: "Después", opciones: [{ valor: "si", etiqueta: "Ganó algo después" }, { valor: "no", etiqueta: "Nada después" }] }]),
           { clave: "decisor", etiqueta: "Visitó a quien decide", corta: "A quien decide", opciones: [{ valor: "si", etiqueta: "Sí" }, { valor: "no", etiqueta: "No" }] },
         ]}
         ordenes={[

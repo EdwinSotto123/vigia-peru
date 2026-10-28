@@ -52,6 +52,8 @@ export interface VisitasEntidad {
   parientes?: { fecha: string; parentesco: string | null; cargo: string | null; area: string | null; decisor: boolean; proveedor: boolean }[];
   visitas?: VisitaEntidad[];
   fuentes?: { texto: string; href: string }[];
+  /** «Lo que le dio después» no alcanzó el plazo de la API (entidades con muchísimas órdenes): las organizaciones van sin él. */
+  despuesSinCalcular?: boolean;
 }
 
 export async function getVisitasEntidad(ruc: string): Promise<VisitasEntidad | null> {

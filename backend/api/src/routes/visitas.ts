@@ -3,7 +3,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
-import { datasetVisitas, VISITAS_EN_LINEA } from "../lib/fuentes.js";
+import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuentes.js";
 
 /**
  * Las visitas que recibió una entidad (fase 2.3 del plan del 2026-10-27):
@@ -44,6 +44,7 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
     const decisor = pre ? `COALESCE(v.decisor, ${DECISOR})` : conDecisor ? DECISOR : "false";
     // Las visitas de la entidad por todos los nombres con que la registra el portal (migración 186).
     const V = `(SELECT v.* FROM visitas_entidades v WHERE v.entidad_visitada IN (SELECT entidad_visitada FROM visita_entidad_ruc WHERE ruc = $1))`;
+    let despuesSinCalcular = false;
     const [resumen, orgs, areas, parientes, lista] = await Promise.all([
       pre
         ? pool.query(
@@ -89,7 +90,17 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                                 FROM conosce_ordenes x
                                WHERE o.ruc IS NOT NULL AND x.entidad_ruc = $1 AND x.ruc_contratista = o.ruc AND x.fecha_emision >= o.primera
                                  AND x.estado IS DISTINCT FROM 'Anulada') od ON true
-          ORDER BY o.visitas DESC`, [ruc]),
+          ORDER BY o.visitas DESC`, [ruc]).catch((e: { code?: string }) => {
+        // Si «lo que le dio después» no alcanza el plazo (EsSalud: miles de órdenes por proveedor), las organizaciones
+        // salen igual, sin esa columna, y la respuesta lo dice: antes la pestaña entera daba 500.
+        if (e?.code !== "57014" || !pre) throw e;
+        despuesSinCalcular = true;
+        return pool.query(
+          `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
+                  o.decisores, o.ruc, r.nombre AS empresa, NULL::text AS "despues", NULL::text AS "despuesTipo", NULL::float AS "montoDespues"
+             FROM entidad_visita_org o LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
+            WHERE o.entidad_ruc = $1 ORDER BY o.visitas DESC LIMIT 300`, [ruc]);
+      }),
       // A qué oficinas: el área y el cargo de quien recibe (nunca su nombre).
       pre
         ? pool.query(
@@ -140,6 +151,8 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
         fueraDeHora: r.fueraDeHora, largas: r.largas, parientes: parientes.rows.length,
       },
       organizaciones: orgs.rows.map((o) => ({ ...o, ruc: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.ruc : null, empresa: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.empresa : null })),
+      // «Lo que le dio después» no alcanzó el plazo: las organizaciones van sin esa columna (la web no dice «nada después»).
+      ...(despuesSinCalcular ? { despuesSinCalcular: true } : {}),
       areas: areas.rows,
       parientes: parientes.rows,
       // Bajo `visitas`: publicar() le tapa un apellido a quien visita. El familiar de un funcionario va sin nombre.
@@ -147,11 +160,13 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
         ...v,
         visitante: v.pariente ? null : v.visitante,
         empresa: rucEmpresa && /^20\d{9}$/.test(rucEmpresa) ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null,
-        enlace: v.fuente === "congreso_visitas" ? "https://wb2server.congreso.gob.pe/regvisitastransparencia/" : datasetVisitas(v.fecha),
+        // Su registro: el del Congreso, el reporte mensual de la PNDA (que es sólo de Loreto) o el registro en línea de la
+        // PCM (la plataforma nacional y su exportación). Antes una visita nacional de 2025 iba al reporte de Loreto.
+        enlace: v.fuente === "congreso_visitas" ? VISITAS_CONGRESO : v.fuente === "pnda_visitas" ? datasetVisitas(v.fecha) : VISITAS_EN_LINEA,
         clave: String(id),
       })),
       fuentes: [
-        fuentes.includes("congreso_visitas") && { texto: "Registro de visitas del Congreso de la República", href: "https://wb2server.congreso.gob.pe/regvisitastransparencia/" },
+        fuentes.includes("congreso_visitas") && { texto: "Registro de visitas del Congreso de la República", href: VISITAS_CONGRESO },
         { texto: "Registro de Visitas en Línea (PCM)", href: VISITAS_EN_LINEA },
       ].filter(Boolean),
     });
