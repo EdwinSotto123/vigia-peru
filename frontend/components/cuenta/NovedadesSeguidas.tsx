@@ -82,11 +82,12 @@ function Contratos({ d }: { d: Novedades }) {
             titulo={c.objeto ? `${c.objeto.charAt(0).toUpperCase()}${c.objeto.slice(1).toLowerCase()}` : "Contrato sin objeto registrado"}
             meta={[
               <Dato key="s" tipo="tipo" nombre="Gravedad">{GRAVEDAD[c.severidad] ?? c.severidad}</Dato>,
+              // Por qué está, al principio: al final de la línea se cortaba.
+              ...datosPor(c.por),
               <Dato key="e" tipo="entidad" nombre="Entidad">{c.entidad ? tituloNatural(c.entidad) : "Sin entidad"}</Dato>,
               <Dato key="g" tipo="personas" nombre="Ganó">{c.proveedor ? tituloNatural(c.proveedor) : "Una persona natural"}</Dato>,
               <Dato key="f" tipo="fecha" nombre="Buena pro">{fechaCorta(c.fecha)}</Dato>,
               tipos.length ? <Dato key="t" tipo="tipo" nombre="Antecedentes">{tipos.slice(0, 3).join(", ")}{tipos.length > 3 ? ` y ${tipos.length - 3} más` : ""}</Dato> : null,
-              ...datosPor(c.por),
             ]}
           />
         ),

@@ -699,7 +699,7 @@ function filaEntidad(e: Impacto["entidadesSeguidas"][number], recargar: () => vo
 const COLUMNAS_EMPRESAS: Columna[] = [
   { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1fr)" },
   { clave: "gano", titulo: "Ganó", ancho: "112px", alinear: "der", desde: "md" },
-  { clave: "graves", titulo: "Antecedentes graves", ancho: "120px", alinear: "der", desde: "lg" },
+  { clave: "graves", titulo: "Antecedentes", ancho: "128px", alinear: "der", desde: "lg" },
 ];
 
 /**
@@ -731,7 +731,7 @@ function filaEmpresa(e: EmpresaSeguidaResumen, recargar: () => void): Fila {
         />
       ),
       gano: <CeldaNumero sub={e.adjProcesos ? plural(e.adjProcesos, "proceso", "procesos") : undefined}>{e.adjMonto ? solesCompacto(e.adjMonto) : "Nada"}</CeldaNumero>,
-      graves: <CeldaNumero sub={e.nMedia ? `${numero(e.nMedia)} para revisar` : undefined}>{numero(e.nAlta)}</CeldaNumero>,
+      graves: <CeldaNumero sub={e.nMedia ? `${numero(e.nMedia)} para revisar` : undefined}>{`${numero(e.nAlta)} ${e.nAlta === 1 ? "grave" : "graves"}`}</CeldaNumero>,
     },
     detalle: {
       titulo: nombre,
