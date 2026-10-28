@@ -209,7 +209,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
                     </Ayuda>
                   }
                 >
-                  Lo que esta persona es fuera de sus órdenes: sus empresas, su política, su familia en el Estado y su planilla.
+                  Lo que esta persona es fuera de sus órdenes: sus empresas, su política, su familia en el Estado, su planilla y sus visitas.
                 </CabeceraPestana>
                 <Suspense fallback={<Cargando texto="Leyendo su recorrido…" />}>
                   <PerfilPersonaSeccion codigo={params.codigo} />

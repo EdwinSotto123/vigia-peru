@@ -658,10 +658,12 @@ personasRouter.get("/:codigo/perfil", async (c) => {
       // Para la línea de vida: sus visitas por entidad (todas, no sólo las 100 últimas) y las que precedieron a su primera
       // orden en esa entidad (la señal visita_previa, migración 195).
       pool.query(
-        `SELECT entidad_visitada AS entidad, count(*)::int AS n, to_char(min(fecha_visita), 'YYYY-MM-DD') AS primera,
-                to_char(max(fecha_visita), 'YYYY-MM-DD') AS ultima, count(*) FILTER (WHERE decisor)::int AS "aQuienDecide"
-           FROM visitas_entidades WHERE numero_documento = $1 AND entidad_visitada IS NOT NULL
-          GROUP BY entidad_visitada ORDER BY count(*) DESC, min(fecha_visita) LIMIT 12`, [dni]),
+        `SELECT v.entidad_visitada AS entidad,
+                (SELECT min(m.ruc) FROM visita_entidad_ruc m WHERE m.entidad_visitada = v.entidad_visitada) AS "entidadRuc",
+                count(*)::int AS n, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS primera,
+                to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS ultima, count(*) FILTER (WHERE v.decisor)::int AS "aQuienDecide"
+           FROM visitas_entidades v WHERE v.numero_documento = $1 AND v.entidad_visitada IS NOT NULL
+          GROUP BY v.entidad_visitada ORDER BY count(*) DESC, min(v.fecha_visita) LIMIT 12`, [dni]),
       pool.query(
         `SELECT s.entidad_ruc AS "entidadRuc", pe.entidad, s.severidad, s.detalle->>'primera_orden' AS "primeraOrden",
                 (SELECT min(v->>'fecha') FROM jsonb_array_elements(s.detalle->'visitas') v) AS "primeraVisita",

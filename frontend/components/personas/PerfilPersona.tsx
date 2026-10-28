@@ -74,16 +74,19 @@ function hitosPerfil(p: PerfilPersona): Hito[] {
     if (!v.primeraVisita) continue;
     const dias = v.primeraOrden ? Math.round((Date.parse(v.primeraOrden) - Date.parse(v.primeraVisita)) / 86_400_000) : null;
     const veces = v.n > 1 ? `${plural(v.n, "vez", "veces")}` : "una vez";
-    const decide = v.aQuienDecide > 0 ? ", a quien decide las compras" : "";
+    // «27 veces, 3 a quien decide las compras,»; si fueron todas, «todas»; con una sola visita, «una vez, a quien decide…».
+    const decide =
+      v.aQuienDecide <= 0 ? "" : v.n <= 1 ? ", a quien decide las compras," : v.aQuienDecide >= v.n ? ", todas a quien decide las compras," : `, ${numero(v.aQuienDecide)} a quien decide las compras,`;
     h.push({
       fecha: v.primeraVisita,
       texto: `Visitó ${tituloNatural(v.entidad ?? "la entidad")} ${veces}${decide} antes de su primera orden ahí${dias != null && dias > 0 ? ` (${plural(dias, "día", "días")} antes)` : ""}`,
       destacado: true,
     });
   }
-  const conPrevia = new Set(previas.map((v) => (v.entidad ?? "").toUpperCase()));
+  // La misma entidad no se repite como visita común: por su RUC (el registro de visitas la nombra a su manera, «… (MIDAGRI)»).
+  const conPrevia = new Set(previas.map((v) => v.entidadRuc));
   for (const v of (p.visitas.porEntidad ?? []).slice(0, 4)) {
-    if (!v.primera || conPrevia.has((v.entidad ?? "").toUpperCase())) continue;
+    if (!v.primera || (v.entidadRuc && conPrevia.has(v.entidadRuc))) continue;
     const hasta = v.ultima && v.ultima !== v.primera ? `, hasta el ${fechaCorta(v.ultima)}` : "";
     h.push({ fecha: v.primera, texto: `Visitó ${tituloNatural(v.entidad ?? "una entidad")}${v.n > 1 ? ` ${plural(v.n, "vez", "veces")}${hasta}` : ""}` });
   }

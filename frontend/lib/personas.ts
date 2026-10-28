@@ -646,7 +646,7 @@ export interface PerfilPersona {
     ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null; fuente?: string | null }[];
     hasta?: string | null;
     /** Todas sus visitas, por entidad (las 12 que más visitó): para la línea de vida. */
-    porEntidad?: { entidad: string | null; n: number; primera: string | null; ultima: string | null; aQuienDecide: number }[];
+    porEntidad?: { entidad: string | null; entidadRuc?: string | null; n: number; primera: string | null; ultima: string | null; aQuienDecide: number }[];
     /** Las visitas antes de su primera orden en una entidad (señal visita_previa, migración 195). */
     antesDeOrden?: { entidadRuc: string; entidad: string | null; severidad: string; primeraOrden: string | null; primeraVisita: string | null; n: number; aQuienDecide: number }[];
   };
