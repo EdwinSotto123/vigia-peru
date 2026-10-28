@@ -36,6 +36,8 @@ export const PLATAFORMA_JNE = "https://plataformaelectoral.jne.gob.pe/";
 export const INFOGOB_JNE = "https://infogob.jne.gob.pe/";
 export const CONSULTA_RUC_SUNAT = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp";
 export const VISITAS_EN_LINEA = "https://visitas.servicios.gob.pe/";
+/** El registro de visitas del Congreso (público, por día). */
+export const VISITAS_CONGRESO = "https://wb2server.congreso.gob.pe/regvisitastransparencia/";
 export const PORTAL_TRANSPARENCIA = "https://www.transparencia.gob.pe/";
 export const DJI_CONSULTA = "https://appdji.contraloria.gob.pe/DJIC/";
 export const TALENTO_PERU = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml";
@@ -100,6 +102,33 @@ export function datasetVisitas(fecha: string | null | undefined): string {
   if (anio === 2026 && mes <= 2) return datasetPnda(`reporte-de-registro-de-visitas-${nombre}-2026`);
   if (anio === 2026 && mes <= 5) return datasetPnda(`reporte-de-registro-de-visitas-en-linea-${nombre}-2026`);
   return VISITAS_EN_LINEA;
+}
+
+/** Cada registro de visitas que carga Vigía (`fuente` de la visita), por su nombre. */
+const REGISTRO_VISITAS: Record<string, string> = {
+  portal_visitas_nacional: "Registro de Visitas en Línea de la PCM",
+  portal_visitas_manual: "Registro de Visitas en Línea de la PCM",
+  pnda_visitas: "Reporte de visitas del Gobierno Regional de Loreto (datos abiertos)",
+  congreso_visitas: "Registro de visitas del Congreso",
+};
+
+/**
+ * Dónde está una visita en la fuente oficial, según el registro del que salió: el del Congreso, el reporte mensual de la
+ * PNDA de su mes (que es sólo del Gobierno Regional de Loreto) o, lo demás —la plataforma nacional de la PCM—, el
+ * Registro de Visitas en Línea. Sin la fuente, el registro en línea: ahí están todas.
+ */
+export function registroVisita(
+  fecha: string | null | undefined,
+  fuente: string | null | undefined,
+): { texto: string; href: string; fuente: string } {
+  const nombre = (fuente && REGISTRO_VISITAS[fuente]) || "Registro de Visitas en Línea";
+  if (fuente === "congreso_visitas") return { texto: "Registro del Congreso", href: VISITAS_CONGRESO, fuente: nombre };
+  if (fuente === "pnda_visitas") {
+    const href = datasetVisitas(fecha);
+    const m = /^(\d{4})-(\d{2})/.exec(fecha ?? "");
+    if (href !== VISITAS_EN_LINEA && m) return { texto: `Reporte de ${MESES[Number(m[2]) - 1]} de ${m[1]}`, href, fuente: nombre };
+  }
+  return { texto: "Registro en línea", href: VISITAS_EN_LINEA, fuente: nombre };
 }
 
 /**

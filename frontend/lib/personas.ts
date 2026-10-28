@@ -334,7 +334,8 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
   visita_previa: {
     corto: "Visitó antes",
     titulo: "Visitó la entidad antes de ser contratado",
-    explica: "El registro de visitas lo muestra en la entidad en los 180 días antes de su primera orden del año.",
+    explica:
+      "El registro de visitas lo muestra en la entidad en los 180 días antes de su primera orden ahí. Pesa más si lo recibió quien decide las compras (el titular, la gerencia, la administración, la logística o un comité).",
   },
   tambien_planilla: {
     corto: "También en planilla",
@@ -639,7 +640,12 @@ export interface PerfilPersona {
   candidaturas: { anio: number | null; partido: string | null; cargo: string | null; resultado: string | null; region: string | null; provincia: string | null; distrito: string | null }[];
   autoridades: { cargo: string | null; partido: string | null; desde: string | null; hasta: string | null; vigente: boolean | null; departamento: string | null; provincia: string | null; distrito: string | null }[];
   aportes: { partido: string | null; anio: number | null; fecha: string | null; monto: number | null; tipo: string | null; nivel: string | null; proceso: string | null }[];
-  visitas: { total: number; ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null }[]; hasta?: string | null };
+  visitas: {
+    total: number;
+    /** `fuente`: el registro del que salió cada visita (portal_visitas_nacional, congreso_visitas, pnda_visitas…). */
+    ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null; fuente?: string | null }[];
+    hasta?: string | null;
+  };
   familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; cargo: string | null; funcionarioApellido: string | null; ficha: string | null }[];
   /** `idPte`: el id de la entidad en el Portal de Transparencia (su página de personal), null si no se sabe. */
   planilla: { entidadRuc: string; entidad: string | null; ficha: string | null; cargo: string | null; regimen: number | null; dependencia: string | null; desde: string | null; hasta: string | null; base: number | null; nSenales: number | null; idPte?: number | null }[];

@@ -632,7 +632,7 @@ personasRouter.get("/:codigo/perfil", async (c) => {
            FROM onpe_aportantes WHERE numero_documento = $1 ORDER BY fecha_aporte DESC NULLS LAST, "año" DESC LIMIT 100`, [dni]),
       pool.query(
         `SELECT count(*) OVER ()::int AS total, to_char(fecha_visita, 'YYYY-MM-DD') AS fecha, entidad_visitada AS entidad,
-                funcionario_cargo AS cargo, funcionario_area AS area, left(motivo, 160) AS motivo
+                funcionario_cargo AS cargo, funcionario_area AS area, left(motivo, 160) AS motivo, fuente
            FROM visitas_entidades WHERE numero_documento = $1 ORDER BY fecha_visita DESC NULLS LAST LIMIT 100`, [dni]),
       pool.query<{ entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; declarante: string | null; cargo: string | null; ficha: string | null }>(
         `SELECT v.entidad_ruc AS "entidadRuc", COALESCE(e.nombre, v.entidad_ruc) AS entidad, v.parentesco, v.grado,

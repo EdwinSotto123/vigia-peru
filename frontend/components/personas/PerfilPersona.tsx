@@ -302,9 +302,9 @@ function Planilla({ p }: { p: PerfilPersona }) {
 
 function Visitas({ p }: { p: PerfilPersona }) {
   const filas: Fila[] = p.visitas.ultimas.map((v, i) => {
-    // Cada visita con su registro oficial: el reporte de su mes en datos abiertos o, fuera de esos meses, el registro en
-    // línea (las filas no llevan a otra parte: el enlace va en la fila).
-    const fuente = enlaceVisita(v.fecha);
+    // Cada visita con su registro oficial, por el registro del que salió (el del Congreso, el reporte de la PNDA o el
+    // registro en línea): las filas no llevan a otra parte, el enlace va en la fila.
+    const fuente = enlaceVisita(v.fecha, v.fuente);
     return {
       id: String(i),
       celdas: {

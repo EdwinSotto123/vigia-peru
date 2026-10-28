@@ -5,7 +5,7 @@ import { Dato } from "@/components/ui/Dato";
 import { FrenteMediana } from "@/components/charts/FrenteMediana";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { decimal, fecha, fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
-import { CONOSCE_BUSCADOR, VISITAS_EN_LINEA, datasetVisitas, fichaRnp } from "@/lib/fuentes";
+import { CONOSCE_BUSCADOR, fichaRnp, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
 import { REGIMEN, cargoEnOracion, listaMeses, mes, nombrePartido, ordenesCitadas, type OrdenCitada } from "@/lib/planilla";
@@ -84,13 +84,12 @@ export function hitosCampana(d: Obj, final: { fecha: unknown; texto: string } | 
 }
 
 /**
- * Dónde está una visita en la fuente oficial: el reporte mensual de la PNDA que la trae (de enero de 2025 a mayo de 2026)
- * o, fuera de esos meses, el registro de visitas en línea. Lo usan la evidencia de «visita previa» y el recorrido.
+ * Dónde está una visita en la fuente oficial, por el registro del que salió (`registroVisita`): el del Congreso, el reporte
+ * mensual de la PNDA (sólo Loreto) o el registro en línea. Lo usan la evidencia de «visita previa» y el recorrido.
  */
-export function enlaceVisita(fechaVisita: unknown): { texto: string; href: string } {
-  const f = typeof fechaVisita === "string" ? fechaVisita : null;
-  const href = datasetVisitas(f);
-  return href === VISITAS_EN_LINEA ? { texto: "Registro en línea", href } : { texto: `Reporte de ${mes(f) ?? "su mes"}`, href };
+export function enlaceVisita(fechaVisita: unknown, fuente?: unknown): { texto: string; href: string } {
+  const r = registroVisita(typeof fechaVisita === "string" ? fechaVisita : null, typeof fuente === "string" ? fuente : null);
+  return { texto: r.texto, href: r.href };
 }
 
 /** El parentesco con mayúscula inicial: "Hijo(a)". */
@@ -240,11 +239,17 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       return `${soles(num(a.por_mes) ?? 0)} por mes en ${txt(a.anio)}, frente a ${soles(num(a.mediana_mes) ?? 0)} de mediana en la entidad${v ? `: ${v}` : ""}`;
     }
     case "visita_previa": {
+      // Migración 195: contra su PRIMERA orden en la entidad (`primera_orden`), con cuántas fueron y cuántas a quien decide.
       const v = lista(d.visitas).sort((x, y) => String(x.fecha ?? "").localeCompare(String(y.fecha ?? "")));
-      if (!v.length) return null;
-      const primera = dia(v[0].fecha);
-      if (v.length === 1) return `Una visita${primera ? `, el ${primera},` : ""} antes de su primera orden`;
-      return `${plural(v.length, "visita", "visitas")} antes de su primera orden${primera ? `; la primera, el ${primera}` : ""}`;
+      const n = num(d.n_visitas) ?? v.length;
+      if (!n) return null;
+      const primera = dia(v[0]?.fecha);
+      const orden = dia(d.primera_orden);
+      const antes = `antes de su primera orden${orden ? ` (el ${orden})` : ""}`;
+      const base = n === 1 ? `Una visita${primera ? `, el ${primera},` : ""} ${antes}` : `${plural(n, "visita", "visitas")} ${antes}`;
+      const decide = num(d.a_quien_decide) ?? v.filter((x) => x.decide === true).length;
+      if (!decide) return base;
+      return `${base}; ${n === 1 ? "a quien decide las compras" : `${numero(decide)} a quien decide las compras`}`;
     }
     case "tambien_planilla": {
       const meses = listaMeses(Array.isArray(d.meses) ? (d.meses as unknown[]) : []);
@@ -798,16 +803,27 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       );
     }
     case "visita_previa": {
-      // Cada visita con su registro oficial: el reporte del mes en datos abiertos (o el registro en línea).
+      // Cada visita con su registro oficial (el del Congreso, el reporte de la PNDA o el registro en línea), cuántos días
+      // antes de la primera orden y si quien la recibió decide las compras. De quien recibió, sólo cargo y área.
       const filas: Fila[] = lista(d.visitas).map((v, i) => {
-        const fuente = enlaceVisita(v.fecha);
+        const fuente = enlaceVisita(v.fecha, v.fuente_visita);
+        const dias = num(v.dias_antes);
         return {
           id: String(i),
           celdas: {
             visitado: (
               <CeldaPrincipal
-                titulo={natural(v.cargo_visitado) ?? "Sin dato del visitado"}
-                meta={[<Dato key="f" tipo="fecha">{dia(v.fecha) ?? "Sin fecha"}</Dato>, txt(v.area) && <Dato key="a" tipo="dependencia" nombre="Oficina">{natural(v.area)}</Dato>]}
+                titulo={
+                  <>
+                    {natural(v.cargo_visitado) ?? "Sin dato del visitado"}
+                    {v.decide === true ? <b> (decide las compras de la entidad)</b> : null}
+                  </>
+                }
+                meta={[
+                  <Dato key="f" tipo="fecha">{dia(v.fecha) ?? "Sin fecha"}</Dato>,
+                  dias != null && dias > 0 ? <span key="d">{plural(dias, "día", "días")} antes de su primera orden</span> : null,
+                  txt(v.area) && <Dato key="a" tipo="dependencia" nombre="Oficina">{natural(v.area)}</Dato>,
+                ]}
               />
             ),
             motivo: <span className="text-meta text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,

@@ -2,7 +2,7 @@ import { Ayuda, DatosClave, EstadoVacio, FuenteDato, Nota } from "@/components/p
 import { CeldaFecha, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, oracion, plural } from "@/lib/formato";
-import { VISITAS_EN_LINEA, datasetVisitas, avisoVisitas } from "@/lib/fuentes";
+import { VISITAS_EN_LINEA, avisoVisitas, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { type VisitaEmpresa } from "@/lib/empresas";
 import { entidadTexto, NoCargo, opcionesLocales, paraClave } from "./comun";
@@ -39,7 +39,7 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
   }
   const filas: FilaFiltrable[] = d.visitas.map((v, i) => {
     const entidad = entidadTexto(v.entidad);
-    const reporte = datasetVisitas(v.fecha);
+    const registro = registroVisita(v.fecha, v.fuente);
     const despues = v.despues ? (
       <span className="text-meta text-ink">
         {v.despuesTipo === "contrato" ? "Le adjudicó" : "Le dio una orden"}{" "}
@@ -102,13 +102,13 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
             ]}
           />
         ),
-        // El reporte de visitas de su mes en datos abiertos (de enero de 2025 a mayo de 2026; fuera de esos meses, el
-        // registro en línea) y, debajo, el registro en línea.
+        // El registro del que salió la visita (el del Congreso, el reporte mensual de la PNDA, que es sólo de Loreto, o
+        // el registro en línea de la PCM) y, si no es ese, también el registro en línea.
         pie: (
           <FuenteDato
-            fuente={`Registro de visitas de la entidad${v.fuente ? ` (${v.fuente})` : ""}`}
-            href={reporte}
-            enlaces={[reporte !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
+            fuente={registro.fuente}
+            href={registro.href}
+            enlaces={[registro.href !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
           />
         ),
       },

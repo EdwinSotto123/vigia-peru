@@ -58,7 +58,10 @@ COPIA = COLS + ["periodo"]
 # Lo que rehace aplicar_188.py (más el RUC de cada entidad visitada, primero: sin él las visitas nuevas no cuelgan de nadie).
 REFRESCOS = ["refrescar_visita_entidad_ruc", "refrescar_cruce_visita_previa", "refrescar_visita_pariente",
              "refrescar_ola_gestion", "dedup_cruces_proveedor", "refrescar_casos_cruce_base",
-             "refrescar_entidad_antecedentes", "refrescar_empresas", "refrescar_poder", "refrescar_visitas_entidad"]
+             "refrescar_entidad_antecedentes", "refrescar_empresas", "refrescar_poder", "refrescar_visitas_entidad",
+             # La visita antes de la primera orden de un locador (migración 195): tras refrescar_visitas_entidad, que marca
+             # en cada visita si quien la recibió decide las compras.
+             "refrescar_persona_visita_previa"]
 
 
 def parser():
