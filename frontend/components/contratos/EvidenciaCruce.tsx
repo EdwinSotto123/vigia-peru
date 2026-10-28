@@ -37,7 +37,7 @@ export function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }
       </summary>
       <div className="mt-2 space-y-4">
         {evidencia.map((e) => (
-          <section key={e.titulo} className="space-y-2">
+          <section key={e.titulo} data-evidencia className="space-y-2">
             <h4 className="flex flex-wrap items-center gap-1.5 text-meta font-semibold text-ink">
               {e.titulo}
               <CuentaGrupo>{numero(e.total ?? e.filas.length)}</CuentaGrupo>

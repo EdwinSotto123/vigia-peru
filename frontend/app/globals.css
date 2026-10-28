@@ -597,3 +597,16 @@ dialog:not([open]) {
 /* Carrusel: la lista se desliza sin barra visible (los botones y los puntos dicen dónde va). */
 .carrusel-lista { scrollbar-width: none; -ms-overflow-style: none; }
 .carrusel-lista::-webkit-scrollbar { display: none; }
+
+/* «Imprimir o guardar PDF» de la evidencia (TablaEvidencia): en el papel va sólo la copia de esa sección, con su
+   cabecera (qué es, de qué página, cuándo) y la dirección de cada enlace a la fuente, para verificarla sin pantalla. */
+#vigia-impresion { display: none; }
+@media print {
+  body[data-imprimir] > :not(#vigia-impresion) { display: none !important; }
+  body[data-imprimir] > #vigia-impresion { display: block !important; padding: 0; }
+  #vigia-impresion .vigia-impresion-cabecera { margin-bottom: 12px; border-bottom: 1px solid rgb(var(--line)); padding-bottom: 8px; font-size: 11px; }
+  #vigia-impresion .vigia-impresion-cabecera p:first-child { font-size: 14px; font-weight: 600; }
+  #vigia-impresion a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9px; word-break: break-all; }
+  #vigia-impresion .line-clamp-3 { -webkit-line-clamp: unset; display: block; overflow: visible; }
+  #vigia-impresion tr { break-inside: avoid; }
+}

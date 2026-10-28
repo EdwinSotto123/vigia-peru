@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Download, SearchX } from "lucide-react";
+import { ArrowUpRight, Download, Printer, SearchX } from "lucide-react";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
@@ -19,10 +19,14 @@ import { descargarCsv, nombreArchivo } from "@/lib/csv";
  *
  * Lo que la fila muestra ya llega sin DNI ni nombres de personas naturales (la API), así que buscar en ella no
  * descubre nada que no esté a la vista. «Descargar CSV» (fase 6) baja lo que se ve, con el enlace de cada registro y
- * la fuente de la evidencia, para revisarla fuera de Vigía.
+ * la fuente de la evidencia, para revisarla fuera de Vigía. «Imprimir o guardar PDF» imprime sólo esta evidencia (la
+ * sección `[data-evidencia]` que la contiene, con todas sus filas, no la página), en modo día y con la dirección de cada
+ * enlace: una copia en `#vigia-impresion` que globals.css deja como lo único en el papel.
  */
 
 const TAM = 10;
+const BOTON =
+  "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink disabled:opacity-60";
 
 export function TablaEvidencia({
   columnas,
@@ -39,12 +43,66 @@ export function TablaEvidencia({
 }) {
   const [consulta, setConsulta] = useState("");
   const [pagina, setPagina] = useState(1);
+  const raiz = useRef<HTMLDivElement>(null);
+  const [imprimiendo, setImprimiendo] = useState(false);
+  // Al imprimir, la tabla ya tiene todas las filas (abajo): se copia su sección, se imprime y se deja todo como estaba.
+  useEffect(() => {
+    if (!imprimiendo) return;
+    const objetivo = raiz.current?.closest<HTMLElement>("[data-evidencia]") ?? raiz.current;
+    if (!objetivo) {
+      setImprimiendo(false);
+      return;
+    }
+    const html = document.documentElement;
+    const modo = html.dataset.modo;
+    const copia = document.createElement("div");
+    copia.id = "vigia-impresion";
+    const cabecera = document.createElement("div");
+    cabecera.className = "vigia-impresion-cabecera";
+    const hoy = new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+    for (const t of [
+      `Vigía Perú: evidencia de «${titulo ?? "un antecedente"}»`,
+      `${document.title}. ${window.location.href}`,
+      `Impreso el ${hoy}. Es un indicio para revisar, no una acusación: cada registro enlaza a su fuente oficial.`,
+    ]) {
+      const p = document.createElement("p");
+      p.textContent = t;
+      cabecera.appendChild(p);
+    }
+    copia.appendChild(cabecera);
+    copia.appendChild(objetivo.cloneNode(true));
+    document.body.appendChild(copia);
+    document.body.dataset.imprimir = "evidencia";
+    html.dataset.modo = "dia"; // en papel, siempre el modo día
+    let listo = false;
+    const impresora = window.matchMedia("print");
+    const fin = () => {
+      if (listo) return;
+      listo = true;
+      copia.remove();
+      delete document.body.dataset.imprimir;
+      if (modo) html.dataset.modo = modo;
+      else delete html.dataset.modo;
+      setImprimiendo(false);
+    };
+    const alCambiar = (e: MediaQueryListEvent) => {
+      if (!e.matches) fin();
+    };
+    window.addEventListener("afterprint", fin);
+    impresora.addEventListener("change", alCambiar);
+    window.print();
+    return () => {
+      window.removeEventListener("afterprint", fin);
+      impresora.removeEventListener("change", alCambiar);
+    };
+  }, [imprimiendo, titulo]);
   const indice = useMemo(() => filas.map((f) => paraBuscar(columnas.map((c) => textoDe(c.tipo, f[c.clave])).join(" "))), [filas, columnas]);
   const q = paraBuscar(consulta);
   const vistas = useMemo(() => (q ? filas.filter((_, i) => coincide(indice[i], q)) : filas), [filas, indice, q]);
   const paginas = Math.max(1, Math.ceil(vistas.length / TAM));
   const actual = Math.min(pagina, paginas);
-  const pagina_ = vistas.slice((actual - 1) * TAM, actual * TAM);
+  // Para imprimir, todas las filas que pasan la búsqueda; si no, las de la página.
+  const pagina_ = imprimiendo ? vistas : vistas.slice((actual - 1) * TAM, actual * TAM);
   const largo = filas.length > TAM;
   const bajar = () => {
     const absoluta = (url: string) => (url.startsWith("/") ? `${window.location.origin}${url}` : url);
@@ -70,15 +128,15 @@ export function TablaEvidencia({
     });
     descargarCsv(cols, csv, `evidencia-${nombreArchivo(titulo ?? "registros")}`);
   };
-  const control = vistas.length > TAM && (
+  const control = vistas.length > TAM && !imprimiendo && (
     <div className="flex justify-end">
       <Paginacion actual={actual} paginas={paginas} total={vistas.length} tam={TAM} navegacion="interna" onChange={setPagina} cargando={false} nombre="registros" />
     </div>
   );
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div ref={raiz} className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 print:hidden">
         {largo && (
           <Buscador
             placeholder="Buscar en estos registros…"
@@ -96,13 +154,14 @@ export function TablaEvidencia({
           </span>
         )}
         {vistas.length > 0 && (
-          <button
-            type="button"
-            onClick={bajar}
-            className="ml-auto inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink"
-          >
-            <Download size={14} aria-hidden /> Descargar CSV ({numero(vistas.length)})
-          </button>
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <button type="button" onClick={bajar} className={BOTON}>
+              <Download size={14} aria-hidden /> Descargar CSV ({numero(vistas.length)})
+            </button>
+            <button type="button" onClick={() => setImprimiendo(true)} disabled={imprimiendo} className={BOTON}>
+              <Printer size={14} aria-hidden /> Imprimir o guardar PDF
+            </button>
+          </span>
         )}
       </div>
       {q && vistas.length === 0 ? (
