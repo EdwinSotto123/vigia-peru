@@ -13,9 +13,11 @@ import {
   DATASET_SOCIOS_RNP,
   PLATAFORMA_JNE,
   VISITAS_EN_LINEA,
+  enlaceFuente,
   obraInfobras,
   procesoOece,
 } from "../lib/fuentes.js";
+import { ETIQUETA_CRUCE } from "../lib/cruces.js";
 import {
   acotar,
   dia,
@@ -47,6 +49,9 @@ import {
  *                                y las secuencias que prueban sus cruces (visitó y ganó, se fundó y ganó…).
  *   GET /historia/partido/:clave los gobiernos que ganó en cada elección, los procesos y las banderas de las entidades que
  *                                gobernó, los aportes que recibió y lo que gastó en cada campaña.
+ *   GET /historia/contrato/:ocid el proceso (convocatoria, ofertas, buena pro, consentimiento, contrato y su vigencia), las
+ *                                visitas de la gente del ganador a la entidad, sus antecedentes en la fecha de cada hecho,
+ *                                sus sanciones y penalidades, su fundación y la obra que ejecuta (INFOBRAS).
  *
  * Cada fuente va en su consulta: si una falla, la línea sale sin ese carril (y lo dice el registro), no vacía.
  * Privacidad: ningún nombre de persona natural privada; de la visita, el cargo y el área de quien la recibió.
@@ -657,6 +662,229 @@ historiaRouter.get("/partido/:clave", async (c) => {
   const clave = c.req.param("clave");
   if (!/^[a-z0-9-]{2,120}$/.test(clave)) return c.json({ error: "invalid_clave" }, 400);
   const cuerpo = await memo.obtener(`partido:${clave}`, () => historiaPartido(clave));
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── Contrato ───────────────────────────────────────────────────────────────────────────────────
+
+const CARRILES_CONTRATO: CarrilHistoria[] = [
+  { clave: "compras", titulo: "El proceso", explica: "La convocatoria, las ofertas, la buena pro, el consentimiento, el contrato firmado y su vigencia (SEACE y CONOSCE)." },
+  { clave: "visitas", titulo: "Visitas del ganador", explica: "Las de su gente (socios, representantes, directivos) a la entidad, del registro de visitas; de quien la recibió, sólo su cargo." },
+  { clave: "banderas", titulo: "Antecedentes del ganador", explica: "Cada antecedente (una sanción, un aporte, un vínculo…) en la fecha del hecho: los de antes de la convocatoria pesan; los de después, no." },
+  { clave: "control", titulo: "Sanciones y penalidades", explica: "Las del ganador en el Tribunal de Contrataciones y las penalidades que le aplicaron las entidades." },
+  { clave: "empresa", titulo: "El ganador", explica: "Cuándo se fundó la empresa que ganó (SUNAT)." },
+  { clave: "obras", titulo: "La obra", explica: "La obra que ejecuta o supervisa este contrato en INFOBRAS: su inicio, su paralización, su fin y su liquidación." },
+];
+
+/** Los cruces que van en el carril de visitas (uno por visita); los demás, en el de antecedentes. */
+const VISITAS_CRUCE = new Set(["visita_previa"]);
+
+async function historiaContrato(ocid: string): Promise<Historia | null> {
+  const [k] = await filas<{ ocid: string; codigo: string | null; entidad_ruc: string | null; entidad: string | null; objeto: string | null; tipo: string | null; conv: string | null; bp: string | null }>(
+    "contrato",
+    `SELECT c.ocid, c.codigo, c.entidad_ruc::text AS entidad_ruc, e.nombre AS entidad, c.objeto, c.tipo_contratacion AS tipo,
+            to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS conv, to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS bp
+       FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE c.ocid = $1`, [ocid]);
+  if (!k) return null;
+  const codigo = k.codigo && /^\d+$/.test(k.codigo) ? k.codigo : null;
+  const [adj, pos, fir, cru, obr] = await Promise.all([
+    codigo && k.entidad_ruc
+      ? filas<{ ruc: string; proveedor: string | null; bp: string | null; cons: string | null; monto: number | null }>(
+          "adjudicaciones",
+          `SELECT COALESCE(m.ruc_miembro, a.ruc_proveedor) AS ruc, max(COALESCE(m.miembro, a.proveedor)) AS proveedor,
+                  to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS bp, to_char(max(a.fecha_consentimiento), 'YYYY-MM-DD') AS cons,
+                  sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES})::float AS monto
+             FROM conosce_adjudicaciones a
+             LEFT JOIN conosce_consorcios m ON m.ruc_consorcio = a.ruc_proveedor AND a.ruc_proveedor !~ '^(10|20)[0-9]{9}$'
+            WHERE a.codigo_convocatoria = $1 AND a.entidad_ruc = $2
+            GROUP BY 1`, [codigo, k.entidad_ruc])
+      : Promise.resolve([]),
+    codigo
+      ? filas<{ n: number; ofertas: string | null }>(
+          "postores",
+          `SELECT count(DISTINCT ruc_postor)::int AS n, to_char(min(fecha_propuesta) FILTER (WHERE fecha_propuesta > '2000-01-01'), 'YYYY-MM-DD') AS ofertas
+             FROM conosce_postores WHERE codigo_convocatoria = $1`, [codigo])
+      : Promise.resolve([]),
+    codigo
+      ? filas<{ firmado: string | null; desde: string | null; hasta: string | null; total: number | null; adicional: number | null; reduccion: number | null; prorroga: number | null }>(
+          "contratos firmados",
+          `SELECT to_char(min(fecha_suscripcion), 'YYYY-MM-DD') AS firmado, to_char(min(fecha_vigencia_inicial), 'YYYY-MM-DD') AS desde,
+                  to_char(max(COALESCE(fecha_vigencia_fin_actualizada, fecha_vigencia_final))
+                            FILTER (WHERE COALESCE(fecha_vigencia_fin_actualizada, fecha_vigencia_final) < '2100-01-01'), 'YYYY-MM-DD') AS hasta,
+                  max(monto_contratado_total)::float AS total, sum(monto_adicional)::float AS adicional,
+                  sum(monto_reduccion)::float AS reduccion, sum(monto_prorroga)::float AS prorroga
+             FROM conosce_contratos WHERE codigo_convocatoria = $1 HAVING count(*) > 0`, [codigo])
+      : Promise.resolve([]),
+    filas<CruceSecuencia & { id: number; ruc: string }>(
+      "cruces",
+      `SELECT p.id, p.tipo, p.severidad, p.fecha, p.monto::float AS monto, p.ocid, p.detalle, p.ruc_empresa AS ruc,
+              c.fecha_buena_pro AS buena_pro, e.nombre AS entidad, c.codigo
+         FROM cruces_proveedor p
+         JOIN convocatorias c ON c.ocid = p.ocid
+         LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+        WHERE p.ocid = $1
+        LIMIT 2000`, [ocid]),
+    filas<{ codigo: number; nombre: string | null; inicio: string | null; par: string | null; causal: string | null; fin_prog: string | null; fin: string | null; recepcion: string | null; liquidacion: string | null; rol: string | null }>(
+      "obra",
+      `SELECT o.codigo, o.nombre, to_char(o.fecha_inicio, 'YYYY-MM-DD') AS inicio,
+              CASE WHEN o.paralizada THEN to_char(o.fecha_paralizacion, 'YYYY-MM-DD') END AS par, o.causal_paralizacion AS causal,
+              to_char(COALESCE(o.fecha_fin_reprog, o.fecha_fin_prog), 'YYYY-MM-DD') AS fin_prog, to_char(o.fecha_fin_real, 'YYYY-MM-DD') AS fin,
+              to_char(o.fecha_recepcion, 'YYYY-MM-DD') AS recepcion, to_char(o.fecha_liquidacion, 'YYYY-MM-DD') AS liquidacion, oc.rol
+         FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
+        WHERE oc.ocid = $1 AND NOT o.retirada LIMIT 10`, [ocid]),
+  ]);
+
+  // Sólo empresas (RUC 20) se nombran y se buscan en la SUNAT y el Tribunal; un RUC 10 es una persona.
+  const empresas = [...new Set([...adj.map((a) => a.ruc), ...cru.map((x) => x.ruc)].filter((r) => /^20\d{9}$/.test(r ?? "")))];
+  const [emp, san, pen] = await Promise.all([
+    empresas.length
+      ? filas<{ ruc: string; nombre: string | null; fundada: string | null }>(
+          "empresas",
+          `SELECT ruc::text AS ruc, razon_social AS nombre, to_char(fecha_alta_ruc, 'YYYY-MM-DD') AS fundada FROM empresas WHERE ruc::text = ANY($1)`, [empresas])
+      : Promise.resolve([]),
+    empresas.length
+      ? filas<{ id: number; ruc: string; tipo: string | null; desde: string | null; hasta: string | null; resolucion: string | null; fecha_res: string | null; multa: number | null }>(
+          "sanciones",
+          `SELECT id, ruc, tipo, to_char(fecha_desde, 'YYYY-MM-DD') AS desde, to_char(fecha_hasta, 'YYYY-MM-DD') AS hasta, resolucion,
+                  to_char(fecha_resolucion, 'YYYY-MM-DD') AS fecha_res, monto_multa_soles::float AS multa
+             FROM osce_sancionados WHERE ruc = ANY($1)`, [empresas])
+      : Promise.resolve([]),
+    empresas.length
+      ? filas<{ id: number; ruc: string; fecha: string; entidad: string | null; monto: number | null; tipo: string | null }>(
+          "penalidades",
+          `SELECT id, empresa_ruc AS ruc, to_char(fecha, 'YYYY-MM-DD') AS fecha, entidad_contratante AS entidad, monto::float AS monto, tipo_penalidad AS tipo
+             FROM penalidades WHERE empresa_ruc = ANY($1) AND fecha IS NOT NULL ORDER BY fecha DESC LIMIT 200`, [empresas])
+      : Promise.resolve([]),
+  ]);
+
+  const nombreDe = new Map<string, string>();
+  for (const e of emp) if (e.nombre) nombreDe.set(e.ruc, titulo(e.nombre));
+  for (const a of adj) if (/^20\d{9}$/.test(a.ruc) && a.proveedor && !nombreDe.has(a.ruc)) nombreDe.set(a.ruc, titulo(a.proveedor));
+  const quien = (ruc: string) => nombreDe.get(ruc) ?? (/^20\d{9}$/.test(ruc) ? `la empresa con RUC ${ruc}` : "una persona natural");
+  const ent = k.entidad ? titulo(k.entidad) : "la entidad";
+  const aqui = rutaContrato(ocid);
+  const eventos: EventoHistoria[] = [];
+  const proceso = (id: string, fecha: string | null | undefined, tituloE: string, detalle?: string | null, extra: Partial<EventoHistoria> = {}) => {
+    const f = dia(fecha);
+    if (f) eventos.push({ id, carril: "compras", tipo: id, fecha: f, titulo: tituloE, detalle: detalle ?? null, href: aqui, fuente: "SEACE y CONOSCE (OECE)", enlace: procesoOece(ocid), ...extra });
+  };
+
+  // 1. El proceso.
+  proceso("convocatoria", k.conv, `${ent} convocó el proceso${k.codigo ? ` ${k.codigo}` : ""}`, corto(k.objeto));
+  const p0 = pos[0];
+  if (p0?.ofertas) proceso("ofertas", p0.ofertas, "Se presentaron las ofertas", p0.n ? `${p0.n} ${p0.n === 1 ? "postor" : "postores"} en CONOSCE` : null);
+  const bp = adj.map((a) => a.bp).filter((x): x is string => !!x).sort().pop() ?? k.bp;
+  const montoAdj = adj.reduce<number | null>((s, a) => (a.monto == null ? s : (s ?? 0) + a.monto), null);
+  proceso("buena_pro", bp, adj.length ? `Buena pro para ${adj.map((a) => quien(a.ruc)).join(", ")}` : "Buena pro", null, { monto: montoAdj });
+  proceso("consentimiento", adj.map((a) => a.cons).filter((x): x is string => !!x).sort().pop(), "Quedó consentida la buena pro");
+  const f0 = fir[0];
+  if (f0) {
+    const soles = (v: number) => `${Math.round(v).toLocaleString("es-PE")} soles`;
+    const cambios = [
+      (f0.adicional ?? 0) > 0 ? `adicionales por ${soles(f0.adicional!)}` : null,
+      (f0.reduccion ?? 0) > 0 ? `reducciones por ${soles(f0.reduccion!)}` : null,
+      (f0.prorroga ?? 0) > 0 ? "prórrogas" : null,
+    ].filter(Boolean);
+    proceso("contrato", f0.firmado, "Se firmó el contrato", cambios.length ? `Después: ${cambios.join(", ")}` : null, { monto: num(f0.total) });
+    const desde = dia(f0.desde);
+    const hasta = dia(f0.hasta);
+    if (desde && hasta && hasta >= desde) {
+      eventos.push({ id: "vigencia", carril: "compras", tipo: "vigencia", fecha: desde, hasta, titulo: "Vigencia del contrato", detalle: null, href: aqui, fuente: "CONOSCE (OECE)", enlace: CONOSCE_BUSCADOR });
+    }
+  }
+
+  // 2. Las visitas y los antecedentes del ganador (uno por fecha y tipo; nunca un nombre de persona).
+  const vistos = new Set<string>();
+  for (const x of cru) {
+    const f = dia(x.fecha);
+    if (!f) continue;
+    const d = (x.detalle ?? {}) as Record<string, unknown>;
+    if (VISITAS_CRUCE.has(x.tipo)) {
+      const cargo = typeof d.cargo_funcionario === "string" ? d.cargo_funcionario : null;
+      const area = typeof d.area_funcionario === "string" ? d.area_funcionario : null;
+      eventos.push({
+        id: `visita:${x.id}`, carril: "visitas", tipo: "visita", fecha: f, severidad: sev(x.severidad),
+        titulo: `Alguien de ${quien(x.ruc)} visitó ${ent}`,
+        detalle: cargo || area ? `Lo recibió: ${[cargo, area].filter(Boolean).join(", ")}${d.decisor === true ? " (decide las compras)" : ""}` : null,
+        href: `${aqui}?seccion=antecedentes`, fuente: "Registro de visitas", enlace: enlaceFuente("visitas_entidades", null, { detalle: d, fecha: f }),
+      });
+      continue;
+    }
+    const clave = `${x.tipo}:${f}:${x.ruc}`;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    eventos.push({
+      id: `cruce:${x.id}`, carril: "banderas", tipo: x.tipo, fecha: f, severidad: sev(x.severidad), monto: num(x.monto),
+      titulo: ETIQUETA_CRUCE[x.tipo] ?? x.tipo.replace(/_/g, " "),
+      detalle: empresas.length > 1 ? `De ${quien(x.ruc)}` : null,
+      href: `${aqui}?seccion=antecedentes`, fuente: "Cruces de Vigía con registros oficiales",
+    });
+  }
+
+  // 3. El ganador: su fundación, sus sanciones y sus penalidades.
+  for (const e of emp) {
+    if (e.fundada) eventos.push({ id: `fundacion:${e.ruc}`, carril: "empresa", tipo: "fundacion", fecha: e.fundada, titulo: `Se fundó ${quien(e.ruc)}`, detalle: "Inscripción en el RUC", href: `/empresa/${e.ruc}`, fuente: "SUNAT", enlace: CONSULTA_RUC_SUNAT });
+  }
+  for (const s of san) {
+    const desde = s.desde ?? s.fecha_res;
+    if (!desde) continue;
+    const multa = s.tipo === "multa" || (s.multa ?? 0) > 0;
+    eventos.push({
+      id: `sancion:${s.id}`, carril: "control", tipo: multa ? "multa" : "sancion", fecha: desde, hasta: multa ? null : s.hasta,
+      titulo: `${multa ? "Multa a" : s.tipo === "definitivo" ? "Inhabilitación definitiva de" : "Inhabilitación de"} ${quien(s.ruc)}`,
+      detalle: s.resolucion ? `Resolución ${s.resolucion}` : null, monto: num(s.multa), severidad: multa ? "baja" : s.tipo === "definitivo" ? "alta" : "media",
+      href: `/empresa/${s.ruc}?seccion=antecedentes`, fuente: "Tribunal de Contrataciones (OECE)", enlace: DATASET_SANCIONADOS,
+    });
+  }
+  for (const p of pen) {
+    eventos.push({ id: `penalidad:${p.id}`, carril: "control", tipo: "penalidad", fecha: p.fecha, monto: num(p.monto), severidad: "baja", titulo: `Penalidad a ${quien(p.ruc)}${p.entidad ? ` de ${titulo(p.entidad)}` : ""}`, detalle: p.tipo, href: `/empresa/${p.ruc}?seccion=antecedentes`, fuente: "Penalidades (OECE)", enlace: DATASET_PENALIDADES });
+  }
+
+  // 4. La obra (INFOBRAS).
+  const hoyD = hoy();
+  for (const o of obr) {
+    const n = o.nombre ? `«${corto(o.nombre)}»` : "la obra";
+    const base = { carril: "obras" as const, href: `${aqui}?seccion=obra`, fuente: "INFOBRAS (Contraloría)", enlace: obraInfobras(o.codigo) };
+    if (o.inicio) eventos.push({ ...base, id: `obra:${o.codigo}`, tipo: "inicio", fecha: o.inicio, titulo: `Empezó ${n}`, detalle: o.rol === "supervisor" ? "Este contrato la supervisa" : null });
+    if (o.par) eventos.push({ ...base, id: `paralizada:${o.codigo}`, tipo: "paralizada", fecha: o.par, severidad: "alta", titulo: `Se paralizó ${n}`, detalle: o.causal ? `Causa: ${o.causal}` : null });
+    if (o.fin) eventos.push({ ...base, id: `fin:${o.codigo}`, tipo: "fin", fecha: o.fin, titulo: `Terminó ${n}` });
+    else if (o.fin_prog && o.fin_prog < hoyD) eventos.push({ ...base, id: `debia:${o.codigo}`, tipo: "atraso", fecha: o.fin_prog, severidad: "media", titulo: `Debía terminar ${n}`, detalle: "INFOBRAS no registra que haya terminado" });
+    if (o.recepcion) eventos.push({ ...base, id: `recepcion:${o.codigo}`, tipo: "recepcion", fecha: o.recepcion, titulo: `Se recibió ${n}` });
+    if (o.liquidacion) eventos.push({ ...base, id: `liquidacion:${o.codigo}`, tipo: "liquidacion", fecha: o.liquidacion, titulo: `Se liquidó ${n}` });
+  }
+
+  const secuencias = secuenciasDeCruces(cru, rutaContrato);
+  const { eventos: quedan, omitidos } = acotar(eventos, { compras: 20, visitas: 80, banderas: 120, control: 80, empresa: 10, obras: 30 }, fijosDe(secuencias, eventos));
+  // Desde el primer hecho (el más viejo suele ser la fundación o una sanción), no antes de 2015; hasta hoy.
+  const primera = quedan.map((e) => e.fecha).filter((f) => f >= DESDE).sort()[0];
+  const desde = primera ? `${primera.slice(0, 4)}-01-01` : DESDE;
+  return {
+    sujeto: { tipo: "contrato", id: ocid, nombre: corto(k.objeto) },
+    desde,
+    hasta: hoyD,
+    carriles: soloConDatos(CARRILES_CONTRATO, [], quedan),
+    series: [],
+    eventos: quedan,
+    marcas: marcasEleccion(desde, hoyD),
+    secuencias,
+    omitidos,
+    fuentes: [
+      { texto: "El proceso en Contrataciones Abiertas (OECE)", href: procesoOece(ocid) },
+      { texto: "Buscador de CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
+    ],
+  };
+}
+
+historiaRouter.get("/contrato/:ocid", async (c) => {
+  const ocid = c.req.param("ocid");
+  if (!/^[A-Za-z0-9-]{3,100}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
+  const cuerpo = await memo.obtener(`contrato:${ocid}`, async () => {
+    const h = await historiaContrato(ocid);
+    // Por si una razón social es un nombre de persona: publicar() la tapa.
+    return h ? publicar(h) : null;
+  });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

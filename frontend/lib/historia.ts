@@ -79,7 +79,7 @@ export interface SecuenciaHistoria {
 }
 
 export interface Historia {
-  sujeto: { tipo: "entidad" | "empresa" | "partido"; id: string; nombre: string | null };
+  sujeto: { tipo: "entidad" | "empresa" | "partido" | "contrato"; id: string; nombre: string | null };
   desde: string;
   hasta: string;
   carriles: { clave: Carril; titulo: string; explica: string }[];

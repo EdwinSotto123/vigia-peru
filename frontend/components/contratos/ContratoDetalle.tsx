@@ -23,13 +23,14 @@
 import Link from "next/link";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
-import { Building2, Clock, Hash, MapPin, ShieldAlert } from "lucide-react";
+import { Building2, Clock, Hash, History, MapPin, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, AyudaTermino, EncabezadoPagina, EnlaceFuente, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, AyudaTermino, Cargando, EncabezadoPagina, EnlaceFuente, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
 import { migasConDesde } from "@/lib/desde";
 import { Indicadores, type Indicador } from "@/components/listado";
@@ -154,6 +155,18 @@ export function ContratoDetalle({
     ...(cruces.length > 0
       ? [{ clave: "antecedentes", etiqueta: "Antecedentes", conteo: conteoAntecedentes(cruces), contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
       : []),
+    // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): el proceso, las visitas del ganador a la entidad, sus
+    // antecedentes en la fecha de cada hecho, sus sanciones y la obra. GET /historia/contrato/:ocid, en su propia lectura.
+    {
+      clave: "historia",
+      etiqueta: "Historia",
+      icono: <History size={15} aria-hidden />,
+      contenido: (
+        <Suspense fallback={<Cargando texto="Armando la historia del contrato…" />}>
+          <HistoriaFicha tipo="contrato" id={c.ocid} nombre="este contrato" />
+        </Suspense>
+      ),
+    },
     ...conProceso(pestanasEvidencia({ c, enRevision, catalogo }), pestanasProceso({ c })),
   ];
 
