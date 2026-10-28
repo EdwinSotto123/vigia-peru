@@ -62,8 +62,11 @@ const GUARDADO = "X-Vigia-Guardado";
  *       gestión en /entidades/:ruc, el conteo de visitas en /conteos y la visita previa con quien decide (migraciones 187-188).
  * "52": las visitas de la plataforma nacional de la PCM (desde 2020, ~500 entidades), los patrones de visitas (193) con su
  *       registro de origen, /historia/contrato, «Seguir» empresas y partidos y los totales de /novedades.
+ * "53": la pestaña Visitas con los agregados rehechos sobre las 10,8 M visitas y el mapeo de entidades de la 197 (el 52 se
+ *       desplegó antes de que terminaran: guardó resúmenes viejos, y en cero el MIMP o Petroperú), la visita antes de la
+ *       primera orden de un locador (195) y antes de entrar a la planilla (196), y el perfil con sus visitas por entidad.
  */
-const VERSION_CACHE = "52";
+const VERSION_CACHE = "53";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
