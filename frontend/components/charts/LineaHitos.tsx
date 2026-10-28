@@ -1,4 +1,4 @@
-import { fechaCorta, plural } from "@/lib/formato";
+import { decimal, fechaCorta, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +17,13 @@ export interface Hito {
 
 const DIA_MS = 86_400_000;
 const dias = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / DIA_MS);
+/** El salto entre dos hitos en la unidad que se lee: días hasta dos meses, meses hasta dos años, años después. */
+function salto(d: number): string {
+  if (d < 60) return plural(d, "día", "días");
+  if (d < 730) return plural(Math.round(d / 30.44), "mes", "meses");
+  const anios = d / 365.25;
+  return anios < 10 && Math.abs(anios - Math.round(anios)) >= 0.25 ? `${decimal(anios, 1)} años` : plural(Math.round(anios), "año", "años");
+}
 
 export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiqueta: string; className?: string }) {
   const validos = hitos.filter((h) => /^\d{4}-\d{2}-\d{2}$/.test(h.fecha));
@@ -33,7 +40,7 @@ export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiq
     <ol aria-label={etiqueta} className={cn("rounded-xl border border-line bg-paperSoft px-3.5 py-3", className)}>
       {orden.map((h, i) => {
         const ultimo = i === orden.length - 1;
-        const salto = i === 0 ? null : dias(orden[i - 1].fecha, h.fecha);
+        const dif = i === 0 ? null : dias(orden[i - 1].fecha, h.fecha);
         return (
           <li key={h.fecha} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-3">
             <span aria-hidden className="relative flex justify-center">
@@ -47,8 +54,8 @@ export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiq
                   {fechaCorta(h.fecha)}
                 </time>
               </div>
-              {salto !== null && salto > 0 && (
-                <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-micro text-mute">{plural(salto, "día", "días")} después</span>
+              {dif !== null && dif > 0 && (
+                <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-micro text-mute">{salto(dif)} después</span>
               )}
             </div>
           </li>

@@ -52,8 +52,9 @@ export const gobiernoTexto = (d: Obj): string | null => {
   return [quien, periodo].filter(Boolean).join(", ") || null;
 };
 /** El día de cada elección (en las generales, la primera vuelta): el hito entre el aporte y el gobierno. */
-const FECHA_ELECCION: Record<string, string> = {
+export const FECHA_ELECCION: Record<string, string> = {
   ERM2014: "2014-10-05", ERM2018: "2018-10-07", ERM2022: "2022-10-02", EG2016: "2016-04-10", EG2021: "2021-04-11", ECE2020: "2020-01-26",
+  EG2026: "2026-04-12",
 };
 /**
  * La secuencia de «financió la campaña»: cada aporte a la campaña, la elección, cuándo asumió el gobierno y el trabajo que
@@ -132,13 +133,15 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
           : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
       return `${quien}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
     }
-    case "nepotismo_gobierno": {
+    case "nepotismo_gobierno":
+    case "familia_estado": {
       const par = lista(d.parientes);
       const ent = natural(par[0]?.entidad);
       const cargo = par.length === 1 ? cargoEnOracion(par[0].cargo, true) : null;
+      const otras = s.tipo === "familia_estado" ? "de otras entidades" : "de otras entidades del mismo gobierno";
       return par.length > 1
-        ? `Pariente de ${numero(par.length)} funcionarios de otras entidades del mismo gobierno`
-        : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : " de otra entidad del mismo gobierno"}`;
+        ? `Pariente de ${numero(par.length)} funcionarios ${otras}`
+        : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : ` ${otras.replace("entidades", "entidad").replace("otras", "otra")}`}`;
     }
     case "al_borde_del_tope": {
       const n = num(d.en_el_borde) ?? lista(d.citadas).length;
@@ -291,8 +294,11 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
         </div>
       );
     }
-    case "nepotismo_gobierno": {
-      // Como el nepotismo, pero el funcionario es de OTRA entidad del mismo gobierno: su entidad enlaza a su ficha.
+    case "nepotismo_gobierno":
+    case "familia_estado": {
+      // Como el nepotismo, pero el funcionario es de OTRA entidad (del mismo gobierno, o de otro en «Familia en el Estado»):
+      // su entidad enlaza a su ficha.
+      const mismoGobierno = s.tipo === "nepotismo_gobierno";
       const parientes: Fila[] = lista(d.parientes).map((p, i) => ({
         id: String(i),
         ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
@@ -311,15 +317,17 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       }));
       return (
         <div className="space-y-3">
-          <DatosClave
-            items={[
-              { etiqueta: "Órdenes de esta entidad", valor: plural(num(d.ordenes) ?? 0, "orden", "órdenes"), mono: true },
-              { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
-              { etiqueta: "Años", valor: [num(d.desde), num(d.hasta)].filter((x) => x != null).filter((x, i, a) => a.indexOf(x) === i).join(" a ") || null, mono: true },
-            ]}
-          />
+          {mismoGobierno && (
+            <DatosClave
+              items={[
+                { etiqueta: "Órdenes de esta entidad", valor: plural(num(d.ordenes) ?? 0, "orden", "órdenes"), mono: true },
+                { etiqueta: "Monto de esas órdenes", valor: soles(num(d.monto) ?? 0), mono: true },
+                { etiqueta: "Años", valor: [num(d.desde), num(d.hasta)].filter((x) => x != null).filter((x, i, a) => a.indexOf(x) === i).join(" a ") || null, mono: true },
+              ]}
+            />
+          )}
           <Lista
-            etiqueta="Funcionarios del mismo gobierno que lo declararon como pariente"
+            etiqueta={mismoGobierno ? "Funcionarios del mismo gobierno que lo declararon como pariente" : "Funcionarios de otras entidades que lo declararon como pariente"}
             columnas={[
               { clave: "quien", titulo: "Lo declaró", ancho: "minmax(0,1fr)" },
               { clave: "parentesco", titulo: "Parentesco declarado", corto: "Parentesco", ancho: "minmax(0,11rem)", desde: "md", apilar: "con-rotulo" },
@@ -327,8 +335,9 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
             filas={parientes}
           />
           <Nota>
-            El funcionario trabaja en otra entidad del mismo gobierno (por ejemplo, el gobierno regional y una de sus UGEL). No se
-            muestra su nombre completo. Es un dato para revisar si medió una recomendación o un favor cruzado, no una prueba de falta.
+            {mismoGobierno
+              ? "El funcionario trabaja en otra entidad del mismo gobierno (por ejemplo, el gobierno regional y una de sus UGEL). No se muestra su nombre completo. Es un dato para revisar si medió una recomendación o un favor cruzado, no una prueba de falta."
+              : "El funcionario trabaja en otra entidad, de otro gobierno: no es nepotismo. No se muestra su nombre completo. Es contexto: ayuda a ver si hay familia en el Estado detrás de una contratación, y no prueba nada por sí solo."}
           </Nota>
           <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
             {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}

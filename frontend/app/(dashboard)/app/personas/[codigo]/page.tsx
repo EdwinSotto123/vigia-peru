@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2, CalendarRange, Flag, ListOrdered, Receipt, Wallet } from "lucide-react";
+import { Suspense } from "react";
+import { Building2, CalendarRange, Flag, ListOrdered, Receipt, Route, Wallet } from "lucide-react";
 import {
   Ayuda,
   BloqueDetalle,
@@ -10,6 +11,7 @@ import {
   CuerpoDetalle,
   DatosClave,
   BanderasFicha,
+  Cargando,
   EncabezadoPagina,
   EstadoVacio,
   SinSenalesEstado,
@@ -24,6 +26,7 @@ import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, Tabla, TablaPagi
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { SenalesBrevesEntidad, SenalesPorEntidad, senalesDeEntidad } from "@/components/personas/SenalesFicha";
 import { PestanaOrdenes, TAM_ORDENES } from "@/components/personas/OrdenesPersona";
+import { PerfilPersonaSeccion } from "@/components/personas/PerfilPersona";
 import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
@@ -64,6 +67,8 @@ const CORTO_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [t, SENAL[t].corto
  * DNI; un apellido tapado). Pestañas (?seccion=):
  *   · Señales: en cada entidad, qué registro público coincide (candidatura, aporte, autoridad, apellidos, meses,
  *     pago), lo grave primero, con su evidencia plegada y su fuente. La entidad elegida va en `?sent=<RUC>`.
+ *   · Recorrido: lo que es en otros registros, unido por su DNI (sus empresas, su política, quién lo declaró como
+ *     pariente, su planilla, sus visitas) y su línea de vida. Se lee aparte (`/personas/:codigo/perfil`), en streaming.
  *   · Lo que cobró: por entidad y año, cuánto por mes frente a la mediana de la entidad y del país para el mismo
  *     tipo de servicio.
  *   · Órdenes: todas, paginadas, por entidad y año.
@@ -97,7 +102,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
           { etiqueta: "Personas contratadas", href: "/app/personas" },
           { etiqueta: nombre, href: ruta },
         ]}
-        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { pagos: "Lo que cobró", ordenes: "Órdenes", entidades: "Entidades" } }}
+        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { recorrido: "Recorrido", pagos: "Lo que cobró", ordenes: "Órdenes", entidades: "Entidades" } }}
       />
       <EncabezadoPagina
         titulo={nombre}
@@ -179,6 +184,35 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
                     entidades, y lo que cobra no se aparta de lo que pagan por lo mismo.
                   </SinSenalesEstado>
                 )}
+              </div>
+            ),
+          },
+          {
+            clave: "recorrido",
+            icono: <Route size={15} aria-hidden />,
+            etiqueta: "Recorrido",
+            titulo: "Su recorrido en otros registros",
+            contenido: (
+              <div>
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde sale su recorrido?">
+                      <span className="block">
+                        De otros registros públicos que traen su número de documento: el de proveedores del OECE (sus empresas),
+                        el JNE (candidaturas y cargos), la ONPE (aportes), las declaraciones juradas de la Contraloría y los
+                        registros de visitas y de planilla de cada entidad.
+                      </span>
+                      <span className="mt-2 block">
+                        Vigía los une por ese documento, que nunca muestra. Coincidir en un registro no es una falta: es contexto.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  Lo que esta persona es fuera de sus órdenes: sus empresas, su política, su familia en el Estado y su planilla.
+                </CabeceraPestana>
+                <Suspense fallback={<Cargando texto="Leyendo su recorrido…" />}>
+                  <PerfilPersonaSeccion codigo={params.codigo} />
+                </Suspense>
               </div>
             ),
           },

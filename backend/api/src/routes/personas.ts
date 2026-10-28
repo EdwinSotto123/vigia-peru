@@ -33,7 +33,7 @@ const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:f
 
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
-  "nepotismo_gobierno", "al_borde_del_tope",
+  "nepotismo_gobierno", "al_borde_del_tope", "familia_estado",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
@@ -437,8 +437,9 @@ personasRouter.get("/:codigo", async (c) => {
     }
     // Nepotismo en el mismo gobierno (migración 179): el funcionario es de OTRA entidad; su ficha de planilla, de ésa.
     const declOtras = new Map<string, string>();
+    // Y «Familia en el Estado» (migración 180): el funcionario es de otra entidad, fuera de su gobierno.
     const paresOtras = senales.rows
-      .filter((s) => s.tipo === "nepotismo_gobierno")
+      .filter((s) => s.tipo === "nepotismo_gobierno" || s.tipo === "familia_estado")
       .flatMap((s) => {
         const par = (s.detalle as Record<string, unknown>)?.parientes;
         return Array.isArray(par) ? (par as Record<string, unknown>[]).map((pr) => [String(pr.entidad_ruc ?? ""), String(pr.declarante ?? "")] as const) : [];
@@ -474,7 +475,7 @@ personasRouter.get("/:codigo", async (c) => {
                 ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [],
               };
             })()
-          : s.tipo === "nepotismo_gobierno"
+          : s.tipo === "nepotismo_gobierno" || s.tipo === "familia_estado"
             ? (() => {
                 // Como en el nepotismo: nunca el nombre completo del funcionario; su primer apellido y su ficha sólo si el
                 // parentesco no puede destapar el apellido tapado de esta persona.
@@ -538,6 +539,91 @@ export function taparNombrePropio(texto: string | null, nombre: string | null): 
     .replace(sunat, [p[0], TAPA_NOMBRE, ...p.slice(2)].join(" "))
     .replace(hablado, [...p.slice(2), p[0], TAPA_NOMBRE].join(" "));
 }
+
+// ─── GET /personas/:codigo/perfil ───────────────────────────────────────────────────────────────
+/**
+ * Lo que la persona es en otros registros públicos, unido por su DNI (que nunca sale de la base): las empresas de las que
+ * es socia, representante o directiva (RNP), sus candidaturas y cargos de elección (JNE), sus aportes a partidos (ONPE),
+ * sus visitas a entidades, los funcionarios que la declararon como pariente (DJI) y su paso por la planilla (su ficha de
+ * planilla, enlazada al refrescar). Cada bloque con su fecha, para la línea de vida que arma la web. Plan 2026-10-27, 1A.
+ * Privacidad: del funcionario que la declaró, su entidad, su cargo y su primer apellido (sólo si el parentesco no destapa el
+ * apellido tapado de esta persona); de las visitas, el cargo y la oficina visitados (no el nombre de quien la recibió);
+ * de las empresas, sólo las de RUC 20.
+ */
+personasRouter.get("/:codigo/perfil", async (c) => {
+  const codigo = c.req.param("codigo");
+  if (!CODIGO.test(codigo)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await fichaMemo.obtener(`perfil:${codigo}`, async () => {
+    const p = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [codigo]);
+    const ruc = p.rows[0]?.ruc;
+    if (!ruc || !/^10[0-9]{9}$/.test(ruc)) return null;
+    const dni = ruc.slice(2, 10);
+    const [empresas, candidaturas, autoridades, aportes, visitas, familia, planilla, entidades] = await Promise.all([
+      pool.query(
+        `SELECT r.ruc_empresa::text AS ruc, er.nombre, string_agg(DISTINCT r.tipo_rol, ', ' ORDER BY r.tipo_rol) AS rol,
+                to_char(min(r.fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde,
+                (COALESCE(er.adj_monto, 0) + COALESCE(er.ord_monto, 0))::float AS vendido, er.entidades,
+                er.inhabilitada, er.estado_sunat AS "estadoSunat", er.n_alta AS "nAlta"
+           FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen er ON er.ruc = r.ruc_empresa::text
+          WHERE r.numero_documento = $1 AND r.tipo_documento LIKE 'DOC. NACIONAL%' AND r.ruc_empresa::text ~ '^20[0-9]{9}$'
+          GROUP BY r.ruc_empresa, er.nombre, er.adj_monto, er.ord_monto, er.entidades, er.inhabilitada, er.estado_sunat, er.n_alta
+          ORDER BY vendido DESC NULLS LAST, desde LIMIT 60`, [dni]),
+      pool.query(
+        `SELECT "año" AS anio, partido, cargo, resultado, region, provincia, distrito
+           FROM jne_candidaturas WHERE numero_documento = $1 ORDER BY "año" DESC, cargo LIMIT 40`, [dni]),
+      pool.query(
+        `SELECT cargo, organizacion_politica AS partido, to_char(periodo_inicio, 'YYYY-MM-DD') AS desde,
+                to_char(periodo_fin, 'YYYY-MM-DD') AS hasta, vigente, departamento, provincia, distrito
+           FROM jne_autoridades WHERE dni = $1 ORDER BY periodo_inicio DESC NULLS LAST LIMIT 20`, [dni]),
+      pool.query(
+        `SELECT partido, "año" AS anio, to_char(fecha_aporte, 'YYYY-MM-DD') AS fecha, monto::float AS monto, tipo_aporte AS tipo,
+                nivel, proceso
+           FROM onpe_aportantes WHERE numero_documento = $1 ORDER BY fecha_aporte DESC NULLS LAST, "año" DESC LIMIT 100`, [dni]),
+      pool.query(
+        `SELECT count(*) OVER ()::int AS total, to_char(fecha_visita, 'YYYY-MM-DD') AS fecha, entidad_visitada AS entidad,
+                funcionario_cargo AS cargo, funcionario_area AS area, left(motivo, 160) AS motivo
+           FROM visitas_entidades WHERE numero_documento = $1 ORDER BY fecha_visita DESC NULLS LAST LIMIT 100`, [dni]),
+      pool.query<{ entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; declarante: string | null; cargo: string | null; ficha: string | null }>(
+        `SELECT v.entidad_ruc AS "entidadRuc", COALESCE(e.nombre, v.entidad_ruc) AS entidad, v.parentesco, v.grado,
+                v.declarante_norm AS declarante,
+                (SELECT fc.cargo FROM dji_funcionarios fc WHERE fc.codigo_ddjj = v.codigo_ddjj AND fc.cargo IS NOT NULL
+                  ORDER BY fc.fecha_inicio_cargo DESC NULLS LAST LIMIT 1) AS cargo,
+                pp.ficha
+           FROM (SELECT DISTINCT ON (entidad_ruc, declarante_norm) entidad_ruc, declarante_norm, parentesco, grado, codigo_ddjj
+                   FROM dji_vinculos WHERE pariente_doc = $1 AND declarante_norm IS NOT NULL
+                  ORDER BY entidad_ruc, declarante_norm, codigo_ddjj) v
+           LEFT JOIN entidades e ON e.ruc::text = v.entidad_ruc
+           LEFT JOIN planilla_persona pp ON pp.entidad_ruc = v.entidad_ruc AND pp.nombre_norm = v.declarante_norm
+          LIMIT 40`, [dni]),
+      pool.query(
+        `SELECT entidad_ruc AS "entidadRuc", entidad, ficha, cargo, regimen, dependencia, to_char(primer_mes, 'YYYY-MM') AS desde,
+                to_char(ultimo_mes, 'YYYY-MM') AS hasta, base::float AS base, n_senales AS "nSenales"
+           FROM planilla_persona WHERE codigo = $1 ORDER BY ultimo_mes DESC NULLS LAST LIMIT 20`, [codigo]),
+      pool.query(
+        `SELECT entidad_ruc AS "entidadRuc", entidad, to_char(primera, 'YYYY-MM-DD') AS primera, to_char(ultima, 'YYYY-MM-DD') AS ultima,
+                ordenes, monto::float AS monto
+           FROM persona_entidad WHERE ruc = $1 ORDER BY monto DESC NULLS LAST LIMIT 40`, [ruc]),
+    ]);
+    const totalVisitas = (visitas.rows[0]?.total as number | undefined) ?? 0;
+    return publicar({
+      empresas: empresas.rows,
+      candidaturas: candidaturas.rows,
+      autoridades: autoridades.rows,
+      aportes: aportes.rows,
+      visitas: { total: totalVisitas, ultimas: visitas.rows.map(({ total: _t, ...v }) => v) },
+      // Sin el nombre del funcionario (apellidoFuncionario): su primer apellido y su ficha, si el parentesco lo permite.
+      familia: familia.rows.map(({ declarante, ficha, ...f }) => {
+        const funcionarioApellido = apellidoFuncionario(f.parentesco, declarante);
+        return { ...f, funcionarioApellido, ficha: funcionarioApellido ? ficha : null };
+      }),
+      planilla: planilla.rows,
+      entidades: entidades.rows,
+    });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
 
 // ─── GET /personas/:codigo/ordenes ──────────────────────────────────────────────────────────────
 const Ordenes = z.object({

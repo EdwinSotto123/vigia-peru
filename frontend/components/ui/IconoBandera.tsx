@@ -32,7 +32,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   // SUNAT
   dada_de_baja: FileX, suspendida: CirclePause, no_habida: MapPinOff,
   // Personas y planilla
-  nepotismo: HeartHandshake, nepotismo_gobierno: HeartHandshake, pariente_locador: HeartHandshake,
+  nepotismo: HeartHandshake, nepotismo_gobierno: HeartHandshake, familia_estado: HeartHandshake, pariente_locador: HeartHandshake,
   meses_seguidos: CalendarRange, pago_alto: TrendingUp, brecha_cargo: TrendingUp,
   tambien_planilla: Split, tambien_ordenes: Split, doble_planilla: Copy,
   paso_a_planilla: IdCard, antes_locador: IdCard, planilla: IdCard,

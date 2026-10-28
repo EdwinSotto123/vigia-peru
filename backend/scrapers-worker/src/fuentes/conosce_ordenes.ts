@@ -258,6 +258,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   // Doble planilla, socio de un proveedor, pariente locador, nepotismo en el mismo gobierno y órdenes al borde del tope
   // (migración 179).
   resumen.senales_extra = await siExiste("refrescar_senales_extra", "refrescar_senales_extra()", "SELECT refrescar_senales_extra() AS n");
+  // Familia en el Estado: un funcionario de otra entidad lo declaró como pariente (migración 180).
+  resumen.familia_estado = await siExiste("refrescar_familia_estado", "refrescar_familia_estado()", "SELECT refrescar_familia_estado() AS n");
   // Y cuántos de ellos trabajan en cada entidad, para su bandera (migración 178).
   await siExiste("refrescar_entidad_senal_politica", "refrescar_entidad_senal_politica()", "SELECT refrescar_entidad_senal_politica() AS n");
   resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");

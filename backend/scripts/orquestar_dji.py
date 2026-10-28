@@ -15,7 +15,7 @@ Por ronda:
   3. Baja los artefactos (`bajar_artefactos_dji.py`) y los procesa (`procesar_dji.py --r2`: vínculos, ledger, R2) EN
      PARALELO con la descarga de la ronda siguiente: procesar 6,500 PDFs tardaba más que bajarlos y el CI esperaba.
      Lo bajado y aún sin procesar sigue «pendiente» en el ledger: se saca de la ronda siguiente por sus logs.
-  4. Al terminar cada procesamiento, refresca la señal de nepotismo (`refrescar_nepotismo_senal()`).
+  4. Al terminar cada procesamiento, refresca las señales de la DJI (`PASOS_SENAL`: nepotismo, mismo gobierno, familia).
 Para cuando no quedan pendientes, se acaban las rondas, o una ronda no deja PDFs (el portal o el CI fallan: hay que mirar).
 
   python backend/scripts/orquestar_dji.py [--rondas 8] [--desde-ronda 1] [--procesar-primero <carpeta>]
@@ -208,14 +208,27 @@ class Procesando:
         self.p, self.carpeta, self.claves = None, None, set()
 
 
+# Las señales que salen de los vínculos de la DJI, en orden: nepotismo en la entidad (137), en el mismo gobierno (179) y la
+# familia en otras entidades (180); luego el resumen de personas que las cuenta. Las que aún no existen se saltan.
+PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_personas_resumen")
+
+
 def refrescar_senal() -> int:
+    """Corre PASOS_SENAL y devuelve las señales de nepotismo (lo que el log siempre mostró)."""
+    n = 0
     with conexion("prod") as c:
         cur = c.cursor()
         cur.execute("SET statement_timeout = 0")
-        cur.execute("SELECT refrescar_nepotismo_senal()")
-        n = cur.fetchone()[0]
-        c.commit()
-        return n
+        for paso in PASOS_SENAL:
+            cur.execute("SELECT to_regprocedure(%s) IS NOT NULL", (f"{paso}()",))
+            if not cur.fetchone()[0]:
+                continue
+            cur.execute(f"SELECT {paso}()")
+            r = cur.fetchone()[0]
+            if paso == "refrescar_nepotismo_senal":
+                n = r
+            c.commit()
+    return n
 
 
 def main() -> None:

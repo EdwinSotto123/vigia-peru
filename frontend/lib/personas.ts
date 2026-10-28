@@ -196,7 +196,7 @@ export interface OrdenesPersona {
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "nepotismo_gobierno",
   "apellidos_autoridad", "apellidos_funcionario", "funcionario_contratado", "meses_seguidos", "pago_alto", "al_borde_del_tope", "candidato", "aporte",
-  "visita_previa", "tambien_planilla", "paso_a_planilla",
+  "visita_previa", "tambien_planilla", "paso_a_planilla", "familia_estado",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
 
@@ -212,7 +212,8 @@ export const GRUPOS_SENAL = ["Política", "Familia y funcionarios", "Cómo se le
 export const GRUPO_SENAL: Record<TipoSenal, (typeof GRUPOS_SENAL)[number]> = {
   financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", autoridad_contratada: "Política",
   candidato: "Política", aporte: "Política",
-  nepotismo: "Familia y funcionarios", nepotismo_gobierno: "Familia y funcionarios", apellidos_autoridad: "Familia y funcionarios",
+  nepotismo: "Familia y funcionarios", nepotismo_gobierno: "Familia y funcionarios", familia_estado: "Familia y funcionarios",
+  apellidos_autoridad: "Familia y funcionarios",
   apellidos_funcionario: "Familia y funcionarios", funcionario_contratado: "Familia y funcionarios",
   meses_seguidos: "Cómo se le paga", pago_alto: "Cómo se le paga", al_borde_del_tope: "Cómo se le paga", tambien_planilla: "Cómo se le paga",
   paso_a_planilla: "Cómo se le paga",
@@ -232,6 +233,12 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     titulo: "Aportó a la campaña del que gobierna y después recibió sus órdenes",
     explica:
       "Aportó dinero (ONPE) a la campaña de la organización política en la misma elección que la llevó a gobernar esta entidad (o, en un ministerio, al partido del Presidente), y después ese gobierno le dio órdenes de servicio. Aportar es legal: lo que se señala es que quien financió la campaña luego cobra de ese gobierno. Es un dato para revisar, no una prueba de favor.",
+  },
+  familia_estado: {
+    corto: "Familia en el Estado",
+    titulo: "Un funcionario de otra entidad lo declaró como su pariente",
+    explica:
+      "Un funcionario de otra entidad, de otro gobierno, lo declaró como pariente en su Declaración Jurada de Intereses. No es nepotismo (no trabajan en la misma entidad ni en el mismo gobierno): es un dato de contexto, para ver si hay familia en el Estado detrás de una contratación. No prueba nada por sí solo.",
   },
   nepotismo_gobierno: {
     corto: "Pariente en el mismo gobierno",
@@ -587,6 +594,27 @@ export function getPersonas(f: FiltrosPersonas): Promise<PaginaPersonas | null> 
 
 export const getFichaPersona = (codigo: string) =>
   /^[0-9a-f]{12}$/.test(codigo) ? leer<FichaPersona>(`/personas/${codigo}`) : Promise.resolve(null);
+
+/**
+ * Lo que la persona es en otros registros públicos, unido por su DNI (que nunca sale de la API): GET /personas/:codigo/perfil.
+ * Las empresas son las de RUC 20; del funcionario que la declaró como pariente, su entidad, su cargo y su primer apellido.
+ */
+export interface PerfilPersona {
+  empresas: {
+    ruc: string; nombre: string | null; rol: string | null; desde: string | null; vendido: number; entidades: number | null;
+    inhabilitada: boolean | null; estadoSunat: string | null; nAlta: number | null;
+  }[];
+  candidaturas: { anio: number | null; partido: string | null; cargo: string | null; resultado: string | null; region: string | null; provincia: string | null; distrito: string | null }[];
+  autoridades: { cargo: string | null; partido: string | null; desde: string | null; hasta: string | null; vigente: boolean | null; departamento: string | null; provincia: string | null; distrito: string | null }[];
+  aportes: { partido: string | null; anio: number | null; fecha: string | null; monto: number | null; tipo: string | null; nivel: string | null; proceso: string | null }[];
+  visitas: { total: number; ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null }[] };
+  familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; cargo: string | null; funcionarioApellido: string | null; ficha: string | null }[];
+  planilla: { entidadRuc: string; entidad: string | null; ficha: string | null; cargo: string | null; regimen: number | null; dependencia: string | null; desde: string | null; hasta: string | null; base: number | null; nSenales: number | null }[];
+  entidades: { entidadRuc: string; entidad: string | null; primera: string | null; ultima: string | null; ordenes: number; monto: number }[];
+}
+
+export const getPerfilPersona = (codigo: string) =>
+  /^[0-9a-f]{12}$/.test(codigo) ? leer<PerfilPersona>(`/personas/${codigo}/perfil`) : Promise.resolve(null);
 
 export function getOrdenesPersona(codigo: string, f: { entidad?: string; anio?: number; q?: string; page?: number; size?: number }) {
   if (!/^[0-9a-f]{12}$/.test(codigo)) return Promise.resolve(null);
