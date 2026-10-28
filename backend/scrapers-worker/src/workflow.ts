@@ -25,6 +25,7 @@ import { correrDji } from "./fuentes/pnda_dji.ts";
 import { correrPndaOece } from "./fuentes/pnda_oece.ts";
 import { correrSancionados } from "./fuentes/pnda_sancionados.ts";
 import { correrVisitas } from "./fuentes/pnda_visitas.ts";
+import { correrCongresoVisitas } from "./fuentes/congreso_visitas.ts";
 import { correrSeaceMenores } from "./fuentes/seace_menores.ts";
 import { conDb } from "./db.ts";
 import { registrar } from "./registro.ts";
@@ -37,6 +38,7 @@ export const FUENTES: Record<string, Corredor> = {
   documentos: correrDocumentos,
   pnda_sancionados: correrSancionados,
   pnda_visitas: correrVisitas,
+  congreso_visitas: correrCongresoVisitas,
   pnda_dji: correrDji,
   jne_infogob: correrJne,
   pnda_oece: correrPndaOece,

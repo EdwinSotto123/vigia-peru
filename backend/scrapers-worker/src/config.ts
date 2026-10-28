@@ -9,7 +9,7 @@ export interface ParamsCorrida {
   seco?: boolean;
   /** Recarga aunque el sha256 ya esté cargado (`--force`). */
   forzar?: boolean;
-  /** oece_ocds: `--since`/`--until` (AAAA-MM-DD). pnda_visitas: `--desde`/`--hasta` (AAAA-MM). */
+  /** oece_ocds: `--since`/`--until` (AAAA-MM-DD). pnda_visitas: `--desde`/`--hasta` (AAAA-MM); congreso_visitas, AAAA-MM-DD. */
   desde?: string;
   hasta?: string;
   /** Quién la pidió: `cron <expresión>` o `manual`. */

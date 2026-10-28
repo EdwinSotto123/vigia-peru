@@ -25,6 +25,9 @@
  *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
  *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
  *
+ *   congreso_visitas   jueves 08:00: las visitas al Congreso de los últimos 14 días (su registro propio, sin captcha;
+ *                      el relleno desde 2020 lo hizo backend/scripts/cargar_visitas_congreso.py).
+ *
  *   pte_personal       día 20, 08:00: la planilla de los dos meses anteriores (Portal de Transparencia Estándar; las
  *                      entidades la publican con atraso). Migración 92.
  *
@@ -54,6 +57,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
+  if (lima.getUTCDay() === 4) out.push("congreso_visitas");
   if (lima.getUTCDay() === 6) out.push("conosce");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
