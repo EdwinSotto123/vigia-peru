@@ -112,6 +112,13 @@ export interface ApiEntidad {
     nepotismoGobierno?: number;
     doblePlanilla?: number;
     socioProveedor?: number;
+    /** Sólo en la ficha (migraciones 181-184): locadores socios de una empresa que le vende, en su planilla el pariente
+     *  de un funcionario y el ascenso exprés, plazas CAS de la gestión saliente y contratos de una empresa espejo. */
+    socioLocador?: number;
+    parientePlanilla?: number;
+    ascensoExpres?: number;
+    plazasSaliente?: number;
+    empresaEspejo?: number;
   };
 }
 

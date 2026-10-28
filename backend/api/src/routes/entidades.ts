@@ -977,11 +977,21 @@ entidadesRouter.get("/:ruc", async (c) => {
     // Las señales de su gente que no están en la lista (migración 179), para sus banderas: locadores con órdenes al borde
     // del tope o con un pariente en otra entidad del mismo gobierno; en su planilla, quienes cobran también en otra
     // entidad y los socios de una empresa que le vende. Por la llave de la entidad; sin ellas, la ficha sale igual.
-    pool.query<{ alBorde: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number }>(
+    // Y las del plan del 2026-10-27 (migraciones 181-184): locadores socios de una empresa que le vende (por DNI), en su
+    // planilla el pariente de un funcionario y el ascenso exprés, sus plazas CAS de la gestión saliente y los contratos
+    // que ganó una empresa espejo de una inhabilitada.
+    pool.query<{ alBorde: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
+                 parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number }>(
       `SELECT (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'al_borde_del_tope' = ANY(pe.tipos))::int AS "alBorde",
               (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'nepotismo_gobierno' = ANY(pe.tipos))::int AS "nepotismoGobierno",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'doble_planilla' = ANY(p.tipos))::int AS "doblePlanilla",
-              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor"`,
+              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor",
+              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'socio_proveedor' = ANY(pe.tipos))::int AS "socioLocador",
+              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'pariente_planilla' = ANY(p.tipos))::int AS "parientePlanilla",
+              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'ascenso_expres' = ANY(p.tipos))::int AS "ascensoExpres",
+              (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = $1 AND 'gestion_saliente' = ANY(s.tipos))::int AS "plazasSaliente",
+              (SELECT count(*) FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+                WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1)::int AS "empresaEspejo"`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] señales de su gente en ${ruc}: ${(e as Error).message}`); return null; }),
   ]);
@@ -1033,7 +1043,11 @@ entidadesRouter.get("/:ruc", async (c) => {
           captura: b.captura ?? 0, capturaPartido: b.capturaPartido ?? null, capturaDesde: b.capturaDesde ?? null, capturaHasta: b.capturaHasta ?? null,
           planillaAlta: b.planillaAlta ?? 0, plazasSenales: b.plazasSenales ?? 0,
           financioLocadores: b.financioLocadores ?? 0, financioPlanilla: b.financioPlanilla ?? 0, financioPartido: b.financioPartido ?? null,
-          ...(g ? { alBorde: g.alBorde, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor } : {}),
+          ...(g ? {
+            alBorde: g.alBorde, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
+            socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
+            empresaEspejo: g.empresaEspejo,
+          } : {}),
         }
       : null,
   });

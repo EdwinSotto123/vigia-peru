@@ -106,6 +106,52 @@ export function banderasEntidad(
       href: `${ficha}?seccion=personas&psenal=nepotismo_gobierno`,
     });
   }
+  // Las del plan del 2026-10-27 (migraciones 181-184).
+  if ((s.parientePlanilla ?? 0) > 0) {
+    const n = s.parientePlanilla!;
+    out.push({
+      tipo: "pariente_planilla", severidad: "alta", chip: "Parientes en su planilla", n,
+      titulo: `${plural(n, "persona de su planilla fue declarada", "personas de su planilla fueron declaradas")} como pariente por un funcionario de la entidad`,
+      explica: "Un funcionario de la misma entidad las declaró como parientes en su Declaración Jurada de Intereses (Contraloría), y figuran en su planilla. La Ley 26771 prohíbe a quien puede nombrar o contratar hacerlo con sus parientes. Coincide por el nombre completo: es un indicio para revisar.",
+      href: `${ficha}?seccion=planilla&lsenal=pariente_planilla`,
+    });
+  }
+  if ((s.empresaEspejo ?? 0) > 0) {
+    const n = s.empresaEspejo!;
+    out.push({
+      tipo: "empresa_espejo", severidad: "alta", chip: "Empresas espejo", n,
+      titulo: `${plural(n, "contrato lo ganó", "contratos los ganaron")} una empresa mientras su empresa hermana estaba inhabilitada`,
+      explica: "Empresas que comparten un socio, representante o directivo (RNP) con otra que el Tribunal de Contrataciones tenía inhabilitada al momento de la buena pro: puede ser la forma de seguir contratando con otra razón social.",
+      href: `${ficha}?seccion=contratos&cruce=empresa_espejo`,
+    });
+  }
+  if ((s.socioLocador ?? 0) > 0) {
+    const n = s.socioLocador!;
+    out.push({
+      tipo: "socio_proveedor", severidad: "media", chip: "Locadores socios de proveedores", n,
+      titulo: `${plural(n, "locador es socio", "locadores son socios")} o ${n === 1 ? "representante" : "representantes"} de una empresa que también le vende`,
+      explica: "Por su documento, en el Registro Nacional de Proveedores: además de sus órdenes como persona, son parte de una empresa que le vendió a la entidad. Puede ser legal: vale revisar si intervinieron en esas compras.",
+      href: `${ficha}?seccion=personas&psenal=socio_proveedor`,
+    });
+  }
+  if ((s.plazasSaliente ?? 0) > 0) {
+    const n = s.plazasSaliente!;
+    out.push({
+      tipo: "gestion_saliente", severidad: "media", chip: "Plazas de la gestión saliente", n,
+      titulo: `${plural(n, "plaza CAS convocada", "plazas CAS convocadas")} después de las elecciones y antes de entregar el cargo`,
+      explica: "La gestión que se va convocó estas plazas después de las elecciones regionales y municipales: quien entre seguirá con la gestión nueva. Es un dato para revisar, más si piden experiencia en la propia entidad.",
+      href: `${ficha}?seccion=plazas&zsenal=gestion_saliente`,
+    });
+  }
+  if ((s.ascensoExpres ?? 0) > 0) {
+    const n = s.ascensoExpres!;
+    out.push({
+      tipo: "ascenso_expres", severidad: "baja", chip: "Ascensos exprés", n,
+      titulo: `${plural(n, "persona pasó", "personas pasaron")} a una jefatura con un sueldo mucho mayor en pocos meses`,
+      explica: "En su planilla: de un cargo que no es de jefatura a uno de jefatura en 12 meses o menos, con un sueldo base 1,5 veces mayor o más, sostenido.",
+      href: `${ficha}?seccion=planilla&lsenal=ascenso_expres`,
+    });
+  }
   if (inf.penal > 0) {
     out.push({
       tipo: "penal", severidad: "media", chip: "Resp. penal presunta", n: inf.penal,
