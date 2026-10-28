@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Users } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -216,6 +216,13 @@ const SECTIONS: Section[] = [
         icon: <HelpCircle size={16} />,
         hint: "Las dudas más comunes",
         match: (p) => p === "/preguntas" || p.startsWith("/preguntas/"),
+      },
+      {
+        href: "/glosario",
+        label: "Glosario",
+        icon: <BookOpen size={16} />,
+        hint: "Cada término, en simple",
+        match: (p) => p === "/glosario",
       },
     ],
   },

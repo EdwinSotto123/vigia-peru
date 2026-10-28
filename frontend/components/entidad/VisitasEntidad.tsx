@@ -1,7 +1,7 @@
 import { CloudOff, DoorOpen } from "lucide-react";
 import Link from "next/link";
 import { CeldaNumero, CeldaPrincipal, Indicadores, TablaFiltrable, type Columna, type FilaFiltrable, type Indicador } from "@/components/listado";
-import { Ayuda, EnlaceFuente, FuenteDato, Nota } from "@/components/patrones";
+import { Ayuda, AyudaTermino, EnlaceFuente, FuenteDato, Nota } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { fecha, fechaCorta, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -38,6 +38,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
       valor: numero(d.total),
       etiqueta: d.total === 1 ? "visita registrada" : "visitas registradas",
       contexto: d.desde && d.hasta ? `del ${fechaCorta(d.desde)} al ${fechaCorta(d.hasta)}` : undefined,
+      ayuda: <AyudaTermino clave="registro-visitas" />,
     },
     {
       valor: numero(r.privadas),
@@ -48,17 +49,21 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
       valor: numero(r.decisores),
       etiqueta: "a quien decide las compras",
       contexto: "titular, gerencia, administración, logística o un comité",
-      ayuda: (
-        <Ayuda titulo="¿Quién decide una compra?">
-          Por el cargo o el área de quien recibió la visita en el registro: la titular, la gerencia general o municipal, la
-          administración, logística, abastecimiento, contrataciones o un comité de selección. Una reunión con ellos no es ilegal;
-          antes de una buena pro, merece revisión.
-        </Ayuda>
-      ),
+      ayuda: <AyudaTermino clave="visita-decisor" />,
     },
     r.parientes > 0
-      ? { valor: numero(r.parientes), etiqueta: r.parientes === 1 ? "visita de un familiar de un funcionario" : "visitas de familiares de funcionarios", contexto: "declarados en su DJI; no se dice quiénes" }
-      : { valor: numero(r.fueraDeHora), etiqueta: "fuera del horario de oficina", contexto: "antes de las 7, desde las 19 o en fin de semana" },
+      ? {
+          valor: numero(r.parientes),
+          etiqueta: r.parientes === 1 ? "visita de un familiar de un funcionario" : "visitas de familiares de funcionarios",
+          contexto: "declarados en su DJI; no se dice quiénes",
+          ayuda: <AyudaTermino clave="dji" />,
+        }
+      : {
+          valor: numero(r.fueraDeHora),
+          etiqueta: "fuera del horario de oficina",
+          contexto: "antes de las 7, desde las 19 o en fin de semana",
+          ayuda: <AyudaTermino clave="visita-fuera-horario" />,
+        },
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { Seccion, Nota, EnlaceFuente, FuenteDato, EstadoError } from "@/components/patrones";
+import { AyudaTermino, Seccion, Nota, EnlaceFuente, FuenteDato, EstadoError } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { Dato } from "@/components/ui/Dato";
@@ -328,6 +328,7 @@ function Visitas({ p }: { p: PerfilPersona }) {
     <Seccion
       titulo="Visitas a entidades"
       descripcion={`${plural(p.visitas.total, "visita registrada", "visitas registradas")}${mostradas < p.visitas.total ? `; las ${numero(mostradas)} más recientes` : ""}.`}
+      ayuda={<AyudaTermino clave="registro-visitas" />}
     >
       <Lista
         etiqueta="Visitas a entidades del Estado"
