@@ -47,7 +47,7 @@ export function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }
                 Aquí van los {numero(e.filas.length)} más recientes; la fuente tiene los {numero(e.total)}.
               </p>
             )}
-            <TablaEvidencia columnas={e.columnas} filas={e.filas} />
+            <TablaEvidencia columnas={e.columnas} filas={e.filas} titulo={e.titulo} fuente={e.enlace} />
             {(e.verificar || e.enlace) && (
               <p className="text-rotulo leading-relaxed text-mute">
                 {e.verificar}{" "}

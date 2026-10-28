@@ -10,6 +10,7 @@ import { DATASET_SANCIONADOS } from "../lib/fuentes.js";
  * días (la buena pro de esa fecha), las sanciones nuevas del Tribunal de Contrataciones y los informes nuevos de la
  * Contraloría. Cada uno con su enlace a la ficha y a la fuente. De las sanciones, sólo empresas (una persona natural
  * sancionada no se nombra aquí); de los contratos, el nombre del ganador sólo si es una empresa (RUC 20).
+ * Las listas llegan con tope (150); `totales` dice cuántos hay de verdad (el Inicio muestra esos números).
  */
 export const novedadesRouter = new Hono();
 
@@ -28,7 +29,7 @@ novedadesRouter.get("/", async (c) => {
       .query<{ f: string | null }>(`SELECT to_char(max(fecha_buena_pro), 'YYYY-MM-DD') AS f FROM casos_cruce WHERE fecha_buena_pro <= current_date AND severidad = 'alta'`)
       .then((r) => r.rows[0]?.f ?? null)
       .catch(() => null);
-    const [contratos, sanciones, informes] = await Promise.all([
+    const [contratos, sanciones, informes, totales] = await Promise.all([
       pool.query(
         `SELECT k.ocid, k.ruc, k.proveedor, k.entidad, k.entidad_ruc AS "entidadRuc", k.tipo_contratacion AS tipo, left(k.objeto, 200) AS objeto,
                 to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, k.monto::float AS monto, k.tipos, k.n_alta AS "nAlta"
@@ -49,6 +50,17 @@ novedadesRouter.get("/", async (c) => {
            FROM informes_control i
           WHERE i.fecha_emision >= current_date - 30 AND i.fecha_emision <= current_date
           ORDER BY i.fecha_emision DESC LIMIT 150`).catch(() => ({ rows: [] })),
+      // Sin el tope de las listas (con el índice de la fecha de la 191, no recorre la tabla).
+      pool.query<{ contratos: number; sanciones: number; informes: number }>(
+        `SELECT (SELECT count(*) FROM casos_cruce k
+                  WHERE k.fecha_buena_pro > COALESCE($2::date, current_date) - $1::int AND k.fecha_buena_pro <= COALESCE($2::date, current_date)
+                    AND k.severidad = 'alta')::int AS contratos,
+                (SELECT count(*) FROM osce_sancionados s
+                  WHERE s.fecha_resolucion >= current_date - 30 AND s.fecha_resolucion <= current_date
+                    AND NOT COALESCE(s.es_persona_natural, false) AND s.ruc ~ '^20\\d{9}$')::int AS sanciones,
+                (SELECT count(*) FROM informes_control i
+                  WHERE i.fecha_emision >= current_date - 30 AND i.fecha_emision <= current_date)::int AS informes`, [dias, ult])
+        .then((r) => r.rows[0] ?? null).catch(() => null),
     ]);
     return {
       dias,
@@ -57,6 +69,7 @@ novedadesRouter.get("/", async (c) => {
       contratos: contratos.rows.map((r) => ({ ...r, ruc: /^20\d{9}$/.test(r.ruc) ? r.ruc : null, proveedor: /^20\d{9}$/.test(r.ruc) ? r.proveedor : null })),
       sanciones: sanciones.rows,
       informes: informes.rows,
+      totales: totales ?? { contratos: contratos.rows.length, sanciones: sanciones.rows.length, informes: informes.rows.length },
       fuentes: { sanciones: DATASET_SANCIONADOS },
     };
   });

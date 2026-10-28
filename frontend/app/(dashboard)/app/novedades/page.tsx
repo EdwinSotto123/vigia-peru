@@ -26,6 +26,8 @@ interface Novedades {
   contratos: { ocid: string; ruc: string | null; proveedor: string | null; entidad: string | null; entidadRuc: string | null; tipo: string | null; objeto: string | null; fecha: string; monto: number | null; tipos: string[] | null; nAlta: number }[];
   sanciones: { id: number; ruc: string; nombre: string | null; tipo: string | null; resolucion: string | null; fecha: string; desde: string | null; hasta: string | null; multa: number | null }[];
   informes: { codigo: string; numero: string | null; titulo: string | null; entidad: string | null; entidadRuc: string | null; responsabilidades: string[] | null; fecha: string; url: string | null }[];
+  /** Cuántos hay de verdad (las listas llegan con tope de 150). Opcional: una API anterior no lo trae. */
+  totales?: { contratos: number; sanciones: number; informes: number };
   fuentes: { sanciones: string };
 }
 
@@ -108,6 +110,9 @@ function Contratos({ d }: { d: Novedades }) {
         <p className="text-meta text-inkSoft">
           Las buenas pro llegan del OECE una vez por semana y sus cruces se calculan después: van las de los {d.dias} días hasta el
           {" "}{fechaCorta(d.contratosHasta)}, el último con antecedentes graves calculados.
+          {d.totales && d.totales.contratos > d.contratos.length && (
+            <> Son {numero(d.totales.contratos)}: aquí van los {numero(d.contratos.length)} con más antecedentes graves y de mayor monto.</>
+          )}
         </p>
       )}
       {filas.length === 0 ? (

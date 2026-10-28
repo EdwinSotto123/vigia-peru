@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, SearchX } from "lucide-react";
+import { ArrowUpRight, Download, SearchX } from "lucide-react";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import type { EvidenciaCruce } from "@/lib/contratos";
 import { coincide, fechaCorta, numero, oracion, paraBuscar, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { descargarCsv, nombreArchivo } from "@/lib/csv";
 
 /**
  * Los registros de la fuente bajo un antecedente del ganador (lib/evidencia.ts de la API): en escritorio una tabla, en
@@ -17,12 +18,25 @@ import { tituloNatural } from "@/lib/landing";
  * vez (hasta 60) o "los 60 más recientes de 400".
  *
  * Lo que la fila muestra ya llega sin DNI ni nombres de personas naturales (la API), así que buscar en ella no
- * descubre nada que no esté a la vista.
+ * descubre nada que no esté a la vista. «Descargar CSV» (fase 6) baja lo que se ve, con el enlace de cada registro y
+ * la fuente de la evidencia, para revisarla fuera de Vigía.
  */
 
 const TAM = 10;
 
-export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["columnas"]; filas: EvidenciaCruce["filas"] }) {
+export function TablaEvidencia({
+  columnas,
+  filas,
+  titulo,
+  fuente,
+}: {
+  columnas: EvidenciaCruce["columnas"];
+  filas: EvidenciaCruce["filas"];
+  /** El nombre de la evidencia (el del archivo CSV). */
+  titulo?: string;
+  /** La fuente de toda la evidencia: va en cada fila del CSV. */
+  fuente?: EvidenciaCruce["enlace"];
+}) {
   const [consulta, setConsulta] = useState("");
   const [pagina, setPagina] = useState(1);
   const indice = useMemo(() => filas.map((f) => paraBuscar(columnas.map((c) => textoDe(c.tipo, f[c.clave])).join(" "))), [filas, columnas]);
@@ -32,6 +46,30 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
   const actual = Math.min(pagina, paginas);
   const pagina_ = vistas.slice((actual - 1) * TAM, actual * TAM);
   const largo = filas.length > TAM;
+  const bajar = () => {
+    const absoluta = (url: string) => (url.startsWith("/") ? `${window.location.origin}${url}` : url);
+    const hayDespues = vistas.some((f) => f.posterior === true);
+    const cols = [
+      ...columnas.flatMap((c) => (c.tipo === "enlace" ? [c.titulo, `${c.titulo} (enlace)`] : [c.titulo])),
+      ...(hayDespues ? ["Después de este proceso"] : []),
+      ...(fuente ? ["Fuente", "Enlace a la fuente"] : []),
+    ];
+    const csv = vistas.map((f) => {
+      const fila: Record<string, unknown> = {};
+      for (const c of columnas) {
+        const v = f[c.clave];
+        if (c.tipo === "enlace" && v && typeof v === "object") {
+          const { texto, url } = v as { texto: string; url: string };
+          fila[c.titulo] = texto;
+          fila[`${c.titulo} (enlace)`] = absoluta(url);
+        } else fila[c.titulo] = v ?? "";
+      }
+      if (hayDespues) fila["Después de este proceso"] = f.posterior === true ? "sí" : "no";
+      if (fuente) Object.assign(fila, { Fuente: fuente.texto, "Enlace a la fuente": absoluta(fuente.url) });
+      return fila;
+    });
+    descargarCsv(cols, csv, `evidencia-${nombreArchivo(titulo ?? "registros")}`);
+  };
   const control = vistas.length > TAM && (
     <div className="flex justify-end">
       <Paginacion actual={actual} paginas={paginas} total={vistas.length} tam={TAM} navegacion="interna" onChange={setPagina} cargando={false} nombre="registros" />
@@ -40,8 +78,8 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
 
   return (
     <div className="space-y-2">
-      {largo && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {largo && (
           <Buscador
             placeholder="Buscar en estos registros…"
             etiqueta="Buscar en los registros de la evidencia"
@@ -51,13 +89,22 @@ export function TablaEvidencia({ columnas, filas }: { columnas: EvidenciaCruce["
               setPagina(1);
             }}
           />
-          {q && (
-            <span className="text-meta tabular-nums text-mute" aria-live="polite">
-              {numero(vistas.length)} de {numero(filas.length)}
-            </span>
-          )}
-        </div>
-      )}
+        )}
+        {q && (
+          <span className="text-meta tabular-nums text-mute" aria-live="polite">
+            {numero(vistas.length)} de {numero(filas.length)}
+          </span>
+        )}
+        {vistas.length > 0 && (
+          <button
+            type="button"
+            onClick={bajar}
+            className="ml-auto inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink"
+          >
+            <Download size={14} aria-hidden /> Descargar CSV ({numero(vistas.length)})
+          </button>
+        )}
+      </div>
       {q && vistas.length === 0 ? (
         <EstadoVacio icono={<SearchX size={16} />}>Ningún registro coincide con “{consulta}”.</EstadoVacio>
       ) : (

@@ -5,6 +5,7 @@ import { Download, SearchX } from "lucide-react";
 import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { coincide, numero, paraBuscar } from "@/lib/formato";
+import { descargarCsv } from "@/lib/csv";
 import { Buscador } from "./BarraFiltros";
 import { Tabla, type Columna, type Fila } from "./Tabla";
 
@@ -197,19 +198,7 @@ function bajarCsv(filas: FilaFiltrable[], archivo: string): void {
   const conCsv = filas.filter((f) => f.csv);
   if (!conCsv.length) return;
   const cols = [...new Set(conCsv.flatMap((f) => Object.keys(f.csv!)))];
-  const celda = (v: unknown) => {
-    const t = v == null ? "" : String(v);
-    return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-  };
-  const texto = [cols.map(celda).join(","), ...conCsv.map((f) => cols.map((c) => celda(f.csv![c])).join(","))].join("\r\n");
-  const url = URL.createObjectURL(new Blob(["﻿" + texto], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = archivo.endsWith(".csv") ? archivo : `${archivo}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  descargarCsv(cols, conCsv.map((f) => f.csv!), archivo);
 }
 
 const CAMPO_LOCAL =

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Pagina } from "@/components/patrones";
 import { EnVivoInicio } from "@/components/home/EnVivoInicio";
 import { HeroInicio, type CifrasInicio } from "@/components/home/HeroInicio";
+import { NovedadesInicio } from "@/components/home/NovedadesInicio";
 import { RankingsInicio, type PestanaRank } from "@/components/home/RankingsInicio";
 import { aFilaVivo, deAnalisis, deProcesamiento, esAnalisisReal, unirLecturas, type FilaLectura, type FotoVivo } from "@/components/home/vivo";
 import { clasificar, hrefPerfil } from "@/components/aliados/ranking";
@@ -22,7 +24,9 @@ export const metadata: Metadata = { title: "Inicio" };
  *
  *  1. La pregunta, el buscador, tres caminos del ciudadano y las cifras del año (`lib/cifras`: los mismos números que
  *     el mapa, financiar y la portada).
- *  2. Rankings con pestañas (entidades, partidos, aliados, regiones): cada fila abre su ficha. Al lado, «Últimas
+ *  2. «Lo nuevo esta semana» (fase 6): contratos con antecedentes graves, sanciones e informes nuevos, y los tres
+ *     contratos con más antecedentes; el resto en /app/novedades.
+ *  3. Rankings con pestañas (entidades, partidos, aliados, regiones): cada fila abre su ficha. Al lado, «Últimas
  *     lecturas»: lo que se analiza ahora y lo último que se leyó, en un solo bloque.
  *
  * Toda cifra sale de las mismas lecturas que usa el resto de la app. Si una falla, su bloque (o su pestaña)
@@ -163,6 +167,11 @@ export default async function InicioApp() {
     <div className="min-h-screen bg-paperSoft">
       <Pagina className="space-y-8">
         <HeroInicio c={cifras} />
+
+        {/* Lo nuevo esta semana: su propia lectura (en caché), sin frenar el resto de la página. */}
+        <Suspense fallback={null}>
+          <NovedadesInicio />
+        </Suspense>
 
         {(pestanas.length > 0 || foto) && (
           <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
