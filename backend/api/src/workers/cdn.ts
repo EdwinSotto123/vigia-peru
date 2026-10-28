@@ -65,8 +65,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "53": la pestaña Visitas con los agregados rehechos sobre las 10,8 M visitas y el mapeo de entidades de la 197 (el 52 se
  *       desplegó antes de que terminaran: guardó resúmenes viejos, y en cero el MIMP o Petroperú), la visita antes de la
  *       primera orden de un locador (195) y antes de entrar a la planilla (196), y el perfil con sus visitas por entidad.
+ * "54": la planilla de hoy es la del último mes completo (202: el GORE Ayacucho salía con 12 de 1,190 por un mes publicado
+ *       a medias) y /planilla de una entidad trae salieron, mesParcial y la lista «Trabajó antes» (situacion=antes).
  */
-const VERSION_CACHE = "53";
+const VERSION_CACHE = "54";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

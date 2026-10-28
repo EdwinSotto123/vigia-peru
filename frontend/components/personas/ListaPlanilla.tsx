@@ -151,7 +151,8 @@ export function ListaPlanilla({
 }
 
 async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla | null>; ruta: string; base: Parametros }) {
-  const r = (await pagina)?.resumen;
+  const pg = await pagina;
+  const r = pg?.resumen;
   if (!r) return null;
   const href = (extra: Record<string, string>) => {
     const q = new URLSearchParams();
@@ -167,12 +168,19 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla |
         ? `suma de su último mes publicado; aparte, ${plural(r.dudosos, "sueldo", "sueldos")} con posible error de la entidad`
         : "suma de su último mes publicado",
     },
-    { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P_PLANILLA.severidad]: "con" }) },
-    { valor: numero(r.alta), etiqueta: "con una señal alta", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
   ];
-  const salieron = (await pagina)?.salieron;
-  if (salieron) {
-    items.push({ valor: numero(salieron), etiqueta: "trabajaron antes", contexto: "en los meses cargados; ya no están en la planilla de hoy", href: href({ [P_PLANILLA.situacion]: "antes" }) });
+  // Caben cuatro cifras: en una entidad con gente que ya no está, «con alguna señal» pasa al contexto de la alta (su
+  // conteo sigue en la fila de señales) y la cuarta es «trabajaron antes».
+  if (pg?.salieron) {
+    items.push(
+      { valor: numero(r.alta), etiqueta: "con una señal alta", contexto: `de ${numero(r.personas)}; ${numero(r.conSenales)} con alguna señal`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
+      { valor: numero(pg.salieron), etiqueta: "trabajaron antes", contexto: "en los meses cargados; ya no están en la planilla de hoy", href: href({ [P_PLANILLA.situacion]: "antes" }) },
+    );
+  } else {
+    items.push(
+      { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P_PLANILLA.severidad]: "con" }) },
+      { valor: numero(r.alta), etiqueta: "con una señal alta", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
+    );
   }
   return <Indicadores items={items} />;
 }
@@ -361,18 +369,21 @@ function Barra({
 const columnas = (deEntidad: boolean, antes = false): Columna[] => [
   { clave: "persona", titulo: "Persona", ancho: "minmax(0,1.3fr)" },
   { clave: "tiempo", titulo: antes ? "Estuvo" : "En la planilla", ancho: "9.5rem", desde: "md", apilar: "con-rotulo" },
-  {
-    clave: "senales", titulo: "Señales", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
-    ayuda: (
-      <Ayuda titulo="¿Qué son estas señales?">
-        Lo que otros registros dicen de esta persona: si también cobra por órdenes de servicio, si gana el doble que su mismo
-        cargo, si tiene los apellidos de una autoridad o un directivo, si fue candidata del partido que gobierna. No prueban
-        nada.
-      </Ayuda>
-    ),
-  },
+  // Quien ya no está no tiene señales (son de la planilla de hoy): en su lugar, cuántos meses figuró.
+  antes
+    ? { clave: "senales", titulo: "Cuánto tiempo", ancho: "minmax(0,0.7fr)", desde: "md", apilar: "con-rotulo" }
+    : {
+        clave: "senales", titulo: "Señales", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+        ayuda: (
+          <Ayuda titulo="¿Qué son estas señales?">
+            Lo que otros registros dicen de esta persona: si también cobra por órdenes de servicio, si gana el doble que su mismo
+            cargo, si tiene los apellidos de una autoridad o un directivo, si fue candidata del partido que gobierna. No prueban
+            nada.
+          </Ayuda>
+        ),
+      },
   { clave: "regimen", titulo: "Régimen", ancho: "112px", desde: "lg", ayuda: <AyudaTermino clave="regimen" /> },
-  { clave: "total", titulo: "Sueldo", ancho: "112px", alinear: "der" },
+  { clave: "total", titulo: antes ? "Último sueldo" : "Sueldo", ancho: "112px", alinear: "der" },
 ];
 
 async function Resultados(props: {
@@ -451,7 +462,7 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number |
     { etiqueta: p.salio ? "Su último sueldo" : "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
     ...(p.salio ? [] : [{ etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true }]),
     ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
-    { etiqueta: "Meses en planilla", valor: `${numero(p.meses)} (${[p.primerMes, p.ultimoMes].filter(Boolean).join(" a ")})` },
+    { etiqueta: "Meses en planilla", valor: `${numero(p.meses)} (${[mes(p.primerMes), mes(p.ultimoMes)].filter(Boolean).join(" a ")})` },
     ...(!deEntidad && entidad ? [{ etiqueta: "Entidad", valor: entidad }] : []),
   ];
   // La señal "tambien_ordenes" trae los meses en que además cobró por órdenes de servicio y su monto total.
@@ -481,13 +492,13 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number |
         </span>
       ),
       senales: p.salio
-        ? <span className="text-meta text-mute">Ya no está en la planilla</span>
+        ? <span className="text-meta text-inkSoft">{plural(p.meses, "mes", "meses")}</span>
         : <Senales senales={p.senales} dudoso={p.dudoso} pariente={!!p.parienteLocador} />,
       regimen: <span className="text-meta text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
         <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>
       ) : (
-        <CeldaNumero sub={p.extra && p.total != null && p.total > (p.base ?? 0) ? `${solesCompacto(p.total)} con todo` : p.ultimoMes ?? undefined}>
+        <CeldaNumero sub={p.extra && p.total != null && p.total > (p.base ?? 0) ? `${solesCompacto(p.total)} con todo` : mes(p.ultimoMes) ?? undefined}>
           {p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}
         </CeldaNumero>
       ),
@@ -502,7 +513,7 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number |
         <CuerpoDetalle>
           {motivo && (
             <AvisoDato motivo={motivo} fuente="pte_personal">
-              {`Su planilla de ${p.ultimoMes ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total.`}
+              {`Su planilla de ${mes(p.ultimoMes) ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total.`}
             </AvisoDato>
           )}
           {p.parienteLocador && (
