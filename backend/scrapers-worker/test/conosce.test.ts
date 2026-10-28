@@ -332,7 +332,10 @@ test("órdenes: meses por defecto (el año entero) y pedidos, URL del archivo y 
   // El mes de registro de cada fila en vez del mes del archivo (partición por emisión).
   assert.equal(selectDestino(MAPA_ORDENES.slice(0, 1), new Set(["entidad"]), { anio: 2026, mes: "extract(month FROM x)::int" }).select,
     `2026, extract(month FROM x)::int, NULLIF(btrim("entidad"), '')`);
-  assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-17T13:00:00Z")).includes("conosce_ordenes"));
+  // El domingo, no el sábado de `conosce`: juntas se quedaban sin conexiones de Hyperdrive.
+  assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-18T13:00:00Z")).includes("conosce_ordenes"));
+  assert.ok(!fuentesDelCron(CRON_DATOS, Date.parse("2026-10-17T13:00:00Z")).includes("conosce_ordenes"));
+  assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-17T13:00:00Z")).includes("conosce"));
 });
 
 test("conosce_ordenes: lo que sale de las órdenes se rehace desde 6 meses antes del primer mes cargado", () => {

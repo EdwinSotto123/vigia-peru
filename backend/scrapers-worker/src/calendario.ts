@@ -17,7 +17,10 @@
  *   onpe_claridad      miércoles 08:00 (semanal mien-  │
  *   onpe_gastos        tras dure la rendición de ERM2026; antes era manual)
  *   conosce            sábados 08:00 (CONOSCE regenera │
- *   conosce_ordenes    los reportes los viernes)       ┘
+ *                      los reportes los viernes)       │
+ *   conosce_ordenes    domingos 08:00: desde el 23-oct ┘
+ *                      recarga el año entero (~6 h); el sábado, junto a `conosce`, las dos se quedaban sin conexiones
+ *                      de Hyperdrive («Timed out while waiting for an open slot in the pool», 2026-10-27)
  *
  *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
  *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
@@ -47,11 +50,11 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const lima = new Date(ms - 5 * 3600 * 1000);
   const dia = lima.getUTCDate();
   const out: string[] = [];
-  if (lima.getUTCDay() === 0) out.push("pnda_sancionados");
+  if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "conosce_ordenes");
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
-  if (lima.getUTCDay() === 6) out.push("conosce", "conosce_ordenes");
+  if (lima.getUTCDay() === 6) out.push("conosce");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");
