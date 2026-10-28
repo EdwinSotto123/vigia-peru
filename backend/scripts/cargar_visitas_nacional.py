@@ -176,6 +176,12 @@ def main() -> None:
     base = Base(a.entorno)
     total = saltadas = marcadores = repetidos = duplicadas = 0
     t0 = time.time()
+
+    def avance(i: int, fin: date) -> None:
+        if i % 20 == 0 or i == len(vs):
+            print(f"  {i}/{len(vs)} ventanas (hasta {fin}): +{total} visitas, {duplicadas} ya estaban por otra fuente, "
+                  f"{marcadores} marcadores, {repetidos} repetidas, {saltadas} ya cargadas; {time.time() - t0:.0f} s", flush=True)
+
     for i, (ini, fin, p) in enumerate(vs, 1):
         sha = hashlib.sha256(p.read_bytes()).hexdigest()
         clave = p.name.removesuffix(".json.gz")
@@ -185,6 +191,7 @@ def main() -> None:
 
         if not a.forzar and base.hacer(ya):
             saltadas += 1
+            avance(i, fin)
             continue
         filas, m, r = filas_de(p, parse_row)
         marcadores += m
@@ -218,9 +225,7 @@ def main() -> None:
         n = base.hacer(escribir)
         total += n
         duplicadas += len(filas) - n
-        if i % 20 == 0 or i == len(vs):
-            print(f"  {i}/{len(vs)} ventanas (hasta {fin}): +{total} visitas, {duplicadas} ya estaban por otra fuente, "
-                  f"{marcadores} marcadores, {repetidos} repetidas, {saltadas} ya cargadas; {time.time() - t0:.0f} s", flush=True)
+        avance(i, fin)
 
     if not a.sin_refrescos and (total or a.solo_refrescos):
         for fn in REFRESCOS:
