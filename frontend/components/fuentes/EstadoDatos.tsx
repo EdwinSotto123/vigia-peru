@@ -19,7 +19,7 @@ interface FuenteEstado {
   cadencia: string;
   hasta: string | null;
   ultimaCarga: string | null;
-  estado: "al_dia" | "atrasada" | "error" | "manual";
+  estado: "al_dia" | "atrasada" | "error" | "manual" | "fuente_vieja";
 }
 
 const ESTADO: Record<FuenteEstado["estado"], { texto: string; icono: ReactNode; clase: string }> = {
@@ -27,6 +27,7 @@ const ESTADO: Record<FuenteEstado["estado"], { texto: string; icono: ReactNode; 
   atrasada: { texto: "Atrasada", icono: <Clock size={14} aria-hidden />, clase: "border-amberTexto/40 text-amberTexto" },
   error: { texto: "Falló la última carga", icono: <AlertTriangle size={14} aria-hidden />, clase: "border-crimsonTexto/40 text-crimsonTexto" },
   manual: { texto: "Se carga a mano", icono: <Hand size={14} aria-hidden />, clase: "border-line text-inkSoft" },
+  fuente_vieja: { texto: "La fuente no publica hace meses", icono: <Clock size={14} aria-hidden />, clase: "border-amberTexto/40 text-amberTexto" },
 };
 
 export async function EstadoDatos() {
@@ -76,6 +77,7 @@ export async function EstadoDatos() {
         <Ayuda titulo="¿Qué quiere decir cada estado?">
           <span className="block">«Al día»: su última carga automática salió bien dentro de lo que se espera (un día, una semana o un mes, según la fuente).</span>
           <span className="mt-2 block">«Atrasada»: no hay una carga buena reciente; sus datos pueden no tener lo último. «Falló la última carga»: se reintenta en la próxima.</span>
+          <span className="mt-2 block">«La fuente no publica hace meses»: la carga sale bien, pero el registro oficial no trae nada de los últimos tres meses.</span>
           <span className="mt-2 block">«Se carga a mano»: el registro no responde fuera del Perú o no tiene una descarga automática; se actualiza desde una computadora en el Perú.</span>
         </Ayuda>
       </div>

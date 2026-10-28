@@ -31,7 +31,8 @@ const FUENTES: Fuente[] = [
   { clave: "oece_ocds", nombre: "Contratos del SEACE", que: "Convocatorias y su ganador (OECE, Contrataciones Abiertas).", cada: 3, cadencia: "Diaria", corridas: ["oece_ocds"],
     hasta: `SELECT to_char(max(fecha_convocatoria), 'YYYY-MM-DD') AS v FROM convocatorias WHERE fecha_convocatoria <= current_date` },
   { clave: "conosce", nombre: "Adjudicaciones y postores", que: "Buenas pro, postores y contratos (OECE, CONOSCE).", cada: 10, cadencia: "Semanal", corridas: ["conosce"],
-    hasta: `SELECT to_char(max(fecha_buenapro), 'YYYY-MM-DD') AS v FROM conosce_adjudicaciones WHERE fecha_buenapro <= current_date` },
+    // Por el índice del año: sin él, recorrer las 325 mil adjudicaciones pasaba el tope de la API y salía vacío.
+    hasta: `SELECT to_char(max(fecha_buenapro), 'YYYY-MM-DD') AS v FROM conosce_adjudicaciones WHERE anio >= extract(year FROM current_date)::int - 1 AND fecha_buenapro <= current_date` },
   { clave: "conosce_ordenes", nombre: "Órdenes de compra y de servicio", que: "Cada orden de cada entidad (OECE, CONOSCE).", cada: 10, cadencia: "Semanal", corridas: ["conosce_ordenes"],
     hasta: `SELECT to_char(max(fecha_emision), 'YYYY-MM-DD') AS v FROM conosce_ordenes WHERE fecha_emision <= current_date` },
   { clave: "seace_menores", nombre: "Contratos menores", que: "Contratos de hasta 8 UIT (SEACE).", cada: 10, cadencia: "Semanal", corridas: ["seace_menores"],
@@ -57,7 +58,7 @@ const FUENTES: Fuente[] = [
   { clave: "plazas", nombre: "Plazas CAS", que: "Convocatorias CAS (SERVIR Talento Perú).", cada: null, cadencia: "A mano", corridas: [],
     hasta: `SELECT to_char(max(ultima_vez), 'YYYY-MM-DD') AS v FROM servir_convocatoria` },
   { clave: "obras", nombre: "Obras e inversiones", que: "Obras (INFOBRAS) y proyectos de inversión (Invierte.pe).", cada: null, cadencia: "A mano", corridas: [],
-    hasta: `SELECT to_char(max(dataset_fecha), 'YYYY-MM-DD') AS v FROM inversion_mef` },
+    hasta: `SELECT to_char(max(cargado_at), 'YYYY-MM-DD') AS v FROM inversion_mef` },
 ];
 
 const uno = (sql: string) => pool.query<{ v: string | null }>(sql).then((r) => r.rows[0]?.v ?? null).catch(() => null);
@@ -78,10 +79,12 @@ estadoRouter.get("/datos", async (c) => {
         const ultimas = f.corridas.map((k) => corridas.get(k)).filter(Boolean) as { ok: string | null; estado: string; inicio: string }[];
         const ultimaOk = ultimas.map((u) => u.ok).filter(Boolean).sort().pop() ?? null;
         const ultima = ultimas.sort((a, b) => b.inicio.localeCompare(a.inicio))[0] ?? null;
-        let estado: "al_dia" | "atrasada" | "error" | "manual" = "manual";
+        let estado: "al_dia" | "atrasada" | "error" | "manual" | "fuente_vieja" = "manual";
         if (f.cada != null) {
           const dias = ultimaOk ? (hoy - Date.parse(`${ultimaOk}T12:00:00Z`)) / 86_400_000 : Infinity;
           estado = ultima?.estado === "error" && (!ultimaOk || ultimaOk < ultima.inicio) ? "error" : dias <= f.cada ? "al_dia" : "atrasada";
+          // Se carga bien, pero lo que trae es de hace más de tres meses: la fuente dejó de publicar (no es «al día»).
+          if (estado === "al_dia" && hasta && (hoy - Date.parse(`${hasta}T12:00:00Z`)) / 86_400_000 > 90) estado = "fuente_vieja";
         }
         return { clave: f.clave, nombre: f.nombre, que: f.que, cadencia: f.cadencia, hasta, ultimaCarga: ultimaOk, estado };
       }),
