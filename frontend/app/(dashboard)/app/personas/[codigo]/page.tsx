@@ -49,6 +49,7 @@ import {
   type EntidadDePersona,
   type FichaPersona,
 } from "@/lib/personas";
+import { nombrePartido } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
 
@@ -365,8 +366,30 @@ function filaPago(a: AnioDePersona, ruta: string): Fila {
   };
 }
 
+/** Un cambio de gobierno en la entidad que más le pagó, para su línea mes a mes: la gestión local nueva o el Presidente. */
+function textoCambio(c: { nivel: string; quien: string | null }): string {
+  if (c.nivel === "nacional") {
+    if (!c.quien) return "Asumió un nuevo Presidente";
+    return /^Elegido/i.test(c.quien) ? `Asumió el Presidente ${c.quien.charAt(0).toLowerCase()}${c.quien.slice(1)}` : `Asumió ${c.quien}`;
+  }
+  const gestion = c.nivel === "regional" ? "la nueva gestión regional" : "la nueva gestión municipal";
+  const partido = nombrePartido(c.quien);
+  return partido ? `Asumió ${gestion}, de ${partido}` : `Asumió ${gestion}`;
+}
+
+/** «Entró con la gestión 2023-2026» o «Ya estaba antes de la gestión 2023-2026»: su primera orden frente a la gestión actual. */
+function cuandoEntro(e: EntidadDePersona): string | null {
+  const g = e.gestion;
+  if (!g || !e.primera) return null;
+  const cual = g.nivel === "nacional" ? `el gobierno que asumió el ${fechaCorta(g.desde)}` : `la ${(g.quien ?? "gestión actual").replace(/^Gestión/, "gestión")}`;
+  if (e.primera >= g.desde) return `Entró con ${cual}`;
+  return e.ultima && e.ultima >= g.desde ? `Ya estaba antes de ${cual} y siguió` : `Antes de ${cual}`;
+}
+
 function Pagos({ ficha: f, nombre, ruta }: { ficha: FichaPersona; nombre: string; ruta: string }) {
   const mensual = f.mensual ?? [];
+  // La entidad que más le pagó: la de los cambios de gobierno que se marcan en su línea mes a mes.
+  const principal = [...f.entidades].sort((a, b) => b.monto - a.monto)[0]?.entidad ?? null;
   // Un grupo por entidad (la que más le pagó primero), con su total en el rótulo; dentro, del año más reciente al más viejo.
   const porEntidad = new Map<string, AnioDePersona[]>();
   for (const a of f.anual) porEntidad.set(a.entidadRuc, [...(porEntidad.get(a.entidadRuc) ?? []), a]);
@@ -417,6 +440,8 @@ function Pagos({ ficha: f, nombre, ruta }: { ficha: FichaPersona; nombre: string
             huecos="cero"
             quienCarga="de CONOSCE"
             etiqueta={`Lo que cobró por órdenes mes a mes, ${nombre}`}
+            cambios={(f.cambios ?? []).map((c) => ({ mes: c.mes, texto: textoCambio(c) }))}
+            etiquetaCambios={principal ? `Cambio de gobierno en ${tituloNatural(principal)}` : undefined}
           />
         </section>
       )}
@@ -510,6 +535,7 @@ function filasEntidades(f: FichaPersona, cuenta: Cuenta, ruta: string): Fila[] {
                 { etiqueta: "Años", valor: anios, mono: true },
                 { etiqueta: "Tipo de servicio", valor: e.servicio },
                 { etiqueta: "Región", valor: e.depNombre },
+                { etiqueta: "Cuándo entró", valor: cuandoEntro(e) },
                 {
                   etiqueta: "Partido que gobernaba",
                   valor: e.gobiernos?.length

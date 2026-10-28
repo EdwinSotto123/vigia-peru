@@ -15,6 +15,8 @@ import { numero, soles, solesCompacto } from "@/lib/formato";
  *     carga. Si pasa la escala, la barra llega al techo con un corte y su monto escrito: la escala es la de los meses
  *     normales, para que un error de S/ 46 M no aplaste a los demás en una línea.
  *   · hueco punteado → un mes sin dato (la entidad no publicó su planilla ese mes); con `cero`, un mes sin órdenes.
+ *   · raya vertical punteada en añil → un cambio de gobierno en la entidad (`cambios`): asumió una gestión nueva. Su texto
+ *     va en la leyenda y en la nota del mes, no sobre el gráfico (en enero chocaría con el rótulo del año).
  * Barras en CSS (se adaptan al ancho sin estirar el texto), cada una con su `title`; la tabla mes a mes va debajo,
  * plegada. Server-safe.
  */
@@ -67,6 +69,8 @@ export function LineaMeses({
   huecos = "sin_dato",
   quienCarga = "de la entidad",
   ordenes,
+  cambios,
+  etiquetaCambios = "Cambio de gobierno en la entidad",
 }: {
   puntos: PuntoMes[];
   /** Para el lector de pantalla: "Sueldo mes a mes de …". */
@@ -79,9 +83,15 @@ export function LineaMeses({
   /** Meses en que la persona ADEMÁS cobró por órdenes de servicio (otra fuente): se marcan con ◆, no se suman al sueldo
    *  (si se sumaran, el mes parecería "fuera de lo normal" y la mediana se distorsionaría). */
   ordenes?: { meses: string[]; monto: number | null } | null;
+  /** Los meses en que asumió un gobierno nuevo en la entidad ("YYYY-MM" y qué cambió): una raya punteada en ese mes. */
+  cambios?: { mes: string; texto: string }[];
+  /** El nombre de la raya en la leyenda: «Cambio de gobierno en la Municipalidad de …». */
+  etiquetaCambios?: string;
 }) {
   const meses = completar(puntos, huecos);
   if (meses.length < 2) return null;
+  const enRango = new Set(meses.map((m) => m.mes));
+  const cambio = new Map((cambios ?? []).filter((c) => enRango.has(c.mes)).map((c) => [c.mes, c.texto]));
   const conOrden = new Set(ordenes?.meses ?? []);
   // Con un solo mes conocemos su monto exacto; con varios, sólo el total (va en el texto), así que la nota no lo reparte.
   const notaOrden = conOrden.size === 1 && ordenes?.monto != null ? `+ ${soles(ordenes.monto)} en órdenes de servicio` : "+ órdenes de servicio ese mes";
@@ -114,7 +124,8 @@ export function LineaMeses({
           {meses.map((m) => {
             if (m.hueco) {
               return (
-                <div key={m.mes} className="flex h-full max-w-7 flex-1 flex-col justify-end" title={`${mesCorto(m.mes)}: sin dato (no se publicó ese mes)`}>
+                <div key={m.mes} className="relative flex h-full max-w-7 flex-1 flex-col justify-end" title={`${mesCorto(m.mes)}: sin dato (no se publicó ese mes)${cambio.has(m.mes) ? `. ${cambio.get(m.mes)}` : ""}`}>
+                  {cambio.has(m.mes) && <RayaCambio />}
                   <div className="h-1.5 rounded-sm border border-dashed border-mute/60" />
                 </div>
               );
@@ -129,9 +140,11 @@ export function LineaMeses({
               conExtra && m.extra ? `${nombres.base} ${soles(m.base ?? 0)}, ${(nombres.extra ?? "otros").toLowerCase()} ${soles(m.extra)}` : null,
               m.dudoso || (m.aparte ?? 0) > 0 ? `posible error ${quienCarga}` : raro ? "fuera de lo normal" : null,
               conOrden.has(m.mes) ? "también órdenes de servicio ese mes" : null,
+              cambio.get(m.mes) ?? null,
             ].filter(Boolean).join(". ");
             return (
-              <div key={m.mes} className="flex h-full max-w-7 flex-1 flex-col justify-end" title={titulo}>
+              <div key={m.mes} className="relative flex h-full max-w-7 flex-1 flex-col justify-end" title={titulo}>
+                {cambio.has(m.mes) && <RayaCambio />}
                 {conOrden.has(m.mes) && (
                   <span className="mb-0.5 flex justify-center" aria-hidden>
                     <span className="h-2 w-2 rotate-45 rounded-[1px] bg-anil" />
@@ -181,7 +194,18 @@ export function LineaMeses({
           </li>
         )}
         {meses.some((m) => m.hueco) && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-mute" aria-hidden />Sin dato ese mes</li>}
+        {cambio.size > 0 && <li className="inline-flex items-center gap-1.5"><span className="h-3 w-0 border-l-2 border-dashed border-anil" aria-hidden />{etiquetaCambios}</li>}
       </ul>
+      {cambio.size > 0 && (
+        <ul className="space-y-0.5 text-rotulo text-inkSoft" aria-label="Cambios de gobierno en la entidad">
+          {[...cambio.entries()].map(([mes, texto]) => (
+            <li key={mes} className="flex gap-2">
+              <b className="shrink-0 font-mono font-medium tabular-nums text-ink">{mesCorto(mes)}</b>
+              <span>{texto}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <details className="group rounded-xl border border-line [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
         <summary className="cursor-pointer select-none px-3.5 py-2 text-meta font-semibold text-granate">Ver mes por mes</summary>
         <div className="overflow-x-auto border-t border-line">
@@ -210,6 +234,7 @@ export function LineaMeses({
                         {(m.dudoso || (m.aparte ?? 0) > 0) && <span className="text-amberTexto">{`Posible error ${quienCarga}`}</span>}
                         {!(m.dudoso || (m.aparte ?? 0) > 0) && fuera(m) && <span className="text-amberTexto">Fuera de lo normal</span>}
                         {conOrden.has(m.mes) && <span className="text-anilTexto">{notaOrden}</span>}
+                        {cambio.has(m.mes) && <span className="text-anilTexto">{cambio.get(m.mes)}</span>}
                       </span>
                     )}
                   </td>
@@ -221,4 +246,9 @@ export function LineaMeses({
       </details>
     </figure>
   );
+}
+
+/** La raya de un cambio de gobierno: punteada, a la izquierda del mes, de arriba abajo (no tapa la barra). */
+function RayaCambio() {
+  return <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-[2px] border-l-2 border-dashed border-anil/70" />;
 }

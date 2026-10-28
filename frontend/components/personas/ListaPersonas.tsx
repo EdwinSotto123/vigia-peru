@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
 import {
+  INGRESO_PERSONA,
   ORDENES_PERSONAS,
   SENAL,
   TRAMOS_PERSONA,
@@ -62,7 +63,7 @@ export function ListaPersonas({
   const paginaP = getPersonas({ ...alcance, ...f, page: f.page, size: TAM });
   const parametros: Parametros = { ...base, ...parametrosDe(f, P) };
   const extras = [...visiblesExtra, ...filtrosExtra];
-  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.gobierno || f.monto || f.meses || f.q) || extras.some((x) => !!base[x.param]);
+  const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.gobierno || f.monto || f.meses || f.ingreso || f.q) || extras.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha (/app/personas?entidad=<RUC>): se nombra en su chip y se quita con su ×. En la ficha
   // de la propia entidad no (es el alcance, no un filtro).
   const entidad = !deEntidad && alcance.entidad ? alcance.entidad : undefined;
@@ -222,6 +223,17 @@ function Barra({
           }))),
         }]
       : []),
+    // «Cuándo entró», frente a la gestión actual de la entidad: en una entidad sin gestión que la cambie (un organismo
+    // autónomo, una universidad) no va; en el país o una región, las opciones van sin número.
+    ...(facetas && entidad && !facetas.gestion
+      ? []
+      : [{
+          param: P.ingreso,
+          etiqueta: facetas?.gestion ? `Cuándo entró (la gestión empezó el ${fechaCorta(facetas.gestion.desde)})` : "Cuándo entró",
+          todas: "Cuando sea",
+          seccion: "Cuándo",
+          opciones: INGRESO_PERSONA.map((o) => ({ ...o, conteo: facetas?.gestion?.conteo[o.valor] ?? null })),
+        }]),
     tramo("monto", P.monto, "Lo que le pagó la entidad", "Cualquier monto"),
     tramo("meses", P.meses, "Meses con órdenes", "Cualquier número de meses"),
     ...filtrosExtra,

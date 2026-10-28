@@ -33,7 +33,7 @@ const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:f
 
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
-  "nepotismo_gobierno", "al_borde_del_tope", "familia_estado",
+  "nepotismo_gobierno", "al_borde_del_tope", "socio_proveedor", "familia_estado",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
 ] as const;
 
@@ -58,6 +58,15 @@ export const TRAMOS_PERSONA = {
     "24mas": `pe.meses >= 24`,
   },
 } as const;
+/**
+ * «Cuándo entró»: su primera orden de la entidad frente al inicio de la gestión que la gobierna hoy (entidad_gestion,
+ * migración 181). `gestion`: entró con ella; `antes`: ya tenía órdenes antes y siguió con ella. Las entidades sin una
+ * gestión que las cambie (organismos autónomos, universidades) no entran en ninguna de las dos.
+ */
+export const INGRESO_PERSONA = {
+  gestion: `EXISTS (SELECT 1 FROM entidad_gestion g WHERE g.ruc = pe.entidad_ruc AND pe.primera >= g.desde)`,
+  antes: `EXISTS (SELECT 1 FROM entidad_gestion g WHERE g.ruc = pe.entidad_ruc AND pe.primera < g.desde AND pe.ultima >= g.desde)`,
+} as const;
 type OpcionTramo<T extends keyof typeof TRAMOS_PERSONA> = keyof (typeof TRAMOS_PERSONA)[T] & string;
 const tramo = <T extends keyof typeof TRAMOS_PERSONA>(t: T) => z.enum(Object.keys(TRAMOS_PERSONA[t]) as [OpcionTramo<T>, ...OpcionTramo<T>[]]);
 
@@ -78,6 +87,7 @@ export const Lista = z.object({
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
   monto: tramo("monto").optional(),
   meses: tramo("meses").optional(),
+  ingreso: z.enum(["gestion", "antes"]).optional(),
   // El buscador: la entidad y el tipo de servicio, nunca el nombre de la persona (docs/PRIVACIDAD.md).
   q: z.string().trim().min(2).max(80).optional(),
   orden: z.enum(["senales", "monto", "ordenes", "meses", "reciente"]).default("senales"),
@@ -131,6 +141,7 @@ export function filtros(q: ListaQ, conds: string[], vals: unknown[]) {
   if (q.gobierno) { vals.push([q.gobierno]); conds.push(`pe.gobiernos @> $${vals.length}::text[]`); }
   if (q.monto) conds.push(TRAMOS_PERSONA.monto[q.monto]);
   if (q.meses) conds.push(TRAMOS_PERSONA.meses[q.meses]);
+  if (q.ingreso) conds.push(INGRESO_PERSONA[q.ingreso]);
   if (q.senal) { vals.push([q.senal]); conds.push(`pe.tipos @> $${vals.length}::text[]`); }
   if (q.severidad === "con") conds.push(`pe.sev > 0`);
   else if (q.severidad === "sin") conds.push(`pe.sev = 0`);
@@ -227,11 +238,13 @@ const CONTEO_TRAMOS = `jsonb_build_object(${Object.entries(TRAMOS_PERSONA)
  *     allí, sin número (contarlos recorre cientos de miles de filas: 15 s en Lima). En la ficha de un partido no va.
  *   · tramos: cuántas caen en cada tramo de monto y de meses. Sólo en una entidad, donde se cuentan al instante; en el país
  *     o una región, las opciones van sin número.
+ *   · gestion: en una entidad, desde cuándo la gobierna la gestión de hoy y cuántas contrataciones entraron con ella o
+ *     venían de antes (el filtro «Cuándo entró»); null si la entidad no tiene gestión (o fuera de una entidad).
  */
 async function facetasDe(q: ListaQ) {
   if (q.partido) return null;
   return facetasMemo.obtener(JSON.stringify({ entidad: q.entidad, dep: q.entidad ? undefined : q.dep }), async () => {
-    const [gobiernos, tramos] = await Promise.all([
+    const [gobiernos, tramos, gestion] = await Promise.all([
       pool.query<{ valor: string; nombre: string | null; anio: number; n: number | null }>(
         `WITH g AS (${q.entidad
           ? `SELECT g AS valor, count(*)::int AS n FROM persona_entidad pe, unnest(pe.gobiernos) g WHERE pe.entidad_ruc = $1 GROUP BY 1`
@@ -246,8 +259,21 @@ async function facetasDe(q: ListaQ) {
           ORDER BY nombres.nombre NULLS LAST, anio DESC`,
         q.entidad ? [q.entidad] : q.dep ? [q.dep] : []),
       q.entidad ? pool.query<{ t: Record<string, Record<string, number>> }>(`SELECT ${CONTEO_TRAMOS} AS t FROM persona_entidad pe WHERE pe.entidad_ruc = $1`, [q.entidad]) : null,
+      q.entidad
+        ? pool.query<{ desde: string; quien: string | null; nivel: string; gestion: number; antes: number }>(
+            `SELECT to_char(g.desde, 'YYYY-MM-DD') AS desde, g.quien, g.nivel,
+                    count(pe.ruc) FILTER (WHERE pe.primera >= g.desde)::int AS gestion,
+                    count(pe.ruc) FILTER (WHERE pe.primera < g.desde AND pe.ultima >= g.desde)::int AS antes
+               FROM entidad_gestion g LEFT JOIN persona_entidad pe ON pe.entidad_ruc = g.ruc
+              WHERE g.ruc = $1 GROUP BY g.desde, g.quien, g.nivel`, [q.entidad])
+        : null,
     ]);
-    return { gobiernos: gobiernos.rows, tramos: tramos?.rows[0]?.t ?? null };
+    const g = gestion?.rows[0];
+    return {
+      gobiernos: gobiernos.rows,
+      tramos: tramos?.rows[0]?.t ?? null,
+      gestion: g ? { desde: g.desde, quien: g.quien, nivel: g.nivel, conteo: { gestion: g.gestion, antes: g.antes } } : null,
+    };
   });
 }
 
@@ -320,9 +346,12 @@ personasRouter.get("/:codigo", async (c) => {
     const p = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [codigo]);
     const ruc = p.rows[0]?.ruc;
     if (!ruc) return null;
-    const [ent, senales, anual, mensual, dudosas] = await Promise.all([
+    const [ent, senales, anual, mensual, dudosas, cambios] = await Promise.all([
+      // Con la gestión que gobierna hoy cada entidad (migración 181): «entró con la gestión 2023-2026».
       pool.query(
-        `SELECT ${FILA}, ${GOBIERNOS("pe.gobiernos")} AS gobiernos, z.nombre AS "depNombre"
+        `SELECT ${FILA}, ${GOBIERNOS("pe.gobiernos")} AS gobiernos, z.nombre AS "depNombre",
+                (SELECT jsonb_build_object('desde', to_char(g.desde, 'YYYY-MM-DD'), 'quien', g.quien, 'nivel', g.nivel)
+                   FROM entidad_gestion g WHERE g.ruc = pe.entidad_ruc) AS gestion
            FROM persona_entidad pe LEFT JOIN zonas z ON z.ubigeo = pe.dep
           WHERE pe.ruc = $1 ORDER BY pe.sev DESC, pe.monto DESC`, [ruc]),
       pool.query(
@@ -361,6 +390,21 @@ personasRouter.get("/:codigo", async (c) => {
             WHERE o.ruc_contratista = $1 AND o.tipo_orden = 'Orden de Servicio' AND o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NOT NULL
             ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
          SELECT count(*)::int AS ordenes, sum(monto_dudoso)::float AS monto, array_agg(DISTINCT dudoso_motivo) AS motivos FROM d`, [ruc]),
+      // Los cambios de gobierno en la entidad que más le pagó mientras tuvo órdenes (para marcarlos en su línea mes a mes):
+      // la nueva gestión municipal o regional, o el Presidente que asumió si es del Ejecutivo.
+      pool.query<{ mes: string; nivel: string; quien: string | null }>(
+        `WITH e AS (SELECT entidad_ruc FROM persona_entidad WHERE ruc = $1 ORDER BY monto DESC LIMIT 1),
+              r AS (SELECT min(primera) AS d0, max(ultima) AS d1 FROM persona_entidad WHERE ruc = $1),
+              t AS (
+                SELECT g.desde, g.nivel, g.org_nombre AS quien
+                  FROM e JOIN entidad_gobierno_amplia a ON a.ruc = e.entidad_ruc
+                  JOIN gobierno_periodo g ON g.nivel = a.nivel AND g.ubigeo = a.ubigeo
+                UNION ALL
+                SELECT n.desde, 'nacional', n.presidente
+                  FROM e JOIN entidad_gestion eg ON eg.ruc = e.entidad_ruc AND eg.nivel = 'nacional'
+                  CROSS JOIN gobierno_nacional_inicio n)
+         SELECT DISTINCT to_char(t.desde, 'YYYY-MM') AS mes, t.nivel, t.quien
+           FROM t, r WHERE t.desde > r.d0 AND t.desde <= r.d1 ORDER BY 1`, [ruc]).catch(() => ({ rows: [] })),
     ]);
     if (!ent.rows.length) return null;
     const nombrePersona = ent.rows[0]?.nombre ? conEnie(ent.rows[0].nombre) : null;
@@ -510,6 +554,7 @@ personasRouter.get("/:codigo", async (c) => {
       entidades,
       anual: anual.rows,
       mensual: mensual.rows,
+      cambios: cambios.rows,
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

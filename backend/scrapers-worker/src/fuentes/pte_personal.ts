@@ -355,8 +355,8 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
   resumen.personas = await uno("refrescar_personas_senales", `SELECT refrescar_personas_senales(make_date(${Number(primerAnio)}, 1, 1)) AS n`);
   // Lo que refrescar_planilla() y refrescar_personas_senales() acaban de borrar: el nepotismo (137) y las señales de
   // aportes y del partido del Presidente (177), que parchan persona_entidad, planilla_persona y su resumen; y la familia en el
-  // Estado (180).
-  for (const f of ["refrescar_nepotismo_senal", "refrescar_senales_politicas", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_entidad_senal_politica"]) {
+  // Estado (180) y el locador socio de un proveedor (181).
+  for (const f of ["refrescar_nepotismo_senal", "refrescar_senales_politicas", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_socio_proveedor_locador", "refrescar_entidad_senal_politica"]) {
     resumen[f] = await step.do(f, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
       const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${f}()`]);
       return existe ? Number((await db.filas<{ n: number }>(`SELECT ${f}() AS n`))[0]?.n ?? 0) : null;

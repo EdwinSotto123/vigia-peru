@@ -31,6 +31,11 @@ const veces = (v: unknown) => (num(v) != null ? `${decimal(num(v))} veces` : nul
 const porQue = (por: unknown) =>
   por === "dni" ? "Coincide por el documento de identidad." : por === "nombre" ? "Coincide por el nombre completo y el departamento (la fuente no trae documento)." : null;
 const unicos = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
+/** Su papel en la empresa según el RNP («SOCIO_ACCIONISTA_TITULAR, REPRESENTANTE_LEGAL»), en una palabra: el de más peso. */
+const rolSocio = (v: unknown) => {
+  const r = String(v ?? "");
+  return /SOCIO|ACCIONISTA|TITULAR/i.test(r) ? "Socio" : /REPRESENTANTE/i.test(r) ? "Representante" : /ADMINISTRACI|DIRECTOR|GERENTE/i.test(r) ? "Directivo" : "Integrante";
+};
 const enPalabras = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
 /** «las elecciones regionales y municipales de 2022»: el proceso ONPE de una campaña (ERM2022, EG2021). */
 export const eleccionTexto = (e: unknown): string | null => {
@@ -142,6 +147,15 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       return par.length > 1
         ? `Pariente de ${numero(par.length)} funcionarios ${otras}`
         : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : ` ${otras.replace("entidades", "entidad").replace("otras", "otra")}`}`;
+    }
+    case "socio_proveedor": {
+      const emp = lista(d.empresas);
+      const monto = num(d.monto) ?? emp.reduce((t, e) => t + (num(e.monto) ?? 0), 0);
+      const mismos = unicos(emp.flatMap((e) => (Array.isArray(e.mismos) ? (e.mismos as unknown[]).map((a) => txt(a)) : []))).sort();
+      const cuando = mismos.length ? `, en ${enPalabras(mismos)}, cuando él también tenía órdenes ahí` : ", en otros años que sus órdenes";
+      return emp.length > 1
+        ? `Socio o representante de ${numero(emp.length)} empresas que le vendieron ${soles(monto)} a esta entidad${cuando}`
+        : `${rolSocio(emp[0]?.rol)} de ${natural(emp[0]?.nombre) ?? "una empresa"}, que le vendió ${soles(monto)} a esta entidad${cuando}`;
     }
     case "al_borde_del_tope": {
       const n = num(d.en_el_borde) ?? lista(d.citadas).length;
@@ -342,6 +356,50 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
           <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>
             {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
           </VerOrdenes>
+        </div>
+      );
+    }
+    case "socio_proveedor": {
+      // Cada empresa de la que es socio, representante o directivo y que le vendió a esta entidad: lo que le vendió, en
+      // qué años y si coinciden con los de sus órdenes. La fila lleva a la ficha de la empresa (sus contratos y órdenes).
+      const filas: Fila[] = lista(d.empresas).map((e, i) => {
+        const mismos = Array.isArray(e.mismos) ? (e.mismos as unknown[]).map((a) => txt(a)).filter((a): a is string => !!a) : [];
+        const desde = txt(e.desde);
+        const hasta = txt(e.hasta);
+        return {
+          id: String(i),
+          ...(txt(e.ruc) ? { href: `/empresa/${txt(e.ruc)}` } : {}),
+          celdas: {
+            empresa: (
+              <CeldaPrincipal
+                titulo={natural(e.nombre) ?? `Empresa con RUC ${txt(e.ruc) ?? "sin dato"}`}
+                meta={[
+                  <Dato key="r" tipo="personas" nombre="Su papel">{rolSocio(e.rol)}</Dato>,
+                  desde ? <Dato key="a" tipo="fecha" nombre="Le vendió">{desde === hasta || !hasta ? `En ${desde}` : `De ${desde} a ${hasta}`}</Dato> : null,
+                ]}
+              />
+            ),
+            mismos: texto(mismos.length ? enPalabras(mismos) : "En otros años", mismos.length ? "font-semibold text-ink" : "text-inkSoft"),
+            vendio: <CeldaNumero sub={num(e.ventas) ? plural(num(e.ventas)!, "venta", "ventas") : undefined}>{soles(num(e.monto) ?? 0)}</CeldaNumero>,
+          },
+        };
+      });
+      return (
+        <div className="space-y-3">
+          <Lista
+            etiqueta="Empresas suyas que le vendieron a esta entidad (toca una para ver su ficha)"
+            columnas={[
+              { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1fr)" },
+              { clave: "mismos", titulo: "En los años de sus órdenes", corto: "Mismos años", ancho: "minmax(0,10rem)", desde: "md", apilar: "con-rotulo" },
+              { clave: "vendio", titulo: "Le vendió a la entidad", corto: "Le vendió", ancho: "8rem", alinear: "der" },
+            ]}
+            filas={filas}
+          />
+          <p className="text-meta leading-relaxed text-inkSoft">
+            Es la misma persona por su documento, no un homónimo: el Registro Nacional de Proveedores la anota en la conformación
+            de la empresa. Las ventas son órdenes de compra o de servicio y buenas pro de la entidad a esa empresa.
+          </p>
+          {entidadRuc && <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>Ver sus órdenes de esta entidad</VerOrdenes>}
         </div>
       );
     }

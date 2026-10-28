@@ -1,4 +1,4 @@
-import { decimal, fechaCorta, plural } from "@/lib/formato";
+import { fechaCorta, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,12 +17,14 @@ export interface Hito {
 
 const DIA_MS = 86_400_000;
 const dias = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / DIA_MS);
-/** El salto entre dos hitos en la unidad que se lee: días hasta dos meses, meses hasta dos años, años después. */
+/** El salto entre dos hitos como se dice: días hasta dos meses, meses hasta dos años, después años y meses («3 años y 4 meses»). */
 function salto(d: number): string {
   if (d < 60) return plural(d, "día", "días");
-  if (d < 730) return plural(Math.round(d / 30.44), "mes", "meses");
-  const anios = d / 365.25;
-  return anios < 10 && Math.abs(anios - Math.round(anios)) >= 0.25 ? `${decimal(anios, 1)} años` : plural(Math.round(anios), "año", "años");
+  const meses = Math.round(d / 30.44);
+  if (meses < 24) return plural(meses, "mes", "meses");
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  return resto ? `${plural(anios, "año", "años")} y ${plural(resto, "mes", "meses")}` : plural(anios, "año", "años");
 }
 
 export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiqueta: string; className?: string }) {

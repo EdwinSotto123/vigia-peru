@@ -85,6 +85,15 @@ export interface PaginaPersonas {
 export interface FacetasPersonas {
   gobiernos: { valor: string; nombre: string | null; anio: number; n: number | null }[];
   tramos: Record<"monto" | "meses", Record<string, number>> | null;
+  /** En una entidad: desde cuándo la gobierna la gestión actual, y cuántas contrataciones entraron con ella o venían de antes. */
+  gestion?: { desde: string; quien: string | null; nivel: string; conteo: Record<"gestion" | "antes", number> } | null;
+}
+
+/** La gestión actual de una entidad (migración 181): la municipal o regional («Gestión 2023-2026») o la del Presidente. */
+export interface GestionEntidad {
+  desde: string;
+  quien: string | null;
+  nivel: string;
 }
 
 export interface SenalDetalle {
@@ -98,6 +107,7 @@ export interface SenalDetalle {
 export interface EntidadDePersona extends PersonaEntidad {
   depNombre: string | null;
   senalesDetalle: SenalDetalle[];
+  gestion?: GestionEntidad | null;
 }
 
 export interface ReferenciaPago {
@@ -142,6 +152,8 @@ export interface FichaPersona {
   anual: AnioDePersona[];
   /** Lo cobrado cada mes por órdenes (línea de tiempo); `dudoso`, lo que puede ser un error de CONOSCE, aparte. */
   mensual?: { mes: string; monto: number; dudoso: number; ordenes: number }[];
+  /** Los cambios de gobierno en la entidad que más le pagó, mientras tuvo órdenes (para marcarlos en la línea mes a mes). */
+  cambios?: { mes: string; nivel: string; quien: string | null }[];
 }
 
 export interface OrdenPersona {
@@ -196,7 +208,7 @@ export interface OrdenesPersona {
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "nepotismo_gobierno",
   "apellidos_autoridad", "apellidos_funcionario", "funcionario_contratado", "meses_seguidos", "pago_alto", "al_borde_del_tope", "candidato", "aporte",
-  "visita_previa", "tambien_planilla", "paso_a_planilla", "familia_estado",
+  "visita_previa", "tambien_planilla", "paso_a_planilla", "familia_estado", "socio_proveedor",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
 
@@ -208,7 +220,7 @@ export type TipoSenal = (typeof TIPOS_SENAL)[number];
  * La familia de cada señal, para agrupar el desplegable «Señal» (<optgroup>) en el orden de GRUPOS_SENAL: antes era una
  * lista plana de 20 ordenada por cuántas había.
  */
-export const GRUPOS_SENAL = ["Política", "Familia y funcionarios", "Cómo se le paga", "Otros registros"] as const;
+export const GRUPOS_SENAL = ["Política", "Familia y funcionarios", "Sus empresas", "Cómo se le paga", "Otros registros"] as const;
 export const GRUPO_SENAL: Record<TipoSenal, (typeof GRUPOS_SENAL)[number]> = {
   financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", autoridad_contratada: "Política",
   candidato: "Política", aporte: "Política",
@@ -217,6 +229,7 @@ export const GRUPO_SENAL: Record<TipoSenal, (typeof GRUPOS_SENAL)[number]> = {
   apellidos_funcionario: "Familia y funcionarios", funcionario_contratado: "Familia y funcionarios",
   meses_seguidos: "Cómo se le paga", pago_alto: "Cómo se le paga", al_borde_del_tope: "Cómo se le paga", tambien_planilla: "Cómo se le paga",
   paso_a_planilla: "Cómo se le paga",
+  socio_proveedor: "Sus empresas",
   inhabilitado: "Otros registros", visita_previa: "Otros registros",
 };
 
@@ -245,6 +258,12 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     titulo: "Un funcionario de otra entidad del mismo gobierno lo declaró como su pariente",
     explica:
       "Un funcionario de otra entidad del mismo gobierno (el gobierno regional y sus UGEL u hospitales, o la municipalidad y sus organismos) lo declaró como pariente en su Declaración Jurada de Intereses, y él es locador de esta entidad. Entre entidades de un mismo gobierno pueden cruzarse favores; es un indicio para revisar, no una acusación.",
+  },
+  socio_proveedor: {
+    corto: "Socio de un proveedor",
+    titulo: "Es socio o representante de una empresa que también le vende a esta entidad",
+    explica:
+      "Según el Registro Nacional de Proveedores de la OECE, es socio, representante o directivo de una empresa que también le vendió a esta entidad (órdenes de compra o de servicio, o una buena pro), además de las órdenes que recibe como persona. Es la misma persona, por su documento: no un homónimo. Puede ser legal; vale revisar si la empresa le vendió en los mismos años y si él intervino en esas compras.",
   },
   al_borde_del_tope: {
     corto: "Órdenes al borde del tope",
@@ -343,6 +362,7 @@ export const FUENTE_TEXTO: Record<string, string> = {
   conosce_ordenes: "OECE, CONOSCE: órdenes de compra y de servicio",
   pte_personal: "Portal de Transparencia Estándar, personal",
   visitas_entidades: "Registro de visitas a entidades",
+  oece_rnp: "OECE, Registro Nacional de Proveedores (conformación jurídica)",
 };
 
 /** La fuente en corto, para la línea de la señal (la completa, con su enlace, va en la evidencia). */
@@ -355,6 +375,7 @@ export const FUENTE_CORTA: Record<string, string> = {
   conosce_ordenes: "CONOSCE",
   pte_personal: "Portal de Transparencia",
   visitas_entidades: "Registro de visitas",
+  oece_rnp: "OECE, RNP",
 };
 
 /** El parentesco declarado en la DJI, como lo dice la ficha ("hijo" → "hijo(a)"). */
@@ -465,16 +486,18 @@ export interface ParamsPersonas {
   gobierno: string;
   monto: string;
   meses: string;
+  /** «Cuándo entró»: con la gestión actual (`gestion`) o desde antes (`antes`). */
+  ingreso: string;
   orden: string;
   page: string;
   /** El buscador: la entidad y el tipo de servicio (nunca el nombre de la persona). */
   q: string;
 }
 export const PARAMS_SOLOS: ParamsPersonas = {
-  senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", gobierno: "gobierno", monto: "monto", meses: "meses", orden: "orden", page: "page", q: "q",
+  senal: "senal", severidad: "severidad", servicio: "servicio", anio: "anio", gobierno: "gobierno", monto: "monto", meses: "meses", ingreso: "ingreso", orden: "orden", page: "page", q: "q",
 };
 export const PARAMS_EN_FICHA: ParamsPersonas = {
-  senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", gobierno: "pgob", monto: "pmonto", meses: "pmeses", orden: "pord", page: "ppag", q: "pq",
+  senal: "psenal", severidad: "psev", servicio: "pservicio", anio: "panio", gobierno: "pgob", monto: "pmonto", meses: "pmeses", ingreso: "ping", orden: "pord", page: "ppag", q: "pq",
 };
 
 /**
@@ -498,6 +521,12 @@ export const TRAMOS_PERSONA: Record<"monto" | "meses", readonly { valor: string;
   ],
 };
 const esTramo = (t: "monto" | "meses", v: string | undefined) => (v && TRAMOS_PERSONA[t].some((o) => o.valor === v) ? v : undefined);
+
+/** «Cuándo entró» (los mismos valores de la API, `INGRESO_PERSONA`): su primera orden frente al inicio de la gestión actual. */
+export const INGRESO_PERSONA = [
+  { valor: "gestion", etiqueta: "Entró con la gestión actual" },
+  { valor: "antes", etiqueta: "Ya estaba antes y siguió" },
+] as const;
 
 /**
  * Las opciones de un filtro buscable con nombres únicos: el campo elige la opción por su nombre (`<datalist>`), así que
@@ -532,6 +561,7 @@ export interface FiltrosPersonas {
   anio?: number;
   monto?: string;
   meses?: string;
+  ingreso?: string;
   orden?: string;
   q?: string;
   page?: number;
@@ -556,6 +586,7 @@ export function filtrosDeUrl(sp: Busqueda, P: ParamsPersonas): FiltrosPersonas {
     gobierno: gobierno && /^[a-z0-9-]{1,80}:\d{4}$/.test(gobierno) && esAnioGobierno(Number(gobierno.split(":")[1])) ? gobierno : undefined,
     monto: esTramo("monto", uno(sp?.[P.monto])),
     meses: esTramo("meses", uno(sp?.[P.meses])),
+    ingreso: INGRESO_PERSONA.some((o) => o.valor === uno(sp?.[P.ingreso])) ? uno(sp?.[P.ingreso]) : undefined,
     orden: orden && ORDENES_PERSONAS.some((o) => o.valor === orden) ? orden : undefined,
     q: q && q.length >= 2 ? q : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
@@ -572,6 +603,7 @@ export function parametrosDe(f: FiltrosPersonas, P: ParamsPersonas): Record<stri
     [P.gobierno]: f.gobierno,
     [P.monto]: f.monto,
     [P.meses]: f.meses,
+    [P.ingreso]: f.ingreso,
     [P.orden]: f.orden,
     [P.q]: f.q,
   };
