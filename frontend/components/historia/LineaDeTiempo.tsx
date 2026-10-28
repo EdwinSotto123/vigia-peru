@@ -132,7 +132,8 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
     }
     return out;
   }, [h, ocultos]);
-  const ys = filas.reduce<number[]>((acc, f, i) => [...acc, (acc[i] ?? EJE) + (i ? filas[i - 1].alto : 0)], []);
+  // Dónde empieza cada renglón: debajo del eje, uno tras otro.
+  const ys = filas.reduce<number[]>((acc, _f, i) => [...acc, i === 0 ? EJE : acc[i - 1] + filas[i - 1].alto], []);
   const H = (ys[ys.length - 1] ?? EJE) + (filas[filas.length - 1]?.alto ?? 0) + 6;
 
   // Al abrir (y al cambiar de periodo), lo más reciente a la vista: el lienzo se desliza sólo si no entra.
@@ -594,7 +595,8 @@ function DetalleMes({ lineas, marcas, elegir }: { lineas: LineaMes[]; marcas: Hi
             )}
             {l.ev.length > 0 && (
               <ul className="space-y-1">
-                {l.ev.map((e) => (
+                {/* recorte: seis por renglón; «y N más» lleva a la lista completa de abajo. */}
+                {l.ev.slice(0, 6).map((e) => (
                   <li key={e.id}>
                     <button type="button" onClick={() => elegir(e.id)} className="text-left text-meta text-inkSoft underline decoration-line underline-offset-2 hover:text-ink">
                       {fechaCorta(e.fecha)}: {e.titulo}
@@ -602,6 +604,13 @@ function DetalleMes({ lineas, marcas, elegir }: { lineas: LineaMes[]; marcas: Hi
                     </button>
                   </li>
                 ))}
+                {l.ev.length > 6 && (
+                  <li>
+                    <a href="#historia-lista" className="text-micro font-semibold text-granate underline decoration-granate/40 underline-offset-2">
+                      Y {numero(l.ev.length - 6)} más en la lista de todos los hechos
+                    </a>
+                  </li>
+                )}
               </ul>
             )}
           </li>

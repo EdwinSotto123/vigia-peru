@@ -80,6 +80,13 @@ const titulo = (s: string | null | undefined) =>
     .replace(/^./, (l) => l.toUpperCase())
     .trim();
 const sev = (v: unknown): Severidad | null => (v === "alta" || v === "media" || v === "baja" ? v : null);
+/** Una descripción del SEACE en una frase de a lo sumo 180 letras (entera, en la ficha del contrato). */
+const corto = (s: string | null | undefined): string | null => {
+  const t = (s ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const o = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  return o.length > 180 ? `${o.slice(0, 179).replace(/\s+\S*$/, "")}…` : o;
+};
 
 /** Los carriles que traen algo (una serie con datos o un hecho), en el orden pedido. */
 function soloConDatos(orden: CarrilHistoria[], series: SerieHistoria[], eventos: EventoHistoria[]): CarrilHistoria[] {
@@ -174,9 +181,9 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
               paralizada, to_char(fecha_paralizacion, 'YYYY-MM-DD') AS fecha_par, causal_paralizacion AS causal, ejecutor_ruc, ejecutor_nombre AS ejecutor
          FROM obra_infobras WHERE entidad_ruc = $1 AND NOT retirada AND fecha_inicio IS NOT NULL
         ORDER BY contrato_monto DESC NULLS LAST LIMIT 300`, [ruc]),
-    filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[] }>(
+    filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[] }>(
       "banderas",
-      `SELECT ocid, ruc, proveedor, objeto, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta, tipos
+      `SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta, tipos
          FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
         ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
     filas<{ anio: number; pim: number; devengado: number }>(
@@ -267,8 +274,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     const empresa = /^20\d{9}$/.test(b.ruc) && b.proveedor ? titulo(b.proveedor) : "una persona natural";
     eventos.push({
       id: `bandera:${b.ocid}:${b.ruc}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad),
-      titulo: `Buena pro a ${empresa}${b.objeto ? ` (${b.objeto.toLowerCase()})` : ""}`,
-      detalle: b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"} del ganador` : "Antecedentes del ganador",
+      titulo: `Buena pro${b.tipo ? ` de ${b.tipo.toLowerCase()}` : ""} a ${empresa}`,
+      detalle: [b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"} del ganador` : "Antecedentes del ganador", corto(b.objeto)].filter(Boolean).join("; "),
       href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid),
     });
   }
@@ -408,9 +415,9 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
       `SELECT to_char(fecha_inicio_vigencia, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n
          FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND fecha_inicio_vigencia IS NOT NULL
         GROUP BY 1, 2 ORDER BY 1`, [ruc]),
-    filas<{ ocid: string; entidad: string | null; objeto: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number }>(
+    filas<{ ocid: string; entidad: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number }>(
       "banderas",
-      `SELECT ocid, entidad, objeto, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta
+      `SELECT ocid, entidad, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta
          FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
         ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
   ]);
@@ -434,7 +441,7 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     eventos.push({
       id: `contrato:${a.codigo}:${a.entidad_ruc ?? ""}`, carril: "compras", tipo: "buena_pro", fecha: a.fecha!, monto: dudoso ? null : num(a.monto),
       titulo: `Ganó la buena pro en ${a.entidad ? titulo(a.entidad) : "una entidad"}`,
-      detalle: [a.descripcion, a.consorcio ? `En consorcio: ${titulo(a.consorcio)}` : null, dudoso ? "El monto adjudicado parece mal cargado en el OECE: no se suma" : null].filter(Boolean).join("; ") || null,
+      detalle: [corto(a.descripcion), a.consorcio ? `En consorcio: ${titulo(a.consorcio)}` : null, dudoso ? "El monto adjudicado parece mal cargado en el OECE: no se suma" : null].filter(Boolean).join("; ") || null,
       href: a.ocid ? rutaContrato(a.ocid) : `${base}?seccion=ventas&vista=contratos`, fuente: "OECE (CONOSCE)", enlace: a.ocid ? procesoOece(a.ocid) : CONOSCE_BUSCADOR,
     });
   }
@@ -514,7 +521,7 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     }
   }
   for (const b of ban) {
-    eventos.push({ id: `bandera:${b.ocid}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad), titulo: `Buena pro en ${b.entidad ? titulo(b.entidad) : "una entidad"}${b.objeto ? ` (${b.objeto.toLowerCase()})` : ""}`, detalle: b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"}` : "Antecedentes medios", href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid) });
+    eventos.push({ id: `bandera:${b.ocid}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad), titulo: `Buena pro${b.tipo ? ` de ${b.tipo.toLowerCase()}` : ""} en ${b.entidad ? titulo(b.entidad) : "una entidad"}`, detalle: [b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"}` : "Antecedentes medios", corto(b.objeto)].filter(Boolean).join("; "), href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid) });
   }
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);

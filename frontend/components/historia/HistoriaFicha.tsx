@@ -81,7 +81,7 @@ export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["suje
         {omitidos.length > 0 && (
           <Nota>
             En la línea van los hechos más graves y los más grandes de cada renglón:{" "}
-            {omitidos.map(([c, n]) => `${numero(n)} ${plural(n, "más", "más")} en «${titulo(c)}»`).join(", ")}. Están todos en su pestaña.
+            {omitidos.map(([c, n]) => `${numero(n)} más en «${titulo(c)}»`).join(", ")}. Están todos en la lista de abajo y en su pestaña.
           </Nota>
         )}
       </section>
