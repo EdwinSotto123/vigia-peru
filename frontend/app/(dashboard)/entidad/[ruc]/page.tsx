@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, DoorOpen, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
+import { Building2, CloudOff, DoorOpen, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Scale, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -557,6 +557,10 @@ export default async function EntidadProfile({
               )}
               <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">
                 <Flag size={14} aria-hidden /> Denunciar
+              </EnlaceAccion>
+              {/* Lado a lado con otra entidad (fase 6): ésta ya va como la primera. */}
+              <EnlaceAccion href={`/app/comparar?a=${e.ruc}`} variante="secundario" className="px-4">
+                <Scale size={14} aria-hidden /> Comparar
               </EnlaceAccion>
               <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
             </>
