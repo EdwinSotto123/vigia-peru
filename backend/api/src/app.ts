@@ -21,6 +21,7 @@ import { corrupcionRouter } from "./routes/corrupcion.js";
 import { personasRouter } from "./routes/personas.js";
 import { empresasRouter } from "./routes/empresas.js";
 import { planillaRouter, plazasRouter } from "./routes/planilla.js";
+import { historiaRouter } from "./routes/historia.js";
 import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
 import { financiamientoRouter } from "./routes/financiamiento.js";
@@ -119,6 +120,7 @@ api.route("/personas", personasRouter);
 api.route("/empresas", empresasRouter);
 api.route("/planilla", planillaRouter);
 api.route("/plazas", plazasRouter);
+api.route("/historia", historiaRouter);
 api.route("/reportes", reportesRouter);
 api.route("/upload", uploadRouter);
 api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)

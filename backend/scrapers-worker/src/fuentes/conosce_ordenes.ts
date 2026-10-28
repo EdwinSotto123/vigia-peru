@@ -270,6 +270,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   // órdenes llegan con atraso; por eso 62 días atrás).
   resumen.entidad_ordenes = await siExiste("refrescar_entidad_ordenes", "refrescar_entidad_ordenes(date,date)",
     "SELECT refrescar_entidad_ordenes(current_date - 62) AS n");
+  // Y por mes, de cada entidad y de cada empresa, para su línea de tiempo (migración 187): los mismos dos meses atrás.
+  resumen.ordenes_mes = await siExiste("refrescar_ordenes_mes", "refrescar_ordenes_mes(date,date)",
+    "SELECT refrescar_ordenes_mes(current_date - 62) AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
   // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).
