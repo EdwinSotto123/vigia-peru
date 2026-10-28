@@ -26,7 +26,7 @@ import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { decimal, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
+import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, rutaPlaza, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
 
@@ -315,7 +315,12 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
               )}
             </>
           }
-          secundarias={<span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>}
+          secundarias={
+            <>
+              <EnlaceAccion href={rutaPlaza(p.aviso)} variante="secundario">Abrir la ficha de la plaza</EnlaceAccion>
+              <span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>
+            </>
+          }
         />
       ),
     },
@@ -324,8 +329,20 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
 
 const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() && !Number.isNaN(Number(v)) ? Number(v) : null);
 
-function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown> }) {
+const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fechaCorta(v.slice(0, 10)) : null);
+
+/** La evidencia de cada señal de una plaza (la usan el panel de la lista y la ficha de la plaza). */
+export function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
+  if (tipo === "gestion_saliente") {
+    const nivel = d.nivel === "regional" ? "Gobierno regional" : "Gobierno municipal";
+    items = [
+      { etiqueta: nivel, valor: [typeof d.gestion === "string" ? d.gestion : null, typeof d.partido === "string" ? tituloNatural(d.partido) : null].filter(Boolean).join(", ") || null },
+      { etiqueta: "Elecciones regionales y municipales", valor: dia(d.eleccion) },
+      { etiqueta: "Publicó la plaza", valor: dia(d.publicada) },
+      { etiqueta: "Entrega el cargo", valor: dia(d.entrega) },
+    ];
+  }
   if (tipo === "plazo_corto") items = [{ etiqueta: "Días publicada", valor: n(d.dias) != null ? numero(n(d.dias)) : null }];
   else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null, ayuda: <AyudaTermino clave="locacion" /> }];
   else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${decimal(n(d.exp_general))} años` : "No la pide" }];

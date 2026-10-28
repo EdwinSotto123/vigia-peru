@@ -33,7 +33,7 @@ const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "planilla:f
 export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 // Sin `sueldo_alto`: no se calcula desde la migración 95 (el tipo de servicio es muy amplio para comparar sueldos), y un
 // filtro que nunca encuentra nada no se ofrece.
-export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
+export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"] as const;
 const SEV: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
 const Alcance = {
@@ -467,6 +467,58 @@ plazasRouter.get("/", async (c) => {
     ]);
     return publicar({ total: filas.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows.map(({ n: _n, ...f }) => f), resumen: res.rows[0] });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /plazas/:aviso ─────────────────────────────────────────────────────────────────────────
+/**
+ * La ficha de una plaza CAS: la convocatoria con sus requisitos y señales, y su contexto. Las otras plazas de la entidad con
+ * el mismo título (una convocatoria de varias vacantes suele venir así), lo que pagan otras entidades por el mismo título
+ * (con tres plazas o más) y la gestión que la convocó (migración 183).
+ */
+const PLAZA_CAMPOS = `s.aviso, s.titulo, s.entidad, s.entidad_ruc AS "entidadRuc", s.ubicacion, s.numero, s.vacantes, s.remuneracion::float AS remuneracion,
+       to_char(s.fecha_inicio, 'YYYY-MM-DD') AS "fechaInicio", to_char(s.fecha_fin, 'YYYY-MM-DD') AS "fechaFin", s.experiencia,
+       s.formacion, s.especializacion, s.conocimiento, s.servicio, s.exp_general::float AS "expGeneral", s.detalle_url AS "detalleUrl",
+       s.senales, s.n_senales AS "nSenales"`;
+
+plazasRouter.get("/:aviso", async (c) => {
+  const aviso = c.req.param("aviso");
+  if (!/^[0-9]{1,9}$/.test(aviso)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await fichaMemo.obtener(`plaza:${aviso}`, async () => {
+    const r = await pool.query(`SELECT ${PLAZA_CAMPOS}, mef_norm(s.titulo) AS "_t" FROM servir_convocatoria s WHERE s.aviso = $1`, [Number(aviso)]);
+    const p = r.rows[0];
+    if (!p) return null;
+    const [mismas, otras, gestion] = await Promise.all([
+      p.entidadRuc
+        ? pool.query(
+            `SELECT s.aviso, s.numero, s.vacantes, s.remuneracion::float AS remuneracion, to_char(s.fecha_inicio, 'YYYY-MM-DD') AS "fechaInicio",
+                    s.ubicacion, s.n_senales AS "nSenales"
+               FROM servir_convocatoria s WHERE s.entidad_ruc = $1 AND mef_norm(s.titulo) = $2 AND s.aviso <> $3
+              ORDER BY s.fecha_inicio DESC NULLS LAST, s.aviso DESC LIMIT 50`, [p.entidadRuc, p._t, p.aviso])
+        : { rows: [] },
+      pool.query<{ plazas: number; entidades: number; mediana: number | null; p25: number | null; p75: number | null }>(
+        `SELECT count(*)::int AS plazas, count(DISTINCT s.entidad_ruc)::int AS entidades,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY s.remuneracion)::float AS mediana,
+                percentile_cont(0.25) WITHIN GROUP (ORDER BY s.remuneracion)::float AS p25,
+                percentile_cont(0.75) WITHIN GROUP (ORDER BY s.remuneracion)::float AS p75
+           FROM servir_convocatoria s
+          WHERE mef_norm(s.titulo) = $1 AND s.remuneracion > 0 AND s.entidad_ruc IS DISTINCT FROM $2`, [p._t, p.entidadRuc]),
+      p.entidadRuc
+        ? pool.query(`SELECT to_char(desde, 'YYYY-MM-DD') AS desde, quien, nivel, org_nombre AS partido FROM entidad_gestion WHERE ruc = $1`, [p.entidadRuc])
+        : { rows: [] },
+    ]);
+    const { _t, ...plaza } = p;
+    const o = otras.rows[0];
+    return publicar({
+      plaza,
+      mismoTitulo: mismas.rows,
+      // Con menos de tres plazas en otras entidades, no se compara.
+      enOtras: o && o.plazas >= 3 ? o : null,
+      gestion: gestion.rows[0] ?? null,
+    });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

@@ -225,6 +225,10 @@ def main() -> int:
             for k in range(0, len(plazas), 500):
                 cur.execute(SQL_UPSERT, (json.dumps(plazas[k:k + 500], ensure_ascii=False),))
             cur.execute("SELECT refrescar_plazas()")
+            # La plaza de la gestión saliente (migración 183): después, porque refrescar_plazas() rehace todas las señales.
+            cur.execute("SELECT to_regprocedure('refrescar_plazas_extra()') IS NOT NULL")
+            if cur.fetchone()[0]:
+                cur.execute("SELECT refrescar_plazas_extra()")
             cur.execute("SELECT count(*), count(entidad_ruc), count(*) FILTER (WHERE n_senales > 0) FROM servir_convocatoria")
             tot, con_ruc, con_senales = cur.fetchone()
             cur.execute(

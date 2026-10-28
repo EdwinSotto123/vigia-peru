@@ -10,7 +10,7 @@ import type { FichaPersona, Severidad } from "./personas";
 export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 // Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
-export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores"] as const;
+export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"] as const;
 export type TipoPlaza = (typeof TIPOS_PLAZA)[number];
 
 export interface SenalConDetalle<T extends string> {
@@ -450,7 +450,28 @@ export const SENAL_PLAZA: Record<TipoPlaza, { corto: string; titulo: string; exp
     titulo: "La entidad ya pagaba ese servicio por órdenes",
     explica: "En los 12 meses antes, la entidad pagó por órdenes de servicio el mismo tipo de trabajo a una, dos o tres personas: la plaza puede ser para quien ya lo hacía.",
   },
+  gestion_saliente: {
+    corto: "De la gestión saliente",
+    titulo: "La convocó la gestión que se va, después de las elecciones",
+    explica:
+      "La publicó un gobierno regional o municipal (o uno de sus organismos) después de las elecciones regionales y municipales y antes de entregar el cargo. Quien entre ahora seguirá con la gestión nueva. No es una falta: es un dato para revisar, más si la plaza pide experiencia en la propia entidad o ya hay locadores que hacen ese trabajo.",
+  },
 };
+
+/** La ficha de una plaza CAS (GET /plazas/:aviso): la convocatoria y su contexto. */
+export interface FichaPlaza {
+  plaza: Plaza;
+  /** Otras plazas de la entidad con el mismo título (una convocatoria de varias vacantes suele venir así). */
+  mismoTitulo: { aviso: number; numero: string | null; vacantes: number | null; remuneracion: number | null; fechaInicio: string | null; ubicacion: string | null; nSenales: number }[];
+  /** Lo que pagan otras entidades por el mismo título (tres plazas o más). */
+  enOtras: { plazas: number; entidades: number; mediana: number | null; p25: number | null; p75: number | null } | null;
+  gestion: { desde: string; quien: string | null; nivel: string; partido: string | null } | null;
+}
+
+export const rutaPlaza = (aviso: number | string) => `/app/personas/plazas/${aviso}`;
+
+export const getFichaPlaza = (aviso: string) =>
+  /^[0-9]{1,9}$/.test(aviso) ? leer<FichaPlaza>(`/plazas/${aviso}`) : Promise.resolve(null);
 
 async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
   try {

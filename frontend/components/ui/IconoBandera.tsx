@@ -37,7 +37,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   meses_seguidos: CalendarRange, pago_alto: TrendingUp, brecha_cargo: TrendingUp,
   tambien_planilla: Split, tambien_ordenes: Split, doble_planilla: Copy,
   paso_a_planilla: IdCard, antes_locador: IdCard, planilla: IdCard,
-  socio_proveedor: Briefcase, pago_extraordinario: Wallet, plazas: Ruler,
+  socio_proveedor: Briefcase, pago_extraordinario: Wallet, plazas: Ruler, gestion_saliente: DoorOpen,
   // Obra
   obra_controversia: Swords, obra_informe_control: FileSearch,
 };
