@@ -1,7 +1,8 @@
-import { Ayuda, CabeceraPestana } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EnlaceFuente, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { CONSULTA_AMIGABLE, DATASET_MEF, inversionSsi } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { periodoTexto, type GastoPartido } from "@/lib/partidosApi";
 import { BarrasGasto, BloqueInicio } from "./BloquesInicio";
@@ -40,7 +41,7 @@ export function GastoInicio({ gasto, ruta, anio, className }: { gasto: GastoPart
       ayuda={
         <Ayuda titulo="¿De dónde sale?">
           <span className="block">
-            Del MEF (Consulta Amigable): el presupuesto modificado (PIM) y lo ya gastado (devengado) de cada gobierno que
+            Del MEF (<EnlaceFuente href={CONSULTA_AMIGABLE}>Consulta Amigable</EnlaceFuente>): el presupuesto modificado (PIM) y lo ya gastado (devengado) de cada gobierno que
             ganó el partido. Un gobierno regional suma todas sus unidades ejecutoras (sede, salud, educación, UGEL); uno
             provincial o distrital, su municipalidad.
           </span>
@@ -113,7 +114,11 @@ export function GastoDetalle({ gasto }: { gasto: GastoPartido }) {
           />
         </div>
       )}
-      <p className="text-rotulo text-mute">Fuente: MEF, Consulta Amigable ({gasto.mef}): presupuesto modificado (PIM) y devengado.</p>
+      <FuenteDato
+        fuente={`MEF, Consulta Amigable (${gasto.mef}): presupuesto modificado (PIM) y devengado`}
+        href={CONSULTA_AMIGABLE}
+        enlaces={[{ texto: "Presupuesto y ejecución (Datos Abiertos del MEF)", href: DATASET_MEF }]}
+      />
     </div>
   );
 }
@@ -134,7 +139,12 @@ function filasProyectos(g: GastoPartido): Fila[] {
         <CeldaPrincipal
           titulo={tituloNatural(p.nombre)}
           dosLineas
-          meta={[<Dato key="c" tipo="codigo" nombre="Código único de inversión" mono>CUI {p.codigo}</Dato>]}
+          // El CUI abre la inversión en el seguimiento del MEF: lo que se aprobó, lo que cuesta y lo gastado.
+          meta={[
+            <Dato key="c" tipo="codigo" nombre="Código único de inversión" mono>
+              <EnlaceFuente href={inversionSsi(p.codigo)}>CUI {p.codigo}</EnlaceFuente>
+            </Dato>,
+          ]}
         />
       ),
       gobierno: <CeldaTexto sub={<Dato tipo="tipo">{NIVEL[p.nivel]}</Dato>}><Dato tipo="lugar">{p.lugar ?? p.ubigeo}</Dato></CeldaTexto>,

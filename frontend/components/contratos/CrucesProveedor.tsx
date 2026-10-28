@@ -307,15 +307,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         <>
           {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{v?.entidad ?? "una entidad"}</b>
           {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} el {fechaCorta(v?.fecha ?? c.fecha)}
-          {v?.funcionario ? (
-            <>
-              {" "}
-              y lo recibió <span className="font-semibold">{v.funcionario}</span>
-              {v.cargoFuncionario ? ` (${v.cargoFuncionario.toLowerCase()})` : ""}
-            </>
-          ) : (
-            ""
-          )}
+          {/* De quien recibió, sólo su cargo: su nombre no se publica. */}
+          {v?.cargoFuncionario ? <> y lo recibió quien tiene el cargo de {v.cargoFuncionario.toLowerCase()}</> : ""}
           .{v?.motivo ? <> Motivo declarado: «{v.motivo.slice(0, 120)}».</> : ""}
           <Gano c={c} dias={dias} />
         </>

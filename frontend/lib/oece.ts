@@ -15,6 +15,8 @@
  *   parties[]                → comprador, oferentes, ganador
  */
 
+import { procesoOece } from "@/lib/fuentes";
+
 export const OECE_BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
 export const OCID_PREFIX = "ocds-dgv273-seacev3-";
 export const OECE_PORTAL_BASE = "https://contratacionesabiertas.oece.gob.pe";
@@ -188,5 +190,5 @@ export async function fetchLatestRecords(
 
 // Helper para enriquecer una bandera con info OECE en caso necesario
 export function portalUrlFor(ocid: string): string {
-  return `${OECE_PORTAL_BASE}/perfilProveedor/#!/transactions/contract/${ocid}`;
+  return procesoOece(ocid);
 }

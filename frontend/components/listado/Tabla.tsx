@@ -317,6 +317,7 @@ export function CeldaPrincipal({
   className,
   dosLineas = false,
   enLinea = false,
+  metaEnVarias = false,
 }: {
   titulo: ReactNode;
   textoCompleto?: string;
@@ -330,6 +331,11 @@ export function CeldaPrincipal({
    * tabla `compacta`. En el celular se apilan como siempre, para no partir el nombre.
    */
   enLinea?: boolean;
+  /**
+   * La línea de contexto en varias líneas si no cabe, en vez de recortarla: cuando cada dato importa (lo que un socio es
+   * en el Estado: locador de cuántas entidades, autoridad, aportes), que en el celular se cortaba a la mitad.
+   */
+  metaEnVarias?: boolean;
 }) {
   const tooltip = textoCompleto ?? (typeof titulo === "string" ? titulo : undefined);
   const lineaMeta = Array.isArray(meta) ? (meta.some(hayDato) ? <Partes partes={meta} /> : null) : meta;
@@ -348,7 +354,7 @@ export function CeldaPrincipal({
       <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
-      {lineaMeta && <span className="mt-0.5 block truncate text-meta text-mute">{lineaMeta}</span>}
+      {lineaMeta && <span className={cn("mt-0.5 block text-meta text-mute", metaEnVarias ? "whitespace-normal" : "truncate")}>{lineaMeta}</span>}
     </span>
   );
 }

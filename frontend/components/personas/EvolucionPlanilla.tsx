@@ -1,6 +1,7 @@
 import { FuenteDato } from "@/components/patrones";
 import { mesCorto } from "@/lib/partidosApi";
 import { numero, plural, solesCompacto } from "@/lib/formato";
+import { personalPte } from "@/lib/fuentes";
 import { getPlanillaMensual, nombrePartido, type PlanillaMensual } from "@/lib/planilla";
 
 /**
@@ -201,7 +202,8 @@ function Grafico({ d }: { d: PlanillaMensual }) {
       <p className="text-rotulo text-mute">
         Entrar o salir es frente al mes anterior que la entidad publicó: un mes sin publicar no cuenta como salida.
       </p>
-      <FuenteDato fuente="Portal de Transparencia Estándar, personal de la entidad (desde enero de 2025)" />
+      {/* La página de personal de la entidad en el portal (por su id; sin él, la portada del portal). */}
+      <FuenteDato fuente="Portal de Transparencia Estándar, personal de la entidad (desde enero de 2025)" href={personalPte(d.idPte)} />
     </section>
   );
 }

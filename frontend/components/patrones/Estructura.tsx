@@ -196,34 +196,63 @@ export function Nota({ icono, children, className }: { icono?: ReactNode; childr
   );
 }
 
-/** De dónde sale un dato y de cuándo es: "Fuente: SEACE, 14 set. 2026", con enlace al registro. */
+/**
+ * Un enlace a una fuente oficial, que se ve como enlace: granate, subrayado y con la flecha de «se abre afuera» (antes
+ * el pie «Fuente:» era gris y sin subrayar, y no se notaba que llevaba a algún lado). Para FuenteDato y la evidencia.
+ */
+export function EnlaceFuente({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "inline-flex min-h-6 items-center gap-1 font-medium text-granate underline decoration-granate/35 underline-offset-2 transition-colors duration-rapido hover:decoration-granate",
+        className,
+      )}
+    >
+      {children}
+      <ExternalLink size={12} className="shrink-0" aria-hidden />
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+}
+
+/**
+ * De dónde sale un dato y de cuándo es: "Fuente: SEACE, 14 set. 2026". Con `href`, el nombre de la fuente es el enlace;
+ * con `enlaces`, debajo, uno por registro oficial donde comprobarlo (el proceso en el OECE, la obra en INFOBRAS, la
+ * planilla de la entidad en el Portal de Transparencia), armados con lib/fuentes.ts.
+ */
 export function FuenteDato({
   fuente,
   fecha,
   href,
+  enlaces,
   className,
 }: {
   fuente: string;
   fecha?: string | null;
   href?: string | null;
+  enlaces?: ({ texto: string; href: string } | null | false | undefined)[];
   className?: string;
 }) {
-  const texto = (
-    <>
-      Fuente: {fuente}
-      {fecha ? `, ${fechaCorta(fecha)}` : ""}
-    </>
-  );
+  const lista = (enlaces ?? []).filter((e): e is { texto: string; href: string } => !!e && !!e.href);
   return (
-    <p className={cn("text-rotulo text-mute", className)}>
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-granate hover:underline">
-          {texto} <ExternalLink size={11} aria-hidden />
-        </a>
-      ) : (
-        texto
+    <div className={cn("text-rotulo text-mute", className)}>
+      <p>
+        Fuente: {href ? <EnlaceFuente href={href}>{fuente}</EnlaceFuente> : fuente}
+        {fecha ? `, ${fechaCorta(fecha)}` : ""}
+      </p>
+      {lista.length > 0 && (
+        <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5" aria-label="Dónde comprobarlo">
+          {lista.map((e) => (
+            <li key={e.href}>
+              <EnlaceFuente href={e.href}>{e.texto}</EnlaceFuente>
+            </li>
+          ))}
+        </ul>
       )}
-    </p>
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { DatosClave, EstadoVacio } from "@/components/patrones";
+import { DatosClave, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { CONOSCE_BUSCADOR, busquedaOece } from "@/lib/fuentes";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -115,7 +116,15 @@ export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual
             <Link href={rutaContrato(x.codigo)} className="inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">Abrir la ficha del proceso</Link>
           </div>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, postores y adjudicaciones</span>,
+        pie: (
+          <FuenteDato
+            fuente="OECE, CONOSCE, postores y adjudicaciones"
+            enlaces={[
+              { texto: `El proceso ${x.codigo} en Contrataciones Abiertas (OECE)`, href: busquedaOece(x.codigo) },
+              { texto: "Buscador de CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
+            ]}
+          />
+        ),
       },
       celdas: {
         fecha: <CeldaFecha fecha={x.fecha} />,

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronRight, ExternalLink, Info } from "lucide-react";
+import { ChevronRight, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Badge } from "@/components/ui/Badge";
@@ -11,6 +12,7 @@ import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { limpiarObjeto } from "@/components/contratos/recortar";
 import { BloqueInicio, SinDato } from "./BloquesInicio";
@@ -158,9 +160,9 @@ function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambi
               </div>
             )}
             {pp.url_fuente && (
-              <a href={pp.url_fuente} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
-                Boletín oficial (PDF) <ExternalLink size={12} aria-hidden />
-              </a>
+              <EnlaceFuente href={pp.url_fuente} className="min-h-8">
+                Boletín oficial (PDF)
+              </EnlaceFuente>
             )}
           </dl>
         </div>
@@ -365,10 +367,7 @@ function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: C
           )}
           <p className="text-rotulo text-mute">
             Cada fila abre el informe oficial en la Contraloría. Todos están también en su{" "}
-            <a href="https://buscadorinformes.contraloria.gob.pe/" target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
-              buscador de informes
-            </a>
-            .
+            <EnlaceFuente href={BUSCADOR_CONTRALORIA}>buscador de informes</EnlaceFuente>.
           </p>
         </div>
       )}

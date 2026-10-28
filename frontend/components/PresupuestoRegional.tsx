@@ -19,10 +19,8 @@ import {
 import { ejecucionPct, sinAnioRepetido, type BreakdownRow, type MefBudgetRow, type RegionBudgetSummary } from "@/lib/mef";
 import { coincide, fechaCorta, numero, paraBuscar, porcentaje, solesCompacto } from "@/lib/formato";
 import { Ayuda, AyudaTermino, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { CONSULTA_AMIGABLE, DATASET_MEF } from "@/lib/fuentes";
 import { cn } from "@/lib/utils";
-
-const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
-const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
 
 /** Un año cerrado que devengó menos que esto del PIM se marca como observación (no es una señal de Vigía). */
 const EJECUCION_BAJA = 40;
@@ -335,7 +333,12 @@ export function PresupuestoRegional({
         </div>
       )}
 
-      <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
+      <FuenteDato
+        fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)"
+        fecha={data.fechaDescarga}
+        href={DATASET_MEF}
+        enlaces={[{ texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]}
+      />
     </div>
   );
 }

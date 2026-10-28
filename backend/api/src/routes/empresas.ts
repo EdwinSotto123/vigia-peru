@@ -5,6 +5,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { aCruce, ETIQUETA_CRUCE } from "../lib/cruces.js";
 import { publicar } from "../lib/privacidad.js";
+import { visitasHasta } from "../lib/visitas.js";
 import { conEnie, palabrasBusqueda } from "./personas.js";
 
 /**
@@ -966,7 +967,7 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
     // Si la entidad visitada le adjudicó o le compró algo, lo primero que le dio después de la visita (y cuánto después).
     const r = await pool.query(
       `SELECT to_char(v.fecha_visita, 'YYYY-MM-DD') AS fecha, v.entidad_visitada AS entidad, ev.entidad_ruc AS "entidadRuc", ev.via,
-              v.visitante, v.funcionario_nombre AS funcionario, v.funcionario_cargo AS "cargoFuncionario", v.funcionario_area AS area,
+              v.visitante, v.funcionario_cargo AS "cargoFuncionario", v.funcionario_area AS area,
               v.motivo, v.lugar_especifico AS lugar, v.entidad_visitante AS "entidadDeclarada", v.fuente,
               to_char(LEAST(ad.f, od.f), 'YYYY-MM-DD') AS "despues", (LEAST(ad.f, od.f) - v.fecha_visita) AS "diasDespues",
               CASE WHEN ad.f IS NOT NULL AND (od.f IS NULL OR ad.f <= od.f) THEN 'contrato' WHEN od.f IS NOT NULL THEN 'orden' END AS "despuesTipo"
@@ -983,7 +984,9 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
         LIMIT 3000`, [ruc]);
     return publicar({
       total: r.rows.length,
-      // Bajo `visitas`: publicar() le tapa un apellido al visitante y al funcionario.
+      // Hasta qué día llega el registro de visitas (la PNDA no publicó después de mayo de 2026).
+      hasta: await visitasHasta(),
+      // Bajo `visitas`: publicar() le tapa un apellido al visitante. De quien recibió, sólo su cargo y su área (nunca su nombre).
       visitas: r.rows.map((v) => ({ ...v, via: VIA[v.via] ?? v.via, diasDespues: v.diasDespues == null ? null : Number(v.diasDespues) })),
     });
   });

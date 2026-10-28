@@ -15,6 +15,7 @@
 import type { ReactNode } from "react";
 import { PersonName, Ruc } from "@/components/Redact";
 import { Ayuda, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
+import { enlacesProceso } from "@/lib/fuentes";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, ListaPaginada, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
 import { Dato } from "@/components/ui/Dato";
@@ -184,7 +185,7 @@ function SeccionItems({ c }: { c: Detalle }) {
       ) : (
         <Vacio>El registro OCDS no trae ítems para este proceso.</Vacio>
       )}
-      <FuenteDato fuente={OCDS} className="mt-2" />
+      <FuenteDato fuente={OCDS} enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
   );
 }
@@ -321,7 +322,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         tam={20}
         buscar={{ placeholder: "Buscar un postor por razón social, RUC o estado…", etiqueta: "Buscar en los postores" }}
       />
-      <FuenteDato fuente="actas y cuadros comparativos del expediente" className="mt-2" />
+      <FuenteDato fuente="actas y cuadros comparativos del expediente" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
   );
 }
@@ -407,7 +408,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
         tam={20}
         buscar={{ placeholder: "Buscar en los ítems por descripción o marca…", etiqueta: "Buscar en los precios por ítem" }}
       />
-      <FuenteDato fuente="registro OCDS (referencia), CONOSCE (contratado) y el expediente leído" className="mt-2" />
+      <FuenteDato fuente="registro OCDS (referencia), CONOSCE (contratado) y el expediente leído" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="mt-2" />
     </>
   );
 }
@@ -443,7 +444,7 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
           ),
         }))}
       />
-      <FuenteDato fuente="documentos del expediente, página por página" className="mt-2" />
+      <FuenteDato fuente="documentos del expediente, página por página" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
   );
 }
@@ -513,7 +514,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
       ) : (
         <Vacio>El registro no publica documentos para este proceso.</Vacio>
       )}
-      <FuenteDato fuente="SEACE (OECE)" className="mt-2" />
+      <FuenteDato fuente="SEACE (OECE)" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
   );
 }

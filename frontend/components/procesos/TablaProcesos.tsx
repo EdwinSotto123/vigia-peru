@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { EstadoContratoChip } from "@/components/contratos/estadoLectura";
 import { limpiarObjeto } from "@/components/contratos/recortar";
@@ -131,6 +132,15 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
   const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
   const datos: DatoClave[] = [
     { etiqueta: "Nomenclatura", valor: p.nomenclatura ?? "Sin dato", mono: true },
+    {
+      etiqueta: "Código SEACE",
+      // En el OECE: por su OCID si Vigía lo tiene; si no, su búsqueda por el código (el OCID puede ser otro).
+      valor: (
+        <EnlaceFuente href={p.ocid ? procesoOece(p.ocid) : busquedaOece(p.codigo)} className="font-mono">
+          {p.codigo}
+        </EnlaceFuente>
+      ),
+    },
     { etiqueta: "Tipo de proceso", valor: p.tipoProceso ?? "Sin dato" },
     { etiqueta: "Objeto", valor: p.objeto ?? "Sin dato" },
     { etiqueta: "Convocado", valor: p.fecha },
@@ -197,8 +207,11 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
         </div>
       ),
       pie: (
-        <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-rotulo text-mute">Fuente: OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <FuenteDato
+            fuente="OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados"
+            enlaces={enlacesProceso(p.ocid, { codigo: p.codigo, conosce: true })}
+          />
           {p.ocid ? (
             <Link
               href={`/app/contratos/${encodeURIComponent(p.ocid)}`}
@@ -211,7 +224,7 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
               Ver la entidad <ArrowRight size={14} aria-hidden />
             </Link>
           )}
-        </span>
+        </div>
       ),
     },
   };

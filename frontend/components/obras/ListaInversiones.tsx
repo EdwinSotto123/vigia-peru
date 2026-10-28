@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ExternalLink, HardHat, Landmark, MapPin } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
 import { enSeccion } from "@/components/contratos/filtros";
 import { ChipsCruces, CrucesCelda } from "@/components/contratos/CrucesCelda";
@@ -13,13 +13,24 @@ import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { fecha as fechaLarga, fechaCorta, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { inversionSsi } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { BANDERAS_INVERSION, ESTADOS_INVERSION, FUENTE_INVERSION, MONTOS_INVERSION, ORDENES_LISTA, P_INV, P_OBRA, type Inversion, type InversionesPagina } from "@/lib/obras";
 import { BloqueBanderasObra } from "./ListaObras";
 
-/** La nota al pie de las banderas de una inversión. */
-export const NOTA_INVERSION = `Fuente: ${FUENTE_INVERSION}. Un costo que sube puede tener explicación (un expediente técnico más completo, precios nuevos): es un indicio para revisar, no una acusación.`;
+const AVISO_INVERSION =
+  "Un costo que sube puede tener explicación (un expediente técnico más completo, precios nuevos): es un indicio para revisar, no una acusación.";
+
+/** La nota al pie de las banderas de una inversión, en texto (la ficha del contrato enlaza la fuente en su propia línea). */
+export const NOTA_INVERSION = `Fuente: ${FUENTE_INVERSION}. ${AVISO_INVERSION}`;
+
+/** La misma nota con la fuente enlazada: la inversión en el seguimiento del MEF, por su CUI. */
+export const notaInversion = (cui: string): ReactNode => (
+  <>
+    Fuente: <EnlaceFuente href={inversionSsi(cui)}>{FUENTE_INVERSION}</EnlaceFuente>. {AVISO_INVERSION}
+  </>
+);
 
 /**
  * La lista de inversiones de una entidad en Invierte.pe (MEF): cada proyecto con su CUI, el monto con que se declaró
@@ -171,7 +182,7 @@ function filaInversion(v: Inversion): Fila {
           {dudoso && <AvisoDato motivo={dudoso} fuente="invierte_pe" suma={false} />}
           <CifrasEnFila items={cifrasInversion(v)} chico />
           <DatosClave items={datosInversion(v)} />
-          <BloqueBanderasObra banderas={v.banderas} sujeto="La inversión" nota={NOTA_INVERSION} />
+          <BloqueBanderasObra banderas={v.banderas} sujeto="La inversión" nota={notaInversion(v.cui)} />
           {v.contratos.length > 0 && (
             <BloqueDetalle
               titulo={v.contratos.length > 1 ? "Sus contratos en Vigía" : "Su contrato en Vigía"}
@@ -206,7 +217,7 @@ function filaInversion(v: Inversion): Fila {
           </BloqueDetalle>
         </CuerpoDetalle>
       ),
-      pie: <span className="text-rotulo text-mute">Fuente: {FUENTE_INVERSION}, CUI {v.cui}{v.alDia ? `, archivo del ${fechaLarga(v.alDia)}` : ""}</span>,
+      pie: <FuenteDato fuente={`${FUENTE_INVERSION}, CUI ${v.cui}${v.alDia ? `, archivo del ${fechaLarga(v.alDia)}` : ""}`} href={inversionSsi(v.cui)} />,
     },
   };
 }

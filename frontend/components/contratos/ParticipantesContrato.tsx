@@ -13,6 +13,7 @@
 
 import { BadgeCheck, Trophy, UserRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, FuenteDato } from "@/components/patrones";
+import { BUSCADOR_RNP, CONSULTA_RUC_SUNAT, enlacesProceso } from "@/lib/fuentes";
 import { CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { CrucesCelda } from "./CrucesCelda";
@@ -146,7 +147,15 @@ export function SeccionParticipantes({ c }: { c: Detalle }) {
         medida="contenedor"
         buscar={{ placeholder: "Buscar un participante por razón social o RUC…", etiqueta: "Buscar en los participantes" }}
       />
-      <FuenteDato fuente="registro OCDS del OECE (quién se registró), CONOSCE (quién ofertó y ganó), SUNAT y RNP" className="mt-2" />
+      <FuenteDato
+        fuente="registro OCDS del OECE (quién se registró), CONOSCE (quién ofertó y ganó), SUNAT y RNP"
+        enlaces={[
+          ...enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true }),
+          { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+          { texto: "Buscador de proveedores del RNP", href: BUSCADOR_RNP },
+        ]}
+        className="mt-2"
+      />
     </>
   );
 }

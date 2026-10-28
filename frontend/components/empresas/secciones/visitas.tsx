@@ -1,7 +1,8 @@
-import { Ayuda, DatosClave, EstadoVacio } from "@/components/patrones";
+import { Ayuda, DatosClave, EstadoVacio, FuenteDato, Nota } from "@/components/patrones";
 import { CeldaFecha, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, oracion, plural } from "@/lib/formato";
+import { VISITAS_EN_LINEA, datasetVisitas, avisoVisitas } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { type VisitaEmpresa } from "@/lib/empresas";
 import { entidadTexto, NoCargo, opcionesLocales, paraClave } from "./comun";
@@ -25,7 +26,7 @@ const COLUMNAS_VISITAS: Columna[] = [
   },
 ];
 
-export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number; visitas: VisitaEmpresa[] } | null> }) {
+export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null } | null> }) {
   const d = await datos;
   if (!d) return <NoCargo que="sus visitas" />;
   if (!d.total) {
@@ -38,6 +39,7 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
   }
   const filas: FilaFiltrable[] = d.visitas.map((v, i) => {
     const entidad = entidadTexto(v.entidad);
+    const reporte = datasetVisitas(v.fecha);
     const despues = v.despues ? (
       <span className="text-meta text-ink">
         {v.despuesTipo === "contrato" ? "Le adjudicó" : "Le dio una orden"}{" "}
@@ -87,7 +89,7 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
               { etiqueta: "Qué es de la empresa", valor: v.via },
               { etiqueta: "Dijo venir de", valor: v.entidadDeclarada },
               { etiqueta: "Entidad visitada", valor: entidad },
-              { etiqueta: "A quién visitó", valor: [v.funcionario, v.cargoFuncionario ? tituloNatural(v.cargoFuncionario) : null].filter(Boolean).join(", ") || null },
+              { etiqueta: "Cargo de quien la recibió", valor: v.cargoFuncionario ? tituloNatural(v.cargoFuncionario) : null },
               { etiqueta: "Área", valor: v.area ? tituloNatural(v.area) : null },
               { etiqueta: "Motivo", valor: v.motivo ? oracion(v.motivo) : null },
               { etiqueta: "Lugar", valor: v.lugar },
@@ -100,7 +102,15 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
             ]}
           />
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: registro de visitas de la entidad{v.fuente ? ` (${v.fuente})` : ""}</span>,
+        // El reporte de visitas de su mes en datos abiertos (de enero de 2025 a mayo de 2026; fuera de esos meses, el
+        // registro en línea) y, debajo, el registro en línea.
+        pie: (
+          <FuenteDato
+            fuente={`Registro de visitas de la entidad${v.fuente ? ` (${v.fuente})` : ""}`}
+            href={reporte}
+            enlaces={[reporte !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
+          />
+        ),
       },
     };
   });
@@ -113,6 +123,7 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
         {aClientes ? `; ${numero(aClientes)} a entidades que le adjudicaron o le compraron` : ""}
         {despues ? `, y tras ${plural(despues, "visita", "visitas")} esa entidad le dio algo después.` : "."}
       </p>
+      {avisoVisitas(d.hasta) && <Nota>{avisoVisitas(d.hasta)}</Nota>}
       <TablaFiltrable
         columnas={COLUMNAS_VISITAS}
         filas={filas}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EstadoVacio } from "@/components/patrones";
+import { EstadoVacio, FuenteDato } from "@/components/patrones";
 import {
   CeldaFecha,
   CeldaNumero,
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { BUSCADOR_RNP, DATASET_SOCIOS_RNP, DJI_CONSULTA, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaEmpresa, type DeclaracionDji, type SocioEnElEstado, type SociosEmpresa } from "@/lib/empresas";
 import { cargoEnOracion } from "@/lib/planilla";
@@ -70,9 +71,21 @@ const QUE_DECLARO: Record<number, string> = {
   4: "Trabajó o la asesoró",
 };
 
-export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | null> }) {
+/** La fuente del RNP: el dataset de la conformación jurídica y, con el RUC de la empresa (RUC 20), su ficha. */
+const FUENTE_RNP = "OECE, Registro Nacional de Proveedores (conformación jurídica)";
+
+export async function SociosEmpresa({
+  datos,
+  ruc,
+}: {
+  datos: Promise<SociosEmpresa | null>;
+  /** El RUC de la empresa: la fuente lleva a su ficha en el RNP (sin él, o con un RUC 10, al buscador del RNP). */
+  ruc?: string;
+}) {
   const d = await datos;
   if (!d) return <NoCargo que="sus socios" />;
+  // fichaRnp sólo arma la ficha de un RUC 20: un RUC 10 lleva el DNI y va al buscador.
+  const fichaEmpresa = fichaRnp(ruc);
   const sinNada = !d.socios.length && !d.empresasSocias.length && !d.vinculadas.length && !d.sociaDe.length;
   if (sinNada) {
     return (
@@ -86,7 +99,7 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
     // Si es locador, su ficha de persona contratada (lo que cobró y sus señales).
     ...(s.enElEstado?.locador?.codigo ? { href: rutaPersona(s.enElEstado.locador.codigo, "recorrido") } : {}),
     celdas: {
-      persona: <CeldaPrincipal titulo={s.nombre} meta={enElEstado(s.enElEstado)} />,
+      persona: <CeldaPrincipal titulo={s.nombre} meta={enElEstado(s.enElEstado)} metaEnVarias />,
       papel: <span className="text-meta text-ink">{papeles(s.roles)}</span>,
       desde: <CeldaFecha fecha={s.desde} />,
       otras: <CeldaNumero>{s.otrasEmpresas ? numero(s.otrasEmpresas) : <span className="font-sans text-mute">Ninguna</span>}</CeldaNumero>,
@@ -171,6 +184,11 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
           )}
           {filasSocios.length > 0 && <TablaPaginada columnas={COLUMNAS_SOCIOS} filas={filasSocios} etiqueta="Socios, representantes y directivos" tam={15} nombre="personas" />}
           {filasEmpresas.length > 0 && <Tabla columnas={COLUMNAS_SOCIOS} filas={filasEmpresas} etiqueta="Empresas socias" />}
+          <FuenteDato
+            fuente={FUENTE_RNP}
+            href={DATASET_SOCIOS_RNP}
+            enlaces={[{ texto: fichaEmpresa === BUSCADOR_RNP ? "Buscador de proveedores del RNP (OECE)" : "Su ficha en el RNP (OECE)", href: fichaEmpresa }]}
+          />
         </section>
       )}
       {(d.declaradaDji?.length ?? 0) > 0 && <DeclaradaDji filas={d.declaradaDji!} />}
@@ -186,6 +204,7 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
               </li>
             ))}
           </ul>
+          <FuenteDato fuente={FUENTE_RNP} href={DATASET_SOCIOS_RNP} />
         </section>
       )}
       {filasVinculadas.length > 0 && (
@@ -219,6 +238,7 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
               { valor: "nombre", etiqueta: "Por nombre", clave: "nombre", dir: "asc" },
             ]}
           />
+          <FuenteDato fuente={FUENTE_RNP} href={DATASET_SOCIOS_RNP} />
         </section>
       )}
     </div>
@@ -232,6 +252,12 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
  */
 function DeclaradaDji({ filas }: { filas: DeclaracionDji[] }) {
   const venden = filas.filter((f) => f.leVende).length;
+  // Las declaraciones juradas presentadas en cada entidad (la consulta pública de la Contraloría), una vez por entidad: la
+  // lista de la entidad, no la declaración de una persona.
+  const porEntidad = filas
+    .filter((f, i) => filas.findIndex((x) => x.entidadRuc === f.entidadRuc) === i)
+    .map((f) => ({ texto: `Las declaraciones juradas de ${tituloNatural(f.entidad ?? f.entidadRuc)}`, href: djiEntidad(f.entidadRuc) }))
+    .filter((x) => x.href !== DJI_CONSULTA);
   return (
     <section className="space-y-2">
       <h3 className="font-display text-bloque font-bold text-ink">Lo que declararon funcionarios</h3>
@@ -272,6 +298,7 @@ function DeclaradaDji({ filas }: { filas: DeclaracionDji[] }) {
           },
         }))}
       />
+      <FuenteDato fuente="Contraloría, Declaraciones Juradas de Intereses (secciones 1 a 4)" href={DJI_CONSULTA} enlaces={porEntidad} />
     </section>
   );
 }

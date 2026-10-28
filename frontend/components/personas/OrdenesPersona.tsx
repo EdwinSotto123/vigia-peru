@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from "react";
-import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EstadoError, EstadoVacio, FuenteDato } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -18,6 +18,7 @@ import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { fechaCorta, oracion, soles } from "@/lib/formato";
+import { CONOSCE_BUSCADOR } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion, type FichaPersona, type OrdenesPersona, type filtrosOrdenesDeUrl } from "@/lib/personas";
 
@@ -178,7 +179,13 @@ async function TablaOrdenes({ pagina: p, parametros, ruta, actual }: { pagina: P
             />
           </div>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+        // CONOSCE no tiene enlace por orden: su buscador, por entidad y número.
+        pie: (
+          <FuenteDato
+            fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
+            enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
+          />
+        ),
       },
     };
   });

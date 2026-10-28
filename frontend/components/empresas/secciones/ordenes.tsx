@@ -1,4 +1,5 @@
-import { DatosClave, EstadoVacio } from "@/components/patrones";
+import { DatosClave, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { CONOSCE_BUSCADOR } from "@/lib/fuentes";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -117,7 +118,12 @@ export async function OrdenesEmpresa({ pagina: p, ruta, parametros, actual }: { 
             />
           </div>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+        pie: (
+          <FuenteDato
+            fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
+            enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
+          />
+        ),
       },
     };
   });

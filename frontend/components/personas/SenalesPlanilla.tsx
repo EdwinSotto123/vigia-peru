@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
+import { AyudaTermino, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
 import { CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { decimal, fechaCorta, numero, plural, soles } from "@/lib/formato";
@@ -14,11 +14,12 @@ import {
   listaMeses,
   mes,
   nombrePartido,
+  type DondePlanilla,
   type ParienteProveedor,
   type SenalConDetalle,
   type TipoPlanilla,
 } from "@/lib/planilla";
-import { FilaSenal, FuenteSenal, ListaSenales, SenalBreve } from "./FilaSenal";
+import { FilaSenal, ListaSenales, SenalBreve } from "./FilaSenal";
 import { OrdenesCitadas, eleccionTexto, gobiernoTexto, hitosCampana } from "./EvidenciaSenal";
 import { FrenteMediana } from "@/components/charts/FrenteMediana";
 import { LineaHitos } from "@/components/charts/LineaHitos";
@@ -29,22 +30,30 @@ import { LineaHitos } from "@/components/charts/LineaHitos";
  * comas. Lo grave primero. El nepotismo del lado del funcionario (los parientes que declaró en su DJI y que le venden a
  * su entidad) es una señal más de la lista, con las órdenes de cada pariente como evidencia: antes era un cartel ámbar
  * aparte, encima de las pestañas. La usan la ficha de planilla (/app/personas/planilla/<codigo>) y el panel de la
- * lista (sin nepotismo: la lista no lo trae). Server-safe.
+ * lista (sin nepotismo: la lista no lo trae). La fuente de cada señal lleva al registro de su entidad (sus
+ * declaraciones juradas, su página de personal) si se le pasa `entidadRuc` e `idPte`. Server-safe.
  */
 export function SenalesPlanillaLista({
   senales,
   nepotismo,
   entidad,
+  entidadRuc,
+  idPte,
 }: {
   senales: SenalConDetalle<TipoPlanilla>[];
   /** Los parientes que declaró y que le venden a su entidad (la ficha los trae aparte de `senales`). */
   nepotismo?: ParienteProveedor[];
   /** El nombre de su entidad, para la explicación del nepotismo. */
   entidad?: string;
+  /** Su entidad: las declaraciones juradas presentadas en ella. */
+  entidadRuc?: string;
+  /** El id de su entidad en el Portal de Transparencia: su página de personal. */
+  idPte?: number | null;
 }) {
+  const donde: DondePlanilla = { entidadRuc, idPte };
   const filas = [
-    ...(nepotismo?.length ? [{ severidad: "alta" as Severidad, clave: "nepotismo", nodo: <FilaNepotismo key="nepotismo" parientes={nepotismo} entidad={entidad} /> }] : []),
-    ...senales.map((s) => ({ severidad: s.severidad, clave: s.tipo, nodo: <FilaPlanilla key={s.tipo} s={s} /> })),
+    ...(nepotismo?.length ? [{ severidad: "alta" as Severidad, clave: "nepotismo", nodo: <FilaNepotismo key="nepotismo" parientes={nepotismo} entidad={entidad} donde={donde} /> }] : []),
+    ...senales.map((s) => ({ severidad: s.severidad, clave: s.tipo, nodo: <FilaPlanilla key={s.tipo} s={s} donde={donde} /> })),
   ].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad]);
   return <ListaSenales etiqueta="Señales de esta persona">{filas.map((f) => f.nodo)}</ListaSenales>;
 }
@@ -64,13 +73,15 @@ export function SenalesPlanillaBreves({ senales, nepotismo }: { senales: SenalCo
   );
 }
 
-function FilaPlanilla({ s }: { s: SenalConDetalle<TipoPlanilla> }) {
-  const fuente = fuentePlanilla(s.tipo);
+function FilaPlanilla({ s, donde }: { s: SenalConDetalle<TipoPlanilla>; donde: DondePlanilla }) {
+  // El registro de la fuente (la página de personal de su entidad, sus declaraciones juradas, la ficha de la empresa en
+  // el RNP) y, debajo, las otras fuentes del cruce.
+  const fuente = fuentePlanilla(s.tipo, { ...donde, detalle: s.detalle });
   return (
     <FilaSenal severidad={s.severidad} tipo={s.tipo} titulo={SENAL_PLANILLA[s.tipo]?.titulo ?? s.tipo} dato={datoClavePlanilla(s.tipo, s.detalle)} fuente={fuente.corto}>
       <p className="max-w-prose text-dato leading-relaxed text-inkSoft">{SENAL_PLANILLA[s.tipo]?.explica}</p>
       <DetalleSenalPlanilla tipo={s.tipo} d={s.detalle} />
-      <FuenteSenal texto={fuente.texto} url={fuente.url} />
+      <FuenteDato fuente={fuente.texto} href={fuente.url} enlaces={fuente.enlaces} />
     </FilaSenal>
   );
 }
@@ -95,8 +106,9 @@ function datoNepotismo(parientes: ParienteProveedor[]): string {
   return `${numero(parientes.length)} parientes: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
 }
 
-function FilaNepotismo({ parientes, entidad }: { parientes: ParienteProveedor[]; entidad?: string }) {
-  const fuente = fuentePlanilla("nepotismo");
+function FilaNepotismo({ parientes, entidad, donde }: { parientes: ParienteProveedor[]; entidad?: string; donde: DondePlanilla }) {
+  // Las declaraciones juradas presentadas en su entidad (la consulta pública de la Contraloría) y el buscador de CONOSCE.
+  const fuente = fuentePlanilla("nepotismo", donde);
   return (
     <FilaSenal severidad="alta" tipo="pariente_locador" titulo={tituloNepotismo(parientes.length)} dato={datoNepotismo(parientes)} fuente={fuente.corto}>
       <p className="max-w-prose text-dato leading-relaxed text-inkSoft">
@@ -144,7 +156,7 @@ function FilaNepotismo({ parientes, entidad }: { parientes: ParienteProveedor[];
           </section>
         );
       })}
-      <FuenteSenal texto={fuente.texto} url={fuente.url} />
+      <FuenteDato fuente={fuente.texto} href={fuente.url} enlaces={fuente.enlaces} />
     </FilaSenal>
   );
 }

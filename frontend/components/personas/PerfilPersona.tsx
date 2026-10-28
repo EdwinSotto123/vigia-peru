@@ -1,10 +1,11 @@
 import { AlertTriangle } from "lucide-react";
-import { Seccion, Nota, FuenteDato, EstadoError } from "@/components/patrones";
+import { Seccion, Nota, EnlaceFuente, FuenteDato, EstadoError } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { Dato } from "@/components/ui/Dato";
-import { FECHA_ELECCION } from "@/components/personas/EvidenciaSenal";
+import { FECHA_ELECCION, enlaceVisita } from "@/components/personas/EvidenciaSenal";
 import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { CLARIDAD_ONPE, DATASET_AUTORIDADES_JNE, DATASET_SOCIOS_RNP, DJI_CONSULTA, INFOGOB_JNE, PLATAFORMA_JNE, PORTAL_TRANSPARENCIA, VISITAS_EN_LINEA, djiEntidad, fichaRnp, personalPte, avisoVisitas } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { GRADO_PARIENTE, getPerfilPersona, type PerfilPersona } from "@/lib/personas";
 import { REGIMEN, cargoEnOracion, mes, nombrePartido } from "@/lib/planilla";
@@ -75,6 +76,13 @@ function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila
   return <Tabla columnas={columnas} filas={filas} etiqueta={etiqueta} medida="contenedor" densidad="compacta" />;
 }
 
+/**
+ * Los registros de un pie «Fuente» (uno por empresa o por entidad: las filas son enlaces a la ficha de Vigía y no pueden
+ * llevar otro adentro), una vez cada uno y sin el de la portada, que ya es el enlace del nombre de la fuente.
+ */
+const registros = (xs: { texto: string; href: string }[], portada: string) =>
+  xs.filter((x, i) => x.href !== portada && xs.findIndex((y) => y.href === x.href) === i);
+
 function Empresas({ p }: { p: PerfilPersona }) {
   const vende = p.empresas.filter((e) => e.vendido > 0).length;
   const filas: Fila[] = p.empresas.map((e) => ({
@@ -108,7 +116,16 @@ function Empresas({ p }: { p: PerfilPersona }) {
         ]}
         filas={filas}
       />
-      <FuenteDato fuente="OECE, Registro Nacional de Proveedores (conformación jurídica)" className="mt-2" />
+      <FuenteDato
+        fuente="OECE, Registro Nacional de Proveedores (conformación jurídica)"
+        href={DATASET_SOCIOS_RNP}
+        // La ficha de cada empresa en el RNP, con sus socios y representantes (sólo RUC 20).
+        enlaces={registros(
+          p.empresas.filter((e) => /^20\d{9}$/.test(e.ruc)).map((e) => ({ texto: `${e.nombre ? tituloNatural(e.nombre) : `RUC ${e.ruc}`} en el RNP`, href: fichaRnp(e.ruc) })),
+          DATASET_SOCIOS_RNP,
+        )}
+        className="mt-2"
+      />
     </Seccion>
   );
 }
@@ -176,7 +193,17 @@ function Politica({ p }: { p: PerfilPersona }) {
         ]}
         filas={filas}
       />
-      <FuenteDato fuente="JNE (candidaturas y autoridades) y ONPE (aportes a organizaciones políticas)" className="mt-2" />
+      <FuenteDato
+        fuente="JNE (candidaturas y autoridades) y ONPE (aportes a organizaciones políticas)"
+        // Ni el JNE ni la ONPE tienen un enlace por persona: su consulta, la de cada bloque que se ve arriba.
+        enlaces={[
+          p.candidaturas.length > 0 && { texto: "Plataforma Electoral del JNE (candidaturas)", href: PLATAFORMA_JNE },
+          (p.candidaturas.length > 0 || p.autoridades.length > 0) && { texto: "Infogob del JNE (candidaturas y autoridades de cada elección)", href: INFOGOB_JNE },
+          p.autoridades.some((a) => a.vigente) && { texto: "Autoridades vigentes del JNE (datos abiertos)", href: DATASET_AUTORIDADES_JNE },
+          p.aportes.length > 0 && { texto: "Claridad de la ONPE (aportes)", href: CLARIDAD_ONPE },
+        ]}
+        className="mt-2"
+      />
     </Seccion>
   );
 }
@@ -216,7 +243,17 @@ function Familia({ p }: { p: PerfilPersona }) {
         Del funcionario se muestra su cargo, su entidad y su primer apellido, nunca su nombre completo. Que un pariente trabaje en
         el Estado no es una falta: lo es que intervenga en su contratación. Ese cruce está en las señales de cada entidad.
       </Nota>
-      <FuenteDato fuente="Contraloría, Declaraciones Juradas de Intereses" href="https://appdji.contraloria.gob.pe/DJIC/" className="mt-2" />
+      <FuenteDato
+        fuente="Contraloría, Declaraciones Juradas de Intereses"
+        href={DJI_CONSULTA}
+        // Las declaraciones juradas presentadas en cada entidad (la consulta pública de la Contraloría): la lista de la
+        // entidad, nunca algo que nombre al pariente.
+        enlaces={registros(
+          p.familia.map((f) => ({ texto: `Las declaraciones juradas de ${f.entidad ? tituloNatural(f.entidad) : "su entidad"}`, href: djiEntidad(f.entidadRuc) })),
+          DJI_CONSULTA,
+        )}
+        className="mt-2"
+      />
     </Seccion>
   );
 }
@@ -249,28 +286,43 @@ function Planilla({ p }: { p: PerfilPersona }) {
         ]}
         filas={filas}
       />
-      <FuenteDato fuente="Portal de Transparencia Estándar, personal y planilla" className="mt-2" />
+      <FuenteDato
+        fuente="Portal de Transparencia Estándar, personal y planilla"
+        href={PORTAL_TRANSPARENCIA}
+        // La página de personal de cada entidad en el portal, por su id (la que no lo tiene queda en la portada).
+        enlaces={registros(
+          p.planilla.map((pl) => ({ texto: `El personal de ${pl.entidad ? tituloNatural(pl.entidad) : "la entidad"}`, href: personalPte(pl.idPte) })),
+          PORTAL_TRANSPARENCIA,
+        )}
+        className="mt-2"
+      />
     </Seccion>
   );
 }
 
 function Visitas({ p }: { p: PerfilPersona }) {
-  const filas: Fila[] = p.visitas.ultimas.map((v, i) => ({
-    id: String(i),
-    celdas: {
-      visita: (
-        <CeldaPrincipal
-          titulo={tituloNatural(v.entidad ?? "Entidad")}
-          meta={[
-            v.cargo ? <Dato key="c" tipo="cargo" nombre="Visitó a">{tituloNatural(v.cargo)}</Dato> : null,
-            v.area ? <Dato key="a" tipo="dependencia" nombre="Oficina">{tituloNatural(v.area)}</Dato> : null,
-          ]}
-        />
-      ),
-      motivo: <span className="text-meta text-inkSoft">{v.motivo ? tituloNatural(v.motivo) : "Sin motivo"}</span>,
-      fecha: <span className="text-meta tabular-nums text-inkSoft">{v.fecha ? fechaCorta(v.fecha) : "Sin fecha"}</span>,
-    },
-  }));
+  const filas: Fila[] = p.visitas.ultimas.map((v, i) => {
+    // Cada visita con su registro oficial: el reporte de su mes en datos abiertos o, fuera de esos meses, el registro en
+    // línea (las filas no llevan a otra parte: el enlace va en la fila).
+    const fuente = enlaceVisita(v.fecha);
+    return {
+      id: String(i),
+      celdas: {
+        visita: (
+          <CeldaPrincipal
+            titulo={tituloNatural(v.entidad ?? "Entidad")}
+            meta={[
+              v.cargo ? <Dato key="c" tipo="cargo" nombre="Visitó a">{tituloNatural(v.cargo)}</Dato> : null,
+              v.area ? <Dato key="a" tipo="dependencia" nombre="Oficina">{tituloNatural(v.area)}</Dato> : null,
+            ]}
+          />
+        ),
+        motivo: <span className="text-meta text-inkSoft">{v.motivo ? tituloNatural(v.motivo) : "Sin motivo"}</span>,
+        fecha: <span className="text-meta tabular-nums text-inkSoft">{v.fecha ? fechaCorta(v.fecha) : "Sin fecha"}</span>,
+        fuente: <EnlaceFuente href={fuente.href} className="text-meta">{fuente.texto}</EnlaceFuente>,
+      },
+    };
+  });
   const mostradas = p.visitas.ultimas.length;
   return (
     <Seccion
@@ -283,10 +335,12 @@ function Visitas({ p }: { p: PerfilPersona }) {
           { clave: "visita", titulo: "Entidad y a quién visitó", ancho: "minmax(0,1fr)" },
           { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
           { clave: "fecha", titulo: "Fecha", ancho: "6.5rem", alinear: "der" },
+          { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "lg", apilar: "con-rotulo" },
         ]}
         filas={filas}
       />
-      <FuenteDato fuente="Registro de visitas en línea de las entidades" href="https://visitas.servicios.gob.pe/" className="mt-2" />
+      {avisoVisitas(p.visitas.hasta) && <Nota className="mt-2">{avisoVisitas(p.visitas.hasta)}</Nota>}
+      <FuenteDato fuente="Registro de visitas en línea de las entidades" href={VISITAS_EN_LINEA} className="mt-2" />
     </Seccion>
   );
 }

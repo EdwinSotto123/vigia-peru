@@ -11,6 +11,7 @@
  */
 
 import { pool } from "./db.js";
+import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, CONSULTA_RUC_SUNAT, arreglarUrl, busquedaOece, fichaProveedorOece, obraInfobras as urlObraInfobras, procesoOece } from "./fuentes.js";
 
 export type TipoColumna = "texto" | "fecha" | "soles" | "pct" | "enlace";
 
@@ -55,9 +56,10 @@ const fechaPlausible = (v: unknown) => {
 };
 const filas = (sql: string, vals: unknown[]) => pool.query(sql, vals).then((r) => r.rows as Record<string, any>[]).catch(() => [] as Record<string, any>[]);
 
-const PERFIL_OSCE = (ruc: string) => `https://apps.osce.gob.pe/perfilprov-ui/ficha/${ruc}`;
-const PROCESO_OECE = (codigo: string) => `https://contratacionesabiertas.oece.gob.pe/proceso/${encodeURIComponent(codigo)}`;
-const CLARIDAD = "https://claridadportal.onpe.gob.pe/";
+// Los enlaces, de lib/fuentes.ts (verificados): el proceso del OECE abre sólo con el OCID completo.
+const PERFIL_OSCE = fichaProveedorOece;
+const PROCESO_OECE = procesoOece;
+const CLARIDAD = CLARIDAD_ONPE;
 
 /** Quién: la empresa, el proveedor persona natural (RUC 10) o una persona vinculada (sin nombre: ya va, tapado, en el cruce). */
 const quien = (f: FilaCruce) =>
@@ -113,7 +115,7 @@ async function aportes(f: FilaCruce): Promise<Evidencia> {
     ],
     filas: r.map((x) => ({
       fecha: fechaPlausible(x.fecha_aporte), proceso: x.proceso ?? (x.anio ? String(x.anio) : null), partido: x.partido, tipo: x.tipo_aporte,
-      monto: num(x.monto), fuente: x.fuente_url ? { texto: "ONPE", url: x.fuente_url } : null,
+      monto: num(x.monto), fuente: x.fuente_url ? { texto: "ONPE", url: arreglarUrl("onpe_aportantes", x.fuente_url) ?? CLARIDAD } : null,
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "En Claridad (ONPE): Aportes, buscando a la organización política y el aportante.",
@@ -131,7 +133,7 @@ async function candidaturas(f: FilaCruce): Promise<Evidencia> {
       { clave: "departamento", titulo: "Departamento" },
       { clave: "fuente", titulo: "Registro", tipo: "enlace" },
     ],
-    filas: r.map((x) => ({ proceso: x.proceso, organizacion: x.organizacion, departamento: x.departamento, fuente: x.fuente_url ? { texto: "ONPE", url: x.fuente_url } : null })),
+    filas: r.map((x) => ({ proceso: x.proceso, organizacion: x.organizacion, departamento: x.departamento, fuente: x.fuente_url ? { texto: "ONPE", url: arreglarUrl("onpe_candidatos", x.fuente_url) ?? CLARIDAD } : null })),
     verificar: "En Claridad (ONPE): Candidatos, por organización y elección.",
     enlace: { texto: "Candidatos en Claridad (ONPE)", url: "https://claridad.onpe.gob.pe/" },
   };
@@ -148,7 +150,7 @@ const filaAutoridad = (x: Record<string, any>) => ({
   cargo: x.cargo, organizacion: x.organizacion_politica,
   lugar: [x.distrito, x.provincia, x.departamento].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ") || null,
   periodo: [fecha(x.periodo_inicio)?.slice(0, 4), fecha(x.periodo_fin)?.slice(0, 4)].filter(Boolean).join("–") || null,
-  fuente: x.fuente_url ? { texto: "JNE", url: x.fuente_url } : null,
+  fuente: x.fuente_url ? { texto: "JNE", url: arreglarUrl("jne_autoridades", x.fuente_url) } : null,
 });
 
 async function autoridad(f: FilaCruce): Promise<Evidencia> {
@@ -205,7 +207,7 @@ async function penalidades(f: FilaCruce): Promise<Evidencia> {
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: `En el perfil del proveedor del OSCE (RUC ${f.ruc_empresa}), pestaña de penalidades.`,
-    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "La ficha del proveedor en el RNP (OECE)", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -229,7 +231,7 @@ async function sanciones(f: FilaCruce): Promise<Evidencia> {
       infraccion: [x.infraccion, x.norma].filter(Boolean).join(" — ") || null, multa: num(x.monto_multa_soles),
     })),
     verificar: `En el perfil del proveedor del OSCE (RUC ${f.ruc_empresa}), sanciones; o en el buscador de resoluciones del Tribunal.`,
-    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "La ficha del proveedor en el RNP (OECE)", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -257,11 +259,11 @@ async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
       fecha: fecha(x.fecha), objeto: x.objeto, monto: num(x.monto),
       // El cruce cuenta los que ya tenían buena pro cuando se convocó este (migración 83): los demás, marcados.
       ...(p.fecha && fecha(x.buenapro) != null && fecha(x.buenapro)! >= p.fecha ? { posterior: true } : {}),
-      proceso: { texto: x.descripcion ?? `Proceso ${x.codigo}`, url: x.ocid ? `/app/contratos/${x.ocid}` : PROCESO_OECE(String(x.codigo)) },
+      proceso: { texto: x.descripcion ?? `Proceso ${x.codigo}`, url: x.ocid ? `/app/contratos/${x.ocid}` : busquedaOece(String(x.codigo)) },
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "Cada proceso abre su ficha en Vigía o, si no está en la base, su registro en el OECE (Contrataciones Abiertas).",
-    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "La ficha del proveedor en el RNP (OECE)", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -305,7 +307,7 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
       exceso: x.exceso != null && Number(x.exceso) > 0 ? num(x.exceso) : null,
     })),
     verificar: "El precio por unidad es lo adjudicado del ítem (CONOSCE) entre su cantidad (OCDS). La referencia son las compras de otras entidades con el mismo código CUBSO y la misma unidad, ese año y el anterior.",
-    enlace: { texto: "Contrataciones Abiertas del OECE", url: "https://contratacionesabiertas.oece.gob.pe/" },
+    enlace: { texto: "El proceso en Contrataciones Abiertas (OECE)", url: PROCESO_OECE(ocid) },
   }];
   if (otras.length) ev.push({
     titulo: `Lo que pagaron otras entidades por ${String(peor.descripcion ?? "el mismo ítem").toLowerCase().slice(0, 80)}`,
@@ -325,7 +327,7 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
   return ev;
 }
 
-const SUNAT_RUC = "https://e-consultaruc.sunat.gob.pe/";
+const SUNAT_RUC = CONSULTA_RUC_SUNAT;
 const MENORES = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "en", "a"]);
 /** "INVERSIONES Y NEGOCIOS DEL PERU S.R.L." → "Inversiones y Negocios del Peru S.R.L.": las siglas (S.A.C., E.I.R.L.), igual. */
 const titulo = (t: string) =>
@@ -451,7 +453,7 @@ async function clientes(f: FilaCruce): Promise<Evidencia | null> {
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "Suma de lo adjudicado por entidad en CONOSCE (OECE), desde 2018.",
-    enlace: { texto: "Perfil del proveedor en el OSCE", url: PERFIL_OSCE(f.ruc_empresa) },
+    enlace: { texto: "La ficha del proveedor en el RNP (OECE)", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -492,7 +494,7 @@ async function ordenesSocio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | 
     })),
     total: r.length ? Number(r[0].n) : 0,
     verificar: "En CONOSCE (OECE), órdenes de servicio por proveedor; su RUC de persona natural no se publica aquí. Que sea socio de la empresa ganadora sale del RNP.",
-    enlace: { texto: "Buscador de CONOSCE (OECE)", url: "https://conosce.osce.gob.pe/buscador/" },
+    enlace: { texto: "Buscador de CONOSCE (OECE)", url: CONOSCE_BUSCADOR },
   };
 }
 
@@ -518,7 +520,7 @@ async function socioComun(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
       proceso: enElProceso(ruc, f.ruc_empresa, registrados, ofertas),
     })),
     verificar: "En el RNP (OECE), la conformación jurídica de cada empresa: la misma persona figura como socio, titular o representante.",
-    enlace: { texto: "Buscador de proveedores del RNP", url: "https://apps.osce.gob.pe/perfilprov-ui/" },
+    enlace: { texto: "La ficha del ganador en el RNP (OECE): sus socios y representantes", url: PERFIL_OSCE(f.ruc_empresa) },
   };
 }
 
@@ -560,7 +562,7 @@ async function obraInfobras(f: FilaCruce): Promise<Evidencia | null> {
       { clave: "ampliacion", titulo: "Ampliaciones de plazo" },
     ],
     filas: [{
-      obra: { texto: `Obra ${x.codigo}`, url: `https://infobras.contraloria.gob.pe/InfobrasWeb/Mapa/Sumario?ObraId=${x.codigo}` },
+      obra: { texto: `Obra ${x.codigo}`, url: urlObraInfobras(x.codigo) },
       estado: x.estado ?? null, fisico: pct(x.fisico_real), programado: pct(x.fisico_prog), financiero: pct(x.financiero_pct),
       corte: x.avance_fecha ?? null,
       paralizacion: x.paralizada || x.estado === "Paralizada"
@@ -572,7 +574,7 @@ async function obraInfobras(f: FilaCruce): Promise<Evidencia | null> {
       ampliacion: Number(x.plazo_dias) > 0 && Number(x.dias_ampliacion) > 0 ? `${x.dias_ampliacion} días sobre ${x.plazo_dias}` : "Ninguna",
     }],
     verificar: `En INFOBRAS (Contraloría), la ficha de la obra ${x.codigo}: la registra y la actualiza la entidad que la ejecuta. La Contraloría responde desde el Perú.`,
-    enlace: { texto: "Ficha de la obra en INFOBRAS", url: `https://infobras.contraloria.gob.pe/InfobrasWeb/Mapa/Sumario?ObraId=${x.codigo}` },
+    enlace: { texto: "Ficha de la obra en INFOBRAS", url: urlObraInfobras(x.codigo) },
   };
 }
 

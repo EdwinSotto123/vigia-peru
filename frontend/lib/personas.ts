@@ -639,9 +639,10 @@ export interface PerfilPersona {
   candidaturas: { anio: number | null; partido: string | null; cargo: string | null; resultado: string | null; region: string | null; provincia: string | null; distrito: string | null }[];
   autoridades: { cargo: string | null; partido: string | null; desde: string | null; hasta: string | null; vigente: boolean | null; departamento: string | null; provincia: string | null; distrito: string | null }[];
   aportes: { partido: string | null; anio: number | null; fecha: string | null; monto: number | null; tipo: string | null; nivel: string | null; proceso: string | null }[];
-  visitas: { total: number; ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null }[] };
+  visitas: { total: number; ultimas: { fecha: string | null; entidad: string | null; cargo: string | null; area: string | null; motivo: string | null }[]; hasta?: string | null };
   familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; cargo: string | null; funcionarioApellido: string | null; ficha: string | null }[];
-  planilla: { entidadRuc: string; entidad: string | null; ficha: string | null; cargo: string | null; regimen: number | null; dependencia: string | null; desde: string | null; hasta: string | null; base: number | null; nSenales: number | null }[];
+  /** `idPte`: el id de la entidad en el Portal de Transparencia (su página de personal), null si no se sabe. */
+  planilla: { entidadRuc: string; entidad: string | null; ficha: string | null; cargo: string | null; regimen: number | null; dependencia: string | null; desde: string | null; hasta: string | null; base: number | null; nSenales: number | null; idPte?: number | null }[];
   entidades: { entidadRuc: string; entidad: string | null; primera: string | null; ultima: string | null; ordenes: number; monto: number }[];
 }
 

@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
 import { numero, plural } from "@/lib/formato";
+import { CONTRATACIONES_ABIERTAS } from "@/lib/fuentes";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
@@ -329,7 +331,9 @@ export function MapaRegionesEscena({
                     <span className="font-mono font-semibold text-ink">{numero(ficha.enCola)}</span> en cola:{" "}
                     {ficha.enCola === 1 ? "espera" : "esperan"} que alguien financie su lectura.
                   </p>
-                  <p className="mt-2 text-rotulo text-mute">Fuente: convocatorias del SEACE en la base de Vigía.</p>
+                  <p className="mt-2 text-rotulo text-mute">
+                    Fuente: <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>convocatorias del SEACE</EnlaceFuente> en la base de Vigía.
+                  </p>
                 </div>
               </div>
 

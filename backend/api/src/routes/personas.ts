@@ -4,6 +4,8 @@ import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, apellidoFuncionario, publicar } from "../lib/privacidad.js";
+import { enlaceFuente } from "../lib/fuentes.js";
+import { visitasHasta } from "../lib/visitas.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -355,7 +357,8 @@ personasRouter.get("/:codigo", async (c) => {
            FROM persona_entidad pe LEFT JOIN zonas z ON z.ubigeo = pe.dep
           WHERE pe.ruc = $1 ORDER BY pe.sev DESC, pe.monto DESC`, [ruc]),
       pool.query(
-        `SELECT s.entidad_ruc AS "entidadRuc", s.tipo, s.severidad, s.detalle, s.fuente, s.fuente_url AS "fuenteUrl"
+        `SELECT s.entidad_ruc AS "entidadRuc", s.tipo, s.severidad, s.detalle, s.fuente, s.fuente_url AS "fuenteUrl",
+                (SELECT p.id_pte FROM pte_entidad p WHERE p.ruc = s.entidad_ruc) AS "idPte"
            FROM persona_senal s WHERE s.ruc = $1
           ORDER BY CASE s.severidad WHEN 'alta' THEN 3 WHEN 'media' THEN 2 ELSE 1 END DESC, s.tipo`, [ruc]),
       // Lo que cobró por mes cada año, junto a lo que paga la entidad y el país por el mismo servicio.
@@ -538,7 +541,10 @@ personasRouter.get("/:codigo", async (c) => {
           : (s.tipo === "tambien_planilla" || s.tipo === "paso_a_planilla") && planFichas.has(s.entidadRuc)
             ? { ...(s.detalle as Record<string, unknown>), plan_ficha: planFichas.get(s.entidadRuc) }
             : s.detalle;
-      l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl: s.fuenteUrl });
+      // El enlace al registro exacto (lib/fuentes.ts): las declaraciones juradas de la entidad, su planilla en el Portal de
+      // Transparencia, la ficha de la empresa de la que es socio, el reporte de visitas del mes; si no, la portada arreglada.
+      const fuenteUrl = enlaceFuente(s.fuente, s.fuenteUrl, { entidadRuc: s.entidadRuc, idPte: s.idPte, detalle: s.detalle as Record<string, unknown> | null });
+      l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl });
       porEntidad.set(s.entidadRuc, l);
     }
     const entidades = ent.rows.map((e) => ({ ...e, nombre: e.nombre ? conEnie(e.nombre) : e.nombre, senalesDetalle: porEntidad.get(e.entidadRuc) ?? [] }));
@@ -642,7 +648,8 @@ personasRouter.get("/:codigo/perfil", async (c) => {
           LIMIT 40`, [dni]),
       pool.query(
         `SELECT entidad_ruc AS "entidadRuc", entidad, ficha, cargo, regimen, dependencia, to_char(primer_mes, 'YYYY-MM') AS desde,
-                to_char(ultimo_mes, 'YYYY-MM') AS hasta, base::float AS base, n_senales AS "nSenales"
+                to_char(ultimo_mes, 'YYYY-MM') AS hasta, base::float AS base, n_senales AS "nSenales",
+                (SELECT e.id_pte FROM pte_entidad e WHERE e.ruc = planilla_persona.entidad_ruc) AS "idPte"
            FROM planilla_persona WHERE codigo = $1 ORDER BY ultimo_mes DESC NULLS LAST LIMIT 20`, [codigo]),
       pool.query(
         `SELECT entidad_ruc AS "entidadRuc", entidad, to_char(primera, 'YYYY-MM-DD') AS primera, to_char(ultima, 'YYYY-MM-DD') AS ultima,
@@ -655,7 +662,7 @@ personasRouter.get("/:codigo/perfil", async (c) => {
       candidaturas: candidaturas.rows,
       autoridades: autoridades.rows,
       aportes: aportes.rows,
-      visitas: { total: totalVisitas, ultimas: visitas.rows.map(({ total: _t, ...v }) => v) },
+      visitas: { total: totalVisitas, ultimas: visitas.rows.map(({ total: _t, ...v }) => v), hasta: await visitasHasta() },
       // Sin el nombre del funcionario (apellidoFuncionario): su primer apellido y su ficha, si el parentesco lo permite.
       familia: familia.rows.map(({ declarante, ficha, ...f }) => {
         const funcionarioApellido = apellidoFuncionario(f.parentesco, declarante);

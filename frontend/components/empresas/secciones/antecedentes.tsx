@@ -1,11 +1,25 @@
-import { ArrowUpRight } from "lucide-react";
-import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, PieDetalle } from "@/components/patrones";
+import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
 import { BarraFiltros, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
 import { TIPO_CRUCE, esTipoObra } from "@/lib/cruces";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 import { fechaCorta, hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
+import {
+  CLARIDAD_ONPE,
+  CONOSCE_BUSCADOR,
+  CONTRATACIONES_ABIERTAS,
+  DATASET_PENALIDADES,
+  DATASET_SANCIONADOS,
+  DATASET_SOCIOS_RNP,
+  INFOBRAS,
+  PLATAFORMA_JNE,
+  VISITAS_EN_LINEA,
+  enlacesProceso,
+  inversionSsi,
+  obraInfobras,
+  type EnlaceFuente,
+} from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpresa } from "@/lib/empresas";
@@ -36,6 +50,26 @@ const FUENTE: Record<string, string> = {
   invierte_pe: "Invierte.pe (MEF)",
 };
 
+/**
+ * La consulta de cada fuente: el enlace del pie de un tipo cuyos casos van a registros distintos (el de cada caso va en
+ * su panel). Si todos van al mismo (la ficha de la empresa en el RNP), el pie lleva a ése.
+ */
+const PORTADA: Record<string, string> = {
+  onpe_aportantes: CLARIDAD_ONPE,
+  onpe_candidatos: CLARIDAD_ONPE,
+  onpe_gastos_proveedores: CLARIDAD_ONPE,
+  jne_autoridades: PLATAFORMA_JNE,
+  penalidades: DATASET_PENALIDADES,
+  osce_sancionados: DATASET_SANCIONADOS,
+  visitas_entidades: VISITAS_EN_LINEA,
+  rnp_conformacion_juridica: DATASET_SOCIOS_RNP,
+  conosce_adjudicaciones: CONOSCE_BUSCADOR,
+  conosce_contratos: CONOSCE_BUSCADOR,
+  conosce_ordenes: CONOSCE_BUSCADOR,
+  precio_item: CONTRATACIONES_ABIERTAS,
+  infobras: INFOBRAS,
+};
+
 const txt = txtONumero;
 
 /** Si una sanción sigue hoy: por su fecha de fin y, sin ella, por el estado que publica el Tribunal. */
@@ -59,7 +93,7 @@ function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | nul
     items.push(
       { etiqueta: "Visitante", valor: txt(visita.visitante) },
       { etiqueta: "Entidad visitada", valor: txt(visita.entidad) ? tituloNatural(txt(visita.entidad)!) : null },
-      { etiqueta: "A quién visitó", valor: [txt(visita.funcionario), txt(visita.cargoFuncionario)].filter(Boolean).join(", ") || null },
+      { etiqueta: "Cargo de quien la recibió", valor: txt(visita.cargoFuncionario) ? tituloNatural(txt(visita.cargoFuncionario)!) : null },
       { etiqueta: "Motivo", valor: txt(visita.motivo) },
     );
   }
@@ -231,12 +265,17 @@ export async function AntecedentesEmpresa({
         const fuente = casos[0]?.fuente;
         const titulo = casos[0].etiqueta;
         const explica = TIPO_CRUCE[tipo]?.explica;
+        // El pie del tipo lleva al registro de sus casos si es uno solo para todos (la ficha de la empresa en el RNP); si
+        // no, a la consulta de la fuente. Antes llevaba al del primer caso, que no era el de los demás.
+        const urls = new Set(casos.map((c) => c.fuenteUrl));
+        const enlaceTipo = urls.size === 1 && casos[0].fuenteUrl ? casos[0].fuenteUrl : fuente ? PORTADA[fuente] ?? null : null;
         const filas: Fila[] = casos.map((a, k) => {
           const datos = datosDe(a);
           return {
             id: `${tipo}-${k}`,
-            // «Órdenes que pasan 8 UIT»: el caso son órdenes, no el proceso. Su panel lleva a esas órdenes y al proceso.
-            ...(a.tipo === "fraccionamiento" ? { detalle: detalleFraccionamiento(a, datos, ruc, rucDe) } : { href: a.ocid ? rutaContrato(a.ocid) : undefined }),
+            // Cada caso abre su panel: todo lo que dice el registro, el enlace a su registro oficial y el proceso en que pesa.
+            // «Órdenes que pasan 8 UIT»: el caso son órdenes, no el proceso; su panel lleva a esas órdenes y al proceso.
+            detalle: a.tipo === "fraccionamiento" ? detalleFraccionamiento(a, datos, ruc, rucDe) : detalleCaso(a, datos),
             // Sin nombres de personas (socio, visitante, funcionario): no se buscan (docs/PRIVACIDAD.md).
             buscable: `${datos.filter((x) => !["Quién", "Visitante", "A quién visitó"].includes(x.etiqueta)).map((x) => x.valor).join(" ")} ${a.entidad ?? ""} ${a.codigo ?? ""}`,
             celdas: {
@@ -248,6 +287,7 @@ export async function AntecedentesEmpresa({
                       <span className={x.mono ? "font-mono tabular-nums text-ink" : "text-ink"}>{x.valor}</span>
                     </li>
                   ))}
+                  {datos.length > 4 && <li className="text-mute">{`Y ${plural(datos.length - 4, "dato más", "datos más")} en su detalle`}</li>}
                   {!datos.length && <li className="text-mute">Sin más detalle en el registro</li>}
                 </ul>
               ),
@@ -294,17 +334,16 @@ export async function AntecedentesEmpresa({
                 medida="contenedor"
                 buscar={{ placeholder: "Buscar por entidad, código o dato…", etiqueta: `Buscar en ${titulo.toLowerCase()}` }}
               />
-              <p className="flex flex-wrap items-center gap-1 text-rotulo text-mute">
-                Fuente: {fuente ? FUENTE[fuente] ?? fuente : "Cruces de Vigía"}
-                {casos[0].fuenteUrl && (
-                  <a href={casos[0].fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-granate underline-offset-2 hover:underline">
-                    abrir <ArrowUpRight size={12} aria-hidden />
-                  </a>
-                )}
-                {tipo === "fraccionamiento"
-                  ? <span>. Cada caso abre sus órdenes y el proceso en que pesa.</span>
-                  : casos.some((c) => c.ocid) && <span>. Cada proceso abre su ficha con la evidencia.</span>}
-              </p>
+              <div className="space-y-0.5">
+                <FuenteDato fuente={fuente ? FUENTE[fuente] ?? fuente : "Cruces de Vigía"} href={enlaceTipo} />
+                <p className="text-rotulo text-mute">
+                  {tipo === "fraccionamiento"
+                    ? "Cada caso abre sus órdenes, el proceso en que pesa y su fuente."
+                    : casos.some((c) => c.ocid)
+                      ? "Cada caso abre su detalle con el enlace a su registro oficial y al proceso en que pesa."
+                      : "Cada caso abre su detalle con el enlace a su registro oficial."}
+                </p>
+              </div>
             </div>
           </li>
         );
@@ -312,6 +351,56 @@ export async function AntecedentesEmpresa({
     </ol>
     </div>
   );
+}
+
+/**
+ * La fuente de un caso, con el enlace a SU registro (la API ya da el más preciso: el proceso en el OECE, la ficha de la
+ * empresa en el RNP, el reporte de visitas de su mes) y, debajo, el proceso en que pesa en Contrataciones Abiertas, la
+ * obra en INFOBRAS y la inversión en el seguimiento del MEF, si los tiene. Sin repetir el de la fuente.
+ */
+function FuenteCaso({ a }: { a: AntecedenteEmpresa }) {
+  const obra = txt(a.detalle.obra);
+  const cui = txt(a.detalle.cui);
+  const todos: EnlaceFuente[] = [
+    ...(a.ocid ? enlacesProceso(a.ocid, { codigo: a.codigo }) : []),
+    ...(obra ? [{ texto: `La obra ${obra} en INFOBRAS`, href: obraInfobras(obra) }] : []),
+    ...(cui ? [{ texto: `La inversión ${cui} en el seguimiento del MEF`, href: inversionSsi(cui) }] : []),
+  ];
+  const enlaces = todos.filter((x, i) => x.href !== a.fuenteUrl && todos.findIndex((y) => y.href === x.href) === i);
+  return <FuenteDato fuente={FUENTE[a.fuente] ?? a.fuente} href={a.fuenteUrl ?? PORTADA[a.fuente] ?? null} enlaces={enlaces} />;
+}
+
+/**
+ * El panel de un caso: todo lo que dice el registro (la fila muestra hasta cuatro datos), la entidad y el proceso en que
+ * pesa, y su fuente con el enlace a su registro oficial. Antes la fila llevaba directo a la ficha del proceso y el único
+ * enlace a la fuente era el del primer caso del tipo; la ficha del proceso queda a un clic, en el pie.
+ */
+function detalleCaso(a: AntecedenteEmpresa, datos: ReturnType<typeof datosDe>): NonNullable<Fila["detalle"]> {
+  const entidad = a.entidad ? tituloNatural(a.entidad) : null;
+  const proceso = a.codigo ?? a.ocid;
+  return {
+    titulo: a.etiqueta,
+    etiqueta: `Ver el caso${proceso ? ` del proceso ${proceso}` : ""}${entidad ? `, ${entidad}` : ""}`,
+    descripcion: entidad ?? (a.ocid ? undefined : "De la empresa, no de un proceso"),
+    contenido: (
+      <CuerpoDetalle>
+        <DatosClave
+          items={[
+            ...datos.map((x) => ({ etiqueta: x.etiqueta, valor: x.valor, mono: x.mono })),
+            // (los datos de algunos tipos ya traen su «Entidad»: va una vez)
+            ...(entidad && !datos.some((x) => x.etiqueta === "Entidad") ? [{ etiqueta: "Entidad", valor: entidad }] : []),
+            ...(proceso ? [{ etiqueta: "Pesa sobre el proceso", valor: proceso, mono: true }] : []),
+          ]}
+        />
+      </CuerpoDetalle>
+    ),
+    pie: (
+      <PieDetalle
+        principal={a.ocid ? <EnlaceAccion href={rutaContrato(a.ocid)} flecha>Abrir el proceso</EnlaceAccion> : undefined}
+        secundarias={<FuenteCaso a={a} />}
+      />
+    ),
+  };
 }
 
 /**
@@ -362,7 +451,12 @@ function detalleFraccionamiento(
             <EnlaceAccion href={rutaEmpresa(ruc, "ordenes")} flecha>Ver todas sus órdenes</EnlaceAccion>
           )
         }
-        secundarias={a.ocid ? <EnlaceAccion href={rutaContrato(a.ocid)} variante="secundario">Abrir el proceso</EnlaceAccion> : undefined}
+        secundarias={
+          <>
+            {a.ocid && <EnlaceAccion href={rutaContrato(a.ocid)} variante="secundario">Abrir el proceso</EnlaceAccion>}
+            <FuenteCaso a={a} />
+          </>
+        }
       />
     ),
   };

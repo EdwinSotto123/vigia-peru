@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
 import { IconoBandera } from "@/components/ui/IconoBandera";
@@ -113,15 +114,7 @@ export function FuenteSenal({ texto, url }: { texto: string; url?: string | null
   return (
     <p className="text-rotulo text-mute">
       Fuente:{" "}
-      {url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-granate underline-offset-2 hover:underline">
-          {texto}
-          <ExternalLink size={11} aria-hidden />
-          <span className="sr-only"> (se abre en otra pestaña)</span>
-        </a>
-      ) : (
-        texto
-      )}
+      {url ? <EnlaceFuente href={url}>{texto}</EnlaceFuente> : texto}
     </p>
   );
 }

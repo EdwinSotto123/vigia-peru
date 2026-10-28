@@ -10,7 +10,7 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { fecha as fechaLarga } from "@/lib/formato";
 import { ESTADO_TEXTO, FUENTE_INVERSION, FUENTE_OBRA, type InversionDelContrato, type ObraDelContrato } from "@/lib/obras";
 import { BloqueBanderasObra, cifrasObra, datosObra } from "./ListaObras";
-import { NOTA_INVERSION, cifrasInversion, datosInversion, obrasDeLaInversion } from "./ListaInversiones";
+import { cifrasInversion, datosInversion, notaInversion, obrasDeLaInversion } from "./ListaInversiones";
 
 /**
  * En la ficha de un contrato (pestaña «Adjudicación y contrato», junto al presupuesto del proyecto): la obra de INFOBRAS
@@ -56,9 +56,9 @@ export function ObraDelContratoBloque({ obra: o }: { obra: ObraDelContrato }) {
       {dudoso && <AvisoDato motivo={dudoso} fuente="infobras" suma={false} />}
       <CifrasEnFila items={cifrasObra(o)} chico />
       <DatosClave items={datos} />
-      <BloqueBanderasObra banderas={o.banderas} sujeto={supervisa ? "La obra que supervisa este contrato" : "La obra"} />
+      <BloqueBanderasObra banderas={o.banderas} sujeto={supervisa ? "La obra que supervisa este contrato" : "La obra"} enlace={o.url} />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <FuenteDato fuente={`${FUENTE_OBRA}, obra ${o.codigo}${o.alDia ? `, archivo del ${fechaLarga(o.alDia)}` : ""}`} />
+        <FuenteDato fuente={`${FUENTE_OBRA}, obra ${o.codigo}${o.alDia ? `, archivo del ${fechaLarga(o.alDia)}` : ""}`} href={o.url} />
         <a href={o.url} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
           La obra en INFOBRAS <ExternalLink className="size-3.5" aria-hidden />
           <span className="sr-only"> (se abre en otra pestaña)</span>
@@ -90,9 +90,9 @@ export function InversionDelContratoBloque({ inversion: v }: { inversion: Invers
       {dudoso && <AvisoDato motivo={dudoso} fuente="invierte_pe" suma={false} />}
       <CifrasEnFila items={cifrasInversion(v)} chico />
       <DatosClave items={datos} />
-      <BloqueBanderasObra banderas={v.banderas} sujeto="La inversión" nota={NOTA_INVERSION} />
+      <BloqueBanderasObra banderas={v.banderas} sujeto="La inversión" nota={notaInversion(v.cui)} />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <FuenteDato fuente={`${FUENTE_INVERSION}, CUI ${v.cui}${v.alDia ? `, archivo del ${fechaLarga(v.alDia)}` : ""}`} />
+        <FuenteDato fuente={`${FUENTE_INVERSION}, CUI ${v.cui}${v.alDia ? `, archivo del ${fechaLarga(v.alDia)}` : ""}`} href={v.url} />
         <div className="flex flex-wrap gap-2">
           {v.obras > 0 && v.entidad.ruc && v.entidad.ficha && (
             <Link href={obrasDeLaInversion(v)} prefetch={false} className={claseAccion("secundario")}>

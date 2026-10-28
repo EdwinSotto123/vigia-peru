@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, FuenteDato, PieDetalle, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -25,6 +25,7 @@ import { Severidad } from "@/components/ui/Severidad";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { personalPte } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { etiquetasUnicas } from "@/lib/personas";
 import {
@@ -34,6 +35,7 @@ import {
   SUELDOS_PLANILLA,
   TIPOS_PLANILLA,
   getPlanilla,
+  getPlanillaMensual,
   rutaPlanilla,
   type FacetasPlanilla,
   type PaginaPlanilla,
@@ -112,6 +114,9 @@ export function ListaPlanilla({
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlanilla({ ...alcance, ...f, size: TAM });
+  // En una entidad, su id en el Portal de Transparencia (lo trae su planilla mes a mes, la misma lectura que el gráfico de
+  // su pestaña): la fuente de cada persona lleva a la página de personal de la entidad. En el país, la portada del portal.
+  const idPteP = alcance.entidad ? getPlanillaMensual(alcance.entidad).then((m) => m?.idPte ?? null) : Promise.resolve(null);
   const parametros: Parametros = {
     ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
     [P.q]: f.q, [P.dudoso]: f.dudoso, [P.sueldo]: f.sueldo, [P.oficina]: f.oficina, [P.cargo]: f.cargo, [P.pariente]: f.pariente,
@@ -131,7 +136,7 @@ export function ListaPlanilla({
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad)} filas={10} />}>
-            <Resultados pagina={paginaP} parametros={parametros} ruta={ruta} actual={f.page} deEntidad={deEntidad} filtrada={filtrada} />
+            <Resultados pagina={paginaP} idPte={idPteP} parametros={parametros} ruta={ruta} actual={f.page} deEntidad={deEntidad} filtrada={filtrada} />
           </Suspense>
         </ZonaResultados>
       </Listado>
@@ -319,8 +324,16 @@ const columnas = (deEntidad: boolean): Columna[] => [
   { clave: "total", titulo: "Sueldo", ancho: "112px", alinear: "der" },
 ];
 
-async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; parametros: Parametros; ruta: string; actual: number; deEntidad: boolean; filtrada: boolean }) {
-  const pagina = await props.pagina;
+async function Resultados(props: {
+  pagina: Promise<PaginaPlanilla | null>;
+  idPte: Promise<number | null>;
+  parametros: Parametros;
+  ruta: string;
+  actual: number;
+  deEntidad: boolean;
+  filtrada: boolean;
+}) {
+  const [pagina, idPte] = await Promise.all([props.pagina, props.idPte]);
   if (!pagina) return <EstadoError titulo="No pudimos cargar la planilla">Suele ser momentáneo: vuelve a intentarlo en unos segundos.</EstadoError>;
   if (!pagina.total) {
     return props.filtrada ? (
@@ -340,7 +353,7 @@ async function Resultados(props: { pagina: Promise<PaginaPlanilla | null>; param
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p, i) => fila(p, i, props.deEntidad))} etiqueta="Personal en planilla" />
+      <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p, i) => fila(p, i, props.deEntidad, idPte))} etiqueta="Personal en planilla" />
       {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
@@ -364,7 +377,8 @@ function Senales({ senales, dudoso, pariente }: { senales: PersonaPlanilla["sena
   );
 }
 
-function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
+/** `idPte`: el id de la entidad en el Portal de Transparencia (su página de personal), si la lista es de una entidad. */
+function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number | null): Fila {
   const entidad = p.entidad ? tituloNatural(p.entidad) : null;
   const motivo = motivoDudoso(p.dudoso?.motivo);
   const cargoTexto = p.cargo ? tituloNatural(p.cargo) : null;
@@ -440,7 +454,7 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
           )}
           {p.senales.length > 0 && (
             <>
-              <SenalesPlanillaLista senales={p.senales} />
+              <SenalesPlanillaLista senales={p.senales} entidadRuc={p.entidadRuc} idPte={idPte} />
               <p className="text-rotulo leading-relaxed text-mute">Cada señal es un indicio de registros públicos para revisar, no una acusación ni prueba de un delito.</p>
             </>
           )}
@@ -458,7 +472,12 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean): Fila {
               )}
             </>
           }
-          secundarias={<span className="text-rotulo text-mute">Fuente: Portal de Transparencia Estándar, rubro Personal</span>}
+          secundarias={
+            <FuenteDato
+              fuente={idPte != null ? "Portal de Transparencia Estándar de la entidad, rubro Personal" : "Portal de Transparencia Estándar, rubro Personal"}
+              href={personalPte(idPte)}
+            />
+          }
         />
       ),
     },

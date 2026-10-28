@@ -395,7 +395,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                       conteo: personas || null,
                       contenido: (
                         <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
-                          <SociosEmpresa datos={sociosP} />
+                          <SociosEmpresa datos={sociosP} ruc={e.ruc} />
                         </Suspense>
                       ),
                     },

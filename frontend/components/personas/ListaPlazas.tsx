@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, PieDetalle, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, FuenteDato, PieDetalle, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { Severidad } from "@/components/ui/Severidad";
 import {
@@ -25,6 +25,7 @@ import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { decimal, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
+import { CONOSCE_BUSCADOR, DATASET_AUTORIDADES_JNE, TALENTO_PERU } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, rutaPlaza, type PaginaPlazas, type Plaza, type TipoPlaza } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
@@ -318,7 +319,8 @@ function fila(p: Plaza, deEntidad: boolean): Fila {
           secundarias={
             <>
               <EnlaceAccion href={rutaPlaza(p.aviso)} variante="secundario">Abrir la ficha de la plaza</EnlaceAccion>
-              <span className="text-rotulo text-mute">Fuente: SERVIR, Talento Perú (aviso {p.aviso})</span>
+              {/* La convocatoria en SERVIR; si no se guardó su enlace, el buscador de ofertas de Talento Perú. */}
+              <FuenteDato fuente={`SERVIR, Talento Perú (aviso ${p.aviso})`} href={p.detalleUrl ?? TALENTO_PERU} />
             </>
           }
         />
@@ -331,7 +333,11 @@ const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && 
 
 const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fechaCorta(v.slice(0, 10)) : null);
 
-/** La evidencia de cada señal de una plaza (la usan el panel de la lista y la ficha de la plaza). */
+/**
+ * La evidencia de cada señal de una plaza (la usan el panel de la lista y la ficha de la plaza). Las que salen de otro
+ * registro llevan su fuente: las órdenes de la entidad (CONOSCE) y la gestión que gobierna (JNE); las demás salen de la
+ * misma convocatoria, cuya fuente va al pie.
+ */
 export function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
   if (tipo === "gestion_saliente") {
@@ -346,5 +352,17 @@ export function DetallePlaza({ tipo, d }: { tipo: TipoPlaza; d: Record<string, u
   if (tipo === "plazo_corto") items = [{ etiqueta: "Días publicada", valor: n(d.dias) != null ? numero(n(d.dias)) : null }];
   else if (tipo === "ya_hay_locadores") items = [{ etiqueta: "Locadores de ese servicio", valor: n(d.personas) != null ? plural(n(d.personas) ?? 0, "persona", "personas") : null, ayuda: <AyudaTermino clave="locacion" /> }];
   else if (tipo === "pide_poco") items = [{ etiqueta: "Experiencia general pedida", valor: n(d.exp_general) != null ? `${decimal(n(d.exp_general))} años` : "No la pide" }];
-  return items.length ? <DatosClave items={items} /> : null;
+  const fuente =
+    tipo === "ya_hay_locadores" ? (
+      <FuenteDato fuente="OECE, CONOSCE (órdenes de servicio de la entidad)" href={CONOSCE_BUSCADOR} />
+    ) : tipo === "gestion_saliente" ? (
+      <FuenteDato fuente="JNE, autoridades vigentes (datos abiertos)" href={DATASET_AUTORIDADES_JNE} />
+    ) : null;
+  if (!items.length && !fuente) return null;
+  return (
+    <>
+      {items.length > 0 && <DatosClave items={items} />}
+      {fuente}
+    </>
+  );
 }

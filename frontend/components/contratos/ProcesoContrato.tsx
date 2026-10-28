@@ -11,7 +11,8 @@
 
 import type { ReactNode } from "react";
 import { Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
+import { CONSULTA_AMIGABLE, DATASET_MEF, enlacesProceso, inversionSsi } from "@/lib/fuentes";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
@@ -134,7 +135,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
             ) : null}
           </div>
           {k.firmados.length > 1 && <TablaContratos firmados={k.firmados} c={c} />}
-          <FuenteDato fuente="CONOSCE (OECE) y el registro OCDS" className="border-t border-line px-4 py-2 sm:px-5" />
+          <FuenteDato fuente="CONOSCE (OECE) y el registro OCDS" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="border-t border-line px-4 py-2 sm:px-5" />
         </section>
         {c.presupuesto && <BloquePresupuesto c={c} />}
         {/* La obra que ejecuta o supervisa este contrato (INFOBRAS) y la inversión de su CUI (Invierte.pe). */}
@@ -325,7 +326,8 @@ function BloquePresupuesto({ c }: { c: Detalle }) {
           ayuda: <AyudaTermino clave="cui" />,
           valor: (
             <span>
-              <span className="font-mono tabular-nums">{p.cui}</span>
+              {/* El CUI abre el seguimiento de la inversión en el MEF. */}
+              <EnlaceFuente href={inversionSsi(p.cui)} className="font-mono tabular-nums">{p.cui}</EnlaceFuente>
               <span className="ml-1.5 text-meta text-mute">{p.cuiOrigen === "descripcion" ? "leído de la descripción del proceso y confirmado en el MEF" : "según el registro OCDS"}</span>
             </span>
           ),
@@ -369,7 +371,16 @@ function BloquePresupuesto({ c }: { c: Detalle }) {
       {p.cui && !p.mef.length && (
         <EstadoVacio variante="compacta">El MEF no registra este CUI en el presupuesto de la entidad desde el año de la convocatoria.</EstadoVacio>
       )}
-      <FuenteDato fuente={p.mef.length ? "MEF, Datos Abiertos (presupuesto y ejecución de gasto) y el registro OCDS" : OCDS} />
+      <FuenteDato
+        fuente={p.mef.length ? "MEF, Datos Abiertos (presupuesto y ejecución de gasto) y el registro OCDS" : OCDS}
+        enlaces={[
+          ...(p.cui ? [{ texto: `La inversión ${p.cui} en el seguimiento del MEF`, href: inversionSsi(p.cui) }] : []),
+          ...(p.mef.length
+            ? [{ texto: "Presupuesto y ejecución (Datos Abiertos del MEF)", href: DATASET_MEF }, { texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]
+            : []),
+          ...enlacesProceso(c.ocid, { codigo: c.codigo }),
+        ]}
+      />
     </section>
   );
 }
@@ -458,7 +469,7 @@ function SeccionCronograma({ c }: { c: Detalle }) {
         medida="contenedor"
         buscar={{ placeholder: "Buscar un hito o un documento…", etiqueta: "Buscar en el cronograma" }}
       />
-      <FuenteDato fuente="registro OCDS del OECE, CONOSCE y los documentos del SEACE" className="mt-2" />
+      <FuenteDato fuente="registro OCDS del OECE, CONOSCE y los documentos del SEACE" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="mt-2" />
     </>
   );
 }

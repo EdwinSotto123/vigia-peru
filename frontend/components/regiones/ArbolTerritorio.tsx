@@ -8,10 +8,12 @@ import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/list
 import { TablaSkeleton, type Columna } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, PieDetalle, type DatoClave } from "@/components/patrones/Detalle";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { coincide, numero, paraBuscar, plural } from "@/lib/formato";
+import { CONOSCE_BUSCADOR, CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import { claveOrg, normalizar, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
 import { cn } from "@/lib/utils";
 import { ANIOS, mandato, useAutoridades, type DatosAutoridades } from "./autoridades";
@@ -299,7 +301,8 @@ function Arbol({
         </ProveedorDetalle>
       )}
       <p className="text-rotulo text-mute">
-        Fuente: JNE, elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026). Contratos: SEACE y CONOSCE (OECE).
+        Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>, elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026). Contratos:{" "}
+        <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE).
         {!conMunicipalidades && " No pudimos traer las fichas de las municipalidades: vuelve a intentarlo en un momento."}
       </p>
     </div>

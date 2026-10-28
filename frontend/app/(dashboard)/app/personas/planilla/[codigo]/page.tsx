@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Flag, LayoutDashboard } from "lucide-react";
-import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, SinSenalesEstado, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, FuenteDato, SinSenalesEstado, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { LineaMeses } from "@/components/charts/LineaMeses";
@@ -13,6 +13,7 @@ import { AvisoDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { PORTAL_TRANSPARENCIA, personalPte } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { filtrosOrdenesDeUrl, getFichaPersona, getOrdenesPersona, hayFiltrosOrdenes, type FichaPersona } from "@/lib/personas";
 import { REGIMEN, SENAL_PLANILLA, getFichaPlanilla, mes, parientesProveedores, periodoMeses, rutaPlanilla, type FichaPlanilla, type ParienteProveedor } from "@/lib/planilla";
@@ -161,7 +162,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                 </CabeceraPestana>
                 {nSenales ? (
                   <section aria-label="Sus señales" className="tarjeta rounded-2xl border border-line bg-paper px-4 pb-1 pt-1 sm:px-5">
-                    <SenalesPlanillaLista senales={senalesPlanilla} nepotismo={parientes} entidad={entidad} />
+                    <SenalesPlanillaLista senales={senalesPlanilla} nepotismo={parientes} entidad={entidad} entidadRuc={p.entidadRuc} idPte={p.idPte} />
                   </section>
                 ) : (
                   <SinSenalesEstado titulo="Sin señales: ningún otro registro coincide">
@@ -308,7 +309,8 @@ function Resumen({
               },
             ]}
           />
-          <p className="pt-1 text-rotulo text-mute">Fuente: Portal de Transparencia Estándar de la entidad, rubro Personal.</p>
+          {/* La página de personal de su entidad en el portal, por su id (sin él, la portada del portal). */}
+          <FuenteDato fuente="Portal de Transparencia Estándar de la entidad, rubro Personal" href={personalPte(p.idPte)} className="pt-1" />
         </section>
       </div>
       <section aria-labelledby="sueldo-mes" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
@@ -352,6 +354,8 @@ function Resumen({
             nombre="planillas"
             buscar={{ placeholder: "Buscar por entidad o cargo…", etiqueta: "Buscar en sus otras planillas" }}
           />
+          {/* Cada ficha lleva a la página de personal de su entidad; aquí, el portal. */}
+          <FuenteDato fuente="Portal de Transparencia Estándar, personal de cada entidad" href={PORTAL_TRANSPARENCIA} />
         </section>
       )}
     </div>

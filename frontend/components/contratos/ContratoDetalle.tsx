@@ -29,7 +29,8 @@ import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, AyudaTermino, EncabezadoPagina, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, AyudaTermino, EncabezadoPagina, EnlaceFuente, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
 import { migasConDesde } from "@/lib/desde";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -260,9 +261,10 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
       <span className="inline-flex items-center gap-1.5">
         <Hash size={14} className="shrink-0 text-mute" aria-hidden /> Código SEACE{" "}
-        <span className="font-mono text-ink" translate="no">
-          {c.codigo}
-        </span>
+        {/* El código abre el proceso en Contrataciones Abiertas del OECE (con el OCID completo: con el código solo, no abre). */}
+        <EnlaceFuente href={c.ocid ? procesoOece(c.ocid) : busquedaOece(c.codigo)} className="font-mono">
+          <span translate="no">{c.codigo}</span>
+        </EnlaceFuente>
       </span>
       {c.entidadRuc ? (
         <Link href={`/entidad/${c.entidadRuc}`} className={enlace}>
@@ -449,7 +451,7 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
           </Dato>
         )}
       </dl>
-      <FuenteDato fuente={OCDS} className="border-t border-line px-4 py-2" />
+      <FuenteDato fuente={OCDS} enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, json: true, conosce: true })} className="border-t border-line px-4 py-2" />
     </div>
   );
 }
@@ -716,7 +718,7 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
         )}
         .
       </p>
-      <p className="mt-1.5 text-rotulo text-mute">Fuente: registro OCDS del OECE y las adjudicaciones de CONOSCE</p>
+      <FuenteDato fuente="registro OCDS del OECE y las adjudicaciones de CONOSCE" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="mt-1.5" />
     </section>
   );
 }

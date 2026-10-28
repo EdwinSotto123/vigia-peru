@@ -1,7 +1,20 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ListFilter, Scale, Store, TriangleAlert } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, Nota, type DatoClave } from "@/components/patrones";
+import {
+  Ayuda,
+  AyudaTermino,
+  BloqueDetalle,
+  ChipsDetalle,
+  CuerpoDetalle,
+  DatosClave,
+  EnlaceFuente,
+  EstadoError,
+  EstadoVacio,
+  FuenteDato,
+  Nota,
+  type DatoClave,
+} from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaFecha,
@@ -25,7 +38,8 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha as fechaLarga, fechaCorta, hoyLima, listaY, numero, oracion, porcentaje, soles } from "@/lib/formato";
+import { fecha as fechaLarga, fechaCorta, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
+import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { FUENTE_TEXTO, SENAL, tipoContratacion } from "@/lib/personas";
 import {
@@ -391,15 +405,22 @@ export const antecedenteInhabilitado = (i: InhabilitacionProveedor, chip: string
   explica: `El Tribunal de Contrataciones del Estado lo tenía inhabilitado para contratar con el Estado (${periodoInhabilitacion(i)}).`,
 });
 
-/** La evidencia de la inhabilitación en el panel: el periodo y la resolución, y cuándo se emitió o firmó. */
-export function BloqueInhabilitacion({ i, cuando }: { i: InhabilitacionProveedor; cuando: string }) {
+/**
+ * La evidencia de la inhabilitación en el panel: el periodo y la resolución, y cuándo se emitió o firmó. La fuente abre
+ * la ficha del proveedor en el RNP, con sus sanciones (sólo un RUC 20: el 10 lleva el DNI); si no, el registro de
+ * sancionados.
+ */
+export function BloqueInhabilitacion({ i, cuando, ruc }: { i: InhabilitacionProveedor; cuando: string; ruc?: string | null }) {
+  const fuente = /^20\d{9}$/.test(ruc ?? "") ? fichaRnp(ruc) : DATASET_SANCIONADOS;
   return (
     <BloqueDetalle titulo="El proveedor estaba inhabilitado" ayuda={<AyudaTermino clave="inhabilitacion" />}>
       <p className="text-inkSoft">
         El Tribunal de Contrataciones del Estado lo inhabilitó {periodoInhabilitacion(i)}
         {i.resolucion ? ` (resolución ${i.resolucion})` : ""}. {cuando}, dentro de ese periodo.
       </p>
-      <p className="mt-1.5 text-rotulo text-mute">Fuente: {FUENTE_TEXTO.osce_sancionados}. Es un dato para revisar, no una acusación.</p>
+      <p className="mt-1.5 text-rotulo text-mute">
+        Fuente: <EnlaceFuente href={fuente}>{FUENTE_TEXTO.osce_sancionados}</EnlaceFuente>. Es un dato para revisar, no una acusación.
+      </p>
     </BloqueDetalle>
   );
 }
@@ -441,16 +462,33 @@ function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
   return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);
 }
 
-/** De dónde sale cada señal de la persona, sin repetir: sólo las fuentes de las que están (las órdenes, siempre). */
-function fuentesSenales(tipos: string[]): string[] {
-  const f = new Set<string>();
+/**
+ * De dónde sale cada señal de la persona, sin repetir y con dónde comprobarlo: sólo las fuentes de las que están (las
+ * órdenes, siempre). Las declaraciones juradas, las de la entidad que dio la orden.
+ */
+function fuentesSenales(tipos: string[], entidadRuc: string | null | undefined): { texto: string; href: string }[] {
+  const f = new Map<string, string>();
   for (const t of tipos) {
-    if (t === "financio_campana" || t === "aporte_gobierna") f.add("ONPE (aportes)");
-    if (t === "candidato_gobierna" || t === "autoridad_contratada") f.add("JNE (candidaturas y autoridades)");
-    if (t === "nepotismo_gobierno") f.add("Contraloría (declaraciones juradas de intereses)");
+    if (t === "financio_campana" || t === "aporte_gobierna") f.set("ONPE (aportes)", CLARIDAD_ONPE);
+    if (t === "candidato_gobierna" || t === "autoridad_contratada") f.set("JNE (candidaturas y autoridades)", PLATAFORMA_JNE);
+    if (t === "nepotismo_gobierno") f.set("Contraloría (declaraciones juradas de intereses)", djiEntidad(entidadRuc));
   }
-  f.add("OECE (órdenes)");
-  return [...f];
+  f.set("OECE (órdenes)", CONOSCE_BUSCADOR);
+  return [...f].map(([texto, href]) => ({ texto, href }));
+}
+
+/** Varias fuentes en una frase («A, B y C»), cada una con su enlace. */
+function FuentesEnFrase({ fuentes }: { fuentes: { texto: string; href: string }[] }) {
+  return (
+    <>
+      {fuentes.map((f, i) => (
+        <Fragment key={f.texto}>
+          {i > 0 && (i === fuentes.length - 1 ? " y " : ", ")}
+          <EnlaceFuente href={f.href}>{f.texto}</EnlaceFuente>
+        </Fragment>
+      ))}
+    </>
+  );
 }
 
 /**
@@ -491,7 +529,9 @@ function BloqueSenalesPersona({ o }: { o: OrdenGeneral }) {
           </li>
         )}
       </ul>
-      <p className="mt-2 text-rotulo text-mute">Fuente: {listaY(fuentesSenales(senales.map((s) => s.tipo)))}. Es un dato para revisar, no una acusación.</p>
+      <p className="mt-2 text-rotulo text-mute">
+        Fuente: <FuentesEnFrase fuentes={fuentesSenales(senales.map((s) => s.tipo), o.entidadRuc)} />. Es un dato para revisar, no una acusación.
+      </p>
       {o.personaCodigo && (
         <EnlaceAccion href={`/app/personas/${o.personaCodigo}?seccion=senales`} prefetch={false} variante="secundario" flecha className="mt-3">
           Ver la evidencia en su ficha
@@ -521,7 +561,7 @@ function BloqueFraccionamiento({ f, fecha }: { f: OrdenFraccionada; fecha: strin
           </li>
         ))}
       </ul>
-      <p className="mt-1.5 text-rotulo text-mute">Fuente: {FUENTE_TEXTO.conosce_ordenes}.</p>
+      <FuenteDato fuente={FUENTE_TEXTO.conosce_ordenes} href={CONOSCE_BUSCADOR} className="mt-1.5" />
     </BloqueDetalle>
   );
 }
@@ -657,7 +697,8 @@ export async function ListaOrdenes({
             {o.conNepotismo && (
               <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
                 <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
-                <p className="mt-1.5 text-rotulo text-mute">Fuente: {FUENTE_TEXTO.dji_contraloria}.</p>
+                {/* Las declaraciones juradas presentadas en la entidad de la orden, en la consulta de la Contraloría. */}
+                <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
                 {/* La evidencia: las personas de esta entidad con la señal, cada una con su declaración en su ficha. */}
                 {o.entidadRuc && (
                   <EnlaceAccion href={`/entidad/${o.entidadRuc}?seccion=personas&psenal=nepotismo`} prefetch={false} variante="secundario" flecha className="mt-3">
@@ -668,7 +709,9 @@ export async function ListaOrdenes({
             )}
             <BloqueSenalesPersona o={o} />
             {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
-            {o.inhabilitacion && <BloqueInhabilitacion i={o.inhabilitacion} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />}
+            {o.inhabilitacion && (
+              <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
+            )}
             {(soloEntidad || soloProveedor) && (
               <div className="flex flex-wrap gap-2">
                 {soloEntidad && (
@@ -687,7 +730,13 @@ export async function ListaOrdenes({
             )}
           </CuerpoDetalle>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+        // Una orden no tiene página propia en el OECE: el buscador de CONOSCE la encuentra por entidad y número.
+        pie: (
+          <FuenteDato
+            fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
+            enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
+          />
+        ),
       },
     };
   });

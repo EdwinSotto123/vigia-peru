@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EnlaceFuente, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { BarraFiltros, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
@@ -11,6 +11,7 @@ import { TerritorioRegion } from "@/components/regiones/ArbolTerritorio";
 import { InicioRegionEsqueleto, InicioRegionFicha } from "@/components/regiones/InicioRegionFicha";
 import { municipalidadesDe, zonasDe, type ZonaRegion } from "@/components/regiones/datos";
 import { ORDENES, contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
+import { BUSCADOR_CONTRALORIA, CONOSCE_BUSCADOR, CONSULTA_AMIGABLE, CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import { regionDe, rutaRegion, type Region } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 
@@ -79,8 +80,10 @@ export default async function RegionPage({ params, searchParams }: { params: { i
         ayuda={
           <Ayuda titulo="¿De dónde sale esto?">
             <span className="block">
-              Los gobiernos, del JNE (elecciones de 2014, 2018 y 2022). El gasto, del MEF. Los contratos, del SEACE y CONOSCE
-              (OECE). Los casos de corrupción, de la Procuraduría Anticorrupción y la Contraloría.
+              Los gobiernos, del <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente> (elecciones de 2014, 2018 y 2022). El gasto, del{" "}
+              <EnlaceFuente href={CONSULTA_AMIGABLE}>MEF</EnlaceFuente>. Los contratos, del <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y{" "}
+              <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE). Los casos de corrupción, de la Procuraduría Anticorrupción y la{" "}
+              <EnlaceFuente href={BUSCADOR_CONTRALORIA}>Contraloría</EnlaceFuente>.
             </span>
           </Ayuda>
         }

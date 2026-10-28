@@ -13,6 +13,7 @@
 
 import { pool } from "./db.js";
 import { evidenciasDe, ofertasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
+import { CONSULTA_RUC_SUNAT, enlaceFuente } from "./fuentes.js";
 import { ETIQUETA_OBRA } from "./obras.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
@@ -124,7 +125,8 @@ export function aCruce(r: Record<string, any>): Cruce {
   const visitas: Record<string, unknown>[] = [];
   if (r.tipo === "visita_previa") {
     visitas.push({
-      visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), funcionario: d.funcionario ?? null, cargoFuncionario: d.cargo_funcionario ?? null,
+      // De quien recibió la visita, sólo su cargo (nunca su nombre).
+      visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), cargoFuncionario: d.cargo_funcionario ?? null,
       entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: d.motivo ?? null,
     });
     delete d.funcionario;
@@ -146,7 +148,11 @@ export function aCruce(r: Record<string, any>): Cruce {
     socios,
     visitas,
     fuente: r.fuente,
-    fuenteUrl: r.fuente_url ?? null,
+    // El registro exacto (el proceso, la ficha del proveedor, el reporte de visitas del mes) o la dirección guardada ya
+    // arreglada (lib/fuentes.ts). Una sanción de un socio no está en la ficha de la empresa: ésa va al dataset.
+    fuenteUrl: enlaceFuente(r.fuente, r.fuente_url, {
+      ruc: r.fuente === "osce_sancionados" && r.persona_nombre ? null : r.ruc_empresa, ocid: r.ocid, fecha: r.fecha, detalle: r.detalle,
+    }),
   };
 }
 
@@ -299,7 +305,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     const g = porRuc.get(r.ruc);
     resultado.push({
       ...aCruce({ tipo: r.tipo, severidad: r.severidad, ruc_empresa: r.ruc, detalle: r.detalle ?? {}, fuente: "sunat",
-        fuente_url: "https://e-consultaruc.sunat.gob.pe/" }),
+        fuente_url: CONSULTA_RUC_SUNAT }),
       proveedor: g?.proveedor ?? null,
       buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
       consorcio: g?.consorcio ?? null,

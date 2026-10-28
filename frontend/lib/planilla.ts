@@ -4,6 +4,18 @@
  * La API ya tapa el apellido materno y a quienes nombran las señales. Las señales son indicios, no pruebas.
  */
 import { API_BASE } from "./api-client";
+import {
+  CLARIDAD_ONPE,
+  CONOSCE_BUSCADOR,
+  DATASET_SOCIOS_RNP,
+  INFOGOB_JNE,
+  PLATAFORMA_JNE,
+  PORTAL_TRANSPARENCIA,
+  djiEntidad,
+  fichaRnp,
+  personalPte,
+  type EnlaceFuente,
+} from "./fuentes";
 import { tituloNatural } from "./landing";
 import type { FichaPersona, Severidad } from "./personas";
 
@@ -279,23 +291,85 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
   },
 };
 
-/** De dónde sale cada señal de la planilla (el pie de su evidencia) y, en corto, la línea de la señal. */
-export function fuentePlanilla(tipo: TipoPlanilla | "nepotismo"): { texto: string; corto: string; url: string | null } {
-  if (tipo === "candidato_gobierna") return { texto: "JNE, candidaturas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
-  if (tipo === "pariente_locador")
-    return { texto: "Contraloría, declaraciones juradas de intereses, y OECE, CONOSCE (órdenes)", corto: "Contraloría, DJI", url: "https://appdji.contraloria.gob.pe/DJIC/" };
-  if (tipo === "doble_planilla")
-    return { texto: "Portal de Transparencia Estándar, planillas de las dos entidades", corto: "Portal de Transparencia", url: "https://www.transparencia.gob.pe/" };
-  if (tipo === "socio_proveedor")
-    return { texto: "OECE, RNP (socios y representantes) y CONOSCE (órdenes y adjudicaciones)", corto: "RNP y CONOSCE", url: "https://www.gob.pe/oece" };
-  if (tipo === "financio_campana" || tipo === "aporte_gobierna")
-    return { texto: "ONPE, Claridad (aportes a organizaciones políticas)", corto: "ONPE", url: "https://claridad.onpe.gob.pe/" };
-  if (tipo === "apellidos_autoridad" || tipo === "es_autoridad") return { texto: "JNE, autoridades electas", corto: "JNE", url: "https://plataformaelectoral.jne.gob.pe/" };
-  if (tipo === "tambien_ordenes" || tipo === "antes_locador")
-    return { texto: "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)", corto: "CONOSCE y Portal de Transparencia", url: null };
-  if (tipo === "nepotismo")
-    return { texto: "Contraloría, declaraciones juradas de intereses, y OECE, CONOSCE (órdenes)", corto: "Contraloría, DJI", url: "https://appdji.contraloria.gob.pe/DJIC/" };
-  return { texto: "Portal de Transparencia Estándar, personal", corto: "Portal de Transparencia", url: "https://www.transparencia.gob.pe/" };
+/** Dónde buscar a la persona en las fuentes: su entidad, el id de la entidad en el Portal de Transparencia y el detalle de la señal. */
+export interface DondePlanilla {
+  /** El id de su entidad en el Portal de Transparencia (su página de personal). Sin él, la portada del portal. */
+  idPte?: number | null;
+  /** Su entidad: las declaraciones juradas que se presentaron en ella (consulta pública de la Contraloría). */
+  entidadRuc?: string | null;
+  /** El detalle de la señal: de `socio_proveedor`, sus empresas (la ficha de cada una en el RNP). */
+  detalle?: Record<string, unknown> | null;
+}
+
+/** La página de personal de la entidad en el Portal de Transparencia o, sin su id, la portada del portal. */
+const enlacePte = (idPte: number | null | undefined): EnlaceFuente =>
+  idPte != null
+    ? { texto: "El personal de la entidad en el Portal de Transparencia", href: personalPte(idPte) }
+    : { texto: "Portal de Transparencia Estándar", href: PORTAL_TRANSPARENCIA };
+// CONOSCE no tiene enlace por orden: su buscador, por entidad y número.
+const ENLACE_CONOSCE: EnlaceFuente = { texto: "Buscador de CONOSCE (OECE): las órdenes, por entidad y número", href: CONOSCE_BUSCADOR };
+// Las candidaturas y autoridades de cada elección pasada (la Plataforma Electoral es la de las elecciones recientes).
+const ENLACE_INFOGOB: EnlaceFuente = { texto: "Infogob (JNE): candidaturas y autoridades de cada elección", href: INFOGOB_JNE };
+
+/** La ficha en el RNP de cada empresa que cita la señal, una vez cada una. Sólo RUC 20: un RUC 10 lleva el DNI. */
+function fichasEmpresas(detalle: Record<string, unknown> | null | undefined): EnlaceFuente[] {
+  const empresas = Array.isArray(detalle?.empresas) ? (detalle!.empresas as Record<string, unknown>[]) : [];
+  const out: EnlaceFuente[] = [];
+  for (const e of empresas) {
+    const ruc = texto(e?.ruc);
+    if (!ruc || !/^20\d{9}$/.test(ruc) || out.some((x) => x.href === fichaRnp(ruc))) continue;
+    const nombre = texto(e.nombre);
+    out.push({ texto: `${nombre ? tituloNatural(nombre) : `RUC ${ruc}`} en el RNP (OECE)`, href: fichaRnp(ruc) });
+  }
+  return out;
+}
+
+/**
+ * De dónde sale cada señal de la planilla (el pie de su evidencia) y, en corto, la línea de la señal. `url` lleva al
+ * registro más preciso que se conoce (la página de personal de la entidad, sus declaraciones juradas, la ficha de la
+ * empresa en el RNP) y `enlaces`, a las otras fuentes del cruce. Con `donde` (la entidad, su id en el Portal de
+ * Transparencia, el detalle de la señal) el enlace va al registro; sin él, a la portada de la fuente.
+ */
+export function fuentePlanilla(
+  tipo: TipoPlanilla | "nepotismo",
+  donde: DondePlanilla = {},
+): { texto: string; corto: string; url: string; enlaces: EnlaceFuente[] } {
+  const pte = enlacePte(donde.idPte);
+  // Las declaraciones juradas presentadas en su entidad (sin la entidad, la portada de la consulta).
+  const dji = djiEntidad(donde.entidadRuc);
+  switch (tipo) {
+    case "candidato_gobierna":
+      return { texto: "JNE, candidaturas", corto: "JNE", url: PLATAFORMA_JNE, enlaces: [ENLACE_INFOGOB] };
+    case "apellidos_autoridad":
+    case "es_autoridad":
+      return { texto: "JNE, autoridades electas", corto: "JNE", url: PLATAFORMA_JNE, enlaces: [ENLACE_INFOGOB] };
+    case "financio_campana":
+    case "aporte_gobierna":
+      return { texto: "ONPE, Claridad (aportes a organizaciones políticas)", corto: "ONPE", url: CLARIDAD_ONPE, enlaces: [] };
+    case "pariente_locador":
+    case "nepotismo":
+      return { texto: "Contraloría, declaraciones juradas de intereses, y OECE, CONOSCE (órdenes)", corto: "Contraloría, DJI", url: dji, enlaces: [ENLACE_CONOSCE] };
+    case "pariente_planilla":
+    case "familiar_en_planilla":
+      return { texto: "Contraloría, declaraciones juradas de intereses, y Portal de Transparencia (planilla)", corto: "Contraloría, DJI", url: dji, enlaces: [pte] };
+    case "socio_proveedor": {
+      // Con una sola empresa, la fuente lleva a su ficha; con varias, al dataset del RNP y debajo, la ficha de cada una.
+      const fichas = fichasEmpresas(donde.detalle);
+      return {
+        texto: "OECE, RNP (socios y representantes) y CONOSCE (órdenes y adjudicaciones)",
+        corto: "RNP y CONOSCE",
+        url: fichas.length === 1 ? fichas[0].href : DATASET_SOCIOS_RNP,
+        enlaces: [...(fichas.length === 1 ? [] : fichas), ENLACE_CONOSCE],
+      };
+    }
+    case "tambien_ordenes":
+    case "antes_locador":
+      return { texto: "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)", corto: "CONOSCE y Portal de Transparencia", url: CONOSCE_BUSCADOR, enlaces: [pte] };
+    case "doble_planilla":
+      return { texto: "Portal de Transparencia Estándar, planillas de las dos entidades", corto: "Portal de Transparencia", url: pte.href, enlaces: [] };
+    default:
+      return { texto: "Portal de Transparencia Estándar, personal", corto: "Portal de Transparencia", url: pte.href, enlaces: [] };
+  }
 }
 
 // ─── Meses ─────────────────────────────────────────────────────────────────────────────────────
@@ -498,6 +572,8 @@ export interface PlanillaMensual {
   /** `incompleto`: publicó menos de la mitad que sus vecinos; no se compara con él (entradas y salidas en null). */
   meses: { mes: string; personas: number; base: number | null; altas: number | null; bajas: number | null; incompleto?: boolean }[];
   cambios: { mes: string; nivel: string; quien: string | null }[];
+  /** El id de la entidad en el Portal de Transparencia: su página de personal, de donde sale cada mes (null si no se sabe). */
+  idPte?: number | null;
 }
 
 /** La organización de una entidad según su planilla del último mes (GET /planilla/organizacion, fase 3). */
@@ -543,7 +619,8 @@ export const getPlanillaMensual = (entidad: string) =>
 
 /** La ficha de una persona de la planilla: sus datos, lo que cobró cada mes y la misma persona en otras planillas. */
 export interface FichaPlanilla {
-  persona: PersonaPlanilla & { dep: string | null; depNombre: string | null };
+  /** `idPte`: el id de su entidad en el Portal de Transparencia (su página de personal), null si no se sabe. */
+  persona: PersonaPlanilla & { dep: string | null; depNombre: string | null; idPte?: number | null };
   historia: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number; cargo: string | null }[];
   otras: { entidadRuc: string; entidad: string | null; cargo: string | null; regimen: number | null; base: number | null; ultimoMes: string | null; nSenales: number; ficha: string | null }[];
   /** Parientes que ESTA persona declaró en su DJI y que son locadores de su misma entidad (lado funcionario del nepotismo). */

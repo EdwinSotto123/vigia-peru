@@ -327,7 +327,7 @@ export interface VisitaEmpresa {
   entidadRuc: string | null;
   via: string;
   visitante: string | null;
-  funcionario: string | null;
+  /** De quien recibió la visita, sólo su cargo (su nombre no se publica). */
   cargoFuncionario: string | null;
   area: string | null;
   motivo: string | null;
@@ -503,7 +503,7 @@ export const getAntecedentesEmpresa = (ruc: string) =>
   esRucEmpresa(ruc) ? leer<{ total: number; data: AntecedenteEmpresa[] }>(`/empresas/${ruc}/antecedentes`) : Promise.resolve(null);
 export const getSociosEmpresa = (ruc: string) => (esRucEmpresa(ruc) ? leer<SociosEmpresa>(`/empresas/${ruc}/socios`) : Promise.resolve(null));
 export const getVisitasEmpresa = (ruc: string) =>
-  esRucEmpresa(ruc) ? leer<{ total: number; visitas: VisitaEmpresa[] }>(`/empresas/${ruc}/visitas`) : Promise.resolve(null);
+  esRucEmpresa(ruc) ? leer<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null }>(`/empresas/${ruc}/visitas`) : Promise.resolve(null);
 
 /**
  * Las etiquetas cortas de un antecedente cuando se habla de la empresa y no de un proceso: «Sancionado antes» (de un

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { FileSignature, FileText, ListFilter, Store } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
 import { enSeccion } from "@/components/contratos/filtros";
 import {
@@ -25,6 +25,7 @@ import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { enlaceProveedor } from "@/lib/empresas";
 import { fecha as fechaLarga, fechaCorta, oracion, soles } from "@/lib/formato";
+import { CONSULTA_RUC_SUNAT, SEACE_CONTRATOS, SEACE_MENORES } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import {
   ANTECEDENTES_MENOR,
@@ -49,6 +50,10 @@ import {
  */
 
 const FUENTE = "el SEACE";
+
+// Los dos buscadores públicos del SEACE de donde salen (probados el 2026-10-27): el de contratos (el contrato firmado) y
+// el de contrataciones de hasta 8 UIT (el requerimiento). Ninguno abre un registro por un enlace que Vigía pueda armar: se
+// busca por el código.
 
 const COLUMNAS: Columna[] = [
   { clave: "estado", titulo: "Estado", ancho: "112px", desde: "md", apilar: true },
@@ -330,7 +335,9 @@ export async function ListaMenores({
               {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" todas />}
             </ChipsDetalle>
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            {m.inhabilitacion && <BloqueInhabilitacion i={m.inhabilitacion} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />}
+            {m.inhabilitacion && (
+              <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />
+            )}
             {sunat.length > 0 && (
               <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">
                 <ul className="space-y-1.5">
@@ -340,7 +347,10 @@ export async function ListaMenores({
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1.5 text-rotulo text-mute">Fuente: SUNAT, padrón de contribuyentes. Son datos para revisar, no una acusación.</p>
+                <p className="mt-1.5 text-rotulo text-mute">
+                  Fuente: <EnlaceFuente href={CONSULTA_RUC_SUNAT}>SUNAT, padrón de contribuyentes</EnlaceFuente>. Son datos para revisar, no una
+                  acusación.
+                </p>
                 {fichaProveedor && (
                   <EnlaceAccion href={fichaProveedor} prefetch={false} variante="secundario" flecha className="mt-3">
                     Ver la ficha de la empresa
@@ -384,7 +394,15 @@ export async function ListaMenores({
             )}
           </CuerpoDetalle>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: SEACE — Buscador de Contratos del Estado (contrato) y buscador de procesos (requerimiento){m.codigo ? ` (${m.codigo})` : ""}</span>,
+        pie: (
+          <FuenteDato
+            fuente={`SEACE, contrato menor${m.codigo ? ` ${m.codigo}` : ""}`}
+            enlaces={[
+              { texto: "Buscador de Contratos del Estado (SEACE): el contrato", href: SEACE_CONTRATOS },
+              { texto: "Buscador de contratos menores (SEACE): el requerimiento", href: SEACE_MENORES },
+            ]}
+          />
+        ),
       },
     };
   });

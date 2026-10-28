@@ -1,5 +1,6 @@
 "use client";
 
+import { CLARIDAD_ONPE, fichaRnp, proveedorOece } from "@/lib/fuentes";
 import { montoDossier } from "../dossier";
 import { ExternalLink, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,7 +66,8 @@ export function NodeDetailPanel({
   if (rucUsable) {
     links.push({ label: "SUNAT (consulta RUC)", href: `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${m.ruc}` });
     links.push({ label: "DatosPerú (perfil)", href: `https://www.datosperu.org/ruc-${m.ruc}.php` });
-    links.push({ label: "OECE (búsqueda proveedor)", href: `https://contratacionesabiertas.oece.gob.pe/perfilProveedor/#!/transactions/${m.ruc}` });
+    links.push({ label: "Sus procesos en Contrataciones Abiertas (OECE)", href: proveedorOece(m.ruc) });
+    links.push({ label: "Su ficha en el RNP (OECE)", href: fichaRnp(m.ruc) });
   }
   if (m.dni && /^\d{8}$/.test(String(m.dni))) {
     links.push({ label: "Buscar el DNI (eldni.com)", href: `https://eldni.com/pe/buscar-por-dni?dni=${m.dni}` });
@@ -76,7 +78,7 @@ export function NodeDetailPanel({
     links.push({ label: "Fuente del dato", href: m.fuente_url });
   }
   if (m.partido) {
-    links.push({ label: "ONPE (financiamiento político)", href: `https://www.onpe.gob.pe/modAportantes/aportantes/` });
+    links.push({ label: "ONPE (financiamiento político)", href: CLARIDAD_ONPE });
   }
 
   // Los datos del nodo en filas (§14.4). Sólo los que el nodo trae: una fila vacía no informa.

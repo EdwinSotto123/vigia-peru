@@ -17,7 +17,11 @@
  *    baje otra cosa (sancionados, JNE, visitas: ver `fuentesFlujoTecnico.ts`).
  *  - `estado: "caida"` apaga la "próxima vez": no se promete una descarga que
  *    hoy falla.
+ *  - `url`: la de lib/fuentes.ts cuando el catálogo la tiene (probada el
+ *    2026-10-27); el pie del sitio enlaza las mismas.
  */
+
+import { BUSCADOR_RNP, CLARIDAD_ONPE, CONTRATACIONES_ABIERTAS, DATASET_DJI, INFOGOB_JNE } from "@/lib/fuentes";
 
 export type Agenda =
   | { tipo: "diaria"; hora: number; minuto: number }
@@ -70,7 +74,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
   {
     clave: "seace",
     corto: "SEACE / OECE",
-    url: "https://contratacionesabiertas.oece.gob.pe/",
+    url: CONTRATACIONES_ABIERTAS,
     aporta: "Cada contrato que el Estado publica: entidad, monto, fechas, postores y sus documentos. De aquí sale todo lo que ves en el mapa.",
     agenda: { tipo: "diaria", hora: 1, minuto: 30 },
     estado: "en_uso",
@@ -102,7 +106,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     corto: "Sancionados",
     // Lo que usa la regla es la exportación del buscador del OECE, cargada a
     // mano; el job semanal de datos abiertos no llega a ella.
-    url: "https://apps.osce.gob.pe/perfilprov-ui/",
+    url: BUSCADOR_RNP,
     aporta: "Quién está inhabilitado para contratar con el Estado, desde cuándo y hasta cuándo.",
     agenda: { tipo: "a_mano" },
     estado: "en_uso",
@@ -132,7 +136,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
   {
     clave: "onpe",
     corto: "Aportes ONPE",
-    url: "https://claridadportal.onpe.gob.pe/",
+    url: CLARIDAD_ONPE,
     aporta: "Quién financió a qué partido, cuánto y cuándo.",
     agenda: { tipo: "a_mano" },
     estado: "en_uso",
@@ -148,7 +152,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     corto: "Candidatos y electos JNE",
     // Los agentes leen las candidaturas de Infogob, cargadas a mano; la tabla
     // del job mensual no la lee nadie.
-    url: "https://infogob.jne.gob.pe/",
+    url: INFOGOB_JNE,
     aporta: "Quién postuló en cada elección y quién salió electo: en qué cargo, dónde y por qué partido.",
     agenda: { tipo: "a_mano" },
     estado: "en_uso",
@@ -162,7 +166,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
   {
     clave: "dji",
     corto: "Declaraciones de intereses",
-    url: "https://www.datosabiertos.gob.pe/dataset/declaraciones-juradas-de-intereses-presentadas-ante-la-contralor%C3%ADa",
+    url: DATASET_DJI,
     aporta: "Dónde trabajó antes cada funcionario, según lo que él mismo declaró.",
     agenda: { tipo: "mensual", dias: [5], hora: 8 },
     estado: "caida",

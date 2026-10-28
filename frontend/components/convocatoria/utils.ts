@@ -1,5 +1,6 @@
 // Funciones puras compartidas por los componentes de convocatoria/ (extraído de
 // ConvocatoriaSearch.tsx): inferencias sobre el stream de eventos y la traza del agente.
+import { CONTRATACIONES_ABIERTAS, procesoOece } from "@/lib/fuentes";
 import type { CatFilter, TraceStep, Bandera } from "./types";
 import { TRACE_ROLE, AGENTE_VISUAL, STEPS, STEP_KEY_BY_TOOL, STEP_KEY_BY_AGENT } from "./constants";
 
@@ -34,11 +35,10 @@ export function inferStepFromEvents(events: any[]): number {
   return -1;
 }
 
+/** El proceso en Contrataciones Abiertas del OECE por su ocid de Vigía (lib/fuentes.ts: con el OCID completo). */
 export function oeceProcesoUrl(ocidOrCodigo: string | null | undefined): string {
   const s = String(ocidOrCodigo || "").trim();
-  if (!s) return "https://contratacionesabiertas.oece.gob.pe/";
-  const full = s.startsWith("ocds-") ? s : `ocds-dgv273-seacev3-${s.replace(/^OECE-/i, "")}`;
-  return `https://contratacionesabiertas.oece.gob.pe/proceso/${full}`;
+  return s ? procesoOece(s) : CONTRATACIONES_ABIERTAS;
 }
 
 export function countFindings(events: any[]): number {

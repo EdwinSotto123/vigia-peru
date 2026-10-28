@@ -898,7 +898,8 @@ entidadesRouter.get("/:ruc", async (c) => {
                 COALESCE(es.monto_alertas_activas, 0)::float AS monto,
                 COALESCE(es.contratos, 0)::int AS contratos,
                 ${EN_COLA} AS "contratosEnCola",
-                (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre"
+                (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre",
+                (SELECT p.id_pte FROM pte_entidad p WHERE p.ruc = e.ruc::text) AS "idPte"
            FROM entidades e
            LEFT JOIN entidad_stats es ON es.ruc = e.ruc
           WHERE e.ruc = $1`
@@ -907,7 +908,8 @@ entidadesRouter.get("/:ruc", async (c) => {
                 COALESCE(a.monto, 0)::float AS monto,
                 (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc AND ${convocatoriaNoDemo("c")})::int AS contratos,
                 ${EN_COLA} AS "contratosEnCola",
-                (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre"
+                (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre",
+                (SELECT p.id_pte FROM pte_entidad p WHERE p.ruc = e.ruc::text) AS "idPte"
            FROM entidades e
            LEFT JOIN (
              SELECT a.entidad_ruc, COUNT(*) AS alertas, SUM(a.monto_adjudicado) AS monto

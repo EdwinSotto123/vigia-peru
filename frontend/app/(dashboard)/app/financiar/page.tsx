@@ -16,6 +16,7 @@ import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Migas, P
 import { BarraFiltros, Listado, Vistas, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
 import { numero, plural, soles } from "@/lib/formato";
+import { CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import {
   alcanceCorto,
   getEntidadesFinanciables,
@@ -267,7 +268,19 @@ export default async function FinanciarPage({
       <div className={porPartido ? "grid gap-8" : "grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]"}>
         {porPartido ? (
           /* ─── ELIGE EL PARTIDO (y el período) ─── */
-          <Seccion id="partidos" titulo="Elige el partido" acciones={<FuenteDato fuente="JNE y OECE, API OCDS" />}>
+          <Seccion
+            id="partidos"
+            titulo="Elige el partido"
+            acciones={
+              <FuenteDato
+                fuente="JNE y OECE, API OCDS"
+                enlaces={[
+                  { texto: "Infogob (JNE)", href: INFOGOB_JNE },
+                  { texto: "Contrataciones Abiertas (OECE)", href: CONTRATACIONES_ABIERTAS },
+                ]}
+              />
+            }
+          >
             <Listado
               ruta="/app/financiar"
               parametros={{ por: "partido", anio: String(anioPartido), q: qPartido || undefined, region, orden: searchParams?.orden && esOrdenPartidos(searchParams.orden) ? searchParams.orden : undefined }}
@@ -308,7 +321,7 @@ export default async function FinanciarPage({
                 <span className="mt-2 block">Hoy entran a la cola solo {alcanceCorto(estado?.alcance)}.</span>
               </Ayuda>
             }
-            acciones={<FuenteDato fuente="OECE, API OCDS" />}
+            acciones={<FuenteDato fuente="OECE, API OCDS" href={CONTRATACIONES_ABIERTAS} />}
           >
             <Listado ruta="/app/financiar" parametros={{ por: "entidad", q: qEntidad || undefined, region }}>
               <div className="space-y-3">
@@ -348,7 +361,7 @@ export default async function FinanciarPage({
                 estado de la zona, dicho también en palabras debajo de su nombre.
               </Ayuda>
             }
-            acciones={<FuenteDato fuente="OECE, API OCDS" />}
+            acciones={<FuenteDato fuente="OECE, API OCDS" href={CONTRATACIONES_ABIERTAS} />}
           >
             <Listado ruta="/app/financiar" parametros={{ q: q || undefined }}>
               <div className="space-y-3">

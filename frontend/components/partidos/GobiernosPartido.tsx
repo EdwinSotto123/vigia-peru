@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { BarraFiltros, CeldaNumero, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila, type OpcionFaceta, type Parametros } from "@/components/listado";
-import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoVacio, PieDetalle, Pestanas, type DatoClave } from "@/components/patrones";
+import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoVacio, PieDetalle, Pestanas, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { numero, paraBuscar, coincide, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { CONOSCE_BUSCADOR, CONSULTA_AMIGABLE, CONTRATACIONES_ABIERTAS, INFOGOB_JNE, inversionSsi } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { normalizar } from "@/lib/partidos";
 import { periodoTexto, type AnioGobierno, type DetallePartido, type GastoPartido, type GobiernoDePartido } from "@/lib/partidosApi";
@@ -254,7 +255,9 @@ export async function GobiernosPartido({
           </>
         )}
         <p className="text-rotulo text-mute">
-          Fuente: JNE (quién ganó), OECE (contratos: CONOSCE desde 2018, Contrataciones Abiertas antes){conMef ? `, MEF ${gasto?.mef} (presupuesto)` : ""} y la base de Vigía (lo leído).
+          Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente> (quién ganó), OECE (contratos: <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> desde
+          2018, <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>Contrataciones Abiertas</EnlaceFuente> antes)
+          {conMef && <>, <EnlaceFuente href={CONSULTA_AMIGABLE}>MEF {gasto?.mef}</EnlaceFuente> (presupuesto)</>} y la base de Vigía (lo leído).
         </p>
       </ZonaResultados>
     </Listado>
@@ -333,7 +336,10 @@ function PanelGobierno({ g, conMef, mef, contratos }: { g: Gobierno; conMef: boo
             {g.proyectos.map((p) => (
               <li key={p.codigo} className="flex items-baseline justify-between gap-3 text-meta">
                 <span className="min-w-0 text-ink">
-                  {tituloNatural(p.nombre)} <span className="font-mono text-rotulo text-mute">CUI {p.codigo}</span>
+                  {tituloNatural(p.nombre)}{" "}
+                  <EnlaceFuente href={inversionSsi(p.codigo)} className="font-mono text-rotulo">
+                    CUI {p.codigo}
+                  </EnlaceFuente>
                 </span>
                 <span className="shrink-0 text-right font-mono tabular-nums text-ink">
                   {solesCompacto(p.pim)}

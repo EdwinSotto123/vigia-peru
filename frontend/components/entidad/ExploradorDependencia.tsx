@@ -10,6 +10,7 @@ import { BarraArbol } from "@/components/grafo/BarraArbol";
 import { BotonCerrar, ChipLeyenda, GrafoMarco, MigaSep, Nodo, NodoCentro, Arista, type Tono } from "@/components/grafo/primitivos";
 import { EstadoCarga, SelectorVista, TablaORed, letraEnUnidades, useAncho, usePoder } from "@/components/grafo/vista";
 import { coincide, numero, paraBuscar, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { CONSULTA_AMIGABLE, DATASET_MEF } from "@/lib/fuentes";
 import { VB, C, rad, corto, radioPorRaiz, anguloEnAnillo, anchorDeCos } from "@/lib/grafo";
 import { tituloNatural } from "@/lib/landing";
 import type { DependenciaNodo } from "@/lib/poder";
@@ -160,7 +161,12 @@ function Dependencia({ nodos, anio, red }: { nodos: DependenciaNodo[]; anio: num
       ) : (
         <ArbolTabla key={q ? "buscando" : "todo"} columnas={COLUMNAS} nodos={arbol} etiqueta={`El Gobierno Nacional y su presupuesto ${anio}`} todoAbierto={!!q && coinciden <= 300} />
       )}
-      <FuenteDato fuente={`MEF, presupuesto ${anio} (PIM y ejecutado) por sector, pliego y unidad ejecutora`} />
+      {/* El archivo del MEF y la Consulta Amigable, que se recorre igual: sector → pliego → unidad. */}
+      <FuenteDato
+        fuente={`MEF, presupuesto ${anio} (PIM y ejecutado) por sector, pliego y unidad ejecutora`}
+        href={DATASET_MEF}
+        enlaces={[{ texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]}
+      />
     </div>
   );
   return <TablaORed red={red} tabla={tabla} grafo={<RedDependencia datos={datos} anio={anio} />} />;

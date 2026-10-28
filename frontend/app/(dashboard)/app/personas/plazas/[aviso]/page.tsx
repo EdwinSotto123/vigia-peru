@@ -11,6 +11,7 @@ import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
 import { decimal, fechaCorta, numero, plural, soles } from "@/lib/formato";
+import { TALENTO_PERU } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { SENAL_PLAZA, getFichaPlaza, rutaPlaza, type FichaPlaza } from "@/lib/planilla";
 
@@ -176,7 +177,8 @@ export default async function FichaPlazaPage({ params }: { params: { aviso: stri
           </EnlaceAccion>
         )}
       </div>
-      <FuenteDato fuente={`SERVIR, Talento Perú (aviso ${p.aviso})`} href={p.detalleUrl} />
+      {/* La convocatoria en SERVIR; si no se guardó su enlace, el buscador de ofertas de Talento Perú. */}
+      <FuenteDato fuente={`SERVIR, Talento Perú (aviso ${p.aviso})`} href={p.detalleUrl ?? TALENTO_PERU} />
       <Aviso tono="neutro">
         Una señal no es una acusación: dice qué registro público coincide con esta plaza. Quién la ganó no está en los datos de
         SERVIR.

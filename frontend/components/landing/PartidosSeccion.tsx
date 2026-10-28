@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { PartidosExplorador } from "@/components/partidos/PartidosExplorador";
-import { Nota } from "@/components/patrones";
+import { EnlaceFuente, Nota } from "@/components/patrones";
 import { Carrusel } from "@/components/ui/Carrusel";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
 import { numero } from "@/lib/formato";
+import { INFOGOB_JNE } from "@/lib/fuentes";
 import type { Cobertura } from "@/lib/partidos";
 import { getRankingPartidos, type RankingPartidos } from "@/lib/partidosApi";
 
@@ -73,7 +74,7 @@ export async function PartidosSeccion() {
 
         <Nota className="mt-6 max-w-4xl">
           Cada contrato se asocia al partido que ganó la elección de ese período, sin vacancias ni reemplazos. Resultados de 2026 pendientes.
-          Fuente: JNE. Una señal es para revisar, nunca una acusación.{" "}
+          Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE (Infogob)</EnlaceFuente>. Una señal es para revisar, nunca una acusación.{" "}
           <Link href="/preguntas" className="text-granate underline-offset-4 hover:underline">
             Cómo leemos las señales
           </Link>

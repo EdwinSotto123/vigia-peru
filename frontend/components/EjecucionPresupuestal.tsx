@@ -7,11 +7,9 @@ import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
 import { Ayuda, AyudaTermino, FuenteDato, Nota } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { listaY, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { CONSULTA_AMIGABLE, DATASET_MEF } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
-
-const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
-const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
 
 /**
  * Server component. Muestra el presupuesto del MEF de una entidad: el que Vigía carga cada semana desde
@@ -249,7 +247,13 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
       </section>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-mute">
-        <FuenteDato fuente={FUENTE_MEF[data.origen ?? "siaf"]} fecha={data.fechaDescarga} href={DATASET_MEF} />
+        {/* La Consulta Amigable recorre el SIAF: las OPD y las empresas municipales no están en ella. */}
+        <FuenteDato
+          fuente={FUENTE_MEF[data.origen ?? "siaf"]}
+          fecha={data.fechaDescarga}
+          href={DATASET_MEF}
+          enlaces={[(data.origen ?? "siaf") === "siaf" && { texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]}
+        />
         {!data.fechaDescarga && <span>La copia no registró su fecha de descarga.</span>}
       </div>
     </div>

@@ -12,11 +12,12 @@ import { Listado, ZonaResultados, useListado, type Parametros } from "@/componen
 import { Vistas, type Vista as OpcionVista } from "@/components/listado/Vistas";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
-import { Nota } from "@/components/patrones";
+import { EnlaceFuente, Nota } from "@/components/patrones";
 import { Partes } from "@/components/ui/Partes";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { listaY, numero, solesCompacto } from "@/lib/formato";
+import { INFOGOB_JNE } from "@/lib/fuentes";
 import {
   PALETA_ORG,
   TIPO_ORG_LABEL,
@@ -313,7 +314,8 @@ function Gobiernos({
       </Listado>
       <Nota>
         Cuenta quién ganó la elección de {anio}, no qué hizo cada gobierno: una vacancia, una revocatoria o un reemplazo dentro del período no está registrado.
-        Una señal de Vigía es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona. Fuente: JNE, Plataforma Electoral (Infogob).
+        Una señal de Vigía es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona. Fuente:{" "}
+        <EnlaceFuente href={INFOGOB_JNE}>JNE, Plataforma Electoral (Infogob)</EnlaceFuente>.
       </Nota>
     </div>
   );

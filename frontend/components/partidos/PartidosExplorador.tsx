@@ -6,8 +6,10 @@ import { ArrowLeft, CalendarDays, MapPin, Search, Swords, Trophy } from "lucide-
 import { PeruChoropleth, type ZonaPintada } from "@/components/PeruChoropleth";
 import { nombreDepartamento } from "@/components/mapa/region-match";
 import { construirEscala, paletaMapa } from "@/components/mapa/escala";
+import { EnlaceFuente, FuenteDato } from "@/components/patrones/Estructura";
 import { useModo } from "@/lib/modo";
 import { numero, solesCompacto } from "@/lib/formato";
+import { INFOGOB_JNE } from "@/lib/fuentes";
 import { cn } from "@/lib/utils";
 import {
   ANIO_ACTUAL,
@@ -241,7 +243,10 @@ export function PartidosExplorador({
                     {TIPO_ORG_LABEL[ficha.gano.org.t]}
                     {pct(ficha.gano.p) ? `, ${pct(ficha.gano.p)} de los votos` : ""}
                   </p>
-                  {ficha.fuente && <p className="mt-1 text-rotulo text-mute">Fuente: {ficha.fuente}</p>}
+                  {/* Otra fuente para esta región (el archivo del JNE no la traía): al lado, los resultados oficiales. */}
+                  {ficha.fuente && (
+                    <FuenteDato fuente={ficha.fuente} enlaces={[{ texto: "Los resultados en Infogob (JNE)", href: INFOGOB_JNE }]} className="mt-1" />
+                  )}
                   <ol className={portada ? "mt-2 flex flex-wrap gap-1.5" : "mt-3 space-y-1 border-t border-line pt-3"}>
                     {ficha.historial.map((h) => (
                       <li key={h.anio} className={cn(portada ? "inline-flex max-w-[12rem] gap-1.5 rounded-full bg-paperDeep px-2.5 py-1 text-rotulo" : "grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-meta", h.anio === anio ? "text-ink" : "text-inkSoft")}>
@@ -478,7 +483,7 @@ export function PartidosExplorador({
             {!portada && (
               <p className="mt-3 text-meta leading-snug text-mute">
                 Elecciones {anio} (mandato {periodo?.mandato}): {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales
-                y {numero(d.distrital.length)} distritales. Fuente: {d.fuente}.
+                y {numero(d.distrital.length)} distritales. Fuente: <EnlaceFuente href={INFOGOB_JNE}>{d.fuente}</EnlaceFuente>.
               </p>
             )}
           </div>

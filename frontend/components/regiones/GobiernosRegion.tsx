@@ -3,9 +3,11 @@
 import { useMemo } from "react";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { Dato } from "@/components/ui/Dato";
 import { numero } from "@/lib/formato";
+import { INFOGOB_JNE } from "@/lib/fuentes";
 import { cargoRegional, claveOrg, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
 import { ANIOS, mandato, useAutoridades } from "./autoridades";
 
@@ -131,7 +133,10 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
           buscar={{ placeholder: "Buscar un partido o movimiento…", etiqueta: `Buscar en los partidos de ${nombre}` }}
         />
       </section>
-      <p className="text-rotulo text-mute">Fuente: JNE, resultados de las elecciones regionales y municipales de 2014, 2018 y 2022. Las de 2026 aún no tienen resultados.</p>
+      <p className="text-rotulo text-mute">
+        Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>, resultados de las elecciones regionales y municipales de 2014, 2018 y 2022. Las de
+        2026 aún no tienen resultados.
+      </p>
     </div>
   );
 }

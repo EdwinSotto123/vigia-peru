@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ExternalLink, FileText, HardHat, MapPin, Store } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
 import { enSeccion } from "@/components/contratos/filtros";
 import { ChipsCruces, CrucesCelda } from "@/components/contratos/CrucesCelda";
@@ -14,6 +14,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { enlaceProveedor } from "@/lib/empresas";
 import { fecha as fechaLarga, fechaCorta, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { INFOBRAS, inversionSsi, obraInfobras } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import {
@@ -195,15 +196,20 @@ export function datosObra(o: Obra, conEntidad: boolean): DatoClave[] {
   return items.filter(Boolean) as DatoClave[];
 }
 
-/** Las banderas en palabras, cada una con su chip: lo que se encontró y con qué números. */
+/**
+ * Las banderas en palabras, cada una con su chip: lo que se encontró y con qué números. La nota al pie dice de dónde
+ * sale, con la fuente enlazada: `enlace`, la obra en INFOBRAS (sin él, el portal); `nota` la reemplaza (una inversión).
+ */
 export function BloqueBanderasObra({
   banderas,
   sujeto = "La obra",
-  nota = `Fuente: ${FUENTE_OBRA}. Lo registra la propia entidad. Es un indicio para revisar, no una acusación: la causa puede ser de la entidad (falta de pago o de presupuesto) y no de quien construye.`,
+  enlace = INFOBRAS,
+  nota,
 }: {
   banderas: Obra["banderas"];
   sujeto?: string;
-  nota?: string;
+  enlace?: string;
+  nota?: ReactNode;
 }) {
   if (!banderas.length) return null;
   return (
@@ -216,7 +222,14 @@ export function BloqueBanderasObra({
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-rotulo text-mute">{nota}</p>
+      <p className="mt-2 text-rotulo text-mute">
+        {nota ?? (
+          <>
+            Fuente: <EnlaceFuente href={enlace}>{FUENTE_OBRA}</EnlaceFuente>. Lo registra la propia entidad. Es un indicio para revisar, no
+            una acusación: la causa puede ser de la entidad (falta de pago o de presupuesto) y no de quien construye.
+          </>
+        )}
+      </p>
     </BloqueDetalle>
   );
 }
@@ -309,7 +322,7 @@ function filaObra(o: Obra, { conEntidad, empresaRuc }: { conEntidad: boolean; em
           )}
           <CifrasEnFila items={cifrasObra(o)} chico />
           <DatosClave items={datosObra(o, conEntidad)} />
-          <BloqueBanderasObra banderas={o.banderas} />
+          <BloqueBanderasObra banderas={o.banderas} enlace={obraInfobras(o.codigo)} />
           <BloqueContratos o={o} />
           <BloqueDetalle titulo="Dónde verlo">
             <div className="flex flex-wrap gap-2">
@@ -319,7 +332,7 @@ function filaObra(o: Obra, { conEntidad, empresaRuc }: { conEntidad: boolean; em
                 <span className="sr-only"> (se abre en otra pestaña)</span>
               </a>
               {o.cui && (
-                <a href={`https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${o.cui}&tipo=2`} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                <a href={inversionSsi(o.cui)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
                   La inversión en el MEF (CUI {o.cui})
                   <ExternalLink className="size-3.5" aria-hidden />
                   <span className="sr-only"> (se abre en otra pestaña)</span>
@@ -330,7 +343,7 @@ function filaObra(o: Obra, { conEntidad, empresaRuc }: { conEntidad: boolean; em
           </BloqueDetalle>
         </CuerpoDetalle>
       ),
-      pie: <span className="text-rotulo text-mute">Fuente: {FUENTE_OBRA}, obra {o.codigo}{o.alDia ? `, archivo del ${fechaLarga(o.alDia)}` : ""}</span>,
+      pie: <FuenteDato fuente={`${FUENTE_OBRA}, obra ${o.codigo}${o.alDia ? `, archivo del ${fechaLarga(o.alDia)}` : ""}`} href={obraInfobras(o.codigo)} />,
     },
     buscable: `${o.nombre} ${o.codigo} ${o.cui ?? ""}`,
   };
@@ -390,7 +403,12 @@ export async function ListaObras({
       <div className="flex justify-end">{pag(false)}</div>
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Obras públicas de INFOBRAS" />
       <div className="flex justify-end">{pag(true)}</div>
-      {pagina.alDia && <p className="text-rotulo text-mute">INFOBRAS (Contraloría), archivo del {fechaLarga(pagina.alDia)}. Lo registra cada entidad: una obra que no se actualiza queda como la dejó.</p>}
+      {pagina.alDia && (
+        <p className="text-rotulo text-mute">
+          <EnlaceFuente href={INFOBRAS}>{FUENTE_OBRA}</EnlaceFuente>, archivo del {fechaLarga(pagina.alDia)}. Lo registra cada entidad: una obra que
+          no se actualiza queda como la dejó.
+        </p>
+      )}
     </div>
   );
 }

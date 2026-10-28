@@ -52,7 +52,9 @@ const SOBRE_VIGIA: Enlace[] = [
  * verificado contra el código) que hoy se usan y tienen página pública. Antes el
  * pie enlazaba INFOBRAS y El Peruano, que ningún análisis lee, la página de
  * Claridad en onpe.gob.pe (hoy un 404) y la Plataforma Electoral del JNE en vez
- * de Infogob, que es de donde salen las candidaturas.
+ * de Infogob, que es de donde salen las candidaturas. Las direcciones salen de
+ * lib/fuentes.ts cuando el catálogo las tiene (probadas el 2026-10-27; el
+ * buscador de proveedores, en apps.oece y ya no en apps.osce).
  */
 const NOMBRE_PORTAL: Record<string, string> = {
   seace: "Contrataciones Abiertas (OECE)",

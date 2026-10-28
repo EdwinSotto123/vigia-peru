@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Ayuda, EncabezadoPagina, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EnlaceFuente, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { PoderVista } from "@/components/entidad/PoderVista";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { BUSCADOR_RNP, CLARIDAD_ONPE, CONTRATACIONES_ABIERTAS, DATASET_AUTORIDADES_JNE } from "@/lib/fuentes";
 import { parte, VISTAS_PODER } from "@/lib/grafo";
 import { getPoderPartidos } from "@/lib/poder";
 import { uno } from "@/lib/utils";
@@ -76,8 +77,10 @@ export default async function PoderPage({ searchParams }: { searchParams?: Recor
       )}
 
       <Nota>
-        Fuentes: JNE (quién gobierna cada entidad), ONPE (aportes y gastos de campaña), RNP y SEACE (socios y contratos). Cada
-        indicio es un cruce de registros públicos para revisar: no es una acusación.
+        Fuentes: <EnlaceFuente href={DATASET_AUTORIDADES_JNE}>JNE</EnlaceFuente> (quién gobierna cada entidad),{" "}
+        <EnlaceFuente href={CLARIDAD_ONPE}>ONPE</EnlaceFuente> (aportes y gastos de campaña), <EnlaceFuente href={BUSCADOR_RNP}>RNP</EnlaceFuente> y{" "}
+        <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> (socios y contratos). Cada indicio es un cruce de registros públicos para
+        revisar: no es una acusación.
       </Nota>
     </Pagina>
   );

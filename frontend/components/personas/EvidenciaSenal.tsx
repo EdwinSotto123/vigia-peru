@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { AyudaTermino, DatosClave } from "@/components/patrones";
+import { AyudaTermino, DatosClave, EnlaceFuente, FuenteDato } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { FrenteMediana } from "@/components/charts/FrenteMediana";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { decimal, fecha, fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
+import { CONOSCE_BUSCADOR, VISITAS_EN_LINEA, datasetVisitas, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
 import { REGIMEN, cargoEnOracion, listaMeses, mes, nombrePartido, ordenesCitadas, type OrdenCitada } from "@/lib/planilla";
@@ -80,6 +81,16 @@ export function hitosCampana(d: Obj, final: { fecha: unknown; texto: string } | 
   const ff = final ? iso(final.fecha) : null;
   if (ff && final) out.push({ fecha: ff, texto: final.texto, destacado: true });
   return out;
+}
+
+/**
+ * Dónde está una visita en la fuente oficial: el reporte mensual de la PNDA que la trae (de enero de 2025 a mayo de 2026)
+ * o, fuera de esos meses, el registro de visitas en línea. Lo usan la evidencia de «visita previa» y el recorrido.
+ */
+export function enlaceVisita(fechaVisita: unknown): { texto: string; href: string } {
+  const f = typeof fechaVisita === "string" ? fechaVisita : null;
+  const href = datasetVisitas(f);
+  return href === VISITAS_EN_LINEA ? { texto: "Registro en línea", href } : { texto: `Reporte de ${mes(f) ?? "su mes"}`, href };
 }
 
 /** El parentesco con mayúscula inicial: "Hijo(a)". */
@@ -384,6 +395,11 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
           },
         };
       });
+      // La ficha de cada empresa en el RNP (sólo RUC 20), una vez cada una. Con una sola empresa no se lista: ya es el
+      // enlace de la fuente de la señal, debajo de la evidencia.
+      const fichas = lista(d.empresas)
+        .filter((e, i, a) => /^20\d{9}$/.test(txt(e.ruc) ?? "") && a.findIndex((x) => txt(x.ruc) === txt(e.ruc)) === i)
+        .map((e) => ({ texto: `${natural(e.nombre) ?? `RUC ${txt(e.ruc)}`} en el RNP (OECE)`, href: fichaRnp(txt(e.ruc)) }));
       return (
         <div className="space-y-3">
           <Lista
@@ -399,6 +415,18 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
             Es la misma persona por su documento, no un homónimo: el Registro Nacional de Proveedores la anota en la conformación
             de la empresa. Las ventas son órdenes de compra o de servicio y buenas pro de la entidad a esa empresa.
           </p>
+          {fichas.length > 1 && (
+            <div className="text-rotulo text-mute">
+              <p>Cada empresa, con sus socios y representantes, en el Registro Nacional de Proveedores:</p>
+              <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5" aria-label="Cada empresa en el RNP">
+                {fichas.map((x) => (
+                  <li key={x.href}>
+                    <EnlaceFuente href={x.href}>{x.texto}</EnlaceFuente>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {entidadRuc && <VerOrdenes codigo={codigo} entidadRuc={entidadRuc}>Ver sus órdenes de esta entidad</VerOrdenes>}
         </div>
       );
@@ -770,24 +798,30 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       );
     }
     case "visita_previa": {
-      const filas: Fila[] = lista(d.visitas).map((v, i) => ({
-        id: String(i),
-        celdas: {
-          visitado: (
-            <CeldaPrincipal
-              titulo={natural(v.cargo_visitado) ?? "Sin dato del visitado"}
-              meta={[<Dato key="f" tipo="fecha">{dia(v.fecha) ?? "Sin fecha"}</Dato>, txt(v.area) && <Dato key="a" tipo="dependencia" nombre="Oficina">{natural(v.area)}</Dato>]}
-            />
-          ),
-          motivo: <span className="text-meta text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,
-        },
-      }));
+      // Cada visita con su registro oficial: el reporte del mes en datos abiertos (o el registro en línea).
+      const filas: Fila[] = lista(d.visitas).map((v, i) => {
+        const fuente = enlaceVisita(v.fecha);
+        return {
+          id: String(i),
+          celdas: {
+            visitado: (
+              <CeldaPrincipal
+                titulo={natural(v.cargo_visitado) ?? "Sin dato del visitado"}
+                meta={[<Dato key="f" tipo="fecha">{dia(v.fecha) ?? "Sin fecha"}</Dato>, txt(v.area) && <Dato key="a" tipo="dependencia" nombre="Oficina">{natural(v.area)}</Dato>]}
+              />
+            ),
+            motivo: <span className="text-meta text-inkSoft">{txt(v.motivo) ?? "Sin dato"}</span>,
+            fuente: <EnlaceFuente href={fuente.href} className="text-meta">{fuente.texto}</EnlaceFuente>,
+          },
+        };
+      });
       return (
         <Lista
           etiqueta="Visitas"
           columnas={[
             { clave: "visitado", titulo: "A quién visitó (cargo)", ancho: "minmax(0,1fr)" },
             { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+            { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "md", apilar: "con-rotulo" },
           ]}
           filas={filas}
         />
@@ -848,7 +882,13 @@ export function OrdenesCitadas({ ordenes, etiqueta, nota }: { ordenes: OrdenCita
             <p className="text-rotulo leading-relaxed text-mute">{nota}</p>
           </div>
         ),
-        pie: <span className="text-rotulo text-mute">Fuente: OECE, CONOSCE, órdenes de compra y de servicio{o.orden ? ` (${o.orden})` : ""}</span>,
+        // CONOSCE no tiene enlace por orden: su buscador, por entidad y número.
+        pie: (
+          <FuenteDato
+            fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
+            enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
+          />
+        ),
       },
     };
   });

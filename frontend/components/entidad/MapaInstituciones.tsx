@@ -9,6 +9,7 @@ import { AyudaIndicios, ChipsIndicio } from "@/components/grafo/indicios";
 import { BotonCerrar, BotonFicha, ChipLeyenda, GrafoMarco } from "@/components/grafo/primitivos";
 import { EstadoCarga, SelectorVista, TablaORed, letraEnUnidades, useAncho, usePoder } from "@/components/grafo/vista";
 import { numero, plural, solesCompacto } from "@/lib/formato";
+import { CONTRATACIONES_ABIERTAS } from "@/lib/fuentes";
 import { nombreSinTipo, rad, type ConteosCaptura } from "@/lib/grafo";
 import { recortar } from "@/components/contratos/recortar";
 import { tituloNatural } from "@/lib/landing";
@@ -113,7 +114,7 @@ function Instituciones({ datos, red }: { datos: Datos; red: boolean }) {
         filtros={filtros}
         ordenes={ORDENES}
       />
-      <FuenteDato fuente="SEACE y OECE (convocatorias de cada institución en la base de Vigía)" />
+      <FuenteDato fuente="SEACE y OECE (convocatorias de cada institución en la base de Vigía)" href={CONTRATACIONES_ABIERTAS} />
     </div>
   );
   return <TablaORed red={red} tabla={tabla} grafo={<RedInstituciones datos={datos} />} />;
