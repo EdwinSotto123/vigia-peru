@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { SearchX } from "lucide-react";
+import { Download, SearchX } from "lucide-react";
 import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { coincide, numero, paraBuscar } from "@/lib/formato";
@@ -185,7 +185,32 @@ export type FilaFiltrable = Fila & {
   valores?: Record<string, string | string[] | null | undefined>;
   /** Los valores para ordenar (`OrdenLocal.clave`). */
   claves?: Record<string, number | string | null | undefined>;
+  /**
+   * La fila en texto para «Descargar CSV» (`descargar` de TablaFiltrable): las columnas con el mismo dato que se ve,
+   * nunca más (los nombres ya llegan tapados de la API; nada de documentos).
+   */
+  csv?: Record<string, string | number | null | undefined>;
 };
+
+/** Las filas en CSV (con BOM: Excel lo abre con sus tildes), en el orden y con los filtros de la lista. */
+function bajarCsv(filas: FilaFiltrable[], archivo: string): void {
+  const conCsv = filas.filter((f) => f.csv);
+  if (!conCsv.length) return;
+  const cols = [...new Set(conCsv.flatMap((f) => Object.keys(f.csv!)))];
+  const celda = (v: unknown) => {
+    const t = v == null ? "" : String(v);
+    return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const texto = [cols.map(celda).join(","), ...conCsv.map((f) => cols.map((c) => celda(f.csv![c])).join(","))].join("\r\n");
+  const url = URL.createObjectURL(new Blob(["﻿" + texto], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = archivo.endsWith(".csv") ? archivo : `${archivo}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 const CAMPO_LOCAL =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
@@ -204,6 +229,7 @@ export function TablaFiltrable({
   buscar,
   filtros = [],
   ordenes = [],
+  descargar,
   densidad,
   medida,
   className,
@@ -216,6 +242,8 @@ export function TablaFiltrable({
   buscar?: BuscarEnLista;
   filtros?: FiltroLocal[];
   ordenes?: OrdenLocal[];
+  /** «Descargar CSV» con lo que se ve (los filtros y el orden de ahora), si las filas traen `csv`. */
+  descargar?: { archivo: string };
 } & PropsTabla) {
   const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
   const [elegidos, setElegidos] = useState<Record<string, string>>({});
@@ -306,6 +334,17 @@ export function TablaFiltrable({
               </select>
             </label>
           )}
+        </div>
+      )}
+      {descargar && vistas.some((f) => f.csv) && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => bajarCsv(vistas, descargar.archivo)}
+            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink"
+          >
+            <Download size={14} aria-hidden /> Descargar CSV ({numero(vistas.length)})
+          </button>
         </div>
       )}
       {filtrando && (

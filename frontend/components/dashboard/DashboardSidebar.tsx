@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Users } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -139,6 +139,15 @@ const SECTIONS: Section[] = [
         intencion: "alertas",
         match: (p) =>
           p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+      },
+      {
+        // Lo nuevo de la semana: contratos con antecedentes graves, sanciones e informes (fase 6).
+        href: "/app/novedades",
+        label: "Lo nuevo",
+        icon: <Newspaper size={16} />,
+        hint: "De esta semana",
+        intencion: "alertas",
+        match: (p) => p.startsWith("/app/novedades"),
       },
       {
         href: "/app/denuncias",

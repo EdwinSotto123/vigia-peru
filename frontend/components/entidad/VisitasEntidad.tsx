@@ -109,6 +109,7 @@ function Organizaciones({ orgs }: { orgs: NonNullable<Datos["organizaciones"]> }
     buscable: `${o.org} ${o.empresa ?? ""} ${o.ruc ?? ""}`,
     valores: { tipo: o.tipo === "publica" ? "publica" : "privada", despues: o.despues ? "si" : "no", decisor: o.decisores > 0 ? "si" : "no" },
     claves: { visitas: o.visitas, monto: o.montoDespues },
+    csv: { organizacion: o.org, empresa: o.empresa, ruc: o.ruc, tipo: o.tipo, visitas: o.visitas, personas: o.visitantes, primera: o.primera, ultima: o.ultima, a_quien_decide: o.decisores, despues: o.despues, despues_tipo: o.despuesTipo, monto_despues: o.montoDespues },
   }));
   return (
     <section aria-labelledby="visitas-quienes" className="space-y-2">
@@ -125,6 +126,7 @@ function Organizaciones({ orgs }: { orgs: NonNullable<Datos["organizaciones"]> }
         etiqueta="Organizaciones que la visitan (toca una empresa para ver sus visitas)"
         tam={15}
         nombre="organizaciones"
+        descargar={{ archivo: "visitas-organizaciones" }}
         buscar={{ placeholder: "Buscar una empresa u organización…", etiqueta: "Buscar entre quienes la visitan" }}
         filtros={[
           { clave: "tipo", etiqueta: "Tipo", corta: "Tipo", opciones: [{ valor: "privada", etiqueta: "Privada" }, { valor: "publica", etiqueta: "Entidad pública" }] },
@@ -294,6 +296,8 @@ function Lista({ d }: { d: Datos }) {
       hora: v.fueraDeHora ? "fuera" : "dentro",
     },
     claves: { fecha: v.fecha ?? "" },
+    // Sin el nombre de quien visita: el CSV sale de la página y circula; la organización y la oficina bastan.
+    csv: { fecha: v.fecha, hora: v.hora, duracion_min: v.duracion, organizacion: v.pariente ? "Familiar de un funcionario" : v.organizacion, tipo: v.pariente ? "pariente" : v.tipo, cargo_recibio: v.cargo, area_recibio: v.area, decide_compras: v.decisor ? "sí" : "no", fuera_de_horario: v.fueraDeHora ? "sí" : "no", motivo: v.motivo, empresa: v.empresa?.nombre ?? null, ruc_empresa: v.empresa?.ruc ?? null, fuente: v.enlace },
   }));
   return (
     <section aria-labelledby="visitas-lista" className="space-y-2">
@@ -312,6 +316,7 @@ function Lista({ d }: { d: Datos }) {
         etiqueta="Visitas (toca una para ver su detalle y su fuente)"
         tam={20}
         nombre="visitas"
+        descargar={{ archivo: "visitas" }}
         buscar={{ placeholder: "Buscar una empresa, una oficina, un motivo…", etiqueta: "Buscar entre las visitas" }}
         filtros={[
           {

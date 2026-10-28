@@ -140,6 +140,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
       buscable: `${s.titulo} ${s.explica} ${s.pasos.map((p) => p.texto).join(" ")}`,
       valores: { carril: "secuencias", severidad: s.severidad },
       claves: { fecha: s.pasos[s.pasos.length - 1].fecha },
+      csv: { fecha: s.pasos[0].fecha, hasta: s.pasos[s.pasos.length - 1].fecha, renglon: "Una cosa lleva a otra", hecho: s.titulo, detalle: s.pasos.map((p) => `${p.fecha}: ${p.texto}`).join(" | "), gravedad: s.severidad, monto: null, fuente: s.fuente, enlace: s.href ?? null },
     })),
     ...h.eventos.map((e) => ({
       id: `e-${e.id}`,
@@ -180,6 +181,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
       buscable: `${e.titulo} ${e.detalle ?? ""} ${e.fuente} ${titulo(e.carril)}`,
       valores: { carril: e.carril, severidad: e.severidad ?? "ninguna" },
       claves: { fecha: e.hasta ?? e.fecha, monto: e.monto ?? 0 },
+      csv: { fecha: e.fecha, hasta: e.hasta ?? null, renglon: titulo(e.carril), hecho: e.titulo, detalle: e.detalle ?? null, gravedad: e.severidad ?? null, monto: e.monto ?? null, fuente: e.fuente, enlace: e.enlace ?? null },
     })),
   ];
   const carriles = [...new Set(filas.map((f) => String(f.valores?.carril)))];
@@ -194,6 +196,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
         etiqueta="Hechos de su historia (toca uno para ver su fuente)"
         tam={20}
         nombre="hechos"
+        descargar={{ archivo: `historia-${h.sujeto.tipo}-${h.sujeto.id}` }}
         buscar={{ placeholder: "Buscar un hecho, una entidad, una fuente…", etiqueta: "Buscar entre los hechos" }}
         filtros={[
           {
