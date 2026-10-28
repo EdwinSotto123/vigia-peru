@@ -6,6 +6,7 @@ import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat,
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { BUSCADOR_CONTRALORIA, CONSULTA_AMIGABLE, DATASET_MEF, djiEntidad, personalPte } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { ejecucionPct, sinAnioRepetido, ultimoConPim, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
@@ -20,7 +21,7 @@ import { rutaRegion } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, FuenteDato, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
 import { OrganizacionEntidad } from "@/components/entidad/OrganizacionEntidad";
 import { banderasEntidad } from "@/lib/banderasEntidad";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
@@ -77,6 +78,8 @@ interface EntidadFicha {
   ubigeo?: string | null;
   contratos?: number | null;
   contratosEnCola?: number | null;
+  /** Su id en el Portal de Transparencia (la página de su personal); null si no está en el portal. */
+  idPte?: number | null;
 }
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
@@ -85,8 +88,6 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 const ETIQUETAS: Record<string, string> = { contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
-const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
-const BUSCADOR_CONTRALORIA = "https://buscadorinformes.contraloria.gob.pe/";
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const r = await getEntidad(params.ruc).catch(() => null);
@@ -160,6 +161,17 @@ export default async function EntidadProfile({
   // Sus banderas, fijas bajo el nombre en todas las pestañas: las mismas que su fila en la lista, con cuántos casos y el
   // enlace a la evidencia (el nepotismo ya no se queda en el Inicio). Sin respuesta de la entidad, ninguna.
   const banderas = apiResp ? (banderasEntidad(ruc, apiResp.senales, apiResp.informes, apiResp.nepotismo?.total ?? 0) ?? []) : [];
+  // Dónde comprobar lo suyo en cada registro oficial, al pie del Inicio: su personal (por su id en el Portal de
+  // Transparencia), sus declaraciones juradas, su presupuesto (si el MEF la tiene; la Consulta Amigable recorre sólo el
+  // SIAF) y los informes de control. Sus procesos no: Contrataciones Abiertas no los busca por el RUC de la entidad.
+  const enElMef = !fueraSiaf && !empresaDelEstado;
+  const fuentesEntidad = [
+    e.idPte != null && { texto: "Su personal en el Portal de Transparencia", href: personalPte(e.idPte) },
+    { texto: "Sus declaraciones juradas de intereses (Contraloría)", href: djiEntidad(e.ruc) },
+    enElMef && mef?.origen !== "opds" && mef?.origen !== "etes" && { texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE },
+    enElMef && { texto: "Presupuesto y ejecución (Datos Abiertos del MEF)", href: DATASET_MEF },
+    { texto: "Buscador de informes de la Contraloría", href: BUSCADOR_CONTRALORIA },
+  ];
 
   // Cuántas filas tiene cada pestaña. null = sin dato (la API no respondió): la pestaña va sin número y en su lugar,
   // nunca como vacía. Las órdenes, null también si las tiene pero aún no están contadas (migración 148).
@@ -221,19 +233,22 @@ export default async function EntidadProfile({
       // Las cifras → qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide.
       // Cada parte espera lo suyo (Suspense adentro).
       contenido: (
-        <InicioEntidad
-          ruc={e.ruc}
-          ruta={ruta}
-          cifras={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef, ordenes: n.ordenes, ordenesMonto: conteos?.ordenesMonto ?? null, ruta })}
-          resumen={resumenEntidad}
-          enCola={enCola}
-          conteos={conteos}
-          region={region}
-          ubigeo={e.ubigeo ?? null}
-          regionDenuncias={regionDenuncias}
-          nepotismo={apiResp?.nepotismo ?? null}
-          fueraDelMef={fueraSiaf || empresaDelEstado}
-        />
+        <div className="space-y-8">
+          <InicioEntidad
+            ruc={e.ruc}
+            ruta={ruta}
+            cifras={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef, ordenes: n.ordenes, ordenesMonto: conteos?.ordenesMonto ?? null, ruta })}
+            resumen={resumenEntidad}
+            enCola={enCola}
+            conteos={conteos}
+            region={region}
+            ubigeo={e.ubigeo ?? null}
+            regionDenuncias={regionDenuncias}
+            nepotismo={apiResp?.nepotismo ?? null}
+            fueraDelMef={fueraSiaf || empresaDelEstado}
+          />
+          <FuenteDato fuente={`OECE${enElMef ? ", MEF" : ""}, Contraloría y Portal de Transparencia`} enlaces={fuentesEntidad} />
+        </div>
       ),
     },
     {
@@ -318,31 +333,28 @@ export default async function EntidadProfile({
       clave: "organizacion",
       icono: <Network size={15} aria-hidden />,
       etiqueta: "Organización",
-      contenido: vacias.has("planilla") ? (
-        <PestanaVacia titulo="Sin planilla para armar su organización" ayuda={<AyudaPlanilla />} accion={n.personas ? accion(enlace("personas"), "Ver a las personas que contrató") : undefined}>
-          Su organización sale de la planilla que publica en el Portal de Transparencia (en qué oficina trabaja cada persona), y
-          no la publicó en los meses cargados.
-        </PestanaVacia>
-      ) : (
+      // Aunque no publique planilla: su organización también sale de la DJI de sus jefaturas, de la ley y de su ROF.
+      contenido: (
         <div className="space-y-4">
           <CabeceraPestana
             ayuda={
               <Ayuda titulo="¿De dónde sale su organización?">
                 <span className="block">
-                  De la planilla del último mes que la entidad publicó en el Portal de Transparencia: cada persona con su cargo y su
-                  oficina. Se juntan las personas por oficina, se marca a quien tiene un cargo de jefatura y se le pone a cada oficina
-                  su función por su nombre.
+                  De su planilla del último mes en el Portal de Transparencia (en qué oficina trabaja cada persona), de los cargos de
+                  jefatura que declaran sus funcionarios en la DJI de la Contraloría, de la estructura que la ley pide para su tipo de
+                  entidad y, si está leído, de su ROF. Las siglas de la planilla se leen con esas mismas fuentes.
                 </span>
                 <span className="mt-2 block">
-                  La planilla no dice de quién depende cada oficina: no hay un árbol oficial que dibujar.
+                  De quién depende cada oficina va con su prueba (su ROF, la ley o la planilla); lo que ningún dato dice se infiere por
+                  el nombre o la función, y se marca.
                 </span>
               </Ayuda>
             }
           >
-            Sus oficinas, quién las encabeza, cuánta gente tienen y cuánto suman sus sueldos.
+            Sus oficinas, de quién depende cada una y por qué, quién las encabeza y cuánta gente tienen.
           </CabeceraPestana>
           <Suspense fallback={<Cargando texto="Armando su organización…" />}>
-            <OrganizacionEntidad ruc={e.ruc} ruta={ruta} />
+            <OrganizacionEntidad ruc={e.ruc} ruta={ruta} entidad={String(e.nombre ?? nombre)} />
           </Suspense>
         </div>
       ),

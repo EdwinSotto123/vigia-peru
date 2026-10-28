@@ -282,5 +282,14 @@ export async function correrVisitas(env: Env, p: ParamsCorrida, step: WorkflowSt
       return { ...stats, borradas, insertadas: filas.length };
     });
   }
-  return { meses: meses.map(([a, m]) => `${a}-${String(m).padStart(2, "0")}`), archivos: resumen };
+  // Con visitas nuevas: a qué entidad corresponde cada nombre del registro (migración 186; el organigrama cuenta las
+  // visitas de cada oficina con ella), si ya existe en la base.
+  let entidades: number | null = null;
+  if (!p.seco && Object.values(resumen).some((r) => r && typeof r === "object" && "insertadas" in r)) {
+    entidades = await step.do("refrescar_visita_entidad_ruc", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure('refrescar_visita_entidad_ruc()') IS NOT NULL AS existe");
+      return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_entidad_ruc() AS n"))[0]?.n ?? 0) : null;
+    }));
+  }
+  return { meses: meses.map(([a, m]) => `${a}-${String(m).padStart(2, "0")}`), archivos: resumen, visita_entidad_ruc: entidades };
 }

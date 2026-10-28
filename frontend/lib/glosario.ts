@@ -195,6 +195,14 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "la AGA",
     definicion: "La Autoridad de la Gestión Administrativa: el cargo que, por ley, aprueba las contrataciones de la entidad (suele ser la gerencia u oficina de administración).",
   },
+  "rof": {
+    termino: "el ROF",
+    definicion: "El Reglamento de Organización y Funciones: la norma de cada entidad que dice qué oficinas tiene, qué hace cada una y de quién depende. Se publica en El Peruano.",
+  },
+  "titular": {
+    termino: "la titular de la entidad",
+    definicion: "La máxima autoridad de la entidad (el gobernador, el alcalde, el ministro, el jefe del organismo): responde por ella y firma lo que decide.",
+  },
   "mediana": {
     termino: "la mediana",
     definicion: "El valor del medio: la mitad de los casos está por debajo y la mitad por encima. Se usa en vez del promedio porque un caso extremo no la distorsiona.",

@@ -165,5 +165,16 @@ export async function correrDji(env: Env, p: ParamsCorrida, step: WorkflowStep, 
       }
     }));
   }
+  // Con algo nuevo: el RUC de cada entidad del registro (migración 185), sus jefaturas vigentes y los nombres de oficinas
+  // con que el organigrama lee las siglas de una planilla (186). Cada una, si ya existe en la base.
+  const nuevo = Object.values(resumen).some((r) => r && typeof r === "object" && "filas" in r && !("seco" in r));
+  if (nuevo) {
+    for (const f of ["refrescar_dji_entidad_ruc", "refrescar_dji_jefatura", "refrescar_organo_nombre_global"]) {
+      resumen[f] = await step.do(f, CARGA_GRANDE, () => conDb(env.HYPERDRIVE, async (db) => {
+        const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${f}()`]);
+        return existe ? Number((await db.filas<{ n: number }>(`SELECT ${f}() AS n`))[0]?.n ?? 0) : null;
+      }));
+    }
+  }
   return resumen;
 }

@@ -1,0 +1,2687 @@
+{
+ "corte": "2026-10-23",
+ "fuentes": {
+  "FTE-001": {
+   "titulo": "Dataset AIRHSP: Personal Activo y Pensionista del Sector Público (CSV 2017–2026 y diccionario)",
+   "institucion": "MEF / Plataforma Nacional de Datos Abiertos",
+   "url": "https://www.datosabiertos.gob.pe/dataset/personal-activo-y-pensionista-del-sector-p%C3%BAblico-registrado-en-el-airhsp"
+  },
+  "FTE-002": {
+   "titulo": "Presupuesto y Ejecución de Gasto (Consulta Amigable) — datos abiertos",
+   "institucion": "MEF",
+   "url": "https://datosabiertos.mef.gob.pe/organization/presupuesto-publico"
+  },
+  "FTE-003": {
+   "titulo": "Portal del AIRHSP",
+   "institucion": "MEF-DGGFRH",
+   "url": "https://www.mef.gob.pe/es/?option=com_content&language=es-ES&Itemid=100251&lang=es-ES&view=article&id=6068"
+  },
+  "FTE-004": {
+   "titulo": "Directiva N.° 0003-2022-EF/53.01 (AIRHSP)",
+   "institucion": "MEF",
+   "url": "https://www.mef.gob.pe/contenidos/rec_publicos/documentos/AIRHSP/DIR-0003-2022_EF5301.pdf"
+  },
+  "FTE-005": {
+   "titulo": "Directiva N.° 0004-2025-EF/53.01",
+   "institucion": "MEF",
+   "url": "https://cdn.www.gob.pe/ (archivo 7517839)"
+  },
+  "FTE-006": {
+   "titulo": "Instructivo de adecuación de sistemas de planillas",
+   "institucion": "MEF-DGGFRH",
+   "url": "https://www.mef.gob.pe/contenidos/rec_publicos/documentos/instructivo_adecuaciones_sistema_planillas.pdf"
+  },
+  "FTE-007": {
+   "titulo": "Clasificadores Presupuestarios (página que enlaza los de 2026)",
+   "institucion": "MEF-DGPP",
+   "url": "https://www.mef.gob.pe/es/?id=356&option=com_content&language=es-ES&view=article&lang=es-ES"
+  },
+  "FTE-008": {
+   "titulo": "Clasificador Institucional 2023 — Gobierno Nacional y Gobiernos Regionales",
+   "institucion": "MEF-DGPP",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/2023/Anexo_3_Clasificador_Institucional_2023_GNGR.pdf"
+  },
+  "FTE-009": {
+   "titulo": "Informe temático rt-38, proyecto de presupuesto 2022",
+   "institucion": "Congreso de la República",
+   "url": "https://www.congreso.gob.pe/"
+  },
+  "FTE-010": {
+   "titulo": "RM N.° 004-2026-MINEDU — Designan responsables de las UE del Pliego 010",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2474448-1"
+  },
+  "FTE-011": {
+   "titulo": "RM N.° 613-2026-MINEDU",
+   "institucion": "LP Derecho",
+   "url": "https://lpderecho.pe/"
+  },
+  "FTE-012": {
+   "titulo": "Reglamento de la Ley 32069 (DS 009-2025-EF) — compilación actualizada 2026",
+   "institucion": "LP Derecho (copia de norma oficial)",
+   "url": "https://lpderecho.pe/reglamento-de-la-ley-32069-ley-general-de-contrataciones-publicas/"
+  },
+  "FTE-013": {
+   "titulo": "Ley N.° 32513 — Presupuesto del Sector Público 2026",
+   "institucion": "MEF / El Peruano",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Ley_N_32513-LeydePpto2026.pdf"
+  },
+  "FTE-014": {
+   "titulo": "Ley N.° 32069 — texto consolidado",
+   "institucion": "Congreso de la República",
+   "url": "https://leyes.congreso.gob.pe/"
+  },
+  "FTE-015": {
+   "titulo": "ROF del MINSA — DS N.° 008-2017-SA",
+   "institucion": "MINSA",
+   "url": "https://www.gob.pe/institucion/minsa/normas-legales/190095-008-2017-sa"
+  },
+  "FTE-016": {
+   "titulo": "Ley N.° 29158 — Ley Orgánica del Poder Ejecutivo",
+   "institucion": "Congreso (copia en RREE)",
+   "url": "http://www.rree.gob.pe/elministerio/Documents/Ley%20N%C2%B0%2029158%20Ley%20Org%C3%A1nica%20del%20Poder%20Ejecutivo.pdf"
+  },
+  "FTE-017": {
+   "titulo": "RM N.° 039-2026-PCM",
+   "institucion": "PCM (copia en Actualidad Civil)",
+   "url": "https://actualidadcivil.pe/normas-legales/resolucion-ministerial-039-2026-pcm/39fb531d-1210-4ffe-bf96-4ca265ced69d"
+  },
+  "FTE-018": {
+   "titulo": "Designaciones de jefes de OCI en diversas entidades",
+   "institucion": "Contraloría / El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/1647496-1"
+  },
+  "FTE-019": {
+   "titulo": "Designación del Jefe de la Oficina de Abastecimiento del MINJUSDH",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2551987-1/pdf"
+  },
+  "FTE-020": {
+   "titulo": "RM N.° 176-2021-MINEDU — Norma técnica DRE/UGEL",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/1947794-1"
+  },
+  "FTE-021": {
+   "titulo": "ROF de la UE 315 UGEL 03 Trujillo Nor Oeste",
+   "institucion": "Gobierno Regional La Libertad",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/3267170/ROF.PDF.PDF"
+  },
+  "FTE-022": {
+   "titulo": "MOP de la DRE Cajamarca",
+   "institucion": "Gobierno Regional Cajamarca",
+   "url": "https://ugelbambamarca.gob.pe/wp-content/uploads/2022/03/MOP_DRE-UGEL_REGION_CAJAMARCA-RM_N176-2021-MINEDU.pdf"
+  },
+  "FTE-023": {
+   "titulo": "Ordenanza Regional N.° 005-2026-GRA/CR (creación de UGEL)",
+   "institucion": "Gobierno Regional Ayacucho / El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2514174-1"
+  },
+  "FTE-024": {
+   "titulo": "Características del Servicio Civil Peruano 2023",
+   "institucion": "SERVIR",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/7440404/6338244-caracteristicas-del-servicio-civil-peruano.pdf"
+  },
+  "FTE-025": {
+   "titulo": "Nota sobre costo de la planilla estatal",
+   "institucion": "Vigilante (medio)",
+   "url": "https://vigilante.pe/"
+  },
+  "FTE-026": {
+   "titulo": "Gasto Público en Claro",
+   "institucion": "Proyecto independiente",
+   "url": "https://herramientasdeconsulta.com/gasto-publico/"
+  },
+  "FTE-027": {
+   "titulo": "Interior, Educación y Salud lideraron el aumento del gasto en planillas",
+   "institucion": "Compite (medio)",
+   "url": "https://www.compite.pe/noticia/interior-educacion-y-salud-lideraron-el-aumento-del-gasto-en-planillas/"
+  },
+  "FTE-028": {
+   "titulo": "Perú tiene unos 1,6 millones de trabajadores en el sector público",
+   "institucion": "Infobae (medio)",
+   "url": "https://www.infobae.com/peru/2025/12/18/peru-tiene-unos-16-millones-de-trabajadores-en-el-sector-publico-de-los-cuales-373233-son-cas/"
+  },
+  "FTE-029": {
+   "titulo": "RD N.° 0021-2025-EF/50.01 — aprueba Clasificadores Presupuestarios 2026",
+   "institucion": "DGPP-MEF / El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2471473-1"
+  },
+  "FTE-030": {
+   "titulo": "Anexo 4 del Proyecto de Ley de Presupuesto 2026 — pliegos por nivel de gobierno y fuente",
+   "institucion": "MEF / Congreso (29/08/2025)",
+   "url": "https://www.congreso.gob.pe/Docs/comisiones2025/presupuesto/files/ley_de_ppto_2026/anexos/anexo-4.pdf"
+  },
+  "FTE-031": {
+   "titulo": "Tablero de seguimiento presupuestal 2026 (cubos agregados de Consulta Amigable, corte 06/09/2026)",
+   "institucion": "Repositorio GitHub Institucionalidad/seguimiento-presupuestal-peru (D. Vidarte García)",
+   "url": "https://github.com/Institucionalidad/seguimiento-presupuestal-peru"
+  },
+  "FTE-032": {
+   "titulo": "UBIGEO de departamentos, provincias y distritos (1 892 distritos)",
+   "institucion": "Repositorio GitHub RitchieRD/ubigeos-peru-data",
+   "url": "https://github.com/RitchieRD/ubigeos-peru-data"
+  },
+  "FTE-033": {
+   "titulo": "Equivalencias UBIGEO INEI–RENIEC (ubigeo-peru-aumentado)",
+   "institucion": "Repositorio GitHub jmcastagnetto/ubigeo-peru-aumentado",
+   "url": "https://github.com/jmcastagnetto/ubigeo-peru-aumentado"
+  },
+  "FTE-034": {
+   "titulo": "RM N.° 0642-2026-IN — modifica Sección Segunda del ROF del MININTER",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+  },
+  "FTE-035": {
+   "titulo": "RM N.° 0767-2026-IN — designa DG de la OGAF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2523753-1"
+  },
+  "FTE-036": {
+   "titulo": "RM N.° 0789-2026-IN — designa Director de la Oficina de Abastecimiento de la OGAF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2525482-1"
+  },
+  "FTE-037": {
+   "titulo": "RM N.° 0812-2026-IN — designa DG de la OGCSII",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2527476-1"
+  },
+  "FTE-038": {
+   "titulo": "RM N.° 1124-2026-IN — designa DG de la OGPP",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540349-1"
+  },
+  "FTE-039": {
+   "titulo": "RM N.° 1126-2026-IN — designa DG de la OGAF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540352-1"
+  },
+  "FTE-040": {
+   "titulo": "RD N.° 000622-2026-IN-VOI-DGIN — designa subprefectos",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2555441-1"
+  },
+  "FTE-041": {
+   "titulo": "RD de la DGIN del 07/10/2026 — designa autoridades políticas",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2563398-1"
+  },
+  "FTE-042": {
+   "titulo": "RD N.° 000264-2026-IN-VOI-DGIN — designa subprefectos distritales",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2505105-1"
+  },
+  "FTE-043": {
+   "titulo": "DS N.° 006-2026-DE — modifica Cuadros de Efectivos 2027",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2558717-2"
+  },
+  "FTE-044": {
+   "titulo": "DS N.° 004-2026-DE — Cuadros de Efectivos de Personal Militar 2027",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2527944-4"
+  },
+  "FTE-045": {
+   "titulo": "DS N.° 009-2025-DE — Cuadros de Efectivos de Personal Militar 2026",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2430629-1"
+  },
+  "FTE-046": {
+   "titulo": "RM N.° 00355-2025-DE — Grupo de Trabajo Sectorial",
+   "institucion": "MINDEF (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/7867350/6630106-rm-n-00355-2025-de-creacion-del-grupo-de-trabajo-sectorial-de-naturaleza-temporal.pdf"
+  },
+  "FTE-047": {
+   "titulo": "RM N.° 00316-2025-DE — Directiva General 0002-2025-MINDEF/SG-OGPRPP",
+   "institucion": "MINDEF (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/7821761/6600021-rm-n-00316-2025-de-aprobar-directiva-general-nro-0002-2025-mindef-sg-ogprpp.pdf"
+  },
+  "FTE-048": {
+   "titulo": "RM N.° 291-2026-EF/41 — Texto Integrado Actualizado del ROF del MEF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2534975-1"
+  },
+  "FTE-049": {
+   "titulo": "Listado de Resoluciones Ministeriales del MEF 2026",
+   "institucion": "MEF",
+   "url": "https://www.mef.gob.pe/es/por-instrumento/resolucion-ministerial"
+  },
+  "FTE-050": {
+   "titulo": "RM N.° 325-2026-EF/49 — designa Jefe de la OGA del MEF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540197-1"
+  },
+  "FTE-051": {
+   "titulo": "RM N.° 375-2026-EF/49 — designa Jefe de la OGTI del MEF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546557-1"
+  },
+  "FTE-052": {
+   "titulo": "RM N.° 155-2026-EF/49 — designa Secretario General del MEF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2502144-1"
+  },
+  "FTE-053": {
+   "titulo": "RM N.° 140-2026-EF/49 — designa Jefa de la OGRH del MEF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2500424-1"
+  },
+  "FTE-054": {
+   "titulo": "RM N.° 313-2026-EF/49 — designa Jefe de Gabinete de Asesores",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2538798-1"
+  },
+  "FTE-055": {
+   "titulo": "RM N.° 269-2025-EF/49 — designa Jefa de la OGA del MEF (2025)",
+   "institucion": "MEF (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/8157604/6829010-rm269_2025ef49.pdf"
+  },
+  "FTE-056": {
+   "titulo": "RSG N.° 035-2022-EF/13 — delega funciones en la OGA del MEF",
+   "institucion": "MEF",
+   "url": "https://www.mef.gob.pe/en/por-instrumento/resoluciones-de-secretaria-general/29351-resolucion-de-secretaria-general-n-035-2022-ef-13/file"
+  },
+  "FTE-057": {
+   "titulo": "RM N.° 000118-2026-MIMP — designa DG de la OGA",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499142-1"
+  },
+  "FTE-058": {
+   "titulo": "RM N.° 000119-2026-MIMP — designa DG de la OGPPM",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499156-1"
+  },
+  "FTE-059": {
+   "titulo": "RM N.° 000138-2026-MIMP — designa Directora II de la Oficina de Contabilidad",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2500598-1"
+  },
+  "FTE-060": {
+   "titulo": "RM del MIMP del 05/08/2026 — designa Asesora II del Despacho Ministerial",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540922-1"
+  },
+  "FTE-061": {
+   "titulo": "RM del MIMP (agosto 2026) — designa Jefa de Gabinete de Asesoramiento",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2541926-1"
+  },
+  "FTE-062": {
+   "titulo": "RM N.° 000433-2026-MIMP — designa jefe de subunidad del INABIF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545487-1"
+  },
+  "FTE-063": {
+   "titulo": "RM N.° 000437-2026-MIMP — designa jefe de subunidad del INABIF",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545501-1"
+  },
+  "FTE-064": {
+   "titulo": "RM N.° 209-2026/MINSA — designa DG de la OGA",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495791-1"
+  },
+  "FTE-065": {
+   "titulo": "RM N.° 699-2026/MINSA — designa DG de la OGA",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2543983-1"
+  },
+  "FTE-066": {
+   "titulo": "RM N.° 207-2026/MINSA — designa DG de la OGAJ",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495788-1"
+  },
+  "FTE-067": {
+   "titulo": "RM N.° 774-2026/MINSA — designa DG de la OGPPM",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2550014-1"
+  },
+  "FTE-068": {
+   "titulo": "RM N.° 932-2026/MINSA — designa DG de la OGCTI",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2565723-1"
+  },
+  "FTE-069": {
+   "titulo": "RM N.° 249-2026/MINSA — designa DG de la OGTI",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498232-1"
+  },
+  "FTE-070": {
+   "titulo": "RM N.° 667-2026/MINSA — designa DG de la OGTI",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540138-1"
+  },
+  "FTE-071": {
+   "titulo": "RM N.° 211-2026/MINSA — designa DG de la OGGRH",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495795-1"
+  },
+  "FTE-072": {
+   "titulo": "RM N.° 264-2026/MINSA — designa Director Ejecutivo de la Oficina de Abastecimiento",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499065-1"
+  },
+  "FTE-073": {
+   "titulo": "RM N.° 453-2026/MINSA — designa Directora Ejecutiva de Comunicación Estratégica",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2511677-1"
+  },
+  "FTE-074": {
+   "titulo": "RM N.° 168-2026-MINEDU — designa Jefe de la Oficina de Logística de la OGA",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498538-1"
+  },
+  "FTE-075": {
+   "titulo": "RM N.° 419-2026-MINEDU — designa Jefe de la OGAJ",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/EX/2538558-1"
+  },
+  "FTE-076": {
+   "titulo": "RM N.° 422-2026-MINEDU — designa Jefe de la OGC",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/EX/2538560-1"
+  },
+  "FTE-077": {
+   "titulo": "RM N.° 491-2026-MINEDU — designa Jefa de la OGCAI",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546561-1"
+  },
+  "FTE-078": {
+   "titulo": "RM N.° 458-2026-MINEDU — designa Jefe de la Oficina de Prensa",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2542366-1"
+  },
+  "FTE-079": {
+   "titulo": "RM N.° 603-2026-MINEDU — designa Jefe de la Oficina de Comunicaciones",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2562733-1"
+  },
+  "FTE-080": {
+   "titulo": "RM N.° 247-2026-MINEDU — designa Jefa de la Oficina de Gestión del Desarrollo y la Capacitación",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2509851-1"
+  },
+  "FTE-081": {
+   "titulo": "RM N.° 466-2026-MINEDU — designa Jefa de la Oficina de Gestión del Desarrollo y la Capacitación",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2543944-1"
+  },
+  "FTE-082": {
+   "titulo": "RM N.° 499-2026-MINEDU — designa Jefa de la Oficina de Relaciones Interinstitucionales",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2548852-1"
+  },
+  "FTE-083": {
+   "titulo": "RM N.° 634-2026-MINEDU — designa Jefa de la Oficina de Gestión de Personal",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2566091-1"
+  },
+  "FTE-084": {
+   "titulo": "Compilación de normas (set. 2026) con designación en Abastecimiento del MINJUSDH",
+   "institucion": "LP Derecho (copia de El Peruano)",
+   "url": "https://img.lpderecho.pe/wp-content/uploads/2026/09/DS-014-2026-SA-LPDerecho.pdf"
+  },
+  "FTE-085": {
+   "titulo": "Anexos y formatos de Invierte.pe — Clasificador Institucional del SNPMGI (actualizado al 05/08/2026)",
+   "institucion": "MEF-DGPMI",
+   "url": "https://www.mef.gob.pe/es/anexos-y-formatos"
+  },
+  "FTE-086": {
+   "titulo": "RM N.° 543-2025-MINEDU (copia) — cita Unidad de Organización y Métodos",
+   "institucion": "LP Derecho (copia de El Peruano)",
+   "url": "https://img.lpderecho.pe/wp-content/uploads/2025/12/Resolucion-Ministerial-543-2025-Minedu-LPDerecho.pdf"
+  },
+  "FTE-087": {
+   "titulo": "RM N.° 00734-2025-DE — directiva de personal de las FF. AA.",
+   "institucion": "MINDEF (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/8239995/6880827-rm-n-00734-2025-de-derogar-la-directiva-general-n-0020-2020-mindef-vrd-dgrr-dipem-y-aprobar-directiva-general-n-00004-2025-mindef-vrd-dgrr-dipem.pdf"
+  },
+  "FTE-088": {
+   "titulo": "RSG N.° 005-2026-MINEDU — delega facultades en diversos funcionarios durante 2026",
+   "institucion": "MINEDU (copia de El Peruano 2476977-1 en Actualidad Penal)",
+   "url": "https://actualidadpenal.pe/normas-legales/resolucion-de-secretaria-general-005-2026-minedu/18ff6957-a697-4849-977e-a4e4f79a8299"
+  },
+  "FTE-089": {
+   "titulo": "Resolución de Gerencia General de la ANA (2025) — delegación en contrataciones",
+   "institucion": "ANA (copia de El Peruano, 30/04/2025)",
+   "url": "http://www.legismovil.pe/BancoMedios/Archivos/edicion%20extraordinaria%20de%20normas%20legales%2018561.pdf"
+  },
+  "FTE-090": {
+   "titulo": "RM N.° 337-2026-PCM — delega facultades en el Jefe de la OGA de la PCM",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2559601-1"
+  },
+  "FTE-091": {
+   "titulo": "RSG N.° 002-2026-CENEPRED — delega facultades de contratación",
+   "institucion": "CENEPRED (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/9456447/7743878-resolucion-secretaria-general-n-002-2026-cenepred.pdf"
+  },
+  "FTE-092": {
+   "titulo": "RSG del MIDAGRI (publicada 03/07/2026) — modifica la delegación en el DG de la OGA",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2531431-1"
+  },
+  "FTE-093": {
+   "titulo": "Resolución de Gerencia General de la ONP — delegación en contrataciones 2026",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2536339-1"
+  },
+  "FTE-094": {
+   "titulo": "Resolución Jefatural de la ONP — delegación del titular 2026",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2536340-1"
+  },
+  "FTE-095": {
+   "titulo": "Resolución de Gerencia General del SENAMHI (24/08/2026) — delegación",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546757-1"
+  },
+  "FTE-096": {
+   "titulo": "Resolución de Gerencia General de la ANIN (07/05/2026) — modifica la RGG 000001-2026-ANIN/GG",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2513668-1"
+  },
+  "FTE-097": {
+   "titulo": "RM del MEF (28/09/2026) — modifica la RM 004-2026-EF/10 de delegación de facultades",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2559401-1"
+  },
+  "FTE-098": {
+   "titulo": "RM N.° 000142-2025-MC — modifica delegaciones del Ministerio de Cultura",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2406234-1"
+  },
+  "FTE-099": {
+   "titulo": "Ley N.° 32513, Anexo 4 — gasto por niveles de gobierno, pliegos y fuentes (ley aprobada)",
+   "institucion": "MEF — Dirección General de Presupuesto Público",
+   "url": "https://www.mef.gob.pe/contenidos/presu_publ/anexos/ppto2026/Anexo_4.PDF"
+  },
+  "FTE-100": {
+   "titulo": "DS N.° 097-2021-PCM — calificación y relación de organismos públicos adscritos a cada ministerio",
+   "institucion": "PCM (copia del texto oficial en IUSLatin)",
+   "url": "https://iuslatin.pe/actualizan-la-calificacion-y-relacion-de-los-organismos-publicos/"
+  },
+  "FTE-101": {
+   "titulo": "Calificación y listado de organismos públicos en el Perú (resumen del DS 097-2021-PCM y de la edición oficial de la LOPE)",
+   "institucion": "PIRKA Consultoría",
+   "url": "https://pirka.pe/calificacion-y-listado-de-organismos-publicos-en-el-peru/"
+  },
+  "FTE-102": {
+   "titulo": "Resolución de Alcaldía 372-2022 de la Municipalidad Provincial de La Convención (cita LOM arts. 28 y 29)",
+   "institucion": "Municipalidad Provincial de La Convención (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/3860803/RA-372-2022-MPLC/A.pdf"
+  },
+  "FTE-103": {
+   "titulo": "Resolución de Alcaldía 0559-2019 de la Municipalidad Distrital de Punta Negra (cita LOM arts. 6, 20.17 y 26)",
+   "institucion": "Municipalidad Distrital de Punta Negra (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/3085999/Resoluci%C3%B3n%20de%20Alcald%C3%ADa%20N%C2%B0%200559-2019/MDPN.pdf"
+  },
+  "FTE-104": {
+   "titulo": "Ordenanza Regional 007-2024 del Gobierno Regional de Ica (cita LOGR arts. 11 y 13)",
+   "institucion": "Gobierno Regional de Ica (copia en vLex)",
+   "url": "https://vlex.com.pe/vid/ordenanza-n-007-2024-1038728181"
+  },
+  "FTE-105": {
+   "titulo": "Resolución Ejecutiva Regional del Gobierno Regional Piura (cita LOGR art. 21 c)",
+   "institucion": "Gobierno Regional Piura (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/2213071/phpsWbWTY.pdf"
+  },
+  "FTE-106": {
+   "titulo": "Ley N.° 27902 — modifica la LOGR (arts. 11, 11-A, 11-B y 29-A)",
+   "institucion": "Congreso de la República",
+   "url": "https://www.congreso.gob.pe/Docs/congresistas2001/ElviradelaPuente/files/leyes/ley-27902.pdf"
+  },
+  "FTE-107": {
+   "titulo": "Resolución Rectoral 006527-2025-R de la UNMSM (cita Ley 30220 arts. 60 y 62)",
+   "institucion": "Universidad Nacional Mayor de San Marcos (sede digital)",
+   "url": "https://cdn.www.gob.pe/uploads/document/file/8131306/6811889-resolucion-rectoral-006527-2025-r.pdf"
+  },
+  "FTE-108": {
+   "titulo": "Resolución del Consejo Universitario de la UNAP (cita Ley 30220 art. 68 y estatuto)",
+   "institucion": "Universidad Nacional de la Amazonía Peruana",
+   "url": "https://documentos.unapiquitos.edu.pe/storage/documents/2024/consejo-universitario/rmfZ6Ft8q5CBnqHeWn8HNoplEJjE2HTG2RfkBBJv.pdf"
+  },
+  "FTE-109": {
+   "titulo": "Ley N.° 29158, Ley Orgánica del Poder Ejecutivo (texto con modificatorias tempranas)",
+   "institucion": "Ministerio de Relaciones Exteriores (copia)",
+   "url": "http://www.rree.gob.pe/elministerio/Documents/Ley%20N%C2%B0%2029158%20Ley%20Org%C3%A1nica%20del%20Poder%20Ejecutivo.pdf"
+  },
+  "FTE-110": {
+   "titulo": "DS que modifica la Sección Primera del ROF del Despacho Presidencial (excluye al DP de la relación de organismos públicos)",
+   "institucion": "El Peruano",
+   "url": "https://busquedas.elperuano.pe/dispositivo/NL/2548480-3"
+  }
+ },
+ "plantillas": {
+  "TPL-GL": {
+   "nombre": "Municipalidad — estructura mínima por ley (LOM, Ley 27972)",
+   "aplica": "Municipalidades provinciales, distritales y metropolitana",
+   "organos": [
+    {
+     "id": "TPL-GL-CON",
+     "nombre": "Concejo Municipal",
+     "depende": null,
+     "funciones": "Órgano normativo y fiscalizador: alcalde y regidores",
+     "base": "Constitución art. 194; LOM",
+     "fuente": "FTE-103",
+     "estado": "P"
+    },
+    {
+     "id": "TPL-GL-ALC",
+     "nombre": "Alcaldía",
+     "depende": null,
+     "funciones": "Órgano ejecutivo del gobierno local",
+     "base": "LOM art. 6",
+     "fuente": "FTE-103",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-GM",
+     "nombre": "Gerencia Municipal",
+     "depende": "Alcaldía",
+     "funciones": "Dirige la administración municipal (estructura gerencial)",
+     "base": "LOM arts. 26–28",
+     "fuente": "FTE-103",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-OCI",
+     "nombre": "Órgano de Control Institucional (órgano de auditoría interna)",
+     "depende": null,
+     "funciones": "Control gubernamental; depende de la Contraloría",
+     "base": "LOM art. 28; Ley 27785",
+     "fuente": "FTE-102",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-PPM",
+     "nombre": "Procuraduría Pública Municipal",
+     "depende": "Alcaldía",
+     "funciones": "Defensa jurídica de la municipalidad",
+     "base": "LOM arts. 28–29",
+     "fuente": "FTE-102",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-OAJ",
+     "nombre": "Oficina de Asesoría Jurídica",
+     "depende": "Gerencia Municipal",
+     "funciones": "Asesoramiento legal",
+     "base": "LOM art. 28",
+     "fuente": "FTE-102",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-OPP",
+     "nombre": "Oficina de Planeamiento y Presupuesto",
+     "depende": "Gerencia Municipal",
+     "funciones": "Planeamiento y presupuesto",
+     "base": "LOM art. 28",
+     "fuente": "FTE-102",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-GL-C-ALC",
+     "nombre": "Alcalde/sa",
+     "organo": "Alcaldía",
+     "designa": "Elección popular (JNE)",
+     "funciones": "Representante legal y máxima autoridad administrativa; designa y cesa al gerente municipal",
+     "base": "LOM arts. 6 y 20",
+     "fuente": "FTE-103",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-C-REG",
+     "nombre": "Regidor/a",
+     "organo": "Concejo Municipal",
+     "designa": "Elección popular (JNE)",
+     "funciones": "Integra el concejo: norma y fiscaliza",
+     "base": "LOM",
+     "fuente": "FTE-103",
+     "estado": "P"
+    },
+    {
+     "id": "TPL-GL-C-GM",
+     "nombre": "Gerente/a Municipal",
+     "organo": "Gerencia Municipal",
+     "designa": "Designa y cesa el alcalde, sin expresión de causa",
+     "funciones": "Funcionario de confianza a tiempo completo; dirige la administración",
+     "base": "LOM arts. 20.17 y 27",
+     "fuente": "FTE-103",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-C-PROC",
+     "nombre": "Procurador/a Público/a Municipal",
+     "organo": "Procuraduría Pública Municipal",
+     "designa": "Designa el alcalde",
+     "funciones": "Defensa judicial de la municipalidad",
+     "base": "LOM art. 29",
+     "fuente": "FTE-102",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional (órgano de auditoría interna)",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende funcional y administrativamente de la CGR",
+     "base": "Ley 27785 arts. 18–19 (mod. Ley 30742)",
+     "fuente": "FTE-018",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-C-JOAJ",
+     "nombre": "Jefe/a de Asesoría Jurídica",
+     "organo": "Oficina de Asesoría Jurídica",
+     "designa": "Designa el alcalde a propuesta del gerente municipal",
+     "funciones": "Funcionario de confianza",
+     "base": "LOM art. 20.17",
+     "fuente": "FTE-103",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GL-C-JOPP",
+     "nombre": "Jefe/a de Planeamiento y Presupuesto",
+     "organo": "Oficina de Planeamiento y Presupuesto",
+     "designa": "Designa el alcalde a propuesta del gerente municipal",
+     "funciones": "Funcionario de confianza",
+     "base": "LOM art. 20.17",
+     "fuente": "FTE-103",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GL-C-ALC",
+     "a": "TPL-GL-C-GM",
+     "texto": "Alcalde/sa → Gerente/a Municipal",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GL-C-ALC",
+     "a": "TPL-GL-C-PROC",
+     "texto": "Alcalde/sa → Procurador/a Público/a Municipal",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GL-C-ALC",
+     "a": "TPL-GL-C-JOAJ",
+     "texto": "Alcalde/sa → Jefe/a de Asesoría Jurídica",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GL-C-ALC",
+     "a": "TPL-GL-C-JOPP",
+     "texto": "Alcalde/sa → Jefe/a de Planeamiento y Presupuesto",
+     "estado": "V"
+    },
+    {
+     "tipo": "PROPONE",
+     "de": "TPL-GL-C-GM",
+     "a": "TPL-GL-C-JOAJ",
+     "texto": "Gerente/a Municipal → Jefe/a de Asesoría Jurídica",
+     "estado": "V"
+    },
+    {
+     "tipo": "PROPONE",
+     "de": "TPL-GL-C-GM",
+     "a": "TPL-GL-C-JOPP",
+     "texto": "Gerente/a Municipal → Jefe/a de Planeamiento y Presupuesto",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-GL-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    },
+    {
+     "tipo": "SUPERVISA",
+     "de": "TPL-GL-CON",
+     "a": "TPL-GL-ALC",
+     "texto": "Concejo Municipal → Alcaldía",
+     "estado": "P"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-GL-C-ALC",
+     "a": "ROL-TITULAR",
+     "texto": "Alcalde/sa → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-GL-C-GM",
+     "a": "ROL-AGA",
+     "texto": "Gerente/a Municipal → Autoridad de la gestión administrativa (AGA)",
+     "estado": "H"
+    }
+   ]
+  },
+  "TPL-GR": {
+   "nombre": "Gobierno regional — estructura mínima por ley (LOGR, Ley 27867)",
+   "aplica": "Gobiernos regionales (25)",
+   "organos": [
+    {
+     "id": "TPL-GR-CR",
+     "nombre": "Consejo Regional",
+     "depende": null,
+     "funciones": "Órgano normativo y fiscalizador",
+     "base": "LOGR arts. 11 y 13",
+     "fuente": "FTE-104",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GOB",
+     "nombre": "Gobernación Regional",
+     "depende": null,
+     "funciones": "Órgano ejecutivo",
+     "base": "LOGR art. 11 (Ley 30305)",
+     "fuente": "FTE-104",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-CCR",
+     "nombre": "Consejo de Coordinación Regional",
+     "depende": null,
+     "funciones": "Consultivo y de coordinación: alcaldes provinciales y sociedad civil",
+     "base": "LOGR arts. 11, 11-A y 11-B",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GGR",
+     "nombre": "Gerencia General Regional",
+     "depende": "Gobernación Regional",
+     "funciones": "Administración; dicta resoluciones de gerencia general",
+     "base": "LOGR arts. 21 c y 26",
+     "fuente": "FTE-105",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GDE",
+     "nombre": "Gerencia Regional de Desarrollo Económico",
+     "depende": "Gerencia General Regional",
+     "funciones": "Funciones sectoriales (industria, comercio, turismo, agricultura, pesquería, minería)",
+     "base": "LOGR art. 29-A",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GDS",
+     "nombre": "Gerencia Regional de Desarrollo Social",
+     "depende": "Gerencia General Regional",
+     "funciones": "Educación, salud, trabajo, vivienda, población, igualdad de oportunidades",
+     "base": "LOGR art. 29-A",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GPP",
+     "nombre": "Gerencia Regional de Planeamiento, Presupuesto y Acondicionamiento Territorial",
+     "depende": "Gerencia General Regional",
+     "funciones": "Planeamiento, presupuesto y ordenamiento",
+     "base": "LOGR art. 29-A",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GIN",
+     "nombre": "Gerencia Regional de Infraestructura",
+     "depende": "Gerencia General Regional",
+     "funciones": "Vialidad, transportes, comunicaciones, telecomunicaciones y construcción",
+     "base": "LOGR art. 29-A",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-GRN",
+     "nombre": "Gerencia Regional de Recursos Naturales y Gestión del Medio Ambiente",
+     "depende": "Gerencia General Regional",
+     "funciones": "Áreas protegidas, ambiente y defensa civil",
+     "base": "LOGR art. 29-A",
+     "fuente": "FTE-106",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental; depende de la Contraloría",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-GR-C-GOB",
+     "nombre": "Gobernador/a Regional",
+     "organo": "Gobernación Regional",
+     "designa": "Elección popular (JNE)",
+     "funciones": "Titular del pliego; designa y cesa al gerente general y a los gerentes regionales",
+     "base": "LOGR arts. 11 y 21",
+     "fuente": "FTE-105",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-C-VGOB",
+     "nombre": "Vicegobernador/a Regional",
+     "organo": "Gobernación Regional",
+     "designa": "Elección popular (JNE)",
+     "funciones": "Reemplaza al gobernador",
+     "base": "LOGR (Ley 30305)",
+     "fuente": "FTE-104",
+     "estado": "P"
+    },
+    {
+     "id": "TPL-GR-C-CONS",
+     "nombre": "Consejero/a Regional",
+     "organo": "Consejo Regional",
+     "designa": "Elección popular (JNE)",
+     "funciones": "Norma y fiscaliza",
+     "base": "LOGR art. 13",
+     "fuente": "FTE-104",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-C-CDEL",
+     "nombre": "Consejero/a Delegado/a",
+     "organo": "Consejo Regional",
+     "designa": "Elegido cada año por los consejeros",
+     "funciones": "Convoca y preside las sesiones del consejo y lo representa",
+     "base": "LOGR art. 13",
+     "fuente": "FTE-104",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-C-GGR",
+     "nombre": "Gerente/a General Regional",
+     "organo": "Gerencia General Regional",
+     "designa": "Designa y cesa el gobernador",
+     "funciones": "Dirige la administración regional",
+     "base": "LOGR arts. 21 c y 26",
+     "fuente": "FTE-105",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-C-GER",
+     "nombre": "Gerente/a Regional (cada gerencia)",
+     "organo": "Gerencia General Regional",
+     "designa": "Designa y cesa el gobernador",
+     "funciones": "Conduce su gerencia",
+     "base": "LOGR art. 21 c",
+     "fuente": "FTE-105",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-GR-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende funcional y administrativamente de la CGR",
+     "base": "Ley 27785 arts. 18–19",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GR-C-GOB",
+     "a": "TPL-GR-C-GGR",
+     "texto": "Gobernador/a Regional → Gerente/a General Regional",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-GR-C-GOB",
+     "a": "TPL-GR-C-GER",
+     "texto": "Gobernador/a Regional → Gerente/a Regional (cada gerencia)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-GR-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    },
+    {
+     "tipo": "SUPERVISA",
+     "de": "TPL-GR-CR",
+     "a": "TPL-GR-GOB",
+     "texto": "Consejo Regional → Gobernación Regional",
+     "estado": "V"
+    },
+    {
+     "tipo": "PRESIDE",
+     "de": "TPL-GR-C-CDEL",
+     "a": "TPL-GR-CR",
+     "texto": "Consejero/a Delegado/a → Consejo Regional",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-GR-C-GOB",
+     "a": "ROL-TITULAR",
+     "texto": "Gobernador/a Regional → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-GR-C-GGR",
+     "a": "ROL-AGA",
+     "texto": "Gerente/a General Regional → Autoridad de la gestión administrativa (AGA)",
+     "estado": "H"
+    }
+   ]
+  },
+  "TPL-MIN": {
+   "nombre": "Ministerio — estructura mínima por ley (LOPE, Ley 29158)",
+   "aplica": "Ministerios y la PCM (19)",
+   "organos": [
+    {
+     "id": "TPL-MIN-DM",
+     "nombre": "Despacho Ministerial",
+     "depende": null,
+     "funciones": "Alta Dirección: conducción política del sector",
+     "base": "LOPE art. 24",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-DVM",
+     "nombre": "Despacho(s) Viceministerial(es)",
+     "depende": "Despacho Ministerial",
+     "funciones": "Alta Dirección; uno o más según su ley de organización",
+     "base": "LOPE arts. 24 y 26",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-SG",
+     "nombre": "Secretaría General",
+     "depende": "Despacho Ministerial",
+     "funciones": "Alta Dirección; sistemas administrativos",
+     "base": "LOPE arts. 24 y 27",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental",
+     "base": "LOPE art. 24.2; Ley 27785",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-ADM",
+     "nombre": "Órganos de administración interna",
+     "depende": "Secretaría General",
+     "funciones": "Planeamiento, presupuesto, asesoría jurídica, administración y otros",
+     "base": "LOPE arts. 3 y 24.3",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-LIN",
+     "nombre": "Órganos de línea (direcciones generales)",
+     "depende": "Despacho(s) Viceministerial(es)",
+     "funciones": "Proponen y ejecutan las políticas y funciones sustantivas",
+     "base": "LOPE art. 24.4",
+     "fuente": "FTE-109",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-MIN-C-MIN",
+     "nombre": "Ministro/a de Estado",
+     "organo": "Despacho Ministerial",
+     "designa": "Nombra el Presidente de la República",
+     "funciones": "Responsable político del sector; designa y remueve cargos de confianza y titulares de organismos públicos del sector (facultad privativa)",
+     "base": "LOPE arts. 22.3 y 25",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-C-VM",
+     "nombre": "Viceministro/a",
+     "organo": "Despacho(s) Viceministerial(es)",
+     "designa": "Según su ley de organización",
+     "funciones": "Autoridad inmediata al ministro; expide resoluciones viceministeriales",
+     "base": "LOPE art. 26",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-C-SG",
+     "nombre": "Secretario/a General",
+     "organo": "Secretaría General",
+     "designa": "Cargo de confianza del ministerio",
+     "funciones": "Asiste en sistemas administrativos; AGA en contrataciones (Ley 32069 art. 25.1); supervisa el portal de transparencia",
+     "base": "LOPE art. 27",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-MIN-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende funcional y administrativamente de la CGR",
+     "base": "Ley 27785 arts. 18–19",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-MIN-C-MIN",
+     "a": "TPL-MIN-C-SG",
+     "texto": "Ministro/a de Estado → Secretario/a General",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "TPL-MIN-C-MIN",
+     "a": "TPL-OPE-C-JEFE",
+     "texto": "Ministro/a de Estado → Jefe/a (titular)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-MIN-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-MIN-C-MIN",
+     "a": "ROL-TITULAR",
+     "texto": "Ministro/a de Estado → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-MIN-C-SG",
+     "a": "ROL-AGA",
+     "texto": "Secretario/a General → Autoridad de la gestión administrativa (AGA)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DELEGA",
+     "de": "TPL-MIN-C-MIN",
+     "a": "TPL-MIN-C-SG",
+     "texto": "Ministro/a de Estado → Secretario/a General",
+     "estado": "V"
+    }
+   ]
+  },
+  "TPL-OPE": {
+   "nombre": "Organismo público ejecutor — estructura mínima por ley (LOPE art. 30)",
+   "aplica": "Organismos públicos ejecutores",
+   "organos": [
+    {
+     "id": "TPL-OPE-JEF",
+     "nombre": "Jefatura",
+     "depende": null,
+     "funciones": "Dirección del organismo (excepcionalmente consejo directivo multisectorial)",
+     "base": "LOPE art. 30",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPE-GG",
+     "nombre": "Gerencia General o la que haga sus veces",
+     "depende": "Jefatura",
+     "funciones": "Máxima autoridad administrativa; AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPE-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-OPE-C-JEFE",
+     "nombre": "Jefe/a (titular)",
+     "organo": "Jefatura",
+     "designa": "Cargo de confianza; designa el ministro del sector salvo norma distinta",
+     "funciones": "Titular de la entidad; el Presidente puede removerlo por resolución suprema por pérdida de confianza",
+     "base": "LOPE art. 30 y 6.ª DT c)",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPE-C-GG",
+     "nombre": "Gerente/a General",
+     "organo": "Gerencia General o la que haga sus veces",
+     "designa": "Según su ROF",
+     "funciones": "AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPE-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende de la CGR",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-OPE-C-JEFE",
+     "a": "ROL-TITULAR",
+     "texto": "Jefe/a (titular) → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-OPE-C-GG",
+     "a": "ROL-AGA",
+     "texto": "Gerente/a General → Autoridad de la gestión administrativa (AGA)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-OPE-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    }
+   ]
+  },
+  "TPL-OPT": {
+   "nombre": "Organismo técnico especializado — estructura mínima por ley (LOPE art. 33)",
+   "aplica": "Organismos técnicos especializados",
+   "organos": [
+    {
+     "id": "TPL-OPT-CD",
+     "nombre": "Consejo Directivo",
+     "depende": null,
+     "funciones": "Dirección del organismo",
+     "base": "LOPE art. 33",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPT-GG",
+     "nombre": "Gerencia General o la que haga sus veces",
+     "depende": "Consejo Directivo",
+     "funciones": "AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPT-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-OPT-C-PRES",
+     "nombre": "Presidente/a del Consejo Directivo o titular",
+     "organo": "Consejo Directivo",
+     "designa": "Según su ley de creación",
+     "funciones": "Titular de la entidad; su política de gasto la aprueba el sector",
+     "base": "LOPE art. 33",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPT-C-GG",
+     "nombre": "Gerente/a General",
+     "organo": "Gerencia General o la que haga sus veces",
+     "designa": "Según su ROF",
+     "funciones": "AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPT-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende de la CGR",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-OPT-C-PRES",
+     "a": "ROL-TITULAR",
+     "texto": "Presidente/a del Consejo Directivo o titular → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-OPT-C-GG",
+     "a": "ROL-AGA",
+     "texto": "Gerente/a General → Autoridad de la gestión administrativa (AGA)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-OPT-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    }
+   ]
+  },
+  "TPL-OPR": {
+   "nombre": "Organismo regulador — estructura mínima por ley (LOPE art. 32)",
+   "aplica": "Organismos reguladores adscritos a la PCM",
+   "organos": [
+    {
+     "id": "TPL-OPR-CD",
+     "nombre": "Consejo Directivo",
+     "depende": null,
+     "funciones": "Dirección; miembros designados por concurso público",
+     "base": "LOPE art. 32",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPR-GG",
+     "nombre": "Gerencia General o la que haga sus veces",
+     "depende": "Consejo Directivo",
+     "funciones": "AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPR-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-OPR-C-MCD",
+     "nombre": "Miembro del Consejo Directivo",
+     "organo": "Consejo Directivo",
+     "designa": "Concurso público; remoción solo por falta grave o incompetencia comprobada, con voto del Consejo de Ministros",
+     "funciones": "Dirige el organismo regulador",
+     "base": "LOPE art. 32.6",
+     "fuente": "FTE-109",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPR-C-GG",
+     "nombre": "Gerente/a General",
+     "organo": "Gerencia General o la que haga sus veces",
+     "designa": "Según su ROF",
+     "funciones": "AGA en contrataciones",
+     "base": "Ley 32069 art. 25",
+     "fuente": "FTE-089",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-OPR-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende de la CGR",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-OPR-C-GG",
+     "a": "ROL-AGA",
+     "texto": "Gerente/a General → Autoridad de la gestión administrativa (AGA)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-OPR-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    }
+   ]
+  },
+  "TPL-UNIV": {
+   "nombre": "Universidad pública — estructura mínima por ley (Ley 30220)",
+   "aplica": "Universidades públicas (63)",
+   "organos": [
+    {
+     "id": "TPL-UNIV-AU",
+     "nombre": "Asamblea Universitaria",
+     "depende": null,
+     "funciones": "Órgano colegiado que representa a la comunidad universitaria; la preside el rector",
+     "base": "Ley 30220 art. 56",
+     "fuente": "FTE-107",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-CU",
+     "nombre": "Consejo Universitario",
+     "depende": null,
+     "funciones": "Máximo órgano de gestión, dirección y ejecución académica y administrativa",
+     "base": "Ley 30220",
+     "fuente": "FTE-107",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-REC",
+     "nombre": "Rectorado",
+     "depende": null,
+     "funciones": "Dirección, conducción y gestión del gobierno universitario",
+     "base": "Ley 30220 art. 60",
+     "fuente": "FTE-107",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-FAC",
+     "nombre": "Facultades (consejo de facultad y decanato)",
+     "depende": null,
+     "funciones": "Gobierno de cada facultad",
+     "base": "Ley 30220 art. 68",
+     "fuente": "FTE-108",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-OCI",
+     "nombre": "Órgano de Control Institucional",
+     "depende": null,
+     "funciones": "Control gubernamental",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "cargos": [
+    {
+     "id": "TPL-UNIV-C-REC",
+     "nombre": "Rector/a",
+     "organo": "Rectorado",
+     "designa": "Elección según el estatuto (Ley 30220, mod. Ley 31520)",
+     "funciones": "Personero y representante legal; titular del pliego; preside la asamblea y el consejo",
+     "base": "Ley 30220 arts. 60 y 62",
+     "fuente": "FTE-107",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-C-DEC",
+     "nombre": "Decano/a",
+     "organo": "Facultades (consejo de facultad y decanato)",
+     "designa": "Elección según el estatuto",
+     "funciones": "Máxima autoridad de gobierno de la facultad",
+     "base": "Ley 30220 art. 68",
+     "fuente": "FTE-108",
+     "estado": "V"
+    },
+    {
+     "id": "TPL-UNIV-C-JOCI",
+     "nombre": "Jefe/a del OCI",
+     "organo": "Órgano de Control Institucional",
+     "designa": "Designa la Contraloría General",
+     "funciones": "Depende de la CGR",
+     "base": "Ley 27785",
+     "fuente": "FTE-018",
+     "estado": "V"
+    }
+   ],
+   "relaciones": [
+    {
+     "tipo": "PRESIDE",
+     "de": "TPL-UNIV-C-REC",
+     "a": "TPL-UNIV-AU",
+     "texto": "Rector/a → Asamblea Universitaria",
+     "estado": "V"
+    },
+    {
+     "tipo": "PRESIDE",
+     "de": "TPL-UNIV-C-REC",
+     "a": "TPL-UNIV-CU",
+     "texto": "Rector/a → Consejo Universitario",
+     "estado": "V"
+    },
+    {
+     "tipo": "EJERCE_ROL",
+     "de": "TPL-UNIV-C-REC",
+     "a": "ROL-TITULAR",
+     "texto": "Rector/a → Titular de la entidad (rol de contratación)",
+     "estado": "V"
+    },
+    {
+     "tipo": "DESIGNA",
+     "de": "ENT-GN-19-019",
+     "a": "TPL-UNIV-C-JOCI",
+     "texto": "Contraloría General → Jefe/a del OCI",
+     "estado": "V"
+    }
+   ]
+  }
+ },
+ "rof": {
+  "ENT-GN-10-010": {
+   "entidad": "Ministerio de Educación",
+   "organos": [
+    {
+     "id": "ORG-MINEDU-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Titular del pliego; firma resoluciones ministeriales de designación",
+     "norma": "Ley 31224; ROF DS 001-2015-MINEDU",
+     "fuente": "FTE-074",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498538-1"
+    },
+    {
+     "id": "ORG-MINEDU-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Órgano del que dependen las oficinas generales de apoyo y asesoramiento",
+     "norma": "ROF DS 001-2015-MINEDU",
+     "fuente": "FTE-074",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498538-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": "ORG-MINEDU-SG",
+     "nivel": 2,
+     "funciones": "Su jefe es responsable de las UE 024, 026 y 116",
+     "norma": "RM 004-2026-MINEDU; RM 168-2026-MINEDU",
+     "fuente": "FTE-074",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498538-1"
+    },
+    {
+     "id": "ORG-MINEDU-OL",
+     "nombre": "Oficina de Logística",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGA",
+     "nivel": 3,
+     "funciones": "Unidad de la OGA (posible DEC: ver HIP-007)",
+     "norma": "RM 168-2026-MINEDU",
+     "fuente": "FTE-074",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2498538-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGAJ",
+     "nombre": "Oficina General de Asesoría Jurídica",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": "ORG-MINEDU-SG",
+     "nivel": 2,
+     "funciones": "Asesoría jurídica",
+     "norma": "RM 419-2026-MINEDU",
+     "fuente": "FTE-075",
+     "url": "https://busquedas.elperuano.pe/dispositivo/EX/2538558-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGC",
+     "nombre": "Oficina General de Comunicaciones",
+     "tipo": "ORGANO_APOYO",
+     "padre": "ORG-MINEDU-SG",
+     "nivel": 2,
+     "funciones": "Comunicaciones",
+     "norma": "RM 422-2026-MINEDU",
+     "fuente": "FTE-076",
+     "url": "https://busquedas.elperuano.pe/dispositivo/EX/2538560-1"
+    },
+    {
+     "id": "ORG-MINEDU-OPRENSA",
+     "nombre": "Oficina de Prensa",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGC",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 458-2026-MINEDU",
+     "fuente": "FTE-078",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2542366-1"
+    },
+    {
+     "id": "ORG-MINEDU-OCOM",
+     "nombre": "Oficina de Comunicaciones",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGC",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 603-2026-MINEDU",
+     "fuente": "FTE-079",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2562733-1"
+    },
+    {
+     "id": "ORG-MINEDU-ORI",
+     "nombre": "Oficina de Relaciones Interinstitucionales",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGC",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 499-2026-MINEDU",
+     "fuente": "FTE-082",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2548852-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGCAI",
+     "nombre": "Oficina General de Cooperación y Asuntos Internacionales",
+     "tipo": "ORGANO_APOYO",
+     "padre": "ORG-MINEDU-SG",
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 491-2026-MINEDU",
+     "fuente": "FTE-077",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546561-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGRH",
+     "nombre": "Oficina General de Recursos Humanos",
+     "tipo": "ORGANO_APOYO",
+     "padre": "ORG-MINEDU-SG",
+     "nivel": 2,
+     "funciones": "Gestión de recursos humanos",
+     "norma": "RM 247-2026-MINEDU",
+     "fuente": "FTE-080",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2509851-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGDC",
+     "nombre": "Oficina de Gestión del Desarrollo y la Capacitación",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGRH",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 466-2026-MINEDU",
+     "fuente": "FTE-081",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2543944-1"
+    },
+    {
+     "id": "ORG-MINEDU-OGP",
+     "nombre": "Oficina de Gestión de Personal",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OGRH",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 634-2026-MINEDU",
+     "fuente": "FTE-083",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2566091-1"
+    },
+    {
+     "id": "ORG-MINEDU-SPE",
+     "nombre": "Secretaría de Planificación Estratégica",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Dicta pautas a las UE del pliego",
+     "norma": "RM 004-2026-MINEDU art. 2",
+     "fuente": "FTE-010",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2474448-1"
+    },
+    {
+     "id": "ORG-MINEDU-OPEP",
+     "nombre": "Oficina de Planificación Estratégica y Presupuesto",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": "ORG-MINEDU-SPE",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 004-2026-MINEDU",
+     "fuente": "FTE-010",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2474448-1"
+    },
+    {
+     "id": "ORG-MINEDU-UPP",
+     "nombre": "Unidad de Planificación y Presupuesto",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OPEP",
+     "nivel": 4,
+     "funciones": "Sustentó la designación de responsables de UE (Informe 02585-2025)",
+     "norma": "RM 004-2026-MINEDU",
+     "fuente": "FTE-010",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2474448-1"
+    },
+    {
+     "id": "ORG-MINEDU-UNOME",
+     "nombre": "Unidad de Organización y Métodos",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINEDU-OPEP",
+     "nivel": 4,
+     "funciones": null,
+     "norma": "RM 543-2025-MINEDU (copia)",
+     "fuente": "FTE-086",
+     "url": "https://img.lpderecho.pe/wp-content/uploads/2025/12/Resolucion-Ministerial-543-2025-Minedu-LPDerecho.pdf"
+    }
+   ]
+  },
+  "ENT-GN-11-011": {
+   "entidad": "Ministerio de Salud",
+   "organos": [
+    {
+     "id": "ORG-MINSA-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Firma RM de designación de cargos de confianza",
+     "norma": "DL 1161",
+     "fuente": "FTE-064",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495791-1"
+    },
+    {
+     "id": "ORG-MINSA-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Visa las RM de designación",
+     "norma": "DL 1161",
+     "fuente": "FTE-064",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495791-1"
+    },
+    {
+     "id": "ORG-MINSA-OTA",
+     "nombre": "Oficina de Transparencia y Anticorrupción",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINSA-SG",
+     "nivel": 2,
+     "funciones": "Publica las RM en la sede digital",
+     "norma": "RM 209-2026/MINSA art. 2",
+     "fuente": "FTE-064",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495791-1"
+    },
+    {
+     "id": "ORG-MINSA-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Dirige los sistemas de abastecimiento, tesorería y contabilidad (art. 41 ROF)",
+     "norma": "DS 008-2017-SA",
+     "fuente": "FTE-015",
+     "url": "https://www.gob.pe/institucion/minsa/normas-legales/190095-008-2017-sa"
+    },
+    {
+     "id": "ORG-MINSA-OABAS",
+     "nombre": "Oficina de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINSA-OGA",
+     "nivel": 3,
+     "funciones": "Procesos técnicos del sistema de abastecimiento (art. 43 ROF); posible DEC (HIP-005)",
+     "norma": "DS 008-2017-SA; RM 264-2026/MINSA",
+     "fuente": "FTE-072",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499065-1"
+    },
+    {
+     "id": "ORG-MINSA-OGAJ",
+     "nombre": "Oficina General de Asesoría Jurídica",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Visa las RM de designación",
+     "norma": "RM 207-2026/MINSA",
+     "fuente": "FTE-066",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2495788-1"
+    },
+    {
+     "id": "ORG-MINSA-OGPPM",
+     "nombre": "Oficina General de Planeamiento, Presupuesto y Modernización",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 774-2026/MINSA",
+     "fuente": "FTE-067",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2550014-1"
+    },
+    {
+     "id": "ORG-MINSA-OGCTI",
+     "nombre": "Oficina General de Cooperación Técnica Internacional",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 932-2026/MINSA",
+     "fuente": "FTE-068",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2565723-1"
+    },
+    {
+     "id": "ORG-MINSA-OGTI",
+     "nombre": "Oficina General de Tecnologías de la Información",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 249-2026/MINSA; RM 667-2026/MINSA",
+     "fuente": "FTE-070",
+     "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540138-1"
+    },
+    {
+     "id": "ORG-MINSA-OGGRH",
+     "nombre": "Oficina General de Gestión de Recursos Humanos",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Actualiza el CAP Provisional; visa las RM de designación",
+     "norma": "RD D000835-2026-OGGRH-MINSA",
+     "fuente": "FTE-065",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2543983-1"
+    },
+    {
+     "id": "ORG-MINSA-OGC",
+     "nombre": "Oficina General de Comunicaciones",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 453-2026/MINSA",
+     "fuente": "FTE-073",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2511677-1"
+    },
+    {
+     "id": "ORG-MINSA-OCE",
+     "nombre": "Oficina de Comunicación Estratégica",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINSA-OGC",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 453-2026/MINSA",
+     "fuente": "FTE-073",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2511677-1"
+    }
+   ]
+  },
+  "ENT-GN-09-009": {
+   "entidad": "Ministerio de Economía y Finanzas",
+   "organos": [
+    {
+     "id": "ORG-MEF-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Firma RM de designación (serie EF/49)",
+     "norma": "ROF: RM 291-2026-EF/41",
+     "fuente": "FTE-050",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540197-1"
+    },
+    {
+     "id": "ORG-MEF-GAB",
+     "nombre": "Gabinete de Asesores del Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": "ORG-MEF-DM",
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 313-2026-EF/49",
+     "fuente": "FTE-054",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2538798-1"
+    },
+    {
+     "id": "ORG-MEF-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": null,
+     "norma": "RM 155-2026-EF/49",
+     "fuente": "FTE-052",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2502144-1"
+    },
+    {
+     "id": "ORG-MEF-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Supervisa la administración de bienes; recibe delegaciones de la SG",
+     "norma": "RM 325-2026-EF/49; RSG 035-2022-EF/13",
+     "fuente": "FTE-050",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540197-1"
+    },
+    {
+     "id": "ORG-MEF-OGRH",
+     "nombre": "Oficina General de Recursos Humanos",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 140-2026-EF/49",
+     "fuente": "FTE-053",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2500424-1"
+    },
+    {
+     "id": "ORG-MEF-OGTI",
+     "nombre": "Oficina General de Tecnologías de la Información",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 375-2026-EF/49",
+     "fuente": "FTE-051",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546557-1"
+    },
+    {
+     "id": "ORG-MEF-DGPP",
+     "nombre": "Dirección General de Presupuesto Público",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Rector del Sistema Nacional de Presupuesto; aprueba clasificadores",
+     "norma": "RD 0021-2025-EF/50.01; DL 1440",
+     "fuente": "FTE-029",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2471473-1"
+    },
+    {
+     "id": "ORG-MEF-DGA",
+     "nombre": "Dirección General de Abastecimiento",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Ente rector de abastecimiento; opinión vinculante en contrataciones",
+     "norma": "Regl. Ley 32069 art. 5",
+     "fuente": "FTE-012",
+     "url": "https://lpderecho.pe/reglamento-de-la-ley-32069-ley-general-de-contrataciones-publicas/"
+    },
+    {
+     "id": "ORG-MEF-DGGFRH",
+     "nombre": "Dirección General de Gestión Fiscal de los Recursos Humanos",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Administra el AIRHSP",
+     "norma": "Directivas 0003-2022 y 0004-2025-EF/53.01",
+     "fuente": "FTE-003",
+     "url": "https://www.mef.gob.pe/es/?option=com_content&language=es-ES&Itemid=100251&lang=es-ES&view=article&id=6068"
+    }
+   ]
+  },
+  "ENT-GN-07-007": {
+   "entidad": "Ministerio del Interior",
+   "organos": [
+    {
+     "id": "ORG-MININTER-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Firma RM de designación y de modificación del ROF (Sección Segunda)",
+     "norma": "DL 1266",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-VOI",
+     "nombre": "Despacho Viceministerial de Orden Interno",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Del que dependen la DGIN y el PRECIP",
+     "norma": "DS 003-2026-IN; RM 0642-2026-IN",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-DGIN",
+     "nombre": "Dirección General de Gobierno Interior",
+     "tipo": "ORGANO_LINEA",
+     "padre": "ORG-MININTER-VOI",
+     "nivel": 2,
+     "funciones": "Dirige y supervisa a las autoridades políticas designadas (art. 117 ROF)",
+     "norma": "Texto Integrado ROF RM 0702-2026-IN",
+     "fuente": "FTE-040",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2555441-1"
+    },
+    {
+     "id": "ORG-MININTER-DAP",
+     "nombre": "Dirección de Autoridades Políticas",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MININTER-DGIN",
+     "nivel": 3,
+     "funciones": "Propone la designación de autoridades políticas (art. 121 g)",
+     "norma": "RM 0702-2026-IN",
+     "fuente": "FTE-040",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2555441-1"
+    },
+    {
+     "id": "ORG-MININTER-DCDCI",
+     "nombre": "Dirección de Control de Drogas y Cultivos Ilegales",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": null,
+     "nivel": 3,
+     "funciones": "Funciones del art. 125 de la Sección Segunda del ROF",
+     "norma": "RM 0642-2026-IN",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-PRECIP",
+     "nombre": "Programa de Reducción de Cultivos Ilegales en el Perú (PRECIP)",
+     "tipo": "PROGRAMA",
+     "padre": "ORG-MININTER-VOI",
+     "nivel": 2,
+     "funciones": "Programa nacional; reducir y erradicar cultivos ilegales en zonas estratégicas",
+     "norma": "DS 003-2026-IN; RM 0642-2026-IN art. 171",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Visa las RM de designación",
+     "norma": "RM 0767-2026-IN",
+     "fuente": "FTE-035",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2523753-1"
+    },
+    {
+     "id": "ORG-MININTER-OGAF",
+     "nombre": "Oficina General de Administración y Finanzas",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 0767-2026-IN; RM 1126-2026-IN",
+     "fuente": "FTE-039",
+     "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540352-1"
+    },
+    {
+     "id": "ORG-MININTER-OABAS",
+     "nombre": "Oficina de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MININTER-OGAF",
+     "nivel": 3,
+     "funciones": "Posible DEC (HIP-008)",
+     "norma": "RM 0789-2026-IN",
+     "fuente": "FTE-036",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2525482-1"
+    },
+    {
+     "id": "ORG-MININTER-OGPP",
+     "nombre": "Oficina General de Planeamiento y Presupuesto",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Visa y sustenta modificaciones del ROF",
+     "norma": "RM 0642-2026-IN; RM 1124-2026-IN",
+     "fuente": "FTE-038",
+     "url": "https://busquedas.elperuano.pe/dispositivo/EX/2540349-1"
+    },
+    {
+     "id": "ORG-MININTER-OMD",
+     "nombre": "Oficina de Modernización y Desarrollo Institucional",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MININTER-OGPP",
+     "nivel": 3,
+     "funciones": "Propone y sustenta cambios al ROF",
+     "norma": "RM 0642-2026-IN",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-OGAJ",
+     "nombre": "Oficina General de Asesoría Jurídica",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Visa RM",
+     "norma": "RM 0642-2026-IN",
+     "fuente": "FTE-034",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2516290-1"
+    },
+    {
+     "id": "ORG-MININTER-OGGRH",
+     "nombre": "Oficina General de Gestión de Recursos Humanos",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Visa RM de designación",
+     "norma": "RM 0767-2026-IN",
+     "fuente": "FTE-035",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2523753-1"
+    },
+    {
+     "id": "ORG-MININTER-ODRH",
+     "nombre": "Oficina de Desarrollo de Recursos Humanos",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MININTER-OGGRH",
+     "nivel": 3,
+     "funciones": "Verifica perfiles de puesto de autoridades políticas",
+     "norma": "RD 000264-2026-IN-VOI-DGIN",
+     "fuente": "FTE-042",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2505105-1"
+    },
+    {
+     "id": "ORG-MININTER-OGCSII",
+     "nombre": "Oficina General de Comunicación Social e Imagen Institucional",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 0812-2026-IN",
+     "fuente": "FTE-037",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2527476-1"
+    }
+   ]
+  },
+  "ENT-GN-26-026": {
+   "entidad": "Ministerio de Defensa",
+   "organos": [
+    {
+     "id": "ORG-MINDEF-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Rectoría del Sector Defensa (DL 1134 art. 4)",
+     "norma": "DL 1134; ROF DS 006-2016-DE",
+     "fuente": "FTE-045",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2430629-1"
+    },
+    {
+     "id": "ORG-MINDEF-VPD",
+     "nombre": "Viceministerio de Políticas para la Defensa",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Planeamiento político y estratégico (art. 13 ROF)",
+     "norma": "DS 006-2016-DE",
+     "fuente": "FTE-046",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/7867350/6630106-rm-n-00355-2025-de-creacion-del-grupo-de-trabajo-sectorial-de-naturaleza-temporal.pdf"
+    },
+    {
+     "id": "ORG-MINDEF-DIGEPE",
+     "nombre": "Dirección General de Política y Estrategia",
+     "tipo": "ORGANO_LINEA",
+     "padre": "ORG-MINDEF-VPD",
+     "nivel": 2,
+     "funciones": "Participación en el planeamiento estratégico de seguridad y defensa (art. 41 ROF)",
+     "norma": "DS 006-2016-DE",
+     "fuente": "FTE-046",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/7867350/6630106-rm-n-00355-2025-de-creacion-del-grupo-de-trabajo-sectorial-de-naturaleza-temporal.pdf"
+    },
+    {
+     "id": "ORG-MINDEF-VRD",
+     "nombre": "Viceministerio de Recursos para la Defensa (sigla VRD en documentos)",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": null,
+     "norma": "Códigos documentales MINDEF/VRD",
+     "fuente": "FTE-047",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/7821761/6600021-rm-n-00316-2025-de-aprobar-directiva-general-nro-0002-2025-mindef-sg-ogprpp.pdf"
+    },
+    {
+     "id": "ORG-MINDEF-DGRRHH",
+     "nombre": "Dirección General de Recursos Humanos",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Custodia de los Cuadros de Efectivos (clasificados)",
+     "norma": "DS 004-2026-DE",
+     "fuente": "FTE-044",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2527944-4"
+    },
+    {
+     "id": "ORG-MINDEF-DIPEMIL",
+     "nombre": "Dirección de Personal Militar",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINDEF-DGRRHH",
+     "nivel": 3,
+     "funciones": "Custodia de anexos clasificados de efectivos",
+     "norma": "DS 004-2026-DE",
+     "fuente": "FTE-044",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2527944-4"
+    },
+    {
+     "id": "ORG-MINDEF-DIDOM",
+     "nombre": "Dirección de Desarrollo Organizacional y Modernización",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": null,
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 00316-2025-DE",
+     "fuente": "FTE-047",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/7821761/6600021-rm-n-00316-2025-de-aprobar-directiva-general-nro-0002-2025-mindef-sg-ogprpp.pdf"
+    },
+    {
+     "id": "ORG-MINDEF-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": null,
+     "norma": "RM 00316-2025-DE (MINDEF/SG-OGPRPP)",
+     "fuente": "FTE-047",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/7821761/6600021-rm-n-00316-2025-de-aprobar-directiva-general-nro-0002-2025-mindef-sg-ogprpp.pdf"
+    }
+   ]
+  },
+  "ENT-GN-39-039": {
+   "entidad": "Ministerio de la Mujer y Poblaciones Vulnerables",
+   "organos": [
+    {
+     "id": "ORG-MIMP-DM",
+     "nombre": "Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Firma RM de designación de cargos de confianza",
+     "norma": "DL 1098; ROF RM 000380-2025-MIMP",
+     "fuente": "FTE-057",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499142-1"
+    },
+    {
+     "id": "ORG-MIMP-GAB",
+     "nombre": "Gabinete de Asesoramiento del Despacho Ministerial",
+     "tipo": "ALTA_DIRECCION",
+     "padre": "ORG-MIMP-DM",
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM (FTE-061)",
+     "fuente": "FTE-061",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2541926-1"
+    },
+    {
+     "id": "ORG-MIMP-VMPV",
+     "nombre": "Despacho Viceministerial de Poblaciones Vulnerables",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Visa designaciones en el INABIF",
+     "norma": "RM 000433-2026-MIMP",
+     "fuente": "FTE-062",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545487-1"
+    },
+    {
+     "id": "ORG-MIMP-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Proveído de inicio y visado de designaciones",
+     "norma": "RM 000118-2026-MIMP",
+     "fuente": "FTE-057",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499142-1"
+    },
+    {
+     "id": "ORG-MIMP-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 000118-2026-MIMP",
+     "fuente": "FTE-057",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499142-1"
+    },
+    {
+     "id": "ORG-MIMP-OCONT",
+     "nombre": "Oficina de Contabilidad",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MIMP-OGA",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 000138-2026-MIMP",
+     "fuente": "FTE-059",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2500598-1"
+    },
+    {
+     "id": "ORG-MIMP-OGPPM",
+     "nombre": "Oficina General de Planeamiento, Presupuesto y Modernización",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 000119-2026-MIMP",
+     "fuente": "FTE-058",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2499156-1"
+    },
+    {
+     "id": "ORG-MIMP-OGRH",
+     "nombre": "Oficina General de Recursos Humanos",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Memorándum y visado en designaciones",
+     "norma": "RM (FTE-060)",
+     "fuente": "FTE-060",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540922-1"
+    },
+    {
+     "id": "ORG-MIMP-OPTP",
+     "nombre": "Oficina de Procesos Técnicos de Personal",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": null,
+     "nivel": 3,
+     "funciones": "Informe técnico previo a la designación (dependencia de la OGRH por confirmar)",
+     "norma": "RM (FTE-060)",
+     "fuente": "FTE-060",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540922-1"
+    },
+    {
+     "id": "ORG-MIMP-OGAJ",
+     "nombre": "Oficina General de Asesoría Jurídica",
+     "tipo": "ORGANO_ASESORAMIENTO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Informe legal y visado",
+     "norma": "RM (FTE-060)",
+     "fuente": "FTE-060",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2540922-1"
+    },
+    {
+     "id": "ORG-MIMP-DGFC",
+     "nombre": "Dirección General de la Familia y la Comunidad",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "Compilación set. 2026 (FTE-084)",
+     "fuente": "FTE-084",
+     "url": "https://img.lpderecho.pe/wp-content/uploads/2026/09/DS-014-2026-SA-LPDerecho.pdf"
+    },
+    {
+     "id": "ORG-MIMP-INABIF",
+     "nombre": "Programa Integral Nacional para el Bienestar Familiar (INABIF)",
+     "tipo": "PROGRAMA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Dirección Ejecutiva visa designaciones internas; dependencia del VMPV por confirmar",
+     "norma": "RM 000433-2026-MIMP",
+     "fuente": "FTE-062",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545487-1"
+    },
+    {
+     "id": "ORG-MIMP-INABIF-UA",
+     "nombre": "Unidad de Administración del INABIF",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MIMP-INABIF",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 000433-2026-MIMP",
+     "fuente": "FTE-062",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545487-1"
+    },
+    {
+     "id": "ORG-MIMP-INABIF-SGDAC",
+     "nombre": "Subunidad de Gestión Documental y Atención a la Ciudadanía",
+     "tipo": "SUBUNIDAD",
+     "padre": "ORG-MIMP-INABIF-UA",
+     "nivel": 4,
+     "funciones": null,
+     "norma": "RM 000433-2026-MIMP",
+     "fuente": "FTE-062",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545487-1"
+    },
+    {
+     "id": "ORG-MIMP-INABIF-UPPM",
+     "nombre": "Unidad de Planeamiento, Presupuesto y Modernización del INABIF",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MIMP-INABIF",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "RM 000437-2026-MIMP",
+     "fuente": "FTE-063",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545501-1"
+    },
+    {
+     "id": "ORG-MIMP-INABIF-SMIC",
+     "nombre": "Subunidad de Modernización Institucional y Cooperación",
+     "tipo": "SUBUNIDAD",
+     "padre": "ORG-MIMP-INABIF-UPPM",
+     "nivel": 4,
+     "funciones": null,
+     "norma": "RM 000437-2026-MIMP",
+     "fuente": "FTE-063",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2545501-1"
+    }
+   ]
+  },
+  "ENT-GN-01-001": {
+   "entidad": "Presidencia del Consejo de Ministros",
+   "organos": [
+    {
+     "id": "ORG-PCM-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "RM 039-2026-PCM",
+     "fuente": "FTE-017",
+     "url": "https://actualidadcivil.pe/normas-legales/resolucion-ministerial-039-2026-pcm/39fb531d-1210-4ffe-bf96-4ca265ced69d"
+    },
+    {
+     "id": "ORG-PCM-OABAS",
+     "nombre": "Oficina de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-PCM-OGA",
+     "nivel": 3,
+     "funciones": "Posible DEC (HIP-005)",
+     "norma": "RM 039-2026-PCM",
+     "fuente": "FTE-017",
+     "url": "https://actualidadcivil.pe/normas-legales/resolucion-ministerial-039-2026-pcm/39fb531d-1210-4ffe-bf96-4ca265ced69d"
+    }
+   ]
+  },
+  "ENT-GN-06-006": {
+   "entidad": "Ministerio de Justicia y Derechos Humanos",
+   "organos": [
+    {
+     "id": "ORG-MINJUSDH-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": null,
+     "norma": "Designación publicada en El Peruano",
+     "fuente": "FTE-019",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2551987-1/pdf"
+    },
+    {
+     "id": "ORG-MINJUSDH-OABAS",
+     "nombre": "Oficina de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-MINJUSDH-OGA",
+     "nivel": 3,
+     "funciones": null,
+     "norma": "Designación publicada en El Peruano",
+     "fuente": "FTE-084",
+     "url": "https://img.lpderecho.pe/wp-content/uploads/2026/09/DS-014-2026-SA-LPDerecho.pdf"
+    }
+   ]
+  },
+  "ENT-GR-445": {
+   "entidad": "Gobierno Regional del Departamento de Cajamarca",
+   "organos": [
+    {
+     "id": "ORG-GRCAJ-GRDS",
+     "nombre": "Gerencia Regional de Desarrollo Social",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "De ella depende la DRE",
+     "norma": "MOP DRE Cajamarca (RM 176-2021-MINEDU)",
+     "fuente": "FTE-022",
+     "url": "https://ugelbambamarca.gob.pe/wp-content/uploads/2022/03/MOP_DRE-UGEL_REGION_CAJAMARCA-RM_N176-2021-MINEDU.pdf"
+    },
+    {
+     "id": "ORG-GRCAJ-DRE",
+     "nombre": "Dirección Regional de Educación de Cajamarca",
+     "tipo": "ORGANO_LINEA",
+     "padre": "ORG-GRCAJ-GRDS",
+     "nivel": 3,
+     "funciones": "Doble dependencia: administrativa del GR y técnico-normativa del MINEDU",
+     "norma": "MOP DRE Cajamarca",
+     "fuente": "FTE-022",
+     "url": "https://ugelbambamarca.gob.pe/wp-content/uploads/2022/03/MOP_DRE-UGEL_REGION_CAJAMARCA-RM_N176-2021-MINEDU.pdf"
+    }
+   ]
+  },
+  "ENT-GN-19-019": {
+   "entidad": "Contraloría General",
+   "organos": [
+    {
+     "id": "ORG-CGR-OCI",
+     "nombre": "Órgano de Control Institucional (OCI) — ubicado en cada entidad",
+     "tipo": "ORGANO_CONTROL",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Depende funcional y administrativamente de la Contraloría; su jefe es designado por la CGR",
+     "norma": "Ley 27785 arts. 18–19 (mod. Ley 30742)",
+     "fuente": "FTE-018",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/1647496-1"
+    }
+   ]
+  },
+  "ENT-PNP": {
+   "entidad": "Policía Nacional del Perú",
+   "organos": [
+    {
+     "id": "ORG-PNP-CG",
+     "nombre": "Comandancia General de la Policía Nacional del Perú",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Notificada de las designaciones de autoridades políticas",
+     "norma": "RD 000622-2026-IN-VOI-DGIN",
+     "fuente": "FTE-040",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2555441-1"
+    }
+   ]
+  },
+  "ENT-GN-13-013": {
+   "entidad": "Ministerio de Desarrollo Agrario y Riego",
+   "organos": [
+    {
+     "id": "ORG-MIDAGRI-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Autoridad de la gestión administrativa; delega en el DG de la OGA",
+     "norma": "RSG 0161-2025-MIDAGRI-SG y modificatorias",
+     "fuente": "FTE-092",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2531431-1"
+    },
+    {
+     "id": "ORG-MIDAGRI-OGA",
+     "nombre": "Oficina General de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Recibe facultades delegadas de contratación",
+     "norma": "RSG 0161-2025-MIDAGRI-SG",
+     "fuente": "FTE-092",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2531431-1"
+    }
+   ]
+  },
+  "ENT-GN-09-095": {
+   "entidad": "Oficina de Normalización Previsional - ONP",
+   "organos": [
+    {
+     "id": "ORG-ONP-JEF",
+     "nombre": "Jefatura",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Titular de la entidad",
+     "norma": "RJ 000001-2026-JF-ONP",
+     "fuente": "FTE-094",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2536340-1"
+    },
+    {
+     "id": "ORG-ONP-GG",
+     "nombre": "Gerencia General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Autoridad de la gestión administrativa",
+     "norma": "RGG 000001-2026-GG-ONP",
+     "fuente": "FTE-093",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2536339-1"
+    },
+    {
+     "id": "ORG-ONP-OAD",
+     "nombre": "Oficina de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Propone y recibe delegaciones en contratación",
+     "norma": "RGG 000001-2026-GG-ONP",
+     "fuente": "FTE-093",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2536339-1"
+    }
+   ]
+  },
+  "ENT-GN-01-029": {
+   "entidad": "Autoridad Nacional de Infraestructura",
+   "organos": [
+    {
+     "id": "ORG-ANIN-GG",
+     "nombre": "Gerencia General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Autoridad de la gestión administrativa; delega facultades de contratación",
+     "norma": "RGG 000001-2026-ANIN/GG",
+     "fuente": "FTE-096",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2513668-1"
+    },
+    {
+     "id": "ORG-ANIN-DAI",
+     "nombre": "Dirección de Adquisiciones para Infraestructura",
+     "tipo": "ORGANO_LINEA",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Recibe facultades delegadas",
+     "norma": "RGG 000001-2026-ANIN/GG",
+     "fuente": "FTE-096",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2513668-1"
+    },
+    {
+     "id": "ORG-ANIN-OA",
+     "nombre": "Oficina de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Recibe facultades delegadas",
+     "norma": "RGG 000001-2026-ANIN/GG",
+     "fuente": "FTE-096",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2513668-1"
+    },
+    {
+     "id": "ORG-ANIN-UAB",
+     "nombre": "Unidad de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-ANIN-OA",
+     "nivel": 3,
+     "funciones": "Depende de la Oficina de Administración; recibe facultades delegadas",
+     "norma": "RGG 000001-2026-ANIN/GG",
+     "fuente": "FTE-096",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2513668-1"
+    }
+   ]
+  },
+  "ENT-GN-05-331": {
+   "entidad": "Servicio Nacional de Meteorología e Hidrología",
+   "organos": [
+    {
+     "id": "ORG-SENAMHI-GG",
+     "nombre": "Gerencia General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Autoridad de la gestión administrativa",
+     "norma": "RGG (24/08/2026)",
+     "fuente": "FTE-095",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546757-1"
+    },
+    {
+     "id": "ORG-SENAMHI-OA",
+     "nombre": "Oficina de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Propone y recibe delegaciones",
+     "norma": "RGG (24/08/2026)",
+     "fuente": "FTE-095",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546757-1"
+    },
+    {
+     "id": "ORG-SENAMHI-UAB",
+     "nombre": "Unidad de Abastecimiento",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": "ORG-SENAMHI-OA",
+     "nivel": 3,
+     "funciones": "Recibe delegaciones",
+     "norma": "RGG (24/08/2026)",
+     "fuente": "FTE-095",
+     "url": "https://busquedas.elperuano.pe/dispositivo/NL/2546757-1"
+    }
+   ]
+  },
+  "ENT-GN-26-025": {
+   "entidad": "Centro Nacional de Estimación, Prevención y Reducción del Riesgo de Desastres - CENEPRED",
+   "organos": [
+    {
+     "id": "ORG-CENEPRED-SG",
+     "nombre": "Secretaría General",
+     "tipo": "ALTA_DIRECCION",
+     "padre": null,
+     "nivel": 1,
+     "funciones": "Ejerce las facultades de contratación que delega",
+     "norma": "RSG 002-2026-CENEPRED",
+     "fuente": "FTE-091",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/9456447/7743878-resolucion-secretaria-general-n-002-2026-cenepred.pdf"
+    },
+    {
+     "id": "ORG-CENEPRED-OA",
+     "nombre": "Oficina de Administración",
+     "tipo": "ORGANO_APOYO",
+     "padre": null,
+     "nivel": 2,
+     "funciones": "Recibe facultades delegadas",
+     "norma": "RSG 002-2026-CENEPRED",
+     "fuente": "FTE-091",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/9456447/7743878-resolucion-secretaria-general-n-002-2026-cenepred.pdf"
+    },
+    {
+     "id": "ORG-CENEPRED-UFL",
+     "nombre": "Unidad Funcional de Logística",
+     "tipo": "UNIDAD_ORGANICA",
+     "padre": null,
+     "nivel": 3,
+     "funciones": "Su coordinador recibe facultades delegadas",
+     "norma": "RSG 002-2026-CENEPRED",
+     "fuente": "FTE-091",
+     "url": "https://cdn.www.gob.pe/uploads/document/file/9456447/7743878-resolucion-secretaria-general-n-002-2026-cenepred.pdf"
+    }
+   ]
+  }
+ }
+}

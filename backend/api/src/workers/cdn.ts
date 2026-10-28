@@ -54,8 +54,11 @@ const GUARDADO = "X-Vigia-Guardado";
  *        antecedentes de la persona y la inhabilitación; /contratos/resumen trae `porObra` (el filtro «La obra»).
  * "44": /entidades/:ruc trae en `senales` las de su gente de la migración 179 (alBorde, nepotismoGobierno,
  *        doblePlanilla, socioProveedor) para sus banderas; socio_proveedor sin apellidos muy comunes.
+ * "49": fuentes con enlace al registro exacto (cruces y señales de personas: el proceso, la ficha del proveedor, la DJI
+ *        de la entidad, su planilla en el Portal de Transparencia, el reporte de visitas del mes), `idPte` en la entidad y
+ *        la planilla, visitas sin el nombre de quien recibió y con `hasta`, y GET /planilla/organigrama (Organización 2.0).
  */
-const VERSION_CACHE = "48";
+const VERSION_CACHE = "49";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

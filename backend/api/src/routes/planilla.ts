@@ -4,6 +4,9 @@ import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { djiEntidad, personalPte } from "../lib/fuentes.js";
+import { visitasHasta } from "../lib/visitas.js";
+import { armarOrganigrama, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type VisitaArea } from "../lib/organigrama.js";
 import { palabrasBusqueda } from "./personas.js";
 import { PARIENTE_LOCADOR, funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
 
@@ -93,8 +96,14 @@ export const TRAMOS_ANTIGUEDAD = {
   },
 } as const;
 
-/** Un cargo de jefatura (jefe, director, gerente, coordinador, administrador…), como en el ascenso exprés (migración 182). */
-export const JEFATURA = String.raw`mef_norm(p.cargo) ~ '\m(JEFE|JEFA|DIRECTOR|DIRECTORA|GERENTE|SUBGERENTE|SUB GERENTE|COORDINADOR|COORDINADORA|ADMINISTRADOR|ADMINISTRADORA|SECRETARIO GENERAL|SECRETARIA GENERAL|SUBDIRECTOR|SUBDIRECTORA|PROCURADOR|PROCURADORA)\M'`;
+/**
+ * Un cargo de jefatura (jefe, director, gerente, coordinador, administrador…, como en el ascenso exprés de la migración 182)
+ * o una autoridad que encabeza la entidad (gobernador, alcalde, ministro, presidente, rector…): sin ellas, la oficina
+ * «Gobernación» del Gobierno Regional de Ayacucho salía «sin jefatura» (fase 0 del plan del 2026-10-27). La autoridad, sólo
+ * al comienzo del cargo: «ASISTENTE DEL ALCALDE» no encabeza nada.
+ */
+export const JEFATURA = String.raw`(mef_norm(p.cargo) ~ '\m(JEFE|JEFA|DIRECTOR|DIRECTORA|GERENTE|SUBGERENTE|SUB GERENTE|COORDINADOR|COORDINADORA|ADMINISTRADOR|ADMINISTRADORA|SECRETARIO GENERAL|SECRETARIA GENERAL|SUBDIRECTOR|SUBDIRECTORA|PROCURADOR|PROCURADORA)\M'
+  OR mef_norm(p.cargo) ~ '^(TENIENTE ALCALDE|ALCALDE|ALCALDESA|GOBERNADOR|GOBERNADORA|VICEGOBERNADOR|VICEGOBERNADORA|MINISTRO|MINISTRA|VICEMINISTRO|VICEMINISTRA|PRESIDENTE|PRESIDENTA|SUPERINTENDENTE|RECTOR|RECTORA|CONTRALOR|CONTRALORA)\M')`;
 
 /** La oficina o el cargo como se agrupan: en mayúsculas y con los espacios juntos (el PTE los escribe de varias formas). */
 const NORMAL = (col: string) => `regexp_replace(upper(btrim(${col})), '\\s+', ' ', 'g')`;
@@ -300,7 +309,8 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
       `SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.paterno, p.nombres, p.regimen, p.cargo, p.dependencia, p.total::float AS total,
               p.base::float AS base, p.extra::float AS extra, p.dudoso, p.meses, to_char(p.primer_mes, 'YYYY-MM') AS "primerMes",
               to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes", p.senales, p.n_senales AS "nSenales", p.codigo, p.ficha, p.dep,
-              z.nombre AS "depNombre", p.nombre_norm AS "_nn"
+              z.nombre AS "depNombre", p.nombre_norm AS "_nn",
+              (SELECT e.id_pte FROM pte_entidad e WHERE e.ruc = p.entidad_ruc) AS "idPte"
          FROM planilla_persona p LEFT JOIN zonas z ON z.ubigeo = p.dep
         WHERE p.ficha = $1`, [codigo]);
     const f = r.rows[0];
@@ -348,7 +358,7 @@ planillaRouter.get("/mensual", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const { entidad } = parsed.data;
   const cuerpo = await memo.obtener(`mensual:${entidad}`, async () => {
-    const [meses, cambios] = await Promise.all([
+    const [meses, cambios, pte] = await Promise.all([
       pool.query(
         `SELECT to_char(mes, 'YYYY-MM') AS mes, personas, base::float AS base, altas, bajas, incompleto
            FROM planilla_entidad_mes WHERE entidad_ruc = $1 ORDER BY mes`, [entidad]),
@@ -364,8 +374,10 @@ planillaRouter.get("/mensual", async (c) => {
                  WHERE eg.ruc = $1 AND eg.nivel = 'nacional')
          SELECT DISTINCT to_char(t.desde, 'YYYY-MM') AS mes, t.nivel, t.quien
            FROM t, r WHERE t.desde > r.d0 AND t.desde <= r.d1 ORDER BY 1`, [entidad]).catch(() => ({ rows: [] })),
+      // Su id en el Portal de Transparencia: la página de personal de la entidad, de donde sale cada mes.
+      pool.query<{ id_pte: number | null }>(`SELECT id_pte FROM pte_entidad WHERE ruc = $1`, [entidad]).catch(() => ({ rows: [] as { id_pte: number | null }[] })),
     ]);
-    return { meses: meses.rows, cambios: cambios.rows };
+    return { meses: meses.rows, cambios: cambios.rows, idPte: pte.rows[0]?.id_pte ?? null };
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
@@ -440,6 +452,97 @@ planillaRouter.get("/organizacion", async (c) => {
       },
     });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /planilla/organigrama?entidad= ─────────────────────────────────────────────────────────
+/**
+ * La Organización 2.0 de una entidad (fase 1 del plan del 2026-10-27; lib/organigrama.ts): sus oficinas según su planilla, las
+ * jefaturas que declaran sus funcionarios en la DJI, la estructura que fija la ley para su tipo de entidad y su ROF si está
+ * leído, con las siglas expandidas, de quién depende cada oficina y por qué (la ley, la planilla, su ROF o inferido), sus
+ * visitas por área, y quién es la titular y la AGA. Los nombres de las personas, con un apellido tapado.
+ */
+let globalesMemo: { t: number; filas: NombreGlobal[] } | null = null;
+/** Los nombres de oficinas de todas las entidades (migración 186): se leen una vez cada 6 horas. */
+async function nombresGlobales(): Promise<NombreGlobal[]> {
+  if (globalesMemo && Date.now() - globalesMemo.t < 6 * 3600_000) return globalesMemo.filas;
+  const r = await pool.query<NombreGlobal>(`SELECT texto, fuente, entidades FROM organo_nombre_global`).catch(() => null);
+  if (r) globalesMemo = { t: Date.now(), filas: r.rows };
+  return r?.rows ?? globalesMemo?.filas ?? [];
+}
+
+planillaRouter.get("/organigrama", async (c) => {
+  const parsed = Mensual.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const { entidad } = parsed.data;
+  const cuerpo = await fichaMemo.obtener(`organigrama:${entidad}`, async () => {
+    const [ent, ofis, cargos, grafo, visitas, pte, globales] = await Promise.all([
+      pool.query<{ nombre: string | null; region: string | null; nivel: string | null }>(
+        `SELECT e.nombre, (SELECT z.nombre FROM zonas z WHERE z.ubigeo = left(e.ubigeo, 2)) AS region,
+                (SELECT a.nivel FROM entidad_gobierno_amplia a WHERE a.ruc = e.ruc::text LIMIT 1) AS nivel
+           FROM entidades e WHERE e.ruc::text = $1`, [entidad]),
+      pool.query(
+        `WITH u AS (SELECT max(ultimo_mes) AS m FROM planilla_persona WHERE entidad_ruc = $1),
+              p AS (
+                SELECT p.paterno, p.nombres, p.cargo, p.ficha, p.base, p.dudoso, p.regimen, p.n_senales, p.sev,
+                       ${NORMAL("p.dependencia")} AS ofi, ${JEFATURA} AS jefe,
+                       COALESCE(p.tipos && ARRAY['pariente_planilla', 'familiar_en_planilla'], false) AS familia
+                  FROM planilla_persona p, u
+                 WHERE p.entidad_ruc = $1 AND p.ultimo_mes = u.m AND p.dependencia IS NOT NULL AND btrim(p.dependencia) <> ''),
+              j AS (
+                SELECT ofi, jsonb_agg(jsonb_build_object('paterno', paterno, 'nombres', nombres, 'cargo', cargo, 'ficha', ficha)
+                                      ORDER BY base DESC NULLS LAST) AS jefes
+                  FROM (SELECT p.*, row_number() OVER (PARTITION BY ofi ORDER BY base DESC NULLS LAST) AS k FROM p WHERE jefe) x
+                 WHERE k <= 3 GROUP BY ofi),
+              o AS (
+                SELECT ofi, count(*)::int AS personas, COALESCE(sum(base) FILTER (WHERE dudoso IS NULL), 0)::float AS planilla,
+                       count(*) FILTER (WHERE regimen = 1)::int AS cas, count(*) FILTER (WHERE n_senales > 0)::int AS "conSenales",
+                       count(*) FILTER (WHERE sev = 3)::int AS altas, count(*) FILTER (WHERE familia)::int AS "conFamilia"
+                  FROM p GROUP BY ofi)
+         SELECT o.*, j.jefes, to_char((SELECT m FROM u), 'YYYY-MM') AS mes
+           FROM o LEFT JOIN j USING (ofi) ORDER BY o.personas DESC LIMIT 1500`, [entidad]),
+      // Las jefaturas vigentes de la DJI (migración 186) y, si está en la planilla, su ficha.
+      pool.query<{ cargo: string; paterno: string | null; nombres: string | null; desde: string | null; ficha: string | null }>(
+        `SELECT d.cargo, d.paterno, d.nombres, to_char(d.desde, 'YYYY-MM-DD') AS desde,
+                (SELECT pp.ficha FROM planilla_persona pp WHERE pp.entidad_ruc = $1 AND pp.nombre_norm = d.nombre_norm
+                  ORDER BY pp.ultimo_mes DESC NULLS LAST LIMIT 1) AS ficha
+           FROM dji_jefatura d WHERE d.ruc = $1 ORDER BY d.desde DESC NULLS LAST LIMIT 600`, [entidad]).catch(() => ({ rows: [] })),
+      pool.query<{ nodo_id: string; plantilla: string | null }>(
+        `SELECT g.nodo_id, (SELECT a.destino FROM grafo_aristas a WHERE a.origen = g.nodo_id AND a.tipo = 'APLICA_ESTRUCTURA_TIPO' LIMIT 1) AS plantilla
+           FROM grafo_entidad g WHERE g.ruc = $1 LIMIT 1`, [entidad]).catch(() => ({ rows: [] })),
+      // Las visitas por el área visitada (sin nombres: sólo cuántas y la última).
+      pool.query<VisitaArea>(
+        `SELECT v.funcionario_area AS area, count(*)::int AS n, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS ultima
+           FROM visitas_entidades v JOIN visita_entidad_ruc r ON r.entidad_visitada = v.entidad_visitada
+          WHERE r.ruc = $1 AND v.funcionario_area IS NOT NULL AND btrim(v.funcionario_area) <> ''
+          GROUP BY 1 ORDER BY 2 DESC LIMIT 400`, [entidad]).catch(() => ({ rows: [] as VisitaArea[] })),
+      pool.query<{ id_pte: number | null }>(`SELECT id_pte FROM pte_entidad WHERE ruc = $1`, [entidad]).catch(() => ({ rows: [] as { id_pte: number | null }[] })),
+      nombresGlobales(),
+    ]);
+    const e = ent.rows[0];
+    if (!e) return null;
+    const tapar = (paterno: string | null | undefined, nombres: string | null | undefined) => [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ");
+    const oficinas: OficinaPlanilla[] = ofis.rows.map((o) => ({
+      dependencia: o.ofi, personas: o.personas, planilla: o.planilla, cas: o.cas, conSenales: o.conSenales, altas: o.altas, conFamilia: o.conFamilia,
+      // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
+      jefes: ((o.jefes as { paterno: string | null; nombres: string | null; cargo: string | null; ficha: string | null }[] | null) ?? [])
+        .map((j) => ({ nombre: tapar(j.paterno, j.nombres), cargo: j.cargo, ficha: j.ficha, fuente: "planilla" as const, desde: null })),
+    }));
+    const dji: CargoDji[] = cargos.rows.map((x) => ({ cargo: x.cargo, nombre: tapar(x.paterno, x.nombres), ficha: x.ficha, desde: x.desde }));
+    const idPte = pte.rows[0]?.id_pte ?? null;
+    const enlaces = { planilla: idPte != null ? personalPte(idPte) : null, dji: djiEntidad(entidad) };
+    const mes = (ofis.rows[0]?.mes as string | undefined) ?? null;
+    const g = grafo.rows[0];
+    const org = armarOrganigrama({
+      entidad: { ruc: entidad, nombre: e.nombre ?? "", region: e.region, nivelGobierno: e.nivel },
+      plantilla: (g?.plantilla as PlantillaId | null | undefined) ?? null,
+      nodoGrafo: g?.nodo_id ?? null,
+      oficinas, cargos: dji, globales, visitas: visitas.rows, mesPlanilla: mes, enlaces,
+    });
+    return publicar({ mes, idPte, enlaces, visitasHasta: await visitasHasta(), ...org });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });
