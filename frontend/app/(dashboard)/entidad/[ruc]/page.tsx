@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
+import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -38,6 +38,7 @@ import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { EvolucionPlanilla } from "@/components/personas/EvolucionPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { ObrasEntidad, ObrasVacia } from "@/components/obras/ObrasEntidad";
+import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
@@ -85,7 +86,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { historia: "Historia", contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 
@@ -248,6 +249,23 @@ export default async function EntidadProfile({
             fueraDelMef={fueraSiaf || empresaDelEstado}
           />
           <FuenteDato fuente={`OECE${enElMef ? ", MEF" : ""}, Contraloría y Portal de Transparencia`} enlaces={fuentesEntidad} />
+        </div>
+      ),
+    },
+    {
+      // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): quién gobernaba, cuánto compró y a quién, su planilla,
+      // sus visitas, la Contraloría, sus obras; y la ola que siguió a cada cambio de gestión.
+      clave: "historia",
+      icono: <History size={15} aria-hidden />,
+      etiqueta: "Historia",
+      contenido: (
+        <div className="space-y-4">
+          <CabeceraPestana ayuda={<AyudaHistoria />}>
+            Lo que pasó con ella mes a mes: quién gobernaba, cuánto compró y a quién, su planilla, sus visitas y lo que encontró la Contraloría.
+          </CabeceraPestana>
+          <Suspense fallback={<Cargando texto="Armando su historia…" />}>
+            <HistoriaFicha tipo="entidad" id={e.ruc} nombre={nombre} />
+          </Suspense>
         </div>
       ),
     },
@@ -573,6 +591,7 @@ function Espera({ clave }: { clave: string }) {
     planilla: { cifras: 4, columna: "Persona" },
     plazas: { cifras: 4, columna: "Plaza" },
     control: { cifras: 4, columna: "Informe" },
+    historia: { columna: "Hecho" },
   };
   return <EsqueletoPestana {...(forma[clave] ?? { columna: "Detalle" })} />;
 }
@@ -618,6 +637,22 @@ function AyudaPlazas() {
     <Ayuda titulo="¿De dónde salen las plazas?">
       De SERVIR Talento Perú: las convocatorias CAS que la entidad publicó, con sus requisitos y su sueldo. Las señales marcan
       rasgos de una plaza hecha a la medida de alguien; no prueban un direccionamiento.
+    </Ayuda>
+  );
+}
+
+function AyudaHistoria() {
+  return (
+    <Ayuda titulo="¿Cómo se lee su historia?">
+      <span className="block">
+        Cada renglón es una fuente oficial, mes a mes, sobre el mismo eje: quién gobernaba (JNE), sus procesos y órdenes (OECE), su
+        planilla (Portal de Transparencia), sus plazas (SERVIR), sus visitas, los informes de la Contraloría y sus obras (INFOBRAS).
+        Las líneas verticales son los cambios de gobierno y las elecciones.
+      </span>
+      <span className="mt-2 block">
+        «Una cosa lleva a otra» marca, por ejemplo, cuando las órdenes a personas se duplicaron en los seis meses después de que
+        asumió una gestión, frente a los mismos meses del año anterior. No prueba nada: es para revisar.
+      </span>
     </Ayuda>
   );
 }

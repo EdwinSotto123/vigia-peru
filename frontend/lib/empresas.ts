@@ -521,7 +521,7 @@ export const CORTO_EMPRESA: Record<string, string> = {
  * «Ventas al Estado» y «Su gente» juntan varias listas: cada una es una vista (`?vista=`) dentro de la pestaña.
  */
 // «obras»: las obras públicas que construye o supervisa (INFOBRAS, migración 160); va sólo si tiene alguna.
-export const PESTANAS_EMPRESA = ["inicio", "ventas", "clientes", "postulaciones", "antecedentes", "gente", "obras"] as const;
+export const PESTANAS_EMPRESA = ["inicio", "historia", "ventas", "clientes", "postulaciones", "antecedentes", "gente", "obras"] as const;
 export type PestanaEmpresa = (typeof PESTANAS_EMPRESA)[number];
 /** Las listas de «Ventas al Estado» y de «Su gente»; la primera de cada una va sin parámetro. */
 export const VISTAS_VENTAS = ["contratos", "ordenes", "menores"] as const;
@@ -534,6 +534,7 @@ export const P_VISTA = "vista";
 
 const DESTINO: Record<SeccionEmpresa, { seccion: PestanaEmpresa; vista?: VistaEmpresa }> = {
   inicio: { seccion: "inicio" },
+  historia: { seccion: "historia" },
   ventas: { seccion: "ventas" },
   contratos: { seccion: "ventas" },
   ordenes: { seccion: "ventas", vista: "ordenes" },

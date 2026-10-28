@@ -7,7 +7,8 @@ import { GobiernosPartido, P_GOB, filtrosGobiernos } from "@/components/partidos
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import {
   BarraFiltros,
   Indicadores,
@@ -125,7 +126,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
           { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { historia: "Historia", procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos" } }}
       />
 
       <EncabezadoPagina
@@ -189,6 +190,30 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
               <Suspense fallback={<EsqueletoInicio />}>
                 <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} gasto={gastoP} />
               </Suspense>
+            ),
+          },
+          {
+            // Todos sus periodos en una línea (fase 3 del plan del 2026-10-27): dónde gobernó tras cada elección, los
+            // procesos de sus gobiernos y los que tienen banderas, los aportes que recibió y lo que gastó en campaña.
+            clave: "historia",
+            etiqueta: "Historia",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Cómo se lee su historia?">
+                      Todos sus periodos, no sólo el elegido arriba: cuántos gobiernos ganó en cada elección (JNE), los procesos que
+                      convocaron esos gobiernos y los que tienen banderas (OECE y Vigía), y los aportes y gastos de campaña que declaró
+                      a la ONPE. Las líneas punteadas son las elecciones.
+                    </Ayuda>
+                  }
+                >
+                  Desde 2015: dónde gobernó, cuánto contrataron sus gobiernos y cuánto recibió y gastó en sus campañas.
+                </CabeceraPestana>
+                <Suspense fallback={<Cargando texto="Armando su historia…" />}>
+                  <HistoriaFicha tipo="partido" id={params.clave} nombre={partido.nombre} />
+                </Suspense>
+              </div>
             ),
           },
           {

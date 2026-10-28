@@ -13,6 +13,7 @@ import {
   HandCoins,
   HardHat,
   Hash,
+  History,
   LayoutDashboard,
   MapPin,
   Package,
@@ -25,6 +26,8 @@ import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
+import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
+import { Cargando } from "@/components/patrones";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
 import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
@@ -83,7 +86,7 @@ const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) 
 /** Las listas llevan su pestaña y su vista en `parametros`: no hace falta leerlas de la URL viva al filtrar. */
 const SIN_CONSERVAR: string[] = [];
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS_PESTANA: Record<string, string> = { ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente", obras: "Obras" };
+const ETIQUETAS_PESTANA: Record<string, string> = { historia: "Historia", ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente", obras: "Obras" };
 /** Los parámetros de la URL menos la pestaña y la vista (para llevar un enlace viejo a la pestaña nueva sin perder filtros). */
 const sinSeccion = (sp: Busqueda): Record<string, string | undefined> =>
   Object.fromEntries(Object.entries(sp ?? {}).filter(([k]) => k !== "seccion" && k !== P_VISTA).map(([k, v]) => [k, uno(v)]));
@@ -239,6 +242,37 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Inicio",
             icono: <LayoutDashboard size={15} aria-hidden />,
             contenido: <Inicio f={f} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
+          },
+          {
+            // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): su fundación y su gente, lo que ganó y le
+            // ordenaron, sus visitas, la política, las sanciones; y lo que encadenan sus cruces (visitó y ganó…).
+            clave: "historia",
+            etiqueta: "Historia",
+            icono: <History size={15} aria-hidden />,
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Cómo se lee su historia?">
+                      <span className="block">
+                        Cada renglón es una fuente oficial sobre el mismo eje de meses: su fundación (SUNAT) y la gente que entró (RNP,
+                        por su papel, sin nombres), lo que ganó y le ordenaron (OECE), sus visitas a entidades, los aportes y campañas
+                        de su gente (ONPE, JNE) y las sanciones y penalidades. Las líneas punteadas son las elecciones.
+                      </span>
+                      <span className="mt-2 block">
+                        «Lo que encadenan sus datos» une hechos que ya prueban sus cruces, como una visita a una entidad y la buena pro
+                        que ganó allí días después. No prueba un delito: es para revisar.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  Lo que pasó con la empresa mes a mes: lo que ganó, a quién visitó su gente, sus aportes y sus sanciones.
+                </CabeceraPestana>
+                <Suspense fallback={<Cargando texto="Armando su historia…" />}>
+                  <HistoriaFicha tipo="empresa" id={e.ruc} nombre={nombre} />
+                </Suspense>
+              </div>
+            ),
           },
           {
             // Contratos, órdenes y contratos menores: tres listas de lo mismo (lo que le pagó el Estado), en vistas.

@@ -110,6 +110,15 @@ const CARRILES_ENTIDAD: CarrilHistoria[] = [
 ];
 
 const CARGO_NIVEL: Record<string, string> = { regional: "Gobernador regional", provincial: "Alcalde provincial", distrital: "Alcalde distrital" };
+/** Cómo se dice cada responsabilidad que señala un informe (los códigos del buscador de la Contraloría). */
+const RESPONSABILIDAD: Record<string, string> = {
+  penal: "penal",
+  civil: "civil",
+  administrativa_entidad: "administrativa (la sanciona la entidad)",
+  administrativa_pas: "administrativa (la sanciona la Contraloría)",
+  administrativa: "administrativa",
+};
+const oracion = (s: string | null | undefined) => (s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : null);
 /** Las responsabilidades de un informe de control, de la más grave a la menos. */
 function sevInforme(resp: unknown): Severidad {
   const r = (Array.isArray(resp) ? resp.join(" ") : String(resp ?? "")).toUpperCase();
@@ -211,14 +220,18 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   nacional.forEach((p, i) => {
     const sig = nacional[i + 1]?.desde ?? null;
     if (sig && sig < DESDE) return;
+    // El que asumió el 28 de julio de 2026 (su resultado oficial no está en la base): «el Presidente elegido en las EG 2026».
+    const sinNombre = /^Elegido/i.test(p.presidente);
+    const quien = sinNombre ? `el Presidente ${p.presidente.charAt(0).toLowerCase()}${p.presidente.slice(1)}` : p.presidente;
     eventos.push({
       id: `presidente:${p.desde}`, carril: "gobierno", tipo: "presidente", fecha: p.desde, hasta: sig,
-      titulo: p.presidente, detalle: p.como === "sucesion" ? "Asumió por sucesión" : "Elegido en las elecciones generales",
+      titulo: sinNombre ? `Presidente ${p.presidente.charAt(0).toLowerCase()}${p.presidente.slice(1)}` : p.presidente,
+      detalle: sinNombre ? "Asumió el 28 de julio de 2026" : p.como === "sucesion" ? "Asumió por sucesión" : "Elegido en las elecciones generales",
       fuente: "Gobierno nacional", enlace: null,
     });
     if (p.desde > DESDE && p.desde <= hasta) {
-      marcas.push({ fecha: p.desde, tipo: "gobierno", texto: `Asumió ${p.presidente}` });
-      cambios.push({ fecha: p.desde, quien: p.presidente });
+      marcas.push({ fecha: p.desde, tipo: "gobierno", texto: `Asumió ${quien}` });
+      cambios.push({ fecha: p.desde, quien });
     }
   });
   marcas.push(...marcasEleccion(DESDE, hasta, nacional.length ? "general" : gobLocal.length ? "regional" : undefined));
@@ -227,7 +240,11 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     eventos.push({
       id: `informe:${r.codigo}`, carril: "control", tipo: "informe", fecha: r.fecha,
       titulo: r.titulo ? r.titulo : `Informe de control ${r.numero ?? r.codigo}`,
-      detalle: [r.modalidad, r.responsabilidades?.length ? `Responsabilidad ${r.responsabilidades.join(", ").toLowerCase()}` : null, r.funcionarios ? `${r.funcionarios} funcionarios comprendidos` : null].filter(Boolean).join("; ") || null,
+      detalle: [
+        oracion(r.modalidad),
+        r.responsabilidades?.length ? `Responsabilidad ${r.responsabilidades.map((x) => RESPONSABILIDAD[x] ?? x.replace(/_/g, " ")).join(", ")}` : null,
+        r.funcionarios ? `${r.funcionarios} ${r.funcionarios === 1 ? "funcionario comprendido" : "funcionarios comprendidos"}` : null,
+      ].filter(Boolean).join("; ") || null,
       severidad: sevInforme(r.responsabilidades), href: `${base}?seccion=control`, fuente: "Contraloría General de la República", enlace: r.url,
     });
   }
@@ -263,7 +280,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     ...olasDeGestion({ unidad: "personas que entraron", huecos: "sin_dato", puntos: pla.filter((r) => r.altas != null && !r.incompleto).map((r) => ({ periodo: r.mes, n: r.altas ?? 0 })) }, cambios, { tipo: "ola_planilla", minimo: 30, que: "las entradas a la planilla", href: `${base}?seccion=planilla`, fuente: "Portal de Transparencia Estándar" }),
   ];
 
-  const { eventos: quedan, omitidos } = acotar(eventos, { control: 120, obras: 80, banderas: 120 }, fijosDe(secuencias, eventos));
+  const enLinea = eventos.filter((e) => e.carril === "gobierno" || e.fecha >= DESDE || (e.hasta ?? "") >= DESDE);
+  const { eventos: quedan, omitidos } = acotar(enLinea, { control: 120, obras: 80, banderas: 120 }, fijosDe(secuencias, enLinea));
   const primera = [...series.flatMap((s) => s.puntos.map((p) => (p.periodo.length === 4 ? `${p.periodo}-01` : `${p.periodo}-01`))), ...quedan.filter((e) => e.carril !== "gobierno").map((e) => e.fecha)].sort()[0];
   return {
     sujeto: { tipo: "entidad", id: ruc, nombre: ent.nombre },
@@ -501,7 +519,9 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);
   const { eventos: quedan, omitidos } = acotar(eventos, { compras: 150, visitas: 80, control: 100, politica: 80, obras: 60, banderas: 120, empresa: 60 }, fijosDe(secuencias, eventos));
-  const primera = [...series.flatMap((s) => s.puntos.map((p) => `${p.periodo}-01`)), ...quedan.map((e) => e.fecha)].sort()[0];
+  // Empieza con lo primero que tiene, pero no antes de 2015 (una empresa de 2005 dejaba diez años vacíos: su fundación
+  // sigue en la lista de hechos).
+  const primera = [...series.flatMap((s) => s.puntos.map((p) => `${p.periodo}-01`)), ...quedan.map((e) => e.fecha)].filter((f) => f >= DESDE).sort()[0];
   return {
     sujeto: { tipo: "empresa", id: ruc, nombre: emp.nombre },
     desde: primera ? `${primera.slice(0, 4)}-01-01` : DESDE,
