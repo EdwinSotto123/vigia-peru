@@ -75,6 +75,10 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // «Visitó la entidad antes de ganar» reconociendo a la entidad por todos sus nombres (migración 174): rehace el tipo que
   // refrescar_cruces() deja con la regla vieja (el nombre letra por letra: 46 cruces en todo el país).
   await siExiste("refrescar_cruce_visita_previa");
+  // Redes y conflictos (migración 189): el familiar declarado de un funcionario, socio del ganador; y los postores
+  // vinculados (una persona o el domicilio) que compiten juntos y se reparten las buenas pro.
+  await siExiste("refrescar_cruce_pariente_funcionario");
+  await siExiste("refrescar_cruce_turno_postores");
   // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
   // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
   await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");

@@ -23,7 +23,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   socio_comun: GitFork, unico_postor: UserRound, otro_postor: Replace,
   socio_en_entidad: ArrowRightLeft, funcionario_contratado: ArrowRightLeft,
   interes_declarado: Handshake, empleo_declarado: DoorOpen,
-  domicilio_compartido: MapPinHouse,
+  domicilio_compartido: MapPinHouse, turno_postores: Repeat, pariente_funcionario: HeartHandshake,
   visita_previa: Footprints, visitas_clientes: Footprints,
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,

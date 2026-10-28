@@ -38,6 +38,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // La DJI de un funcionario de la entidad (migración 170): acciones, poder o directorio, y empleo previo.
   interes_declarado: "Un funcionario de la entidad declaró un interés en el ganador",
   empleo_declarado: "Un funcionario de la entidad trabajó para el ganador",
+  // Redes y conflictos (migración 189): el familiar declarado de un funcionario es socio del ganador; postores vinculados
+  // que compiten juntos y se reparten las buenas pro.
+  pariente_funcionario: "Un familiar de un funcionario de la entidad es socio o representante del ganador",
+  turno_postores: "Compite con una empresa vinculada y se turnan para ganar",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

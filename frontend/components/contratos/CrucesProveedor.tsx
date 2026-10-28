@@ -167,6 +167,8 @@ const POR_QUE: Record<string, string> = {
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
+  pariente_funcionario: "La Ley 32069 impide contratar con la entidad a los parientes de ciertos funcionarios (los que deciden o influyen en la compra). Que un familiar declarado de un funcionario de la misma entidad sea dueño o representante del ganador merece ver en el expediente quién intervino y si se apartó.",
+  turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
   empresa_espejo: "Una empresa inhabilitada no puede contratar con el Estado. Si la misma gente sigue ganando con otra razón social mientras dura la sanción, la sanción pierde efecto: vale revisar si la empresa nueva tiene los mismos dueños, el mismo local o el mismo personal clave que la sancionada.",
   interes_declarado: "La Ley 31227 obliga a los funcionarios a declarar sus intereses para que se aparten de las decisiones sobre las empresas en las que los tienen. Que una de ellas le gane un contrato a su propia entidad merece ver en el expediente si se apartó.",
   empleo_declarado: "Haber trabajado para una empresa no impide comprarle, pero quien decide debe apartarse si el vínculo es reciente. Pesa más si la buena pro llegó mientras todavía trabajaba para ella.",
@@ -505,6 +507,34 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {quien(c)} es, además, <b>persona contratada por {ent ? tituloNatural(ent) : "esta entidad"}</b>
           {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
           {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
+        </>
+      );
+    }
+    case "pariente_funcionario": {
+      // Ni el pariente ni el funcionario se identifican: el parentesco, el cargo y el papel en la empresa.
+      const par = (txt(d.parentesco) ?? "familiar").toLowerCase().replace(/\((a|o)\)/g, "").replace(/ del declarante$/, "").trim();
+      const cargo = txt(d.cargo_funcionario);
+      const rol = txt(d.rol_en_empresa)?.toLowerCase().replace(/_/g, " ").replace("socio accionista titular", "socio").replace("organo administracion", "directivo") ?? null;
+      return (
+        <>
+          Un <b>{par}</b> de un funcionario de esta entidad{cargo ? <> (cargo declarado: {cargo.toLowerCase()})</> : ""} figura en el RNP como{" "}
+          <b>{rol ?? "parte"}</b> de <Emp c={c} />{txt(d.desde_en_empresa) ? ` desde el ${fechaCorta(txt(d.desde_en_empresa)!)}` : ""}. Lo declaró el funcionario
+          en su DJI ante la Contraloría. No se dice quiénes son.
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "turno_postores": {
+      const otra = txt(d.otra_ruc);
+      const via = txt(d.vinculo) ?? "";
+      return (
+        <>
+          <Emp c={c} /> y {otra ? <OtraEmpresa ruc={otra} nombre={txt(d.otra)} conRuc /> : <b>otra empresa</b>}, que comparten{" "}
+          {via.includes("persona") ? "un socio, representante o directivo (RNP)" : ""}
+          {via.includes("persona") && via.includes("domicilio") ? " y " : ""}
+          {via.includes("domicilio") ? "el domicilio fiscal (SUNAT)" : ""}, compitieron juntas en <b>{n(d.juntos) ?? "varios"} procesos</b> con pocos
+          postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_otra) ?? "otros"}. Este contrato es uno de los que ganó.
+          <Gano c={c} />
         </>
       );
     }
