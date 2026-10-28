@@ -64,6 +64,10 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // Un funcionario declaró en su DJI acciones, un poder, un directorio o un empleo en la empresa que le ganó a su entidad
   // (migración 170; las secciones 1 a 6 las carga backend/scripts/procesar_dji_intereses.py desde la PC).
   await siExiste("refrescar_cruce_interes_dji");
+  // La empresa que ganó mientras su empresa hermana (comparten socio o representante) estaba inhabilitada, y cada proceso
+  // de CONOSCE ya juntado para la pestaña «Postulaciones» de las empresas (migración 184).
+  await siExiste("refrescar_cruce_empresa_espejo");
+  await siExiste("refrescar_proceso_resumen");
   // La obra de INFOBRAS que ejecuta o supervisa cada contrato y la inversión de su CUI (migración 160): sus banderas
   // (paralizada, atrasada, adicionales, sobrecosto…) como cruces del contrato. Antes lee el CUI de los procesos nuevos.
   // Las obras y las inversiones las carga backend/scripts/cargar_obras.py desde la PC (la Contraloría no responde afuera).

@@ -15,7 +15,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
 import { fecha, fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
-import { rutaEmpresa, type SociosEmpresa } from "@/lib/empresas";
+import { tituloNatural } from "@/lib/landing";
+import { rutaEmpresa, type DeclaracionDji, type SocioEnElEstado, type SociosEmpresa } from "@/lib/empresas";
+import { cargoEnOracion } from "@/lib/planilla";
+import { rutaPersona } from "@/lib/personas";
 import { NoCargo } from "./comun";
 
 /** La pestaña Socios: sus socios y representantes y las empresas vinculadas por ellos. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
@@ -38,6 +41,35 @@ const COLUMNAS_VINCULADAS: Columna[] = [
 
 const papeles = (r: string[]) => r.map((x, i) => (i === 0 ? x.charAt(0).toUpperCase() + x.slice(1) : x)).join(", ");
 
+/**
+ * Lo que la persona es en el Estado, bajo su nombre: locador (y si lo es de una entidad que le compra a esta empresa: el
+ * conflicto que la ficha del contrato marca como «socio en la entidad»), autoridad, candidaturas y aportes.
+ */
+function enElEstado(e: SocioEnElEstado | null | undefined) {
+  if (!e) return [];
+  return [
+    e.locador ? (
+      <Dato key="loc" tipo="personas" nombre="Locador" className={e.locador.clientes ? "font-semibold text-crimsonTexto" : undefined}>
+        {`Locador de ${plural(e.locador.entidades, "entidad", "entidades")} (${solesCompacto(e.locador.monto)})${e.locador.clientes ? `, ${numero(e.locador.clientes)} le compran a esta empresa` : ""}`}
+      </Dato>
+    ) : null,
+    e.autoridad ? (
+      <Dato key="aut" tipo="cargo" nombre="Autoridad">
+        {`${e.autoridad.vigente ? "Es" : "Fue"} ${cargoEnOracion(e.autoridad.cargo) ?? "autoridad electa"}${e.autoridad.desde ? ` (${[e.autoridad.desde, e.autoridad.hasta].filter(Boolean).join(" a ")})` : ""}`}
+      </Dato>
+    ) : null,
+    e.candidaturas ? <Dato key="cand" tipo="partido" nombre="Candidaturas">{plural(e.candidaturas, "candidatura", "candidaturas")}</Dato> : null,
+    e.aportes ? <Dato key="ap" tipo="partido" nombre="Aportes">{`${plural(e.aportes.n, "aporte", "aportes")} a partidos (${solesCompacto(e.aportes.monto)})`}</Dato> : null,
+  ];
+}
+
+const QUE_DECLARO: Record<number, string> = {
+  1: "Tiene acciones o participación",
+  2: "Tiene un poder o la representa",
+  3: "Está en su directorio",
+  4: "Trabajó o la asesoró",
+};
+
 export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | null> }) {
   const d = await datos;
   if (!d) return <NoCargo que="sus socios" />;
@@ -51,8 +83,10 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
   }
   const filasSocios: Fila[] = d.socios.map((s, i) => ({
     id: `p-${i}`,
+    // Si es locador, su ficha de persona contratada (lo que cobró y sus señales).
+    ...(s.enElEstado?.locador?.codigo ? { href: rutaPersona(s.enElEstado.locador.codigo, "recorrido") } : {}),
     celdas: {
-      persona: <CeldaPrincipal titulo={s.nombre} />,
+      persona: <CeldaPrincipal titulo={s.nombre} meta={enElEstado(s.enElEstado)} />,
       papel: <span className="text-meta text-ink">{papeles(s.roles)}</span>,
       desde: <CeldaFecha fecha={s.desde} />,
       otras: <CeldaNumero>{s.otrasEmpresas ? numero(s.otrasEmpresas) : <span className="font-sans text-mute">Ninguna</span>}</CeldaNumero>,
@@ -129,10 +163,17 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
             Socios, representantes legales y directivos que la empresa declaró al Registro Nacional de Proveedores
             {d.corte ? ` (corte del ${fechaCorta(d.corte)})` : ""}. Por privacidad, sin documento y con un apellido tapado.
           </p>
+          {d.socios.some((s) => s.enElEstado) && (
+            <p className="max-w-prose text-meta text-inkSoft">
+              Bajo cada nombre, lo que esa persona es en el Estado según su documento: locador de alguna entidad, autoridad electa,
+              candidato o aportante a un partido. En rojo, si es locador de una entidad que le compra a esta empresa.
+            </p>
+          )}
           {filasSocios.length > 0 && <TablaPaginada columnas={COLUMNAS_SOCIOS} filas={filasSocios} etiqueta="Socios, representantes y directivos" tam={15} nombre="personas" />}
           {filasEmpresas.length > 0 && <Tabla columnas={COLUMNAS_SOCIOS} filas={filasEmpresas} etiqueta="Empresas socias" />}
         </section>
       )}
+      {(d.declaradaDji?.length ?? 0) > 0 && <DeclaradaDji filas={d.declaradaDji!} />}
       {d.sociaDe.length > 0 && (
         <section className="space-y-2">
           <h3 className="font-display text-bloque font-bold text-ink">Es socia de</h3>
@@ -181,5 +222,56 @@ export async function SociosEmpresa({ datos }: { datos: Promise<SociosEmpresa | 
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * Lo que funcionarios declararon sobre la empresa en su Declaración Jurada de Intereses (Contraloría, secciones 1 a 4):
+ * del funcionario, su cargo, su entidad y su primer apellido; nunca su nombre completo. Si la empresa le vende a esa
+ * entidad, la ficha de cada contrato lo marca como «interés declarado».
+ */
+function DeclaradaDji({ filas }: { filas: DeclaracionDji[] }) {
+  const venden = filas.filter((f) => f.leVende).length;
+  return (
+    <section className="space-y-2">
+      <h3 className="font-display text-bloque font-bold text-ink">Lo que declararon funcionarios</h3>
+      <p className="max-w-prose text-meta text-inkSoft">
+        {`${plural(filas.length, "declaración", "declaraciones")} en Declaraciones Juradas de Intereses de funcionarios`}
+        {venden ? `; en ${plural(venden, "caso", "casos")} la empresa le vende a la entidad de quien declaró` : ""}. Del funcionario se
+        muestra su cargo, su entidad y su primer apellido.
+      </p>
+      <Tabla
+        etiqueta="Declaraciones de funcionarios sobre la empresa"
+        medida="contenedor"
+        densidad="compacta"
+        columnas={[
+          { clave: "quien", titulo: "Quién declaró", ancho: "minmax(0,1.3fr)" },
+          { clave: "que", titulo: "Qué declaró", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+          { clave: "vende", titulo: "Le vende a su entidad", corto: "Le vende", ancho: "8rem" },
+        ]}
+        filas={filas.map((f, i) => ({
+          id: String(i),
+          href: `/entidad/${f.entidadRuc}`,
+          celdas: {
+            quien: (
+              <CeldaPrincipal
+                titulo={f.cargo ? tituloNatural(f.cargo) : "Funcionario"}
+                meta={[
+                  f.apellido ? <Dato key="ap" tipo="personas" nombre="Funcionario">{f.apellido}</Dato> : null,
+                  <Dato key="en" tipo="entidad">{tituloNatural(f.entidad ?? f.entidadRuc)}</Dato>,
+                ]}
+              />
+            ),
+            que: (
+              <span className="text-meta text-ink">
+                {QUE_DECLARO[f.seccion] ?? "Declaró un vínculo"}
+                {f.desde ? <span className="text-inkSoft">{` (desde ${fechaCorta(f.desde)}${f.hasta ? ` hasta ${fechaCorta(f.hasta)}` : ""})`}</span> : null}
+              </span>
+            ),
+            vende: f.leVende ? <Badge variant="crimson">Sí, le vende</Badge> : <span className="text-meta text-mute">No</span>,
+          },
+        }))}
+      />
+    </section>
   );
 }

@@ -167,6 +167,7 @@ const POR_QUE: Record<string, string> = {
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
+  empresa_espejo: "Una empresa inhabilitada no puede contratar con el Estado. Si la misma gente sigue ganando con otra razón social mientras dura la sanción, la sanción pierde efecto: vale revisar si la empresa nueva tiene los mismos dueños, el mismo local o el mismo personal clave que la sancionada.",
   interes_declarado: "La Ley 31227 obliga a los funcionarios a declarar sus intereses para que se aparten de las decisiones sobre las empresas en las que los tienen. Que una de ellas le gane un contrato a su propia entidad merece ver en el expediente si se apartó.",
   empleo_declarado: "Haber trabajado para una empresa no impide comprarle, pero quien decide debe apartarse si el vínculo es reciente. Pesa más si la buena pro llegó mientras todavía trabajaba para ella.",
   domicilio_compartido: "Dos empresas con la misma dirección fiscal que se presentan al mismo proceso pueden ser la misma mano detrás de las dos: la competencia sería solo aparente. No prueba un vínculo por sí solo (puede ser un estudio contable o un edificio de oficinas); por eso no cuentan las direcciones con más de 5 empresas.",
@@ -505,6 +506,22 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {quien(c)} es, además, <b>persona contratada por {ent ? tituloNatural(ent) : "esta entidad"}</b>
           {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
           {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
+        </>
+      );
+    }
+    case "empresa_espejo": {
+      // La empresa hermana (comparten una persona en el RNP) y su sanción: el contrato cae dentro de ese periodo.
+      const ruc = txt(d.sancionada_ruc);
+      const rolAlla = txt(d.rol_alla)?.toLowerCase().replace(/_/g, " ").replace("socio accionista titular", "socio") ?? null;
+      const fundada = txt(d.fundada);
+      return (
+        <>
+          {quien(c)} también figura{rolAlla ? ` como ${rolAlla}` : ""} en{" "}
+          {ruc ? <OtraEmpresa ruc={ruc} nombre={txt(d.sancionada)} conRuc /> : <b>{txt(d.sancionada) ?? "otra empresa"}</b>}, que el Tribunal de
+          Contrataciones inhabilitó {d.definitiva === true ? <b>de forma definitiva</b> : <b>temporalmente</b>}
+          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : txt(d.desde) ? ` (desde el ${fechaCorta(txt(d.desde)!)})` : ""}
+          {txt(d.resolucion) ? `, Res. ${d.resolucion}` : ""}. <Emp c={c} /> ganó este contrato el <b>{fechaCorta(c.buenaPro?.fecha ?? c.fecha)}</b>, dentro de
+          esa inhabilitación{fundada ? <>; se fundó el {fechaCorta(fundada)}</> : ""}.
         </>
       );
     }

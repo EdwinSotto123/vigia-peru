@@ -777,16 +777,13 @@ empresasRouter.get("/:ruc/postulaciones", async (c) => {
          SELECT p.*, w.entidad, w.entidad_ruc, w.descripcion, w.objeto, w.ganadores, w.rucs_ganadores, w.monto,
                 COALESCE(w.gano, false) AS gano, w.ganadores IS NOT NULL AS hay_ganador
            FROM p
+           -- Cada proceso ya juntado (conosce_proceso_resumen, migración 184): su entidad, sus ganadores (con su RUC también si
+           -- es una persona, para que publicar() la reconozca y le tape un apellido) y su monto en soles, por su llave.
            LEFT JOIN LATERAL (
-             SELECT max(a.entidad) AS entidad, max(a.entidad_ruc) AS entidad_ruc, max(a.descripcion_proceso) AS descripcion, max(a.objeto) AS objeto,
-                    -- Con su RUC también si es una persona (RUC 10): así publicar() la reconoce, le tapa un apellido y
-                    -- cambia el RUC por su ref (sin él, el nombre de una persona salía entero).
-                    jsonb_agg(DISTINCT jsonb_build_object('ruc', CASE WHEN a.ruc_proveedor ~ '^(10|20)[0-9]{9}$' THEN a.ruc_proveedor END,
-                                                          'nombre', a.proveedor)) AS ganadores,
-                    array_agg(DISTINCT a.ruc_proveedor) FILTER (WHERE a.ruc_proveedor ~ '^20[0-9]{9}$' AND a.ruc_proveedor <> ALL (p.postores)) AS rucs_ganadores,
-                    sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES}) AS monto,
-                    bool_or(a.ruc_proveedor = ANY (p.postores)) AS gano
-               FROM conosce_adjudicaciones a WHERE a.codigo_convocatoria = p.codigo) w ON true
+             SELECT r.entidad, r.entidad_ruc, r.descripcion, r.objeto, r.ganadores,
+                    ARRAY(SELECT x FROM unnest(r.rucs) x WHERE x ~ '^20[0-9]{9}$' AND x <> ALL (p.postores::text[])) AS rucs_ganadores,
+                    r.monto, r.rucs && p.postores::text[] AS gano
+               FROM conosce_proceso_resumen r WHERE r.codigo = p.codigo::text) w ON true
        ), fac AS (
          SELECT jsonb_build_object(
            'resultado', jsonb_build_object('gano', (SELECT count(*) FROM g WHERE gano), 'perdio', (SELECT count(*) FROM g WHERE NOT gano AND hay_ganador),
@@ -869,7 +866,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
   const ruc = c.req.param("ruc");
   const cuerpo = await fichaMemo.obtener(`socios:${ruc}`, async () => {
     if (!(await existe(ruc))) return null;
-    const [socios, vinculadas, sociaDe] = await Promise.all([
+    const [socios, vinculadas, sociaDe, declarada] = await Promise.all([
       // Cada persona una vez, con todos sus papeles. Una empresa socia sale con su RUC (las empresas son públicas).
       pool.query(
         `SELECT max(r.nombre) AS nombre, array_agg(DISTINCT r.tipo_rol) AS roles, to_char(min(r.fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde,
@@ -878,7 +875,25 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                      THEN max(r.numero_documento) END AS ruc,
                 max(r.forma_societaria) AS forma, to_char(max(r.fecha_corte), 'YYYY-MM-DD') AS corte,
                 (SELECT count(DISTINCT r2.ruc_empresa)::int FROM rnp_conformacion_juridica r2
-                  WHERE r2.numero_documento = r.numero_documento AND r2.ruc_empresa <> $1 AND r2.ruc_empresa LIKE '20%') AS "otrasEmpresas"
+                  WHERE r2.numero_documento = r.numero_documento AND r2.ruc_empresa <> $1 AND r2.ruc_empresa LIKE '20%') AS "otrasEmpresas",
+                -- Lo que la persona es en el Estado, por su DNI (que no sale de aquí; plan 2026-10-27, fase 2): locador (y
+                -- en cuántas de esas entidades le vende esta empresa), autoridad, candidaturas y aportes.
+                CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
+                  SELECT jsonb_build_object('entidades', count(*), 'monto', COALESCE(sum(pe.monto), 0)::float, 'codigo', min(pe.codigo),
+                                            'clientes', count(*) FILTER (WHERE EXISTS (SELECT 1 FROM empresa_orden_anual eo WHERE eo.ruc = $1 AND eo.entidad_ruc = pe.entidad_ruc)
+                                                                         OR EXISTS (SELECT 1 FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1 AND a.entidad_ruc::text = pe.entidad_ruc)))
+                    FROM persona_entidad pe
+                   WHERE pe.ruc BETWEEN '10' || r.numero_documento || '0' AND '10' || r.numero_documento || '9'
+                  HAVING count(*) > 0) END AS locador,
+                CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
+                  SELECT jsonb_build_object('cargo', a.cargo, 'vigente', a.vigente, 'desde', to_char(a.periodo_inicio, 'YYYY'), 'hasta', to_char(a.periodo_fin, 'YYYY'))
+                    FROM jne_autoridades a WHERE a.dni = r.numero_documento
+                   ORDER BY a.vigente DESC NULLS LAST, a.periodo_inicio DESC NULLS LAST LIMIT 1) END AS autoridad,
+                CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN
+                  (SELECT count(*)::int FROM jne_candidaturas j WHERE j.numero_documento = r.numero_documento) END AS candidaturas,
+                CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
+                  SELECT jsonb_build_object('n', count(*), 'monto', COALESCE(sum(o.monto), 0)::float)
+                    FROM onpe_aportantes o WHERE o.numero_documento = r.numero_documento HAVING count(*) > 0) END AS aportes
            FROM rnp_conformacion_juridica r WHERE r.ruc_empresa = $1 AND r.numero_documento IS NOT NULL
           GROUP BY r.numero_documento
           ORDER BY bool_or(r.tipo_rol = 'REPRESENTANTE_LEGAL') DESC, bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') DESC, max(r.nombre)`, [ruc]),
@@ -904,11 +919,26 @@ empresasRouter.get("/:ruc/socios", async (c) => {
         `SELECT r.ruc_empresa::text AS ruc, e.nombre, array_agg(DISTINCT r.tipo_rol) AS roles
            FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen e ON e.ruc = r.ruc_empresa::text
           WHERE r.numero_documento = $1 GROUP BY r.ruc_empresa, e.nombre ORDER BY e.nombre`, [ruc]),
+      // Lo que funcionarios declararon en su DJI sobre la empresa (vista de las secciones 1 a 4, migración 184): su cargo,
+      // su entidad, su primer apellido y si la empresa le vende a esa entidad. Nunca el nombre completo.
+      pool.query(
+        `SELECT d.entidad_ruc AS "entidadRuc", d.entidad, d.seccion, d.apellido, d.cargo, to_char(d.desde, 'YYYY-MM-DD') AS desde,
+                to_char(d.hasta, 'YYYY-MM-DD') AS hasta, d.ejercicio,
+                (EXISTS (SELECT 1 FROM empresa_orden_anual eo WHERE eo.ruc = $1 AND eo.entidad_ruc = d.entidad_ruc)
+                 OR EXISTS (SELECT 1 FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1 AND a.entidad_ruc::text = d.entidad_ruc)) AS "leVende"
+           FROM empresa_dji_declarada d WHERE d.ruc = $1
+          ORDER BY 9 DESC, d.seccion, d.entidad LIMIT 100`, [ruc]).catch(() => ({ rows: [] })),
     ]);
     const roles = (rs: string[] | null) => (rs ?? []).map((x) => ROL[x] ?? x.toLowerCase().replace(/_/g, " "));
     return publicar({
       // Las personas bajo `socios` (publicar() les tapa un apellido, en orden SUNAT); las empresas socias, aparte y completas.
-      socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({ nombre: s.nombre, roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas })),
+      socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({
+        nombre: s.nombre, roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas,
+        enElEstado: s.locador || s.autoridad || s.candidaturas || s.aportes
+          ? { locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null }
+          : null,
+      })),
+      declaradaDji: declarada.rows,
       empresasSocias: socios.rows.filter((s) => s.es_empresa).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde })),
       sociaDe: sociaDe.rows.map((s) => ({ ...s, roles: roles(s.roles) })),
       corte: socios.rows[0]?.corte ?? null,

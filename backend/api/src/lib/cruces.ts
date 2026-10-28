@@ -32,6 +32,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
   socio_en_entidad: "Un socio del proveedor trabaja en la entidad",
+  // Ganó mientras una empresa con la que comparte socio o representante estaba inhabilitada (migración 184).
+  empresa_espejo: "Ganó mientras su empresa hermana estaba inhabilitada",
   // La DJI de un funcionario de la entidad (migración 170): acciones, poder o directorio, y empleo previo.
   interes_declarado: "Un funcionario de la entidad declaró un interés en el ganador",
   empleo_declarado: "Un funcionario de la entidad trabajó para el ganador",

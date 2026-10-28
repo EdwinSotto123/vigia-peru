@@ -196,8 +196,11 @@ BEGIN
     SELECT p.entidad_ruc, p.nombre_norm, p.m, lag(p.m) OVER w AS m_ant, lead(p.m) OVER w AS m_sig
       FROM _pm p JOIN _pec c ON c.entidad_ruc = p.entidad_ruc AND c.m = p.m AND NOT c.incompleto
     WINDOW w AS (PARTITION BY p.entidad_ruc, p.nombre_norm ORDER BY p.m);
+  -- Los dos meses completos anteriores y los dos siguientes de cada mes: entra quien no estaba en ninguno de los dos
+  -- anteriores, y sale quien no vuelve en ninguno de los dos siguientes. Así, una planilla publicada con un 25 % menos un
+  -- mes (abril de 2025 en SENAMHI: 820 de 1,090) no cuenta como 277 salidas y 273 entradas.
   CREATE TEMP TABLE _pem ON COMMIT DROP AS
-    SELECT entidad_ruc, m, lag(m) OVER e AS m_prev, lead(m) OVER e AS m_next
+    SELECT entidad_ruc, m, lag(m) OVER e AS m_prev, lag(m, 2) OVER e AS m_prev2, lead(m) OVER e AS m_next, lead(m, 2) OVER e AS m_next2
       FROM _pec WHERE NOT incompleto
     WINDOW e AS (PARTITION BY entidad_ruc ORDER BY m);
   DELETE FROM planilla_entidad_mes;
@@ -208,12 +211,13 @@ BEGIN
          c.incompleto
     FROM _pec c
     LEFT JOIN _pem em ON em.entidad_ruc = c.entidad_ruc AND em.m = c.m
-    LEFT JOIN (SELECT p.entidad_ruc, p.m, count(*) FILTER (WHERE p.m_ant IS DISTINCT FROM e.m_prev)::int AS altas
+    LEFT JOIN (SELECT p.entidad_ruc, p.m,
+                      count(*) FILTER (WHERE p.m_ant IS DISTINCT FROM e.m_prev AND p.m_ant IS DISTINCT FROM e.m_prev2)::int AS altas
                  FROM _pmc p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
                 GROUP BY 1, 2) a ON a.entidad_ruc = c.entidad_ruc AND a.m = c.m
     LEFT JOIN (SELECT p.entidad_ruc, e.m_next AS m, count(*)::int AS bajas
                  FROM _pmc p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
-                WHERE e.m_next IS NOT NULL AND p.m_sig IS DISTINCT FROM e.m_next
+                WHERE e.m_next IS NOT NULL AND p.m_sig IS DISTINCT FROM e.m_next AND p.m_sig IS DISTINCT FROM e.m_next2
                 GROUP BY 1, 2) b ON b.entidad_ruc = c.entidad_ruc AND b.m = c.m;
 
   -- F. El resumen de cada alcance de la planilla (como al final de refrescar_planilla(), migración 108).

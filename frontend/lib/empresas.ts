@@ -275,8 +275,33 @@ export interface AntecedenteEmpresa {
   entidad: string | null;
 }
 
+/** Lo que una persona de la empresa es en el Estado, por su DNI (que no sale de la API): fase 2 del plan del 2026-10-27. */
+export interface SocioEnElEstado {
+  /** Locador: en cuántas entidades, cuánto cobró, su ficha y en cuántas de ellas le vende esta empresa. */
+  locador: { entidades: number; monto: number; codigo: string | null; clientes: number } | null;
+  autoridad: { cargo: string | null; vigente: boolean | null; desde: string | null; hasta: string | null } | null;
+  candidaturas: number;
+  aportes: { n: number; monto: number } | null;
+}
+
+/** Lo que un funcionario declaró en su DJI sobre la empresa (secciones 1 a 4): cargo, entidad y primer apellido. */
+export interface DeclaracionDji {
+  entidadRuc: string;
+  entidad: string | null;
+  /** 1 acciones, 2 poder, 3 directorio, 4 trabajó o asesoró. */
+  seccion: number;
+  apellido: string | null;
+  cargo: string | null;
+  desde: string | null;
+  hasta: string | null;
+  ejercicio: number | null;
+  /** La empresa le vende (órdenes o contratos) a la entidad del funcionario. */
+  leVende: boolean;
+}
+
 export interface SociosEmpresa {
-  socios: { nombre: string; roles: string[]; desde: string | null; otrasEmpresas: number }[];
+  socios: { nombre: string; roles: string[]; desde: string | null; otrasEmpresas: number; enElEstado?: SocioEnElEstado | null }[];
+  declaradaDji?: DeclaracionDji[];
   empresasSocias: { ruc: string | null; nombre: string; roles: string[]; desde: string | null }[];
   sociaDe: { ruc: string; nombre: string | null; roles: string[] }[];
   corte: string | null;
