@@ -36,8 +36,8 @@ export function TarjetaFicha({ etiqueta, nombre, bajada, cifras, ruta }: { etiqu
           </div>
           {bajada && <div style={{ display: "flex", fontSize: 26, color: PAPER_75 }}>{bajada}</div>}
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 52 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          <div style={{ display: "flex", gap: 56 }}>
             {/* recorte: una tarjeta de 1200 px lleva a lo sumo tres cifras; la ficha tiene todas. */}
             {cifras.slice(0, 3).map((c) => (
               <div key={c.etiqueta} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -46,9 +46,10 @@ export function TarjetaFicha({ etiqueta, nombre, bajada, cifras, ruta }: { etiqu
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          {/* La ruta y la advertencia, en su propio renglón (al costado de las cifras se cortaban). */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
             <div style={{ display: "flex", fontSize: 22, fontFamily: MONO, color: COLOR.maiz }}>{ruta}</div>
-            <div style={{ display: "flex", fontSize: 18, color: PAPER_75 }}>Indicios para revisar, no acusaciones</div>
+            <div style={{ display: "flex", fontSize: 19, color: PAPER_75 }}>Indicios para revisar, no acusaciones</div>
           </div>
         </div>
       </div>
