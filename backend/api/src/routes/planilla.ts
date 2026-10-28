@@ -133,6 +133,8 @@ export const ListaPlanilla = {
   // Un cargo de jefatura, y cuántos meses lleva en la planilla cargada.
   jefatura: z.enum(["si"]).optional(),
   antiguedad: enumDe(TRAMOS_ANTIGUEDAD.antiguedad).optional(),
+  // En una entidad: quienes trabajaron en ella en los meses cargados y ya no están (planilla_salida, migración 202).
+  situacion: z.enum(["antes"]).optional(),
   orden: z.enum(["senales", "sueldo", "meses"]).default("senales"),
 };
 type ListaPlanillaQ = z.infer<z.ZodObject<typeof ListaPlanilla>>;
@@ -198,6 +200,35 @@ const NOMBRE_PLANILLA = `mef_norm(COALESCE(p.paterno, '') || ' ' || COALESCE(p.n
 // "sueldo" ordena por el sueldo base (migración 98): el total del mes trae liquidaciones y retiros.
 const ORDEN_PLANILLA = { senales: "p.sev DESC, p.n_senales DESC, p.base DESC NULLS LAST", sueldo: "p.base DESC NULLS LAST", meses: "p.meses DESC, p.base DESC NULLS LAST" };
 
+/**
+ * Lo que cobró cada mes cargado cada persona de una página (línea de tiempo de sueldos): así se ve si un monto raro es de
+ * un solo mes (un pago acumulado, un error de carga) o su sueldo de siempre. Una consulta para las filas de la página, por
+ * el índice del nombre; nombre_norm (con el materno) nunca sale de la API.
+ */
+async function historiaPlanilla(entidades: string[], nombres: string[]): Promise<Map<string, unknown[]>> {
+  const historia = new Map<string, unknown[]>();
+  if (!entidades.length) return historia;
+  const h = await pool.query<{ e: string; nn: string; mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }>(
+    `SELECT p.entidad_ruc AS e, p.nombre_norm AS nn, to_char(make_date(p.anio, p.mes, 1), 'YYYY-MM') AS mes,
+            sum(CASE WHEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0) > 0 THEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0)
+                     WHEN COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0) = 0 THEN p.total END)::float AS base,
+            sum(COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0))::float AS extra,
+            sum(p.total)::float AS total,
+            bool_or(motivo_planilla_dudosa(p.remuneraciones, p.honorarios, p.incentivo, p.gratificacion, p.otros, p.total) IS NOT NULL) AS dudoso,
+            count(*)::int AS filas
+       FROM planilla_pte p
+       JOIN unnest($1::text[], $2::text[]) AS t(e, nn) ON t.e = p.entidad_ruc AND t.nn = p.nombre_norm
+      GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`,
+    [entidades, nombres]);
+  for (const r of h.rows) {
+    const k = `${r.e}|${r.nn}`;
+    const l = historia.get(k) ?? [];
+    l.push({ mes: r.mes, base: r.base, extra: r.extra, total: r.total, dudoso: r.dudoso, filas: r.filas });
+    historia.set(k, l);
+  }
+  return historia;
+}
+
 planillaRouter.get("/", async (c) => {
   const parsed = leer(c, ListaPlanilla);
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
@@ -225,6 +256,52 @@ planillaRouter.get("/", async (c) => {
               COALESCE((SELECT json_agg(x ORDER BY x.n DESC) FROM (SELECT regimen, count(*)::int AS n FROM s GROUP BY regimen) x), '[]') AS "porRegimen"`,
       vals);
     if (q.size === 0) return publicar({ total: 0, page: 1, size: 0, data: [], resumen: (await resumenP).rows[0] });
+    // En una entidad: cuántos trabajaron antes (migración 202) y si después publicó un mes a medias, que no es la planilla
+    // de hoy (la de hoy es la del último mes completo: el GORE Ayacucho publicó setiembre con 12 de 1,190).
+    const extrasP: Promise<[number | null, { mes: string; personas: number } | null]> = q.entidad
+      ? Promise.all([
+          pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM planilla_salida WHERE entidad_ruc = $1`, [q.entidad])
+            .then((r) => r.rows[0]?.n ?? 0).catch(() => null),
+          pool.query<{ mes: string; personas: number }>(
+            `SELECT to_char(m.mes, 'YYYY-MM') AS mes, m.personas FROM planilla_entidad_mes m
+              WHERE m.entidad_ruc = $1 AND m.incompleto
+                AND m.mes > COALESCE((SELECT max(p.ultimo_mes) FROM planilla_persona p WHERE p.entidad_ruc = $1), '-infinity'::date)
+              ORDER BY m.mes DESC LIMIT 1`, [q.entidad]).then((r) => r.rows[0] ?? null).catch(() => null),
+        ])
+      : Promise.resolve([null, null]);
+    if (q.situacion === "antes" && q.entidad) {
+      // Trabajó antes: sin señales (son de la planilla de hoy), con desde y hasta cuándo figuró y su último cargo y sueldo.
+      const v3: unknown[] = [q.entidad];
+      const c3 = ["s.entidad_ruc = $1"];
+      const p3 = (x: unknown) => { v3.push(x); return `$${v3.length}`; };
+      if (q.regimen) c3.push(`s.regimen = ${p3(q.regimen)}`);
+      for (const w of palabrasBusqueda(q.q)) {
+        const v = p3(`%${w}%`);
+        c3.push(`(mef_norm(COALESCE(s.paterno, '') || ' ' || COALESCE(s.nombres, '')) LIKE ${v}
+                  OR mef_norm(COALESCE(s.cargo, '') || ' ' || COALESCE(s.dependencia, '')) LIKE ${v})`);
+      }
+      const ordenSal = q.orden === "sueldo" ? "s.base DESC NULLS LAST" : q.orden === "meses" ? "s.meses DESC, s.ultimo_mes DESC" : "s.ultimo_mes DESC, s.meses DESC";
+      const [filas, cuenta, res, [salieron, mesParcial]] = await Promise.all([
+        pool.query(
+          `SELECT s.entidad_ruc AS "entidadRuc", s.paterno, s.nombres, s.regimen, s.cargo, s.dependencia, s.base::float AS base, s.meses,
+                  to_char(s.primer_mes, 'YYYY-MM') AS "primerMes", to_char(s.ultimo_mes, 'YYYY-MM') AS "ultimoMes", s.nombre_norm AS "_nn"
+             FROM planilla_salida s WHERE ${c3.join(" AND ")}
+            ORDER BY ${ordenSal}, s.nombre_norm LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, v3),
+        pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM planilla_salida s WHERE ${c3.join(" AND ")}`, v3),
+        resumenP,
+        extrasP,
+      ]);
+      const historia = await historiaPlanilla(filas.rows.map((f) => f.entidadRuc), filas.rows.map((f) => f._nn));
+      const data = filas.rows.map(({ _nn, paterno, nombres, ...f }) => ({
+        ...f, entidad: null, total: null, extra: null, dudoso: null, senales: [], nSenales: 0, codigo: null, ficha: null,
+        parienteLocador: false, salio: true,
+        // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
+        nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" "),
+        historia: historia.get(`${f.entidadRuc}|${_nn}`) ?? [],
+      }));
+      return publicar({ total: cuenta.rows[0]?.n ?? 0, page: q.page, size: q.size, data, resumen: res.rows[0], facetas: null,
+                        situacion: "antes", salieron, mesParcial });
+    }
     // Los pares funcionario × entidad del indicio (calculados una vez): la lista sólo los espera si filtra por él.
     const paresP = funcionariosConPariente();
     const conds = [...alc];
@@ -250,30 +327,8 @@ planillaRouter.get("/", async (c) => {
       conds.length > alc.length ? consultaConPlazo<{ n: number }>(`SELECT count(*)::int AS n FROM planilla_persona p WHERE ${conds.join(" AND ")}`, v2, 25_000) : null,
       facetasPlanilla(q, alc, vals, paresP).catch((e) => { console.warn(`[planilla] facetas: ${(e as Error).message}`); return null; }),
     ]);
-    // Lo que cobró cada mes cargado (línea de tiempo de sueldos): así se ve si un monto raro es de un solo mes (un pago
-    // acumulado, un error de carga) o su sueldo de siempre. Una consulta para las filas de la página, por el índice del
-    // nombre; nombre_norm (con el materno) nunca sale de la API.
-    const historia = new Map<string, unknown[]>();
-    if (filas.rows.length) {
-      const h = await pool.query<{ e: string; nn: string; mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }>(
-        `SELECT p.entidad_ruc AS e, p.nombre_norm AS nn, to_char(make_date(p.anio, p.mes, 1), 'YYYY-MM') AS mes,
-                sum(CASE WHEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0) > 0 THEN COALESCE(p.remuneraciones, 0) + COALESCE(p.honorarios, 0)
-                         WHEN COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0) = 0 THEN p.total END)::float AS base,
-                sum(COALESCE(p.otros, 0) + COALESCE(p.gratificacion, 0) + COALESCE(p.incentivo, 0))::float AS extra,
-                sum(p.total)::float AS total,
-                bool_or(motivo_planilla_dudosa(p.remuneraciones, p.honorarios, p.incentivo, p.gratificacion, p.otros, p.total) IS NOT NULL) AS dudoso,
-                count(*)::int AS filas
-           FROM planilla_pte p
-           JOIN unnest($1::text[], $2::text[]) AS t(e, nn) ON t.e = p.entidad_ruc AND t.nn = p.nombre_norm
-          GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`,
-        [filas.rows.map((f) => f.entidadRuc), filas.rows.map((f) => f._nn)]);
-      for (const r of h.rows) {
-        const k = `${r.e}|${r.nn}`;
-        const l = historia.get(k) ?? [];
-        l.push({ mes: r.mes, base: r.base, extra: r.extra, total: r.total, dudoso: r.dudoso, filas: r.filas });
-        historia.set(k, l);
-      }
-    }
+    // Lo que cobró cada mes cargado (línea de tiempo de sueldos): ver historiaPlanilla.
+    const historia = await historiaPlanilla(filas.rows.map((f) => f.entidadRuc), filas.rows.map((f) => f._nn));
     const data = filas.rows.map(({ _nn, paterno, nombres, ...f }) => ({
       ...f,
       // El apellido materno, tapado (docs/PRIVACIDAD.md): nunca sale de la API.
@@ -281,7 +336,8 @@ planillaRouter.get("/", async (c) => {
       historia: historia.get(`${f.entidadRuc}|${_nn}`) ?? [],
     }));
     const total = cuenta ? cuenta.rows[0]?.n ?? 0 : (res.rows[0] as { personas?: number } | undefined)?.personas ?? 0;
-    return publicar({ total, page: q.page, size: q.size, data, resumen: res.rows[0], facetas });
+    const [salieron, mesParcial] = await extrasP;
+    return publicar({ total, page: q.page, size: q.size, data, resumen: res.rows[0], facetas, salieron, mesParcial });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

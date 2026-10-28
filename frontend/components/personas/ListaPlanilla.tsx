@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, FuenteDato, PieDetalle, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, FuenteDato, Nota, PieDetalle, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -36,6 +36,7 @@ import {
   TIPOS_PLANILLA,
   getPlanilla,
   getPlanillaMensual,
+  mes,
   rutaPlanilla,
   type FacetasPlanilla,
   type PaginaPlanilla,
@@ -49,7 +50,7 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */
 export const P_PLANILLA = {
   senal: "lsenal", severidad: "lsev", regimen: "lreg", orden: "lord", page: "lpag", q: "lq", dudoso: "ldud",
-  sueldo: "lsueldo", oficina: "lofi", cargo: "lcargo", pariente: "lpar", jefatura: "ljef", antiguedad: "lant",
+  sueldo: "lsueldo", oficina: "lofi", cargo: "lcargo", pariente: "lpar", jefatura: "ljef", antiguedad: "lant", situacion: "lsit",
 } as const;
 
 /**
@@ -111,6 +112,8 @@ export function ListaPlanilla({
     pariente: uno(sp?.[P.pariente]) === "si" ? "si" : undefined,
     jefatura: uno(sp?.[P.jefatura]) === "si" ? "si" : undefined,
     antiguedad: ANTIGUEDAD_PLANILLA.some((o) => o.valor === uno(sp?.[P.antiguedad])) ? uno(sp?.[P.antiguedad]) : undefined,
+    // Quienes ya no están («Trabajó antes», migración 202): sólo dentro de una entidad.
+    situacion: alcance.entidad && uno(sp?.[P.situacion]) === "antes" ? ("antes" as const) : undefined,
     page: Math.max(1, Number(uno(sp?.[P.page])) || 1),
   };
   const paginaP = getPlanilla({ ...alcance, ...f, size: TAM });
@@ -120,7 +123,7 @@ export function ListaPlanilla({
   const parametros: Parametros = {
     ...base, [P.senal]: f.senal, [P.severidad]: f.severidad, [P.regimen]: f.regimen ? String(f.regimen) : undefined, [P.orden]: f.orden,
     [P.q]: f.q, [P.dudoso]: f.dudoso, [P.sueldo]: f.sueldo, [P.oficina]: f.oficina, [P.cargo]: f.cargo, [P.pariente]: f.pariente,
-    [P.jefatura]: f.jefatura, [P.antiguedad]: f.antiguedad,
+    [P.jefatura]: f.jefatura, [P.antiguedad]: f.antiguedad, [P.situacion]: f.situacion,
   };
   const filtrada = !!(f.senal || f.severidad || f.regimen || f.q || f.dudoso || f.sueldo || f.oficina || f.cargo || f.pariente || f.jefatura || f.antiguedad) || visiblesExtra.some((x) => !!base[x.param]);
   // La entidad que llega de su ficha: un chip que se quita (en la ficha de la propia entidad, no: es el alcance).
@@ -130,13 +133,16 @@ export function ListaPlanilla({
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
         <Cifras pagina={paginaP} ruta={ruta} base={base} />
       </Suspense>
+      <Suspense fallback={null}>
+        <AvisoMesParcial pagina={paginaP} />
+      </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
         <Suspense fallback={<Barra r={null} facetas={null} deUnaEntidad={!!alcance.entidad} elegidos={f} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre: null } : null} />}>
-          <BarraAsync pagina={paginaP} deUnaEntidad={!!alcance.entidad} elegidos={f} visiblesExtra={visiblesExtra} entidad={entidad} />
+          <BarraAsync pagina={paginaP} deUnaEntidad={!!alcance.entidad} elegidos={f} visiblesExtra={visiblesExtra} entidad={entidad} antes={!!f.situacion} />
         </Suspense>
         <ZonaResultados>
-          <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad)} filas={10} />}>
-            <Resultados pagina={paginaP} idPte={idPteP} parametros={parametros} ruta={ruta} actual={f.page} deEntidad={deEntidad} filtrada={filtrada} />
+          <Suspense fallback={<TablaSkeleton columnas={columnas(deEntidad, !!f.situacion)} filas={10} />}>
+            <Resultados pagina={paginaP} idPte={idPteP} parametros={parametros} ruta={ruta} actual={f.page} deEntidad={deEntidad} filtrada={filtrada} antes={!!f.situacion} />
           </Suspense>
         </ZonaResultados>
       </Listado>
@@ -153,7 +159,7 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla |
     return `${ruta}?${q.toString()}`;
   };
   const items: Indicador[] = [
-    { valor: numero(r.personas), etiqueta: "personas en planilla", contexto: r.ultimoMes ? `hasta ${r.ultimoMes}` : undefined },
+    { valor: numero(r.personas), etiqueta: "personas en planilla", contexto: r.ultimoMes ? `hasta ${mes(r.ultimoMes) ?? r.ultimoMes}` : undefined },
     {
       valor: solesCompacto(r.totalMes),
       etiqueta: "al mes",
@@ -164,7 +170,27 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPlanilla |
     { valor: numero(r.conSenales), etiqueta: "con alguna señal", contexto: `de ${numero(r.personas)}; lo que dicen otros registros`, href: href({ [P_PLANILLA.severidad]: "con" }) },
     { valor: numero(r.alta), etiqueta: "con una señal alta", contexto: `de ${numero(r.personas)}; cobran también por órdenes, candidatos del que gobierna`, tono: r.alta > 0 ? "alta" : "neutro", href: href({ [P_PLANILLA.severidad]: "alta" }) },
   ];
+  const salieron = (await pagina)?.salieron;
+  if (salieron) {
+    items.push({ valor: numero(salieron), etiqueta: "trabajaron antes", contexto: "en los meses cargados; ya no están en la planilla de hoy", href: href({ [P_PLANILLA.situacion]: "antes" }) });
+  }
   return <Indicadores items={items} />;
+}
+
+/**
+ * La entidad publicó después un mes a medias (migración 202: con menos de la mitad de la gente que el mes completo de al
+ * lado): la planilla de hoy es la de su último mes completo, y se dice por qué no la del mes más nuevo.
+ */
+async function AvisoMesParcial({ pagina }: { pagina: Promise<PaginaPlanilla | null> }) {
+  const pg = await pagina;
+  const parcial = pg?.mesParcial;
+  if (!parcial) return null;
+  return (
+    <Nota>
+      La entidad publicó {mes(parcial.mes) ?? parcial.mes} a medias ({plural(parcial.personas, "persona", "personas")}): esta es su planilla de{" "}
+      {mes(pg?.resumen?.ultimoMes) ?? "su último mes completo"}, el último mes que publicó completo.
+    </Nota>
+  );
 }
 
 /** La oficina y el cargo elegidos: su filtro se queda aunque no haya opciones (si no, su chip no se podría quitar). */
@@ -176,16 +202,21 @@ async function BarraAsync({
   elegidos,
   visiblesExtra,
   entidad,
+  antes = false,
 }: {
   pagina: Promise<PaginaPlanilla | null>;
   deUnaEntidad: boolean;
   elegidos: Elegidos;
   visiblesExtra: FiltroSecundario[];
   entidad?: string;
+  antes?: boolean;
 }) {
   const pg = await pagina;
   const nombre = entidad ? pg?.data.find((x) => x.entidadRuc === entidad)?.entidad ?? null : null;
-  return <Barra r={pg?.resumen ?? null} facetas={pg?.facetas ?? null} deUnaEntidad={deUnaEntidad} elegidos={elegidos} visiblesExtra={visiblesExtra} entidad={entidad ? { ruc: entidad, nombre } : null} />;
+  return (
+    <Barra r={pg?.resumen ?? null} facetas={pg?.facetas ?? null} deUnaEntidad={deUnaEntidad} elegidos={elegidos} visiblesExtra={visiblesExtra}
+      entidad={entidad ? { ruc: entidad, nombre } : null} salieron={pg?.salieron ?? null} antes={antes} />
+  );
 }
 
 /**
@@ -200,6 +231,8 @@ function Barra({
   elegidos,
   visiblesExtra,
   entidad,
+  salieron = null,
+  antes = false,
 }: {
   r: PaginaPlanilla["resumen"] | null;
   facetas: FacetasPlanilla | null;
@@ -207,6 +240,10 @@ function Barra({
   elegidos: Elegidos;
   visiblesExtra: FiltroSecundario[];
   entidad: { ruc: string; nombre: string | null } | null;
+  /** En una entidad: cuántos trabajaron antes (el filtro «Situación»). */
+  salieron?: number | null;
+  /** La lista es la de quienes ya no están: sin los filtros de señales, sueldo de hoy ni oficina. */
+  antes?: boolean;
 }) {
   const P = P_PLANILLA;
   // Las oficinas y los cargos con el nombre como se lee (vienen en mayúsculas, como los agrupa la API).
@@ -216,7 +253,7 @@ function Barra({
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por nombre, cargo, oficina o entidad…", etiqueta: "Buscar en la planilla", min: 3 }}
-      faceta={{
+      faceta={antes ? undefined : {
         param: P.severidad,
         etiqueta: "Señales",
         todas: "Todas",
@@ -232,7 +269,17 @@ function Barra({
       }}
       visibles={[
         ...visiblesExtra,
-        {
+        // En una entidad: la planilla de hoy o quienes trabajaron en ella y ya no están (migración 202).
+        ...(deUnaEntidad && (salieron || antes)
+          ? [{
+              param: P.situacion,
+              etiqueta: "Situación",
+              corta: "Situación",
+              todas: "En planilla hoy",
+              opciones: [{ valor: "antes", etiqueta: "Trabajó antes", conteo: salieron ?? null }],
+            }]
+          : []),
+        ...(antes ? [] : [{
           param: P.senal,
           etiqueta: "Señal",
           corta: "Señal",
@@ -241,16 +288,17 @@ function Barra({
           opciones: [...(r?.porSenal ?? [])]
             .sort((a, b) => GRUPOS_PLANILLA.indexOf(GRUPO_PLANILLA[a.tipo] ?? "Cómo se le paga") - GRUPOS_PLANILLA.indexOf(GRUPO_PLANILLA[b.tipo] ?? "Cómo se le paga") || b.n - a.n)
             .map((s) => ({ valor: s.tipo, etiqueta: SENAL_PLANILLA[s.tipo]?.corto ?? s.tipo, conteo: s.n, grupo: GRUPO_PLANILLA[s.tipo] ?? "Cómo se le paga" })),
-        },
+        }]),
         {
           param: P.regimen,
           etiqueta: "Régimen",
           corta: "Régimen",
           todas: "Todo régimen",
-          opciones: (r?.porRegimen ?? []).filter((x) => x.regimen != null).map((x) => ({ valor: String(x.regimen), etiqueta: REGIMEN[x.regimen!] ?? String(x.regimen), conteo: x.n })),
+          // Los conteos son de la planilla de hoy: en «Trabajó antes» van sin número.
+          opciones: (r?.porRegimen ?? []).filter((x) => x.regimen != null).map((x) => ({ valor: String(x.regimen), etiqueta: REGIMEN[x.regimen!] ?? String(x.regimen), conteo: antes ? null : x.n })),
         },
       ]}
-      filtros={[
+      filtros={antes ? [] : [
         ...(entidad
           ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", seccion: "Dónde trabaja", opciones: [{ valor: entidad.ruc, etiqueta: entidad.nombre ? tituloNatural(entidad.nombre) : `RUC ${entidad.ruc}` }] }]
           : []),
@@ -303,13 +351,16 @@ function Barra({
           opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: r?.dudosos ?? null }],
         },
       ]}
-      orden={{ param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }}
+      orden={antes
+        ? { param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Salió más reciente" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }
+        : { param: P.orden, porDefecto: "senales", opciones: [{ valor: "senales", etiqueta: "Más señales" }, { valor: "sueldo", etiqueta: "Mayor sueldo" }, { valor: "meses", etiqueta: "Más meses" }] }}
     />
   );
 }
 
-const columnas = (deEntidad: boolean): Columna[] => [
+const columnas = (deEntidad: boolean, antes = false): Columna[] => [
   { clave: "persona", titulo: "Persona", ancho: "minmax(0,1.3fr)" },
+  { clave: "tiempo", titulo: antes ? "Estuvo" : "En la planilla", ancho: "9.5rem", desde: "md", apilar: "con-rotulo" },
   {
     clave: "senales", titulo: "Señales", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
     ayuda: (
@@ -332,10 +383,18 @@ async function Resultados(props: {
   actual: number;
   deEntidad: boolean;
   filtrada: boolean;
+  antes?: boolean;
 }) {
   const [pagina, idPte] = await Promise.all([props.pagina, props.idPte]);
   if (!pagina) return <EstadoError titulo="No pudimos cargar la planilla">Suele ser momentáneo: vuelve a intentarlo en unos segundos.</EstadoError>;
   if (!pagina.total) {
+    if (props.antes) {
+      return (
+        <EstadoVacio compacto titulo={props.filtrada ? "Nadie coincide con estos filtros" : "Nadie dejó esta planilla"}>
+          {props.filtrada ? "Quita el filtro más restrictivo." : "En los meses cargados, todos los que figuraron siguen en su planilla de hoy."}
+        </EstadoVacio>
+      );
+    }
     return props.filtrada ? (
       <EstadoVacio compacto titulo="Nadie coincide con estos filtros">Quita el filtro más restrictivo.</EstadoVacio>
     ) : (
@@ -353,7 +412,8 @@ async function Resultados(props: {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={columnas(props.deEntidad)} filas={pagina.data.map((p, i) => fila(p, i, props.deEntidad, idPte))} etiqueta="Personal en planilla" />
+      <Tabla columnas={columnas(props.deEntidad, props.antes)} filas={pagina.data.map((p, i) => fila(p, i, props.deEntidad, idPte))}
+        etiqueta={props.antes ? "Quienes trabajaron antes en la entidad" : "Personal en planilla"} />
       {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
@@ -388,8 +448,8 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number |
     { etiqueta: "Cargo", valor: cargoTexto },
     { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
     { etiqueta: "Régimen", valor: p.regimen ? REGIMEN[p.regimen] ?? String(p.regimen) : null },
-    { etiqueta: "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
-    { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
+    { etiqueta: p.salio ? "Su último sueldo" : "Sueldo del último mes", valor: p.base != null ? soles(p.base) : null, mono: true },
+    ...(p.salio ? [] : [{ etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true }]),
     ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
     { etiqueta: "Meses en planilla", valor: `${numero(p.meses)} (${[p.primerMes, p.ultimoMes].filter(Boolean).join(" a ")})` },
     ...(!deEntidad && entidad ? [{ etiqueta: "Entidad", valor: entidad }] : []),
@@ -410,7 +470,19 @@ function fila(p: PersonaPlanilla, i: number, deEntidad: boolean, idPte: number |
           meta={deEntidad ? [cargo, oficina] : [cargo, entidad ? <Dato key="entidad" tipo="entidad">{entidad}</Dato> : null]}
         />
       ),
-      senales: <Senales senales={p.senales} dudoso={p.dudoso} pariente={!!p.parienteLocador} />,
+      // Desde cuándo está (o desde y hasta cuándo estuvo, si ya no está): la «Situación» de cada fila.
+      tiempo: (
+        <span className="text-meta text-inkSoft">
+          {p.salio
+            ? `De ${mes(p.primerMes) ?? "sin dato"} a ${mes(p.ultimoMes) ?? "sin dato"}`
+            : p.primerMes
+              ? `Desde ${mes(p.primerMes) ?? p.primerMes}`
+              : "Sin dato"}
+        </span>
+      ),
+      senales: p.salio
+        ? <span className="text-meta text-mute">Ya no está en la planilla</span>
+        : <Senales senales={p.senales} dudoso={p.dudoso} pariente={!!p.parienteLocador} />,
       regimen: <span className="text-meta text-inkSoft">{p.regimen ? REGIMEN[p.regimen] ?? p.regimen : "Sin dato"}</span>,
       total: motivo ? (
         <CeldaNumero sub="posible error de la entidad">{p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : "Sin dato"}</CeldaNumero>

@@ -59,6 +59,8 @@ export interface PersonaPlanilla {
   historia?: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number }[];
   /** Un posible error de carga del Estado en su último mes (migración 102): no entra en sumas, medianas ni señales. */
   dudoso: { motivo: string; base: number | null; extra: number | null; total: number | null; anio: number; mes: number } | null;
+  /** Ya no está en la planilla de hoy («Trabajó antes», migración 202): sin señales, con desde y hasta cuándo figuró. */
+  salio?: boolean;
   /** Declaró en su DJI a un pariente que es locador de su misma entidad (su ficha lo cita). */
   parienteLocador?: boolean;
 }
@@ -84,6 +86,12 @@ export interface PaginaPlanilla {
   resumen: ResumenPlanilla;
   /** Las opciones de los filtros que dependen del alcance (null si no se pudieron leer). */
   facetas?: FacetasPlanilla | null;
+  /** En una entidad: cuántos trabajaron en ella en los meses cargados y ya no están (migración 202). */
+  salieron?: number | null;
+  /** En una entidad: un mes posterior que publicó a medias; la planilla de hoy es la de su último mes completo. */
+  mesParcial?: { mes: string; personas: number } | null;
+  /** «antes»: la página es de quienes ya no están. */
+  situacion?: "antes";
 }
 
 /**
@@ -574,7 +582,8 @@ const qs = (f: Record<string, unknown>) => {
 
 export const getPlanilla = (f: {
   entidad?: string; dep?: string; senal?: string; regimen?: number; severidad?: string; orden?: string; q?: string; dudoso?: string;
-  sueldo?: string; oficina?: string; cargo?: string; pariente?: string; jefatura?: string; antiguedad?: string; page?: number; size?: number;
+  sueldo?: string; oficina?: string; cargo?: string; pariente?: string; jefatura?: string; antiguedad?: string; situacion?: string;
+  page?: number; size?: number;
 }) => leer<PaginaPlanilla>(`/planilla?${qs(f)}`);
 
 /** La planilla de una entidad mes a mes (migración 182) y los cambios de gobierno de esos meses. */
