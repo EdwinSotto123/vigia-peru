@@ -57,8 +57,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "49": fuentes con enlace al registro exacto (cruces y señales de personas: el proceso, la ficha del proveedor, la DJI
  *        de la entidad, su planilla en el Portal de Transparencia, el reporte de visitas del mes), `idPte` en la entidad y
  *        la planilla, visitas sin el nombre de quien recibió y con `hasta`, y GET /planilla/organigrama (Organización 2.0).
+ * "50": /planilla/organigrama con el gobierno entero (unidades con RUC propio, adscritos) y su resumen sin ellas.
  */
-const VERSION_CACHE = "49";
+const VERSION_CACHE = "50";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

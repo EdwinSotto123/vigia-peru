@@ -226,3 +226,11 @@ test("el gobierno entero: las unidades del gobierno regional, bajo la gerencia q
   assert.equal(u("20999999999").padre, "UNIDADES DEL GOBIERNO REGIONAL");
   assert.equal(o.resumen.unidades, 5);
 });
+
+test("el resumen es de la entidad: sin la gente de sus unidades con RUC propio", () => {
+  const sin = armarOrganigrama(ayacucho);
+  const con = armarOrganigrama({ ...ayacucho, unidades: [{ ruc: "20181079968", nombre: "GOBIERNO REGIONAL DE AYACUCHO-SALUD", personas: 900, tipo: "regional" }] });
+  assert.equal(con.resumen.personas, sin.resumen.personas);
+  assert.equal(con.resumen.oficinas, sin.resumen.oficinas);
+  assert.equal(con.resumen.unidades, 1);
+});

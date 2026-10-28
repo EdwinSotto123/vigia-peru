@@ -873,7 +873,8 @@ export function armarOrganigrama(d: DatosOrganigrama): Organigrama {
   }
 
   const out = lista().sort((a, b) => a.nivel - b.nivel || b.personas - a.personas || a.nombre.localeCompare(b.nombre));
-  const reales = out.filter((n) => !n.grupo);
+  // El resumen es de la entidad: sin los agrupadores ni las unidades con su propio RUC (su gente es de su planilla).
+  const reales = out.filter((n) => !n.grupo && !n.ruc);
   return {
     plantilla: plantillaId ? { id: plantillaId, nombre: LEY_PLANTILLA[plantillaId].corto, ley: LEY_PLANTILLA[plantillaId].ley } : null,
     nodos: out,
