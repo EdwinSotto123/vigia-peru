@@ -106,7 +106,8 @@ function Contratos({ d }: { d: Novedades }) {
       </h2>
       {d.contratosHasta && (
         <p className="text-meta text-inkSoft">
-          Las buenas pro llegan del OECE una vez por semana: van las de los {d.dias} días hasta el {fechaCorta(d.contratosHasta)}, el último con datos.
+          Las buenas pro llegan del OECE una vez por semana y sus cruces se calculan después: van las de los {d.dias} días hasta el
+          {" "}{fechaCorta(d.contratosHasta)}, el último con antecedentes graves calculados.
         </p>
       )}
       {filas.length === 0 ? (

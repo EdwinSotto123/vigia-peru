@@ -22,9 +22,10 @@ novedadesRouter.get("/", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
   const { dias } = p.data;
   const cuerpo = await memo.obtener(String(dias), async () => {
-    // Las buenas pro llegan con atraso (CONOSCE, una vez por semana): la ventana es la de los últimos días CON datos, y se dice.
+    // Las buenas pro llegan con atraso (CONOSCE, una vez por semana) y sus cruces se calculan después: la ventana termina en
+    // el último día con antecedentes graves ya calculados, y se dice.
     const ult = await pool
-      .query<{ f: string | null }>(`SELECT to_char(max(fecha_buena_pro), 'YYYY-MM-DD') AS f FROM casos_cruce WHERE fecha_buena_pro <= current_date`)
+      .query<{ f: string | null }>(`SELECT to_char(max(fecha_buena_pro), 'YYYY-MM-DD') AS f FROM casos_cruce WHERE fecha_buena_pro <= current_date AND severidad = 'alta'`)
       .then((r) => r.rows[0]?.f ?? null)
       .catch(() => null);
     const [contratos, sanciones, informes] = await Promise.all([
