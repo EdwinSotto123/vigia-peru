@@ -22,13 +22,19 @@ novedadesRouter.get("/", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
   const { dias } = p.data;
   const cuerpo = await memo.obtener(String(dias), async () => {
+    // Las buenas pro llegan con atraso (CONOSCE, una vez por semana): la ventana es la de los últimos días CON datos, y se dice.
+    const ult = await pool
+      .query<{ f: string | null }>(`SELECT to_char(max(fecha_buena_pro), 'YYYY-MM-DD') AS f FROM casos_cruce WHERE fecha_buena_pro <= current_date`)
+      .then((r) => r.rows[0]?.f ?? null)
+      .catch(() => null);
     const [contratos, sanciones, informes] = await Promise.all([
       pool.query(
         `SELECT k.ocid, k.ruc, k.proveedor, k.entidad, k.entidad_ruc AS "entidadRuc", k.tipo_contratacion AS tipo, left(k.objeto, 200) AS objeto,
                 to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, k.monto::float AS monto, k.tipos, k.n_alta AS "nAlta"
            FROM casos_cruce k
-          WHERE k.fecha_buena_pro >= current_date - $1::int AND k.fecha_buena_pro <= current_date AND k.severidad = 'alta'
-          ORDER BY k.n_alta DESC, k.monto DESC NULLS LAST LIMIT 150`, [dias]).catch(() => ({ rows: [] })),
+          WHERE k.fecha_buena_pro > COALESCE($2::date, current_date) - $1::int AND k.fecha_buena_pro <= COALESCE($2::date, current_date)
+            AND k.severidad = 'alta'
+          ORDER BY k.n_alta DESC, k.monto DESC NULLS LAST LIMIT 150`, [dias, ult]).catch(() => ({ rows: [] })),
       pool.query(
         `SELECT s.id, s.ruc, s.razon_social AS nombre, s.tipo, s.resolucion, to_char(s.fecha_resolucion, 'YYYY-MM-DD') AS fecha,
                 to_char(s.fecha_desde, 'YYYY-MM-DD') AS desde, to_char(s.fecha_hasta, 'YYYY-MM-DD') AS hasta, s.monto_multa_soles::float AS multa
@@ -45,6 +51,8 @@ novedadesRouter.get("/", async (c) => {
     ]);
     return {
       dias,
+      // La semana de contratos que se muestra: hasta el último día con buenas pro cargadas.
+      contratosHasta: ult,
       contratos: contratos.rows.map((r) => ({ ...r, ruc: /^20\d{9}$/.test(r.ruc) ? r.ruc : null, proveedor: /^20\d{9}$/.test(r.ruc) ? r.proveedor : null })),
       sanciones: sanciones.rows,
       informes: informes.rows,

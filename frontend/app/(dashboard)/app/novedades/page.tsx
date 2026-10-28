@@ -22,6 +22,7 @@ export const metadata: Metadata = {
  */
 interface Novedades {
   dias: number;
+  contratosHasta: string | null;
   contratos: { ocid: string; ruc: string | null; proveedor: string | null; entidad: string | null; entidadRuc: string | null; tipo: string | null; objeto: string | null; fecha: string; monto: number | null; tipos: string[] | null; nAlta: number }[];
   sanciones: { id: number; ruc: string; nombre: string | null; tipo: string | null; resolucion: string | null; fecha: string; desde: string | null; hasta: string | null; multa: number | null }[];
   informes: { codigo: string; numero: string | null; titulo: string | null; entidad: string | null; entidadRuc: string | null; responsabilidades: string[] | null; fecha: string; url: string | null }[];
@@ -101,10 +102,15 @@ function Contratos({ d }: { d: Novedades }) {
   return (
     <section aria-labelledby="nuevo-contratos" className="space-y-2">
       <h2 id="nuevo-contratos" className="font-display text-bloque font-bold text-ink">
-        Contratos con antecedentes graves, últimos {d.dias} días
+        Contratos con antecedentes graves de la última semana
       </h2>
+      {d.contratosHasta && (
+        <p className="text-meta text-inkSoft">
+          Las buenas pro llegan del OECE una vez por semana: van las de los {d.dias} días hasta el {fechaCorta(d.contratosHasta)}, el último con datos.
+        </p>
+      )}
       {filas.length === 0 ? (
-        <EstadoVacio variante="compacta">En los últimos {d.dias} días no hubo buenas pro con antecedentes graves del ganador.</EstadoVacio>
+        <EstadoVacio variante="compacta">En esos {d.dias} días no hubo buenas pro con antecedentes graves del ganador.</EstadoVacio>
       ) : (
         <TablaFiltrable
           columnas={columnas}
