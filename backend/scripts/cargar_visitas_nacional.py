@@ -61,7 +61,9 @@ REFRESCOS = ["refrescar_visita_entidad_ruc", "refrescar_cruce_visita_previa", "r
              "refrescar_entidad_antecedentes", "refrescar_empresas", "refrescar_poder", "refrescar_visitas_entidad",
              # La visita antes de la primera orden de un locador (migración 195): tras refrescar_visitas_entidad, que marca
              # en cada visita si quien la recibió decide las compras.
-             "refrescar_persona_visita_previa"]
+             "refrescar_persona_visita_previa",
+             # Y en la planilla, quien visitó la entidad antes de entrar (migración 196, dentro de refrescar_planilla_extra).
+             "refrescar_planilla_extra"]
 
 
 def parser():

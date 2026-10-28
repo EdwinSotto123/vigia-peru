@@ -33,7 +33,7 @@ const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Record<string, unknown>>({ nombre: "planilla", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 const fichaMemo = new Memo<Record<string, unknown> | null>({ nombre: "planilla:ficha", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "visita_antes_planilla", "pago_extraordinario", "es_autoridad"] as const;
 // Sin `sueldo_alto`: no se calcula desde la migración 95 (el tipo de servicio es muy amplio para comparar sueldos), y un
 // filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"] as const;

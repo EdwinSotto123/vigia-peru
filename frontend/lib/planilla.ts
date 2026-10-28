@@ -11,6 +11,7 @@ import {
   INFOGOB_JNE,
   PLATAFORMA_JNE,
   PORTAL_TRANSPARENCIA,
+  VISITAS_EN_LINEA,
   djiEntidad,
   fichaRnp,
   personalPte,
@@ -19,7 +20,7 @@ import {
 import { tituloNatural } from "./landing";
 import type { FichaPersona, Severidad } from "./personas";
 
-export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "pago_extraordinario", "es_autoridad"] as const;
+export const TIPOS_PLANILLA = ["tambien_ordenes", "pariente_locador", "pariente_planilla", "familiar_en_planilla", "doble_planilla", "socio_proveedor", "financio_campana", "candidato_gobierna", "aporte_gobierna", "brecha_cargo", "ascenso_expres", "apellidos_autoridad", "apellidos_directivo", "antes_locador", "visita_antes_planilla", "pago_extraordinario", "es_autoridad"] as const;
 export type TipoPlanilla = (typeof TIPOS_PLANILLA)[number];
 // Sin «sueldo alto»: no se calcula desde la migración 95, y un filtro que nunca encuentra nada no se ofrece.
 export const TIPOS_PLAZA = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"] as const;
@@ -192,7 +193,7 @@ export const GRUPO_PLANILLA: Record<TipoPlanilla, (typeof GRUPOS_PLANILLA)[numbe
   financio_campana: "Política", candidato_gobierna: "Política", aporte_gobierna: "Política", es_autoridad: "Política",
   pariente_locador: "Familia y conflictos", pariente_planilla: "Familia y conflictos", familiar_en_planilla: "Familia y conflictos",
   socio_proveedor: "Familia y conflictos", apellidos_autoridad: "Familia y conflictos",
-  apellidos_directivo: "Familia y conflictos",
+  apellidos_directivo: "Familia y conflictos", visita_antes_planilla: "Familia y conflictos",
   tambien_ordenes: "Cómo se le paga", doble_planilla: "Cómo se le paga", brecha_cargo: "Cómo se le paga", pago_extraordinario: "Cómo se le paga",
   antes_locador: "Cómo se le paga", ascenso_expres: "Cómo se le paga",
 };
@@ -289,6 +290,12 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     titulo: "Antes de entrar a la planilla fue locador de la entidad",
     explica: "Recibió órdenes de servicio de la misma entidad antes de aparecer en su planilla.",
   },
+  visita_antes_planilla: {
+    corto: "Visitó antes de entrar",
+    titulo: "Visitó la entidad antes de entrar a la planilla",
+    explica:
+      "El registro de visitas lo muestra en la entidad en los 180 días antes de su primer mes en la planilla. Pesa más si lo recibió quien decide (el titular, la gerencia, la administración, la logística o un comité); ir a un examen o una entrevista es normal. Coincide por el nombre completo dentro de la misma entidad: la planilla no trae el DNI.",
+  },
 };
 
 /** Dónde buscar a la persona en las fuentes: su entidad, el id de la entidad en el Portal de Transparencia y el detalle de la señal. */
@@ -365,6 +372,9 @@ export function fuentePlanilla(
     case "tambien_ordenes":
     case "antes_locador":
       return { texto: "OECE, CONOSCE (órdenes) y Portal de Transparencia (planilla)", corto: "CONOSCE y Portal de Transparencia", url: CONOSCE_BUSCADOR, enlaces: [pte] };
+    case "visita_antes_planilla":
+      // Cada visita enlaza a su registro en la evidencia; aquí, el registro en línea y la planilla de la entidad.
+      return { texto: "Registro de Visitas en Línea y Portal de Transparencia (planilla)", corto: "Registro de visitas", url: VISITAS_EN_LINEA, enlaces: [pte] };
     case "doble_planilla":
       return { texto: "Portal de Transparencia Estándar, planillas de las dos entidades", corto: "Portal de Transparencia", url: pte.href, enlaces: [] };
     default:

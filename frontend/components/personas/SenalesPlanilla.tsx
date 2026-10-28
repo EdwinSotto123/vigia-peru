@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { AyudaTermino, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
+import { AyudaTermino, DatosClave, EnlaceFuente, FuenteDato, type DatoClave } from "@/components/patrones";
 import { CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { decimal, fechaCorta, numero, plural, soles } from "@/lib/formato";
+import { registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
 import { RANGO_SEVERIDAD } from "@/lib/severidad";
@@ -257,6 +258,14 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       const monto = n(d.monto);
       return [desde ? `Locador desde ${desde}` : null, entro ? `en planilla desde ${entro}` : null, monto != null ? `${soles(monto)} por órdenes` : null].filter(Boolean).join("; ") || null;
     }
+    case "visita_antes_planilla": {
+      // Migración 196: cuántas visitas, cuántas a quien decide y desde qué mes está en la planilla.
+      const cuantas = n(d.n_visitas) ?? lista(d.visitas).length;
+      const decide = n(d.a_quien_decide) ?? 0;
+      const entro = mes(t(d.primer_mes));
+      const base = `${cuantas === 1 ? "Una visita" : plural(cuantas, "visita", "visitas")} antes de entrar${entro ? ` (en planilla desde ${entro})` : ""}`;
+      return decide ? `${base}; ${cuantas === 1 ? "a quien decide" : `${numero(decide)} a quien decide`}` : base;
+    }
     case "pago_extraordinario": {
       const m = mesDe(d);
       return `${soles(n(d.extra) ?? 0)} fuera del sueldo${m ? ` en ${m}` : ""}, con un sueldo de ${soles(n(d.base) ?? 0)}`;
@@ -336,6 +345,45 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
       { etiqueta: "Entró a la planilla", valor: mes(t(d.primer_mes_planilla)) },
       ...(n(d.monto) != null ? [{ etiqueta: "Cobrado por órdenes", valor: soles(n(d.monto) ?? 0), mono: true }] : []),
     ];
+  } else if (tipo === "visita_antes_planilla") {
+    // Cada visita con su registro (el del Congreso, el reporte de la PNDA o el registro en línea), cuántos días antes de
+    // su primer mes y si quien la recibió decide. De quien recibió, sólo cargo y área.
+    return (
+      <TablaChica
+        etiqueta="Visitas antes de entrar a la planilla"
+        columnas={[
+          { clave: "visitado", titulo: "A quién visitó (cargo)", ancho: "minmax(0,1fr)" },
+          { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+          { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "md", apilar: "con-rotulo" },
+        ]}
+        filas={lista(d.visitas).map((v, i) => {
+          const r = registroVisita(t(v.fecha), t(v.fuente_visita));
+          const dias = n(v.dias_antes);
+          return {
+            id: String(i),
+            celdas: {
+              visitado: (
+                <CeldaPrincipal
+                  titulo={
+                    <>
+                      {natural(v.cargo_visitado) ?? "Sin dato del visitado"}
+                      {v.decide === true ? <b> (decide en la entidad)</b> : null}
+                    </>
+                  }
+                  meta={[
+                    <Dato key="f" tipo="fecha">{dia(v.fecha) ?? "Sin fecha"}</Dato>,
+                    dias != null && dias > 0 ? <span key="d">{plural(dias, "día", "días")} antes de su primer mes</span> : null,
+                    t(v.area) ? <Dato key="a" tipo="dependencia" nombre="Oficina">{natural(v.area)}</Dato> : null,
+                  ]}
+                />
+              ),
+              motivo: texto(t(v.motivo) ? oracionSimple(t(v.motivo)!) : null),
+              fuente: <EnlaceFuente href={r.href} className="text-meta">{r.texto}</EnlaceFuente>,
+            },
+          };
+        })}
+      />
+    );
   } else if (tipo === "apellidos_autoridad") {
     return (
       <div className="space-y-1.5">
