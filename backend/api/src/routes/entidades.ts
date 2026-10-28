@@ -831,6 +831,8 @@ export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = f
        (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = ${r})::int AS plazas,
        (SELECT to_char(min(s.fecha_inicio), 'YYYY-MM-DD') FROM servir_convocatoria s) AS "plazasDesde",
        (SELECT count(*) FROM informes_control i WHERE i.entidad_ruc = ${r})::int AS informes,
+       -- Sus visitas, por todos los nombres con que la registra el portal (migración 186): la pestaña Visitas.
+       (SELECT count(*) FROM visitas_entidades v WHERE v.entidad_visitada IN (SELECT vr.entidad_visitada FROM visita_entidad_ruc vr WHERE vr.ruc = ${r}))::int AS visitas,
        COALESCE((SELECT true FROM conosce_ordenes o WHERE o.entidad_ruc = ${r} AND ${ORDEN_LISTADA}
                   ORDER BY o.fecha_emision DESC LIMIT 1), false) AS "hayOrdenes"${conResumen
          ? `,
@@ -890,7 +892,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas, nep, ban, gente] = await Promise.all([
+  const [ent, mef, alertas, nep, ban, gente, visitasYOlas] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (EN_COLA).
       ? `SELECT e.*,
@@ -996,6 +998,16 @@ entidadesRouter.get("/:ruc", async (c) => {
                 WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1)::int AS "empresaEspejo"`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] señales de su gente en ${ruc}: ${(e as Error).message}`); return null; }),
+    // La migración 188: visitas de familiares declarados de sus funcionarios y la ola de órdenes a personas tras un cambio
+    // de gestión. Aparte: sin la migración, la consulta falla y las demás banderas siguen.
+    pool.query<{ visitaPariente: number; olaGestion: number; olaSev: string | null; olaQuien: string | null; olaAntes: number | null; olaDespues: number | null }>(
+      `SELECT (SELECT count(*) FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1)::int AS "visitaPariente",
+              (SELECT count(*) FROM entidad_ola_gestion o WHERE o.entidad_ruc = $1)::int AS "olaGestion",
+              o.severidad AS "olaSev", o.quien AS "olaQuien", o.antes AS "olaAntes", o.despues AS "olaDespues"
+         FROM (SELECT 1) x
+         LEFT JOIN LATERAL (SELECT * FROM entidad_ola_gestion o WHERE o.entidad_ruc = $1 ORDER BY o.desde DESC LIMIT 1) o ON true`,
+      [ruc],
+    ).catch(() => null),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -1049,6 +1061,14 @@ entidadesRouter.get("/:ruc", async (c) => {
             alBorde: g.alBorde, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
             socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
             empresaEspejo: g.empresaEspejo,
+          } : {}),
+          ...(visitasYOlas?.rows[0] ? {
+            visitaPariente: visitasYOlas.rows[0].visitaPariente,
+            olaGestion: visitasYOlas.rows[0].olaGestion,
+            // La más reciente, para decirla en la bandera.
+            ola: visitasYOlas.rows[0].olaGestion > 0
+              ? { severidad: visitasYOlas.rows[0].olaSev, quien: visitasYOlas.rows[0].olaQuien, antes: visitasYOlas.rows[0].olaAntes, despues: visitasYOlas.rows[0].olaDespues }
+              : null,
           } : {}),
         }
       : null,

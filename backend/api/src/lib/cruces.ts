@@ -127,10 +127,13 @@ export function aCruce(r: Record<string, any>): Cruce {
     visitas.push({
       // De quien recibió la visita, sólo su cargo (nunca su nombre).
       visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), cargoFuncionario: d.cargo_funcionario ?? null,
+      // Su área, y si decide la compra (titular, gerencia, administración, logística, comité: migración 188).
+      areaFuncionario: d.area_funcionario ?? null, decisor: d.decisor === true,
       entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: d.motivo ?? null,
     });
     delete d.funcionario;
     delete d.cargo_funcionario;
+    delete d.area_funcionario;
     delete d.motivo;
   }
   const socios = r.persona_nombre && r.tipo !== "visita_previa"

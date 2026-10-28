@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
+import { Building2, CloudOff, DoorOpen, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -39,6 +39,7 @@ import { EvolucionPlanilla } from "@/components/personas/EvolucionPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { ObrasEntidad, ObrasVacia } from "@/components/obras/ObrasEntidad";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
+import { VisitasEntidad } from "@/components/entidad/VisitasEntidad";
 
 /**
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
@@ -86,7 +87,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { historia: "Historia", contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { historia: "Historia", contratos: "Contratos", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", visitas: "Visitas", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 
@@ -184,6 +185,7 @@ export default async function EntidadProfile({
     planilla: conteos?.planilla ?? null,
     plazas: conteos?.plazas ?? null,
     informes: conteos?.informes ?? null,
+    visitas: conteos?.visitas ?? null,
   };
   // Sin presupuesto del MEF sólo si la entidad respondió (sin respuesta, no se sabe).
   const sinMef = !falloEntidad && !(mef?.kind === "ok" && mef.by_year?.length);
@@ -191,7 +193,7 @@ export default async function EntidadProfile({
   // Sus obras de INFOBRAS y sus inversiones de Invierte.pe (migración 160): sin ninguna de las dos, la pestaña va al final.
   const sinObras = conteos?.obras === 0 && conteos?.inversiones === 0;
   const vacias = new Set<string>(
-    [sinCompras && "contratos", sinObras && "obras", n.personas === 0 && "personas", n.planilla === 0 && "planilla", n.plazas === 0 && "plazas", sinMef && "presupuesto", n.informes === 0 && "control"].filter(
+    [sinCompras && "contratos", sinObras && "obras", n.personas === 0 && "personas", n.planilla === 0 && "planilla", n.plazas === 0 && "plazas", n.visitas === 0 && "visitas", sinMef && "presupuesto", n.informes === 0 && "control"].filter(
       (x): x is string => !!x,
     ),
   );
@@ -401,6 +403,26 @@ export default async function EntidadProfile({
       ),
     },
     {
+      // Quiénes la visitan, a qué oficinas y qué ganaron después (fase 2.3 del plan del 2026-10-27).
+      clave: "visitas",
+      icono: <DoorOpen size={15} aria-hidden />,
+      etiqueta: "Visitas",
+      conteo: n.visitas,
+      contenido: vacias.has("visitas") ? (
+        <PestanaVacia titulo="Sin visitas registradas" ayuda={<AyudaVisitas />}>
+          No tenemos su registro de visitas: la plataforma de la PCM no se puede consultar de forma automática y esta entidad no
+          está en los reportes que cargamos (los que publicó en datos abiertos, una exportación del portal y el registro del Congreso).
+        </PestanaVacia>
+      ) : (
+        <div className="space-y-4">
+          <CabeceraPestana ayuda={<AyudaVisitas />}>Quiénes la visitan, a qué oficinas y si después le ganaron un contrato o una orden.</CabeceraPestana>
+          <Suspense fallback={<Cargando texto="Leyendo sus visitas…" />}>
+            <VisitasEntidad ruc={e.ruc} />
+          </Suspense>
+        </div>
+      ),
+    },
+    {
       clave: "presupuesto",
       icono: <Wallet size={15} aria-hidden />,
       etiqueta: "Cuánto gasta",
@@ -592,6 +614,7 @@ function Espera({ clave }: { clave: string }) {
     plazas: { cifras: 4, columna: "Plaza" },
     control: { cifras: 4, columna: "Informe" },
     historia: { columna: "Hecho" },
+    visitas: { cifras: 4, columna: "Visita" },
   };
   return <EsqueletoPestana {...(forma[clave] ?? { columna: "Detalle" })} />;
 }
@@ -637,6 +660,21 @@ function AyudaPlazas() {
     <Ayuda titulo="¿De dónde salen las plazas?">
       De SERVIR Talento Perú: las convocatorias CAS que la entidad publicó, con sus requisitos y su sueldo. Las señales marcan
       rasgos de una plaza hecha a la medida de alguien; no prueban un direccionamiento.
+    </Ayuda>
+  );
+}
+
+function AyudaVisitas() {
+  return (
+    <Ayuda titulo="¿De dónde salen las visitas?">
+      <span className="block">
+        Del registro de visitas que cada entidad lleva por ley (la Plataforma de Visitas en Línea de la PCM o, en el Congreso, el
+        suyo). Dice quién visitó, de qué organización, cuándo, a qué oficina y el cargo de quien lo recibió.
+      </span>
+      <span className="mt-2 block">
+        Visitar a un funcionario no es ilegal: el registro existe para que se sepa. Una visita a quien decide una compra antes de
+        que la gane, o la de un familiar de un funcionario, merece revisión.
+      </span>
     </Ayuda>
   );
 }

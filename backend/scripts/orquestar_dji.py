@@ -211,8 +211,9 @@ class Procesando:
 # Las señales que salen de los vínculos de la DJI, en orden: nepotismo en la entidad (137), en el mismo gobierno (179), la
 # familia en otras entidades (180) y el pariente en la planilla de su entidad (182); luego el resumen de personas que las
 # cuenta. Las que aún no existen se saltan.
+# Las visitas de familiares de funcionarios (migración 188) también crecen con cada ronda: se rehacen tras las demás.
 PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_planilla_extra",
-               "refrescar_personas_resumen")
+               "refrescar_personas_resumen", "refrescar_visita_pariente")
 
 
 def refrescar_senal() -> int:

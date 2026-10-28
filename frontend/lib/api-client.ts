@@ -119,6 +119,11 @@ export interface ApiEntidad {
     ascensoExpres?: number;
     plazasSaliente?: number;
     empresaEspejo?: number;
+    /** Visitas de familiares declarados de sus funcionarios (migración 188). */
+    visitaPariente?: number;
+    /** Olas de órdenes a personas tras un cambio de gestión (migración 188) y la más reciente. */
+    olaGestion?: number;
+    ola?: { severidad: "alta" | "media" | null; quien: string | null; antes: number | null; despues: number | null } | null;
   };
 }
 
@@ -299,6 +304,8 @@ export interface ConteosEntidad {
   plazasDesde: string | null;
   /** Informes de la Contraloría sobre ella. */
   informes: number;
+  /** Sus visitas en el registro (por todos sus nombres). */
+  visitas?: number;
   /** Sus órdenes de compra y de servicio (CONOSCE). null = tiene, pero todavía no están contadas (migración 148). */
   ordenes: number | null;
   /** Lo que suman, sin las de monto dudoso; null si no están contadas. */

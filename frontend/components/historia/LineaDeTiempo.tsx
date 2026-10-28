@@ -191,7 +191,8 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
     <div className="space-y-3">
       {/* Controles: el periodo, la medida y los renglones. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1">
+        {/* En el celular, cada grupo en una fila que se desliza (antes, cinco filas de chips antes de la línea). */}
+        <div role="group" aria-label="Periodo" className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible">
           {tramos.map((x) => (
             <button
               key={x.clave}
@@ -202,7 +203,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
                 setEncima(null);
               }}
               className={cn(
-                "min-h-[32px] rounded-full border px-3 text-rotulo font-semibold transition-colors duration-rapido",
+                "min-h-[32px] shrink-0 whitespace-nowrap rounded-full border px-3 text-rotulo font-semibold transition-colors duration-rapido",
                 tramo === x.clave ? "border-ink bg-ink text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
               )}
             >
@@ -226,7 +227,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
           </div>
         )}
       </div>
-      <div role="group" aria-label="Renglones a mostrar" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label="Renglones a mostrar" className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible">
         {h.carriles.map((c) => (
           <button
             key={c.clave}
@@ -235,7 +236,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
             onClick={() => alternar(c.clave)}
             title={c.explica}
             className={cn(
-              "inline-flex min-h-[30px] items-center gap-1.5 rounded-full border px-2.5 text-rotulo transition-colors duration-rapido",
+              "inline-flex min-h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-rotulo transition-colors duration-rapido",
               ocultos.has(c.clave) ? "border-dashed border-line text-mute line-through" : "border-line bg-paper text-ink hover:border-paperEdge",
             )}
           >

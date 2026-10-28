@@ -116,6 +116,27 @@ export function banderasEntidad(
       href: `${ficha}?seccion=planilla&lsenal=pariente_planilla`,
     });
   }
+  // La ola de órdenes a personas en los seis meses desde que asumió una gestión (migración 188; la misma regla que la
+  // línea de tiempo): su evidencia, las barras de su Historia.
+  if ((s.olaGestion ?? 0) > 0 && s.ola) {
+    const o = s.ola;
+    out.push({
+      tipo: "ola_gestion", severidad: o.severidad === "alta" ? "alta" : "media", chip: "Ola de locadores", n: s.olaGestion ?? null,
+      titulo: `Las órdenes a personas pasaron de ${numero(o.antes ?? 0)} a ${numero(o.despues ?? 0)} en los seis meses desde que asumió ${o.quien ?? "la gestión"}`,
+      explica: "Las órdenes de servicio a personas naturales (locadores) en los seis meses desde que asumió una gestión, frente a los mismos meses del año anterior (OECE). Puede tener razones legítimas: es para revisar.",
+      href: `${ficha}?seccion=historia`,
+    });
+  }
+  // Un familiar que un funcionario de la entidad declaró en su DJI la visitó (migración 188). Nunca se dice quién.
+  if ((s.visitaPariente ?? 0) > 0) {
+    const n = s.visitaPariente!;
+    out.push({
+      tipo: "visita_pariente", severidad: "media", chip: "Visitas de familiares", n,
+      titulo: `${plural(n, "visita", "visitas")} de familiares que sus funcionarios declararon en su DJI`,
+      explica: "El documento de quien visitó es el de un pariente que un funcionario de esta entidad declaró ante la Contraloría. Un familiar puede ir por un trámite: es para revisar. No se dice quién es.",
+      href: `${ficha}?seccion=visitas`,
+    });
+  }
   if ((s.empresaEspejo ?? 0) > 0) {
     const n = s.empresaEspejo!;
     out.push({
