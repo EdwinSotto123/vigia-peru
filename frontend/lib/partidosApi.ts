@@ -301,3 +301,13 @@ export interface GastoPartido {
 
 export const getGastoPartido = (clave: string, anio: AnioGobierno) =>
   leer<GastoPartido>(`/partidos/${encodeURIComponent(clave)}/gasto?anio=${anio}`, 3600);
+
+/** Las plazas CAS que sus gobiernos convocaron después de las elecciones y antes de entregar el cargo (migración 183). */
+export interface SalientesPartido {
+  anio: number;
+  entidades: { entidadRuc: string; entidad: string; plazas: number; vacantes: number; alMes: number; aLaMedida: number }[];
+  total: { plazas: number; vacantes: number; alMes: number; aLaMedida: number };
+}
+
+export const getSalientesPartido = (clave: string, anio: AnioGobierno) =>
+  leer<SalientesPartido>(`/partidos/${encodeURIComponent(clave)}/salientes?anio=${anio}`, 3600);

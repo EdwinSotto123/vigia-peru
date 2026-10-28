@@ -1,6 +1,8 @@
 import { Ayuda } from "@/components/patrones";
-import { plural } from "@/lib/formato";
-import { getGastoPartido, getProcesosPartido, periodoTexto, type AnioGobierno, type DetallePartido, type GastoPartido } from "@/lib/partidosApi";
+import Link from "next/link";
+import { numero, plural, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import { getGastoPartido, getProcesosPartido, getSalientesPartido, periodoTexto, type AnioGobierno, type DetallePartido, type GastoPartido, type SalientesPartido } from "@/lib/partidosApi";
 import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
 import { PARAMS_EN_FICHA, getPersonas } from "@/lib/personas";
 import { Banderas, BarrasMonto, BloqueInicio, LineasSinDato, SubseccionInicio } from "./BloquesInicio";
@@ -33,11 +35,12 @@ export async function InicioPartido({
   gasto?: Promise<GastoPartido | null>;
 }) {
   // Los conteos de lectura y antecedentes de TODOS sus procesos del período (sin los filtros de la pestaña de contratos).
-  const [procesosTodos, corrupcion, gasto, personas] = await Promise.all([
+  const [procesosTodos, corrupcion, gasto, personas, salientes] = await Promise.all([
     getProcesosPartido(clave, anio, { size: 1 }),
     getCorrupcionPartido(clave, anio),
     gastoP ?? getGastoPartido(clave, anio),
     getPersonas({ partido: clave, periodo: anio, size: 0 }),
+    getSalientesPartido(clave, anio),
   ]);
   const facetas = procesosTodos?.facetas ?? null;
   const procesos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "procesos", ...f })}`;
@@ -90,6 +93,7 @@ export async function InicioPartido({
             <ContenidoPersonas r={p} P={PARAMS_EN_FICHA} href={enPersonas} />
           </BloqueInicio>
         )}
+        {salientes && salientes.total.plazas > 0 && <PlazasSalientes s={salientes} />}
       </SubseccionInicio>
 
       {(hayGasto || porObjeto.length > 0) && (
@@ -149,4 +153,43 @@ function regiones(d: DetallePartido): { ubigeo: string; nombre: string; procesos
     m.set(u, r);
   }
   return [...m.values()].filter((r) => r.monto > 0);
+}
+
+/**
+ * Las plazas CAS que sus gobiernos convocaron después de las elecciones regionales y municipales y antes de entregar el
+ * cargo (migración 183): quien entre seguirá con la gestión nueva. Por entidad, las que más convocaron primero; cada una
+ * abre sus plazas con esa señal.
+ */
+function PlazasSalientes({ s }: { s: SalientesPartido }) {
+  const t = s.total;
+  return (
+    <BloqueInicio
+      nivel={3}
+      titulo="Plazas de sus gestiones salientes"
+      ayuda={
+        <Ayuda titulo="¿Qué son?">
+          Plazas CAS que publicaron en SERVIR las entidades que gobierna, después de las elecciones regionales y municipales y
+          antes de entregar el cargo. No es una falta: quien entre seguirá con la gestión nueva, y vale revisar las que piden
+          experiencia en la propia entidad o ya tienen locadores haciendo ese trabajo.
+        </Ayuda>
+      }
+    >
+      <p className="text-meta leading-snug text-inkSoft">
+        {`${plural(t.plazas, "plaza", "plazas")} con ${plural(t.vacantes, "vacante", "vacantes")}, unos ${solesCompacto(t.alMes)} al mes en sueldos`}
+        {t.aLaMedida ? `; ${numero(t.aLaMedida)} piden experiencia en la propia entidad o ya tienen locadores` : ""}.
+      </p>
+      <ul className="mt-2 divide-y divide-line/70">
+        {/* recorte: las cinco entidades con más plazas; cada una abre sus plazas */}
+        {s.entidades.slice(0, 5).map((e) => (
+          <li key={e.entidadRuc} className="py-1.5">
+            <Link href={`/entidad/${e.entidadRuc}?seccion=plazas&zsenal=gestion_saliente`} className="flex items-baseline justify-between gap-3 text-meta hover:text-granate">
+              <span className="min-w-0 truncate text-ink">{tituloNatural(e.entidad)}</span>
+              <span className="shrink-0 tabular-nums text-inkSoft">{plural(e.plazas, "plaza", "plazas")}</span>
+            </Link>
+          </li>
+        ))}
+        {s.entidades.length > 5 && <li className="pt-1.5 text-rotulo text-mute">{`y ${plural(s.entidades.length - 5, "entidad más", "entidades más")}`}</li>}
+      </ul>
+    </BloqueInicio>
+  );
 }

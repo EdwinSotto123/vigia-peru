@@ -346,3 +346,45 @@ partidosRouter.get("/:clave/gasto", async (c) => {
   c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 86400 }));
   return c.json(cuerpo);
 });
+
+// ─── GET /partidos/:clave/salientes?anio= ───────────────────────────────────────────────────────
+/**
+ * Las plazas CAS que convocaron sus gobiernos de ese período después de las elecciones y antes de entregar el cargo
+ * (señal gestion_saliente, migración 183), por entidad: el mapa de poder de una gestión que se va (plan 2026-10-27,
+ * fase 4). Sólo tiene casos el período que está terminando.
+ */
+const salientesMemo = new Memo<Record<string, unknown>>({ nombre: "partidos:salientes", ttlMs: 600_000, staleMs: 600_000, max: 300 });
+
+partidosRouter.get("/:clave/salientes", async (c) => {
+  const clave = c.req.param("clave");
+  if (!/^[a-z0-9-]{1,80}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  const parsed = DetalleQuery.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const anio = parsed.data.anio;
+  const cuerpo = await salientesMemo.obtener(`salientes:${clave}:${anio}`, async () => {
+    const r = await pool.query(
+      `SELECT s.entidad_ruc AS "entidadRuc", max(s.entidad) AS entidad, count(*)::int AS plazas, COALESCE(sum(s.vacantes), 0)::int AS vacantes,
+              COALESCE(sum(COALESCE(s.vacantes, 1) * s.remuneracion), 0)::float AS "alMes",
+              count(*) FILTER (WHERE s.tipos && ARRAY['pide_experiencia_propia', 'ya_hay_locadores'])::int AS "aLaMedida"
+         FROM servir_convocatoria s
+         JOIN entidad_gobierno_amplia a ON a.ruc = s.entidad_ruc
+         JOIN gobierno_periodo g ON g.nivel = a.nivel AND g.ubigeo = a.ubigeo AND g.anio_eleccion = $2
+        WHERE 'gestion_saliente' = ANY (s.tipos) AND g.org_clave = $1
+        GROUP BY s.entidad_ruc
+        ORDER BY 3 DESC, 2
+        LIMIT 200`, [clave, anio]).catch(() => ({ rows: [] as { entidadRuc: string; entidad: string; plazas: number; vacantes: number; alMes: number; aLaMedida: number }[] }));
+    const filas = r.rows as { entidadRuc: string; entidad: string; plazas: number; vacantes: number; alMes: number; aLaMedida: number }[];
+    return {
+      anio,
+      entidades: filas,
+      total: {
+        plazas: filas.reduce((t, x) => t + x.plazas, 0),
+        vacantes: filas.reduce((t, x) => t + x.vacantes, 0),
+        alMes: filas.reduce((t, x) => t + x.alMes, 0),
+        aLaMedida: filas.reduce((t, x) => t + x.aLaMedida, 0),
+      },
+    };
+  });
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 300, swr: 86400 }));
+  return c.json(cuerpo);
+});
