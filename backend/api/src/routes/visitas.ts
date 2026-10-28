@@ -112,7 +112,16 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                 ${decisor} AS decisor, ${FUERA_DE_HORA} AS "fueraDeHora",
                 ${conParientes ? `EXISTS (SELECT 1 FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1 AND p.visita_id = v.id)` : "false"} AS pariente,
                 (SELECT ev.ruc FROM empresa_visita ev WHERE ev.visita_id = v.id LIMIT 1) AS ruc
-           FROM ${V} v WHERE v.fecha_visita IS NOT NULL ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 1000`, [ruc]),
+           -- Las 1,000 más recientes de cada nombre de la entidad (el índice entidad_visitada + fecha las da en orden, sin
+           -- leer las demás) y de ellas, las 1,000 más recientes. Con «IN (nombres)» la base leía TODAS las visitas de la
+           -- entidad para ordenarlas: el Congreso (1,2 M) o el MIMP (357 mil) pasaban los 10 s y la API daba 500.
+           FROM visita_entidad_ruc m
+           CROSS JOIN LATERAL (
+             SELECT x.* FROM visitas_entidades x
+              WHERE x.entidad_visitada = m.entidad_visitada AND x.fecha_visita IS NOT NULL
+              ORDER BY x.fecha_visita DESC, x.id DESC LIMIT 1000) v
+          WHERE m.ruc = $1
+          ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 1000`, [ruc]),
     ]);
     const r = resumen.rows[0];
     if (!r || !r.total) return { total: 0, hasta: null };
