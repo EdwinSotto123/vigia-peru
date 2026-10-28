@@ -94,7 +94,11 @@ export interface Historia {
 }
 
 export async function getHistoria(tipo: Historia["sujeto"]["tipo"], id: string): Promise<Historia | null> {
-  const valido = tipo === "partido" ? /^[a-z0-9-]{2,120}$/.test(id) : tipo === "empresa" ? /^20\d{9}$/.test(id) : /^\d{11}$/.test(id);
+  const valido =
+    tipo === "partido" ? /^[a-z0-9-]{2,120}$/.test(id)
+    : tipo === "empresa" ? /^20\d{9}$/.test(id)
+    : tipo === "contrato" ? /^[A-Za-z0-9-]{3,100}$/.test(id)
+    : /^\d{11}$/.test(id);
   if (!valido) return null;
   try {
     const r = await fetch(`${API_BASE}/historia/${tipo}/${encodeURIComponent(id)}`, { next: { revalidate: 900 } } as RequestInit);
