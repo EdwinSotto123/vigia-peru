@@ -5,7 +5,9 @@ import { getPlanillaMensual, nombrePartido, type PlanillaMensual } from "@/lib/p
 
 /**
  * La planilla de una entidad mes a mes (GET /planilla/mensual, migración 182): cuántas personas tuvo con sueldo cada mes
- * que publicó y, debajo, cuántas entraron (hacia arriba) y salieron (hacia abajo) frente al mes anterior publicado. Una
+ * que publicó y, debajo, cuántas entraron (hacia arriba) y salieron (hacia abajo) frente al mes anterior publicado
+ * completo (un mes que la entidad publicó a medias va punteado y no se compara con él: si no, al mes siguiente parecía que
+ * «entraba» toda la planilla). Una
  * raya punteada marca el mes en que asumió un gobierno nuevo: así se ve si una gestión llegó con su gente. Barras en CSS
  * (como LineaMeses), cada una con su `title`; la tabla mes a mes va plegada. Con menos de tres meses no se dibuja.
  * Server component.
@@ -46,8 +48,10 @@ function textoCambio(c: PlanillaMensual["cambios"][number]): string {
 function Grafico({ d }: { d: PlanillaMensual }) {
   const meses = completar(d.meses);
   const conDato = meses.filter((m) => !m.hueco);
-  const primero = conDato[0];
-  const ultimo = conDato[conDato.length - 1];
+  // Lo que se cuenta y se compara: los meses publicados completos (el primero y el último del texto, también).
+  const completos = conDato.filter((m) => !m.incompleto);
+  const primero = completos[0] ?? conDato[0];
+  const ultimo = completos[completos.length - 1] ?? conDato[conDato.length - 1];
   const tope = Math.max(1, ...conDato.map((m) => m.personas)) * 1.08;
   const flujo = Math.max(1, ...conDato.map((m) => Math.max(m.altas ?? 0, m.bajas ?? 0)));
   const enRango = new Set(meses.map((m) => m.mes));
@@ -93,11 +97,19 @@ function Grafico({ d }: { d: PlanillaMensual }) {
             <div
               key={m.mes}
               className="relative flex h-full max-w-8 flex-1 flex-col justify-end"
-              title={m.hueco ? `${mesCorto(m.mes)}: la entidad no publicó su planilla` : `${mesCorto(m.mes)}: ${numero(m.personas)} personas${m.base != null ? `, ${solesCompacto(m.base)} en sueldos` : ""}${cambio.has(m.mes) ? `. ${cambio.get(m.mes)}` : ""}`}
+              title={
+                m.hueco
+                  ? `${mesCorto(m.mes)}: la entidad no publicó su planilla`
+                  : m.incompleto
+                    ? `${mesCorto(m.mes)}: publicó sólo ${numero(m.personas)} personas, menos de la mitad que los meses vecinos (parece incompleta)`
+                    : `${mesCorto(m.mes)}: ${numero(m.personas)} personas${m.base != null ? `, ${solesCompacto(m.base)} en sueldos` : ""}${cambio.has(m.mes) ? `. ${cambio.get(m.mes)}` : ""}`
+              }
             >
               {cambio.has(m.mes) && <RayaCambio />}
               {m.hueco ? (
                 <div className="h-1.5 rounded-sm border border-dashed border-mute/60" />
+              ) : m.incompleto ? (
+                <div className="rounded-t-[3px] border border-dashed border-granate/70" style={{ height: `${Math.max((m.personas / tope) * 100, 4)}%` }} />
               ) : (
                 <div className="rounded-t-[3px] bg-granate" style={{ height: `${Math.max((m.personas / tope) * 100, 1)}%` }} />
               )}
@@ -143,6 +155,7 @@ function Grafico({ d }: { d: PlanillaMensual }) {
         <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-anil" aria-hidden />Entraron ese mes</li>
         <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-mute/50" aria-hidden />Salieron ese mes</li>
         {meses.some((m) => m.hueco) && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-mute" aria-hidden />No publicó ese mes</li>}
+        {meses.some((m) => m.incompleto) && <li className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-granate" aria-hidden />Publicó a medias (no se compara)</li>}
         {cambio.size > 0 && <li className="inline-flex items-center gap-1.5"><span className="h-3 w-0 border-l-2 border-dashed border-anil" aria-hidden />Cambio de gobierno</li>}
       </ul>
       {cambio.size > 0 && (
@@ -175,7 +188,7 @@ function Grafico({ d }: { d: PlanillaMensual }) {
                     {mesCorto(m.mes)}
                     {cambio.has(m.mes) && <span className="block text-rotulo text-anilTexto">{cambio.get(m.mes)}</span>}
                   </td>
-                  <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "No publicó" : numero(m.personas)}</td>
+                  <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-ink">{m.hueco ? "No publicó" : m.incompleto ? `${numero(m.personas)}, a medias` : numero(m.personas)}</td>
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.altas == null ? "Sin comparar" : numero(m.altas)}</td>
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.bajas == null ? "Sin comparar" : numero(m.bajas)}</td>
                   <td className="px-3.5 py-1.5 text-right font-mono tabular-nums text-inkSoft">{m.base != null ? solesCompacto(m.base) : "Sin dato"}</td>

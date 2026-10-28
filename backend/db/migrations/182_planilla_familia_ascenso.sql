@@ -12,7 +12,9 @@
 --     o más) que se sostiene el mes siguiente. Sin el primer mes de la persona (suele venir pagado por días) ni los meses
 --     con un posible error de carga. 1,830 personas en 309 entidades; media (496) si el sueldo se duplicó en 6 meses o menos.
 --   · planilla_entidad_mes: cuántas personas tuvo cada entidad en su planilla cada mes cargado, su sueldo base sumado, y
---     cuántas entraron y salieron frente al mes anterior que publicó (la evolución de la pestaña Planilla).
+--     cuántas entraron y salieron frente al mes anterior que publicó completo (la evolución de la pestaña Planilla). Un mes
+--     con menos de la mitad de las personas de sus dos vecinos es una publicación incompleta (SENAMHI, set. 2025: casi
+--     nadie, y en octubre parecía que «entraban» mil): se marca `incompleto` y no se compara con él.
 --   · dji_nepotismo: el cruce con las órdenes por el rango de la llave de persona_orden_anual ('10' || DNI || dígito), no
 --     por substr(ruc, 3, 8) fila por fila (308 ms en una entidad chica, segundos en las grandes).
 --
@@ -54,10 +56,11 @@ CREATE TABLE IF NOT EXISTS planilla_entidad_mes (
   mes         DATE NOT NULL,
   personas    INTEGER NOT NULL,   -- con sueldo base ese mes
   base        NUMERIC,            -- remuneraciones y honorarios sumados (sin los meses con un posible error de carga)
-  altas       INTEGER,            -- no estaban el mes anterior que publicó la entidad (NULL en su primer mes)
-  bajas       INTEGER,            -- estaban el mes anterior y ya no
+  altas       INTEGER,            -- no estaban el mes anterior que publicó completo (NULL en su primer mes)
+  bajas       INTEGER,            -- estaban ese mes anterior y ya no
   PRIMARY KEY (entidad_ruc, mes)
 );
+ALTER TABLE planilla_entidad_mes ADD COLUMN IF NOT EXISTS incompleto BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE planilla_entidad_mes OWNER TO vigia_jobs;
 GRANT SELECT ON planilla_entidad_mes TO vigia_api, vigia_api_admin, vigia_mcp;
 
@@ -178,25 +181,40 @@ BEGIN
   GET DIAGNOSTICS n_pla = ROW_COUNT;
 
   -- E. La planilla de cada entidad mes a mes: personas, sueldo base, y quiénes entraron y salieron frente al mes anterior
-  --    que publicó (una entidad que no publicó un mes se compara con el último que sí).
+  --    que publicó completo. Incompleto: menos de la mitad de las personas que el menor de sus dos vecinos (o el único que
+  --    tiene); una caída que se sostiene no lo es (el mes siguiente también es bajo).
+  CREATE TEMP TABLE _pe ON COMMIT DROP AS
+    SELECT entidad_ruc, m, count(*)::int AS personas, sum(base) AS base FROM _pm GROUP BY 1, 2;
+  CREATE TEMP TABLE _pec ON COMMIT DROP AS
+    SELECT x.entidad_ruc, x.m, x.personas, x.base,
+           x.personas < 0.5 * LEAST(COALESCE(x.ant, x.sig), COALESCE(x.sig, x.ant)) AS incompleto
+      FROM (SELECT e.*, lag(e.personas) OVER w AS ant, lead(e.personas) OVER w AS sig
+              FROM _pe e WINDOW w AS (PARTITION BY e.entidad_ruc ORDER BY e.m)) x;
+  UPDATE _pec SET incompleto = false WHERE incompleto IS NULL;
+  -- Cada persona en los meses completos, con su mes completo anterior y siguiente en que figura.
+  CREATE TEMP TABLE _pmc ON COMMIT DROP AS
+    SELECT p.entidad_ruc, p.nombre_norm, p.m, lag(p.m) OVER w AS m_ant, lead(p.m) OVER w AS m_sig
+      FROM _pm p JOIN _pec c ON c.entidad_ruc = p.entidad_ruc AND c.m = p.m AND NOT c.incompleto
+    WINDOW w AS (PARTITION BY p.entidad_ruc, p.nombre_norm ORDER BY p.m);
   CREATE TEMP TABLE _pem ON COMMIT DROP AS
     SELECT entidad_ruc, m, lag(m) OVER e AS m_prev, lead(m) OVER e AS m_next
-      FROM (SELECT DISTINCT entidad_ruc, m FROM _pm) x
+      FROM _pec WHERE NOT incompleto
     WINDOW e AS (PARTITION BY entidad_ruc ORDER BY m);
   DELETE FROM planilla_entidad_mes;
-  INSERT INTO planilla_entidad_mes (entidad_ruc, mes, personas, base, altas, bajas)
-  SELECT em.entidad_ruc, em.m, a.personas, a.base,
-         CASE WHEN em.m_prev IS NULL THEN NULL ELSE a.altas END,
-         CASE WHEN em.m_prev IS NULL THEN NULL ELSE COALESCE(b.bajas, 0) END
-    FROM _pem em
-    JOIN (SELECT p.entidad_ruc, p.m, count(*)::int AS personas, sum(p.base) AS base,
-                 count(*) FILTER (WHERE p.m_ant IS DISTINCT FROM e.m_prev)::int AS altas
-            FROM _pm p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
-           GROUP BY 1, 2) a ON a.entidad_ruc = em.entidad_ruc AND a.m = em.m
+  INSERT INTO planilla_entidad_mes (entidad_ruc, mes, personas, base, altas, bajas, incompleto)
+  SELECT c.entidad_ruc, c.m, c.personas, c.base,
+         CASE WHEN em.m_prev IS NOT NULL THEN COALESCE(a.altas, 0) END,
+         CASE WHEN em.m_prev IS NOT NULL THEN COALESCE(b.bajas, 0) END,
+         c.incompleto
+    FROM _pec c
+    LEFT JOIN _pem em ON em.entidad_ruc = c.entidad_ruc AND em.m = c.m
+    LEFT JOIN (SELECT p.entidad_ruc, p.m, count(*) FILTER (WHERE p.m_ant IS DISTINCT FROM e.m_prev)::int AS altas
+                 FROM _pmc p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
+                GROUP BY 1, 2) a ON a.entidad_ruc = c.entidad_ruc AND a.m = c.m
     LEFT JOIN (SELECT p.entidad_ruc, e.m_next AS m, count(*)::int AS bajas
-                 FROM _pm p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
+                 FROM _pmc p JOIN _pem e ON e.entidad_ruc = p.entidad_ruc AND e.m = p.m
                 WHERE e.m_next IS NOT NULL AND p.m_sig IS DISTINCT FROM e.m_next
-                GROUP BY 1, 2) b ON b.entidad_ruc = em.entidad_ruc AND b.m = em.m;
+                GROUP BY 1, 2) b ON b.entidad_ruc = c.entidad_ruc AND b.m = c.m;
 
   -- F. El resumen de cada alcance de la planilla (como al final de refrescar_planilla(), migración 108).
   CREATE TEMP TABLE _pxrb ON COMMIT DROP AS

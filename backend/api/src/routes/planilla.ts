@@ -350,7 +350,7 @@ planillaRouter.get("/mensual", async (c) => {
   const cuerpo = await memo.obtener(`mensual:${entidad}`, async () => {
     const [meses, cambios] = await Promise.all([
       pool.query(
-        `SELECT to_char(mes, 'YYYY-MM') AS mes, personas, base::float AS base, altas, bajas
+        `SELECT to_char(mes, 'YYYY-MM') AS mes, personas, base::float AS base, altas, bajas, incompleto
            FROM planilla_entidad_mes WHERE entidad_ruc = $1 ORDER BY mes`, [entidad]),
       pool.query<{ mes: string; nivel: string; quien: string | null }>(
         `WITH r AS (SELECT min(mes) AS d0, max(mes) AS d1 FROM planilla_entidad_mes WHERE entidad_ruc = $1),

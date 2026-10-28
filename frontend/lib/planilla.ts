@@ -495,7 +495,8 @@ export const getPlanilla = (f: {
 
 /** La planilla de una entidad mes a mes (migración 182) y los cambios de gobierno de esos meses. */
 export interface PlanillaMensual {
-  meses: { mes: string; personas: number; base: number | null; altas: number | null; bajas: number | null }[];
+  /** `incompleto`: publicó menos de la mitad que sus vecinos; no se compara con él (entradas y salidas en null). */
+  meses: { mes: string; personas: number; base: number | null; altas: number | null; bajas: number | null; incompleto?: boolean }[];
   cambios: { mes: string; nivel: string; quien: string | null }[];
 }
 
