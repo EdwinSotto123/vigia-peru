@@ -134,7 +134,7 @@ export function RankingAliados({
         <PodioRanking
           filas={podio}
           titulo={tituloPodio(periodo, podio.length)}
-          subtitulo="Quienes sostienen la vigilancia del dinero público, mes a mes."
+          subtitulo="Personas, colectivos y empresas que mantienen Vigía encendida, mes a mes."
           nota={
             <>
               <p>Estar aquí no compra nada: lo más grave se lee primero, aporte quien aporte.</p>

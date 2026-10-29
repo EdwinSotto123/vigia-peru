@@ -239,7 +239,7 @@ function Escalon({ lugar, fila: f, destacado }: { lugar: Lugar; fila: FilaRankin
             )}
           />
         )}
-        {lugar === 1 && <Chispas />}
+        {lugar === 1 && destacado && <Chispas />}
         <Medalla puesto={lugar} tamano={l.medalla} animada retraso={l.sube + DESPUES_DEL_ESCALON} className="relative" />
         <span aria-hidden className={cn("mt-2.5 flex", lugar === 1 && destacado && "rounded-2xl ring-2 ring-maiz ring-offset-4 ring-offset-transparent")}>
           <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size={destacado && lugar === 1 ? "xl" : "lg"} />
@@ -348,6 +348,7 @@ function Pedestal({ l, lugar, apagado = false }: { l: Medidas; lugar: Lugar; apa
 /**
  * Chispas de píxel alrededor del oro: cuadritos lima que titilan a destiempo. Sólo
  * decoración (aria-hidden) y sólo en el podio destacado; con movimiento reducido quedan quietas.
+ * Van en la franja de la medalla y la corona: más abajo caían sobre «desde set. 2026» y «Cada mes».
  */
 const CHISPAS: { x: string; y: string; t: number; d: string }[] = [
   { x: "12%", y: "8%", t: 6, d: "0s" },
@@ -362,7 +363,7 @@ const CHISPAS: { x: string; y: string; t: number; d: string }[] = [
 
 function Chispas() {
   return (
-    <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 bottom-0">
+    <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 h-36">
       {CHISPAS.map((c, i) => (
         <span
           key={i}
