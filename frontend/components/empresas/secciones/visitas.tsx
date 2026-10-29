@@ -1,11 +1,15 @@
-import { Ayuda, DatosClave, EstadoVacio, FuenteDato, Nota } from "@/components/patrones";
+import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, Nota, PieDetalle, type DatoClave } from "@/components/patrones";
 import { CeldaFecha, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { fecha, fechaCorta, numero, oracion, plural } from "@/lib/formato";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { fecha, fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { VISITAS_EN_LINEA, avisoVisitas, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
-import { type VisitaEmpresa } from "@/lib/empresas";
+import { rutaEmpresa, type VisitaEmpresa } from "@/lib/empresas";
+import { rutaContrato } from "@/lib/rutas";
 import { entidadTexto, NoCargo, opcionesLocales, paraClave } from "./comun";
+import { P_CONTRATOS } from "./contratos";
+import { P_ORDENES } from "./ordenes";
 
 /** La pestaña Visitas: las visitas de su gente a entidades del Estado. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
@@ -26,7 +30,33 @@ const COLUMNAS_VISITAS: Columna[] = [
   },
 ];
 
-export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null } | null> }) {
+/** «Orden de servicio» / «Contrato» / «Contrato en consorcio»: qué fue lo primero que le dio la entidad. */
+function queFue(v: VisitaEmpresa): string {
+  if (v.despuesTipo === "contrato") return "Contrato";
+  if (v.despuesTipo === "consorcio") return "Contrato en consorcio";
+  const t = (v.primero?.tipoOrden ?? "").toLowerCase();
+  return t.includes("servicio") ? "Orden de servicio" : t.includes("compra") ? "Orden de compra" : "Orden";
+}
+
+/** «ese mismo día» / «13 días después». */
+const cuando = (d: number | null) => (d === 0 ? "ese mismo día" : `${plural(d ?? 0, "día", "días")} después`);
+
+/**
+ * Dónde ver lo que le dio: la orden en su lista de órdenes (buscada por su número, en esa entidad) o el contrato en su
+ * ficha (por su OCID) o, si no está en la base, en su lista de contratos buscado por su código.
+ */
+function enlaceDespues(ruc: string, v: VisitaEmpresa): { texto: string; href: string } | null {
+  const p = v.primero;
+  if (!p || !v.entidadRuc) return null;
+  if (v.despuesTipo === "orden") {
+    return p.numero ? { texto: "Ver la orden", href: rutaEmpresa(ruc, "ordenes", { [P_ORDENES.entidad]: v.entidadRuc, [P_ORDENES.q]: p.numero }) } : null;
+  }
+  if (p.ocid) return { texto: "Ver el contrato", href: rutaContrato(p.ocid) };
+  const q = p.codigo ?? p.numero;
+  return q ? { texto: "Ver el contrato", href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.entidad]: v.entidadRuc, [P_CONTRATOS.q]: q }) } : null;
+}
+
+export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promise<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null } | null> }) {
   const d = await datos;
   if (!d) return <NoCargo que="sus visitas" />;
   if (!d.total) {
@@ -40,23 +70,64 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
   const filas: FilaFiltrable[] = d.visitas.map((v, i) => {
     const entidad = entidadTexto(v.entidad);
     const registro = registroVisita(v.fecha, v.fuente);
+    // CUÁL fue lo primero que le dio (el usuario: «le dio una orden ese mismo día… pero no dice cuál»): su número y monto
+    // en la celda; qué se compró, lo de los 90 días siguientes y si ya le vendía, en el detalle.
+    const p = v.primero;
     const despues = v.despues ? (
-      <span className="text-meta text-ink">
-        {v.despuesTipo === "contrato" ? "Le adjudicó" : "Le dio una orden"}{" "}
-        <span className="font-semibold">{v.diasDespues === 0 ? "ese mismo día" : `${plural(v.diasDespues ?? 0, "día", "días")} después`}</span>
+      <span className="block text-meta text-ink">
+        {queFue(v)} <span className="font-semibold">{cuando(v.diasDespues)}</span>
+        {p && (p.numero || p.monto != null) && (
+          <span className="block text-rotulo text-mute">
+            {[p.numero ? `N.° ${p.numero}` : null, p.monto != null ? soles(p.monto) : null].filter(Boolean).join(", ")}
+          </span>
+        )}
       </span>
+    ) : v.antes ? (
+      <span className="text-meta text-mute">Le vendía antes, no después</span>
     ) : v.entidadRuc ? (
-      <span className="text-meta text-mute">Le vendió antes, no después</span>
+      <span className="text-meta text-mute">No le vendió (en lo cargado)</span>
     ) : (
-      <span className="text-meta text-mute">No le vende</span>
+      <span className="text-meta text-mute">Sin cruce con sus compras</span>
     );
+    const enlace = enlaceDespues(ruc, v);
+    const datosDespues: DatoClave[] = v.despues
+      ? [
+          {
+            etiqueta: "Lo primero después",
+            valor: `${queFue(v)}${p?.numero ? ` N.° ${p.numero}` : ""}, del ${fechaCorta(v.despues)} (${cuando(v.diasDespues)} de la visita)`,
+          },
+          ...(p?.descripcion ? [{ etiqueta: "Qué se compró", valor: `«${oracion(p.descripcion)}»` }] : []),
+          {
+            etiqueta: v.despuesTipo === "consorcio" ? "Adjudicado al consorcio" : "Monto",
+            valor: p?.monto != null ? soles(p.monto) : "Sin monto en soles",
+            mono: p?.monto != null,
+          },
+          ...(v.en90
+            ? [{
+                etiqueta: "En los 90 días desde la visita",
+                valor: [
+                  v.en90.ordenes ? `${plural(v.en90.ordenes, "orden", "órdenes")}${v.en90.montoOrdenes ? ` por ${solesCompacto(v.en90.montoOrdenes)}` : ""}` : null,
+                  v.en90.contratos ? plural(v.en90.contratos, "contrato", "contratos") : null,
+                ].filter(Boolean).join(" y ") || "Sólo eso",
+              }]
+            : []),
+          {
+            etiqueta: "Antes de la visita",
+            valor: v.antes ? "Ya le vendía: es un proveedor de antes, no algo nuevo" : "Nunca le había vendido (en lo cargado)",
+          },
+        ]
+      : [{
+          etiqueta: "Después de la visita",
+          valor: v.antes ? "Le vendía antes; nada desde esa fecha" : v.entidadRuc ? "Esa entidad no le adjudicó ni le compró" : "No reconocemos la entidad visitada en las compras",
+        }];
     return {
       id: `${v.fecha}-${i}`,
       buscable: `${entidad} ${v.cargoFuncionario ?? ""} ${v.area ?? ""} ${v.motivo ?? ""} ${v.via}`,
       valores: {
         entidad: v.entidad ? paraClave(v.entidad) : null,
         via: v.via,
-        despues: v.despues ? (v.despuesTipo ?? "contrato") : v.entidadRuc ? "antes" : "no_cliente",
+        despues: v.despues ? (v.despuesTipo === "consorcio" ? "contrato" : v.despuesTipo ?? "contrato") : v.antes ? "antes" : "no_cliente",
+        nueva: v.despues ? (v.antes ? "ya" : "primera") : null,
         anio: v.fecha?.slice(0, 4) ?? null,
       },
       claves: { fecha: v.fecha, dias: v.diasDespues },
@@ -83,38 +154,46 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
         etiqueta: `Ver el detalle de la visita del ${v.fecha ? fechaCorta(v.fecha) : ""}`.trim(),
         descripcion: v.fecha ? fechaCorta(v.fecha) : undefined,
         contenido: (
-          <DatosClave
-            items={[
-              { etiqueta: "Quién fue", valor: v.visitante },
-              { etiqueta: "Qué es de la empresa", valor: v.via },
-              { etiqueta: "Dijo venir de", valor: v.entidadDeclarada },
-              { etiqueta: "Entidad visitada", valor: entidad },
-              { etiqueta: "Cargo de quien la recibió", valor: v.cargoFuncionario ? tituloNatural(v.cargoFuncionario) : null },
-              { etiqueta: "Área", valor: v.area ? tituloNatural(v.area) : null },
-              { etiqueta: "Motivo", valor: v.motivo ? oracion(v.motivo) : null },
-              { etiqueta: "Lugar", valor: v.lugar },
-              {
-                etiqueta: "Después de la visita",
-                valor: v.despues
-                  ? `${v.despuesTipo === "contrato" ? "Le adjudicó un contrato" : "Le dio una orden"} el ${fechaCorta(v.despues)}${v.diasDespues ? `, ${plural(v.diasDespues, "día", "días")} después` : ""}`
-                  : v.entidadRuc ? "Nada después de esa fecha" : "Esa entidad no le adjudicó ni le compró",
-              },
-            ]}
-          />
+          <CuerpoDetalle>
+            <DatosClave
+              items={[
+                { etiqueta: "Quién fue", valor: v.visitante },
+                { etiqueta: "Qué es de la empresa", valor: v.via },
+                { etiqueta: "Dijo venir de", valor: v.entidadDeclarada },
+                { etiqueta: "Entidad visitada", valor: entidad },
+                { etiqueta: "Cargo de quien la recibió", valor: v.cargoFuncionario ? tituloNatural(v.cargoFuncionario) : null },
+                { etiqueta: "Área", valor: v.area ? tituloNatural(v.area) : null },
+                { etiqueta: "Motivo", valor: v.motivo ? oracion(v.motivo) : null },
+                { etiqueta: "Lugar", valor: v.lugar },
+              ]}
+            />
+            <DatosClave items={datosDespues} />
+            {v.despues && (
+              <p className="text-rotulo leading-relaxed text-mute">
+                Una visita no prueba nada: dice qué revisar. Pesa más si la empresa nunca le había vendido y si lo que ganó llegó
+                pocos días después.
+              </p>
+            )}
+          </CuerpoDetalle>
         ),
-        // El registro del que salió la visita (el del Congreso, el reporte mensual de la PNDA, que es sólo de Loreto, o
-        // el registro en línea de la PCM) y, si no es ese, también el registro en línea.
+        // La orden o el contrato que le dio después y el registro del que salió la visita (el del Congreso, el reporte
+        // mensual de la PNDA, que es sólo de Loreto, o el registro en línea de la PCM).
         pie: (
-          <FuenteDato
-            fuente={registro.fuente}
-            href={registro.href}
-            enlaces={[registro.href !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
+          <PieDetalle
+            principal={enlace ? <EnlaceAccion href={enlace.href} flecha>{enlace.texto}</EnlaceAccion> : undefined}
+            secundarias={
+              <FuenteDato
+                fuente={registro.fuente}
+                href={registro.href}
+                enlaces={[registro.href !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
+              />
+            }
           />
         ),
       },
     };
   });
-  const aClientes = d.visitas.filter((v) => v.entidadRuc).length;
+  const aClientes = d.visitas.filter((v) => v.despues || v.antes).length;
   const despues = d.visitas.filter((v) => v.despues).length;
   return (
     <div className="space-y-3">
@@ -140,6 +219,10 @@ export async function VisitasEmpresa({ datos }: { datos: Promise<{ total: number
               { valor: "contrato", etiqueta: "Le adjudicó un contrato" }, { valor: "orden", etiqueta: "Le dio una orden" },
               { valor: "antes", etiqueta: "Le vendió antes, no después" }, { valor: "no_cliente", etiqueta: "No le vende" },
             ],
+          },
+          {
+            clave: "nueva", etiqueta: "Antes de la visita", corta: "Antes",
+            opciones: [{ valor: "primera", etiqueta: "Nunca le había vendido" }, { valor: "ya", etiqueta: "Ya le vendía" }],
           },
           { clave: "anio", etiqueta: "Año de la visita", corta: "Año", opciones: opcionesLocales(filas.map((f) => f.valores?.anio as string | null), (v) => v).reverse() },
         ]}

@@ -245,7 +245,8 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       if (!n) return null;
       const primera = dia(v[0]?.fecha);
       const orden = dia(d.primera_orden);
-      const antes = `antes de su primera orden${orden ? ` (el ${orden})` : ""}`;
+      const numeroOrden = txt((d.primera_orden_detalle as Record<string, unknown> | null | undefined)?.numero);
+      const antes = `antes de su primera orden${orden || numeroOrden ? ` (${[numeroOrden ? `N.° ${numeroOrden}` : null, orden ? `el ${orden}` : null].filter(Boolean).join(", ")})` : ""}`;
       const base = n === 1 ? `Una visita${primera ? `, el ${primera},` : ""} ${antes}` : `${plural(n, "visita", "visitas")} ${antes}`;
       const decide = num(d.a_quien_decide) ?? v.filter((x) => x.decide === true).length;
       if (!decide) return base;
@@ -831,16 +832,39 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
           },
         };
       });
+      // CUÁL fue su primera orden en la entidad (migración 204): número, tipo, qué se le pidió y cuánto.
+      const po = (d.primera_orden_detalle ?? null) as Record<string, unknown> | null;
+      const montoPo = num(po?.monto);
       return (
-        <Lista
-          etiqueta="Visitas"
-          columnas={[
-            { clave: "visitado", titulo: "A quién visitó (cargo)", ancho: "minmax(0,1fr)" },
-            { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
-            { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "md", apilar: "con-rotulo" },
-          ]}
-          filas={filas}
-        />
+        <div className="space-y-3">
+          {(po != null || !!txt(d.primera_orden)) && (
+            <DatosClave
+              items={[
+                {
+                  etiqueta: "Su primera orden en la entidad",
+                  valor: [txt(po?.tipo) ?? "Orden", txt(po?.numero) ? `N.° ${txt(po?.numero)}` : null].filter(Boolean).join(" ") +
+                    (dia(d.primera_orden) ? `, del ${dia(d.primera_orden)}` : ""),
+                },
+                ...(txt(po?.descripcion) ? [{ etiqueta: "Qué se le pidió", valor: `«${natural(po?.descripcion)}»` }] : []),
+                ...(montoPo != null ? [{ etiqueta: "Monto", valor: soles(montoPo), mono: true }] : []),
+              ]}
+            />
+          )}
+          <Lista
+            etiqueta="Visitas"
+            columnas={[
+              { clave: "visitado", titulo: "A quién visitó (cargo)", ancho: "minmax(0,1fr)" },
+              { clave: "motivo", titulo: "Motivo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+              { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "md", apilar: "con-rotulo" },
+            ]}
+            filas={filas}
+          />
+          {entidadRuc && (
+            <VerOrdenes codigo={codigo} entidadRuc={entidadRuc} anio={txt(d.primera_orden)?.slice(0, 4)}>
+              Ver sus órdenes de esta entidad
+            </VerOrdenes>
+          )}
+        </div>
       );
     }
     default:

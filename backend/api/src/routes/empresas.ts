@@ -960,34 +960,123 @@ const VIA: Record<string, string> = {
   socio: "socio", representante: "representante legal", directivo: "directivo", nombre: "dijo venir de la empresa",
 };
 
+/** Lo primero que una entidad le dio a la empresa después de una visita: cuál orden o cuál contrato (para citarlo). */
+type PrimeroDespues = { numero: string | null; descripcion: string | null; monto: number | null; tipoOrden: string | null; codigo: string | null; ocid: string | null };
+
 empresasRouter.get("/:ruc/visitas", async (c) => {
   const ruc = c.req.param("ruc");
   const cuerpo = await fichaMemo.obtener(`visitas:${ruc}`, async () => {
     if (!(await existe(ruc))) return null;
-    // Si la entidad visitada le adjudicó o le compró algo, lo primero que le dio después de la visita (y cuánto después).
+    // De cada visita, lo primero que la entidad visitada le dio desde ese día: CUÁL orden (número, qué, cuánto) o CUÁL
+    // contrato (sola o en consorcio, con su ficha si está en la base); cuánto le dio en los 90 días siguientes y si ya le
+    // vendía antes. El usuario: «le dio una orden ese mismo día… pero no dice cuál». La entidad visitada se reconoce
+    // también por todos sus nombres (visita_entidad_ruc, migraciones 186 y 197), no sólo si ya era cliente.
     const r = await pool.query(
-      `SELECT to_char(v.fecha_visita, 'YYYY-MM-DD') AS fecha, v.entidad_visitada AS entidad, ev.entidad_ruc AS "entidadRuc", ev.via,
-              v.visitante, v.funcionario_cargo AS "cargoFuncionario", v.funcionario_area AS area,
-              v.motivo, v.lugar_especifico AS lugar, v.entidad_visitante AS "entidadDeclarada", v.fuente,
-              to_char(LEAST(ad.f, od.f), 'YYYY-MM-DD') AS "despues", (LEAST(ad.f, od.f) - v.fecha_visita) AS "diasDespues",
-              CASE WHEN ad.f IS NOT NULL AND (od.f IS NULL OR ad.f <= od.f) THEN 'contrato' WHEN od.f IS NOT NULL THEN 'orden' END AS "despuesTipo"
-         FROM empresa_visita ev
-         JOIN visitas_entidades v ON v.id = ev.visita_id
-         LEFT JOIN LATERAL (SELECT min(a.fecha_buenapro) AS f FROM conosce_adjudicaciones a
-                             WHERE ev.entidad_ruc IS NOT NULL AND a.ruc_proveedor = $1 AND a.entidad_ruc = ev.entidad_ruc
-                               AND a.fecha_buenapro >= v.fecha_visita) ad ON true
-         LEFT JOIN LATERAL (SELECT min(o.fecha_emision) AS f FROM conosce_ordenes o
-                             WHERE ev.entidad_ruc IS NOT NULL AND o.entidad_ruc = ev.entidad_ruc AND o.ruc_contratista = $1
-                               AND o.fecha_emision >= v.fecha_visita) od ON true
-        WHERE ev.ruc = $1
-        ORDER BY v.fecha_visita DESC NULLS LAST, v.id DESC
-        LIMIT 3000`, [ruc]);
+      // Cada paso por índice y una vez por entidad y día de visita (un proveedor grande tiene miles de visitas, muchas el
+      // mismo día): la fecha primero (min por el índice de la 201, o por proveedor y entidad) y después la orden o el proceso
+      // de ESE día; la empresa y sus consorcios como un arreglo (con «= $1 OR IN (…)» la base recorría todas las
+      // adjudicaciones en cada visita: 15 s con 90 visitas).
+      `WITH prov AS (SELECT array_agg(DISTINCT c) AS codigos
+                       FROM (SELECT $1::text AS c UNION SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1) z),
+            vis AS (
+              SELECT v.id, v.fecha_visita, v.entidad_visitada, ev.via, v.visitante, v.funcionario_cargo, v.funcionario_area, v.motivo,
+                     v.lugar_especifico, v.entidad_visitante, v.fuente,
+                     COALESCE(ev.entidad_ruc, (SELECT min(m.ruc) FROM visita_entidad_ruc m WHERE m.entidad_visitada = v.entidad_visitada)) AS ent
+                FROM empresa_visita ev JOIN visitas_entidades v ON v.id = ev.visita_id
+               WHERE ev.ruc = $1
+               ORDER BY v.fecha_visita DESC NULLS LAST, v.id DESC
+               LIMIT 3000),
+            d AS (SELECT DISTINCT ent, fecha_visita FROM vis WHERE ent IS NOT NULL AND fecha_visita IS NOT NULL),
+            r AS (
+              SELECT d.ent, d.fecha_visita,
+                     o1.f AS of, od.numero AS onum, od.tipo AS otipo, od.descripcion AS odesc, od.monto AS omonto,
+                     a1.f AS af, ad.numero AS anum, ad.codigo AS acod, ad.descripcion AS adesc, ad.monto AS amonto, ad.consorcio AS acons,
+                     w.ordenes AS o90, w.monto AS m90, wa.contratos AS c90,
+                     (EXISTS (SELECT 1 FROM conosce_ordenes o WHERE o.entidad_ruc = d.ent AND o.ruc_contratista = $1
+                                AND o.fecha_emision < d.fecha_visita AND o.estado IS DISTINCT FROM 'Anulada')
+                      OR EXISTS (SELECT 1 FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = ANY(p.codigos) AND a.entidad_ruc = d.ent
+                                   AND a.fecha_buenapro < d.fecha_visita)) AS antes
+                FROM d
+                CROSS JOIN prov p
+                LEFT JOIN LATERAL (
+                  SELECT min(o.fecha_emision) AS f FROM conosce_ordenes o
+                   WHERE o.entidad_ruc = d.ent AND o.ruc_contratista = $1 AND o.fecha_emision >= d.fecha_visita
+                     AND o.estado IS DISTINCT FROM 'Anulada') o1 ON true
+                LEFT JOIN LATERAL (
+                  SELECT o.nro_orden AS numero, o.tipo_orden AS tipo, left(btrim(o.descripcion), 220) AS descripcion, o.monto::float AS monto
+                    FROM conosce_ordenes o
+                   WHERE o1.f IS NOT NULL AND o.entidad_ruc = d.ent AND o.ruc_contratista = $1 AND o.fecha_emision = o1.f
+                     AND o.estado IS DISTINCT FROM 'Anulada'
+                   ORDER BY o.monto DESC NULLS LAST
+                   LIMIT 1) od ON true
+                LEFT JOIN LATERAL (
+                  SELECT min(a.fecha_buenapro) AS f FROM conosce_adjudicaciones a
+                   WHERE a.ruc_proveedor = ANY(p.codigos) AND a.entidad_ruc = d.ent AND a.fecha_buenapro >= d.fecha_visita) a1 ON true
+                LEFT JOIN LATERAL (
+                  SELECT a.codigo_convocatoria AS codigo, min(COALESCE(a.nomenclatura, a.codigo_convocatoria)) AS numero,
+                         left(min(COALESCE(NULLIF(btrim(a.descripcion_proceso), ''), NULLIF(btrim(a.descripcion_item), ''), a.objeto)), 220) AS descripcion,
+                         sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))::float AS monto,
+                         bool_or(a.ruc_proveedor <> $1) AS consorcio
+                    FROM conosce_adjudicaciones a
+                   WHERE a1.f IS NOT NULL AND a.ruc_proveedor = ANY(p.codigos) AND a.entidad_ruc = d.ent AND a.fecha_buenapro = a1.f
+                   GROUP BY a.codigo_convocatoria
+                   ORDER BY sum(a.monto_adjudicado) DESC NULLS LAST
+                   LIMIT 1) ad ON true
+                LEFT JOIN LATERAL (
+                  SELECT count(*)::int AS ordenes, sum(o.monto) FILTER (WHERE o.monto_dudoso IS NULL)::float AS monto
+                    FROM conosce_ordenes o
+                   WHERE o1.f IS NOT NULL AND o1.f < d.fecha_visita + 90 AND o.entidad_ruc = d.ent AND o.ruc_contratista = $1
+                     AND o.fecha_emision >= d.fecha_visita AND o.fecha_emision < d.fecha_visita + 90
+                     AND o.estado IS DISTINCT FROM 'Anulada') w ON true
+                LEFT JOIN LATERAL (
+                  SELECT count(DISTINCT a.codigo_convocatoria)::int AS contratos
+                    FROM conosce_adjudicaciones a
+                   WHERE a1.f IS NOT NULL AND a1.f < d.fecha_visita + 90 AND a.ruc_proveedor = ANY(p.codigos) AND a.entidad_ruc = d.ent
+                     AND a.fecha_buenapro >= d.fecha_visita AND a.fecha_buenapro < d.fecha_visita + 90) wa ON true)
+       SELECT to_char(x.fecha_visita, 'YYYY-MM-DD') AS fecha, x.entidad_visitada AS entidad, x.ent AS "entidadRuc", x.via,
+              x.visitante, x.funcionario_cargo AS "cargoFuncionario", x.funcionario_area AS area,
+              x.motivo, x.lugar_especifico AS lugar, x.entidad_visitante AS "entidadDeclarada", x.fuente,
+              to_char(r.of, 'YYYY-MM-DD') AS "ordenFecha", r.onum AS "ordenNumero", r.otipo AS "ordenTipo",
+              r.odesc AS "ordenDescripcion", r.omonto AS "ordenMonto",
+              to_char(r.af, 'YYYY-MM-DD') AS "contratoFecha", r.anum AS "contratoNumero", r.acod AS "contratoCodigo",
+              r.adesc AS "contratoDescripcion", r.amonto AS "contratoMonto", r.acons AS "contratoConsorcio",
+              CASE WHEN r.acod IS NOT NULL THEN
+                (SELECT cv.ocid FROM convocatorias cv
+                  WHERE cv.codigo = r.acod AND cv.entidad_ruc::text = x.ent AND cv.ocid NOT LIKE 'ocds-vigia-%'
+                  ORDER BY cv.ocid LIMIT 1) END AS "contratoOcid",
+              r.o90 AS "ordenes90", r.m90 AS "monto90", r.c90 AS "contratos90", COALESCE(r.antes, false) AS antes
+         FROM vis x
+         LEFT JOIN r ON r.ent = x.ent AND r.fecha_visita = x.fecha_visita
+        ORDER BY x.fecha_visita DESC NULLS LAST, x.id DESC`, [ruc]);
+    const dias = (desde: string | null, hasta: string | null) =>
+      desde && hasta ? Math.round((Date.parse(hasta) - Date.parse(desde)) / 86_400_000) : null;
     return publicar({
       total: r.rows.length,
       // Hasta qué día llega el registro de visitas (la PNDA no publicó después de mayo de 2026).
       hasta: await visitasHasta(),
       // Bajo `visitas`: publicar() le tapa un apellido al visitante. De quien recibió, sólo su cargo y su área (nunca su nombre).
-      visitas: r.rows.map((v) => ({ ...v, via: VIA[v.via] ?? v.via, diasDespues: v.diasDespues == null ? null : Number(v.diasDespues) })),
+      visitas: r.rows.map((v) => {
+        // Lo primero: el contrato si llegó antes o el mismo día que la orden; si no, la orden.
+        const esContrato = !!v.contratoFecha && (!v.ordenFecha || v.contratoFecha <= v.ordenFecha);
+        const despues: string | null = esContrato ? v.contratoFecha : v.ordenFecha ?? null;
+        const primero: PrimeroDespues | null = !despues ? null : esContrato
+          ? { numero: v.contratoNumero, descripcion: v.contratoDescripcion, monto: v.contratoMonto, tipoOrden: null, codigo: v.contratoCodigo, ocid: v.contratoOcid }
+          : { numero: v.ordenNumero, descripcion: v.ordenDescripcion, monto: v.ordenMonto, tipoOrden: v.ordenTipo, codigo: null, ocid: null };
+        return {
+          fecha: v.fecha, entidad: v.entidad, entidadRuc: v.entidadRuc, via: VIA[v.via] ?? v.via, visitante: v.visitante,
+          cargoFuncionario: v.cargoFuncionario, area: v.area, motivo: v.motivo, lugar: v.lugar, entidadDeclarada: v.entidadDeclarada,
+          fuente: v.fuente,
+          despues,
+          diasDespues: dias(v.fecha, despues),
+          despuesTipo: !despues ? null : esContrato ? (v.contratoConsorcio ? "consorcio" : "contrato") : "orden",
+          primero,
+          // En los 90 días desde la visita (con la del mismo día): cuántas órdenes y contratos, y lo que suman las órdenes.
+          en90: despues ? { ordenes: v.ordenes90 ?? 0, contratos: v.contratos90 ?? 0, montoOrdenes: v.monto90 } : null,
+          // Si esa entidad ya le había vendido antes de la visita (para no leer «ese mismo día» como algo raro en un proveedor
+          // de siempre).
+          antes: !!v.antes,
+        };
+      }),
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

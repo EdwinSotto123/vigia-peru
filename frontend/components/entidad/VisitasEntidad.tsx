@@ -8,7 +8,8 @@ import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { rutaEmpresa } from "@/lib/empresas";
-import { fecha, fechaCorta, numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { rutaContrato } from "@/lib/rutas";
 import { tituloNatural } from "@/lib/landing";
 import { getVisitasEntidad, parentescoLlano, type EmpresaVisitante, type VisitasEntidad as Datos } from "@/lib/visitas";
 
@@ -105,6 +106,23 @@ const ROLES = [
 
 const TIPO_DESPUES: Record<EmpresaVisitante["despuesTipo"], string> = { contrato: "Contrato", consorcio: "Contrato en consorcio", orden: "Orden" };
 
+/** «Orden de servicio N.° 4505540510» / «Contrato CP SER-SM-1-2026-ESSALUD/GCL-1»: CUÁL fue lo primero que le dio. */
+function cual(tipo: EmpresaVisitante["despuesTipo"], numero?: string | null, tipoOrden?: string | null): string {
+  const t = (tipoOrden ?? "").toLowerCase();
+  const base = tipo === "orden" ? (t.includes("servicio") ? "Orden de servicio" : t.includes("compra") ? "Orden de compra" : "Orden") : TIPO_DESPUES[tipo];
+  return numero ? `${base} ${tipo === "orden" ? "N.° " : ""}${numero}` : base;
+}
+
+/** Dónde verlo: la orden en la lista de órdenes de la empresa (por su número, en esta entidad) o la ficha del contrato. */
+function enlaceDespues(x: EmpresaVisitante, entidadRuc: string): { texto: string; href: string } | null {
+  if (x.despuesTipo === "orden") {
+    return x.despuesNumero ? { texto: "Ver la orden", href: rutaEmpresa(x.ruc, "ordenes", { [P_ORDENES.entidad]: entidadRuc, [P_ORDENES.q]: x.despuesNumero }) } : null;
+  }
+  if (x.despuesOcid) return { texto: "Ver el contrato", href: rutaContrato(x.despuesOcid) };
+  const q = x.despuesCodigo ?? x.despuesNumero;
+  return q ? { texto: "Ver el contrato", href: rutaEmpresa(x.ruc, "contratos", { [P_CONTRATOS.entidad]: entidadRuc, [P_CONTRATOS.q]: q }) } : null;
+}
+
 /** «Representante legal y socio»: los papeles de quienes la visitaron. */
 function quienes(x: EmpresaVisitante): string {
   const r = ROLES.filter((v) => x[v.clave] > 0).map((v) => v.corto);
@@ -118,13 +136,6 @@ function declaro(x: EmpresaVisitante): string | null {
   if (x.declaradas > 0) return `Dijo venir de la empresa en ${numero(x.declaradas)} de ${numero(x.visitas)}`;
   if (x.otraOrg) return `Dijo venir de ${tituloNatural(x.otraOrg)}`;
   return x.personal > 0 ? "Fue a título personal" : "No dijo venir de la empresa";
-}
-
-/** «Orden el 12 mar. 2024, a 3 días de una visita». */
-function cuandoDespues(x: EmpresaVisitante): string {
-  const base = `${TIPO_DESPUES[x.despuesTipo]} el ${fechaCorta(x.despues)}`;
-  if (x.dias == null) return base;
-  return x.dias === 0 ? `${base}, el día de una visita` : `${base}, a ${plural(x.dias, "día", "días")} de una visita`;
 }
 
 /**
@@ -164,7 +175,15 @@ function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["empresas"]
           ? "La entidad nunca le había dado un contrato ni una orden (en lo que tenemos cargado)"
           : plural(x.antes, "contrato u orden", "contratos u órdenes"),
       },
-      { etiqueta: "Lo primero después", valor: cuandoDespues(x) },
+      {
+        etiqueta: "Lo primero después",
+        valor: `${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, del ${fechaCorta(x.despues)}${
+          x.dias == null ? "" : x.dias === 0 ? ", el día de una visita" : `, a ${plural(x.dias, "día", "días")} de una visita`}`,
+      },
+      ...(x.despuesDetalle ? [{ etiqueta: "Qué se compró", valor: `«${oracion(x.despuesDetalle)}»` }] : []),
+      ...(x.despuesMonto != null
+        ? [{ etiqueta: x.despuesTipo === "consorcio" ? "Adjudicado al consorcio" : x.despuesTipo === "orden" ? "Monto de esa orden" : "Adjudicado a la empresa", valor: soles(x.despuesMonto), mono: true }]
+        : []),
       { etiqueta: "Desde la primera visita", valor: desde.join(", ") },
       {
         etiqueta: "Suman",
@@ -188,7 +207,7 @@ function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["empresas"]
         ),
         visitas: <CeldaNumero sub={plural(x.visitantes, "persona", "personas")}>{numero(x.visitas)}</CeldaNumero>,
         despues: (
-          <CeldaNumero sub={cuandoDespues(x)}>
+          <CeldaNumero sub={`${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, ${fechaCorta(x.despues)}`}>
             {x.monto > 0 ? solesCompacto(x.monto) : x.consorcios > 0 ? plural(x.consorcios, "en consorcio", "en consorcio") : "Sin monto"}
           </CeldaNumero>
         ),
@@ -215,7 +234,11 @@ function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["empresas"]
           <PieDetalle
             principal={
               <>
-                <EnlaceAccion href={rutaEmpresa(x.ruc, "visitas")} flecha>Ver sus visitas</EnlaceAccion>
+                {(() => {
+                  const e = enlaceDespues(x, entidadRuc);
+                  return e ? <EnlaceAccion href={e.href} flecha>{e.texto}</EnlaceAccion> : null;
+                })()}
+                <EnlaceAccion href={rutaEmpresa(x.ruc, "visitas")} variante="secundario">Ver sus visitas</EnlaceAccion>
                 {x.contratos + x.consorcios > 0 && (
                   <EnlaceAccion href={rutaEmpresa(x.ruc, "contratos", { [P_CONTRATOS.entidad]: entidadRuc })} variante="secundario">
                     Sus contratos con la entidad
@@ -245,7 +268,8 @@ function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["empresas"]
         empresa: x.empresa, ruc: x.ruc, visitas: x.visitas, personas: x.visitantes, representante_legal: x.representante, socio: x.socio,
         directivo: x.directivo, dijo_venir_de_ella: x.porNombre, declararon_la_empresa: x.declaradas, otra_organizacion: x.otraOrg,
         a_quien_decide: x.decisores, primera_visita: x.primera, ultima_visita: x.ultima, antes_de_la_visita: x.antes,
-        lo_primero_despues: x.despuesTipo, fecha: x.despues, dias_desde_una_visita: x.dias, contratos: x.contratos,
+        lo_primero_despues: x.despuesTipo, numero: x.despuesNumero, que_se_compro: x.despuesDetalle, monto_de_eso: x.despuesMonto,
+        fecha: x.despues, dias_desde_una_visita: x.dias, contratos: x.contratos,
         en_consorcio: x.consorcios, ordenes: x.ordenes, monto: x.monto,
       },
     };
@@ -320,7 +344,7 @@ function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos[
       ),
       visitas: <CeldaNumero>{numero(o.visitas)}</CeldaNumero>,
       despues: (
-        <CeldaNumero sub={o.despues ? `${o.despuesTipo === "contrato" ? "Contrato" : "Orden"} desde el ${fechaCorta(o.despues)}` : undefined}>
+        <CeldaNumero sub={o.despues && o.despuesTipo ? `${cual(o.despuesTipo, o.despuesNumero)}, ${fechaCorta(o.despues)}` : undefined}>
           {o.despues ? solesCompacto(o.montoDespues) : sinDespues ? "Sin calcular" : "Nada después"}
         </CeldaNumero>
       ),
@@ -328,7 +352,7 @@ function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos[
     buscable: `${o.org} ${o.empresa ?? ""} ${o.ruc ?? ""}`,
     valores: { tipo: o.tipo === "publica" ? "publica" : "privada", despues: o.despues ? "si" : "no", decisor: o.decisores > 0 ? "si" : "no" },
     claves: { visitas: o.visitas, monto: o.montoDespues },
-    csv: { organizacion: o.org, empresa: o.empresa, ruc: o.ruc, tipo: o.tipo, visitas: o.visitas, personas: o.visitantes, primera: o.primera, ultima: o.ultima, a_quien_decide: o.decisores, despues: o.despues, despues_tipo: o.despuesTipo, monto_despues: o.montoDespues },
+    csv: { organizacion: o.org, empresa: o.empresa, ruc: o.ruc, tipo: o.tipo, visitas: o.visitas, personas: o.visitantes, primera: o.primera, ultima: o.ultima, a_quien_decide: o.decisores, despues: o.despues, despues_tipo: o.despuesTipo, despues_numero: o.despuesNumero, monto_despues: o.montoDespues },
   }));
   return (
     <section aria-labelledby="visitas-quienes" className="space-y-2">
@@ -336,7 +360,7 @@ function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos[
         Quiénes la visitan
       </h3>
       <p className="text-meta text-inkSoft">
-        Cada organización que declaró quien visitó. «Después»: lo primero que la entidad le dio tras su primera visita y cuánto suma.
+        Cada organización que declaró quien visitó. «Después»: lo primero que la entidad le dio a su empresa y cuánto suma desde entonces.
       </p>
       <TablaFiltrable
         columnas={columnas}

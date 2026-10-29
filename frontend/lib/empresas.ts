@@ -337,7 +337,13 @@ export interface VisitaEmpresa {
   /** Lo primero que esa entidad le adjudicó o le compró después de la visita. */
   despues: string | null;
   diasDespues: number | null;
-  despuesTipo: "contrato" | "orden" | null;
+  despuesTipo: "contrato" | "consorcio" | "orden" | null;
+  /** CUÁL fue: la orden (número, tipo, qué, cuánto) o el contrato (nomenclatura, código, su ficha si está en la base). */
+  primero?: { numero: string | null; descripcion: string | null; monto: number | null; tipoOrden: string | null; codigo: string | null; ocid: string | null } | null;
+  /** En los 90 días desde la visita (con la del mismo día): cuántas órdenes y contratos, y lo que suman las órdenes. */
+  en90?: { ordenes: number; contratos: number; montoOrdenes: number | null } | null;
+  /** Si esa entidad ya le había vendido antes de la visita. */
+  antes?: boolean;
 }
 
 export interface Pagina<T> {

@@ -17,10 +17,13 @@ export interface OrganizacionVisitante {
   /** La empresa (RUC 20) que se reconoce en esas visitas, si alguna. */
   ruc: string | null;
   empresa: string | null;
-  /** Lo primero que le dio la entidad después de su primera visita, y cuánto en total desde entonces. */
+  /** Lo primero que le dio la entidad después de la primera visita de su gente, y cuánto en total desde entonces. */
   despues: string | null;
-  despuesTipo: "contrato" | "orden" | null;
+  despuesTipo: "contrato" | "consorcio" | "orden" | null;
   montoDespues: number;
+  /** CUÁL fue (migración 204): el número de la orden o la nomenclatura del proceso, y su monto. */
+  despuesNumero?: string | null;
+  despuesMonto?: number | null;
 }
 
 /**
@@ -59,6 +62,14 @@ export interface EmpresaVisitante {
   ordenes: number;
   /** Lo que suman sus contratos (sola) y órdenes desde la primera visita, sin montos dudosos. */
   monto: number;
+  /** CUÁL fue lo primero (migración 204): número de la orden o nomenclatura del proceso, qué se compró, su monto, el código
+   * del proceso, el tipo de orden y el OCID del contrato si está en la base. */
+  despuesNumero?: string | null;
+  despuesDetalle?: string | null;
+  despuesMonto?: number | null;
+  despuesCodigo?: string | null;
+  despuesOrden?: string | null;
+  despuesOcid?: string | null;
 }
 
 export interface VisitaEntidad {

@@ -66,8 +66,27 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                 array_agg(DISTINCT v.fuente) AS fuentes
            FROM ${V} v`, [ruc]),
       // Quiénes la visitan: cada organización declarada, la empresa que es (por las visitas que ya se le atribuyen) y lo
-      // primero que le dio la entidad después de su primera visita.
-      pool.query(
+      // primero que le dio la entidad después de la primera visita de su gente, con CUÁL fue: precalculado en
+      // entidad_visita_empresa (migraciones 203 y 204). En vivo (sin esa tabla) tardaba hasta 90 s en EsSalud.
+      conEmpresas && pre
+        ? pool.query(
+            `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
+                    o.decisores, o.ruc, r.nombre AS empresa,
+                    to_char(e.despues, 'YYYY-MM-DD') AS "despues", e.despues_tipo AS "despuesTipo", e.monto::float AS "montoDespues",
+                    e.despues_numero AS "despuesNumero", e.despues_monto::float AS "despuesMonto"
+               FROM (SELECT * FROM entidad_visita_org WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT 300) o
+               LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
+               LEFT JOIN entidad_visita_empresa e ON e.entidad_ruc = $1 AND e.ruc = o.ruc
+              ORDER BY o.visitas DESC`, [ruc]).catch(() => {
+            // Sin las columnas de la 204 (una base sin migrar): las organizaciones van sin «después».
+            despuesSinCalcular = true;
+            return pool.query(
+              `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
+                      o.decisores, o.ruc, r.nombre AS empresa, NULL::text AS "despues", NULL::text AS "despuesTipo", NULL::float AS "montoDespues"
+                 FROM entidad_visita_org o LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
+                WHERE o.entidad_ruc = $1 ORDER BY o.visitas DESC LIMIT 300`, [ruc]);
+          })
+        : pool.query(
         `WITH o AS (${pre
            ? `SELECT org, tipo, visitas, visitantes, primera, ultima, decisores, ruc FROM entidad_visita_org
                WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT 300`
@@ -151,7 +170,9 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                       e.nombre AS "porNombre", e.declaradas, e.personal, e.compartidas, e.otra_org AS "otraOrg",
                       to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.ultima, 'YYYY-MM-DD') AS ultima, e.antes,
                       to_char(e.despues, 'YYYY-MM-DD') AS despues, e.despues_tipo AS "despuesTipo", e.dias,
-                      e.contratos, e.consorcios, e.ordenes, e.monto::float AS monto
+                      e.contratos, e.consorcios, e.ordenes, e.monto::float AS monto,
+                      e.despues_numero AS "despuesNumero", e.despues_detalle AS "despuesDetalle", e.despues_monto::float AS "despuesMonto",
+                      e.despues_codigo AS "despuesCodigo", e.despues_orden AS "despuesOrden", e.despues_ocid AS "despuesOcid"
                  FROM entidad_visita_empresa e LEFT JOIN empresa_resumen r ON r.ruc = e.ruc
                 WHERE e.entidad_ruc = $1 AND e.despues IS NOT NULL
                 -- Primero las que nunca le habían vendido (como la web por defecto), luego por lo que ganaron.

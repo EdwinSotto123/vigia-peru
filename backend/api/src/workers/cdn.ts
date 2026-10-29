@@ -69,8 +69,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       a medias) y /planilla de una entidad trae salieron, mesParcial y la lista «Trabajó antes» (situacion=antes).
  * "55": /visitas/entidad trae `empresas`: las de quienes la visitan, también por su socio, representante o directivo, y
  *       lo que ganaron después (migración 203).
+ * "56": «después de la visita» dice CUÁL orden o contrato (número, qué, monto, su ficha): /empresas/:ruc/visitas,
+ *       /visitas/entidad (empresas y quiénes la visitan, migración 204) y la primera orden del locador que visitó antes.
  */
-const VERSION_CACHE = "55";
+const VERSION_CACHE = "56";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
