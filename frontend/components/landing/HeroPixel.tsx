@@ -225,8 +225,9 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
                   </span>
                   {piso != null && (
                     <span>
-                      <strong className="font-mono font-semibold tabular-nums text-ink">{`S/\u00a0${numero(piso)}`}</strong> al mes para seguir
-                      encendida
+                      {/* «Cerca de»: el piso es la cifra redonda del equipo (backend/api/src/lib/vigilancia.ts). */}
+                      Cerca de <strong className="font-mono font-semibold tabular-nums text-ink">{`S/\u00a0${numero(piso)}`}</strong> al mes
+                      para seguir encendida
                     </span>
                   )}
                 </p>

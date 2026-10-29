@@ -604,7 +604,8 @@ export interface ResumenVigilancia {
   costos: { rubros: RubroCosto[]; totalUsd: number; totalPen: number } | null;
   ia: { lecturasMes: number; costoMesUsd: number; costoMedioUsd: number | null; lecturasTotal: number; desde: string | null };
   graves: { porMes: number; costoLeerlosUsd: number | null };
-  meta: { pisoPen: number | null; completaPen: number | null };
+  /** `medidoPen`: las facturas de AWS y Cloudflare; `equipoPen`: lo que dice el equipo que cuesta (el piso es el mayor). */
+  meta: { pisoPen: number | null; completaPen: number | null; medidoPen?: number | null; equipoPen?: number };
   recaudado: { mesPen: number; aportes: number; aportantes: number; mensuales: number; semillaPen: number };
   historial: { mes: string; costoUsd: number | null; iaUsd: number; lecturas: number; recaudadoPen: number }[];
   vigilamos: { anio: number; ordenes: number; procesos: number; contratosConBanderas: number; graves: number; menores: number };

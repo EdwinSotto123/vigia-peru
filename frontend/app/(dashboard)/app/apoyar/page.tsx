@@ -130,7 +130,7 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
           </Franja>
 
           <FuenteDato
-            fuente="Contraloría General de la República (estimación de 2023), factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP"
+            fuente="Contraloría General de la República (estimación de 2023), lo que el equipo calcula que cuesta mantenerla, factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP"
             href={CONTRALORIA.url}
           />
         </div>
@@ -157,7 +157,7 @@ function PorQue({ piso }: { piso: number | null }) {
           </p>
           <p className="mt-6 max-w-[52ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
             Vigía lee lo que el Estado compra para que eso se vea a tiempo.
-            {piso != null ? ` Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
+            {piso != null ? ` Mantenerla encendida cuesta cerca de S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <EnlaceAccion href="#aporte" variante="oscuro" tamano="lg">

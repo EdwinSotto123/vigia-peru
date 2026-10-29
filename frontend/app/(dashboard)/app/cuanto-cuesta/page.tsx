@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
+import { Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
 import { EncabezadoPagina, FuenteDato, Migas, Nota, Pagina, Seccion } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
@@ -201,6 +201,14 @@ function Costos({ v }: { v: ResumenVigilancia }) {
       {comun && (
         <Nota icono={proyeccion ? <CalendarClock size={15} aria-hidden /> : <Receipt size={15} aria-hidden />} className="mt-3">
           {comun}
+        </Nota>
+      )}
+      {/* Por qué la meta no es este total: estas facturas son sólo AWS y Cloudflare; mantener Vigía cuesta más, según el
+          equipo (backend/api/src/lib/vigilancia.ts, MANTENERLA_EQUIPO_PEN). */}
+      {v.meta.equipoPen != null && v.meta.medidoPen != null && v.meta.equipoPen > v.meta.medidoPen && (
+        <Nota icono={<Calculator size={15} aria-hidden />} className="mt-3">
+          Estas son sólo las facturas de AWS (hoy cubierto por créditos) y Cloudflare. Con lo que no aparece en ellas, mantener
+          Vigía cuesta cerca de {soles(v.meta.equipoPen)} al mes, según el equipo: esa es la meta para seguir encendidos.
         </Nota>
       )}
     </Seccion>

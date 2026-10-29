@@ -6,9 +6,10 @@
  *   · costos: `costos_mes` (la factura de AWS por servicio y la tarifa de Cloudflare; backend/scripts/costos_mes.py).
  *     Un mes sin cerrar va proyectado; el siguiente, al ritmo de hoy, hasta que llegue su factura.
  *   · IA: lo que costó cada lectura a fondo (alertas.analisis_full->'llm_metrics', medido en cada lectura).
- *   · meta: el piso (seguir encendidos: la infraestructura del mes) y la completa (además, leer a fondo todos los
- *     contratos con banderas graves de un mes: el promedio de los últimos tres meses cerrados por el costo medio de una
- *     lectura).
+ *   · meta: el piso (seguir encendidos) y la completa (además, leer a fondo todos los contratos con banderas graves de
+ *     un mes: el promedio de los últimos tres meses cerrados por el costo medio de una lectura). El piso es lo que dice el
+ *     equipo que cuesta mantenerla (MANTENERLA_EQUIPO_PEN), o lo facturado si algún mes lo pasa: las facturas de
+ *     `costos_mes` son sólo AWS (hoy con créditos) y Cloudflare.
  *   · recaudado: los aportes validados del mes (de apoyo y por contratos), sin el capital semilla de Vigía
  *     (pasarela 'institucional'), que se dice aparte.
  */
@@ -16,6 +17,13 @@
 import { pool } from "./db.js";
 import { Memo } from "./cache.js";
 import { alertaNoDemo } from "./publicacion.js";
+
+/**
+ * Lo que cuesta de verdad mantener Vigía encendida, dicho por el equipo el 2026-10-29 («S/ 334 al mes es imposible…
+ * son cerca de 1,200 soles al mes»): las facturas de AWS y Cloudflare que lee costos_mes.py (S/ 334 en octubre de 2026)
+ * son una parte, y lo demás no aparece en ellas. La meta toma el mayor de los dos; se cambia aquí si cambia.
+ */
+const MANTENERLA_EQUIPO_PEN = 1_200;
 
 /** Sin el del BCRP (la tabla vacía): un tipo de cambio referencial, dicho como tal. */
 const TC_REFERENCIAL = 3.75;
@@ -50,7 +58,8 @@ export interface ResumenVigilancia {
   costos: { rubros: RubroCosto[]; totalUsd: number; totalPen: number } | null;
   ia: { lecturasMes: number; costoMesUsd: number; costoMedioUsd: number | null; lecturasTotal: number; desde: string | null };
   graves: { porMes: number; costoLeerlosUsd: number | null };
-  meta: { pisoPen: number | null; completaPen: number | null };
+  /** `medidoPen`: lo de las facturas de `costos_mes`; `equipoPen`: lo que dice el equipo; el piso es el mayor. */
+  meta: { pisoPen: number | null; completaPen: number | null; medidoPen: number | null; equipoPen: number };
   recaudado: { mesPen: number; aportes: number; aportantes: number; mensuales: number; semillaPen: number };
   historial: MesVigilancia[];
   vigilamos: { anio: number; ordenes: number; procesos: number; contratosConBanderas: number; graves: number; menores: number };
@@ -150,6 +159,8 @@ export function resumenVigilancia(): Promise<ResumenVigilancia> {
     const porMes = num(graves.rows[0]?.n);
     const costoLeerlosUsd = costoMedioUsd == null ? null : porMes * costoMedioUsd;
     const pen = (usd: number) => Math.round(usd * tipoCambio.penPorUsd);
+    const medidoPen = rubros.length ? pen(totalUsd) : null;
+    const pisoPen = Math.max(medidoPen ?? 0, MANTENERLA_EQUIPO_PEN);
     const visibles = aliados.rows.map((r) => ({ nombre: r.nombre as string, tipo: r.tipo as string, slug: (r.slug as string) ?? null, periodicidad: (r.periodicidad as string) ?? null }));
     const anonimos = (await pool.query(
       `SELECT count(DISTINCT co.financiador_id)::int AS n FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
@@ -164,8 +175,10 @@ export function resumenVigilancia(): Promise<ResumenVigilancia> {
       ia: { lecturasMes: num(iaRow.lecturasMes), costoMesUsd: num(iaRow.costoMesUsd), costoMedioUsd, lecturasTotal: num(iaRow.lecturasTotal), desde: iaRow.desde ?? null },
       graves: { porMes, costoLeerlosUsd },
       meta: {
-        pisoPen: rubros.length ? pen(totalUsd) : null,
-        completaPen: rubros.length && costoLeerlosUsd != null ? pen(totalUsd + costoLeerlosUsd) : null,
+        pisoPen,
+        completaPen: costoLeerlosUsd != null ? pisoPen + pen(costoLeerlosUsd) : null,
+        medidoPen,
+        equipoPen: MANTENERLA_EQUIPO_PEN,
       },
       recaudado: {
         mesPen: num(recaudado.rows[0]?.mesPen), aportes: num(recaudado.rows[0]?.aportes), aportantes: num(recaudado.rows[0]?.aportantes),

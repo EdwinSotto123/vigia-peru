@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Target } from "lucide-react";
+import { ArrowRight, HandHeart, Target } from "lucide-react";
 import { numero, soles } from "@/lib/formato";
 import { dolares, nombreMes, type ResumenVigilancia } from "@/lib/financiamiento";
 
@@ -31,7 +31,7 @@ export function MetaDelMes({ v, conEnlace = true }: { v: ResumenVigilancia; conE
     {
       titulo: "Seguir encendidos",
       monto: `${soles(pisoPen)} al mes`,
-      detalle: "La base de datos, los servidores y la captura diaria de lo que publica el Estado.",
+      detalle: "Servidores, base de datos, almacenamiento y la captura diaria de lo que publica el Estado.",
     },
     {
       titulo: "Leer a fondo lo más grave",
@@ -99,6 +99,17 @@ export function MetaDelMes({ v, conEnlace = true }: { v: ResumenVigilancia; conE
           </li>
         ))}
       </ol>
+
+      {/* Lo que pase de la meta, sin monto: no es un tramo de la barra sino a dónde va lo que sobre (pedido del equipo,
+          2026-10-29: «capaz hay gente que quiera aportar y darle viáticos»). */}
+      <p className="mt-3 flex gap-3 border-t border-dashed border-line pt-3 text-meta leading-snug text-inkSoft">
+        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-line text-granate">
+          <HandHeart size={14} />
+        </span>
+        <span className="min-w-0 pt-1">
+          <span className="font-semibold text-ink">Si pasamos la meta:</span> viáticos para quienes se sumen a vigilar con nosotros.
+        </span>
+      </p>
 
       {conEnlace && (
         <Link href="/app/cuanto-cuesta" prefetch={false} className="mt-4 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline">
