@@ -53,7 +53,8 @@ const MONTOS = [10, 20, 50, 100];
 const CLAVE = "vigia:aporte-vigilancia";
 const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute";
 const GRUPO = "mt-6 min-w-0 border-t border-line pt-5 [&>legend+*]:clear-left";
-const LEYENDA = `${ETIQUETA_GRUPO} float-left mb-2 w-full`;
+// En frase, no en versalitas: un rótulo en mayúsculas sobre cada grupo era el tic de plantilla que la página quería dejar.
+const LEYENDA = "float-left mb-2 w-full text-dato font-semibold text-ink";
 
 const ERRORES: Record<string, string> = {
   pagos_cerrados: "Todavía no hay un medio de pago conectado. Vuelve pronto.",

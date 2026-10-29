@@ -21,6 +21,7 @@ import { numero, porcentaje } from "@/lib/formato";
 import { Ayuda } from "@/components/patrones";
 import { Carrusel } from "@/components/ui/Carrusel";
 import type { AnioEscala, TipoEscala } from "@/lib/landing";
+import { CONTRALORIA_CORRUPCION } from "@/lib/costoCorrupcion";
 
 /**
  * "El problema", la primera mitad del pitch: el Estado publica miles de contratos y casi nadie los
@@ -197,6 +198,21 @@ export function EscalaDinero({
             </span>
           </figcaption>
         </figure>
+
+        {/* Lo que cuesta no leerlos, en cosas y no sólo en cifras, con la estimación de la Contraloría y su fuente. */}
+        <p className="mt-8 max-w-[64ch] text-pretty text-bloque leading-relaxed text-paper/85">
+          Y no leerlos tiene precio. Según la Contraloría, en {CONTRALORIA_CORRUPCION.anio} la corrupción y la inconducta funcional se habrían
+          llevado <strong className="font-semibold text-paper">S/ {numero(CONTRALORIA_CORRUPCION.millones)} millones</strong>, casi 13 de cada
+          100 soles del presupuesto: la plata de carreteras, hospitales y colegios.{" "}
+          <a
+            href={CONTRALORIA_CORRUPCION.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-maiz underline decoration-maiz/50 underline-offset-2 hover:decoration-maiz"
+          >
+            Ver la fuente<span className="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+        </p>
 
         {/* ── Las cifras, en una fila que se desliza ──────────────── */}
         <div className="cifras-escala mt-8">

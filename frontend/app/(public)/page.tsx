@@ -281,7 +281,8 @@ function CierreLanding({ enCola }: { enCola: number | null }) {
                 : "Empieza por los contratos de tu región."}
             </h2>
             <p className="mt-5 max-w-[48ch] text-pretty text-bloque leading-relaxed text-paper/80">
-              Mira qué se contrata donde vives, ayúdanos a seguir vigilando o denuncia la obra que tienes enfrente.
+              Detrás de cada uno hay una pista, un colegio o un hospital. Mira qué se contrata donde vives, ayúdanos a seguir
+              vigilando o denuncia la obra que tienes enfrente.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg">
