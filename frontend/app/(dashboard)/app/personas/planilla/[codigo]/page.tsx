@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Flag, LayoutDashboard } from "lucide-react";
+import { Building2, Flag, LayoutDashboard, Wallet } from "lucide-react";
 import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, FuenteDato, SinSenalesEstado, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -30,10 +30,12 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
  * /app/personas/planilla/[codigo] — una persona de la planilla de una entidad (Portal de Transparencia), con la misma
  * información que la ficha de quien recibe órdenes (pedido del usuario, 2026-10-22). Código al azar (migración 107):
  * nunca el nombre, que lleva el materno tapado. Pestañas (?seccion=):
- *   · Resumen: sus datos, sus señales en una línea cada una y su sueldo mes a mes; la misma persona en otras planillas.
+ *   · Resumen: sus datos y sus señales en una línea cada una, con atajos a lo demás.
+ *   · Sueldo: lo que cobró cada mes publicado (antes iba al pie del Resumen; pedido del usuario del 2026-10-29).
  *   · Señales: cada una con su evidencia plegada y su fuente, lo grave primero. El nepotismo del lado del funcionario
  *     (parientes que declaró en su DJI y que le venden a su entidad) es una señal más, con las órdenes de cada pariente.
  *   · Órdenes: si también recibe órdenes de servicio (su ficha de persona contratada), todas, con sus filtros.
+ *   · Otras planillas: la misma persona en la planilla de otras entidades (antes, también al pie del Resumen).
  * No se indexa en buscadores (robots).
  */
 export default async function FichaPlanillaPage({ params, searchParams }: { params: { codigo: string }; searchParams?: Record<string, string | string[] | undefined> }) {
@@ -85,7 +87,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
           { etiqueta: "Planilla", href: "/app/personas?seccion=planilla" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: { senales: "Señales", ordenes: "Órdenes" } }}
+        pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: { sueldo: "Sueldo", senales: "Señales", ordenes: "Órdenes", otras: "Otras planillas" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}
@@ -115,7 +117,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
       <Indicadores items={indicadores(f, { nSenales, altas, locador }, ruta)} />
       {motivo && (
         <AvisoDato motivo={motivo} fuente="pte_personal">
-          {`Su planilla de ${mes(p.ultimoMes) ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total. Mira su sueldo mes a mes, en el Resumen.`}
+          {`Su planilla de ${mes(p.ultimoMes) ?? "su último mes"} trae ${p.dudoso?.total != null ? soles(p.dudoso.total) : "un monto"} en total. Mira su sueldo mes a mes, en la pestaña Sueldo.`}
         </AvisoDato>
       )}
 
@@ -137,10 +139,14 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                 parientes={parientes}
                 nSenales={nSenales}
                 locador={locador}
-                mesesOrden={mesesOrden}
-                montoOrden={montoOrden}
               />
             ),
+          },
+          {
+            clave: "sueldo",
+            icono: <Wallet size={15} aria-hidden />,
+            etiqueta: "Sueldo",
+            contenido: <PestanaSueldo f={f} entidad={entidad} mesesOrden={mesesOrden} montoOrden={montoOrden} />,
           },
           {
             clave: "senales",
@@ -197,6 +203,17 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
                 },
               ]
             : []),
+          ...(f.otras.length > 0
+            ? [
+                {
+                  clave: "otras",
+                  icono: <Building2 size={15} aria-hidden />,
+                  etiqueta: "Otras planillas",
+                  conteo: f.otras.length,
+                  contenido: <PestanaOtras f={f} />,
+                },
+              ]
+            : []),
         ]}
       />
       <Aviso tono="neutro">
@@ -247,8 +264,6 @@ function Resumen({
   parientes,
   nSenales,
   locador,
-  mesesOrden,
-  montoOrden,
 }: {
   f: FichaPlanilla;
   entidad: string;
@@ -256,8 +271,6 @@ function Resumen({
   parientes: ParienteProveedor[];
   nSenales: number;
   locador: FichaPersona | null;
-  mesesOrden: string[];
-  montoOrden: number | null;
 }) {
   const p = f.persona;
   const periodo = periodoMeses(p.primerMes, p.ultimoMes);
@@ -266,7 +279,7 @@ function Resumen({
   const senalesPlanilla = parientes.length ? p.senales.filter((s) => s.tipo !== "pariente_locador") : p.senales;
   return (
     <div className="space-y-4">
-      <CabeceraPestana>Quién es en la planilla de {entidad}, qué señales tiene y cuánto cobró cada mes.</CabeceraPestana>
+      <CabeceraPestana>Quién es en la planilla de {entidad} y qué señales tiene. Su sueldo mes a mes y sus otras planillas, en sus pestañas.</CabeceraPestana>
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <section aria-labelledby="sus-senales" className="tarjeta space-y-1 rounded-2xl border border-line bg-paper p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -292,7 +305,15 @@ function Resumen({
               { etiqueta: "Régimen", valor: p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
               { etiqueta: "Región", valor: p.depNombre },
               { etiqueta: "En la planilla", valor: `${plural(p.meses, "mes", "meses")}${periodo ? `, ${periodo}` : ""}` },
-              { etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`, valor: p.base != null ? soles(p.base) : null, mono: true },
+              {
+                etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`,
+                valor: (
+                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="font-mono tabular-nums">{p.base != null ? soles(p.base) : "Sin dato"}</span>
+                    <IrAPestana clave="sueldo">Ver mes a mes</IrAPestana>
+                  </span>
+                ),
+              },
               { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
               ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
               {
@@ -307,21 +328,61 @@ function Resumen({
                 ),
                 ayuda: <AyudaTermino clave="orden-servicio" />,
               },
+              ...(f.otras.length > 0
+                ? [
+                    {
+                      etiqueta: "Otras planillas",
+                      valor: (
+                        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span>
+                            {f.otras[0].entidad ? tituloNatural(f.otras[0].entidad) : f.otras[0].entidadRuc}
+                            {f.otras.length > 1 ? ` y ${plural(f.otras.length - 1, "entidad más", "entidades más")}` : ""}
+                          </span>
+                          <IrAPestana clave="otras">Ver</IrAPestana>
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
           {/* La página de personal de su entidad en el portal, por su id (sin él, la portada del portal). */}
           <FuenteDato fuente="Portal de Transparencia Estándar de la entidad, rubro Personal" href={personalPte(p.idPte)} className="pt-1" />
         </section>
       </div>
-      <section aria-labelledby="sueldo-mes" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <h3 id="sueldo-mes" className="font-display text-bloque font-bold text-ink">Sueldo mes a mes</h3>
+    </div>
+  );
+}
+
+// ─── Sueldo ───────────────────────────────────────────────────────────────────────────────────────
+
+/** Lo que cobró de la planilla cada mes publicado: la línea (con los meses en que además cobró por órdenes) y su tabla. */
+function PestanaSueldo({ f, entidad, mesesOrden, montoOrden }: { f: FichaPlanilla; entidad: string; mesesOrden: string[]; montoOrden: number | null }) {
+  const p = f.persona;
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
           <Ayuda titulo="¿Qué muestra el sueldo mes a mes?">
             Lo que cobró de la planilla cada mes que la entidad la publicó: el sueldo, y aparte lo de fuera del sueldo
             (gratificación, otros beneficios, incentivo). Un mes que se dispara frente a los demás suele ser un pago acumulado o
             un error de carga.{mesesOrden.length ? " El rombo marca los meses en que además cobró por órdenes de servicio." : ""}
           </Ayuda>
-        </div>
+        }
+      >
+        Lo que cobró de la planilla de {entidad} cada mes que la entidad la publicó.
+      </CabeceraPestana>
+      <section aria-label={`Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`} className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
+        <DatosClave
+          items={[
+            { etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`, valor: p.base != null ? soles(p.base) : null, mono: true },
+            { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
+            ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
+            { etiqueta: "Meses en la planilla", valor: `${plural(p.meses, "mes", "meses")}${periodoMeses(p.primerMes, p.ultimoMes) ? `, ${periodoMeses(p.primerMes, p.ultimoMes)}` : ""}` },
+          ]}
+        />
+      </section>
+      <section aria-label={`Sueldo mes a mes de ${p.nombre}`} className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
         {f.historia.length > 1 ? (
           <LineaMeses
             puntos={f.historia.map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
@@ -336,28 +397,38 @@ function Resumen({
           </p>
         )}
       </section>
-      {f.otras.length > 0 && (
-        <section aria-labelledby="otras-planillas" className="space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h3 id="otras-planillas" className="font-display text-bloque font-bold text-ink">
-              {f.otras.length === 1 ? "En la planilla de otra entidad" : `En la planilla de ${numero(f.otras.length)} entidades más`}
-            </h3>
-            <Ayuda titulo="¿Es la misma persona?">
-              Con los dos apellidos y los nombres iguales casi siempre es la misma persona, pero la planilla no trae DNI: puede ser
-              alguien con el mismo nombre completo.
-            </Ayuda>
-          </div>
-          <TablaPaginada
-            columnas={COLUMNAS_OTRAS}
-            filas={filasOtras(f)}
-            etiqueta="La misma persona en otras planillas"
-            nombre="planillas"
-            buscar={{ placeholder: "Buscar por entidad o cargo…", etiqueta: "Buscar en sus otras planillas" }}
-          />
-          {/* Cada ficha lleva a la página de personal de su entidad; aquí, el portal. */}
-          <FuenteDato fuente="Portal de Transparencia Estándar, personal de cada entidad" href={PORTAL_TRANSPARENCIA} />
-        </section>
-      )}
+      <FuenteDato fuente="Portal de Transparencia Estándar de la entidad, rubro Personal" href={personalPte(p.idPte)} />
+    </div>
+  );
+}
+
+// ─── Otras planillas ──────────────────────────────────────────────────────────────────────────────
+
+/** La misma persona (mismo nombre completo) en la planilla de otras entidades. */
+function PestanaOtras({ f }: { f: FichaPlanilla }) {
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Es la misma persona?">
+            Con los dos apellidos y los nombres iguales casi siempre es la misma persona, pero la planilla no trae DNI: puede ser
+            alguien con el mismo nombre completo.
+          </Ayuda>
+        }
+      >
+        {f.otras.length === 1
+          ? "Figura también, con el mismo nombre completo, en la planilla de otra entidad."
+          : `Figura también, con el mismo nombre completo, en la planilla de ${numero(f.otras.length)} entidades más.`}
+      </CabeceraPestana>
+      <TablaPaginada
+        columnas={COLUMNAS_OTRAS}
+        filas={filasOtras(f)}
+        etiqueta="La misma persona en otras planillas"
+        nombre="planillas"
+        buscar={{ placeholder: "Buscar por entidad o cargo…", etiqueta: "Buscar en sus otras planillas" }}
+      />
+      {/* Cada ficha lleva a la página de personal de su entidad; aquí, el portal. */}
+      <FuenteDato fuente="Portal de Transparencia Estándar, personal de cada entidad" href={PORTAL_TRANSPARENCIA} />
     </div>
   );
 }
