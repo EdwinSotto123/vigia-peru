@@ -216,7 +216,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                   Desde 2015: dónde gobernó, cuánto contrataron sus gobiernos y cuánto recibió y gastó en sus campañas.
                 </CabeceraPestana>
                 <Suspense fallback={<Cargando texto="Armando su historia…" />}>
-                  <HistoriaFicha tipo="partido" id={params.clave} nombre={partido.nombre} />
+                  <HistoriaFicha tipo="partido" id={params.clave} nombre={partido.nombre} vista={uno(searchParams?.hv)} />
                 </Suspense>
               </div>
             ),

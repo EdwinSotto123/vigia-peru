@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { LineaHitos } from "@/components/charts/LineaHitos";
 import { BotonCerrar, GrafoMarco } from "@/components/grafo/primitivos";
+import { irAPestana } from "@/components/patrones/Pestanas";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import {
   INICIAL_MES,
@@ -27,6 +28,8 @@ import {
   type SerieHistoria,
 } from "@/lib/historia";
 import { cn } from "@/lib/utils";
+import { DetalleHecho } from "./DetalleHecho";
+import { ELEGIDO_EN_LINEA, VER_EN_LINEA, idLinea, type ElegidoLinea, type PedidoLinea } from "./Destacados";
 
 /**
  * La línea de tiempo de una ficha (fase 3 del plan del 2026-10-27): un renglón por carril (quién gobierna, compras,
@@ -38,7 +41,11 @@ import { cn } from "@/lib/utils";
  * Pasar por un mes muestra lo de ese mes en todos los renglones; tocarlo (o tocar un punto) abre su detalle debajo, con
  * la fuente de cada cosa y el enlace a su lista en Vigía. Se mira todo o por periodos de gobierno (2015-2018, 2019-2022,
  * 2023-2026), en número o en soles. En el celular el lienzo se desliza y arranca en lo más reciente. La lista completa,
- * con su buscador, va debajo (HistoriaFicha): es también la versión accesible.
+ * con su buscador, es otra pestaña de HistoriaFicha: es también la versión accesible.
+ *
+ * Lo que llama la atención (las secuencias y los patrones) va arriba de las pestañas, en `Destacados`: «Verlo en la
+ * línea» pide por un evento de la ventana (VER_EN_LINEA, con la `clave` de la historia) que la línea lo marque, y la
+ * línea avisa qué quedó elegido (ELEGIDO_EN_LINEA) para que la tarjeta se marque igual.
  */
 
 type Medida = "n" | "monto";
@@ -95,7 +102,7 @@ function useAncho(ref: React.RefObject<HTMLElement>): number {
   return w;
 }
 
-export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }) {
+export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: string; clave: string }) {
   const primerMes = mesDe(h.desde);
   const ultimoMes = mesDe(h.hasta);
   // Los periodos de gobierno local (enero de un año a diciembre de cuatro años después) que caen en la historia.
@@ -117,6 +124,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
   const [encima, setEncima] = useState<{ mes: string; x: number; y: number } | null>(null);
   const lienzo = useRef<HTMLDivElement>(null);
   const caja = useRef<HTMLDivElement>(null);
+  const grafo = useRef<HTMLDivElement>(null);
   const ancho = useAncho(caja);
   // El id del rayado de «sin datos» (único en la página; sin los dos puntos de useId, que url(#…) no siempre acepta).
   const rayado = `sin-datos-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -167,16 +175,49 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
   };
   const [patronSel, setPatronSel] = useState<string | null>(null);
   const patronElegido = patrones.find((p) => p.id === patronSel) ?? null;
+  /** Con todo el periodo a la vista, el mes `mes` al centro del lienzo (se desliza si no entra) y la línea en pantalla. */
+  const mostrarMes = (mes: string) => {
+    requestAnimationFrame(() => {
+      const el = lienzo.current;
+      if (el) el.scrollLeft = Math.max(0, mesesDe(primerMes, mes) * Math.max(MIN_MES, ancho > 0 ? ancho / (mesesDe(primerMes, ultimoMes) + 1) : MIN_MES) - el.clientWidth / 2);
+      grafo.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   const verPatron = (p: PatronHistoria) => {
     setTramo("todo");
     setPatronSel(p.id);
     setSel({ tipo: "mes", mes: p.mes });
-    // El mes del patrón a la vista en el lienzo (se desliza si no entra).
-    requestAnimationFrame(() => {
-      const el = lienzo.current;
-      if (el) el.scrollLeft = Math.max(0, mesesDe(primerMes, p.mes) * Math.max(MIN_MES, ancho > 0 ? ancho / (mesesDe(primerMes, ultimoMes) + 1) : MIN_MES) - el.clientWidth / 2);
-    });
+    mostrarMes(p.mes);
   };
+  const verSecuencia = (s: SecuenciaHistoria) => {
+    setTramo("todo");
+    setPatronSel(null);
+    setSel({ tipo: "secuencia", id: s.id });
+    if (s.pasos[0]) mostrarMes(mesDe(s.pasos[0].fecha));
+  };
+  // «Verlo en la línea» desde las tarjetas de arriba (Destacados).
+  const verRef = useRef({ verPatron, verSecuencia });
+  verRef.current = { verPatron, verSecuencia };
+  useEffect(() => {
+    const alPedir = (e: Event) => {
+      const d = (e as CustomEvent<PedidoLinea>).detail;
+      if (d?.clave !== clave) return;
+      if (d.tipo === "patron") {
+        const p = (h.patrones ?? []).find((x) => x.id === d.id);
+        if (p) verRef.current.verPatron(p);
+      } else {
+        const s = h.secuencias.find((x) => x.id === d.id);
+        if (s) verRef.current.verSecuencia(s);
+      }
+    };
+    window.addEventListener(VER_EN_LINEA, alPedir);
+    return () => window.removeEventListener(VER_EN_LINEA, alPedir);
+  }, [clave, h]);
+  // Y avisa qué quedó elegido (un patrón o una secuencia; nada al cerrar) para que su tarjeta se marque.
+  const elegidoArriba = patronSel ?? (sel?.tipo === "secuencia" ? sel.id : null);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<ElegidoLinea>(ELEGIDO_EN_LINEA, { detail: { clave, id: elegidoArriba } }));
+  }, [clave, elegidoArriba]);
   const porMes = useMemo(() => {
     const m = new Map<string, EventoHistoria[]>();
     for (const e of h.eventos) if (!e.hasta) m.set(mesDe(e.fecha), [...(m.get(mesDe(e.fecha)) ?? []), e]);
@@ -225,8 +266,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
   const mesElegido = sel?.tipo === "mes" ? sel.mes : null;
 
   return (
-    <div className="space-y-3">
-      {patrones.length > 0 && <Patrones xs={patrones} elegido={patronSel} ver={verPatron} />}
+    <div id={idLinea(clave)} className="space-y-3">
       {/* Controles: el periodo, la medida y los renglones. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* En el celular, cada grupo en una fila que se desliza (antes, cinco filas de chips antes de la línea). */}
@@ -283,6 +323,8 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
         ))}
       </div>
 
+      {/* Al pedir «Verlo en la línea», ésta queda arriba (debajo de la barra fija de la ficha). */}
+      <div ref={grafo} className="scroll-mt-[calc(var(--alto-barra-fija,0px)+0.75rem)]">
       <GrafoMarco>
         <div className="relative flex">
           {/* Los nombres de los renglones, fijos a la izquierda (el lienzo se desliza a su derecha). */}
@@ -392,6 +434,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
           </div>
         </div>
       </GrafoMarco>
+      </div>
       <Leyenda hayPicos={[...normales.values()].some((m) => m.size > 0)} />
 
       {/* El detalle de lo elegido: un mes, un hecho o una secuencia. */}
@@ -409,7 +452,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
               patrones={patronesDelMes(mesElegido)} elegir={(id) => setSel({ tipo: "evento", id })}
             />
           )}
-          {elegido && <DetalleEvento e={elegido} />}
+          {elegido && <DetalleHecho e={elegido} renglon={h.carriles.find((c) => c.clave === elegido.carril)?.titulo} />}
           {secElegida && <DetalleSecuencia s={secElegida} />}
         </section>
       )}
@@ -781,9 +824,13 @@ function DetalleMes({
                 ))}
                 {l.ev.length > 6 && (
                   <li>
-                    <a href="#historia-lista" className="text-micro font-semibold text-granate underline decoration-granate/40 underline-offset-2">
-                      Y {numero(l.ev.length - 6)} más en la lista de todos los hechos
-                    </a>
+                    <button
+                      type="button"
+                      onClick={() => irAPestana("lista", "hv")}
+                      className="text-micro font-semibold text-granate underline decoration-granate/40 underline-offset-2"
+                    >
+                      Y {numero(l.ev.length - 6)} más en «Todos los hechos»
+                    </button>
                   </li>
                 )}
               </ul>
@@ -791,23 +838,6 @@ function DetalleMes({
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function DetalleEvento({ e }: { e: EventoHistoria }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-meta text-inkSoft">
-        {e.hasta ? `Del ${fechaCorta(e.fecha)} al ${fechaCorta(e.hasta)}` : fechaCorta(e.fecha)}
-        {e.monto ? `; ${solesCompacto(e.monto)}` : ""}
-        {e.severidad === "alta" ? "; grave" : e.severidad === "media" ? "; medio" : ""}
-      </p>
-      {e.detalle && <p className="text-meta text-ink">{e.detalle}</p>}
-      <p className="flex flex-wrap gap-x-3 gap-y-1">
-        {e.href && <Abrir href={e.href}>Ver en Vigía</Abrir>}
-        <Fuente texto={e.fuente} href={e.enlace} />
-      </p>
     </div>
   );
 }
@@ -864,44 +894,5 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
         </ul>
       </details>
     </div>
-  );
-}
-
-/** Lo que llama la atención en sus series (patronesDeSeries de la API): tocar uno lo marca en la línea. */
-function Patrones({ xs, elegido, ver }: { xs: PatronHistoria[]; elegido: string | null; ver: (p: PatronHistoria) => void }) {
-  // Los cuatro más fuertes a la vista (en el celular, ocho tarjetas empujaban la línea muy abajo); el resto, a un toque.
-  const [todos, setTodos] = useState(false);
-  const vistos = todos ? xs : xs.slice(0, 4);
-  return (
-    <section aria-label="Lo que llama la atención en sus datos" className="space-y-2">
-      <p className="text-meta font-semibold text-ink">Lo que llama la atención en sus datos</p>
-      <ul className="grid gap-2 md:grid-cols-2">
-        {vistos.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              onClick={() => ver(p)}
-              aria-pressed={elegido === p.id}
-              className={cn(
-                "flex w-full items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors duration-rapido",
-                elegido === p.id ? "border-granate bg-granate/5" : "border-line bg-paper hover:border-paperEdge",
-              )}
-            >
-              <span aria-hidden className={cn("mt-1.5 inline-block size-2 shrink-0 rounded-full", p.severidad === "alta" ? "bg-crimson" : p.severidad === "media" ? "bg-amber" : "bg-mute")} />
-              <span className="min-w-0 space-y-0.5">
-                <span className="block text-meta font-semibold leading-snug text-ink">{p.titulo}</span>
-                <span className="line-clamp-3 block text-rotulo leading-snug text-inkSoft">{p.explica}</span>
-                <span className="block text-rotulo font-semibold text-granate">Verlo en la línea</span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {xs.length > 4 && (
-        <button type="button" onClick={() => setTodos((v) => !v)} className="text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2">
-          {todos ? "Ver menos" : `Ver los ${xs.length} patrones`}
-        </button>
-      )}
-    </section>
   );
 }

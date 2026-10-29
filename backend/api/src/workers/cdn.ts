@@ -77,8 +77,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       societarias en mayúsculas (el 57 ya había guardado respuestas de DEV con lo anterior).
  * "59": /historia trae en cada renglón desde y hasta cuándo lo cubre su fuente (`cubre`) y los renglones sin ningún dato
  *       de la entidad (`sinDatos`): la línea pinta en rojo lo que no tenemos.
+ * "60": cada hecho de /historia trae quién (`quien`), sus datos en filas (`datos`) y, los contratos con banderas, CUÁLES
+ *       antecedentes y con qué gravedad (`banderas`); los «la visitó y le dieron» que ya son secuencia no se repiten.
  */
-const VERSION_CACHE = "59";
+const VERSION_CACHE = "60";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

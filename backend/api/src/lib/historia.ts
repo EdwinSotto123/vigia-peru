@@ -49,6 +49,12 @@ export interface EventoHistoria {
   fuente: string;
   /** Dónde verificarlo. */
   enlace?: string | null;
+  /** Quién (la empresa que ganó, la que ejecuta la obra), con su ficha: para el detalle. */
+  quien?: { nombre: string; rol: string; href?: string | null } | null;
+  /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…): para el detalle. */
+  datos?: { etiqueta: string; valor: string }[];
+  /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */
+  banderas?: { tipo: string; texto: string; severidad: Severidad; n?: number | null }[];
 }
 
 /** Un mes («AAAA-MM») o un año («AAAA») de una serie. `extra`: un segundo número (las altas de la planilla). */

@@ -1,23 +1,41 @@
-import { ArrowRight, CloudOff, History } from "lucide-react";
+import { Building2, CalendarRange, CloudOff, History, List } from "lucide-react";
 import Link from "next/link";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
-import { EnlaceFuente, FuenteDato, Nota } from "@/components/patrones";
+import { FuenteDato, Nota, Pestanas, type Pestana } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
-import { Severidad } from "@/components/ui/Severidad";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
-import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
+import { AccionesHecho, DetalleHecho } from "./DetalleHecho";
+import { Destacados } from "./Destacados";
 import { HilosHistoria } from "./HilosHistoria";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 
 /**
- * La pestaña «Historia» de una entidad, una empresa o un partido (fase 3 del plan del 2026-10-27): lo que encadenan sus
- * datos (las secuencias, primero, con su evidencia), la línea de tiempo con todos sus renglones (y lo que llama la
- * atención en sus series), los hilos de cada empresa con la entidad (lo que correlaciona hechos en el tiempo, pedido del
- * usuario el 2026-10-28) y, plegada, la lista completa de hechos con su buscador, sus filtros y su CSV (también es la
- * versión accesible). Server component: pide GET /historia/... una vez (CDN de una hora) y le pasa todo a la línea.
+ * La pestaña «Historia» de una entidad, una empresa, un partido o un contrato (fase 3 del plan del 2026-10-27), ordenada
+ * para no repetir (pedido del usuario del 2026-10-28: «ordénalo más adecuadamente, parece que se repite información»):
+ *
+ *   1. Lo que llama la atención (`Destacados`): las secuencias y los meses fuera de lo normal, juntos y lo más grave
+ *      primero (antes eran dos grillas de tarjetas seguidas).
+ *   2. Tres formas de ver LOS MISMOS hechos, en pestañas (`?hv=`) en vez de apiladas: en el tiempo (la línea con todos
+ *      sus renglones), empresa por empresa (los hilos, en una entidad) y todos los hechos en una lista con su buscador,
+ *      sus filtros y su CSV (también es la versión accesible).
+ *
+ * El detalle de cada hecho (`DetalleHecho`) es el mismo en la línea y en la lista. Server component: pide
+ * GET /historia/... una vez (CDN de una hora) y le pasa todo a la línea.
  */
-export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["sujeto"]["tipo"]; id: string; nombre: string }) {
+export async function HistoriaFicha({
+  tipo,
+  id,
+  nombre,
+  vista,
+}: {
+  tipo: Historia["sujeto"]["tipo"];
+  id: string;
+  nombre: string;
+  /** La forma de verla al abrir (`?hv=`): «tiempo», «empresas» o «lista». */
+  vista?: string;
+}) {
   const h = await getHistoria(tipo, id);
   if (!h) {
     return (
@@ -35,87 +53,61 @@ export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["suje
   }
   const omitidos = Object.entries(h.omitidos).filter(([, n]) => (n ?? 0) > 0) as [Carril, number][];
   const titulo = (c: Carril) => h.carriles.find((x) => x.clave === c)?.titulo ?? c;
+  // La historia en la página: con ella se hablan las tarjetas de arriba y su línea.
+  const clave = `${tipo}-${id}`;
+  const hilos = h.hilos ?? [];
+
+  const formas: Pestana[] = [
+    {
+      clave: "tiempo",
+      etiqueta: "En el tiempo",
+      icono: <CalendarRange size={15} aria-hidden />,
+      contenido: (
+        <div className="space-y-2">
+          <LineaDeTiempo h={h} etiqueta={`Historia de ${nombre}`} clave={clave} />
+          {omitidos.length > 0 && (
+            <Nota>
+              En la línea van los hechos más graves y los más grandes de cada renglón:{" "}
+              {omitidos.map(([c, n]) => `${numero(n)} más en «${titulo(c)}»`).join(", ")}. Están todos en «Todos los hechos» y en su pestaña.
+            </Nota>
+          )}
+        </div>
+      ),
+    },
+    ...(hilos.length
+      ? [
+          {
+            clave: "empresas",
+            etiqueta: "Empresa por empresa",
+            conteo: hilos.length,
+            icono: <Building2 size={15} aria-hidden />,
+            contenido: (
+              <div className="space-y-2">
+                <p className="max-w-prose text-meta text-inkSoft">
+                  Cada fila une, en el tiempo, lo que pasó entre una misma empresa y la entidad: las visitas de su gente, lo que le
+                  dieron, sus banderas, sus obras y sus sanciones.
+                </p>
+                <HilosHistoria hilos={hilos} desde={h.desde} hasta={h.hasta} marcas={h.marcas} gestiones={h.eventos.filter((e) => e.carril === "gobierno" && !!e.hasta)} />
+              </div>
+            ),
+          },
+        ]
+      : []),
+    {
+      clave: "lista",
+      etiqueta: "Todos los hechos",
+      conteo: h.eventos.length + h.secuencias.length,
+      icono: <List size={15} aria-hidden />,
+      contenido: <ListaHechos h={h} titulo={titulo} />,
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {h.secuencias.length > 0 && (
-        <section aria-labelledby="historia-secuencias" className="space-y-2">
-          <h3 id="historia-secuencias" className="font-display text-bloque font-bold text-ink">
-            Lo que encadenan sus datos
-          </h3>
-          <ul className="grid gap-2 md:grid-cols-2">
-            {/* recorte: las primeras seis; la lista de abajo (filtro «Una cosa lleva a otra») tiene todas. */}
-            {h.secuencias.slice(0, 6).map((s) => (
-              <li key={s.id} className="rounded-xl border border-line bg-paper px-3.5 py-3">
-                <div className="flex items-start gap-2">
-                  <Severidad bandera={s.severidad} formato="punto" className="mt-1.5" />
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-meta font-semibold text-ink">{s.titulo}</p>
-                    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-rotulo text-inkSoft">
-                      {s.pasos.map((p, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5">
-                          {i > 0 && <ArrowRight size={12} className="text-mute" aria-hidden />}
-                          <span>
-                            {fechaCorta(p.fecha)}: {p.texto}
-                          </span>
-                        </span>
-                      ))}
-                    </p>
-                    {s.href && (
-                      <Link href={s.href} prefetch={false} className="inline-block text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2">
-                        Ver la evidencia
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {h.secuencias.length > 6 && <p className="text-rotulo text-mute">Y {numero(h.secuencias.length - 6)} más en la lista de abajo.</p>}
-        </section>
-      )}
-
-      <section aria-labelledby="historia-linea" className="space-y-2">
-        <h3 id="historia-linea" className="font-display text-bloque font-bold text-ink">
-          Su línea de tiempo
-        </h3>
-        <LineaDeTiempo h={h} etiqueta={`Historia de ${nombre}`} />
-        {omitidos.length > 0 && (
-          <Nota>
-            En la línea van los hechos más graves y los más grandes de cada renglón:{" "}
-            {omitidos.map(([c, n]) => `${numero(n)} más en «${titulo(c)}»`).join(", ")}. Están todos en la lista de abajo y en su pestaña.
-          </Nota>
-        )}
+      <Destacados clave={clave} secuencias={h.secuencias} patrones={h.patrones ?? []} />
+      <section aria-label="Sus hechos" className="space-y-2">
+        <Pestanas param="hv" variante="segunda" etiqueta="Cómo ver sus hechos" activa={vista} pestanas={formas} />
       </section>
-
-      {(h.hilos?.length ?? 0) > 0 && (
-        <section aria-labelledby="historia-hilos" className="space-y-2">
-          <h3 id="historia-hilos" className="font-display text-bloque font-bold text-ink">
-            Hilos: lo que pasó con cada empresa, en el tiempo
-          </h3>
-          <p className="max-w-prose text-meta text-inkSoft">
-            Cada fila une los hechos de una misma empresa con la entidad: visitas de su gente, lo que le dieron, banderas, obras y
-            sanciones.
-          </p>
-          <HilosHistoria
-            hilos={h.hilos!}
-            desde={h.desde}
-            hasta={h.hasta}
-            marcas={h.marcas}
-            gestiones={h.eventos.filter((e) => e.carril === "gobierno" && !!e.hasta)}
-          />
-        </section>
-      )}
-
-      <details className="group rounded-xl border border-line bg-paper px-3.5 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0">
-        <summary className="cursor-pointer text-meta font-semibold text-ink">
-          {`Todos los hechos en una lista (${numero(h.eventos.length + h.secuencias.length)}): buscar, filtrar y descargar`}
-        </summary>
-        <div className="mt-3">
-          <ListaHechos h={h} titulo={titulo} />
-        </div>
-      </details>
-
       <FuenteDato fuente="Las fuentes oficiales de cada hecho (en su detalle)" enlaces={h.fuentes} />
     </div>
   );
@@ -188,25 +180,10 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
       detalle: {
         titulo: e.titulo,
         etiqueta: titulo(e.carril),
-        contenido: (
-          <div className="space-y-2">
-            <p className="text-meta text-inkSoft">
-              {e.hasta ? `Del ${fechaCorta(e.fecha)} al ${fechaCorta(e.hasta)}` : fechaCorta(e.fecha)}
-              {e.monto ? `; ${solesCompacto(e.monto)}` : ""}
-            </p>
-            {e.detalle && <p className="text-meta text-ink">{e.detalle}</p>}
-            <p className="text-rotulo text-mute">
-              Fuente: {e.enlace ? <EnlaceFuente href={e.enlace}>{e.fuente}</EnlaceFuente> : e.fuente}
-            </p>
-          </div>
-        ),
-        pie: e.href ? (
-          <Link href={e.href} prefetch={false} className="text-meta font-semibold text-granate underline decoration-granate/40 underline-offset-2">
-            Ver en Vigía
-          </Link>
-        ) : undefined,
+        contenido: <DetalleHecho e={e} renglon={titulo(e.carril)} conPie={false} />,
+        pie: <AccionesHecho e={e} />,
       },
-      buscable: `${e.titulo} ${e.detalle ?? ""} ${e.fuente} ${titulo(e.carril)}`,
+      buscable: `${e.titulo} ${e.detalle ?? ""} ${e.quien?.nombre ?? ""} ${(e.datos ?? []).map((d) => d.valor).join(" ")} ${(e.banderas ?? []).map((b) => b.texto).join(" ")} ${e.fuente} ${titulo(e.carril)}`,
       valores: { carril: e.carril, severidad: e.severidad ?? "ninguna" },
       claves: { fecha: e.hasta ?? e.fecha, monto: e.monto ?? 0 },
       csv: { fecha: e.fecha, hasta: e.hasta ?? null, renglon: titulo(e.carril), hecho: e.titulo, detalle: e.detalle ?? null, gravedad: e.severidad ?? null, monto: e.monto ?? null, fuente: e.fuente, enlace: e.enlace ?? null },
@@ -214,10 +191,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
   ];
   const carriles = [...new Set(filas.map((f) => String(f.valores?.carril)))];
   return (
-    <section aria-labelledby="historia-lista" className="space-y-2">
-      <h3 id="historia-lista" className="font-display text-bloque font-bold text-ink">
-        Todos los hechos
-      </h3>
+    <section aria-label="Todos los hechos" className="space-y-2">
       <TablaFiltrable
         columnas={columnas}
         filas={filas}

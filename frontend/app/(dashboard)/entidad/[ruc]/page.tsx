@@ -266,7 +266,7 @@ export default async function EntidadProfile({
             Lo que pasó con ella mes a mes: quién gobernaba, cuánto compró y a quién, su planilla, sus visitas y lo que encontró la Contraloría.
           </CabeceraPestana>
           <Suspense fallback={<Cargando texto="Armando su historia…" />}>
-            <HistoriaFicha tipo="entidad" id={e.ruc} nombre={nombre} />
+            <HistoriaFicha tipo="entidad" id={e.ruc} nombre={nombre} vista={uno(searchParams?.hv)} />
           </Suspense>
         </div>
       ),

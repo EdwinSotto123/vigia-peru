@@ -271,7 +271,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                   Lo que pasó con la empresa mes a mes: lo que ganó, a quién visitó su gente, sus aportes y sus sanciones.
                 </CabeceraPestana>
                 <Suspense fallback={<Cargando texto="Armando su historia…" />}>
-                  <HistoriaFicha tipo="empresa" id={e.ruc} nombre={nombre} />
+                  <HistoriaFicha tipo="empresa" id={e.ruc} nombre={nombre} vista={uno(sp?.hv)} />
                 </Suspense>
               </div>
             ),

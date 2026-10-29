@@ -203,6 +203,34 @@ const RESPONSABILIDAD: Record<string, string> = {
   administrativa: "administrativa",
 };
 const oracion = (s: string | null | undefined) => (s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : null);
+
+/** Los antecedentes de un contrato con banderas (casos_cruce.cruces), con su nombre y su gravedad: los graves primero. */
+function banderasDeCruces(cruces: { tipo: string; severidad: string; n?: number }[] | null): NonNullable<EventoHistoria["banderas"]> {
+  const PESO: Record<string, number> = { alta: 0, media: 1, baja: 2 };
+  return (cruces ?? [])
+    .filter((x) => x.tipo && ETIQUETA_CRUCE[x.tipo])
+    .sort((x, y) => (PESO[x.severidad] ?? 3) - (PESO[y.severidad] ?? 3))
+    .map((x) => ({ tipo: x.tipo, texto: ETIQUETA_CRUCE[x.tipo], severidad: sev(x.severidad) ?? "baja", n: x.n ?? null }));
+}
+
+/** «El ganador tenía un antecedente grave: obra con adicionales sobre el tope.» (antes, «1 antecedente grave» sin decir cuál). */
+function decirBanderas(banderas: NonNullable<EventoHistoria["banderas"]>, quien: string): string {
+  const graves = banderas.filter((x) => x.severidad === "alta");
+  const xs = graves.length ? graves : banderas;
+  if (!xs.length) return "Tiene antecedentes que Vigía marca.";
+  const nombres = xs.map((x) => x.texto.charAt(0).toLowerCase() + x.texto.slice(1)).join("; ");
+  if (!graves.length) return `${quien} ${xs.length === 1 ? "un antecedente" : `${xs.length} antecedentes`}: ${nombres}.`;
+  return `${quien} ${graves.length === 1 ? "un antecedente grave" : `${graves.length} antecedentes graves`}: ${nombres}.`;
+}
+
+/** Lo que se contrató, el tipo y el código del proceso, en el orden del detalle. */
+function datosContrato(objeto: string | null, tipo: string | null, codigo: string | null): NonNullable<EventoHistoria["datos"]> {
+  return [
+    objeto ? { etiqueta: "Qué se contrató", valor: corto(objeto)! } : null,
+    tipo ? { etiqueta: "Tipo", valor: oracion(tipo)! } : null,
+    codigo ? { etiqueta: "Proceso", valor: codigo } : null,
+  ].filter((x): x is { etiqueta: string; valor: string } => !!x);
+}
 /** Las responsabilidades de un informe de control, de la más grave a la menos. */
 function sevInforme(resp: unknown): Severidad {
   const r = (Array.isArray(resp) ? resp.join(" ") : String(resp ?? "")).toUpperCase();
@@ -260,9 +288,10 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
               paralizada, to_char(fecha_paralizacion, 'YYYY-MM-DD') AS fecha_par, causal_paralizacion AS causal, ejecutor_ruc, ejecutor_nombre AS ejecutor
          FROM obra_infobras WHERE entidad_ruc = $1 AND NOT retirada AND fecha_inicio IS NOT NULL
         ORDER BY contrato_monto DESC NULLS LAST LIMIT 300`, [ruc]),
-    filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[] }>(
+    filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[]; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta, tipos
+      `SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta, tipos,
+              cruces, codigo
          FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
         ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
     filas<{ anio: number; pim: number; devengado: number }>(
@@ -337,6 +366,12 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
         r.funcionarios ? `${r.funcionarios} ${r.funcionarios === 1 ? "funcionario comprendido" : "funcionarios comprendidos"}` : null,
       ].filter(Boolean).join("; ") || null,
       severidad: sevInforme(r.responsabilidades), href: `${base}?seccion=control`, fuente: "Contraloría General de la República", enlace: r.url,
+      datos: [
+        r.numero ? { etiqueta: "Informe", valor: r.numero } : null,
+        r.modalidad ? { etiqueta: "Modalidad", valor: oracion(r.modalidad)! } : null,
+        r.responsabilidades?.length ? { etiqueta: "Responsabilidad", valor: r.responsabilidades.map((x) => RESPONSABILIDAD[x] ?? x.replace(/_/g, " ")).join(", ") } : null,
+        r.funcionarios ? { etiqueta: "Funcionarios comprendidos", valor: String(r.funcionarios) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
     });
   }
   for (const o of obr) {
@@ -345,21 +380,32 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       titulo: o.nombre ? `Empezó la obra «${o.nombre}»` : "Empezó una obra",
       detalle: [o.estado ? `Estado: ${o.estado.toLowerCase()}` : null, o.ejecutor && o.ejecutor_ruc?.startsWith("20") ? `La ejecuta ${titulo(o.ejecutor)}` : null].filter(Boolean).join("; ") || null,
       href: `${base}?seccion=obras`, fuente: "INFOBRAS (Contraloría)", enlace: obraInfobras(o.codigo),
+      quien: o.ejecutor && o.ejecutor_ruc?.startsWith("20") ? { nombre: titulo(o.ejecutor), rol: "La ejecuta", href: `/empresa/${o.ejecutor_ruc}?seccion=obras` } : null,
+      datos: [o.estado ? { etiqueta: "Estado", valor: oracion(o.estado)! } : null, { etiqueta: "Código INFOBRAS", valor: String(o.codigo) }]
+        .filter((x): x is { etiqueta: string; valor: string } => !!x),
     });
     if (o.paralizada && o.fecha_par) {
       eventos.push({
         id: `paralizada:${o.codigo}`, carril: "obras", tipo: "paralizada", fecha: o.fecha_par, severidad: "alta", monto: num(o.monto),
         titulo: o.nombre ? `Se paralizó la obra «${o.nombre}»` : "Se paralizó una obra",
         detalle: o.causal ? `Causa: ${o.causal}` : null, href: `${base}?seccion=obras`, fuente: "INFOBRAS (Contraloría)", enlace: obraInfobras(o.codigo),
+        quien: o.ejecutor && o.ejecutor_ruc?.startsWith("20") ? { nombre: titulo(o.ejecutor), rol: "La ejecutaba", href: `/empresa/${o.ejecutor_ruc}?seccion=obras` } : null,
+        datos: o.causal ? [{ etiqueta: "Por qué se paralizó", valor: o.causal }] : [],
       });
     }
   }
   for (const b of ban) {
-    const empresa = /^20\d{9}$/.test(b.ruc) && b.proveedor ? titulo(b.proveedor) : "una persona natural";
+    const esEmpresa = /^20\d{9}$/.test(b.ruc) && !!b.proveedor;
+    const empresa = esEmpresa ? titulo(b.proveedor) : "una persona natural";
+    const banderas = banderasDeCruces(b.cruces);
     eventos.push({
       id: `bandera:${b.ocid}:${b.ruc}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad),
       titulo: `Buena pro${b.tipo ? ` de ${b.tipo.toLowerCase()}` : ""} a ${empresa}`,
-      detalle: [b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"} del ganador` : "Antecedentes del ganador", corto(b.objeto)].filter(Boolean).join("; "),
+      detalle: decirBanderas(banderas, "El ganador tenía"),
+      // Una persona natural no se nombra ni se enlaza (su RUC 10 nunca va en una URL).
+      quien: { nombre: esEmpresa ? empresa : "Una persona natural", rol: "Ganó la buena pro", href: esEmpresa ? `/empresa/${b.ruc}?seccion=antecedentes` : null },
+      datos: datosContrato(b.objeto, b.tipo, b.codigo),
+      banderas,
       href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid),
     });
   }
@@ -387,7 +433,13 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   // Cada visita que terminó en algo dentro de los 180 días: un hecho en el renglón de visitas, en la fecha de la última
   // visita antes de lo que le dieron (lo más grave y lo más grande primero; acotar deja los que caben).
   const ganaron = vemp.filter((v) => v.despues && v.dias != null && v.dias <= 180);
-  for (const v of ganaron) {
+  // Las que van como secuencia («Lo que llama la atención») no se repiten como punto en el renglón de visitas.
+  const enSecuencia = new Set(
+    ganaron.filter((v) => v.antes === 0 && v.dias! <= 90 && (v.decisores > 0 || (v.despues_monto ?? 0) >= 50_000))
+      .sort((a, b) => Number(sevDespues(b) === "alta") - Number(sevDespues(a) === "alta") || (b.despues_monto ?? 0) - (a.despues_monto ?? 0))
+      .slice(0, 6).map((v) => v.ruc),
+  );
+  for (const v of ganaron.filter((x) => !enSecuencia.has(x.ruc))) {
     const nombre = v.nombre ? titulo(v.nombre) : `la empresa ${v.ruc}`;
     eventos.push({
       id: `visita_gano:${v.ruc}`, carril: "visitas", tipo: "visita_gano", fecha: diasAntes(v.despues!, v.dias!),
@@ -399,6 +451,14 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       ].filter(Boolean).join("; "),
       monto: v.despues_monto, severidad: sevDespues(v), href: empresaRuta(v.ruc, "visitas"),
       fuente: "Registro de Visitas en Línea y CONOSCE (OECE)", enlace: VISITAS_EN_LINEA,
+      quien: { nombre, rol: "La visitó su gente", href: empresaRuta(v.ruc, "visitas") },
+      datos: [
+        { etiqueta: "Visitas", valor: `${v.visitas} de ${v.visitantes} ${v.visitantes === 1 ? "persona" : "personas"}, del ${v.primera} al ${diasAntes(v.despues!, v.dias!)}` },
+        ...(v.decisores > 0 ? [{ etiqueta: "A quien decide las compras", valor: `${v.decisores} ${v.decisores === 1 ? "visita" : "visitas"}` }] : []),
+        { etiqueta: "Lo que le dieron", valor: `${cualDespues(v.despues_tipo, v.despues_numero)} el ${v.despues}${v.despues_monto ? `, S/ ${Math.round(v.despues_monto).toLocaleString("es-PE")}` : ""}` },
+        ...(v.despues_detalle ? [{ etiqueta: "Qué se compró", valor: corto(v.despues_detalle)! }] : []),
+        { etiqueta: "Antes de las visitas", valor: v.antes === 0 ? "Nunca le había vendido" : "Ya le vendía" },
+      ],
     });
   }
   // Las más fuertes, como secuencia (una cosa lleva a otra): nunca le había vendido, y a los 90 días o menos le dieron algo.
@@ -601,9 +661,10 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
       `SELECT to_char(fecha_inicio_vigencia, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n
          FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND fecha_inicio_vigencia IS NOT NULL
         GROUP BY 1, 2 ORDER BY 1`, [ruc]),
-    filas<{ ocid: string; entidad: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number }>(
+    filas<{ ocid: string; entidad: string | null; entidad_ruc: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT ocid, entidad, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta
+      `SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta,
+              cruces, codigo
          FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
         ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
   ]);
@@ -707,7 +768,16 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     }
   }
   for (const b of ban) {
-    eventos.push({ id: `bandera:${b.ocid}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad), titulo: `Buena pro${b.tipo ? ` de ${b.tipo.toLowerCase()}` : ""} en ${b.entidad ? titulo(b.entidad) : "una entidad"}`, detalle: [b.n_alta > 0 ? `${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"}` : "Antecedentes medios", corto(b.objeto)].filter(Boolean).join("; "), href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid) });
+    const banderas = banderasDeCruces(b.cruces);
+    eventos.push({
+      id: `bandera:${b.ocid}`, carril: "banderas", tipo: "contrato", fecha: b.fecha, monto: num(b.monto), severidad: sev(b.severidad),
+      titulo: `Buena pro${b.tipo ? ` de ${b.tipo.toLowerCase()}` : ""} en ${b.entidad ? titulo(b.entidad) : "una entidad"}`,
+      detalle: decirBanderas(banderas, "Tenía"),
+      quien: b.entidad ? { nombre: titulo(b.entidad), rol: "Le dio la buena pro", href: b.entidad_ruc ? `/entidad/${b.entidad_ruc}` : null } : null,
+      datos: datosContrato(b.objeto, b.tipo, b.codigo),
+      banderas,
+      href: rutaContrato(b.ocid), fuente: "OECE y cruces de Vigía", enlace: procesoOece(b.ocid),
+    });
   }
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);
