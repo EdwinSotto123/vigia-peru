@@ -39,7 +39,7 @@ Son **indicios para revisar**. Ninguna prueba un delito ni un parentesco; la web
 el sueldo, doble o más que la mediana de su mismo cargo en la entidad, y a lo más 10 con ese cargo ganan tanto: si son
 más, es otro nivel de la escala), `apellidos_autoridad`, `apellidos_directivo`
 (media: los apellidos, poco comunes, de un gerente o director de la misma planilla), `antes_locador` y
-`pago_extraordinario` (baja: S/ 20,000 o más fuera del sueldo, el triple o más; suele ser una liquidación o un bono).
+`pago_extraordinario` (baja: S/ 20,000 o más fuera del sueldo, el triple o más; suele ser una liquidación o un bono. Si ese mes no trae sueldo, el triple de lo que cobra un mes normal, migr. 209).
 
 El sueldo (`base`, migración 98) es remuneraciones + honorarios; lo demás del mes (otros beneficios, gratificación,
 incentivo) va en `extra`. El total del mes no sirve para comparar: el 2026-08 un analista del Banco de la Nación

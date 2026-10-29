@@ -268,7 +268,11 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
     }
     case "pago_extraordinario": {
       const m = mesDe(d);
-      return `${soles(n(d.extra) ?? 0)} fuera del sueldo${m ? ` en ${m}` : ""}, con un sueldo de ${soles(n(d.base) ?? 0)}`;
+      // Migración 209: un mes sin sueldo se compara con lo que cobra un mes normal (`sueldo_usual`), nunca con S/ 0.
+      const base = n(d.base);
+      const usual = n(d.sueldo_usual);
+      const sueldo = base ? `con un sueldo de ${soles(base)}` : usual != null ? `sin sueldo ese mes (un mes normal cobra ${soles(usual)})` : "sin sueldo ese mes";
+      return `${soles(n(d.extra) ?? 0)} fuera del sueldo${m ? ` en ${m}` : ""}, ${sueldo}`;
     }
     case "es_autoridad": {
       const a = lista(d.autoridades)[0];
@@ -312,9 +316,14 @@ const ultimoAnio = (xs: unknown): number | null => {
 export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unknown> }) {
   let items: DatoClave[] = [];
   if (tipo === "pago_extraordinario") {
+    const base = n(d.base);
+    const usual = n(d.sueldo_usual);
     items = [
       { etiqueta: "Mes", valor: mesDe(d) },
-      { etiqueta: "Su sueldo", valor: n(d.base) != null ? soles(n(d.base)) : null, mono: true },
+      { etiqueta: "Su sueldo ese mes", valor: base ? soles(base) : "No figura: ese mes todo vino fuera del sueldo", mono: !!base },
+      ...(!base && usual != null
+        ? [{ etiqueta: "Lo que cobra un mes normal", valor: soles(usual), mono: true, ayuda: <AyudaTermino clave="mediana" /> }]
+        : []),
       { etiqueta: "Fuera del sueldo", valor: n(d.extra) != null ? soles(n(d.extra)) : null, mono: true },
       { etiqueta: "Total del mes", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
     ];

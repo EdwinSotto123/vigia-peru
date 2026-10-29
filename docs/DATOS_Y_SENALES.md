@@ -310,7 +310,7 @@ muestran en `frontend/components/personas/SenalesFicha.tsx`.
 | `candidato_gobierna` | alta | planilla × candidaturas × gobierno | candidato del partido que gobierna |
 | `es_autoridad` | baja | planilla × autoridades del gobierno | ES la autoridad electa de la entidad |
 | `brecha_cargo` | media | base × `cargo_referencia` (mediana) | `base ≥ 2× mediana` Y `≥ S/ 5,000` Y `personas≥5` Y pocos ganan tanto |
-| `pago_extraordinario` | baja | componentes del mes | `extra ≥ S/ 20,000` Y `extra ≥ 3× base` |
+| `pago_extraordinario` | baja | componentes del mes | `extra ≥ S/ 20,000` Y `extra ≥ 3× base`; sin sueldo ese mes, `base` = mediana de sus meses con sueldo (si nunca trajo, de su total por mes), en `sueldo_usual` (migr. 209) |
 | `apellidos_autoridad` | media/baja | apellidos × autoridades | 2 apellidos de autoridad del gobierno (no ella); media si `frec≤20` |
 | `apellidos_directivo` | media | apellidos × directivos de la planilla | 2 apellidos poco comunes de un directivo |
 | `antes_locador` | baja | planilla × persona_orden_anual | recibió órdenes ANTES de su primer mes de planilla |

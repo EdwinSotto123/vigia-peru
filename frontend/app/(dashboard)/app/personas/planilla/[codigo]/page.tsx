@@ -224,15 +224,35 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
   );
 }
 
+/**
+ * Su último mes con sueldo. Un mes en que la entidad puso todo fuera del sueldo (en «otros beneficios»: una liquidación, o el
+ * pago anotado en otra columna) no trae sueldo: su total no se llama sueldo (la ficha del MIDIS decía «sueldo del último mes
+ * S/ 21,544» y, debajo, «Sueldo de set. 2026: Sin dato»).
+ */
+function ultimoSueldo(f: FichaPlanilla): { mes: string; base: number } | null {
+  for (let i = f.historia.length - 1; i >= 0; i--) {
+    const h = f.historia[i];
+    if (h.base != null && h.base > 0) return { mes: h.mes, base: h.base };
+  }
+  return null;
+}
+
+const SIN_SUELDO_ESE_MES = "No figura: ese mes todo vino fuera del sueldo";
+
 function indicadores(f: FichaPlanilla, s: { nSenales: number; altas: number; locador: FichaPersona | null }, ruta: string): Indicador[] {
   const p = f.persona;
   const ultimo = mes(p.ultimoMes);
+  const sueldo = p.base == null ? ultimoSueldo(f) : null;
   const items: Indicador[] = [
-    {
-      valor: p.base != null ? soles(p.base) : p.total != null ? soles(p.total) : null,
-      etiqueta: "sueldo del último mes",
-      contexto: [ultimo, p.total != null && p.base != null && p.total > p.base ? `${soles(p.total)} con todo` : null].filter(Boolean).join(", ") || undefined,
-    },
+    p.base != null
+      ? {
+          valor: soles(p.base),
+          etiqueta: "sueldo del último mes",
+          contexto: [ultimo, p.total != null && p.total > p.base ? `${soles(p.total)} con todo` : null].filter(Boolean).join(", ") || undefined,
+        }
+      : sueldo
+        ? { valor: soles(sueldo.base), etiqueta: "su último sueldo", contexto: `${mes(sueldo.mes) ?? sueldo.mes}; en ${ultimo ?? "su último mes"} no figura sueldo` }
+        : { valor: p.total != null ? soles(p.total) : null, etiqueta: "cobró el último mes", contexto: ultimo ?? undefined },
     { valor: numero(p.meses), etiqueta: p.meses === 1 ? "mes en planilla" : "meses en planilla", contexto: periodoMeses(p.primerMes, p.ultimoMes) ?? undefined },
     {
       valor: numero(s.nSenales),
@@ -274,6 +294,7 @@ function Resumen({
 }) {
   const p = f.persona;
   const periodo = periodoMeses(p.primerMes, p.ultimoMes);
+  const sueldo = p.base == null ? ultimoSueldo(f) : null;
   const l = locador?.persona;
   // Como arriba: con la evidencia rica de los parientes, la señal simple «pariente_locador» no se repite.
   const senalesPlanilla = parientes.length ? p.senales.filter((s) => s.tipo !== "pariente_locador") : p.senales;
@@ -309,11 +330,12 @@ function Resumen({
                 etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`,
                 valor: (
                   <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="font-mono tabular-nums">{p.base != null ? soles(p.base) : "Sin dato"}</span>
+                    {p.base != null ? <span className="font-mono tabular-nums">{soles(p.base)}</span> : <span>{SIN_SUELDO_ESE_MES}</span>}
                     <IrAPestana clave="sueldo">Ver mes a mes</IrAPestana>
                   </span>
                 ),
               },
+              ...(sueldo ? [{ etiqueta: "Su último sueldo", valor: `${soles(sueldo.base)} (${mes(sueldo.mes) ?? sueldo.mes})` }] : []),
               { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
               ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
               {
@@ -359,6 +381,7 @@ function Resumen({
 /** Lo que cobró de la planilla cada mes publicado: la línea (con los meses en que además cobró por órdenes) y su tabla. */
 function PestanaSueldo({ f, entidad, mesesOrden, montoOrden }: { f: FichaPlanilla; entidad: string; mesesOrden: string[]; montoOrden: number | null }) {
   const p = f.persona;
+  const sueldo = p.base == null ? ultimoSueldo(f) : null;
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -375,7 +398,8 @@ function PestanaSueldo({ f, entidad, mesesOrden, montoOrden }: { f: FichaPlanill
       <section aria-label={`Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`} className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
         <DatosClave
           items={[
-            { etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`, valor: p.base != null ? soles(p.base) : null, mono: true },
+            { etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`, valor: p.base != null ? soles(p.base) : SIN_SUELDO_ESE_MES, mono: p.base != null },
+            ...(sueldo ? [{ etiqueta: "Su último sueldo", valor: `${soles(sueldo.base)} (${mes(sueldo.mes) ?? sueldo.mes})` }] : []),
             { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
             ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
             { etiqueta: "Meses en la planilla", valor: `${plural(p.meses, "mes", "meses")}${periodoMeses(p.primerMes, p.ultimoMes) ? `, ${periodoMeses(p.primerMes, p.ultimoMes)}` : ""}` },
@@ -455,7 +479,8 @@ function filasOtras(f: FichaPlanilla): Fila[] {
         />
       ),
       regimen: <span className="text-meta text-inkSoft">{o.regimen != null ? REGIMEN[o.regimen] ?? `Régimen ${o.regimen}` : "Sin dato"}</span>,
-      sueldo: <CeldaNumero>{o.base != null ? soles(o.base) : "Sin dato"}</CeldaNumero>,
+      // Sueldo 0 es un mes sin ningún pago (el total también es 0): «S/ 0» se leía como que trabaja gratis.
+      sueldo: <CeldaNumero>{o.base == null ? "Sin dato" : o.base === 0 ? "Sin pago ese mes" : soles(o.base)}</CeldaNumero>,
     },
   }));
 }

@@ -281,7 +281,7 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
     corto: "Pago extraordinario",
     titulo: "Recibió un pago grande fuera de su sueldo",
     explica:
-      "Ese mes cobró S/ 20,000 o más en otros beneficios, gratificación o incentivo, el triple de su sueldo o más: suele ser una liquidación, un retiro incentivado o un bono. No es irregular por sí mismo.",
+      "Ese mes cobró S/ 20,000 o más en otros beneficios, gratificación o incentivo, el triple de su sueldo o más (si ese mes no trae sueldo, el triple de lo que cobra un mes normal): suele ser una liquidación, un retiro incentivado o un bono. No es irregular por sí mismo.",
   },
   apellidos_autoridad: {
     corto: "Comparte apellidos con una autoridad",
