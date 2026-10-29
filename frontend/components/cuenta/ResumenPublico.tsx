@@ -70,12 +70,12 @@ export function RecientesDelPais({ cuantos = 6, titulo = "Lo que ya financiaron 
 export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
   const filas = useLectura<FilaRanking[]>(() => getRankingPaginado({ periodo: "todo", limit: 12 }).then((p) => (p ? clasificar(p.data ?? []).slice(0, cuantos) : null)));
   if (!filas || filas.length === 0) return null;
-  const max = Math.max(1, ...filas.map((f) => f.contratosFinanciados));
+  const max = Math.max(1, ...filas.map((f) => f.meses ?? 0));
   return (
     <section aria-labelledby="aliados-pais" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 id="aliados-pais" className="font-display text-bloque font-bold text-ink">Así aparecen los aliados</h2>
-        <Link href="/app/aliados" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">Ver el ranking</Link>
+        <Link href="/app/aliados" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">Ver el podio</Link>
       </div>
       <ol className="mt-2 space-y-2">
         {filas.map((f) => (
@@ -85,17 +85,17 @@ export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-dato font-semibold text-ink">{f.nombre}</span>
                 <span className="shrink-0 font-mono text-meta font-semibold tabular-nums text-ink">
-                  {numero(f.contratosFinanciados)} {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
+                  {numero(f.meses ?? 0)} {f.meses === 1 ? "mes" : "meses"}
                 </span>
               </span>
               <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
-                <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(3, (f.contratosFinanciados / max) * 100)}%` }} />
+                <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(3, ((f.meses ?? 0) / max) * 100)}%` }} />
               </span>
             </span>
           </li>
         ))}
       </ol>
-      <p className="mt-2.5 text-meta leading-snug text-mute">Se cuenta en contratos, nunca en soles. Con cuenta eliges cómo apareces.</p>
+      <p className="mt-2.5 text-meta leading-snug text-mute">Se cuentan los meses que sostienen la vigilancia, nunca los soles. Con cuenta eliges cómo apareces.</p>
     </section>
   );
 }

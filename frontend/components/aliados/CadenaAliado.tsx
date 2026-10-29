@@ -27,8 +27,12 @@ export interface ContribucionAliado {
   contratos: number;
   estado: string;
   pagadaAt: string;
-  ubigeo: string;
-  zona: string;
+  /** 'apoyo' (al fondo común, migración 206) o 'lectura' (S/ 3 por contrato, el modelo anterior). */
+  tipoAporte?: "lectura" | "apoyo" | null;
+  periodicidad?: "unica" | "mensual" | null;
+  /** La zona de una lectura; un apoyo no tiene. */
+  ubigeo: string | null;
+  zona: string | null;
   procesados: number;
   senales: number;
   enRevision?: number;
@@ -56,15 +60,35 @@ export function CadenaAliado({
   items: { contribucion: ContribucionAliado; comprobante: Comprobante | null }[];
 }) {
   const filas: Fila[] = items.map(({ contribucion: c, comprobante }) => {
+    // Un apoyo va al fondo común: no pagó contratos, su fila lleva a su recibo.
+    if (c.tipoAporte === "apoyo") {
+      return {
+        id: c.codigo,
+        href: `/impacto/${c.codigo}`,
+        buscable: c.codigo,
+        celdas: {
+          estado: <ChipAporte estado={c.estado} />,
+          aporte: (
+            <CeldaPrincipal
+              titulo={c.periodicidad === "mensual" ? "Apoyo de cada mes" : "Apoyo único"}
+              meta={[<Dato key="c" tipo="codigo" nombre="Código del aporte" mono>{c.codigo}</Dato>]}
+            />
+          ),
+          leidos: <span className="text-meta text-mute">Al fondo común</span>,
+          senales: <span className="text-meta text-mute">No aplica</span>,
+          fecha: <CeldaFecha fecha={c.pagadaAt} />,
+        },
+      } satisfies Fila;
+    }
     const enRevision = c.enRevision ?? 0;
     const fila: Fila = {
       id: c.codigo,
-      buscable: [c.zona, c.codigo].join(" "),
+      buscable: [c.zona ?? "", c.codigo].join(" "),
       celdas: {
         estado: <ChipAporte estado={c.estado} />,
         aporte: (
           <CeldaPrincipal
-            titulo={c.zona}
+            titulo={c.zona ?? "Sin zona"}
             meta={[<Dato key="c" tipo="codigo" nombre="Código del aporte" mono>{c.codigo}</Dato>]}
           />
         ),
@@ -78,7 +102,7 @@ export function CadenaAliado({
     if (comprobante) {
       // El aporte se abre en el panel: la lista de aportes sigue a la vista.
       fila.detalle = {
-        titulo: `Aporte a ${c.zona}`,
+        titulo: `Aporte a ${c.zona ?? "su zona"}`,
         etiqueta: `Ver los contratos que pagó el aporte ${c.codigo}`,
         descripcion: <span className="font-mono">{c.codigo}</span>,
         contenido: <DetalleAporte nombre={nombre} contribucion={c} comprobante={comprobante} />,
@@ -133,7 +157,7 @@ function DetalleAporte({
       <DatosClave
         items={[
           { etiqueta: "Código", valor: c.codigo, mono: true },
-          { etiqueta: "Zona", valor: c.zona },
+          { etiqueta: "Zona", valor: c.zona ?? "Sin zona" },
           { etiqueta: "Financiado el", valor: fecha(c.pagadaAt) },
           { etiqueta: "Contratos financiados", valor: num(c.contratos) },
           { etiqueta: "Ya asignados", valor: num(r.asignados) },

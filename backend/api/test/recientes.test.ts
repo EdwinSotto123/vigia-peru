@@ -23,3 +23,9 @@ test("recientes: la búsqueda pide 2 a 80 caracteres y se recorta", () => {
   assert.equal(leerRecientes({ q: "a" }), null);
   assert.equal(leerRecientes({ q: "x".repeat(81) }), null);
 });
+
+test("recientes: semilla=no deja fuera el capital semilla; sin el parámetro, van todos", () => {
+  assert.deepEqual(leerRecientes({ semilla: "no" }), { limit: 20, offset: 0, semilla: "no" });
+  assert.equal(leerRecientes({ semilla: "si" }), null);
+  assert.equal("semilla" in (leerRecientes({}) ?? {}), false);
+});

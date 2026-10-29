@@ -1,9 +1,9 @@
-import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import Link from "next/link";
 import { Ayuda, EncabezadoPagina, EstadoError, Migas, Pagina } from "@/components/patrones";
-import { BarraFiltros, Listado, ZonaResultados, type Indicador } from "@/components/listado";
+import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { RankingAliados } from "@/components/aliados/RankingAliados";
-import { pctProporcion } from "@/components/aliados/proporcion";
 import {
   MUESTRA_RANKING,
   ORDEN_LABEL,
@@ -14,123 +14,74 @@ import {
   parseOrden,
   parsePeriodo,
   type ClaveOrden,
-  type Periodo,
-  type Ranking,
 } from "@/components/aliados/ranking";
-import {
-  alcanceCorto,
-  frasePartesTarifa,
-  getEstadoGlobal,
-  getRankingPaginado,
-  getRecientesPagina,
-  getZonas,
-  partesTarifa,
-  type EstadoGlobal,
-  type Zona,
-} from "@/lib/financiamiento";
-import { anioLectura, desdeLectura, getResumenContratos } from "@/lib/contratos";
-import { numero, soles } from "@/lib/formato";
+import { getRankingPaginado, getRecientesPagina, getVigilancia } from "@/lib/financiamiento";
 
 export const metadata = {
-  title: "Ranking de aliados",
+  title: "Podio de aliados",
   description:
-    "Quién hizo leer más contratos públicos, con su puesto. Se cuenta en contratos, nunca en soles, y nadie elige qué se audita.",
+    "Quienes sostienen la vigilancia del dinero público, mes a mes. El podio se gana por constancia, no por plata, y no compra nada: nadie elige qué se lee ni qué se publica.",
 };
 
 export const revalidate = 300;
 
 /**
- * /app/aliados — un ranking, con la plantilla Listado (DESIGN_SYSTEM.md §14.1 y §14.6):
- * encabezado → barra de filtros (periodo en chips; región y orden, en la URL) → el podio de
- * los guardianes (el foco) con las cifras chicas debajo → el resto en la `Tabla`, cada uno con su
- * puesto (#1, #2…) y su perfil a un clic → "¿Quieres salir en este podio?" (la invitación a donar,
- * con el único botón de financiar) → la cinta de últimos aportes. Las reglas de independencia viven
- * en /app/financiar#independencia: no se repiten acá.
+ * /app/aliados: el podio de quienes sostienen Vigía (pedido del usuario del 2026-10-29: «que sea un PODIO, mejora los
+ * mensajes»), con la plantilla Listado (DESIGN_SYSTEM.md §14.1 y §14.6): encabezado → barra de filtros (periodo en
+ * chips, búsqueda y orden) → el podio, siempre de tres, con los lugares libres que invitan → la meta del mes → del
+ * cuarto lugar en adelante, la `Tabla` → «¿Quieres estar en el podio?» → la cinta de últimos aportes.
+ *
+ * Desde el modelo de apoyo (migración 206) el aporte va al fondo común: el podio cuenta MESES sosteniendo la
+ * vigilancia (ranking.ts), no contratos ni soles, y la semilla de Vigía Perú no compite. Ya no hay filtro por región:
+ * un apoyo no se reparte por zonas (lo que lo motiva es sólo informativo).
  *
  * Sólo aliados reales, del API, en desarrollo igual que en producción.
  */
-export default async function AliadosPage({
-  searchParams,
-}: {
-  searchParams?: { ubigeo?: string; pagina?: string; orden?: string; periodo?: string; q?: string };
-}) {
-  const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
+export default async function AliadosPage({ searchParams }: { searchParams?: { pagina?: string; orden?: string; periodo?: string; q?: string } }) {
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   const orden = parseOrden(searchParams?.orden);
   const periodo = parsePeriodo(searchParams?.periodo);
   // Buscar un aliado por su nombre público: sólo figuran los visibles, que eligieron aparecer.
   const q = typeof searchParams?.q === "string" && searchParams.q.trim().length >= 2 ? searchParams.q.trim().slice(0, 80) : undefined;
 
-  const [estado, zonas, resumenPais, resumenZona, muestra, recientesPag] = await Promise.all([
-    getEstadoGlobal(),
-    getZonas("departamento"),
-    // Los publicados del año en curso (lo que se lee); la base trae además la historia desde 2015.
-    getResumenContratos({ desde: desdeLectura() }),
-    ubigeo ? getResumenContratos({ ubigeo, desde: desdeLectura() }) : Promise.resolve(null),
-    getRankingPaginado({ periodo, region: ubigeo, limit: MUESTRA_RANKING }),
-    // Con pocos nombres, el ranking es corto: los últimos aportes llenan la pantalla con lo que sí pasó.
-    getRecientesPagina(20, 0).catch(() => null),
+  const [muestra, recientesPag, vigilancia] = await Promise.all([
+    getRankingPaginado({ periodo, limit: MUESTRA_RANKING }),
+    // La cinta, sin la semilla: quienes se suman.
+    getRecientesPagina(20, 0, undefined, { sinSemilla: true }).catch(() => null),
+    getVigilancia().catch(() => null),
   ]);
   // Pasados los 60 aliados, la página del ranking la trae el API (también la búsqueda).
   const paginaApi =
     muestra && muestra.total > MUESTRA_RANKING
-      ? await getRankingPaginado({ periodo, region: ubigeo, limit: TAM_PAGINA, offset: (pagina - 1) * TAM_PAGINA, q })
+      ? await getRankingPaginado({ periodo, limit: TAM_PAGINA, offset: (pagina - 1) * TAM_PAGINA, q })
       : null;
 
   const rankingBase = muestra ? armarRanking({ muestra, pagina: q ? null : paginaApi, orden, paginaActual: pagina }) : null;
   const ranking = muestra && rankingBase && q ? buscarEnRanking({ muestra, pagina: paginaApi, q, base: rankingBase }) : rankingBase;
 
-  // El filtro lista toda región con cola, también las que nadie financia: una región con
-  // cola y sin aliados es justo la que hay que poder mirar.
-  const regiones = (zonas ?? [])
-    .filter((z) => z.totalCola > 0)
-    .sort((a, b) => b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre, "es"));
-  const zona = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
-
-  // Con un solo nombre un orden sugiere una competencia que no existe; pasados los 60, el
-  // orden lo pone el API y un selector que no ordena sería mentira.
-  const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 1 && !q;
-
-  const financiadosTodo = zona ? zona.financiados : estado?.contratosFinanciados ?? 0;
-  // Con periodo, el ámbito es lo financiado en ese periodo: sale del propio ranking.
-  const financiadosAmbito = periodo === "todo" ? financiadosTodo : rankingBase?.sumas.financiados ?? 0;
-
-  const partes = partesTarifa(estado?.tarifa?.nota);
-
-  let indicadores: Indicador[] | null = null;
-  if (periodo !== "todo") {
-    indicadores = rankingBase ? indicadoresPeriodo(rankingBase, periodo) : null;
-  } else if (estado) {
-    indicadores = indicadoresAmbito({
-      estado,
-      zona,
-      publicados: (ubigeo ? resumenZona?.total : resumenPais?.total) ?? null,
-      financiados: financiadosTodo,
-      leidos: zona ? zona.procesados : estado.contratosProcesados ?? 0,
-      conSenal: zona ? zona.senales : estado.senalesHalladas,
-      enRevision: (zona ? zona.enRevision : estado.enRevision) ?? 0,
-    });
-  }
+  // Con tres nombres o menos, la tabla (del cuarto en adelante) no existe y un selector de orden no ordenaría nada;
+  // pasados los 60, el orden lo pone el API.
+  const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 3 && !q;
 
   return (
     <Pagina className="space-y-6">
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Aliados", href: "/app/aliados" }]} />
       <EncabezadoPagina
-        titulo="Ranking de aliados"
-        bajada="Quién hizo leer más contratos públicos. Se cuenta en contratos, nunca en soles."
+        titulo="Podio de aliados"
+        bajada="Quienes sostienen la vigilancia del dinero público. Estar aquí no compra nada: nadie elige qué se lee ni qué se publica."
         ayuda={
-          <Ayuda titulo="¿Qué compra un aliado?">
+          <Ayuda titulo="¿Cómo se gana un lugar?">
             <span className="block">
-              Nada: ni un resultado ni una región. Los contratos se asignan por antigüedad, en código, y lo que salga se
-              publica igual, aunque señale a quien pagó.
+              Por constancia, no por plata: cuenta cuántos meses distintos aportaste (con el pago ya validado). A igualdad,
+              va primero quien llegó antes. Con S/ 5 al mes se llega al primer lugar igual que con S/ 500.
             </span>
             <span className="mt-2 block">
-              El puesto se gana por contratos financiados (a igualdad, quien aportó primero), nunca por soles. Bajo cada
-              cifra, su parte de todo lo financiado.
+              Los que aportan sin nombre cuentan en la meta del mes, pero no ocupan lugar. La semilla con la que Vigía Perú
+              empezó no compite.
             </span>
             <span className="mt-2 block text-mute">
-              Todos los que figuran pasaron el chequeo de conflicto de interés: sin sanción vigente del OECE ni alertas
-              activas como proveedor.
+              Estar en el podio no da nada: lo más grave se lee primero, aporte quien aporte, y lo que se encuentra se publica
+              igual, también si señala a un aliado.
             </span>
           </Ayuda>
         }
@@ -139,9 +90,8 @@ export default async function AliadosPage({
       <Listado
         ruta="/app/aliados"
         parametros={{
-          ubigeo,
           periodo: periodo !== "todo" ? periodo : undefined,
-          orden: orden !== "financiados" ? orden : undefined,
+          orden: orden !== "meses" ? orden : undefined,
           q,
         }}
       >
@@ -158,19 +108,11 @@ export default async function AliadosPage({
                 { valor: "mes", etiqueta: PERIODO_LABEL.mes },
               ],
             }}
-            filtros={[
-              {
-                param: "ubigeo",
-                etiqueta: "Región",
-                todas: "Todo el Perú",
-                opciones: regiones.map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre })),
-              },
-            ]}
             orden={
               ordenable
                 ? {
                     param: "orden",
-                    porDefecto: "financiados",
+                    porDefecto: "meses",
                     opciones: (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => ({ valor: clave, etiqueta: ORDEN_LABEL[clave] })),
                   }
                 : undefined
@@ -180,26 +122,20 @@ export default async function AliadosPage({
             {ranking ? (
               <RankingAliados
                 ranking={ranking}
-                financiadosAmbito={financiadosAmbito}
                 orden={orden}
                 paginaActual={pagina}
                 periodo={periodo}
-                region={ubigeo}
-                nombreRegion={zona?.nombre}
-                precio={estado?.tarifa?.precioPen ?? null}
-                desglose={frasePartesTarifa(partes)}
                 busqueda={q}
                 recientes={recientesPag?.data ?? null}
                 totalRecientes={recientesPag?.total}
-                // Si el API cae, se dice: no se dibujan ceros que parezcan dato.
-                franja={indicadores ? <CifrasEnFila items={indicadores} chico /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
+                meta={vigilancia ? <MetaDelMes v={vigilancia} /> : undefined}
               />
             ) : (
-              // Es una falla de la página, no un ranking vacío: los aportes siguen registrados.
+              // Es una falla de la página, no un podio vacío: los aportes siguen registrados.
               <EstadoError
-                titulo="No pudimos leer el ranking"
+                titulo="No pudimos leer el podio"
                 accion={
-                  <EnlaceAccion variante="secundario" href={ubigeo ? `/app/aliados?ubigeo=${ubigeo}` : "/app/aliados"}>
+                  <EnlaceAccion variante="secundario" href="/app/aliados">
                     Volver a intentarlo
                   </EnlaceAccion>
                 }
@@ -210,109 +146,20 @@ export default async function AliadosPage({
           </ZonaResultados>
         </div>
       </Listado>
+
+      {/* De dónde salió el primer dinero y dónde están las cuentas: en una línea, al pie. */}
+      <p className="text-meta leading-relaxed text-mute">
+        Vigía Perú empezó con dinero propio: esa semilla está en las cifras, pero no compite en el podio. Cuánto cuesta cada
+        mes y cuánto entró, en{" "}
+        <Link href="/app/cuanto-cuesta" className="font-semibold text-granate underline-offset-2 hover:underline">
+          Cuánto cuesta Vigía
+        </Link>
+        ; cada aporte, con su recibo, en{" "}
+        <Link href="/app/aliados/aportes" className="font-semibold text-granate underline-offset-2 hover:underline">
+          todos los aportes
+        </Link>
+        .
+      </p>
     </Pagina>
   );
-}
-
-/**
- * Las cifras del ámbito (todo el Perú o la región), desde el inicio, con la palabra de
- * §10.1: aquí se habla de lo FINANCIADO ("financiados leídos", no "leídos": la portada
- * cuenta también las lecturas que nadie financió).
- */
-function indicadoresAmbito({
-  estado,
-  zona,
-  publicados,
-  financiados,
-  leidos,
-  conSenal,
-  enRevision,
-}: {
-  estado: EstadoGlobal;
-  zona: Zona | undefined;
-  publicados: number | null;
-  financiados: number;
-  leidos: number;
-  conSenal: number;
-  enRevision: number;
-}): Indicador[] {
-  const precio = zona?.precioPen ?? estado.tarifa?.precioPen ?? null;
-  // Lo que entró a la cola, financiado o no; "en cola" (§10.1) es lo que todavía espera.
-  const cola = zona ? zona.totalCola : (estado.colaGlobal ?? 0) + estado.contratosFinanciados;
-  const enCola = Math.max(0, cola - financiados);
-  const documentosListos = (zona ? zona.documentosListos : estado.documentosListos) ?? 0;
-  return [
-    {
-      valor: numero(financiados),
-      etiqueta: "contratos financiados",
-      contexto: publicados ? `${pctProporcion(financiados, publicados)} de ${numero(publicados)} publicados en ${anioLectura()}` : undefined,
-      ayuda: (
-        <Ayuda titulo="¿Cómo se asignan?">
-          {precio != null ? `${soles(precio)} por contrato. ` : ""}Se asignan por antigüedad en la cola: nadie elige
-          cuáles. La zona es la sede de la entidad que contrata.
-        </Ayuda>
-      ),
-    },
-    {
-      valor: numero(leidos),
-      etiqueta: "financiados leídos",
-      contexto: `de ${numero(financiados)} financiados`,
-      ayuda: (
-        <Ayuda titulo="¿Financiados leídos o leídos?">
-          Aquí se cuentan sólo las lecturas que pagó un aliado: expediente completo, norma citada y dictamen público. La
-          portada cuenta todos los leídos, también los que nadie financió.
-        </Ayuda>
-      ),
-    },
-    {
-      valor: numero(conSenal),
-      etiqueta: "con señales",
-      contexto: `de ${numero(leidos)} financiados leídos${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`,
-      ayuda: (
-        <Ayuda titulo="¿Se publica todo?">
-          Sí: se publican igual, señalen a quien señalen, también a quien financió. Los que están en revisión no cuentan
-          como señal hasta que una persona decida.
-        </Ayuda>
-      ),
-    },
-    {
-      valor: numero(enCola),
-      etiqueta: "en cola",
-      contexto: precio != null ? `${soles(enCola * precio)} leerlos todos` : undefined,
-      ayuda: (
-        <Ayuda titulo="¿Qué entra a la cola?">
-          Contratos que esperan financiamiento para leerse. Hoy entran solo {alcanceCorto(estado.alcance ?? null)}.
-          {documentosListos > 0 &&
-            ` Otros ${numero(documentosListos)} ya tienen sus documentos descargados, pero su tipo de contrato todavía no entra.`}
-        </Ayuda>
-      ),
-    },
-  ];
-}
-
-/**
- * Con un periodo (este año, este mes), las cifras salen del propio ranking: lo financiado
- * en aportes de ese periodo. Si hay más aliados que la muestra, la suma no sería exacta y
- * se dice "Sin dato" en vez de un número corto.
- */
-function indicadoresPeriodo(ranking: Ranking, periodo: Periodo): Indicador[] {
-  const { sumas, completa, totalNombres, anonimos } = ranking;
-  const v = (n: number) => (completa ? numero(n) : null);
-  const cuando = periodo === "mes" ? "en aportes de este mes" : "en aportes de este año";
-  return [
-    { valor: v(sumas.financiados), etiqueta: "contratos financiados", contexto: cuando },
-    { valor: v(sumas.leidos), etiqueta: "financiados leídos", contexto: completa ? `de ${numero(sumas.financiados)} financiados` : undefined },
-    {
-      valor: v(sumas.conSenal),
-      etiqueta: "con señales",
-      contexto: completa
-        ? `de ${numero(sumas.leidos)} financiados leídos${sumas.enRevision > 0 ? `, ${numero(sumas.enRevision)} en revisión` : ""}`
-        : undefined,
-    },
-    {
-      valor: numero(totalNombres),
-      etiqueta: totalNombres === 1 ? "aliado en el ranking" : "aliados en el ranking",
-      contexto: anonimos.cantidad > 0 ? `y ${numero(anonimos.cantidad)} sin nombre` : cuando,
-    },
-  ];
 }

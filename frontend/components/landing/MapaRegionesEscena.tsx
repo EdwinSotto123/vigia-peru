@@ -329,7 +329,7 @@ export function MapaRegionesEscena({
                   </dl>
                   <p className="mt-3 border-t border-line pt-3 text-inkSoft">
                     <span className="font-mono font-semibold text-ink">{numero(ficha.enCola)}</span> en cola:{" "}
-                    {ficha.enCola === 1 ? "espera" : "esperan"} que alguien financie su lectura.
+                    {ficha.enCola === 1 ? "espera ser leído" : "esperan ser leídos"}, los más graves primero.
                   </p>
                   <p className="mt-2 text-rotulo text-mute">
                     Fuente: <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>convocatorias del SEACE</EnlaceFuente> en la base de Vigía.

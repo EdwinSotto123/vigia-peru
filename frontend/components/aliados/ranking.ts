@@ -5,9 +5,11 @@ import { getRankingPaginado, type RankingPagina, type RankingQuery, type Ranking
  * el que dice el perfil ("#3 de 12 aliados") y el de su imagen para compartir salen de
  * estas funciones, así que no se pueden contradecir.
  *
- * Se ordena por contratos financiados —nunca por soles— y, a igualdad, quien aportó
- * primero: el mismo orden del API (`ORDER BY contratosFinanciados DESC, desde ASC`).
- * Los aportes sin nombre cuentan en las cifras pero no ocupan puesto.
+ * Se ordena por CONSTANCIA —los meses distintos con un aporte validado, nunca soles— y, a
+ * igualdad, quien llegó primero: el mismo orden del API (`ORDER BY meses DESC, desde ASC`).
+ * Con S/ 5 al mes se llega al primer lugar igual que con S/ 500. Antes (S/ 3 por contrato)
+ * se ordenaba por contratos financiados. La semilla de Vigía Perú no compite (el API no la
+ * trae). Los aportes sin nombre cuentan en la meta pero no ocupan puesto.
  *
  * Sin JSX: lo usa también la imagen Open Graph (edge).
  */
@@ -30,18 +32,18 @@ export function parsePeriodo(v: string | string[] | undefined): Periodo {
   return s === "mes" || s === "anio" ? s : "todo";
 }
 
-/** "regiones" es la clave histórica en la URL; cuenta zonas (ubigeos distintos), y así se nombra. */
-export type ClaveOrden = "financiados" | "senales" | "regiones";
+/** Cómo se ordena la tabla (del cuarto en adelante); el puesto es siempre el de los meses. */
+export type ClaveOrden = "meses" | "aportes" | "recientes";
 
 export const ORDEN_LABEL: Record<ClaveOrden, string> = {
-  financiados: "Más contratos financiados",
-  senales: "Más contratos con señales",
-  regiones: "Más zonas alcanzadas",
+  meses: "Más meses sosteniendo",
+  aportes: "Más aportes",
+  recientes: "Se sumaron hace poco",
 };
 
 export function parseOrden(v: string | string[] | undefined): ClaveOrden {
   const s = Array.isArray(v) ? v[0] : v;
-  return s === "senales" || s === "regiones" ? s : "financiados";
+  return s === "aportes" || s === "recientes" ? s : "meses";
 }
 
 /** Href del perfil; un aporte sin slug no tiene perfil. */
@@ -50,56 +52,57 @@ export const hrefPerfil = (slug: string | null) => (slug ? `/aliado/${slug}` : u
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
 
 export interface FilaRanking extends RankingRow {
-  /** Puesto por contratos financiados entre los aliados con nombre. */
+  /** Puesto por meses sosteniendo entre los aliados con nombre. */
   puesto: number;
 }
 
 const tiempo = (iso: string | null) => (iso ? Date.parse(iso) || 0 : Number.POSITIVE_INFINITY);
 
-function porFinanciados(a: RankingRow, b: RankingRow): number {
-  return b.contratosFinanciados - a.contratosFinanciados || tiempo(a.desde) - tiempo(b.desde) || a.nombre.localeCompare(b.nombre, "es");
+function porConstancia(a: RankingRow, b: RankingRow): number {
+  return (b.meses ?? 0) - (a.meses ?? 0) || tiempo(a.desde) - tiempo(b.desde) || a.nombre.localeCompare(b.nombre, "es");
 }
 
 /** Los aliados con nombre, con su puesto. */
 export function clasificar(rows: RankingRow[]): FilaRanking[] {
   return rows
     .filter((r) => !esAnonimo(r))
-    .sort(porFinanciados)
+    .sort(porConstancia)
     .map((r, i) => ({ ...r, puesto: i + 1 }));
 }
 
 const VALOR: Record<ClaveOrden, (r: RankingRow) => number> = {
-  financiados: (r) => r.contratosFinanciados,
-  senales: (r) => r.senalesHalladas,
-  regiones: (r) => r.zonas,
+  meses: (r) => r.meses ?? 0,
+  aportes: (r) => r.aportes ?? 0,
+  // El más reciente primero: el que se sumó hace menos.
+  recientes: (r) => (r.desde ? Date.parse(r.desde) || 0 : 0),
 };
 
 /**
  * Reordena la tabla por otra columna sin tocar el puesto: como en toda tabla de
- * posiciones, el "#" sigue siendo el de contratos financiados.
+ * posiciones, el "#" sigue siendo el de los meses.
  */
 function ordenar(filas: FilaRanking[], orden: ClaveOrden): FilaRanking[] {
-  if (orden === "financiados") return filas;
+  if (orden === "meses") return filas;
   const v = VALOR[orden];
   return [...filas].sort((a, b) => v(b) - v(a) || a.puesto - b.puesto);
 }
 
 export interface Ranking {
   /**
-   * Los tres primeros, destacados. Sólo por contratos financiados y en la primera página;
-   * con uno o dos nombres también (el podio dibuja libres los puestos que faltan).
+   * Los tres primeros, en el podio. En la primera página, sea cual sea el orden de la tabla; con
+   * menos de tres nombres, el podio dibuja libres los lugares que faltan.
    */
   podio: FilaRanking[];
   /** El resto, en el orden elegido. */
   tabla: FilaRanking[];
-  anonimos: { cantidad: number; contratos: number };
+  anonimos: { cantidad: number; aportes: number };
   /** Aliados con nombre en el ámbito. */
   totalNombres: number;
   /** La muestra trae a todos (≤ 60): las sumas y el orden de la página son exactos. */
   completa: boolean;
   paginas: number;
-  /** Lo financiado por la muestra entera, con y sin nombre (exacto si `completa`). */
-  sumas: { financiados: number; leidos: number; conSenal: number; enRevision: number };
+  /** Lo de la muestra entera, con y sin nombre (exacto si `completa`): aportes y quiénes aportan cada mes. */
+  sumas: { aportes: number; mensuales: number };
 }
 
 /**
@@ -120,7 +123,7 @@ export function armarRanking({
   const filas = muestra.data ?? [];
   const anon = filas.filter(esAnonimo);
   const clasificados = clasificar(filas);
-  const conPodio = orden === "financiados" && paginaActual === 1 && clasificados.length > 0;
+  const conPodio = paginaActual === 1 && clasificados.length > 0;
   const podio = conPodio ? clasificados.slice(0, 3) : [];
   const enPodio = new Set(podio.map((f) => f.id));
 
@@ -134,15 +137,13 @@ export function armarRanking({
   return {
     podio,
     tabla,
-    anonimos: { cantidad: anon.length, contratos: anon.reduce((n, r) => n + r.contratosFinanciados, 0) },
+    anonimos: { cantidad: anon.length, aportes: anon.reduce((n, r) => n + (r.aportes ?? 0), 0) },
     totalNombres: completa ? clasificados.length : Math.max(clasificados.length, muestra.total - anon.length),
     completa,
     paginas: completa ? 1 : Math.max(1, Math.ceil((pagina?.total ?? muestra.total) / TAM_PAGINA)),
     sumas: {
-      financiados: suma((r) => r.contratosFinanciados),
-      leidos: suma((r) => r.contratosProcesados),
-      conSenal: suma((r) => r.senalesHalladas),
-      enRevision: suma((r) => r.enRevision ?? 0),
+      aportes: suma((r) => r.aportes ?? 0),
+      mensuales: filas.filter((r) => r.mensual).length,
     },
   };
 }

@@ -75,6 +75,14 @@ export interface RankingRow {
   nombre: string;
   slug: string | null;
   logoUrl: string | null;
+  /** Lo que ordena el podio (2026-10-29): los meses distintos con un aporte validado en el periodo. Nunca soles. */
+  meses: number;
+  /** Cuántos aportes validados en el periodo. */
+  aportes: number;
+  /** Tiene un apoyo de cada mes. */
+  mensual: boolean;
+  ultimoAporte?: string | null;
+  /** Lo del modelo anterior («S/ 3 por contrato»): contratos que hizo leer. */
   contratosFinanciados: number;
   zonas: number;
   senalesHalladas: number;
@@ -108,9 +116,20 @@ export interface ContribucionReciente {
   mensajePublico: string | null;
   /** Hoy /financiamiento/recientes no lo trae; si llega, "institucional" = lote del capital semilla. */
   pasarela?: string | null;
-  ubigeo: string;
-  zona: string;
-  nivel: NivelZona;
+  /** Lote del capital semilla de Vigía Perú (GET /financiamiento/recientes lo dice). */
+  semilla?: boolean;
+  /** 'apoyo' (al fondo común, migración 206) o 'lectura' (S/ 3 por contrato, el modelo anterior). */
+  tipoAporte?: "lectura" | "apoyo" | null;
+  periodicidad?: "unica" | "mensual" | null;
+  /** Lo que motiva un apoyo (sólo informativo): una entidad o una zona. */
+  paraEntidad?: string | null;
+  paraRuc?: string | null;
+  paraZona?: string | null;
+  paraUbigeo?: string | null;
+  /** La zona de una lectura; un apoyo no tiene. */
+  ubigeo: string | null;
+  zona: string | null;
+  nivel: NivelZona | null;
   /** Aporte por ENTIDAD: la entidad elegida (la zona es sólo donde está la mayoría de sus contratos). */
   entidad?: EntidadAporte | null;
   /** Aporte por PARTIDO (migración 41): el partido y el período elegidos. */
@@ -240,7 +259,7 @@ export const getEstadoGlobal = () => getJson<EstadoGlobal>("/financiamiento/esta
 
 export const getRecientes = () =>
   getJson<{ data: ContribucionReciente[] }>("/financiamiento/recientes", 60).then((r) =>
-    r?.data ? r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })) : null,
+    r?.data ? r.data.map((c) => ({ ...c, zona: c.zona ? conAcentos(c.zona) : null })) : null,
   );
 
 /**
@@ -248,12 +267,15 @@ export const getRecientes = () =>
  * viejo no pagina ni trae `total`: entonces vuelve lo que haya y el total es lo recibido. `q` busca en el
  * aliado (nombre público), el comprobante y la zona, la entidad o el partido del aporte.
  */
-export const getRecientesPagina = (limit = 25, offset = 0, q?: string) =>
+/** `sinSemilla`: sin los lotes del capital semilla de Vigía Perú (la cinta del podio: quienes se suman). */
+export const getRecientesPagina = (limit = 25, offset = 0, q?: string, { sinSemilla = false }: { sinSemilla?: boolean } = {}) =>
   getJson<{ data: ContribucionReciente[]; total?: number }>(
-    `/financiamiento/recientes?limit=${limit}&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+    `/financiamiento/recientes?limit=${limit}&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}${sinSemilla ? "&semilla=no" : ""}`,
     60,
   ).then((r) =>
-    r?.data ? { data: r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })), total: r.total ?? r.data.length } : null,
+    r?.data
+      ? { data: r.data.map((c) => ({ ...c, zona: c.zona ? conAcentos(c.zona) : null, paraZona: c.paraZona ? conAcentos(c.paraZona) : null })), total: r.total ?? r.data.length }
+      : null,
   );
 
 export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);

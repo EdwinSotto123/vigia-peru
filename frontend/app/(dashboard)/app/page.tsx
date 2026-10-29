@@ -114,17 +114,17 @@ export default async function InicioApp() {
     pestanas.push({
       id: "aliados",
       etiqueta: "Aliados",
-      metrica: "Quienes más contratos hicieron leer. Se cuenta en contratos, nunca en soles.",
+      metrica: "Quienes más meses sostienen la vigilancia. Se cuentan los meses, nunca los soles.",
       filas: aliados.map((a) => ({
         id: String(a.id),
         nombre: a.nombre,
-        sub: `${numero(a.contratosProcesados)} leídos, ${numero(a.senalesHalladas)} con señales`,
-        valor: a.contratosFinanciados,
-        texto: plural(a.contratosFinanciados, "contrato", "contratos"),
-        parte: a.contratosFinanciados > 0 ? a.contratosProcesados / a.contratosFinanciados : 0,
+        sub: a.mensual ? `Aporta cada mes, ${plural(a.aportes ?? 0, "aporte", "aportes")}` : plural(a.aportes ?? 0, "aporte", "aportes"),
+        valor: a.meses ?? 0,
+        texto: plural(a.meses ?? 0, "mes", "meses"),
+        parte: aliados[0]?.meses ? (a.meses ?? 0) / aliados[0].meses : 0,
         href: hrefPerfil(a.slug),
       })),
-      verTodos: { href: "/app/aliados", texto: "Ver el ranking de aliados" },
+      verTodos: { href: "/app/aliados", texto: "Ver el podio de aliados" },
     });
   }
   const geoPorUbigeo = new Map((regiones ?? []).map((z) => [z.ubigeo, z]));
@@ -133,7 +133,7 @@ export default async function InicioApp() {
     pestanas.push({
       id: "regiones",
       etiqueta: "Regiones",
-      metrica: "Regiones con más contratos en cola, esperando que alguien financie su lectura. La región es la sede de la entidad que contrata.",
+      metrica: "Regiones con más contratos en cola, esperando su lectura: los más graves van primero. La región es la sede de la entidad que contrata.",
       filas: filasRegiones.map((z) => {
         const g = geoPorUbigeo.get(z.ubigeo);
         return {

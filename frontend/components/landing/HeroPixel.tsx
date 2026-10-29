@@ -89,7 +89,7 @@ function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
               <span className="flex flex-col leading-tight">
                 <span className="max-w-[11rem] truncate text-dato font-semibold text-ink">{f.nombre}</span>
                 <span className="text-rotulo text-mute">
-                  {numero(f.contratosFinanciados)} {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
+                  {numero(f.meses ?? 0)} {f.meses === 1 ? "mes" : "meses"} sosteniendo
                 </span>
               </span>
             </AliadoAbrir>

@@ -1,108 +1,148 @@
-import { LUGAR_LIBRE, PodioRanking } from "@/components/aliados/Podio";
+import Link from "next/link";
+import { ArrowUpRight, EyeOff, ListOrdered, Megaphone, ShieldCheck, type LucideIcon } from "lucide-react";
+import { PodioRanking } from "@/components/aliados/Podio";
 import { clasificar } from "@/components/aliados/ranking";
-import { frasePartesTarifa, getEstadoGlobal, getRankingPaginado, getRecientesPagina, partesTarifa } from "@/lib/financiamiento";
 import { CintaAportes } from "@/components/aliados/CintaAportes";
-import { LlamadaPodio } from "@/components/aliados/LlamadaPodio";
+import { dolares, getRankingPaginado, getRecientesPagina, getVigilancia } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
- * El podio, arriba (iteración 2 de la identidad Píxel): quienes hacen posible que Vigía
- * lea. Va justo después de la escala del dinero, porque es la respuesta a "¿quién paga
- * esto?" y lo primero que quien llega quiere saber para sumarse.
+ * Quién sostiene Vigía, en UNA sección (2026-10-29): antes eran dos seguidas que se contradecían, «Guardianes…» con el
+ * modelo viejo (los 320 contratos de la semilla, «Eliges región y cuántos contratos, S/ 3 cada uno») y «Vigilar todo
+ * cuesta poco…» con el nuevo («ya no pedimos S/ 3 por contrato»). Ahora, en este orden: el podio (destacado, siempre de
+ * tres, ocupados o libres), lo que cuesta mantener Vigía, las acciones, por qué aportar no compra nada y los últimos
+ * aportes.
  *
- * Es el mismo `PodioRanking` de /app/aliados, en su versión `destacado`: más grande, con
- * halo lima y chispas de píxel, y cada puesto se toca para ver QUIÉN es el aliado sin salir
- * de la portada (panel con su descripción, sus enlaces y lo que hizo leer).
- *
- * Mismas reglas que el ranking: se cuenta en CONTRATOS, nunca en soles; sólo aliados reales
- * (el podio se arma con tres; con uno o dos, una fila honesta por aliado y la invitación,
- * nunca escalones vacíos); y si el registro no responde, la sección no se dibuja: una
- * portada que estima lo que no sabe es lo que este producto le reprocha al Estado.
+ * Mismas reglas que /app/aliados: el podio se gana por constancia (meses), nunca por plata; la semilla de Vigía Perú no
+ * compite; sólo aliados reales. Si el registro no responde, el podio no se dibuja: una portada que estima lo que no sabe
+ * es lo que este producto le reprocha al Estado.
  */
 
 /** Filas que se piden: los aportes sin nombre no ocupan puesto, y el podio necesita tres con nombre. */
 const TOPE = 12;
 
-export async function PodioPortada() {
-  const [ranking, estado, recientes] = await Promise.all([
-    getRankingPaginado({ periodo: "todo", limit: TOPE }),
-    getEstadoGlobal().catch(() => null),
-    getRecientesPagina(20, 0).catch(() => null),
-  ]);
-  if (ranking == null) return null;
-  const podio = clasificar(ranking.data ?? []).slice(0, 3);
+/** Por qué aportar no compra nada: una línea cada una, el detalle en /app/apoyar. */
+const REGLAS: { Icono: LucideIcon; titulo: string; detalle: string }[] = [
+  { Icono: ListOrdered, titulo: "No eligen qué se lee", detalle: "Lo más grave se lee primero, aporte quien aporte." },
+  { Icono: EyeOff, titulo: "No cambian lo que se encuentra", detalle: "El análisis no sabe quién aportó." },
+  { Icono: Megaphone, titulo: "Si los encuentra a ellos, se publica", detalle: "Y su recibo lo muestra." },
+];
 
-  const cifras: { valor: number; etiqueta: string }[] = estado
-    ? [
-        { valor: estado.contratosFinanciados, etiqueta: "contratos pagados por aliados" },
-        { valor: estado.contratosProcesados, etiqueta: "de ellos, ya leídos" },
-        { valor: estado.senalesHalladas, etiqueta: "señales para revisar" },
-      ]
-    : [];
+export async function PodioPortada() {
+  const [ranking, v, recientes] = await Promise.all([
+    getRankingPaginado({ periodo: "todo", limit: TOPE }).catch(() => null),
+    getVigilancia().catch(() => null),
+    getRecientesPagina(20, 0, undefined, { sinSemilla: true }).catch(() => null),
+  ]);
+  const podio = ranking ? clasificar(ranking.data ?? []).slice(0, 3) : null;
+  const piso = v?.meta.pisoPen ?? null;
+  const completa = v?.meta.completaPen ?? null;
 
   return (
     <section
-      id="podio"
+      id="aliados"
       data-tema="oscuro"
-      aria-labelledby="podio-portada-titulo"
+      aria-labelledby="aliados-titulo"
       className="sobre-oscuro relative scroll-mt-16 overflow-hidden bg-ink text-paper"
     >
       <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
       <div className="container-page relative py-16 sm:py-24">
-        <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="max-w-3xl">
-            <h2
-              id="podio-portada-titulo"
-              className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl"
-            >
-              Guardianes de los recursos <span className="text-maiz">del Perú.</span>
-            </h2>
-            <p className="mt-5 max-w-[56ch] text-pretty text-bloque leading-relaxed text-paper/75">
-              Ver todo en Vigía es gratis: cada contrato leído lo pagó una persona, un colectivo o una empresa, y es dinero público
-              bajo vigilancia. Toca un nombre para ver quién es y qué hizo leer.
-            </p>
-          </div>
+        <div className="max-w-3xl">
+          <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+            Guardianes de los recursos <span className="text-maiz">del Perú.</span>
+          </h2>
+          <p className="mt-5 max-w-[58ch] text-pretty text-bloque leading-relaxed text-paper/75">
+            Ver todo en Vigía es gratis porque lo sostienen personas, colectivos y empresas, mes a mes. El podio no se compra: cuenta
+            los meses, no los soles.
+          </p>
         </div>
 
-        {cifras.length > 0 && (
-          <dl className="mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-paper/15 bg-paper/15">
-            {cifras.map((c) => (
-              <div key={c.etiqueta} className="bg-ink p-4 sm:p-6">
-                <dd className="font-display text-3xl font-bold leading-none tabular-nums text-maiz sm:text-5xl">{numero(c.valor)}</dd>
-                <dt className="mt-2 text-meta leading-snug text-paper/70 sm:text-cuerpo">{c.etiqueta}</dt>
-              </div>
-            ))}
-          </dl>
+        {podio && (
+          <div className="mt-10 sm:mt-12">
+            <PodioRanking filas={podio} nivel={3} destacado />
+          </div>
         )}
 
-        <div className="mt-10 sm:mt-12">
-          <PodioRanking
-            filas={podio}
-            titulo="Quienes más contratos hicieron leer"
-            nivel={3}
-            lugarLibre={LUGAR_LIBRE}
-            destacado
-          />
-        </div>
+        {/* Lo que cuesta mantener Vigía (GET /financiamiento/vigilancia, migración 206): tres cifras. */}
+        {piso != null && completa != null && (
+          <div className="mt-10 grid gap-3 sm:grid-cols-3">
+            <Costo titulo="Mantenerla encendida" valor={`S/ ${numero(piso)}`} detalle="al mes: base de datos, servidores y captura de datos" />
+            <Costo titulo="Leer a fondo lo más grave" valor={`S/ ${numero(completa - piso)}`} detalle={`más al mes: los ~${numero(v!.graves.porMes)} contratos con banderas graves`} />
+            <Costo
+              titulo="Leer un contrato con IA"
+              valor={v!.ia.costoMedioUsd != null ? dolares(v!.ia.costoMedioUsd) : "Sin dato"}
+              detalle="en promedio: por eso pedimos para el mes y no por contrato"
+            />
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {podio.length > 0 && (
-            <EnlaceAccion href="/app/aliados" variante="oscuro" tamano="lg">
-              Ver el ranking completo
-            </EnlaceAccion>
-          )}
+          <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg">
+            Quiero estar en el podio
+          </EnlaceAccion>
+          <EnlaceAccion href="/app/aliados" variante="contornoOscuro" tamano="lg" flecha={false}>
+            Ver el podio completo
+          </EnlaceAccion>
+          <Link
+            href="/app/cuanto-cuesta"
+            className="inline-flex min-h-11 items-center gap-1.5 px-2 text-dato font-semibold text-maiz underline-offset-4 hover:underline"
+          >
+            Cuánto cuesta Vigía <ArrowUpRight size={14} aria-hidden />
+          </Link>
         </div>
 
-        <div className="mt-8 space-y-4">
-          <LlamadaPodio
-            precio={estado?.tarifa?.precioPen ?? null}
-            desglose={frasePartesTarifa(partesTarifa(estado?.tarifa?.nota))}
-            hayPodio={podio.length >= 3}
-          />
-          {recientes && recientes.data.length > 0 && <CintaAportes items={recientes.data} total={recientes.total} />}
+        {/* Qué protege lo que se encuentra: tres cajitas en fila. */}
+        <div className="mt-12">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+            <h3 className="flex items-center gap-2.5 font-display text-2xl font-bold">
+              <ShieldCheck size={22} className="shrink-0 text-maiz" aria-hidden />
+              Sostienes la vigilancia, no el resultado.
+            </h3>
+            <Link
+              href="/app/apoyar"
+              className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-dato font-semibold text-maiz underline-offset-4 hover:underline"
+            >
+              Todas las reglas de independencia <ArrowUpRight size={14} aria-hidden />
+            </Link>
+          </div>
+          <ul className="mt-5 grid gap-3 md:grid-cols-3">
+            {REGLAS.map((r) => (
+              <Regla key={r.titulo} {...r} />
+            ))}
+          </ul>
         </div>
+
+        {recientes && recientes.data.length > 0 && (
+          <div className="mt-10">
+            <CintaAportes items={recientes.data} total={recientes.total} />
+          </div>
+        )}
       </div>
     </section>
+  );
+}
+
+function Costo({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
+  return (
+    <div className="rounded-2xl border border-paper/15 bg-paper/5 p-5">
+      <p className="text-meta text-paper/70">{titulo}</p>
+      <p className="mt-1 font-display text-cifra font-bold tabular-nums">{valor}</p>
+      <p className="text-meta text-paper/70">{detalle}</p>
+    </div>
+  );
+}
+
+function Regla({ Icono, titulo, detalle }: { Icono: LucideIcon; titulo: string; detalle: string }) {
+  return (
+    <li className="flex items-start gap-3.5 rounded-2xl border border-paper/12 bg-paper/[0.04] p-4 sm:p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-maiz/10 text-maiz" aria-hidden>
+        <Icono size={19} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-cuerpo font-semibold leading-snug text-paper">{titulo}</span>
+        <span className="mt-1 block text-dato leading-snug text-paper/70">{detalle}</span>
+      </span>
+    </li>
   );
 }

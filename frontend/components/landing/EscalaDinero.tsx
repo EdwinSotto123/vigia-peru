@@ -218,11 +218,11 @@ export function EscalaDinero({
               apoyo={`de los ${numero(leidos)} leídos`}
               frase="Los primeros que conviene revisar. Una señal es para revisar, nunca una acusación."
             />
-            <Cifra Icono={Hourglass} titulo="Faltan por leer" valor={faltan} frase="Cada lectura la financia alguien." />
+            <Cifra Icono={Hourglass} titulo="Faltan por leer" valor={faltan} frase="Se leen según lo que aportamos entre todos." />
             {financiables != null && (
               <Cifra
                 Icono={HandCoins}
-                titulo="Se pueden financiar hoy"
+                titulo="Listos para leer"
                 valor={financiables}
                 tono="lima"
                 frase="Ya están adjudicados y con documentos. Se leen primero los más graves, con lo que aportamos entre todos."

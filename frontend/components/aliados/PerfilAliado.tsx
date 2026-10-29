@@ -30,7 +30,24 @@ export function indicadoresAliado(
   base: { total: number; texto: string } | null,
   regionesConCola: number,
 ): Indicador[] {
+  // Lo que cuenta el podio (2026-10-29): los meses que sostiene la vigilancia y sus aportes. Lo que hizo leer en el modelo
+  // anterior (S/ 3 por contrato) sigue, sólo si lo hubo.
+  const podio: Indicador[] = [
+    {
+      valor: num(r.meses),
+      etiqueta: r.meses === 1 ? "mes sosteniendo la vigilancia" : "meses sosteniendo la vigilancia",
+      contexto: r.mensual ? "aporta cada mes" : undefined,
+      ayuda: (
+        <Ayuda titulo="¿Qué cuenta el podio?">
+          Los meses distintos con un aporte validado, nunca los soles: con S/ 5 al mes se llega al primer lugar igual que con S/ 500.
+        </Ayuda>
+      ),
+    },
+    { valor: num(r.aportes), etiqueta: r.aportes === 1 ? "aporte" : "aportes", contexto: r.apoyos > 0 ? `${num(r.apoyos)} al fondo común` : undefined },
+  ];
+  if (r.financiados === 0) return podio;
   return [
+    ...podio,
     {
       valor: num(r.financiados),
       etiqueta: "contratos financiados",

@@ -60,7 +60,7 @@ export async function getPerfilAliado(slug: string, revalidate = 30): Promise<Pe
     const data = (await r.json()) as { aliado: AliadoPerfil; contribuciones: ContribucionAliado[] };
     return {
       aliado: data.aliado,
-      contribuciones: (data.contribuciones ?? []).map((c) => ({ ...c, zona: conAcentos(c.zona) })),
+      contribuciones: (data.contribuciones ?? []).map((c) => ({ ...c, zona: c.zona ? conAcentos(c.zona) : null })),
     };
   } catch {
     return null;
@@ -78,6 +78,12 @@ export interface RegionAlcanzada {
 
 export interface ResumenPerfil {
   aportes: number;
+  /** Los meses distintos (de Lima) con un aporte: lo que cuenta el podio. */
+  meses: number;
+  /** Aportes al fondo común (migración 206). */
+  apoyos: number;
+  /** Tiene un apoyo de cada mes. */
+  mensual: boolean;
   financiados: number;
   leidos: number;
   conSenal: number;
@@ -105,11 +111,15 @@ export function resumirContribuciones(contribuciones: ContribucionAliado[]): Res
   let conSenal = 0;
   let enRevision = 0;
 
+  const mes = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", timeZone: "America/Lima" });
+  const meses = new Set(contribuciones.filter((c) => c.pagadaAt).map((c) => mes.format(new Date(c.pagadaAt))));
   for (const c of contribuciones) {
     financiados += c.contratos;
     leidos += c.procesados;
     conSenal += c.senales;
     enRevision += c.enRevision ?? 0;
+    // Un apoyo no tiene zona: cuenta en los meses, no en las zonas.
+    if (!c.ubigeo) continue;
     const previa = porZona.get(c.ubigeo);
     if (previa) {
       previa.aportes += 1;
@@ -119,7 +129,7 @@ export function resumirContribuciones(contribuciones: ContribucionAliado[]): Res
     } else {
       porZona.set(c.ubigeo, {
         ubigeo: c.ubigeo,
-        zona: c.zona,
+        zona: c.zona ?? c.ubigeo,
         aportes: 1,
         contratos: c.contratos,
         procesados: c.procesados,
@@ -128,14 +138,18 @@ export function resumirContribuciones(contribuciones: ContribucionAliado[]): Res
     }
   }
 
+  const apoyos = contribuciones.filter((c) => c.tipoAporte === "apoyo");
   return {
     aportes: contribuciones.length,
+    meses: meses.size,
+    apoyos: apoyos.length,
+    mensual: apoyos.some((c) => c.periodicidad === "mensual"),
     financiados,
     leidos,
     conSenal,
     enRevision,
     sinSenal: Math.max(0, leidos - conSenal - enRevision),
     regiones: [...porZona.values()].sort((a, b) => b.contratos - a.contratos || a.zona.localeCompare(b.zona, "es")),
-    regionesDistintas: new Set(contribuciones.map((c) => c.ubigeo.slice(0, 2))).size,
+    regionesDistintas: new Set(contribuciones.filter((c) => c.ubigeo).map((c) => c.ubigeo!.slice(0, 2))).size,
   };
 }

@@ -8,9 +8,10 @@ import { PistaCinta } from "./PistaCinta";
 
 /**
  * "Últimos aportes" como una cinta que se desplaza despacio (DESIGN_SYSTEM.md §14.6): cada aporte es una
- * píldora con quién financió, cuántos contratos y dónde, y lleva a su comprobante público. Con cinco aportes
- * o más se mueve; con menos se queda quieta y se muestran todos, porque una cinta con dos píldoras que da
- * vueltas parece un error. Se cuenta en contratos, nunca en soles.
+ * píldora con quién se sumó y lleva a su recibo público. Un apoyo (migración 206) dice si es de cada mes y lo que lo
+ * motiva; una lectura del modelo anterior, cuántos contratos y dónde. Con cinco aportes o más se mueve; con menos se
+ * queda quieta y se muestran todos, porque una cinta con dos píldoras que da vueltas parece un error. Nunca soles: el
+ * monto está en el recibo.
  *
  * El movimiento es CSS puro (globals.css: .cinta-pista): se detiene al pasar el cursor o al enfocar un
  * aporte, con su botón de detener (WCAG 2.2.2, `PistaCinta`), y con "reducir movimiento" no corre y la fila se
@@ -27,7 +28,15 @@ function dondeFue(c: ContribucionReciente) {
   return <>{c.zona}</>;
 }
 
+/** Lo que motiva un apoyo (sólo informativo: el aporte va al fondo común). */
+function motivo(c: ContribucionReciente) {
+  if (c.paraRuc && c.paraEntidad) return <NombreEntidad ruc={c.paraRuc} nombre={c.paraEntidad} />;
+  if (c.paraZona) return <>{c.paraZona}</>;
+  return null;
+}
+
 function Pildora({ c }: { c: ContribucionReciente }) {
+  if (c.tipoAporte === "apoyo") return <PildoraApoyo c={c} />;
   const deAlguien = !!c.entidad || !!c.partido;
   return (
     <li className="shrink-0">
@@ -53,6 +62,32 @@ function Pildora({ c }: { c: ContribucionReciente }) {
   );
 }
 
+/** Un apoyo al fondo común: quién se sumó, si es de cada mes y lo que lo motiva. */
+function PildoraApoyo({ c }: { c: ContribucionReciente }) {
+  const lo = motivo(c);
+  return (
+    <li className="shrink-0">
+      <Link
+        href={`/impacto/${c.codigo}`}
+        className="group/ap flex items-center gap-3 rounded-full border border-maiz/25 bg-paper/[0.06] py-2 pl-2 pr-5 transition-colors hover:border-maiz hover:bg-paper/[0.12] focus-visible:border-maiz"
+      >
+        <AvatarAliado tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} size="sm" />
+        <span className="flex flex-col leading-tight">
+          <span className="whitespace-nowrap text-dato text-paper">
+            <span className="font-semibold">{c.financiador}</span> se sumó a la vigilancia
+            {c.periodicidad === "mensual" && <span className="font-semibold text-maiz"> cada mes</span>}
+          </span>
+          <span className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-rotulo text-paper/70">
+            <span>{relativo(c.pagadaAt)}</span>
+            {lo && <span>Lo motiva {lo}</span>}
+            <span className="font-mono group-hover/ap:text-maiz">{c.codigo}</span>
+          </span>
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 export function CintaAportes({ items, total }: { items: ContribucionReciente[]; total?: number }) {
   if (!items.length) return null;
   const mueve = items.length >= 5;
@@ -65,7 +100,7 @@ export function CintaAportes({ items, total }: { items: ContribucionReciente[]; 
           <h2 id="aportes-titulo" className="font-display text-bloque font-bold leading-tight">
             Últimos aportes
           </h2>
-          <p className="text-meta text-paper/70">Cada uno es dinero que paga leer contratos públicos. Toca uno para ver su comprobante.</p>
+          <p className="text-meta text-paper/70">Quienes se suman a la vigilancia. Toca uno para ver su recibo.</p>
         </div>
         <EnlaceAccion href="/app/aliados/aportes" variante="oscuro" flecha>
           Ver todos los aportes{typeof total === "number" && total > items.length ? ` (${numero(total)})` : ""}

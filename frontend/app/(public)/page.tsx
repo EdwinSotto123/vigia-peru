@@ -9,7 +9,6 @@ import { CasoLeido } from "@/components/landing/CasoLeido";
 import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
 import { FuentesSection } from "@/components/landing/FuentesSection";
 import { CasosReales } from "@/components/landing/CasosReales";
-import { Aliados } from "@/components/landing/Aliados";
 import { PodioPortada } from "@/components/landing/PodioPortada";
 import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
@@ -29,7 +28,7 @@ import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
 const TITULO_PORTADA = "Vigía Perú: en qué se gasta el dinero de tu región";
 const DESCRIPCION_PORTADA =
-  "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, financia una lectura o denuncia una obra.";
+  "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, ayúdanos a seguir vigilando o denuncia una obra.";
 
 export const metadata: Metadata = {
   title: { absolute: TITULO_PORTADA },
@@ -46,7 +45,7 @@ export const metadata: Metadata = {
  *  2. El problema (EscalaDinero): miles de millones en contratos, casi nada leído, en una fila de cifras que se desliza.
  *  3. La respuesta (PartidosSeccion): UN solo mapa con tres lecturas (quién gobierna, cuánto se contrata y
  *     qué tanto vigilamos) y los partidos en una fila que se desliza. Es el único mapa de la portada.
- *  4. Quién lo hace posible: nos financiamos con donaciones (PodioPortada + Aliados: podio y calculadora).
+ *  4. Quién lo hace posible (PodioPortada): el podio de quienes la sostienen, lo que cuesta y por qué aportar no compra nada.
  *  5. Qué hace Vigía, con un contrato real (CasoLeido).
  *  6. Cómo lo hace, en palabras de persona (PipelineAgentes).
  *  7. De dónde sale lo que dice (FuentesSection).
@@ -140,9 +139,8 @@ export default async function LandingPage() {
         <PartidosSeccion />
       </PixelReveal>
 
-      {/* Nos financiamos con donaciones: el podio de quienes lo hacen posible y cuánto cuesta leer un contrato. */}
+      {/* Quién la sostiene: el podio, lo que cuesta y por qué aportar no compra nada, en una sola sección. */}
       <PodioPortada />
-      <Aliados />
 
       {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
 

@@ -135,20 +135,27 @@ const RankingQuery = z.object({
   q: z.string().trim().min(2).max(80).optional(),
 });
 
+/** Los meses distintos (de Lima) en que el aliado tuvo un aporte validado: lo que ordena el podio. */
+const MESES_APORTE = `COUNT(DISTINCT date_trunc('month', co.pagada_at AT TIME ZONE 'America/Lima'))`;
+
 // ─── GET /financiamiento/ranking ─────────────────────────────────────────────
 financiamientoRouter.get("/ranking", async (c) => {
   const parsed = RankingQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
   const { periodo, region, limit, offset, q } = parsed.data;
-  const since = periodo === "mes" ? "date_trunc('month', now())" : periodo === "anio" ? "date_trunc('year', now())" : "'1970-01-01'::timestamptz";
+  // El mes y el año, los de Lima (un aporte validado a las 11 p. m. del 31 no es del mes siguiente).
+  const since = periodo === "mes" ? "(date_trunc('month', now() AT TIME ZONE 'America/Lima') AT TIME ZONE 'America/Lima')"
+    : periodo === "anio" ? "(date_trunc('year', now() AT TIME ZONE 'America/Lima') AT TIME ZONE 'America/Lima')" : "'1970-01-01'::timestamptz";
   const vals: any[] = [];
   let zonaCond = "";
-  if (region) { vals.push(region); zonaCond = ` AND co.ubigeo LIKE $${vals.length} || '%'`; }
+  // Un apoyo no tiene zona: cuenta la que lo motiva (para_ubigeo), si la dijo.
+  if (region) { vals.push(region); zonaCond = ` AND COALESCE(co.ubigeo, co.para_ubigeo) LIKE $${vals.length} || '%'`; }
   // Compartido entre la fila principal (agregada por financiador) y el conteo total: mismo
   // FROM/WHERE, así el total siempre coincide con lo que la paginación realmente recorre.
+  // El capital semilla de Vigía Perú (pasarela 'institucional') no compite: la plataforma no se pone en su propio podio.
   const fromWhere = `FROM financiadores f
      JOIN contribuciones co ON co.financiador_id = f.id AND co.estado IN ('pagada','en_proceso','procesada')
-          AND co.pagada_at >= ${since}${zonaCond}
+          AND co.pagada_at >= ${since}${zonaCond} AND co.pasarela IS DISTINCT FROM 'institucional'
      WHERE f.visible`;
   // Con búsqueda, el puesto se cuenta sobre todos (row_number) y después se filtra por el nombre.
   let busca = "";
@@ -158,8 +165,14 @@ financiamientoRouter.get("/ranking", async (c) => {
   const [r, total] = await Promise.all([
     pool.query(
       `SELECT * FROM (
-       SELECT row_number() OVER (ORDER BY SUM(co.contratos) DESC, MIN(co.pagada_at) ASC, f.id)::int AS posicion, f.nombre_publico,
+       -- El podio no se compra (2026-10-29, modelo de apoyo): se gana por CONSTANCIA, los meses distintos con un aporte
+       -- validado en el periodo; a igualdad, quien llegó primero. Con S/ 5 al mes se llega al primer lugar igual que con
+       -- S/ 500. Siguen las cifras de lectura (contratos financiados, leídos, señales) de los aportes del modelo anterior.
+       SELECT row_number() OVER (ORDER BY ${MESES_APORTE} DESC, MIN(co.pagada_at) ASC, f.id)::int AS posicion, f.nombre_publico,
               f.id, f.tipo, COALESCE(f.nombre_publico,'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl",
+              ${MESES_APORTE}::int AS meses, COUNT(*)::int AS aportes,
+              COALESCE(bool_or(co.tipo = 'apoyo' AND co.periodicidad = 'mensual'), false) AS mensual,
+              MAX(co.pagada_at) AS "ultimoAporte",
               SUM(co.contratos)::int AS "contratosFinanciados",
               COUNT(DISTINCT co.ubigeo)::int AS zonas,
               (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
@@ -227,24 +240,31 @@ financiamientoRouter.get("/recientes", async (c) => {
   const conEntidad = await hayAporteEntidad();
   // La búsqueda: el nombre público (sólo de aliados visibles, que eligieron aparecer), el código y dónde fue el aporte.
   const busca = pag.q ? `%${escaparLike(pag.q)}%` : null;
-  const donde = busca
-    ? `AND (f.nombre_publico ILIKE $3 OR co.codigo ILIKE $3 OR z.nombre ILIKE $3${conEntidad
+  // Sin la semilla (la cinta del podio): sólo quienes se suman.
+  const semilla = pag.semilla === "no" ? ` AND co.pasarela IS DISTINCT FROM 'institucional'` : "";
+  const donde = semilla + (busca
+    ? ` AND (f.nombre_publico ILIKE $3 OR co.codigo ILIKE $3 OR z.nombre ILIKE $3${conEntidad
         ? ` OR EXISTS (SELECT 1 FROM entidades en WHERE en.ruc = co.entidad_ruc AND (en.nombre ILIKE $3 OR en.ruc LIKE $3))
             OR EXISTS (SELECT 1 FROM gobierno_periodo gp WHERE gp.org_clave = co.partido_clave AND gp.org_nombre ILIKE $3)`
         : ""})`
-    : "";
+    : "");
+  // Un apoyo (migración 206) no tiene zona ni contratos: va con su periodicidad y lo que lo motiva (sólo informativo).
+  // `tipoAporte`, no `tipo`: `tipo` es el del aliado (persona, empresa…) y lo usa su avatar.
   const [r, total] = await Promise.all([pool.query(
     `SELECT co.codigo, co.contratos, co.pagada_at AS "pagadaAt", co.estado, co.mensaje_publico AS "mensajePublico",
+            co.tipo AS "tipoAporte", co.periodicidad, (co.pasarela = 'institucional') AS semilla,
             z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
+            (SELECT e.nombre FROM entidades e WHERE e.ruc = co.para_ruc) AS "paraEntidad", co.para_ruc AS "paraRuc",
+            (SELECT pz.nombre FROM zonas pz WHERE pz.ubigeo = co.para_ubigeo) AS "paraZona", co.para_ubigeo AS "paraUbigeo",
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl"
      FROM contribuciones co
      JOIN financiadores f ON f.id = co.financiador_id
-     JOIN zonas z ON z.ubigeo = co.ubigeo
+     LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible ${donde}
      ORDER BY co.pagada_at DESC, co.id DESC LIMIT $1 OFFSET $2`, busca ? [pag.limit, pag.offset, busca] : [pag.limit, pag.offset]),
     pool.query(
       `SELECT count(*)::int AS n FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
-         JOIN zonas z ON z.ubigeo = co.ubigeo
+         LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
         WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible ${donde.replaceAll("$3", "$1")}`, busca ? [busca] : []),
   ]);
   cache(c, 60);
@@ -382,15 +402,17 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
     telefono: p.telefono, ubicacion: p.ubicacion, enlaces: p.enlaces,
   };
   const conEntidad = await hayAporteEntidad();
+  // Un apoyo (migración 206) no tiene zona: LEFT JOIN, o el perfil de quien sólo apoya salía sin aportes.
   const cs = await pool.query(
-    `SELECT co.codigo, co.contratos, co.estado, co.pagada_at AS "pagadaAt", z.ubigeo, z.nombre AS zona, z.nivel,
+    `SELECT co.codigo, co.contratos, co.estado, co.pagada_at AS "pagadaAt", co.tipo AS "tipoAporte", co.periodicidad,
+            z.ubigeo, z.nombre AS zona, z.nivel,
             ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
               WHERE s.contribucion_id = co.id AND ${SENAL_HALLADA})::int AS senales,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
               WHERE s.contribucion_id = co.id AND ${EN_REVISION})::int AS "enRevision"
-     FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo
+     FROM contribuciones co LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.financiador_id = $1 AND co.estado IN ('pagada','en_proceso','procesada')
      ORDER BY co.pagada_at DESC NULLS LAST, co.id DESC
      LIMIT ${MAX_CONTRIBUCIONES_ALIADO}`, [r.id]);

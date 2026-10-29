@@ -1,6 +1,6 @@
 import { SearchX } from "lucide-react";
 import { EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
-import { BarraFiltros, CeldaBarra, CeldaFecha, CeldaNumero, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
+import { BarraFiltros, CeldaFecha, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
 import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
@@ -8,12 +8,12 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
 import { NombreEntidad } from "@/components/financiar/NombreEntidad";
 import { LlamadaPodio } from "@/components/aliados/LlamadaPodio";
-import { frasePartesTarifa, getEstadoGlobal, getRecientesPagina, partesTarifa, TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
+import { getRecientesPagina, TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 
 export const metadata = {
   title: "Todos los aportes",
-  description: "Cada aporte confirmado que paga la lectura de contratos públicos, con su comprobante. Se cuenta en contratos, nunca en soles.",
+  description: "Cada aporte confirmado que sostiene la vigilancia del dinero público, con su recibo. Ninguno elige qué se lee.",
 };
 
 export const revalidate = 60;
@@ -23,15 +23,37 @@ const TAM = 25;
 
 const COLUMNAS: Columna[] = [
   { clave: "fecha", titulo: "Fecha", ancho: "108px" },
-  { clave: "aliado", titulo: "Aliado", ancho: "minmax(0,0.9fr)" },
-  { clave: "alcance", titulo: "Dónde", ancho: "minmax(0,0.8fr)", desde: "md" },
-  { clave: "barra", titulo: "Tamaño", ancho: "minmax(120px,1.3fr)", desde: "lg" },
-  { clave: "contratos", titulo: "Contratos", ancho: "92px", alinear: "der" },
-  { clave: "comprobante", titulo: "Comprobante", ancho: "152px", desde: "lg" },
+  { clave: "aliado", titulo: "Aliado", ancho: "minmax(0,1fr)" },
+  { clave: "que", titulo: "Qué", ancho: "minmax(0,0.8fr)" },
+  { clave: "alcance", titulo: "Dónde", ancho: "minmax(0,0.9fr)", desde: "md" },
+  { clave: "comprobante", titulo: "Recibo", ancho: "152px", desde: "lg" },
 ];
 
-/** Dónde fue el aporte: los gobiernos de un partido, una entidad o una zona. */
+/** Qué fue el aporte: un apoyo al fondo común (de cada mes o único) o, del modelo anterior, la lectura de contratos. */
+function Que({ c }: { c: ContribucionReciente }) {
+  if (c.tipoAporte === "apoyo") {
+    return <span className="text-meta font-medium text-ink">{c.periodicidad === "mensual" ? "Apoyo de cada mes" : "Apoyo único"}</span>;
+  }
+  return (
+    <span className="text-meta text-ink">
+      Leyó <span className="font-semibold tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"}
+      {c.semilla && <span className="block text-rotulo text-mute">Semilla de Vigía Perú</span>}
+    </span>
+  );
+}
+
+/** Dónde fue el aporte: los gobiernos de un partido, una entidad o una zona; de un apoyo, lo que lo motiva o el fondo común. */
 function Alcance({ c }: { c: ContribucionReciente }) {
+  if (c.tipoAporte === "apoyo") {
+    if (c.paraRuc && c.paraEntidad) {
+      return (
+        <span className="text-meta text-ink">
+          Lo motiva <NombreEntidad ruc={c.paraRuc} nombre={c.paraEntidad} />
+        </span>
+      );
+    }
+    return <span className="text-meta text-ink">{c.paraZona ? `Lo motiva ${c.paraZona}` : "Al fondo común"}</span>;
+  }
   if (c.partido) {
     return (
       <span className="text-meta text-ink">
@@ -49,7 +71,7 @@ function Alcance({ c }: { c: ContribucionReciente }) {
   return <span className="text-meta text-ink">{c.zona}</span>;
 }
 
-function fila(c: ContribucionReciente, mayor: number): Fila {
+function fila(c: ContribucionReciente): Fila {
   return {
     id: c.codigo,
     href: `/impacto/${c.codigo}`,
@@ -63,13 +85,8 @@ function fila(c: ContribucionReciente, mayor: number): Fila {
           <CeldaPrincipal titulo={c.financiador} meta={[<Dato key="t" tipo="tipo">{TIPO_FINANCIADOR_LABEL[c.tipo]}</Dato>]} enLinea />
         </span>
       ),
-      contratos: (
-        <CeldaNumero>
-          <span className="font-display text-bloque font-bold text-ink">{numero(c.contratos)}</span>
-        </CeldaNumero>
-      ),
+      que: <Que c={c} />,
       alcance: <Alcance c={c} />,
-      barra: <CeldaBarra parte={c.contratos / mayor} resumen={`${numero(c.contratos)} contratos, de ${numero(mayor)} en el aporte más grande de esta página`} />,
       comprobante: <span className="font-mono text-meta text-mute">{c.codigo}</span>,
     },
   };
@@ -77,13 +94,14 @@ function fila(c: ContribucionReciente, mayor: number): Fila {
 
 /**
  * /app/aliados/aportes — todos los aportes confirmados, de a 25, del más reciente al más antiguo. Cada fila
- * lleva a su comprobante público. Se cuenta en contratos, nunca en soles, y solo aparecen los aliados visibles.
- * Es la página de "Ver todos los aportes" de la cinta de /app/aliados.
+ * lleva a su recibo público. Nunca se ordenan ni se comparan por soles, y solo aparecen los aliados visibles.
+ * Es la página de "Ver todos los aportes" de la cinta de /app/aliados. Aquí sí va la semilla de Vigía Perú:
+ * es el registro entero.
  */
 export default async function AportesPage({ searchParams }: { searchParams?: { pagina?: string; q?: string } }) {
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   const q = typeof searchParams?.q === "string" && searchParams.q.trim().length >= 2 ? searchParams.q.trim().slice(0, 80) : undefined;
-  const [datos, estado] = await Promise.all([getRecientesPagina(TAM, (pagina - 1) * TAM, q).catch(() => null), getEstadoGlobal()]);
+  const datos = await getRecientesPagina(TAM, (pagina - 1) * TAM, q).catch(() => null);
   const paginas = datos ? Math.max(1, Math.ceil(datos.total / TAM)) : 1;
 
   return (
@@ -91,7 +109,7 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Aliados", href: "/app/aliados" }, { etiqueta: "Todos los aportes" }]} />
       <EncabezadoPagina
         titulo="Todos los aportes"
-        bajada="Cada aporte confirmado paga la lectura de contratos públicos. Toca uno para ver su comprobante."
+        bajada="Cada aporte confirmado, del más reciente al más antiguo. Toca uno para ver su recibo."
       />
 
       <Listado ruta="/app/aliados/aportes" parametros={{ q }}>
@@ -106,12 +124,12 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
               <EstadoVacio
                 titulo="Todavía no hay aportes confirmados"
                 accion={
-                  <EnlaceAccion variante="secundario" href="/app/financiar">
-                    Ser el primero
+                  <EnlaceAccion variante="secundario" href="/app/apoyar">
+                    Sé el primero
                   </EnlaceAccion>
                 }
               >
-                Cuando se confirme el primero, aparece acá con su comprobante público.
+                Cuando se confirme el primero, aparece acá con su recibo público.
               </EstadoVacio>
             ) : (
               <section aria-label="Aportes" className="space-y-3">
@@ -120,7 +138,7 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
                   {q ? (datos.total === 1 ? `aporte coincide con “${q}”` : `aportes coinciden con “${q}”`) : datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}.
                   Mostrando {numero((pagina - 1) * TAM + 1)} a {numero((pagina - 1) * TAM + datos.data.length)}.
                 </div>
-                <Tabla columnas={COLUMNAS} filas={datos.data.map((c) => fila(c, Math.max(1, ...datos.data.map((x) => x.contratos))))} etiqueta="Aportes confirmados, del más reciente al más antiguo" densidad="compacta" />
+                <Tabla columnas={COLUMNAS} filas={datos.data.map(fila)} etiqueta="Aportes confirmados, del más reciente al más antiguo" densidad="compacta" />
                 {paginas > 1 && (
                   <div className="flex justify-end">
                     <Paginacion actual={pagina} paginas={paginas} total={datos.total} tam={TAM} navegacion="url" hrefBase="/app/aliados/aportes" query={{ q }} cargando={false} nombre="aportes" />
@@ -133,7 +151,7 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
       </Listado>
 
       {/* La invitación al pie, con color: una lista corta no deja la pantalla vacía. */}
-      <LlamadaPodio precio={estado?.tarifa?.precioPen ?? null} desglose={frasePartesTarifa(partesTarifa(estado?.tarifa?.nota))} />
+      <LlamadaPodio />
     </Pagina>
   );
 }

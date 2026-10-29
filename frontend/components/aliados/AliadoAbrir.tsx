@@ -85,19 +85,25 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
   const telefono = a?.telefono ?? null;
   const sinContacto = !!a && !a.web && !a.email && !telefono && !linkedin && redes.length === 0 && enlaces.length === 0;
 
-  // Las zonas que financió, juntando aportes de la misma zona.
+  // Las zonas que financió (del modelo anterior), juntando aportes de la misma zona. Un apoyo no tiene zona.
   const zonas = new Map<string, number>();
   for (const c of perfil?.contribuciones ?? []) {
     const clave = c.entidad ? `${c.entidad}` : c.zona;
+    if (!clave) continue;
     zonas.set(clave, (zonas.get(clave) ?? 0) + c.contratos);
   }
   const listaZonas = [...zonas.entries()].sort((x, y) => y[1] - x[1]).slice(0, 8);
 
+  // Primero lo que cuenta el podio (meses y aportes); lo que hizo leer en el modelo anterior, sólo si lo hubo.
   const cifras: { valor: number; etiqueta: string }[] = [
-    { valor: fila.contratosFinanciados, etiqueta: fila.contratosFinanciados === 1 ? "contrato financiado" : "contratos financiados" },
-    { valor: fila.contratosProcesados, etiqueta: fila.contratosProcesados === 1 ? "ya leído" : "ya leídos" },
-    { valor: fila.senalesHalladas, etiqueta: fila.senalesHalladas === 1 ? "señal hallada" : "señales halladas" },
-    { valor: fila.zonas, etiqueta: fila.zonas === 1 ? "zona alcanzada" : "zonas alcanzadas" },
+    { valor: fila.meses ?? 0, etiqueta: fila.meses === 1 ? "mes sosteniendo" : "meses sosteniendo" },
+    { valor: fila.aportes ?? 0, etiqueta: fila.aportes === 1 ? "aporte" : "aportes" },
+    ...(fila.contratosFinanciados > 0
+      ? [
+          { valor: fila.contratosFinanciados, etiqueta: fila.contratosFinanciados === 1 ? "contrato que hizo leer" : "contratos que hizo leer" },
+          { valor: fila.senalesHalladas, etiqueta: fila.senalesHalladas === 1 ? "señal hallada" : "señales halladas" },
+        ]
+      : []),
   ];
 
   return (
@@ -265,6 +271,8 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
           )}
         </section>
 
+        {/* Lo que hizo leer en el modelo anterior (S/ 3 por contrato): sólo si lo hubo. Un apoyo va al fondo común. */}
+        {fila.contratosFinanciados > 0 && (
         <section className="mt-6">
           <h3 className="font-display text-bloque font-bold text-ink">Qué hizo leer</h3>
           {listaZonas.length > 0 ? (
@@ -284,9 +292,13 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
             <p className="mt-2 text-cuerpo leading-relaxed text-mute">Todavía no tiene zonas registradas.</p>
           )}
           <p className="mt-4 text-meta leading-snug text-mute">
-            Se cuenta en contratos, nunca en soles. El aliado no elige cuáles se leen: se asignan por antigüedad.
+            El aliado no eligió cuáles se leían: se asignaban por antigüedad.
           </p>
         </section>
+        )}
+        <p className="mt-6 text-meta leading-snug text-mute">
+          El podio cuenta los meses que sostiene la vigilancia, nunca los soles. Ningún aliado elige qué se lee ni qué se publica.
+        </p>
       </Panel>
     </>
   );
