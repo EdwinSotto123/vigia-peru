@@ -77,9 +77,10 @@ export function VisitasDelCaso({ visitas }: { visitas: Record<string, unknown>[]
  * visitas, los registros de la fuente y por qué se marca. La evidencia sólo de una empresa (RUC 20): la API la busca por
  * su ficha.
  */
-export function DetalleDelAntecedente({ a }: { a: AntecedenteEmpresa }) {
+export function DetalleDelAntecedente({ a, sinQuien = false }: { a: AntecedenteEmpresa; sinQuien?: boolean }) {
   const ruc = a.rucProveedor ?? "";
-  const datos = datosDe(a, ruc);
+  // `sinQuien`: el panel ya dice quién en su recuadro (DetalleHecho); la persona y su papel no van dos veces.
+  const datos = datosDe(a, ruc).filter((x) => !sinQuien || !["Quién", "Quién fue", "Quién lo declaró", "Su papel en la empresa"].includes(x.etiqueta));
   const patron = a.tipo !== "visita_previa" && a.tipo.startsWith("visita_") && a.visitas.length > 0;
   const explica = TIPO_CRUCE[a.tipo]?.explica;
   return (

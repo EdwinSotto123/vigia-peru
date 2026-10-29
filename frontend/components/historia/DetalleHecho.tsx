@@ -131,7 +131,7 @@ export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria;
       {datos.length > 0 && <DatosClave items={datos.map((d) => ({ etiqueta: d.etiqueta, valor: d.valor, mono: MONO.has(d.etiqueta) }))} />}
 
       {/* Un antecedente del ganador (Historia del contrato): lo mismo que su panel en la pestaña Antecedentes. */}
-      {e.antecedente && <DetalleDelAntecedente a={e.antecedente} />}
+      {e.antecedente && <DetalleDelAntecedente a={e.antecedente} sinQuien={!!e.quien} />}
 
       {conPie && <AccionesHecho e={e} />}
     </CuerpoDetalle>
