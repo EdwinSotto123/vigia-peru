@@ -284,6 +284,9 @@ empresasRouter.get("/:ruc", async (c) => {
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
                 e.actividad, e.socios, e.representantes, e.directivos, e.vinculadas, e.visitas_clientes AS "visitasClientes",
+                -- Personas distintas (una con tres papeles es una): la pestaña «Su gente» decía 3 de una sola.
+                (SELECT count(DISTINCT r.numero_documento) FROM rnp_conformacion_juridica r
+                  WHERE r.ruc_empresa = e.ruc AND r.numero_documento IS NOT NULL)::int AS personas,
                 to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado,
                 -- Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (207).
                 (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.ruc = e.ruc)::int AS "bordeEntidades",
@@ -846,11 +849,15 @@ const hoyIso = () => new Date().toISOString().slice(0, 10);
 /**
  * La clave de un antecedente para pedir su evidencia (GET …/antecedentes/evidencia): su tipo, su proceso, su fecha, su
  * persona y su detalle, en un hash. Sin el id de la fila (el refresco de los cruces lo cambia: un enlace de la página en
- * caché quedaría huérfano) ni el DNI (va su ref HMAC: un sha256 de 8 dígitos se revierte probando).
+ * caché quedaría huérfano) ni el DNI (va su ref HMAC: un sha256 de 8 dígitos se revierte probando). En letras (a a p, una
+ * por cada medio byte), sin dígitos: en hexadecimal, 8 u 11 cifras seguidas las tapaba publicar() como un DNI o un RUC 10.
  */
 function claveCruce(x: Record<string, any>): string {
   const persona = x.persona_doc ? refDocumento(x.persona_doc) : "";
-  return createHash("sha256").update(`${x.tipo}|${x.ocid ?? ""}|${iso(x.fecha) ?? ""}|${persona}|${JSON.stringify(x.detalle ?? {})}`).digest("hex").slice(0, 16);
+  const h = createHash("sha256").update(`${x.tipo}|${x.ocid ?? ""}|${iso(x.fecha) ?? ""}|${persona}|${JSON.stringify(x.detalle ?? {})}`).digest();
+  let s = "";
+  for (let i = 0; i < 8; i++) s += String.fromCharCode(97 + (h[i] >> 4), 97 + (h[i] & 15));
+  return s;
 }
 
 /** Lo que el panel de un antecedente necesita para citar cada dato: de qué elección, dónde, a qué entidad lleva. */
@@ -1040,7 +1047,7 @@ empresasRouter.get("/:ruc/antecedentes/evidencia", async (c) => {
   const ruc = c.req.param("ruc");
   const tipo = c.req.query("tipo") ?? "";
   const clave = c.req.query("clave") ?? "";
-  if (!RUC_EMPRESA.test(ruc) || !/^[a-z_]{3,40}$/.test(tipo) || !/^[0-9a-f]{16}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  if (!RUC_EMPRESA.test(ruc) || !/^[a-z_]{3,40}$/.test(tipo) || !/^[a-p]{16}$/.test(clave)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await fichaMemo.obtener(`evidencia:${ruc}:${tipo}:${clave}`, async () => {
     const r = await pool.query(
       `SELECT tipo, ruc_empresa, ocid, fecha, persona_doc, detalle FROM cruces_proveedor WHERE ruc_empresa = $1 AND tipo = $2 LIMIT 3000`, [ruc, tipo]);

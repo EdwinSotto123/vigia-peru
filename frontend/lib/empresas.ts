@@ -118,6 +118,8 @@ export interface FichaEmpresa {
     socios: number;
     representantes: number;
     directivos: number;
+    /** Personas distintas en el RNP (una persona con tres papeles es una); falta en respuestas viejas. */
+    personas?: number;
     vinculadas: number;
     visitasClientes: number;
     actualizado: string | null;

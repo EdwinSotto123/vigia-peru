@@ -143,7 +143,7 @@ function EnElEstado({ e, ruc, tipos }: { e: SocioEnElEstado; ruc: string; tipos:
           detalle={
             <ul className="space-y-0.5">
               {posts.map((p, i) => {
-                const donde = lugarDelCargo({ distrito: p.distrito, provincia: p.provincia, departamento: p.departamento }, p.cargo);
+                const donde = lugarDelCargo({ distrito: p.distrito, provincia: p.provincia, departamento: p.departamento }, p.cargo, true);
                 return (
                   <li key={i}>
                     {p.anio ? <span className="font-mono tabular-nums text-ink">{p.anio}</span> : null}
@@ -158,7 +158,7 @@ function EnElEstado({ e, ruc, tipos }: { e: SocioEnElEstado; ruc: string; tipos:
                         </Link>
                       </>
                     ) : null}
-                    {p.resultado ? (/^electo/i.test(p.resultado) ? "; fue elegido" : "; no fue elegido") : ""}
+                    {p.resultado ? (/^electo/i.test(p.resultado) ? <>; <b className="font-semibold text-ink">fue elegido</b></> : "; no fue elegido") : ""}
                   </li>
                 );
               })}

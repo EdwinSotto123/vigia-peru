@@ -1,6 +1,6 @@
 import { esTipoObra } from "@/lib/cruces";
 import { rutaEmpresa, type AntecedenteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
-import { fechaCorta, hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
+import { hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
 import { inversionSsi, obraInfobras } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
@@ -38,9 +38,10 @@ export interface DatoCaso {
 const txt = txtONumero;
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
+// Con el año siempre: «26 mar. a 26 jul.» de una sanción no decía de qué año (fechaCorta lo omite en el año en curso).
 const fechaDe = (v: unknown) => {
   const s = txt(v);
-  return s && /^\d{4}-\d{2}-\d{2}/.test(s) ? fechaCorta(s) : s;
+  return s && /^\d{4}-\d{2}-\d{2}/.test(s) ? conAnio(s.slice(0, 10)) : s;
 };
 const rangoDe = (a: unknown, b: unknown) => {
   const x = fechaDe(a);
@@ -85,13 +86,16 @@ export function papeles(rol: string | null | undefined): string | null {
 export function hoySancion(tipo: string | null, hasta: string | null, estado: string | null): string | null {
   // El día de Lima, no el UTC: desde las 19:00 de Lima el día UTC ya es mañana.
   const hoy = hoyLima();
-  if (hasta) return hasta.slice(0, 10) >= hoy ? "Vigente" : `Ya terminó (el ${fechaCorta(hasta)})`;
+  if (hasta) return hasta.slice(0, 10) >= hoy ? "Vigente" : `Ya terminó (el ${conAnio(hasta.slice(0, 10))})`;
   if (estado) return estado.toUpperCase() === "VIGENTE" ? "Vigente" : "No vigente, según el Tribunal";
   return /definitiv/i.test(tipo ?? "") ? "Definitiva, sin fecha de fin" : null;
 }
 
-/** Dónde se ejerce (o a qué lugar postuló) un cargo, según su nivel: «La Banda de Shilcayo, provincia de San Martín, San Martín». */
-export function lugarDelCargo(l: ReferenciasAntecedente["lugar"], cargo: string | null | undefined): string | null {
+/**
+ * Dónde se ejerce (o a qué lugar postuló) un cargo, según su nivel: «La Banda de Shilcayo, provincia de San Martín, San
+ * Martín». `corto`: sólo el lugar del cargo («La Banda de Shilcayo»), para una lista de candidaturas que lo repite.
+ */
+export function lugarDelCargo(l: ReferenciasAntecedente["lugar"], cargo: string | null | undefined, corto = false): string | null {
   if (!l) return null;
   const dis = l.distrito ? tituloNatural(l.distrito) : null;
   const pro = l.provincia ? tituloNatural(l.provincia) : null;
@@ -105,7 +109,8 @@ export function lugarDelCargo(l: ReferenciasAntecedente["lugar"], cargo: string 
         ? [dep]
         : [dis, pro, dep];
   const xs = partes.filter((x): x is string => !!x);
-  return xs.length ? xs.join(", ") : null;
+  if (!xs.length) return null;
+  return corto ? xs[0] : xs.join(", ");
 }
 
 /** «Gerente en logística (decide las compras)»: de quien recibió una visita, sólo su cargo y su área; nunca su nombre. */
@@ -304,7 +309,7 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       t === "visita_fuera_horario" && { etiqueta: "Fuera de horario", valor: `${plural(n, "visita", "visitas")} de noche, de madrugada o en fin de semana` },
       t === "visita_antes_convocatoria" && {
         etiqueta: "Antes de la convocatoria",
-        valor: `${antes === 0 ? "El mismo día en que se convocó" : `${plural(antes ?? 0, "día", "días")} antes de que se convocara`}${txt(d.convocatoria) ? ` (el ${fechaCorta(txt(d.convocatoria)!)})` : ""}`,
+        valor: `${antes === 0 ? "El mismo día en que se convocó" : `${plural(antes ?? 0, "día", "días")} antes de que se convocara`}${txt(d.convocatoria) ? ` (el ${fechaDe(d.convocatoria)})` : ""}`,
       },
       t !== "visita_antes_convocatoria" && num(d.dias_antes) != null && { etiqueta: "Después", valor: `${plural(num(d.dias_antes)!, "día", "días")} después ganó la buena pro` },
       d.misma_entidad === true && { etiqueta: "¿La misma entidad que contrató?", valor: "Sí" },
@@ -530,7 +535,7 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
 
   // La fecha del registro, si ningún dato ya la dice (vigencia, días, periodo, cuándo…).
   const conFecha = ["Vigencia", "Días", "Entre", "Periodo", "Cuándo", "Ganó la buena pro", "Antes de la convocatoria"];
-  if (a.fecha && !items.some((i) => conFecha.includes(i.etiqueta))) items.push({ etiqueta: "Fecha del registro", valor: fechaCorta(a.fecha), mono: true, soloPanel: true });
+  if (a.fecha && !items.some((i) => conFecha.includes(i.etiqueta))) items.push({ etiqueta: "Fecha del registro", valor: fechaDe(a.fecha), mono: true, soloPanel: true });
   return items.filter((i) => i.valor);
 }
 

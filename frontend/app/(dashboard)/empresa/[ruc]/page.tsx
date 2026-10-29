@@ -206,7 +206,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     </PestanaAPedido>
   );
   const nAntecedentes = e.nAlta + e.nMedia + e.nBaja;
-  const personas = e.socios + e.representantes + e.directivos;
+  // Personas distintas (una con tres papeles cuenta una); sin el dato, la suma de papeles de antes.
+  const personas = e.personas ?? e.socios + e.representantes + e.directivos;
   // Sus banderas, fijas bajo el nombre en todas las pestañas: cada antecedente por tipo (lo grave primero) hacia su lista
   // filtrada, y las visitas de su gente a entidades que le pagaron, hacia la lista de visitas (antes sólo una línea al pie
   // de «Sus datos»: «la visita nunca aparece»).
