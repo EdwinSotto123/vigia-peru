@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed, Info } from "lucide-react";
+import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed, Info } from "@/components/ui/iconosCliente";
 import { SEVERIDAD, severidadDeScore, severidadDeBandera, type SeveridadUI } from "@/lib/severidad";
 import { cn } from "@/lib/utils";
 

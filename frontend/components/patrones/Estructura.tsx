@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ArrowLeft, ChevronDown, ExternalLink, Info } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ExternalLink, Info } from "@/components/ui/iconosCliente";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/formato";

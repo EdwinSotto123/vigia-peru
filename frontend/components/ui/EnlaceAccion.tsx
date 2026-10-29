@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@/components/ui/iconosCliente";
 import { cn } from "@/lib/utils";
 
 /**
