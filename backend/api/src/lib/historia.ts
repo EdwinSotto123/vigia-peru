@@ -534,7 +534,9 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
     while (i < xs.length) {
       const med = medianaPrevia(vals, i);
       const r = med == null ? 0 : xs[i].v / Math.max(med, 1);
-      if (med == null || xs[i].v < minimo || xs[i].v - med < minimo || r < 2.5) {
+      // Con una base: «desde casi cero» es casi siempre que la fuente empezó a publicar (las visitas de una entidad que
+      // entró a la plataforma nacional), no un cambio de la entidad.
+      if (med == null || med < Math.max(2, minimo / 3) || xs[i].v < minimo || xs[i].v - med < minimo || r < 2.5) {
         i++;
         continue;
       }
@@ -557,14 +559,17 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
           : null,
         eleccion ? `Faltaban ${mesesEntre(tope.mes, eleccion.fecha.slice(0, 7))} meses para las ${eleccion.texto.replace(/^Elecciones/, "elecciones")}.` : null,
       ].filter(Boolean).join(" ");
-      const fuerte = rTope >= 4 && (tambien.length > 0 || (mesesGob != null && mesesGob <= 6) || !!eleccion);
+      // Diciembre: muchas entidades apuran sus compras al cierre del año; cuenta un grado menos.
+      const diciembre = tope.mes.endsWith("-12");
+      const fuerte = !diciembre && rTope >= 4 && (tambien.length > 0 || (mesesGob != null && mesesGob <= 6) || !!eleccion);
       out.push({
         id: `pico:${s.carril}:${tope.mes}`, tipo: "pico", carril: s.carril, mes: xs[i].mes, hasta: j > i ? xs[j].mes : null,
-        severidad: fuerte ? "alta" : rTope >= 4 ? "media" : "baja",
+        severidad: fuerte ? "alta" : rTope >= 4 && !diciembre ? "media" : "baja",
         titulo: `${capital(nombre(s))}: ${veces(rTope)} lo normal en ${mesLargo(tope.mes)}`,
         explica: [
           `${miles(tope.v)} ${s.carril === "planilla" ? "personas entraron" : s.unidad} en ${mesLargo(tope.mes)}, cuando lo normal en los doce meses anteriores era ${miles(med)}${j > i ? ` (siguió así hasta ${mesLargo(xs[j].mes)})` : ""}.`,
           contexto,
+          diciembre ? "Es diciembre, cuando muchas entidades apuran sus compras para no devolver el presupuesto." : null,
           "Un pico puede tener razones legítimas (una emergencia, un programa nuevo, el cierre del año): es para revisar.",
         ].filter(Boolean).join(" "),
         peso: (fuerte ? 30 : 0) + Math.min(rTope, 20) + tambien.length * 3,
@@ -630,8 +635,16 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
     }
   }
 
+  // A lo sumo dos picos por renglón (si no, los diciembres de un solo renglón tapan todo lo demás).
+  const porCarril = new Map<string, number>();
   return out
     .sort((a, b) => (PESO_SEV[b.severidad] ?? 0) - (PESO_SEV[a.severidad] ?? 0) || b.peso - a.peso)
+    .filter((p) => {
+      if (p.tipo !== "pico") return true;
+      const k = (porCarril.get(p.carril) ?? 0) + 1;
+      porCarril.set(p.carril, k);
+      return k <= 2;
+    })
     .slice(0, max)
     .map(({ peso: _peso, ...p }) => p);
 }

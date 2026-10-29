@@ -142,6 +142,13 @@ test("patrones: un pico con su contexto, el cierre del año y antes de una elecc
   assert.match(pico!.explica, /2 meses después de que asumió la gestión de Somos Perú/);
   // Sin la mediana de seis meses previos no hay pico (el primer semestre de la serie).
   assert.equal(ps.filter((p) => p.mes < "2021-07").length, 0);
+  // Desde casi cero no es un pico: es la fuente que empezó a publicar (visitas de 0 a 400 al entrar a la plataforma).
+  const desdeCero: SerieHistoria = { ...visitas, puntos: serie("2021-01", "2022-12", 0, { "2022-06": 400, "2022-07": 380, "2022-08": 390 }) };
+  assert.equal(patronesDeSeries([desdeCero], []).length, 0);
+  // Un pico en diciembre cuenta un grado menos y lo dice.
+  const dicPico = patronesDeSeries([{ ...personas, puntos: serie("2021-01", "2024-12", 20, { "2023-12": 120 }) }], marcas)[0];
+  assert.equal(dicPico.severidad, "baja");
+  assert.match(dicPico.explica, /Es diciembre/);
 
   // Diciembre se lleva el 40 % de cada año: patrón de cierre del año.
   const dic: Record<string, number> = {};
