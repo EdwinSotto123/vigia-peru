@@ -1060,7 +1060,7 @@ entidadesRouter.get("/:ruc", async (c) => {
           planillaAlta: b.planillaAlta ?? 0, plazasSenales: b.plazasSenales ?? 0,
           financioLocadores: b.financioLocadores ?? 0, financioPlanilla: b.financioPlanilla ?? 0, financioPartido: b.financioPartido ?? null,
           ...(g ? {
-            alBorde: g.alBorde, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
+            alBorde: g.alBorde, alBordeEmpresas: g.alBordeEmpresas, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
             socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
             empresaEspejo: g.empresaEspejo,
           } : {}),
