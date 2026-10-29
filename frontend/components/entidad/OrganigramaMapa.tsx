@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minus, Plus, Search } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, LocateFixed, Maximize2, Minus, Move, Plus, Search } from "lucide-react";
 import { ArbolTabla, type NodoArbol } from "@/components/grafo/ArbolTabla";
+import { useLienzoNavegable } from "@/components/grafo/lienzo";
 import { SelectorVista, TablaORed } from "@/components/grafo/vista";
 import { BotonCerrar, ChipLeyenda, GrafoMarco, type Tono } from "@/components/grafo/primitivos";
 import { AyudaTermino, DatosClave, EnlaceFuente, type DatoClave } from "@/components/patrones";
@@ -25,8 +26,13 @@ import { planoOrganigrama, type CajaOrg } from "@/lib/organigramaLayout";
  * (su ROF, la ley, su planilla); la punteada, una inferida o sin dato. Cada rama se abre y se cierra; tocar una oficina
  * abre su detalle al costado: quién la encabeza, su gente, sus señales, sus visitas y las fuentes. La misma organización
  * como tabla plegable (ArbolTabla) es la vista del celular y la alternativa accesible; el mapa, desde lg, con la letra a
- * su tamaño real (12 a 13 px).
+ * su tamaño real (12 a 13 px). Se recorre como un mapa (useLienzoNavegable): arrastrando, con la rueda o el pellizco
+ * para acercar y alejar, con doble clic y con el teclado (flechas, + y −).
  */
+
+/** De un cuarto a dos veces y media la letra real: alejar sirve para ver la forma entera; acercar, para leer de lejos. */
+const ESCALA_MIN = 0.25;
+const ESCALA_MAX = 2.5;
 
 const TONO_FUNCION: Partial<Record<NodoOrganigrama["funcion"], Tono>> = {
   alta_direccion: "granate",
@@ -68,6 +74,8 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   // El tamaño: 1 es la letra real (12 a 13 px); alejar sirve para ver la forma entera, no para leer.
   const [escala, setEscala] = useState(1);
   const lienzo = useRef<HTMLDivElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
+  const nav = useLienzoNavegable(lienzo, svg, escala, setEscala, { min: ESCALA_MIN, max: ESCALA_MAX, activo: red });
 
   const alternar = (id: string) =>
     setAbiertos((s) => {
@@ -129,13 +137,11 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
     // Sólo al montar o al volver al mapa: no cada vez que se abre una rama.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [red]);
-  /** Que entre entero (sin achicar la letra a menos de la mitad). */
-  const verTodo = () => {
-    const el = lienzo.current;
-    if (!el) return;
-    setEscala(Math.max(0.5, Math.min(1, el.clientWidth / plano.vista.w, (el.clientHeight || 600) / plano.vista.h)));
-    el.scrollTo({ left: 0, top: 0 });
-  };
+  /** Que entre entero, centrado. */
+  const verTodo = () => nav.encajar(plano.vista.w, plano.vista.h);
+  /** La entidad (la raíz del mapa) al centro de lo que se ve. */
+  const centrarEntidad = () =>
+    nav.centrarEn(plano.raiz.x + plano.raiz.w / 2 - plano.vista.x, plano.raiz.y + plano.raiz.h / 2 - plano.vista.y);
 
   const encontradas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -151,10 +157,23 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   const mapa = (
     <div className="space-y-2">
       <Leyenda />
+      <p className="flex items-center gap-1.5 text-rotulo text-mute">
+        <Move size={14} aria-hidden className="shrink-0" />
+        Arrastra con el mouse para moverte; la rueda (o el pellizco) acerca y aleja donde está el puntero; doble clic acerca. Con el
+        teclado: flechas, + y −.
+      </p>
       <GrafoMarco>
         <div className="relative">
-        <div ref={lienzo} className="max-h-[72vh] min-h-[420px] overflow-auto">
+        <div
+          ref={lienzo}
+          tabIndex={0}
+          role="region"
+          aria-label="Mapa de la organización: arrastra para moverte y usa la rueda para acercar o alejar; con el teclado, flechas, + y −"
+          className="max-h-[72vh] min-h-[420px] cursor-grab touch-none select-none overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+          {...nav.manejadores}
+        >
           <svg
+            ref={svg}
             width={plano.vista.w * escala}
             height={plano.vista.h * escala}
             viewBox={`${plano.vista.x} ${plano.vista.y} ${plano.vista.w} ${plano.vista.h}`}
@@ -208,13 +227,15 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
             })}
           </svg>
         </div>
-        {/* El tamaño, en la esquina del lienzo. */}
+        {/* El tamaño, en la esquina del lienzo: alejar, cuánto, acercar, verlo entero y la entidad al centro. */}
         <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-sm">
-          <BotonZoom etiqueta="Alejar" onClick={() => setEscala((e) => Math.max(0.5, Math.round((e - 0.15) * 100) / 100))}><Minus size={15} aria-hidden /></BotonZoom>
-          <BotonZoom etiqueta="Acercar" onClick={() => setEscala((e) => Math.min(1.3, Math.round((e + 0.15) * 100) / 100))}><Plus size={15} aria-hidden /></BotonZoom>
+          <BotonZoom etiqueta="Alejar" onClick={() => nav.zoomEn(escala / 1.25)}><Minus size={15} aria-hidden /></BotonZoom>
+          <span className="min-w-[3.25rem] text-center font-mono text-rotulo tabular-nums text-inkSoft" aria-live="polite">{`${Math.round(escala * 100)} %`}</span>
+          <BotonZoom etiqueta="Acercar" onClick={() => nav.zoomEn(escala * 1.25)}><Plus size={15} aria-hidden /></BotonZoom>
           <BotonZoom etiqueta="Ver todo el mapa" onClick={verTodo}><Maximize2 size={14} aria-hidden /></BotonZoom>
+          <BotonZoom etiqueta="Llevar la entidad al centro" onClick={centrarEntidad}><LocateFixed size={15} aria-hidden /></BotonZoom>
           {escala !== 1 && (
-            <button type="button" onClick={() => setEscala(1)} className="min-h-[32px] rounded-full px-2.5 text-rotulo font-semibold text-granate hover:bg-paperSoft">
+            <button type="button" onClick={() => nav.zoomEn(1)} className="min-h-[32px] rounded-full px-2.5 text-rotulo font-semibold text-granate hover:bg-paperSoft">
               Tamaño real
             </button>
           )}
