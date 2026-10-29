@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { LineaHitos } from "@/components/charts/LineaHitos";
@@ -14,9 +14,12 @@ import {
   mesDe,
   mesesDe,
   mesLargo,
+  mesesCubiertos,
   normalDeSerie,
+  sinDatosDelMes,
   sumarMes,
   type Carril,
+  type CarrilLinea,
   type EventoHistoria,
   type Historia,
   type PatronHistoria,
@@ -50,6 +53,8 @@ interface Fila {
   serie?: SerieHistoria;
   eventos: EventoHistoria[];
   secuencias?: SecuenciaHistoria[];
+  /** El renglón como lo da la API: lo que cubre su fuente y, si no hay ningún dato, por qué. */
+  linea?: CarrilLinea;
 }
 
 const EJE = 30;
@@ -113,6 +118,8 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
   const lienzo = useRef<HTMLDivElement>(null);
   const caja = useRef<HTMLDivElement>(null);
   const ancho = useAncho(caja);
+  // El id del rayado de «sin datos» (único en la página; sin los dos puntos de useId, que url(#…) no siempre acepta).
+  const rayado = `sin-datos-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const t = tramos.find((x) => x.clave === tramo) ?? tramos[0];
   const n = mesesDe(t.desde, t.hasta) + 1;
@@ -133,7 +140,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
       if (ocultos.has(c.clave)) continue;
       const serie = h.series.find((s) => s.carril === c.clave);
       const eventos = h.eventos.filter((e) => e.carril === c.clave);
-      out.push({ clave: c.clave, carril: c.clave, titulo: c.titulo, explica: c.explica, alto: serie ? 46 : c.clave === "gobierno" ? 34 : 30, serie, eventos });
+      out.push({ clave: c.clave, carril: c.clave, titulo: c.titulo, explica: c.explica, alto: serie ? 46 : c.clave === "gobierno" ? 34 : 30, serie, eventos, linea: c });
     }
     return out;
   }, [h, ocultos]);
@@ -176,11 +183,13 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
     return m;
   }, [h.eventos]);
 
-  /** Lo de un mes en una línea por renglón (el globo y el detalle). */
+  /** Lo de un mes en una línea por renglón (el globo y el detalle); los renglones sin datos ese mes dicen por qué. */
   const delMes = (mes: string) =>
     filas
       .filter((f) => f.carril)
       .map((f) => {
+        const sinDatos = f.linea ? sinDatosDelMes(f.linea, f.serie, mes) : null;
+        if (sinDatos) return { fila: f, texto: "", ev: [] as EventoHistoria[], punto: null, normal: null, sinDatos };
         const p = f.serie?.puntos.find((x) => x.periodo === (f.serie?.porAnio ? mes.slice(0, 4) : mes));
         const ev = (porMes.get(mes) ?? []).filter((e) => e.carril === f.carril);
         const vigentes = f.eventos.filter((e) => e.hasta !== undefined && e.hasta !== null && mesDe(e.fecha) <= mes && mesDe(e.hasta) >= mes);
@@ -190,7 +199,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
           vigentes.length && f.carril === "gobierno" ? vigentes.map((e) => e.titulo).join(", ") : null,
         ].filter(Boolean);
         const normal = f.carril && f.serie && !f.serie.porAnio ? normales.get(f.carril)?.get(mes) ?? null : null;
-        return partes.length ? { fila: f, texto: partes.join("; "), ev, punto: p ?? null, normal } : null;
+        return partes.length ? { fila: f, texto: partes.join("; "), ev, punto: p ?? null, normal, sinDatos: null } : null;
       })
       .filter((x): x is NonNullable<typeof x> => !!x);
 
@@ -307,6 +316,12 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
                   if (mes) setSel({ tipo: "mes", mes });
                 }}
               >
+                <defs>
+                  <pattern id={rayado} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width={6} height={6} className="fill-crimson/[0.06]" />
+                    <line x1={0} y1={0} x2={0} y2={6} className="stroke-crimson/40" strokeWidth={2} />
+                  </pattern>
+                </defs>
                 {/* El eje: los años (y las iniciales de los meses si hay sitio). */}
                 {Array.from({ length: n }, (_, i) => sumarMes(t.desde, i)).map((m) => {
                   const enero = m.endsWith("-01");
@@ -333,6 +348,7 @@ export function LineaDeTiempo({ h, etiqueta }: { h: Historia; etiqueta: string }
 
                 {filas.map((f, i) => (
                   <g key={f.clave}>
+                    {f.linea && <SinDatos f={f} y={ys[i]} t={t} xMes={xMes} mw={mw} W={W} rayado={rayado} />}
                     {f.serie && <Barras f={f} y={ys[i]} medida={medida} xMes={xMes} mw={mw} visible={visible} desde={t.desde} hasta={t.hasta} normal={f.carril ? normales.get(f.carril) : undefined} />}
                     {f.secuencias && <Secuencias xs={f.secuencias} y={ys[i]} xFecha={xFecha} t={t} elegir={(id) => setSel({ tipo: "secuencia", id })} elegida={secElegida?.id ?? null} />}
                     {!f.secuencias && <Hechos f={f} y={ys[i]} xMes={xMes} xFecha={xFecha} mw={mw} W={W} t={t} elegir={(s) => setSel(s)} elegido={elegido?.id ?? null} />}
@@ -452,6 +468,58 @@ function Barras({
         return <rect key={p.periodo} x={xMes(p.periodo) + hueco / 2} y={y + f.alto - 4 - hb} width={Math.max(1, mw - hueco)} height={hb} rx={mw > 6 ? 1.5 : 0} className={color(p)} />;
       })}
     </>
+  );
+}
+
+/**
+ * Lo que no tenemos de un renglón, en rojo rayado (pedido del usuario: «de este periodo no tenemos datos, marcarlo de
+ * rojo, para que seamos claros»): antes de que empiece su fuente y después de donde llega, los meses que la entidad no
+ * publicó (en una serie que se publica a veces, como la planilla) y el renglón entero si de esa fuente no hay nada.
+ */
+function SinDatos({
+  f, y, t, xMes, mw, W, rayado,
+}: {
+  f: Fila; y: number; t: { desde: string; hasta: string }; xMes: (m: string) => number; mw: number; W: number; rayado: string;
+}) {
+  const tramos: { desde: string; hasta: string; texto: string }[] = [];
+  const l = f.linea!;
+  if (l.sinDatos) tramos.push({ desde: t.desde, hasta: t.hasta, texto: "Sin datos de esta fuente" });
+  else if (l.cubre) {
+    const c = mesesCubiertos(l.cubre);
+    if (t.desde < c.desde) tramos.push({ desde: t.desde, hasta: c.desde < t.hasta ? sumarMes(c.desde, -1) : t.hasta, texto: "Sin datos" });
+    if (t.hasta > c.hasta) tramos.push({ desde: c.hasta > t.desde ? sumarMes(c.hasta, 1) : t.desde, hasta: t.hasta, texto: "Sin datos" });
+  }
+  // Los meses que no publicó, dentro de lo que cubre la fuente (sólo en las series que se publican a veces).
+  const s = f.serie;
+  const huecos: string[] = [];
+  if (s && s.huecos === "sin_dato" && !s.porAnio && s.puntos.length && !l.sinDatos) {
+    const hay = new Set(s.puntos.map((p) => p.periodo));
+    const c = l.cubre ? mesesCubiertos(l.cubre) : null;
+    const desde = [t.desde, c?.desde ?? t.desde, [...hay].sort()[0]].sort().pop()!;
+    const hasta = [t.hasta, c?.hasta ?? t.hasta].sort()[0];
+    for (let m = desde; m <= hasta; m = sumarMes(m, 1)) if (!hay.has(m)) huecos.push(m);
+  }
+  return (
+    <g aria-hidden>
+      {tramos.map((x) => {
+        const x0 = Math.max(0, xMes(x.desde));
+        const x1 = Math.min(W, xMes(x.hasta) + mw);
+        if (x1 <= x0) return null;
+        return (
+          <g key={`${x.desde}-${x.hasta}`}>
+            <rect x={x0} y={y + 3} width={x1 - x0} height={f.alto - 6} rx={3} fill={`url(#${rayado})`} className="stroke-crimson/30" strokeWidth={1} />
+            {x1 - x0 >= 64 && (
+              <text x={x0 + (x1 - x0) / 2} y={y + f.alto / 2 + 4} textAnchor="middle" className="fill-crimsonTexto font-semibold" style={{ fontSize: "10.5px" }}>
+                {x1 - x0 >= 150 ? (l.sinDatos ? x.texto : "Sin datos de este periodo") : x.texto}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {huecos.map((m) => (
+        <rect key={m} x={xMes(m) + 0.5} y={y + 3} width={Math.max(1, mw - 1)} height={f.alto - 6} rx={1.5} fill={`url(#${rayado})`} />
+      ))}
+    </g>
   );
 }
 
@@ -589,6 +657,8 @@ interface LineaMes {
   punto: SerieHistoria["puntos"][number] | null;
   /** Lo normal de ese renglón ese mes (la mediana de los doce anteriores) y cuántas veces lo normal fue. */
   normal: { mediana: number; veces: number } | null;
+  /** Si de ese mes no hay datos en ese renglón, por qué. */
+  sinDatos: string | null;
 }
 
 /** «3,2 veces lo normal (40)» en ámbar o rojo si es un pico; nada si es como siempre. */
@@ -627,7 +697,8 @@ function Globo({
         {/* recorte: el globo es un vistazo; el detalle (al tocar el mes) los tiene todos. */}
         {lineas.filter((l) => l.fila.carril !== "gobierno").slice(0, 8).map((l) => (
           <li key={l.fila.clave} className="text-micro leading-snug text-inkSoft">
-            <span className="font-semibold text-ink">{l.fila.titulo}:</span> {l.texto}
+            <span className="font-semibold text-ink">{l.fila.titulo}:</span>{" "}
+            {l.sinDatos ? <span className="font-semibold text-crimsonTexto">{l.sinDatos}</span> : l.texto}
             <Normal n={l.normal} min={l.fila.carril ? MINIMO_PICO[l.fila.carril] : undefined} />
             {l.ev.length > 0 && l.punto && (
               <span className="block pl-2 text-mute">{l.ev.length === 1 ? l.ev[0].titulo : `${plural(l.ev.length, "hecho", "hechos")}: ${l.ev[0].titulo}…`}</span>
@@ -688,9 +759,10 @@ function DetalleMes({
           <li key={l.fila.clave} className="space-y-1.5 py-2.5">
             <p className="text-meta text-ink">
               <span className="font-semibold">{l.fila.titulo}.</span> {l.punto && l.fila.serie ? capital(decir(l.fila.serie, l.punto)) : null}
+              {l.sinDatos && <span className="font-semibold text-crimsonTexto">{l.sinDatos}</span>}
               <Normal n={l.normal} min={l.fila.carril ? MINIMO_PICO[l.fila.carril] : undefined} />
             </p>
-            {l.fila.serie && (
+            {l.fila.serie && !l.sinDatos && (
               <p className="flex flex-wrap gap-x-3 gap-y-1">
                 {l.fila.serie.href && <Abrir href={l.fila.serie.href}>Ver la lista</Abrir>}
                 <Fuente texto={l.fila.serie.fuente} href={l.fila.serie.enlace} />
@@ -775,6 +847,10 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
         <Muestra texto="Cambio de gobierno"><line x1={9} x2={9} y1={1} y2={13} className="stroke-ink/60" strokeWidth={1.5} /></Muestra>
         <Muestra texto="Elección"><line x1={9} x2={9} y1={1} y2={13} className="stroke-ink/35" strokeDasharray="3 3" /></Muestra>
         <Muestra texto="Patrón que llama la atención (arriba del eje)"><circle cx={9} cy={7} r={4} className="fill-amber" /></Muestra>
+        <Muestra texto="Sin datos de ese periodo">
+          <rect x={1} y={1} width={16} height={12} rx={2} className="fill-crimson/[0.06] stroke-crimson/30" strokeWidth={1} />
+          {[3, 7, 11, 15].map((x) => <line key={x} x1={x - 3} y1={13} x2={x + 1} y2={1} className="stroke-crimson/50" strokeWidth={1.5} />)}
+        </Muestra>
       </div>
       <details className="group">
         <summary className="cursor-pointer text-rotulo font-semibold text-granate">Cómo leer esta línea</summary>
@@ -783,6 +859,7 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
           <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2,5 veces lo normal; roja, de 4 veces o más.</li>
           <li>Las líneas verticales cruzan todos los renglones: la continua es un cambio de gobierno y la punteada, una elección. Mira qué cambia justo después.</li>
           <li>Pasa el mouse por un mes para ver lo de todos los renglones juntos, en qué gestión cae y cuánto se aleja de lo normal. Tócalo para ver cada hecho con su fuente.</li>
+          <li>Lo rayado en rojo es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde 2025), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>
           <li>Un pico o una coincidencia no prueba nada: dice dónde mirar. Las razones pueden ser legítimas (una emergencia, un programa, el cierre del año).</li>
         </ul>
       </details>

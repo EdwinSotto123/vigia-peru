@@ -89,6 +89,57 @@ async function filasOAlterna<T extends object>(nombre: string, sql: string, alte
   }
 }
 
+/**
+ * Desde y hasta cuándo cubre cada fuente (en toda la base), para pintar «sin datos» lo de afuera: las órdenes de CONOSCE
+ * empiezan en 2018, la planilla del PTE en 2025, de SERVIR sólo están las plazas vigentes… Una vez cada seis horas.
+ */
+type Rango = { desde: string | null; hasta: string | null };
+let coberturaMemo: { t: number; c: Record<string, Rango> } | null = null;
+async function cobertura(): Promise<Record<string, Rango>> {
+  if (coberturaMemo && Date.now() - coberturaMemo.t < 6 * 3600_000) return coberturaMemo.c;
+  const [r] = await filas<Record<string, string | null>>(
+    "cobertura",
+    `SELECT (SELECT to_char(min(mes), 'YYYY-MM') FROM entidad_orden_mes) AS ord_desde,
+            (SELECT to_char(max(mes), 'YYYY-MM') FROM entidad_orden_mes) AS ord_hasta,
+            (SELECT to_char(min(mes), 'YYYY-MM') FROM planilla_entidad_mes) AS pla_desde,
+            (SELECT to_char(max(mes), 'YYYY-MM') FROM planilla_entidad_mes) AS pla_hasta,
+            (SELECT to_char(min(fecha_inicio), 'YYYY-MM') FROM servir_convocatoria) AS plz_desde,
+            (SELECT to_char(max(fecha_inicio), 'YYYY-MM') FROM servir_convocatoria) AS plz_hasta,
+            (SELECT to_char(max(fecha_convocatoria), 'YYYY-MM') FROM convocatorias WHERE fecha_convocatoria <= current_date + 31) AS conv_hasta,
+            (SELECT to_char(min(mes), 'YYYY-MM') FROM entidad_visita_mes) AS vis_desde,
+            (SELECT to_char(max(mes), 'YYYY-MM') FROM entidad_visita_mes) AS vis_hasta,
+            (SELECT min(anio)::text FROM mef_ejecutora_anual) AS mef_desde,
+            (SELECT max(anio)::text FROM mef_ejecutora_anual) AS mef_hasta,
+            (SELECT min(anio)::text || '-01' FROM conosce_adjudicaciones) AS adj_desde,
+            (SELECT to_char(min(fecha_emision), 'YYYY-MM') FROM informes_control) AS ctl_desde,
+            (SELECT to_char(max(fecha_emision), 'YYYY-MM') FROM informes_control) AS ctl_hasta,
+            (SELECT to_char(min(fecha_suscripcion), 'YYYY-MM') FROM seace_menores WHERE fecha_suscripcion >= DATE '2015-01-01') AS men_desde,
+            (SELECT to_char(max(fecha_suscripcion), 'YYYY-MM') FROM seace_menores WHERE fecha_suscripcion <= current_date) AS men_hasta`, []);
+  const c: Record<string, Rango> = r
+    ? {
+        ordenes: { desde: r.ord_desde, hasta: r.ord_hasta },
+        planilla: { desde: r.pla_desde, hasta: r.pla_hasta },
+        plazas: { desde: r.plz_desde, hasta: r.plz_hasta },
+        convocatorias: { desde: "2015-01", hasta: r.conv_hasta },
+        visitas: { desde: r.vis_desde, hasta: r.vis_hasta },
+        presupuesto: { desde: r.mef_desde, hasta: r.mef_hasta },
+        adjudicaciones: { desde: r.adj_desde, hasta: r.ord_hasta },
+        control: { desde: r.ctl_desde, hasta: r.ctl_hasta },
+        menores: { desde: r.men_desde, hasta: r.men_hasta },
+      }
+    : {};
+  if (r) coberturaMemo = { t: Date.now(), c };
+  return c;
+}
+
+/** Les pone a los renglones lo que cubre su fuente (los que no se conocen quedan sin marca). */
+function conCobertura(carriles: CarrilHistoria[], cubre: Partial<Record<Carril, { rango?: Rango; que: string }>>): CarrilHistoria[] {
+  return carriles.map((c) => {
+    const x = cubre[c.clave];
+    return x?.rango?.desde && x.rango.hasta ? { ...c, cubre: { desde: x.rango.desde, hasta: x.rango.hasta, que: x.que } } : c;
+  });
+}
+
 /** La fecha `dias` días antes de otra (AAAA-MM-DD). */
 const diasAntes = (fecha: string, dias: number) => new Date(Date.parse(`${fecha}T12:00:00Z`) - dias * 86_400_000).toISOString().slice(0, 10);
 
@@ -394,7 +445,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     sujeto: { tipo: "entidad", id: ruc, nombre: ent.nombre },
     desde: primera && primera > DESDE ? `${primera.slice(0, 4)}-01-01` : DESDE,
     hasta,
-    carriles: soloConDatos(CARRILES_ENTIDAD, series, quedan),
+    carriles: carrilesEntidad(soloConDatos(CARRILES_ENTIDAD, series, quedan), await cobertura(), vis[0]?.mes ?? null),
     series,
     eventos: quedan,
     marcas: marcas.sort((a, b) => a.fecha.localeCompare(b.fecha)),
@@ -414,6 +465,33 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       { texto: "Sanciones del Tribunal de Contrataciones (OECE)", href: DATASET_SANCIONADOS },
     ],
   };
+}
+
+/**
+ * Los renglones de una entidad con lo que cubre cada fuente y, si de su planilla, sus visitas o su presupuesto no hay
+ * nada, ese renglón igual, en rojo y diciendo por qué (antes desaparecía y no se sabía si faltaba o si no había nada).
+ * Las visitas empiezan cuando empieza SU registro: antes, no sabemos.
+ */
+function carrilesEntidad(carriles: CarrilHistoria[], cob: Record<string, Rango>, primerMesVisitas: string | null): CarrilHistoria[] {
+  const con = conCobertura(carriles, {
+    compras: { rango: cob.convocatorias, que: "las convocatorias del SEACE" },
+    ordenes: { rango: cob.ordenes, que: "las órdenes de CONOSCE" },
+    personas: { rango: cob.ordenes, que: "las órdenes de CONOSCE" },
+    planilla: { rango: cob.planilla, que: "el personal del Portal de Transparencia" },
+    plazas: { rango: cob.plazas, que: "las plazas CAS de SERVIR (sólo las vigentes)" },
+    visitas: { rango: primerMesVisitas ? { desde: primerMesVisitas, hasta: cob.visitas?.hasta ?? null } : cob.visitas, que: "su registro de visitas" },
+    control: { rango: cob.control, que: "los informes de la Contraloría" },
+    presupuesto: { rango: cob.presupuesto, que: "el presupuesto del MEF" },
+  });
+  const hay = new Set(con.map((c) => c.clave));
+  const faltan: CarrilHistoria[] = [
+    !hay.has("planilla") && { clave: "planilla" as Carril, titulo: "Planilla", explica: "Cuánta gente publicó cada mes en el Portal de Transparencia.", sinDatos: "No tenemos su planilla: no la encontramos publicada en el Portal de Transparencia Estándar." },
+    !hay.has("visitas") && { clave: "visitas" as Carril, titulo: "Visitas que recibió", explica: "Las visitas de su registro, por mes.", sinDatos: "No tenemos su registro de visitas: no está en los registros que cargamos (la plataforma de la PCM y el del Congreso)." },
+    !hay.has("presupuesto") && { clave: "presupuesto" as Carril, titulo: "Presupuesto", explica: "Su presupuesto de cada año según el MEF.", sinDatos: "No tenemos su presupuesto: no la encontramos en el SIAF del MEF." },
+  ].filter(Boolean) as CarrilHistoria[];
+  // En su lugar de siempre (la planilla junto a las órdenes), no al final.
+  const orden = (c: CarrilHistoria) => CARRILES_ENTIDAD.findIndex((x) => x.clave === c.clave);
+  return [...con, ...faltan].sort((a, b) => orden(a) - orden(b));
 }
 
 historiaRouter.get("/entidad/:ruc", async (c) => {
@@ -641,7 +719,12 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     sujeto: { tipo: "empresa", id: ruc, nombre: emp.nombre },
     desde: primera ? `${primera.slice(0, 4)}-01-01` : DESDE,
     hasta,
-    carriles: soloConDatos(CARRILES_EMPRESA, series, quedan),
+    carriles: conCobertura(soloConDatos(CARRILES_EMPRESA, series, quedan), {
+      compras: { rango: (await cobertura()).adjudicaciones, que: "las adjudicaciones de CONOSCE" },
+      ordenes: { rango: (await cobertura()).ordenes, que: "las órdenes de CONOSCE" },
+      menores: { rango: (await cobertura()).menores, que: "los contratos menores del SEACE" },
+      visitas: { rango: (await cobertura()).visitas, que: "los registros de visitas que cargamos" },
+    }),
     series,
     eventos: quedan,
     marcas: marcasEleccion(primera ? `${primera.slice(0, 4)}-01-01` : DESDE, hasta),
@@ -745,7 +828,10 @@ async function historiaPartido(clave: string): Promise<Historia | null> {
     sujeto: { tipo: "partido", id: clave, nombre: p.nombre },
     desde,
     hasta,
-    carriles: soloConDatos(CARRILES_PARTIDO, series, eventos),
+    carriles: conCobertura(soloConDatos(CARRILES_PARTIDO, series, eventos), {
+      compras: { rango: (await cobertura()).convocatorias, que: "las convocatorias del SEACE" },
+      banderas: { rango: (await cobertura()).convocatorias, que: "las convocatorias del SEACE" },
+    }),
     series,
     eventos: eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)),
     marcas: marcasEleccion(desde, hasta),

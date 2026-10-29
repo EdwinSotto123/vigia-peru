@@ -116,11 +116,29 @@ export interface PatronHistoria {
   hasta?: string | null;
 }
 
+/** Desde y hasta cuándo cubre la fuente de un renglón (meses «AAAA-MM»; en uno por año, «AAAA»): fuera, no hay datos. */
+export interface CoberturaCarril {
+  desde: string;
+  hasta: string;
+  /** Qué es lo que cubre («las órdenes de CONOSCE»). */
+  que: string;
+}
+
+export interface CarrilLinea {
+  clave: Carril;
+  titulo: string;
+  explica: string;
+  /** Desde y hasta cuándo lo cubre su fuente: lo de afuera se pinta «sin datos». */
+  cubre?: CoberturaCarril | null;
+  /** Un renglón sin ningún dato de esa fuente para este sujeto: por qué. */
+  sinDatos?: string | null;
+}
+
 export interface Historia {
   sujeto: { tipo: "entidad" | "empresa" | "partido" | "contrato"; id: string; nombre: string | null };
   desde: string;
   hasta: string;
-  carriles: { clave: Carril; titulo: string; explica: string }[];
+  carriles: CarrilLinea[];
   series: SerieHistoria[];
   eventos: EventoHistoria[];
   marcas: MarcaHistoria[];
@@ -214,6 +232,29 @@ export function normalDeSerie(s: SerieHistoria): Map<string, { mediana: number; 
     out.set(x.mes, { mediana, veces: x.v / Math.max(mediana, 1) });
   });
   return out;
+}
+
+/** El primer y el último mes que cubre una fuente (en una por año, de enero de su primer año a diciembre del último). */
+export function mesesCubiertos(c: CoberturaCarril): { desde: string; hasta: string } {
+  return { desde: c.desde.length === 4 ? `${c.desde}-01` : c.desde, hasta: c.hasta.length === 4 ? `${c.hasta}-12` : c.hasta };
+}
+
+/**
+ * Si de un mes no hay datos en un renglón, por qué: la fuente todavía no empezaba o ya no llega, o (en una serie que se
+ * publica a veces, como la planilla) la entidad no publicó ese mes. Null si ese mes sí está cubierto.
+ */
+export function sinDatosDelMes(c: CarrilLinea, serie: SerieHistoria | undefined, mes: string): string | null {
+  if (c.sinDatos) return c.sinDatos;
+  if (c.cubre) {
+    const { desde, hasta } = mesesCubiertos(c.cubre);
+    if (mes < desde) return `Sin datos de este periodo: ${c.cubre.que} que tenemos empiezan en ${mesLargo(desde)}.`;
+    if (mes > hasta) return `Sin datos de este periodo: ${c.cubre.que} que tenemos llegan hasta ${mesLargo(hasta)}.`;
+  }
+  if (serie && serie.huecos === "sin_dato" && !serie.porAnio && serie.puntos.length && !serie.puntos.some((p) => p.periodo === mes)) {
+    const primero = serie.puntos.reduce((a, p) => (p.periodo < a ? p.periodo : a), serie.puntos[0].periodo);
+    if (mes >= primero) return "Sin datos de este mes: la entidad no lo publicó.";
+  }
+  return null;
 }
 
 /** «×2,4 lo normal», «la mitad de lo normal», «como lo normal». */

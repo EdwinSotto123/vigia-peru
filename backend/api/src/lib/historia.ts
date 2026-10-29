@@ -99,10 +99,22 @@ export interface SecuenciaHistoria {
   fuente: string;
 }
 
+/** Desde y hasta cuándo cubre la fuente de un renglón (meses «AAAA-MM»; en uno por año, «AAAA»): fuera, no hay datos. */
+export interface CoberturaCarril {
+  desde: string;
+  hasta: string;
+  /** Qué es lo que cubre, para decirlo («las órdenes de CONOSCE»). */
+  que: string;
+}
+
 export interface CarrilHistoria {
   clave: Carril;
   titulo: string;
   explica: string;
+  /** Desde y hasta cuándo lo cubre su fuente: lo de afuera se pinta «sin datos» (pedido del usuario, 2026-10-28). */
+  cubre?: CoberturaCarril | null;
+  /** Un renglón sin ningún dato de esa fuente para este sujeto (su planilla, sus visitas): por qué. */
+  sinDatos?: string | null;
 }
 
 /** Un hecho de un hilo: lo que pasó entre una misma empresa y la entidad, con su fecha. */

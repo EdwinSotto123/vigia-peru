@@ -75,8 +75,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       secuencias, los hilos por empresa y los patrones de sus series (picos, cierre del año, antes de elecciones).
  * "58": los patrones con base mínima, diciembre como cierre del año y dos por renglón; «el mismo día» y las siglas
  *       societarias en mayúsculas (el 57 ya había guardado respuestas de DEV con lo anterior).
+ * "59": /historia trae en cada renglón desde y hasta cuándo lo cubre su fuente (`cubre`) y los renglones sin ningún dato
+ *       de la entidad (`sinDatos`): la línea pinta en rojo lo que no tenemos.
  */
-const VERSION_CACHE = "58";
+const VERSION_CACHE = "59";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
