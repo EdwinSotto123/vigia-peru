@@ -239,7 +239,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
           ev.length ? (ev.length === 1 ? ev[0].titulo : plural(ev.length, "hecho", "hechos")) : null,
           vigentes.length && f.carril === "gobierno" ? vigentes.map((e) => e.titulo).join(", ") : null,
         ].filter(Boolean);
-        const normal = f.carril && f.serie && !f.serie.porAnio ? normales.get(f.carril)?.get(mes) ?? null : null;
+        const normal = f.carril && f.serie && !f.serie.porAnio && MINIMO_PICO[f.carril] != null ? normales.get(f.carril)?.get(mes) ?? null : null;
         return partes.length ? { fila: f, texto: partes.join("; "), ev, punto: p ?? null, normal, sinDatos: null } : null;
       })
       .filter((x): x is NonNullable<typeof x> => !!x);

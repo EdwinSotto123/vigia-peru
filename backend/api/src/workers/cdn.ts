@@ -82,8 +82,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "61": el proceso por su nomenclatura del OECE (no el número de la convocatoria) y las descripciones con sus siglas
  *       (el 60 ya había guardado respuestas de DEV con lo anterior).
  * "62": sin las comillas que el SEACE trae como «¿» (el 61 guardó en DEV la Historia de EsSalud con ellas).
+ * "63": el renglón «Contratos con banderas» con su serie por mes (el total real) y, como puntos, los más graves de cada
+ *       año (antes, los 400 más recientes: en EsSalud todos de 2026, aunque tiene banderas desde 2018).
  */
-const VERSION_CACHE = "62";
+const VERSION_CACHE = "63";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

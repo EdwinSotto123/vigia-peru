@@ -228,6 +228,14 @@ function decirBanderas(banderas: NonNullable<EventoHistoria["banderas"]>, quien:
   return `${quien} ${graves.length === 1 ? "un antecedente grave" : `${graves.length} antecedentes graves`}: ${nombres}.`;
 }
 
+/** «N más en Contratos con banderas»: contra el total real de cada mes, no contra la muestra que se pidió. */
+function conTotalDeBanderas(omitidos: Partial<Record<Carril, number>>, quedan: EventoHistoria[], porMes: { n: number }[]): void {
+  const total = porMes.reduce((s, r) => s + r.n, 0);
+  const vistos = quedan.filter((e) => e.carril === "banderas").length;
+  if (total > vistos) omitidos.banderas = total - vistos;
+  else delete omitidos.banderas;
+}
+
 /** Lo que se contrató, el tipo y el código del proceso, en el orden del detalle. */
 function datosContrato(objeto: string | null, tipo: string | null, codigo: string | null): NonNullable<EventoHistoria["datos"]> {
   return [
@@ -246,7 +254,7 @@ function sevInforme(resp: unknown): Severidad {
 async function historiaEntidad(ruc: string): Promise<Historia | null> {
   const [ent] = await filas<{ nombre: string | null }>("entidad", `SELECT e.nombre FROM entidades e WHERE e.ruc::text = $1`, [ruc]);
   if (!ent) return null;
-  const [gobLocal, nacional, conv, ord, pla, plz, vis, inf, obr, ban, mef] = await Promise.all([
+  const [gobLocal, nacional, conv, ord, pla, plz, vis, inf, obr, ban, banMes, mef] = await Promise.all([
     filas<{ desde: string; hasta: string; autoridad: string | null; org_nombre: string | null; nivel: string }>(
       "gobierno local",
       `SELECT to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta, g.autoridad, g.org_nombre, g.nivel
@@ -297,13 +305,22 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[]; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
       `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
-         FROM (SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
-                      severidad, n_alta, tipos, cruces, codigo AS convocatoria, fecha_buena_pro
-                 FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
-                ORDER BY fecha_buena_pro DESC LIMIT 400) b
+         FROM (SELECT * FROM (
+                 SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
+                        severidad, n_alta, tipos, cruces, codigo AS convocatoria, fecha_buena_pro,
+                        row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
+                                           ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST) AS rn
+                   FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL) x
+                WHERE rn <= 14) b
          LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
                              WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
         ORDER BY b.fecha_buena_pro DESC`, [ruc]),
+    filas<{ mes: string; n: number; altas: number }>(
+      "banderas por mes",
+      `SELECT to_char(date_trunc('month', fecha_buena_pro), 'YYYY-MM') AS mes, count(*)::int AS n,
+              count(*) FILTER (WHERE severidad = 'alta')::int AS altas
+         FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
+        GROUP BY 1 ORDER BY 1`, [ruc]),
     filas<{ anio: number; pim: number; devengado: number }>(
       "presupuesto",
       `SELECT m.anio::int AS anio, sum(m.pim)::float AS pim, sum(m.devengado)::float AS devengado
@@ -327,6 +344,12 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     carril: "visitas", titulo: "Visitas registradas", medida: "n", unidad: "visitas", extra: "empresas distintas", extra2: "a quien decide las compras",
     huecos: "cero", puntos: vis.map((r) => ({ periodo: r.mes, n: r.n, extra: r.empresas, extra2: r.decisores })),
     fuente: "Registro de Visitas en Línea", enlace: VISITAS_EN_LINEA, href: `${base}?seccion=visitas`,
+  });
+  // Cuántos contratos con banderas tuvo cada mes (los puntos son sólo los más graves de cada año).
+  serie({
+    carril: "banderas", titulo: "Contratos con banderas", medida: "n", unidad: "contratos con banderas", extra: "con algún antecedente grave",
+    huecos: "cero", puntos: banMes.map((r) => ({ periodo: r.mes, n: r.n, extra: r.altas })),
+    fuente: "OECE y cruces de Vigía", href: `${base}?seccion=contratos&vista=contratos`,
   });
   serie({ carril: "presupuesto", titulo: "Presupuesto (PIM) y gasto (devengado)", medida: "monto", unidad: "soles", extra: "devengado", porAnio: true, huecos: "sin_dato", puntos: mef.map((r) => ({ periodo: String(r.anio), n: 0, monto: r.pim, extra: r.devengado })), fuente: "MEF (Consulta Amigable)", href: `${base}?seccion=presupuesto` });
 
@@ -510,6 +533,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
 
   const enLinea = eventos.filter((e) => e.carril === "gobierno" || e.fecha >= DESDE || (e.hasta ?? "") >= DESDE);
   const { eventos: quedan, omitidos } = acotar(enLinea, { control: 120, obras: 80, banderas: 120, visitas: 80 }, fijosDe(secuencias, enLinea));
+  // Los contratos con banderas que no van como punto son todos los demás (no sólo los de la muestra por año).
+  conTotalDeBanderas(omitidos, quedan, banMes);
   const primera = [...series.flatMap((s) => s.puntos.map((p) => (p.periodo.length === 4 ? `${p.periodo}-01` : `${p.periodo}-01`))), ...quedan.filter((e) => e.carril !== "gobierno").map((e) => e.fecha)].sort()[0];
   return {
     sujeto: { tipo: "entidad", id: ruc, nombre: ent.nombre },
@@ -603,7 +628,7 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
        LEFT JOIN empresas e ON e.ruc = k.ruc
       WHERE r.ruc IS NOT NULL OR e.ruc IS NOT NULL`, [ruc]);
   if (!emp) return null;
-  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban] = await Promise.all([
+  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban, banMes] = await Promise.all([
     filas<{ codigo: string; entidad_ruc: string | null; entidad: string | null; fecha: string | null; monto: number | null; referencial: number | null; descripcion: string | null; consorcio: string | null; ocid: string | null }>(
       "contratos",
       `WITH a AS (
@@ -674,13 +699,22 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     filas<{ ocid: string; entidad: string | null; entidad_ruc: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
       `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
-         FROM (SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
-                      severidad, n_alta, cruces, codigo AS convocatoria, fecha_buena_pro
-                 FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
-                ORDER BY fecha_buena_pro DESC LIMIT 400) b
+         FROM (SELECT * FROM (
+                 SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
+                        severidad, n_alta, cruces, codigo AS convocatoria, fecha_buena_pro,
+                        row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
+                                           ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST) AS rn
+                   FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL) x
+                WHERE rn <= 14) b
          LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
                              WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
         ORDER BY b.fecha_buena_pro DESC`, [ruc]),
+    filas<{ mes: string; n: number; altas: number }>(
+      "banderas por mes",
+      `SELECT to_char(date_trunc('month', fecha_buena_pro), 'YYYY-MM') AS mes, count(*)::int AS n,
+              count(*) FILTER (WHERE severidad = 'alta')::int AS altas
+         FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
+        GROUP BY 1 ORDER BY 1`, [ruc]),
   ]);
 
   const hasta = hoy();
@@ -710,6 +744,8 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
   if (meses.length) series.push({ carril: "compras", titulo: "Contratos ganados", medida: "n", unidad: "contratos", huecos: "cero", puntos: meses.map((m) => ({ periodo: m, ...porMes.get(m)! })), fuente: "OECE (CONOSCE)", enlace: CONOSCE_BUSCADOR, href: `${base}?seccion=ventas&vista=contratos` });
   if (ord.length) series.push({ carril: "ordenes", titulo: "Órdenes recibidas", medida: "n", unidad: "órdenes", extra: "entidades", huecos: "cero", puntos: ord.map((r) => ({ periodo: r.mes, n: r.ordenes, monto: r.monto, extra: r.entidades })), fuente: "CONOSCE (OECE)", enlace: CONOSCE_BUSCADOR, href: `${base}?seccion=ventas&vista=ordenes` });
   if (men.length) series.push({ carril: "menores", titulo: "Contratos menores", medida: "n", unidad: "contratos menores", huecos: "cero", puntos: men.map((r) => ({ periodo: r.mes, n: r.n, monto: r.monto })), fuente: "SEACE (contratos menores)", href: `${base}?seccion=ventas&vista=menores` });
+  // Cuántos de sus contratos tuvieron banderas cada mes (los puntos son sólo los más graves de cada año).
+  if (banMes.length) series.push({ carril: "banderas", titulo: "Contratos con banderas", medida: "n", unidad: "contratos con banderas", extra: "con algún antecedente grave", huecos: "cero", puntos: banMes.map((r) => ({ periodo: r.mes, n: r.n, extra: r.altas })), fuente: "OECE y cruces de Vigía", href: `${base}?seccion=ventas&vista=contratos` });
 
   // Las visitas: la serie por mes y, como hechos, las que fueron antes de un contrato con esa entidad (visita previa) o las
   // más recientes. De quien la recibió, sólo su cargo y su área.
@@ -796,6 +832,7 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);
   const { eventos: quedan, omitidos } = acotar(eventos, { compras: 150, visitas: 80, control: 100, politica: 80, obras: 60, banderas: 120, empresa: 60 }, fijosDe(secuencias, eventos));
+  conTotalDeBanderas(omitidos, quedan, banMes);
   // Empieza con lo primero que tiene, pero no antes de 2015 (una empresa de 2005 dejaba diez años vacíos: su fundación
   // sigue en la lista de hechos).
   const primera = [...series.flatMap((s) => s.puntos.map((p) => `${p.periodo}-01`)), ...quedan.map((e) => e.fecha)].filter((f) => f >= DESDE).sort()[0];
