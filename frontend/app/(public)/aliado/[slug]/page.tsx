@@ -149,6 +149,8 @@ export default async function AliadoPage({
               />
             ),
           },
+          // Señales y zonas son de lo que hizo leer (el modelo anterior): quien sólo apoya al fondo común no las tiene.
+          ...(r.financiados > 0 ? [
           {
             clave: "senales",
             etiqueta: "Señales encontradas",
@@ -198,6 +200,7 @@ export default async function AliadoPage({
               </div>
             ),
           },
+          ] : []),
           {
             clave: "aportes",
             etiqueta: "Aportes",

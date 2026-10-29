@@ -106,15 +106,15 @@ export function PortadaAliado({
 
         <Insignias insignias={insignias} className="mt-4" />
 
-        {/* Las dos acciones del perfil (§14.6): compartirlo y financiar como él. */}
+        {/* Las dos acciones del perfil (§14.6): compartirlo y apoyar como él (al fondo común, migración 206). */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <BarraCompartir
             ruta={ruta}
-            texto={`${aliado.nombre} financia la lectura de contratos públicos en Vigía Perú`}
+            texto={`${aliado.nombre} sostiene la vigilancia del dinero público en Vigía Perú`}
             titulo={`${aliado.nombre}, aliado de transparencia`}
           />
-          <EnlaceAccion href="/app/financiar" flecha className="w-full sm:w-auto">
-            Financiar como {aliado.nombre}
+          <EnlaceAccion href="/app/apoyar" flecha className="w-full sm:w-auto">
+            Apoyar como {aliado.nombre}
           </EnlaceAccion>
         </div>
       </div>

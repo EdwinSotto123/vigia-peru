@@ -121,7 +121,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
         abierto={abierto}
         onCerrar={cerrar}
         titulo={fila.nombre}
-        descripcion={`Puesto ${fila.puesto} del ranking de aliados`}
+        descripcion={`Puesto ${fila.puesto} del podio de aliados`}
         ancho="md"
         pie={
           <div className="flex flex-wrap items-center gap-3">

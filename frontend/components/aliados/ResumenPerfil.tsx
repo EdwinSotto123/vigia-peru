@@ -54,13 +54,17 @@ export function ResumenDelPerfil({
   const primero = contribuciones[contribuciones.length - 1];
   const ultimo = contribuciones[0];
   const porLeer = Math.max(0, r.financiados - r.leidos);
+  // Quien sólo apoya al fondo común (migración 206) no pagó contratos: ni «señales en sus contratos» ni «por leer».
+  const soloApoyo = r.financiados === 0;
 
   const posible: DatoClave[] = [
+    { etiqueta: "Meses sosteniendo la vigilancia", valor: num(r.meses) },
+    ...(r.mensual ? [{ etiqueta: "Aporta", valor: "Cada mes" }] : []),
     { etiqueta: "Aportes", valor: num(r.aportes) },
     { etiqueta: "Primer aporte", valor: primero ? fecha(primero.pagadaAt) : null },
     ...(r.aportes > 1 && ultimo ? [{ etiqueta: "Último aporte", valor: fecha(ultimo.pagadaAt) }] : []),
     ...(entidades != null && entidades > 0 ? [{ etiqueta: "Entidades revisadas", valor: num(entidades) }] : []),
-    {
+    ...(soloApoyo ? [] : [{
       etiqueta: "Por leer",
       valor: porLeer > 0 ? plural(porLeer, "contrato", "contratos") : "Ninguno: todo leído",
       ayuda: (
@@ -68,13 +72,22 @@ export function ResumenDelPerfil({
           Están financiados y esperan su turno en la cola, o sus documentos. Se leen en orden de antigüedad.
         </Ayuda>
       ),
-    },
+    }]),
   ];
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-7">
+          {soloApoyo ? (
+            <Seccion titulo="Cómo sostiene la vigilancia">
+              <p className="max-w-[60ch] text-cuerpo leading-relaxed text-inkSoft">
+                {nombre} aporta al fondo común de Vigía: con eso se mantiene encendida y se leen primero los contratos más graves,
+                aporte quien aporte. Su aporte no paga ni elige un contrato en particular, y lo que se encuentra se publica igual,
+                también si lo señala.
+              </p>
+            </Seccion>
+          ) : (
           <Seccion
             titulo="Últimas señales en sus contratos"
             ayuda={
@@ -96,6 +109,7 @@ export function ResumenDelPerfil({
               </EstadoVacio>
             )}
           </Seccion>
+          )}
 
           {r.regiones.length > 0 && (
             <Seccion
