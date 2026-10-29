@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { Ayuda, AyudaTermino, EstadoVacio, FuenteDato, Nota } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Indicadores, TablaFiltrable, type Columna, type FilaFiltrable, type Indicador } from "@/components/listado";
+import { Indicadores, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { Severidad } from "@/components/ui/Severidad";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { conTildes } from "@/lib/tildes";
-import { FUNCION_OFICINA, NIVEL_OFICINA, mes } from "@/lib/planilla";
-import { ARISTA, getOrganigrama, nombreOficina, type NodoOrganigrama } from "@/lib/organigrama";
+import { mes } from "@/lib/planilla";
+import { getOrganigrama, nombreOficina, type NodoOrganigrama } from "@/lib/organigrama";
 import { avisoVisitas } from "@/lib/fuentes";
 import { OrganigramaMapa } from "./OrganigramaMapa";
+import { TablaOficinas, type OficinaFila } from "./TablaOficinas";
 
 /**
  * La pestaña «Organización» de una entidad (Organización 2.0, fase 1 del plan del 2026-10-27): sus oficinas según su
@@ -86,64 +86,29 @@ export async function OrganizacionEntidad({ ruc, ruta, entidad }: { ruc: string;
     </div>
   );
 
-  const columnas: Columna[] = [
-    { clave: "oficina", titulo: "Oficina", ancho: "minmax(0,1.4fr)" },
-    { clave: "jefe", titulo: "Quién la encabeza", corto: "Jefatura", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo" },
-    { clave: "depende", titulo: "Depende de", ancho: "minmax(0,1fr)", desde: "lg", apilar: "con-rotulo" },
-    { clave: "personas", titulo: "Personas", ancho: "6.5rem", alinear: "der" },
-    { clave: "senales", titulo: "Con señales", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
-  ];
   const porId = new Map(o.nodos.map((n) => [n.id, n]));
   // Las unidades con su propio RUC van aparte (el gobierno entero): su gente es de su propia planilla.
   const unidades = reales.filter((n) => n.ruc).sort((a, b) => b.personas - a.personas);
-  const filas: FilaFiltrable[] = reales.filter((n) => n.enDatos && !n.ruc).map((x) => {
+  // «Todas sus oficinas» se arma en el navegador (TablaOficinas): aquí, sólo lo que la tabla muestra, busca y ordena.
+  const oficinas: OficinaFila[] = reales.filter((n) => n.enDatos && !n.ruc).map((x) => {
     const padre = x.padre ? porId.get(x.padre) : undefined;
+    const j = x.jefes[0];
     return {
       id: x.id,
-      href: enPlanilla(x),
-      buscable: `${nombreOficina(x)} ${x.sigla ?? ""} ${x.jefes.map((j) => j.cargo ?? "").join(" ")}`,
-      valores: { funcion: x.funcion, nivel: String(x.nivel), arista: x.arista?.tipo ?? "raiz" },
-      claves: { personas: x.personas, planilla: x.planilla, senales: x.conSenales, nombre: nombreOficina(x) },
-      celdas: {
-        oficina: (
-          <CeldaPrincipal
-            titulo={nombreOficina(x)}
-            meta={[
-              x.sigla && <Dato key="s" tipo="codigo" nombre="Sigla en la planilla" mono>{x.sigla}</Dato>,
-              <Dato key="f" tipo="tipo" nombre="Función">{FUNCION_OFICINA[x.funcion]}</Dato>,
-              <Dato key="n" tipo="dependencia" nombre="Nivel">{NIVEL_OFICINA[x.nivel] ?? "Otra área"}</Dato>,
-            ]}
-          />
-        ),
-        jefe: x.jefes.length ? (
-          <span className="block min-w-0 text-meta">
-            <span className="block truncate font-semibold text-ink">{x.jefes[0].nombre}</span>
-            <span className="block truncate text-inkSoft">
-              {x.jefes[0].cargo ? tituloNatural(conTildes(x.jefes[0].cargo)) : "Jefatura"}
-              {x.jefes[0].fuente === "dji" ? ", según su DJI" : ""}
-            </span>
-          </span>
-        ) : (
-          <span className="text-meta text-mute">Sin jefatura en sus datos</span>
-        ),
-        depende: padre ? (
-          <span className="block min-w-0 text-meta">
-            <span className="block truncate text-ink">{nombreOficina(padre)}</span>
-            {x.arista && <span className={x.arista.tipo === "funcion" || x.arista.tipo === "nivel" ? "text-mute" : "text-inkSoft"}>{ARISTA[x.arista.tipo].corto}</span>}
-          </span>
-        ) : (
-          <span className="text-meta text-mute">De la entidad</span>
-        ),
-        personas: <CeldaNumero sub={x.cas ? `${numero(x.cas)} CAS` : undefined}>{numero(x.personas)}</CeldaNumero>,
-        senales: x.conSenales ? (
-          <span className="inline-flex items-center justify-end gap-1.5 text-meta tabular-nums text-ink">
-            {numero(x.conSenales)}
-            {x.altas > 0 && <Severidad bandera="alta" />}
-          </span>
-        ) : (
-          <span className="text-meta text-mute">Ninguna</span>
-        ),
-      },
+      nombre: nombreOficina(x),
+      sigla: x.sigla,
+      funcion: x.funcion,
+      nivel: x.nivel,
+      jefe: j ? { nombre: j.nombre, cargo: j.cargo ? tituloNatural(conTildes(j.cargo)) : null, dji: j.fuente === "dji" } : null,
+      padre: padre ? nombreOficina(padre) : null,
+      arista: x.arista?.tipo ?? null,
+      personas: x.personas,
+      cas: x.cas,
+      conSenales: x.conSenales,
+      altas: x.altas,
+      planilla: x.planilla,
+      href: enPlanilla(x) ?? null,
+      cargos: x.jefes.map((jj) => jj.cargo ?? "").join(" "),
     };
   });
   const rof = reales.flatMap((n) => n.evidencias).find((e) => e.tipo === "rof" && e.url);
@@ -208,38 +173,7 @@ export async function OrganizacionEntidad({ ruc, ruta, entidad }: { ruc: string;
       )}
       <section aria-labelledby="org-todas" className="space-y-2">
         <h3 id="org-todas" className="font-display text-bloque font-bold text-ink">Todas sus oficinas</h3>
-        <TablaFiltrable
-          columnas={columnas}
-          filas={filas}
-          etiqueta="Oficinas de la entidad (toca una para ver a su gente)"
-          tam={20}
-          nombre="oficinas"
-          buscar={{ placeholder: "Buscar una oficina, una sigla o un cargo…", etiqueta: "Buscar entre las oficinas" }}
-          filtros={[
-            {
-              clave: "funcion", etiqueta: "Función", corta: "Función",
-              opciones: (Object.keys(FUNCION_OFICINA) as NodoOrganigrama["funcion"][])
-                .filter((f) => reales.some((x) => x.enDatos && x.funcion === f))
-                .map((f) => ({ valor: f, etiqueta: FUNCION_OFICINA[f] })),
-            },
-            {
-              clave: "nivel", etiqueta: "Nivel", corta: "Nivel",
-              opciones: [1, 2, 3, 4].filter((n) => reales.some((x) => x.enDatos && x.nivel === n)).map((n) => ({ valor: String(n), etiqueta: NIVEL_OFICINA[n] })),
-            },
-            {
-              clave: "arista", etiqueta: "De quién depende, según", corta: "Dependencia",
-              opciones: (["rof", "ley", "planilla", "funcion", "nivel"] as const)
-                .filter((t) => reales.some((x) => x.enDatos && x.arista?.tipo === t))
-                .map((t) => ({ valor: t, etiqueta: ARISTA[t].corto })),
-            },
-          ]}
-          ordenes={[
-            { valor: "personas", etiqueta: "Más personas", clave: "personas", dir: "desc" },
-            { valor: "planilla", etiqueta: "Más sueldos", clave: "planilla", dir: "desc" },
-            { valor: "senales", etiqueta: "Más personas con señales", clave: "senales", dir: "desc" },
-            { valor: "nombre", etiqueta: "Por nombre", clave: "nombre", dir: "asc" },
-          ]}
-        />
+        <TablaOficinas oficinas={oficinas} />
         <Nota>
           {`De quién depende cada oficina lo dicen su ROF, la ley o su planilla; ${r.inferidas ? `${plural(r.inferidas, "dependencia se infiere", "dependencias se infieren")} por el nombre o la función, o no tienen dato, y van con línea punteada` : "ninguna se infiere"}. `}
           {r.siglas ? `De las ${numero(r.siglas)} siglas de su planilla, ${numero(r.siglasExpandidas)} se leyeron con los cargos de sus funcionarios, la ley o los nombres que usan otras entidades. ` : ""}

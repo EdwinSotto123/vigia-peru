@@ -19,12 +19,13 @@ import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { OBJETO_TEXTO, type ContratoEmpresa, type FacetasContratos, type Pagina } from "@/lib/empresas";
 import { conAnio, entidadEtq, entidadTexto, NoCargo, opcionesDe, ORDEN_LISTA, Paginas } from "./comun";
+import { P_CONTRATOS } from "@/lib/parametrosEmpresa";
 
 /** La pestaña Contratos de la ficha de una empresa: lo que ganó, con filtros en la URL. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
 // ─── Contratos ────────────────────────────────────────────────────────────────
 
-export const P_CONTRATOS = { q: "cq", anio: "canio", como: "ccomo", entidad: "cent", objeto: "cobj", familia: "cfam", departamento: "cdep", bandera: "cband", dudoso: "cdud", cruce: "ccruce", orden: "cord", page: "cpag" } as const;
+export { P_CONTRATOS };
 
 /** Los valores de la faceta de sanciones (la partición) y los de los enlaces de antes, que siguen filtrando. */
 export const BANDERAS_CONTRATO = ["inhabilitada", "sancionada_antes", "solo_despues", "sin_sancion", "sancionada_despues", "antecedentes", "dudoso", "sin"] as const;

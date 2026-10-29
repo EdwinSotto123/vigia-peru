@@ -18,12 +18,13 @@ import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion } from "@/lib/personas";
 import { type FacetasOrdenes, type OrdenEmpresa, type Pagina } from "@/lib/empresas";
 import { entidadEtq, NoCargo, opcionesDe, ORDEN_LISTA, Paginas } from "./comun";
+import { P_ORDENES } from "@/lib/parametrosEmpresa";
 
 /** La pestaña Órdenes: las órdenes de compra y de servicio que le emitieron. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
 // ─── Órdenes ──────────────────────────────────────────────────────────────────
 
-export const P_ORDENES = { q: "oq", anio: "oanio", tipo: "otipo", dudosa: "odud", entidad: "oent", departamento: "odep", estado: "oest", orden: "oord", page: "opag" } as const;
+export { P_ORDENES };
 
 const COLUMNAS_ORDENES: Columna[] = [
   { clave: "fecha", titulo: "Emitida", ancho: "92px", desde: "md", apilar: true },
