@@ -107,7 +107,7 @@ export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["suje
         </section>
       )}
 
-      <details className="group rounded-xl border border-line bg-paper px-3.5 py-3">
+      <details className="group rounded-xl border border-line bg-paper px-3.5 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0">
         <summary className="cursor-pointer text-meta font-semibold text-ink">
           {`Todos los hechos en una lista (${numero(h.eventos.length + h.secuencias.length)}): buscar, filtrar y descargar`}
         </summary>

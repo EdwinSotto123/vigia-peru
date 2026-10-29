@@ -73,8 +73,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       /visitas/entidad (empresas y quiénes la visitan, migración 204) y la primera orden del locador que visitó antes.
  * "57": /historia/entidad con las visitas por mes precalculadas (205), los hechos «la visitó y le dieron», sus
  *       secuencias, los hilos por empresa y los patrones de sus series (picos, cierre del año, antes de elecciones).
+ * "58": los patrones con base mínima, diciembre como cierre del año y dos por renglón; «el mismo día» y las siglas
+ *       societarias en mayúsculas (el 57 ya había guardado respuestas de DEV con lo anterior).
  */
-const VERSION_CACHE = "57";
+const VERSION_CACHE = "58";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

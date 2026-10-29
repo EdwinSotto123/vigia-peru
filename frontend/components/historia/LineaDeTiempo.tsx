@@ -764,7 +764,7 @@ function Muestra({ children, texto }: { children: ReactNode; texto: string }) {
 
 function Leyenda({ hayPicos }: { hayPicos: boolean }) {
   return (
-    <div className="space-y-2 rounded-xl border border-line bg-paper px-3.5 py-3">
+    <div className="space-y-2 rounded-xl border border-line bg-paper px-3.5 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-rotulo text-inkSoft">
         <Muestra texto="Cuánto hubo ese mes"><rect x={3} y={4} width={4} height={10} rx={1} className="fill-ink/30" /><rect x={9} y={7} width={4} height={7} rx={1} className="fill-ink/30" /></Muestra>
         {hayPicos && <Muestra texto="Pico: 2,5 veces lo normal"><rect x={6} y={2} width={6} height={12} rx={1} className="fill-amber/85" /></Muestra>}
@@ -792,11 +792,14 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
 
 /** Lo que llama la atención en sus series (patronesDeSeries de la API): tocar uno lo marca en la línea. */
 function Patrones({ xs, elegido, ver }: { xs: PatronHistoria[]; elegido: string | null; ver: (p: PatronHistoria) => void }) {
+  // Los cuatro más fuertes a la vista (en el celular, ocho tarjetas empujaban la línea muy abajo); el resto, a un toque.
+  const [todos, setTodos] = useState(false);
+  const vistos = todos ? xs : xs.slice(0, 4);
   return (
     <section aria-label="Lo que llama la atención en sus datos" className="space-y-2">
       <p className="text-meta font-semibold text-ink">Lo que llama la atención en sus datos</p>
       <ul className="grid gap-2 md:grid-cols-2">
-        {xs.map((p) => (
+        {vistos.map((p) => (
           <li key={p.id}>
             <button
               type="button"
@@ -817,6 +820,11 @@ function Patrones({ xs, elegido, ver }: { xs: PatronHistoria[]; elegido: string 
           </li>
         ))}
       </ul>
+      {xs.length > 4 && (
+        <button type="button" onClick={() => setTodos((v) => !v)} className="text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2">
+          {todos ? "Ver menos" : `Ver los ${xs.length} patrones`}
+        </button>
+      )}
     </section>
   );
 }

@@ -488,12 +488,12 @@ export function mesesDeSerie(s: SerieHistoria): { mes: string; v: number }[] {
   return out;
 }
 
-/** «más del doble», «el triple», «cuatro veces», «12 veces». */
+/** «más del doble», «el triple», «cuatro veces», «12 veces» (redondeado: 3,6 es «cuatro veces»). */
 export function veces(r: number): string {
   if (r < 2.5) return "más del doble";
   if (r < 3.5) return "el triple";
-  if (r < 10) return `${["", "", "", "", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"][Math.floor(r)]} veces`;
-  return `${Math.floor(r)} veces`;
+  const k = Math.round(r);
+  return k < 10 ? `${["", "", "", "", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"][k]} veces` : `${k} veces`;
 }
 
 /** Meses enteros entre dos meses AAAA-MM (b − a). */
@@ -719,7 +719,7 @@ export function armarHilos(
       h.clases.add("despues");
       h.hechos.push({
         fecha: v.despues, tipo: "despues", severidad: sevDespues(v), monto: v.despues_monto,
-        titulo: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${v.dias != null ? ` a los ${miles(v.dias)} días de una visita` : ""}`,
+        titulo: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${v.dias == null ? "" : v.dias === 0 ? " el mismo día de una visita" : ` a los ${miles(v.dias)} días de una visita`}`,
         detalle: [v.antes === 0 ? "Nunca le había vendido antes de esas visitas" : "Ya le vendía antes", v.despues_detalle ? `«${v.despues_detalle}»` : null].filter(Boolean).join(". "),
         href: v.despues_ocid ? rutas.contrato(v.despues_ocid) : rutas.empresa(v.ruc, v.despues_tipo === "orden" ? "ordenes" : "contratos"),
       });

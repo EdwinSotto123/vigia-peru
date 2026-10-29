@@ -99,9 +99,13 @@ const titulo = (s: string | null | undefined) =>
     .toLowerCase()
     .replace(/(^|[\s(«"/-])([a-záéíóúñü])/g, (_, p: string, l: string) => p + l.toUpperCase())
     .replace(/\b(De|Del|La|Las|Los|El|Y|E|En|Por|Para|A|Al)\b/g, (w) => w.toLowerCase())
+    // Las siglas con puntos («S.A.C.», «E.I.R.L.», «S.R.L.») en mayúsculas: «e.i.r.l.» no es como se escriben.
+    .replace(/\b[a-záéíóúñ](?:\.[a-záéíóúñ])+\.?/gi, (m) => m.toUpperCase())
     .replace(/^./, (l) => l.toUpperCase())
     .trim();
-const sev = (v: unknown): Severidad | null => (v === "alta" || v === "media" || v === "baja" ? v : null);
+/** «a los 13 días» / «el mismo día». */
+const aLos = (dias: number) => (dias === 0 ? "el mismo día" : `a los ${dias} ${dias === 1 ? "día" : "días"}`);
+const sev =(v: unknown): Severidad | null => (v === "alta" || v === "media" || v === "baja" ? v : null);
 /** Una descripción del SEACE en una frase de a lo sumo 180 letras (entera, en la ficha del contrato). */
 const corto = (s: string | null | undefined): string | null => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
@@ -336,7 +340,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     const nombre = v.nombre ? titulo(v.nombre) : `la empresa ${v.ruc}`;
     eventos.push({
       id: `visita_gano:${v.ruc}`, carril: "visitas", tipo: "visita_gano", fecha: diasAntes(v.despues!, v.dias!),
-      titulo: `La gente de ${nombre} la visitó; a los ${v.dias} días le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
+      titulo: `La gente de ${nombre} la visitó; ${aLos(v.dias!)} le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
       detalle: [
         v.antes === 0 ? "Nunca le había vendido antes de esas visitas" : "Ya le vendía antes",
         v.decisores > 0 ? `${v.decisores} ${v.decisores === 1 ? "visita" : "visitas"} a quien decide las compras` : null,
@@ -357,7 +361,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       const sev = sevDespues(v);
       return {
         id: `visito_gano:${v.ruc}`, tipo: "visito_gano", severidad: sev === "baja" ? "media" : sev,
-        titulo: `${nombre}: su gente la visitó y a los ${v.dias} días le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
+        titulo: `${nombre}: su gente la visitó y ${aLos(v.dias!)} le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
         explica:
           `Nunca le había vendido antes de esas visitas${v.decisores > 0 ? "; fueron a quien decide las compras" : ""}. ` +
           `${v.despues_detalle ? `Lo que le dieron: «${corto(v.despues_detalle)}». ` : ""}Una visita no prueba un favor: es para revisar.`,
