@@ -146,8 +146,8 @@ function PorQue({ piso }: { piso: number | null }) {
         </p>
         <p className="mt-6 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
           En {CONTRALORIA.anio}, según la Contraloría, la corrupción y la inconducta funcional le habrían costado al Perú{" "}
-          <strong className="font-semibold text-paper">S/ {numero(CONTRALORIA.millones)} millones</strong>: casi 13 de cada 100 soles
-          del presupuesto. La tajada más grande, S/ {numero(CONTRALORIA.inversionMillones)} millones, salió de la inversión: la plata de
+          <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA.millones)} millones</strong>: casi 13 de cada 100 soles
+          del presupuesto. La tajada más grande, S/{"\u00a0"}{numero(CONTRALORIA.inversionMillones)} millones, salió de la inversión: la plata de
           las carreteras, los hospitales y los colegios.{" "}
           <a
             href={CONTRALORIA.url}
@@ -183,10 +183,10 @@ function PorQue({ piso }: { piso: number | null }) {
 function LoQuePusimos({ v }: { v: ResumenVigilancia | null }) {
   return (
     <section aria-labelledby="lo-que-pusimos" className="min-w-0 lg:col-start-1">
-      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,19rem)] md:items-start">
+      <div className="space-y-6">
         <div className="min-w-0">
-          <h2 id="lo-que-pusimos" className="max-w-[24ch] text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
-            Hasta hoy pusimos casi S/ {numero(PUESTO_POR_EL_EQUIPO)} para que Vigía exista.
+          <h2 id="lo-que-pusimos" className="max-w-[26ch] text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
+            Hasta hoy pusimos casi S/{"\u00a0"}{numero(PUESTO_POR_EL_EQUIPO)} para que Vigía exista.
           </h2>
           <div className="mt-4 max-w-[62ch] space-y-3 text-cuerpo leading-relaxed text-inkSoft">
             <p>
@@ -213,7 +213,7 @@ function Comprobante({ v }: { v: ResumenVigilancia }) {
     { texto: "Con algún antecedente grave", valor: numero(v.vigilamos.graves) },
   ];
   return (
-    <figure className="min-w-0 rounded-2xl border border-line bg-paper shadow-[0_10px_30px_-18px_rgb(var(--ink)/0.35)]">
+    <figure className="min-w-0 max-w-md rounded-2xl border border-line bg-paper shadow-[0_10px_30px_-18px_rgb(var(--ink)/0.35)]">
       <figcaption className="border-b border-dashed border-line px-4 pb-3 pt-4">
         <span className="block font-display text-bloque font-bold text-ink">Lo que ya vigila</span>
         <span className="block text-meta text-mute">En {v.vigilamos.anio}, todo y no una muestra</span>
