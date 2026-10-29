@@ -82,7 +82,7 @@ export default async function FichaPlazaPage({ params }: { params: { aviso: stri
             <Dato tipo="codigo" nombre="Aviso" mono>{`Aviso ${p.aviso}`}</Dato>
           </span>
         }
-        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta plaza" banderas={banderas} todas="#senales" /> : undefined}
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta plaza" banderas={banderas} /> : undefined}
         ayuda={
           <Ayuda titulo="¿Qué es una plaza CAS?">
             <span className="block">

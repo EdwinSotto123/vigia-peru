@@ -238,7 +238,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
       <EncabezadoPagina
         titulo={nombre}
         bajada={<Identidad f={f} razonSocial={corto?.razonSocial ?? null} />}
-        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta empresa" banderas={banderas} todas={`${ruta}?seccion=antecedentes`} /> : undefined}
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta empresa" banderas={banderas} /> : undefined}
         acciones={<SeguirBoton tipo="empresa" id={e.ruc} nombre={nombre} />}
       />
 

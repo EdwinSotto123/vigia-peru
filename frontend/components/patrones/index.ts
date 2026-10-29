@@ -4,6 +4,7 @@ export { Pagina, EncabezadoPagina, Seccion, Cifra, EnlaceFuente, FuenteDato, Not
 export { Ayuda } from "./Ayuda";
 export { AyudaTermino } from "./AyudaTermino";
 export { Pestanas, CabeceraPestana, irAPestana, type Pestana } from "./Pestanas";
+export { PestanaAPedido } from "./PestanaAPedido";
 export { Migas, type Miga } from "./Migas";
 export { FichaNoLeida } from "./FichaNoLeida";
 export { CuerpoDetalle, ChipsDetalle, DatosClave, BloqueDetalle, CitaDetalle, PieDetalle, type DatoClave } from "./Detalle";

@@ -21,7 +21,7 @@ import { rutaRegion } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, FuenteDato, Migas, Pagina, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, FuenteDato, Migas, Pagina, PestanaAPedido, Pestanas, type Pestana } from "@/components/patrones";
 import { OrganizacionEntidad } from "@/components/entidad/OrganizacionEntidad";
 import { banderasEntidad } from "@/lib/banderasEntidad";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
@@ -488,15 +488,19 @@ export default async function EntidadProfile({
       ),
     },
   ];
-  // La abierta se arma ya; las demás, después de lo suyo (Diferida) y con su esqueleto por si alguien las abre antes. Una
-  // vacía no pide nada: va tal cual.
+  // La abierta se arma ya; las livianas, después de lo suyo (Diferida) y con su esqueleto por si alguien las abre antes;
+  // las pesadas, sólo al abrirlas (PestanaAPedido). Una vacía no pide nada: va tal cual.
   const activa = todas.some((p) => p.clave === seccion) ? seccion : "inicio";
   const pestanas = alFinal(todas, (p) => vacias.has(p.clave)).map((p) =>
     p.clave === activa || vacias.has(p.clave)
       ? p
       : {
           ...p,
-          contenido: (
+          contenido: A_PEDIDO.has(p.clave) ? (
+            <PestanaAPedido clave={p.clave}>
+              <Espera clave={p.clave} />
+            </PestanaAPedido>
+          ) : (
             <Suspense fallback={<Espera clave={p.clave} />}>
               <Diferida>{p.contenido}</Diferida>
             </Suspense>
@@ -592,6 +596,13 @@ function conCambios(ruta: string, sp: Busqueda, cambios: Record<string, string>)
   return `${ruta}?${q}`;
 }
 
+/**
+ * Las pestañas que no viajan con la página si no están abiertas: cientos de filas, cada una con su detalle. Medido el
+ * 2026-10-29 en el Minsa (28 MB de ficha abriendo sólo el Inicio): visitas 12 MB, organización 5,8 MB, historia 3,7 MB,
+ * planilla 1 MB; en el INEN, sus obras e inversiones 0,9 MB. Las demás pesan menos de 400 KB y siguen viajando.
+ */
+const A_PEDIDO = new Set(["historia", "organizacion", "visitas", "planilla", "obras"]);
+
 /** Mientras llega una pestaña que no se abrió al cargar, con la forma de lo suyo. */
 function Espera({ clave }: { clave: string }) {
   if (clave === "inicio") {
@@ -618,6 +629,8 @@ function Espera({ clave }: { clave: string }) {
     control: { cifras: 4, columna: "Informe" },
     historia: { columna: "Hecho" },
     visitas: { cifras: 4, columna: "Visita" },
+    organizacion: { cifras: 3, columna: "Oficina" },
+    obras: { cifras: 4, columna: "Obra o inversión" },
   };
   return <EsqueletoPestana {...(forma[clave] ?? { columna: "Detalle" })} />;
 }

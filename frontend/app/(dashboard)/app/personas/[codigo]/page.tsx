@@ -120,7 +120,7 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
             )}
           </span>
         }
-        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} todas={`${ruta}?seccion=senales`} /> : undefined}
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} /> : undefined}
         ayuda={
           <Ayuda titulo="¿Por qué está esta persona aquí?">
             <span className="block">

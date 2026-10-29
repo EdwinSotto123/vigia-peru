@@ -98,7 +98,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
             {p.regimen != null && <Dato tipo="regimen">{REGIMEN[p.regimen] ?? `Régimen ${p.regimen}`}</Dato>}
           </span>
         }
-        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} todas={aSenales} /> : undefined}
+        banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} /> : undefined}
         ayuda={
           <Ayuda titulo="¿Por qué está esta persona aquí?">
             <span className="block">
