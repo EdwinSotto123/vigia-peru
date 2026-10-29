@@ -20,7 +20,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas, Seccion, TarjetaDatos, type BanderaFicha, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, PestanaAPedido, Pestanas, Seccion, TarjetaDatos, type BanderaFicha, type DatoClave } from "@/components/patrones";
+import { EsqueletoPestana } from "@/components/entidad/PestanasEntidad";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
@@ -192,10 +193,18 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const postulacionesP = getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM });
   const clientesP = getClientesEmpresa(e.ruc);
   const antecedentesP = getAntecedentesEmpresa(e.ruc);
-  const sociosP = getSociosEmpresa(e.ruc);
-  const visitasP = getVisitasEmpresa(e.ruc);
+  // Sólo los pide «Su gente»: abierta en otra pestaña, viaja a pedido (abajo) y no hace falta leerlos.
+  const sociosP = seccion === "gente" ? getSociosEmpresa(e.ruc) : Promise.resolve(null);
+  const visitasP = seccion === "gente" ? getVisitasEmpresa(e.ruc) : Promise.resolve(null);
 
   const contratos = e.adjProcesos + e.consProcesos;
+  // Las pestañas pesadas no viajan si no están abiertas: se piden al abrirlas (PestanaAPedido). En Cardio Equipos, abierta
+  // en Antecedentes, su historia eran 2,5 MB y sus visitas 0,8 MB de los 6 MB de la ficha.
+  const aPedido = (clave: PestanaEmpresa, columna: string) => (
+    <PestanaAPedido clave={clave}>
+      <EsqueletoPestana columna={columna} />
+    </PestanaAPedido>
+  );
   const nAntecedentes = e.nAlta + e.nMedia + e.nBaja;
   const personas = e.socios + e.representantes + e.directivos;
   // Sus banderas, fijas bajo el nombre en todas las pestañas: cada antecedente por tipo (lo grave primero) hacia su lista
@@ -260,7 +269,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             clave: "historia",
             etiqueta: "Historia",
             icono: <History size={15} aria-hidden />,
-            contenido: (
+            contenido: seccion !== "historia" ? aPedido("historia", "Hecho") : (
               <div className="space-y-4">
                 <CabeceraPestana
                   ayuda={
@@ -421,7 +430,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Su gente",
             icono: <Users size={15} aria-hidden />,
             conteo: personas || null,
-            contenido: (
+            contenido: seccion !== "gente" ? aPedido("gente", "Persona") : (
               <div>
                 <CabeceraPestana>
                   Quiénes están detrás de la empresa según el RNP <AyudaTermino clave="rnp" />, qué otras empresas comparten a alguno y
