@@ -9,9 +9,9 @@ Estructura de carpetas:
 
 Cada archivo trae columnas distintas; el loader las detecta por nombre.
 Si la fila viene de un archivo "Autoridades" → resultado='electo'; si viene de
-"Candidatos" → resultado='no_electo' (a menos que también aparezca en Autoridades,
-caso que NO se cruza acá — se asume disjoint, y el motor de reglas puede
-deduplicar por nombre+partido+año).
+"Candidatos" → resultado='no_electo'. Quien ganó está en los dos: unificar() deja una
+fila por candidatura (antes se daba por hecho que no se cruzaban y cada ganador quedaba
+como «elegido» y «no elegido» a la vez; migración 210).
 
 Uso:
   python backend/scripts/load_jne_candidaturas.py \
@@ -200,6 +200,62 @@ def parse_csv_electos(path: Path) -> list[dict]:
     return out
 
 
+def _cargo_clave(cargo: str | None) -> str:
+    """El cargo para comparar entre archivos: el de congresista y el del Parlamento Andino se escriben distinto en cada uno."""
+    c = re.sub(r"[^A-Z0-9 ]+", " ", normalize_name(cargo or "")).split()
+    t = " ".join(c)
+    if "PARLAMENTO ANDINO" in t:
+        return "PARLAMENTO ANDINO"
+    if t.startswith("CONGRESISTA"):
+        return "CONGRESISTA"
+    return t
+
+
+def _lugar(r: dict) -> tuple[str, str, str]:
+    return tuple(" ".join(re.sub(r"[^A-Z0-9 ]+", " ", normalize_name(r.get(k) or "")).split()) for k in ("region", "provincia", "distrito"))
+
+
+def unificar(rows: list[dict]) -> list[dict]:
+    """Una fila por candidatura. Quien ganó viene en el archivo «Candidatos» (no_electo) y en el de «Autoridades» (electo):
+    sin esto quedaba dos veces, «fue elegido» y «no fue elegido» en la misma elección (2026-10-29: 38 mil en PROD; la
+    migración 210 limpió las ya cargadas con estas mismas reglas).
+      1. Gemelas (misma persona, año, cargo y lugar; congreso y Parlamento Andino sin lugar): queda la electo, con el número
+         en la lista de la otra.
+      2. Postuló a un cargo del concejo y figura como autoridad con otro del mismo concejo (regidor que hoy es alcalde): queda
+         la candidatura, como electo."""
+    nacional = ("CONGRESISTA", "PARLAMENTO ANDINO")
+    clave = lambda r: (r["nombre"], r["año"], _cargo_clave(r["cargo"]), () if _cargo_clave(r["cargo"]) in nacional else _lugar(r))
+    electos: dict[tuple, dict] = {}
+    for r in rows:
+        if r["resultado"] == "electo":
+            electos.setdefault(clave(r), r)
+    con_gemela: set[int] = set()
+    out = []
+    for r in rows:
+        if r["resultado"] == "no_electo":
+            e = electos.get(clave(r))
+            if e is not None:
+                if e.get("numero_lista") is None:
+                    e["numero_lista"] = r.get("numero_lista")
+                con_gemela.add(id(e))
+                continue
+        out.append(r)
+    municipal = re.compile(r"^(ALCALDE|REGIDOR|ACCESITARIO)")
+    por_lugar: dict[tuple, list[dict]] = {}
+    for r in out:
+        if r["resultado"] == "electo" and id(r) not in con_gemela and municipal.match(_cargo_clave(r["cargo"])):
+            por_lugar.setdefault((r["nombre"], r["año"], _lugar(r)), []).append(r)
+    quitar: set[int] = set()
+    for r in out:
+        if r["resultado"] == "no_electo" and municipal.match(_cargo_clave(r["cargo"])):
+            e = next((x for x in por_lugar.get((r["nombre"], r["año"], _lugar(r)), []) if id(x) not in quitar), None)
+            if e is not None and _cargo_clave(e["cargo"]) != _cargo_clave(r["cargo"]):
+                r["resultado"] = "electo"
+                quitar.add(id(e))
+    print(f"[unificar] {len(rows) - len(out)} gemelas, {len(quitar)} del mismo concejo", file=sys.stderr)
+    return [r for r in out if id(r) not in quitar]
+
+
 def walk_root(root: Path) -> list[Path]:
     return [p for p in root.rglob("*.xlsx") if not p.name.startswith("~$")]
 
@@ -232,6 +288,7 @@ def main():
             all_rows.extend(rows)
 
     print(f"\n[parse] total filas={len(all_rows)}", file=sys.stderr)
+    all_rows = unificar(all_rows)
 
     if args.dry_run:
         for r in all_rows[:3]:
