@@ -211,7 +211,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
       ? [{
           tipo: "al_borde_del_tope", severidad: "media" as const, nombre: "Órdenes al borde del tope", n: e.bordeOrdenes ?? null,
           explica: `Con ${plural(e.bordeEntidades!, "entidad", "entidades")}, la mitad o más de sus órdenes quedaron entre el 95 % y el 100 % del tope de 8 UIT, el monto desde el cual se debe hacer un proceso de selección`,
-          href: `${ruta}?seccion=ventas&${P_VISTA}=ordenes&oant=al_borde_del_tope`,
+          // La lista general de órdenes (la de la ficha no tiene ese filtro), de esta empresa y con la bandera en cada fila.
+          href: `/app/contratos?vista=ordenes&oprov=${e.ruc}&oant=al_borde_del_tope`,
         }]
       : []),
     ...(e.visitasClientes > 0
