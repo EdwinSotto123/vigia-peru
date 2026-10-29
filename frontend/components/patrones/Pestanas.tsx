@@ -93,13 +93,18 @@ export function Pestanas({
   const id = useId();
   const botones = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const elegir = (clave: string, enfocar = false) => {
+  // `destino`: la URL entera del enlace que la abrió (con sus filtros). Una pestaña que se pide al abrirla
+  // (PestanaAPedido) pide la URL de la barra: sin esto pedía la suya sin los filtros del enlace y, por ser el último
+  // pedido, ganaba (la oficina del organigrama abría la planilla entera, sin `lofi`).
+  const elegir = (clave: string, enfocar = false, destino?: URL) => {
     setActual(clave);
     setVisitadas((v) => (v.has(clave) ? v : new Set(v).add(clave)));
     try {
-      const url = new URL(window.location.href);
-      if (clave === pestanas[0]?.clave) url.searchParams.delete(param);
-      else url.searchParams.set(param, clave);
+      const url = destino ?? new URL(window.location.href);
+      if (!destino) {
+        if (clave === pestanas[0]?.clave) url.searchParams.delete(param);
+        else url.searchParams.set(param, clave);
+      }
       window.history.replaceState(window.history.state, "", url);
     } catch {
       /* sin URL no se comparte la vista, pero la pestaña cambia igual */
@@ -124,7 +129,7 @@ export function Pestanas({
       }
       if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
       const pedida = url.searchParams.get(param);
-      if (pedida && pedida !== actual && pestanas.some((p) => p.clave === pedida)) elegir(pedida);
+      if (pedida && pedida !== actual && pestanas.some((p) => p.clave === pedida)) elegir(pedida, false, url);
     };
     document.addEventListener("click", alClic, true);
     return () => document.removeEventListener("click", alClic, true);
