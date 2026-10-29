@@ -265,6 +265,8 @@ export interface PostulacionEmpresa {
 
 export interface AntecedenteEmpresa {
   tipo: string;
+  /** El RUC de quien tiene el antecedente (en la Historia del contrato, cada integrante de un consorcio). */
+  rucProveedor?: string;
   etiqueta: string;
   severidad: Severidad;
   ocid: string | null;

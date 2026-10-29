@@ -8,6 +8,7 @@ import { ICONO_NIVEL, Severidad } from "@/components/ui/Severidad";
 import { fecha, numero, soles, solesCompacto } from "@/lib/formato";
 import type { EventoHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
+import { DetalleDelAntecedente } from "@/components/empresas/secciones/PanelAntecedente";
 
 /** Adónde lleva «Ver…» según qué es el hecho (sin una, «Verlo en Vigía»). */
 const VER: Record<string, string> = {
@@ -37,7 +38,7 @@ const BANDERA = {
 } as const;
 
 /** Los datos que se leen mejor en letra de código (un número de informe, el código del proceso). */
-const MONO = new Set(["Proceso", "Informe", "Código INFOBRAS"]);
+const MONO = new Set(["Proceso", "Informe", "Código INFOBRAS", "Nomenclatura", "Contrato", "Resolución"]);
 
 /**
  * El detalle de un hecho de la Historia: la línea de tiempo y la lista de todos los hechos lo muestran igual, armado como
@@ -125,9 +126,12 @@ export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria;
         </BloqueDetalle>
       )}
 
-      {!banderas.length && !datos.length && e.detalle && <p className="text-dato text-ink">{e.detalle}</p>}
+      {!banderas.length && !datos.length && !e.antecedente && e.detalle && <p className="text-dato text-ink">{e.detalle}</p>}
 
       {datos.length > 0 && <DatosClave items={datos.map((d) => ({ etiqueta: d.etiqueta, valor: d.valor, mono: MONO.has(d.etiqueta) }))} />}
+
+      {/* Un antecedente del ganador (Historia del contrato): lo mismo que su panel en la pestaña Antecedentes. */}
+      {e.antecedente && <DetalleDelAntecedente a={e.antecedente} />}
 
       {conPie && <AccionesHecho e={e} />}
     </CuerpoDetalle>
@@ -141,7 +145,7 @@ export function AccionesHecho({ e }: { e: EventoHistoria }) {
       principal={
         e.href ? (
           <EnlaceAccion href={e.href} prefetch={false} variante="secundario" flecha>
-            {VER[e.tipo] ?? "Verlo en Vigía"}
+            {VER[e.tipo] ?? (e.antecedente ? "Ver los antecedentes del ganador" : "Verlo en Vigía")}
           </EnlaceAccion>
         ) : undefined
       }

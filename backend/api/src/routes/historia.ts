@@ -17,7 +17,9 @@ import {
   obraInfobras,
   procesoOece,
 } from "../lib/fuentes.js";
-import { ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { aCruce, ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
+import { referenciasDe } from "../lib/referencias.js";
 import {
   acotar,
   armarHilos,
@@ -1221,126 +1223,255 @@ const CARRILES_CONTRATO: CarrilHistoria[] = [
 /** Los cruces que van en el carril de visitas (uno por visita); los demás, en el de antecedentes. */
 const VISITAS_CRUCE = new Set(["visita_previa"]);
 
+/** «S/ 47,013». */
+const pen = (v: number) => `S/ ${Math.round(v).toLocaleString("es-PE")}`;
+/** Días entre dos fechas «AAAA-MM-DD». */
+const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+/** «1 año y 2 meses», «4 meses», «12 días»: cuánto antes de la convocatoria pasó algo. */
+function cuantoAntes(desde: string, hasta: string): string | null {
+  const d = diasEntre(desde, hasta);
+  if (!Number.isFinite(d) || d < 0) return null;
+  if (d < 45) return `${d} ${d === 1 ? "día" : "días"}`;
+  const meses = Math.round(d / 30.44);
+  if (meses < 12) return `${meses} ${meses === 1 ? "mes" : "meses"}`;
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  return `${anios} ${anios === 1 ? "año" : "años"}${resto ? ` y ${resto} ${resto === 1 ? "mes" : "meses"}` : ""}`;
+}
+/** Los papeles de una persona en la empresa, como los escribe cruces_proveedor («ORGANO_ADMINISTRACION,SOCIO…»). */
+const papelesDe = (rol: string | null | undefined) =>
+  ORDEN_ROL.filter((r) => (rol ?? "").split(/,\s*/).includes(r)).map((r) => PAPEL[r]);
+
 async function historiaContrato(ocid: string): Promise<Historia | null> {
-  const [k] = await filas<{ ocid: string; codigo: string | null; entidad_ruc: string | null; entidad: string | null; objeto: string | null; tipo: string | null; conv: string | null; bp: string | null }>(
+  const [k] = await filas<{
+    ocid: string; codigo: string | null; entidad_ruc: string | null; entidad: string | null; objeto: string | null; tipo: string | null;
+    tipo_proceso: string | null; referencial: number | null; conv: string | null; bp: string | null; gobierno: Record<string, any> | null;
+  }>(
     "contrato",
     `SELECT c.ocid, c.codigo, c.entidad_ruc::text AS entidad_ruc, e.nombre AS entidad, c.objeto, c.tipo_contratacion AS tipo,
-            to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS conv, to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS bp
-       FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE c.ocid = $1`, [ocid]);
+            c.tipo_proceso, c.cuantia_referencial::float AS referencial,
+            to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS conv, to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS bp, ${COL_GOBIERNO}
+       FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc ${gobiernoDeFila("c.ocid")}
+      WHERE c.ocid = $1`, [ocid]);
   if (!k) return null;
   const codigo = k.codigo && /^\d+$/.test(k.codigo) ? k.codigo : null;
   const [adj, pos, fir, cru, obr] = await Promise.all([
     codigo && k.entidad_ruc
-      ? filas<{ ruc: string; proveedor: string | null; bp: string | null; cons: string | null; monto: number | null }>(
+      ? filas<{ ruc: string; proveedor: string | null; bp: string | null; cons: string | null; monto: number | null; referencial: number | null; consorcio: string | null; tipo_proceso: string | null; nomenclatura: string | null }>(
           "adjudicaciones",
           `SELECT COALESCE(m.ruc_miembro, a.ruc_proveedor) AS ruc, max(COALESCE(m.miembro, a.proveedor)) AS proveedor,
                   to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS bp, to_char(max(a.fecha_consentimiento), 'YYYY-MM-DD') AS cons,
-                  sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES})::float AS monto
+                  sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES})::float AS monto,
+                  sum(a.monto_referencial) FILTER (WHERE a.moneda IN ${SOLES})::float AS referencial,
+                  max(CASE WHEN m.ruc_miembro IS NOT NULL THEN a.proveedor END) AS consorcio,
+                  max(a.tipo_proceso) AS tipo_proceso, max(a.nomenclatura) AS nomenclatura
              FROM conosce_adjudicaciones a
              LEFT JOIN conosce_consorcios m ON m.ruc_consorcio = a.ruc_proveedor AND a.ruc_proveedor !~ '^(10|20)[0-9]{9}$'
             WHERE a.codigo_convocatoria = $1 AND a.entidad_ruc = $2
             GROUP BY 1`, [codigo, k.entidad_ruc])
       : Promise.resolve([]),
     codigo
-      ? filas<{ n: number; ofertas: string | null }>(
+      ? filas<{ ruc: string; postor: string | null; oferta: string | null }>(
           "postores",
-          `SELECT count(DISTINCT ruc_postor)::int AS n, to_char(min(fecha_propuesta) FILTER (WHERE fecha_propuesta > '2000-01-01'), 'YYYY-MM-DD') AS ofertas
-             FROM conosce_postores WHERE codigo_convocatoria = $1`, [codigo])
+          `SELECT ruc_postor AS ruc, max(postor) AS postor,
+                  to_char(min(fecha_propuesta) FILTER (WHERE fecha_propuesta > '2000-01-01'), 'YYYY-MM-DD') AS oferta
+             FROM conosce_postores WHERE codigo_convocatoria = $1 GROUP BY ruc_postor LIMIT 200`, [codigo])
       : Promise.resolve([]),
     codigo
-      ? filas<{ firmado: string | null; desde: string | null; hasta: string | null; total: number | null; adicional: number | null; reduccion: number | null; prorroga: number | null }>(
+      ? filas<{ firmado: string | null; desde: string | null; hasta: string | null; total: number | null; adicional: number | null; reduccion: number | null; prorroga: number | null; complementario: number | null; contratos: number; num: string | null }>(
           "contratos firmados",
           `SELECT to_char(min(fecha_suscripcion), 'YYYY-MM-DD') AS firmado, to_char(min(fecha_vigencia_inicial), 'YYYY-MM-DD') AS desde,
                   to_char(max(COALESCE(fecha_vigencia_fin_actualizada, fecha_vigencia_final))
                             FILTER (WHERE COALESCE(fecha_vigencia_fin_actualizada, fecha_vigencia_final) < '2100-01-01'), 'YYYY-MM-DD') AS hasta,
                   max(monto_contratado_total)::float AS total, sum(monto_adicional)::float AS adicional,
-                  sum(monto_reduccion)::float AS reduccion, sum(monto_prorroga)::float AS prorroga
+                  sum(monto_reduccion)::float AS reduccion, sum(monto_prorroga)::float AS prorroga,
+                  sum(monto_complementario)::float AS complementario, count(DISTINCT codigo_contrato)::int AS contratos,
+                  max(num_contrato) AS num
              FROM conosce_contratos WHERE codigo_convocatoria = $1 HAVING count(*) > 0`, [codigo])
       : Promise.resolve([]),
-    filas<CruceSecuencia & { id: number; ruc: string }>(
+    // Cada antecedente entero (persona_doc sólo para sus referencias: aCruce no lo copia), con su proceso.
+    filas<CruceSecuencia & Record<string, any>>(
       "cruces",
-      `SELECT p.id, p.tipo, p.severidad, p.fecha, p.monto::float AS monto, p.ocid, p.detalle, p.ruc_empresa AS ruc,
-              c.fecha_buena_pro AS buena_pro, e.nombre AS entidad, c.codigo
+      `SELECT p.id, p.tipo, p.severidad, p.fecha, p.monto::float AS monto, p.ocid, p.detalle, p.ruc_empresa AS ruc, p.ruc_empresa,
+              p.persona_doc, p.persona_nombre, p.persona_rol, p.fuente, p.fuente_url,
+              c.fecha_buena_pro AS buena_pro, e.nombre AS entidad, c.codigo, c.entidad_ruc::text AS entidad_ruc
          FROM cruces_proveedor p
          JOIN convocatorias c ON c.ocid = p.ocid
          LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
         WHERE p.ocid = $1
         LIMIT 2000`, [ocid]),
-    filas<{ codigo: number; nombre: string | null; inicio: string | null; par: string | null; causal: string | null; fin_prog: string | null; fin: string | null; recepcion: string | null; liquidacion: string | null; rol: string | null }>(
+    filas<{ codigo: number; nombre: string | null; inicio: string | null; par: string | null; causal: string | null; fin_prog: string | null; fin: string | null; recepcion: string | null; liquidacion: string | null; rol: string | null; estado: string | null; monto: number | null }>(
       "obra",
       `SELECT o.codigo, o.nombre, to_char(o.fecha_inicio, 'YYYY-MM-DD') AS inicio,
               CASE WHEN o.paralizada THEN to_char(o.fecha_paralizacion, 'YYYY-MM-DD') END AS par, o.causal_paralizacion AS causal,
               to_char(COALESCE(o.fecha_fin_reprog, o.fecha_fin_prog), 'YYYY-MM-DD') AS fin_prog, to_char(o.fecha_fin_real, 'YYYY-MM-DD') AS fin,
-              to_char(o.fecha_recepcion, 'YYYY-MM-DD') AS recepcion, to_char(o.fecha_liquidacion, 'YYYY-MM-DD') AS liquidacion, oc.rol
+              to_char(o.fecha_recepcion, 'YYYY-MM-DD') AS recepcion, to_char(o.fecha_liquidacion, 'YYYY-MM-DD') AS liquidacion, oc.rol,
+              o.estado, o.contrato_monto::float AS monto
          FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
         WHERE oc.ocid = $1 AND NOT o.retirada LIMIT 10`, [ocid]),
   ]);
 
   // Sólo empresas (RUC 20) se nombran y se buscan en la SUNAT y el Tribunal; un RUC 10 es una persona.
   const empresas = [...new Set([...adj.map((a) => a.ruc), ...cru.map((x) => x.ruc)].filter((r) => /^20\d{9}$/.test(r ?? "")))];
-  const [emp, san, pen] = await Promise.all([
+  const [emp, san, pen_, refs] = await Promise.all([
     empresas.length
-      ? filas<{ ruc: string; nombre: string | null; fundada: string | null }>(
+      ? filas<{ ruc: string; nombre: string | null; fundada: string | null; estado: string | null }>(
           "empresas",
-          `SELECT ruc::text AS ruc, razon_social AS nombre, to_char(fecha_alta_ruc, 'YYYY-MM-DD') AS fundada FROM empresas WHERE ruc::text = ANY($1)`, [empresas])
+          `SELECT ruc::text AS ruc, razon_social AS nombre, to_char(fecha_alta_ruc, 'YYYY-MM-DD') AS fundada, estado_sunat AS estado
+             FROM empresas WHERE ruc::text = ANY($1)`, [empresas])
       : Promise.resolve([]),
     empresas.length
-      ? filas<{ id: number; ruc: string; tipo: string | null; desde: string | null; hasta: string | null; resolucion: string | null; fecha_res: string | null; multa: number | null }>(
+      ? filas<{ id: number; ruc: string; tipo: string | null; desde: string | null; hasta: string | null; resolucion: string | null; fecha_res: string | null; multa: number | null; infraccion: string | null; estado: string | null }>(
           "sanciones",
           `SELECT id, ruc, tipo, to_char(fecha_desde, 'YYYY-MM-DD') AS desde, to_char(fecha_hasta, 'YYYY-MM-DD') AS hasta, resolucion,
-                  to_char(fecha_resolucion, 'YYYY-MM-DD') AS fecha_res, monto_multa_soles::float AS multa
+                  to_char(fecha_resolucion, 'YYYY-MM-DD') AS fecha_res, monto_multa_soles::float AS multa, infraccion, estado
              FROM osce_sancionados WHERE ruc = ANY($1)`, [empresas])
       : Promise.resolve([]),
     empresas.length
-      ? filas<{ id: number; ruc: string; fecha: string; entidad: string | null; monto: number | null; tipo: string | null }>(
+      ? filas<{ id: number; ruc: string; fecha: string; entidad: string | null; monto: number | null; tipo: string | null; objeto: string | null; descripcion: string | null }>(
           "penalidades",
-          `SELECT id, empresa_ruc AS ruc, to_char(fecha, 'YYYY-MM-DD') AS fecha, entidad_contratante AS entidad, monto::float AS monto, tipo_penalidad AS tipo
+          `SELECT id, empresa_ruc AS ruc, to_char(fecha, 'YYYY-MM-DD') AS fecha, entidad_contratante AS entidad, monto::float AS monto,
+                  tipo_penalidad AS tipo, objeto_contrato AS objeto, descripcion
              FROM penalidades WHERE empresa_ruc = ANY($1) AND fecha IS NOT NULL ORDER BY fecha DESC LIMIT 200`, [empresas])
       : Promise.resolve([]),
+    referenciasDe(cru).catch(() => cru.map(() => null)),
   ]);
 
   const nombreDe = new Map<string, string>();
   for (const e of emp) if (e.nombre) nombreDe.set(e.ruc, titulo(e.nombre));
   for (const a of adj) if (/^20\d{9}$/.test(a.ruc) && a.proveedor && !nombreDe.has(a.ruc)) nombreDe.set(a.ruc, titulo(a.proveedor));
   const quien = (ruc: string) => nombreDe.get(ruc) ?? (/^20\d{9}$/.test(ruc) ? `la empresa con RUC ${ruc}` : "una persona natural");
+  /** El ganador como «quién»: su ficha si es una empresa (una persona natural, sin nombre ni enlace). */
+  const ganadorQuien = (ruc: string, rol: string): EventoHistoria["quien"] =>
+    /^20\d{9}$/.test(ruc) ? { tipo: "entidad", nombre: quien(ruc), rol, href: `/empresa/${ruc}` } : { tipo: "persona", nombre: "Una persona natural", rol };
   const ent = k.entidad ? titulo(k.entidad) : "la entidad";
+  const entidadQuien = (rol: string): EventoHistoria["quien"] =>
+    ({ tipo: "entidad", nombre: ent, rol, href: k.entidad_ruc ? `/entidad/${k.entidad_ruc}` : null });
   const aqui = rutaContrato(ocid);
   const eventos: EventoHistoria[] = [];
   const proceso = (id: string, fecha: string | null | undefined, tituloE: string, detalle?: string | null, extra: Partial<EventoHistoria> = {}) => {
     const f = dia(fecha);
     if (f) eventos.push({ id, carril: "compras", tipo: id, fecha: f, titulo: tituloE, detalle: detalle ?? null, href: aqui, fuente: "SEACE y CONOSCE (OECE)", enlace: procesoOece(ocid), ...extra });
   };
+  const datos = (xs: ({ etiqueta: string; valor: string | null | undefined } | null | false | undefined)[]) =>
+    xs.filter((x): x is { etiqueta: string; valor: string } => !!x && !!x.valor);
 
-  // 1. El proceso.
-  proceso("convocatoria", k.conv, `${ent} convocó el proceso${k.codigo ? ` ${k.codigo}` : ""}`, corto(k.objeto));
-  const p0 = pos[0];
-  if (p0?.ofertas) proceso("ofertas", p0.ofertas, "Se presentaron las ofertas", p0.n ? `${p0.n} ${p0.n === 1 ? "postor" : "postores"} en CONOSCE` : null);
+  // 1. El proceso, cada paso con quién y lo que se sabe.
+  const conv = dia(k.conv);
+  const referencial = num(k.referencial) ?? adj.reduce<number | null>((s, a) => (a.referencial == null ? s : (s ?? 0) + a.referencial), null);
+  const tipoProceso = k.tipo_proceso ?? adj.find((a) => a.tipo_proceso)?.tipo_proceso ?? null;
+  const g = k.gobierno;
+  const nivelGob = g?.nivel === "regional" ? "gobierno regional de" : g?.nivel === "provincial" ? "municipalidad provincial de" : "municipalidad distrital de";
+  const queGob = [g?.lugar ? `${nivelGob} ${titulo(String(g.lugar))}` : null, g?.anio ? `${Number(g.anio) + 1} a ${Number(g.anio) + 4}` : null].filter(Boolean);
+  // «Movimiento Regional Inka Pachakuteq (municipalidad provincial de Canchis, 2023 a 2026)», como la cabecera del contrato.
+  const gobierna = g?.nombre ? `${titulo(String(g.nombre))}${queGob.length ? ` (${queGob.join(", ")})` : ""}` : null;
+  proceso("convocatoria", k.conv, `${ent} convocó el proceso${k.codigo ? ` ${k.codigo}` : ""}`, corto(k.objeto), {
+    quien: entidadQuien("Convocó"),
+    datos: datos([
+      { etiqueta: "Qué compra", valor: corto(k.objeto, 400) },
+      { etiqueta: "Objeto", valor: k.tipo ? oracionMayus(k.tipo.toLowerCase()) : null },
+      { etiqueta: "Procedimiento", valor: tipoProceso ? oracionMayus(tipoProceso.toLowerCase()) : null },
+      { etiqueta: "Nomenclatura", valor: adj.find((a) => a.nomenclatura)?.nomenclatura ?? null },
+      { etiqueta: "Valor referencial", valor: referencial != null ? pen(referencial) : null },
+      { etiqueta: "Proceso", valor: k.codigo },
+      { etiqueta: "Gobernaba la entidad", valor: gobierna },
+    ]),
+  });
+  const ofertaron = pos.filter((p) => p.oferta);
+  const primeraOferta = ofertaron.map((p) => p.oferta!).sort()[0];
+  const nombrePostor = (p: { ruc: string; postor: string | null }) =>
+    /^20\d{9}$/.test(p.ruc) ? (p.postor ? titulo(p.postor) : `RUC ${p.ruc}`) : "una persona natural";
+  if (primeraOferta) {
+    proceso("ofertas", primeraOferta, "Se presentaron las ofertas", `${ofertaron.length} de ${pos.length} participantes ofertaron`, {
+      datos: datos([
+        { etiqueta: "Participantes registrados", valor: String(pos.length) },
+        { etiqueta: "Presentaron oferta", valor: String(ofertaron.length) },
+        // recorte: los primeros diez; la pestaña Participantes los lista todos.
+        { etiqueta: "Quiénes ofertaron", valor: listaY(ofertaron.slice(0, 10).map(nombrePostor)) + (ofertaron.length > 10 ? ` y ${ofertaron.length - 10} más` : "") },
+        { etiqueta: "Sólo se registraron", valor: pos.length > ofertaron.length ? String(pos.length - ofertaron.length) : null },
+      ]),
+    });
+  }
   const bp = adj.map((a) => a.bp).filter((x): x is string => !!x).sort().pop() ?? k.bp;
   const montoAdj = adj.reduce<number | null>((s, a) => (a.monto == null ? s : (s ?? 0) + a.monto), null);
-  proceso("buena_pro", bp, adj.length ? `Buena pro para ${adj.map((a) => quien(a.ruc)).join(", ")}` : "Buena pro", null, { monto: montoAdj });
-  proceso("consentimiento", adj.map((a) => a.cons).filter((x): x is string => !!x).sort().pop(), "Quedó consentida la buena pro");
+  const consorcio = adj.find((a) => a.consorcio)?.consorcio ?? null;
+  proceso("buena_pro", bp, adj.length ? `Buena pro para ${adj.map((a) => quien(a.ruc)).join(", ")}` : "Buena pro", null, {
+    monto: montoAdj,
+    quien: adj.length === 1 ? ganadorQuien(adj[0].ruc, "Ganó la buena pro") : entidadQuien("Dio la buena pro"),
+    datos: datos([
+      { etiqueta: adj.length > 1 ? "Ganaron" : "Ganó", valor: adj.length ? listaY(adj.map((a) => quien(a.ruc))) : null },
+      { etiqueta: "En consorcio", valor: consorcio ? titulo(consorcio) : null },
+      { etiqueta: "Monto adjudicado", valor: montoAdj != null ? pen(montoAdj) : null },
+      {
+        etiqueta: "Frente al valor referencial",
+        valor: montoAdj != null && referencial ? `${((100 * montoAdj) / referencial).toLocaleString("es-PE", { maximumFractionDigits: 1 })} % de ${pen(referencial)}` : null,
+      },
+      { etiqueta: "Postores que ofertaron", valor: ofertaron.length ? String(ofertaron.length) : null },
+      { etiqueta: "Días desde la convocatoria", valor: conv && dia(bp) ? String(diasEntre(conv, dia(bp)!)) : null },
+      { etiqueta: "La dio", valor: ent },
+    ]),
+  });
+  const cons = adj.map((a) => a.cons).filter((x): x is string => !!x).sort().pop();
+  proceso("consentimiento", cons, "Quedó consentida la buena pro", null, {
+    quien: entidadQuien("Quedó firme en"),
+    datos: datos([
+      { etiqueta: "Qué quiere decir", valor: "Nadie la impugnó en el plazo (o se resolvió): la buena pro queda firme y se puede firmar el contrato" },
+      { etiqueta: "Días después de la buena pro", valor: cons && dia(bp) ? String(diasEntre(dia(bp)!, cons)) : null },
+    ]),
+  });
   const f0 = fir[0];
   if (f0) {
-    const soles = (v: number) => `${Math.round(v).toLocaleString("es-PE")} soles`;
     const cambios = [
-      (f0.adicional ?? 0) > 0 ? `adicionales por ${soles(f0.adicional!)}` : null,
-      (f0.reduccion ?? 0) > 0 ? `reducciones por ${soles(f0.reduccion!)}` : null,
+      (f0.adicional ?? 0) > 0 ? `adicionales por ${pen(f0.adicional!)}` : null,
+      (f0.reduccion ?? 0) > 0 ? `reducciones por ${pen(f0.reduccion!)}` : null,
       (f0.prorroga ?? 0) > 0 ? "prórrogas" : null,
     ].filter(Boolean);
-    proceso("contrato", f0.firmado, "Se firmó el contrato", cambios.length ? `Después: ${cambios.join(", ")}` : null, { monto: num(f0.total) });
     const desde = dia(f0.desde);
     const hasta = dia(f0.hasta);
+    proceso("contrato", f0.firmado, "Se firmó el contrato", cambios.length ? `Después: ${cambios.join(", ")}` : null, {
+      monto: num(f0.total),
+      quien: adj.length === 1 ? ganadorQuien(adj[0].ruc, "Firmó con la entidad") : entidadQuien("Firmó"),
+      datos: datos([
+        { etiqueta: "Contrato", valor: f0.num ? String(f0.num) : null },
+        { etiqueta: "Monto contratado", valor: num(f0.total) != null ? pen(num(f0.total)!) : null },
+        { etiqueta: "Vigencia", valor: desde && hasta ? `Del ${fechaLarga(desde)} al ${fechaLarga(hasta)}` : null },
+        { etiqueta: "Adicionales", valor: (f0.adicional ?? 0) > 0 ? pen(f0.adicional!) : null },
+        { etiqueta: "Reducciones", valor: (f0.reduccion ?? 0) > 0 ? pen(f0.reduccion!) : null },
+        { etiqueta: "Prórrogas", valor: (f0.prorroga ?? 0) > 0 ? pen(f0.prorroga!) : null },
+        { etiqueta: "Complementarios", valor: (f0.complementario ?? 0) > 0 ? pen(f0.complementario!) : null },
+        { etiqueta: "Contratos del proceso", valor: f0.contratos > 1 ? String(f0.contratos) : null },
+      ]),
+    });
     if (desde && hasta && hasta >= desde) {
-      eventos.push({ id: "vigencia", carril: "compras", tipo: "vigencia", fecha: desde, hasta, titulo: "Vigencia del contrato", detalle: null, href: aqui, fuente: "CONOSCE (OECE)", enlace: CONOSCE_BUSCADOR });
+      eventos.push({
+        id: "vigencia", carril: "compras", tipo: "vigencia", fecha: desde, hasta, titulo: "Vigencia del contrato", detalle: null, href: aqui,
+        fuente: "CONOSCE (OECE)", enlace: CONOSCE_BUSCADOR,
+        datos: datos([
+          { etiqueta: "Desde", valor: fechaLarga(desde) },
+          { etiqueta: "Hasta", valor: fechaLarga(hasta) },
+          { etiqueta: "Duración", valor: `${diasEntre(desde, hasta)} días` },
+        ]),
+      });
     }
   }
 
-  // 2. Las visitas y los antecedentes del ganador (uno por fecha y tipo; nunca un nombre de persona).
+  // 2. Las visitas y los antecedentes del ganador: cada uno con su registro entero (el panel lo detalla por tipo y pide su
+  // evidencia) y quién (la persona con un apellido tapado, que publicar() reconoce por `antecedente.socios`/`visitas`).
   const vistos = new Set<string>();
-  for (const x of cru) {
+  cru.forEach((x, i) => {
     const f = dia(x.fecha);
-    if (!f) continue;
+    if (!f) return;
     const d = (x.detalle ?? {}) as Record<string, unknown>;
+    const antecedente = { ...aCruce(x), codigo: x.codigo ?? null, entidad: x.entidad ?? null, entidadRuc: x.entidad_ruc ?? null, referencias: refs[i] ?? null };
+    const persona = antecedente.visitas[0]?.visitante ?? antecedente.socios[0]?.nombre ?? null;
+    const papel = papelesDe(x.persona_rol);
+    // Quien declaró en su DJI es un funcionario de la entidad (su cargo va en persona_rol), no alguien de la empresa.
+    const dji = x.tipo === "interes_declarado" || x.tipo === "empleo_declarado";
+    const quienCruce: EventoHistoria["quien"] = typeof persona === "string" && persona
+      ? dji
+        ? { tipo: "persona", nombre: persona, rol: `${x.persona_rol ? oracionMayus(String(x.persona_rol).toLowerCase()) : "Funcionario"} de ${ent}` }
+        : { tipo: "persona", nombre: persona, rol: papel.length ? `${oracionMayus(listaY(papel))} de ${quien(x.ruc)}` : `De ${quien(x.ruc)}`, href: /^20\d{9}$/.test(x.ruc) ? `/empresa/${x.ruc}?seccion=gente` : null }
+      : ganadorQuien(x.ruc, "El ganador");
     if (VISITAS_CRUCE.has(x.tipo)) {
       const cargo = typeof d.cargo_funcionario === "string" ? d.cargo_funcionario : null;
       const area = typeof d.area_funcionario === "string" ? d.area_funcionario : null;
@@ -1348,24 +1479,38 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
         id: `visita:${x.id}`, carril: "visitas", tipo: "visita", fecha: f, severidad: sev(x.severidad),
         titulo: `Alguien de ${quien(x.ruc)} visitó ${ent}`,
         detalle: cargo || area ? `Lo recibió: ${[cargo, area].filter(Boolean).join(", ")}${d.decisor === true ? " (decide las compras)" : ""}` : null,
+        quien: quienCruce, antecedente,
         href: `${aqui}?seccion=antecedentes`, fuente: "Registro de visitas", enlace: enlaceFuente("visitas_entidades", null, { detalle: d, fecha: f }),
       });
-      continue;
+      return;
     }
     const clave = `${x.tipo}:${f}:${x.ruc}`;
-    if (vistos.has(clave)) continue;
+    if (vistos.has(clave)) return;
     vistos.add(clave);
     eventos.push({
       id: `cruce:${x.id}`, carril: "banderas", tipo: x.tipo, fecha: f, severidad: sev(x.severidad), monto: num(x.monto),
       titulo: ETIQUETA_CRUCE[x.tipo] ?? x.tipo.replace(/_/g, " "),
       detalle: empresas.length > 1 ? `De ${quien(x.ruc)}` : null,
+      quien: quienCruce, antecedente,
       href: `${aqui}?seccion=antecedentes`, fuente: "Cruces de Vigía con registros oficiales",
+      enlace: antecedente.fuenteUrl ?? null,
     });
-  }
+  });
 
   // 3. El ganador: su fundación, sus sanciones y sus penalidades.
   for (const e of emp) {
-    if (e.fundada) eventos.push({ id: `fundacion:${e.ruc}`, carril: "empresa", tipo: "fundacion", fecha: e.fundada, titulo: `Se fundó ${quien(e.ruc)}`, detalle: "Inscripción en el RUC", href: `/empresa/${e.ruc}`, fuente: "SUNAT", enlace: CONSULTA_RUC_SUNAT });
+    if (!e.fundada) continue;
+    const antes = conv ? cuantoAntes(e.fundada, conv) : null;
+    eventos.push({
+      id: `fundacion:${e.ruc}`, carril: "empresa", tipo: "fundacion", fecha: e.fundada, titulo: `Se fundó ${quien(e.ruc)}`, detalle: "Inscripción en el RUC",
+      quien: ganadorQuien(e.ruc, "Se inscribió en la SUNAT"),
+      datos: datos([
+        { etiqueta: "Alta en la SUNAT", valor: fechaLarga(e.fundada) },
+        { etiqueta: "Antes de esta convocatoria", valor: antes },
+        { etiqueta: "Estado en la SUNAT hoy", valor: e.estado ? oracionMayus(e.estado.toLowerCase()) : null },
+      ]),
+      href: `/empresa/${e.ruc}`, fuente: "SUNAT", enlace: CONSULTA_RUC_SUNAT,
+    });
   }
   for (const s of san) {
     const desde = s.desde ?? s.fecha_res;
@@ -1375,24 +1520,54 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
       id: `sancion:${s.id}`, carril: "control", tipo: multa ? "multa" : "sancion", fecha: desde, hasta: multa ? null : s.hasta,
       titulo: `${multa ? "Multa a" : s.tipo === "definitivo" ? "Inhabilitación definitiva de" : "Inhabilitación de"} ${quien(s.ruc)}`,
       detalle: s.resolucion ? `Resolución ${s.resolucion}` : null, monto: num(s.multa), severidad: multa ? "baja" : s.tipo === "definitivo" ? "alta" : "media",
+      quien: { tipo: "entidad", nombre: "Tribunal de Contrataciones del Estado (OECE)", rol: multa ? "La multó" : "La inhabilitó" },
+      datos: datos([
+        { etiqueta: "Sanción", valor: multa ? "Multa" : s.tipo === "definitivo" ? "Inhabilitación definitiva" : "Inhabilitación temporal" },
+        { etiqueta: "A quién", valor: quien(s.ruc) },
+        { etiqueta: "Vigencia", valor: !multa && s.desde ? `Del ${fechaLarga(s.desde)}${s.hasta ? ` al ${fechaLarga(s.hasta)}` : ", sin fecha de fin"}` : null },
+        { etiqueta: "Al convocarse este proceso", valor: !multa && s.desde && conv ? (s.desde <= conv && (!s.hasta || s.hasta >= conv) ? "Seguía vigente" : s.desde > conv ? "Todavía no empezaba" : "Ya había terminado") : null },
+        { etiqueta: "Infracción", valor: s.infraccion ? corto(s.infraccion.replace(/^[-\s]*(?:[a-z]|i+)\)\s*/i, ""), 300) : null },
+        { etiqueta: "Resolución", valor: s.resolucion },
+        { etiqueta: "Multa", valor: (s.multa ?? 0) > 0 ? pen(s.multa!) : null },
+      ]),
       href: `/empresa/${s.ruc}?seccion=antecedentes`, fuente: "Tribunal de Contrataciones (OECE)", enlace: DATASET_SANCIONADOS,
     });
   }
-  for (const p of pen) {
-    eventos.push({ id: `penalidad:${p.id}`, carril: "control", tipo: "penalidad", fecha: p.fecha, monto: num(p.monto), severidad: "baja", titulo: `Penalidad a ${quien(p.ruc)}${p.entidad ? ` de ${titulo(p.entidad)}` : ""}`, detalle: p.tipo, href: `/empresa/${p.ruc}?seccion=antecedentes`, fuente: "Penalidades (OECE)", enlace: DATASET_PENALIDADES });
+  for (const p of pen_) {
+    eventos.push({
+      id: `penalidad:${p.id}`, carril: "control", tipo: "penalidad", fecha: p.fecha, monto: num(p.monto), severidad: "baja",
+      titulo: `Penalidad a ${quien(p.ruc)}${p.entidad ? ` de ${titulo(p.entidad)}` : ""}`, detalle: p.tipo,
+      quien: { tipo: "entidad", nombre: p.entidad ? titulo(p.entidad) : "Una entidad", rol: "La aplicó" },
+      datos: datos([
+        { etiqueta: "A quién", valor: quien(p.ruc) },
+        { etiqueta: "Penalidad", valor: p.tipo ? oracionMayus(p.tipo.toLowerCase()) : null },
+        { etiqueta: "Por", valor: corto(p.descripcion ?? p.objeto, 300) },
+        { etiqueta: "Monto", valor: num(p.monto) != null ? pen(num(p.monto)!) : null },
+        { etiqueta: "Antes o después de este proceso", valor: conv ? (p.fecha < conv ? "Antes de la convocatoria" : "Después de la convocatoria") : null },
+      ]),
+      href: `/empresa/${p.ruc}?seccion=antecedentes`, fuente: "Penalidades (OECE)", enlace: DATASET_PENALIDADES,
+    });
   }
 
   // 4. La obra (INFOBRAS).
   const hoyD = hoy();
   for (const o of obr) {
     const n = o.nombre ? `«${corto(o.nombre)}»` : "la obra";
+    const datosObra = (extra: { etiqueta: string; valor: string | null | undefined }[] = []) =>
+      datos([
+        { etiqueta: "Obra", valor: o.nombre ? corto(o.nombre, 300) : null },
+        { etiqueta: "Código INFOBRAS", valor: String(o.codigo) },
+        { etiqueta: "Este contrato", valor: o.rol === "supervisor" || o.rol === "supervision" ? "La supervisa" : "La ejecuta" },
+        { etiqueta: "Estado hoy", valor: o.estado },
+        ...extra,
+      ]);
     const base = { carril: "obras" as const, href: `${aqui}?seccion=obra`, fuente: "INFOBRAS (Contraloría)", enlace: obraInfobras(o.codigo) };
-    if (o.inicio) eventos.push({ ...base, id: `obra:${o.codigo}`, tipo: "inicio", fecha: o.inicio, titulo: `Empezó ${n}`, detalle: o.rol === "supervisor" ? "Este contrato la supervisa" : null });
-    if (o.par) eventos.push({ ...base, id: `paralizada:${o.codigo}`, tipo: "paralizada", fecha: o.par, severidad: "alta", titulo: `Se paralizó ${n}`, detalle: o.causal ? `Causa: ${o.causal}` : null });
-    if (o.fin) eventos.push({ ...base, id: `fin:${o.codigo}`, tipo: "fin", fecha: o.fin, titulo: `Terminó ${n}` });
-    else if (o.fin_prog && o.fin_prog < hoyD) eventos.push({ ...base, id: `debia:${o.codigo}`, tipo: "atraso", fecha: o.fin_prog, severidad: "media", titulo: `Debía terminar ${n}`, detalle: "INFOBRAS no registra que haya terminado" });
-    if (o.recepcion) eventos.push({ ...base, id: `recepcion:${o.codigo}`, tipo: "recepcion", fecha: o.recepcion, titulo: `Se recibió ${n}` });
-    if (o.liquidacion) eventos.push({ ...base, id: `liquidacion:${o.codigo}`, tipo: "liquidacion", fecha: o.liquidacion, titulo: `Se liquidó ${n}` });
+    if (o.inicio) eventos.push({ ...base, id: `obra:${o.codigo}`, tipo: "inicio", fecha: o.inicio, titulo: `Empezó ${n}`, detalle: o.rol === "supervisor" ? "Este contrato la supervisa" : null, datos: datosObra([{ etiqueta: "Monto del contrato de obra", valor: num(o.monto) != null ? pen(num(o.monto)!) : null }]) });
+    if (o.par) eventos.push({ ...base, id: `paralizada:${o.codigo}`, tipo: "paralizada", fecha: o.par, severidad: "alta", titulo: `Se paralizó ${n}`, detalle: o.causal ? `Causa: ${o.causal}` : null, datos: datosObra([{ etiqueta: "Causa que registró la entidad", valor: o.causal }]) });
+    if (o.fin) eventos.push({ ...base, id: `fin:${o.codigo}`, tipo: "fin", fecha: o.fin, titulo: `Terminó ${n}`, datos: datosObra([{ etiqueta: "Debía terminar", valor: o.fin_prog ? fechaLarga(o.fin_prog) : null }]) });
+    else if (o.fin_prog && o.fin_prog < hoyD) eventos.push({ ...base, id: `debia:${o.codigo}`, tipo: "atraso", fecha: o.fin_prog, severidad: "media", titulo: `Debía terminar ${n}`, detalle: "INFOBRAS no registra que haya terminado", datos: datosObra([{ etiqueta: "Días de atraso hasta hoy", valor: String(diasEntre(o.fin_prog, hoyD)) }]) });
+    if (o.recepcion) eventos.push({ ...base, id: `recepcion:${o.codigo}`, tipo: "recepcion", fecha: o.recepcion, titulo: `Se recibió ${n}`, datos: datosObra() });
+    if (o.liquidacion) eventos.push({ ...base, id: `liquidacion:${o.codigo}`, tipo: "liquidacion", fecha: o.liquidacion, titulo: `Se liquidó ${n}`, datos: datosObra() });
   }
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);

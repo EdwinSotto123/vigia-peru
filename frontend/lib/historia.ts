@@ -6,6 +6,7 @@
  * ola de órdenes a personas).
  */
 import { API_BASE } from "@/lib/api-client";
+import type { AntecedenteEmpresa } from "./empresas";
 
 export type Carril =
   | "gobierno"
@@ -43,6 +44,8 @@ export interface EventoHistoria {
   quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…). */
   datos?: { etiqueta: string; valor: string }[];
+  /** Un antecedente del ganador (Historia del contrato): el registro entero, para detallarlo por tipo y pedir su evidencia. */
+  antecedente?: AntecedenteEmpresa | null;
   /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */
   banderas?: { tipo: string; texto: string; severidad: "alta" | "media" | "baja"; n?: number | null }[];
 }

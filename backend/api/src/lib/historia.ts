@@ -54,6 +54,11 @@ export interface EventoHistoria {
   quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…): para el detalle. */
   datos?: { etiqueta: string; valor: string }[];
+  /**
+   * Un antecedente del ganador (la Historia del contrato): el registro entero, como lo da GET /empresas/:ruc/antecedentes
+   * (aCruce + su proceso + sus referencias), para que su panel muestre el detalle de su tipo y pida su evidencia.
+   */
+  antecedente?: Record<string, unknown> | null;
   /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */
   banderas?: { tipo: string; texto: string; severidad: Severidad; n?: number | null }[];
 }

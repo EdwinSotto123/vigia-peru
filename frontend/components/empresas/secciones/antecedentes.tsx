@@ -33,6 +33,7 @@ import { NoCargo, paraClave } from "./comun";
 import { P_ORDENES } from "./ordenes";
 import { aSuGente, datosDe, type DatoCaso } from "./casoAntecedente";
 import { EvidenciaDelAntecedente } from "./EvidenciaAntecedente";
+import { CON_EVIDENCIA, ENLACE, ValorCaso, VisitasDelCaso } from "./PanelAntecedente";
 
 /** La pestaña Antecedentes: sanciones, penalidades, aportes y demás cruces, como hechos. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
@@ -313,49 +314,6 @@ function FuenteCaso({ a }: { a: AntecedenteEmpresa }) {
 /** Las etiquetas de los datos que nombran a una persona: no entran a la búsqueda de la tabla (docs/PRIVACIDAD.md). */
 const ES_PERSONA = new Set(["Quién", "Quién fue", "Quién lo declaró"]);
 
-const ENLACE = "font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink";
-
-/** El valor de un dato en el panel, con su referencia: la ficha en Vigía o, con `fuera`, el registro oficial. */
-function ValorCaso({ x }: { x: DatoCaso }) {
-  if (x.lista?.length) {
-    return (
-      <>
-        {x.lista.map((o, i) => (
-          <span key={`${o.texto}-${i}`}>
-            {i > 0 && ", "}
-            {o.href ? <Link href={o.href} className={ENLACE}>{o.texto}</Link> : o.texto}
-          </span>
-        ))}
-      </>
-    );
-  }
-  if (!x.href) return <>{x.valor}</>;
-  if (x.fuera) {
-    return (
-      <a href={x.href} target="_blank" rel="noopener noreferrer" className={ENLACE}>
-        {x.valor} <ArrowUpRight size={12} aria-hidden className="inline align-baseline" />
-      </a>
-    );
-  }
-  return <Link href={x.href} className={ENLACE}>{x.valor}</Link>;
-}
-
-/** Los tipos con registros que la API puede traer (lib/evidencia.ts) o, el fraccionamiento, sus días con órdenes. */
-const CON_EVIDENCIA = /^(proveedor_campana|aporte|aporte_empresa|candidato|autoridad|vendio_gobernante|partido_gobernante|penalidad|sancion.*|recurrente.*|sobreprecio.*|domicilio_compartido|socio_comun|socio_en_entidad|proveedor_cautivo|recien_fundada.*|obra_.*|inversion_.*|fraccionamiento)$/;
-
-const DIA_SEMANA = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone: "UTC" });
-const POR_VISITA: Record<string, string> = { fin_de_semana: "en fin de semana", temprano: "antes de las 7", noche: "desde las 19" };
-
-/** «Sábado 4 ago. 2024, a las 20:15 (3 h 10 min), en fin de semana»: una visita de un patrón. */
-function unaVisita(v: Record<string, unknown>): string {
-  const f = txt(v.fecha);
-  const dia = f ? `${DIA_SEMANA.format(new Date(`${f.slice(0, 10)}T12:00:00Z`))} ${fechaCorta(f)}` : "Un día sin fecha";
-  const h = txt(v.hora) ? `, a las ${txt(v.hora)!.slice(0, 5)}` : "";
-  const m = typeof v.minutos === "number" && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
-  const por = typeof v.por === "string" && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";
-  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)}${h}${m}${por}`;
-}
-
 /**
  * ¿Le vende al gobierno que encabeza? La autoridad electa de su gente y lo que cada entidad de ese gobierno (la
  * municipalidad; un gobierno regional y sus unidades) le compró a la empresa mientras ejercía, según CONOSCE. Es lo que
@@ -444,15 +402,7 @@ function detalleCaso(a: AntecedenteEmpresa, datos: DatoCaso[], ruc: string, expl
         {a.tipo === "autoridad" && a.referencias?.gobierno && (
           <GobiernoQueEncabeza r={a.referencias} cargo={(a.detalle.cargo as string | undefined) ?? a.referencias.cargo ?? null} ruc={ruc} />
         )}
-        {patronVisitas && (
-          <BloqueDetalle titulo={a.visitas.length === 1 ? "La visita" : `Las ${numero(a.visitas.length)} visitas`}>
-            <ol className="space-y-1 text-dato text-inkSoft">
-              {a.visitas.map((v, i) => (
-                <li key={i} className="tabular-nums">{unaVisita(v)}</li>
-              ))}
-            </ol>
-          </BloqueDetalle>
-        )}
+        {patronVisitas && <VisitasDelCaso visitas={a.visitas} />}
         {a.referencias?.clave && CON_EVIDENCIA.test(a.tipo) && (
           <BloqueDetalle titulo="Los registros de la fuente">
             <EvidenciaDelAntecedente ruc={ruc} tipo={a.tipo} clave={a.referencias.clave} />
