@@ -168,7 +168,7 @@ test("patrones: un pico con su contexto, el cierre del año y antes de una elecc
   const antes = ele.find((p) => p.tipo === "antes_eleccion");
   assert.ok(antes);
   assert.equal(antes!.severidad, "alta");
-  assert.match(antes!.titulo, /antes de las elecciones regionales y municipales 2022/);
+  assert.match(antes!.titulo, /el triple que un año antes, en los seis meses previos a las elecciones regionales y municipales 2022/);
 });
 
 test("hilos: la empresa que visitó y ganó, con banderas, obra paralizada y sanción", () => {

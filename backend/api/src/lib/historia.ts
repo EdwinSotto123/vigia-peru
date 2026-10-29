@@ -488,12 +488,14 @@ export function mesesDeSerie(s: SerieHistoria): { mes: string; v: number }[] {
   return out;
 }
 
-/** «más del doble», «el triple», «cuatro veces», «12 veces» (redondeado: 3,6 es «cuatro veces»). */
-export function veces(r: number): string {
-  if (r < 2.5) return "más del doble";
-  if (r < 3.5) return "el triple";
+const PALABRA_VECES = ["", "", "", "", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
+/** «casi el doble de lo normal», «el triple de lo normal», «cuatro veces lo normal», «12 veces lo normal». */
+export function veces(r: number, de = "de lo normal", sinDe = "lo normal"): string {
+  if (r < 2) return `casi el doble ${de}`;
+  if (r < 2.5) return `el doble ${de}`;
+  if (r < 3.5) return `el triple ${de}`;
   const k = Math.round(r);
-  return k < 10 ? `${["", "", "", "", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"][k]} veces` : `${k} veces`;
+  return `${k < 10 ? PALABRA_VECES[k] : k} veces ${sinDe}`;
 }
 
 /** Meses enteros entre dos meses AAAA-MM (b − a). */
@@ -553,7 +555,7 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       const mesesGob = gob ? mesesEntre(gob.fecha.slice(0, 7), tope.mes) : null;
       const eleccion = elecciones.find((e) => e.fecha.slice(0, 7) >= tope.mes && mesesEntre(tope.mes, e.fecha.slice(0, 7)) <= 6);
       const contexto = [
-        tambien.length ? `Ese mes también subieron ${tambien.map((y) => `${nombre(y.o)} (${veces(y.x.r)} lo normal)`).join(" y ")}.` : null,
+        tambien.length ? `Ese mes también subieron ${tambien.map((y) => `${nombre(y.o)} (${veces(y.x.r)})`).join(" y ")}.` : null,
         gob && mesesGob != null && mesesGob <= 12
           ? `Fue ${mesesGob === 0 ? "el mismo mes en que" : `${mesesGob} ${mesesGob === 1 ? "mes" : "meses"} después de que`} ${gob.texto.charAt(0).toLowerCase()}${gob.texto.slice(1)}.`
           : null,
@@ -565,7 +567,7 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       out.push({
         id: `pico:${s.carril}:${tope.mes}`, tipo: "pico", carril: s.carril, mes: xs[i].mes, hasta: j > i ? xs[j].mes : null,
         severidad: fuerte ? "alta" : rTope >= 4 && !diciembre ? "media" : "baja",
-        titulo: `${capital(nombre(s))}: ${veces(rTope)} lo normal en ${mesLargo(tope.mes)}`,
+        titulo: `${capital(nombre(s))}: ${veces(rTope)} en ${mesLargo(tope.mes)}`,
         explica: [
           `${miles(tope.v)} ${s.carril === "planilla" ? "personas entraron" : s.unidad} en ${mesLargo(tope.mes)}, cuando lo normal en los doce meses anteriores era ${miles(med)}${j > i ? ` (siguió así hasta ${mesLargo(xs[j].mes)})` : ""}.`,
           contexto,
@@ -626,7 +628,7 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       out.push({
         id: `antes_eleccion:${s.carril}:${e.fecha}`, tipo: "antes_eleccion", carril: s.carril, mes: antes[5], hasta: fin,
         severidad: r >= 3 ? "alta" : "media",
-        titulo: `${capital(nombre(s))}: ${veces(r)} en los seis meses antes de las ${e.texto.replace(/^Elecciones/, "elecciones")}`,
+        titulo: `${capital(nombre(s))}: ${veces(r, "que un año antes", "lo de un año antes")}, en los seis meses previos a las ${e.texto.replace(/^Elecciones/, "elecciones")}`,
         explica:
           `De ${mesLargo(antes[5])} a ${mesLargo(fin)}: ${miles(a)} ${s.unidad}; en los mismos meses del año anterior, ${miles(b)}. ` +
           "Contratar más justo antes de una elección puede usarse para la campaña: es para revisar, no prueba nada.",
