@@ -202,9 +202,9 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
             </p>
             <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-cuerpo leading-snug text-inkSoft">
               <span className="font-semibold text-ink">Nos sostenemos con aportes ciudadanos.</span>{" "}
-              {`Hasta hoy pusimos casi S/ ${numero(PUESTO_POR_EL_EQUIPO_PEN)} para que exista. `}
+              {`Hasta hoy pusimos casi S/\u00a0${numero(PUESTO_POR_EL_EQUIPO_PEN)} para que exista. `}
               {piso != null
-                ? `Mantenerla encendida cuesta S/ ${numero(piso)} al mes: tu granito de arena sí cuenta.`
+                ? `Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes: tu granito de arena sí cuenta.`
                 : "Tu granito de arena nos mantiene vigilando."}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">

@@ -14,6 +14,14 @@ export const CONTRALORIA_CORRUPCION = {
   url: "https://www.gob.pe/institucion/contraloria/noticias/912182-corrupcion-e-inconducta-funcional-habrian-ocasionado-perdidas-por-s-24-268-millones-en-el-2023",
 } as const;
 
+/** El porcentaje dicho en soles, para leerlo de corrido: «casi 13 de cada 100 soles» (12,7 %). Sale de `porCien`. */
+export const DE_CADA_CIEN_SOLES = (() => {
+  const { porCien } = CONTRALORIA_CORRUPCION;
+  const redondo = Math.round(porCien);
+  const cerca = porCien < redondo ? "casi " : porCien > redondo ? "más de " : "";
+  return `${cerca}${redondo} de cada 100 soles`;
+})();
+
 /**
  * Lo que el equipo de Vigía puso desde que empezó (servidores, datos, IA y lo demás), dicho por el equipo el
  * 2026-10-29: «hemos gastado casi 9 000 soles». Las cifras de cada mes, con su factura, están en /app/cuanto-cuesta.

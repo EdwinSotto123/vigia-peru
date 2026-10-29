@@ -67,8 +67,8 @@ export async function PodioPortada() {
         {/* Lo que cuesta mantener Vigía (GET /financiamiento/vigilancia, migración 206): tres cifras. */}
         {piso != null && completa != null && (
           <div className="mt-10 grid gap-3 sm:grid-cols-3">
-            <Costo titulo="Mantenerla encendida" valor={`S/ ${numero(piso)}`} detalle="al mes: base de datos, servidores y captura de datos" />
-            <Costo titulo="Leer a fondo lo más grave" valor={`S/ ${numero(completa - piso)}`} detalle={`más al mes: los ~${numero(v!.graves.porMes)} contratos con banderas graves`} />
+            <Costo titulo="Mantenerla encendida" valor={`S/\u00a0${numero(piso)}`} detalle="al mes: base de datos, servidores y captura de datos" />
+            <Costo titulo="Leer a fondo lo más grave" valor={`S/\u00a0${numero(completa - piso)}`} detalle={`más al mes: los ~${numero(v!.graves.porMes)} contratos con banderas graves`} />
             <Costo
               titulo="Leer un contrato con IA"
               valor={v!.ia.costoMedioUsd != null ? dolares(v!.ia.costoMedioUsd) : "Sin dato"}

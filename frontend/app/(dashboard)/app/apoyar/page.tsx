@@ -8,7 +8,7 @@ import { AporteVigilancia, type ParaAporte } from "@/components/financiar/Aporte
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { numero } from "@/lib/formato";
 import { dolares, getPago, getVigilancia, type ResumenVigilancia } from "@/lib/financiamiento";
-import { CONTRALORIA_CORRUPCION, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
+import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN_SOLES, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
 
 export const metadata: Metadata = {
   title: "Ayúdanos a seguir vigilando",
@@ -146,7 +146,7 @@ function PorQue({ piso }: { piso: number | null }) {
         </p>
         <p className="mt-6 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
           En {CONTRALORIA.anio}, según la Contraloría, la corrupción y la inconducta funcional le habrían costado al Perú{" "}
-          <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA.millones)} millones</strong>: casi 13 de cada 100 soles
+          <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA.millones)} millones</strong>: {DE_CADA_CIEN_SOLES}{" "}
           del presupuesto. La tajada más grande, S/{"\u00a0"}{numero(CONTRALORIA.inversionMillones)} millones, salió de la inversión: la plata de
           las carreteras, los hospitales y los colegios.{" "}
           <a
@@ -160,7 +160,7 @@ function PorQue({ piso }: { piso: number | null }) {
         </p>
         <p className="mt-4 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
           Vigía lee lo que el Estado compra para que eso se vea a tiempo.
-          {piso != null ? ` Mantenerla encendida cuesta S/ ${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
+          {piso != null ? ` Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <EnlaceAccion href="#aporte" variante="oscuro" tamano="lg">
@@ -245,11 +245,11 @@ function EnQueSeUsa({ v }: { v: ResumenVigilancia | null }) {
   const pasos = [
     {
       titulo: "Primero, mantenerla encendida",
-      texto: `${piso != null ? `S/ ${numero(piso)} al mes: ` : ""}la base de datos, los servidores y la captura diaria de lo que publican el OECE, el MEF, la Contraloría, el JNE y la ONPE.`,
+      texto: `${piso != null ? `S/\u00a0${numero(piso)} al mes: ` : ""}la base de datos, los servidores y la captura diaria de lo que publican el OECE, el MEF, la Contraloría, el JNE y la ONPE.`,
     },
     {
       titulo: "Después, leer a fondo lo más grave",
-      texto: `${piso != null && completa != null ? `S/ ${numero(completa - piso)} más al mes: ` : ""}leer con IA el expediente de los ${v ? `~${numero(v.graves.porMes)} ` : ""}contratos con banderas graves de cada mes, contra la norma y los precios de mercado.`,
+      texto: `${piso != null && completa != null ? `S/\u00a0${numero(completa - piso)} más al mes: ` : ""}leer con IA el expediente de los ${v ? `~${numero(v.graves.porMes)} ` : ""}contratos con banderas graves de cada mes, contra la norma y los precios de mercado.`,
     },
   ];
   return (

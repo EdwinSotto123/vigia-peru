@@ -21,7 +21,7 @@ import { numero, porcentaje } from "@/lib/formato";
 import { Ayuda } from "@/components/patrones";
 import { Carrusel } from "@/components/ui/Carrusel";
 import type { AnioEscala, TipoEscala } from "@/lib/landing";
-import { CONTRALORIA_CORRUPCION } from "@/lib/costoCorrupcion";
+import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN_SOLES } from "@/lib/costoCorrupcion";
 
 /**
  * "El problema", la primera mitad del pitch: el Estado publica miles de contratos y casi nadie los
@@ -202,8 +202,8 @@ export function EscalaDinero({
         {/* Lo que cuesta no leerlos, en cosas y no sólo en cifras, con la estimación de la Contraloría y su fuente. */}
         <p className="mt-8 max-w-[64ch] text-pretty text-bloque leading-relaxed text-paper/85">
           Y no leerlos tiene precio. Según la Contraloría, en {CONTRALORIA_CORRUPCION.anio} la corrupción y la inconducta funcional se habrían
-          llevado <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA_CORRUPCION.millones)} millones</strong>, casi 13 de cada
-          100 soles del presupuesto: la plata de carreteras, hospitales y colegios.{" "}
+          llevado <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA_CORRUPCION.millones)} millones</strong>,{" "}
+          {DE_CADA_CIEN_SOLES} del presupuesto: la plata de carreteras, hospitales y colegios.{" "}
           <a
             href={CONTRALORIA_CORRUPCION.url}
             target="_blank"
