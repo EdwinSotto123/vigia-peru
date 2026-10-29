@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  acotar, dia, diasEntre, fechaEleccion, marcasEleccion, mesLargo, olasDeGestion, secuenciasDeCruces, sumarMeses,
-  type CruceSecuencia, type EventoHistoria, type PuntoSerie,
+  acotar, armarHilos, dia, diasEntre, fechaEleccion, marcasEleccion, mesLargo, olasDeGestion, patronesDeSeries, secuenciasDeCruces, sumarMeses,
+  type CruceSecuencia, type EventoHistoria, type PuntoSerie, type SerieHistoria,
 } from "../src/lib/historia.js";
 
 test("fechas: meses, días y elecciones", () => {
@@ -119,4 +119,76 @@ test("secuencias de una empresa desde sus cruces, sin nombres de personas", () =
   assert.deepEqual(s[1].pasos.map((p) => p.fecha), ["2019-09-26", "2020-02-07"]);
   assert.match(s[2].titulo, /Oq Pharma S\.a\.c\./i);
   assert.equal(s[3].pasos[0].fecha, "2021-04-11");
+});
+
+test("patrones: un pico con su contexto, el cierre del año y antes de una elección", () => {
+  // Órdenes a personas: 20 por mes; en marzo de 2023, 120 (seis veces lo normal), tres meses después de que asumió una
+  // gestión. Ese mes las visitas también se triplican.
+  const personas: SerieHistoria = {
+    carril: "personas", titulo: "Órdenes a personas naturales", medida: "n", unidad: "órdenes a personas", huecos: "cero",
+    puntos: serie("2021-01", "2024-12", 20, { "2023-03": 120 }), fuente: "CONOSCE (OECE)",
+  };
+  const visitas: SerieHistoria = {
+    carril: "visitas", titulo: "Visitas registradas", medida: "n", unidad: "visitas", huecos: "cero",
+    puntos: serie("2021-01", "2024-12", 40, { "2023-03": 130 }), fuente: "Registro de Visitas",
+  };
+  const marcas = [{ fecha: "2023-01-01", tipo: "gobierno" as const, texto: "Asumió la gestión de Somos Perú" }];
+  const ps = patronesDeSeries([personas, visitas], marcas);
+  const pico = ps.find((p) => p.id === "pico:personas:2023-03");
+  assert.ok(pico, "el pico de órdenes a personas");
+  assert.equal(pico!.severidad, "alta"); // seis veces y con otro renglón arriba y una gestión nueva
+  assert.match(pico!.titulo, /seis veces lo normal en marzo de 2023/);
+  assert.match(pico!.explica, /también subieron visitas registradas/);
+  assert.match(pico!.explica, /2 meses después de que asumió la gestión de Somos Perú/);
+  // Sin la mediana de seis meses previos no hay pico (el primer semestre de la serie).
+  assert.equal(ps.filter((p) => p.mes < "2021-07").length, 0);
+
+  // Diciembre se lleva el 40 % de cada año: patrón de cierre del año.
+  const dic: Record<string, number> = {};
+  for (const a of ["2022", "2023"]) dic[`${a}-12`] = 73; // 11 meses de 10 + 73 = 183; 73/183 = 40 %
+  const ordenes: SerieHistoria = {
+    carril: "ordenes", titulo: "Órdenes de compra y de servicio", medida: "n", unidad: "órdenes", huecos: "cero",
+    puntos: serie("2022-01", "2023-12", 10, dic), fuente: "CONOSCE (OECE)",
+  };
+  const fin = patronesDeSeries([ordenes], []).find((p) => p.tipo === "fin_de_anio");
+  assert.ok(fin);
+  assert.match(fin!.titulo, /el 40 %/);
+
+  // Antes de las ERM 2022 (2 de octubre): de abril a setiembre, el triple que un año antes.
+  const previos = Object.fromEntries(["2022-04", "2022-05", "2022-06", "2022-07", "2022-08", "2022-09"].map((m) => [m, 60]));
+  const loc: SerieHistoria = { ...personas, puntos: serie("2020-01", "2023-06", 20, previos) };
+  const ele = patronesDeSeries([loc], [{ fecha: "2022-10-02", tipo: "eleccion", texto: "Elecciones regionales y municipales 2022" }]);
+  const antes = ele.find((p) => p.tipo === "antes_eleccion");
+  assert.ok(antes);
+  assert.equal(antes!.severidad, "alta");
+  assert.match(antes!.titulo, /antes de las elecciones regionales y municipales 2022/);
+});
+
+test("hilos: la empresa que visitó y ganó, con banderas, obra paralizada y sanción", () => {
+  const rutas = { contrato: (o: string) => `/app/contratos/${o}`, empresa: (r: string, v?: string) => `/empresa/${r}${v ? `?vista=${v}` : ""}` };
+  const hilos = armarHilos({
+    visitas: [
+      {
+        ruc: "20100000001", nombre: "CONSTRUCTORA ABC S.A.C.", primera: "2023-02-01", ultima: "2023-03-10", visitas: 5, visitantes: 2, decisores: 3,
+        antes: 0, despues: "2023-03-23", dias: 13, despues_tipo: "contrato", despues_numero: "LP-1-2023", despues_detalle: "Obra de agua",
+        despues_monto: 2_000_000, despues_ocid: "123", monto: 2_000_000,
+      },
+      // Sólo visitas, sin nada más: no es un hilo (una sola clase de hechos).
+      { ruc: "20100000002", nombre: "OTRA S.A.", primera: "2023-01-01", ultima: "2023-01-01", visitas: 1, visitantes: 1, decisores: 0, antes: 3, despues: null, dias: null, despues_tipo: null, despues_numero: null, despues_detalle: null, despues_monto: null, despues_ocid: null, monto: 0 },
+      // Un RUC 10 (persona natural) nunca es un hilo.
+      { ruc: "10456789012", nombre: "JUAN PEREZ", primera: "2023-01-01", ultima: "2023-01-01", visitas: 1, visitantes: 1, decisores: 0, antes: 0, despues: "2023-01-02", dias: 1, despues_tipo: "orden", despues_numero: "1", despues_detalle: null, despues_monto: 100, despues_ocid: null, monto: 100 },
+    ],
+    banderas: [{ ocid: "123", ruc: "20100000001", proveedor: "CONSTRUCTORA ABC S.A.C.", fecha: "2023-03-23", monto: 2_000_000, severidad: "alta", n_alta: 1, objeto: "Obra de agua" }],
+    obras: [{ codigo: 9, nombre: "Agua potable", inicio: "2023-05-01", monto: 2_000_000, paralizada: true, fecha_par: "2024-02-01", ejecutor_ruc: "20100000001", ejecutor: "CONSTRUCTORA ABC S.A.C." }],
+    sanciones: [{ ruc: "20100000001", tipo: "temporal", desde: "2023-01-15", hasta: "2023-06-30" }],
+  }, rutas);
+  assert.equal(hilos.length, 1);
+  const h = hilos[0];
+  assert.equal(h.ruc, "20100000001");
+  assert.equal(h.severidad, "alta");
+  assert.equal(h.nombre, "CONSTRUCTORA ABC S.A.C.");
+  assert.deepEqual(h.hechos.map((x) => x.tipo), ["sancion", "visitas", "despues", "contrato", "obra", "paralizada"]);
+  assert.match(h.resumen, /visitó la entidad y le dieron un contrato \(LP-1-2023\) a los 13 días/);
+  assert.match(h.resumen, /ganó mientras estaba sancionada/);
+  assert.equal(h.hechos.find((x) => x.tipo === "despues")!.severidad, "alta"); // nunca le había vendido, a quien decide, 13 días
 });

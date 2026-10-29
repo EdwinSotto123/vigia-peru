@@ -7,13 +7,15 @@ import { Severidad } from "@/components/ui/Severidad";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
+import { HilosHistoria } from "./HilosHistoria";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 
 /**
  * La pestaña «Historia» de una entidad, una empresa o un partido (fase 3 del plan del 2026-10-27): lo que encadenan sus
- * datos (las secuencias, primero, con su evidencia), la línea de tiempo con todos sus renglones y, debajo, la lista
- * completa de hechos con su buscador y sus filtros, cada uno con su fuente (también es la versión accesible de la
- * línea). Server component: pide GET /historia/... una vez (CDN de una hora) y le pasa todo a la línea.
+ * datos (las secuencias, primero, con su evidencia), la línea de tiempo con todos sus renglones (y lo que llama la
+ * atención en sus series), los hilos de cada empresa con la entidad (lo que correlaciona hechos en el tiempo, pedido del
+ * usuario el 2026-10-28) y, plegada, la lista completa de hechos con su buscador, sus filtros y su CSV (también es la
+ * versión accesible). Server component: pide GET /historia/... una vez (CDN de una hora) y le pasa todo a la línea.
  */
 export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["sujeto"]["tipo"]; id: string; nombre: string }) {
   const h = await getHistoria(tipo, id);
@@ -86,7 +88,33 @@ export async function HistoriaFicha({ tipo, id, nombre }: { tipo: Historia["suje
         )}
       </section>
 
-      <ListaHechos h={h} titulo={titulo} />
+      {(h.hilos?.length ?? 0) > 0 && (
+        <section aria-labelledby="historia-hilos" className="space-y-2">
+          <h3 id="historia-hilos" className="font-display text-bloque font-bold text-ink">
+            Hilos: lo que pasó con cada empresa, en el tiempo
+          </h3>
+          <p className="max-w-prose text-meta text-inkSoft">
+            Cada fila une los hechos de una misma empresa con la entidad: visitas de su gente, lo que le dieron, banderas, obras y
+            sanciones.
+          </p>
+          <HilosHistoria
+            hilos={h.hilos!}
+            desde={h.desde}
+            hasta={h.hasta}
+            marcas={h.marcas}
+            gestiones={h.eventos.filter((e) => e.carril === "gobierno" && !!e.hasta)}
+          />
+        </section>
+      )}
+
+      <details className="group rounded-xl border border-line bg-paper px-3.5 py-3">
+        <summary className="cursor-pointer text-meta font-semibold text-ink">
+          {`Todos los hechos en una lista (${numero(h.eventos.length + h.secuencias.length)}): buscar, filtrar y descargar`}
+        </summary>
+        <div className="mt-3">
+          <ListaHechos h={h} titulo={titulo} />
+        </div>
+      </details>
 
       <FuenteDato fuente="Las fuentes oficiales de cada hecho (en su detalle)" enlaces={h.fuentes} />
     </div>

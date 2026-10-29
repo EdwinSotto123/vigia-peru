@@ -57,6 +57,8 @@ export interface PuntoSerie {
   n: number;
   monto?: number | null;
   extra?: number | null;
+  /** Un tercer número, si la serie lo dice (`extra2` de la serie): las visitas a quien decide. */
+  extra2?: number | null;
 }
 
 export interface SerieHistoria {
@@ -68,6 +70,8 @@ export interface SerieHistoria {
   unidad: string;
   /** Qué es `extra`, si lo trae. */
   extra?: string | null;
+  /** Qué es `extra2`, si lo trae. */
+  extra2?: string | null;
   porAnio?: boolean;
   /** Si un mes sin fila es un cero (las órdenes) o un mes sin dato (la planilla, que se publica a veces). */
   huecos: "cero" | "sin_dato";
@@ -101,6 +105,46 @@ export interface CarrilHistoria {
   explica: string;
 }
 
+/** Un hecho de un hilo: lo que pasó entre una misma empresa y la entidad, con su fecha. */
+export interface HechoHilo {
+  fecha: string;
+  hasta?: string | null;
+  tipo: "visitas" | "despues" | "contrato" | "obra" | "paralizada" | "sancion";
+  titulo: string;
+  detalle?: string | null;
+  monto?: number | null;
+  severidad?: Severidad | null;
+  href?: string | null;
+}
+
+/**
+ * Un hilo: una empresa y lo que pasó entre ella y la entidad a lo largo del tiempo (las visitas de su gente, lo que le
+ * dieron después, sus contratos con banderas, sus obras y sus sanciones). Sólo empresas (RUC 20) con dos clases de hechos
+ * o más: es lo que los correlaciona.
+ */
+export interface HiloHistoria {
+  ruc: string;
+  nombre: string;
+  /** Por qué importa, en una frase. */
+  resumen: string;
+  severidad: Severidad;
+  hechos: HechoHilo[];
+  href: string;
+}
+
+/** Un patrón de sus series: un pico fuera de lo normal, el gasto al cierre del año o lo de antes de una elección. */
+export interface PatronHistoria {
+  id: string;
+  tipo: "pico" | "fin_de_anio" | "antes_eleccion";
+  severidad: Severidad;
+  titulo: string;
+  explica: string;
+  carril: Carril;
+  /** El mes (AAAA-MM) que señala en la línea; con `hasta`, un tramo. */
+  mes: string;
+  hasta?: string | null;
+}
+
 export interface Historia {
   sujeto: { tipo: "entidad" | "empresa" | "partido" | "contrato"; id: string; nombre: string | null };
   desde: string;
@@ -110,6 +154,10 @@ export interface Historia {
   eventos: EventoHistoria[];
   marcas: MarcaHistoria[];
   secuencias: SecuenciaHistoria[];
+  /** Las empresas cuyos hechos con la entidad se encadenan en el tiempo (la vista «Hilos»). */
+  hilos?: HiloHistoria[];
+  /** Los patrones de sus series (picos, cierre del año, antes de una elección). */
+  patrones?: PatronHistoria[];
   /** Hechos que no entraron por carril (se muestran los más graves y los más grandes; la lista de su pestaña los tiene todos). */
   omitidos: Partial<Record<Carril, number>>;
   fuentes: { texto: string; href: string }[];
@@ -409,4 +457,314 @@ export function secuenciasDeCruces(filas: CruceSecuencia[], rutaContrato: (ocid:
     if (out.length >= max) break;
   }
   return out;
+}
+
+// ─── Patrones de las series: picos, el cierre del año y lo de antes de una elección ─────────────
+
+/** Lo mínimo que tiene que sumar un mes para que su pico cuente (de menos, cualquier cosa es «el triple»). */
+const MINIMO_PICO: Partial<Record<Carril, number>> = { compras: 5, ordenes: 30, personas: 10, planilla: 10, plazas: 5, visitas: 30 };
+
+/** La mediana de los `ventana` valores anteriores a `i` (con al menos seis): lo normal de ese renglón antes de ese mes. */
+export function medianaPrevia(valores: number[], i: number, ventana = 12): number | null {
+  const xs = valores.slice(Math.max(0, i - ventana), i);
+  if (xs.length < 6) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/**
+ * Los meses de una serie mensual, en orden, con su valor: lo que entra en un pico (en la planilla, las personas que
+ * entraron; en lo demás, cuántos). Con `huecos: "cero"` un mes sin fila es un cero; con «sin_dato», no está.
+ */
+export function mesesDeSerie(s: SerieHistoria): { mes: string; v: number }[] {
+  if (s.porAnio || !s.puntos.length) return [];
+  const valor = (p: PuntoSerie) => (s.carril === "planilla" ? p.extra ?? 0 : p.n);
+  const ordenados = [...s.puntos].sort((a, b) => a.periodo.localeCompare(b.periodo));
+  if (s.huecos === "sin_dato") return ordenados.map((p) => ({ mes: p.periodo, v: valor(p) }));
+  const por = new Map(ordenados.map((p) => [p.periodo, valor(p)]));
+  const out: { mes: string; v: number }[] = [];
+  for (let m = ordenados[0].periodo; m <= ordenados[ordenados.length - 1].periodo; m = sumarMeses(m, 1)) out.push({ mes: m, v: por.get(m) ?? 0 });
+  return out;
+}
+
+/** «más del doble», «el triple», «cuatro veces», «12 veces». */
+export function veces(r: number): string {
+  if (r < 2.5) return "más del doble";
+  if (r < 3.5) return "el triple";
+  if (r < 10) return `${["", "", "", "", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"][Math.floor(r)]} veces`;
+  return `${Math.floor(r)} veces`;
+}
+
+/** Meses enteros entre dos meses AAAA-MM (b − a). */
+function mesesEntre(a: string, b: string): number {
+  const [ya, ma] = a.split("-").map(Number);
+  const [yb, mb] = b.split("-").map(Number);
+  return (yb - ya) * 12 + (mb - ma);
+}
+
+/**
+ * Los patrones de las series de una línea: los picos (un mes con al menos 2,5 veces lo normal de su renglón, su mediana de
+ * los doce meses anteriores, y el mínimo del renglón), con lo que pasaba alrededor (otro renglón que también subió, una
+ * gestión que acababa de asumir, una elección cerca); el gasto concentrado en diciembre; y lo que subió en los seis meses
+ * antes de una elección contra los mismos meses del año anterior. Los más fuertes primero, hasta `max`.
+ */
+export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[], max = 8): PatronHistoria[] {
+  const mensuales = series.filter((s) => !s.porAnio && MINIMO_PICO[s.carril] != null);
+  const valores = new Map(mensuales.map((s) => [s.carril, mesesDeSerie(s)]));
+  const ratioEn = (carril: Carril, mes: string): { r: number; v: number } | null => {
+    const xs = valores.get(carril) ?? [];
+    const i = xs.findIndex((x) => x.mes === mes);
+    if (i < 0) return null;
+    const med = medianaPrevia(xs.map((x) => x.v), i);
+    if (med == null) return null;
+    return { r: xs[i].v / Math.max(med, 1), v: xs[i].v };
+  };
+  const nombre = (s: SerieHistoria) => (s.carril === "planilla" ? "las entradas a la planilla" : s.titulo.toLowerCase());
+  const gobiernos = marcas.filter((m) => m.tipo === "gobierno").sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const elecciones = marcas.filter((m) => m.tipo === "eleccion");
+  const out: (PatronHistoria & { peso: number })[] = [];
+
+  // 1. Picos: un mes (o meses seguidos) con al menos 2,5 veces lo normal de su renglón.
+  for (const s of mensuales) {
+    const xs = valores.get(s.carril) ?? [];
+    const vals = xs.map((x) => x.v);
+    const minimo = MINIMO_PICO[s.carril] ?? 10;
+    let i = 0;
+    while (i < xs.length) {
+      const med = medianaPrevia(vals, i);
+      const r = med == null ? 0 : xs[i].v / Math.max(med, 1);
+      if (med == null || xs[i].v < minimo || xs[i].v - med < minimo || r < 2.5) {
+        i++;
+        continue;
+      }
+      // Los meses seguidos que siguen arriba van en el mismo patrón (el pico es el de más valor).
+      let j = i;
+      while (j + 1 < xs.length && xs[j + 1].v >= 2.5 * Math.max(med, 1) && xs[j + 1].v >= minimo) j++;
+      const tope = xs.slice(i, j + 1).reduce((a, b) => (b.v > a.v ? b : a));
+      const rTope = tope.v / Math.max(med, 1);
+      const tambien = mensuales
+        .filter((o) => o.carril !== s.carril)
+        .map((o) => ({ o, x: ratioEn(o.carril, tope.mes) }))
+        .filter((y): y is { o: SerieHistoria; x: { r: number; v: number } } => !!y.x && y.x.r >= 1.8 && y.x.v >= (MINIMO_PICO[y.o.carril] ?? 10) / 2);
+      const gob = [...gobiernos].reverse().find((g) => g.fecha.slice(0, 7) <= tope.mes);
+      const mesesGob = gob ? mesesEntre(gob.fecha.slice(0, 7), tope.mes) : null;
+      const eleccion = elecciones.find((e) => e.fecha.slice(0, 7) >= tope.mes && mesesEntre(tope.mes, e.fecha.slice(0, 7)) <= 6);
+      const contexto = [
+        tambien.length ? `Ese mes también subieron ${tambien.map((y) => `${nombre(y.o)} (${veces(y.x.r)} lo normal)`).join(" y ")}.` : null,
+        gob && mesesGob != null && mesesGob <= 12
+          ? `Fue ${mesesGob === 0 ? "el mismo mes en que" : `${mesesGob} ${mesesGob === 1 ? "mes" : "meses"} después de que`} ${gob.texto.charAt(0).toLowerCase()}${gob.texto.slice(1)}.`
+          : null,
+        eleccion ? `Faltaban ${mesesEntre(tope.mes, eleccion.fecha.slice(0, 7))} meses para las ${eleccion.texto.replace(/^Elecciones/, "elecciones")}.` : null,
+      ].filter(Boolean).join(" ");
+      const fuerte = rTope >= 4 && (tambien.length > 0 || (mesesGob != null && mesesGob <= 6) || !!eleccion);
+      out.push({
+        id: `pico:${s.carril}:${tope.mes}`, tipo: "pico", carril: s.carril, mes: xs[i].mes, hasta: j > i ? xs[j].mes : null,
+        severidad: fuerte ? "alta" : rTope >= 4 ? "media" : "baja",
+        titulo: `${capital(nombre(s))}: ${veces(rTope)} lo normal en ${mesLargo(tope.mes)}`,
+        explica: [
+          `${miles(tope.v)} ${s.carril === "planilla" ? "personas entraron" : s.unidad} en ${mesLargo(tope.mes)}, cuando lo normal en los doce meses anteriores era ${miles(med)}${j > i ? ` (siguió así hasta ${mesLargo(xs[j].mes)})` : ""}.`,
+          contexto,
+          "Un pico puede tener razones legítimas (una emergencia, un programa nuevo, el cierre del año): es para revisar.",
+        ].filter(Boolean).join(" "),
+        peso: (fuerte ? 30 : 0) + Math.min(rTope, 20) + tambien.length * 3,
+      });
+      i = j + 1;
+    }
+  }
+
+  // 2. El cierre del año: cuánto de sus órdenes de cada año caen en diciembre (lo parejo sería un doceavo).
+  const ord = series.find((s) => s.carril === "ordenes" && !s.porAnio);
+  if (ord) {
+    const porAnio = new Map<string, { total: number; dic: number; meses: number }>();
+    for (const p of ord.puntos) {
+      const a = p.periodo.slice(0, 4);
+      const v = p.monto ?? p.n;
+      const x = porAnio.get(a) ?? { total: 0, dic: 0, meses: 0 };
+      x.total += v;
+      x.meses += 1;
+      if (p.periodo.endsWith("-12")) x.dic += v;
+      porAnio.set(a, x);
+    }
+    const completos = [...porAnio.entries()].filter(([, x]) => x.meses >= 11 && x.total > 0).sort((a, b) => a[0].localeCompare(b[0]));
+    if (completos.length >= 2) {
+      const prom = completos.reduce((t, [, x]) => t + x.dic / x.total, 0) / completos.length;
+      if (prom >= 0.2) {
+        const ultimo = completos[completos.length - 1][0];
+        out.push({
+          id: "fin_de_anio:ordenes", tipo: "fin_de_anio", carril: "ordenes", mes: `${ultimo}-12`,
+          severidad: prom >= 0.3 ? "media" : "baja",
+          titulo: `Concentra sus órdenes en diciembre: el ${Math.round(prom * 100)} % de lo de cada año`,
+          explica:
+            `En ${completos.length} años completos, diciembre se llevó en promedio el ${Math.round(prom * 100)} % de lo que sumaron sus órdenes en el año ` +
+            "(si fuera parejo, cerca del 8 %). Gastar al cierre para no devolver el presupuesto es común; las compras apuradas son las que más se revisan.",
+          peso: 10 + prom * 20,
+        });
+      }
+    }
+  }
+
+  // 3. Antes de una elección: los seis meses previos contra los mismos meses del año anterior.
+  for (const s of mensuales.filter((x) => x.carril === "personas" || x.carril === "ordenes")) {
+    const xs = valores.get(s.carril) ?? [];
+    const por = new Map(xs.map((x) => [x.mes, x.v]));
+    for (const e of elecciones) {
+      const fin = sumarMeses(e.fecha.slice(0, 7), -1);
+      const antes = Array.from({ length: 6 }, (_, k) => sumarMeses(fin, -k));
+      const base = antes.map((m) => sumarMeses(m, -12));
+      if ([...antes, ...base].some((m) => !por.has(m))) continue;
+      const a = antes.reduce((t, m) => t + (por.get(m) ?? 0), 0);
+      const b = base.reduce((t, m) => t + (por.get(m) ?? 0), 0);
+      const minimo = (MINIMO_PICO[s.carril] ?? 10) * 3;
+      if (b < 5 || a < 2 * b || a - b < minimo) continue;
+      const r = a / b;
+      out.push({
+        id: `antes_eleccion:${s.carril}:${e.fecha}`, tipo: "antes_eleccion", carril: s.carril, mes: antes[5], hasta: fin,
+        severidad: r >= 3 ? "alta" : "media",
+        titulo: `${capital(nombre(s))}: ${veces(r)} en los seis meses antes de las ${e.texto.replace(/^Elecciones/, "elecciones")}`,
+        explica:
+          `De ${mesLargo(antes[5])} a ${mesLargo(fin)}: ${miles(a)} ${s.unidad}; en los mismos meses del año anterior, ${miles(b)}. ` +
+          "Contratar más justo antes de una elección puede usarse para la campaña: es para revisar, no prueba nada.",
+        peso: 15 + Math.min(r, 20),
+      });
+    }
+  }
+
+  return out
+    .sort((a, b) => (PESO_SEV[b.severidad] ?? 0) - (PESO_SEV[a.severidad] ?? 0) || b.peso - a.peso)
+    .slice(0, max)
+    .map(({ peso: _peso, ...p }) => p);
+}
+
+// ─── Hilos: lo que pasó entre una empresa y la entidad, encadenado en el tiempo ─────────────────
+
+/** Una empresa cuya gente visitó la entidad (entidad_visita_empresa, migraciones 203 y 204). */
+export interface VisitaHilo {
+  ruc: string;
+  nombre: string | null;
+  primera: string;
+  ultima: string;
+  visitas: number;
+  visitantes: number;
+  decisores: number;
+  antes: number;
+  despues: string | null;
+  dias: number | null;
+  despues_tipo: string | null;
+  despues_numero: string | null;
+  despues_detalle: string | null;
+  despues_monto: number | null;
+  despues_ocid: string | null;
+  monto: number | null;
+}
+export interface BanderaHilo { ocid: string; ruc: string; proveedor: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; objeto: string | null }
+export interface ObraHilo { codigo: number | string; nombre: string | null; inicio: string; monto: number | null; paralizada: boolean | null; fecha_par: string | null; ejecutor_ruc: string | null; ejecutor: string | null }
+export interface SancionHilo { ruc: string; tipo: string | null; desde: string | null; hasta: string | null }
+
+/** La severidad de lo que vino después de una visita: grave si nunca le había vendido, visitó a quien decide y fue pronto. */
+export function sevDespues(v: Pick<VisitaHilo, "antes" | "decisores" | "dias">): Severidad {
+  const dias = v.dias ?? 9999;
+  if (v.antes === 0 && v.decisores > 0 && dias <= 90) return "alta";
+  if ((v.antes === 0 && dias <= 180) || (v.decisores > 0 && dias <= 30)) return "media";
+  return "baja";
+}
+
+/** «una orden (N.° 4505540510)» / «un contrato (CP SER-SM-1-2026-ESSALUD/GCL-1)». */
+export function cualDespues(tipo: string | null, numero: string | null): string {
+  const base = tipo === "orden" ? "una orden" : tipo === "consorcio" ? "un contrato en consorcio" : "un contrato";
+  return numero ? `${base} (${tipo === "orden" ? "N.° " : ""}${numero})` : base;
+}
+
+/**
+ * Los hilos de una entidad: por empresa (RUC 20), sus visitas, lo primero que le dieron después, sus contratos con
+ * banderas, sus obras (y si se paralizaron) y sus sanciones del Tribunal; sólo las que juntan dos clases de hechos o más
+ * (es lo que los correlaciona), de la más grave a la menos, hasta `max`.
+ */
+export function armarHilos(
+  datos: { visitas: VisitaHilo[]; banderas: BanderaHilo[]; obras: ObraHilo[]; sanciones: SancionHilo[] },
+  rutas: { contrato: (ocid: string) => string; empresa: (ruc: string, vista?: string) => string },
+  max = 40,
+): HiloHistoria[] {
+  const hilos = new Map<string, { nombre: string | null; hechos: HechoHilo[]; clases: Set<string> }>();
+  const de = (ruc: string, nombre: string | null) => {
+    const h = hilos.get(ruc) ?? { nombre, hechos: [], clases: new Set<string>() };
+    if (!h.nombre && nombre) h.nombre = nombre;
+    hilos.set(ruc, h);
+    return h;
+  };
+  for (const v of datos.visitas) {
+    if (!/^20\d{9}$/.test(v.ruc)) continue;
+    const h = de(v.ruc, v.nombre);
+    h.clases.add("visitas");
+    h.hechos.push({
+      fecha: v.primera, hasta: v.ultima > v.primera ? v.ultima : null, tipo: "visitas",
+      titulo: `${miles(v.visitas)} ${v.visitas === 1 ? "visita" : "visitas"} de su gente (${miles(v.visitantes)} ${v.visitantes === 1 ? "persona" : "personas"})`,
+      detalle: v.decisores > 0 ? `${miles(v.decisores)} a quien decide las compras` : null,
+      href: rutas.empresa(v.ruc, "visitas"),
+    });
+    if (v.despues) {
+      h.clases.add("despues");
+      h.hechos.push({
+        fecha: v.despues, tipo: "despues", severidad: sevDespues(v), monto: v.despues_monto,
+        titulo: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${v.dias != null ? ` a los ${miles(v.dias)} días de una visita` : ""}`,
+        detalle: [v.antes === 0 ? "Nunca le había vendido antes de esas visitas" : "Ya le vendía antes", v.despues_detalle ? `«${v.despues_detalle}»` : null].filter(Boolean).join(". "),
+        href: v.despues_ocid ? rutas.contrato(v.despues_ocid) : rutas.empresa(v.ruc, v.despues_tipo === "orden" ? "ordenes" : "contratos"),
+      });
+    }
+  }
+  for (const b of datos.banderas) {
+    if (!/^20\d{9}$/.test(b.ruc)) continue;
+    const h = de(b.ruc, b.proveedor);
+    h.clases.add("contrato");
+    h.hechos.push({
+      fecha: b.fecha, tipo: "contrato", severidad: b.severidad === "alta" ? "alta" : "media", monto: b.monto,
+      titulo: `Ganó un contrato con banderas${b.n_alta > 0 ? ` (${b.n_alta} ${b.n_alta === 1 ? "antecedente grave" : "antecedentes graves"})` : ""}`,
+      detalle: b.objeto, href: rutas.contrato(b.ocid),
+    });
+  }
+  for (const o of datos.obras) {
+    if (!o.ejecutor_ruc || !/^20\d{9}$/.test(o.ejecutor_ruc)) continue;
+    const h = de(o.ejecutor_ruc, o.ejecutor);
+    h.clases.add("obra");
+    h.hechos.push({ fecha: o.inicio, tipo: "obra", monto: o.monto, titulo: o.nombre ? `Empezó la obra «${o.nombre}»` : "Empezó una obra", href: rutas.empresa(o.ejecutor_ruc, "obras") });
+    if (o.paralizada && o.fecha_par) {
+      h.hechos.push({ fecha: o.fecha_par, tipo: "paralizada", severidad: "alta", monto: o.monto, titulo: o.nombre ? `Se paralizó la obra «${o.nombre}»` : "Se paralizó una obra", href: rutas.empresa(o.ejecutor_ruc, "obras") });
+    }
+  }
+  for (const s of datos.sanciones) {
+    const h = hilos.get(s.ruc);
+    if (!h || !s.desde) continue;
+    h.clases.add("sancion");
+    h.hechos.push({ fecha: s.desde, hasta: s.hasta, tipo: "sancion", severidad: "alta", titulo: `Sancionada por el Tribunal de Contrataciones${s.tipo ? ` (${s.tipo})` : ""}`, href: rutas.empresa(s.ruc, "antecedentes") });
+  }
+
+  const out: (HiloHistoria & { peso: number })[] = [];
+  for (const [ruc, h] of hilos) {
+    if (h.clases.size < 2) continue;
+    h.hechos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const despues = h.hechos.find((x) => x.tipo === "despues");
+    const contratos = h.hechos.filter((x) => x.tipo === "contrato");
+    const paralizadas = h.hechos.filter((x) => x.tipo === "paralizada");
+    const sanciones = h.hechos.filter((x) => x.tipo === "sancion");
+    // Ganó un contrato con banderas mientras estaba sancionada: el hecho más grave que puede tener un hilo.
+    const ganoSancionada = contratos.some((c) => sanciones.some((s) => c.fecha >= s.fecha && (!s.hasta || c.fecha <= s.hasta)));
+    const partes = [
+      despues ? `su gente visitó la entidad y ${despues.titulo.charAt(0).toLowerCase()}${despues.titulo.slice(1)}` : h.clases.has("visitas") ? "su gente visitó la entidad" : null,
+      contratos.length ? `ganó ${miles(contratos.length)} ${contratos.length === 1 ? "contrato" : "contratos"} con banderas` : null,
+      paralizadas.length ? (paralizadas.length === 1 ? "una obra suya se paralizó" : `${paralizadas.length} obras suyas se paralizaron`) : null,
+      ganoSancionada ? "ganó mientras estaba sancionada" : sanciones.length ? "la sancionó el Tribunal" : null,
+    ].filter(Boolean) as string[];
+    const sevs = h.hechos.map((x) => x.severidad).filter(Boolean) as Severidad[];
+    const peor: Severidad = ganoSancionada || (h.clases.has("visitas") && contratos.length > 0) || sevs.includes("alta") ? "alta" : sevs.includes("media") ? "media" : "baja";
+    const monto = h.hechos.reduce((t, x) => t + (x.tipo === "despues" || x.tipo === "contrato" ? x.monto ?? 0 : 0), 0);
+    out.push({
+      // El nombre como viene (la web lo escribe con tituloNatural, que respeta S.A.C., E.I.R.L. y las siglas).
+      ruc, nombre: h.nombre ?? `Empresa ${ruc}`,
+      resumen: `${capital(partes.join("; "))}.`,
+      severidad: peor, hechos: h.hechos,
+      href: rutas.empresa(ruc, h.clases.has("visitas") ? "visitas" : undefined),
+      peso: (PESO_SEV[peor] ?? 0) * 100 + h.clases.size * 10 + Math.log10(1 + monto),
+    });
+  }
+  return out.sort((a, b) => b.peso - a.peso).slice(0, max).map(({ peso: _peso, ...x }) => x);
 }

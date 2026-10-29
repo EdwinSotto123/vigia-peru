@@ -71,8 +71,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *       lo que ganaron después (migración 203).
  * "56": «después de la visita» dice CUÁL orden o contrato (número, qué, monto, su ficha): /empresas/:ruc/visitas,
  *       /visitas/entidad (empresas y quiénes la visitan, migración 204) y la primera orden del locador que visitó antes.
+ * "57": /historia/entidad con las visitas por mes precalculadas (205), los hechos «la visitó y le dieron», sus
+ *       secuencias, los hilos por empresa y los patrones de sus series (picos, cierre del año, antes de elecciones).
  */
-const VERSION_CACHE = "56";
+const VERSION_CACHE = "57";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

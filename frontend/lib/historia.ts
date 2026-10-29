@@ -45,6 +45,8 @@ export interface PuntoSerie {
   n: number;
   monto?: number | null;
   extra?: number | null;
+  /** Un tercer número (las visitas a quien decide). */
+  extra2?: number | null;
 }
 
 export interface SerieHistoria {
@@ -53,6 +55,8 @@ export interface SerieHistoria {
   medida: "n" | "monto";
   unidad: string;
   extra?: string | null;
+  /** Qué es `extra2`, si lo trae. */
+  extra2?: string | null;
   porAnio?: boolean;
   huecos: "cero" | "sin_dato";
   puntos: PuntoSerie[];
@@ -78,6 +82,40 @@ export interface SecuenciaHistoria {
   fuente: string;
 }
 
+/** Un hecho de un hilo: lo que pasó entre una misma empresa y la entidad, con su fecha. */
+export interface HechoHilo {
+  fecha: string;
+  hasta?: string | null;
+  tipo: "visitas" | "despues" | "contrato" | "obra" | "paralizada" | "sancion";
+  titulo: string;
+  detalle?: string | null;
+  monto?: number | null;
+  severidad?: SeveridadHistoria | null;
+  href?: string | null;
+}
+
+/** Una empresa y lo que pasó entre ella y la entidad en el tiempo (sólo si junta dos clases de hechos o más). */
+export interface HiloHistoria {
+  ruc: string;
+  nombre: string;
+  resumen: string;
+  severidad: SeveridadHistoria;
+  hechos: HechoHilo[];
+  href: string;
+}
+
+/** Un patrón de sus series: un pico fuera de lo normal, el gasto al cierre del año o lo de antes de una elección. */
+export interface PatronHistoria {
+  id: string;
+  tipo: "pico" | "fin_de_anio" | "antes_eleccion";
+  severidad: SeveridadHistoria;
+  titulo: string;
+  explica: string;
+  carril: Carril;
+  mes: string;
+  hasta?: string | null;
+}
+
 export interface Historia {
   sujeto: { tipo: "entidad" | "empresa" | "partido" | "contrato"; id: string; nombre: string | null };
   desde: string;
@@ -87,6 +125,10 @@ export interface Historia {
   eventos: EventoHistoria[];
   marcas: MarcaHistoria[];
   secuencias: SecuenciaHistoria[];
+  /** Entidad: las empresas cuyos hechos con ella se encadenan en el tiempo (la vista «Hilos»). */
+  hilos?: HiloHistoria[];
+  /** Los patrones de sus series (picos, cierre del año, antes de una elección). */
+  patrones?: PatronHistoria[];
   omitidos: Partial<Record<Carril, number>>;
   fuentes: { texto: string; href: string }[];
   /** Empresa: hasta qué día llega el registro de visitas. */
@@ -144,3 +186,39 @@ export const INICIAL_MES = ["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N
 
 /** El hecho que va en un mes (un tramo, en todos los meses que cubre). */
 export const mesDe = (fecha: string) => fecha.slice(0, 7);
+
+// ─── Lo normal de cada renglón ──────────────────────────────────────────────────────────────────
+
+/** Lo mínimo que tiene que sumar un mes para que se marque como pico (la misma regla que patronesDeSeries de la API). */
+export const MINIMO_PICO: Partial<Record<Carril, number>> = { compras: 5, ordenes: 30, personas: 10, plazas: 5, visitas: 30 };
+
+/**
+ * Lo normal de cada mes de una serie mensual: la mediana de sus doce meses anteriores (con al menos seis), y cuántas
+ * veces lo normal es ese mes. Con `huecos: "cero"` un mes sin fila cuenta como cero. Por periodo «AAAA-MM».
+ */
+export function normalDeSerie(s: SerieHistoria): Map<string, { mediana: number; veces: number }> {
+  const out = new Map<string, { mediana: number; veces: number }>();
+  if (s.porAnio || !s.puntos.length) return out;
+  const ordenados = [...s.puntos].sort((a, b) => a.periodo.localeCompare(b.periodo));
+  const meses: { mes: string; v: number }[] = [];
+  if (s.huecos === "sin_dato") meses.push(...ordenados.map((p) => ({ mes: p.periodo, v: p.n })));
+  else {
+    const por = new Map(ordenados.map((p) => [p.periodo, p.n]));
+    for (let m = ordenados[0].periodo; m <= ordenados[ordenados.length - 1].periodo; m = sumarMes(m, 1)) meses.push({ mes: m, v: por.get(m) ?? 0 });
+  }
+  meses.forEach((x, i) => {
+    const prev = meses.slice(Math.max(0, i - 12), i).map((y) => y.v).sort((a, b) => a - b);
+    if (prev.length < 6) return;
+    const k = Math.floor(prev.length / 2);
+    const mediana = prev.length % 2 ? prev[k] : (prev[k - 1] + prev[k]) / 2;
+    out.set(x.mes, { mediana, veces: x.v / Math.max(mediana, 1) });
+  });
+  return out;
+}
+
+/** «×2,4 lo normal», «la mitad de lo normal», «como lo normal». */
+export function comoLoNormal(veces: number): string {
+  if (veces >= 1.5) return `${veces.toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces lo normal`;
+  if (veces <= 0.5) return veces === 0 ? "nada, cuando lo normal es más" : "menos de la mitad de lo normal";
+  return "cerca de lo normal";
+}

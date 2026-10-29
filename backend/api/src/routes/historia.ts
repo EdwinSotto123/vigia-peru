@@ -20,11 +20,16 @@ import {
 import { ETIQUETA_CRUCE } from "../lib/cruces.js";
 import {
   acotar,
+  armarHilos,
+  cualDespues,
   dia,
   fechaEleccion,
   marcasEleccion,
   olasDeGestion,
+  patronesDeSeries,
   secuenciasDeCruces,
+  sevDespues,
+  type VisitaHilo,
   type CambioGestion,
   type Carril,
   type CarrilHistoria,
@@ -75,6 +80,18 @@ async function filas<T extends object>(nombre: string, sql: string, args: unknow
   }
 }
 
+/** Como `filas`, pero si la primera consulta falla (una tabla precalculada que todavía no está) usa la segunda. */
+async function filasOAlterna<T extends object>(nombre: string, sql: string, alterna: string, args: unknown[]): Promise<T[]> {
+  try {
+    return (await pool.query<T>(sql, args)).rows;
+  } catch {
+    return filas<T>(nombre, alterna, args);
+  }
+}
+
+/** La fecha `dias` días antes de otra (AAAA-MM-DD). */
+const diasAntes = (fecha: string, dias: number) => new Date(Date.parse(`${fecha}T12:00:00Z`) - dias * 86_400_000).toISOString().slice(0, 10);
+
 const num = (v: unknown): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 const hoy = () => new Date().toISOString().slice(0, 10);
 const titulo = (s: string | null | undefined) =>
@@ -114,7 +131,7 @@ const CARRILES_ENTIDAD: CarrilHistoria[] = [
   { clave: "personas", titulo: "Órdenes a personas", explica: "Las órdenes de servicio a personas naturales (locadores), por mes." },
   { clave: "planilla", titulo: "Planilla", explica: "Cuánta gente publicó cada mes en el Portal de Transparencia y cuántos entraron." },
   { clave: "plazas", titulo: "Plazas CAS", explica: "Las convocatorias CAS que publicó en SERVIR Talento Perú, por mes." },
-  { clave: "visitas", titulo: "Visitas que recibió", explica: "Las visitas de su Registro de Visitas en Línea, por mes." },
+  { clave: "visitas", titulo: "Visitas que recibió", explica: "Las visitas de cada mes (cuántas empresas distintas y cuántas a quien decide las compras) y, como puntos, las de la gente de empresas que después recibieron algo." },
   { clave: "banderas", titulo: "Contratos con banderas", explica: "Los contratos cuyo ganador tiene antecedentes graves o medios, en la fecha de la buena pro." },
   { clave: "control", titulo: "Control", explica: "Los informes de la Contraloría sobre la entidad." },
   { clave: "obras", titulo: "Obras", explica: "Las obras que inició (INFOBRAS) y las que se paralizaron." },
@@ -168,10 +185,12 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       "plazas",
       `SELECT to_char(date_trunc('month', fecha_inicio), 'YYYY-MM') AS mes, count(*)::int AS n, COALESCE(sum(vacantes), 0)::int AS vacantes
          FROM servir_convocatoria WHERE entidad_ruc = $1 AND fecha_inicio IS NOT NULL GROUP BY 1 ORDER BY 1`, [ruc]),
-    filas<{ mes: string; n: number; privadas: number }>(
+    // Las visitas por mes, precalculadas (migración 205): contadas en vivo pasaban los 10 s en las entidades grandes y el
+    // renglón desaparecía sin aviso. Con cuántas empresas distintas y cuántas fueron a quien decide las compras.
+    filasOAlterna<{ mes: string; n: number; empresas: number | null; decisores: number | null }>(
       "visitas",
-      `SELECT to_char(date_trunc('month', v.fecha_visita), 'YYYY-MM') AS mes, count(*)::int AS n,
-              count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas
+      `SELECT to_char(mes, 'YYYY-MM') AS mes, visitas AS n, empresas, decisores FROM entidad_visita_mes WHERE entidad_ruc = $1 ORDER BY mes`,
+      `SELECT to_char(date_trunc('month', v.fecha_visita), 'YYYY-MM') AS mes, count(*)::int AS n, NULL::int AS empresas, NULL::int AS decisores
          FROM visitas_entidades v
         WHERE v.entidad_visitada IN (SELECT entidad_visitada FROM visita_entidad_ruc WHERE ruc = $1) AND v.fecha_visita IS NOT NULL
         GROUP BY 1 ORDER BY 1`, [ruc]),
@@ -210,7 +229,11 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   const planilla: SerieHistoria = { carril: "planilla", titulo: "Personas en planilla", medida: "n", unidad: "personas", extra: "entraron", huecos: "sin_dato", puntos: pla.map((r) => ({ periodo: r.mes, n: r.personas, extra: r.altas })), fuente: "Portal de Transparencia Estándar", href: `${base}?seccion=planilla` };
   serie(planilla);
   serie({ carril: "plazas", titulo: "Plazas CAS convocadas", medida: "n", unidad: "convocatorias", extra: "vacantes", huecos: "cero", puntos: plz.map((r) => ({ periodo: r.mes, n: r.n, extra: r.vacantes })), fuente: "SERVIR Talento Perú", href: `${base}?seccion=plazas` });
-  serie({ carril: "visitas", titulo: "Visitas registradas", medida: "n", unidad: "visitas", extra: "de empresas", huecos: "cero", puntos: vis.map((r) => ({ periodo: r.mes, n: r.n, extra: r.privadas })), fuente: "Registro de Visitas en Línea", enlace: VISITAS_EN_LINEA });
+  serie({
+    carril: "visitas", titulo: "Visitas registradas", medida: "n", unidad: "visitas", extra: "empresas distintas", extra2: "a quien decide las compras",
+    huecos: "cero", puntos: vis.map((r) => ({ periodo: r.mes, n: r.n, extra: r.empresas, extra2: r.decisores })),
+    fuente: "Registro de Visitas en Línea", enlace: VISITAS_EN_LINEA, href: `${base}?seccion=visitas`,
+  });
   serie({ carril: "presupuesto", titulo: "Presupuesto (PIM) y gasto (devengado)", medida: "monto", unidad: "soles", extra: "devengado", porAnio: true, huecos: "sin_dato", puntos: mef.map((r) => ({ periodo: String(r.anio), n: 0, monto: r.pim, extra: r.devengado })), fuente: "MEF (Consulta Amigable)", href: `${base}?seccion=presupuesto` });
 
   const eventos: EventoHistoria[] = [];
@@ -286,8 +309,71 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     });
   }
 
+  // Las empresas cuya gente la visitó (migraciones 203 y 204): las que recibieron algo después y las que además tienen
+  // contratos con banderas u obras (para los hilos). Sin nombres de quienes visitan.
+  const rucsOtros = [...new Set([...ban.map((b) => b.ruc), ...obr.map((o) => o.ejecutor_ruc ?? "")].filter((r) => /^20\d{9}$/.test(r)))];
+  const vemp = await filas<VisitaHilo>(
+    "empresas de quienes la visitan",
+    `SELECT e.ruc, r.nombre, to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.ultima, 'YYYY-MM-DD') AS ultima,
+            e.visitas, e.visitantes, e.decisores, e.antes, to_char(e.despues, 'YYYY-MM-DD') AS despues, e.dias, e.despues_tipo,
+            e.despues_numero, e.despues_detalle, e.despues_monto::float AS despues_monto, e.despues_ocid, e.monto::float AS monto
+       FROM entidad_visita_empresa e LEFT JOIN empresa_resumen r ON r.ruc = e.ruc
+      WHERE e.entidad_ruc = $1 AND (e.despues IS NOT NULL OR e.ruc = ANY($2::text[]))
+      ORDER BY (e.antes = 0) DESC, e.monto DESC NULLS LAST LIMIT 1500`, [ruc, rucsOtros]);
+  const rucsHilos = [...new Set([...rucsOtros, ...vemp.filter((v) => v.despues).map((v) => v.ruc)])];
+  const sanciones = rucsHilos.length
+    ? await filas<{ ruc: string; tipo: string | null; desde: string | null; hasta: string | null }>(
+        "sanciones",
+        `SELECT ruc, tipo, to_char(fecha_desde, 'YYYY-MM-DD') AS desde, to_char(fecha_hasta, 'YYYY-MM-DD') AS hasta
+           FROM osce_sancionados WHERE ruc = ANY($1::text[]) AND fecha_desde IS NOT NULL`, [rucsHilos])
+    : [];
+  const empresaRuta = (r: string, vista?: string) =>
+    vista === "visitas" ? `/empresa/${r}?seccion=gente&vista=visitas` : vista ? `/empresa/${r}?seccion=${vista}` : `/empresa/${r}`;
+  // Cada visita que terminó en algo dentro de los 180 días: un hecho en el renglón de visitas, en la fecha de la última
+  // visita antes de lo que le dieron (lo más grave y lo más grande primero; acotar deja los que caben).
+  const ganaron = vemp.filter((v) => v.despues && v.dias != null && v.dias <= 180);
+  for (const v of ganaron) {
+    const nombre = v.nombre ? titulo(v.nombre) : `la empresa ${v.ruc}`;
+    eventos.push({
+      id: `visita_gano:${v.ruc}`, carril: "visitas", tipo: "visita_gano", fecha: diasAntes(v.despues!, v.dias!),
+      titulo: `La gente de ${nombre} la visitó; a los ${v.dias} días le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
+      detalle: [
+        v.antes === 0 ? "Nunca le había vendido antes de esas visitas" : "Ya le vendía antes",
+        v.decisores > 0 ? `${v.decisores} ${v.decisores === 1 ? "visita" : "visitas"} a quien decide las compras` : null,
+        v.despues_detalle ? `Lo que le dieron: «${corto(v.despues_detalle)}»` : null,
+      ].filter(Boolean).join("; "),
+      monto: v.despues_monto, severidad: sevDespues(v), href: empresaRuta(v.ruc, "visitas"),
+      fuente: "Registro de Visitas en Línea y CONOSCE (OECE)", enlace: VISITAS_EN_LINEA,
+    });
+  }
+  // Las más fuertes, como secuencia (una cosa lleva a otra): nunca le había vendido, y a los 90 días o menos le dieron algo.
+  const visitoYGano: SecuenciaHistoria[] = ganaron
+    .filter((v) => v.antes === 0 && v.dias! <= 90 && (v.decisores > 0 || (v.despues_monto ?? 0) >= 50_000))
+    .sort((a, b) => Number(sevDespues(b) === "alta") - Number(sevDespues(a) === "alta") || (b.despues_monto ?? 0) - (a.despues_monto ?? 0))
+    .slice(0, 6)
+    .map((v) => {
+      const nombre = v.nombre ? titulo(v.nombre) : `La empresa ${v.ruc}`;
+      const ultima = diasAntes(v.despues!, v.dias!);
+      const sev = sevDespues(v);
+      return {
+        id: `visito_gano:${v.ruc}`, tipo: "visito_gano", severidad: sev === "baja" ? "media" : sev,
+        titulo: `${nombre}: su gente la visitó y a los ${v.dias} días le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}`,
+        explica:
+          `Nunca le había vendido antes de esas visitas${v.decisores > 0 ? "; fueron a quien decide las compras" : ""}. ` +
+          `${v.despues_detalle ? `Lo que le dieron: «${corto(v.despues_detalle)}». ` : ""}Una visita no prueba un favor: es para revisar.`,
+        pasos: [
+          { fecha: v.primera, texto: `Primera visita de su gente (${v.visitas} ${v.visitas === 1 ? "visita" : "visitas"} en total)` },
+          ...(ultima > v.primera ? [{ fecha: ultima, texto: "Última visita antes de lo que le dieron" }] : []),
+          { fecha: v.despues!, texto: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${v.despues_monto ? ` por S/ ${Math.round(v.despues_monto).toLocaleString("es-PE")}` : ""}` },
+        ],
+        href: empresaRuta(v.ruc, "visitas"),
+        fuente: "Registro de Visitas en Línea y CONOSCE (OECE)",
+      };
+    });
+
   // La ola que siguió a cada cambio de gestión: órdenes a personas, plazas CAS y altas en la planilla.
   const secuencias: SecuenciaHistoria[] = [
+    ...visitoYGano,
     ...olasDeGestion(personas, cambios, {
       tipo: "ola_personas", minimo: 30, que: "las órdenes a personas", href: `${base}?seccion=personas`, fuente: "CONOSCE (OECE)",
       // Contra sus demás órdenes en los mismos meses: que no sea que todo creció.
@@ -298,7 +384,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   ];
 
   const enLinea = eventos.filter((e) => e.carril === "gobierno" || e.fecha >= DESDE || (e.hasta ?? "") >= DESDE);
-  const { eventos: quedan, omitidos } = acotar(enLinea, { control: 120, obras: 80, banderas: 120 }, fijosDe(secuencias, enLinea));
+  const { eventos: quedan, omitidos } = acotar(enLinea, { control: 120, obras: 80, banderas: 120, visitas: 80 }, fijosDe(secuencias, enLinea));
   const primera = [...series.flatMap((s) => s.puntos.map((p) => (p.periodo.length === 4 ? `${p.periodo}-01` : `${p.periodo}-01`))), ...quedan.filter((e) => e.carril !== "gobierno").map((e) => e.fecha)].sort()[0];
   return {
     sujeto: { tipo: "entidad", id: ruc, nombre: ent.nombre },
@@ -309,11 +395,19 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     eventos: quedan,
     marcas: marcas.sort((a, b) => a.fecha.localeCompare(b.fecha)),
     secuencias,
+    // Los hilos: cada empresa con lo que pasó entre ella y la entidad (visitas, lo que le dieron, banderas, obras,
+    // sanciones), si junta dos clases de hechos o más. Y los patrones de sus series (picos, cierre del año, elecciones).
+    hilos: armarHilos(
+      { visitas: vemp, banderas: ban.map((b) => ({ ...b, n_alta: b.n_alta ?? 0 })), obras: obr.map((o) => ({ ...o, codigo: o.codigo })), sanciones },
+      { contrato: rutaContrato, empresa: empresaRuta },
+    ),
+    patrones: patronesDeSeries(series, marcas),
     omitidos,
     fuentes: [
       { texto: "Procesos y órdenes en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
       { texto: "Quién gobierna: Plataforma Electoral del JNE", href: PLATAFORMA_JNE },
       { texto: "Registro de Visitas en Línea", href: VISITAS_EN_LINEA },
+      { texto: "Sanciones del Tribunal de Contrataciones (OECE)", href: DATASET_SANCIONADOS },
     ],
   };
 }
