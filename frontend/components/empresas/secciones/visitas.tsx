@@ -197,10 +197,11 @@ export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promi
   const despues = d.visitas.filter((v) => v.despues).length;
   return (
     <div className="space-y-3">
+      {/* Corto (menos de 140 caracteres, la guardia visual): quiénes son «su gente» lo dice la columna «Quién fue». */}
       <p className="max-w-prose text-meta text-inkSoft">
-        {`${plural(d.total, "visita", "visitas")} de socios, representantes o directivos de la empresa (o de alguien que dijo venir de ella)`}
-        {aClientes ? `; ${numero(aClientes)} a entidades que le adjudicaron o le compraron` : ""}
-        {despues ? `, y tras ${plural(despues, "visita", "visitas")} esa entidad le dio algo después.` : "."}
+        {`${plural(d.total, "visita", "visitas")} de su gente`}
+        {aClientes ? `; ${numero(aClientes)} a entidades que le compran` : ""}
+        {despues ? `; tras ${plural(despues, "visita", "visitas")}, la entidad le dio algo.` : "."}
       </p>
       {avisoVisitas(d.hasta) && <Nota>{avisoVisitas(d.hasta)}</Nota>}
       <TablaFiltrable

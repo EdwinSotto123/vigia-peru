@@ -559,7 +559,13 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
         gob && mesesGob != null && mesesGob <= 12
           ? `Fue ${mesesGob === 0 ? "el mismo mes en que" : `${mesesGob} ${mesesGob === 1 ? "mes" : "meses"} después de que`} ${gob.texto.charAt(0).toLowerCase()}${gob.texto.slice(1)}.`
           : null,
-        eleccion ? `Faltaban ${mesesEntre(tope.mes, eleccion.fecha.slice(0, 7))} meses para las ${eleccion.texto.replace(/^Elecciones/, "elecciones")}.` : null,
+        eleccion
+          ? (() => {
+              const k = mesesEntre(tope.mes, eleccion.fecha.slice(0, 7));
+              const para = `para las ${eleccion.texto.replace(/^Elecciones/, "elecciones")}`;
+              return k === 0 ? `Fue el mes de las ${eleccion.texto.replace(/^Elecciones/, "elecciones")}.` : k === 1 ? `Faltaba un mes ${para}.` : `Faltaban ${k} meses ${para}.`;
+            })()
+          : null,
       ].filter(Boolean).join(" ");
       // Diciembre: muchas entidades apuran sus compras al cierre del año; cuenta un grado menos.
       const diciembre = tope.mes.endsWith("-12");
