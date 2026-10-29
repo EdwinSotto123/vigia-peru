@@ -249,6 +249,7 @@ cuentasRouter.get("/me/impacto", async (c) => {
           `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
                   co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", co.comprobante_url AS "comprobanteUrl",
                   z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
+                  co.tipo, co.periodicidad,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
                   (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
@@ -258,7 +259,7 @@ cuentasRouter.get("/me/impacto", async (c) => {
                     WHERE s.contribucion_id = co.id AND a.estado = 'revision')::int AS "enRevision",
                   (SELECT s.ocid FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL
                     ORDER BY s.procesada_at LIMIT 1) AS "primerOcid"
-           FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo
+           FROM contribuciones co LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
            WHERE co.financiador_id = $1 ORDER BY co.created_at DESC`, [p.financiadorId])
       : Promise.resolve({ rows: [] as any[] }),
     pool.query(

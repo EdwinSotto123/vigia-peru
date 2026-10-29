@@ -549,12 +549,11 @@ export default async function EntidadProfile({
           }
           acciones={
             <>
-              {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
-              {enCola > 0 && (
-                <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
-                  Financiar su auditoría
-                </EnlaceAccion>
-              )}
+              {/* Apoyar la vigilancia (migración 206): el aporte va al fondo común; la entidad sólo dice qué te trajo.
+                  Financiar la lectura de sus contratos en cola sigue en /app/financiar/entidad/<ruc>. */}
+              <EnlaceAccion href={`/app/apoyar?para=${e.ruc}&nombre=${encodeURIComponent(nombre)}`} flecha>
+                Ayuda a vigilarla
+              </EnlaceAccion>
               <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">
                 <Flag size={14} aria-hidden /> Denunciar
               </EnlaceAccion>

@@ -225,9 +225,8 @@ export function EscalaDinero({
                 titulo="Se pueden financiar hoy"
                 valor={financiables}
                 tono="lima"
-                apoyo={precioPen != null ? `Leerlos todos cuesta S/ ${numero(precioPen * financiables)}` : undefined}
-                frase={precioPen != null ? `A S/ ${numero(precioPen)} cada uno. Tu aporte paga la lectura.` : "Ya están adjudicados y con documentos."}
-                accion={{ href: "/app/financiar", texto: "Financiar una lectura" }}
+                frase="Ya están adjudicados y con documentos. Se leen primero los más graves, con lo que aportamos entre todos."
+                accion={{ href: "/app/apoyar", texto: "Ayúdanos a leerlos" }}
               />
             )}
             {regionesConLectura != null && (

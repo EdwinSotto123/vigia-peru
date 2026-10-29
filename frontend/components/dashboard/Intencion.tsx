@@ -32,6 +32,8 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/alerta", "alertas"],
   ["/app/denuncias", "alertas"],
   ["/app/financiar", "participar"],
+  ["/app/apoyar", "participar"],
+  ["/app/cuanto-cuesta", "participar"],
   ["/app/aliados", "participar"],
   ["/impacto", "participar"],
   ["/reporte", "participar"],

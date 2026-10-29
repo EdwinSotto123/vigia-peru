@@ -3,8 +3,6 @@ import Link from "next/link";
 import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { FUENTES_FLUJO } from "@/components/landing/fuentesFlujo";
-import { getEstadoGlobal } from "@/lib/financiamiento";
-import { soles } from "@/lib/formato";
 import { AbrirPorAncla } from "./AbrirPorAncla";
 import { TemaPreguntas, type TemaFAQ } from "./TemaPreguntas";
 
@@ -19,17 +17,6 @@ const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 const CONTACTO = `${REPO}/issues`;
 
 const ENLACE = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate";
-
-/** "S/1 procesamiento · S/1 infraestructura y datos · …" → [{monto, concepto}]. Mismo formato que lee la portada. */
-function partesDeTarifa(nota: string | null | undefined): { monto: number; concepto: string }[] {
-  if (!nota) return [];
-  return nota
-    .split(/\s*·\s*/)
-    .map((p) => p.match(/^S\/\s?(\d+(?:[.,]\d+)?)\s+(.+)$/))
-    .filter((m): m is RegExpMatchArray => m !== null)
-    // "reserva expedientes pesados" es una etiqueta de tabla; en una oración pide "para".
-    .map((m) => ({ monto: Number(m[1].replace(",", ".")), concepto: m[2].replace(/^reserva (?!para |de )/, "reserva para ") }));
-}
 
 /** "a, b y c" */
 function enumerar(xs: string[]): string {
@@ -52,28 +39,6 @@ const FUENTE_EN_FRASE: Record<string, string> = {
 };
 
 export default async function PreguntasPage() {
-  // La tarifa sale del mismo endpoint público que usa la portada. Si el API no
-  // responde, la respuesta no inventa cifras: remite al desglose en vivo.
-  const estado = await getEstadoGlobal();
-  const precio = estado?.tarifa?.precioPen ?? null;
-  const partes = partesDeTarifa(estado?.tarifa?.nota);
-
-  const costo =
-    precio != null ? (
-      <>
-        Leer un contrato con todos sus documentos cuesta <strong className="text-ink">{soles(precio)}</strong>
-        {partes.length > 0 && <>: {enumerar(partes.map((p) => `${soles(p.monto)} de ${p.concepto}`))}</>}.
-      </>
-    ) : (
-      <>
-        Leer un contrato con todos sus documentos tiene un precio fijo, publicado con su desglose en{" "}
-        <Link href="/#aliados" className={ENLACE}>
-          la portada
-        </Link>
-        .
-      </>
-    );
-
   const seace = FUENTES_FLUJO.find((f) => f.clave === "seace");
   const cruces = FUENTES_FLUJO.filter((f) => f.estado === "en_uso" && f.clave !== "seace").map(
     (f) => FUENTE_EN_FRASE[f.clave] ?? f.corto,
@@ -147,25 +112,38 @@ export default async function PreguntasPage() {
     [
       {
         id: "financiar",
-        titulo: "Financiar",
+        titulo: "Apoyar",
         preguntas: [
           {
-            slug: "financiar",
-            q: "¿Qué significa «financiar una auditoría»?",
-            a: "Aportas capacidad de lectura para una zona: una región, provincia o distrito. Sus contratos se leen en orden de llegada; nadie, ni tú ni nosotros, elige cuál se lee ni qué se publica. Recibes un comprobante público con cada contrato leído y sus señales.",
+            slug: "apoyar",
+            q: "¿Cómo se sostiene Vigía?",
+            a: (
+              <>
+                Con aportes de personas, colectivos y empresas, de preferencia de cada mes, al fondo común que paga la base de
+                datos, los servidores, la captura de datos y la lectura a fondo de los contratos más graves. Cuánto cuesta cada mes,
+                rubro por rubro y con su fuente, está en{" "}
+                <Link href="/app/cuanto-cuesta" className={ENLACE}>
+                  Cuánto cuesta Vigía
+                </Link>
+                ; para aportar,{" "}
+                <Link href="/app/apoyar" className={ENLACE}>
+                  Ayúdanos a seguir vigilando
+                </Link>
+                .
+              </>
+            ),
           },
           {
             slug: "cuentas",
-            q: "¿Cuánto cuesta leer un contrato y quién lo paga?",
+            q: "¿Cuánto cuesta leer un contrato?",
             a: (
               <>
-                {costo} Lo pagan las personas, colectivos y empresas que{" "}
+                Leerlo a fondo con IA cuesta, en promedio, menos de un sol: lo medimos en cada lectura. Lo caro de Vigía es lo
+                fijo (la base de datos con millones de órdenes y contratos, los servidores y la captura de datos), que se paga
+                igual lea uno o mil. Por eso dejamos de pedir «S/ 3 por contrato» y pedimos un aporte de cada mes. Quien prefiera
+                financiar la lectura de una región, una entidad o un partido todavía puede hacerlo en{" "}
                 <Link href="/app/financiar" className={ENLACE}>
-                  financian una auditoría
-                </Link>
-                , y cada aporte se cuenta en contratos leídos, no en soles. Sus nombres están en el{" "}
-                <Link href="/app/aliados" className={ENLACE}>
-                  ranking de aliados
+                  Financiar lecturas
                 </Link>
                 .
               </>
@@ -176,12 +154,12 @@ export default async function PreguntasPage() {
             q: "¿Por qué no puedo elegir qué contrato se audita?",
             a: (
               <>
-                Porque si quien paga eligiera, Vigía podría usarse para presionar a una entidad o a un competidor: financias
-                capacidad, no resultados. Si quien aporta tiene un conflicto de interés que el sistema detecta (una sanción
+                Porque si quien paga eligiera, Vigía podría usarse para presionar a una entidad o a un competidor: sostienes la
+                vigilancia, no resultados. Lo más grave se lee primero, aporte quien aporte. Si quien aporta tiene un conflicto de interés que el sistema detecta (una sanción
                 vigente o señales activas en esa zona), su aporte se usa igual, pero no aparece en el ranking de aliados. Y
                 si el análisis que financió lo encuentra a él, se publica igual. Todas las reglas están en{" "}
-                <Link href="/app/financiar#independencia" className={ENLACE}>
-                  Financiar
+                <Link href="/app/apoyar" className={ENLACE}>
+                  Ayúdanos a seguir vigilando
                 </Link>
                 .
               </>

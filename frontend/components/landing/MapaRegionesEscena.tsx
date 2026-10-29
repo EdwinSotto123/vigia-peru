@@ -341,10 +341,10 @@ export function MapaRegionesEscena({
                 <EnlaceAccion href={hrefRegion}>{region ? `Ver ${region.nombre}` : "Ver mi región"}</EnlaceAccion>
                 {region && region.enCola > 0 && (
                   <Link
-                    href={`/app/financiar/${region.codigo}`}
+                    href={`/app/apoyar?para=${region.codigo}&nombre=${encodeURIComponent(region.nombre)}`}
                     className="inline-flex min-h-[48px] items-center rounded-full px-4 py-3 text-cuerpo font-semibold text-granate underline-offset-4 hover:underline"
                   >
-                    Financiar la lectura de {region.nombre}
+                    Ayuda a vigilar {region.nombre}
                   </Link>
                 )}
               </div>

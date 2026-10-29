@@ -79,6 +79,8 @@ export interface AporteMio {
   codigo: string; estado: string; contratos: number; montoPen: number; createdAt: string; pagadaAt: string | null;
   tieneComprobante: boolean; comprobanteUrl: string | null; ubigeo: string; zona: string; nivel: string;
   asignados: number; procesados: number; senales: number; enRevision: number; primerOcid: string | null;
+  /** 'apoyo' = aporte para seguir vigilando (migración 206): sin zona ni contratos. */
+  tipo?: "lectura" | "apoyo"; periodicidad?: "unica" | "mensual" | null;
 }
 export interface DenunciaMia {
   id: string; categoria: string; descripcion: string; region: string | null; provincia: string | null; distrito: string | null;
@@ -236,7 +238,7 @@ export const reclamarAporte = (codigo: string, email: string) =>
 export const getImpacto = () =>
   authFetch("/cuentas/me/impacto").then((r) => json<Impacto>(r)).then((d) => ({
     ...d,
-    aportes: d.aportes.map((a) => ({ ...a, zona: conAcentos(a.zona) })),
+    aportes: d.aportes.map((a) => ({ ...a, zona: a.tipo === "apoyo" ? "Para seguir vigilando" : conAcentos(a.zona) })),
     zonasSeguidas: d.zonasSeguidas.map((z) => ({ ...z, nombre: conAcentos(z.nombre) })),
   }));
 

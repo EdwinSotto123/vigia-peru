@@ -166,10 +166,11 @@ adminRouter.get("/contribuciones", async (c) => {
             co.comprobante_url IS NOT NULL AS "tieneComprobante", co.created_at AS "createdAt", co.pagada_at AS "pagadaAt",
             co.validada_por AS "validadaPor", co.mensaje_publico AS "mensajePublico", co.nota_admin AS "notaAdmin",
             z.nombre AS zona, z.nivel, co.ubigeo, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
+            co.tipo AS "tipoAporte", co.periodicidad, co.para_ruc AS "paraRuc", co.para_ubigeo AS "paraUbigeo",
             f.id AS "financiadorId", f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.visible, f.motivo_no_visible AS "motivoNoVisible",
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
-     FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id JOIN zonas z ON z.ubigeo = co.ubigeo
+     FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
      ${where} ORDER BY co.created_at DESC LIMIT 300`, vals);
   return c.json({ data: r.rows });
 });
@@ -179,8 +180,9 @@ adminRouter.get("/contribuciones/:codigo", async (c) => {
   const conEntidad = await hayAporteEntidad();
   const h = await pool.query(
     `SELECT co.*, co.monto_pen::float AS "montoPen", z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
-            f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.logo_url AS "logoUrl", f.visible, f.motivo_no_visible AS "motivoNoVisible", f.slug
-     FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id JOIN zonas z ON z.ubigeo = co.ubigeo
+            f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.logo_url AS "logoUrl", f.visible, f.motivo_no_visible AS "motivoNoVisible", f.slug,
+            co.tipo AS "tipoAporte"
+     FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id LEFT JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.codigo = $1`, [codigo]);
   if (!h.rows.length) return c.json({ error: "not_found" }, 404);
   const a = await pool.query(

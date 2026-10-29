@@ -100,7 +100,7 @@ function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
   );
 }
 
-export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanking[]; precio?: number | null }) {
+export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking[]; /** Lo que cuesta mantener Vigía al mes (S/). */ piso?: number | null }) {
   const escena = useRef<HTMLDivElement>(null);
   const lienzo = useRef<HTMLCanvasElement>(null);
 
@@ -200,16 +200,16 @@ export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanki
               para detectar indicios de corrupción. Tú ves cuáles merecen una segunda mirada.
             </p>
             <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-cuerpo leading-snug text-inkSoft">
-              <span className="font-semibold text-ink">Nos financiamos con donaciones.</span>{" "}
-              {precio != null
-                ? `Con S/ ${numero(precio)} pagas la lectura de un contrato. Tu granito de arena sí cuenta.`
-                : "Tu granito de arena paga la lectura de contratos."}
+              <span className="font-semibold text-ink">Nos sostenemos con aportes ciudadanos.</span>{" "}
+              {piso != null
+                ? `Mantener Vigía encendida cuesta S/ ${numero(piso)} al mes. Tu granito de arena sí cuenta.`
+                : "Tu granito de arena nos mantiene vigilando."}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <EnlaceAccion href="/app/mapa" tamano="lg">
                 Ver mi región
               </EnlaceAccion>
-              <EnlaceAccion href="/app/financiar" variante="secundario" tamano="lg" flecha={false}>
+              <EnlaceAccion href="/app/apoyar" variante="secundario" tamano="lg" flecha={false}>
                 Aportar mi granito
               </EnlaceAccion>
             </div>

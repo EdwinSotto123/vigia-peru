@@ -54,9 +54,11 @@ export interface Resumen {
 export interface ContribucionAdmin {
   codigo: string; estado: string; contratos: number; montoPen: number; pasarela: string | null; pasarelaRef: string | null;
   tieneComprobante: boolean; createdAt: string; pagadaAt: string | null; validadaPor: string | null;
-  mensajePublico: string | null; notaAdmin: string | null; zona: string; nivel: string; ubigeo: string;
+  mensajePublico: string | null; notaAdmin: string | null; zona: string | null; nivel: string | null; ubigeo: string | null;
   financiadorId: number; tipo: string; nombrePublico: string | null; ruc: string | null; email: string; visible: boolean; motivoNoVisible: string | null;
   asignados: number; procesados: number;
+  /** 'apoyo' = aporte para seguir vigilando (migración 206): sin zona ni contratos. */
+  tipoAporte?: "lectura" | "apoyo"; periodicidad?: "unica" | "mensual" | null; paraRuc?: string | null; paraUbigeo?: string | null;
 }
 
 // ─── Financiadores (GET /admin/financiadores · PATCH /admin/financiadores/:id) ──

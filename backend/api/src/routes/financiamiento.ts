@@ -14,6 +14,8 @@
  *   GET /financiamiento/entidades?q=&region=&limit=1..50(20)&offset=    entidades que se pueden financiar (migración 39): con
  *                                                              contratos en cola; con `q`, por nombre o RUC (también sin cola)
  *   GET /financiamiento/entidades/:ruc                          una entidad: su cola, sus contratos, su zona, tarifa y aliados
+ *   GET /financiamiento/vigilancia                              lo que cuesta Vigía este mes, la meta, lo recaudado y lo que se
+ *                                                              vigila (migración 206; lib/vigilancia.ts)
  *
  * Aportes por ENTIDAD (migración 39): recientes, impacto y aliados traen `entidad: {ruc, nombre} | null`
  * (null = aporte por zona). Un aporte por entidad tiene también zona: la de la mayoría de sus contratos.
@@ -36,6 +38,7 @@ import { conPerfilAliado, hayAporteEntidad, hayModelosLectura } from "../lib/esq
 import { perfilPublicado } from "../lib/perfilAliado.js";
 import { entidadDeAporteSql, partidoDeAporteSql, tarifaVigente } from "../lib/aportes.js";
 import { leerRecientes } from "../lib/recientes.js";
+import { resumenVigilancia } from "../lib/vigilancia.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -277,7 +280,21 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
      JOIN zonas z ON z.ubigeo = co.ubigeo
      JOIN tarifas t ON t.id = co.tarifa_id
      WHERE co.codigo = $1`, [codigo]);
-  if (!head.rows.length) return c.json({ error: "not_found" }, 404);
+  if (!head.rows.length) {
+    // Un aporte de apoyo (migración 206): sin zona ni contratos; su comprobante dice cuánto, cuándo y qué lo motivó.
+    const ap = await pool.query(
+      `SELECT co.codigo, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt", co.created_at AS "createdAt",
+              co.mensaje_publico AS "mensajePublico", co.periodicidad, co.pasarela,
+              CASE WHEN f.visible THEN COALESCE(f.nombre_publico, 'Anónimo') ELSE 'Anónimo' END AS financiador,
+              f.tipo, CASE WHEN f.visible THEN f.slug END AS slug, f.visible,
+              co.para_ruc AS "paraRuc", (SELECT e.nombre FROM entidades e WHERE e.ruc = co.para_ruc) AS "paraEntidad",
+              co.para_ubigeo AS "paraUbigeo", (SELECT z.nombre FROM zonas z WHERE z.ubigeo = co.para_ubigeo) AS "paraZona"
+         FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
+        WHERE co.codigo = $1 AND co.tipo = 'apoyo'`, [codigo]).catch(() => ({ rows: [] as any[] }));
+    if (!ap.rows.length) return c.json({ error: "not_found" }, 404);
+    cache(c, 30);
+    return c.json({ tipo: "apoyo", ...ap.rows[0] });
+  }
   const { id: contribucionId, ...h } = head.rows[0];
   // Por contrato: score, severidad y conteo de señales SOLO si la alerta está publicada; en revisión
   // humana o descartada salen null (con `alertaEstado` y `enRevision` para decir por qué).
@@ -590,6 +607,12 @@ export function alcanceORespaldo(alFallar?: () => void): Promise<Alcance> {
 financiamientoRouter.get("/alcance", async (c) => {
   cache(c, 60);
   return c.json(await alcanceORespaldo());
+});
+
+// ─── GET /financiamiento/vigilancia ──────────────────────────────────────────
+financiamientoRouter.get("/vigilancia", async (c) => {
+  cache(c, 300);
+  return c.json(await resumenVigilancia());
 });
 
 // ─── GET /financiamiento/pago ────────────────────────────────────────────────

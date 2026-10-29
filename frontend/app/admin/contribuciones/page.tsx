@@ -91,8 +91,10 @@ function Page() {
     open({
       title: `Confirmar pago de ${c.codigo}`,
       tone: "success",
-      confirmLabel: "Confirmar y asignar contratos",
-      body: <>Se marcará <strong>{fmtPEN(c.montoPen)}</strong> como recibido y se asignarán <strong>{c.contratos}</strong> contratos de <strong>{c.zona}</strong>, los más antiguos primero. El financiador recibe su comprobante de impacto.</>,
+      confirmLabel: c.tipoAporte === "apoyo" ? "Confirmar pago" : "Confirmar y asignar contratos",
+      body: c.tipoAporte === "apoyo"
+        ? <>Se marcará <strong>{fmtPEN(c.montoPen)}</strong> como recibido: es un aporte para seguir vigilando{c.periodicidad === "mensual" ? " (de cada mes)" : ""}, va al fondo común y no asigna contratos. Suma a lo recaudado del mes.</>
+        : <>Se marcará <strong>{fmtPEN(c.montoPen)}</strong> como recibido y se asignarán <strong>{c.contratos}</strong> contratos de <strong>{c.zona}</strong>, los más graves primero. El financiador recibe su comprobante de impacto.</>,
       fields: [
         { name: "referencia", label: "Referencia del pago", placeholder: "N° de operación Yape/Plin o transferencia", hint: "Opcional, queda en la bitácora." },
         { name: "nota", label: "Nota interna", type: "textarea", placeholder: "Ej. verificado en el extracto del 14/09" },
@@ -104,7 +106,9 @@ function Page() {
         } catch (e) { throw new Error(mensajeError(e)); }
         const faltan = c.contratos - r.asignados;
         toast(
-          `${c.codigo} validada: ${plural(r.asignados, "contrato asignado", "contratos asignados")}${faltan > 0 ? ` (${plural(faltan, "espera", "esperan")} contratos nuevos en la zona)` : ""}`,
+          c.tipoAporte === "apoyo"
+            ? `${c.codigo} validada: suma a lo recaudado del mes`
+            : `${c.codigo} validada: ${plural(r.asignados, "contrato asignado", "contratos asignados")}${faltan > 0 ? ` (${plural(faltan, "espera", "esperan")} contratos nuevos en la zona)` : ""}`,
         );
         // El Resumen, la bitácora y el procesamiento cuentan este aporte: todos al día.
         setElegido(null); void refrescarTodo();
@@ -144,12 +148,21 @@ function Page() {
         </>
       ),
     },
-    { clave: "zona", titulo: "Zona", celda: (c) => <>{c.zona} <span className="text-micro text-mute">{nivelLabel(c.nivel)}</span></> },
+    {
+      clave: "zona",
+      titulo: "Zona",
+      celda: (c) =>
+        c.tipoAporte === "apoyo" ? (
+          <span className="text-meta text-ink">Para seguir vigilando <span className="text-micro text-mute">{c.periodicidad === "mensual" ? "cada mes" : "una vez"}</span></span>
+        ) : (
+          <>{c.zona} <span className="text-micro text-mute">{nivelLabel(c.nivel ?? "")}</span></>
+        ),
+    },
     {
       clave: "avance",
       titulo: "Contratos leídos",
       className: "w-40",
-      celda: (c) => (
+      celda: (c) => c.tipoAporte === "apoyo" ? <span className="text-rotulo text-mute">Fondo común</span> : (
         <div className="w-full max-w-[160px]">
           <span className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos}</span>
           <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} alto="sm" className="mt-1" />
@@ -261,15 +274,21 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
       </header>
 
       <div className="space-y-3 px-4 pb-4 pt-2.5 sm:px-5">
-        <div>
-          <p className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
-          <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} className="mt-1.5" />
-        </div>
+        {c.tipoAporte === "apoyo" ? (
+          <p className="text-rotulo text-inkSoft">Aporte para seguir vigilando{c.periodicidad === "mensual" ? ", de cada mes" : ", una vez"}: va al fondo común y no asigna contratos.</p>
+        ) : (
+          <div>
+            <p className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
+            <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} className="mt-1.5" />
+          </div>
+        )}
 
         <KeyValue
           items={[
             { etiqueta: "Monto", valor: fmtPEN(c.montoPen), mono: true },
-            { etiqueta: "Zona", valor: `${c.zona}`, pista: nivelLabel(c.nivel) },
+            c.tipoAporte === "apoyo"
+              ? { etiqueta: "Lo motivó", valor: c.paraRuc ? `Entidad ${c.paraRuc}` : c.paraUbigeo ? `Zona ${c.paraUbigeo}` : "La vigilancia en general" }
+              : { etiqueta: "Zona", valor: `${c.zona}`, pista: nivelLabel(c.nivel) },
             { etiqueta: "Financiador", valor: c.nombrePublico ?? "Anónimo", pista: tipoFinanciadorLabel(c.tipo) },
             { etiqueta: "RUC", valor: c.ruc, mono: true },
             { etiqueta: "Correo", valor: c.email, completo: true },

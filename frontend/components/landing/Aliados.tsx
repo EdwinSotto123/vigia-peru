@@ -1,43 +1,31 @@
 import Link from "next/link";
 import { ArrowUpRight, EyeOff, ListOrdered, Megaphone, ShieldCheck, type LucideIcon } from "lucide-react";
-import { getEstadoGlobal } from "@/lib/financiamiento";
-import { CalculadoraAporte, type ParteTarifa } from "./CalculadoraAporte";
+import { dolares, getVigilancia } from "@/lib/financiamiento";
+import { numero } from "@/lib/formato";
+import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
- * Cuánto cuesta leer un contrato, y por qué financiar no compra nada.
- *
- * El podio de quienes lo hacen posible subió al inicio de la portada (`PodioPortada`, justo
- * después de la escala del dinero). Acá quedan, en dos filas que se leen de izquierda a
- * derecha: la calculadora (la única acción de financiar de la sección) y las tres reglas
- * que protegen lo que se encuentra, en cajitas con su ícono.
+ * Cuánto cuesta mantener Vigía y por qué aportar no compra nada (pedido del usuario del 2026-10-28: el pedido de la
+ * portada dejó de ser «S/ 3 por contrato»). Las cifras salen de GET /financiamiento/vigilancia (migración 206): lo que
+ * cuesta seguir encendidos al mes, lo que costaría leer a fondo lo más grave y lo que cuesta, en promedio, leer un
+ * contrato con IA. Debajo, las tres reglas que protegen lo que se encuentra, en cajitas con su ícono.
  *
  * Reglas que no se negocian, porque son las del producto:
- *  - Se cuenta en CONTRATOS, nunca en soles.
+ *  - Sin ranking por plata.
  *  - Sólo aliados reales, siempre: ningún nombre inventado, ni en desarrollo.
  */
 
-/** "S/1 procesamiento · S/1 infraestructura y datos · …" → partes con monto. */
-function partesDeTarifa(nota: string | null | undefined): ParteTarifa[] {
-  if (!nota) return [];
-  return nota
-    .split(/\s*·\s*/)
-    .map((p) => p.match(/^S\/\s?(\d+(?:[.,]\d+)?)\s+(.+)$/))
-    .filter((m): m is RegExpMatchArray => m !== null)
-    .map((m) => ({ monto: Number(m[1].replace(",", ".")), concepto: m[2] }));
-}
-
-/** Por qué financiar no compra nada: una línea cada una, el detalle en /app/financiar. */
+/** Por qué aportar no compra nada: una línea cada una, el detalle en /app/apoyar. */
 const REGLAS: { Icono: LucideIcon; titulo: string; detalle: string }[] = [
-  { Icono: ListOrdered, titulo: "No eligen qué se lee", detalle: "Los contratos se asignan por orden de llegada." },
-  { Icono: EyeOff, titulo: "No cambian lo que se encuentra", detalle: "El análisis no sabe quién lo pagó." },
+  { Icono: ListOrdered, titulo: "No eligen qué se lee", detalle: "Lo más grave se lee primero, aporte quien aporte." },
+  { Icono: EyeOff, titulo: "No cambian lo que se encuentra", detalle: "El análisis no sabe quién aportó." },
   { Icono: Megaphone, titulo: "Si los encuentra a ellos, se publica", detalle: "Y su comprobante lo muestra." },
 ];
 
 export async function Aliados() {
-  const estado = await getEstadoGlobal();
-
-  const precio = estado?.tarifa.precioPen ?? null;
-  const partes = partesDeTarifa(estado?.tarifa.nota);
+  const v = await getVigilancia().catch(() => null);
+  const piso = v?.meta.pisoPen ?? null;
+  const completa = v?.meta.completaPen ?? null;
 
   return (
     <section
@@ -49,29 +37,52 @@ export async function Aliados() {
       <div className="container-page relative py-20 sm:py-24">
         <div className="max-w-3xl">
           <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-            Leer un contrato cuesta poco, y lo puede pagar cualquiera.
+            Vigilar todo cuesta poco si lo sostenemos entre muchos.
           </h2>
           <p className="mt-5 max-w-[60ch] text-pretty text-bloque leading-relaxed text-paper/75">
-            Personas, colectivos y empresas. Su nombre queda en el podio, contado en contratos, nunca en soles.
+            Personas, colectivos y empresas, con un aporte de cada mes. Las cuentas, abiertas: cuánto cuesta, de dónde sale cada
+            cifra y cuánto entró.
           </p>
         </div>
 
-        {/* Cuánto cuesta: una placa a lo ancho. */}
-        {precio != null && (
-          <div className="mt-10">
-            <CalculadoraAporte precio={precio} partes={partes} enCola={estado?.colaGlobal ?? 0} />
+        {/* Cuánto cuesta: tres cifras y las dos acciones. */}
+        {piso != null && completa != null && (
+          <div className="mt-10 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-paper/15 bg-paper/5 p-5">
+              <p className="text-meta text-paper/70">Mantenerla encendida</p>
+              <p className="mt-1 font-display text-cifra font-bold tabular-nums">S/ {numero(piso)}</p>
+              <p className="text-meta text-paper/70">al mes: base de datos, servidores y captura de datos</p>
+            </div>
+            <div className="rounded-2xl border border-paper/15 bg-paper/5 p-5">
+              <p className="text-meta text-paper/70">Leer a fondo lo más grave</p>
+              <p className="mt-1 font-display text-cifra font-bold tabular-nums">S/ {numero(completa - piso)}</p>
+              <p className="text-meta text-paper/70">más al mes: los ~{numero(v!.graves.porMes)} contratos con banderas graves</p>
+            </div>
+            <div className="rounded-2xl border border-paper/15 bg-paper/5 p-5">
+              <p className="text-meta text-paper/70">Leer un contrato con IA</p>
+              <p className="mt-1 font-display text-cifra font-bold tabular-nums">{v!.ia.costoMedioUsd != null ? dolares(v!.ia.costoMedioUsd) : "Sin dato"}</p>
+              <p className="text-meta text-paper/70">en promedio: por eso ya no pedimos «S/ 3 por contrato»</p>
+            </div>
           </div>
         )}
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg">
+            Ayúdanos a seguir vigilando
+          </EnlaceAccion>
+          <EnlaceAccion href="/app/cuanto-cuesta" variante="contornoOscuro" tamano="lg" flecha={false}>
+            Cuánto cuesta Vigía
+          </EnlaceAccion>
+        </div>
 
         {/* Qué protege lo que se encuentra: tres cajitas en fila. */}
         <div className="mt-12">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
             <h3 className="flex items-center gap-2.5 font-display text-2xl font-bold">
               <ShieldCheck size={22} className="shrink-0 text-maiz" aria-hidden />
-              Financias la lectura, no el resultado.
+              Sostienes la vigilancia, no el resultado.
             </h3>
             <Link
-              href="/app/financiar#independencia"
+              href="/app/apoyar"
               className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-dato font-semibold text-maiz underline-offset-4 hover:underline"
             >
               Todas las reglas de independencia <ArrowUpRight size={14} aria-hidden />

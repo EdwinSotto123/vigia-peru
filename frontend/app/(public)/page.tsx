@@ -17,7 +17,7 @@ import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
 import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla";
 import { getAlertas } from "@/lib/api-client";
-import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
+import { getEstadoGlobal, getRankingPaginado, getVigilancia } from "@/lib/financiamiento";
 import { clasificar } from "@/components/aliados/ranking";
 import { anioLectura, desdeLectura, getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
@@ -65,13 +65,15 @@ export default async function LandingPage() {
   // eso "leídos" quedaba en 0,0 %. Las cifras de la portada (publicados, leídos, escala, regiones) son del año.
   const anio = anioLectura();
   const desde = desdeLectura();
-  const [alertas, estado, resumen, regiones, ranking, ...porTipo] = await Promise.all([
+  const [alertas, estado, resumen, regiones, ranking, vigilancia, ...porTipo] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
     getResumenContratos({ desde }).catch(() => null),
     getContratosGeo({ nivel: "departamento", desde }).catch(() => null),
     // Los tres del podio, para la primera pantalla (el mismo pedido que usa el podio de más abajo).
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
+    // Lo que cuesta mantener Vigía al mes (migración 206): el pedido de la portada dejó de ser «S/ 3 por contrato».
+    getVigilancia().catch(() => null),
     // Las cajitas de la escala: cuántos leyó Vigía de cada tipo (el resumen general
     // trae el total por tipo, pero no los leídos por tipo).
     ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave, desde }).catch(() => null)),
@@ -115,7 +117,7 @@ export default async function LandingPage() {
 
   return (
     <>
-      <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} precio={estado?.tarifa.precioPen ?? null} />
+      <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} piso={vigilancia?.meta.pisoPen ?? null} />
 
       {/* El pitch en dos secciones. A: el problema, en cifras que se deslizan. */}
       {publicados > 0 && montoTotal > 0 && (
@@ -281,11 +283,11 @@ function CierreLanding({ enCola }: { enCola: number | null }) {
                 : "Empieza por los contratos de tu región."}
             </h2>
             <p className="mt-5 max-w-[48ch] text-pretty text-bloque leading-relaxed text-paper/80">
-              Mira qué se contrata donde vives, financia la lectura de algunos o denuncia la obra que tienes enfrente.
+              Mira qué se contrata donde vives, ayúdanos a seguir vigilando o denuncia la obra que tienes enfrente.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <EnlaceAccion href="/app/financiar" variante="oscuro" tamano="lg">
-                Financiar una auditoría
+              <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg">
+                Ayúdanos a seguir vigilando
               </EnlaceAccion>
               <EnlaceAccion href="/app/mapa" variante="contornoOscuro" tamano="lg" flecha={false}>
                 Ver mi región

@@ -150,7 +150,7 @@ export function Header() {
           {!isAuth && <UserMenu />}
           {showNav && (
             <Link
-              href="/app/financiar"
+              href="/app/apoyar"
               className={cn(
                 "group hidden min-h-11 lg:min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-dato leading-5 font-semibold transition-colors duration-rapido sm:inline-flex",
                 // Sobre oscuro, el botón primario se invierte: papel con texto granate (Button "oscuro").
@@ -163,7 +163,7 @@ export function Header() {
                 className={cn("motion-safe:group-hover:animate-latir", oscuro ? "fill-ink text-ink" : "fill-paper text-paper")}
               />
               {/* Con el botón de modo día / noche, el texto completo sólo entra desde 2xl. */}
-              Financiar<span className="hidden 2xl:inline"> una auditoría</span>
+              Apoyar<span className="hidden 2xl:inline"> la vigilancia</span>
             </Link>
           )}
           {showNav && (
@@ -412,10 +412,10 @@ function MobileNavPanel({
           })}
         </nav>
         <Link
-          href="/app/financiar"
+          href="/app/apoyar"
           className="group mt-3 flex min-h-12 items-center justify-center gap-2 rounded-full bg-granate px-4 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
         >
-          <Heart size={15} aria-hidden className="fill-paper text-paper motion-safe:group-hover:animate-latir" /> Financiar una auditoría
+          <Heart size={15} aria-hidden className="fill-paper text-paper motion-safe:group-hover:animate-latir" /> Ayúdanos a seguir vigilando
         </Link>
       </div>
     </div>,

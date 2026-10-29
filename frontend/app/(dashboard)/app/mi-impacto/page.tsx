@@ -374,7 +374,10 @@ const COLUMNAS_APORTES: Columna[] = [
 function filaAporte(a: AporteMio, recargar: () => void): Fila {
   // Pendiente y sin comprobante: lo único que el usuario tiene que hacer, dicho en la fila.
   const falta = a.estado === "pendiente_pago" && !a.tieneComprobante;
-  const cantidad = `${plural(a.contratos, "contrato", "contratos")} por ${soles(a.montoPen)}`;
+  const apoyo = a.tipo === "apoyo";
+  const cantidad = apoyo
+    ? `${a.periodicidad === "mensual" ? "Aporte de cada mes" : "Aporte único"} por ${soles(a.montoPen)}`
+    : `${plural(a.contratos, "contrato", "contratos")} por ${soles(a.montoPen)}`;
   return {
     id: a.codigo,
     buscable: [a.zona, a.codigo].join(" "),
@@ -395,8 +398,8 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
           ]}
         />
       ),
-      leidos: <CeldaNumero sub={`de ${numero(a.contratos)}`}>{numero(a.procesados)}</CeldaNumero>,
-      senales: <CeldaNumero sub={a.enRevision > 0 ? `${numero(a.enRevision)} en revisión` : undefined}>{numero(a.senales)}</CeldaNumero>,
+      leidos: apoyo ? <span className="text-rotulo text-mute">Fondo común</span> : <CeldaNumero sub={`de ${numero(a.contratos)}`}>{numero(a.procesados)}</CeldaNumero>,
+      senales: apoyo ? <span className="text-rotulo text-mute">No aplica</span> : <CeldaNumero sub={a.enRevision > 0 ? `${numero(a.enRevision)} en revisión` : undefined}>{numero(a.senales)}</CeldaNumero>,
       fecha: <CeldaFecha fecha={a.createdAt} />,
     },
     detalle: {
@@ -407,7 +410,19 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
           {a.codigo}
         </span>
       ),
-      contenido: <DetalleAporte a={a} recargar={recargar} />,
+      contenido: apoyo ? (
+        <div className="space-y-2 text-dato leading-relaxed text-inkSoft">
+          <p>
+            {cantidad}. Va al fondo común que sostiene la vigilancia: la base de datos, los servidores, la captura de datos y la
+            lectura a fondo de los contratos más graves. Nadie elige qué contrato se lee.
+          </p>
+          <Link href="/app/cuanto-cuesta" className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate hover:underline">
+            En qué se usa <ArrowRight size={13} aria-hidden />
+          </Link>
+        </div>
+      ) : (
+        <DetalleAporte a={a} recargar={recargar} />
+      ),
       pie: (
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta">
           <Link href={`/impacto/${a.codigo}`} className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline">Comprobante público <ArrowRight size={13} aria-hidden /></Link>

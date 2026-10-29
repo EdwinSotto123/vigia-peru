@@ -14,10 +14,12 @@ import { FranjaTextil } from "@/components/marca";
 import { Ayuda, BarraCompartir, Pestanas } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
 import { esSenalPublicada, indicadoresAporte } from "@/components/financiar/indicadoresAporte";
-import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
+import { fecha, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { ReciboApoyo } from "@/components/financiar/ReciboApoyo";
 import {
   TIPO_FINANCIADOR_LABEL,
   getComprobante,
+  getComprobanteApoyo,
   mensajePublicoVisible,
   type Comprobante,
   type ComprobanteContrato,
@@ -39,6 +41,13 @@ function lugarPlano(c: Pick<Comprobante, "zona" | "entidad" | "partido">): strin
 export async function generateMetadata({ params }: { params: { codigo: string } }) {
   const codigo = params.codigo.toUpperCase();
   const c = await getComprobante(codigo);
+  if (!c) {
+    const a = await getComprobanteApoyo(codigo);
+    if (a) {
+      const description = `${a.financiador} aportó ${soles(a.montoPen)} para que Vigía siga vigilando${a.periodicidad === "mensual" ? ", cada mes" : ""}.`;
+      return { title: `Comprobante de aporte ${codigo}`, description, openGraph: { title: `Aporte para seguir vigilando`, description } };
+    }
+  }
   const description = c
     ? `${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} ${lugarPlano(c)}. ${numero(c.resumen.contratosConSenal ?? c.resumen.senales)} con al menos una señal.`
     : "Comprobante público de una lectura financiada en Vigía Perú.";
@@ -135,7 +144,12 @@ export default async function ImpactoPage({
   searchParams?: { seccion?: string | string[] };
 }) {
   const c = await getComprobante(params.codigo);
-  if (!c) notFound();
+  if (!c) {
+    // Un aporte para seguir vigilando (migración 206) tiene su propio comprobante, sin contratos.
+    const apoyo = await getComprobanteApoyo(params.codigo);
+    if (apoyo) return <ReciboApoyo c={apoyo} />;
+    notFound();
+  }
   const institucional = c.pasarela === "institucional";
   // El tablero en vivo arranca con lo que ya sabe el API de procesamientos; si aún no
   // responde (o la contribución no tiene asignaciones), usa el detalle del comprobante.

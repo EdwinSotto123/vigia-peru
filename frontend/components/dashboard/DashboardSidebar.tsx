@@ -164,12 +164,12 @@ const SECTIONS: Section[] = [
     intencion: "participar",
     items: [
       {
-        href: "/app/financiar",
-        label: "Financiar",
+        href: "/app/apoyar",
+        label: "Apoyar",
         icon: <Heart size={16} />,
-        hint: "Paga más lecturas",
+        hint: "Ayúdanos a seguir vigilando",
         featured: true,
-        match: (p) => p.startsWith("/app/financiar") || p.startsWith("/impacto"),
+        match: (p) => p.startsWith("/app/apoyar") || p.startsWith("/app/cuanto-cuesta") || p.startsWith("/app/financiar") || p.startsWith("/impacto"),
       },
       {
         href: "/reporte/nuevo",

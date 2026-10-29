@@ -90,7 +90,7 @@ export default async function RegionPage({ params, searchParams }: { params: { i
         acciones={
           <span className="flex flex-wrap gap-2">
             <EnlaceAccion href={`/app/mapa?region=${r.id}`} variante="secundario">Ver en el mapa</EnlaceAccion>
-            <EnlaceAccion href={`/app/financiar/${r.ubigeo}`} flecha>Financiar sus lecturas</EnlaceAccion>
+            <EnlaceAccion href={`/app/apoyar?para=${r.ubigeo}&nombre=${encodeURIComponent(r.nombre)}`} flecha>Ayuda a vigilarla</EnlaceAccion>
           </span>
         }
       />

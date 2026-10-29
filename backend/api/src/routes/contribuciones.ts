@@ -4,6 +4,8 @@
  *   POST /contribuciones                       crea una contribución en `pendiente_pago` (fase 0: transferencia/Yape)
  *                                              por ZONA ({ubigeo}, mínimo 5 contratos) o por ENTIDAD ({entidadRuc},
  *                                              mínimo 1, hasta los que tenga en cola; migración 39)
+ *   POST /contribuciones/apoyo                 aporte al fondo común que sostiene la vigilancia (migración 206): único o
+ *                                              mensual, sin contratos ni zona; `para` (entidad o región) sólo dice qué lo motivó
  *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload);
  *                                              exige probar titularidad (sesión dueña o correo del aporte)
  *   GET  /contribuciones/:codigo               estado (privado: incluye email enmascarado) — requiere token
@@ -46,6 +48,54 @@ export async function getPagosConfig() {
 
 const slugify = (s: string) =>
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
+
+type Financiador = { tipo: "empresa" | "persona" | "organizacion"; nombrePublico?: string; ruc?: string; email?: string; logoUrl?: string };
+
+/**
+ * Quién aporta. Con sesión, el financiador de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese
+ * uid. Sin sesión, siempre uno nuevo: emparejar por el RUC o el correo que manda el cliente (sin verificar) dejaba a
+ * cualquiera cambiar el nombre y el logo públicos de un financiador ajeno (auditoría 2026-10-21). Con sesión no hace
+ * falta repetir nombre/logo. Marca el conflicto de interés (regla 3: sanción vigente o proveedor con alertas activas).
+ */
+async function resolverFinanciador(client: import("pg").PoolClient, uid: string | null, f: Financiador): Promise<number> {
+  let cuenta: { financiador_id: number | null; correo: string | null; nombre_publico: string | null } | null = null;
+  if (uid) {
+    cuenta = (await client.query(
+      `SELECT financiador_id, correo, nombre_publico FROM usuarios WHERE firebase_uid = $1`, [uid])).rows[0] ?? null;
+  }
+  const emailEfectivo = f.email ?? cuenta?.correo ?? (uid ? `${uid}@cuenta.vigia.local` : null);
+  const fin = uid
+    ? await client.query(
+        `SELECT id, visible FROM financiadores
+          WHERE ($2::bigint IS NOT NULL AND id = $2) OR firebase_uid = $1
+          ORDER BY (id = $2) DESC, (firebase_uid = $1) DESC LIMIT 1`,
+        [uid, cuenta?.financiador_id ?? null])
+    : { rows: [] as { id: number; visible: boolean }[] };
+  let financiadorId: number;
+  if (fin.rows.length) {
+    financiadorId = fin.rows[0].id;
+    await client.query(
+      `UPDATE financiadores SET nombre_publico = COALESCE($2, nombre_publico), logo_url = COALESCE($3, logo_url),
+              ruc = COALESCE(ruc, $5), firebase_uid = COALESCE(firebase_uid, $4) WHERE id = $1`,
+      [financiadorId, f.nombrePublico ?? null, f.logoUrl ?? null, uid, f.ruc ?? null]);
+  } else {
+    const nombre = f.nombrePublico ?? cuenta?.nombre_publico ?? null;
+    const slug = nombre ? slugify(nombre) + "-" + Math.random().toString(36).slice(2, 6) : null;
+    const ins = await client.query(
+      `INSERT INTO financiadores (tipo, nombre_publico, slug, ruc, logo_url, email, firebase_uid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [f.tipo, nombre, slug, f.ruc ?? null, f.logoUrl ?? null, emailEfectivo, uid]);
+    financiadorId = ins.rows[0].id;
+  }
+  if (uid) {
+    await client.query(
+      `INSERT INTO usuarios (firebase_uid, financiador_id) VALUES ($1, $2)
+       ON CONFLICT (firebase_uid) DO UPDATE SET financiador_id = COALESCE(usuarios.financiador_id, EXCLUDED.financiador_id), updated_at = now()`,
+      [uid, financiadorId]).catch(() => { /* sin migración 26 */ });
+  }
+  if (f.ruc) await marcarConflictoDeInteres(client, financiadorId, f.ruc);
+  return financiadorId;
+}
 
 // Alcance: exactamente uno de `ubigeo` (zona) o `entidadRuc` (entidad, migración 39).
 const MINIMO_ZONA = 5;
@@ -141,48 +191,7 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
       entidad = { ruc: ent.ruc, nombre: ent.nombre };
     }
 
-    // Financiador: con sesión, el de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese uid. Sin sesión,
-    // siempre uno nuevo: emparejar por el RUC o el correo que manda el cliente (sin verificar) dejaba a cualquiera
-    // cambiar el nombre y el logo públicos de un financiador ajeno (auditoría 2026-10-21). Con sesión no hace falta
-    // repetir nombre/logo.
-    let cuenta: { financiador_id: number | null; correo: string | null; nombre_publico: string | null } | null = null;
-    if (uid) {
-      cuenta = (await client.query(
-        `SELECT financiador_id, correo, nombre_publico FROM usuarios WHERE firebase_uid = $1`, [uid])).rows[0] ?? null;
-    }
-    const emailEfectivo = f.email ?? cuenta?.correo ?? (uid ? `${uid}@cuenta.vigia.local` : null);
-    const fin = uid
-      ? await client.query(
-          `SELECT id, visible FROM financiadores
-            WHERE ($2::bigint IS NOT NULL AND id = $2) OR firebase_uid = $1
-            ORDER BY (id = $2) DESC, (firebase_uid = $1) DESC LIMIT 1`,
-          [uid, cuenta?.financiador_id ?? null])
-      : { rows: [] as { id: number; visible: boolean }[] };
-    let financiadorId: number;
-    if (fin.rows.length) {
-      financiadorId = fin.rows[0].id;
-      await client.query(
-        `UPDATE financiadores SET nombre_publico = COALESCE($2, nombre_publico), logo_url = COALESCE($3, logo_url),
-                ruc = COALESCE(ruc, $5), firebase_uid = COALESCE(firebase_uid, $4) WHERE id = $1`,
-        [financiadorId, f.nombrePublico ?? null, f.logoUrl ?? null, uid, f.ruc ?? null]);
-    } else {
-      const nombre = f.nombrePublico ?? cuenta?.nombre_publico ?? null;
-      const slug = nombre ? slugify(nombre) + "-" + Math.random().toString(36).slice(2, 6) : null;
-      const ins = await client.query(
-        `INSERT INTO financiadores (tipo, nombre_publico, slug, ruc, logo_url, email, firebase_uid)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [f.tipo, nombre, slug, f.ruc ?? null, f.logoUrl ?? null, emailEfectivo, uid]);
-      financiadorId = ins.rows[0].id;
-    }
-    if (uid) {
-      await client.query(
-        `INSERT INTO usuarios (firebase_uid, financiador_id) VALUES ($1, $2)
-         ON CONFLICT (firebase_uid) DO UPDATE SET financiador_id = COALESCE(usuarios.financiador_id, EXCLUDED.financiador_id), updated_at = now()`,
-        [uid, financiadorId]).catch(() => { /* sin migración 26 */ });
-    }
-
-    // Conflicto de interés (regla 3): sanción vigente o proveedor con alertas activas.
-    if (f.ruc) await marcarConflictoDeInteres(client, financiadorId, f.ruc);
+    const financiadorId = await resolverFinanciador(client, uid, f);
 
     // La tarifa que rige hoy (una con vigente_desde futuro todavía no cuenta).
     const tarifa = await tarifaVigente(client);
@@ -217,6 +226,69 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     // Sin el mensaje interno en la respuesta: lo registra el manejador de errores (index.ts) con el requestId.
+    throw e;
+  } finally {
+    client.release();
+  }
+});
+
+// ─── POST /contribuciones/apoyo ──────────────────────────────────────────────
+// «Ayúdanos a seguir vigilando» (migración 206): un aporte al fondo común que sostiene la vigilancia (la base de datos,
+// los servidores, la captura de datos y la lectura a fondo de lo más grave). Sin contratos ni zona: nadie elige qué se
+// lee. `para` (la entidad o la región que mirabas) sólo dice qué te motivó. Mensual = lo que eliges hacer cada mes; sin
+// pasarela de pagos, cada mes es un aporte nuevo con el mismo trámite (Yape, Plin o transferencia y su validación).
+const ApoyoBody = z.object({
+  montoPen: z.number().min(5).max(50_000),
+  periodicidad: z.enum(["unica", "mensual"]),
+  metodo: z.enum(["transferencia", "yape", "plin"]).default("yape"),
+  financiador: z.object({
+    tipo: z.enum(["empresa", "persona", "organizacion"]),
+    nombrePublico: z.string().trim().min(2).max(80).optional(),
+    ruc: z.string().regex(/^\d{11}$/).optional(),
+    email: z.string().email().optional(),
+  }),
+  mensajePublico: z.string().trim().max(140).optional(),
+  para: z.object({
+    ruc: z.string().regex(/^\d{11}$/).optional(),
+    ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
+  }).optional(),
+});
+
+contribucionesRouter.post("/apoyo", limiteEscritura, exigirCaptcha, optionalAuth, async (c) => {
+  const body = ApoyoBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  const { montoPen, periodicidad, metodo, financiador: f, mensajePublico, para } = body.data;
+  if ((f.tipo === "empresa" || f.tipo === "organizacion") && !f.ruc) {
+    return c.json({ error: "ruc_required", detail: "Empresas y organizaciones deben indicar RUC" }, 400);
+  }
+  const uid = c.get("user")?.uid ?? null;
+  if (!uid && !f.email) return c.json({ error: "email_required", detail: "Sin sesión necesitamos un correo para el comprobante" }, 400);
+  // Sin medio de pago no se crea un aporte que no tiene cómo pagarse.
+  const pagos = await getPagosConfig();
+  if (!pagos.configurado) {
+    return c.json({ error: "pagos_cerrados", detail: "Todavía no hay un medio de pago conectado. Mientras tanto, Vigía se sostiene con su capital semilla." }, 503);
+  }
+  const monto = Math.round(montoPen * 100) / 100;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const financiadorId = await resolverFinanciador(client, uid, f);
+    const codigo = (await client.query("SELECT next_codigo_contribucion() AS c")).rows[0].c as string;
+    await client.query(
+      `INSERT INTO contribuciones (codigo, financiador_id, contratos, monto_pen, pasarela, mensaje_publico, tipo, periodicidad, para_ruc, para_ubigeo)
+       VALUES ($1, $2, 0, $3, $4, $5, 'apoyo', $6, $7, $8)`,
+      [codigo, financiadorId, monto, metodo, mensajePublico ?? null, periodicidad, para?.ruc ?? null, para?.ubigeo ?? null]);
+    await client.query("COMMIT");
+    return c.json({
+      codigo,
+      estado: "pendiente_pago",
+      tipo: "apoyo",
+      periodicidad,
+      montoPen: monto,
+      pago: { metodo, concepto: codigo, ...pagos },
+    }, 201);
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
     throw e;
   } finally {
     client.release();
@@ -289,9 +361,10 @@ contribucionesRouter.get("/:codigo", async (c) => {
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
             co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", z.nombre AS zona, co.ubigeo,
             ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
+            co.tipo, co.periodicidad,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
-     FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);
+     FROM contribuciones co LEFT JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", SIN_CACHE);
   return c.json(r.rows[0]);

@@ -152,11 +152,9 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           <>
             {/* Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
                 la cola están en la base pero no se financian, y el aporte no tendría qué asignar. */}
-            {t.enCola > 0 && (
-              <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`} flecha>
-                Financiar la lectura de sus contratos
-              </EnlaceAccion>
-            )}
+            <EnlaceAccion href="/app/apoyar" flecha>
+              Ayúdanos a vigilar
+            </EnlaceAccion>
             {/* Lo nuevo de sus gobiernos (los del período vigente), en Mi impacto. */}
             <SeguirBoton tipo="partido" id={partido.clave} nombre={partido.nombre} />
           </>

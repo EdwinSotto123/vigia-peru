@@ -99,13 +99,13 @@ export function Footer() {
 
           <div className="flex flex-col gap-2.5 sm:flex-row lg:flex-col">
             <Link
-              href="/app/financiar"
+              href="/app/apoyar"
               prefetch={false}
               className="group flex min-h-12 items-center sm:flex-1 lg:flex-none justify-between gap-3 rounded-full bg-paper px-5 py-3 text-granate transition-colors duration-rapido hover:bg-maiz-soft"
             >
               <span className="flex items-center gap-2.5">
                 <Heart size={16} aria-hidden className="fill-granate text-granate motion-safe:group-hover:animate-latir" />
-                <span className="font-display text-destacado font-bold leading-tight">Financiar una auditoría</span>
+                <span className="font-display text-destacado font-bold leading-tight">Ayúdanos a seguir vigilando</span>
               </span>
               <ArrowRight size={18} aria-hidden className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" />
             </Link>

@@ -138,7 +138,8 @@ export async function simular(env: Env, opciones: { n?: number; tokens?: boolean
           "WHERE estado = 'procesando' ORDER BY iniciado_at", []);
       const filas = await db.query(
         "SELECT ocid, intentos, encolado_at FROM procesamientos WHERE estado = 'encolado' AND intentos < 3 " +
-          "ORDER BY encolado_at, ocid LIMIT $1", [n]);
+          // Como reclamar_procesamientos (migración 206): lo más grave primero.
+          "ORDER BY prioridad DESC, encolado_at, ocid LIMIT $1", [n]);
       const candidatos: Candidato[] = [];
       for (const [ocid, intentos, encoladoAt] of filas) {
         candidatos.push(await candidato(db, env, cfg, ocid as string, intentos as number, encoladoAt));

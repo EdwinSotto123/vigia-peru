@@ -259,8 +259,33 @@ export const getRecientesPagina = (limit = 25, offset = 0, q?: string) =>
 export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);
 
 export const getComprobante = (codigo: string) =>
-  getJson<Comprobante>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
-    c ? { ...c, zona: conAcentos(c.zona) } : null,
+  getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
+    // Un aporte de apoyo (migración 206) no es un comprobante de lectura: lo trae getComprobanteApoyo.
+    c && !("tipo" in c && c.tipo === "apoyo") ? { ...(c as Comprobante), zona: conAcentos((c as Comprobante).zona) } : null,
+  );
+
+/** El comprobante de un aporte para seguir vigilando (migración 206): sin zona ni contratos. */
+export interface ComprobanteApoyo {
+  tipo: "apoyo";
+  codigo: string;
+  montoPen: number;
+  estado: string;
+  pagadaAt: string | null;
+  createdAt: string;
+  mensajePublico: string | null;
+  periodicidad: "unica" | "mensual" | null;
+  pasarela: string | null;
+  financiador: string;
+  slug: string | null;
+  paraRuc: string | null;
+  paraEntidad: string | null;
+  paraUbigeo: string | null;
+  paraZona: string | null;
+}
+
+export const getComprobanteApoyo = (codigo: string) =>
+  getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
+    c && "tipo" in c && c.tipo === "apoyo" ? (c as ComprobanteApoyo) : null,
   );
 
 export const getAlcance = () => getJson<Alcance>("/financiamiento/alcance", 60);
@@ -529,3 +554,47 @@ export function conAcentos(nombre: string): string {
   if (!nombre) return nombre;
   return nombre.replace(/[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+/g, (w) => ACENTOS[w] ?? w);
 }
+
+// ─── «Ayúdanos a seguir vigilando» y «Cuánto cuesta Vigía» (migración 206) ─────────────────────────
+
+/** Un rubro de lo que cuesta Vigía en un mes (`costos_mes`), con su fuente. */
+export interface RubroCosto {
+  rubro: string;
+  titulo: string;
+  proveedor: string;
+  detalle: string | null;
+  montoUsd: number;
+  /** `factura`: de la factura del proveedor (AWS por Cost Explorer); `estimado`: tarifa o proyección. */
+  fuente: "factura" | "estimado";
+  /** El mes no cerró: lo facturado hasta `al`, proyectado al mes entero. */
+  parcial: boolean;
+  al: string | null;
+  nota: string | null;
+}
+
+/** GET /financiamiento/vigilancia (backend/api/src/lib/vigilancia.ts). */
+export interface ResumenVigilancia {
+  mes: string;
+  mesCostos: string | null;
+  tipoCambio: { penPorUsd: number; fuente: string; referencial: boolean };
+  costos: { rubros: RubroCosto[]; totalUsd: number; totalPen: number } | null;
+  ia: { lecturasMes: number; costoMesUsd: number; costoMedioUsd: number | null; lecturasTotal: number; desde: string | null };
+  graves: { porMes: number; costoLeerlosUsd: number | null };
+  meta: { pisoPen: number | null; completaPen: number | null };
+  recaudado: { mesPen: number; aportes: number; aportantes: number; mensuales: number; semillaPen: number };
+  historial: { mes: string; costoUsd: number | null; iaUsd: number; lecturas: number; recaudadoPen: number }[];
+  vigilamos: { anio: number; ordenes: number; procesos: number; contratosConBanderas: number; graves: number; menores: number };
+  aliados: { nombres: { nombre: string; tipo: string; slug: string | null; periodicidad: string | null }[]; anonimos: number };
+}
+
+export const getVigilancia = () => getJson<ResumenVigilancia>("/financiamiento/vigilancia", 300);
+
+/** «octubre de 2026» a partir de «2026-10». */
+export function nombreMes(mes: string): string {
+  const [a, m] = mes.split("-").map(Number);
+  const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
+  return `${MESES[(m || 1) - 1]} de ${a}`;
+}
+
+/** US$ con dos decimales: «US$ 57.81». */
+export const dolares = (n: number) => `US$ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
