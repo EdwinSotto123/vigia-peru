@@ -50,7 +50,8 @@ export interface EventoHistoria {
   /** Dónde verificarlo. */
   enlace?: string | null;
   /** Quién (la empresa que ganó, la que ejecuta la obra), con su ficha: para el detalle. */
-  quien?: { nombre: string; rol: string; href?: string | null } | null;
+  /** `persona`: alguien de la empresa (con un apellido tapado por publicar()); si no, una entidad o una organización. */
+  quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…): para el detalle. */
   datos?: { etiqueta: string; valor: string }[];
   /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */
@@ -197,6 +198,13 @@ export const ELECCIONES: { clave: string; fecha: string; texto: string; ambito: 
   { clave: "EG2026", fecha: "2026-04-12", texto: "Elecciones generales 2026", ambito: "general" },
   { clave: "ERM2026", fecha: "2026-10-04", texto: "Elecciones regionales y municipales 2026", ambito: "regional" },
 ];
+
+/** El nombre de una elección por su proceso («ERM2022» → «Elecciones regionales y municipales 2022»); si no la conoce, tal cual. */
+export function textoEleccion(proceso: string | null | undefined): string | null {
+  if (!proceso) return null;
+  const k = proceso.toUpperCase().replace(/\s+/g, "");
+  return ELECCIONES.find((e) => e.clave === k)?.texto ?? proceso;
+}
 
 /** La fecha de una elección por su proceso como lo escriben la ONPE y el JNE («ERM 2022», «EG2021», «ECE 2020»). */
 export function fechaEleccion(proceso: string | null | undefined): string | null {

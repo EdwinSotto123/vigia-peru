@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, CalendarDays, ChevronRight } from "lucide-react";
+import { Building2, CalendarDays, ChevronRight, UserRound } from "lucide-react";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, PieDetalle } from "@/components/patrones/Detalle";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -50,6 +50,8 @@ const MONO = new Set(["Proceso", "Informe", "Código INFOBRAS"]);
  * datos dos veces era parte de «se repite información». Server-safe.
  */
 export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria; renglon?: string; conPie?: boolean }) {
+  // Quién: una persona de la empresa (su nombre, con un apellido tapado) o una entidad, cada una con su ícono.
+  const IconoQuien = e.quien?.tipo === "persona" ? UserRound : Building2;
   // Con el año siempre (la fecha corta lo omite en el año en curso, y una historia cruza muchos años).
   const cuando = e.hasta ? `Del ${fecha(e.fecha)} al ${fecha(e.hasta)}` : fecha(e.fecha);
   const banderas = e.banderas ?? [];
@@ -77,12 +79,15 @@ export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria;
                   prefetch={false}
                   className="group inline-flex max-w-full items-center gap-1.5 text-dato font-semibold text-ink hover:text-granate"
                 >
-                  <Building2 size={15} aria-hidden className="shrink-0 text-inkSoft group-hover:text-granate" />
+                  <IconoQuien size={15} aria-hidden className="shrink-0 text-inkSoft group-hover:text-granate" />
                   <span className="min-w-0 break-words underline decoration-line underline-offset-2 group-hover:decoration-granate">{e.quien.nombre}</span>
                   <ChevronRight size={15} aria-hidden className="shrink-0 opacity-70" />
                 </Link>
               ) : (
-                <p className="text-dato font-semibold text-ink">{e.quien.nombre}</p>
+                <p className="inline-flex max-w-full items-center gap-1.5 text-dato font-semibold text-ink">
+                  <IconoQuien size={15} aria-hidden className="shrink-0 text-inkSoft" />
+                  <span className="min-w-0 break-words">{e.quien.nombre}</span>
+                </p>
               )}
             </div>
           )}

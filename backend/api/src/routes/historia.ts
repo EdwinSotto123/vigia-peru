@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
-import { publicar } from "../lib/privacidad.js";
+import { pareceEmpresa, publicar } from "../lib/privacidad.js";
 import { visitasHasta } from "../lib/visitas.js";
 import {
   CLARIDAD_ONPE,
@@ -24,6 +24,7 @@ import {
   cualDespues,
   dia,
   fechaEleccion,
+  textoEleccion,
   marcasEleccion,
   olasDeGestion,
   patronesDeSeries,
@@ -617,8 +618,46 @@ const ROL_EMPRESA: Record<string, [string, string]> = {
   REPRESENTANTE_LEGAL: ["un representante legal", "representantes legales"],
   ORGANO_ADMINISTRACION: ["un directivo", "directivos"],
 };
+/** Los papeles de una persona en la empresa, del más alto al más bajo. */
+const ORDEN_ROL = ["REPRESENTANTE_LEGAL", "SOCIO_ACCIONISTA_TITULAR", "ORGANO_ADMINISTRACION"];
+const PAPEL: Record<string, string> = { REPRESENTANTE_LEGAL: "representante legal", SOCIO_ACCIONISTA_TITULAR: "socio", ORGANO_ADMINISTRACION: "directivo" };
+/** Cómo quedó ligada una visita a la empresa (migración 117): por el DNI de su gente o porque dijo venir de ella. */
+const VIA_VISITA: Record<string, string> = {
+  representante: "Su representante legal",
+  socio: "Su socio",
+  directivo: "Su directivo",
+  nombre: "Dijo venir de la empresa",
+};
+const listaY = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+const MESES_LARGO = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
+/** «21 de julio de 2023». */
+const fechaLarga = (d: string) => {
+  const [a, m, dd] = d.slice(0, 10).split("-").map(Number);
+  return `${dd} de ${MESES_LARGO[m - 1]} de ${a}`;
+};
+const oracionMayus = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** «09:40» de un «09:40:00». */
+const hora = (h: string | null) => (h ? h.slice(0, 5) : null);
+/** Dónde se ejerce (o se postuló a) un cargo: el distrito, la provincia o la región, según su nivel. */
+function lugarDelCargo(cargo: string | null, distrito: string | null, provincia: string | null, region: string | null): string | null {
+  const c = (cargo ?? "").toUpperCase();
+  if (/DISTRITAL/.test(c)) return distrito ?? provincia;
+  if (/PROVINCIAL/.test(c)) return provincia;
+  if (/REGIONAL|GOBERNADOR|CONSEJER/.test(c)) return region;
+  return null;
+}
+/** La elección de una candidatura del JNE por su año y su cargo (el registro no trae el proceso). */
+function eleccionDe(anio: number | null, cargo: string | null): string | null {
+  if (!anio) return null;
+  if (anio === 2020) return "ECE2020";
+  return /CONGRES|PRESIDENT|PARLAMENT/i.test(cargo ?? "") ? `EG${anio}` : `ERM${anio}`;
+}
 
-async function historiaEmpresa(ruc: string): Promise<Historia | null> {
+/**
+ * `registro`: las personas que nombra (su gente y quienes la visitaron), para que publicar() les tape un apellido en toda
+ * la respuesta; no se devuelve (va en su `extra`).
+ */
+async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unknown }) | null> {
   const [emp] = await filas<{ nombre: string | null; fundada: string | null; estado: string | null }>(
     "empresa",
     `SELECT COALESCE(r.nombre, e.razon_social) AS nombre, to_char(COALESCE(r.fecha_alta, e.fecha_alta_ruc), 'YYYY-MM-DD') AS fundada,
@@ -628,7 +667,11 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
        LEFT JOIN empresas e ON e.ruc = k.ruc
       WHERE r.ruc IS NOT NULL OR e.ruc IS NOT NULL`, [ruc]);
   if (!emp) return null;
-  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban, banMes] = await Promise.all([
+  // Su gente (las personas de su conformación jurídica en el RNP) entra en las consultas de aportes, candidaturas,
+  // autoridades y visitas por su DNI, que nunca sale de aquí: los hechos dicen QUIÉN fue (su nombre, tapado por
+  // publicar(), y su papel en la empresa). Pedido del 2026-10-29: «faltan varios detalles, mencionar quién hizo esa acción».
+  const GENTE = `SELECT numero_documento FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND numero_documento ~ '^[0-9]{8}$'`;
+  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban, banMes, gen, aut, cand, apo] = await Promise.all([
     filas<{ codigo: string; entidad_ruc: string | null; entidad: string | null; fecha: string | null; monto: number | null; referencial: number | null; descripcion: string | null; consorcio: string | null; ocid: string | null }>(
       "contratos",
       `WITH a AS (
@@ -678,10 +721,13 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
           AND p.tipo IN ('aporte', 'proveedor_campana', 'candidato', 'autoridad', 'partido_gobernante', 'vendio_gobernante', 'visita_previa',
                          'recien_fundada_medio_ano', 'recien_fundada_un_ano', 'recien_fundada_dos_anos', 'empresa_espejo')
         LIMIT 3000`, [ruc]),
-    filas<{ id: number; fecha: string; entidad: string | null; entidad_ruc: string | null; cargo: string | null; area: string | null }>(
+    // Quién fue (el visitante: su DNI sólo para saber su papel en la empresa) y cómo fue la visita. De quien la recibió,
+    // sólo su cargo y su área: nunca su nombre.
+    filas<{ id: number; fecha: string; entidad: string | null; entidad_ruc: string | null; cargo: string | null; area: string | null; visitante: string | null; doc: string | null; via: string; motivo: string | null; entra: string | null; sale: string | null; minutos: number | null; lugar: string | null }>(
       "visitas",
       `SELECT v.id, to_char(v.fecha_visita, 'YYYY-MM-DD') AS fecha, v.entidad_visitada AS entidad, ev.entidad_ruc,
-              v.funcionario_cargo AS cargo, v.funcionario_area AS area
+              v.funcionario_cargo AS cargo, v.funcionario_area AS area, v.visitante, v.numero_documento AS doc, ev.via, v.motivo,
+              v.hora_ingreso::text AS entra, v.hora_salida::text AS sale, v.duracion_min AS minutos, v.lugar_especifico AS lugar
          FROM empresa_visita ev JOIN visitas_entidades v ON v.id = ev.visita_id
         WHERE ev.ruc = $1 AND v.fecha_visita IS NOT NULL
         ORDER BY v.fecha_visita DESC LIMIT 3000`, [ruc]),
@@ -691,9 +737,10 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
               paralizada, to_char(fecha_paralizacion, 'YYYY-MM-DD') AS fecha_par, causal_paralizacion AS causal
          FROM obra_infobras WHERE ejecutor_ruc = $1 AND NOT retirada AND fecha_inicio IS NOT NULL
         ORDER BY contrato_monto DESC NULLS LAST LIMIT 200`, [ruc]),
-    filas<{ fecha: string; rol: string; n: number }>(
+    filas<{ fecha: string; rol: string; n: number; nombres: string[] | null }>(
       "socios",
-      `SELECT to_char(fecha_inicio_vigencia, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n
+      `SELECT to_char(fecha_inicio_vigencia, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n,
+              array_agg(DISTINCT nombre) FILTER (WHERE nombre IS NOT NULL) AS nombres
          FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND fecha_inicio_vigencia IS NOT NULL
         GROUP BY 1, 2 ORDER BY 1`, [ruc]),
     filas<{ ocid: string; entidad: string | null; entidad_ruc: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
@@ -715,10 +762,55 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
               count(*) FILTER (WHERE severidad = 'alta')::int AS altas
          FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
         GROUP BY 1 ORDER BY 1`, [ruc]),
+    filas<{ doc: string; nombre: string | null; roles: string[] | null; desde: string | null }>(
+      "su gente",
+      `SELECT numero_documento AS doc, max(nombre) AS nombre, array_agg(DISTINCT tipo_rol) AS roles,
+              to_char(min(fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde
+         FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND numero_documento ~ '^[0-9]{8}$'
+        GROUP BY numero_documento`, [ruc]),
+    filas<{ doc: string; cargo: string | null; distrito: string | null; provincia: string | null; departamento: string | null; org: string | null; desde: string | null; hasta: string | null; proceso: string | null; vigente: boolean | null }>(
+      "autoridades de su gente",
+      `SELECT a.dni AS doc, a.cargo, a.distrito, a.provincia, a.departamento, a.organizacion_politica AS org,
+              to_char(a.periodo_inicio, 'YYYY-MM-DD') AS desde, to_char(a.periodo_fin, 'YYYY-MM-DD') AS hasta, a.proceso, a.vigente
+         FROM jne_autoridades a WHERE a.dni IN (${GENTE}) AND a.periodo_inicio IS NOT NULL`, [ruc]),
+    filas<{ doc: string; cargo: string | null; partido: string | null; anio: number | null; resultado: string | null; region: string | null; provincia: string | null; distrito: string | null }>(
+      "candidaturas de su gente",
+      `SELECT c.numero_documento AS doc, c.cargo, c.partido, c."año" AS anio, c.resultado, c.region, c.provincia, c.distrito
+         FROM jne_candidaturas c WHERE c.numero_documento IN (${GENTE})`, [ruc]),
+    // Sin el receptor: en un aporte de campaña puede ser un candidato con nombre, y los aportes se dicen del partido.
+    filas<{ doc: string; fecha: string | null; anio: number | null; monto: number | null; partido: string | null; tipo: string | null; proceso: string | null; nivel: string | null }>(
+      "aportes de su gente",
+      `SELECT o.numero_documento AS doc, to_char(o.fecha_aporte, 'YYYY-MM-DD') AS fecha, o."año" AS anio, o.monto::float AS monto, o.partido,
+              o.tipo_aporte AS tipo, o.proceso, o.nivel
+         FROM onpe_aportantes o WHERE o.numero_documento IN (${GENTE})`, [ruc]),
   ]);
 
   const hasta = hoy();
   const base = `/empresa/${ruc}`;
+  const hrefGente = `${base}?seccion=gente&vista=socios`;
+  // Cada persona de su gente por su DNI (que no sale de aquí): su nombre, sus papeles y desde cuándo está.
+  const gente = new Map(gen.map((g) => [g.doc, g]));
+  const papeles = (roles: string[] | null | undefined) => ORDEN_ROL.filter((r) => roles?.includes(r)).map((r) => PAPEL[r]);
+  /** «Su representante legal, socio y directivo»: el rol del recuadro «quién» (nunca un cargo de elección: publicar() lo destaparía). */
+  const rolDe = (roles: string[] | null | undefined) => {
+    const p = papeles(roles);
+    return p.length ? `Su ${listaY(p)}` : "De su gente";
+  };
+  /** «Su representante legal»: el papel más alto, para el título del hecho. */
+  const sujetoDe = (roles: string[] | null | undefined) => {
+    const p = papeles(roles)[0];
+    return p ? `Su ${p}` : "Alguien de su gente";
+  };
+  const quienDe = (doc: string | null | undefined): NonNullable<EventoHistoria["quien"]> | null => {
+    const g = doc ? gente.get(doc) : undefined;
+    return g?.nombre ? { nombre: g.nombre, rol: rolDe(g.roles), href: hrefGente, tipo: "persona" } : null;
+  };
+  /** «En la empresa desde: 21 de julio de 2023»: un hecho de antes de entrar no es de su tiempo en la empresa. */
+  const enLaEmpresa = (doc: string | null | undefined, fecha: string) => {
+    const desde = doc ? gente.get(doc)?.desde : null;
+    if (!desde) return [];
+    return [{ etiqueta: "En la empresa desde", valor: desde > fecha ? `${fechaLarga(desde)} (después de esto)` : fechaLarga(desde) }];
+  };
   const series: SerieHistoria[] = [];
   const eventos: EventoHistoria[] = [];
 
@@ -737,6 +829,14 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
       id: `contrato:${a.codigo}:${a.entidad_ruc ?? ""}`, carril: "compras", tipo: "buena_pro", fecha: a.fecha!, monto: dudoso ? null : num(a.monto),
       titulo: `Ganó la buena pro en ${a.entidad ? titulo(a.entidad) : "una entidad"}`,
       detalle: [corto(a.descripcion), a.consorcio ? `En consorcio: ${titulo(a.consorcio)}` : null, dudoso ? "El monto adjudicado parece mal cargado en el OECE: no se suma" : null].filter(Boolean).join("; ") || null,
+      quien: a.entidad ? { nombre: titulo(a.entidad), rol: "Le dio la buena pro", href: a.entidad_ruc ? `/entidad/${a.entidad_ruc}` : null, tipo: "entidad" } : null,
+      datos: [
+        ...(a.descripcion ? [{ etiqueta: "Qué se contrató", valor: corto(a.descripcion, 400)! }] : []),
+        ...(a.referencial && a.referencial > 1 ? [{ etiqueta: "Valor referencial", valor: `S/ ${Math.round(a.referencial).toLocaleString("en-US")}` }] : []),
+        ...(a.consorcio ? [{ etiqueta: "En consorcio", valor: titulo(a.consorcio) }] : []),
+        ...(dudoso ? [{ etiqueta: "Ojo", valor: "El monto adjudicado parece mal cargado en el OECE: no se suma" }] : []),
+        { etiqueta: "Proceso", valor: a.codigo },
+      ],
       href: a.ocid ? rutaContrato(a.ocid) : `${base}?seccion=ventas&vista=contratos`, fuente: "OECE (CONOSCE)", enlace: a.ocid ? procesoOece(a.ocid) : CONOSCE_BUSCADOR,
     });
   }
@@ -753,10 +853,24 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
   for (const v of vis) visMes.set(v.fecha.slice(0, 7), (visMes.get(v.fecha.slice(0, 7)) ?? 0) + 1);
   if (visMes.size) series.push({ carril: "visitas", titulo: "Visitas a entidades", medida: "n", unidad: "visitas", huecos: "cero", puntos: [...visMes.keys()].sort().map((m) => ({ periodo: m, n: visMes.get(m)! })), fuente: "Registro de Visitas en Línea", enlace: VISITAS_EN_LINEA, href: `${base}?seccion=gente&vista=visitas` });
   for (const v of vis) {
+    // Quién fue: alguien de su gente (por su DNI: su nombre y su papel) o quien dijo venir de la empresa (su nombre).
+    const deSuGente = v.via !== "nombre" ? quienDe(v.doc) : null;
+    const quien = deSuGente ?? (v.visitante ? { nombre: v.visitante, rol: VIA_VISITA[v.via] ?? "Dijo venir de la empresa", href: `${base}?seccion=gente&vista=visitas`, tipo: "persona" as const } : null);
+    const recibio = [v.cargo, v.area].filter(Boolean).map((x) => titulo(x)).join(", ");
+    const horario = hora(v.entra) ? `${hora(v.entra)}${hora(v.sale) ? ` a ${hora(v.sale)}` : ""}${v.minutos != null && v.minutos > 0 ? ` (${v.minutos} min)` : ""}` : null;
     eventos.push({
       id: `visita:${v.id}`, carril: "visitas", tipo: "visita", fecha: v.fecha,
-      titulo: `Visitó ${v.entidad ? titulo(v.entidad) : "una entidad"}`,
-      detalle: v.cargo || v.area ? `Lo recibió: ${[v.cargo, v.area].filter(Boolean).join(", ")}` : null,
+      titulo: `${deSuGente ? sujetoDe(gente.get(v.doc ?? "")?.roles) : v.via === "nombre" ? "Alguien de la empresa" : VIA_VISITA[v.via] ?? "Su gente"} visitó ${v.entidad ? titulo(v.entidad) : "una entidad"}`,
+      detalle: recibio ? `Lo recibió: ${recibio}` : null,
+      quien,
+      datos: [
+        { etiqueta: "Entidad", valor: v.entidad ? titulo(v.entidad) : "Sin dato" },
+        ...(recibio ? [{ etiqueta: "Lo recibió", valor: recibio }] : []),
+        ...(v.motivo ? [{ etiqueta: "Motivo", valor: corto(v.motivo, 160) ?? v.motivo }] : []),
+        ...(horario ? [{ etiqueta: "Hora", valor: horario }] : []),
+        ...(v.lugar ? [{ etiqueta: "Dónde", valor: titulo(v.lugar) }] : []),
+        ...(deSuGente ? enLaEmpresa(v.doc, v.fecha) : []),
+      ],
       href: v.entidad_ruc ? `/entidad/${v.entidad_ruc}` : `${base}?seccion=gente&vista=visitas`, fuente: "Registro de Visitas en Línea", enlace: VISITAS_EN_LINEA,
     });
   }
@@ -766,7 +880,20 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
   }
   for (const s of soc) {
     const [uno, varios] = ROL_EMPRESA[s.rol] ?? ["una persona", "personas"];
-    eventos.push({ id: `rnp:${s.fecha}:${s.rol}`, carril: "empresa", tipo: "conformacion", fecha: s.fecha, titulo: s.n === 1 ? `Entró ${uno}` : `Entraron ${s.n} ${varios}`, detalle: "Fecha de inicio en su conformación jurídica del RNP", href: `${base}?seccion=gente&vista=socios`, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP });
+    // Quién entró: su nombre (una persona, tapado por publicar(); una empresa socia, entera, con su razón social).
+    const nombres = (s.nombres ?? []).slice().sort();
+    eventos.push({
+      id: `rnp:${s.fecha}:${s.rol}`, carril: "empresa", tipo: "conformacion", fecha: s.fecha,
+      titulo: s.n === 1 ? `Entró ${uno}` : `Entraron ${s.n} ${varios}`,
+      detalle: "Fecha de inicio en su conformación jurídica del RNP",
+      quien: s.n === 1 && nombres[0] ? { nombre: nombres[0], rol: oracionMayus(uno.replace(/^un /, "")), href: hrefGente, tipo: "persona" } : null,
+      datos: [
+        { etiqueta: "Como", valor: oracionMayus(s.n === 1 ? uno.replace(/^un /, "") : varios) },
+        ...(s.n > 1 && nombres.length ? [{ etiqueta: "Quiénes", valor: listaY(nombres) }] : []),
+        { etiqueta: "Desde", valor: fechaLarga(s.fecha) },
+      ],
+      href: hrefGente, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP,
+    });
   }
 
   for (const s of san) {
@@ -777,6 +904,12 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
       id: `sancion:${s.id}`, carril: "control", tipo: multa ? "multa" : "sancion", fecha: desde, hasta: multa ? null : s.hasta,
       titulo: multa ? "Multa del Tribunal de Contrataciones" : s.tipo === "definitivo" ? "Inhabilitada para siempre por el Tribunal" : "Inhabilitada por el Tribunal de Contrataciones",
       detalle: [s.resolucion ? `Resolución ${s.resolucion}` : null, s.infraccion ? s.infraccion.replace(/^[-\s]*[a-z]\)\s*/i, "") : null].filter(Boolean).join("; ") || null,
+      quien: { nombre: "Tribunal de Contrataciones del Estado (OECE)", rol: multa ? "Le puso la multa" : "La inhabilitó", href: null, tipo: "entidad" },
+      datos: [
+        ...(s.infraccion ? [{ etiqueta: "Por qué", valor: oracionMayus(s.infraccion.replace(/^[-\s]*[a-z]\)\s*/i, "").trim()) }] : []),
+        ...(s.resolucion ? [{ etiqueta: "Resolución", valor: `${s.resolucion}${s.fecha_res ? `, del ${fechaLarga(s.fecha_res)}` : ""}` }] : []),
+        ...(!multa ? [{ etiqueta: "Sin poder contratar con el Estado", valor: s.tipo === "definitivo" ? `Para siempre, desde el ${fechaLarga(desde)}` : `Del ${fechaLarga(desde)}${s.hasta ? ` al ${fechaLarga(s.hasta)}` : ""}` }] : []),
+      ],
       monto: num(s.multa), severidad: multa ? "baja" : s.tipo === "definitivo" ? "alta" : "media",
       href: `${base}?seccion=antecedentes`, fuente: "Tribunal de Contrataciones (OECE)", enlace: DATASET_SANCIONADOS,
     });
@@ -789,26 +922,101 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     });
   }
 
-  // La política: los aportes y las campañas, una vez cada uno (un cruce se repite por cada contrato y cada persona).
+  // La política. Las ventas a una campaña salen de los cruces (son de la empresa); los aportes, las candidaturas y los cargos
+  // de elección, de los registros de cada persona de su gente (ONPE y JNE, por su DNI), para decir quién fue, dónde y
+  // por qué partido. Antes decían «Alguien de su gente es alcalde distrital», sin quién ni de dónde.
   const vistos = new Set<string>();
+  const agregar = (e: EventoHistoria) => {
+    if (vistos.has(e.id)) return;
+    vistos.add(e.id);
+    eventos.push(e);
+  };
   for (const x of cru) {
     const d = (x.detalle ?? {}) as Record<string, unknown>;
-    const f = dia(x.fecha);
     const s = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : null);
-    let e: EventoHistoria | null = null;
-    if ((x.tipo === "aporte" || (x.tipo === "partido_gobernante" && s("via") === "aporte")) && f && s("partido")) {
-      e = { id: `aporte:${f}:${s("partido")}:${x.monto ?? ""}`, carril: "politica", tipo: "aporte", fecha: f, monto: num(x.monto), titulo: `Aporte de su gente a ${titulo(s("partido"))}`, detalle: "Un socio, representante o directivo de la empresa", fuente: "ONPE (aportes)", enlace: CLARIDAD_ONPE, href: `${base}?seccion=antecedentes` };
-    } else if ((x.tipo === "proveedor_campana" || (x.tipo === "vendio_gobernante" && s("via") === "proveedor_campana")) && fechaEleccion(s("proceso")) && s("organizacion")) {
-      e = { id: `campana:${s("proceso")}:${s("organizacion")}`, carril: "politica", tipo: "campana", fecha: fechaEleccion(s("proceso"))!, monto: num(x.monto), titulo: `Le vendió a la campaña de ${titulo(s("organizacion"))}`, detalle: `${s("proceso")} (gastos de campaña declarados a la ONPE)`, fuente: "ONPE (gastos de campaña)", enlace: CLARIDAD_ONPE, href: `${base}?seccion=antecedentes` };
-    } else if (x.tipo === "candidato" && fechaEleccion(s("proceso"))) {
-      e = { id: `candidato:${s("proceso")}:${s("organizacion")}`, carril: "politica", tipo: "candidatura", fecha: fechaEleccion(s("proceso"))!, severidad: "media", titulo: `Alguien de su gente postuló${s("organizacion") ? ` por ${titulo(s("organizacion"))}` : ""}`, detalle: s("proceso"), fuente: "JNE", enlace: PLATAFORMA_JNE, href: `${base}?seccion=antecedentes` };
-    } else if (x.tipo === "autoridad" && f) {
-      e = { id: `autoridad:${f}:${s("cargo")}`, carril: "politica", tipo: "autoridad", fecha: f, hasta: dia(d.hasta), severidad: "alta", titulo: `Alguien de su gente es ${s("cargo")?.toLowerCase() ?? "autoridad electa"}`, detalle: [s("organizacion") ? titulo(s("organizacion")) : null, s("departamento") ? titulo(s("departamento")) : null].filter(Boolean).join(", ") || null, fuente: "JNE", enlace: PLATAFORMA_JNE, href: `${base}?seccion=antecedentes` };
+    if ((x.tipo === "proveedor_campana" || (x.tipo === "vendio_gobernante" && s("via") === "proveedor_campana")) && fechaEleccion(s("proceso")) && s("organizacion")) {
+      agregar({
+        id: `campana:${s("proceso")}:${s("organizacion")}`, carril: "politica", tipo: "campana", fecha: fechaEleccion(s("proceso"))!, monto: num(x.monto),
+        titulo: `Le vendió a la campaña de ${titulo(s("organizacion"))}`,
+        detalle: `${s("proceso")} (gastos de campaña declarados a la ONPE)`,
+        quien: { nombre: titulo(s("organizacion")), rol: "Le compró", href: null, tipo: "entidad" },
+        datos: [
+          { etiqueta: "Elección", valor: textoEleccion(s("proceso")) ?? s("proceso")! },
+          { etiqueta: "Qué es", valor: "La organización declaró a la ONPE un gasto de campaña pagado a esta empresa" },
+        ],
+        fuente: "ONPE (gastos de campaña)", enlace: CLARIDAD_ONPE, href: `${base}?seccion=antecedentes`,
+      });
     }
-    if (e && !vistos.has(e.id)) {
-      vistos.add(e.id);
-      eventos.push(e);
-    }
+  }
+  for (const a of aut) {
+    const desde = dia(a.desde);
+    const g = gente.get(a.doc);
+    if (!desde || !g) continue;
+    const lugar = lugarDelCargo(a.cargo, a.distrito, a.provincia, a.departamento);
+    const cargo = (a.cargo ?? "autoridad electa").toLowerCase();
+    agregar({
+      id: `autoridad:${desde}:${a.cargo ?? ""}:${lugar ?? ""}`, carril: "politica", tipo: "autoridad", fecha: desde, hasta: dia(a.hasta), severidad: "alta",
+      titulo: `${sujetoDe(g.roles)} es ${cargo}${lugar ? ` de ${titulo(lugar)}` : ""}`,
+      detalle: [a.org ? titulo(a.org) : null, a.departamento ? titulo(a.departamento) : null].filter(Boolean).join(", ") || null,
+      quien: quienDe(a.doc),
+      datos: [
+        { etiqueta: "Cargo", valor: oracionMayus(cargo) },
+        { etiqueta: "Dónde", valor: [a.distrito, a.provincia, a.departamento].filter(Boolean).map((x) => titulo(x)).join(", ") || "Sin dato" },
+        ...(a.org ? [{ etiqueta: "Partido", valor: titulo(a.org) }] : []),
+        { etiqueta: "Periodo", valor: `${desde.slice(0, 4)} a ${a.hasta ? a.hasta.slice(0, 4) : "hoy"}` },
+        ...(a.proceso ? [{ etiqueta: "Elegido en", valor: textoEleccion(a.proceso) ?? a.proceso }] : []),
+        { etiqueta: "Hoy", valor: a.vigente ? "Sigue en el cargo" : "Ya dejó el cargo" },
+        ...enLaEmpresa(a.doc, desde),
+      ],
+      fuente: "JNE", enlace: PLATAFORMA_JNE, href: `${base}?seccion=antecedentes`,
+    });
+  }
+  for (const c of cand) {
+    const g = gente.get(c.doc);
+    const proceso = eleccionDe(c.anio, c.cargo);
+    const fecha = fechaEleccion(proceso);
+    if (!g || !fecha) continue;
+    const lugar = lugarDelCargo(c.cargo, c.distrito, c.provincia, c.region);
+    const cargo = (c.cargo ?? "").toLowerCase();
+    const aQue = !cargo ? "" : cargo === "accesitario" ? " como accesitario" : ` a ${cargo}${lugar ? ` de ${titulo(lugar)}` : ""}`;
+    agregar({
+      id: `candidato:${proceso}:${c.cargo ?? ""}:${c.partido ?? ""}`, carril: "politica", tipo: "candidatura", fecha, severidad: "media",
+      titulo: `${sujetoDe(g.roles)} postuló${aQue}${c.partido ? ` por ${titulo(c.partido)}` : ""}`,
+      detalle: textoEleccion(proceso),
+      quien: quienDe(c.doc),
+      datos: [
+        ...(cargo ? [{ etiqueta: "A qué postuló", valor: oracionMayus(cargo) }] : []),
+        ...(lugar || c.region ? [{ etiqueta: "Dónde", valor: [c.distrito, c.provincia, c.region].filter(Boolean).map((x) => titulo(x)).join(", ") }] : []),
+        ...(c.partido ? [{ etiqueta: "Partido", valor: titulo(c.partido) }] : []),
+        { etiqueta: "Elección", valor: textoEleccion(proceso) ?? proceso! },
+        ...(c.resultado ? [{ etiqueta: "Resultado", valor: c.resultado === "electo" ? "Fue elegido" : "No fue elegido" }] : []),
+        ...enLaEmpresa(c.doc, fecha),
+      ],
+      fuente: "JNE", enlace: PLATAFORMA_JNE, href: `${base}?seccion=antecedentes`,
+    });
+  }
+  for (const o of apo) {
+    const g = gente.get(o.doc);
+    const fecha = dia(o.fecha) ?? (o.anio ? `${o.anio}-12-31` : null);
+    if (!g || !fecha || !o.partido) continue;
+    const campana = o.nivel === "campaña";
+    const anual = o.nivel === "anual";
+    agregar({
+      id: `aporte:${fecha}:${o.partido}:${o.monto ?? ""}`, carril: "politica", tipo: "aporte", fecha, monto: num(o.monto),
+      titulo: `${sujetoDe(g.roles)} aportó a ${titulo(o.partido)}`,
+      detalle: campana ? `Para su campaña${o.proceso ? ` (${textoEleccion(o.proceso)})` : ""}` : anual ? "Al partido, en su informe del año" : null,
+      quien: quienDe(o.doc),
+      datos: [
+        { etiqueta: "Partido", valor: titulo(o.partido) },
+        ...(o.tipo ? [{ etiqueta: "Cómo", valor: o.tipo === "efectivo" ? "En efectivo" : o.tipo === "especie" ? "En especie (bienes o servicios)" : oracionMayus(o.tipo) }] : []),
+        ...(campana || anual
+          ? [{ etiqueta: "Para qué", valor: campana ? `La campaña${o.proceso ? ` de las ${textoEleccion(o.proceso)}` : ""}` : `El partido (informe financiero de ${o.anio ?? fecha.slice(0, 4)})` }]
+          : []),
+        ...(dia(o.fecha) ? [] : [{ etiqueta: "Fecha", valor: "La ONPE no publica el día: va al cierre del año" }]),
+        ...enLaEmpresa(o.doc, fecha),
+      ],
+      fuente: "ONPE (aportes)", enlace: CLARIDAD_ONPE, href: `${base}?seccion=antecedentes`,
+    });
   }
 
   for (const o of obr) {
@@ -858,6 +1066,15 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
       { texto: "Su ficha en la SUNAT", href: CONSULTA_RUC_SUNAT },
       { texto: "Aportes y gastos de campaña (ONPE)", href: CLARIDAD_ONPE },
     ],
+    registro: {
+      // Las personas de su conformación (también las de carné de extranjería o pasaporte, que no entran por DNI) y los
+      // visitantes, en el orden SUNAT: apellidos y nombres.
+      socios: [
+        ...gen.map((g) => ({ nombre: g.nombre })),
+        ...soc.flatMap((s) => (s.nombres ?? []).filter((n) => !pareceEmpresa(n)).map((n) => ({ nombre: n }))),
+      ],
+      visitas: vis.filter((v) => v.visitante).map((v) => ({ visitante: v.visitante })),
+    },
   };
 }
 
@@ -866,9 +1083,12 @@ historiaRouter.get("/empresa/:ruc", async (c) => {
   // Sólo empresas (RUC 20): una persona natural tiene su propio perfil, y su RUC 10 nunca va en una URL.
   if (!/^20\d{9}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await memo.obtener(`empresa:${ruc}`, async () => {
-    const h = await historiaEmpresa(ruc);
-    // Por si un nombre de persona llegó en un texto (una razón social que es un nombre): publicar() lo tapa.
-    return h ? publicar({ ...h, visitasHasta: await visitasHasta() }) : null;
+    const r = await historiaEmpresa(ruc);
+    if (!r) return null;
+    // Las personas de `registro` (su gente, sus visitantes) salen con un apellido tapado en todo el JSON; también un
+    // nombre de persona que llegó en un texto (una razón social que es un nombre).
+    const { registro, ...h } = r;
+    return publicar({ ...h, visitasHasta: await visitasHasta() }, { extra: registro });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);

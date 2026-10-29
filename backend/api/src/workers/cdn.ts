@@ -84,8 +84,11 @@ const GUARDADO = "X-Vigia-Guardado";
  * "62": sin las comillas que el SEACE trae como «¿» (el 61 guardó en DEV la Historia de EsSalud con ellas).
  * "63": el renglón «Contratos con banderas» con su serie por mes (el total real) y, como puntos, los más graves de cada
  *       año (antes, los 400 más recientes: en EsSalud todos de 2026, aunque tiene banderas desde 2018).
+ * "64": la historia de una empresa dice quién hizo cada hecho (`quien` con su `tipo`, persona con un apellido tapado o
+ *       entidad) y lo que se sabe en filas (`datos`): dónde, partido, periodo, motivo y hora de una visita…; «Lo nuevo»
+ *       trae los antecedentes de cada contrato (`cruces`).
  */
-const VERSION_CACHE = "63";
+const VERSION_CACHE = "64";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

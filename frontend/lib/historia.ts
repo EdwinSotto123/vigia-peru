@@ -39,7 +39,8 @@ export interface EventoHistoria {
   fuente: string;
   enlace?: string | null;
   /** Quién (la empresa que ganó, la que ejecuta la obra, la entidad que le dio la buena pro), con su ficha. */
-  quien?: { nombre: string; rol: string; href?: string | null } | null;
+  /** `persona`: alguien de la empresa, con un apellido tapado (la API lo tapa); si no, una entidad u organización. */
+  quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…). */
   datos?: { etiqueta: string; valor: string }[];
   /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */

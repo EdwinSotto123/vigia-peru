@@ -169,6 +169,12 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
           <CeldaPrincipal
             titulo={e.titulo}
             meta={[
+              // Quién fue (una persona de la empresa o la entidad), sin abrir el detalle.
+              e.quien ? (
+                <Dato key="q" tipo={e.quien.tipo === "persona" ? "personas" : "entidad"} nombre={e.quien.rol}>
+                  {e.quien.nombre}
+                </Dato>
+              ) : null,
               <Dato key="f" tipo="fecha" nombre="Cuándo">{e.hasta ? `${fechaCorta(e.fecha)} a ${fechaCorta(e.hasta)}` : fechaCorta(e.fecha)}</Dato>,
               <Dato key="c" tipo="tipo" nombre="Renglón">{titulo(e.carril)}</Dato>,
               sev(e.severidad) && e.carril !== "gobierno" ? <Dato key="s" tipo="tipo" nombre="Gravedad">{sev(e.severidad)}</Dato> : null,
@@ -186,7 +192,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
       buscable: `${e.titulo} ${e.detalle ?? ""} ${e.quien?.nombre ?? ""} ${(e.datos ?? []).map((d) => d.valor).join(" ")} ${(e.banderas ?? []).map((b) => b.texto).join(" ")} ${e.fuente} ${titulo(e.carril)}`,
       valores: { carril: e.carril, severidad: e.severidad ?? "ninguna" },
       claves: { fecha: e.hasta ?? e.fecha, monto: e.monto ?? 0 },
-      csv: { fecha: e.fecha, hasta: e.hasta ?? null, renglon: titulo(e.carril), hecho: e.titulo, detalle: e.detalle ?? null, gravedad: e.severidad ?? null, monto: e.monto ?? null, fuente: e.fuente, enlace: e.enlace ?? null },
+      csv: { fecha: e.fecha, hasta: e.hasta ?? null, renglon: titulo(e.carril), hecho: e.titulo, quien: e.quien ? `${e.quien.nombre} (${e.quien.rol})` : null, detalle: e.detalle ?? null, gravedad: e.severidad ?? null, monto: e.monto ?? null, fuente: e.fuente, enlace: e.enlace ?? null },
     })),
   ];
   const carriles = [...new Set(filas.map((f) => String(f.valores?.carril)))];
