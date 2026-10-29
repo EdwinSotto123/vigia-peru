@@ -15,6 +15,9 @@
 (() => {
   const visible = (el) => {
     if (!el) return false;
+    // Lo de adentro de un <details> cerrado no se ve (Chrome igual le da caja: content-visibility, no display: none).
+    const plegado = el.closest("details:not([open])");
+    if (plegado && !el.closest("summary")) return false;
     const r = el.getBoundingClientRect();
     const s = getComputedStyle(el);
     // Más de 1 px: lo de 1 px es el nombre oculto de un botón (`sr-only`), que no se ve.
