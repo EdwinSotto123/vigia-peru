@@ -245,16 +245,20 @@ export function mesesCubiertos(c: CoberturaCarril): { desde: string; hasta: stri
   return { desde: c.desde.length === 4 ? `${c.desde}-01` : c.desde, hasta: c.hasta.length === 4 ? `${c.hasta}-12` : c.hasta };
 }
 
+/** «de las órdenes de CONOSCE», «del personal del Portal…» (de + el = del). */
+const deLo = (que: string) => (/^el /i.test(que) ? `del ${que.slice(3)}` : `de ${que}`);
+
 /**
  * Si de un mes no hay datos en un renglón, por qué: la fuente todavía no empezaba o ya no llega, o (en una serie que se
- * publica a veces, como la planilla) la entidad no publicó ese mes. Null si ese mes sí está cubierto.
+ * publica a veces, como la planilla) la entidad no publicó ese mes. Null si ese mes sí está cubierto. «Lo que tenemos
+ * de…» concuerda con todo (antes, «el personal del Portal… que tenemos empiezan»).
  */
 export function sinDatosDelMes(c: CarrilLinea, serie: SerieHistoria | undefined, mes: string): string | null {
   if (c.sinDatos) return c.sinDatos;
   if (c.cubre) {
     const { desde, hasta } = mesesCubiertos(c.cubre);
-    if (mes < desde) return `Sin datos de este periodo: ${c.cubre.que} que tenemos empiezan en ${mesLargo(desde)}.`;
-    if (mes > hasta) return `Sin datos de este periodo: ${c.cubre.que} que tenemos llegan hasta ${mesLargo(hasta)}.`;
+    if (mes < desde) return `Sin datos de este periodo: lo que tenemos ${deLo(c.cubre.que)} empieza en ${mesLargo(desde)}.`;
+    if (mes > hasta) return `Sin datos de este periodo: lo que tenemos ${deLo(c.cubre.que)} llega hasta ${mesLargo(hasta)}.`;
   }
   if (serie && serie.huecos === "sin_dato" && !serie.porAnio && serie.puntos.length && !serie.puntos.some((p) => p.periodo === mes)) {
     const primero = serie.puntos.reduce((a, p) => (p.periodo < a ? p.periodo : a), serie.puntos[0].periodo);

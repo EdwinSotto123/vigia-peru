@@ -160,14 +160,14 @@ const sev =(v: unknown): Severidad | null => (v === "alta" || v === "media" || v
 /** Siglas que se leen en las descripciones del SEACE (todo viene en mayúsculas: al pasarlo a minúsculas se perdían). */
 const SIGLAS_SEACE =
   /\b(essalud|incor|cui|uit|minsa|sis|ugel|ipress|inen|insn|pnp|mtc|mef|oece|osce|seace|sunat|sunarp|reniec|onp|inpe|devida|pronabec|pronied|digesa|digemid|cenares|diresa|geresa|dre|gore|ee\.ss|epp|covid|vih|tbc)\b/gi;
-/** Una descripción del SEACE en una frase de a lo sumo 180 letras (entera, en la ficha del contrato). */
-const corto = (s: string | null | undefined): string | null => {
+/** Una descripción del SEACE en una frase de a lo sumo `max` letras (entera, en la ficha del contrato). */
+const corto = (s: string | null | undefined, max = 180): string | null => {
   // El SEACE trae las comillas convertidas en «¿» («¿ADQUISICION DE ECOCARDIOGRAFO¿»): sin un «?» no es una pregunta.
   const c = (s ?? "").replace(/[«»“”"]/g, "");
   const t = (c.includes("?") ? c : c.replace(/¿/g, "")).replace(/\s+/g, " ").trim();
   if (!t) return null;
   const o = (t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).replace(SIGLAS_SEACE, (x) => x.toUpperCase());
-  return o.length > 180 ? `${o.slice(0, 179).replace(/\s+\S*$/, "")}…` : o;
+  return o.length > max ? `${o.slice(0, max - 1).replace(/\s+\S*$/, "")}…` : o;
 };
 
 /** Los carriles que traen algo (una serie con datos o un hecho), en el orden pedido. */
@@ -231,7 +231,8 @@ function decirBanderas(banderas: NonNullable<EventoHistoria["banderas"]>, quien:
 /** Lo que se contrató, el tipo y el código del proceso, en el orden del detalle. */
 function datosContrato(objeto: string | null, tipo: string | null, codigo: string | null): NonNullable<EventoHistoria["datos"]> {
   return [
-    objeto ? { etiqueta: "Qué se contrató", valor: corto(objeto)! } : null,
+    // En el detalle hay sitio: hasta 500 letras (la ficha del contrato la tiene entera).
+    objeto ? { etiqueta: "Qué se contrató", valor: corto(objeto, 500)! } : null,
     tipo ? { etiqueta: "Tipo", valor: oracion(tipo)! } : null,
     codigo ? { etiqueta: "Proceso", valor: codigo } : null,
   ].filter((x): x is { etiqueta: string; valor: string } => !!x);
