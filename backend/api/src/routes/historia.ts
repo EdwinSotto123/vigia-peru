@@ -157,11 +157,16 @@ const titulo = (s: string | null | undefined) =>
 /** «a los 13 días» / «el mismo día». */
 const aLos = (dias: number) => (dias === 0 ? "el mismo día" : `a los ${dias} ${dias === 1 ? "día" : "días"}`);
 const sev =(v: unknown): Severidad | null => (v === "alta" || v === "media" || v === "baja" ? v : null);
+/** Siglas que se leen en las descripciones del SEACE (todo viene en mayúsculas: al pasarlo a minúsculas se perdían). */
+const SIGLAS_SEACE =
+  /\b(essalud|incor|cui|uit|minsa|sis|ugel|ipress|inen|insn|pnp|mtc|mef|oece|osce|seace|sunat|sunarp|reniec|onp|inpe|devida|pronabec|pronied|digesa|digemid|cenares|diresa|geresa|dre|gore|ee\.ss|epp|covid|vih|tbc)\b/gi;
 /** Una descripción del SEACE en una frase de a lo sumo 180 letras (entera, en la ficha del contrato). */
 const corto = (s: string | null | undefined): string | null => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
+  // El SEACE trae las comillas convertidas en «¿» («¿ADQUISICION DE ECOCARDIOGRAFO¿»): sin un «?» no es una pregunta.
+  const c = (s ?? "").replace(/[«»“”"]/g, "");
+  const t = (c.includes("?") ? c : c.replace(/¿/g, "")).replace(/\s+/g, " ").trim();
   if (!t) return null;
-  const o = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  const o = (t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).replace(SIGLAS_SEACE, (x) => x.toUpperCase());
   return o.length > 180 ? `${o.slice(0, 179).replace(/\s+\S*$/, "")}…` : o;
 };
 
@@ -290,10 +295,14 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
         ORDER BY contrato_monto DESC NULLS LAST LIMIT 300`, [ruc]),
     filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[]; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta, tipos,
-              cruces, codigo
-         FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
-        ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
+      `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
+         FROM (SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
+                      severidad, n_alta, tipos, cruces, codigo AS convocatoria, fecha_buena_pro
+                 FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
+                ORDER BY fecha_buena_pro DESC LIMIT 400) b
+         LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
+                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
+        ORDER BY b.fecha_buena_pro DESC`, [ruc]),
     filas<{ anio: number; pim: number; devengado: number }>(
       "presupuesto",
       `SELECT m.anio::int AS anio, sum(m.pim)::float AS pim, sum(m.devengado)::float AS devengado
@@ -663,10 +672,14 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
         GROUP BY 1, 2 ORDER BY 1`, [ruc]),
     filas<{ ocid: string; entidad: string | null; entidad_ruc: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto, severidad, n_alta,
-              cruces, codigo
-         FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
-        ORDER BY fecha_buena_pro DESC LIMIT 400`, [ruc]),
+      `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
+         FROM (SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
+                      severidad, n_alta, cruces, codigo AS convocatoria, fecha_buena_pro
+                 FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL
+                ORDER BY fecha_buena_pro DESC LIMIT 400) b
+         LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
+                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
+        ORDER BY b.fecha_buena_pro DESC`, [ruc]),
   ]);
 
   const hasta = hoy();

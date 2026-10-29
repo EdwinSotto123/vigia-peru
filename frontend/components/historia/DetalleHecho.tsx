@@ -5,7 +5,7 @@ import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { ICONO_NIVEL, Severidad } from "@/components/ui/Severidad";
-import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
+import { fecha, numero, soles, solesCompacto } from "@/lib/formato";
 import type { EventoHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,8 @@ const MONO = new Set(["Proceso", "Informe", "Código INFOBRAS"]);
  * datos dos veces era parte de «se repite información». Server-safe.
  */
 export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria; renglon?: string; conPie?: boolean }) {
-  const cuando = e.hasta ? `Del ${fechaCorta(e.fecha)} al ${fechaCorta(e.hasta)}` : fechaCorta(e.fecha);
+  // Con el año siempre (la fecha corta lo omite en el año en curso, y una historia cruza muchos años).
+  const cuando = e.hasta ? `Del ${fecha(e.fecha)} al ${fecha(e.hasta)}` : fecha(e.fecha);
   const banderas = e.banderas ?? [];
   const datos = e.datos ?? [];
   const graves = banderas.filter((b) => b.severidad === "alta").length;

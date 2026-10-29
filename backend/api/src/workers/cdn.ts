@@ -79,8 +79,11 @@ const GUARDADO = "X-Vigia-Guardado";
  *       de la entidad (`sinDatos`): la línea pinta en rojo lo que no tenemos.
  * "60": cada hecho de /historia trae quién (`quien`), sus datos en filas (`datos`) y, los contratos con banderas, CUÁLES
  *       antecedentes y con qué gravedad (`banderas`); los «la visitó y le dieron» que ya son secuencia no se repiten.
+ * "61": el proceso por su nomenclatura del OECE (no el número de la convocatoria) y las descripciones con sus siglas
+ *       (el 60 ya había guardado respuestas de DEV con lo anterior).
+ * "62": sin las comillas que el SEACE trae como «¿» (el 61 guardó en DEV la Historia de EsSalud con ellas).
  */
-const VERSION_CACHE = "60";
+const VERSION_CACHE = "62";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
