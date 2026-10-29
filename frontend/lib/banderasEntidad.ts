@@ -97,6 +97,15 @@ export function banderasEntidad(
       href: `${ficha}?seccion=personas&psenal=al_borde_del_tope`,
     });
   }
+  if ((s.alBordeEmpresas ?? 0) > 0) {
+    const n = s.alBordeEmpresas!;
+    out.push({
+      tipo: "al_borde_del_tope_empresas", severidad: "media", chip: "Empresas al borde del tope", n,
+      titulo: `${plural(n, "empresa recibe", "empresas reciben")} casi siempre órdenes justo debajo del tope`,
+      explica: "La mitad o más de las órdenes que la entidad le dio a cada una (al menos cinco) quedaron entre el 95 % y el 100 % del tope de su año, el monto desde el cual se debe hacer un proceso de selección. Puede ser el precio de lo que se compró o una compra partida en órdenes.",
+      href: `${ficha}?seccion=contratos&vista=ordenes&oant=al_borde_del_tope&oper=empresa`,
+    });
+  }
   if ((s.nepotismoGobierno ?? 0) > 0) {
     const n = s.nepotismoGobierno!;
     out.push({

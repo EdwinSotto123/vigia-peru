@@ -66,14 +66,17 @@ test("órdenes: el parentesco parte de persona_senal; las órdenes partidas, de 
 });
 
 test("órdenes: los antecedentes de la persona parten de sus parejas y ordenan sin el índice por fecha", () => {
-  for (const tipo of ["financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]) {
+  for (const tipo of ["financio_campana", "candidato_gobierna", "autoridad_contratada"]) {
     const { sql } = sqlListaOrdenes(ordenes({ antecedente: tipo }));
     assert.match(sql, new RegExp(`FROM persona_senal ps JOIN conosce_ordenes o .* WHERE ps\\.tipo = '${tipo}'`, "s"));
     assert.match(sql, /ORDER BY o\.fecha_emision \+ 0 DESC LIMIT/);
   }
-  // «Al borde del tope»: sólo las órdenes de servicio de la franja, con el tope que dice cada orden.
+  // «Al borde del tope»: parte de las parejas de personas (179) y de empresas (207), y sólo las órdenes de la franja (de
+  // una persona, las de servicio; de una empresa, de compra o de servicio), con el tope que dice cada orden.
   const borde = sqlListaOrdenes(ordenes({ antecedente: "al_borde_del_tope" })).sql.split("), d AS (")[0];
-  assert.match(borde, /o\.tipo_orden = 'Orden de Servicio' AND o\.monto >= 0\.95 \* \(CASE WHEN o\.tipo_contratacion ~ 'hasta \[0-9\]\+ UIT'/);
+  assert.match(borde, /FROM \(SELECT entidad_ruc, ruc, tipo FROM persona_senal WHERE tipo = 'al_borde_del_tope'\s+UNION ALL SELECT entidad_ruc, ruc, 'al_borde_del_tope' FROM empresa_borde_tope\) ps JOIN conosce_ordenes o .* WHERE ps\.tipo = 'al_borde_del_tope'/s);
+  assert.match(borde, /ORDER BY o\.fecha_emision \+ 0 DESC LIMIT/);
+  assert.match(borde, /\(o\.ruc_contratista LIKE '20%' OR o\.tipo_orden = 'Orden de Servicio'\) AND o\.monto >= 0\.95 \* \(CASE WHEN o\.tipo_contratacion ~ 'hasta \[0-9\]\+ UIT'/);
   // Sin antecedente, el índice por fecha de siempre.
   assert.match(sqlListaOrdenes(ordenes({})).sql, /ORDER BY o\.fecha_emision DESC LIMIT/);
   assert.equal(ListaOrdenesQuery.safeParse({ antecedente: "aporte" }).success, false);

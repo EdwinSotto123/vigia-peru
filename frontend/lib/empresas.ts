@@ -120,6 +120,9 @@ export interface FichaEmpresa {
     vinculadas: number;
     visitasClientes: number;
     actualizado: string | null;
+    /** Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (migración 207). */
+    bordeEntidades?: number;
+    bordeOrdenes?: number;
     // Ficha reducida: empresa jurídica que SOLO aparece en contratos menores (no está en empresa_resumen).
     soloMenores?: boolean;
     condicionSunat?: string | null;

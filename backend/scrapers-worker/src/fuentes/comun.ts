@@ -92,6 +92,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // Empresas (migración 109): sus órdenes por entidad y año (~3 min en producción) y después el resumen con el puntaje de
   // antecedentes, que lee los cruces y los casos recién rehechos.
   await uno("refrescar_empresa_ordenes", "SELECT refrescar_empresa_ordenes() AS n");
+  // Las empresas con la mitad o más de las órdenes de una entidad al borde del tope (migración 207): la franja de montos
+  // por su índice parcial y el denominador de empresa_orden_anual, recién rehecha. ~2 min en producción.
+  await siExiste("refrescar_borde_empresas");
   // refrescar_empresas reconstruye empresa_resumen y, al final (migración 117), vuelve a calcular las señales SUNAT de
   // estado (dada de baja, suspendida, no habida); así nunca quedan sin ellas. "Recién fundada" ya llega como cruce del
   // contrato (migración 118), por cruces_proveedor.

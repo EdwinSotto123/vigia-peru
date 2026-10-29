@@ -135,8 +135,14 @@ const periodosInhabilitado = (ruc?: string) => `
 const TOPE_ORDEN = `(CASE WHEN o.tipo_contratacion ~ 'hasta [0-9]+ UIT'
                             THEN substring(o.tipo_contratacion FROM 'hasta ([0-9]+) UIT')::int * uit_soles(extract(year FROM o.fecha_emision)::int)
                           WHEN extract(year FROM o.fecha_emision) <> 2022 THEN 8 * uit_soles(extract(year FROM o.fecha_emision)::int) END)`;
-/** La orden de servicio quedó entre el 95 % y el 100 % de su tope: una de las que sostienen «al borde del tope». */
-const EN_EL_BORDE = `o.tipo_orden = 'Orden de Servicio' AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
+/**
+ * La orden quedó entre el 95 % y el 100 % de su tope: una de las que sostienen «al borde del tope». De una persona, sus
+ * órdenes de servicio (179); de una empresa, de compra o de servicio (migración 207).
+ */
+const EN_EL_BORDE = `(o.ruc_contratista LIKE '20%' OR o.tipo_orden = 'Orden de Servicio') AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
+/** Los pares entidad-proveedor al borde del tope: las personas (persona_senal, 179) y las empresas (empresa_borde_tope, 207). */
+const PARES_BORDE = `(SELECT entidad_ruc, ruc, tipo FROM persona_senal WHERE tipo = 'al_borde_del_tope'
+                       UNION ALL SELECT entidad_ruc, ruc, 'al_borde_del_tope' FROM empresa_borde_tope)`;
 
 const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
               o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
@@ -152,9 +158,11 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
                  FROM persona_senal ps WHERE ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista
                   AND ps.tipo IN (${SENALES_FILA.map((t) => `'${t}'`).join(", ")})) AS "senalesPersona",
               -- Esta orden es una de las que sostienen «al borde del tope»: su tope, para decir a qué porcentaje quedó.
-              CASE WHEN o.ruc_contratista LIKE '10%' AND ${EN_EL_BORDE}
-                        AND EXISTS (SELECT 1 FROM persona_senal ps WHERE ps.tipo = 'al_borde_del_tope'
-                                      AND ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista)
+              CASE WHEN ${EN_EL_BORDE}
+                        AND ((o.ruc_contratista LIKE '10%' AND EXISTS (SELECT 1 FROM persona_senal ps WHERE ps.tipo = 'al_borde_del_tope'
+                                                                         AND ps.entidad_ruc = o.entidad_ruc AND ps.ruc = o.ruc_contratista))
+                          OR (o.ruc_contratista LIKE '20%' AND EXISTS (SELECT 1 FROM empresa_borde_tope eb
+                                                                         WHERE eb.entidad_ruc = o.entidad_ruc AND eb.ruc = o.ruc_contratista)))
                    THEN jsonb_build_object('tope', ${TOPE_ORDEN}::float) END AS "alBorde",
               -- La ficha de la persona (un código al azar, no su RUC), donde está la evidencia de sus señales.
               CASE WHEN o.ruc_contratista LIKE '10%'
@@ -221,7 +229,7 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   // 35 s, inhabilitados de EsSalud 39 s en frío).
   const dePersona = !!q.antecedente && DE_PERSONA.has(q.antecedente);
   const desde = dePersona
-    ? `persona_senal ps JOIN conosce_ordenes o ON o.entidad_ruc = ps.entidad_ruc AND o.ruc_contratista = ps.ruc`
+    ? `${q.antecedente === "al_borde_del_tope" ? `${PARES_BORDE} ps` : "persona_senal ps"} JOIN conosce_ordenes o ON o.entidad_ruc = ps.entidad_ruc AND o.ruc_contratista = ps.ruc`
     : q.antecedente === "inhabilitado"
       // LATERAL con OFFSET 0: siempre desde los periodos y por el índice del proveedor. Con una entidad elegida, un JOIN
       // dejaba al planificador recorrer todas las órdenes de la entidad buscando proveedores sancionados (EsSalud: más

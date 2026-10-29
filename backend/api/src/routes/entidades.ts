@@ -984,9 +984,11 @@ entidadesRouter.get("/:ruc", async (c) => {
     // Y las del plan del 2026-10-27 (migraciones 181-184): locadores socios de una empresa que le vende (por DNI), en su
     // planilla el pariente de un funcionario y el ascenso exprés, sus plazas CAS de la gestión saliente y los contratos
     // que ganó una empresa espejo de una inhabilitada.
-    pool.query<{ alBorde: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
+    pool.query<{ alBorde: number; alBordeEmpresas: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
                  parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number }>(
       `SELECT (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'al_borde_del_tope' = ANY(pe.tipos))::int AS "alBorde",
+              -- Las empresas con la mitad o más de sus órdenes al borde del tope (migración 207).
+              (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.entidad_ruc = $1)::int AS "alBordeEmpresas",
               (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'nepotismo_gobierno' = ANY(pe.tipos))::int AS "nepotismoGobierno",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'doble_planilla' = ANY(p.tipos))::int AS "doblePlanilla",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor",

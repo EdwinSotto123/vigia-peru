@@ -206,6 +206,14 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
       tipo: a.tipo, severidad: a.severidad, nombre: a.etiqueta, n: a.n > 1 ? a.n : null,
       href: `${ruta}?seccion=antecedentes&${P_ANTECEDENTES.tipo}=${encodeURIComponent(a.tipo)}`,
     })),
+    // Órdenes al borde del tope (migración 207): con alguna entidad, la mitad o más de sus órdenes justo debajo de 8 UIT.
+    ...((e.bordeEntidades ?? 0) > 0
+      ? [{
+          tipo: "al_borde_del_tope", severidad: "media" as const, nombre: "Órdenes al borde del tope", n: e.bordeOrdenes ?? null,
+          explica: `Con ${plural(e.bordeEntidades!, "entidad", "entidades")}, la mitad o más de sus órdenes quedaron entre el 95 % y el 100 % del tope de 8 UIT, el monto desde el cual se debe hacer un proceso de selección`,
+          href: `${ruta}?seccion=ventas&${P_VISTA}=ordenes&oant=al_borde_del_tope`,
+        }]
+      : []),
     ...(e.visitasClientes > 0
       ? [{
           tipo: "visitas_clientes", severidad: "media" as const, nombre: "Visitó a sus clientes", n: e.visitasClientes,

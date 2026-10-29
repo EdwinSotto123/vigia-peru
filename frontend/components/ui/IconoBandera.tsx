@@ -28,7 +28,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,
   // Patrón
-  fraccionamiento: Scissors, recurrente_dominante: ChartPie, proveedor_cautivo: Anchor, al_borde_del_tope: Gauge,
+  fraccionamiento: Scissors, recurrente_dominante: ChartPie, proveedor_cautivo: Anchor, al_borde_del_tope: Gauge, al_borde_del_tope_empresas: Gauge,
   // SUNAT
   dada_de_baja: FileX, suspendida: CirclePause, no_habida: MapPinOff,
   // Personas y planilla

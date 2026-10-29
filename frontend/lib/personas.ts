@@ -269,7 +269,7 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     corto: "Órdenes al borde del tope",
     titulo: "Sus órdenes van justo debajo del tope",
     explica:
-      "La mitad o más de las órdenes que le dio la entidad (y al menos tres) quedaron entre el 95 % y el 100 % del tope de su año (8 UIT; 9 UIT en 2022, con el D.U. 016-2022), el monto desde el cual se debe hacer un proceso de selección. Puede ser casualidad o la forma de no hacer un proceso: vale revisar si el servicio se partió en órdenes.",
+      "La mitad o más de las órdenes que le dio la entidad (al menos tres; cinco si es una empresa) quedaron entre el 95 % y el 100 % del tope de su año (8 UIT; 9 UIT en 2022, con el D.U. 016-2022), el monto desde el cual se debe hacer un proceso de selección. Puede ser casualidad o la forma de no hacer un proceso: vale revisar si la compra o el servicio se partió en órdenes.",
   },
   candidato_gobierna: {
     corto: "Candidato del que gobierna",

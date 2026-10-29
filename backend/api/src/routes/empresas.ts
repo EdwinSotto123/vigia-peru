@@ -280,7 +280,10 @@ empresasRouter.get("/:ruc", async (c) => {
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
                 e.actividad, e.socios, e.representantes, e.directivos, e.vinculadas, e.visitas_clientes AS "visitasClientes",
-                to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado
+                to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado,
+                -- Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (207).
+                (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.ruc = e.ruc)::int AS "bordeEntidades",
+                (SELECT COALESCE(sum(en_el_borde), 0) FROM empresa_borde_tope eb WHERE eb.ruc = e.ruc)::int AS "bordeOrdenes"
            FROM empresa_resumen e WHERE e.ruc = $1`, [ruc]),
       // Año por año: lo adjudicado (sola y en consorcio, en soles y sin lo dudoso) y lo pagado por órdenes.
       pool.query(
