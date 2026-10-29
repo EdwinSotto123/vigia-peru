@@ -261,7 +261,9 @@ export const getPago = () => getJson<import("@/components/financiar/PaymentMetho
 export const getComprobante = (codigo: string) =>
   getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
     // Un aporte de apoyo (migración 206) no es un comprobante de lectura: lo trae getComprobanteApoyo.
-    c && !("tipo" in c && c.tipo === "apoyo") ? { ...(c as Comprobante), zona: conAcentos((c as Comprobante).zona) } : null,
+    c && !("tipo" in c && c.tipo === "apoyo") && Array.isArray((c as Comprobante).detalle)
+      ? { ...(c as Comprobante), zona: conAcentos((c as Comprobante).zona) }
+      : null,
   );
 
 /** El comprobante de un aporte para seguir vigilando (migración 206): sin zona ni contratos. */
@@ -285,7 +287,7 @@ export interface ComprobanteApoyo {
 
 export const getComprobanteApoyo = (codigo: string) =>
   getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
-    c && "tipo" in c && c.tipo === "apoyo" ? (c as ComprobanteApoyo) : null,
+    c && "tipo" in c && (c.tipo === "apoyo" || (!Array.isArray((c as Comprobante).detalle) && "periodicidad" in c)) ? ({ ...c, tipo: "apoyo" } as ComprobanteApoyo) : null,
   );
 
 export const getAlcance = () => getJson<Alcance>("/financiamiento/alcance", 60);

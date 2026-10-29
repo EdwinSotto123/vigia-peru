@@ -5,6 +5,7 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fecha, soles } from "@/lib/formato";
 import type { ComprobanteApoyo } from "@/lib/financiamiento";
 import { rutaRegion } from "@/lib/regiones";
+import { tituloNatural } from "@/lib/landing";
 
 const ESTADO: Record<string, { texto: string; clase: string; Icono: typeof Clock }> = {
   pendiente_pago: { texto: "Pago pendiente de validación", clase: "text-inkSoft", Icono: Clock },
@@ -22,7 +23,7 @@ const ESTADO: Record<string, { texto: string; clase: string; Icono: typeof Clock
 export function ReciboApoyo({ c }: { c: ComprobanteApoyo }) {
   const est = ESTADO[c.estado] ?? { texto: c.estado, clase: "text-inkSoft", Icono: Clock };
   const motivo = c.paraEntidad && c.paraRuc
-    ? { href: `/entidad/${c.paraRuc}`, nombre: c.paraEntidad }
+    ? { href: `/entidad/${c.paraRuc}`, nombre: tituloNatural(c.paraEntidad) }
     : c.paraZona && c.paraUbigeo
       ? { href: c.paraUbigeo.length === 2 ? rutaRegion(c.paraUbigeo) : null, nombre: c.paraZona }
       : null;

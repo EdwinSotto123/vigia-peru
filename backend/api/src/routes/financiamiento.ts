@@ -286,14 +286,14 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
       `SELECT co.codigo, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt", co.created_at AS "createdAt",
               co.mensaje_publico AS "mensajePublico", co.periodicidad, co.pasarela,
               CASE WHEN f.visible THEN COALESCE(f.nombre_publico, 'Anónimo') ELSE 'Anónimo' END AS financiador,
-              f.tipo, CASE WHEN f.visible THEN f.slug END AS slug, f.visible,
+              f.tipo AS "tipoFinanciador", CASE WHEN f.visible THEN f.slug END AS slug, f.visible,
               co.para_ruc AS "paraRuc", (SELECT e.nombre FROM entidades e WHERE e.ruc = co.para_ruc) AS "paraEntidad",
               co.para_ubigeo AS "paraUbigeo", (SELECT z.nombre FROM zonas z WHERE z.ubigeo = co.para_ubigeo) AS "paraZona"
          FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
         WHERE co.codigo = $1 AND co.tipo = 'apoyo'`, [codigo]).catch(() => ({ rows: [] as any[] }));
     if (!ap.rows.length) return c.json({ error: "not_found" }, 404);
     cache(c, 30);
-    return c.json({ tipo: "apoyo", ...ap.rows[0] });
+    return c.json({ ...ap.rows[0], tipo: "apoyo" });
   }
   const { id: contribucionId, ...h } = head.rows[0];
   // Por contrato: score, severidad y conteo de señales SOLO si la alerta está publicada; en revisión
