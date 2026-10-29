@@ -1,10 +1,13 @@
+import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { aCruce, ETIQUETA_CRUCE } from "../lib/cruces.js";
-import { publicar } from "../lib/privacidad.js";
+import { aCruce, aDia, ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { evidenciasDe, type FilaCruce, type ProcesoCruce } from "../lib/evidencia.js";
+import { textoEleccion } from "../lib/historia.js";
+import { publicar, refDocumento } from "../lib/privacidad.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { conEnie, palabrasBusqueda } from "./personas.js";
 
@@ -24,7 +27,8 @@ import { conEnie, palabrasBusqueda } from "./personas.js";
  *   GET /empresas/:ruc/ordenes          órdenes de compra y de servicio (CONOSCE)
  *   GET /empresas/:ruc/clientes         las entidades que le adjudicaron o le compraron
  *   GET /empresas/:ruc/postulaciones    los procesos en que fue postor y quién ganó
- *   GET /empresas/:ruc/antecedentes     cada antecedente (cruces_proveedor) con su fuente
+ *   GET /empresas/:ruc/antecedentes     cada antecedente (cruces_proveedor) con su fuente y sus referencias
+ *   GET /empresas/:ruc/antecedentes/evidencia?tipo=&clave=   los registros oficiales de UN antecedente (a pedido)
  *   GET /empresas/:ruc/socios           socios, representantes y directivos (RNP) y las empresas vinculadas
  *   GET /empresas/:ruc/visitas          visitas registradas de su gente a entidades públicas
  */
@@ -835,24 +839,229 @@ empresasRouter.get("/:ruc/postulaciones", async (c) => {
 });
 
 // ─── GET /empresas/:ruc/antecedentes ────────────────────────────────────────────────────────────
+
+const iso = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" && v ? v.slice(0, 10) : null);
+const hoyIso = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * La clave de un antecedente para pedir su evidencia (GET …/antecedentes/evidencia): su tipo, su proceso, su fecha, su
+ * persona y su detalle, en un hash. Sin el id de la fila (el refresco de los cruces lo cambia: un enlace de la página en
+ * caché quedaría huérfano) ni el DNI (va su ref HMAC: un sha256 de 8 dígitos se revierte probando).
+ */
+function claveCruce(x: Record<string, any>): string {
+  const persona = x.persona_doc ? refDocumento(x.persona_doc) : "";
+  return createHash("sha256").update(`${x.tipo}|${x.ocid ?? ""}|${iso(x.fecha) ?? ""}|${persona}|${JSON.stringify(x.detalle ?? {})}`).digest("hex").slice(0, 16);
+}
+
+/** Lo que el panel de un antecedente necesita para citar cada dato: de qué elección, dónde, a qué entidad lleva. */
+interface Referencias {
+  /** Para pedir sus registros oficiales. */
+  clave: string;
+  /** «Elecciones regionales y municipales 2022», del proceso del registro (ONPE, JNE). */
+  eleccion?: string | null;
+  /** Autoridad y candidatura (JNE): dónde es el cargo, cuál, si sigue, el resultado y el periodo. */
+  lugar?: { distrito: string | null; provincia: string | null; departamento: string | null } | null;
+  cargo?: string | null;
+  vigente?: boolean | null;
+  resultado?: string | null;
+  periodo?: { desde: string | null; hasta: string | null } | null;
+  /**
+   * Autoridad: las entidades del gobierno que encabeza o integra (la municipalidad, el gobierno regional y sus unidades,
+   * entidad_gobierno_amplia) y lo que cada una le compró a la empresa en ese periodo (CONOSCE: órdenes y procesos).
+   */
+  gobierno?: {
+    nivel: string;
+    desde: string | null;
+    hasta: string | null;
+    entidades: { ruc: string; nombre: string | null; ordenes: number; montoOrdenes: number; procesos: number; montoProcesos: number }[];
+  } | null;
+  /** Socio común: las otras empresas del proceso con la misma persona (una persona natural, sin RUC ni nombre). */
+  otros?: { ruc: string | null; nombre: string | null }[];
+  /** Visitas: la entidad visitada por su RUC, si su nombre se reconoce (visita_entidad_ruc). */
+  entidadVisitadaRuc?: string | null;
+}
+
+/** El nivel de gobierno de un cargo de elección y cuántos dígitos de su ubigeo lo identifican. */
+const NIVEL_CARGO = (cargo: string): ["distrital" | "provincial" | "regional", number] | null =>
+  /DISTRITAL/i.test(cargo) ? ["distrital", 6]
+    : /PROVINCIAL|METROPOLITAN/i.test(cargo) ? ["provincial", 4]
+      : /REGIONAL|GOBERNADOR|CONSEJER/i.test(cargo) ? ["regional", 2] : null;
+const normalOrg = (s: unknown) => String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+
+/**
+ * Autoridad electa: su registro en el JNE (cargo, lugar, periodo, si sigue) y el gobierno que encabeza o integra, con lo
+ * que cada entidad de ese gobierno le compró a la empresa mientras ejercía. Es lo que hace pesar el antecedente: la
+ * empresa de una autoridad que le vende a su propia municipalidad. El DNI sólo busca; no sale.
+ */
+async function autoridadDe(ruc: string, doc: string, cargo: string, fecha: string | null): Promise<Partial<Referencias>> {
+  const a = (await pool.query(
+    `SELECT ubigeo, cargo, distrito, provincia, departamento, proceso, vigente,
+            to_char(periodo_inicio, 'YYYY-MM-DD') AS desde, to_char(periodo_fin, 'YYYY-MM-DD') AS hasta
+       FROM jne_autoridades WHERE dni = $1
+      ORDER BY (cargo = $2) DESC, (periodo_inicio = $3::date) DESC NULLS LAST, periodo_inicio DESC NULLS LAST LIMIT 1`,
+    [doc, cargo, fecha]).catch(() => null))?.rows[0];
+  if (!a) return {};
+  const ref: Partial<Referencias> = {
+    lugar: { distrito: a.distrito ?? null, provincia: a.provincia ?? null, departamento: a.departamento ?? null },
+    vigente: a.vigente ?? null, periodo: { desde: a.desde ?? null, hasta: a.hasta ?? null }, eleccion: textoEleccion(a.proceso),
+  };
+  const nivel = NIVEL_CARGO(String(a.cargo ?? ""));
+  const desde: string | null = a.desde ?? fecha;
+  if (!nivel || !a.ubigeo || String(a.ubigeo).length < nivel[1] || !desde) return ref;
+  const ents = (await pool.query(
+    `SELECT g.ruc, e.nombre FROM entidad_gobierno_amplia g LEFT JOIN entidades e ON e.ruc = g.ruc
+      WHERE g.nivel = $1 AND g.ubigeo = left($2, $3)`, [nivel[0], String(a.ubigeo), nivel[1]]).catch(() => null))?.rows ?? [];
+  if (!ents.length) return ref;
+  const hoy = hoyIso();
+  const hasta: string = a.hasta && a.hasta < hoy ? a.hasta : hoy;
+  const rucs = ents.map((e) => String(e.ruc));
+  const [ord, adj] = await Promise.all([
+    pool.query(
+      `SELECT entidad_ruc AS ruc, sum(monto)::float AS monto, sum(ordenes)::int AS n FROM empresa_orden_anual
+        WHERE ruc = $1 AND entidad_ruc = ANY($2::text[]) AND anio BETWEEN $3 AND $4 GROUP BY 1`,
+      [ruc, rucs, Number(desde.slice(0, 4)), Number(hasta.slice(0, 4))]).then((r) => r.rows).catch(() => [] as Record<string, any>[]),
+    // Sola o en consorcio (conosce_consorcios), como en sus visitas.
+    pool.query(
+      `SELECT a.entidad_ruc::text AS ruc, COALESCE(sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ${SOLES}), 0)::float AS monto,
+              count(DISTINCT a.codigo_convocatoria)::int AS n
+         FROM conosce_adjudicaciones a
+        WHERE a.ruc_proveedor = ANY(ARRAY(SELECT $1::text UNION SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1))
+          AND a.entidad_ruc::text = ANY($2::text[]) AND a.fecha_buenapro BETWEEN $3::date AND $4::date
+        GROUP BY 1`, [ruc, rucs, desde, hasta]).then((r) => r.rows).catch(() => [] as Record<string, any>[]),
+  ]);
+  const o = new Map(ord.map((x) => [String(x.ruc), x]));
+  const p = new Map(adj.map((x) => [String(x.ruc), x]));
+  ref.gobierno = {
+    nivel: nivel[0], desde, hasta,
+    entidades: ents
+      .map((e) => ({
+        ruc: String(e.ruc), nombre: (e.nombre as string | null) ?? null,
+        ordenes: Number(o.get(String(e.ruc))?.n ?? 0), montoOrdenes: Number(o.get(String(e.ruc))?.monto ?? 0),
+        procesos: Number(p.get(String(e.ruc))?.n ?? 0), montoProcesos: Number(p.get(String(e.ruc))?.monto ?? 0),
+      }))
+      // Las que le compraron primero (por monto) y, si ninguna, en orden alfabético: un gobierno regional tiene decenas de
+      // unidades (hospitales, UGEL…).
+      .sort((x, y) => y.montoOrdenes + y.montoProcesos - (x.montoOrdenes + x.montoProcesos) || (x.nombre ?? "").localeCompare(y.nombre ?? ""))
+      .slice(0, 12),
+  };
+  return ref;
+}
+
+/** Candidatura (ONPE): a qué cargo postuló, dónde y si salió elegido, de su registro en el JNE de esa elección. */
+async function candidaturaDe(doc: string, d: Record<string, unknown>): Promise<Partial<Referencias>> {
+  const anio = Number(String(d.proceso ?? "").match(/\d{4}/)?.[0] ?? 0) || null;
+  const r = (await pool.query(
+    `SELECT cargo, partido, "año" AS anio, resultado, region, provincia, distrito FROM jne_candidaturas
+      WHERE numero_documento = $1 ORDER BY ("año" = $2) DESC NULLS LAST, "año" DESC LIMIT 10`, [doc, anio]).catch(() => null))?.rows ?? [];
+  const org = normalOrg(d.organizacion);
+  const c = r.find((x) => Number(x.anio) === anio && normalOrg(x.partido) === org) ?? r.find((x) => Number(x.anio) === anio);
+  if (!c) return {};
+  return {
+    cargo: c.cargo ?? null, resultado: c.resultado ?? null,
+    lugar: { distrito: c.distrito ?? null, provincia: c.provincia ?? null, departamento: c.region ?? null },
+  };
+}
+
+/** Las referencias de cada antecedente (mismo orden): las de lote (nombres, entidades visitadas) en una consulta cada una. */
+async function referenciasDe(ruc: string, filas: Record<string, any>[]): Promise<Referencias[]> {
+  const visitadas = [...new Set(filas.filter((x) => String(x.tipo).startsWith("visita_")).map((x) => x.detalle?.entidad_visitada)
+    .filter((v): v is string => typeof v === "string" && v.length > 0))];
+  const otros = [...new Set(filas.filter((x) => x.tipo === "socio_comun")
+    .flatMap((x) => (Array.isArray(x.detalle?.otros_postores) ? (x.detalle.otros_postores as unknown[]) : []))
+    .filter((v): v is string => typeof v === "string" && /^20\d{9}$/.test(v)))];
+  const [vis, nom] = await Promise.all([
+    visitadas.length
+      ? pool.query(`SELECT entidad_visitada, min(ruc) AS ruc FROM visita_entidad_ruc WHERE entidad_visitada = ANY($1::text[]) GROUP BY 1`, [visitadas])
+        .then((r) => r.rows).catch(() => [] as Record<string, any>[])
+      : [],
+    otros.length
+      ? pool.query(
+        `SELECT k.ruc, COALESCE(r.nombre, e.razon_social) AS nombre
+           FROM unnest($1::text[]) AS k(ruc) LEFT JOIN empresa_resumen r ON r.ruc = k.ruc LEFT JOIN empresas e ON e.ruc = k.ruc`, [otros])
+        .then((r) => r.rows).catch(() => [] as Record<string, any>[])
+      : [],
+  ]);
+  const rucVisitada = new Map(vis.map((x) => [String(x.entidad_visitada), (x.ruc as string | null) ?? null]));
+  const nombreOtro = new Map(nom.map((x) => [String(x.ruc), (x.nombre as string | null) ?? null]));
+  return Promise.all(filas.map(async (x): Promise<Referencias> => {
+    const d = (x.detalle ?? {}) as Record<string, unknown>;
+    const ref: Referencias = { clave: claveCruce(x) };
+    if (typeof d.proceso === "string" && d.proceso) ref.eleccion = textoEleccion(d.proceso);
+    if (String(x.tipo).startsWith("visita_") && typeof d.entidad_visitada === "string") ref.entidadVisitadaRuc = rucVisitada.get(d.entidad_visitada) ?? null;
+    if (x.tipo === "socio_comun") {
+      ref.otros = (Array.isArray(d.otros_postores) ? (d.otros_postores as unknown[]) : [])
+        .filter((v): v is string => typeof v === "string")
+        .map((r) => (r.startsWith("20") ? { ruc: r, nombre: nombreOtro.get(r) ?? null } : { ruc: null, nombre: null }));
+    }
+    if (x.tipo === "autoridad" && x.persona_doc) Object.assign(ref, await autoridadDe(ruc, x.persona_doc, String(d.cargo ?? ""), iso(x.fecha)));
+    if (x.tipo === "candidato" && x.persona_doc) Object.assign(ref, await candidaturaDe(x.persona_doc, d));
+    return ref;
+  }));
+}
+
+const COLS_ANTECEDENTE = `p.tipo, p.ruc_empresa, p.ocid, p.severidad, p.fecha, p.monto, p.persona_doc, p.persona_nombre, p.persona_rol, p.detalle, p.fuente, p.fuente_url`;
+
 empresasRouter.get("/:ruc/antecedentes", async (c) => {
   const ruc = c.req.param("ruc");
   const cuerpo = await fichaMemo.obtener(`antecedentes:${ruc}`, async () => {
     if (!(await existe(ruc))) return null;
-    // Cada cruce con su fuente; si es de un proceso, el código y la entidad para abrir su ficha (allí está la evidencia).
+    // Cada cruce con su fuente; si es de un proceso, el código, la entidad y su RUC para abrir su ficha (allí está la
+    // evidencia). persona_doc sólo para buscar sus referencias: aCruce no lo copia.
     const r = await pool.query(
-      `SELECT p.tipo, p.ruc_empresa, p.ocid, p.severidad, p.fecha, p.monto, p.persona_nombre, p.persona_rol, p.detalle, p.fuente, p.fuente_url,
-              cv.codigo, cv.entidad
+      `SELECT ${COLS_ANTECEDENTE}, cv.codigo, cv.entidad, cv.entidad_ruc
          FROM cruces_proveedor p
-         LEFT JOIN LATERAL (SELECT c.codigo, e.nombre AS entidad FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+         LEFT JOIN LATERAL (SELECT c.codigo, e.nombre AS entidad, c.entidad_ruc::text AS entidad_ruc
+                              FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
                              WHERE p.ocid IS NOT NULL AND c.ocid = p.ocid LIMIT 1) cv ON true
         WHERE p.ruc_empresa = $1
         ORDER BY CASE p.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, p.tipo, p.fecha DESC NULLS LAST
         LIMIT 2000`, [ruc]);
+    const refs = await referenciasDe(ruc, r.rows);
     return publicar({
       total: r.rows.length,
-      data: r.rows.map((x) => ({ ...aCruce(x), codigo: x.codigo ?? null, entidad: x.entidad ?? null })),
+      data: r.rows.map((x, i) => ({
+        ...aCruce(x), codigo: x.codigo ?? null, entidad: x.entidad ?? null, entidadRuc: x.entidad_ruc ?? null, referencias: refs[i],
+      })),
     });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /empresas/:ruc/antecedentes/evidencia ──────────────────────────────────────────────────
+/**
+ * Los registros oficiales de UN antecedente, a pedido (el panel del caso los pide al abrirse): los mismos de la ficha del
+ * contrato (lib/evidencia.ts: aportes, gastos de campaña, cargos, penalidades, sanciones, los procesos que le ganó a la
+ * entidad, sus clientes, la obra, la inversión…) y, en «Órdenes que pasan 8 UIT», los días con sus órdenes. El usuario
+ * (2026-10-29): «faltan varias referencias a varios datos, audita todo».
+ */
+empresasRouter.get("/:ruc/antecedentes/evidencia", async (c) => {
+  const ruc = c.req.param("ruc");
+  const tipo = c.req.query("tipo") ?? "";
+  const clave = c.req.query("clave") ?? "";
+  if (!RUC_EMPRESA.test(ruc) || !/^[a-z_]{3,40}$/.test(tipo) || !/^[0-9a-f]{16}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await fichaMemo.obtener(`evidencia:${ruc}:${tipo}:${clave}`, async () => {
+    const r = await pool.query(
+      `SELECT tipo, ruc_empresa, ocid, fecha, persona_doc, detalle FROM cruces_proveedor WHERE ruc_empresa = $1 AND tipo = $2 LIMIT 3000`, [ruc, tipo]);
+    const fila = r.rows.find((x) => claveCruce(x) === clave);
+    if (!fila) return null;
+    const proc = fila.ocid
+      ? (await pool.query(
+        `SELECT c.ocid, c.codigo, c.entidad_ruc::text AS "entidadRuc", e.ubigeo::text AS ubigeo, to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS fecha
+           FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE c.ocid = $1 LIMIT 1`, [fila.ocid]).catch(() => null))?.rows[0]
+      : null;
+    const p: ProcesoCruce = proc ?? { ocid: fila.ocid ?? "", codigo: null, entidadRuc: null, ubigeo: null, fecha: null };
+    const [evidencia] = await evidenciasDe([fila as FilaCruce], p);
+    // Órdenes que pasan 8 UIT: cada día con sus órdenes, de la entidad del proceso y entre las fechas del cruce.
+    const d = (fila.detalle ?? {}) as Record<string, unknown>;
+    const dias = tipo === "fraccionamiento" && p.entidadRuc && typeof d.desde === "string" && typeof d.hasta === "string"
+      ? ((await pool.query(
+        `SELECT f.* FROM ordenes_fraccionadas f
+          WHERE f.ruc_contratista = $1 AND f.entidad_ruc = $2 AND f.fecha BETWEEN $3::date AND $4::date
+          ORDER BY f.fecha DESC, f.total DESC LIMIT 200`, [ruc, p.entidadRuc, d.desde.slice(0, 10), d.hasta.slice(0, 10)]).catch(() => null))?.rows ?? []).map(aDia)
+      : [];
+    return publicar({ evidencia: evidencia ?? [], dias });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
@@ -889,14 +1098,27 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                     FROM persona_entidad pe
                    WHERE pe.ruc BETWEEN '10' || r.numero_documento || '0' AND '10' || r.numero_documento || '9'
                   HAVING count(*) > 0) END AS locador,
+                -- La autoridad con su lugar y su partido; cada candidatura con su cargo, su lugar y su resultado (JNE); los aportes
+                -- con sus partidos y sus años (ONPE). El usuario (2026-10-29), de esta pestaña: «se entiende demasiado mal».
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
-                  SELECT jsonb_build_object('cargo', a.cargo, 'vigente', a.vigente, 'desde', to_char(a.periodo_inicio, 'YYYY'), 'hasta', to_char(a.periodo_fin, 'YYYY'))
+                  SELECT jsonb_build_object('cargo', a.cargo, 'vigente', a.vigente, 'desde', to_char(a.periodo_inicio, 'YYYY'), 'hasta', to_char(a.periodo_fin, 'YYYY'),
+                                            'distrito', a.distrito, 'provincia', a.provincia, 'departamento', a.departamento,
+                                            'organizacion', a.organizacion_politica)
                     FROM jne_autoridades a WHERE a.dni = r.numero_documento
                    ORDER BY a.vigente DESC NULLS LAST, a.periodo_inicio DESC NULLS LAST LIMIT 1) END AS autoridad,
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN
                   (SELECT count(*)::int FROM jne_candidaturas j WHERE j.numero_documento = r.numero_documento) END AS candidaturas,
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
-                  SELECT jsonb_build_object('n', count(*), 'monto', COALESCE(sum(o.monto), 0)::float)
+                  SELECT jsonb_agg(z.x ORDER BY z.anio DESC NULLS LAST)
+                    FROM (SELECT j."año" AS anio, jsonb_build_object('cargo', j.cargo, 'partido', j.partido, 'anio', j."año", 'resultado', j.resultado,
+                                                                      'distrito', j.distrito, 'provincia', j.provincia, 'departamento', j.region) AS x
+                            FROM jne_candidaturas j WHERE j.numero_documento = r.numero_documento
+                           ORDER BY j."año" DESC NULLS LAST LIMIT 6) z) END AS postulaciones,
+                CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
+                  SELECT jsonb_build_object('n', count(*), 'monto', COALESCE(sum(o.monto), 0)::float,
+                                            'partidos', (SELECT jsonb_agg(DISTINCT o2.partido) FROM onpe_aportantes o2
+                                                          WHERE o2.numero_documento = r.numero_documento AND o2.partido IS NOT NULL),
+                                            'desde', min(o."año"), 'hasta', max(o."año"))
                     FROM onpe_aportantes o WHERE o.numero_documento = r.numero_documento HAVING count(*) > 0) END AS aportes
            FROM rnp_conformacion_juridica r WHERE r.ruc_empresa = $1 AND r.numero_documento IS NOT NULL
           GROUP BY r.numero_documento
@@ -939,7 +1161,10 @@ empresasRouter.get("/:ruc/socios", async (c) => {
       socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({
         nombre: s.nombre, roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas,
         enElEstado: s.locador || s.autoridad || s.candidaturas || s.aportes
-          ? { locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null }
+          ? {
+              locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null,
+              postulaciones: s.postulaciones ?? [],
+            }
           : null,
       })),
       declaradaDji: declarada.rows,

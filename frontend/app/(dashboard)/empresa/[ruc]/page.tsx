@@ -433,8 +433,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             contenido: seccion !== "gente" ? aPedido("gente", "Persona") : (
               <div>
                 <CabeceraPestana>
-                  Quiénes están detrás de la empresa según el RNP <AyudaTermino clave="rnp" />, qué otras empresas comparten a alguno y
-                  sus visitas a entidades públicas.
+                  Sus socios, representantes y directivos según el RNP <AyudaTermino clave="rnp" />, lo que cada uno es en el Estado, las
+                  otras empresas que comparten y sus visitas a entidades públicas.
                 </CabeceraPestana>
                 <Pestanas
                   variante="segunda"
@@ -449,7 +449,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                       conteo: personas || null,
                       contenido: (
                         <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
-                          <SociosEmpresa datos={sociosP} ruc={e.ruc} />
+                          <SociosEmpresa datos={sociosP} ruc={e.ruc} tipos={f.antecedentes.map((x) => x.tipo)} />
                         </Suspense>
                       ),
                     },

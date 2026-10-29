@@ -1,14 +1,17 @@
-import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
 import { BarraFiltros, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
-import { TIPO_CRUCE, esTipoObra } from "@/lib/cruces";
-import { fraseBandera, type BanderaObra } from "@/lib/obras";
-import { fechaCorta, hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
+import { TIPO_CRUCE } from "@/lib/cruces";
+import { fechaCorta, numero, plural, soles } from "@/lib/formato";
 import {
   CLARIDAD_ONPE,
   CONOSCE_BUSCADOR,
+  CONSULTA_RUC_SUNAT,
   CONTRATACIONES_ABIERTAS,
+  DJI_CONSULTA,
   DATASET_PENALIDADES,
   DATASET_SANCIONADOS,
   DATASET_SOCIOS_RNP,
@@ -22,11 +25,14 @@ import {
 } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
-import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpresa } from "@/lib/empresas";
+import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
+import { P_CONTRATOS } from "@/lib/parametrosEmpresa";
 import { RANGO_SEVERIDAD, SEVERIDAD, peorSeveridad } from "@/lib/severidad";
 import { txtONumero } from "@/lib/utils";
-import { conAnio, NoCargo, paraClave } from "./comun";
+import { NoCargo, paraClave } from "./comun";
 import { P_ORDENES } from "./ordenes";
+import { aSuGente, datosDe, type DatoCaso } from "./casoAntecedente";
+import { EvidenciaDelAntecedente } from "./EvidenciaAntecedente";
 
 /** La pestaña Antecedentes: sanciones, penalidades, aportes y demás cruces, como hechos. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
@@ -48,6 +54,13 @@ const FUENTE: Record<string, string> = {
   // La obra del contrato (INFOBRAS) y su inversión (Invierte.pe), migración 160.
   infobras: "INFOBRAS (Contraloría)",
   invierte_pe: "Invierte.pe (MEF)",
+  // Las fuentes de los cruces más nuevos (antes salía su clave: «sunat», «dji_vinculos»).
+  sunat: "Consulta RUC de la SUNAT",
+  oece_ocds: "Contrataciones Abiertas del OECE",
+  persona_entidad: "Órdenes de servicio de CONOSCE",
+  conosce_postores: "Postores de CONOSCE",
+  dji: "Declaraciones Juradas de Intereses (Contraloría)",
+  dji_vinculos: "Declaraciones Juradas de Intereses (Contraloría)",
 };
 
 /**
@@ -68,92 +81,15 @@ const PORTADA: Record<string, string> = {
   conosce_ordenes: CONOSCE_BUSCADOR,
   precio_item: CONTRATACIONES_ABIERTAS,
   infobras: INFOBRAS,
+  sunat: CONSULTA_RUC_SUNAT,
+  oece_ocds: CONTRATACIONES_ABIERTAS,
+  persona_entidad: CONOSCE_BUSCADOR,
+  conosce_postores: CONOSCE_BUSCADOR,
+  dji: DJI_CONSULTA,
+  dji_vinculos: DJI_CONSULTA,
 };
 
 const txt = txtONumero;
-
-/** Si una sanción sigue hoy: por su fecha de fin y, sin ella, por el estado que publica el Tribunal. */
-function hoySancion(tipo: string | null, hasta: string | null, estado: string | null): string | null {
-  // El día de Lima, no el UTC: desde las 19:00 de Lima el día UTC ya es mañana.
-  const hoy = hoyLima();
-  if (hasta) return hasta >= hoy ? "Vigente" : `Ya terminó (el ${fechaCorta(hasta)})`;
-  if (estado) return estado.toUpperCase() === "VIGENTE" ? "Vigente" : "No vigente, según el Tribunal";
-  return tipo === "definitivo" ? "Definitiva, sin fecha de fin" : null;
-}
-
-/** Lo que dice cada antecedente en pares rótulo/valor, según su tipo (los campos de `detalle` de cruces_proveedor). */
-function datosDe(a: AntecedenteEmpresa): { etiqueta: string; valor: string | null; mono?: boolean }[] {
-  const d = a.detalle;
-  const f = (v: unknown) => (txt(v) && /^\d{4}-\d{2}-\d{2}/.test(txt(v)!) ? fechaCorta(txt(v)!) : txt(v));
-  const persona = a.socios[0];
-  const visita = a.visitas[0] as Record<string, unknown> | undefined;
-  const items: { etiqueta: string; valor: string | null; mono?: boolean }[] = [];
-  if (persona) items.push({ etiqueta: "Quién", valor: `${persona.nombre}${persona.rol ? ` (${persona.rol})` : ""}` });
-  if (visita) {
-    items.push(
-      { etiqueta: "Visitante", valor: txt(visita.visitante) },
-      { etiqueta: "Entidad visitada", valor: txt(visita.entidad) ? tituloNatural(txt(visita.entidad)!) : null },
-      { etiqueta: "Cargo de quien la recibió", valor: txt(visita.cargoFuncionario) ? tituloNatural(txt(visita.cargoFuncionario)!) : null },
-      { etiqueta: "Motivo", valor: txt(visita.motivo) },
-    );
-  }
-  if (a.tipo === "sancion" || a.tipo === "sancion_vigente") {
-    items.push(
-      { etiqueta: "Sanción", valor: txt(d.tipo) ? oracion(txt(d.tipo)!) : null },
-      { etiqueta: "Vigencia", valor: [f(d.desde), f(d.hasta)].filter(Boolean).join(" a ") || null },
-      { etiqueta: "Hoy", valor: hoySancion(txt(d.tipo), txt(d.hasta), txt(d.estado)) },
-      { etiqueta: "Infracción", valor: txt(d.infraccion)?.replace(/^[-\s]*[a-z]\)\s*/i, "") ?? null },
-      { etiqueta: "Resolución", valor: txt(d.resolucion), mono: true },
-    );
-  } else if (a.tipo === "fraccionamiento") {
-    // Los días con el año siempre: el rango cruza años («10 dic. 2020 al 19 feb.» no decía de qué año era el final).
-    const desde = txt(d.desde)?.slice(0, 10);
-    const hasta = txt(d.hasta)?.slice(0, 10);
-    const rango = desde && hasta ? (desde === hasta ? `el ${conAnio(desde)}` : `del ${conAnio(desde)} al ${conAnio(hasta)}`) : null;
-    const dias = typeof d.dias === "number" ? plural(d.dias, "día", "días") : null;
-    items.push(
-      { etiqueta: "Días", valor: [dias, rango].filter(Boolean).join(", ") || null },
-      { etiqueta: "Órdenes", valor: txt(d.ordenes) },
-      { etiqueta: "Juntas suman", valor: typeof d.total === "number" ? soles(d.total) : null, mono: true },
-    );
-  } else if (a.tipo === "recurrente") {
-    items.push(
-      { etiqueta: "Procesos ganados en la entidad", valor: txt(d.procesos) },
-      { etiqueta: "Entre", valor: [f(d.desde), f(d.hasta)].filter(Boolean).join(" y ") || null },
-    );
-  } else if (a.tipo === "sobreprecio") {
-    const peor = (d.peor ?? {}) as Record<string, unknown>;
-    items.push(
-      { etiqueta: "Ítem", valor: txt(peor.descripcion) ? oracion(txt(peor.descripcion)!) : null },
-      { etiqueta: "Precio unitario", valor: typeof peor.unitario === "number" ? soles(peor.unitario) : null, mono: true },
-      { etiqueta: "Mediana de otras entidades", valor: typeof peor.mediana === "number" ? `${soles(peor.mediana)} (${numero(Number(peor.entidades ?? 0))} entidades)` : null },
-      { etiqueta: "Pagó de más en total", valor: typeof d.exceso === "number" ? soles(d.exceso) : null, mono: true },
-    );
-  } else if (esTipoObra(a.tipo)) {
-    // La obra que construye o supervisa en ese contrato (INFOBRAS) o la inversión de su CUI (Invierte.pe): la frase con sus
-    // números, la obra y la inversión. La causa de una paralización o de un atraso puede ser de la entidad.
-    const obra = txt(d.nombre_obra);
-    const inversion = txt(d.nombre_inversion);
-    items.push(
-      { etiqueta: "Lo que registra la fuente", valor: fraseBandera({ ...d, tipo: a.tipo, severidad: a.severidad } as BanderaObra, d.rol === "supervision" ? "La obra que supervisa" : a.tipo.startsWith("inversion_") ? "La inversión" : "La obra") },
-      { etiqueta: d.rol === "supervision" ? "Obra que supervisa" : "Obra", valor: obra ? `${oracion(obra)}${txt(d.obra) ? ` (INFOBRAS ${txt(d.obra)})` : ""}` : null },
-      { etiqueta: "Inversión", valor: inversion ? `${oracion(inversion)}${txt(d.cui) ? ` (CUI ${txt(d.cui)})` : ""}` : null },
-    );
-  } else {
-    const org = txt(d.organizacion) ?? txt(d.partido);
-    if (org) items.push({ etiqueta: "Organización política", valor: org });
-    if (txt(d.cargo)) items.push({ etiqueta: "Cargo", valor: tituloNatural(txt(d.cargo)!) });
-    if (txt(d.proceso)) items.push({ etiqueta: "Proceso electoral", valor: txt(d.proceso) });
-    if (txt(d.entidad_contratante)) items.push({ etiqueta: "Entidad", valor: tituloNatural(txt(d.entidad_contratante)!) });
-  }
-  if (a.montoSoles != null && !esTipoObra(a.tipo) && !items.some((i) => i.etiqueta.startsWith("Juntas") || i.etiqueta.startsWith("Pagó"))) {
-    items.push({ etiqueta: "Monto", valor: soles(a.montoSoles), mono: true });
-  }
-  if (a.fecha && !items.some((i) => i.etiqueta === "Vigencia" || i.etiqueta === "Días" || i.etiqueta === "Entre")) {
-    items.push({ etiqueta: "Fecha", valor: fechaCorta(a.fecha), mono: true });
-  }
-  return items.filter((i) => i.valor);
-}
 
 const COLUMNAS_CASOS: Columna[] = [
   { clave: "detalle", titulo: "Qué dice el registro", ancho: "minmax(0,1.6fr)" },
@@ -270,24 +206,28 @@ export async function AntecedentesEmpresa({
         const urls = new Set(casos.map((c) => c.fuenteUrl));
         const enlaceTipo = urls.size === 1 && casos[0].fuenteUrl ? casos[0].fuenteUrl : fuente ? PORTADA[fuente] ?? null : null;
         const filas: Fila[] = casos.map((a, k) => {
-          const datos = datosDe(a);
+          const datos = datosDe(a, ruc);
+          // La fila: lo que distingue este caso de los otros del mismo tipo (la entidad y el proceso van en su columna).
+          const enFila = datos.filter((x) => !x.soloPanel);
           return {
             id: `${tipo}-${k}`,
-            // Cada caso abre su panel: todo lo que dice el registro, el enlace a su registro oficial y el proceso en que pesa.
-            // «Órdenes que pasan 8 UIT»: el caso son órdenes, no el proceso; su panel lleva a esas órdenes y al proceso.
-            detalle: a.tipo === "fraccionamiento" ? detalleFraccionamiento(a, datos, ruc, rucDe) : detalleCaso(a, datos),
+            // Cada caso abre su panel: todo lo que dice el registro con la referencia de cada dato, los registros de la
+            // fuente y el proceso en que pesa. «Órdenes que pasan 8 UIT»: el caso son órdenes; su panel lleva a esas órdenes.
+            detalle: a.tipo === "fraccionamiento" ? detalleFraccionamiento(a, datos, ruc, rucDe) : detalleCaso(a, datos, ruc, explica),
             // Sin nombres de personas (socio, visitante, funcionario): no se buscan (docs/PRIVACIDAD.md).
-            buscable: `${datos.filter((x) => !["Quién", "Visitante", "A quién visitó"].includes(x.etiqueta)).map((x) => x.valor).join(" ")} ${a.entidad ?? ""} ${a.codigo ?? ""}`,
+            buscable: `${datos.filter((x) => !ES_PERSONA.has(x.etiqueta)).map((x) => x.valor).join(" ")} ${a.entidad ?? ""} ${a.codigo ?? ""}`,
             celdas: {
               detalle: (
                 <ul className="space-y-0.5 text-meta">
-                  {datos.slice(0, 4).map((x) => (
+                  {enFila.slice(0, 4).map((x) => (
                     <li key={x.etiqueta} className="min-w-0 break-words">
                       <span className="text-mute">{x.etiqueta}: </span>
                       <span className={x.mono ? "font-mono tabular-nums text-ink" : "text-ink"}>{x.valor}</span>
                     </li>
                   ))}
-                  {datos.length > 4 && <li className="text-mute">{`Y ${plural(datos.length - 4, "dato más", "datos más")} en su detalle`}</li>}
+                  {datos.length > Math.min(4, enFila.length) && (
+                    <li className="text-mute">{`Y ${plural(datos.length - Math.min(4, enFila.length), "dato más", "datos más")} en su detalle`}</li>
+                  )}
                   {!datos.length && <li className="text-mute">Sin más detalle en el registro</li>}
                 </ul>
               ),
@@ -370,52 +310,194 @@ function FuenteCaso({ a }: { a: AntecedenteEmpresa }) {
   return <FuenteDato fuente={FUENTE[a.fuente] ?? a.fuente} href={a.fuenteUrl ?? PORTADA[a.fuente] ?? null} enlaces={enlaces} />;
 }
 
+/** Las etiquetas de los datos que nombran a una persona: no entran a la búsqueda de la tabla (docs/PRIVACIDAD.md). */
+const ES_PERSONA = new Set(["Quién", "Quién fue", "Quién lo declaró"]);
+
+const ENLACE = "font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink";
+
+/** El valor de un dato en el panel, con su referencia: la ficha en Vigía o, con `fuera`, el registro oficial. */
+function ValorCaso({ x }: { x: DatoCaso }) {
+  if (x.lista?.length) {
+    return (
+      <>
+        {x.lista.map((o, i) => (
+          <span key={`${o.texto}-${i}`}>
+            {i > 0 && ", "}
+            {o.href ? <Link href={o.href} className={ENLACE}>{o.texto}</Link> : o.texto}
+          </span>
+        ))}
+      </>
+    );
+  }
+  if (!x.href) return <>{x.valor}</>;
+  if (x.fuera) {
+    return (
+      <a href={x.href} target="_blank" rel="noopener noreferrer" className={ENLACE}>
+        {x.valor} <ArrowUpRight size={12} aria-hidden className="inline align-baseline" />
+      </a>
+    );
+  }
+  return <Link href={x.href} className={ENLACE}>{x.valor}</Link>;
+}
+
+/** Los tipos con registros que la API puede traer (lib/evidencia.ts) o, el fraccionamiento, sus días con órdenes. */
+const CON_EVIDENCIA = /^(proveedor_campana|aporte|aporte_empresa|candidato|autoridad|vendio_gobernante|partido_gobernante|penalidad|sancion.*|recurrente.*|sobreprecio.*|domicilio_compartido|socio_comun|socio_en_entidad|proveedor_cautivo|recien_fundada.*|obra_.*|inversion_.*|fraccionamiento)$/;
+
+const DIA_SEMANA = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone: "UTC" });
+const POR_VISITA: Record<string, string> = { fin_de_semana: "en fin de semana", temprano: "antes de las 7", noche: "desde las 19" };
+
+/** «Sábado 4 ago. 2024, a las 20:15 (3 h 10 min), en fin de semana»: una visita de un patrón. */
+function unaVisita(v: Record<string, unknown>): string {
+  const f = txt(v.fecha);
+  const dia = f ? `${DIA_SEMANA.format(new Date(`${f.slice(0, 10)}T12:00:00Z`))} ${fechaCorta(f)}` : "Un día sin fecha";
+  const h = txt(v.hora) ? `, a las ${txt(v.hora)!.slice(0, 5)}` : "";
+  const m = typeof v.minutos === "number" && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
+  const por = typeof v.por === "string" && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)}${h}${m}${por}`;
+}
+
 /**
- * El panel de un caso: todo lo que dice el registro (la fila muestra hasta cuatro datos), la entidad y el proceso en que
- * pesa, y su fuente con el enlace a su registro oficial. Antes la fila llevaba directo a la ficha del proceso y el único
- * enlace a la fuente era el del primer caso del tipo; la ficha del proceso queda a un clic, en el pie.
+ * ¿Le vende al gobierno que encabeza? La autoridad electa de su gente y lo que cada entidad de ese gobierno (la
+ * municipalidad; un gobierno regional y sus unidades) le compró a la empresa mientras ejercía, según CONOSCE. Es lo que
+ * decide si el antecedente pesa: la ley impide contratar con la entidad donde la autoridad ejerce.
  */
-function detalleCaso(a: AntecedenteEmpresa, datos: ReturnType<typeof datosDe>): NonNullable<Fila["detalle"]> {
+function GobiernoQueEncabeza({ r, cargo, ruc }: { r: ReferenciasAntecedente; cargo: string | null; ruc: string }) {
+  const g = r.gobierno;
+  if (!g) return null;
+  const c = (cargo ?? "").toUpperCase();
+  const integra = /REGIDOR|CONSEJER/.test(c);
+  const sujeto = g.nivel === "regional" ? "el gobierno regional" : "la municipalidad";
+  const verbo = integra ? (r.vigente === false ? "que integró" : "que integra") : r.vigente === false ? "que encabezó" : "que encabeza";
+  const desde = g.desde?.slice(0, 4);
+  const hasta = r.vigente ? "hoy" : g.hasta?.slice(0, 4);
+  const periodo = desde ? `entre ${desde} y ${hasta ?? "hoy"}` : "en su periodo";
+  const compraron = g.entidades.filter((e) => e.ordenes + e.procesos > 0);
+  const principal = g.entidades[0];
+  return (
+    <BloqueDetalle titulo={`¿Le vende a ${sujeto} ${verbo}?`}>
+      {compraron.length === 0 ? (
+        <p className="text-dato text-inkSoft">
+          <b className="font-semibold text-ink">No.</b>{" "}
+          {g.entidades.length === 1 && principal ? (
+            <>
+              <Link href={`/entidad/${principal.ruc}`} className={ENLACE}>{principal.nombre ? tituloNatural(principal.nombre) : `RUC ${principal.ruc}`}</Link>{" "}
+              no le dio órdenes ni le adjudicó procesos {periodo}, según CONOSCE.
+            </>
+          ) : (
+            <>Ninguna de las {numero(g.entidades.length)} entidades de {sujeto} le dio órdenes ni le adjudicó procesos {periodo}, según CONOSCE.</>
+          )}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-dato text-inkSoft">
+            <b className="font-semibold text-ink">Sí.</b> {compraron.length === 1 ? "Esta entidad le compró" : `Estas ${numero(compraron.length)} entidades le compraron`} {periodo}, según CONOSCE:
+          </p>
+          <ul className="divide-y divide-line/70 rounded-xl border border-line">
+            {compraron.map((e) => (
+              <li key={e.ruc} className="space-y-1 px-3.5 py-2.5">
+                <Link href={`/entidad/${e.ruc}`} className={`${ENLACE} text-dato`}>{e.nombre ? tituloNatural(e.nombre) : `RUC ${e.ruc}`}</Link>
+                <ul className="space-y-0.5 text-meta text-inkSoft">
+                  {e.procesos > 0 && (
+                    <li>
+                      <Link href={rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.entidad]: e.ruc })} className={ENLACE}>
+                        {plural(e.procesos, "proceso", "procesos")}
+                      </Link>{" "}
+                      por <span className="font-mono tabular-nums text-ink">{soles(e.montoProcesos)}</span>
+                    </li>
+                  )}
+                  {e.ordenes > 0 && (
+                    <li>
+                      <Link href={rutaEmpresa(ruc, "ordenes", { [P_ORDENES.entidad]: e.ruc })} className={ENLACE}>
+                        {plural(e.ordenes, "orden", "órdenes")}
+                      </Link>{" "}
+                      por <span className="font-mono tabular-nums text-ink">{soles(e.montoOrdenes)}</span>
+                    </li>
+                  )}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </BloqueDetalle>
+  );
+}
+
+/**
+ * El panel de un caso: todo lo que dice el registro con la referencia de cada dato (la persona en «Su gente», el partido,
+ * la entidad, la otra empresa, el proceso), lo que pesa (en una autoridad, si le vende al gobierno que encabeza; en un
+ * patrón de visitas, cada visita), los registros de la fuente (a pedido) y por qué se marca. Antes: datos sin enlaces y,
+ * en 20 tipos, sólo la fecha.
+ */
+function detalleCaso(a: AntecedenteEmpresa, datos: DatoCaso[], ruc: string, explica?: string): NonNullable<Fila["detalle"]> {
   const entidad = a.entidad ? tituloNatural(a.entidad) : null;
   const proceso = a.codigo ?? a.ocid;
+  const gente = aSuGente(a, ruc);
+  const patronVisitas = a.tipo !== "visita_previa" && a.tipo.startsWith("visita_") && a.visitas.length > 0;
   return {
     titulo: a.etiqueta,
     etiqueta: `Ver el caso${proceso ? ` del proceso ${proceso}` : ""}${entidad ? `, ${entidad}` : ""}`,
     descripcion: entidad ?? (a.ocid ? undefined : "De la empresa, no de un proceso"),
     contenido: (
       <CuerpoDetalle>
-        <DatosClave
-          items={[
-            ...datos.map((x) => ({ etiqueta: x.etiqueta, valor: x.valor, mono: x.mono })),
-            // (los datos de algunos tipos ya traen su «Entidad»: va una vez)
-            ...(entidad && !datos.some((x) => x.etiqueta === "Entidad") ? [{ etiqueta: "Entidad", valor: entidad }] : []),
-            ...(proceso ? [{ etiqueta: "Pesa sobre el proceso", valor: proceso, mono: true }] : []),
-          ]}
-        />
+        <DatosClave items={datos.map((x) => ({ etiqueta: x.etiqueta, valor: <ValorCaso x={x} />, mono: x.mono }))} />
+        {a.tipo === "autoridad" && a.referencias?.gobierno && (
+          <GobiernoQueEncabeza r={a.referencias} cargo={(a.detalle.cargo as string | undefined) ?? a.referencias.cargo ?? null} ruc={ruc} />
+        )}
+        {patronVisitas && (
+          <BloqueDetalle titulo={a.visitas.length === 1 ? "La visita" : `Las ${numero(a.visitas.length)} visitas`}>
+            <ol className="space-y-1 text-dato text-inkSoft">
+              {a.visitas.map((v, i) => (
+                <li key={i} className="tabular-nums">{unaVisita(v)}</li>
+              ))}
+            </ol>
+          </BloqueDetalle>
+        )}
+        {a.referencias?.clave && CON_EVIDENCIA.test(a.tipo) && (
+          <BloqueDetalle titulo="Los registros de la fuente">
+            <EvidenciaDelAntecedente ruc={ruc} tipo={a.tipo} clave={a.referencias.clave} />
+          </BloqueDetalle>
+        )}
+        {explica && (
+          <BloqueDetalle titulo="Por qué se marca">
+            <p className="text-dato text-inkSoft">{explica}</p>
+          </BloqueDetalle>
+        )}
       </CuerpoDetalle>
     ),
     pie: (
       <PieDetalle
-        principal={a.ocid ? <EnlaceAccion href={rutaContrato(a.ocid)} flecha>Abrir el proceso</EnlaceAccion> : undefined}
-        secundarias={<FuenteCaso a={a} />}
+        principal={
+          a.ocid ? (
+            <EnlaceAccion href={rutaContrato(a.ocid, "ficha", { seccion: "antecedentes" })} flecha>Abrir el proceso</EnlaceAccion>
+          ) : gente ? (
+            <EnlaceAccion href={gente.href} flecha>{gente.texto}</EnlaceAccion>
+          ) : undefined
+        }
+        secundarias={
+          <>
+            {a.ocid && gente && <EnlaceAccion href={gente.href} variante="secundario">{gente.texto}</EnlaceAccion>}
+            <FuenteCaso a={a} />
+          </>
+        }
       />
     ),
   };
 }
 
 /**
- * El panel de un caso de «Órdenes que pasan 8 UIT»: qué días, cuántas órdenes y cuánto suman, y adónde ir a verlas. La
- * API todavía no marca cada orden con su bandera: el enlace abre la lista de Órdenes de la empresa filtrada por esa
- * entidad (y por el año, si los días caen en uno solo). La ficha del proceso trae cada día con sus órdenes.
+ * El panel de un caso de «Órdenes que pasan 8 UIT»: qué días, cuántas órdenes y cuánto suman, cada día con sus órdenes
+ * (a pedido) y adónde ir a verlas: la lista de Órdenes de la empresa filtrada por esa entidad (y por el año, si los días
+ * caen en uno solo).
  */
 function detalleFraccionamiento(
   a: AntecedenteEmpresa,
-  datos: ReturnType<typeof datosDe>,
+  datos: DatoCaso[],
   ruc: string,
   rucDe: Map<string, string | null>,
 ): NonNullable<Fila["detalle"]> {
   const entidad = a.entidad ? tituloNatural(a.entidad) : null;
-  const rucEntidad = a.entidad ? rucDe.get(claveEntidad(a.entidad)) ?? null : null;
+  const rucEntidad = a.entidadRuc ?? (a.entidad ? rucDe.get(claveEntidad(a.entidad)) ?? null : null);
   const desde = txt(a.detalle.desde)?.slice(0, 4);
   const hasta = txt(a.detalle.hasta)?.slice(0, 4);
   const anio = desde && desde === hasta && Number(desde) >= 2018 ? desde : undefined;
@@ -426,13 +508,12 @@ function detalleFraccionamiento(
     descripcion: "Órdenes menores del mismo día que juntas pasan el tope de 8 UIT",
     contenido: (
       <CuerpoDetalle>
-        <DatosClave
-          items={[
-            ...datos.map((x) => ({ etiqueta: x.etiqueta, valor: x.valor, mono: x.mono })),
-            { etiqueta: "Entidad", valor: entidad },
-            { etiqueta: "Pesa sobre el proceso", valor: a.codigo ?? a.ocid },
-          ]}
-        />
+        <DatosClave items={datos.map((x) => ({ etiqueta: x.etiqueta, valor: <ValorCaso x={x} />, mono: x.mono }))} />
+        {a.referencias?.clave && (
+          <BloqueDetalle titulo="Cada día, con sus órdenes">
+            <EvidenciaDelAntecedente ruc={ruc} tipo={a.tipo} clave={a.referencias.clave} />
+          </BloqueDetalle>
+        )}
         {!ordenes && (
           <p className="text-meta text-mute">
             No ubicamos esta entidad entre sus clientes por su nombre: búscala en la lista de Órdenes con el filtro de entidad.
@@ -453,7 +534,7 @@ function detalleFraccionamiento(
         }
         secundarias={
           <>
-            {a.ocid && <EnlaceAccion href={rutaContrato(a.ocid)} variante="secundario">Abrir el proceso</EnlaceAccion>}
+            {a.ocid && <EnlaceAccion href={rutaContrato(a.ocid, "ficha", { seccion: "antecedentes" })} variante="secundario">Abrir el proceso</EnlaceAccion>}
             <FuenteCaso a={a} />
           </>
         }

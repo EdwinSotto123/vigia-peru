@@ -196,7 +196,7 @@ export interface DiaFraccionado {
 }
 
 /** Una fila de ordenes_fraccionadas para la API (la ficha del contrato y la de la entidad). */
-function aDia(r: Record<string, any>): DiaFraccionado {
+export function aDia(r: Record<string, any>): DiaFraccionado {
   return {
     fecha: fecha(r.fecha), entidad: r.entidad ?? null, objeto: r.objeto ?? null,
     ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,

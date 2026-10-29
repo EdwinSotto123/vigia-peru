@@ -10,6 +10,7 @@
  * Los GET devuelven `null` si la API no responde: quien llama no dibuja lo que no pudo leer.
  */
 import { API_BASE } from "./api-client";
+import type { DiaFraccionado, EvidenciaCruce } from "./contratos";
 import { uno } from "@/lib/utils";
 
 export type Severidad = "alta" | "media" | "baja";
@@ -276,15 +277,70 @@ export interface AntecedenteEmpresa {
   puntos: number;
   codigo: string | null;
   entidad: string | null;
+  /** El RUC de la entidad del proceso (para enlazar su ficha). */
+  entidadRuc?: string | null;
+  /** Lo que su panel necesita para citar cada dato (API, 2026-10-29: «faltan varias referencias a varios datos»). */
+  referencias?: ReferenciasAntecedente;
+}
+
+/** Las referencias de un antecedente: de qué elección, dónde, a qué entidad o empresa lleva, y la clave de su evidencia. */
+export interface ReferenciasAntecedente {
+  /** Para pedir sus registros oficiales (GET /empresas/:ruc/antecedentes/evidencia). */
+  clave: string;
+  eleccion?: string | null;
+  /** Autoridad y candidatura: dónde es el cargo, cuál, si sigue, el resultado y el periodo (JNE). */
+  lugar?: { distrito: string | null; provincia: string | null; departamento: string | null } | null;
+  cargo?: string | null;
+  vigente?: boolean | null;
+  resultado?: string | null;
+  periodo?: { desde: string | null; hasta: string | null } | null;
+  /** Autoridad: el gobierno que encabeza o integra y lo que cada entidad de ese gobierno le compró en su periodo. */
+  gobierno?: {
+    nivel: string;
+    desde: string | null;
+    hasta: string | null;
+    entidades: { ruc: string; nombre: string | null; ordenes: number; montoOrdenes: number; procesos: number; montoProcesos: number }[];
+  } | null;
+  /** Socio común: las otras empresas del proceso con la misma persona (`ruc` null: una persona natural). */
+  otros?: { ruc: string | null; nombre: string | null }[];
+  /** Visitas: el RUC de la entidad visitada, si su nombre se reconoce. */
+  entidadVisitadaRuc?: string | null;
+}
+
+/** Los registros oficiales de un antecedente (los mismos de la ficha del contrato) y, en el fraccionamiento, sus días. */
+export interface EvidenciaAntecedente {
+  evidencia: EvidenciaCruce[];
+  dias: DiaFraccionado[];
 }
 
 /** Lo que una persona de la empresa es en el Estado, por su DNI (que no sale de la API): fase 2 del plan del 2026-10-27. */
 export interface SocioEnElEstado {
   /** Locador: en cuántas entidades, cuánto cobró, su ficha y en cuántas de ellas le vende esta empresa. */
   locador: { entidades: number; monto: number; codigo: string | null; clientes: number } | null;
-  autoridad: { cargo: string | null; vigente: boolean | null; desde: string | null; hasta: string | null } | null;
+  /** El cargo de elección (JNE) con su lugar y su organización política (2026-10-29). */
+  autoridad: {
+    cargo: string | null;
+    vigente: boolean | null;
+    desde: string | null;
+    hasta: string | null;
+    distrito?: string | null;
+    provincia?: string | null;
+    departamento?: string | null;
+    organizacion?: string | null;
+  } | null;
   candidaturas: number;
-  aportes: { n: number; monto: number } | null;
+  /** Cada candidatura (JNE, las seis más recientes): a qué postuló, dónde, por quién, cuándo y si salió elegido. */
+  postulaciones?: {
+    cargo: string | null;
+    partido: string | null;
+    anio: number | null;
+    resultado: string | null;
+    distrito: string | null;
+    provincia: string | null;
+    departamento: string | null;
+  }[];
+  /** Sus aportes (ONPE): cuántos, cuánto, a qué partidos y entre qué años. */
+  aportes: { n: number; monto: number; partidos?: string[] | null; desde?: number | null; hasta?: number | null } | null;
 }
 
 /** Lo que un funcionario declaró en su DJI sobre la empresa (secciones 1 a 4): cargo, entidad y primer apellido. */
