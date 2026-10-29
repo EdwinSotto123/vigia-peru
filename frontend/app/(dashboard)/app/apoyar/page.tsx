@@ -6,7 +6,7 @@ import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { AporteVigilancia, type ParaAporte } from "@/components/financiar/AporteVigilancia";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { numero } from "@/lib/formato";
-import { dolares, getPago, getVigilancia } from "@/lib/financiamiento";
+import { cantidadCorta, dolares, getPago, getVigilancia } from "@/lib/financiamiento";
 
 export const metadata: Metadata = {
   title: "Ayúdanos a seguir vigilando",
@@ -54,15 +54,28 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
         bajada="Vigía cruza todos los días las órdenes, los contratos y las compras menores del Estado con sanciones, visitas, aportes y planillas, y lee a fondo lo más grave. Tu aporte de cada mes la mantiene encendida."
       />
 
+      {/* En el celular: la meta, el formulario y después lo demás; desde lg, el formulario fijo a la derecha. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
-        <div className="min-w-0 space-y-8">
-          {v ? <MetaDelMes v={v} /> : null}
+        {v ? (
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+            <MetaDelMes v={v} />
+          </div>
+        ) : null}
 
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+          {pago ? (
+            <AporteVigilancia pago={pago} para={para} />
+          ) : (
+            <p className="rounded-2xl border border-line bg-paper p-5 text-dato text-inkSoft">No pudimos leer los medios de pago ahora. Vuelve a intentarlo en un momento.</p>
+          )}
+        </aside>
+
+        <div className="min-w-0 space-y-8 lg:col-start-1">
           {v && (
             <Seccion titulo={`Lo que vigilamos en ${v.vigilamos.anio}`} descripcion="Todo, no una muestra: cada orden y cada contrato se cruza con los registros oficiales.">
               <CifrasEnFila
                 items={[
-                  { valor: numero(v.vigilamos.ordenes), etiqueta: "órdenes de compra y servicio", contexto: "cruzadas con sanciones, fechas y topes" },
+                  { valor: cantidadCorta(v.vigilamos.ordenes), etiqueta: "órdenes de compra y servicio", contexto: `${numero(v.vigilamos.ordenes)}, cruzadas con sanciones, fechas y topes` },
                   { valor: numero(v.vigilamos.procesos), etiqueta: "procesos con buena pro", contexto: "con su ganador y sus postores" },
                   { valor: numero(v.vigilamos.contratosConBanderas), etiqueta: "contratos con banderas", contexto: `${numero(v.vigilamos.graves)} con algún antecedente grave`, tono: "media" },
                   {
@@ -133,14 +146,6 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
 
           <FuenteDato fuente="Factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP (detalle en Cuánto cuesta Vigía)" />
         </div>
-
-        <aside className="min-w-0 lg:sticky lg:top-24">
-          {pago ? (
-            <AporteVigilancia pago={pago} para={para} />
-          ) : (
-            <p className="rounded-2xl border border-line bg-paper p-5 text-dato text-inkSoft">No pudimos leer los medios de pago ahora. Vuelve a intentarlo en un momento.</p>
-          )}
-        </aside>
       </div>
     </Pagina>
   );

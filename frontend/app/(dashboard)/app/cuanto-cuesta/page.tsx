@@ -6,7 +6,7 @@ import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { fechaCorta, numero, soles } from "@/lib/formato";
-import { dolares, getVigilancia, nombreMes, type ResumenVigilancia } from "@/lib/financiamiento";
+import { dolares, getVigilancia, mesConMayuscula, nombreMes, type ResumenVigilancia } from "@/lib/financiamiento";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -86,6 +86,9 @@ function Costos({ v }: { v: ResumenVigilancia }) {
   const parcial = v.costos.rubros.some((r) => r.parcial);
   const proyeccion = v.costos.rubros.every((r) => r.fuente === "estimado");
   const al = v.costos.rubros.find((r) => r.al)?.al ?? null;
+  const notas = [...new Set(v.costos.rubros.map((r) => r.nota).filter((n): n is string => !!n))];
+  // La nota de la factura (la misma en todos los rubros de AWS) va una vez, bajo la tabla.
+  const comun = notas.find((n) => v.costos!.rubros.filter((r) => r.nota === n).length > 1) ?? null;
   return (
     <Seccion
       titulo={`Lo que cuesta ${nombreMes(v.mesCostos)}`}
@@ -115,7 +118,7 @@ function Costos({ v }: { v: ResumenVigilancia }) {
                   {r.detalle && <span className="block text-meta text-inkSoft">{r.detalle}</span>}
                 </td>
                 <td className="px-4 py-3 align-top text-ink">{r.proveedor}</td>
-                <td className="px-4 py-3 text-right align-top">
+                <td className="whitespace-nowrap px-4 py-3 text-right align-top">
                   <span className="block font-mono tabular-nums text-ink">{dolares(r.montoUsd)}</span>
                   <span className="block font-mono text-meta tabular-nums text-inkSoft">{soles(Math.round(r.montoUsd * tc))}</span>
                 </td>
@@ -129,7 +132,7 @@ function Costos({ v }: { v: ResumenVigilancia }) {
                     {r.fuente === "factura" ? <Receipt size={12} aria-hidden /> : <CalendarClock size={12} aria-hidden />}
                     {r.fuente === "factura" ? "Factura" : "Estimado"}
                   </span>
-                  {r.nota && <span className="mt-1 block text-rotulo leading-snug text-mute">{r.nota}</span>}
+                  {r.nota && r.nota !== comun && <span className="mt-1 block text-rotulo leading-snug text-mute">{r.nota}</span>}
                 </td>
               </tr>
             ))}
@@ -148,6 +151,7 @@ function Costos({ v }: { v: ResumenVigilancia }) {
           </tfoot>
         </table>
       </div>
+      {comun && <p className="mt-2 text-rotulo leading-relaxed text-mute">{comun}</p>}
     </Seccion>
   );
 }
@@ -211,7 +215,7 @@ function MesAMes({ v }: { v: ResumenVigilancia }) {
           <tbody>
             {[...v.historial].reverse().map((m) => (
               <tr key={m.mes} className="border-b border-line/70 last:border-0">
-                <th scope="row" className="px-4 py-3 text-left font-semibold capitalize text-ink">{nombreMes(m.mes)}</th>
+                <th scope="row" className="px-4 py-3 text-left font-semibold text-ink">{mesConMayuscula(m.mes)}</th>
                 <td className="px-4 py-3 text-right font-mono tabular-nums text-ink">
                   {m.costoUsd != null ? (
                     <>

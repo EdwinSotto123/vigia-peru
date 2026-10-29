@@ -253,7 +253,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         <HandHeart size={20} aria-hidden className="text-granate" /> Tu aporte
       </h2>
 
-      <fieldset className="mt-4 min-w-0">
+      <fieldset className="mt-4 min-w-0 [&>legend+*]:clear-left">
         <legend className={LEYENDA}>Cada cuánto</legend>
         <div className="flex flex-wrap gap-2">
           <OpcionRadio name="periodicidad" checked={periodicidad === "mensual"} onChange={() => setPeriodicidad("mensual")}>Cada mes</OpcionRadio>

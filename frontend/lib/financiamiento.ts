@@ -597,4 +597,14 @@ export function nombreMes(mes: string): string {
 }
 
 /** US$ con dos decimales: «US$ 57.81». */
-export const dolares = (n: number) => `US$ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const dolares = (n: number) => `US$ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** «1.98 M» para los conteos de millones (en una tarjeta de cifras, el número entero no entra). */
+export const cantidadCorta = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString("es-PE", { maximumFractionDigits: 2 })} M` : n.toLocaleString("es-PE");
+
+/** «Octubre de 2026»: la mayúscula sólo al inicio (con `capitalize` salía «Octubre De 2026»). */
+export const mesConMayuscula = (mes: string) => {
+  const t = nombreMes(mes);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};

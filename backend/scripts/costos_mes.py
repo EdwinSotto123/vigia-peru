@@ -70,6 +70,11 @@ def tipo_cambio(mes: date) -> float | None:
         return None
 
 
+def detalle_otros(servicios: list[str]) -> str:
+    """Los servicios chicos de AWS, contados (la lista entera de nombres no le dice nada a nadie)."""
+    return f"{len(servicios)} servicios chicos (registros, colas, claves, almacenamiento…)" if len(servicios) > 1 else (servicios[0] if servicios else "")
+
+
 def agrupar(por_servicio: dict[str, float]) -> dict[str, list]:
     """Los servicios de AWS en sus rubros: {rubro: [título, detalle, US$, servicios]}."""
     agrupado: dict[str, list] = {}
@@ -109,7 +114,7 @@ def filas_del_mes(mes: date) -> tuple[list[tuple], str, dict[str, float] | None,
     for rubro, (titulo, detalle, usd, servicios) in agrupar(proyectado).items():
         if usd < 0.01:
             continue
-        filas.append((mes, rubro, titulo, "AWS", detalle or ", ".join(servicios), round(usd, 2), "factura", not cerrado,
+        filas.append((mes, rubro, titulo, "AWS", detalle or detalle_otros(servicios), round(usd, 2), "factura", not cerrado,
                       al, nota_mes + ". Hoy lo cubren créditos promocionales de AWS: es lo que costará cuando se acaben."))
     rubro, titulo, proveedor, detalle, usd, nota = CLOUDFLARE
     filas.append((mes, rubro, titulo, proveedor, detalle, usd, "estimado", False, None, nota))
@@ -121,7 +126,7 @@ def filas_proyeccion(mes: date, ritmo: dict[str, float], dias: int) -> list[tupl
     dias_mes = calendar.monthrange(mes.year, mes.month)[1]
     nota = (f"Proyección: el ritmo de los últimos {dias} días por los {dias_mes} del mes, hasta que llegue la factura. "
             "Hoy lo cubren créditos promocionales de AWS: es lo que costará cuando se acaben.")
-    filas = [(mes, rubro, titulo, "AWS", detalle or ", ".join(servicios), round(usd / dias * dias_mes, 2), "estimado", True, None, nota)
+    filas = [(mes, rubro, titulo, "AWS", detalle or detalle_otros(servicios), round(usd / dias * dias_mes, 2), "estimado", True, None, nota)
              for rubro, (titulo, detalle, usd, servicios) in agrupar(ritmo).items() if usd / dias * dias_mes >= 0.01]
     rubro, titulo, proveedor, detalle, usd, nota_cf = CLOUDFLARE
     filas.append((mes, rubro, titulo, proveedor, detalle, usd, "estimado", False, None, nota_cf))
