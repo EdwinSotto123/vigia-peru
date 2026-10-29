@@ -117,6 +117,12 @@ export function NepotismoInicio({
       }
       enlace={{ href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), texto: "Ver en personas" }}
     >
+      {/* La API trae hasta 40 casos (los de más monto) y el total de todos: EsSalud tiene 353. */}
+      {nepotismo.total > detalle.length && (
+        <p className="mb-2 text-meta text-inkSoft">
+          {`Los ${numero(detalle.length)} de mayor monto, de ${numero(nepotismo.total)} casos: todos están en «Ver en personas».`}
+        </p>
+      )}
       <TablaPaginada
         columnas={COLUMNAS}
         filas={filas}

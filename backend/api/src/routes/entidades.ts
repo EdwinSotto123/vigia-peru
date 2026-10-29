@@ -964,15 +964,23 @@ entidadesRouter.get("/:ruc", async (c) => {
     // Nepotismo (indicio, no acusación): parientes declarados en la DJI que son locadores de ESTA entidad.
     // Detalle: el FUNCIONARIO (cargo público, su DJI es pública) + el parentesco + el PROVEEDOR (RUC-10). El nombre
     // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136).
-    pool.query<{ declarante: string; cargo: string | null; declaranteFicha: string | null; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number }>(
-      `SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco,
-              n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto
-         FROM dji_nepotismo n
+    // El detalle va hasta 40 casos; el total, el monto y por grado, de TODOS (antes salían de esos 40: EsSalud tiene 353 y
+    // su bandera decía 40). La vista se calcula una vez (MATERIALIZED). Si falla, la ficha sale sin él (antes, 500: la
+    // vista pasaba los 10 s en el Minsa hasta la migración 208).
+    pool.query<{ declarante: string; cargo: string | null; declaranteFicha: string | null; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number;
+                 totalCasos: number; montoTotal: number | null; porGrado: { grado: string; n: number; monto: number }[] }>(
+      `WITH n AS MATERIALIZED (SELECT * FROM dji_nepotismo WHERE entidad_ruc = $1),
+            g AS (SELECT grado, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto FROM n GROUP BY grado)
+       SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco,
+              n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto,
+              (SELECT count(*) FROM n)::int AS "totalCasos", (SELECT sum(monto) FROM n)::float AS "montoTotal",
+              (SELECT json_agg(g ORDER BY g.monto DESC) FROM g) AS "porGrado"
+         FROM n
          LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
          LEFT JOIN planilla_persona pp ON pp.entidad_ruc = n.entidad_ruc AND pp.nombre_norm = n.declarante_norm
-        WHERE n.entidad_ruc = $1 ORDER BY n.monto DESC NULLS LAST LIMIT 40`,
+        ORDER BY n.monto DESC NULLS LAST LIMIT 40`,
       [ruc],
-    ),
+    ).catch((e) => { console.warn(`[entidades] nepotismo de ${ruc}: ${(e as Error).message}`); return null; }),
     // Lo que cuentan sus banderas en la lista (captura, planilla con señal alta, plazas a la medida, informes con
     // responsabilidad penal presunta): la ficha las lleva fijas bajo el título, en todas las pestañas. Las mismas
     // columnas que la lista, por la llave de la entidad. Si falla, la ficha sale sin ellas (no sin la ficha).
@@ -1021,23 +1029,17 @@ entidadesRouter.get("/:ruc", async (c) => {
     for (const k of ENTIDAD_METADATA_MOCK) delete limpia[k];
     entidad.metadata = limpia;
   }
-  const porGradoMap = new Map<string, { grado: string; n: number; monto: number }>();
-  for (const r of nep.rows) {
-    const g = porGradoMap.get(r.grado) ?? { grado: r.grado, n: 0, monto: 0 };
-    g.n += 1;
-    g.monto += r.monto || 0;
-    porGradoMap.set(r.grado, g);
-  }
-  const nepotismo = nep.rows.length
+  const nepFilas = nep?.rows ?? [];
+  const nepotismo = nepFilas.length
     ? {
-        total: nep.rows.length,
-        monto: nep.rows.reduce((a, r) => a + (r.monto || 0), 0),
-        porGrado: [...porGradoMap.values()].sort((a, b) => b.monto - a.monto),
+        total: nepFilas[0].totalCasos,
+        monto: nepFilas[0].montoTotal ?? 0,
+        porGrado: nepFilas[0].porGrado ?? [],
         // El proveedor (RUC-10) va tapado por publicar() como cualquier locador. Del funcionario, su cargo y, sólo si no
         // puede destapar el apellido tapado del pariente, su primer apellido (apellidoFuncionario); nunca el nombre
         // completo. Su ficha de planilla, tampoco cuando el parentesco no es seguro (ahí se ve su primer apellido).
         detalle: publicar(
-          nep.rows.map(({ declarante, declaranteFicha, ...r }) => {
+          nepFilas.map(({ declarante, declaranteFicha, totalCasos: _t, montoTotal: _m, porGrado: _g, ...r }) => {
             const funcionarioApellido = apellidoFuncionario(r.parentesco, declarante);
             return { ...r, funcionarioApellido, declaranteFicha: funcionarioApellido ? declaranteFicha : null };
           }),
