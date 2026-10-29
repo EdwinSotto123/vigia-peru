@@ -646,6 +646,8 @@ async function historiaEmpresa(ruc: string): Promise<Historia | null> {
     eventos: quedan,
     marcas: marcasEleccion(primera ? `${primera.slice(0, 4)}-01-01` : DESDE, hasta),
     secuencias,
+    // Los picos de lo que ganó y de las órdenes que recibió, con las elecciones cerca (patronesDeSeries).
+    patrones: patronesDeSeries(series, marcasEleccion(primera ? `${primera.slice(0, 4)}-01-01` : DESDE, hasta), 6),
     omitidos,
     fuentes: [
       { texto: "Sus procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
@@ -748,6 +750,7 @@ async function historiaPartido(clave: string): Promise<Historia | null> {
     eventos: eventos.sort((a, b) => a.fecha.localeCompare(b.fecha)),
     marcas: marcasEleccion(desde, hasta),
     secuencias: [],
+    patrones: patronesDeSeries(series, marcasEleccion(desde, hasta), 6),
     omitidos: {},
     fuentes: [
       { texto: "Plataforma Electoral del JNE", href: PLATAFORMA_JNE },
