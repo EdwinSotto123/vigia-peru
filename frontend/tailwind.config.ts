@@ -146,7 +146,11 @@ const config: Config = {
         seccion: "22px", //    h2: cada sección de una página
         cifra: "28px", //      la cifra grande de una tarjeta; el h1 en el celular
         titulo: "32px", //     h1 de la página
-        portada: "40px", //    el titular de la portada
+        portada: "40px", //    el titular de la portada (en el celular)
+        // La portada pública (modo persuadir): sus secciones medían de 20 a 60 px, cada una con su tamaño de Tailwind,
+        // y la jerarquía salía al azar. Dos escalones más, y nada en medio (2026-10-29).
+        vitrina: "48px", //    h2 de cada sección de la portada, desde sm (en el celular, titulo)
+        cartel: "58px", //     el titular de la portada en escritorio
       },
       borderRadius: { xl: "10px", "2xl": "12px", "3xl": "16px" },
       transitionTimingFunction: {

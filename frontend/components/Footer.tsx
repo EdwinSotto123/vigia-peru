@@ -162,9 +162,10 @@ export function Footer() {
               </a>
             </li>
           </ul>
-          {/* Sin versión de modelo: el desplegado cambia y el pie quedaba desactualizado. */}
+          {/* Sin versión de modelo ni proveedor de IA: el motor de los agentes cambia por configuración y el pie quedaba
+              desactualizado (decía Cloud Run y Cloud SQL después de la mudanza a Cloudflare y AWS, 2026-10). */}
           <ul aria-label="Construido con" className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono">
-            {["Gemini", "Google ADK", "Cloud Run", "Cloud SQL"].map((t) => (
+            {["Cloudflare Workers", "AWS", "PostgreSQL", "Datos abiertos OCDS"].map((t) => (
               <li key={t}>{t}</li>
             ))}
           </ul>

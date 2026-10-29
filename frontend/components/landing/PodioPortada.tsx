@@ -49,7 +49,7 @@ export async function PodioPortada() {
       <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
       <div className="container-page relative py-16 sm:py-24">
         <div className="max-w-3xl">
-          <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+          <h2 id="aliados-titulo" className="text-balance font-display text-titulo font-bold leading-[1.05] sm:text-vitrina">
             Guardianes de los recursos <span className="text-maiz">del Perú.</span>
           </h2>
           <p className="mt-5 max-w-[58ch] text-pretty text-bloque leading-relaxed text-paper/75">

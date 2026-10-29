@@ -6,7 +6,7 @@ import { extendTailwindMerge } from "tailwind-merge";
  * COLOR y `cn("text-meta text-mute")` borraba el tamaño. Si se agrega un tamaño allá, va también acá (la guardia
  * `npm run auditar:estilo` compara las dos listas).
  */
-export const ESCALA_LETRA = ["micro", "rotulo", "meta", "dato", "cuerpo", "destacado", "bloque", "seccion", "cifra", "titulo", "portada"] as const;
+export const ESCALA_LETRA = ["micro", "rotulo", "meta", "dato", "cuerpo", "destacado", "bloque", "seccion", "cifra", "titulo", "portada", "vitrina", "cartel"] as const;
 
 const twMerge = extendTailwindMerge({ extend: { classGroups: { "font-size": [{ text: [...ESCALA_LETRA] }] } } });
 

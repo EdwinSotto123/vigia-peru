@@ -117,11 +117,13 @@ export default async function PreguntasPage() {
           {
             slug: "apoyar",
             q: "¿Cómo se sostiene Vigía?",
+            // Una sola respuesta: había otra, «¿Cómo se sostiene el proyecto?», que decía lo de antes (los aportes de quienes
+            // financian auditorías) y contradecía a esta. De ella quedan la publicidad, la venta de datos y el código abierto.
             a: (
               <>
                 Con aportes de personas, colectivos y empresas, de preferencia de cada mes, al fondo común que paga la base de
-                datos, los servidores, la captura de datos y la lectura a fondo de los contratos más graves. Cuánto cuesta cada mes,
-                rubro por rubro y con su fuente, está en{" "}
+                datos, los servidores, la captura de datos y la lectura a fondo de los contratos más graves; nunca con publicidad
+                ni con la venta de datos. Cuánto cuesta cada mes, rubro por rubro y con su fuente, está en{" "}
                 <Link href="/app/cuanto-cuesta" className={ENLACE}>
                   Cuánto cuesta Vigía
                 </Link>
@@ -129,7 +131,12 @@ export default async function PreguntasPage() {
                 <Link href="/app/apoyar" className={ENLACE}>
                   Ayúdanos a seguir vigilando
                 </Link>
-                .
+                . El{" "}
+                <a href={REPO} target="_blank" rel="noreferrer" className={ENLACE}>
+                  código es abierto
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
+                </a>
+                : cualquiera puede revisar cómo trabaja.
               </>
             ),
           },
@@ -162,20 +169,6 @@ export default async function PreguntasPage() {
                   Ayúdanos a seguir vigilando
                 </Link>
                 .
-              </>
-            ),
-          },
-          {
-            slug: "como-se-sostiene",
-            q: "¿Cómo se sostiene el proyecto?",
-            a: (
-              <>
-                Con los aportes de quienes financian auditorías, nunca con publicidad ni venta de datos. El{" "}
-                <a href={REPO} target="_blank" rel="noreferrer" className={ENLACE}>
-                  código es abierto
-                  <span className="sr-only"> (se abre en otra pestaña)</span>
-                </a>
-                : cualquiera puede revisar cómo trabaja.
               </>
             ),
           },

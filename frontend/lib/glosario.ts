@@ -52,7 +52,7 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
   "contrato-menor": {
     tema: "Compras del Estado",
     termino: "un contrato menor",
-    definicion: "Una compra del Estado por un monto pequeño (hasta 8 UIT, unos S/ 42,800 en 2026). Por ley no necesita concurso ni proceso de selección: la entidad contrata de forma directa.",
+    definicion: "Una compra del Estado por un monto pequeño (hasta 8 UIT: S/ 44,000 en 2026). Por ley no necesita concurso ni proceso de selección: la entidad contrata de forma directa.",
   },
   "cotizacion": {
     tema: "Compras del Estado",
@@ -99,7 +99,7 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
   "uit": {
     tema: "Compras del Estado",
     termino: "la UIT",
-    definicion: "Unidad Impositiva Tributaria: un monto de referencia que el Estado fija cada año (ronda los S/ 5,000). Se usa como tope en muchos trámites; por ejemplo, «hasta 8 UIT» son unos S/ 41,000.",
+    definicion: "Unidad Impositiva Tributaria: un monto de referencia que el Estado fija cada año (S/ 5,500 en 2026). Se usa como tope en muchos trámites; por ejemplo, «hasta 8 UIT» son S/ 44,000 en 2026.",
   },
   "cubso": {
     tema: "Compras del Estado",

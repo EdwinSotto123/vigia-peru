@@ -7,6 +7,7 @@ import { AliadoAbrir } from "@/components/aliados/AliadoAbrir";
 import type { FilaRanking } from "@/components/aliados/ranking";
 import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
+import { HeartHandshake } from "lucide-react";
 import { PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
 
 /**
@@ -192,20 +193,13 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
           <header className="hero-texto relative z-10">
             <h1
               id="hero-titulo"
-              className="max-w-[18ch] text-balance font-display text-[2.5rem] font-bold leading-[1.04] tracking-tight text-ink sm:text-5xl lg:text-[3.6rem]"
+              className="max-w-[18ch] text-balance font-display text-portada font-bold leading-[1.04] tracking-tight text-ink sm:text-vitrina lg:text-cartel"
             >
               ¿En qué se gasta el dinero de tu <span className="text-granate">región?</span>
             </h1>
-            <p className="mt-6 max-w-[46ch] text-pretty text-bloque leading-relaxed text-inkSoft sm:text-xl">
+            <p className="mt-6 max-w-[46ch] text-pretty text-bloque leading-relaxed text-inkSoft sm:text-seccion">
               Agentes de inteligencia artificial leen los contratos del Estado y los cruzan con registros oficiales
               para detectar indicios de corrupción. Tú ves cuáles merecen una segunda mirada.
-            </p>
-            <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-cuerpo leading-snug text-inkSoft">
-              <span className="font-semibold text-ink">Nos sostenemos con aportes ciudadanos.</span>{" "}
-              {`Hasta hoy pusimos casi S/\u00a0${numero(PUESTO_POR_EL_EQUIPO_PEN)} para que exista. `}
-              {piso != null
-                ? `Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes: tu granito de arena sí cuenta.`
-                : "Tu granito de arena nos mantiene vigilando."}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <EnlaceAccion href="/app/mapa" tamano="lg">
@@ -214,6 +208,29 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
               <EnlaceAccion href="/app/apoyar" variante="secundario" tamano="lg" flecha={false}>
                 Aportar mi granito
               </EnlaceAccion>
+            </div>
+            {/* Cómo se sostiene, debajo de los botones y como contexto de «Aportar mi granito»: antes era un párrafo gris
+                entre el subtítulo y los botones, con las cifras adentro. */}
+            <div className="mt-7 flex max-w-[46ch] items-start gap-3">
+              <span aria-hidden className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paperDeep text-granate">
+                <HeartHandshake size={18} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-dato font-semibold text-ink">Nos sostenemos con aportes ciudadanos.</p>
+                <p className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-meta text-inkSoft">
+                  <span>
+                    {/* «Casi»: es la cifra que dio el equipo, no un cálculo (lib/costoCorrupcion.ts). */}
+                    Casi <strong className="font-mono font-semibold tabular-nums text-ink">{`S/\u00a0${numero(PUESTO_POR_EL_EQUIPO_PEN)}`}</strong> puso el
+                    equipo hasta hoy
+                  </span>
+                  {piso != null && (
+                    <span>
+                      <strong className="font-mono font-semibold tabular-nums text-ink">{`S/\u00a0${numero(piso)}`}</strong> al mes para seguir
+                      encendida
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
             <LoHacenPosible aliados={aliados} />
           </header>

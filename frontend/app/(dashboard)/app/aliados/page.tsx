@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Ayuda, EncabezadoPagina, EstadoError, Migas, Pagina } from "@/components/patrones";
+import { Sprout } from "lucide-react";
+import { Ayuda, EncabezadoPagina, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
@@ -29,7 +30,9 @@ export const revalidate = 300;
  * /app/aliados: el podio de quienes sostienen Vigía (pedido del usuario del 2026-10-29: «que sea un PODIO, mejora los
  * mensajes»), con la plantilla Listado (DESIGN_SYSTEM.md §14.1 y §14.6): encabezado → barra de filtros (periodo en
  * chips, búsqueda y orden) → el podio, siempre de tres, con los lugares libres que invitan → la meta del mes → del
- * cuarto lugar en adelante, la `Tabla` → «¿Quieres estar en el podio?» → la cinta de últimos aportes.
+ * cuarto lugar en adelante, la `Tabla` → «¿Quieres estar en el podio?» → la cinta de últimos aportes. La barra de
+ * filtros sólo aparece cuando hay a quién buscar (o un filtro puesto, que hay que poder quitar): con el podio vacío, la
+ * búsqueda y los periodos quedaban encima de tres lugares libres sin filtrar nada.
  *
  * Desde el modelo de apoyo (migración 206) el aporte va al fondo común: el podio cuenta MESES sosteniendo la
  * vigilancia (ranking.ts), no contratos ni soles, y la semilla de Vigía Perú no compite. Ya no hay filtro por región:
@@ -62,6 +65,9 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { p
   // Con tres nombres o menos, la tabla (del cuarto en adelante) no existe y un selector de orden no ordenaría nada;
   // pasados los 60, el orden lo pone el API.
   const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 3 && !q;
+  // Sin nadie con nombre en el periodo no hay qué buscar ni qué filtrar. Con un periodo o una búsqueda puestos la barra
+  // queda igual, aunque no haya nadie: es la única forma de volver a «Desde el inicio» o de borrar la búsqueda.
+  const conFiltros = (rankingBase?.totalNombres ?? 0) > 0 || periodo !== "todo" || !!q;
 
   return (
     <Pagina className="space-y-6">
@@ -96,28 +102,30 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { p
         }}
       >
         <div className="space-y-4">
-          <BarraFiltros
-            busqueda={{ param: "q", placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado", min: 2 }}
-            faceta={{
-              param: "periodo",
-              etiqueta: "Periodo",
-              todas: PERIODO_LABEL.todo,
-              nombreEnChip: false,
-              opciones: [
-                { valor: "anio", etiqueta: PERIODO_LABEL.anio },
-                { valor: "mes", etiqueta: PERIODO_LABEL.mes },
-              ],
-            }}
-            orden={
-              ordenable
-                ? {
-                    param: "orden",
-                    porDefecto: "meses",
-                    opciones: (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => ({ valor: clave, etiqueta: ORDEN_LABEL[clave] })),
-                  }
-                : undefined
-            }
-          />
+          {conFiltros && (
+            <BarraFiltros
+              busqueda={{ param: "q", placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado", min: 2 }}
+              faceta={{
+                param: "periodo",
+                etiqueta: "Periodo",
+                todas: PERIODO_LABEL.todo,
+                nombreEnChip: false,
+                opciones: [
+                  { valor: "anio", etiqueta: PERIODO_LABEL.anio },
+                  { valor: "mes", etiqueta: PERIODO_LABEL.mes },
+                ],
+              }}
+              orden={
+                ordenable
+                  ? {
+                      param: "orden",
+                      porDefecto: "meses",
+                      opciones: (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => ({ valor: clave, etiqueta: ORDEN_LABEL[clave] })),
+                    }
+                  : undefined
+              }
+            />
+          )}
           <ZonaResultados>
             {ranking ? (
               <RankingAliados
@@ -147,8 +155,9 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { p
         </div>
       </Listado>
 
-      {/* De dónde salió el primer dinero y dónde están las cuentas: en una línea, al pie. */}
-      <p className="text-meta leading-relaxed text-mute">
+      {/* De dónde salió el primer dinero y dónde están las cuentas: una nota con su ícono (la semilla), no un párrafo gris
+          suelto al pie. */}
+      <Nota icono={<Sprout size={15} aria-hidden />}>
         Vigía Perú empezó con dinero propio: esa semilla está en las cifras, pero no compite en el podio. Cuánto cuesta cada
         mes y cuánto entró, en{" "}
         <Link href="/app/cuanto-cuesta" className="font-semibold text-granate underline-offset-2 hover:underline">
@@ -159,7 +168,7 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { p
           todos los aportes
         </Link>
         .
-      </p>
+      </Nota>
     </Pagina>
   );
 }

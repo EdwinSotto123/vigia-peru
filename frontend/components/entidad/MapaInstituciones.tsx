@@ -50,7 +50,8 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "monto", titulo: "Valor referencial", ancho: "8rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Valor", ayuda: <AyudaTermino clave="valor-referencial" /> },
   { clave: "indicio", titulo: "Contratos con indicio", ancho: "8.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Con indicio" },
-  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1fr)", desde: "xl", ayuda: <AyudaIndicios /> },
+  // Debajo de xl, bajo el nombre (`apilar`): antes en el celular no se veía ningún indicio.
+  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
 ];
 
 const ORDENES: OrdenLocal[] = [
@@ -154,7 +155,8 @@ function fila(e: Inst, rama: RamaKey, maxRama: number): FilaFiltrable {
       ) : (
         <span className="text-meta text-mute">No se elige</span>
       ),
-      indicios: electa ? <ChipsIndicio x={{ ...e, n_captura: captura }} /> : <span className="text-meta text-mute">No se elige</span>,
+      // «No se elige» va en su columna; apilado en el celular no se repite: ya lo dice «Con indicio» (`data-solo-columna`).
+      indicios: electa ? <ChipsIndicio x={{ ...e, n_captura: captura }} /> : <span data-solo-columna className="text-meta text-mute">No se elige</span>,
     },
   };
 }

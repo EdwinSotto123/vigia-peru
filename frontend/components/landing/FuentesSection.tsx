@@ -31,7 +31,7 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
   return (
     <section id="fuentes" aria-labelledby="fuentes-titulo" className="scroll-mt-16 bg-paperSoft py-20 sm:py-24">
       <div className="container-page">
-        <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
+        <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
           Vigía no inventa nada.{" "}
           <span className="text-granate">Cada señal sale de un registro público que puedes revisar.</span>
         </h2>
@@ -120,16 +120,8 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
           </section>
         </div>
 
-        {/* La promesa cierra la sección: es la regla que sostiene a todas. */}
-        <div className="mt-12 border-t border-line pt-8 sm:mt-14">
-          <p className="max-w-[34ch] text-balance font-display text-2xl font-bold leading-snug text-ink sm:text-3xl">
-            Si un dato no está, queda vacío.
-          </p>
-          <p className="mt-3 max-w-[65ch] text-destacado leading-relaxed text-inkSoft">
-            No se rellena el hueco con un valor plausible: un dato inventado en una herramienta anticorrupción vale
-            lo mismo que una acusación inventada.
-          </p>
-        </div>
+        {/* «Si un dato no está, queda vacío» vivía aquí, suelto al pie y en el mismo fondo que la sección de abajo: no era
+            de ninguna. Ahora es la regla que abre «Hecho para que no tengas que creerle a nadie» (ConfianzaSection). */}
       </div>
     </section>
   );

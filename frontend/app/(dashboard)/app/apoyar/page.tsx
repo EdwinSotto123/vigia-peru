@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Check, Users } from "lucide-react";
-import { FuenteDato, Migas, Pagina, Seccion } from "@/components/patrones";
+import { ArrowUpRight, Building2, CalendarCheck, CalendarClock, Database, EyeOff, ListOrdered, ScanSearch, Server, ShieldAlert, Users } from "lucide-react";
+import { Beneficios, Franja, FuenteDato, Migas, Pagina, Seccion, type Beneficio } from "@/components/patrones";
 import { FranjaTextil } from "@/components/marca";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { AporteVigilancia, type ParaAporte } from "@/components/financiar/AporteVigilancia";
+import { DeCadaCien } from "@/components/financiar/DeCadaCien";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { numero } from "@/lib/formato";
 import { dolares, getPago, getVigilancia, type ResumenVigilancia } from "@/lib/financiamiento";
-import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN_SOLES, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
+import { CONTRALORIA_CORRUPCION, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
 
 export const metadata: Metadata = {
   title: "Ayúdanos a seguir vigilando",
@@ -21,23 +22,37 @@ export const revalidate = 300;
 const CONTRALORIA = CONTRALORIA_CORRUPCION;
 const PUESTO_POR_EL_EQUIPO = PUESTO_POR_EL_EQUIPO_PEN;
 
-/** Lo que el aporte no compra: las reglas de independencia de siempre, en una lista y no en tarjetas. */
-const NO_COMPRA = [
-  { titulo: "Qué se lee", texto: "Lo más grave va primero, aporte quien aporte. Ningún aporte decide qué entidad, empresa o contrato se revisa." },
-  { titulo: "Lo que se encuentra", texto: "El análisis no sabe quién aportó, y si te señala a ti, se publica igual." },
-  { titulo: "Un lugar por plata", texto: "El podio de aliados cuenta los meses que sostienes la vigilancia, nunca los soles." },
-  { titulo: "Reconocimiento con conflicto", texto: "Una empresa con sanción vigente o con alertas puede aportar, pero no recibe reconocimiento público." },
+/**
+ * Lo que el aporte no compra: las reglas de independencia de siempre, cada una con su ícono. Antes llevaban un ✓ verde,
+ * que se leía como «sí incluye» al lado de cosas que justamente no se compran.
+ */
+const NO_COMPRA: Beneficio[] = [
+  { icono: <ListOrdered size={16} />, titulo: "Qué se lee", texto: "Lo más grave va primero, aporte quien aporte. Ningún aporte decide qué entidad, empresa o contrato se revisa." },
+  { icono: <EyeOff size={16} />, titulo: "Lo que se encuentra", texto: "El análisis no sabe quién aportó, y si te señala a ti, se publica igual." },
+  { icono: <CalendarCheck size={16} />, titulo: "Un lugar por plata", texto: "El podio de aliados cuenta los meses que sostienes la vigilancia, nunca los soles." },
+  { icono: <ShieldAlert size={16} />, titulo: "Reconocimiento con conflicto", texto: "Una empresa con sanción vigente o con alertas puede aportar, pero no recibe reconocimiento público." },
+];
+
+/** En qué se fue lo que pusimos: antes, una enumeración dentro de un párrafo. */
+const PUSIMOS_EN = [
+  { icono: Server, texto: "Servidores" },
+  { icono: Database, texto: "La base de datos" },
+  { icono: CalendarClock, texto: "Bajar cada día lo que publica el Estado" },
+  { icono: ScanSearch, texto: "Leer con IA los contratos más graves" },
 ];
 
 /**
  * /app/apoyar — «Ayúdanos a seguir vigilando» (migración 206). Rehecha el 2026-10-29 porque «se ve feo»: el usuario
  * pidió que conmueva («la corrupción cuesta infraestructura pública, carreteras, a muchas familias la vida por esperar
  * en hospitales») y que diga lo que el equipo ya puso. Con la crítica de Impeccable (modo Persuade, dentro del mundo
- * visual de Vigía: granate, maíz y la franja textil), sin el kit de tarjetas iguales que tenía:
+ * visual de Vigía: granate, maíz y la franja textil), sin el kit de tarjetas iguales que tenía. Y el mismo día, «texto y
+ * ya, nada de jerarquía»: las cifras dejaron los párrafos (la de la Contraloría es una figura, DeCadaCien) y cada bloque
+ * tiene su forma:
  *
- *   1. Por qué: lo que cuesta la corrupción, con la cifra de la Contraloría y su fuente.
- *   2. Quiénes somos: lo que pusimos hasta hoy y, como un comprobante, lo que ya vigila con eso.
- *   3. La meta del mes, en qué se usa (en su orden) y lo que el aporte no compra.
+ *   1. Por qué: lo que cuesta la corrupción, en cien cuadros, con las dos cifras de la Contraloría y su fuente.
+ *   2. Quiénes somos: lo que pusimos hasta hoy, en qué se fue (con íconos) y, como un comprobante, lo que ya vigila.
+ *   3. La meta del mes, con sus dos tramos en orden (lo que antes repetía «En qué se usa tu aporte»), y lo que el aporte
+ *      no compra.
  *   4. El formulario, fijo a la derecha en escritorio; en el celular, justo después del por qué.
  *
  * `?para=<RUC o ubigeo>&nombre=` dice qué te trajo: sólo informa, no dirige lecturas. Financiar la lectura de una
@@ -76,19 +91,8 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
         )}
 
         <div className="min-w-0 space-y-10 lg:col-start-1">
-          <EnQueSeUsa v={v} />
-
-          <Seccion titulo="Lo que tu aporte no compra">
-            <ul className="divide-y divide-line border-y border-line">
-              {NO_COMPRA.map(({ titulo, texto }) => (
-                <li key={titulo} className="flex gap-3 py-3.5">
-                  <Check size={18} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                  <p className="min-w-0 max-w-[68ch] text-dato leading-relaxed text-inkSoft">
-                    <span className="font-semibold text-ink">{titulo}.</span> {texto}
-                  </p>
-                </li>
-              ))}
-            </ul>
+          <Seccion titulo="Lo que tu aporte no compra" descripcion="Aportes de cualquier tamaño, con las mismas reglas.">
+            <Beneficios items={NO_COMPRA} columnas={2} />
           </Seccion>
 
           {v && (v.aliados.nombres.length > 0 || v.aliados.anonimos > 0) && (
@@ -113,12 +117,17 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
             </Seccion>
           )}
 
-          <p className="text-meta leading-relaxed text-inkSoft">
-            ¿Eres una organización y prefieres financiar la lectura de los contratos de una región, una entidad o un partido?{" "}
-            <Link href="/app/financiar" prefetch={false} className="font-semibold text-granate underline underline-offset-2">
-              Financiar lecturas
-            </Link>
-          </p>
+          <Franja
+            icono={<Building2 size={18} />}
+            titulo="¿Eres una organización?"
+            accion={
+              <EnlaceAccion href="/app/financiar" variante="secundario">
+                Financiar lecturas
+              </EnlaceAccion>
+            }
+          >
+            Puedes financiar la lectura de los contratos de una región, una entidad o un partido.
+          </Franja>
 
           <FuenteDato
             fuente="Contraloría General de la República (estimación de 2023), factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP"
@@ -131,45 +140,35 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
 }
 
 /**
- * El por qué, en una banda granate con la franja textil: lo que la corrupción se lleva, dicho en cosas y no en cifras,
- * y la cifra de la Contraloría con su fuente debajo. La única pieza grande de la página.
+ * El por qué, en una banda granate con la franja textil: lo que la corrupción se lleva, dicho en cosas, y a la derecha
+ * (debajo en el celular, después de los botones) la cifra de la Contraloría dibujada en cien cuadros, con su fuente. La
+ * única pieza grande de la página.
  */
 function PorQue({ piso }: { piso: number | null }) {
   return (
     <section aria-labelledby="por-que" className="sobre-oscuro relative overflow-hidden rounded-3xl bg-granate-deep text-paper">
-      <div className="px-5 pb-10 pt-9 sm:px-10 sm:pb-12 sm:pt-12 lg:px-14">
-        <h1 id="por-que" className="max-w-[20ch] text-balance font-display text-cifra font-extrabold leading-[1.05] sm:text-titulo lg:text-portada">
-          La corrupción no es una cifra.
-        </h1>
-        <p className="mt-4 max-w-[34ch] text-balance font-display text-seccion font-semibold leading-snug text-paper/85 sm:text-cifra">
-          Es la pista que no se terminó, el colegio sin techo y la cama de hospital que no llegó a tiempo.
-        </p>
-        <p className="mt-6 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
-          En {CONTRALORIA.anio}, según la Contraloría, la corrupción y la inconducta funcional le habrían costado al Perú{" "}
-          <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA.millones)} millones</strong>: {DE_CADA_CIEN_SOLES}{" "}
-          del presupuesto. La tajada más grande, S/{"\u00a0"}{numero(CONTRALORIA.inversionMillones)} millones, salió de la inversión: la plata de
-          las carreteras, los hospitales y los colegios.{" "}
-          <a
-            href={CONTRALORIA.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-maiz underline decoration-maiz/50 underline-offset-2 hover:decoration-maiz"
-          >
-            Ver la fuente<span className="sr-only"> (se abre en otra pestaña)</span>
-          </a>
-        </p>
-        <p className="mt-4 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
-          Vigía lee lo que el Estado compra para que eso se vea a tiempo.
-          {piso != null ? ` Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
-        </p>
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <EnlaceAccion href="#aporte" variante="oscuro" tamano="lg">
-            Ayúdanos a seguir vigilando
-          </EnlaceAccion>
-          <EnlaceAccion href="/app/cuanto-cuesta" variante="contornoOscuro" tamano="lg" flecha={false}>
-            Cuánto cuesta Vigía
-          </EnlaceAccion>
+      <div className="grid gap-10 px-5 pb-10 pt-9 sm:px-10 sm:pb-12 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,19rem)] lg:items-center lg:gap-14 lg:px-14">
+        <div className="min-w-0">
+          <h1 id="por-que" className="max-w-[20ch] text-balance font-display text-cifra font-extrabold leading-[1.05] sm:text-titulo lg:text-portada">
+            La corrupción no es una cifra.
+          </h1>
+          <p className="mt-4 max-w-[34ch] text-balance font-display text-seccion font-semibold leading-snug text-paper/85 sm:text-cifra">
+            Es la pista que no se terminó, el colegio sin techo y la cama de hospital que no llegó a tiempo.
+          </p>
+          <p className="mt-6 max-w-[52ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
+            Vigía lee lo que el Estado compra para que eso se vea a tiempo.
+            {piso != null ? ` Mantenerla encendida cuesta S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <EnlaceAccion href="#aporte" variante="oscuro" tamano="lg">
+              Ayúdanos a seguir vigilando
+            </EnlaceAccion>
+            <EnlaceAccion href="/app/cuanto-cuesta" variante="contornoOscuro" tamano="lg" flecha={false}>
+              Cuánto cuesta Vigía
+            </EnlaceAccion>
+          </div>
         </div>
+        <DeCadaCien className="border-t border-paper/15 pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0" />
       </div>
       <FranjaTextil alto={12} />
     </section>
@@ -177,30 +176,37 @@ function PorQue({ piso }: { piso: number | null }) {
 }
 
 /**
- * Lo que pusimos hasta hoy (dicho por el equipo) y, al lado, lo que ya vigila con eso, como un comprobante: el mismo
- * papel que recibe quien aporta. Las cifras del comprobante son las de GET /financiamiento/vigilancia.
+ * Lo que pusimos hasta hoy (dicho por el equipo), en qué se fue (cuatro rubros con su ícono; antes, una enumeración dentro
+ * de un párrafo), por qué, y debajo lo que ya vigila con eso, como un comprobante: el mismo papel que recibe quien
+ * aporta. Las cifras del comprobante son las de GET /financiamiento/vigilancia. Apilado: al lado del formulario, la
+ * columna no da para el comprobante y el texto juntos.
  */
 function LoQuePusimos({ v }: { v: ResumenVigilancia | null }) {
   return (
-    <section aria-labelledby="lo-que-pusimos" className="min-w-0 lg:col-start-1">
-      <div className="space-y-6">
-        <div className="min-w-0">
-          <h2 id="lo-que-pusimos" className="max-w-[26ch] text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
-            Hasta hoy pusimos casi S/{"\u00a0"}{numero(PUESTO_POR_EL_EQUIPO)} para que Vigía exista.
-          </h2>
-          <div className="mt-4 max-w-[62ch] space-y-3 text-cuerpo leading-relaxed text-inkSoft">
-            <p>
-              En servidores, en la base de datos, en bajar cada día lo que publica el Estado y en leer con IA los contratos más
-              graves. Lo pusimos nosotros porque alguien tenía que empezar a leer lo que nadie lee.
-            </p>
-            <p>
-              Detrás de cada orden hay una obra, una medicina o un sueldo que pagamos todos. Con tu aporte, vigilarlos no depende de
-              unos pocos.
-            </p>
-          </div>
-        </div>
-        {v && <Comprobante v={v} />}
+    <section aria-labelledby="lo-que-pusimos" className="min-w-0 space-y-6 lg:col-start-1">
+      <h2 id="lo-que-pusimos" className="max-w-[26ch] text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
+        Hasta hoy pusimos casi S/{"\u00a0"}{numero(PUESTO_POR_EL_EQUIPO)} para que Vigía exista.
+      </h2>
+      <ul aria-label="En qué se fue" className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        {PUSIMOS_EN.map(({ icono: Icono, texto }) => (
+          <li key={texto} className="flex items-center gap-3">
+            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paperDeep text-granate">
+              <Icono size={18} />
+            </span>
+            <span className="min-w-0 text-dato font-semibold leading-snug text-ink">{texto}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="max-w-[58ch] space-y-2">
+        <p className="text-balance font-display text-bloque font-semibold leading-snug text-ink">
+          Lo pusimos nosotros porque alguien tenía que empezar a leer lo que nadie lee.
+        </p>
+        <p className="text-pretty text-cuerpo leading-relaxed text-inkSoft">
+          Detrás de cada orden hay una obra, una medicina o un sueldo que pagamos todos. Con tu aporte, vigilarlos no depende de
+          unos pocos.
+        </p>
       </div>
+      {v && <Comprobante v={v} />}
     </section>
   );
 }
@@ -235,41 +241,5 @@ function Comprobante({ v }: { v: ResumenVigilancia }) {
         </span>
       </div>
     </figure>
-  );
-}
-
-/** En qué se usa lo que entra, en el orden en que se paga: es una secuencia, por eso va numerada. */
-function EnQueSeUsa({ v }: { v: ResumenVigilancia | null }) {
-  const piso = v?.meta.pisoPen ?? null;
-  const completa = v?.meta.completaPen ?? null;
-  const pasos = [
-    {
-      titulo: "Primero, mantenerla encendida",
-      texto: `${piso != null ? `S/\u00a0${numero(piso)} al mes: ` : ""}la base de datos, los servidores y la captura diaria de lo que publican el OECE, el MEF, la Contraloría, el JNE y la ONPE.`,
-    },
-    {
-      titulo: "Después, leer a fondo lo más grave",
-      texto: `${piso != null && completa != null ? `S/\u00a0${numero(completa - piso)} más al mes: ` : ""}leer con IA el expediente de los ${v ? `~${numero(v.graves.porMes)} ` : ""}contratos con banderas graves de cada mes, contra la norma y los precios de mercado.`,
-    },
-  ];
-  return (
-    <Seccion titulo="En qué se usa tu aporte">
-      <ol className="space-y-4">
-        {pasos.map((p, i) => (
-          <li key={p.titulo} className="flex gap-4">
-            <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-granate-deep font-display text-dato font-bold text-maiz">
-              {i + 1}
-            </span>
-            <p className="min-w-0 max-w-[66ch] pt-1.5 text-dato leading-relaxed text-inkSoft">
-              <span className="block font-semibold text-ink">{p.titulo}</span>
-              {p.texto}
-            </p>
-          </li>
-        ))}
-      </ol>
-      <Link href="/app/cuanto-cuesta" prefetch={false} className="mt-4 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline">
-        Las cifras de cada rubro, con su factura <ArrowUpRight size={14} aria-hidden />
-      </Link>
-    </Seccion>
   );
 }

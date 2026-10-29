@@ -129,18 +129,14 @@ export function RankingAliados({
 
   return (
     <div className="space-y-4">
-      {/* El podio es el foco: siempre los tres lugares, ocupados o libres. En una búsqueda, sólo la tabla. */}
+      {/* El podio es el foco: siempre los tres lugares, ocupados o libres. En una búsqueda, sólo la tabla. Sin `nota` al
+          costado: «estar aquí no compra nada» ya lo dice la bajada de la página, y «lo más grave se lee primero», la
+          invitación de abajo. */}
       {!busqueda && paginaActual === 1 && (
         <PodioRanking
           filas={podio}
           titulo={tituloPodio(periodo, podio.length)}
           subtitulo="Personas, colectivos y empresas que mantienen Vigía encendida, mes a mes."
-          nota={
-            <>
-              <p>Estar aquí no compra nada: lo más grave se lee primero, aporte quien aporte.</p>
-              <p>Si Vigía encuentra a un aliado en un contrato con señales, se publica igual.</p>
-            </>
-          }
           cuando={cuando}
         />
       )}

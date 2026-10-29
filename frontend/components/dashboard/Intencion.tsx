@@ -22,6 +22,8 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/convocatoria", "explorar"],
   ["/app/entidades", "explorar"],
   ["/app/partidos", "explorar"],
+  // Mapa de poder (grupo «Quién») y Lo nuevo (Alertas): antes quedaban sin la franja ni el tinte de su grupo.
+  ["/app/poder", "explorar"],
   ["/entidad", "explorar"],
   // Empresas y personas contratadas están en Explorar en el menú: antes quedaban sin color.
   ["/app/empresas", "explorar"],
@@ -29,6 +31,7 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/personas", "explorar"],
   ["/app/hallazgos", "alertas"],
   ["/app/alertas", "alertas"],
+  ["/app/novedades", "alertas"],
   ["/alerta", "alertas"],
   ["/app/denuncias", "alertas"],
   ["/app/financiar", "participar"],

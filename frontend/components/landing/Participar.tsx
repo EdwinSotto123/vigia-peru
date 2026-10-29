@@ -18,7 +18,7 @@ export function Participar() {
   return (
     <section id="denunciar" aria-labelledby="participar-titulo" className="scroll-mt-16 bg-paper py-20 sm:py-24">
       <div className="container-page">
-        <h2 id="participar-titulo" className="max-w-[22ch] text-balance font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
+        <h2 id="participar-titulo" className="max-w-[22ch] text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
           No hace falta ser experto para vigilar.
         </h2>
 

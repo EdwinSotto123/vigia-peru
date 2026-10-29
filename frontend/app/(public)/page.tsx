@@ -113,6 +113,8 @@ export default async function LandingPage() {
   const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
   const reglaCaso = casoPrincipal ? reglaDelCaso(alertas, casoPrincipal) : null;
   const otrasDelCaso = casoPrincipal ? otrasSenalesDelCaso(alertas, casoPrincipal, reglaCaso) : [];
+  // Cada caso de «Lo que ya encontró» lleva de título el nombre de su regla (antes, la región).
+  const casosConRegla = otrosCasos.map((c) => ({ ...c, regla: reglaDelCaso(alertas, c) }));
 
   return (
     <>
@@ -139,23 +141,25 @@ export default async function LandingPage() {
         <PartidosSeccion />
       </PixelReveal>
 
-      {/* Quién la sostiene: el podio, lo que cuesta y por qué aportar no compra nada, en una sola sección. */}
-      <PodioPortada />
-
+      {/* La prueba antes del pedido (2026-10-29): un caso leído entero y los demás hallazgos, juntos; después cómo se
+          lee, con qué fuentes y con qué reglas; recién entonces quién la sostiene. */}
       {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
+
+      <CasosReales casos={casosConRegla} />
 
       <PipelineAgentes />
 
       <FuentesSection cifras={cifrasFuentes} />
 
-      <CasosReales casos={otrosCasos} />
-
-      <Participar />
-
       {/* La misma cuenta que el gráfico de señales del mapa de fuentes (resumen de
           contratos). El estado global contaba otro universo y la portada decía 12
           en una sección y 14 en otra. */}
       <ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} />
+
+      {/* Quién la sostiene: el podio, lo que cuesta y por qué aportar no compra nada, en una sola sección. */}
+      <PodioPortada />
+
+      <Participar />
 
       <ExpansionSection />
 

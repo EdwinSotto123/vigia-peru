@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Fragment, isValidElement, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Partes, hayDato } from "@/components/ui/Partes";
@@ -43,6 +43,8 @@ export interface Columna {
    * columna visible (el chip de estado bajo el título en el celular, en vez de una
    * columna de 170 px que dejaba el título en 114). `"con-rotulo"`: apilada con su
    * nombre delante ("Valor S/ 1.2 M"): para un número o una fecha, que solos no dicen qué son.
+   * Una celda sin dato («Sin dato», «Sin fecha», banderas vacías) no se apila: lo sigue diciendo en su columna. Una que
+   * sólo vale en su columna (otra apilada ya lo dice) lleva `data-solo-columna` en su elemento de afuera.
    */
   apilar?: boolean | "con-rotulo";
   /** El nombre corto para el rótulo apilado ("Antecedentes" en vez de "Antecedentes del ganador"). */
@@ -183,8 +185,9 @@ export function Tabla({
         grupos.map((g) => (
           <section key={g.clave} aria-label={typeof g.titulo === "string" ? g.titulo : undefined} className="border-b border-line last:border-b-0">
             {/* No `top-0`: el layout baja todo `.sticky.top-0` en el celular. Bajo una barra de pestañas fija, debajo de
-                ella (`--alto-barra-fija` lo pone `Pestanas fija`): si no, el rótulo del grupo quedaba tapado. */}
-            <h3 className="sticky top-[var(--alto-barra-fija,0px)] z-[1] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
+                ella (`--alto-barra-fija` lo pone `Pestanas fija`): si no, el rótulo del grupo quedaba tapado. Fuera de ellas,
+                en el celular, debajo de la barra del sitio (3 rem); desde md la barra es la lateral y no tapa nada. */}
+            <h3 className="sticky top-[var(--alto-barra-fija,3rem)] z-[1] md:top-[var(--alto-barra-fija,0px)] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
               {g.titulo}
             </h3>
             <ul>
@@ -222,6 +225,45 @@ const FILA =
 const FILA_COMPACTA =
   "min-h-[42px] px-4 py-1.5 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
 
+/**
+ * Lo que dice una celda cuando no hay dato: el «Sin dato» de la tabla y de las listas, el de `CeldaFecha` y los de las
+ * banderas vacías (`CrucesCelda`). Textos exactos: «Sin dato de monto» o «Ninguno» (un cero) sí dicen algo.
+ */
+const SIN_DATO = new Set(["Sin dato", "Sin fecha", "Sin ganador aún", "Sin antecedentes"]);
+
+/**
+ * ¿La celda no tiene nada que apilar? En el celular, «Valor Sin dato» y «Antecedentes Sin ganador aún» en cada fila de
+ * contratos eran ruido (2026-10-29). Ante la duda tiene dato: un componente que no se conoce nunca cuenta como vacío.
+ */
+function celdaVacia(n: ReactNode): boolean {
+  return n == null || n === false || n === true || n === "" || soloSinDato(n);
+}
+
+function soloSinDato(n: ReactNode): boolean {
+  if (typeof n === "string") return SIN_DATO.has(n.trim());
+  if (Array.isArray(n)) {
+    // Los `cond && …` falsos no cuentan; lo demás, todo «sin dato» (y al menos uno).
+    const xs = n.filter((x) => x != null && x !== false && x !== true && x !== "");
+    return xs.length > 0 && xs.every(soloSinDato);
+  }
+  if (!isValidElement<Record<string, unknown>>(n)) return false;
+  // Sólo se leen las props (un objeto común), nunca propiedades del tipo: en el servidor puede ser la referencia a un
+  // componente cliente, que tira error al tocarla.
+  const p = n.props;
+  if (typeof n.type === "string" && p["data-solo-columna"] != null && p["data-solo-columna"] !== false) return true;
+  if (n.type === CeldaFecha) return !p.fecha;
+  // Las banderas sin ninguna (`CrucesCelda`): se reconocen por su lista `cruces`, sin importar el componente (traería a
+  // toda tabla los íconos de todas las banderas).
+  if (typeof n.type !== "string" && "cruces" in p) {
+    const cruces = p.cruces;
+    return cruces == null || (Array.isArray(cruces) && cruces.length === 0);
+  }
+  // Un envoltorio sin más (un span, un fragmento, `CeldaNumero` o `CeldaTexto` sin `sub`) con sólo «Sin dato» adentro. Una
+  // celda que se arma en el servidor y cruza a un componente cliente llega así, ya convertida en spans.
+  const envoltorio = typeof n.type === "string" || n.type === Fragment || n.type === CeldaNumero || n.type === CeldaTexto;
+  return envoltorio && celdaVacia(p.sub as ReactNode) && p.children != null && soloSinDato(p.children as ReactNode);
+}
+
 function FilaTabla({
   fila,
   columnas,
@@ -236,7 +278,9 @@ function FilaTabla({
   densidad: Densidad;
 }) {
   const k = clases(medida);
-  const apiladas = columnas.filter((c) => c.apilar && c.desde);
+  // Sólo las que dicen algo en ESTA fila: una celda sin dato no se apila (en su columna, desde su ancho, sigue diciendo
+  // «Sin dato»); y si ninguna dice nada, no hay línea.
+  const apiladas = columnas.filter((c) => c.apilar && c.desde && !celdaVacia(fila.celdas[c.clave]));
   // Lo apilado va en UNA línea (chip, cifra y fecha juntos), no un renglón por dato. La línea se ve mientras se vea
   // alguno: hasta el ancho de la columna que aparece más tarde.
   const ultima = apiladas.reduce<Desde | undefined>((m, c) => (ORDEN.indexOf(c.desde) > ORDEN.indexOf(m) ? c.desde : m), undefined);
@@ -257,7 +301,7 @@ function FilaTabla({
                 {apiladas.map((a) => (
                   <span key={a.clave} className={cn("inline-flex min-w-0 max-w-full items-center gap-1.5", k.hasta[a.desde!])}>
                     {a.apilar === "con-rotulo" && <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>}
-                    {fila.celdas[a.clave] ?? <span className="text-meta text-mute">Sin dato</span>}
+                    {fila.celdas[a.clave]}
                   </span>
                 ))}
               </span>

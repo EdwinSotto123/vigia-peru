@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Download, SearchX } from "lucide-react";
 import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { coincide, numero, paraBuscar } from "@/lib/formato";
 import { descargarCsv } from "@/lib/csv";
+import { cn } from "@/lib/utils";
 import { Buscador } from "./BarraFiltros";
-import { Tabla, type Columna, type Fila } from "./Tabla";
+import { CuentaGrupo, Tabla, type Columna, type Fila, type GrupoFilas } from "./Tabla";
 
 type PropsTabla = Pick<Parameters<typeof Tabla>[0], "densidad" | "medida" | "className">;
 
@@ -205,9 +206,119 @@ const CAMPO_LOCAL =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 /**
+ * «Descargar CSV (n)», del alto de los desplegables: en la barra de filtros o en la cabecera de la sección (`BotonCsv`).
+ * En el celular dice «Descargar (n)» (el «CSV» queda para el lector de pantalla): entero no cabía en media fila.
+ */
+function BotonDescargar({ n, onClick, className }: { n: number; onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 text-meta font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink",
+        className,
+      )}
+    >
+      <Download size={14} aria-hidden />
+      <span>
+        Descargar<span className="sr-only sm:not-sr-only"> CSV</span> ({numero(n)})
+      </span>
+    </button>
+  );
+}
+
+/**
+ * «Descargar CSV» en la cabecera de la sección (`Seccion acciones`) y no suelto sobre la tabla: `ConCsv` envuelve la
+ * sección, `BotonCsv` va en sus acciones y la `TablaFiltrable` de adentro (una por `ConCsv`) le pasa lo que se ve, con
+ * los filtros y el orden de ahora. La página, de servidor, sólo compone: ninguna función cruza al cliente.
+ */
+const CsvDeLista = createContext<{ vistas: FilaFiltrable[] | null; poner: (v: FilaFiltrable[]) => void } | null>(null);
+
+export function ConCsv({ children }: { children: ReactNode }) {
+  const [vistas, poner] = useState<FilaFiltrable[] | null>(null);
+  const valor = useMemo(() => ({ vistas, poner }), [vistas]);
+  return <CsvDeLista.Provider value={valor}>{children}</CsvDeLista.Provider>;
+}
+
+/**
+ * El botón de `ConCsv`. `total` son las filas de la lista: con él se dibuja igual en el servidor, antes de que la tabla
+ * diga cuántas se ven (así no aparece de golpe al hidratar y empuja la sección).
+ */
+export function BotonCsv({ archivo, total }: { archivo: string; total: number }) {
+  const vistas = useContext(CsvDeLista)?.vistas ?? null;
+  if (vistas ? !vistas.some((f) => f.csv) : total === 0) return null;
+  return <BotonDescargar n={vistas ? vistas.length : total} onClick={() => vistas && bajarCsv(vistas, archivo)} />;
+}
+
+/** Un valor como parte de un id: «Compras del Estado» → «compras-del-estado». */
+const enAncla = (t: string) => paraBuscar(t).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/**
+ * Las filas de la página en grupos según `valores[clave]`. Ya vienen ordenadas, así que cada grupo es una racha (si un
+ * valor volviera más abajo, se suma a su grupo: nunca dos rótulos iguales). El rótulo lleva el ancla de la fila de saltos.
+ */
+function agruparFilas(filas: FilaFiltrable[], clave: string, nombre: string): { grupos: GrupoFilas[]; saltos: { valor: string; ancla: string }[] } {
+  const porValor = new Map<string, FilaFiltrable[]>();
+  for (const f of filas) {
+    const v = f.valores?.[clave];
+    const valor = (Array.isArray(v) ? v[0] : v) || "Otros";
+    const grupo = porValor.get(valor);
+    if (grupo) grupo.push(f);
+    else porValor.set(valor, [f]);
+  }
+  const usadas = new Set<string>();
+  const saltos = [...porValor.keys()].map((valor) => {
+    const base = `${enAncla(nombre) || "lista"}-${enAncla(valor) || "otros"}`;
+    let ancla = base;
+    for (let i = 2; usadas.has(ancla); i++) ancla = `${base}-${i}`;
+    usadas.add(ancla);
+    return { valor, ancla };
+  });
+  const grupos = saltos.map(({ valor, ancla }) => {
+    const delGrupo = porValor.get(valor) ?? [];
+    return {
+      clave: valor,
+      // El salto deja el rótulo arriba de todo (bajo la barra del sitio en el celular): con más aire asomaba, fijo, el
+      // rótulo del grupo anterior y parecía que se había ido a otra letra.
+      titulo: (
+        <span id={ancla} className="inline-flex scroll-mt-14 items-center gap-2 md:scroll-mt-2">
+          {valor}
+          <CuentaGrupo>{numero(delGrupo.length)}</CuentaGrupo>
+        </span>
+      ),
+      filas: delGrupo,
+    };
+  });
+  return { grupos, saltos };
+}
+
+/** La fila para saltar a cada grupo de la página (sólo los que hay): en el celular se desliza de costado. */
+function SaltosGrupo({ saltos, nombre }: { saltos: { valor: string; ancla: string }[]; nombre: string }) {
+  return (
+    <nav aria-label={`Saltar a un grupo de ${nombre}`}>
+      <ul className="-m-1 flex gap-1.5 overflow-x-auto p-1 sm:flex-wrap sm:overflow-visible">
+        {saltos.map((s) => (
+          <li key={s.ancla} className="shrink-0">
+            <a
+              href={`#${s.ancla}`}
+              className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-line bg-paper px-3 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate sm:h-9 sm:min-w-9 sm:px-2.5"
+            >
+              {s.valor}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/**
  * Una lista que llegó entera, con buscador, filtros (desplegables con su conteo, que cuenta sobre los demás filtros) y
  * orden, todo en el navegador, y su paginación. Pedido del usuario (2026-10-22): «faltan filtros» en las pestañas de la
  * ficha de una empresa (clientes, visitas, empresas vinculadas). Lo que va paginado en el servidor usa `BarraFiltros`.
+ *
+ * Con `agrupar`, la página se parte en grupos con su rótulo fijo y su conteo (la letra con «De la A a la Z» y el tema
+ * con «Por tema», en el glosario) y, desde tres grupos, arriba va una fila para saltar a cada uno.
  */
 export function TablaFiltrable({
   columnas,
@@ -218,6 +329,7 @@ export function TablaFiltrable({
   buscar,
   filtros = [],
   ordenes = [],
+  agrupar,
   descargar,
   densidad,
   medida,
@@ -231,7 +343,15 @@ export function TablaFiltrable({
   buscar?: BuscarEnLista;
   filtros?: FiltroLocal[];
   ordenes?: OrdenLocal[];
-  /** «Descargar CSV» con lo que se ve (los filtros y el orden de ahora), si las filas traen `csv`. */
+  /**
+   * Por cada orden (`OrdenLocal.valor`), la clave de `FilaFiltrable.valores` que nombra el grupo de cada fila:
+   * `{ alfabetico: "letra", tema: "tema" }`. Un dato y no una función: lo arma una página de servidor.
+   */
+  agrupar?: Record<string, string>;
+  /**
+   * «Descargar CSV» con lo que se ve (los filtros y el orden de ahora), si las filas traen `csv`: en la barra de filtros.
+   * Dentro de `ConCsv` no hace falta: el botón es `BotonCsv`, en la cabecera de la sección.
+   */
   descargar?: { archivo: string };
 } & PropsTabla) {
   const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
@@ -262,16 +382,63 @@ export function TablaFiltrable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filas, indice, q, elegidos, orden]);
   const p = usePaginas(vistas.length, tam);
+  // Dentro de `ConCsv`, el botón va en la cabecera de la sección: se le pasa lo que se ve.
+  const csvFuera = useContext(CsvDeLista);
+  const ponerCsv = csvFuera?.poner;
+  useEffect(() => {
+    ponerCsv?.(vistas);
+  }, [ponerCsv, vistas]);
   const control = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} />;
   const controlAbajo = <Control actual={p.actual} paginas={p.paginas} total={vistas.length} tam={tam} nombre={nombre} onChange={p.setPagina} subir />;
   const filtrando = !!q || Object.values(elegidos).some(Boolean);
   const conBarra = filas.length > MIN_BUSCAR || filtrando;
+  const desplegables = filtros.map((fl) => {
+    // Una pasada por las filas (no una por opción): con 300 entidades y 5 mil filas se notaba al escribir.
+    const cuenta = new Map<string, number>();
+    for (const f of pasan(fl.clave)) {
+      const v = f.valores?.[fl.clave];
+      for (const x of Array.isArray(v) ? v : v ? [v] : []) cuenta.set(x, (cuenta.get(x) ?? 0) + 1);
+    }
+    const opciones = fl.opciones
+      .map((o) => ({ ...o, n: cuenta.get(o.valor) ?? 0 }))
+      .filter((o) => o.n > 0 || elegidos[fl.clave] === o.valor);
+    if (opciones.length < 2 && !elegidos[fl.clave]) return null;
+    return (
+      <label key={fl.clave} className="min-w-0 sm:min-w-[11rem] sm:flex-[0_1_14rem]">
+        <span className="sr-only">{fl.etiqueta}</span>
+        <select
+          className={CAMPO_LOCAL}
+          value={elegidos[fl.clave] ?? ""}
+          onChange={(e) => {
+            setElegidos((x) => ({ ...x, [fl.clave]: e.target.value }));
+            p.setPagina(1);
+          }}
+        >
+          <option value="">{fl.corta}</option>
+          {opciones.map((o) => (
+            <option key={o.valor} value={o.valor}>{`${o.etiqueta} (${numero(o.n)})`}</option>
+          ))}
+        </select>
+      </label>
+    );
+  });
+  const hayDesplegables = desplegables.some(Boolean);
+  const conOrden = ordenes.length > 1;
+  // Sin el desplegable del orden, el CSV es lo que va a la derecha.
+  const botonCsv =
+    descargar && !csvFuera && vistas.some((f) => f.csv) ? (
+      <BotonDescargar n={vistas.length} onClick={() => bajarCsv(vistas, descargar.archivo)} className={conOrden ? undefined : "sm:ml-auto"} />
+    ) : null;
+  const hayBarra = conBarra && (!!buscar || hayDesplegables || conOrden || !!botonCsv);
+  const enPagina = vistas.slice(p.desde, p.hasta);
+  const claveGrupo = agrupar?.[orden];
+  const agrupada = claveGrupo ? agruparFilas(enPagina, claveGrupo, nombre) : null;
   return (
     <div data-paginado className={`${MARGEN_LISTA} space-y-3`}>
-      {conBarra && (
-        <div className="flex flex-wrap items-center gap-2">
+      {hayBarra ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {buscar && (
-            <div className="min-w-0 flex-[1_1_17rem]">
+            <div className="min-w-0 sm:flex-[1_1_17rem]">
               <Buscador
                 placeholder={buscar.placeholder}
                 etiqueta={buscar.etiqueta ?? `Buscar en ${nombre}`}
@@ -283,58 +450,28 @@ export function TablaFiltrable({
               />
             </div>
           )}
-          {filtros.map((fl) => {
-            // Una pasada por las filas (no una por opción): con 300 entidades y 5 mil filas se notaba al escribir.
-            const cuenta = new Map<string, number>();
-            for (const f of pasan(fl.clave)) {
-              const v = f.valores?.[fl.clave];
-              for (const x of Array.isArray(v) ? v : v ? [v] : []) cuenta.set(x, (cuenta.get(x) ?? 0) + 1);
-            }
-            const opciones = fl.opciones
-              .map((o) => ({ ...o, n: cuenta.get(o.valor) ?? 0 }))
-              .filter((o) => o.n > 0 || elegidos[fl.clave] === o.valor);
-            if (opciones.length < 2 && !elegidos[fl.clave]) return null;
-            return (
-              <label key={fl.clave} className="min-w-[11rem] flex-[0_1_14rem]">
-                <span className="sr-only">{fl.etiqueta}</span>
-                <select
-                  className={CAMPO_LOCAL}
-                  value={elegidos[fl.clave] ?? ""}
-                  onChange={(e) => {
-                    setElegidos((x) => ({ ...x, [fl.clave]: e.target.value }));
-                    p.setPagina(1);
-                  }}
-                >
-                  <option value="">{fl.corta}</option>
-                  {opciones.map((o) => (
-                    <option key={o.valor} value={o.valor}>{`${o.etiqueta} (${numero(o.n)})`}</option>
-                  ))}
-                </select>
-              </label>
-            );
-          })}
-          {ordenes.length > 1 && (
-            <label className="ml-auto min-w-[11rem] flex-[0_1_14rem]">
-              <span className="sr-only">Ordenar</span>
-              <select className={CAMPO_LOCAL} value={orden} onChange={(e) => { setOrden(e.target.value); p.setPagina(1); }}>
-                {ordenes.map((o) => (
-                  <option key={o.valor} value={o.valor}>{o.etiqueta}</option>
-                ))}
-              </select>
-            </label>
+          {(hayDesplegables || conOrden || botonCsv) && (
+            // En el celular, los desplegables y el CSV de a dos por fila y del mismo ancho (si son impares, el último a lo
+            // ancho): antes cada uno medía distinto y el orden quedaba solo a la derecha. Desde sm, `contents`: van en la
+            // fila del buscador, con el orden y el CSV a la derecha.
+            <div className="grid grid-cols-2 gap-2 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2 sm:contents">
+              {desplegables}
+              {conOrden && (
+                <label className="min-w-0 sm:ml-auto sm:min-w-[11rem] sm:flex-[0_1_14rem]">
+                  <span className="sr-only">Ordenar</span>
+                  <select className={CAMPO_LOCAL} value={orden} onChange={(e) => { setOrden(e.target.value); p.setPagina(1); }}>
+                    {ordenes.map((o) => (
+                      <option key={o.valor} value={o.valor}>{o.etiqueta}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {botonCsv}
+            </div>
           )}
         </div>
-      )}
-      {descargar && vistas.some((f) => f.csv) && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => bajarCsv(vistas, descargar.archivo)}
-            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink"
-          >
-            <Download size={14} aria-hidden /> Descargar CSV ({numero(vistas.length)})
-          </button>
-        </div>
+      ) : (
+        botonCsv && <div className="flex justify-end">{botonCsv}</div>
       )}
       {filtrando && (
         <p className="flex flex-wrap items-center gap-2 text-meta tabular-nums text-mute" aria-live="polite">
@@ -356,8 +493,17 @@ export function TablaFiltrable({
         <EstadoVacio icono={<SearchX size={16} />}>Nada coincide con estos filtros.</EstadoVacio>
       ) : (
         <>
+          {agrupada && agrupada.saltos.length >= 3 && <SaltosGrupo saltos={agrupada.saltos} nombre={nombre} />}
           {control}
-          <Tabla columnas={columnas} filas={vistas.slice(p.desde, p.hasta)} etiqueta={etiqueta} densidad={densidad} medida={medida} className={className} />
+          <Tabla
+            columnas={columnas}
+            filas={agrupada ? undefined : enPagina}
+            grupos={agrupada?.grupos}
+            etiqueta={etiqueta}
+            densidad={densidad}
+            medida={medida}
+            className={className}
+          />
           {controlAbajo}
         </>
       )}

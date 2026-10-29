@@ -83,7 +83,8 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "contratos", titulo: "Contratos con indicio", ancho: "8.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Contratos" },
   { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
-  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1.15fr)", desde: "xl", ayuda: <AyudaIndicios /> },
+  // Debajo de xl, bajo el nombre (`apilar`): antes en el celular no se veía ningún indicio.
+  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1.15fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
 ];
 
 const FILTROS: FiltroLocal[] = [

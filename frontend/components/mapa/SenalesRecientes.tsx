@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flag, WifiOff } from "lucide-react";
+import { ChevronRight, Flag, WifiOff } from "lucide-react";
 import { Dato } from "@/components/ui/Dato";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { Seccion } from "@/components/patrones";
@@ -68,7 +68,7 @@ export function SenalesRecientes({
     );
   }
 
-  // recorte: los cinco de mayor peso; todas las señales, con buscador y filtros, en «Ver todas las señales publicadas»
+  // recorte: los cinco de mayor peso; todas las señales, con buscador y filtros, en «Ver todas» (las acciones de la sección)
   const filas: Fila[] = (deMayorPeso ?? []).slice(0, TOP).map((c) => {
     const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
     return {
@@ -106,6 +106,14 @@ export function SenalesRecientes({
           todos los años. Un dato que el Estado publicó y no se puede creer lleva su bandera de «posible error».
         </Ayuda>
       }
+      // Todas las señales, con buscador y filtros, en /app/hallazgos: en la cabecera de la sección, a la altura del título
+      // (antes era un enlace suelto bajo la tabla).
+      acciones={
+        <Link href="/app/hallazgos" className="inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline">
+          Ver todas<span className="sr-only"> las señales publicadas</span>
+          <ChevronRight size={14} aria-hidden />
+        </Link>
+      }
     >
       {deMayorPeso === null ? (
         <div role="status" aria-busy>
@@ -113,13 +121,7 @@ export function SenalesRecientes({
           <span className="sr-only">Cargando los contratos de mayor peso del riesgo…</span>
         </div>
       ) : (
-        <div className="space-y-2">
-          <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
-          {/* Los de mayor peso; todas las señales, con buscador y filtros, en /app/hallazgos. */}
-          <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-meta font-medium text-granate underline-offset-2 hover:underline">
-            Ver todas las señales publicadas
-          </Link>
-        </div>
+        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
       )}
     </Seccion>
   );

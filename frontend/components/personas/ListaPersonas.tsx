@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
 import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
 import {
@@ -302,10 +303,19 @@ export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: Pa
     {
       valor: solesCompacto(r.monto),
       etiqueta: "pagados por órdenes",
-      // Lo que CONOSCE publicó con posibles errores (el RUC escrito como monto…) no se borra: se nombra, aparte.
-      contexto: r.dudosas?.ordenes
-        ? `${pagos ? `${pagos}; ` : ""}aparte, ${solesCompacto(r.dudosas.monto)} en ${plural(r.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
-        : pagos || undefined,
+      // Lo que CONOSCE publicó con posibles errores (el RUC escrito como monto…) no se borra: se nombra aparte, como
+      // bandera chica debajo del primer dato y con su explicación al tocarla. Antes era la cola de la frase («…; aparte,
+      // S/ 1.6 billones en 412 órdenes con posible error de CONOSCE»): cuatro o cinco renglones dentro de la tarjeta.
+      contexto: r.dudosas?.ordenes ? (
+        <>
+          {pagos}
+          <BanderaAparte monto={solesCompacto(r.dudosas.monto)} titulo="Posible error de CONOSCE" className={pagos ? "mt-1.5" : undefined}>
+            {`${plural(r.dudosas.ordenes, "orden", "órdenes")} ${r.dudosas.ordenes === 1 ? "trae" : "traen"} ${soles(r.dudosas.monto)}${r.dudosas.ordenes === 1 ? "" : " en total"}. Puede ser un error de CONOSCE al subir el dato: Vigía no lo borra, pero lo deja fuera de este total para que no infle la cifra.`}
+          </BanderaAparte>
+        </>
+      ) : (
+        pagos || undefined
+      ),
     },
     {
       valor: numero(r.conSenales),

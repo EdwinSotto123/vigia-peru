@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * sabe: CUÁNTOS contratos tienen cada indicio. Antes eran insignias propias con tres nombres para el mismo cruce y sin
  * unidad. Server-safe.
  *
- *   ChipsIndicio   en una celda: una línea, el más grave primero (hasta `max`) y «+n»; la explicación en el `title`.
+ *   ChipsIndicio   en una celda: el más grave ENTERO (hasta `max`) y «+n», como `CrucesCelda`; la explicación en el `title`.
  *   ListaIndicios  en un panel: cada indicio con su ⓘ y su conteo; con `entidadRuc`, el conteo lleva a esos contratos.
  */
 
@@ -25,7 +25,8 @@ const ICONO = ICONO_NIVEL;
 
 const unidad = (n: number) => plural(n, "contrato", "contratos");
 
-export function ChipsIndicio({ x, max = 2, sinIndicio = "Sin indicio" }: { x: ConteosCaptura & { n_captura?: number | null }; max?: number; sinIndicio?: string }) {
+// Uno ENTERO y «+n», la regla de `CrucesCelda`: con dos en la columna se leían «Soci… 39» y «Fina… 1» (2026-10-29).
+export function ChipsIndicio({ x, max = 1, sinIndicio = "Sin indicio" }: { x: ConteosCaptura & { n_captura?: number | null }; max?: number; sinIndicio?: string }) {
   const lista = indiciosDe(x);
   if (!lista.length) {
     // Sin desglose (una API vieja manda sólo el total): no se dice "sin indicio" de algo que sí lo tiene.
@@ -34,8 +35,9 @@ export function ChipsIndicio({ x, max = 2, sinIndicio = "Sin indicio" }: { x: Co
   }
   const resto = lista.length - max;
   return (
+    // Todos a la vista (un panel, `max` alto): en renglones; con «+n», una línea.
     <ul
-      className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden"
+      className={cn("flex min-w-0 max-w-full items-center gap-1", resto > 0 ? "flex-nowrap" : "flex-wrap")}
       aria-label="Indicios, con cuántos contratos tiene cada uno"
       title={lista.map((i) => `${i.corto}: ${unidad(i.n)}`).join(", ")}
     >
@@ -57,15 +59,16 @@ export function ChipsIndicio({ x, max = 2, sinIndicio = "Sin indicio" }: { x: Co
 }
 
 /**
- * Un indicio: ícono, nombre (se recorta si no entra) y su conteo, que nunca se recorta. `conteo`: el número solo (en
- * una celda, donde la cabecera dice la unidad), con su unidad («597 contratos») o ninguno (cuando va al lado).
+ * Un indicio: ícono, nombre (si no entra, parte en dos renglones dentro de su insignia: recortado no se leía) y su
+ * conteo, que nunca se parte. `conteo`: el número solo (en una celda, donde la cabecera dice la unidad), con su unidad
+ * («597 contratos») o ninguno (cuando va al lado).
  */
 export function ChipIndicio({ i, conteo = "numero" }: { i: Indicio; conteo?: "numero" | "unidad" | "ninguno" }) {
   const Icono = ICONO[i.severidad];
   return (
-    <Badge variant={VARIANTE[i.severidad]} className="max-w-full gap-1 px-2">
+    <Badge variant={VARIANTE[i.severidad]} className="max-w-full gap-1 rounded-2xl px-2 py-1 leading-tight">
       <Icono size={12} className="shrink-0" aria-hidden />
-      <span className="truncate" title={i.corto}>{i.chip ?? i.corto}</span>
+      <span className="min-w-0 break-words" title={i.corto}>{i.chip ?? i.corto}</span>
       {conteo !== "ninguno" && <span className="shrink-0 font-semibold tabular-nums">{conteo === "unidad" ? unidad(i.n) : numero(i.n)}</span>}
       {conteo === "numero" && <span className="sr-only"> {i.n === 1 ? "contrato" : "contratos"}</span>}
     </Badge>

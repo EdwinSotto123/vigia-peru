@@ -26,7 +26,7 @@ export function ExpansionSection() {
     <section className="border-t border-line bg-paper py-8">
       <div className="container-page flex flex-wrap items-center justify-between gap-x-10 gap-y-5">
         <div className="min-w-0 max-w-[58ch]">
-          <h2 className="font-display text-xl font-bold leading-tight text-ink sm:text-2xl">
+          <h2 className="font-display text-bloque font-bold leading-tight text-ink sm:text-seccion">
             <Globe2 size={17} className="mr-2 inline-block -translate-y-0.5 text-granate" aria-hidden />
             Perú es el primero, <span className="text-granate">no el único</span>.
           </h2>

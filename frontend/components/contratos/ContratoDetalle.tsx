@@ -1,8 +1,9 @@
 /**
  * Ficha de un contrato (DESIGN_SYSTEM.md §14.2), en el orden de la plantilla:
  *   volver → identidad (el objeto; código, entidad y zona en una línea; chips de estado)
- *   → Indicadores (cuánto y cuándo) → pestañas (§14.3): Resumen (el estado de su lectura y sus
- *   antecedentes en un renglón por tipo) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
+ *   → Indicadores (cuánto y cuándo; sólo las cifras que hay, las que faltan en una línea) → pestañas (§14.3): Resumen
+ *   (el estado de su lectura en una franja con qué hacer, los antecedentes del ganador en un renglón por tipo y, sin leer,
+ *   qué se leerá) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
  *   ofertas (las actas leídas) | Adjudicación y contrato | Precio contratado | Dónde dice cada señal | Cronograma |
  *   Documentos oficiales, cada una con su conteo y su fuente al pie. Participantes, adjudicación y cronograma salen
  *   del registro del proceso (OCDS, CONOSCE, SUNAT, MEF: ProcesoContrato.tsx), así una ficha sin leer también dice
@@ -24,18 +25,19 @@ import Link from "next/link";
 import { rutaContrato } from "@/lib/rutas";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
-import { Building2, Clock, Hash, History, MapPin, ShieldAlert } from "lucide-react";
+import { Building2, CalendarRange, Clock, FileCheck, FileText, Hash, History, Hourglass, Info, MapPin, Package, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, AyudaTermino, Cargando, EncabezadoPagina, EnlaceFuente, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, AyudaTermino, Cargando, EncabezadoPagina, EnlaceFuente, Franja, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
 import { migasConDesde } from "@/lib/desde";
 import { Indicadores, type Indicador } from "@/components/listado";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
+import { BotonPestana } from "./BotonPestana";
 import { EstadoContratoPill } from "./ContratosLista";
 import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
 import { pestanasProceso } from "./ProcesoContrato";
@@ -53,7 +55,7 @@ import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaCorta, numero, oracion, plural, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
 import {
   adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
@@ -139,12 +141,24 @@ export function ContratoDetalle({
       </Esperar>
     ) : null;
 
-  // El Resumen: en qué va su lectura y, si los hay, los antecedentes de quien ganó en un renglón por tipo (cada uno
-  // abre su grupo en la pestaña Antecedentes). Antes, en un contrato sin leer, era una línea y un botón.
+  // Las pestañas de evidencia y las del registro del proceso se arman una vez: el estado de la lectura ofrece abrir las
+  // que existen (los ítems, el cronograma) y la barra las ordena con `conProceso`.
+  const evidencia = pestanasEvidencia({ c, enRevision, catalogo });
+  const proceso = pestanasProceso({ c });
+  // Leído (con dictamen) y sin procesamiento en vivo: el resultado llena el Resumen y las partes del análisis quedan en la
+  // columna lateral. Sin leer, «Qué se leerá» va en el Resumen, bajo el estado.
+  const leido = c.estadoProcesamiento === "procesado" && !!c.alerta;
+  const cifras = indicadoresDe(c, adjudicado);
+
+  // El Resumen: en qué va su lectura (una franja con qué hacer), los antecedentes de quien ganó en un renglón por tipo
+  // (cada uno abre su grupo en la pestaña Antecedentes) y, sin leer, qué partes se leerán. Los antecedentes van antes que
+  // «Qué se leerá»: son datos del ganador y la lista de partes es cómo se hará la lectura. Antes, en un contrato sin
+  // leer, era un título y una frase gris junto a un filete, y debajo ~350 px de columna vacía.
   const resumen = (
     <div className="space-y-6">
-      <AnalisisCard c={c} alcance={alcance} />
+      <AnalisisCard c={c} alcance={alcance} conCronograma={!!proceso.cronograma} />
       {cruces.length > 0 && <ResumenAntecedentes cruces={cruces} varios={varios} />}
+      {!c.procesamiento && !leido && <QueSeLeera c={c} />}
     </div>
   );
 
@@ -181,7 +195,7 @@ export function ContratoDetalle({
           </div>
         ),
     },
-    ...conProceso(pestanasEvidencia({ c, enRevision, catalogo }), pestanasProceso({ c })),
+    ...conProceso(evidencia, proceso),
   ];
 
   return (
@@ -215,8 +229,20 @@ export function ContratoDetalle({
             </ul>
           </div>
 
-          {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
-          <Indicadores items={indicadoresDe(c, adjudicado)} apilado />
+          {/* 2. Lo que importa del objeto: cuánto y cuándo. Sólo las cifras que el registro trae son tarjeta; las que
+              faltan van nombradas en una línea debajo (antes, sin leer, tres de las cuatro tarjetas decían «Sin dato»). */}
+          <div className="space-y-2.5">
+            {cifras.tarjetas.length > 0 && (
+              <Indicadores
+                items={cifras.tarjetas}
+                apilado
+                // Con tres, la tercera a todo el ancho, como ya pasa en el celular: en dos columnas quedaba media fila
+                // vacía a su lado.
+                className={cifras.tarjetas.length === 3 ? "[&_dl>div:last-child]:col-span-2" : undefined}
+              />
+            )}
+            <LineaSinDato faltan={cifras.faltan} />
+          </div>
 
           {/* 2'. El OECE publicó un valor que no se puede creer (migración 102): se muestra tal cual, con su aviso. */}
           <AvisoContrato dato={c.datoDudoso} />
@@ -245,8 +271,9 @@ export function ContratoDetalle({
             <Esperar p={entidadEnVigia}>{(e) => (e ? <EntidadEnVigia ruc={c.entidadRuc!} {...e} /> : null)}</Esperar>
           )}
           {otros}
-          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
-          {!c.procesamiento && <ClasificacionCard c={c} />}
+          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. Sin leer, las partes
+              van en el Resumen («Qué se leerá»); aquí quedan sólo las de un contrato ya leído. */}
+          {!c.procesamiento && leido && <ClasificacionCard c={c} />}
           {parecidos && (
             <Esperar p={parecidos}>
               {(pr) =>
@@ -331,13 +358,13 @@ function conProceso(evidencia: Pestana[], proceso: ReturnType<typeof pestanasPro
   return out;
 }
 
-/** "Sin dato" como cifra: en `mute` y más chico, para que no se lea como un número (§10.2). */
-function SinDato({ texto = "Sin dato" }: { texto?: string }) {
-  return <span className="text-bloque font-semibold text-mute">{texto}</span>;
-}
-
-/** Las cifras del contrato: número compacto → qué es → el monto exacto o la fecha que lo acompaña. */
-function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
+/**
+ * Las cifras del contrato: número compacto → qué es → el monto exacto o la fecha que lo acompaña. Sólo las que tienen
+ * valor son tarjeta; las que no, van por su nombre en `faltan` y se dicen juntas en una línea (`LineaSinDato`, la regla
+ * de `LineasSinDato` del Inicio). Antes, en un contrato sin leer (casi todos), tres de las cuatro tarjetas decían «Sin
+ * dato», «Sin adjudicar» y «Sin dato»: cajas del tamaño de las llenas, sin nada adentro.
+ */
+function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indicador[]; faltan: string[] } {
   const nItems = c.items.length;
   const nAdjudicaciones = adjudicacionesVigentes(c).length;
   const reemplazadas = (c.adjudicaciones ?? []).length - nAdjudicaciones;
@@ -345,44 +372,88 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
   const registrados = c.postores ?? ((c.participantes ?? []).filter((p) => p.registrado).length || null);
   const unir = (xs: (string | null | false)[]) => xs.filter(Boolean).join(" ") || undefined;
   const gano = fechaGano(c);
-  return [
-    {
-      valor: c.montoPen ? cifra(c.montoPen, c.moneda) : <SinDato />,
+  const tarjetas: Indicador[] = [];
+  const faltan: string[] = [];
+
+  if (c.montoPen) {
+    tarjetas.push({
+      valor: cifra(c.montoPen, c.moneda),
       etiqueta: "valor referencial",
       ayuda: <AyudaTermino clave="valor-referencial" />,
-      contexto: c.montoPen ? unir([exacto(c.montoPen, c.moneda), nItems > 1 && `en ${numero(nItems)} ítems`]) : "el registro no lo publica",
-    },
-    {
-      valor: adjudicado ? cifra(adjudicado, c.moneda) : <SinDato texto="Sin adjudicar" />,
+      contexto: unir([exacto(c.montoPen, c.moneda), nItems > 1 && `en ${numero(nItems)} ítems`]),
+    });
+  } else faltan.push("valor referencial");
+
+  if (adjudicado) {
+    tarjetas.push({
+      valor: cifra(adjudicado, c.moneda),
       etiqueta: "monto adjudicado",
       ayuda: <AyudaTermino clave="adjudicacion" />,
-      contexto: adjudicado
-        ? unir([
-            exacto(adjudicado, c.moneda),
-            nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
-            reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
-          ])
-        : undefined,
-    },
-    {
-      valor: c.fecha ? fechaCorta(c.fecha) : <SinDato texto="Sin fecha" />,
+      contexto: unir([
+        exacto(adjudicado, c.moneda),
+        nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
+        reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
+      ]),
+    });
+  } else faltan.push("monto adjudicado");
+
+  if (c.fecha) {
+    tarjetas.push({
+      valor: fechaCorta(c.fecha),
       etiqueta: "convocatoria",
       ayuda: <AyudaTermino clave="convocatoria" />,
       // Sin fecha de buena pro en el registro, la de la adjudicación: la misma de la línea de tiempo y de «cuando ganó» en
       // los antecedentes (antes la cifra decía «sin fecha» al lado de una adjudicación con fecha).
       contexto: gano ? `${gano.deAdjudicacion ? "adjudicada el" : "buena pro:"} ${fechaCorta(gano.fecha)}` : "buena pro: sin fecha",
-    },
-    {
+    });
+  } else if (gano) {
+    // Sin fecha de convocatoria, la de la buena pro (o la de la adjudicación) es la cifra: es la única fecha que hay.
+    tarjetas.push({
+      valor: fechaCorta(gano.fecha),
+      etiqueta: gano.deAdjudicacion ? "adjudicación" : "buena pro",
+      ayuda: gano.deAdjudicacion ? undefined : <AyudaTermino clave="buena-pro" />,
+      contexto: "convocatoria: sin fecha",
+    });
+  } else faltan.push("fecha de convocatoria");
+
+  if (registrados != null) {
+    tarjetas.push({
       // Los que se REGISTRARON (el OCDS los llama «tenderers»); los que ofertaron van debajo. Antes decía «17 postores»
       // de un proceso en que ofertaron 3.
-      valor: registrados != null ? numero(registrados) : <SinDato />,
+      valor: numero(registrados),
       etiqueta: registrados === 1 ? "participante" : "participantes",
       ayuda: <AyudaTermino clave="participante" />,
       contexto: c.ofertas != null
         ? plural(c.ofertas, "oferta", "ofertas")
         : conOferta > 0 ? `${numero(conOferta)} con oferta leída del expediente` : "ofertas: sin dato",
-    },
-  ];
+    });
+  } else if (c.ofertas != null) {
+    // Sin los registrados, los que presentaron oferta según CONOSCE (los postores): la cifra que hay.
+    tarjetas.push({
+      valor: numero(c.ofertas),
+      etiqueta: c.ofertas === 1 ? "postor" : "postores",
+      ayuda: <AyudaTermino clave="postor" />,
+      contexto: "participantes: sin dato",
+    });
+  } else faltan.push("participantes");
+
+  return { tarjetas, faltan };
+}
+
+/**
+ * Las cifras que el registro todavía no trae, nombradas juntas en una línea debajo de las tarjetas (como `LineasSinDato`
+ * en el Inicio de una ficha): un «Sin dato» no merece una tarjeta del tamaño de una cifra.
+ */
+function LineaSinDato({ faltan }: { faltan: string[] }) {
+  if (!faltan.length) return null;
+  return (
+    <p className="flex items-start gap-2 text-meta leading-snug text-mute">
+      <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
+      <span className="min-w-0">
+        <span className="font-semibold text-inkSoft">Sin dato todavía:</span> {listaY(faltan)}.
+      </span>
+    </p>
+  );
 }
 
 /** Datos del proceso (columna lateral, §14.2): quién ganó, la descripción y los códigos del registro. */
@@ -508,27 +579,89 @@ function alcanceTexto(a: AlcanceActivo | null): string | null {
 }
 
 /**
- * Tarjeta de estado de la lectura: un título, una línea de qué pasa y qué hacer.
- * El porqué y el cuándo van en `ayuda` (ⓘ junto al título, §10.7).
+ * El estado de la lectura en una `Franja` del kit: el ícono en su placa, el título, una frase con su ⓘ (el porqué y el
+ * cuándo, §10.7) y qué hacer (financiarla, o abrir lo que el registro ya trae). Antes era un título y una frase gris junto
+ * a un filete, sin caja para no dibujar una tarjeta alta y vacía; la franja es la caja de dos líneas: da forma sin sumar
+ * alto. El título de la franja no es un encabezado: el h2 oculto nombra la sección para el lector de pantalla.
  */
-function TarjetaEstado({ icono, titulo, ayuda, children }: { icono: ReactNode; titulo: string; ayuda?: ReactNode; children: ReactNode }) {
+function FranjaEstado({
+  icono,
+  titulo,
+  ayuda,
+  nota,
+  acciones = [],
+  children,
+}: {
+  icono: ReactNode;
+  titulo: string;
+  ayuda?: ReactNode;
+  /** Una línea más chica debajo de la frase: lo que le falta al registro, el pedido de descarga. */
+  nota?: ReactNode;
+  /** Botones ya armados (con `key`); los vacíos se descartan. */
+  acciones?: ReactNode[];
+  children: ReactNode;
+}) {
+  // La franja lleva uno o dos botones: el primero es el que importa (financiar, si se puede).
+  const botones = acciones.filter(Boolean).slice(0, 2);
   return (
-    // Sin caja: un estado de una línea no merece una tarjeta de 700 x 100 px. Filete a la izquierda.
-    <section className="border-l-2 border-line py-1 pl-4">
-      <div className="flex items-center gap-1">
-        <h2 className="inline-flex items-center gap-1.5 font-display text-bloque font-bold text-ink">
-          {icono}
-          {titulo}
-        </h2>
-        {ayuda}
-      </div>
-      {children}
+    <section aria-labelledby="estado-lectura">
+      <h2 id="estado-lectura" className="sr-only">
+        Estado de la lectura
+      </h2>
+      <Franja
+        apilada
+        // Ícono y texto en una fila y los botones debajo, a todo el ancho: la columna de la ficha es angosta (316 px a
+        // 1024) y en una sola fila los botones apretaban el texto; `apilada` sola ponía el ícono en un renglón propio.
+        className="sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
+        icono={icono}
+        titulo={titulo}
+        accion={
+          botones.length ? (
+            // En el celular, uno debajo del otro y a todo el ancho; desde sm, en fila con su ancho y alineados a la
+            // izquierda. La caja de afuera es de bloque: la franja centra a sus hijos (`[&>*]:justify-center`) y, si los
+            // botones bajaban de renglón, quedaban centrados.
+            <div className="max-w-full">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">{botones}</div>
+            </div>
+          ) : undefined
+        }
+      >
+        {children}
+        {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
+        {nota && <span className="mt-1 block text-meta">{nota}</span>}
+      </Franja>
     </section>
   );
 }
 
-function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | null }) {
+/**
+ * Lo que el registro ya trae mientras la lectura espera: los ítems y el cronograma, pestañas de esta misma ficha que se
+ * abren sin recargar (`BotonPestana`). Sólo las que existen y tienen algo: un botón que no lleva a nada no va (§14.3).
+ */
+function accionesRegistro(c: Detalle, conCronograma: boolean): ReactNode[] {
+  const clase = claseAccion("secundario");
+  const out: ReactNode[] = [];
+  if (c.items.length > 0) {
+    out.push(
+      <BotonPestana key="items" clave="items" className={clase}>
+        <Package size={16} aria-hidden /> {c.items.length === 1 ? "Ver el ítem" : `Ver los ${numero(c.items.length)} ítems`}
+      </BotonPestana>,
+    );
+  }
+  if (conCronograma) {
+    out.push(
+      <BotonPestana key="cronograma" clave="cronograma" className={clase}>
+        <CalendarRange size={16} aria-hidden /> Ver el cronograma
+      </BotonPestana>,
+    );
+  }
+  return out;
+}
+
+function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: AlcanceActivo | null; conCronograma: boolean }) {
   const estado = c.estadoProcesamiento;
+  const registro = accionesRegistro(c, conCronograma);
+  const falta = faltaParaLeer(c.clasificacion.validacionesPendientes);
 
   if (estado === "procesado" && c.alerta) {
     // Con procesamiento financiado, ContratoEnVivo (compacto) trae resultado + cómo se ejecutó (carriles + bitácora).
@@ -546,24 +679,23 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
 
   if (estado === "esperando_documentos") {
     return (
-      <TarjetaEstado
-        icono={<Clock size={15} className="text-mute" aria-hidden />}
+      <FranjaEstado
+        icono={<Clock size={18} aria-hidden />}
         titulo="Esperando documentos"
         ayuda={
           <Ayuda titulo="¿Cuándo se lee?">
             El lote nocturno baja los documentos desde el SEACE y la lectura arranca al día siguiente.
           </Ayuda>
         }
+        nota={
+          c.pedidoDescarga
+            ? `Pedido ${c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el ${fechaCorta(dia(c.pedidoDescarga.solicitadoAt))}.`
+            : null
+        }
+        acciones={registro}
       >
-        <p className="mt-2 text-dato leading-5 text-ink">
-          Ya financiado; sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}.
-        </p>
-        {c.pedidoDescarga && (
-          <p className="mt-2 text-rotulo text-mute">
-            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el {fechaCorta(dia(c.pedidoDescarga.solicitadoAt))}.
-          </p>
-        )}
-      </TarjetaEstado>
+        Ya financiado; sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}.
+      </FranjaEstado>
     );
   }
 
@@ -572,9 +704,10 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
   }
 
   if (estado === "pendiente_de_procesamiento" || c.procesable === false) {
+    const motivo = c.clasificacion.motivoNoProcesable;
     return (
-      <TarjetaEstado
-        icono={<Clock size={15} className="text-mute" aria-hidden />}
+      <FranjaEstado
+        icono={<Clock size={18} aria-hidden />}
         titulo="Pendiente de procesamiento"
         ayuda={
           <Ayuda titulo="¿Qué pasa después?">
@@ -582,10 +715,12 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
             cobra por lo que no se puede leer.
           </Ayuda>
         }
+        nota={falta}
+        acciones={registro}
       >
-        <p className="mt-2 text-dato leading-5 text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
-        <Pendientes v={c.clasificacion.validacionesPendientes} />
-      </TarjetaEstado>
+        {/* Sin motivo, `motivoLabel` devolvía el mismo «Pendiente de procesamiento» del título. */}
+        {motivo ? `${oracion(motivoLabel(motivo))}.` : "Todavía no se puede leer."}
+      </FranjaEstado>
     );
   }
 
@@ -596,9 +731,11 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
     // El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano.
     const hoy = alcanceTexto(alcance);
     return (
-      <TarjetaEstado
-        icono={<Clock size={15} className={listo ? "text-mossTexto" : "text-mute"} aria-hidden />}
+      <FranjaEstado
+        icono={listo ? <FileCheck size={18} className="text-mossTexto" aria-hidden /> : <Clock size={18} aria-hidden />}
         titulo={listo ? "Documentos listos para leerse" : "Lectura en preparación"}
+        nota={falta}
+        acciones={registro}
         ayuda={
           <Ayuda titulo="¿Qué se analiza hoy?">
             {listo && (
@@ -612,32 +749,82 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
           </Ayuda>
         }
       >
-        <p className="mt-2 text-dato leading-5 text-ink">La lectura de {tipo} en esta etapa todavía no está activa.</p>
-        <Pendientes v={c.clasificacion.validacionesPendientes} />
-      </TarjetaEstado>
+        La lectura de {tipo} en esta etapa todavía no está activa.
+      </FranjaEstado>
     );
   }
 
-  // sin_analizar (o procesado sin alerta legible). Tinta neutra: "sin leer" es el estado
-  // mayoritario (así se pinta en la píldora de la lista y en la leyenda del mapa), no una advertencia.
+  // sin_analizar (o procesado sin alerta legible). No es una advertencia: "sin leer" es el estado mayoritario (así se
+  // pinta en la píldora de la lista y en la leyenda del mapa); por eso un reloj de arena y no el escudo de alerta.
   return (
-    <TarjetaEstado
-      icono={<ShieldAlert size={15} className="text-mute" aria-hidden />}
+    <FranjaEstado
+      icono={<Hourglass size={18} aria-hidden />}
       titulo="Todavía sin leer"
       ayuda={
         <Ayuda titulo="¿Cuándo se lee?">
           Vigía lo leerá cuando alguien financie la lectura de su zona. El orden es por llegada: nadie elige cuál.
         </Ayuda>
       }
+      nota={falta}
+      acciones={[
+        c.ubigeo && (
+          <EnlaceAccion key="financiar" href={`/app/financiar/${c.ubigeo}`} flecha>
+            Financiar la lectura de {c.zona ?? "esta zona"}
+          </EnlaceAccion>
+        ),
+        ...registro,
+      ]}
     >
-      <p className="mt-2 text-dato leading-5 text-ink">Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.</p>
-      <Pendientes v={c.clasificacion.validacionesPendientes} />
-      {c.ubigeo && (
-        <EnlaceAccion href={`/app/financiar/${c.ubigeo}`} flecha className="mt-4 w-full sm:w-auto">
-          Financiar la lectura de {c.zona ?? "esta zona"}
-        </EnlaceAccion>
-      )}
-    </TarjetaEstado>
+      Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.
+    </FranjaEstado>
+  );
+}
+
+/**
+ * Qué se leerá: las partes del análisis que aplican a este contrato, en el orden en que corren, con el dictamen al final
+ * (lo que publica la lectura). Antes iban en la columna lateral como píldoras sueltas («Qué partes del análisis
+ * aplican»); ahora van en el Resumen, bajo el estado, como una secuencia numerada unida por una línea (la misma forma de
+ * la línea de tiempo del proceso). Sin ninguna no se dibuja: el estado ya dice por qué no se lee.
+ */
+function QueSeLeera({ c }: { c: Detalle }) {
+  const aplican = c.clasificacion.agentesAplicables ?? [];
+  // FASES ya viene en el orden del pipeline, con el dictamen (report_writer) al final.
+  const fases = FASES.filter((f) => aplican.includes(f.key));
+  if (!fases.length) return null;
+  return (
+    <section aria-labelledby="que-se-leera" className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
+      <div className="flex items-center gap-1.5">
+        <h2 id="que-se-leera" className="font-display text-bloque font-bold text-ink">
+          Qué se leerá
+        </h2>
+        <Ayuda titulo="¿Por qué estas partes?">
+          Dependen del tipo de contrato y de su etapa. Las que no aparecen no aplican a este contrato.
+        </Ayuda>
+      </div>
+      <ol className="mt-3">
+        {fases.map((f, i) => {
+          const ultimo = i === fases.length - 1;
+          const dictamen = f.key === "report_writer";
+          return (
+            <li key={f.key} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3">
+              {/* El número del paso y, hasta el siguiente, la línea que los une; el dictamen, con su ícono y en granate. */}
+              <span aria-hidden className="relative flex justify-center">
+                <span
+                  className={cn(
+                    "relative z-10 flex h-6 w-6 items-center justify-center rounded-full font-mono text-rotulo font-semibold tabular-nums",
+                    dictamen ? "bg-granate text-paper" : "border border-line bg-paperSoft text-inkSoft",
+                  )}
+                >
+                  {dictamen ? <FileText size={13} /> : i + 1}
+                </span>
+                {!ultimo && <span className="absolute bottom-0 top-6 w-px bg-line" />}
+              </span>
+              <span className={cn("min-w-0 pt-0.5 text-dato leading-5 text-ink", dictamen && "font-semibold", !ultimo && "pb-3")}>{f.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -676,10 +863,10 @@ const FALTA_PARA_LEER: Record<string, string> = {
   document_parser: "El SEACE todavía no publica documentos descargables de este proceso, y sin ellos no se puede leer.",
 };
 
-function Pendientes({ v }: { v: string[] | null }) {
+/** Ese texto, o null: va como `nota` de la franja del estado (texto y no un `<p>`, porque la frase ya es un párrafo). */
+function faltaParaLeer(v: string[] | null): string | null {
   const textos = [...new Set((v ?? []).map((x) => FALTA_PARA_LEER[x]).filter((x): x is string => !!x))];
-  if (!textos.length) return null;
-  return <p className="mt-2 text-meta leading-snug text-inkSoft">{textos.join(" ")}</p>;
+  return textos.length ? textos.join(" ") : null;
 }
 
 /**

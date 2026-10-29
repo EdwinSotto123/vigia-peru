@@ -301,7 +301,8 @@ export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?
   const Titulo = panel?.nivel === 3 ? "h3" : "h2";
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0 flex-1">
+      {/* Un piso de 16rem: si no entran las acciones (un paginador) al lado, bajan; antes el h2 se partía en «Ya / leídos». */}
+      <div className="min-w-[min(100%,16rem)] flex-1">
         {nombre ? (
           <div className="flex items-center gap-1.5">
             <Titulo className={cn("font-display font-bold leading-tight text-ink text-balance", Titulo === "h3" ? "text-bloque" : "text-seccion")}>{nombre}</Titulo>

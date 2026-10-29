@@ -1,4 +1,4 @@
-import { ArrowUpRight, Code2, FileSearch, ShieldCheck, UserCheck } from "lucide-react";
+import { ArrowUpRight, Code2, FileSearch, ShieldCheck, SquareDashed, UserCheck } from "lucide-react";
 import { plural } from "@/lib/formato";
 
 /**
@@ -47,10 +47,20 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
   return (
     <section id="organizacion" aria-labelledby="confianza-titulo" className="scroll-mt-16 border-t border-line bg-paperSoft py-20 sm:py-24">
       <div className="container-page grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
-        <div>
-          <h2 id="confianza-titulo" className="max-w-[16ch] text-balance font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
+        <div className="min-w-0">
+          <h2 id="confianza-titulo" className="max-w-[16ch] text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
             Hecho para que no tengas que creerle a nadie.
           </h2>
+          {/* La regla que sostiene a todas, dibujada como lo que dice: un hueco que se deja vacío. Antes cerraba la
+              sección de fuentes, suelta y sin forma. */}
+          <div className="mt-8 rounded-2xl border-2 border-dashed border-line px-5 py-5 sm:mt-10">
+            <SquareDashed size={22} className="text-mute" aria-hidden />
+            <h3 className="mt-3 font-display text-bloque font-bold leading-snug text-ink">Si un dato no está, queda vacío.</h3>
+            <p className="mt-1.5 text-cuerpo leading-relaxed text-inkSoft">
+              No se rellena el hueco con un valor plausible: un dato inventado en una herramienta anticorrupción vale lo mismo
+              que una acusación inventada.
+            </p>
+          </div>
         </div>
         <ul className="grid gap-x-10 gap-y-9 sm:grid-cols-2">
           {compromisos.map(({ Icono, t, d, href }) => (

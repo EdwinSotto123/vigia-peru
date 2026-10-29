@@ -48,7 +48,7 @@ URL del dato (la `url`/`fuente_url`/`evidencia[].url` del bloque). Sin URL en el
         • el ganador es persona natural (RUC que empieza en 10) o una empresa de creación
           reciente / muy pequeña según el PERFIL SUNAT (cita `fecha_inicio_actividades`,
           `tipo`, `condicion`), y
-        • el monto adjudicado es alto (≥ 8 UIT ≈ S/ 42,800 en 2026; cita el monto del OCDS), y
+        • el monto adjudicado es alto (≥ 8 UIT = S/ 44,000 en 2026, con la UIT de S/ 5,500; cita el monto del OCDS), y
         • la INVESTIGACIÓN WEB, con `estado: "hallado"` en alguna fuente, NO evidencia
           personal, infraestructura ni trayectoria operativa acordes al objeto y al monto
           (cita el `mensaje`/`cita` de la fuente que lo muestra).

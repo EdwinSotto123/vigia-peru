@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2, Flag, LayoutDashboard, Wallet } from "lucide-react";
+import { Building2, CircleCheck, Flag, LayoutDashboard, Wallet } from "lucide-react";
 import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EstadoVacio, FichaNoLeida, FuenteDato, SinSenalesEstado, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { CeldaNumero, CeldaPrincipal, CuentaGrupo, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -30,7 +31,8 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
  * /app/personas/planilla/[codigo] — una persona de la planilla de una entidad (Portal de Transparencia), con la misma
  * información que la ficha de quien recibe órdenes (pedido del usuario, 2026-10-22). Código al azar (migración 107):
  * nunca el nombre, que lleva el materno tapado. Pestañas (?seccion=):
- *   · Resumen: sus datos y sus señales en una línea cada una, con atajos a lo demás.
+ *   · Resumen: tres tarjetas con título (sus señales en una línea cada una, lo que cobró con su línea mes a mes, dónde
+ *     trabaja), cada una con su atajo a la pestaña del detalle.
  *   · Sueldo: lo que cobró cada mes publicado (antes iba al pie del Resumen; pedido del usuario del 2026-10-29).
  *   · Señales: cada una con su evidencia plegada y su fuente, lo grave primero. El nepotismo del lado del funcionario
  *     (parientes que declaró en su DJI y que le venden a su entidad) es una señal más, con las órdenes de cada pariente.
@@ -77,6 +79,13 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
   const detOrden = p.senales.find((s) => s.tipo === "tambien_ordenes")?.detalle;
   const mesesOrden = Array.isArray(detOrden?.meses) ? (detOrden!.meses as unknown[]).map(String) : [];
   const montoOrden = typeof detOrden?.monto === "number" ? (detOrden!.monto as number) : null;
+  // La bajada: su cargo, su entidad y su régimen, con el ⓘ pegado al último (abajo).
+  const regimen = p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null;
+  const enlaceEntidad = (
+    <Link href={`/entidad/${p.entidadRuc}?seccion=planilla`} className="underline-offset-2 hover:text-granate hover:underline">
+      <Dato tipo="entidad">{entidad}</Dato>
+    </Link>
+  );
 
   return (
     <Pagina>
@@ -94,25 +103,25 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
         bajada={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {cargo && <Dato tipo="cargo">{cargo}</Dato>}
-            <Link href={`/entidad/${p.entidadRuc}?seccion=planilla`} className="underline-offset-2 hover:text-granate hover:underline">
-              <Dato tipo="entidad">{entidad}</Dato>
-            </Link>
-            {p.regimen != null && <Dato tipo="regimen">{REGIMEN[p.regimen] ?? `Régimen ${p.regimen}`}</Dato>}
+            {regimen && enlaceEntidad}
+            {/* El ⓘ va dentro de la fila, pegado al último dato: pasado como `ayuda` del encabezado quedaba después de
+                esta fila (un flex, del ancho entero) y caía solo en una línea propia, en el escritorio y en el celular. */}
+            <span className="inline-flex items-center gap-1">
+              {regimen ? <Dato tipo="regimen">{regimen}</Dato> : enlaceEntidad}
+              <Ayuda titulo="¿Por qué está esta persona aquí?">
+                <span className="block">
+                  Porque figura en la planilla que su entidad publica en el Portal de Transparencia Estándar, con su cargo y lo
+                  que cobra cada mes. Vigía tapa uno de sus apellidos y no muestra su DNI (la planilla no lo trae).
+                </span>
+                <span className="mt-2 block">
+                  Las señales dicen qué otro registro público coincide con esta persona. Ninguna prueba un delito ni un parentesco.{" "}
+                  <Link href="/privacidad" className="text-granate underline-offset-2 hover:underline">¿Eres tú? Pide una corrección</Link>
+                </span>
+              </Ayuda>
+            </span>
           </span>
         }
         banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} /> : undefined}
-        ayuda={
-          <Ayuda titulo="¿Por qué está esta persona aquí?">
-            <span className="block">
-              Porque figura en la planilla que su entidad publica en el Portal de Transparencia Estándar, con su cargo y lo que
-              cobra cada mes. Vigía tapa uno de sus apellidos y no muestra su DNI (la planilla no lo trae).
-            </span>
-            <span className="mt-2 block">
-              Las señales dicen qué otro registro público coincide con esta persona. Ninguna prueba un delito ni un parentesco.{" "}
-              <Link href="/privacidad" className="text-granate underline-offset-2 hover:underline">¿Eres tú? Pide una corrección</Link>
-            </span>
-          </Ayuda>
-        }
       />
       <Indicadores items={indicadores(f, { nSenales, altas, locador }, ruta)} />
       {motivo && (
@@ -135,10 +144,11 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
               <Resumen
                 f={f}
                 entidad={entidad}
-                cargo={cargo}
                 parientes={parientes}
                 nSenales={nSenales}
                 locador={locador}
+                mesesOrden={mesesOrden}
+                montoOrden={montoOrden}
               />
             ),
           },
@@ -277,20 +287,29 @@ function indicadores(f: FichaPlanilla, s: { nSenales: number; altas: number; loc
 
 // ─── Resumen ──────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Tres tarjetas con título en vez de «Sus datos», 12 filas planas que repetían el encabezado, las cifras y la pestaña
+ * Sueldo (revisión de diseño del 2026-10-29). Sin cabecera de pestaña: como en el Inicio de una entidad, las tarjetas son
+ * sus secciones (h2). Escritorio: señales y dónde trabaja a la izquierda; lo que cobró (la más alta, por su gráfico) a la
+ * derecha, a lo alto de las dos, para que las columnas terminen parejas. La segunda fila es `1fr` para que esa tarjeta no
+ * estire la primera (abriría un hueco entre las señales y dónde trabaja). Celular: señales, lo que cobró, dónde trabaja.
+ */
 function Resumen({
   f,
   entidad,
-  cargo,
   parientes,
   nSenales,
   locador,
+  mesesOrden,
+  montoOrden,
 }: {
   f: FichaPlanilla;
   entidad: string;
-  cargo: string | null;
   parientes: ParienteProveedor[];
   nSenales: number;
   locador: FichaPersona | null;
+  mesesOrden: string[];
+  montoOrden: number | null;
 }) {
   const p = f.persona;
   const periodo = periodoMeses(p.primerMes, p.ultimoMes);
@@ -299,80 +318,130 @@ function Resumen({
   // Como arriba: con la evidencia rica de los parientes, la señal simple «pariente_locador» no se repite.
   const senalesPlanilla = parientes.length ? p.senales.filter((s) => s.tipo !== "pariente_locador") : p.senales;
   return (
-    <div className="space-y-4">
-      <CabeceraPestana>Quién es en la planilla de {entidad} y qué señales tiene. Su sueldo mes a mes y sus otras planillas, en sus pestañas.</CabeceraPestana>
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-        <section aria-labelledby="sus-senales" className="tarjeta space-y-1 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <h3 id="sus-senales" className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
-              Sus señales
-              {nSenales > 0 && <CuentaGrupo>{numero(nSenales)}</CuentaGrupo>}
-            </h3>
-            {nSenales > 0 && <IrAPestana clave="senales">Ver cada una con su evidencia</IrAPestana>}
+    <div className="grid gap-4 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-start">
+      <TarjetaResumen
+        id="sus-senales"
+        titulo="Sus señales"
+        cuenta={nSenales}
+        accion={nSenales > 0 ? <IrAPestana clave="senales">Ver cada una con su evidencia</IrAPestana> : undefined}
+        className="lg:col-start-1 lg:row-start-1"
+      >
+        {nSenales ? (
+          <SenalesPlanillaBreves senales={senalesPlanilla} nepotismo={parientes} />
+        ) : (
+          // Un resultado, no un vacío: el check y el verde de «sin señales» (SinSenalesEstado), sin su caja.
+          <p className="flex items-start gap-2 text-dato text-inkSoft">
+            <CircleCheck size={16} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
+            <span>Ningún otro registro público coincide con esta persona en {entidad}.</span>
+          </p>
+        )}
+      </TarjetaResumen>
+      {/* Lo esencial del dinero y su línea mes a mes: la misma de la pestaña Sueldo, que además trae el total del mes y
+          la explicación del gráfico. */}
+      <TarjetaResumen
+        id="lo-que-cobro"
+        titulo="Lo que cobró"
+        accion={<IrAPestana clave="sueldo">Ver su sueldo en detalle</IrAPestana>}
+        className="lg:col-start-2 lg:row-start-1 lg:row-end-3"
+      >
+        <DatosClave
+          items={[
+            { etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`, valor: p.base != null ? soles(p.base) : SIN_SUELDO_ESE_MES, mono: p.base != null },
+            // Junto al sueldo de ese mes: un mes en que todo vino fuera del sueldo se entiende de una vez.
+            ...(p.extra ? [{ etiqueta: "Fuera del sueldo ese mes", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
+            ...(sueldo ? [{ etiqueta: "Su último sueldo", valor: `${soles(sueldo.base)} (${mes(sueldo.mes) ?? sueldo.mes})` }] : []),
+            {
+              etiqueta: "Órdenes de servicio",
+              valor: p.codigo ? (
+                <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span>{l ? `${soles(l.monto)} en ${plural(l.ordenes, "orden", "órdenes")}` : "También recibe órdenes"}</span>
+                  <IrAPestana clave="ordenes">Ver sus órdenes</IrAPestana>
+                </span>
+              ) : (
+                "No figura con órdenes de esta entidad a su nombre"
+              ),
+              ayuda: <AyudaTermino clave="orden-servicio" />,
+            },
+          ]}
+        />
+        {/* Con un solo mes no hay línea: las filas de arriba ya lo dicen. */}
+        {f.historia.length > 1 && (
+          <div className="border-t border-line/70 pt-3">
+            <LineaSueldo f={f} mesesOrden={mesesOrden} montoOrden={montoOrden} />
           </div>
-          {nSenales ? (
-            <SenalesPlanillaBreves senales={senalesPlanilla} nepotismo={parientes} />
-          ) : (
-            <p className="text-dato text-inkSoft">Ningún otro registro público coincide con esta persona en {entidad}.</p>
-          )}
-        </section>
-        <section aria-labelledby="sus-datos" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-          <h3 id="sus-datos" className="font-display text-bloque font-bold text-ink">Sus datos</h3>
-          <DatosClave
-            items={[
-              { etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}?seccion=planilla`} className="text-granate underline-offset-2 hover:underline">{entidad}</Link> },
-              { etiqueta: "Cargo", valor: cargo },
-              { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
-              { etiqueta: "Régimen", valor: p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
-              { etiqueta: "Región", valor: p.depNombre },
-              { etiqueta: "En la planilla", valor: `${plural(p.meses, "mes", "meses")}${periodo ? `, ${periodo}` : ""}` },
-              {
-                etiqueta: `Sueldo de ${mes(p.ultimoMes) ?? "su último mes"}`,
-                valor: (
-                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    {p.base != null ? <span className="font-mono tabular-nums">{soles(p.base)}</span> : <span>{SIN_SUELDO_ESE_MES}</span>}
-                    <IrAPestana clave="sueldo">Ver mes a mes</IrAPestana>
-                  </span>
-                ),
-              },
-              ...(sueldo ? [{ etiqueta: "Su último sueldo", valor: `${soles(sueldo.base)} (${mes(sueldo.mes) ?? sueldo.mes})` }] : []),
-              { etiqueta: "Total cobrado ese mes", valor: p.total != null ? soles(p.total) : null, mono: true },
-              ...(p.extra ? [{ etiqueta: "Fuera del sueldo", valor: `${soles(p.extra)} (otros beneficios, gratificación, incentivo)` }] : []),
-              {
-                etiqueta: "Órdenes de servicio",
-                valor: p.codigo ? (
-                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span>{l ? `${soles(l.monto)} en ${plural(l.ordenes, "orden", "órdenes")}` : "También recibe órdenes"}</span>
-                    <IrAPestana clave="ordenes">Ver sus órdenes</IrAPestana>
-                  </span>
-                ) : (
-                  "No figura con órdenes de esta entidad a su nombre"
-                ),
-                ayuda: <AyudaTermino clave="orden-servicio" />,
-              },
-              ...(f.otras.length > 0
-                ? [
-                    {
-                      etiqueta: "Otras planillas",
-                      valor: (
-                        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <span>
-                            {f.otras[0].entidad ? tituloNatural(f.otras[0].entidad) : f.otras[0].entidadRuc}
-                            {f.otras.length > 1 ? ` y ${plural(f.otras.length - 1, "entidad más", "entidades más")}` : ""}
-                          </span>
-                          <IrAPestana clave="otras">Ver</IrAPestana>
+        )}
+      </TarjetaResumen>
+      {/* Sin la entidad ni el cargo: ya están bajo su nombre, en el encabezado. */}
+      <TarjetaResumen id="donde-trabaja" titulo="Dónde trabaja" className="lg:col-start-1 lg:row-start-2">
+        <DatosClave
+          items={[
+            { etiqueta: "Oficina", valor: p.dependencia ? tituloNatural(p.dependencia) : null },
+            { etiqueta: "Región", valor: p.depNombre },
+            { etiqueta: "Régimen", valor: p.regimen != null ? REGIMEN[p.regimen] ?? `Régimen ${p.regimen}` : null, ayuda: <AyudaTermino clave="regimen" /> },
+            { etiqueta: "En la planilla", valor: `${plural(p.meses, "mes", "meses")}${periodo ? `, ${periodo}` : ""}` },
+            ...(f.otras.length > 0
+              ? [
+                  {
+                    etiqueta: "Otras planillas",
+                    valor: (
+                      <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span>
+                          {f.otras[0].entidad ? tituloNatural(f.otras[0].entidad) : f.otras[0].entidadRuc}
+                          {f.otras.length > 1 ? ` y ${plural(f.otras.length - 1, "entidad más", "entidades más")}` : ""}
                         </span>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-          {/* La página de personal de su entidad en el portal, por su id (sin él, la portada del portal). */}
-          <FuenteDato fuente="Portal de Transparencia Estándar de la entidad, rubro Personal" href={personalPte(p.idPte)} className="pt-1" />
-        </section>
-      </div>
+                        <IrAPestana clave="otras">Ver</IrAPestana>
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+        {/* La página de personal de su entidad en el portal, por su id (sin él, la portada del portal). */}
+        <FuenteDato fuente="Portal de Transparencia Estándar de la entidad, rubro Personal" href={personalPte(p.idPte)} className="pt-1" />
+      </TarjetaResumen>
     </div>
+  );
+}
+
+/** Una tarjeta del Resumen: su título (h2) con su conteo y, a la derecha, el atajo a la pestaña con el detalle. */
+function TarjetaResumen({
+  id,
+  titulo,
+  cuenta,
+  accion,
+  className,
+  children,
+}: {
+  id: string;
+  titulo: string;
+  cuenta?: number;
+  accion?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className={`tarjeta min-w-0 space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5${className ? ` ${className}` : ""}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h2 id={id} className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
+          {titulo}
+          {cuenta ? <CuentaGrupo>{numero(cuenta)}</CuentaGrupo> : null}
+        </h2>
+        {accion}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Su sueldo mes a mes, con un rombo en los meses en que además cobró por órdenes: el mismo en el Resumen y en Sueldo. */
+function LineaSueldo({ f, mesesOrden, montoOrden }: { f: FichaPlanilla; mesesOrden: string[]; montoOrden: number | null }) {
+  return (
+    <LineaMeses
+      puntos={f.historia.map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
+      etiqueta={`Sueldo mes a mes de ${f.persona.nombre}`}
+      ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
+    />
   );
 }
 
@@ -408,11 +477,7 @@ function PestanaSueldo({ f, entidad, mesesOrden, montoOrden }: { f: FichaPlanill
       </section>
       <section aria-label={`Sueldo mes a mes de ${p.nombre}`} className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
         {f.historia.length > 1 ? (
-          <LineaMeses
-            puntos={f.historia.map((h) => ({ mes: h.mes, base: h.base, extra: h.extra, dudoso: h.dudoso }))}
-            etiqueta={`Sueldo mes a mes de ${p.nombre}`}
-            ordenes={mesesOrden.length ? { meses: mesesOrden, monto: montoOrden } : undefined}
-          />
+          <LineaSueldo f={f} mesesOrden={mesesOrden} montoOrden={montoOrden} />
         ) : (
           <p className="text-dato text-inkSoft">
             {f.historia[0]

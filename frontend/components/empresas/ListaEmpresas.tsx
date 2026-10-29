@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { hoyLima, numero, plural, solesCompacto } from "@/lib/formato";
+import { hoyLima, listaY, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { QUIEN_CARGA } from "@/lib/datoDudoso";
+import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
 import { GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
 import {
@@ -168,15 +170,30 @@ function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador
   };
   const d = r.dudosos;
   const aparte = d.procesos + d.ordenes;
+  // Qué registros van aparte y quién los cargó: los contratos, del SEACE; las órdenes, de CONOSCE.
+  const registros = listaY([d.procesos > 0 ? plural(d.procesos, "contrato", "contratos") : "", d.ordenes > 0 ? plural(d.ordenes, "orden", "órdenes") : ""].filter(Boolean));
+  const quien =
+    d.procesos > 0 && d.ordenes > 0
+      ? `${QUIEN_CARGA.oece_ocds} o ${QUIEN_CARGA.conosce_ordenes}`
+      : d.procesos > 0 ? QUIEN_CARGA.oece_ocds : QUIEN_CARGA.conosce_ordenes;
   return [
     { valor: numero(r.empresas), etiqueta: "empresas", contexto: "que ganaron, postularon o recibieron órdenes desde 2018" },
     {
       valor: solesCompacto(r.adjMonto + r.ordMonto),
       etiqueta: "recibidos del Estado",
-      // Lo que el Estado publicó con posibles errores no se borra: se nombra aparte, sin sumarlo.
-      contexto: aparte
-        ? `en contratos y órdenes; aparte, ${solesCompacto(d.monto + d.montoOrdenes)} en ${plural(aparte, "registro", "registros")} con posible error de carga`
-        : "en contratos y órdenes",
+      // Lo que el Estado publicó con posibles errores no se borra: se nombra aparte, sin sumarlo, como bandera chica
+      // debajo del primer dato y con su explicación al tocarla (antes era la cola de la frase, «…; aparte, S/ X en N
+      // registros con posible error de carga»: un párrafo de cuatro renglones dentro de la tarjeta).
+      contexto: aparte ? (
+        <>
+          en contratos y órdenes
+          <BanderaAparte monto={solesCompacto(d.monto + d.montoOrdenes)} titulo="Posible error de carga" className="mt-1.5">
+            {`${registros} ${aparte === 1 ? "trae" : "traen"} ${soles(d.monto + d.montoOrdenes)}${aparte === 1 ? "" : " en total"}. Puede ser un error ${quien} al subir el dato: Vigía no lo borra, pero lo deja fuera de este total para que no infle la cifra.`}
+          </BanderaAparte>
+        </>
+      ) : (
+        "en contratos y órdenes"
+      ),
     },
     {
       valor: numero(r.conAntecedentes),

@@ -66,8 +66,9 @@ export function PanelPais({
         variante === "panel" ? "flex h-full flex-col overflow-y-auto bg-paper px-5 py-4" : "rounded-2xl border border-line bg-paper p-4 sm:p-5",
       )}
     >
-      <h2 id={`${id}-t`} className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
-        <MapPin size={18} className="shrink-0 text-granate" aria-hidden />
+      {/* El h2 un escalón sobre el h3 del ranking (los dos iban a 18 px y el panel se leía todo al mismo nivel). */}
+      <h2 id={`${id}-t`} className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
+        <MapPin size={20} className="shrink-0 text-granate" aria-hidden />
         Todo el Perú
       </h2>
       {cifras.length > 0 && (
@@ -75,9 +76,11 @@ export function PanelPais({
           <CifrasEnFila items={cifras} apilado chico />
         </div>
       )}
-      <p className="mt-3 text-meta leading-snug text-mute">
-        {medidaTitulo ? `Departamentos por ${medidaTitulo.toLowerCase()}. ` : ""}Toca uno aquí o en el mapa.
-      </p>
+      {/* El ranking con su título (antes una oración gris hacía de título) y, aparte, cómo se usa. */}
+      <h3 id={`${id}-r`} className="mt-5 font-display text-bloque font-bold leading-tight text-ink">
+        {medidaTitulo ? `Departamentos por ${medidaTitulo.toLowerCase()}` : "Departamentos"}
+      </h3>
+      <p className="mt-0.5 text-meta leading-snug text-mute">Toca uno aquí o en el mapa.</p>
       {ranking === null ? (
         <div className="mt-3 space-y-2" aria-hidden>
           {Array.from({ length: 8 }, (_, i) => (
@@ -90,7 +93,7 @@ export function PanelPais({
             <Buscador placeholder="Buscar un departamento…" etiqueta="Buscar un departamento" valor={consulta} onBuscar={setConsulta} />
           </div>
           {q && filas.length === 0 && <p className="mt-2 text-meta text-mute">Ningún departamento coincide con “{consulta}”.</p>}
-          <ol className="mt-3 divide-y divide-line border-y border-line">
+          <ol aria-labelledby={`${id}-r`} className="mt-3 divide-y divide-line border-y border-line">
             {filas.map(({ f, puesto }) => (
               <li key={f.ubigeo}>
                 <button

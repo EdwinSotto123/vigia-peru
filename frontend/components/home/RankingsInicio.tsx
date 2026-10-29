@@ -137,10 +137,11 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
           >
             {actual.verTodos.texto} <ArrowRight size={14} aria-hidden />
           </Link>
+          {/* La acción secundaria con forma de botón: suelta y en gris se leía como texto (2026-10-29). */}
           {actual.accion && (
             <Link
               href={actual.accion.href}
-              className="inline-flex min-h-10 items-center gap-1.5 text-dato font-medium text-inkSoft underline-offset-4 hover:text-ink hover:underline"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
             >
               {actual.accion.texto}
             </Link>

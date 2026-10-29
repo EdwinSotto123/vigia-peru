@@ -1,6 +1,6 @@
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueInicio, ListaConteos, type FilaConteo } from "@/components/inicio/BloquesInicio";
-import { fecha, numero, plural } from "@/lib/formato";
+import { fecha, numero } from "@/lib/formato";
 import { P_INV, P_OBRA, getResumenObras } from "@/lib/obras";
 
 /**
@@ -17,26 +17,49 @@ export async function ObrasInicio({ ruc, ruta }: { ruc: string; ruta: string }) 
   if (!o?.total && !i?.total) return null;
   const obras = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "obras", ...f })}`;
   const inversiones = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "obras", vista: "inversiones", ...f })}`;
-  const deObras = o?.total ? `de ${plural(o.total, "obra", "obras")} en INFOBRAS` : undefined;
-  const deInversiones = i?.total ? `de ${plural(i.total, "inversión", "inversiones")} en Invierte.pe` : undefined;
+  const nObras = o?.total ?? 0;
+  const nInversiones = i?.total ?? 0;
+  // De cuántas es cada cifra, UNA vez sobre sus filas (antes «de 1,322 inversiones en Invierte.pe» bajo cada una); y el
+  // largo de su barra: qué parte de sus obras (o de sus inversiones) tiene la bandera.
+  const deObras = nObras === 1 ? "De su obra en INFOBRAS" : `De sus ${numero(nObras)} obras en INFOBRAS`;
+  const deInversiones = nInversiones === 1 ? "De su inversión en Invierte.pe" : `De sus ${numero(nInversiones)} inversiones en Invierte.pe`;
   const b = o?.porBandera ?? {};
   const v = i?.porBandera ?? {};
+  // `tipo`: el de la bandera en el contrato (lib/cruces), para el ícono de su familia.
+  const obra = (etiqueta: string, bandera: string, tipo: string, grave = false): FilaConteo => ({
+    etiqueta,
+    n: b[bandera] ?? 0,
+    href: obras({ [P_OBRA.bandera]: bandera }),
+    grupo: deObras,
+    de: nObras,
+    tipo,
+    grave,
+  });
+  const inversion = (etiqueta: string, bandera: string, tipo: string, grave = false): FilaConteo => ({
+    etiqueta,
+    n: v[bandera] ?? 0,
+    href: inversiones({ [P_INV.bandera]: bandera }),
+    grupo: deInversiones,
+    de: nInversiones,
+    tipo,
+    grave,
+  });
   const filas: FilaConteo[] = [
-    ...(o?.total
+    ...(nObras
       ? [
-          { etiqueta: "Obras paralizadas hoy", n: b.paralizada ?? 0, href: obras({ [P_OBRA.bandera]: "paralizada" }), detalle: deObras, grave: true },
-          { etiqueta: "Obras atrasadas 20 puntos o más frente a lo programado", n: b.atraso ?? 0, href: obras({ [P_OBRA.bandera]: "atraso" }), detalle: deObras, grave: true },
-          { etiqueta: "Obras pagadas por encima de lo construido", n: b.pago ?? 0, href: obras({ [P_OBRA.bandera]: "pago" }), detalle: deObras, grave: true },
-          { etiqueta: "Obras por contrata con adicionales por más del 15 % del contrato", n: b.adicionales_tope ?? 0, href: obras({ [P_OBRA.bandera]: "adicionales_tope" }), detalle: deObras, grave: true },
-          { etiqueta: "Obras con el plazo ampliado a la mitad o más", n: b.plazo ?? 0, href: obras({ [P_OBRA.bandera]: "plazo" }), detalle: deObras },
-          { etiqueta: "Obras con controversias o arbitraje", n: b.controversia ?? 0, href: obras({ [P_OBRA.bandera]: "controversia" }), detalle: deObras },
-          { etiqueta: "Obras con informes de la Contraloría", n: b.control ?? 0, href: obras({ [P_OBRA.bandera]: "control" }), detalle: deObras },
+          obra("Obras paralizadas hoy", "paralizada", "obra_paralizada", true),
+          obra("Obras atrasadas 20 puntos o más frente a lo programado", "atraso", "obra_atraso", true),
+          obra("Obras pagadas por encima de lo construido", "pago", "obra_pagado_sin_avance", true),
+          obra("Obras por contrata con adicionales por más del 15 % del contrato", "adicionales_tope", "obra_adicionales_sobre_tope", true),
+          obra("Obras con el plazo ampliado a la mitad o más", "plazo", "obra_plazo_ampliado"),
+          obra("Obras con controversias o arbitraje", "controversia", "obra_controversia"),
+          obra("Obras con informes de la Contraloría", "control", "obra_informe_control"),
         ]
       : []),
-    ...(i?.total
+    ...(nInversiones
       ? [
-          { etiqueta: "Inversiones que cuestan 1.5 veces o más lo aprobado", n: v.sobrecosto ?? 0, href: inversiones({ [P_INV.bandera]: "sobrecosto" }), detalle: deInversiones, grave: true },
-          { etiqueta: "Inversiones con laudos arbitrales", n: v.laudo ?? 0, href: inversiones({ [P_INV.bandera]: "laudo" }), detalle: deInversiones },
+          inversion("Inversiones que cuestan 1.5 veces o más lo aprobado", "sobrecosto", "inversion_sobrecosto", true),
+          inversion("Inversiones con laudos arbitrales", "laudo", "inversion_laudo"),
         ]
       : []),
   ];

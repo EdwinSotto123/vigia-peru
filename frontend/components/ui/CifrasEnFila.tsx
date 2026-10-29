@@ -51,7 +51,13 @@ export function CifrasEnFila({ items, pie, className, apilado = false, chico = f
   const visibles = items.slice(0, 4);
   const fila = (
     // En el celular van de a 2 por fila: con un total impar, la última a todo el ancho (no media fila con un hueco al lado).
-    <dl className={cn("grid grid-cols-2 gap-2.5 max-sm:[&>div:last-child:nth-child(odd)]:col-span-2", !apilado && COLUMNAS[visibles.length])}>
+    // `apilado` (de a 2 en todo ancho), lo mismo en todos los anchos: la tercera del panel del mapa quedaba sola en media fila.
+    <dl
+      className={cn(
+        "grid grid-cols-2 gap-2.5 max-sm:[&>div:last-child:nth-child(odd)]:col-span-2",
+        apilado ? "[&>div:last-child:nth-child(odd)]:col-span-2" : COLUMNAS[visibles.length],
+      )}
+    >
       {visibles.map((it) => (
         <div
           key={it.etiqueta}

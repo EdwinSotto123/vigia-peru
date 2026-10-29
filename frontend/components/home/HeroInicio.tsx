@@ -59,6 +59,8 @@ function cifras(c: CifrasInicio): Indicador[] {
       valor: a ? numero(a.riesgoAlto) : null,
       etiqueta: "con riesgo alto",
       contexto: a ? `de ${numero(a.leidos)} leídos, para revisar` : undefined,
+      // El color de la severidad, como en las listas: en neutro se leía igual que «en cola».
+      tono: a && a.riesgoAlto > 0 ? "alta" : "neutro",
       // La cifra abre la lista que cuenta: los contratos del año con peso del riesgo alto.
       href: a ? `/app/contratos?riesgo=alto&mes=${a.anio}` : undefined,
     },

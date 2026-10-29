@@ -43,9 +43,9 @@ import { useModo, type Modo } from "@/lib/modo";
  * más grandes. Los datos llegan del archivo público /data/autoridades-<año>.json (179 KB), se piden al
  * montar y se filtran y paginan acá, en el navegador.
  *
- * Con las piezas del kit, como todo listado (§14.1): `Vistas` para qué mirar, el período y el nivel (una sola fila que
- * se desliza en el celular, con su conteo: antes el selector se partía en dos renglones y las cifras de arriba repetían
- * «25, 196, 1,682»), `BarraFiltros` (buscar, región, partido, orden; cada filtro activo con su × y «Quitar todo») y
+ * Con las piezas del kit, como todo listado (§14.1): `Vistas` en granate para qué mirar y, debajo, en una fila con su
+ * rótulo, el período y el nivel en su variante secundaria (cada barra se desliza en el celular, con su conteo: antes
+ * eran tres barras granate iguales, una encima de otra), `BarraFiltros` (buscar, región, partido, orden; cada filtro activo con su × y «Quitar todo») y
  * `Paginacion` arriba y abajo. El estado vive en la URL (`?nivel=&q=&region=&org=&orden=&pagina=`): se comparte, y el
  * botón atrás lo deshace. Cuenta quién ganó, no qué hizo: nada acá acusa a nadie.
  *
@@ -210,15 +210,40 @@ export function DirectorioGobiernos({
     conteo: v === "partidos" ? (resumen ? resumen.organizaciones : fallo ? undefined : null) : undefined,
   }));
   const vistasPeriodo: OpcionVista[] = periodos.map((p) => ({ href: hrefPeriodo(p.anio), etiqueta: p.texto, activa: p.anio === anio }));
+  // Regiones | Provincias | Distritos, con cuántos hay de cada uno (hueco mientras llega el archivo): el nivel es una
+  // población, no un filtro (§14.1). Sólo en «Quién gobierna»; cambiarlo conserva la búsqueda, los filtros y el orden.
+  const niveles: OpcionVista[] | null =
+    vista === "gobiernos"
+      ? NIVELES.map((n) => ({
+          href: urlCon(pathname, {
+            anio: String(anio),
+            nivel: n.id === "regional" ? undefined : n.id,
+            q: q || undefined,
+            region: region || undefined,
+            org: org || undefined,
+            orden: orden === "lugar" ? undefined : orden,
+          }),
+          etiqueta: n.etiqueta,
+          conteo: datos ? datos[n.id].length : fallo ? undefined : null,
+          activa: n.id === nivel,
+        }))
+      : null;
 
   return (
     <div className="space-y-4">
-      {/* Qué mirar y de qué período: una sola decisión cada una, y el período una sola vez en la página. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+      {/* Qué mirar: la decisión principal, en granate. Debajo, lo que la acota (período y nivel), un escalón abajo y con
+          su rótulo también en el celular; la fila se parte en renglones si no entra. El período, una sola vez en la página. */}
+      <div className="space-y-2.5">
         <Vistas vistas={vistas} etiqueta="Qué mirar" />
-        <div className="flex min-w-0 max-w-full items-center gap-2">
-          <span className="hidden shrink-0 text-meta text-mute sm:inline">Gobiernos de</span>
-          <Vistas vistas={vistasPeriodo} etiqueta="Período de gobierno" />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <ConRotulo rotulo="Gobiernos de">
+            <Vistas vistas={vistasPeriodo} etiqueta="Período de gobierno" variante="secundaria" />
+          </ConRotulo>
+          {niveles && (
+            <ConRotulo rotulo="Nivel">
+              <Vistas vistas={niveles} etiqueta="Nivel de gobierno" variante="secundaria" />
+            </ConRotulo>
+          )}
         </div>
       </div>
 
@@ -248,6 +273,19 @@ type Resumen = {
   organizaciones: number;
   claves: Map<string, number>;
 };
+
+/**
+ * Un selector secundario con su rótulo delante, también en el celular (antes «Gobiernos de» se escondía y el período
+ * quedaba sin nombre). Si no entran juntos, el selector baja bajo su rótulo.
+ */
+function ConRotulo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="shrink-0 text-meta font-medium text-mute">{rotulo}</span>
+      {children}
+    </div>
+  );
+}
 
 function TablaCargando() {
   return (
@@ -298,17 +336,9 @@ function Gobiernos({
     orden: orden === "lugar" ? undefined : orden,
   };
   const base = useMemo(() => filasDe(datos, nivel), [datos, nivel]);
-  const totales: Record<Nivel, number> = { regional: datos.regional.length, provincial: datos.provincial.length, distrital: datos.distrital.length };
-  // Regiones | Provincias | Distritos, con cuántos hay de cada uno: el nivel es una población, no un filtro (§14.1).
-  const niveles: OpcionVista[] = NIVELES.map((n) => ({
-    href: urlCon(pathname, { ...parametros, nivel: n.id === "regional" ? undefined : n.id }),
-    etiqueta: n.etiqueta,
-    conteo: totales[n.id],
-    activa: n.id === nivel,
-  }));
+  // El nivel (Regiones | Provincias | Distritos) se elige arriba, en la fila del período (`DirectorioGobiernos`).
   return (
     <div className="space-y-3">
-      <Vistas vistas={niveles} etiqueta="Nivel de gobierno" />
       <Listado ruta={pathname} parametros={parametros}>
         <ListaGobiernos datos={datos} base={base} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} anio={anio} claves={claves} parametros={parametros} />
       </Listado>

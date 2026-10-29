@@ -21,7 +21,7 @@ import { rutaRegion } from "@/lib/regiones";
 import { uno } from "@/lib/utils";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, FuenteDato, Migas, Pagina, PestanaAPedido, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, PestanaAPedido, Pestanas, type Pestana } from "@/components/patrones";
 import { OrganizacionEntidad } from "@/components/entidad/OrganizacionEntidad";
 import { banderasEntidad } from "@/lib/banderasEntidad";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
@@ -163,7 +163,8 @@ export default async function EntidadProfile({
   // Sus banderas, fijas bajo el nombre en todas las pestañas: las mismas que su fila en la lista, con cuántos casos y el
   // enlace a la evidencia (el nepotismo ya no se queda en el Inicio). Sin respuesta de la entidad, ninguna.
   const banderas = apiResp ? (banderasEntidad(ruc, apiResp.senales, apiResp.informes, apiResp.nepotismo?.total ?? 0) ?? []) : [];
-  // Dónde comprobar lo suyo en cada registro oficial, al pie del Inicio: su personal (por su id en el Portal de
+  // Dónde comprobar lo suyo en cada registro oficial, en la tarjeta «Dónde comprobarlo» de la columna lateral del Inicio
+  // (antes, cinco enlaces sueltos al pie): su personal (por su id en el Portal de
   // Transparencia), sus declaraciones juradas, su presupuesto (si el MEF la tiene; la Consulta Amigable recorre sólo el
   // SIAF) y los informes de control. Sus procesos no: Contrataciones Abiertas no los busca por el RUC de la entidad.
   const enElMef = !fueraSiaf && !empresaDelEstado;
@@ -236,22 +237,21 @@ export default async function EntidadProfile({
       // Las cifras → qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide.
       // Cada parte espera lo suyo (Suspense adentro).
       contenido: (
-        <div className="space-y-8">
-          <InicioEntidad
-            ruc={e.ruc}
-            ruta={ruta}
-            cifras={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef, ordenes: n.ordenes, ordenesMonto: conteos?.ordenesMonto ?? null, ruta })}
-            resumen={resumenEntidad}
-            enCola={enCola}
-            conteos={conteos}
-            region={region}
-            ubigeo={e.ubigeo ?? null}
-            regionDenuncias={regionDenuncias}
-            nepotismo={apiResp?.nepotismo ?? null}
-            fueraDelMef={fueraSiaf || empresaDelEstado}
-          />
-          <FuenteDato fuente={`OECE${enElMef ? ", MEF" : ""}, Contraloría y Portal de Transparencia`} enlaces={fuentesEntidad} />
-        </div>
+        <InicioEntidad
+          ruc={e.ruc}
+          ruta={ruta}
+          cifras={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef, ordenes: n.ordenes, ordenesMonto: conteos?.ordenesMonto ?? null, ruta })}
+          resumen={resumenEntidad}
+          enCola={enCola}
+          conteos={conteos}
+          region={region}
+          ubigeo={e.ubigeo ?? null}
+          regionDenuncias={regionDenuncias}
+          nepotismo={apiResp?.nepotismo ?? null}
+          fueraDelMef={fueraSiaf || empresaDelEstado}
+          // Dónde comprobarlo: una tarjeta de la columna lateral (antes, cinco enlaces sueltos al pie del Inicio).
+          fuentes={{ fuente: `OECE${enElMef ? ", MEF" : ""}, Contraloría y Portal de Transparencia`, enlaces: fuentesEntidad }}
+        />
       ),
     },
     {

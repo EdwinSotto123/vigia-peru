@@ -60,10 +60,10 @@ export async function PartidosSeccion() {
           variante="portada"
           encabezado={
             <div className="max-w-2xl">
-              <h2 id="partidos-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] sm:text-5xl lg:text-[2.4rem]">
+              <h2 id="partidos-titulo" className="text-balance font-display text-titulo font-bold leading-[1.06] sm:text-vitrina lg:text-portada">
                 Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
               </h2>
-              <p className="mt-3 hidden text-pretty text-destacado leading-relaxed text-inkSoft sm:block sm:text-lg">
+              <p className="mt-3 hidden text-pretty text-destacado leading-relaxed text-inkSoft sm:block sm:text-bloque">
                 Quién gobierna cada región, cuánto se contrata en ella y qué tanto de eso ya leyó Vigía.
               </p>
             </div>

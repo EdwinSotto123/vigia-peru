@@ -161,6 +161,18 @@ export function PodioRanking({
   const lugares: Lugar[] = [1, 2, 3];
   // Con subtítulo (la versión de la app), el texto va a la izquierda y el podio a la derecha: sin una franja vacía a los lados.
   const lateral = !!subtitulo && !destacado;
+  // Cómo se gana un lugar, siempre a la vista. En la versión de la app, desde lg va en la columna del texto, bajo el
+  // subtítulo (donde estaba la nota que repetía la bajada de la página), y no en una línea suelta bajo las dos columnas.
+  const leyenda = (
+    <>
+      {libres === 3
+        ? `Todavía nadie con nombre${cuando}: quien se sume primero ocupa el primer lugar.`
+        : libres > 0
+          ? `${libres === 1 ? "Queda un lugar libre" : "Quedan dos lugares libres"} en el podio${cuando}.`
+          : null}{" "}
+      Se gana por constancia, no por plata: cada mes que aportas cuenta, desde S/ 5.
+    </>
+  );
 
   return (
     <section
@@ -190,6 +202,7 @@ export function PodioRanking({
             {subtitulo && <p className="mt-2 max-w-[60ch] px-1 text-dato leading-snug text-paper/80 sm:px-0 sm:text-destacado">{subtitulo}</p>}
             {/* Sin filete de color al costado: una nota es texto, no un cartel. */}
             {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 text-dato leading-snug text-paper/75 lg:block">{nota}</div>}
+            {lateral && <p className="mt-4 hidden max-w-[48ch] text-dato leading-snug text-paper/80 lg:block">{leyenda}</p>}
           </div>
           <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : lateral ? "mt-5 max-w-3xl lg:mt-0 lg:max-w-none" : "mt-5 max-w-3xl")}>
             {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
@@ -206,14 +219,15 @@ export function PodioRanking({
             </ol>
           </PodioEscena>
         </div>
-        {/* Cómo se gana un lugar, siempre a la vista (en el celular la nota de la izquierda no se ve). */}
-        <p className={cn("mt-4 max-w-[70ch] px-1 text-dato leading-snug text-paper/80 sm:px-0", destacado && "sm:mt-6 sm:text-destacado")}>
-          {libres === 3
-            ? `Todavía nadie con nombre${cuando}: quien se sume primero ocupa el primer lugar.`
-            : libres > 0
-              ? `${libres === 1 ? "Queda un lugar libre" : "Quedan dos lugares libres"} en el podio${cuando}.`
-              : null}{" "}
-          Se gana por constancia, no por plata: cada mes que aportas cuenta, desde S/ 5.
+        {/* Bajo el podio: en el celular y en la portada; en la app desde lg ya está en la columna del texto. */}
+        <p
+          className={cn(
+            "mt-4 max-w-[70ch] px-1 text-dato leading-snug text-paper/80 sm:px-0",
+            lateral && "lg:hidden",
+            destacado && "sm:mt-6 sm:text-destacado",
+          )}
+        >
+          {leyenda}
         </p>
       </div>
     </section>

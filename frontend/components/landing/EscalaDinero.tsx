@@ -21,7 +21,7 @@ import { numero, porcentaje } from "@/lib/formato";
 import { Ayuda } from "@/components/patrones";
 import { Carrusel } from "@/components/ui/Carrusel";
 import type { AnioEscala, TipoEscala } from "@/lib/landing";
-import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN_SOLES } from "@/lib/costoCorrupcion";
+import { DeCadaCien } from "@/components/financiar/DeCadaCien";
 
 /**
  * "El problema", la primera mitad del pitch: el Estado publica miles de contratos y casi nadie los
@@ -148,7 +148,7 @@ export function EscalaDinero({
         {/* ── La idea, en una frase ─────────────────────────────── */}
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="max-w-3xl">
-            <h2 id="escala-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] tracking-tight sm:text-5xl">
+            <h2 id="escala-titulo" className="text-balance font-display text-titulo font-bold leading-[1.06] tracking-tight sm:text-vitrina">
               El Estado publicó <span className="text-maiz">{numero(publicados)}</span> contratos{anio ? ` en ${anio.anio}` : ""} y casi nadie los
               lee.
             </h2>
@@ -199,20 +199,12 @@ export function EscalaDinero({
           </figcaption>
         </figure>
 
-        {/* Lo que cuesta no leerlos, en cosas y no sólo en cifras, con la estimación de la Contraloría y su fuente. */}
-        <p className="mt-8 max-w-[64ch] text-pretty text-bloque leading-relaxed text-paper/85">
-          Y no leerlos tiene precio. Según la Contraloría, en {CONTRALORIA_CORRUPCION.anio} la corrupción y la inconducta funcional se habrían
-          llevado <strong className="font-semibold text-paper">S/{"\u00a0"}{numero(CONTRALORIA_CORRUPCION.millones)} millones</strong>,{" "}
-          {DE_CADA_CIEN_SOLES} del presupuesto: la plata de carreteras, hospitales y colegios.{" "}
-          <a
-            href={CONTRALORIA_CORRUPCION.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-maiz underline decoration-maiz/50 underline-offset-2 hover:decoration-maiz"
-          >
-            Ver la fuente<span className="sr-only"> (se abre en otra pestaña)</span>
-          </a>
-        </p>
+        {/* Lo que cuesta no leerlos, dibujado: la cifra de la Contraloría en cien cuadros, con sus dos montos y la fuente
+            (DeCadaCien, el mismo de /app/apoyar). Antes era un párrafo con los números adentro. */}
+        <div className="mt-10 rounded-3xl border border-paper/10 bg-paper/5 px-5 py-6 sm:px-8 sm:py-8">
+          <h3 className="font-display text-seccion font-bold leading-tight text-paper sm:text-cifra">Y no leerlos tiene precio.</h3>
+          <DeCadaCien horizontal className="mt-6" />
+        </div>
 
         {/* ── Las cifras, en una fila que se desliza ──────────────── */}
         <div className="cifras-escala mt-8">

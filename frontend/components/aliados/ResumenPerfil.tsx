@@ -57,10 +57,10 @@ export function ResumenDelPerfil({
   // Quien sólo apoya al fondo común (migración 206) no pagó contratos: ni «señales en sus contratos» ni «por leer».
   const soloApoyo = r.financiados === 0;
 
+  // Los meses sosteniendo la vigilancia y los aportes ya son las dos primeras cifras de arriba (indicadoresAliado):
+  // aquí va lo que ellas no dicen, cómo y desde cuándo aporta.
   const posible: DatoClave[] = [
-    { etiqueta: "Meses sosteniendo la vigilancia", valor: num(r.meses) },
     ...(r.mensual ? [{ etiqueta: "Aporta", valor: "Cada mes" }] : []),
-    { etiqueta: "Aportes", valor: num(r.aportes) },
     { etiqueta: "Primer aporte", valor: primero ? fecha(primero.pagadaAt) : null },
     ...(r.aportes > 1 && ultimo ? [{ etiqueta: "Último aporte", valor: fecha(ultimo.pagadaAt) }] : []),
     ...(entidades != null && entidades > 0 ? [{ etiqueta: "Entidades revisadas", valor: num(entidades) }] : []),

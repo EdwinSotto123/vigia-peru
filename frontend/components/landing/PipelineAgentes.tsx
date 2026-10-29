@@ -71,7 +71,7 @@ export function PipelineAgentes() {
             tecnología queda en el diagrama, como soporte. */}
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-5">
           <div className="min-w-0">
-            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl">
+            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-titulo font-bold leading-[1.05] sm:text-vitrina">
               Lo que Vigía revisa en cada contrato
             </h2>
             <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-maiz/30 bg-maiz/10 px-3.5 py-1.5 text-dato font-medium text-maiz sm:text-cuerpo">

@@ -30,6 +30,7 @@ import { PerfilPersonaSeccion } from "@/components/personas/PerfilPersona";
 import { LineaMeses } from "@/components/charts/LineaMeses";
 import { AvisoDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
+import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
 import { motivoDudoso } from "@/lib/datoDudoso";
@@ -94,6 +95,21 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const sentUrl = uno(searchParams?.sent);
   const sent = sentUrl && f.entidades.some((e) => e.entidadRuc === sentUrl) ? sentUrl : undefined;
   const ordenesP = getOrdenesPersona(params.codigo, { ...filtrosOrdenes, size: TAM_ORDENES });
+  const fechas = p.primera && p.ultima ? (p.primera === p.ultima ? `El ${fechaCorta(p.primera)}` : `Del ${fechaCorta(p.primera)} al ${fechaCorta(p.ultima)}`) : null;
+  // El ⓘ va pegado al último dato de la bajada, dentro de su fila: como `ayuda` del encabezado caía en un renglón propio
+  // (la bajada es una fila flexible y el ⓘ iba después de ella).
+  const ayuda = (
+    <Ayuda titulo="¿Por qué está esta persona aquí?">
+      <span className="block">
+        Porque recibió órdenes de servicio del Estado como persona natural: el OECE (CONOSCE) las publica con su nombre y lo
+        que se le pagó. Vigía no muestra su DNI ni su RUC y tapa uno de sus apellidos.
+      </span>
+      <span className="mt-2 block">
+        Las señales dicen qué otro registro público coincide con esta persona. Ninguna prueba un delito ni un parentesco.{" "}
+        <Link href="/privacidad" className="text-granate underline-offset-2 hover:underline">¿Eres tú? Pide una corrección</Link>
+      </span>
+    </Ayuda>
+  );
 
   return (
     <Pagina>
@@ -111,28 +127,18 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
               <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> Órdenes de servicio de {plural(p.entidades, "entidad", "entidades")}
+              {!fechas && ayuda}
             </span>
-            {p.primera && p.ultima && (
+            {fechas && (
               <span className="inline-flex items-center gap-1.5">
                 <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden />
-                {p.primera === p.ultima ? `El ${fechaCorta(p.primera)}` : `Del ${fechaCorta(p.primera)} al ${fechaCorta(p.ultima)}`}
+                {fechas}
+                {ayuda}
               </span>
             )}
           </span>
         }
         banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta persona" banderas={banderas} /> : undefined}
-        ayuda={
-          <Ayuda titulo="¿Por qué está esta persona aquí?">
-            <span className="block">
-              Porque recibió órdenes de servicio del Estado como persona natural: el OECE (CONOSCE) las publica con su nombre y lo
-              que se le pagó. Vigía no muestra su DNI ni su RUC y tapa uno de sus apellidos.
-            </span>
-            <span className="mt-2 block">
-              Las señales dicen qué otro registro público coincide con esta persona. Ninguna prueba un delito ni un parentesco.{" "}
-              <Link href="/privacidad" className="text-granate underline-offset-2 hover:underline">¿Eres tú? Pide una corrección</Link>
-            </span>
-          </Ayuda>
-        }
       />
       <Indicadores items={indicadores(f, cuenta, ruta)} />
       {p.dudosas?.ordenes ? (
@@ -261,9 +267,14 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
 
 type Cuenta = ReturnType<typeof senalesDistintas>;
 
-/** "8 señales en 5 entidades; 3 valen en varias de ellas." — el mismo total de la cifra, la pestaña y el índice. */
-function lineaSenales(c: Cuenta, entidades: EntidadDePersona[]): string {
+/**
+ * "8 señales en 5 entidades; 3 valen en varias de ellas." — el mismo total de la cifra, la pestaña y el índice. Con las
+ * señales en una sola entidad no va (null): «7 señales en 1 entidad» repetía el número de la pestaña, y esa entidad, con
+ * sus señales, está justo debajo.
+ */
+function lineaSenales(c: Cuenta, entidades: EntidadDePersona[]): string | null {
   const con = entidades.filter((e) => e.senalesDetalle.length > 0).length;
+  if (con <= 1) return null;
   const base = `${plural(c.total, "señal", "señales")} en ${plural(con, "entidad", "entidades")}`;
   if (!c.enVarias) return `${base}.`;
   return `${base}; ${c.enVarias === 1 ? "1 vale" : `${numero(c.enVarias)} valen`} en varias de ellas.`;
@@ -281,9 +292,18 @@ function indicadores(f: FichaPersona, c: Cuenta, ruta: string): Indicador[] {
     {
       valor: solesCompacto(p.monto),
       etiqueta: "cobrados por órdenes",
-      contexto: p.dudosas?.ordenes
-        ? `en ${plural(p.ordenes, "orden", "órdenes")}; aparte, ${soles(p.dudosas.monto ?? 0)} en ${plural(p.dudosas.ordenes, "orden", "órdenes")} con posible error de CONOSCE`
-        : `en ${plural(p.ordenes, "orden", "órdenes")}`,
+      // Lo que CONOSCE publicó con posible error va aparte como bandera chica (BanderaAparte, como en la lista de
+      // personas), no como la cola de la frase: hacía de la tarjeta un párrafo.
+      contexto: p.dudosas?.ordenes ? (
+        <>
+          {`en ${plural(p.ordenes, "orden", "órdenes")}`}
+          <BanderaAparte monto={solesCompacto(p.dudosas.monto ?? 0)} titulo="Posible error de CONOSCE" className="mt-1.5">
+            {`${plural(p.dudosas.ordenes, "orden", "órdenes")} ${p.dudosas.ordenes === 1 ? "trae" : "traen"} ${soles(p.dudosas.monto ?? 0)}${p.dudosas.ordenes === 1 ? "" : " en total"}. Puede ser un error de CONOSCE al subir el dato: Vigía no lo borra, pero lo deja fuera de este total para que no infle la cifra.`}
+          </BanderaAparte>
+        </>
+      ) : (
+        `en ${plural(p.ordenes, "orden", "órdenes")}`
+      ),
       href: `${ruta}?seccion=ordenes`,
     },
     { valor: numero(p.meses), etiqueta: "meses con órdenes", contexto: "sumados por año y entidad", href: `${ruta}?seccion=pagos` },

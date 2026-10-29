@@ -30,9 +30,11 @@ novedadesRouter.get("/", async (c) => {
       .then((r) => r.rows[0]?.f ?? null)
       .catch(() => null);
     const [contratos, sanciones, informes, totales] = await Promise.all([
+      // `cruces` (migración 57: [{tipo, severidad, n}], los graves primero): la columna «Antecedentes» pinta cada uno con su
+      // gravedad; `tipos` sigue para el filtro y el CSV.
       pool.query(
         `SELECT k.ocid, k.ruc, k.proveedor, k.entidad, k.entidad_ruc AS "entidadRuc", k.tipo_contratacion AS tipo, left(k.objeto, 200) AS objeto,
-                to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, k.monto::float AS monto, k.tipos, k.n_alta AS "nAlta"
+                to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, k.monto::float AS monto, k.tipos, k.cruces, k.n_alta AS "nAlta"
            FROM casos_cruce k
           WHERE k.fecha_buena_pro > COALESCE($2::date, current_date) - $1::int AND k.fecha_buena_pro <= COALESCE($2::date, current_date)
             AND k.severidad = 'alta'

@@ -2,9 +2,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
 import { Seccion } from "@/components/patrones/Estructura";
+import { IconoBandera } from "@/components/ui/IconoBandera";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { tituloNatural } from "@/lib/landing";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
+import { cn } from "@/lib/utils";
 
 /**
  * Las piezas de la pestaña "Inicio" de una entidad, un partido o una región: el resumen de todo en una pantalla
@@ -193,38 +196,138 @@ export interface FilaConteo {
   href?: string;
   /** Una línea debajo: de qué es la cifra o cómo se compone. */
   detalle?: string;
+  /** Una bandera grave: el ícono de severidad en rojo, la barra del mismo tono y la etiqueta en negrita. */
   grave?: boolean;
+  /** De severidad media (el riesgo medio de lo leído): el ícono ámbar de su severidad. */
+  media?: boolean;
+  /**
+   * Lo que comparten varias filas seguidas («Antecedentes del ganador más frecuentes», «De sus 1,322 inversiones en
+   * Invierte.pe»): va UNA vez, como subtítulo sobre ellas. Antes se repetía como detalle bajo cada una.
+   */
+  grupo?: string;
+  /** El tipo de bandera o de señal (`IconoBandera`): el ícono de su familia al comienzo de la fila. */
+  tipo?: string;
+  /** De cuántos es la cifra (sus obras, las personas que contrató): el largo de su barra. Sin él, frente a la fila mayor. */
+  de?: number;
 }
 
-/** Filas "etiqueta … número", cada una con su enlace al filtro que la muestra. */
+/**
+ * Filas «ícono, etiqueta, barra, número ›», cada una con su enlace al filtro que la muestra. La gravedad se ve (el ícono de
+ * severidad en rojo y su barra del mismo tono, no sólo una negrita), la barra dice cuánto pesa la cifra (de su total o
+ * frente a la fila mayor) y las filas en 0 van al final de su grupo, en gris: antes «Leídos con riesgo alto 0» abría la
+ * lista. Lo que varias filas repetían debajo va una vez arriba de ellas (`grupo`). Todo lo nuevo de `FilaConteo` es
+ * opcional: sin `grupo`, `tipo` ni `de`, una sola lista con la bandera genérica y las barras frente a la mayor.
+ * Sin estado ni funciones: sirve en el servidor y en el navegador (el Inicio del panel de zona es de cliente).
+ */
 export function ListaConteos({ filas }: { filas: FilaConteo[] }) {
+  // Los grupos son filas seguidas con el mismo `grupo`. En cada uno, las de 0 al final (en su orden); y los grupos sin
+  // ningún caso, después de los que tienen alguno.
+  const grupos: { grupo?: string; filas: FilaConteo[] }[] = [];
+  for (const f of filas) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.grupo === f.grupo) ultimo.filas.push(f);
+    else grupos.push({ grupo: f.grupo, filas: [f] });
+  }
+  const conCasos = (f: FilaConteo) => f.n > 0;
+  const ordenados = grupos
+    .map((g) => ({ ...g, filas: [...g.filas.filter(conCasos), ...g.filas.filter((f) => !conCasos(f))] }))
+    .sort((a, b) => Number(!conCasos(a.filas[0])) - Number(!conCasos(b.filas[0])));
+  // Las filas sin `de` se miden contra la mayor de ellas.
+  const mayor = Math.max(1, ...filas.filter((f) => !f.de).map((f) => f.n));
   return (
     // Dentro de una tarjeta (un bloque de Inicio), sin marco propio: sólo los divisores.
-    <ul className="divide-y divide-line/70 rounded-xl border border-line [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0">
-      {filas.map((f) => {
-        const cuerpo = (
-          <>
-            {/* Dos líneas y no una cortada: en el celular "Ganó una empresa ligada a la gestión" quedaba en "…la ges…". */}
-            <span className="min-w-0">
-              <span className={`line-clamp-2 text-dato leading-snug ${f.grave ? "font-semibold text-ink" : "text-ink"}`}>{f.etiqueta}</span>
-              {f.detalle && <span className="mt-0.5 line-clamp-2 text-rotulo leading-snug text-mute">{f.detalle}</span>}
-            </span>
-            <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(f.n)}</span>
-          </>
-        );
+    <div className="space-y-3 rounded-xl border border-line py-1.5 [container-type:inline-size] [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:py-0">
+      {ordenados.map((g, i) => {
+        // Un grupo sin nombre que bajó por estar en 0 se nombra igual: si no, se leería como parte del grupo de arriba.
+        const titulo = g.grupo ?? (i > 0 && !conCasos(g.filas[0]) ? "Sin casos" : undefined);
         return (
-          <li key={f.etiqueta}>
-            {f.href && f.n > 0 ? (
-              <Link href={f.href} prefetch={false} className="flex min-h-11 items-center justify-between gap-3 px-3.5 py-2 transition-colors hover:bg-granate-50">
-                {cuerpo}
-              </Link>
-            ) : (
-              <span className="flex min-h-11 items-center justify-between gap-3 px-3.5 py-2">{cuerpo}</span>
+          <div key={`${i}-${g.grupo ?? ""}`}>
+            {titulo && (
+              <p aria-hidden className="px-3.5 pb-1 text-rotulo font-semibold leading-snug text-mute">
+                {titulo}
+              </p>
             )}
-          </li>
+            <ul aria-label={titulo} className="divide-y divide-line/70">
+              {g.filas.map((f) => (
+                <FilaLista key={f.etiqueta} f={f} mayor={mayor} />
+              ))}
+            </ul>
+          </div>
         );
       })}
-    </ul>
+    </div>
+  );
+}
+
+/** Una fila de `ListaConteos`: el ícono, la etiqueta (y su detalle), la barra, el número y, si abre su lista, la flecha. */
+function FilaLista({ f, mayor }: { f: FilaConteo; mayor: number }) {
+  const hay = f.n > 0;
+  const grave = hay && !!f.grave;
+  const media = hay && !grave && !!f.media;
+  const Nivel = grave ? ICONO_NIVEL.alta : ICONO_NIVEL.media;
+  const cuota = f.de ? (f.n / f.de) * 100 : 0;
+  const resumen = f.de
+    ? `${numero(f.n)} de ${numero(f.de)} (${cuota > 0 && cuota < 1 ? `menos de ${porcentaje(1)}` : porcentaje(cuota)})`
+    : `${numero(f.n)}, frente a ${numero(mayor)} de la fila mayor`;
+  // La misma barra va debajo de la etiqueta (contenedor angosto) o en su columna (ancho): una sola se ve.
+  const barra = hay ? <BarraConteo parte={f.n / (f.de || mayor)} resumen={resumen} grave={grave} /> : null;
+  const cuerpo = (
+    <>
+      {grave || media ? (
+        <>
+          <Nivel size={15} className={cn("mt-0.5 shrink-0 self-start", grave ? "text-rust" : "text-amberTexto")} aria-hidden />
+          <span className="sr-only">{grave ? "Bandera grave: " : "Bandera media: "}</span>
+        </>
+      ) : (
+        <IconoBandera tipo={f.tipo ?? ""} size={15} className={cn("mt-0.5 self-start", hay ? "text-inkSoft" : "text-mute")} />
+      )}
+      {/* Hasta tres líneas en lo angosto y dos en lo ancho: «Ganó una empresa ligada a la gestión» quedaba en «…la ges…».
+          Desde 34rem de lista (el contenedor, no la pantalla: el Inicio de un partido va en dos columnas), la barra pasa a
+          su columna, al lado del número. Las clases van enteras: Tailwind no ve las armadas con una constante. */}
+      <span className="min-w-0 flex-1">
+        <span className={cn("line-clamp-3 text-dato leading-snug [@container(min-width:34rem)]:line-clamp-2", !hay ? "text-mute" : grave ? "font-semibold text-ink" : "text-ink")}>
+          {f.etiqueta}
+        </span>
+        {f.detalle && <span className="mt-0.5 line-clamp-2 text-rotulo leading-snug text-mute">{f.detalle}</span>}
+        {barra && <span className="mt-1.5 block [@container(min-width:34rem)]:hidden">{barra}</span>}
+      </span>
+      {/* La columna de la barra va también en las filas en 0: así los números quedan alineados. */}
+      <span className="hidden w-28 shrink-0 [@container(min-width:34rem)]:block">{barra}</span>
+      <span className={cn("min-w-10 shrink-0 text-right font-mono text-dato tabular-nums [@container(min-width:34rem)]:min-w-14", hay ? "text-ink" : "text-mute")}>
+        {numero(f.n)}
+      </span>
+      <span className="flex w-3.5 shrink-0 justify-end">{hay && !!f.href && <ChevronRight size={14} className="text-mute" aria-hidden />}</span>
+    </>
+  );
+  const clase = "flex min-h-11 items-center gap-2.5 px-3.5 py-2";
+  return (
+    <li>
+      {hay && f.href ? (
+        <Link
+          href={f.href}
+          prefetch={false}
+          className={cn(clase, "transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate")}
+        >
+          {cuerpo}
+        </Link>
+      ) : (
+        <span className={clase}>{cuerpo}</span>
+      )}
+    </li>
+  );
+}
+
+/**
+ * La barra de una fila: qué parte de su total (`de`) es la cifra, o cuánto frente a la fila mayor. Roja si la fila es
+ * grave; si no, neutra (la marca no es severidad, y de día la marca es verde: se leería como algo bueno). El número ya
+ * está escrito al lado: la barra es para el ojo (su `title` lo dice en palabras).
+ */
+function BarraConteo({ parte, resumen, grave }: { parte: number; resumen: string; grave: boolean }) {
+  const p = Math.min(1, Math.max(0, Number.isFinite(parte) ? parte : 0));
+  return (
+    <span aria-hidden title={resumen} className="block h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
+      <span className={cn("block h-full rounded-full", grave ? "bg-rust/80" : "bg-inkSoft/50")} style={{ width: `${p > 0 ? Math.max(3, p * 100) : 0}%` }} />
+    </span>
   );
 }
 
@@ -266,7 +369,7 @@ export function Banderas({
     ...(conRiesgo
       ? [
           { etiqueta: "Leídos con riesgo alto", n: porRiesgo?.alto ?? 0, href: href({ riesgo: "alto" }), grave: true },
-          { etiqueta: "Leídos con riesgo medio", n: porRiesgo?.medio ?? 0, href: href({ riesgo: "medio" }) },
+          { etiqueta: "Leídos con riesgo medio", n: porRiesgo?.medio ?? 0, href: href({ riesgo: "medio" }), media: true },
         ]
       : []),
     ...extra,
@@ -274,11 +377,12 @@ export function Banderas({
       ? [
           { etiqueta: "Ganador con un antecedente grave", n: porCruces.alta, href: href({ cruces: "alta" }), grave: true },
           ...(conAlguno ? [{ etiqueta: "Ganador con algún antecedente", n: porCruces.con, href: href({ cruces: "con" }) }] : []),
+          // Los tipos, bajo UN subtítulo (antes «antecedente del ganador» se repetía bajo cada uno), cada uno con su ícono.
           ...Object.entries(porCruces.tipos ?? {})
             .filter(([tipo]) => !sinTipos.includes(tipo))
             .sort((a, b) => b[1] - a[1])
             .slice(0, tipos)
-            .map(([tipo, n]) => ({ etiqueta: nombreCruce(tipo), detalle: "antecedente del ganador", n, href: href({ cruces: tipo }) })),
+            .map(([tipo, n]) => ({ etiqueta: nombreCruce(tipo), grupo: "Antecedentes del ganador más frecuentes", tipo, n, href: href({ cruces: tipo }) })),
         ]
       : []),
   ];

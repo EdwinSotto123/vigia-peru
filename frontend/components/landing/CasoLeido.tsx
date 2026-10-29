@@ -122,7 +122,7 @@ export function CasoLeido({
       <div className="container-page relative py-16 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="min-w-0">
-            <h2 id="caso-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+            <h2 id="caso-titulo" className="text-balance font-display text-titulo font-bold leading-[1.05] tracking-tight sm:text-vitrina">
               Así lee Vigía <span className="text-maiz">un contrato.</span>
             </h2>
             <p className="mt-3 max-w-[54ch] text-pretty text-bloque leading-relaxed text-paper/75">
