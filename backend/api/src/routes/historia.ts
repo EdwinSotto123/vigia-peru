@@ -809,7 +809,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
   const enLaEmpresa = (doc: string | null | undefined, fecha: string) => {
     const desde = doc ? gente.get(doc)?.desde : null;
     if (!desde) return [];
-    return [{ etiqueta: "En la empresa desde", valor: desde > fecha ? `${fechaLarga(desde)} (después de esto)` : fechaLarga(desde) }];
+    return [{ etiqueta: "En la empresa desde", valor: desde > fecha ? `${fechaLarga(desde)} (entró después de este hecho)` : fechaLarga(desde) }];
   };
   const series: SerieHistoria[] = [];
   const eventos: EventoHistoria[] = [];
@@ -878,22 +878,34 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
   if (emp.fundada) {
     eventos.push({ id: "fundacion", carril: "empresa", tipo: "fundacion", fecha: emp.fundada, titulo: "Se fundó (inscripción en el RUC)", detalle: emp.estado ? `Estado en SUNAT hoy: ${emp.estado.toLowerCase()}` : null, fuente: "SUNAT", enlace: CONSULTA_RUC_SUNAT });
   }
-  for (const s of soc) {
-    const [uno, varios] = ROL_EMPRESA[s.rol] ?? ["una persona", "personas"];
-    // Quién entró: su nombre (una persona, tapado por publicar(); una empresa socia, entera, con su razón social).
-    const nombres = (s.nombres ?? []).slice().sort();
-    eventos.push({
-      id: `rnp:${s.fecha}:${s.rol}`, carril: "empresa", tipo: "conformacion", fecha: s.fecha,
-      titulo: s.n === 1 ? `Entró ${uno}` : `Entraron ${s.n} ${varios}`,
-      detalle: "Fecha de inicio en su conformación jurídica del RNP",
-      quien: s.n === 1 && nombres[0] ? { nombre: nombres[0], rol: oracionMayus(uno.replace(/^un /, "")), href: hrefGente, tipo: "persona" } : null,
-      datos: [
-        { etiqueta: "Como", valor: oracionMayus(s.n === 1 ? uno.replace(/^un /, "") : varios) },
-        ...(s.n > 1 && nombres.length ? [{ etiqueta: "Quiénes", valor: listaY(nombres) }] : []),
-        { etiqueta: "Desde", valor: fechaLarga(s.fecha) },
-      ],
-      href: hrefGente, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP,
-    });
+  // Quién entró y como qué. Una misma persona que entró el mismo día con varios papeles (socio, representante legal y
+  // directivo) es un solo hecho: tres filas iguales de «Entró un…» eran ruido.
+  const porFecha = new Map<string, typeof soc>();
+  for (const s of soc) porFecha.set(s.fecha, [...(porFecha.get(s.fecha) ?? []), s]);
+  for (const [fecha, grupo] of porFecha) {
+    const nombresDia = [...new Set(grupo.flatMap((s) => s.nombres ?? []))];
+    const unaPersona = nombresDia.length === 1 && grupo.every((s) => s.n === 1);
+    const partes = unaPersona ? [grupo] : grupo.map((s) => [s]);
+    for (const p of partes) {
+      const roles = ORDEN_ROL.filter((r) => p.some((s) => s.rol === r));
+      const otros = p.filter((s) => !ORDEN_ROL.includes(s.rol)).map((s) => s.rol);
+      const n = p.length === 1 ? p[0].n : 1;
+      const nombres = [...new Set(p.flatMap((s) => s.nombres ?? []))].sort();
+      const comoUno = listaY([...roles.map((r) => PAPEL[r]), ...otros.map((o) => o.toLowerCase().replace(/_/g, " "))]);
+      const [uno, varios] = p.length === 1 ? (ROL_EMPRESA[p[0].rol] ?? ["una persona", "personas"]) : ["", ""];
+      eventos.push({
+        id: `rnp:${fecha}:${p.map((s) => s.rol).join("+")}`, carril: "empresa", tipo: "conformacion", fecha,
+        titulo: p.length > 1 ? `Entró como ${comoUno}` : n === 1 ? `Entró ${uno}` : `Entraron ${n} ${varios}`,
+        detalle: "Fecha de inicio en su conformación jurídica del RNP",
+        quien: n === 1 && nombres[0] ? { nombre: nombres[0], rol: oracionMayus(comoUno), href: hrefGente, tipo: "persona" } : null,
+        datos: [
+          { etiqueta: "Como", valor: oracionMayus(n === 1 ? comoUno : varios) },
+          ...(n > 1 && nombres.length ? [{ etiqueta: "Quiénes", valor: listaY(nombres) }] : []),
+          { etiqueta: "Desde", valor: fechaLarga(fecha) },
+        ],
+        href: hrefGente, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP,
+      });
+    }
   }
 
   for (const s of san) {
