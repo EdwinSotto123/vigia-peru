@@ -114,6 +114,9 @@ export default async function NovedadesPage() {
   );
 }
 
+/** Cierra la frase sin repetir el punto de una abreviatura («hasta el 16 oct.» y no «16 oct..»). */
+const conPunto = (t: string) => (t.endsWith(".") ? t : `${t}.`);
+
 /** «En los 7 días hasta el 20 oct.»: la semana termina en el último día con antecedentes ya calculados. */
 function ventana(d: Novedades): string {
   return d.contratosHasta ? `en los ${d.dias} días hasta el ${fechaCorta(d.contratosHasta)}` : `en los últimos ${d.dias} días`;
@@ -207,8 +210,8 @@ function Contratos({ d }: { d: Novedades }) {
       titulo="Contratos con antecedentes graves"
       descripcion={
         total > d.contratos.length
-          ? `Los ${numero(d.contratos.length)} con más antecedentes graves y de mayor monto, de ${numero(total)} con buena pro ${ventana(d)}.`
-          : `Con buena pro ${ventana(d)}. Cada uno abre su ficha, con la evidencia de sus antecedentes.`
+          ? `Los ${numero(d.contratos.length)} con más antecedentes graves y de mayor monto, de ${numero(total)} con buena pro ${conPunto(ventana(d))}`
+          : `Con buena pro ${conPunto(ventana(d))} Cada uno abre su ficha, con la evidencia de sus antecedentes.`
       }
       ayuda={
         d.contratosHasta ? (

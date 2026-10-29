@@ -1,6 +1,6 @@
 import { Banknote, Construction, ExternalLink } from "lucide-react";
 import { numero, oracion } from "@/lib/formato";
-import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN_SOLES } from "@/lib/costoCorrupcion";
+import { CONTRALORIA_CORRUPCION, DE_CADA_CIEN, DE_CADA_CIEN_SOLES } from "@/lib/costoCorrupcion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,8 +34,12 @@ export function DeCadaCien({ horizontal = false, className }: { horizontal?: boo
             </span>
           ))}
         </div>
-        <p aria-hidden className="max-w-[9ch] pb-0.5 font-display text-bloque font-bold leading-tight text-maiz">
-          {oracion(DE_CADA_CIEN_SOLES)}
+        {/* El rótulo directo de la figura en dos niveles: en uno solo, al lado de los cuadros, se partía en cinco renglones. */}
+        <p aria-hidden className="pb-0.5">
+          <span className="block font-display text-cifra font-bold leading-none text-maiz">
+            {oracion(`${DE_CADA_CIEN.cerca ? `${DE_CADA_CIEN.cerca} ` : ""}${DE_CADA_CIEN.redondo}`)}
+          </span>
+          <span className="mt-1.5 block max-w-[10ch] text-meta leading-snug text-paper/75">de cada 100 soles</span>
         </p>
       </div>
 

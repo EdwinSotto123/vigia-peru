@@ -14,13 +14,15 @@ export const CONTRALORIA_CORRUPCION = {
   url: "https://www.gob.pe/institucion/contraloria/noticias/912182-corrupcion-e-inconducta-funcional-habrian-ocasionado-perdidas-por-s-24-268-millones-en-el-2023",
 } as const;
 
-/** El porcentaje dicho en soles, para leerlo de corrido: «casi 13 de cada 100 soles» (12,7 %). Sale de `porCien`. */
-export const DE_CADA_CIEN_SOLES = (() => {
+/** El porcentaje redondeado y cómo se acerca: 12,7 → «casi» 13. Sale de `porCien`. */
+export const DE_CADA_CIEN = (() => {
   const { porCien } = CONTRALORIA_CORRUPCION;
   const redondo = Math.round(porCien);
-  const cerca = porCien < redondo ? "casi " : porCien > redondo ? "más de " : "";
-  return `${cerca}${redondo} de cada 100 soles`;
+  return { cerca: porCien < redondo ? "casi" : porCien > redondo ? "más de" : "", redondo };
 })();
+
+/** El porcentaje dicho en soles, para leerlo de corrido: «casi 13 de cada 100 soles» (12,7 %). */
+export const DE_CADA_CIEN_SOLES = `${DE_CADA_CIEN.cerca ? `${DE_CADA_CIEN.cerca} ` : ""}${DE_CADA_CIEN.redondo} de cada 100 soles`;
 
 /**
  * Lo que el equipo de Vigía puso desde que empezó (servidores, datos, IA y lo demás), dicho por el equipo el
