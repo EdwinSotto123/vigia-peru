@@ -147,7 +147,7 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
 function PorQue({ piso }: { piso: number | null }) {
   return (
     <section aria-labelledby="por-que" className="sobre-oscuro relative overflow-hidden rounded-3xl bg-granate-deep text-paper">
-      <div className="grid gap-10 px-5 pb-10 pt-9 sm:px-10 sm:pb-12 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,19rem)] lg:items-center lg:gap-14 lg:px-14">
+      <div className="grid gap-10 px-5 pb-10 pt-9 sm:px-10 sm:pb-12 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,23rem)] lg:items-center lg:gap-12 lg:px-14">
         <div className="min-w-0">
           <h1 id="por-que" className="max-w-[20ch] text-balance font-display text-cifra font-extrabold leading-[1.05] sm:text-titulo lg:text-portada">
             La corrupción no es una cifra.
@@ -168,7 +168,7 @@ function PorQue({ piso }: { piso: number | null }) {
             </EnlaceAccion>
           </div>
         </div>
-        <DeCadaCien className="border-t border-paper/15 pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0" />
+        <DeCadaCien className="border-t border-paper/15 pt-8 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0" />
       </div>
       <FranjaTextil alto={12} />
     </section>
