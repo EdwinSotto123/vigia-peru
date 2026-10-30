@@ -8,11 +8,13 @@ El token es uno de cuenta con permisos de zona (configuración, WAF, bots); nunc
            sin ofuscación de correos (la web muestra correos como texto: reescribirlos rompe la hidratación de React).
   bots     bloquea los rastreadores de ENTRENAMIENTO de IA que Cloudflare reconoce (`ai_training`); los de búsqueda y los
            que abren una página porque una persona lo pidió siguen pasando.
-  waf      cuatro reglas propias: los mismos rastreadores por nombre (el reconocimiento de Cloudflare va por IP y uno falso
-           pasaba), rutas de escáneres que Vigía no tiene (.php, /wp-, /.env…) y un desafío a clientes de scripts sin
-           navegador (python-requests, curl, Go…) y otro a lo que llega desde redes de nubes y hosting (de ahí sale casi
-           todo el scraping), salvo los bots verificados (buscadores, vistas previas de enlaces).
-  limite   la regla de rate limiting del plan: 100 pedidos cada 10 s por IP fuera de /_next/ (los estáticos).
+  waf      cinco reglas propias: primero, los buscadores verificados (Googlebot, Bingbot…) saltan las reglas administradas y
+           el límite (la de entrenamiento de IA de Cloudflare los bloqueaba); después los rastreadores de entrenamiento por
+           nombre (el reconocimiento de Cloudflare va por IP y uno falso pasaba), rutas de escáneres que Vigía no tiene
+           (.php, /wp-, /.env…) y un desafío a clientes de scripts sin navegador (python-requests, curl, Go…) y otro a lo
+           que llega desde redes de nubes y hosting (de ahí sale casi todo el scraping), salvo los bots verificados.
+  limite   la regla de rate limiting del plan: más de 100 pedidos en 10 s por IP fuera de /_next/ (los estáticos) →
+           bloqueo por 10 s (el plan Free no permite el desafío en esta regla).
 El resto del abuso lo frenan los Workers: frontend/worker-prod.js (páginas por IP) y backend/api/src/lib/antibots.ts.
 """
 import json
@@ -80,8 +82,17 @@ def _alguno(campo, valores):
     return " or ".join(f'(lower({campo}) contains "{v}")' for v in valores)
 
 
+# Buscadores e indexadores: pasan sin las reglas administradas ni el límite por IP, sólo si Cloudflare los verifica por su
+# IP (cf.client.bot): un nombre copiado no alcanza. El 2026-10-30 la regla de entrenamiento de IA (BOBA-199, de `bots`)
+# bloqueaba a Googlebot y a Bingbot: Search Console no podía leer el sitemap (403).
+UA_BUSCADORES = ["googlebot", "google-inspectiontool", "bingbot", "duckduckbot", "applebot", "yandexbot"]
+
+
 def waf():
     reglas = [
+        {"description": "Buscadores verificados (Google, Bing...): sin reglas administradas ni limite por IP", "action": "skip",
+         "action_parameters": {"phases": ["http_request_firewall_managed", "http_ratelimit"]},
+         "expression": f'cf.client.bot and ({_alguno("http.user_agent", UA_BUSCADORES)})', "enabled": True},
         {"description": "Rastreadores de entrenamiento de IA, por nombre", "action": "block",
          "expression": _alguno("http.user_agent", UA_ENTRENAMIENTO), "enabled": True},
         {"description": "Escaneres de vulnerabilidades (rutas que Vigia no tiene)", "action": "block",
@@ -103,6 +114,8 @@ def limite():
         "rules": [{
             "description": "Pedidos por IP fuera de los estaticos (/_next/)",
             "expression": '(not starts_with(http.request.uri.path, "/_next/"))',
+            # Sólo "block" en el plan Free: el desafío aquí da «not entitled to use the managed_challenge action in
+            # ratelimiting» (probado el 2026-10-30).
             "action": "block",
             "ratelimit": {"characteristics": ["ip.src", "cf.colo.id"], "period": 10, "requests_per_period": 100,
                           "mitigation_timeout": 10},
