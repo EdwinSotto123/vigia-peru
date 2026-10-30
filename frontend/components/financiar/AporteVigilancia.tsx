@@ -11,14 +11,16 @@
  *     aporte nuevo con el mismo trámite.
  *   - quién: persona, empresa u organización, o anónimo; con sesión, desde la cuenta.
  *   - `para`: la entidad o la región que mirabas al llegar. Sólo dice qué te motivó: no dirige ninguna lectura.
- *   - pago: con tarjeta, el formulario de Mercado Pago (PagoTarjeta) y el aporte se valida solo; con los medios de
- *     /admin/pagos, el código como concepto y el comprobante por foto opcional.
+ *   - pago, en dos opciones con sus marcas (pedido del usuario del 2026-10-30): «Mercado Pago», con las tarjetas que
+ *     acepta, abre su formulario (PagoTarjeta) y el aporte se valida solo; «Con QR» (Yape o Plin de /admin/pagos) da
+ *     el código para el mensaje en tres pasos (PagoConQr), con la captura opcional. Transferencia si hay cuentas.
+ *   - el aporte con QR que quedó guardado en este navegador se vuelve a mostrar sólo mientras siga sin pagar.
  *   - sin ningún medio de pago no hay formulario: se dice, y se dice quién sostiene hoy a Vigía.
  */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, CheckCircle2, CreditCard, HandHeart, Loader2, Lock, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, Clock, CreditCard, HandHeart, Landmark, Loader2, Lock, QrCode, X, Zap } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { soles } from "@/lib/formato";
 import { idToken, useCuenta } from "@/lib/cuentas";
@@ -29,14 +31,16 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { useTurnstile } from "@/components/seguridad/Turnstile";
 import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { cn } from "@/lib/utils";
-import { PaymentMethods, type PagoPublico } from "./PaymentMethods";
+import { BrandBadge, type PagoPublico } from "./PaymentMethods";
+import { MarcaMercadoPago, MarcaPlin, MarcaYape, TarjetasAceptadas } from "./MarcasPago";
+import { PagoConQr } from "./PagoConQr";
 import { PagoTarjeta, type DatosTarjeta } from "./PagoTarjeta";
-import { SubirComprobante } from "./SubirComprobante";
 import { TarjetaConfirmacion } from "./TarjetaConfirmacion";
-import { ETIQUETA_GRUPO, OpcionRadio, TARJETA } from "./PasosAporte";
+import { OpcionRadio, TARJETA } from "./PasosAporte";
 
 type Tipo = "persona" | "empresa" | "organizacion" | "anonimo";
-type Metodo = "tarjeta" | "yape" | "plin" | "transferencia";
+/** Lo que se elige en «Cómo pagas»: Mercado Pago (tarjeta), con QR (Yape o Plin) o transferencia. */
+type Opcion = "tarjeta" | "qr" | "transferencia";
 type Periodicidad = "mensual" | "unica";
 
 /** Lo que responde POST /pagos/aporte: pagada al instante, en revisión de Mercado Pago o la suscripción activa. */
@@ -108,9 +112,11 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   const [ruc, setRuc] = useState("");
   const [email, setEmail] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const metodos = ([pago.tarjeta && "tarjeta", pago.yape && "yape", pago.plin && "plin", pago.cuentas.length > 0 && "transferencia"]
-    .filter(Boolean) as Metodo[]);
-  const [metodo, setMetodo] = useState<Metodo>(metodos[0] ?? "yape");
+  const opciones = ([pago.tarjeta && "tarjeta", (pago.yape || pago.plin) && "qr", pago.cuentas.length > 0 && "transferencia"]
+    .filter(Boolean) as Opcion[]);
+  const [opcion, setOpcion] = useState<Opcion>(opciones[0] ?? "qr");
+  // El medio que se registra en un aporte sin tarjeta. Con QR, Yape si está: el panel valida igual si llega por Plin.
+  const metodo = opcion === "transferencia" ? "transferencia" : pago.yape ? "yape" : "plin";
   const [paso, setPaso] = useState<"datos" | "tarjeta">("datos");
   const [conTarjeta, setConTarjeta] = useState<ConTarjeta | null>(null);
   const [motivo, setMotivo] = useState<ParaAporte | null>(para);
@@ -120,7 +126,26 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   const [subido, setSubido] = useState(false);
   const verificacion = useTurnstile("aporte-vigilancia");
 
-  useEffect(() => setCreado(leer()), []);
+  // El aporte con QR guardado en este navegador, mientras siga sin pagar: uno ya validado, rechazado o que no existe
+  // dejaba el «Paga S/ …» a la vista hasta 7 días.
+  useEffect(() => {
+    const guardado = leer();
+    if (!guardado) return;
+    setCreado(guardado);
+    let vivo = true;
+    fetch(`${PUBLIC_API_BASE}/contribuciones/${encodeURIComponent(guardado.codigo)}`)
+      .then(async (r) => {
+        const estado = r.ok ? ((await r.json().catch(() => null)) as { estado?: string } | null)?.estado : null;
+        if (vivo && (r.status === 404 || (estado && estado !== "pendiente_pago"))) {
+          guardar(null);
+          setCreado(null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
   // Con sesión: la identidad sale de la cuenta.
   useEffect(() => {
     if (!perfil) return;
@@ -169,7 +194,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     if (tipo !== "anonimo" && nombre.trim().length < 2) return setError("Ingresa el nombre que quieres mostrar.");
     if (!conCuenta && !/^\S+@\S+\.\S+$/.test(email)) return setError(ERRORES.email_required);
     // Con tarjeta, el aporte se crea cuando la tarjeta se confirma (pagarConTarjeta).
-    if (metodo === "tarjeta") return setPaso("tarjeta");
+    if (opcion === "tarjeta") return setPaso("tarjeta");
     setCargando(true);
     try {
       const token = conCuenta ? await idToken() : null;
@@ -232,6 +257,22 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
       setError((err as Error).message);
       throw err;
     }
+  }
+
+  /** Del pago con QR a Mercado Pago con el mismo monto. El aporte con QR queda sin pagar (el panel lo descarta). */
+  function cambiarATarjeta() {
+    if (!creado) return;
+    if (MONTOS.includes(creado.montoPen)) setMonto(creado.montoPen);
+    else {
+      setMonto("otro");
+      setOtro(String(creado.montoPen));
+    }
+    setPeriodicidad(creado.periodicidad);
+    setOpcion("tarjeta");
+    guardar(null);
+    setCreado(null);
+    setPaso("datos");
+    setError(null);
   }
 
   const otroAporte = (
@@ -312,63 +353,62 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
 
   if (creado) {
     return (
-      <div className={TARJETA}>
-        <p className="inline-flex items-center gap-1.5 text-dato font-semibold text-mossTexto">
-          <CheckCircle2 size={16} aria-hidden /> Aporte registrado
-        </p>
-        <h2 className="mt-1 font-display text-bloque font-bold leading-snug text-ink">
-          Paga {soles(creado.montoPen)}{creado.periodicidad === "mensual" ? " (tu aporte de este mes)" : ""}
-        </h2>
-        <p className="mt-1 text-dato leading-5 text-inkSoft">
-          Tu código es <span className="font-mono font-semibold text-ink">{creado.codigo}</span>: ponlo como concepto del pago.
-        </p>
-        <div className="mt-5">
-          <PaymentMethods pago={creado.pago} monto={soles(creado.montoPen)} concepto={creado.codigo} metodoPreferido={creado.pago.metodo} grande />
-          <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-rotulo text-inkSoft">
-            Validamos el pago en menos de 48 h.
-            <Ayuda titulo="¿Qué pasa después?">
-              Al validarse, tu aporte suma a lo recaudado del mes y aparece en tu comprobante público. Con lo que entra pagamos la base de
-              datos, los servidores, la captura de datos y la lectura a fondo de los contratos más graves, en ese orden. Nadie, tampoco tú,
-              elige qué contrato se lee.
-            </Ayuda>
-          </p>
-        </div>
-        <div className="mt-5">
-          <SubirComprobante codigo={creado.codigo} email={email.trim() || null} onSubido={() => { setSubido(true); guardar(null); }} />
-          <p className="mt-2 text-rotulo text-inkSoft">El comprobante es opcional: con el código en el concepto validamos igual.</p>
-        </div>
-        <Link href={`/impacto/${creado.codigo}`} prefetch={false} className="mt-4 inline-flex min-h-[24px] items-center gap-1 text-dato font-semibold text-granate hover:underline">
-          Ver mi comprobante <ArrowRight size={14} aria-hidden />
-        </Link>
-        <div className="mt-4 text-mute">{otroAporte}</div>
-      </div>
+      <PagoConQr
+        pago={creado.pago}
+        metodo={creado.pago.metodo}
+        montoPen={creado.montoPen}
+        mensual={creado.periodicidad === "mensual"}
+        codigo={creado.codigo}
+        email={email.trim() || null}
+        onSubido={() => { setSubido(true); guardar(null); }}
+        acciones={
+          <>
+            <EnlaceAccion href={`/impacto/${creado.codigo}`} variante="secundario" flecha prefetch={false}>
+              Ver mi comprobante
+            </EnlaceAccion>
+            {pago.tarjeta && (
+              <button type="button" onClick={cambiarATarjeta} className="inline-flex min-h-[32px] items-center gap-1.5 text-dato font-medium text-granate hover:underline">
+                <CreditCard size={15} aria-hidden /> ¿Prefieres tarjeta? Paga con Mercado Pago
+              </button>
+            )}
+            <span className="text-mute">{otroAporte}</span>
+          </>
+        }
+      />
     );
   }
 
   if (paso === "tarjeta" && pago.tarjeta) {
     return (
       <div className={TARJETA}>
-        <h2 className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
-          <CreditCard size={20} aria-hidden className="text-granate" /> Paga con tarjeta
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <MarcaMercadoPago />
+          <span className="inline-flex items-center gap-1 text-rotulo font-medium text-mossTexto">
+            <Lock size={13} aria-hidden /> Pago seguro
+          </span>
+        </div>
+        <h2 className="mt-3 font-display text-bloque font-bold leading-snug text-ink">
+          {periodicidad === "mensual" ? `${soles(cantidad)} cada mes` : `Aporta ${soles(cantidad)}`}
         </h2>
         <p className="mt-1 text-dato leading-5 text-inkSoft">
           {periodicidad === "mensual"
-            ? `${soles(cantidad)} cada mes, con cobro automático. Lo cancelas cuando quieras.`
-            : `Un aporte de ${soles(cantidad)}.`}
+            ? "Con tarjeta de crédito o débito. Mercado Pago lo cobra solo cada mes y lo cancelas cuando quieras."
+            : "Con tarjeta de crédito o débito."}
         </p>
-        <div className="mt-4">
+        <TarjetasAceptadas className="mt-3" />
+        <div className="mt-5">
           <PagoTarjeta clavePublica={pago.tarjeta.publicKey} monto={Math.round(cantidad * 100) / 100} email={email.trim() || undefined} onPagar={pagarConTarjeta} />
         </div>
         <div className="mt-3 flex flex-col gap-3">
           {verificacion.widget}
           {error && <p className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
-          <p className="text-rotulo text-mute">El pago lo procesa Mercado Pago: Vigía no ve ni guarda los datos de tu tarjeta.</p>
+          <p className="text-rotulo text-mute">Vigía no ve ni guarda los datos de tu tarjeta.</p>
           <button
             type="button"
             onClick={() => { setPaso("datos"); setError(null); }}
-            className="min-h-[24px] self-start text-rotulo underline underline-offset-2 hover:text-ink"
+            className="inline-flex min-h-[32px] items-center gap-1 self-start text-rotulo underline underline-offset-2 hover:text-ink"
           >
-            Volver a mis datos
+            <ArrowLeft size={13} aria-hidden /> Volver a mis datos
           </button>
         </div>
       </div>
@@ -387,13 +427,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
           <OpcionRadio name="periodicidad" checked={periodicidad === "mensual"} onChange={() => setPeriodicidad("mensual")}>Cada mes</OpcionRadio>
           <OpcionRadio name="periodicidad" checked={periodicidad === "unica"} onChange={() => setPeriodicidad("unica")}>Una vez</OpcionRadio>
         </div>
-        {periodicidad === "mensual" && (
-          <p className="mt-2 text-rotulo text-inkSoft">
-            {metodo === "tarjeta"
-              ? "Lo que más ayuda: con aportes de cada mes podemos planear. Con tarjeta, Mercado Pago lo cobra solo cada mes y lo cancelas cuando quieras."
-              : "Lo que más ayuda: con aportes de cada mes podemos planear. Con Yape, Plin o transferencia, cada mes es un pago nuevo."}
-          </p>
-        )}
+        {periodicidad === "mensual" && <p className="mt-2 text-rotulo text-inkSoft">Lo que más ayuda: con aportes de cada mes podemos planear.</p>}
       </fieldset>
 
       <fieldset className={GRUPO}>
@@ -413,6 +447,42 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
           </label>
         )}
       </fieldset>
+
+      {opciones.length > 0 && (
+        <fieldset className={GRUPO}>
+          <legend className={LEYENDA}>Cómo pagas</legend>
+          <div className="grid gap-2.5">
+            {opciones.includes("tarjeta") && (
+              <OpcionMetodo
+                checked={opcion === "tarjeta"}
+                onChange={() => setOpcion("tarjeta")}
+                cabeza={<MarcaMercadoPago />}
+                titulo="Tarjeta de crédito o débito"
+                marcas={<TarjetasAceptadas />}
+                nota={<><Zap size={13} aria-hidden className="shrink-0" /> {periodicidad === "mensual" ? "Se cobra sola cada mes" : "Se confirma al instante"}</>}
+              />
+            )}
+            {opciones.includes("qr") && (
+              <OpcionMetodo
+                checked={opcion === "qr"}
+                onChange={() => setOpcion("qr")}
+                cabeza={<span className="inline-flex items-center gap-1.5 text-dato font-semibold text-ink"><QrCode size={16} aria-hidden /> Con QR</span>}
+                marcas={<>{pago.yape && <MarcaYape />}{pago.plin && <MarcaPlin />}</>}
+                nota={<><Clock size={13} aria-hidden className="shrink-0" /> {periodicidad === "mensual" ? "Cada mes, un pago nuevo; lo validamos en 48 h" : "Lo validamos en menos de 48 h"}</>}
+              />
+            )}
+            {opciones.includes("transferencia") && (
+              <OpcionMetodo
+                checked={opcion === "transferencia"}
+                onChange={() => setOpcion("transferencia")}
+                cabeza={<span className="inline-flex items-center gap-1.5 text-dato font-semibold text-ink"><Landmark size={16} aria-hidden /> Transferencia</span>}
+                marcas={<>{Array.from(new Set(pago.cuentas.map((c) => c.banco))).map((b) => <BrandBadge key={b} brand={b} />)}</>}
+                nota={<><Clock size={13} aria-hidden className="shrink-0" /> Lo validamos en menos de 48 h</>}
+              />
+            )}
+          </div>
+        </fieldset>
+      )}
 
       {motivo && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-meta text-inkSoft">
@@ -472,36 +542,51 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         </label>
       </fieldset>
 
-      {metodos.length > 1 && (
-        <fieldset className={GRUPO}>
-          <legend className={LEYENDA}>Cómo pagas</legend>
-          <div className="flex flex-wrap gap-2">
-            {metodos.map((m) => (
-              <OpcionRadio key={m} name="metodo" checked={metodo === m} onChange={() => setMetodo(m)}>
-                {m === "tarjeta" ? "Tarjeta" : m === "yape" ? "Yape" : m === "plin" ? "Plin" : "Transferencia"}
-              </OpcionRadio>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
       <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5">
         {verificacion.widget}
         <Button type="submit" disabled={cargando || !montoValido} className="w-full sm:w-auto">
           {cargando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
           {!montoValido
             ? "Aportar"
-            : metodo === "tarjeta"
-              ? `Seguir con la tarjeta: ${soles(cantidad)}${periodicidad === "mensual" ? " cada mes" : ""}`
-              : `Aportar ${soles(cantidad)}${periodicidad === "mensual" ? " cada mes" : ""}`}
+            : `${opcion === "tarjeta" ? "Seguir con Mercado Pago" : opcion === "qr" ? "Seguir con QR" : "Seguir con la transferencia"}: ${soles(cantidad)}${periodicidad === "mensual" ? " al mes" : ""}`}
         </Button>
         {error && <p className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
-        <p className="text-rotulo text-mute">
-          {metodo === "tarjeta"
-            ? "Pagas con Mercado Pago y recibes un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta."
-            : "Te damos un código para el concepto del pago y un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta."}
-        </p>
+        <p className="text-rotulo text-mute">Recibes un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta.</p>
       </div>
     </form>
+  );
+}
+
+/**
+ * Una forma de pagar como tarjeta elegible: su marca, lo que acepta (las marcas) y en cuánto se confirma. Es un radio
+ * nativo escondido en su etiqueta, como OpcionRadio: teclado, lector de pantalla y foco sin código extra.
+ */
+function OpcionMetodo({ checked, onChange, cabeza, titulo, marcas, nota }: {
+  checked: boolean;
+  onChange: () => void;
+  cabeza: React.ReactNode;
+  titulo?: string;
+  marcas: React.ReactNode;
+  nota: React.ReactNode;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer gap-3 rounded-2xl border p-3.5 transition-colors duration-150",
+        "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-granate has-[:focus-visible]:ring-offset-2",
+        checked ? "border-granate bg-granate-soft/40" : "border-line bg-paper hover:border-granate/40 hover:bg-granate-50",
+      )}
+    >
+      <input type="radio" name="metodo" checked={checked} onChange={onChange} className="sr-only" />
+      <span aria-hidden className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2", checked ? "border-granate" : "border-paperEdge")}>
+        {checked && <span className="h-2.5 w-2.5 rounded-full bg-granate" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">{cabeza}</span>
+        {titulo && <span className="mt-1.5 block text-dato font-semibold leading-5 text-ink">{titulo}</span>}
+        <span className="mt-2 flex flex-wrap items-center gap-1.5">{marcas}</span>
+        <span className="mt-2 flex items-center gap-1.5 text-rotulo text-inkSoft">{nota}</span>
+      </span>
+    </label>
   );
 }

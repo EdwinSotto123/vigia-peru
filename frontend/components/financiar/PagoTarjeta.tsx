@@ -45,6 +45,38 @@ const SDK = "https://sdk.mercadopago.com/js/v2";
 const CONTENEDOR = "vigia-pago-tarjeta";
 let cargaSdk: Promise<void> | null = null;
 
+/** Un token de color de globals.css («R G B») como lo pide el formulario de Mercado Pago (#rrggbb). */
+function colorDe(estilo: CSSStyleDeclaration, token: string): string | undefined {
+  const [r, g, b] = estilo.getPropertyValue(`--${token}`).trim().split(/[\s,]+/).map(Number);
+  const canales = [r, g, b];
+  if (canales.some((n) => n === undefined || !Number.isFinite(n))) return undefined;
+  return `#${canales.map((n) => Math.round(n).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Los colores de Vigía en el formulario (los del modo en que se dibuja, leídos donde está, así siguen a día y noche):
+ * fondo del papel sin relleno propio, para que no sea una tarjeta dentro de otra, y el botón con el color de acción.
+ */
+function estiloVigia(caja: HTMLElement): Record<string, string> {
+  const e = getComputedStyle(caja);
+  const colores: Record<string, string | undefined> = {
+    formBackgroundColor: colorDe(e, "paper"),
+    inputBackgroundColor: colorDe(e, "paper"),
+    baseColor: colorDe(e, "granate"),
+    baseColorFirstVariant: colorDe(e, "granate-deep"),
+    baseColorSecondVariant: colorDe(e, "granate-deep"),
+    buttonTextColor: colorDe(e, "paper"),
+    textPrimaryColor: colorDe(e, "ink"),
+    textSecondaryColor: colorDe(e, "mute"),
+    outlinePrimaryColor: colorDe(e, "paper-edge"),
+    outlineSecondaryColor: colorDe(e, "line"),
+    errorColor: colorDe(e, "crimson"),
+    successColor: colorDe(e, "moss"),
+  };
+  const listos = Object.fromEntries(Object.entries(colores).filter((par): par is [string, string] => par[1] !== undefined));
+  return { ...listos, formPadding: "0px", borderRadiusSmall: "8px", borderRadiusMedium: "12px", borderRadiusLarge: "12px" };
+}
+
 function cargarSdk(): Promise<void> {
   if (window.MercadoPago) return Promise.resolve();
   cargaSdk ??= new Promise<void>((resolver, rechazar) => {
@@ -75,6 +107,7 @@ export function PagoTarjeta({
   const modo = useModo();
   const [listo, setListo] = useState(false);
   const [falla, setFalla] = useState<string | null>(null);
+  const caja = useRef<HTMLDivElement | null>(null);
   // El último `onPagar` (cambia en cada render); el formulario se arma una sola vez por monto, correo y modo.
   const pagar = useRef(onPagar);
   pagar.current = onPagar;
@@ -91,7 +124,14 @@ export function PagoTarjeta({
         control = await mp.bricks().create("cardPayment", CONTENEDOR, {
           initialization: { amount: monto, ...(email ? { payer: { email } } : {}) },
           customization: {
-            visual: { style: { theme: modo === "noche" ? "dark" : "default" } },
+            visual: {
+              // El título («Tarjeta de crédito o débito») ya lo dice la cabecera, con las tarjetas que acepta.
+              hideFormTitle: true,
+              style: {
+                theme: modo === "noche" ? "dark" : "default",
+                ...(caja.current ? { customVariables: estiloVigia(caja.current) } : {}),
+              },
+            },
             paymentMethods: { maxInstallments: 1 },
           },
           callbacks: {
@@ -130,7 +170,7 @@ export function PagoTarjeta({
           {falla}
         </p>
       )}
-      <div id={CONTENEDOR} />
+      <div id={CONTENEDOR} ref={caja} />
     </div>
   );
 }
