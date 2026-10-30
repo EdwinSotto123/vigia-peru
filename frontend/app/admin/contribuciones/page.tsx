@@ -287,7 +287,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
           items={[
             { etiqueta: "Monto", valor: fmtPEN(c.montoPen), mono: true },
             c.tipoAporte === "apoyo"
-              ? { etiqueta: "Lo motivó", valor: c.paraRuc ? `Entidad ${c.paraRuc}` : c.paraUbigeo ? `Zona ${c.paraUbigeo}` : "La vigilancia en general" }
+              ? { etiqueta: "Destino sugerido", valor: c.paraRuc ? `Entidad ${c.paraRuc}` : c.paraUbigeo ? `Zona ${c.paraUbigeo}` : "La vigilancia en general" }
               : { etiqueta: "Zona", valor: `${c.zona}`, pista: nivelLabel(c.nivel) },
             { etiqueta: "Financiador", valor: c.nombrePublico ?? "Anónimo", pista: tipoFinanciadorLabel(c.tipo) },
             { etiqueta: "RUC", valor: c.ruc, mono: true },

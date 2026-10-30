@@ -66,7 +66,7 @@ export function ReciboApoyo({ c }: { c: ComprobanteApoyo }) {
               </dd>
             </div>
             <div className="rounded-xl bg-paperSoft px-4 py-3">
-              <dt className="text-meta text-inkSoft">Lo motivó</dt>
+              <dt className="text-meta text-inkSoft">Destino sugerido</dt>
               <dd className="font-semibold text-ink">
                 {motivo ? (motivo.href ? <Link href={motivo.href} prefetch={false} className="hover:underline">{motivo.nombre}</Link> : motivo.nombre) : "La vigilancia en general"}
               </dd>

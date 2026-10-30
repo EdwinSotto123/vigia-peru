@@ -14,3 +14,12 @@ export function rutaContrato(id: string, vista: VistaContrato = "ficha", extra: 
   const qs = q.toString();
   return `/app/contratos/${encodeURIComponent(id.replace(/^OECE-/i, ""))}${qs ? `?${qs}` : ""}`;
 }
+
+/**
+ * El aporte al fondo común (/app/apoyar) con la entidad (RUC) o la zona (ubigeo) que se miraba como destino sugerido.
+ * Va sólo el código: la página saca el nombre de la base. Antes el enlace llevaba `&nombre=` y la página lo mostraba tal
+ * cual venía (auditoría de pagos del 2026-10-30, H14).
+ */
+export function rutaApoyar(para?: string | null): string {
+  return para && /^(\d{11}|\d{2}(\d{2}(\d{2})?)?)$/.test(para) ? `/app/apoyar?para=${para}` : "/app/apoyar";
+}

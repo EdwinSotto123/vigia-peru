@@ -117,8 +117,8 @@ export function DossierCliente({
               >
                 {/* Las dos salidas ya las dicen los botones: aquí sólo el porqué. */}
                 <p>
-                  No hay un análisis publicado para <code className="font-mono text-ink">{id}</code>. Vigía lee los contratos en
-                  el orden de la cola, a medida que alguien financia su lectura.
+                  No hay un análisis publicado para <code className="font-mono text-ink">{id}</code>. Vigía lee los contratos de
+                  la cola con el fondo común, de lo más grave a lo menos grave.
                 </p>
               </EstadoVacio>
             </>

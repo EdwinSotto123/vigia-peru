@@ -51,11 +51,11 @@ function Alcance({ c }: { c: ContribucionReciente }) {
     if (c.paraRuc && c.paraEntidad) {
       return (
         <span className="text-meta text-ink">
-          Lo motiva <NombreEntidad ruc={c.paraRuc} nombre={c.paraEntidad} />
+          Destino sugerido: <NombreEntidad ruc={c.paraRuc} nombre={c.paraEntidad} />
         </span>
       );
     }
-    return <span className="text-meta text-ink">{c.paraZona ? `Lo motiva ${c.paraZona}` : "Al fondo común"}</span>;
+    return <span className="text-meta text-ink">{c.paraZona ? `Destino sugerido: ${c.paraZona}` : "Al fondo común"}</span>;
   }
   if (c.partido) {
     return (

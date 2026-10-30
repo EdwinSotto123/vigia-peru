@@ -79,7 +79,7 @@ function PildoraApoyo({ c }: { c: ContribucionReciente }) {
           </span>
           <span className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-rotulo text-paper/70">
             <span>{relativo(c.pagadaAt)}</span>
-            {lo && <span>Lo motiva {lo}</span>}
+            {lo && <span>Destino sugerido: {lo}</span>}
             <span className="font-mono group-hover/ap:text-maiz">{c.codigo}</span>
           </span>
         </span>

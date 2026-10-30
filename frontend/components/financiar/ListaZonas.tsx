@@ -1,21 +1,21 @@
-import { HandCoins } from "lucide-react";
+import { ScanSearch } from "lucide-react";
 import { Ayuda } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { ESTADO_LABEL, ESTADO_PUNTO, type Zona, type ZonaEstado } from "@/lib/financiamiento";
-import { numero, soles } from "@/lib/formato";
+import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
  * Las zonas como filas de listado (DESIGN_SYSTEM.md §14.1), con la anatomía de todos:
- *   estado (chip) · zona (nombre + dónde queda y financiados) · en cola · costo · ›
+ *   estado (chip) · zona (nombre + dónde queda y asignados a lectura) · en cola · ›
  * La misma tabla en /app/financiar (regiones o resultados de la búsqueda) y en la
  * ficha de una zona (sus provincias o distritos).
  *
  * El estado es un chip CORTO (punto + una palabra, el nombre completo para el lector de pantalla y en el `title`):
- * en la meta, «Parcialmente financiada» junto al lugar y los financiados se cortaba en el celular, y una píldora con
- * la frase entera pedía ~190 px. En el celular el chip y el costo van bajo el nombre (`apilar`), el costo con su
- * rótulo: antes la columna del costo desaparecía sin aviso.
+ * en la meta, el nombre largo junto al lugar y los asignados se cortaba en el celular, y una píldora con la frase
+ * entera pedía ~190 px. En el celular el chip va bajo el nombre (`apilar`). La columna «Costo» (lo que costaba leer la
+ * cola a «S/ X por contrato») se quitó el 2026-10-30: ya no se paga la lectura por contrato.
  *
  * Cada fila es el enlace a /app/financiar/[ubigeo]. Las provincias de una región se ven
  * en su ficha: antes se desplegaban dentro de la lista con un segundo botón por fila.
@@ -32,9 +32,9 @@ export type ZonaListada = Pick<Zona, "ubigeo" | "nombre" | "pendientes" | "finan
 /** El estado en una palabra, para el chip (el nombre completo es `ESTADO_LABEL`). */
 const ESTADO_CORTO: Record<ZonaEstado, string> = {
   sin_datos: "Sin contratos",
-  pendiente: "Por financiar",
+  pendiente: "Por leer",
   parcial: "Parcial",
-  financiada: "Financiada",
+  financiada: "En lectura",
   procesada: "Completada",
 };
 
@@ -48,7 +48,7 @@ function ChipEstado({ estado }: { estado: ZonaEstado }) {
   );
 }
 
-function columnas(precioPen: number | null): Columna[] {
+function columnas(): Columna[] {
   return [
     { clave: "estado", titulo: "Estado", ancho: "116px", desde: "md", apilar: true },
     { clave: "zona", titulo: "Zona", ancho: "minmax(0,2.2fr)" },
@@ -61,28 +61,14 @@ function columnas(precioPen: number | null): Columna[] {
       alinear: "der",
       ayuda: (
         <Ayuda titulo="¿Qué es “en cola”?">
-          Contratos de la zona que esperan financiamiento para leerse. La zona es la sede de la entidad que contrata.
-        </Ayuda>
-      ),
-    },
-    {
-      clave: "costo",
-      titulo: "Costo",
-      ancho: "88px",
-      alinear: "der",
-      desde: "md",
-      apilar: "con-rotulo",
-      corto: "Leerlos cuesta",
-      ayuda: (
-        <Ayuda titulo="¿Qué es el costo?">
-          Lo que cuesta leer todos los contratos en cola{precioPen != null ? `, a ${soles(precioPen)} cada uno` : ""}.
+          Contratos de la zona que esperan su lectura a fondo. La zona es la sede de la entidad que contrata.
         </Ayuda>
       ),
     },
   ];
 }
 
-function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
+function filas(zonas: ZonaListada[]): Fila[] {
   const mayor = Math.max(1, ...zonas.map((z) => z.pendientes));
   return zonas.map((z) => ({
     id: z.ubigeo,
@@ -96,26 +82,22 @@ function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
           titulo={z.nombre}
           meta={[
             z.lugar && <Dato key="l" tipo="lugar">{z.lugar}</Dato>,
-            z.financiados > 0 && <Dato key="f" icono={HandCoins} nombre="Financiados">{numero(z.financiados)} financiados</Dato>,
+            z.financiados > 0 && <Dato key="f" icono={ScanSearch} nombre="Asignados a lectura">{numero(z.financiados)} asignados</Dato>,
           ]}
         />
       ),
       barra: <CeldaBarra parte={z.pendientes / mayor} resumen={`${numero(z.pendientes)} contratos en cola, de ${numero(mayor)} en la zona con más`} />,
       cola: <CeldaNumero>{numero(z.pendientes)}</CeldaNumero>,
-      costo: <CeldaNumero>{soles(precioPen != null ? z.pendientes * precioPen : null)}</CeldaNumero>,
     },
   }));
 }
 
 export function ListaZonas({
   zonas,
-  precioPen,
   etiqueta,
   buscar,
 }: {
   zonas: ZonaListada[];
-  /** Tarifa por contrato. Sin tarifa, el costo dice "Sin dato" (nunca S/ 0). */
-  precioPen: number | null;
   etiqueta: string;
   /** La lista llega entera: se pagina y se busca acá (el texto del buscador). */
   buscar?: string;
@@ -123,8 +105,8 @@ export function ListaZonas({
   if (buscar) {
     return (
       <TablaPaginada
-        columnas={columnas(precioPen)}
-        filas={filas(zonas, precioPen)}
+        columnas={columnas()}
+        filas={filas(zonas)}
         etiqueta={etiqueta}
         tam={15}
         nombre="zonas"
@@ -134,5 +116,5 @@ export function ListaZonas({
       />
     );
   }
-  return <Tabla columnas={columnas(precioPen)} filas={filas(zonas, precioPen)} etiqueta={etiqueta} densidad="compacta" medida="contenedor" />;
+  return <Tabla columnas={columnas()} filas={filas(zonas)} etiqueta={etiqueta} densidad="compacta" medida="contenedor" />;
 }

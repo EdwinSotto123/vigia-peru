@@ -11,6 +11,7 @@ import { useModo } from "@/lib/modo";
 import { numero, solesCompacto } from "@/lib/formato";
 import { INFOGOB_JNE } from "@/lib/fuentes";
 import { cn } from "@/lib/utils";
+import { rutaApoyar } from "@/lib/rutas";
 import {
   ANIO_ACTUAL,
   NIVEL_LABEL,
@@ -267,8 +268,8 @@ export function PartidosExplorador({
                     </p>
                   )}
                   {ficha.region && (
-                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-dato font-semibold text-granate underline-offset-4 hover:underline">
-                      Financiar la lectura de esta región
+                    <Link href={rutaApoyar(ficha.region)} className="mt-3 inline-block text-dato font-semibold text-granate underline-offset-4 hover:underline">
+                      Ayuda a vigilar esta región
                     </Link>
                   )}
                 </>

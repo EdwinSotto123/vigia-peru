@@ -22,20 +22,44 @@ function dondeFue(c: ContribucionReciente) {
   return <>en {c.zona}</>;
 }
 
+/** El destino sugerido de un apoyo (sólo informativo: el aporte va al fondo común). */
+function motivo(c: ContribucionReciente) {
+  if (c.paraRuc && c.paraEntidad) return <NombreEntidad ruc={c.paraRuc} nombre={c.paraEntidad} />;
+  if (c.paraZona) return <>{c.paraZona}</>;
+  return null;
+}
+
+/**
+ * Qué fue un aporte, en una frase: un apoyo al fondo común (migración 206; único o de cada mes, con su destino
+ * sugerido si lo tuvo) o, del modelo anterior, cuántos contratos financió y dónde. Nunca soles.
+ */
+function queFue(c: ContribucionReciente) {
+  if (c.tipoAporte === "apoyo") {
+    const m = motivo(c);
+    return (
+      <>
+        {c.periodicidad === "mensual" ? "aporte de cada mes" : "aporte"} al fondo común{m && <>, con destino sugerido {m}</>}
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"} {dondeFue(c)}
+    </>
+  );
+}
+
 /** Cuántos grupos se muestran; el resto, en el muro de aliados. */
 const GRUPOS_VISIBLES = 4;
 
 /**
- * Los últimos aportes agrupados por quien los hizo: una línea por aliado («16 aportes, 320 contratos, el último el
- * 12 oct.») y debajo los tres más recientes, cada uno con su comprobante. Todos, con buscador, en «Todos los aportes».
- * Una superficie con divisores, sin cajas adentro. Server-safe.
+ * Los últimos aportes agrupados por quien los hizo: una línea por aliado («16 aportes, 320 contratos financiados, el
+ * último el 12 oct.»; los contratos, sólo si los hubo con el modelo anterior) y debajo los tres más recientes, cada uno
+ * con su constancia. Todos, con buscador, en «Todos los aportes». Una superficie con divisores, sin cajas adentro.
+ * Server-safe.
  */
-export function AportesPorAliado({ datos, porEntidad = false, porPartido = false }: {
-  datos: AportesAgrupados;
-  porEntidad?: boolean;
-  porPartido?: boolean;
-}) {
-  if (datos.grupos.length === 0) return <RecientesFeed items={[]} porEntidad={porEntidad} porPartido={porPartido} />;
+export function AportesPorAliado({ datos }: { datos: AportesAgrupados }) {
+  if (datos.grupos.length === 0) return <RecientesFeed items={[]} />;
   // recorte: los aliados que aportaron más recientemente; todos, con su puesto, en el muro de aliados (enlace de abajo)
   const visibles = datos.grupos.slice(0, GRUPOS_VISIBLES);
   const varios = datos.grupos.length > 1;
@@ -58,7 +82,8 @@ export function AportesPorAliado({ datos, porEntidad = false, porPartido = false
                   )}
                 </p>
                 <p className="text-meta text-inkSoft">
-                  {plural(g.aportes, "aporte", "aportes")}, {plural(g.contratos, "contrato", "contratos")}, el último {cuando(g.ultimo)}
+                  {plural(g.aportes, "aporte", "aportes")}
+                  {g.contratos > 0 && <>, {plural(g.contratos, "contrato financiado", "contratos financiados")}</>}, el último {cuando(g.ultimo)}
                 </p>
               </div>
             </li>
@@ -83,12 +108,12 @@ export function AportesPorAliado({ datos, porEntidad = false, porPartido = false
             <li key={c.codigo} className="py-2.5 text-dato leading-5">
               <p className="text-ink">
                 {varios && <span className="font-semibold">{c.financiador}: </span>}
-                <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"} {dondeFue(c)}
+                {queFue(c)}
               </p>
               <p className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-rotulo text-mute">
                 <Dato tipo="fecha" nombre="Confirmado">{relativo(c.pagadaAt)}</Dato>
                 <Link href={`/impacto/${c.codigo}`} className="underline-offset-2 hover:text-ink hover:underline">
-                  <Dato tipo="codigo" nombre="Comprobante" mono>{c.codigo}</Dato>
+                  <Dato tipo="codigo" nombre="Constancia" mono>{c.codigo}</Dato>
                 </Link>
               </p>
             </li>
@@ -100,20 +125,14 @@ export function AportesPorAliado({ datos, porEntidad = false, porPartido = false
 }
 
 /**
- * Los últimos aportes confirmados. Cada uno se cuenta en contratos, nunca en soles
- * (PRODUCT.md: el reconocimiento se mide en contratos leídos), y enlaza a su
- * comprobante público, que es donde se ve en qué terminó.
- *
- * Un aporte por entidad nombra a la entidad (no la zona donde están sus contratos) y enlaza a
- * donde se financia, igual que la zona de un aporte por zona.
+ * Los últimos aportes confirmados, nunca en soles, cada uno con su constancia pública. Un apoyo al fondo común dice si
+ * es de cada mes y su destino sugerido; uno del modelo anterior (S/ 3 por contrato), cuántos contratos financió y
+ * dónde, con enlace a esa cola.
  */
-export function RecientesFeed({ items, porEntidad = false, porPartido = false, enColumnas = false }: {
+export function RecientesFeed({ items, enColumnas = false }: {
   items: ContribucionReciente[];
   /** A todo el ancho de la página: dos columnas en pantallas anchas, para que cada aporte no se estire en una fila rala. */
   enColumnas?: boolean;
-  /** La vista de /app/financiar: decide a qué lista lleva el estado vacío. */
-  porEntidad?: boolean;
-  porPartido?: boolean;
 }) {
   if (!items.length) {
     return (
@@ -121,12 +140,12 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
         compacto
         titulo="Todavía no hay aportes confirmados"
         accion={
-          <EnlaceAccion variante="secundario" href={porPartido ? "#partidos" : porEntidad ? "#entidades" : "#zonas"}>
-            {porPartido ? "Elegir un partido" : porEntidad ? "Elegir una entidad" : "Elegir una zona"}
+          <EnlaceAccion variante="secundario" href="/app/apoyar">
+            Aportar
           </EnlaceAccion>
         }
       >
-        Cuando se confirme el primero, aparece acá con su {porPartido ? "partido" : porEntidad ? "entidad" : "zona"} y su comprobante público.
+        Cuando se confirme el primero, aparece acá con su constancia pública.
       </EstadoVacio>
     );
   }
@@ -139,9 +158,16 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
             <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
             <div className="min-w-0 flex-1 text-dato leading-5">
               <p className="text-ink">
-                <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
-                <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"}{" "}
-                {c.partido ? (
+                <span className="font-semibold">{c.financiador}</span>{" "}
+                {c.tipoAporte === "apoyo" ? (
+                  queFue(c)
+                ) : (
+                  <>
+                    financió la lectura de <span className="font-mono tabular-nums">{numero(c.contratos)}</span>{" "}
+                    {c.contratos === 1 ? "contrato" : "contratos"}{" "}
+                  </>
+                )}
+                {c.tipoAporte === "apoyo" ? null : c.partido ? (
                   <>
                     de los gobiernos de{" "}
                     <Link href={`/app/financiar/partido/${c.partido.clave}?anio=${c.partido.anio}`} className="font-semibold text-granate underline-offset-2 hover:underline">
@@ -166,7 +192,7 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false, e
               <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-rotulo text-mute">
                 <Dato tipo="fecha" nombre="Confirmado">{relativo(c.pagadaAt)}</Dato>
                 <Link href={`/impacto/${c.codigo}`} className="underline-offset-2 hover:text-ink hover:underline">
-                  <Dato tipo="codigo" nombre="Comprobante" mono>{c.codigo}</Dato>
+                  <Dato tipo="codigo" nombre="Constancia" mono>{c.codigo}</Dato>
                 </Link>
               </p>
             </div>

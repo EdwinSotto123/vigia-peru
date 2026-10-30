@@ -160,7 +160,7 @@ export default function PagosPage() {
               {/* Una sola caja en dos columnas: las instrucciones (largas) y el correo (corto) juntos, no dos cajas con aire. */}
               <Card className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
                 <p className="text-meta leading-snug text-inkSoft lg:col-span-2">
-                  Lo ve el financiador al registrar un aporte en <strong className="font-semibold text-ink">Financiar</strong>, junto con los números de Yape o Plin, las
+                  Lo ve quien aporta en <strong className="font-semibold text-ink">Ayúdanos a seguir vigilando</strong>, junto con los números de Yape o Plin, las
                   cuentas bancarias y el código de su aporte. Para ver cómo queda, usa «Ver como financiador».
                 </p>
                 <label className="block text-dato leading-5">

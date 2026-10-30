@@ -168,7 +168,7 @@ export function ObservabilidadPanel({
             {typeof m.tokens_prompt === "number" || typeof m.tokens_output === "number" ? (
               <> ({num(m.tokens_prompt)} de entrada, {num(m.tokens_output)} de salida)</>
             ) : null}
-            . Un ciudadano financia una lectura con S/ 3.{" "}
+            . Se paga con el fondo común que sostienen los aportes.{" "}
             <Popover
               titulo="Qué incluye esta cifra"
               anchoClase="w-72"

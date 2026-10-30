@@ -1,7 +1,7 @@
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Clock, Code2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Clock, Code2, HeartHandshake, ShieldCheck } from "lucide-react";
 import { ListaZonas, type ZonaListada } from "@/components/financiar/ListaZonas";
 import { ResultadosEntidades, TAM_ENTIDADES } from "@/components/financiar/ListaEntidades";
 import { ORDEN_PARTIDOS_DEFECTO, ResultadosPartidos, SelectorPeriodo, TAM_PARTIDOS } from "@/components/financiar/ListaPartidos";
@@ -15,7 +15,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Migas, Pagina, Seccion } from "@/components/patrones";
 import { BarraFiltros, Listado, Vistas, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
-import { numero, plural, soles } from "@/lib/formato";
+import { numero, plural } from "@/lib/formato";
 import { CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import {
   alcanceCorto,
@@ -23,7 +23,6 @@ import {
   getEstadoGlobal,
   getPago,
   getZonas,
-  partesTarifa,
   type EstadoGlobal,
   type Zona,
 } from "@/lib/financiamiento";
@@ -35,53 +34,53 @@ const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 /** Zonas por página: las 25 regiones caben en una; una búsqueda amplia ("san") pagina. */
 const TAM = 25;
 
-export async function generateMetadata() {
-  const estado = await getEstadoGlobal();
-  const precio = estado?.tarifa.precioPen;
-  return {
-    title: "Financia una auditoría",
-    description: `Cada región del Perú tiene contratos públicos que nadie ha leído. Financia la capacidad de auditarlos${precio != null ? `: ${soles(precio)} por contrato` : ""}, con resultados públicos y reconocimiento contado en contratos.`,
-  };
-}
+export const metadata = {
+  title: "Lo que falta leer",
+  description:
+    "Cada región del Perú tiene contratos públicos que nadie ha leído. Mira cuántos esperan su lectura a fondo en tu zona, en una entidad o en los gobiernos de un partido, y ayuda a vigilarlos con un aporte al fondo común.",
+};
 
 export const revalidate = 120;
 
 /**
- * Las reglas que hacen que financiar no compre nada: una frase visible por regla y el
- * detalle a un clic (DESIGN_SYSTEM.md §10.7).
+ * Las reglas que hacen que un aporte no compre nada: una frase visible por regla y el detalle a un clic
+ * (DESIGN_SYSTEM.md §10.7). Desde el 2026-10-30 todo aporte va al fondo común (antes se pagaba la lectura de N
+ * contratos de una zona o una entidad, «S/ X por contrato»).
  */
 const REGLAS: { titulo: string; resumen: string; detalle: string }[] = [
   {
     titulo: "Sin selección",
-    resumen: "Eliges una zona o una entidad, nunca un contrato.",
+    resumen: "Ningún aporte elige qué se lee.",
     detalle:
-      "Por zona, los contratos salen de su cola por antigüedad; por entidad, al azar entre los suyos en cola. La asignación se hace en SQL y ninguna API acepta un contrato elegido por quien financia.",
+      "Tu aporte va al fondo común. La zona o la entidad que mirabas queda como destino sugerido en tu constancia, nada más: la cola se lee de lo más grave a lo menos grave, aporte quien aporte. Ninguna API acepta un contrato elegido por quien aporta.",
   },
   {
     titulo: "Sin edición",
-    resumen: "Quien lee no sabe quién financió.",
-    detalle: "Quien lee los contratos no recibe el nombre de quien financió: ese dato no entra en sus instrucciones.",
+    resumen: "Quien lee no sabe quién aportó.",
+    detalle: "Quien lee los contratos no recibe el nombre de quien aportó: ese dato no entra en sus instrucciones.",
   },
   {
     titulo: "Conflicto automático",
     resumen: "Con sanción vigente, sin reconocimiento.",
     detalle:
-      "Empresa con sanción vigente del OECE o con alertas activas: su aporte hace leer contratos igual, pero no recibe reconocimiento público.",
+      "Una empresa con sanción vigente del OECE o con alertas activas puede aportar, pero no recibe reconocimiento público.",
   },
   {
     titulo: "Publicación incondicional",
     resumen: "Se publica aunque te señale.",
-    detalle: "Si la lectura que financiaste termina señalándote, se publica igual. Tu comprobante lo mostrará.",
+    detalle: "Si una lectura termina señalando a quien aportó, se publica igual.",
   },
   {
-    titulo: "Reconocimiento aditivo",
-    resumen: "Nadie es dueño de una zona ni de una entidad.",
-    detalle: "Varios aliados pueden apoyar la misma zona o la misma entidad. Nadie la “tiene”.",
+    titulo: "Reconocimiento por constancia",
+    resumen: "El podio cuenta meses, nunca soles.",
+    detalle:
+      "El podio de aliados ordena por los meses que sostienes la vigilancia: con S/ 5 al mes se llega igual que con S/ 500. Nadie es dueño de una zona ni de una entidad.",
   },
   {
     titulo: "Trazabilidad",
-    resumen: "Cada comprobante lista sus contratos.",
-    detalle: "Cada comprobante lista sus contratos y enlaza a la lectura de cada uno, paso por paso.",
+    resumen: "Cada aporte tiene su constancia pública.",
+    detalle:
+      "Cada aporte confirmado tiene una constancia pública con su código, y en «Cuánto cuesta Vigía» está en qué se gasta el fondo cada mes.",
   },
 ];
 
@@ -93,14 +92,15 @@ const porCola = (a: Pick<Zona, "pendientes" | "nombre">, b: Pick<Zona, "pendient
 const ACCION = CLASE_ACCION_LISTA;
 
 /**
- * /app/financiar — plantilla de conversión (DESIGN_SYSTEM.md §14): una pregunta por
- * pantalla. Dos vistas (§14.1), en la URL (`?por=entidad`): "Por zona" pregunta "¿qué
- * contratos de tu zona quieres que se lean?"; "Por entidad", "¿de qué entidad quieres que
- * se lean los contratos?" (quien desconfía de una entidad concreta la elige a ella).
- * Encabezado → Vistas → Indicadores (el déficit de lectura y el precio, cada cifra con su
- * contexto) → la lista de zonas o de entidades con la anatomía de todo listado (§14.1) y,
- * al costado, los últimos aportes. La búsqueda vive en la URL (`?q=`): se comparte y el
- * botón atrás la deshace.
+ * /app/financiar — «Lo que falta leer»: una pregunta por pantalla (DESIGN_SYSTEM.md §14). Tres vistas (§14.1), en la
+ * URL (`?por=entidad`, `?por=partido`): cuánto falta leer en tu zona, de cada entidad o de los gobiernos de cada
+ * partido. Encabezado → Vistas → Indicadores (el déficit de lectura, cada cifra con su contexto) → la lista con la
+ * anatomía de todo listado (§14.1) y, al costado, las reglas y los últimos aportes. La búsqueda vive en la URL (`?q=`):
+ * se comparte y el botón atrás la deshace.
+ *
+ * Hasta el 2026-10-30 era «Financia una auditoría»: se pagaba la lectura de N contratos a «S/ X por contrato», la venta
+ * de un servicio (auditoría legal). Ahora cada ficha lleva al aporte al fondo común con lo que se mira como destino
+ * sugerido (ApoyarAlcance), y la cola se lee con ese fondo, lo más grave primero.
  */
 export default async function FinanciarPage({
   searchParams,
@@ -158,8 +158,7 @@ export default async function FinanciarPage({
   // Las regiones elegibles en el filtro (las 25) y el nombre de la elegida.
   const opcionesRegion = (zonas ?? []).map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre })).sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
   const nombreRegionElegida = opcionesRegion.find((r) => r.valor === region)?.etiqueta;
-  const precio = estado?.tarifa.precioPen ?? null;
-  const pagosAbiertos = !!pago?.configurado;
+  const pagosAbiertos = !!pago?.configurado || !!pago?.tarjeta;
 
   // "Leídos" y "publicados" del año: la misma cifra del Inicio, el mapa y la portada (lib/cifras, DESIGN_SYSTEM.md
   // §10.1): todo contrato cuyo análisis terminó, por cualquier vía, sobre las convocatorias del año.
@@ -187,21 +186,21 @@ export default async function FinanciarPage({
 
   return (
     <Pagina className="space-y-8">
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo que falta leer", href: "/app/financiar" }]} />
       <div className="space-y-4">
         {/* La pregunta de la pantalla va de título (plantilla de conversión, §14); el porqué, en el ⓘ. */}
         <EncabezadoPagina
           titulo={
             porPartido
-              ? "¿De qué partido quieres que se lean los contratos?"
-              : porEntidad ? "¿De qué entidad quieres que se lean los contratos?" : "¿Qué contratos de tu zona quieres que se lean?"
+              ? "¿Cuánto falta leer de los gobiernos de cada partido?"
+              : porEntidad ? "¿Cuánto falta leer de cada entidad?" : "¿Cuánto falta leer en tu zona?"
           }
           bajada={
             porPartido
-              ? `Elige un partido y financia la lectura de contratos de los gobiernos que ganó en ${periodoTexto(anioPartido)}. Los resultados son públicos, siempre.`
+              ? `Los contratos de los gobiernos que ganó cada partido en ${periodoTexto(anioPartido)} que esperan su lectura a fondo. Se leen con el fondo común, lo más grave primero, y los resultados son públicos.`
               : porEntidad
-                ? "Elige una entidad y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
-                : "Elige una zona y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+                ? "Los contratos de cada entidad que esperan su lectura a fondo. Se leen con el fondo común, lo más grave primero, y los resultados son públicos."
+                : "Los contratos de cada región que esperan su lectura a fondo. Se leen con el fondo común, lo más grave primero, y los resultados son públicos."
           }
           ayuda={
             porPartido ? (
@@ -212,57 +211,57 @@ export default async function FinanciarPage({
                   regional, municipalidad provincial o distrital). Quién ganó sale del JNE.
                 </span>
                 <span className="mt-2 block">
-                  “En cola” son los contratos que esperan financiamiento para leerse; hoy entran solo {alcanceCorto(estado?.alcance)}.
-                  “Leídos” son los que Vigía ya leyó. Financias la lectura, no un resultado.
+                  “En cola” son los contratos que esperan su lectura a fondo; hoy entran solo {alcanceCorto(estado?.alcance)}.
+                  “Leídos” son los que Vigía ya leyó.
                 </span>
               </Ayuda>
             ) : (
-              <Ayuda titulo="¿Qué financias?">
+              <Ayuda titulo="¿Qué es leer a fondo?">
                 <span className="block">
-                  El Estado publica todos sus contratos, pero nadie tiene capacidad de leerlos. Vigía lee cada uno completo,
-                  lo cruza con registros públicos y publica sus señales con la norma que las respalda.
+                  El Estado publica todos sus contratos, pero nadie tiene capacidad de leerlos. Vigía cruza cada día todos
+                  con registros públicos y lee completos los más graves, con la norma que respalda cada señal.
                 </span>
                 <span className="mt-2 block text-mute">
-                  Financias esa lectura: no compras una región, una entidad ni un resultado.
+                  Esa lectura se paga con el fondo común: un aporte no compra la lectura de una región, una entidad ni un
+                  resultado.
                 </span>
               </Ayuda>
             )
           }
           acciones={
-            <EnlaceAccion variante="fantasma" href="#independencia">
-              <ShieldCheck size={16} className="text-granate" aria-hidden /> Reglas de independencia
-            </EnlaceAccion>
+            <span className="flex flex-wrap items-center gap-2">
+              <EnlaceAccion href="/app/apoyar">
+                <HeartHandshake size={16} aria-hidden /> Ayúdanos a seguir vigilando
+              </EnlaceAccion>
+              <EnlaceAccion variante="fantasma" href="#independencia">
+                <ShieldCheck size={16} className="text-granate" aria-hidden /> Reglas de independencia
+              </EnlaceAccion>
+            </span>
           }
         />
         {/* Dos poblaciones del mismo trámite (§14.1): se financia una zona o una entidad. */}
         <Vistas
-          etiqueta="Cómo elegir qué financiar"
+          etiqueta="Cómo mirar lo que falta leer"
           vistas={[
             { href: "/app/financiar", etiqueta: "Por zona", conteo: zonas ? deptos.length : undefined, activa: !porEntidad },
             { href: "/app/financiar?por=entidad", etiqueta: "Por entidad", conteo: totalEntidades, activa: porEntidad },
             { href: "/app/financiar?por=partido", etiqueta: "Por partido", activa: porPartido },
           ]}
         />
-        <CifrasFinanciar
-          anio={cifrasAnio}
-          estado={estado}
-          regionesConCola={estado?.regionesConCola ?? deptos.length}
-          precio={precio}
-          nota={estado?.tarifa.nota ?? null}
-        />
+        <CifrasFinanciar anio={cifrasAnio} estado={estado} regionesConCola={estado?.regionesConCola ?? deptos.length} />
         {!pagosAbiertos && (
           <p className="inline-flex flex-wrap items-center gap-1.5 text-meta text-inkSoft" role="note">
             <Clock size={14} className="shrink-0 text-granate" aria-hidden />
             <strong className="font-semibold text-ink">Los aportes todavía no están abiertos.</strong>
             <Ayuda titulo="¿Por qué no se puede aportar?">
-              Aún no hay un medio de pago conectado. Hoy la lectura la paga Vigía Perú con su propio capital semilla.
-              Puedes elegir una zona o una entidad para ver su cola, seguirla y mirar cómo avanza.
+              Aún no hay un medio de pago conectado. Hoy Vigía Perú se sostiene con su propio capital semilla. Puedes
+              elegir una zona o una entidad para ver su cola, seguirla y mirar cómo avanza.
             </Ayuda>
           </p>
         )}
       </div>
 
-      {/* La lista de zonas (o de entidades) y, al lado, lo que da confianza al pagar (las reglas de independencia) y los
+      {/* La lista de zonas (o de entidades) y, al lado, lo que da confianza al aportar (las reglas de independencia) y los
           últimos aportes: la vista usa el ancho (§10.7). Por partido la lista usa TODO el ancho (cabe el costo, la barra
           y el botón) y la columna va debajo. */}
       <div className={porPartido ? "grid gap-8" : "grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]"}>
@@ -299,7 +298,6 @@ export default async function FinanciarPage({
                     datos={partidos}
                     filtros={{ anio: anioPartido, region, q: qPartido || undefined, orden: ordenPartido, pagina: paginaPedida }}
                     nombreRegion={nombreRegionElegida}
-                    precioPen={precio}
                     alcance={estado?.alcance}
                   />
                 </ResultadosConEspera>
@@ -311,12 +309,12 @@ export default async function FinanciarPage({
           <Seccion
             id="entidades"
             titulo="Elige la entidad"
-            descripcion="Sus contratos en cola, los que ya tienen documentos y lo que cuesta leerlos."
+            descripcion="Sus contratos en cola y los que ya tienen sus documentos."
             ayuda={
               <Ayuda titulo="¿Qué entidades aparecen?">
                 <span className="block">
                   Las que tienen contratos en cola, de más a menos. Buscando, aparecen todas las que coinciden, también las
-                  que hoy no tienen nada que financiar.
+                  que hoy no tienen nada en cola.
                 </span>
                 <span className="mt-2 block">Hoy entran a la cola solo {alcanceCorto(estado?.alcance)}.</span>
               </Ayuda>
@@ -337,7 +335,6 @@ export default async function FinanciarPage({
                     region={region}
                     nombreRegion={nombreRegionElegida}
                     pagina={paginaPedida}
-                    precioPen={precio}
                     alcance={estado?.alcance}
                   />
                 </ResultadosConEspera>
@@ -351,7 +348,7 @@ export default async function FinanciarPage({
             titulo="Elige la zona"
             descripcion={
               <>
-                Contratos en cola y lo que cuesta leerlos.{" "}
+                Contratos que esperan su lectura a fondo.{" "}
                 <Link href="/app/mapa" className="font-medium text-granate underline underline-offset-2">Verlo en el mapa</Link>
               </>
             }
@@ -376,7 +373,6 @@ export default async function FinanciarPage({
                     pagina={pagina}
                     paginas={paginas}
                     fallaronProvincias={fallaronProvincias}
-                    precio={precio}
                   />
                 </ZonaResultados>
               </div>
@@ -385,13 +381,13 @@ export default async function FinanciarPage({
         )}
 
         <div className="space-y-8">
-          {/* ─── INDEPENDENCIA: lo que da confianza al pagar, a la vista junto a la lista (antes, al final de tres pantallas) ─── */}
+          {/* ─── INDEPENDENCIA: lo que da confianza al aportar, a la vista junto a la lista (antes, al final de tres pantallas) ─── */}
           <ReglasIndependencia />
 
           {/* ─── ÚLTIMOS APORTES, por aliado (el orden por aliado vive en /app/aliados) ─── */}
           <Seccion
             titulo="Últimos aportes"
-            descripcion="Contados en contratos, no en soles, con su comprobante público."
+            descripcion="Nunca en soles: cada uno con su constancia pública."
             acciones={
               <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 {/* La lista entera, con buscador: aquí van los más recientes. */}
@@ -405,7 +401,7 @@ export default async function FinanciarPage({
             }
           >
             {aportes ? (
-              <AportesPorAliado datos={aportes} porEntidad={porEntidad} porPartido={porPartido} />
+              <AportesPorAliado datos={aportes} />
             ) : (
               <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
             )}
@@ -417,9 +413,9 @@ export default async function FinanciarPage({
 }
 
 /**
- * Las reglas que hacen que financiar no compre nada, compactas en la columna de la derecha: una frase por regla y el
- * detalle a un clic (DESIGN_SYSTEM.md §10.7). Es lo que da confianza al pagar, así que va junto a la lista que se
- * elige, no al final de tres pantallas. El botón «Reglas de independencia» del encabezado baja hasta aquí.
+ * Las reglas que hacen que un aporte no compre nada, compactas en la columna de la derecha: una frase por regla y el
+ * detalle a un clic (DESIGN_SYSTEM.md §10.7). Es lo que da confianza al aportar, así que va junto a la lista, no al
+ * final de tres pantallas. El botón «Reglas de independencia» del encabezado baja hasta aquí.
  */
 function ReglasIndependencia() {
   return (
@@ -433,10 +429,10 @@ function ReglasIndependencia() {
         <div>
           <h2 id="independencia-titulo" className="inline-flex items-center gap-2 font-display text-bloque font-bold leading-tight text-balance">
             <ShieldCheck size={18} className="shrink-0 text-maiz" aria-hidden />
-            Financias capacidad, no resultados
+            Lo que tu aporte no compra
           </h2>
           <p className="mt-1 text-meta leading-snug text-paper/80">
-            Pagas la lectura de contratos que ya son públicos. Las reglas están en el código, no en una promesa.
+            Va al fondo común de la vigilancia. Las reglas están en el código, no en una promesa.
           </p>
         </div>
         <ul className="divide-y divide-paper/15 border-y border-paper/15">
@@ -470,7 +466,6 @@ function ResultadosZonas({
   pagina,
   paginas,
   fallaronProvincias,
-  precio,
 }: {
   /** El API de zonas respondió. */
   hayZonas: boolean;
@@ -480,7 +475,6 @@ function ResultadosZonas({
   paginas: number;
   /** Se buscó en las provincias y esa lista no respondió. */
   fallaronProvincias: boolean;
-  precio: number | null;
 }) {
   if (!hayZonas) {
     return (
@@ -527,7 +521,6 @@ function ResultadosZonas({
       </div>
       <ListaZonas
         zonas={lista.slice((pagina - 1) * TAM, pagina * TAM)}
-        precioPen={precio}
         etiqueta={q ? `Zonas que coinciden con “${q}”` : "Regiones con contratos en cola"}
       />
       {paginas > 1 && (
@@ -556,10 +549,9 @@ function PaginacionZonas({ pagina, paginas, total, q }: { pagina: number; pagina
 }
 
 /**
- * El déficit de lectura, que es la razón de existir del producto, y el precio, como
- * `Indicadores` (§10.7): cada número grande con lo que es y su contexto. Antes iban
- * seis cifras dentro de una línea gris ("118 de 18,393 publicados leídos (0.64 %) ·
- * 100 financiados en 6 regiones…"): se perdía cuál número decía qué.
+ * El déficit de lectura, que es la razón de existir del producto, como `Indicadores` (§10.7): cada número grande con
+ * lo que es y su contexto. Antes iban seis cifras dentro de una línea gris ("118 de 18,393 publicados leídos (0.64 %) ·
+ * 100 financiados en 6 regiones…"): se perdía cuál número decía qué. El precio por contrato se quitó el 2026-10-30.
  *
  * Lo que no se pudo leer dice "Sin dato"; nunca un cero que parezca un dato.
  */
@@ -567,21 +559,15 @@ function CifrasFinanciar({
   anio,
   estado,
   regionesConCola,
-  precio,
-  nota,
 }: {
   /** Publicados y leídos del año (lib/cifras); `null` si el resumen no respondió. */
   anio: CifrasAnio | null;
   estado: EstadoGlobal | null;
   /** Regiones con cola, con respaldo en la lista de zonas si el estado no lo trae. */
   regionesConCola: number;
-  precio: number | null;
-  /** Desglose de la tarifa (`estado.tarifa.nota`). */
-  nota: string | null;
 }) {
   // Un formato por cifra (lib/cifras): «0.6 %» aquí, en el Inicio y en la portada (antes, «0.64 %» aquí y «0.7 %» allá).
   const pct = anio ? pctDe(anio.leidos, anio.publicados) : null;
-  const partes = partesTarifa(nota);
   const items: Indicador[] = [
     {
       valor: anio ? numero(anio.leidos) : null,
@@ -603,35 +589,17 @@ function CifrasFinanciar({
         contexto: `en ${plural(regionesConCola, "región", "regiones")}`,
         ayuda: (
           <Ayuda titulo="¿Qué entra a la cola?">
-            Contratos que esperan financiamiento para leerse. Hoy entran solo {alcanceCorto(estado.alcance)}.
+            Contratos que esperan su lectura a fondo. Hoy entran solo {alcanceCorto(estado.alcance)}.
           </Ayuda>
         ),
       },
       {
         valor: numero(estado.contratosFinanciados),
-        etiqueta: "contratos financiados",
+        etiqueta: "asignados a lectura",
         contexto: `${numero(estado.contratosProcesados)} ya leídos, ${numero(estado.senalesHalladas)} con señales`,
         href: "/app/auditoria",
       },
     );
-  }
-  if (precio != null) {
-    items.push({
-      valor: soles(precio),
-      etiqueta: "por contrato",
-      contexto: "lectura completa y publicada",
-      ayuda:
-        partes.length > 0 ? (
-          <Ayuda titulo="¿En qué se va cada contrato?">
-            {partes.map((p) => (
-              <span key={p.concepto} className="flex items-baseline gap-2">
-                <span className="w-10 shrink-0 font-mono tabular-nums text-ink">{soles(p.monto)}</span>
-                <span>{p.concepto}</span>
-              </span>
-            ))}
-          </Ayuda>
-        ) : undefined,
-    });
   }
   if (!estado) {
     return <p className="text-meta text-mute" role="note">No se pudo leer el estado del financiamiento. Vuelve a intentarlo en un momento.</p>;

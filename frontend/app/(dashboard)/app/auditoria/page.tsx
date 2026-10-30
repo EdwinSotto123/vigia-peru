@@ -219,9 +219,9 @@ export default async function AuditoriaPage({
           </Ayuda>
         }
         acciones={
-          // La única invitación a financiar de la página: una zona entra aquí en cuanto alguien paga su lectura.
-          <EnlaceAccion variante="secundario" href="/app/financiar" flecha>
-            Financiar una auditoría
+          // La única invitación a aportar de la página: la lectura se paga con el fondo común.
+          <EnlaceAccion variante="secundario" href="/app/apoyar" flecha>
+            Ayúdanos a seguir vigilando
           </EnlaceAccion>
         }
       />
@@ -257,7 +257,7 @@ export default async function AuditoriaPage({
                         <CabeceraPestana
                           ayuda={
                             <Ayuda titulo="¿Cuándo entra un contrato aquí?">
-                              En cuanto se confirma el aporte que financia su región. Antes de su turno espera sus documentos del SEACE.
+                              Cuando le toca su lectura: lo más grave va primero. Antes de su turno espera sus documentos del SEACE.
                             </Ayuda>
                           }
                         >

@@ -25,6 +25,7 @@ import { busquedaOece, procesoOece } from "@/lib/fuentes";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { fechaConAnio, plural } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { rutaApoyar } from "@/lib/rutas";
 import { esCodigoConsorcio, esPersonaNatural, etapaLabel, formatMonto, tipoLabel, type ContratoResumen, type GanadorContrato } from "@/lib/contratos";
 import { ChipsCruces } from "./CrucesCelda";
 import { limpiarObjeto } from "./recortar";
@@ -264,7 +265,7 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
         >
           <p className="text-mute">Nadie ha leído este expediente todavía.</p>
           <Link
-            href={c.entidadRuc && c.entidad ? `/app/apoyar?para=${c.entidadRuc}&nombre=${encodeURIComponent(tituloNatural(c.entidad))}` : "/app/apoyar"}
+            href={rutaApoyar(c.entidadRuc)}
             className="mt-2 inline-flex items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline"
           >
             Ayúdanos a seguir vigilando <ArrowRight size={13} aria-hidden />

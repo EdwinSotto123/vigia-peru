@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** /donar se reemplazó por "Financia una auditoría" (docs/design/FINANCIA_UNA_AUDITORIA.md). */
+/** /donar lleva al aporte al fondo común («Ayúdanos a seguir vigilando»). */
 export default function DonarRedirect() {
-  redirect("/app/financiar");
+  redirect("/app/apoyar");
 }

@@ -13,7 +13,8 @@ import {
   pct,
   type ZonaDetalle,
 } from "@/lib/financiamiento";
-import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { rutaApoyar } from "@/lib/rutas";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ListaPaginada } from "@/components/listado/Paginado";
 import { Dato } from "@/components/ui/Dato";
@@ -122,7 +123,8 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
   const reportesRegion = useMemo(() => (reportes ? reportes.filter((r) => belongsToRegion(r, regionId)) : null), [reportes, regionId]);
 
   const zona = detalle?.zona ?? null;
-  const financiarHref = ubigeo ? `/app/financiar/${ubigeo}` : "/app/financiar";
+  // El aporte al fondo común con la zona como destino sugerido (antes, pagar la lectura de sus contratos en /app/financiar).
+  const apoyarHref = rutaApoyar(ubigeo);
   const denunciarHref = `/reporte/nuevo?region=${encodeURIComponent(regionId)}`;
   const enVivoHref = ubigeo ? `/app/auditoria?ubigeo=${ubigeo}` : "/app/auditoria";
 
@@ -151,7 +153,6 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
           <h2 className="font-display text-2xl font-bold leading-tight text-ink">{nombre}</h2>
           <p className="mt-0.5 text-rotulo leading-snug text-inkSoft">
             {zona ? ESTADO_LABEL[zona.estado] : detalle === null ? "Sin conexión con el estado de la zona" : "Cargando el estado de la zona…"}
-            {zona && zona.precioPen > 0 && `, a ${soles(zona.precioPen)} por contrato leído`}
           </p>
           <div className="mt-2">
             <SeguirZonaBoton ubigeo={ubigeo} nombre={nombre} />
@@ -224,7 +225,7 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
               nSenales={nSenales}
               nSenalesParcial={parcial}
               nDenuncias={reportesRegion?.length ?? null}
-              financiarHref={financiarHref}
+              apoyarHref={apoyarHref}
               denunciarHref={denunciarHref}
               enVivoHref={enVivoHref}
               goTo={(t) => irA(t, true)}
@@ -241,10 +242,10 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senal
       {conPie && (
         <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-line bg-paperDeep px-5 py-3">
           <Link
-            href={financiarHref}
+            href={apoyarHref}
             className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2.5 text-rotulo font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
-            Financiar la lectura
+            Ayuda a vigilarla
           </Link>
           {/* Secundario y sin rojo: en este producto el rojo dice "riesgo", no "acción". */}
           <Link
@@ -270,7 +271,7 @@ function ResumenTab({
   nSenales,
   nSenalesParcial = false,
   nDenuncias,
-  financiarHref,
+  apoyarHref,
   denunciarHref,
   enVivoHref,
   goTo,
@@ -284,7 +285,7 @@ function ResumenTab({
   /** El conteo salió de una lista recortada: es un piso ("12 o más"), no un total. */
   nSenalesParcial?: boolean;
   nDenuncias: number | null;
-  financiarHref: string;
+  apoyarHref: string;
   denunciarHref: string;
   enVivoHref: string;
   goTo: (t: ZonaTab) => void;
@@ -391,18 +392,17 @@ function ResumenTab({
         titulo="Qué puedes hacer"
         ayuda={
           <Ayuda titulo="¿Quién elige qué se lee?">
-            El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
+            Nadie: lo más grave se lee primero, aporte quien aporte. Tu aporte va al fondo común y los resultados se publican
+            igual.
           </Ayuda>
         }
       >
         <div className="space-y-2">
           <Link
-            href={financiarHref}
+            href={apoyarHref}
             className="group flex min-h-[44px] items-center justify-between gap-3 rounded-full bg-granate px-4 py-2.5 text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
-            <span className="text-dato leading-5 font-semibold">
-              Financiar la lectura {esperando > 0 ? `de hasta ${enteros(esperando)} contratos` : `en ${nombre}`}
-            </span>
+            <span className="text-dato leading-5 font-semibold">Ayuda a vigilar {nombre}</span>
             <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </Link>
           <Link
@@ -416,11 +416,11 @@ function ResumenTab({
           </Link>
           {zona.financiados > 0 ? (
             <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-rotulo font-medium text-granate hover:underline">
-              Ver los {enteros(zona.financiados)} financiados pasar de la cola al dictamen
+              Ver los {enteros(zona.financiados)} asignados pasar de la cola al dictamen
               <ArrowUpRight size={12} aria-hidden />
             </Link>
           ) : (
-            <p className="px-1 text-rotulo text-mute">Nadie financió esta zona todavía.</p>
+            <p className="px-1 text-rotulo text-mute">Todavía ningún contrato de esta zona pasó a lectura.</p>
           )}
         </div>
       </BloqueDetalle>
@@ -468,7 +468,6 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
 
   const { zona, cola, hijas, aliados } = detalle;
   const provinciasConCola = hijas.filter((h) => h.totalCola > 0).sort((a, b) => b.totalCola - a.totalCola);
-  const costoEsperando = zona.pendientes * zona.precioPen;
 
   // Formato de panel (§14.4): las dos cifras de la cola → el resto en filas → bloques.
   return (
@@ -491,19 +490,8 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               },
               {
                 valor: enteros(zona.financiados),
-                etiqueta: zona.financiados === 1 ? "financiado" : "financiados",
+                etiqueta: zona.financiados === 1 ? "asignado a lectura" : "asignados a lectura",
                 contexto: `${enteros(zona.pendientes)} esperan`,
-              },
-              {
-                valor: soles(Math.max(0, costoEsperando)),
-                etiqueta: "para leerlos",
-                contexto: `${soles(zona.precioPen)} por contrato`,
-                ayuda: (
-                  <Ayuda titulo="¿Cuánto cuesta leerlos?">
-                    Lo que costaría que los agentes lean todos los contratos que esperan, a {soles(zona.precioPen)} cada uno. Cada
-                    aporte paga los más antiguos de la cola.
-                  </Ayuda>
-                ),
               },
             ]}
           />

@@ -18,7 +18,7 @@
  * §14.4. Antes las cuatro listas se apilaban y había que bajar hasta la que uno buscaba.
  */
 
-import { rutaContrato } from "@/lib/rutas";
+import { rutaApoyar, rutaContrato } from "@/lib/rutas";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -122,8 +122,8 @@ function Contenido() {
           titulo="Todavía no hay nada con esta cuenta"
           accion={
             <>
-              <Link href="/app/financiar" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
-                Financiar una lectura <ArrowRight size={16} aria-hidden />
+              <Link href="/app/apoyar" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+                Ayúdanos a seguir vigilando <ArrowRight size={16} aria-hidden />
               </Link>
               <Link href="/reporte/nuevo" className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
                 Denunciar una obra
@@ -131,7 +131,7 @@ function Contenido() {
             </>
           }
         >
-          Si financiaste como invitado, abre tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span> y
+          Si aportaste como invitado, abre tu constancia <span className="font-mono text-ink">/impacto/VIG-…</span> y
           asócialo desde ahí.
         </Franja>
       </div>
@@ -171,11 +171,11 @@ function Contenido() {
             contenido: (
               <>
                 <CabeceraPestana acciones={<>
-                  <Link href="/app/financiar" className={ENLACE_SECCION}>Financiar otra zona <ArrowRight size={13} aria-hidden /></Link>
+                  <Link href="/app/apoyar" className={ENLACE_SECCION}>Aportar otra vez <ArrowRight size={13} aria-hidden /></Link>
                 </>} />
                 {aportes.length === 0 ? (
                   <VacioSeccion icon={Building2}>
-                    <p>Todavía no tienes aportes. Si financiaste como invitado, asócialo desde tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span>.</p>
+                    <p>Todavía no tienes aportes. Si aportaste como invitado, asócialo desde tu constancia <span className="font-mono text-ink">/impacto/VIG-…</span>.</p>
                     <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Elegir una zona en el mapa <ArrowRight size={14} aria-hidden /></Link>
                   </VacioSeccion>
                 ) : (
@@ -661,8 +661,8 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
         <PieDetalle
           principal={
             <>
-              <EnlaceAccion href={`/app/financiar/${z.ubigeo}`} flecha>
-                Financiar su lectura
+              <EnlaceAccion href={rutaApoyar(z.ubigeo)} flecha>
+                Ayuda a vigilarla
               </EnlaceAccion>
               {regionId && (
                 <EnlaceAccion href={`/app/mapa?region=${regionId}`} variante="secundario">

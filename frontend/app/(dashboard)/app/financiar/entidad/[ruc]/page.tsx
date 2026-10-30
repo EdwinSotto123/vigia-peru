@@ -2,19 +2,17 @@ import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, CheckCircle2, ChevronRight, Clock, MapPin, ShieldCheck } from "lucide-react";
-import { ContribuirForm } from "@/components/financiar/ContribuirForm";
+import { ApoyarAlcance } from "@/components/financiar/ApoyarAlcance";
 import { NombreEntidad, esRucPersona } from "@/components/financiar/NombreEntidad";
-import { SeguirAlcance } from "@/components/financiar/SeguirAlcance";
 import { TablaAliados } from "@/components/financiar/TablaAliados";
-import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { Ruc } from "@/components/Redact";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, type Pestana, Pestanas } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
-import { getEntidadFinanciable, getPago, tiposEnPalabras, type EntidadFinanciableDetalle } from "@/lib/financiamiento";
+import { getEntidadFinanciable, getPago, mediosAbiertos, tiposEnPalabras, type EntidadFinanciableDetalle } from "@/lib/financiamiento";
 import { numero, oracion, plural, soles } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 
 export const revalidate = 60;
 
@@ -24,23 +22,23 @@ const nombrePlano = (d: EntidadFinanciableDetalle) => (esRucPersona(d.entidad.ru
 export async function generateMetadata({ params }: { params: { ruc: string } }) {
   const d = await getEntidadFinanciable(params.ruc);
   if (d === "no_encontrada") return { title: "Entidad no encontrada" };
-  if (!d) return { title: "Financiar la auditoría de una entidad" };
+  if (!d) return { title: "Lo que falta leer de una entidad" };
   const titulo = `¿En qué gasta tu dinero ${nombrePlano(d)}?`;
-  const description = `${plural(d.cola.contratos, "contrato se puede", "contratos se pueden")} auditar hoy, de ${numero(d.contratos.total)} registrados. Financia su lectura a ${soles(d.precioPen)} por contrato; los resultados son públicos.`;
+  const description = `${plural(d.cola.contratos, "contrato espera", "contratos esperan")} su lectura a fondo, de ${numero(d.contratos.total)} registrados. Ayuda a vigilarla con un aporte al fondo común; los resultados son públicos.`;
   return { title: titulo, description, openGraph: { title: titulo, description } };
 }
 
 /**
- * /app/financiar/entidad/[ruc] — plantilla de conversión (§14) por ENTIDAD. Una sola pregunta,
- * la de quien desconfía de una entidad concreta: "¿En qué gasta tu dinero {entidad}?".
+ * /app/financiar/entidad/[ruc] — lo que falta leer de una ENTIDAD. Una sola pregunta, la de quien desconfía de una
+ * entidad concreta: "¿En qué gasta tu dinero {entidad}?".
  *
- *   volver · identidad (la pregunta; tipo, RUC y región) · Indicadores (se pueden auditar hoy,
- *   listos para leerse, con dictamen, registrados: con el alcance activo dicho sin rodeos)
- *   [ pestañas: Qué hay en la cola | Quién financió ]   [ el formulario, a la derecha ]
+ *   volver · identidad (la pregunta; tipo, RUC y región) · Indicadores (esperan lectura a fondo, listos para leerse,
+ *   con dictamen, registrados: con el alcance activo dicho sin rodeos)
+ *   [ pestañas: Qué hay en la cola | Quién financió ]   [ el aporte, a la derecha ]
  *
- * Los contratos se asignan al azar entre los de la entidad en cola, primero los que ya tienen
- * documentos: quien financia elige la entidad, no los contratos. Mínimo 1, máximo lo que haya
- * en cola. Sin nada en cola, se dice (TarjetaConfirmacion), como en la ficha de una zona.
+ * Desde el 2026-10-30 no se paga la lectura de sus contratos («S/ X por contrato» era una venta): a la derecha va el
+ * aporte al fondo común con la entidad como destino sugerido (ApoyarAlcance). La cola se lee con ese fondo, lo más grave
+ * primero; «Quién financió» es lo que se pagó con el modelo anterior.
  */
 export default async function FinanciarEntidadPage({
   params,
@@ -55,9 +53,8 @@ export default async function FinanciarEntidadPage({
   if (!d) return <NoSePudoLeer ruc={params.ruc} />;
 
   const { entidad, cola } = d;
-  const metodos = pago ? ([pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[]) : [];
   const tipo = tipoEntidad(entidad.tipo, entidad.nombre);
-  const alcance = { tipo: "entidad" as const, ruc: entidad.ruc, nombre: entidad.nombre };
+  const alcance = { tipo: "entidad" as const, ruc: entidad.ruc, nombre: tituloNatural(entidad.nombre) };
   const tipos = tiposEnPalabras(d.tiposActivos);
 
   return (
@@ -65,7 +62,7 @@ export default async function FinanciarEntidadPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Financiar", href: "/app/financiar" },
+          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
           { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" },
           // Una entidad con RUC 10 es una persona: su nombre no va en la ruta (docs/PRIVACIDAD.md).
           { etiqueta: esRucPersona(entidad.ruc) ? "Entidad" : entidad.nombre },
@@ -117,10 +114,10 @@ export default async function FinanciarEntidadPage({
           {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
-            <span>Financias capacidad de lectura, no resultados.</span>
+            <span>Tu aporte va al fondo común: no decide qué se lee.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
-              Eliges la entidad, no los contratos: se asignan al azar entre los suyos en cola, y los resultados se publican
-              aunque señalen a quien financió.
+              La entidad queda como destino sugerido de tu aporte, nada más: lo más grave se lee primero, sea de donde sea, y
+              los resultados se publican aunque señalen a quien aportó.
             </Ayuda>
             <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
@@ -128,34 +125,11 @@ export default async function FinanciarEntidadPage({
 
         {/* En móvil la respuesta va PRIMERO; en escritorio, columna derecha pegajosa (como la ficha de una zona). */}
         <section
-          aria-label={`Financiar la lectura de ${nombrePlano(d)}`}
+          aria-label={`Ayuda a vigilar ${nombrePlano(d)}`}
           className="order-first w-full max-w-2xl xl:order-last xl:sticky xl:top-6 xl:max-w-none xl:self-start"
           id="aportar"
         >
-          {cola.contratos > 0 ? (
-            <ContribuirForm
-              alcance={alcance}
-              precioPen={d.precioPen}
-              restantes={cola.contratos}
-              metodos={metodos}
-              pagoConfigurado={!!pago?.configurado}
-              financiados={d.contratos.enProceso}
-            />
-          ) : (
-            <TarjetaConfirmacion
-              titulo="Hoy no hay contratos de esta entidad para auditar"
-              acciones={
-                <>
-                  <EnlaceAccion href="/app/financiar?por=entidad">Elegir otra entidad</EnlaceAccion>
-                  <SeguirAlcance alcance={alcance} />
-                </>
-              }
-            >
-              {tipos
-                ? `Por ahora Vigía audita solo contratos de ${tipos}, y ninguno de esta entidad espera en la cola. Podrás financiar su lectura cuando entre uno.`
-                : "Ninguno de sus contratos espera en la cola. Podrás financiar su lectura cuando entre uno."}
-            </TarjetaConfirmacion>
-          )}
+          <ApoyarAlcance alcance={alcance} medios={mediosAbiertos(pago)} lote={{ precioPen: d.precioPen, restantes: cola.contratos }} />
         </section>
       </div>
     </Pagina>
@@ -168,21 +142,16 @@ export default async function FinanciarEntidadPage({
  * no son todos (sólo se auditan los tipos activos).
  */
 function indicadoresEntidad(d: EntidadFinanciableDetalle, tipos: string): Indicador[] {
-  const { cola, contratos, precioPen } = d;
+  const { cola, contratos } = d;
   return [
     {
       valor: numero(cola.contratos),
-      etiqueta: cola.contratos === 1 ? "se puede auditar hoy" : "se pueden auditar hoy",
-      contexto:
-        cola.contratos === 0
-          ? "ninguno en la cola"
-          : cola.contratos === 1
-            ? `${soles(precioPen)} leerlo`
-            : `${soles(cola.contratos * precioPen)} leerlos, a ${soles(precioPen)} cada uno`,
+      etiqueta: cola.contratos === 1 ? "espera lectura a fondo" : "esperan lectura a fondo",
+      contexto: cola.contratos === 0 ? "ninguno en la cola" : "con el fondo común, lo más grave primero",
       ayuda: (
-        <Ayuda titulo="¿Qué se puede auditar hoy?">
-          Sus contratos en cola: los que esperan financiamiento para leerse. Se asignan al azar entre ellos, primero los que ya
-          tienen sus documentos.
+        <Ayuda titulo="¿Qué espera lectura a fondo?">
+          Sus contratos en cola: los que Vigía todavía no lee completos. Se leen con el fondo común, de lo más grave a lo menos
+          grave; ningún aporte elige cuáles.
         </Ayuda>
       ),
     },
@@ -192,7 +161,7 @@ function indicadoresEntidad(d: EntidadFinanciableDetalle, tipos: string): Indica
       contexto: cola.contratos > 0 ? `de ${numero(cola.contratos)} en cola, ya con sus documentos` : "ninguno en la cola",
       ayuda: (
         <Ayuda titulo="¿Qué es “listos para leerse”?">
-          Contratos en cola cuyos documentos ya están en el almacén de Vigía: se leen apenas se financian. Los demás esperan
+          Contratos en cola cuyos documentos ya están en el almacén de Vigía: se leen apenas les toca. Los demás esperan
           que el lote nocturno los descargue.
         </Ayuda>
       ),
@@ -252,10 +221,10 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
           >
             {parcial
               ? `${numero(enCola.length)} de ${numero(cola.contratos)} en cola: el resto entró después de cargar esta página.`
-              : "Se asignan al azar, primero los que ya tienen documentos."}
+              : "Se leen de lo más grave a lo menos grave."}
             <Ayuda titulo="¿Quién elige qué se lee?">
-              Los contratos son públicos y puedes verlos, pero quien financia elige la entidad, no los contratos: se asignan al
-              azar entre los que están en cola, primero los que ya tienen sus documentos.
+              Los contratos son públicos y puedes verlos, pero nadie elige cuáles se leen: van primero los más graves, aporte
+              quien aporte.
             </Ayuda>
           </CabeceraPestana>
           {enCola.length > 0 ? (
@@ -332,7 +301,7 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
     <FichaNoLeida
-      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }, { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" }]}
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo que falta leer", href: "/app/financiar" }, { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" }]}
       titulo="¿En qué gasta tu dinero esta entidad?"
       error="No pudimos leer la cola de esta entidad"
       reintentar={{ href: `/app/financiar/entidad/${encodeURIComponent(ruc)}` }}

@@ -10,7 +10,8 @@
  *     2026-10-30), «cada mes» es una suscripción con cobro automático; con Yape, Plin o transferencia, cada mes es un
  *     aporte nuevo con el mismo trámite.
  *   - quién: persona, empresa u organización, o anónimo; con sesión, desde la cuenta.
- *   - `para`: la entidad o la región que mirabas al llegar. Sólo dice qué te motivó: no dirige ninguna lectura.
+ *   - `para`: la entidad o la región que mirabas al llegar, como destino sugerido: sale en la constancia y no dirige
+ *     ninguna lectura.
  *   - pago, en dos opciones con sus marcas (pedido del usuario del 2026-10-30): «Mercado Pago», con las tarjetas que
  *     acepta, abre su formulario (PagoTarjeta) y el aporte se valida solo; «Con QR» (Yape o Plin de /admin/pagos) da
  *     el código para el mensaje en tres pasos (PagoConQr), con la captura opcional. Transferencia si hay cuentas.
@@ -549,10 +550,11 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
       {motivo && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-meta text-inkSoft">
           <span>
-            Lo motiva: <strong className="text-ink">{motivo.nombre}</strong>
+            Destino sugerido: <strong className="text-ink">{motivo.nombre}</strong>
           </span>
           <Ayuda titulo="¿Qué significa?">
-            Sólo dice qué te trajo hasta aquí. Tu aporte va al fondo común: no elige qué contrato se lee.
+            Sale en tu constancia, nada más. Tu aporte va al fondo común: no elige qué contrato se lee, y lo más grave va
+            primero, sea de donde sea.
           </Ayuda>
           <button type="button" onClick={() => setMotivo(null)} className="ml-auto inline-flex min-h-[32px] items-center gap-1 text-rotulo underline underline-offset-2 hover:text-ink">
             <X size={13} aria-hidden /> Quitar

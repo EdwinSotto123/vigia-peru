@@ -3,18 +3,16 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Activity, ChevronRight, Radio, ShieldCheck } from "lucide-react";
-import { ContribuirForm } from "@/components/financiar/ContribuirForm";
+import { ApoyarAlcance } from "@/components/financiar/ApoyarAlcance";
 import { ListaZonas } from "@/components/financiar/ListaZonas";
 import { TablaAliados } from "@/components/financiar/TablaAliados";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Revelar } from "@/components/ui/Revelar";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, type Pestana, Pestanas } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
-import { ESTADO_LABEL, ESTADO_PUNTO, alcanceLargo, getPago, getZona, type ZonaDetalle } from "@/lib/financiamiento";
+import { ESTADO_LABEL, ESTADO_PUNTO, alcanceLargo, getPago, getZona, mediosAbiertos, type ZonaDetalle } from "@/lib/financiamiento";
 import { numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { estadoVisible, getProcesamientos, type EstadoProc, type Procesamiento } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
@@ -23,7 +21,7 @@ export const revalidate = 60;
 
 export async function generateMetadata({ params }: { params: { ubigeo: string } }) {
   const d = await getZona(params.ubigeo);
-  return { title: d ? `Financiar auditoría en ${d.zona.nombre}` : "Zona no encontrada" };
+  return { title: d ? `Lo que falta leer en ${d.zona.nombre}` : "Zona no encontrada" };
 }
 
 const NIVEL: Record<string, string> = { departamento: "Región", provincia: "Provincia", distrito: "Distrito" };
@@ -46,19 +44,18 @@ const PRIORIDAD: Record<EstadoProc, number> = {
 };
 
 /**
- * Ficha de una zona para financiar su lectura (plantilla de conversión, §14). Una sola
- * pregunta: ¿cuántos contratos de esta zona quieres que se lean?
+ * Lo que falta leer en una zona.
  *
- *   identidad · Indicadores (en cola y su costo, financiados, leídos, con señales)
- *   [ lo que hace falta para decidir ]   [ el formulario, a la derecha ]
+ *   identidad · Indicadores (esperan lectura a fondo, asignados, leídos, con señales)
+ *   [ lo que hace falta para entenderla ]   [ el aporte, a la derecha ]
  *     pestañas (§14.3): Qué hay en la cola | En vivo | Provincias | Quién financió
  *
- * Esos cuatro bloques antes se apilaban y el último quedaba a varias pantallas del
- * formulario: ahora se pasa de uno a otro con un clic, sin salir de la zona.
+ * Desde el 2026-10-30 no se paga la lectura de sus contratos («S/ X por contrato» era una venta): a la derecha va el
+ * aporte al fondo común con la zona como destino sugerido (ApoyarAlcance). «Quién financió» es lo que se pagó con el
+ * modelo anterior.
  *
- * El formulario va primero en el celular (se llega desde "Financiar esta zona") y pegado
- * a la derecha desde `xl`: entre 1024 y 1280 px, con la barra lateral, la columna de
- * datos quedaba en ~220 px y las tablas no cabían.
+ * El aporte va primero en el celular (se llega desde «Ayuda a vigilar») y pegado a la derecha desde `xl`: entre 1024 y
+ * 1280 px, con la barra lateral, la columna de datos quedaba en ~220 px y las tablas no cabían.
  */
 export default async function ZonaPage({
   params,
@@ -72,7 +69,6 @@ export default async function ZonaPage({
   if (!d) notFound();
   const { zona, breadcrumb } = d;
   const enVivo = zona.financiados > 0 ? await getProcesamientos({ ubigeo: zona.ubigeo, limit: 60 }) : null;
-  const metodos = pago ? [pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[] : [];
   // Una sola base para "en cola" en toda la página: lo que nadie financió todavía (`pendientes`).
   // `totalCola` = pendientes + financiados; usarlo como "en cola" hacía que la misma zona dijera
   // 604 arriba y 594 en el formulario.
@@ -84,7 +80,7 @@ export default async function ZonaPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Financiar", href: "/app/financiar" },
+          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
           ...breadcrumb.map((b) => ({ etiqueta: b.nombre, href: `/app/financiar/${b.ubigeo}` })),
         ]}
       />
@@ -117,9 +113,10 @@ export default async function ZonaPage({
           {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
-            <span>Financias capacidad de lectura, no resultados.</span>
+            <span>Tu aporte va al fondo común: no decide qué se lee.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
-              Los contratos se asignan por antigüedad y los resultados se publican aunque señalen a quien financió.
+              La zona queda como destino sugerido de tu aporte, nada más: lo más grave se lee primero, sea de donde sea, y los
+              resultados se publican aunque señalen a quien aportó.
             </Ayuda>
             <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
@@ -134,7 +131,6 @@ export default async function ZonaPage({
               </h2>
               <ListaZonas
                 zonas={d.hijas}
-                precioPen={zona.precioPen}
                 etiqueta={`${zona.nivel === "departamento" ? "Provincias" : "Distritos"} de ${zona.nombre}`}
                 buscar={zona.nivel === "departamento" ? "Buscar una provincia…" : "Buscar un distrito…"}
               />
@@ -142,36 +138,17 @@ export default async function ZonaPage({
           )}
         </div>
 
-        {/* En móvil la respuesta va PRIMERO (se llega desde "Financiar esta zona"); en escritorio, columna derecha pegajosa. */}
+        {/* En móvil el aporte va PRIMERO (se llega desde «Ayuda a vigilar»); en escritorio, columna derecha pegajosa. */}
         <section
-          aria-label={`Financiar la lectura de ${zona.nombre}`}
+          aria-label={`Ayuda a vigilar ${zona.nombre}`}
           className="order-first w-full max-w-2xl xl:order-last xl:sticky xl:top-6 xl:max-w-none xl:self-start"
           id="aportar"
         >
-          {zona.totalCola > 0 ? (
-            <ContribuirForm
-              alcance={{ tipo: "zona", ubigeo: zona.ubigeo, nombre: zona.nombre }}
-              precioPen={zona.precioPen}
-              restantes={enCola}
-              metodos={metodos}
-              pagoConfigurado={!!pago?.configurado}
-              padre={padre ? { ubigeo: padre.ubigeo, nombre: padre.nombre } : null}
-              financiados={zona.financiados}
-            />
-          ) : (
-            <TarjetaConfirmacion
-              titulo={`Todavía no hay contratos de ${zona.nombre} en la cola`}
-              acciones={
-                padre ? (
-                  <EnlaceAccion href={`/app/financiar/${padre.ubigeo}`}>Ver {padre.nombre}</EnlaceAccion>
-                ) : (
-                  <EnlaceAccion href="/app/financiar#zonas">Elegir otra zona</EnlaceAccion>
-                )
-              }
-            >
-              Podrás financiar su lectura cuando el OECE publique contratos de esta zona que entren a la cola.
-            </TarjetaConfirmacion>
-          )}
+          <ApoyarAlcance
+            alcance={{ tipo: "zona", ubigeo: zona.ubigeo, nombre: zona.nombre }}
+            medios={mediosAbiertos(pago)}
+            lote={{ precioPen: zona.precioPen, restantes: enCola, padre: padre ? { ubigeo: padre.ubigeo, nombre: padre.nombre } : null }}
+          />
         </section>
       </div>
     </Pagina>
@@ -202,9 +179,10 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
               </Link>
             }
           >
-            Se leen en orden de llegada.
+            Se leen de lo más grave a lo menos grave.
             <Ayuda titulo="¿Quién elige qué se lee?">
-              Los contratos son públicos y puedes verlos, pero se leen en orden de llegada: quien financia no elige cuáles.
+              Los contratos son públicos y puedes verlos, pero nadie elige cuáles se leen: van primero los más graves, aporte
+              quien aporte.
             </Ayuda>
           </CabeceraPestana>
           {/* Todo lo que entró a la cola, financiado o no: "en cola" (§10.1) es sólo lo que
@@ -248,7 +226,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
                 // enlace al tablero completo de la región.
                 <Revelar
                   titulo={`En vivo en ${zona.nombre}`}
-                  descripcion="Cada contrato financiado, de la cola a la lectura. Se actualiza solo."
+                  descripcion="Cada contrato de la zona, de la cola a la lectura. Se actualiza solo."
                   etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
                   ancho="lg"
                   className="inline-flex min-h-[24px] w-auto items-center gap-1 text-meta font-medium text-granate hover:underline"
@@ -264,14 +242,14 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
               }
             >
               <Activity size={15} className="shrink-0 text-moss" aria-hidden />
-              {resumenVivo(enVivo) ?? "Cada contrato financiado, de la cola a la lectura."}
+              {resumenVivo(enVivo) ?? "Cada contrato de la zona, de la cola a la lectura."}
             </CabeceraPestana>
             <VistaPreviaVivo items={enVivo} />
           </>
         ) : (
           <p className="flex items-center gap-1.5 text-dato leading-5 text-inkSoft">
             <Activity size={15} className="shrink-0 text-mute" aria-hidden />
-            Cuando alguien financie esta zona, verás aquí cada contrato pasar a la lectura.
+            Cuando un contrato de esta zona pase a lectura, verás aquí cómo avanza.
           </p>
         ),
     },
@@ -291,9 +269,8 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
 }
 
 /**
- * Las cifras de la zona (§10.7): antes eran una línea gris con seis números y una barra.
- * "En cola" lleva su costo de contexto; "financiados leídos" y no "leídos" (§10.1: aquí
- * se cuentan sólo los que alguien financió).
+ * Las cifras de la zona (§10.7): antes eran una línea gris con seis números y una barra. «Asignados» son los que ya
+ * pasaron a lectura (con el modelo anterior, los que alguien financió); «ya leídos» cuenta sólo esos (§10.1).
  */
 function indicadoresZona({ zona, alcance }: ZonaDetalle): Indicador[] {
   const enRevision = zona.enRevision ?? 0;
@@ -301,8 +278,8 @@ function indicadoresZona({ zona, alcance }: ZonaDetalle): Indicador[] {
   return [
     {
       valor: numero(zona.pendientes),
-      etiqueta: "en cola",
-      contexto: `${soles(zona.pendientes * zona.precioPen)} leerlos, a ${soles(zona.precioPen)} cada uno`,
+      etiqueta: zona.pendientes === 1 ? "espera lectura a fondo" : "esperan lectura a fondo",
+      contexto: zona.pendientes === 0 ? "ninguno en la cola" : "con el fondo común, lo más grave primero",
       ayuda: (
         <Ayuda titulo="¿Qué entra a la cola?">
           <span className="block">{alcanceLargo(alcance)}</span>
@@ -312,13 +289,13 @@ function indicadoresZona({ zona, alcance }: ZonaDetalle): Indicador[] {
     },
     {
       valor: numero(zona.financiados),
-      etiqueta: "financiados",
+      etiqueta: "asignados a lectura",
       contexto: zona.totalCola > 0 ? `${pctTxt(pFin)} de ${numero(zona.totalCola)}` : "ningún contrato en la cola",
     },
     {
       valor: numero(zona.procesados),
-      etiqueta: "financiados leídos",
-      contexto: zona.financiados > 0 ? `de ${numero(zona.financiados)} financiados` : "ningún contrato financiado todavía",
+      etiqueta: "ya leídos",
+      contexto: zona.financiados > 0 ? `de ${numero(zona.financiados)} asignados` : "ningún contrato asignado todavía",
     },
     {
       valor: numero(zona.senales),

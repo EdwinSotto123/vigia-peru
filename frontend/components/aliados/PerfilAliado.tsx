@@ -90,8 +90,8 @@ const COLUMNAS_REGIONES: Columna[] = [
 ];
 
 /**
- * Las zonas donde cayeron sus aportes: cada fila va a la ficha de la zona, donde se ve
- * su cola y se puede financiar. `limite` para el resumen (las primeras, por contratos); sin
+ * Las zonas donde cayeron sus aportes (del modelo anterior, por contrato): cada fila va a la ficha de la zona, donde
+ * se ve lo que falta leer. `limite` para el resumen (las primeras, por contratos); sin
  * él, todas, de a 15 y con buscador.
  */
 export function RegionesDeAliado({

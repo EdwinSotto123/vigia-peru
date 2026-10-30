@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
 import { numero, plural } from "@/lib/formato";
 import { CONTRATACIONES_ABIERTAS } from "@/lib/fuentes";
+import { rutaApoyar } from "@/lib/rutas";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { EnlaceAccion } from "./EnlaceAccion";
 
@@ -341,7 +342,7 @@ export function MapaRegionesEscena({
                 <EnlaceAccion href={hrefRegion}>{region ? `Ver ${region.nombre}` : "Ver mi región"}</EnlaceAccion>
                 {region && region.enCola > 0 && (
                   <Link
-                    href={`/app/apoyar?para=${region.codigo}&nombre=${encodeURIComponent(region.nombre)}`}
+                    href={rutaApoyar(region.codigo)}
                     className="inline-flex min-h-[48px] items-center rounded-full px-4 py-3 text-cuerpo font-semibold text-granate underline-offset-4 hover:underline"
                   >
                     Ayuda a vigilar {region.nombre}

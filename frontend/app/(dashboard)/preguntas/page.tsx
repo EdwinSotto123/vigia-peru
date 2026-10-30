@@ -149,12 +149,12 @@ export default async function PreguntasPage() {
               <>
                 Leerlo a fondo con IA cuesta, en promedio, menos de un sol: lo medimos en cada lectura. Lo caro de Vigía es lo
                 fijo (la base de datos con millones de órdenes y contratos, los servidores y la captura de datos), que se paga
-                igual lea uno o mil. Por eso dejamos de pedir «S/ 3 por contrato» y pedimos un aporte de cada mes. Quien prefiera
-                financiar la lectura de una región, una entidad o un partido todavía puede hacerlo en{" "}
+                igual lea uno o mil. Por eso dejamos de pedir «S/ 3 por contrato» y pedimos un aporte, único o de cada mes, al
+                fondo común. Si te mueve una región, una entidad o un partido, en{" "}
                 <Link href="/app/financiar" className={ENLACE}>
-                  Financiar lecturas
-                </Link>
-                .
+                  Lo que falta leer
+                </Link>{" "}
+                ves cuántos de sus contratos esperan lectura y puedes dejarla como destino sugerido de tu aporte.
               </>
             ),
           },
@@ -166,7 +166,7 @@ export default async function PreguntasPage() {
                 Porque si quien paga eligiera, Vigía podría usarse para presionar a una entidad o a un competidor: sostienes la
                 vigilancia, no resultados. Lo más grave se lee primero, aporte quien aporte. Si quien aporta tiene un conflicto de interés que el sistema detecta (una sanción
                 vigente o señales activas en esa zona), su aporte se usa igual, pero no aparece en el ranking de aliados. Y
-                si el análisis que financió lo encuentra a él, se publica igual. Todas las reglas están en{" "}
+                si un análisis lo encuentra a él, se publica igual. Todas las reglas están en{" "}
                 <Link href="/app/apoyar" className={ENLACE}>
                   Ayúdanos a seguir vigilando
                 </Link>

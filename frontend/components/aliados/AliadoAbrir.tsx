@@ -134,10 +134,10 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
               </Link>
             )}
             <Link
-              href="/app/financiar"
+              href="/app/apoyar"
               className="inline-flex min-h-11 items-center gap-2 rounded-full border border-paperEdge px-5 text-cuerpo font-semibold text-ink hover:bg-paperSoft"
             >
-              Financiar una auditoría
+              Ayúdanos a seguir vigilando
             </Link>
           </div>
         }

@@ -22,7 +22,7 @@
  */
 
 import Link from "next/link";
-import { rutaContrato } from "@/lib/rutas";
+import { rutaApoyar, rutaContrato } from "@/lib/rutas";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
 import { Building2, CalendarRange, Clock, FileCheck, FileText, Hash, History, Hourglass, Info, MapPin, Package, ShieldAlert } from "lucide-react";
@@ -770,10 +770,10 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
       }
       nota={falta}
       acciones={[
-        // El aporte va al fondo común (migración 206): la entidad sólo dice qué te trajo, no elige qué se lee.
+        // El aporte va al fondo común (migración 206): la entidad es su destino sugerido, no elige qué se lee.
         <EnlaceAccion
           key="apoyar"
-          href={c.entidadRuc && c.entidad ? `/app/apoyar?para=${c.entidadRuc}&nombre=${encodeURIComponent(tituloNatural(c.entidad))}` : "/app/apoyar"}
+          href={rutaApoyar(c.entidadRuc)}
           flecha
         >
           Ayúdanos a seguir vigilando

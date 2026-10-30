@@ -2,15 +2,13 @@ import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Landmark, ShieldCheck } from "lucide-react";
-import { ContribuirForm } from "@/components/financiar/ContribuirForm";
-import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { ApoyarAlcance } from "@/components/financiar/ApoyarAlcance";
 import { Ayuda, EncabezadoPagina, FichaNoLeida, Migas, Pagina } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { Aviso } from "@/components/partidos/AvisoPartido";
-import { getEstadoGlobal, getPago, tiposEnPalabras } from "@/lib/financiamiento";
-import { listaY, numero, soles } from "@/lib/formato";
+import { getEstadoGlobal, getPago, mediosAbiertos } from "@/lib/financiamiento";
+import { listaY, numero } from "@/lib/formato";
 import { EXPLICACION_PARTIDO, anioDeUrl, getDetallePartido, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 
 export const revalidate = 60;
@@ -18,15 +16,15 @@ export const revalidate = 60;
 export async function generateMetadata({ params, searchParams }: { params: { clave: string }; searchParams?: { anio?: string } }) {
   const anio = anioDeUrl(searchParams?.anio);
   const d = await getDetallePartido(params.clave, anio);
-  if (!d) return { title: "Financiar contratos de un partido" };
-  return { title: `Financiar la lectura de contratos de ${d.partido.nombre}, ${periodoTexto(anio)}` };
+  if (!d) return { title: "Lo que falta leer de un partido" };
+  return { title: `Lo que falta leer de los gobiernos de ${d.partido.nombre}, ${periodoTexto(anio)}` };
 }
 
 /**
- * /app/financiar/partido/[clave]?anio=2022: financiar la lectura de contratos POR PARTIDO y período.
- * Se leen contratos de las entidades que el partido gobernó en ese período (por la fecha en que se
- * convocaron). Quien financia elige el partido y el período, nunca los contratos: se asignan al azar,
- * primero los que ya tienen documentos. Se asocia al ganador de la elección.
+ * /app/financiar/partido/[clave]?anio=2022: lo que falta leer de los contratos de un PARTIDO y período: los de las
+ * entidades que gobernó en ese período (por la fecha en que se convocaron), asociados al ganador de la elección.
+ * Desde el 2026-10-30 no se paga su lectura («S/ X por contrato» era una venta): a la derecha va el aporte al fondo
+ * común (ApoyarAlcance). Un partido no queda como destino sugerido: la base guarda sólo un RUC o un ubigeo.
  */
 export default async function FinanciarPartidoPage({
   params,
@@ -49,20 +47,18 @@ export default async function FinanciarPartidoPage({
   const enCola = fila?.enCola ?? 0;
   const listos = fila?.documentosListos ?? 0;
   const precioPen = estado.tarifa.precioPen;
-  const metodos = pago ? ([pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[]) : [];
   const alcance = { tipo: "partido" as const, clave: params.clave, anio, nombre };
-  const tipos = tiposEnPalabras(estado.alcance?.tipos_activos ?? []);
   const gobiernos = detalle?.partido.gobiernos ?? fila?.gobiernos;
 
   const indicadores: Indicador[] = [
     {
       valor: numero(enCola),
-      etiqueta: enCola === 1 ? "se puede auditar hoy" : "se pueden auditar hoy",
-      contexto: enCola === 0 ? "ninguno en la cola" : `${soles(enCola * precioPen)} leerlos, a ${soles(precioPen)} cada uno`,
+      etiqueta: enCola === 1 ? "espera lectura a fondo" : "esperan lectura a fondo",
+      contexto: enCola === 0 ? "ninguno en la cola" : "con el fondo común, lo más grave primero",
       ayuda: (
-        <Ayuda titulo="¿Qué se puede auditar hoy?">
-          Contratos de las entidades que {nombre} gobernó en {periodoTexto(anio)}, convocados en esos años, que esperan
-          financiamiento para leerse. Se asignan al azar, primero los que ya tienen sus documentos.
+        <Ayuda titulo="¿Qué espera lectura a fondo?">
+          Contratos de las entidades que {nombre} gobernó en {periodoTexto(anio)}, convocados en esos años, que Vigía todavía
+          no lee completos. Se leen con el fondo común, de lo más grave a lo menos grave; ningún aporte elige cuáles.
         </Ayuda>
       ),
     },
@@ -111,7 +107,7 @@ export default async function FinanciarPartidoPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Financiar", href: "/app/financiar" },
+          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
           { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` },
           { etiqueta: nombre },
         ]}
@@ -169,10 +165,10 @@ export default async function FinanciarPartidoPage({
 
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
-            <span>Financias capacidad de lectura, no resultados.</span>
+            <span>Tu aporte va al fondo común: no decide qué se lee.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
-              Eliges el partido y el período, no los contratos: se asignan al azar entre los de sus gobiernos en cola, y los
-              resultados se publican aunque señalen a quien financió.
+              Lo más grave se lee primero, sea del gobierno que sea, y los resultados se publican aunque señalen a quien
+              aportó.
             </Ayuda>
             <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
@@ -183,30 +179,11 @@ export default async function FinanciarPartidoPage({
         </div>
 
         <section
-          aria-label={`Financiar la lectura de contratos de ${nombre}`}
+          aria-label={`Ayuda a vigilar a los gobiernos de ${nombre}`}
           className="order-first w-full max-w-2xl xl:order-last xl:sticky xl:top-6 xl:max-w-none xl:self-start"
           id="aportar"
         >
-          {enCola > 0 ? (
-            <ContribuirForm
-              alcance={alcance}
-              precioPen={precioPen}
-              restantes={enCola}
-              metodos={metodos}
-              pagoConfigurado={!!pago?.configurado}
-              financiados={0}
-            />
-          ) : (
-            <TarjetaConfirmacion
-              titulo="Hoy no hay contratos de este partido para auditar"
-              acciones={<EnlaceAccion href={`/app/financiar?por=partido&anio=${anio}`}>Elegir otro partido</EnlaceAccion>}
-            >
-              {tipos
-                ? `Por ahora Vigía audita solo contratos de ${tipos}, y ninguno de los gobiernos de este partido en ${periodoTexto(anio)} espera en la cola.`
-                : `Ninguno de los contratos de sus gobiernos en ${periodoTexto(anio)} espera en la cola.`}{" "}
-              Podrás financiar su lectura cuando entre uno.
-            </TarjetaConfirmacion>
-          )}
+          <ApoyarAlcance alcance={alcance} medios={mediosAbiertos(pago)} lote={{ precioPen, restantes: enCola }} />
         </section>
       </div>
     </Pagina>
@@ -216,7 +193,7 @@ export default async function FinanciarPartidoPage({
 function NoSePudoLeer({ clave, anio }: { clave: string; anio: number }) {
   return (
     <FichaNoLeida
-      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Financiar", href: "/app/financiar" }, { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` }]}
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo que falta leer", href: "/app/financiar" }, { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` }]}
       titulo="¿Cómo contrataron los gobiernos de este partido?"
       error="No pudimos leer la cola de este partido"
       reintentar={{ href: `/app/financiar/partido/${encodeURIComponent(clave)}?anio=${anio}` }}

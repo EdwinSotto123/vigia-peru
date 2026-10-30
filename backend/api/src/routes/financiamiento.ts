@@ -16,6 +16,8 @@
  *   GET /financiamiento/entidades/:ruc                          una entidad: su cola, sus contratos, su zona, tarifa y aliados
  *   GET /financiamiento/vigilancia                              lo que cuesta Vigía este mes, la meta, lo recaudado y lo que se
  *                                                              vigila (migración 206; lib/vigilancia.ts)
+ *   GET /financiamiento/motivo/:para                            nombre de la entidad (RUC) o zona (ubigeo) que un aporte lleva
+ *                                                              como destino sugerido (/app/apoyar?para=)
  *
  * Aportes por ENTIDAD (migración 39): recientes, impacto y aliados traen `entidad: {ruc, nombre} | null`
  * (null = aporte por zona). Un aporte por entidad tiene también zona: la de la mayoría de sus contratos.
@@ -645,4 +647,22 @@ financiamientoRouter.get("/vigilancia", async (c) => {
 financiamientoRouter.get("/pago", async (c) => {
   cache(c, 60);
   return c.json(await getPagosConfig());
+});
+
+// ─── GET /financiamiento/motivo/:para ────────────────────────────────────────
+// El nombre de la entidad (RUC) o de la zona (ubigeo) que un aporte lleva como destino sugerido, para /app/apoyar?para=.
+// Antes la página mostraba el `?nombre=` del enlace tal como venía: cualquiera podía armar un enlace con un texto
+// inventado dentro de la página de Vigía (auditoría de pagos del 2026-10-30, H14). Una entidad con RUC 10 es una
+// persona: su nombre no se publica (docs/PRIVACIDAD.md), así que no sirve de destino.
+financiamientoRouter.get("/motivo/:para", async (c) => {
+  const para = c.req.param("para");
+  const esRuc = /^\d{11}$/.test(para);
+  if (!esRuc && !/^\d{2}(\d{2}(\d{2})?)?$/.test(para)) return c.json({ error: "invalid_para" }, 400);
+  if (esRuc && para.startsWith("10")) return c.json({ error: "not_found" }, 404);
+  const r = await pool.query<{ nombre: string }>(
+    esRuc ? "SELECT nombre FROM entidades WHERE ruc = $1" : "SELECT nombre FROM zonas WHERE ubigeo = $1", [para]);
+  const nombre = r.rows[0]?.nombre?.trim();
+  if (!nombre) return c.json({ error: "not_found" }, 404);
+  cache(c, 3600);
+  return c.json(esRuc ? { ruc: para, nombre } : { ubigeo: para, nombre });
 });

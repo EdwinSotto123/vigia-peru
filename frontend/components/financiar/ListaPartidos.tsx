@@ -5,16 +5,19 @@ import { Dato } from "@/components/ui/Dato";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { alcanceCorto, type AlcanceProcesamiento } from "@/lib/financiamiento";
-import { numero, plural, soles } from "@/lib/formato";
+import { numero, plural } from "@/lib/formato";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * La vista "Por partido" de /app/financiar: los partidos de un período con contratos esperando lectura, de 25
  * en 25, con filtro de región, búsqueda y orden en la URL. Cada fila lleva a /app/financiar/partido/[clave]?anio=,
- * donde se financia.
+ * sus gobiernos y su cola.
  *
  * Una fila, una línea:
- *   Partido y tipo, contratos y gobiernos | barra | en cola | leídos | costo | Financiar
+ *   Partido y tipo, contratos y gobiernos | barra | en cola | leídos | Ver
+ *
+ * La columna «Costo» (leer la cola a «S/ X por contrato») y el «Financiar» de cada fila se quitaron el 2026-10-30: ya no
+ * se paga la lectura por contrato.
  *
  * Server-safe: todo llega como datos planos desde page.tsx.
  */
@@ -80,7 +83,7 @@ export function SelectorPeriodo({ filtros }: { filtros: FiltrosPartidosUrl }) {
   );
 }
 
-function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null | undefined): Columna[] {
+function columnas(alcance: AlcanceProcesamiento | null | undefined): Columna[] {
   return [
     { clave: "partido", titulo: "Partido", ancho: "minmax(0,1.9fr)" },
     { clave: "barra", titulo: "", ancho: "minmax(0,0.6fr)", desde: "xl" },
@@ -91,8 +94,8 @@ function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null
       alinear: "der",
       ayuda: (
         <Ayuda titulo="¿Qué es “en cola”?">
-          Contratos de las entidades que el partido gobernó en el período, convocados en esos años, que esperan financiamiento
-          para leerse. Hoy entran solo {alcanceCorto(alcance)}.
+          Contratos de las entidades que el partido gobernó en el período, convocados en esos años, que esperan su lectura a
+          fondo. Hoy entran solo {alcanceCorto(alcance)}.
         </Ayuda>
       ),
     },
@@ -104,25 +107,13 @@ function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null
       desde: "md",
       ayuda: <Ayuda titulo="¿Qué cuenta “leídos”?">Contratos del partido en ese período que Vigía ya leyó, sobre todos los que tiene.</Ayuda>,
     },
-    {
-      clave: "costo",
-      titulo: "Costo",
-      ancho: "84px",
-      alinear: "der",
-      desde: "lg",
-      ayuda: (
-        <Ayuda titulo="¿Qué es el costo?">
-          Lo que cuesta leer todos sus contratos en cola{precioPen != null ? `, a ${soles(precioPen)} cada uno` : ""}.
-        </Ayuda>
-      ),
-    },
-    { clave: "accion", titulo: "", ancho: "92px", alinear: "der", desde: "lg" },
+    { clave: "accion", titulo: "", ancho: "72px", alinear: "der", desde: "lg" },
   ];
 }
 
 const TIPO: Record<string, string> = { partido: "Partido", movimiento: "Movimiento regional", alianza: "Alianza electoral" };
 
-function fila(f: FilaPartido, anio: AnioGobierno, precioPen: number | null, mayor: number): Fila {
+function fila(f: FilaPartido, anio: AnioGobierno, mayor: number): Fila {
   return {
     id: f.clave,
     href: `/app/financiar/partido/${f.clave}?anio=${anio}`,
@@ -143,11 +134,10 @@ function fila(f: FilaPartido, anio: AnioGobierno, precioPen: number | null, mayo
       barra: <CeldaBarra parte={f.enCola / mayor} resumen={`${numero(f.enCola)} contratos en cola, de ${numero(mayor)} en el partido con más`} />,
       cola: <CeldaNumero>{numero(f.enCola)}</CeldaNumero>,
       leidos: <CeldaNumero>{`${numero(f.leidos)} de ${numero(f.contratos)}`}</CeldaNumero>,
-      costo: <CeldaNumero>{soles(precioPen != null ? f.enCola * precioPen : null)}</CeldaNumero>,
       // La fila entera es el enlace: esto es solo la señal visual de adónde lleva (no es un segundo botón).
       accion: (
         <span aria-hidden className="inline-flex min-h-8 items-center rounded-full border border-granate/40 px-3 text-meta font-semibold text-granate group-hover:bg-granate-50">
-          Financiar
+          Ver
         </span>
       ),
     },
@@ -159,7 +149,6 @@ export function ResultadosPartidos({
   datos,
   filtros,
   nombreRegion,
-  precioPen,
   alcance,
 }: {
   /** La página del ranking; `null` = la API no respondió. */
@@ -167,7 +156,6 @@ export function ResultadosPartidos({
   filtros: FiltrosPartidosUrl;
   /** El nombre de la región filtrada, para decirlo en palabras. */
   nombreRegion?: string;
-  precioPen: number | null;
   alcance: AlcanceProcesamiento | null | undefined;
 }) {
   const { anio, q, region } = filtros;
@@ -220,8 +208,8 @@ export function ResultadosPartidos({
     <div className="space-y-3">
       {pag}
       <Tabla
-        columnas={columnas(precioPen, alcance)}
-        filas={items.map((f) => fila(f, anio, precioPen, mayorCola))}
+        columnas={columnas(alcance)}
+        filas={items.map((f) => fila(f, anio, mayorCola))}
         etiqueta={q ? `Partidos que coinciden con “${q}”${lugar}` : `Partidos con contratos en cola${lugar}`}
         medida="contenedor"
         densidad="compacta"

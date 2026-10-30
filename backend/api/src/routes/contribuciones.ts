@@ -1,11 +1,10 @@
 /**
- * "Financia una auditoría" — escritura.
+ * Aportes — escritura.
  *
- *   POST /contribuciones                       crea una contribución en `pendiente_pago` (fase 0: transferencia/Yape)
- *                                              por ZONA ({ubigeo}, mínimo 5 contratos) o por ENTIDAD ({entidadRuc},
- *                                              mínimo 1, hasta los que tenga en cola; migración 39)
+ *   POST /contribuciones                       cerrado (410): era la compra de lecturas por contrato, una venta
  *   POST /contribuciones/apoyo                 aporte al fondo común que sostiene la vigilancia (migración 206): único o
- *                                              mensual, sin contratos ni zona; `para` (entidad o región) sólo dice qué lo motivó
+ *                                              mensual, sin contratos ni zona; `para` (entidad o región) es su destino
+ *                                              sugerido: sale en la constancia y no decide qué se lee
  *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload);
  *                                              exige probar titularidad (sesión dueña o correo del aporte)
  *   GET  /contribuciones/:codigo               estado, monto y fechas para quien tiene el código (público, sin datos de
@@ -13,12 +12,10 @@
  *   (las rutas /admin/* viven en routes/admin.ts)
  *
  * Reglas de independencia codificadas acá (docs/design/FINANCIA_UNA_AUDITORIA.md §6):
- *   · No existe ningún campo para elegir contratos: la asignación es `asignar_contribucion()` (SQL): FIFO
- *     dentro de la zona, o al azar entre los contratos en cola de la entidad.
+ *   · No existe ningún campo para elegir contratos ni entidades: un aporte va al fondo común y lo más grave se lee
+ *     primero, aporte quien aporte.
  *   · Empresa con sanción vigente o que aparece como proveedor en alertas activas →
  *     se acepta el aporte pero `financiadores.visible = false` (sin ranking ni muro): lib/aportes.ts.
- *   · Un aporte por entidad guarda también `ubigeo`: la zona de la mayoría de sus contratos en cola
- *     (zona_de_entidad), para que todo lo que une aportes con zonas siga igual.
  */
 
 import { Hono } from "hono";
@@ -29,7 +26,7 @@ import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { hayAporteEntidad } from "../lib/esquema.js";
-import { colaDeEntidad, colaDePartido, entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres, tarifaVigente } from "../lib/aportes.js";
+import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
 import { mpPublicKey } from "../lib/mercadopago.js";
 
 export const contribucionesRouter = new Hono();
@@ -113,146 +110,23 @@ export const LOGO_PROPIO = /^https:\/\/storage\.googleapis\.com\/vigia-peru-repo
  */
 export const TOPE_APORTE = 1375;
 
-// Alcance: exactamente uno de `ubigeo` (zona) o `entidadRuc` (entidad, migración 39).
-const MINIMO_ZONA = 5;
-const CrearBody = z.object({
-  ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
-  entidadRuc: z.string().regex(/^\d{11}$/).optional(),
-  // Por PARTIDO (migración 41): los contratos de las entidades que gobernó en ese período; mínimo 5.
-  partido: z.object({ clave: z.string().regex(/^[a-z0-9-]{1,80}$/), anio: z.number().int().min(2014).max(2022) }).optional(),
-  contratos: z.number().int().min(1).max(50_000),   // por zona, además, mínimo 5 (abajo)
-  financiador: z.object({
-    tipo: z.enum(["empresa", "persona", "organizacion"]),
-    nombrePublico: z.string().trim().min(2).max(80).optional(),   // ausente = anónimo
-    ruc: z.string().regex(/^\d{11}$/).optional(),
-    email: z.string().email().optional(),          // obligatorio sin sesión; con sesión sale de la cuenta
-    logoUrl: z.string().max(300).regex(LOGO_PROPIO).optional(),
-  }),
-  mensajePublico: z.string().trim().max(140).optional(),
-  metodo: z.enum(["transferencia", "yape", "plin"]).default("transferencia"),
-});
-
-// ─── POST /contribuciones ────────────────────────────────────────────────────
-// Límite por IP primero (no gasta siteverify en una ráfaga) y después el captcha (lib/antibots.ts).
-contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, async (c) => {
-  const body = CrearBody.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
-  const { ubigeo, entidadRuc, partido: partidoPedido, contratos, financiador: f, mensajePublico, metodo } = body.data;
-  if ([ubigeo, entidadRuc, partidoPedido].filter(Boolean).length !== 1) {
-    return c.json({ error: "alcance_requerido", detail: "Indica una zona, una entidad o un partido para tu aporte (uno solo)." }, 400);
-  }
-  if ((ubigeo || partidoPedido) && contratos < MINIMO_ZONA) {
-    return c.json({ error: "minimo_contratos", minimo: MINIMO_ZONA, detail: `El mínimo por zona son ${MINIMO_ZONA} contratos.` }, 400);
-  }
-  if (entidadRuc && !(await hayAporteEntidad())) {
-    return c.json({ error: "sin_migracion", detail: "Todavía no se puede financiar una entidad: estamos terminando de habilitarlo. Mientras tanto puedes financiar su zona." }, 503);
-  }
-  if (partidoPedido && !(await hayAporteEntidad())) {
-    return c.json({ error: "sin_migracion", detail: "Todavía no se puede financiar por partido: estamos terminando de habilitarlo." }, 503);
-  }
-  if ((f.tipo === "empresa" || f.tipo === "organizacion") && !f.ruc) {
-    return c.json({ error: "ruc_required", detail: "Empresas y organizaciones deben indicar RUC" }, 400);
-  }
-  const uid = c.get("user")?.uid ?? null;
-  if (!uid && !f.email) return c.json({ error: "email_required", detail: "Sin sesión necesitamos un correo para el comprobante" }, 400);
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    // Alcance: la zona (como siempre) o la entidad, con su cola y la zona que lleva su aporte.
-    let zonaUbigeo: string;
-    let zonaNombre: string;
-    let entidad: { ruc: string; nombre: string } | null = null;
-    let partido: { clave: string; nombre: string; anio: number } | null = null;
-    if (partidoPedido) {
-      const par = await colaDePartido(client, partidoPedido.clave, partidoPedido.anio);
-      if (!par) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "partido_no_encontrado", detail: "Ese partido no gobernó nada en ese período." }, 404);
-      }
-      if (par.enCola === 0 || !par.zona) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "partido_sin_cola", detail: "Este partido no tiene contratos esperando auditoría en este período." }, 409);
-      }
-      if (contratos > par.enCola) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "excede_cola", disponibles: par.enCola,
-          detail: `Este partido tiene ${par.enCola} ${par.enCola === 1 ? "contrato" : "contratos"} esperando auditoría en ese período: no se puede financiar más.` }, 409);
-      }
-      zonaUbigeo = par.zona.ubigeo;
-      zonaNombre = par.zona.nombre;
-      partido = { clave: par.clave, nombre: par.nombre, anio: par.anio };
-    } else if (ubigeo) {
-      const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
-      if (!zona.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "zona_not_found" }, 404); }
-      zonaUbigeo = ubigeo;
-      zonaNombre = zona.rows[0].nombre;
-    } else {
-      const ent = await colaDeEntidad(client, entidadRuc!);
-      if (!ent) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "entidad_no_encontrada", detail: "No encontramos esa entidad." }, 404);
-      }
-      if (ent.enCola === 0 || !ent.zona) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "entidad_sin_cola", detail: "Esta entidad no tiene contratos esperando auditoría en este momento." }, 409);
-      }
-      if (contratos > ent.enCola) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "excede_cola", disponibles: ent.enCola,
-          detail: `Esta entidad tiene ${ent.enCola} ${ent.enCola === 1 ? "contrato" : "contratos"} esperando auditoría: no se puede financiar más.` }, 409);
-      }
-      zonaUbigeo = ent.zona.ubigeo;
-      zonaNombre = ent.zona.nombre;
-      entidad = { ruc: ent.ruc, nombre: ent.nombre };
-    }
-
-    const financiadorId = await resolverFinanciador(client, uid, f);
-
-    // La tarifa que rige hoy (una con vigente_desde futuro todavía no cuenta).
-    const tarifa = await tarifaVigente(client);
-    if (!tarifa) { await client.query("ROLLBACK"); return c.json({ error: "sin_tarifa_vigente" }, 500); }
-    const monto = tarifa.precioPen * contratos;
-    const codigo = (await client.query("SELECT next_codigo_contribucion() AS c")).rows[0].c as string;
-    // El aporte por zona no nombra la columna entidad_ruc: sigue funcionando en una base sin la 39.
-    await client.query(partido
-      ? `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico, partido_clave, partido_anio)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
-      : entidad
-      ? `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico, entidad_ruc)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`
-      : `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [codigo, financiadorId, zonaUbigeo, contratos, tarifa.id, monto, metodo, mensajePublico ?? null,
-       ...(partido ? [partido.clave, partido.anio] : entidad ? [entidad.ruc] : [])]);
-    await client.query("COMMIT");
-
-    const pagos = await getPagosConfig();
-    return c.json({
-      codigo,
-      estado: "pendiente_pago",
-      montoPen: monto,
-      contratos,
-      zona: zonaNombre,
-      entidad,
-      partido,
-      // Fase 0: instrucciones de pago manual, editables desde el panel admin (ajustes.pagos).
-      pago: { metodo, concepto: codigo, ...pagos },
-    }, 201);
-  } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
-    // Sin el mensaje interno en la respuesta: lo registra el manejador de errores (index.ts) con el requestId.
-    throw e;
-  } finally {
-    client.release();
-  }
-});
+// ─── POST /contribuciones (cerrado el 2026-10-30) ────────────────────────────
+// Antes creaba la compra de N lecturas de una zona, una entidad o un partido a la tarifa vigente («S/ X por contrato»).
+// Era la venta de un servicio: pedía RUC, comprobantes de pago y Libro de Reclamaciones, y además mezclaba las
+// donaciones con un negocio ante SUNAT (auditoría legal del 2026-10-30). El usuario decidió que fuera una donación:
+// todo aporte va al fondo común (POST /contribuciones/apoyo) y la zona o la entidad que mirabas es sólo su destino
+// sugerido (`para`). Los aportes por contrato que ya existen siguen con su comprobante; el lote del administrador a
+// nombre de Vigía Perú vive en routes/admin_procesar.ts.
+contribucionesRouter.post("/", (c) =>
+  c.json({ error: "lecturas_cerradas",
+    detail: "Ya no se paga la lectura por contrato: tu aporte va al fondo común de la vigilancia, en /app/apoyar." }, 410));
 
 // ─── POST /contribuciones/apoyo ──────────────────────────────────────────────
 // «Ayúdanos a seguir vigilando» (migración 206): un aporte al fondo común que sostiene la vigilancia (la base de datos,
 // los servidores, la captura de datos y la lectura a fondo de lo más grave). Sin contratos ni zona: nadie elige qué se
-// lee. `para` (la entidad o la región que mirabas) sólo dice qué te motivó. Mensual = lo que eliges hacer cada mes; sin
-// pasarela de pagos, cada mes es un aporte nuevo con el mismo trámite (Yape, Plin o transferencia y su validación).
+// lee. `para` (la entidad o la región que mirabas) es su destino sugerido: sale en la constancia y no decide nada.
+// Mensual = lo que eliges hacer cada mes; con Yape, Plin o transferencia, cada mes es un aporte nuevo con el mismo
+// trámite (con tarjeta, Mercado Pago lo cobra solo: routes/pagos.ts).
 const ApoyoBody = z.object({
   montoPen: z.number().min(5).max(TOPE_APORTE),
   periodicidad: z.enum(["unica", "mensual"]),

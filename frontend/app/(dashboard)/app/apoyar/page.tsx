@@ -9,7 +9,8 @@ import { AporteVigilancia, type ParaAporte } from "@/components/financiar/Aporte
 import { DeCadaCien } from "@/components/financiar/DeCadaCien";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { numero } from "@/lib/formato";
-import { dolares, getPago, getVigilancia, type ResumenVigilancia } from "@/lib/financiamiento";
+import { conAcentos, dolares, getMotivoAporte, getPago, getVigilancia, type ResumenVigilancia } from "@/lib/financiamiento";
+import { tituloNatural } from "@/lib/landing";
 import { CONTRALORIA_CORRUPCION, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
 
 export const metadata: Metadata = {
@@ -57,15 +58,17 @@ const PUSIMOS_EN = [
  *      no compra.
  *   4. El formulario, fijo a la derecha en escritorio; en el celular, justo después del por qué.
  *
- * `?para=<RUC o ubigeo>&nombre=` dice qué te trajo: sólo informa, no dirige lecturas. Financiar la lectura de una
- * zona, entidad o partido sigue en /app/financiar (para organizaciones).
+ * `?para=<RUC o ubigeo>` es el destino sugerido del aporte: sale en la constancia y no decide qué se lee. El nombre
+ * sale de la base (GET /financiamiento/motivo); un `&nombre=` en el enlace se ignora: antes se mostraba tal cual venía
+ * (auditoría de pagos del 2026-10-30, H14). Lo que falta leer por zona, entidad o partido está en /app/financiar.
  */
-export default async function ApoyarPage({ searchParams }: { searchParams?: { para?: string; nombre?: string } }) {
-  const [v, pago] = await Promise.all([getVigilancia(), getPago()]);
-  const p = searchParams?.para ?? "";
-  const nombre = (searchParams?.nombre ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
-  const para: ParaAporte | null =
-    nombre && /^\d{11}$/.test(p) ? { ruc: p, nombre } : nombre && /^\d{2}(\d{2}(\d{2})?)?$/.test(p) ? { ubigeo: p, nombre } : null;
+export default async function ApoyarPage({ searchParams }: { searchParams?: { para?: string } }) {
+  const [v, pago, motivo] = await Promise.all([getVigilancia(), getPago(), searchParams?.para ? getMotivoAporte(searchParams.para) : null]);
+  const para: ParaAporte | null = motivo?.ruc
+    ? { ruc: motivo.ruc, nombre: tituloNatural(motivo.nombre) }
+    : motivo?.ubigeo
+      ? { ubigeo: motivo.ubigeo, nombre: conAcentos(motivo.nombre) }
+      : null;
   const piso = v?.meta.pisoPen ?? null;
 
   return (
@@ -123,14 +126,15 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
 
           <Franja
             icono={<Building2 size={18} />}
-            titulo="¿Eres una organización?"
+            titulo="¿Te mueve una región, una entidad o un partido?"
             accion={
               <EnlaceAccion href="/app/financiar" variante="secundario">
-                Financiar lecturas
+                Lo que falta leer
               </EnlaceAccion>
             }
           >
-            Puedes financiar la lectura de los contratos de una región, una entidad o un partido.
+            Mira cuántos de sus contratos esperan lectura y aporta con ella como destino sugerido: tu aporte va igual al
+            fondo común.
           </Franja>
 
           <FuenteDato

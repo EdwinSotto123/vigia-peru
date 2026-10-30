@@ -26,6 +26,7 @@ import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { Ayuda, BanderasFicha, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, PestanaAPedido, Pestanas, type Pestana } from "@/components/patrones";
 import { OrganizacionEntidad } from "@/components/entidad/OrganizacionEntidad";
 import { banderasEntidad } from "@/lib/banderasEntidad";
+import { rutaApoyar } from "@/lib/rutas";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
 import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
@@ -538,7 +539,7 @@ export default async function EntidadProfile({
       />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. Una acción primaria
-          (financiar su lectura, si tiene cola) y el resto compacto: antes eran cuatro botones del mismo peso, uno por
+          (ayudar a vigilarla) y el resto compacto: antes eran cuatro botones del mismo peso, uno por
           renglón en el celular. "Sus proveedores" pasó a "Sus contratos" y a "Ver también" del Inicio. Fuera del Inicio,
           en el celular, sin la línea de tipo, RUC y zona (MarcoFicha): la lista empieza en la primera pantalla. */}
       <MarcoFicha activa={activa} primera="inicio">
@@ -586,9 +587,9 @@ export default async function EntidadProfile({
           }
           acciones={
             <>
-              {/* Apoyar la vigilancia (migración 206): el aporte va al fondo común; la entidad sólo dice qué te trajo.
-                  Financiar la lectura de sus contratos en cola sigue en /app/financiar/entidad/<ruc>. */}
-              <EnlaceAccion href={`/app/apoyar?para=${e.ruc}&nombre=${encodeURIComponent(nombre)}`} flecha>
+              {/* Apoyar la vigilancia (migración 206): el aporte va al fondo común; la entidad es su destino sugerido.
+                  Lo que falta leer de sus contratos está en /app/financiar/entidad/<ruc>. */}
+              <EnlaceAccion href={rutaApoyar(e.ruc)} flecha>
                 Ayuda a vigilarla
               </EnlaceAccion>
               <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario" className="px-4">

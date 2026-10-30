@@ -5,15 +5,16 @@ import { Dato } from "@/components/ui/Dato";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { alcanceCorto, type AlcanceProcesamiento, type EntidadFinanciable, type EntidadesFinanciables } from "@/lib/financiamiento";
-import { numero, soles } from "@/lib/formato";
+import { numero } from "@/lib/formato";
 import { NombreEntidad, esRucPersona } from "./NombreEntidad";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * La vista "Por entidad" de /app/financiar (§14.1): entidades con contratos en cola, con la
  * anatomía de todo listado:
- *   entidad (nombre + tipo y región) · en cola · listos para leerse · con dictamen · costo · ›
- * Cada fila lleva a /app/financiar/entidad/[ruc], donde se financia.
+ *   entidad (nombre + tipo y región) · en cola · listos para leerse · con dictamen · ›
+ * Cada fila lleva a /app/financiar/entidad/[ruc], su cola y el aporte con la entidad como destino sugerido. La columna
+ * «Costo» (leer la cola a «S/ X por contrato») se quitó el 2026-10-30: ya no se paga la lectura por contrato.
  *
  * La tabla vive en la columna de la izquierda (al lado de los últimos aportes): las columnas
  * entran por el ancho de la TABLA (`medida="contenedor"`), no de la pantalla.
@@ -34,7 +35,7 @@ const hrefVista = (q?: string, pagina?: number, region?: string) => {
   return `/app/financiar?${p.toString()}`;
 };
 
-function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null | undefined): Columna[] {
+function columnas(alcance: AlcanceProcesamiento | null | undefined): Columna[] {
   return [
     { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1.7fr)" },
     { clave: "barra", titulo: "", ancho: "minmax(0,0.8fr)", desde: "lg" },
@@ -45,8 +46,7 @@ function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null
       alinear: "der",
       ayuda: (
         <Ayuda titulo="¿Qué es “en cola”?">
-          Los contratos de la entidad que se pueden auditar hoy: esperan financiamiento para leerse. Hoy entran solo{" "}
-          {alcanceCorto(alcance)}.
+          Los contratos de la entidad que esperan su lectura a fondo. Hoy entran solo {alcanceCorto(alcance)}.
         </Ayuda>
       ),
     },
@@ -58,7 +58,7 @@ function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null
       desde: "md",
       ayuda: (
         <Ayuda titulo="¿Qué es “listos”?">
-          De los que están en cola, los que ya tienen sus documentos descargados: se leen apenas se financian.
+          De los que están en cola, los que ya tienen sus documentos descargados: se leen apenas les toca.
         </Ayuda>
       ),
     },
@@ -74,22 +74,10 @@ function columnas(precioPen: number | null, alcance: AlcanceProcesamiento | null
         </Ayuda>
       ),
     },
-    {
-      clave: "costo",
-      titulo: "Costo",
-      ancho: "104px",
-      alinear: "der",
-      desde: "xl",
-      ayuda: (
-        <Ayuda titulo="¿Qué es el costo?">
-          Lo que cuesta leer todos sus contratos en cola{precioPen != null ? `, a ${soles(precioPen)} cada uno` : ""}.
-        </Ayuda>
-      ),
-    },
   ];
 }
 
-function fila(e: EntidadFinanciable, precioPen: number | null, mayor: number): Fila {
+function fila(e: EntidadFinanciable, mayor: number): Fila {
   // El tipo se infiere del nombre oficial cuando el API no lo declara; si no se puede, no se dice.
   const t = tipoEntidad(e.tipo, e.nombre);
   const persona = esRucPersona(e.ruc);
@@ -109,7 +97,6 @@ function fila(e: EntidadFinanciable, precioPen: number | null, mayor: number): F
       cola: <CeldaNumero>{numero(e.enCola)}</CeldaNumero>,
       listos: <CeldaNumero>{numero(e.conDocumentos)}</CeldaNumero>,
       dictamen: <CeldaNumero>{`${numero(e.auditados)} de ${numero(e.contratos)}`}</CeldaNumero>,
-      costo: <CeldaNumero>{soles(precioPen != null ? e.enCola * precioPen : null)}</CeldaNumero>,
     },
   };
 }
@@ -121,7 +108,6 @@ export function ResultadosEntidades({
   region,
   nombreRegion,
   pagina,
-  precioPen,
   alcance,
 }: {
   /** La página del API; `null` = no respondió. */
@@ -131,7 +117,6 @@ export function ResultadosEntidades({
   region?: string;
   nombreRegion?: string;
   pagina: number;
-  precioPen: number | null;
   alcance: AlcanceProcesamiento | null | undefined;
 }) {
   if (!datos) {
@@ -184,8 +169,8 @@ export function ResultadosEntidades({
     <div className="space-y-3">
       {pag}
       <Tabla
-        columnas={columnas(precioPen, alcance)}
-        filas={items.map((e) => fila(e, precioPen, mayorCola))}
+        columnas={columnas(alcance)}
+        filas={items.map((e) => fila(e, mayorCola))}
         etiqueta={q ? `Entidades que coinciden con “${q}”${lugar}` : `Entidades con contratos en cola${lugar}`}
         medida="contenedor"
         densidad="compacta"

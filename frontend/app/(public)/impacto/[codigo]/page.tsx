@@ -334,8 +334,8 @@ export default async function ImpactoPage({
               titulo={`Lectura financiada por ${c.financiador}`}
               texto={`${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} ${lugarPlano(c)}. ${numero(nConSenal)} con al menos una señal.`}
             />
-            <EnlaceAccion href={c.entidad ? "/app/financiar?por=entidad" : "/app/financiar"} className="sm:ml-auto">
-              {c.entidad ? "Elegir otra entidad" : "Elegir otra zona"} <ArrowRight size={14} aria-hidden />
+            <EnlaceAccion href="/app/apoyar" className="sm:ml-auto">
+              Ayúdanos a seguir vigilando <ArrowRight size={14} aria-hidden />
             </EnlaceAccion>
           </div>
         </div>

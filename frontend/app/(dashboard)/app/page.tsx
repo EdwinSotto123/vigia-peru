@@ -92,7 +92,7 @@ export default async function InicioApp() {
         href: `/entidad/${e.ruc}`,
       })),
       verTodos: { href: "/app/entidades", texto: "Ver todas las entidades" },
-      accion: { href: "/app/financiar?por=entidad", texto: "Financiar por entidad" },
+      accion: { href: "/app/financiar?por=entidad", texto: "Lo que falta leer" },
     });
   }
   const filasPartidos = (partidos?.data ?? []).filter((p) => p.contratos > 0).slice(0, TOPE);
@@ -111,7 +111,7 @@ export default async function InicioApp() {
         href: `/app/partidos/${encodeURIComponent(p.clave)}?anio=${ANIO_GOBIERNO_VIGENTE}`,
       })),
       verTodos: { href: "/app/partidos", texto: "Ver todos los partidos" },
-      accion: { href: "/app/financiar?por=partido", texto: "Financiar por partido" },
+      accion: { href: "/app/financiar?por=partido", texto: "Lo que falta leer" },
       nota: "Se asocia al partido que ganó la elección de ese período. Una señal es para revisar, nunca una acusación contra un partido.",
     });
   }
@@ -152,7 +152,7 @@ export default async function InicioApp() {
         };
       }),
       verTodos: { href: "/app/mapa", texto: "Ver el mapa" },
-      accion: { href: "/app/financiar", texto: "Financiar por zona" },
+      accion: { href: "/app/financiar", texto: "Lo que falta leer" },
     });
   }
 

@@ -280,6 +280,22 @@ export const getRecientesPagina = (limit = 25, offset = 0, q?: string, { sinSemi
 
 export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);
 
+/** Los medios de pago abiertos hoy, para mostrar sus marcas: la tarjeta con Mercado Pago, y Yape y Plin por QR. */
+export const mediosAbiertos = (pago: import("@/components/financiar/PaymentMethods").PagoPublico | null) => ({
+  tarjeta: !!pago?.tarjeta,
+  yape: !!pago?.yape,
+  plin: !!pago?.plin,
+});
+
+/**
+ * El destino sugerido de un aporte (/app/apoyar?para=): la entidad o la zona por su código, con el nombre que tiene en la
+ * base (nunca el del enlace). `null` si el código no es de una entidad o una zona, o si es una persona (RUC 10).
+ */
+export const getMotivoAporte = (para: string) =>
+  /^(\d{11}|\d{2}(\d{2}(\d{2})?)?)$/.test(para)
+    ? getJson<{ ruc?: string; ubigeo?: string; nombre: string }>(`/financiamiento/motivo/${para}`, 3600)
+    : Promise.resolve(null);
+
 export const getComprobante = (codigo: string) =>
   getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
     // Un aporte de apoyo (migración 206) no es un comprobante de lectura: lo trae getComprobanteApoyo.
@@ -487,10 +503,10 @@ export function alcanceLargo(a: AlcanceProcesamiento | null | undefined): string
 
 export const ESTADO_LABEL: Record<ZonaEstado, string> = {
   sin_datos: "Sin contratos ingresados",
-  pendiente: "Pendiente de financiar",
-  parcial: "Parcialmente financiada",
-  financiada: "Financiada, en proceso",
-  procesada: "Auditoría completada",
+  pendiente: "Pendiente de lectura",
+  parcial: "Lectura parcial",
+  financiada: "Toda asignada, en lectura",
+  procesada: "Lectura completada",
 };
 
 /**
