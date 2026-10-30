@@ -1,6 +1,6 @@
 -- 214: la API pública ya no lee dji_vinculos (el DNI de los familiares de la DJI). Sus cruces van por las funciones de la
--- 213; correr esta migración DESPUÉS de desplegar la API que las usa. El panel (vigia_api_admin) y los refrescos
--- (vigia_jobs) siguen leyéndola.
+-- 213; correr esta migración DESPUÉS de desplegar la API que las usa. El panel (vigia_api_admin) hereda los permisos de
+-- vigia_api, así que tampoco la lee (no la usa); los refrescos (vigia_jobs, el Worker de scrapers) sí.
 --
 -- OJO: los privilegios por omisión dan SELECT a vigia_api sobre las tablas nuevas. Si alguna vez se recrea dji_vinculos,
 -- hay que repetir esto. Idempotente.

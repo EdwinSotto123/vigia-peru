@@ -76,6 +76,17 @@ resource "aws_db_parameter_group" "pg16" {
     name  = "pgaudit.log"
     value = "ddl,role"
   }
+  # Lecturas de datos personales (2026-10-30): auditoría por objeto. rds_pgaudit tiene SELECT sobre las tablas con
+  # documentos de personas (migración 213); toda lectura de ellas, de cualquier rol, queda en el log (CloudWatch, que
+  # guarda un año en producción y 30 días en DEV), sin los valores de los parámetros.
+  parameter {
+    name  = "pgaudit.role"
+    value = "rds_pgaudit"
+  }
+  parameter {
+    name  = "pgaudit.log_parameter"
+    value = "0"
+  }
 }
 
 resource "aws_db_instance" "esta" {
