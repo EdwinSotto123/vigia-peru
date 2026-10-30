@@ -112,7 +112,7 @@ export interface ProcesoContrato {
   ofertas?: number | null;
   cronograma?: HitoProceso[];
   /**
-   * En un proceso enorme (compras corporativas con miles de contratos) la API manda los 300 de mayor monto: los totales
+   * En un proceso enorme (compras corporativas con miles de contratos) la API manda los 100 de mayor monto: los totales
    * (cuántos, cuánto, sus adicionales) son de todos. Faltan en la API vieja.
    */
   contrato?: { items: ItemAdjudicado[]; firmados: ContratoFirmado[]; firmadosTotal?: number; montoFirmados?: number | null; adicionalFirmados?: number | null };

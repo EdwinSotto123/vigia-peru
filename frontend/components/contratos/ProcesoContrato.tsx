@@ -172,7 +172,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
  * Los datos de un ítem adjudicado (en la tarjeta si es uno solo; en el panel de su fila si son varios). `sinMontos`: el
  * referencial y lo adjudicado ya van en las cifras de arriba (un proceso de un ítem).
  */
-function datosItem(it: ItemAdjudicado, c: Detalle, { sinMontos = false } = {}): DatoClave[] {
+function datosItem(it: ItemAdjudicado, c: Detalle, { sinMontos = false, sinAyuda = false } = {}): DatoClave[] {
   return [
     { etiqueta: "Estado del ítem", valor: it.estado ? `${humanizarCodigo(it.estado)}${it.fuente === "conosce" ? " (CONOSCE)" : it.fuente === "ocds" ? " (registro OCDS)" : ""}` : null },
     ...(sinMontos
@@ -200,7 +200,8 @@ function datosItem(it: ItemAdjudicado, c: Detalle, { sinMontos = false } = {}): 
     { etiqueta: "Buena pro", valor: it.fechaBuenaPro ? fecha(it.fechaBuenaPro) : null },
     {
       etiqueta: "Consentimiento",
-      ayuda: <AyudaTermino clave="consentimiento" />,
+      // En una compra con cientos de ítems, la explicación se repetía en el panel de cada uno (cientos de copias en la página).
+      ayuda: sinAyuda ? undefined : <AyudaTermino clave="consentimiento" />,
       valor: it.fechaConsentimiento ? fecha(it.fechaConsentimiento) : it.fechaBuenaPro ? "CONOSCE no registra la fecha" : null,
     },
   ];
@@ -243,7 +244,7 @@ function TablaItems({ items, c }: { items: ItemAdjudicado[]; c: Detalle }) {
       contenido: (
         <CuerpoDetalle>
           {it.estado && <ChipsDetalle><Chip>{humanizarCodigo(it.estado)}</Chip></ChipsDetalle>}
-          <DatosClave items={datosItem(it, c)} />
+          <DatosClave items={datosItem(it, c, { sinAyuda: items.length > 50 })} />
           {it.contratos.length > 0 && (
             <BloqueDetalle titulo={it.contratos.length > 1 ? "Sus contratos" : "Su contrato"}>
               <ul className="space-y-1.5">
