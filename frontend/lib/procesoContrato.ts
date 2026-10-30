@@ -70,12 +70,16 @@ export interface ItemAdjudicado {
   fechaBuenaPro: string | null;
   fechaConsentimiento: string | null;
   contratos: string[];
+  /** Cuántos contratos cubren el ítem, si `contratos` va recortado (un proceso enorme). */
+  contratosTotal?: number;
 }
 
 export interface ContratoFirmado {
   codigo: string | null;
   numero: string | null;
   items: number[];
+  /** Cuántos ítems cubre, si `items` va recortado (un proceso enorme). */
+  itemsTotal?: number;
   monto: number | null;
   adicional: number | null;
   reduccion: number | null;
@@ -107,7 +111,11 @@ export interface ProcesoContrato {
   /** Cuántos presentaron oferta según CONOSCE; null si CONOSCE no trae los postores del proceso. */
   ofertas?: number | null;
   cronograma?: HitoProceso[];
-  contrato?: { items: ItemAdjudicado[]; firmados: ContratoFirmado[] };
+  /**
+   * En un proceso enorme (compras corporativas con miles de contratos) la API manda los 300 de mayor monto: los totales
+   * (cuántos, cuánto, sus adicionales) son de todos. Faltan en la API vieja.
+   */
+  contrato?: { items: ItemAdjudicado[]; firmados: ContratoFirmado[]; firmadosTotal?: number; montoFirmados?: number | null; adicionalFirmados?: number | null };
   presupuesto?: PresupuestoProceso | null;
   /** De dónde salió la fecha de la buena pro: los agentes, CONOSCE o la adjudicación del OCDS. */
   fechaBuenaProFuente?: "analisis" | "conosce" | "ocds" | null;

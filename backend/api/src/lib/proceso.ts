@@ -335,12 +335,16 @@ export interface ItemAdjudicado {
   fechaConsentimiento: string | null;
   /** Los contratos (código CONOSCE) que cubren el ítem. */
   contratos: string[];
+  /** Cuántos son en total, si `contratos` va recortado (un proceso enorme: `recortarContrato`). */
+  contratosTotal?: number;
 }
 
 export interface ContratoFirmado {
   codigo: string | null;
   numero: string | null;
   items: number[];
+  /** Cuántos ítems cubre, si `items` va recortado (`recortarContrato`). */
+  itemsTotal?: number;
   monto: number | null;
   adicional: number | null;
   reduccion: number | null;
@@ -680,3 +684,32 @@ export const PARTES_TENDERER_SQL = `(SELECT jsonb_agg(jsonb_build_object('id', p
 export const CONTRATOS_OCDS_SQL = `(SELECT jsonb_agg(jsonb_build_object('id', k->'id', 'awardID', k->'awardID', 'title', k->'title', 'status', k->'status',
      'dateSigned', k->'dateSigned', 'period', k->'period', 'value', k->'value'))
    FROM jsonb_array_elements(${LISTA_JSON("c.ocds_payload->'contracts'")}) k)`;
+
+/** Cuántos contratos firmados caben en la ficha: con más, van los de mayor monto (`recortarContrato`). */
+export const TOPE_FIRMADOS = 300;
+const TOPE_LISTA = 20;
+
+/**
+ * Un proceso enorme (compras corporativas: 2,232 contratos con 128 mil ítems en uno de CENARES) no cabe entero en la
+ * ficha: la página no llegaba a armarse (503). Van los 300 contratos de mayor monto, cada uno con hasta 20 de sus ítems y
+ * cada ítem con hasta 20 de esos contratos, y los totales para decirlo (`firmadosTotal`, `montoFirmados`, `itemsTotal`,
+ * `contratosTotal`); la lista entera está en CONOSCE. Un proceso normal pasa igual, con sus totales.
+ */
+export function recortarContrato(k: { items: ItemAdjudicado[]; firmados: ContratoFirmado[] }) {
+  const montoFirmados = k.firmados.reduce<number | null>((s, f) => (f.monto == null ? s : (s ?? 0) + f.monto), null);
+  // Los adicionales sólo los registra CONOSCE: sin contratos de CONOSCE no se sabe (null, no «ninguno»).
+  const deConosce = k.firmados.filter((f) => f.fuente === "conosce");
+  const adicionalFirmados = deConosce.length ? deConosce.reduce((s, f) => s + (f.adicional ?? 0), 0) : null;
+  const totales = { firmadosTotal: k.firmados.length, montoFirmados, adicionalFirmados };
+  if (k.firmados.length <= TOPE_FIRMADOS) return { ...k, ...totales };
+  const firmados = [...k.firmados]
+    .sort((a, b) => (b.monto ?? 0) - (a.monto ?? 0))
+    .slice(0, TOPE_FIRMADOS)
+    .map((f) => (f.items.length > TOPE_LISTA ? { ...f, items: f.items.slice(0, TOPE_LISTA), itemsTotal: f.items.length } : f));
+  const quedan = new Set(firmados.map((f) => f.codigo).filter((x): x is string => !!x));
+  const items = k.items.map((i) => {
+    const c = i.contratos.filter((x) => quedan.has(x)).slice(0, TOPE_LISTA);
+    return c.length === i.contratos.length ? i : { ...i, contratos: c, contratosTotal: i.contratos.length };
+  });
+  return { items, firmados, ...totales };
+}

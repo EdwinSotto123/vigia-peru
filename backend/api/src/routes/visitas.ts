@@ -271,12 +271,14 @@ visitasRouter.get("/entidad/:ruc/buscar", async (c) => {
             o.decisores, o.ruc, r.nombre AS empresa,
             to_char(e.despues, 'YYYY-MM-DD') AS "despues", e.despues_tipo AS "despuesTipo", e.monto::float AS "montoDespues",
             e.despues_numero AS "despuesNumero", e.despues_monto::float AS "despuesMonto"
-       FROM entidad_visita_org o
+       -- Primero las organizaciones que coinciden (por lo que declararon o por el RUC) y después sus empresas: con el nombre de
+       -- la empresa en el filtro, la unión recorría las 41,952 del Congreso (8.8 s).
+       FROM (SELECT * FROM entidad_visita_org o
+              WHERE o.entidad_ruc = $1 AND (unaccent(o.org) ILIKE unaccent($2) OR (o.ruc = $3 AND o.ruc LIKE '20%'))
+              ORDER BY o.visitas DESC LIMIT 200) o
        LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
        LEFT JOIN entidad_visita_empresa e ON e.entidad_ruc = $1 AND e.ruc = o.ruc
-      WHERE o.entidad_ruc = $1
-        AND (unaccent(o.org) ILIKE unaccent($2) OR unaccent(COALESCE(r.nombre, '')) ILIKE unaccent($2) OR (o.ruc = $3 AND o.ruc LIKE '20%'))
-      ORDER BY o.visitas DESC LIMIT 200`, [ruc, patron, q]).catch(() => null);
+      ORDER BY o.visitas DESC`, [ruc, patron, q]).catch(() => null);
   c.header("Cache-Control", CACHE);
   return c.json(publicar({
     organizaciones: (r?.rows ?? []).map((o) => ({ ...o, ruc: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.ruc : null, empresa: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.empresa : null })),

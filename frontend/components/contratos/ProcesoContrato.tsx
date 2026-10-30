@@ -81,15 +81,18 @@ const sumar = (xs: (number | null)[]) => xs.reduce<number | null>((s, x) => (x =
 // ─── Adjudicación y contrato ─────────────────────────────────────────────────
 
 function SeccionAdjudicacion({ c }: { c: Detalle }) {
-  const k = c.contrato ?? { items: [], firmados: [] };
+  const k: NonNullable<Detalle["contrato"]> = c.contrato ?? { items: [], firmados: [] };
   const items = k.items.filter((i) => i.adjudicado != null || i.proveedores.length > 0 || i.estado);
+  // De todos los contratos, aunque en un proceso enorme sólo lleguen los de mayor monto.
+  const nFirmados = k.firmadosTotal ?? k.firmados.length;
   // Lo adjudicado es lo mismo que la cifra de cabecera: las adjudicaciones vigentes (o, sin ellas, lo de CONOSCE).
   const vigentes = adjudicacionesVigentes(c).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
   const adjudicado = vigentes ?? sumar(k.items.map((i) => i.adjudicado));
-  const contratado = sumar(k.firmados.map((f) => f.monto));
+  const contratado = k.montoFirmados !== undefined ? k.montoFirmados : sumar(k.firmados.map((f) => f.monto));
   // Los adicionales sólo los registra CONOSCE: con el contrato del OCDS no se sabe (sin dato, no «ninguno»).
   const deConosce = k.firmados.filter((f) => f.fuente === "conosce");
-  const adicional = deConosce.length ? sumar(deConosce.map((f) => f.adicional)) ?? 0 : null;
+  const adicional =
+    k.adicionalFirmados !== undefined ? k.adicionalFirmados : deConosce.length ? sumar(deConosce.map((f) => f.adicional)) ?? 0 : null;
   const cifras: Cifra[] = [
     { valor: c.montoPen ? solesCompacto(c.montoPen) : null, etiqueta: "valor referencial", ayuda: <AyudaTermino clave="valor-referencial" />, contexto: c.montoPen ? monto(c.montoPen, c.moneda) : "el registro no lo publica" },
     {
@@ -102,7 +105,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
       valor: contratado ? solesCompacto(contratado) : null,
       etiqueta: "contratado",
       contexto: contratado
-        ? plural(k.firmados.length, "contrato firmado", "contratos firmados")
+        ? plural(nFirmados, "contrato firmado", "contratos firmados")
         : adjudicado ? "CONOSCE todavía no publica el contrato" : "sin buena pro, sin contrato",
     },
     ...(contratado
@@ -139,7 +142,13 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
           </div>
           {items.length > 1 && <TablaItems items={items} c={c} />}
           <div className="border-t border-line px-4 py-4 sm:px-5">
-            <h3 className="font-display text-bloque font-bold text-ink">{k.firmados.length > 1 ? "Los contratos firmados" : "El contrato firmado"}</h3>
+            <h3 className="font-display text-bloque font-bold text-ink">{nFirmados > 1 ? "Los contratos firmados" : "El contrato firmado"}</h3>
+            {nFirmados > k.firmados.length && (
+              <p className="mt-1 text-meta text-inkSoft">
+                Es una compra con {numero(nFirmados)} contratos: aquí van los {numero(k.firmados.length)} de mayor monto, y las cifras de
+                arriba cuentan todos. La lista entera está en CONOSCE (al pie).
+              </p>
+            )}
             {k.firmados.length === 1 ? (
               <DatosClave items={datosContrato(k.firmados[0], c)} className="mt-2" />
             ) : k.firmados.length === 0 ? (
@@ -244,6 +253,11 @@ function TablaItems({ items, c }: { items: ItemAdjudicado[]; c: Detalle }) {
                     {f.firmado && <span className="ml-1.5 text-meta text-mute">firmado el {fecha(f.firmado)}</span>}
                   </li>
                 ))}
+                {it.contratosTotal != null && it.contratosTotal > it.contratos.length && (
+                  <li className="text-meta text-mute">
+                    Y {plural(it.contratosTotal - it.contratos.length, "contrato más", "contratos más")} de este ítem, entre los que no van en esta ficha.
+                  </li>
+                )}
               </ul>
             </BloqueDetalle>
           )}
@@ -262,7 +276,14 @@ function datosContrato(f: ContratoFirmado, c: Detalle): DatoClave[] {
     { etiqueta: "Número", valor: numeroContrato(f.numero) ?? "Sin número" },
     ...(f.codigo ? [{ etiqueta: "Código del contrato", valor: f.codigo, mono: true }] : []),
     ...(f.contratista ? [{ etiqueta: "Contratista", valor: <Nombre p={f.contratista} enlace /> }] : []),
-    ...(f.items.length ? [{ etiqueta: f.items.length > 1 ? "Ítems" : "Ítem", valor: listaY(f.items.map(String)) }] : []),
+    ...(f.items.length
+      ? [{
+          etiqueta: (f.itemsTotal ?? f.items.length) > 1 ? "Ítems" : "Ítem",
+          valor: f.itemsTotal && f.itemsTotal > f.items.length
+            ? `${f.items.join(", ")} y ${plural(f.itemsTotal - f.items.length, "ítem más", "ítems más")}`
+            : listaY(f.items.map(String)),
+        }]
+      : []),
     { etiqueta: "Monto contratado", valor: enMoneda(f.monto), mono: f.monto != null },
     ...(f.fuente === "conosce"
       ? [
@@ -300,14 +321,22 @@ function TablaContratos({ firmados, c }: { firmados: ContratoFirmado[]; c: Detal
     { clave: "firmado", titulo: "Firmado", ancho: "96px", desde: "md", apilar: "con-rotulo" },
     { clave: "monto", titulo: "Contratado", ancho: "132px", alinear: "der", apilar: "con-rotulo" },
   ];
-  const filas: Fila[] = firmados.map((f, i) => ({
-    id: `contrato-${f.codigo ?? i}`,
+  const filas: (Fila & { buscable: string })[] = firmados.map((f, i) => ({
+    id: `contrato-${f.codigo ?? i}-${i}`,
+    buscable: `${f.numero ?? ""} ${f.codigo ?? ""} ${f.contratista?.nombre ?? ""}`,
     celdas: {
       contrato: (
         <CeldaPrincipal
           titulo={tituloContrato(f.numero, f.codigo ?? String(i + 1))}
           meta={[
-            f.items.length > 0 && <Dato key="i" icono={Package} nombre="Ítems">{f.items.length > 1 ? `Ítems ${listaY(f.items.map(String))}` : `Ítem ${f.items[0]}`}</Dato>,
+            // Un contrato con muchos ítems los cuenta (la lista va en su detalle): «Ítems 1, 2, … 79» no se leía.
+            f.items.length > 0 && (
+              <Dato key="i" icono={Package} nombre="Ítems">
+                {(f.itemsTotal ?? f.items.length) > 8
+                  ? plural(f.itemsTotal ?? f.items.length, "ítem", "ítems")
+                  : f.items.length > 1 ? `Ítems ${listaY(f.items.map(String))}` : `Ítem ${f.items[0]}`}
+              </Dato>
+            ),
             f.contratista && <Dato key="k" icono={UserRound} nombre="Contratista"><Nombre p={f.contratista} /></Dato>,
             f.codigo && <Dato key="c" icono={Hash} nombre="Código del contrato" mono>{f.codigo}</Dato>,
           ]}
@@ -324,7 +353,20 @@ function TablaContratos({ firmados, c }: { firmados: ContratoFirmado[]; c: Detal
       contenido: <CuerpoDetalle><DatosClave items={datosContrato(f, c)} /></CuerpoDetalle>,
     },
   }));
-  return <Tabla columnas={columnas} filas={filas} etiqueta="Contratos firmados del proceso" medida="contenedor" />;
+  // Muchos contratos (una compra corporativa): paginados y con buscador; pocos, la tabla entera.
+  return filas.length > 25 ? (
+    <TablaPaginada
+      columnas={columnas}
+      filas={filas}
+      etiqueta="Contratos firmados del proceso"
+      tam={25}
+      nombre="contratos"
+      buscar={{ placeholder: "Buscar por número, código o contratista…", etiqueta: "Buscar entre los contratos firmados" }}
+      medida="contenedor"
+    />
+  ) : (
+    <Tabla columnas={columnas} filas={filas} etiqueta="Contratos firmados del proceso" medida="contenedor" />
+  );
 }
 
 /**
