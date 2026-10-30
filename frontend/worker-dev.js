@@ -11,7 +11,7 @@
  * Desplegar: `bash infrastructure/deploy/dev.sh web` (ver docs/DEV.md).
  */
 import abierto from "./.open-next/worker.js";
-import { aLaApi, frenoDePaginas, RUTA_API } from "./worker-comun.js";
+import { aLaApi, frenoDePaginas, RUTA_API, RUTA_CDN_CGI } from "./worker-comun.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -47,6 +47,7 @@ export default {
     // CF-Connecting-IP (que Cloudflare pone, y no deja falsificar, en todo pedido que entra de internet).
     const interna = !req.headers.has("cf-connecting-ip") && req.headers.has("x-prerender-revalidate");
     const url = new URL(req.url);
+    if (RUTA_CDN_CGI.test(url.pathname)) return new Response("No encontrado", { status: 404 });
     const ip = req.headers.get("cf-connecting-ip");
     // El mismo freno que producción (worker-comun.js), con un veto de un minuto (VETO_S) para poder probar la trampa.
     if (ip && autorizado(req, env)) {

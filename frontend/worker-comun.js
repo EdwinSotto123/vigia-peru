@@ -22,6 +22,14 @@ export function claveIp(ip) {
 }
 
 export const RUTA_API = /^\/v1(?:\/|$)/;
+
+/**
+ * `/cdn-cgi/…` no es de la web: Cloudflare lo atiende antes del Worker. Lo que llegue hasta acá es un intento de saltar
+ * ese filtro (`/cdn-cgi\image/…`, GHSA-c7mq-gh6q-6q7c): el worker de OpenNext trae un manejador de imágenes para
+ * desarrollo que pide cualquier URL y devuelve lo que trae, con la identidad de nuestro Worker ante la API (CF-Worker).
+ * Hoy lo frena la normalización de URL de la zona (url_normalization = cloudflare); esto no depende de ella.
+ */
+export const RUTA_CDN_CGI = /^\/cdn-cgi(?![\w-])/i;
 const PEDIDO = ["accept", "content-type", "cf-turnstile-response", "if-none-match"];
 const RESPUESTA = ["content-type", "cache-control", "etag", "last-modified", "retry-after", "content-disposition", "x-vigia-cdn"];
 

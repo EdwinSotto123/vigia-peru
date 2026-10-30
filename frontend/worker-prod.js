@@ -18,9 +18,11 @@
  *     pide es un programa que ignora las reglas, y su IP queda vetada una hora (veto en el Durable Object, en disco).
  *   · Lo interno pasa tal cual: la revalidación ISR (WORKER_SELF_REFERENCE) llega sin CF-Connecting-IP, que Cloudflare
  *     pone (y no deja falsificar) en todo pedido que entra de internet.
+ *   · `/cdn-cgi/…` nunca llega al build de OpenNext (worker-comun.js → RUTA_CDN_CGI): su manejador de imágenes de
+ *     desarrollo sería un proxy abierto.
  */
 import abierto from "./.open-next/worker.js";
-import { aLaApi, frenoDePaginas, RUTA_API } from "./worker-comun.js";
+import { aLaApi, frenoDePaginas, RUTA_API, RUTA_CDN_CGI } from "./worker-comun.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -29,9 +31,10 @@ const HOST_VIEJO = "vigia-web.vigiaperu.workers.dev";
 
 export default {
   async fetch(req, env, ctx) {
+    const url = new URL(req.url);
+    if (RUTA_CDN_CGI.test(url.pathname)) return new Response("No encontrado", { status: 404 });
     const ip = req.headers.get("cf-connecting-ip");
     if (ip) {
-      const url = new URL(req.url);
       if (url.hostname === HOST_VIEJO) {
         const metodoSeguro = req.method === "GET" || req.method === "HEAD";
         return Response.redirect(`${DOMINIO}${url.pathname}${url.search}`, metodoSeguro ? 301 : 308);
