@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { ListaEmpresas } from "@/components/empresas/ListaEmpresas";
 
-export const metadata: Metadata = { title: "Empresas" };
+export const metadata: Metadata = {
+  title: "Empresas",
+  description:
+    "Las empresas que contratan con el Estado peruano: cuánto ganaron, con qué entidades, sus socios y sus antecedentes, con la fuente oficial de cada dato.",
+  alternates: canonica("/app/empresas"),
+};
 export const revalidate = 600;
 
 /**

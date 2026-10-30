@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
   title: "Glosario",
   description:
     "Cada término que usa Vigía Perú, en palabras simples: órdenes de servicio, CAS, buena pro, PIM, la declaración jurada de intereses, las visitas y las señales.",
+  alternates: canonica("/glosario"),
 };
 
 /**

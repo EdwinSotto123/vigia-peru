@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Vistas } from "@/components/listado/Vistas";
 import {
@@ -42,6 +43,7 @@ export const metadata = {
   // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
   title: "Contratos",
   description: "Todos los contratos públicos del SEACE que tiene Vigía, con su tipo, etapa, zona y estado de lectura.",
+  alternates: canonica("/app/contratos"),
 };
 
 // Las tres vistas de la página paginan igual. Con 50 contratos, la lista era 10 pantallas en el celular (cada fila apila

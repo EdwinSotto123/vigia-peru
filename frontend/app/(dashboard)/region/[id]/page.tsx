@@ -13,11 +13,20 @@ import { municipalidadesDe, zonasDe, type ZonaRegion } from "@/components/region
 import { ORDENES, contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
 import { BUSCADOR_CONTRALORIA, CONOSCE_BUSCADOR, CONSULTA_AMIGABLE, CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import { regionDe, rutaRegion, type Region } from "@/lib/regiones";
+import { canonica, descripcion } from "@/lib/seo";
 import { uno } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const r = regionDe(params.id);
-  return { title: r ? `Región ${r.nombre}` : "Región" };
+  if (!r) return { title: "Región" };
+  return {
+    title: `Región ${r.nombre}`,
+    description: descripcion([
+      `${r.nombre}: su gobierno regional y sus municipalidades, lo que contrataron y quién ganó, en qué gastan según el MEF,`,
+      "quiénes gobernaron y los informes de control, con la fuente oficial de cada dato.",
+    ]),
+    alternates: canonica(`/region/${r.ubigeo.slice(0, 2)}`),
+  };
 }
 
 const TAM = 20;

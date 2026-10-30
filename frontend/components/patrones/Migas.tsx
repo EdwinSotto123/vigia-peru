@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { EVENTO_ACTIVA } from "./Pestanas";
+import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
+import { absoluta } from "@/lib/seo";
 
 export interface Miga {
   etiqueta: string;
@@ -42,6 +44,7 @@ export function Migas({
 
   return (
     <nav aria-label="Ruta de navegación">
+      <RutaParaBuscadores items={items} />
       <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-dato">
         {todas.map((m, i) => {
           const ultima = i === todas.length - 1;
@@ -62,5 +65,28 @@ export function Migas({
         })}
       </ol>
     </nav>
+  );
+}
+
+/**
+ * La misma ruta como BreadcrumbList de schema.org: Google la muestra en el resultado en vez de la URL. Sin la pestaña (es
+ * la misma página) y sin consultas en los enlaces (sólo las rutas, que son las canónicas); un paso del medio sin enlace
+ * no entra, el último va sin URL (es la página).
+ */
+function RutaParaBuscadores({ items }: { items: Miga[] }) {
+  const pasos = items.flatMap((m, i) => {
+    const ultimo = i === items.length - 1;
+    if (ultimo) return [{ "@type": "ListItem", name: m.etiqueta }];
+    return m.href ? [{ "@type": "ListItem", name: m.etiqueta, item: absoluta(m.href.split(/[?#]/)[0] || "/") }] : [];
+  });
+  if (pasos.length < 2) return null;
+  return (
+    <DatosEstructurados
+      datos={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: pasos.map((p, i) => ({ ...p, position: i + 1 })),
+      }}
+    />
   );
 }

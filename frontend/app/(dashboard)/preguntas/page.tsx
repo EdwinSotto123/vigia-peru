@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import Link from "next/link";
 import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
   title: "Preguntas frecuentes",
   description:
     "Qué hace Vigía Perú y qué no: de dónde salen los contratos, cuánto cuesta leer uno, quién lo paga y por qué nadie elige qué se analiza.",
+  alternates: canonica("/preguntas"),
 };
 
 const REPO = "https://github.com/EdwinSotto123/vigia-peru";

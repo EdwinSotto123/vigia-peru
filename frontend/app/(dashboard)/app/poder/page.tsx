@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, EnlaceFuente, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { PoderVista } from "@/components/entidad/PoderVista";
@@ -11,6 +12,7 @@ import { uno } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Mapa de poder",
   description: "Qué partido gobierna cada entidad y cuánta de su contratación fue a empresas ligadas a ese partido.",
+  alternates: canonica("/app/poder"),
 };
 
 // Los datos se cachean 10 minutos (`next.revalidate` en lib/poder); la página lee `?vista=`, así que se arma por pedido.

@@ -9,10 +9,20 @@ import { GrafoPartidoRegiones } from "@/components/entidad/GrafoPartidoRegiones"
 import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { parte } from "@/lib/grafo";
 import { tituloNatural } from "@/lib/landing";
-import { getPoderPartido } from "@/lib/poder";
+import { clavePartido, getPoderPartido } from "@/lib/poder";
+import { canonica, descripcion } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: { partido: string } }): Promise<Metadata> {
-  return { title: `${tituloNatural(decodeURIComponent(params.partido))}, mapa de poder` };
+  const partido = decodeURIComponent(params.partido);
+  const nombre = tituloNatural(partido);
+  return {
+    title: `${nombre}, mapa de poder`,
+    description: descripcion([
+      `Dónde gobierna ${nombre} hoy, entidad por entidad y departamento por departamento,`,
+      "y qué empresas ligadas al partido contrataron con esas entidades.",
+    ]),
+    alternates: canonica(`/app/poder/${clavePartido(partido)}`),
+  };
 }
 
 /**

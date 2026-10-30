@@ -18,6 +18,33 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlotante";
 import { OG_BASE, SITIO, TWITTER_BASE } from "@/lib/compartir";
 import { SCRIPT_MODO } from "@/lib/modoScript";
+import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
+import { LOGO, absoluta } from "@/lib/seo";
+
+/** Quién publica y qué sitio es (schema.org): lo que un buscador muestra junto al nombre del sitio. */
+const DATOS_SITIO = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": absoluta("/#gobserva"),
+      name: "Gobserva",
+      url: SITIO,
+      logo: absoluta(LOGO),
+    },
+    {
+      "@type": "WebSite",
+      "@id": absoluta("/#sitio"),
+      url: absoluta("/"),
+      name: "Vigía Perú",
+      alternateName: "Vigía by Gobserva",
+      description:
+        "Plataforma cívica que lee los contratos públicos del Perú, los cruza con registros oficiales y muestra señales de riesgo con la norma y la fuente de cada una.",
+      inLanguage: "es-PE",
+      publisher: { "@id": absoluta("/#gobserva") },
+    },
+  ],
+};
 
 export const metadata: Metadata = {
   // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
@@ -56,6 +83,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MODO }} />
       </head>
       <body>
+        <DatosEstructurados datos={DATOS_SITIO} />
         <AuthProvider>
           {children}
           <PagoPendienteFlotante />

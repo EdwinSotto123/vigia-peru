@@ -8,6 +8,7 @@ import { ResultadoView } from "@/components/convocatoria/ResultadoView";
 import { getProcesamiento } from "@/lib/auditoria";
 import { cargarDossier, idLegible } from "@/lib/dossier-servidor";
 import { rutaContrato, type VistaContrato } from "@/lib/rutas";
+import { canonica } from "@/lib/seo";
 import { limpiarObjeto, recortar as corto } from "@/components/contratos/recortar";
 import { Pagina } from "@/components/patrones";
 import { leerDesde, migasConDesde } from "@/lib/desde";
@@ -47,6 +48,8 @@ export async function generateMetadata({
   return {
     title: titulo,
     description: desc || "Contrato público del SEACE en Vigía Perú.",
+    // Las tres vistas y las pestañas son la misma ficha: la canónica es la ruta por su OCID, sin consulta.
+    alternates: canonica(rutaContrato(c.ocid)),
     openGraph: { ...OG_BASE, title: titulo, description: desc, type: "article" },
     twitter: { ...TWITTER_BASE, title: titulo, description: desc },
   };

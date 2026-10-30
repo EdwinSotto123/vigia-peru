@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canonica, descripcion } from "@/lib/seo";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CalendarRange, MapPin } from "lucide-react";
@@ -46,7 +47,16 @@ export const revalidate = 120;
 
 export async function generateMetadata({ params, searchParams }: { params: { clave: string }; searchParams?: { anio?: string } }) {
   const d = await getDetallePartido(params.clave, anioDeUrl(searchParams?.anio));
-  return { title: d ? `${d.partido.nombre}, contratos de sus gobiernos` : "Partido" };
+  if (!d) return { title: "Partido" };
+  return {
+    title: `${d.partido.nombre}, contratos de sus gobiernos`,
+    description: descripcion([
+      `${d.partido.nombre}: las regiones, provincias y distritos que gobierna y lo que contrataron sus gobiernos,`,
+      "con quién ganó, los montos, las señales de riesgo y los informes de control.",
+    ]),
+    // Otro período (`?anio=`) es la misma ficha: robots.txt no recorre consultas.
+    alternates: canonica(`/app/partidos/${params.clave}`),
+  };
 }
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };

@@ -1,4 +1,5 @@
 import { BarChart3, BookOpen, CheckCircle2, Radio } from "lucide-react";
+import { canonica } from "@/lib/seo";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -33,6 +34,7 @@ export const metadata = {
   // afirmar cinco números distintos de agentes en páginas que el mismo usuario visita seguidas.
   description:
     `Mira en tiempo real cómo cada contrato público financiado pasa de la cola al análisis de ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, y al dictamen con señales de riesgo.`,
+  alternates: canonica("/app/auditoria"),
 };
 
 export const revalidate = 10;

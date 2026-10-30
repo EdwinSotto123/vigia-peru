@@ -13,6 +13,7 @@ import { Severidad } from "@/components/ui/Severidad";
 import { decimal, fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { TALENTO_PERU } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
+import { canonica, descripcion } from "@/lib/seo";
 import { SENAL_PLAZA, getFichaPlaza, rutaPlaza, type FichaPlaza } from "@/lib/planilla";
 
 export const revalidate = 600;
@@ -20,7 +21,17 @@ export const revalidate = 600;
 export async function generateMetadata({ params }: { params: { aviso: string } }): Promise<Metadata> {
   const f = await getFichaPlaza(params.aviso);
   if (!f) return { title: "Plaza CAS" };
-  return { title: `${tituloNatural(f.plaza.titulo)}, plaza CAS de ${tituloNatural(f.plaza.entidad)}` };
+  const titulo = `${tituloNatural(f.plaza.titulo)}, plaza CAS de ${tituloNatural(f.plaza.entidad)}`;
+  return {
+    title: titulo,
+    description: descripcion([
+      `${titulo}:`,
+      "cuánto paga, qué pide y sus señales, junto a lo que pagan otras entidades por el mismo puesto. Fuente: SERVIR, Talento Perú.",
+    ]),
+    // Las plazas no traen datos de personas: se indexan aunque vivan bajo /app/personas.
+    robots: { index: true, follow: true },
+    alternates: canonica(rutaPlaza(params.aviso)),
+  };
 }
 
 /**

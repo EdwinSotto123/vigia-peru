@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowUpRight, Building2, CalendarCheck, CalendarClock, Database, EyeOff, ListOrdered, ScanSearch, Server, ShieldAlert, Users } from "lucide-react";
 import { Beneficios, Franja, FuenteDato, Migas, Pagina, Seccion, type Beneficio } from "@/components/patrones";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   title: "Ayúdanos a seguir vigilando",
   description:
     "La corrupción se lleva carreteras, colegios y camas de hospital. Vigía cruza todos los días lo que compra el Estado y lee a fondo lo más grave. Hasta hoy lo sostuvimos nosotros: ayúdanos a seguir.",
+  alternates: canonica("/app/apoyar"),
 };
 
 export const revalidate = 300;

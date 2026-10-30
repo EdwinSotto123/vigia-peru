@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NO_INDEXAR } from "@/lib/seo";
 import Link from "next/link";
 import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
@@ -11,7 +12,8 @@ import { REGIONES } from "@/lib/peru-data";
 import { PARAMS_SOLOS, getPersonas } from "@/lib/personas";
 import { getPlanilla, getPlazas } from "@/lib/planilla";
 
-export const metadata: Metadata = { title: "Personas contratadas" };
+// Personas naturales (un apellido tapado): la lista y sus fichas no salen en un buscador. Las plazas CAS sí.
+export const metadata: Metadata = { title: "Personas contratadas", robots: NO_INDEXAR };
 export const revalidate = 600;
 
 /** Los 25 departamentos con su ubigeo (el filtro de región). */

@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { MapaWrapper } from "@/components/MapaWrapper";
 import { Pagina } from "@/components/patrones";
 import type { ZonaTab } from "@/components/mapa/ZonaHubPanel";
 
 /** Sólo la parte de la página: el layout raíz le agrega " | Vigía Perú". */
-export const metadata: Metadata = { title: "Mapa" };
+export const metadata: Metadata = {
+  title: "Mapa",
+  description:
+    "El mapa del Perú con los contratos públicos de cada región, provincia y distrito, y dónde se concentran las señales de riesgo.",
+  alternates: canonica("/app/mapa"),
+};
 
 const TABS: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
 

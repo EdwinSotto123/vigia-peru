@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EstadoDatos } from "@/components/fuentes/EstadoDatos";
@@ -24,6 +25,7 @@ export const metadata: Metadata = {
   title: "De dónde salen los datos",
   description:
     "Qué fuentes públicas usa Vigía Perú y su cobertura: el SEACE (OECE) por sus dos puertas —Contrataciones Abiertas y CONOSCE— y los registros con los que se cruza.",
+  alternates: canonica("/fuentes"),
 };
 
 const REPO = "https://github.com/EdwinSotto123/vigia-peru";

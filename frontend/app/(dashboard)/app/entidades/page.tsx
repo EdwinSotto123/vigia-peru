@@ -1,4 +1,5 @@
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
+import { canonica } from "@/lib/seo";
 import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -26,6 +27,7 @@ export const metadata: Metadata = {
   title: "Entidades del Estado",
   description:
     "Municipalidades, gobiernos regionales, ministerios, hospitales, universidades y empresas públicas: sus contratos desde 2015, los antecedentes de quienes ganan, su presupuesto y sus informes de control.",
+  alternates: canonica("/app/entidades"),
 };
 
 const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);

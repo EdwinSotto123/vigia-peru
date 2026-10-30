@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { Suspense } from "react";
 import { Pagina } from "@/components/patrones";
 import { EnVivoInicio } from "@/components/home/EnVivoInicio";
@@ -17,7 +18,12 @@ import { tituloNatural } from "@/lib/landing";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 import { rutaRegion } from "@/lib/regiones";
 
-export const metadata: Metadata = { title: "Inicio" };
+export const metadata: Metadata = {
+  title: "Inicio",
+  description:
+    "Busca una entidad, una empresa o un contrato del Estado peruano y mira en qué se gasta el dinero de tu región: contratos, órdenes y señales de riesgo con su fuente oficial.",
+  alternates: canonica("/app"),
+};
 
 /**
  * Pantalla principal de la app: lo simple primero y lo vivo a la vista.

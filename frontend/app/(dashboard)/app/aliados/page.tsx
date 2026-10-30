@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canonica } from "@/lib/seo";
 import { Sprout } from "lucide-react";
 import { Ayuda, EncabezadoPagina, EstadoError, Migas, Nota, Pagina } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
@@ -22,6 +23,7 @@ export const metadata = {
   title: "Podio de aliados",
   description:
     "Quienes sostienen la vigilancia del dinero público, mes a mes. El podio se gana por constancia, no por plata, y no compra nada: nadie elige qué se lee ni qué se publica.",
+  alternates: canonica("/app/aliados"),
 };
 
 export const revalidate = 300;

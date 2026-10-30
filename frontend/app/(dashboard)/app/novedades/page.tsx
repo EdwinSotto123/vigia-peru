@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink, FileWarning, Gavel, ShieldAlert } from "lucide-react";
@@ -21,6 +22,7 @@ import { rutaContrato } from "@/lib/rutas";
 export const metadata: Metadata = {
   title: "Lo nuevo",
   description: "Los contratos con antecedentes graves de la última semana, las sanciones nuevas del Tribunal y los informes nuevos de la Contraloría.",
+  alternates: canonica("/app/novedades"),
 };
 
 /**

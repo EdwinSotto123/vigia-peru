@@ -35,6 +35,8 @@ import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from
 import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { absoluta, canonica, descripcion } from "@/lib/seo";
+import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
 import { tituloNatural } from "@/lib/landing";
 import {
   OBJETOS,
@@ -70,7 +72,19 @@ export const revalidate = 600;
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const f = await getFichaEmpresa(params.ruc);
-  return { title: f ? `${f.empresa.nombre}, empresa` : "Empresa" };
+  if (!f) return { title: "Empresa" };
+  const e = f.empresa;
+  return {
+    title: `${e.nombre}, empresa`,
+    description: descripcion([
+      `${e.nombre} (RUC ${e.ruc}):`,
+      e.adjProcesos > 0
+        ? `${plural(e.adjProcesos, "proceso ganado", "procesos ganados")} con el Estado peruano${e.entidades > 0 ? ` para ${plural(e.entidades, "entidad", "entidades")}` : ""}.`
+        : null,
+      "Sus contratos, órdenes de compra, socios y antecedentes, con la fuente oficial de cada dato.",
+    ]),
+    alternates: canonica(`/empresa/${e.ruc}`),
+  };
 }
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
@@ -244,6 +258,9 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           { etiqueta: nombre, href: ruta },
         ])}
         pestanas={{ primera: "inicio", activa: seccion, etiquetas: ETIQUETAS_PESTANA }}
+      />
+      <DatosEstructurados
+        datos={{ "@context": "https://schema.org", "@type": "Organization", name: e.nombre, taxID: e.ruc, url: absoluta(`/empresa/${e.ruc}`) }}
       />
       <EncabezadoPagina
         titulo={nombre}

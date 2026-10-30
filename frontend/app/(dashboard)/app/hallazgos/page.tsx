@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, Vistas, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { ListaSenales, ListaSenalesCargando } from "@/components/alertas/ListaSenales";
@@ -44,6 +45,7 @@ export const metadata = {
   title: "Señales",
   description:
     "Cada señal de riesgo publicada por Vigía Perú, con la regla que la disparó, la norma que cita, la evidencia del expediente y el agente que la encontró.",
+  alternates: canonica("/app/hallazgos"),
 };
 
 const RUTA = "/app/hallazgos";

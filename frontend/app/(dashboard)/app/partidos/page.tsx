@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { ContratosPorPartido } from "@/components/partidos/ContratosPorPartido";
 import { DirectorioGobiernos, type ContratosDeUnPartido, type Vista } from "@/components/partidos/DirectorioGobiernos";
@@ -8,7 +9,12 @@ import { PERIODOS } from "@/lib/partidos";
 import { listaY } from "@/lib/formato";
 import { PERIODOS_GOBIERNO, anioDeUrl, getRankingPartidos } from "@/lib/partidosApi";
 
-export const metadata: Metadata = { title: "Partidos y gobiernos" };
+export const metadata: Metadata = {
+  title: "Partidos y gobiernos",
+  description:
+    "Qué partido gobierna cada región, provincia y distrito del Perú, y qué contrataron sus gobiernos: procesos adjudicados desde 2015, montos y señales de riesgo.",
+  alternates: canonica("/app/partidos"),
+};
 
 const VISTAS: Vista[] = ["gobiernos", "partidos", "contratos", "mapa"];
 

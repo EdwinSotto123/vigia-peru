@@ -8,6 +8,8 @@ import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { BUSCADOR_CONTRALORIA, CONSULTA_AMIGABLE, DATASET_MEF, djiEntidad, personalPte } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
+import { absoluta, canonica, descripcion } from "@/lib/seo";
+import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
 import { ejecucionPct, sinAnioRepetido, ultimoConPim, type MefBudgetRow } from "@/lib/mef";
 import { REGIONES } from "@/lib/peru-data";
 import { normalizar } from "@/lib/partidos";
@@ -94,7 +96,17 @@ const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const r = await getEntidad(params.ruc).catch(() => null);
   const nombre = r?.entidad?.nombre as string | undefined;
-  return { title: nombre ? tituloNatural(nombre) : `Entidad ${params.ruc}` };
+  if (!nombre) return { title: `Entidad ${params.ruc}` };
+  const titulo = tituloNatural(nombre);
+  const region = r?.entidad?.region ? tituloNatural(String(r.entidad.region)) : null;
+  return {
+    title: titulo,
+    description: descripcion([
+      `${titulo} (RUC ${params.ruc})${region ? `, ${region}` : ""}:`,
+      "sus contratos y órdenes de compra, quién gana y con qué antecedentes, su presupuesto, su planilla y los informes de control, con la fuente oficial de cada dato.",
+    ]),
+    alternates: canonica(`/entidad/${params.ruc}`),
+  };
 }
 
 /** Las que cumplen `vacia`, al final, cada grupo en su orden. */
@@ -513,6 +525,16 @@ export default async function EntidadProfile({
       <Migas
         items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }])}
         pestanas={{ primera: "inicio", activa, etiquetas: ETIQUETAS }}
+      />
+      <DatosEstructurados
+        datos={{
+          "@context": "https://schema.org",
+          "@type": "GovernmentOrganization",
+          name: nombre,
+          url: absoluta(ruta),
+          identifier: { "@type": "PropertyValue", propertyID: "RUC", value: ruc },
+          ...(region ? { areaServed: { "@type": "AdministrativeArea", name: tituloNatural(region) } } : {}),
+        }}
       />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. Una acción primaria

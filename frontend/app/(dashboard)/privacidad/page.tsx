@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import Link from "next/link";
 import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { FormularioPrivacidad } from "./FormularioPrivacidad";
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
   title: "Privacidad y tus datos",
   description:
     "Qué datos personales publica Vigía Perú y cuáles no: sin DNI, con un apellido tapado de las personas privadas. Si apareces en un análisis, pide corregir o retirar un dato.",
+  alternates: canonica("/privacidad"),
 };
 
 const ENLACE = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate";

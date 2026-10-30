@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
 import { Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
 import { EncabezadoPagina, FuenteDato, Migas, Nota, Pagina, Seccion } from "@/components/patrones";
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Cuánto cuesta Vigía",
   description: "Lo que cuesta mantener Vigía cada mes, rubro por rubro y con la fuente de cada cifra, y en qué se usa lo que aportas.",
+  alternates: canonica("/app/cuanto-cuesta"),
 };
 
 export const revalidate = 300;

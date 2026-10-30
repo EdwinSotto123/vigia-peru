@@ -1,4 +1,5 @@
 import { SearchX } from "lucide-react";
+import { NO_INDEXAR } from "@/lib/seo";
 import { EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
 import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
@@ -14,6 +15,8 @@ import { numero } from "@/lib/formato";
 export const metadata = {
   title: "Todos los aportes",
   description: "Cada aporte confirmado que sostiene la vigilancia del dinero público, con su recibo. Ninguno elige qué se lee.",
+  // Nombres de quienes aportan: se ven en Vigía, no en un buscador.
+  robots: NO_INDEXAR,
 };
 
 export const revalidate = 60;

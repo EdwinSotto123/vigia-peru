@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NO_INDEXAR } from "@/lib/seo";
 import Link from "next/link";
 import { EncabezadoPagina, FuenteDato, Migas, Nota, Pagina } from "@/components/patrones";
 import { getConteosEntidad, getEntidad, getEntidades, type ApiEntidad } from "@/lib/api-client";
@@ -12,6 +13,8 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Comparar entidades",
   description: "Dos entidades del Estado lado a lado: contratos, órdenes, locadores, planilla, visitas, informes de control, banderas y presupuesto.",
+  // Una herramienta: lo que muestra son dos fichas que ya se indexan por su cuenta.
+  robots: NO_INDEXAR,
 };
 
 /**

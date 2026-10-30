@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { canonica } from "@/lib/seo";
 import { OjoPixel } from "@/components/marca";
 import { PixelReveal } from "@/components/ui/PixelReveal";
 import { numero } from "@/lib/formato";
@@ -33,6 +34,7 @@ const DESCRIPCION_PORTADA =
 export const metadata: Metadata = {
   title: { absolute: TITULO_PORTADA },
   description: DESCRIPCION_PORTADA,
+  alternates: canonica("/"),
   // La portada es lo que más se comparte: título y descripción explícitos para la tarjeta.
   openGraph: { ...OG_BASE, type: "website", url: "/", title: TITULO_PORTADA, description: DESCRIPCION_PORTADA },
   twitter: { ...TWITTER_BASE, title: TITULO_PORTADA, description: DESCRIPCION_PORTADA },
