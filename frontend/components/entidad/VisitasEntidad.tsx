@@ -81,9 +81,9 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
         su nombre con un apellido tapado, y nada si es familiar de un funcionario.
       </Nota>
       {emp && emp.lista.length > 0 && <EmpresasDeSuGente e={emp} entidadRuc={ruc} />}
-      {orgs.length > 0 && <Organizaciones orgs={orgs} sinDespues={sinDespues} />}
-      {(d.parientes ?? []).length > 0 && <Parientes ps={d.parientes!} entidadRuc={ruc} fuentes={d.fuentes} />}
-      {(d.areas ?? []).length > 0 && <Areas areas={d.areas!} />}
+      {orgs.length > 0 && <Organizaciones orgs={orgs} sinDespues={sinDespues} total={d.totales?.organizaciones} entidadRuc={ruc} />}
+      {(d.parientes ?? []).length > 0 && <Parientes ps={d.parientes!} entidadRuc={ruc} fuentes={d.fuentes} total={d.totales?.parientes} />}
+      {(d.areas ?? []).length > 0 && <Areas areas={d.areas!} total={d.totales?.areas} entidadRuc={ruc} />}
       <ListaVisitas vs={d.visitas ?? []} total={d.total} />
       <FuenteDato fuente="El registro de visitas de cada entidad" enlaces={d.fuentes ?? []} />
     </div>

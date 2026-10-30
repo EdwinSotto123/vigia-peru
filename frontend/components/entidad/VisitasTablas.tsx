@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Ayuda, CuerpoDetalle, DatosClave, FuenteDato, PieDetalle, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { baseApiNavegador } from "@/lib/api-client";
 import { rutaEmpresa } from "@/lib/empresas";
 import { fecha, fechaConAnio, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { VISITAS_EN_LINEA, djiEntidad, registroVisita } from "@/lib/fuentes";
@@ -243,13 +245,71 @@ export function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["emp
   );
 }
 
-export function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable<Datos["organizaciones"]>; sinDespues?: boolean }) {
+/**
+ * Una lista que llegó recortada (las de más visitas: hay entidades con 41,952 organizaciones) busca también en el servidor
+ * (GET /visitas/entidad/:ruc/buscar): lo que encuentra se suma a la lista y el buscador de la tabla lo muestra. `clave` dice
+ * cuándo dos filas son la misma.
+ */
+function useBuscarEnTodas<T>(entidadRuc: string | undefined, en: "organizaciones" | "areas", activo: boolean, base: T[], clave: (x: T) => string) {
+  const [extra, setExtra] = useState<T[]>([]);
+  const [estado, setEstado] = useState<"listo" | "buscando" | "error">("listo");
+  const buscar = useCallback(
+    (q: string) => {
+      if (!entidadRuc) return;
+      setEstado("buscando");
+      fetch(`${baseApiNavegador()}/visitas/entidad/${entidadRuc}/buscar?en=${en}&q=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d: Record<string, T[] | undefined>) => {
+          setExtra((antes) => [...antes, ...(d[en] ?? [])]);
+          setEstado("listo");
+        })
+        .catch(() => setEstado("error"));
+    },
+    [entidadRuc, en],
+  );
+  const todas = useMemo(() => {
+    const vistas = new Set<string>();
+    return [...base, ...extra].filter((x) => {
+      const k = clave(x);
+      if (vistas.has(k)) return false;
+      vistas.add(k);
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, extra]);
+  return { todas, estado, alBuscar: activo && entidadRuc ? buscar : undefined };
+}
+
+/** «Van las 1,000 que más la visitan, de 41,952: el buscador busca en todas.» y cómo va esa búsqueda. */
+function AvisoRecorte({ n, total, que, estado }: { n: number; total: number; que: string; estado: "listo" | "buscando" | "error" }) {
+  return (
+    <p className="text-meta text-inkSoft" aria-live="polite">
+      Van {que.replace("{n}", numero(n))}, de {numero(total)}: el buscador busca en todas.
+      {estado === "buscando" ? " Buscando en todas…" : estado === "error" ? " Ahora no pudimos buscar en todas: se busca en éstas." : ""}
+    </p>
+  );
+}
+
+export function Organizaciones({
+  orgs,
+  sinDespues = false,
+  total,
+  entidadRuc,
+}: {
+  orgs: NonNullable<Datos["organizaciones"]>;
+  sinDespues?: boolean;
+  /** Cuántas organizaciones la visitaron en total (`orgs` trae las de más visitas). */
+  total?: number | null;
+  entidadRuc?: string;
+}) {
+  const recortada = total != null && total > orgs.length;
+  const b = useBuscarEnTodas(entidadRuc, "organizaciones", recortada, orgs, (o) => o.org);
   const columnas: Columna[] = [
     { clave: "org", titulo: "Quién la visita", ancho: "minmax(0,1fr)" },
     { clave: "visitas", titulo: "Visitas", ancho: "6rem", alinear: "der" },
     { clave: "despues", titulo: "Después", ancho: "11rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
   ];
-  const filas: FilaFiltrable[] = orgs.map((o, i) => ({
+  const filas: FilaFiltrable[] = b.todas.map((o, i) => ({
     id: `o${i}`,
     href: o.ruc ? `/empresa/${o.ruc}?seccion=gente&vista=visitas` : undefined,
     celdas: {
@@ -284,9 +344,11 @@ export function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable
       <p className="text-meta text-inkSoft">
         Cada organización que declaró quien visitó. «Después»: lo primero que la entidad le dio a su empresa y cuánto suma desde entonces.
       </p>
+      {recortada && <AvisoRecorte n={orgs.length} total={total!} que="las {n} que más la visitan" estado={b.estado} />}
       <TablaFiltrable
         columnas={columnas}
         filas={filas}
+        alBuscar={b.alBuscar}
         etiqueta="Organizaciones que la visitan (toca una empresa para ver sus visitas)"
         tam={15}
         nombre="organizaciones"
@@ -317,10 +379,13 @@ export function Parientes({
   ps,
   entidadRuc,
   fuentes = [{ texto: "Registro de Visitas en Línea (PCM)", href: VISITAS_EN_LINEA }],
+  total,
 }: {
   ps: NonNullable<Datos["parientes"]>;
   entidadRuc: string;
   fuentes?: { texto: string; href: string }[];
+  /** Cuántas son en total (`ps` trae las más recientes). */
+  total?: number | null;
 }) {
   const columnas: Columna[] = [
     { clave: "quien", titulo: "Visita", ancho: "minmax(0,1fr)" },
@@ -357,6 +422,11 @@ export function Parientes({
           para revisar, sobre todo si además le vende a la entidad.
         </Ayuda>
       </div>
+      {total != null && total > ps.length && (
+        <p className="text-meta text-inkSoft">
+          Van las {numero(ps.length)} más recientes, de {numero(total)}. Las cifras de arriba cuentan todas.
+        </p>
+      )}
       <TablaFiltrable
         columnas={columnas}
         filas={filas}
@@ -377,12 +447,14 @@ export function Parientes({
   );
 }
 
-export function Areas({ areas }: { areas: NonNullable<Datos["areas"]> }) {
+export function Areas({ areas, total, entidadRuc }: { areas: NonNullable<Datos["areas"]>; total?: number | null; entidadRuc?: string }) {
+  const recortada = total != null && total > areas.length;
+  const b = useBuscarEnTodas(entidadRuc, "areas", recortada, areas, (a) => `${a.area}|${a.cargo ?? ""}`);
   const columnas: Columna[] = [
     { clave: "area", titulo: "Oficina y cargo de quien recibe", ancho: "minmax(0,1fr)" },
     { clave: "visitas", titulo: "Visitas", ancho: "6rem", alinear: "der" },
   ];
-  const filas: FilaFiltrable[] = areas.map((a, i) => ({
+  const filas: FilaFiltrable[] = b.todas.map((a, i) => ({
     id: `a${i}`,
     celdas: {
       area: (
@@ -405,9 +477,11 @@ export function Areas({ areas }: { areas: NonNullable<Datos["areas"]> }) {
       <h3 id="visitas-areas" className="font-display text-bloque font-bold text-ink">
         A qué oficinas
       </h3>
+      {recortada && <AvisoRecorte n={areas.length} total={total!} que="las {n} oficinas con más visitas" estado={b.estado} />}
       <TablaFiltrable
         columnas={columnas}
         filas={filas}
+        alBuscar={b.alBuscar}
         etiqueta="Oficinas que reciben visitas"
         tam={10}
         nombre="areas"

@@ -103,6 +103,8 @@ export interface VisitasEntidad {
   fuentes?: { texto: string; href: string }[];
   /** «Lo que le dio después» no alcanzó el plazo de la API (entidades con muchísimas órdenes): las organizaciones van sin él. */
   despuesSinCalcular?: boolean;
+  /** Cuántas son en total (las listas llegan recortadas a las de más visitas o las más recientes). Falta en la API vieja. */
+  totales?: { organizaciones: number | null; areas: number | null; parientes: number | null };
   /** Las empresas de quienes la visitan (migración 203): cuántas, cuántas ganaron algo después y la lista de esas. */
   empresas?: {
     empresas: number;

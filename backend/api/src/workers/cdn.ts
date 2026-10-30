@@ -88,7 +88,7 @@ const GUARDADO = "X-Vigia-Guardado";
  *       entidad) y lo que se sabe en filas (`datos`): dónde, partido, periodo, motivo y hora de una visita…; «Lo nuevo»
  *       trae los antecedentes de cada contrato (`cruces`).
  */
-const VERSION_CACHE = "70";
+const VERSION_CACHE = "71";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -331,6 +331,7 @@ export function TablaFiltrable({
   ordenes = [],
   agrupar,
   descargar,
+  alBuscar,
   densidad,
   medida,
   className,
@@ -353,8 +354,20 @@ export function TablaFiltrable({
    * Dentro de `ConCsv` no hace falta: el botón es `BotonCsv`, en la cabecera de la sección.
    */
   descargar?: { archivo: string };
+  /**
+   * Una lista que llegó recortada (las 1,000 de más visitas de 41 mil) busca también en el servidor: con 3 letras o más,
+   * tras una pausa al escribir, se llama con lo escrito; el que llama suma lo que encuentre a `filas` y el buscador de
+   * aquí lo muestra. Debe ser estable (useCallback).
+   */
+  alBuscar?: (q: string) => void;
 } & PropsTabla) {
   const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
+  useEffect(() => {
+    const t = consulta.trim();
+    if (!alBuscar || t.length < 3) return;
+    const id = setTimeout(() => alBuscar(t), 350);
+    return () => clearTimeout(id);
+  }, [consulta, alBuscar]);
   const [elegidos, setElegidos] = useState<Record<string, string>>({});
   const [orden, setOrden] = useState(ordenes[0]?.valor ?? "");
   const indice = useMemo(() => filas.map((f) => paraBuscar(f.buscable)), [filas]);

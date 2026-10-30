@@ -358,31 +358,48 @@ export interface ContratoFirmado {
   fuente: "conosce" | "ocds";
 }
 
-/** Una fila de CONTRATOS_SQL. */
+/** Un contrato de CONOSCE ya agrupado en la base: sus ítems, su monto y la suma de sus modificaciones. */
 export interface FilaContrato {
-  codigo: string | null; numero: string | null; item: number | null; total: number | null; monto_item: number | null;
+  codigo: string | null; numero: string | null; items: number[] | null; total: number | null; suma_items: number | null;
   adicional: number | null; reduccion: number | null; prorroga: number | null; complementario: number | null; moneda: string | null;
   ruc: string | null; url: string | null; publicado: string | null; firmado: string | null; desde: string | null; hasta: string | null; hasta_actualizada: string | null;
 }
 
-/** Los contratos que CONOSCE registra para el proceso, una fila por contrato e ítem. */
+/**
+ * Los contratos que CONOSCE registra para el proceso, uno por fila. CONOSCE da una fila por contrato, ítem y modificación,
+ * con el monto del contrato repetido en cada una: se agrupa en la base (antes llegaban todas: 412 mil filas en un proceso
+ * de 2,232 contratos, 15 s; auditoría del 2026-10-29). El monto del contrato es el mayor de sus filas y, sin él, lo de
+ * cada ítem una vez; los adicionales, reducciones y prórrogas se suman (como el cruce `adicional`, migración 121).
+ */
 export async function contratosConosce(codigo: string): Promise<FilaContrato[]> {
   if (!/^\d+$/.test(codigo)) return [];
   const r = await pool.query(
-    `SELECT COALESCE(codigo_contrato, n_cod_contrato) AS codigo, num_contrato AS numero, num_item AS item,
-            monto_contratado_total::float AS total, monto_contratado_item::float AS monto_item, monto_adicional::float AS adicional,
-            monto_reduccion::float AS reduccion, monto_prorroga::float AS prorroga, monto_complementario::float AS complementario, moneda,
-            ruc_contratista AS ruc, url_contrato AS url, to_char(fecha_publicacion, 'YYYY-MM-DD') AS publicado,
-            to_char(fecha_suscripcion, 'YYYY-MM-DD') AS firmado, to_char(fecha_vigencia_inicial, 'YYYY-MM-DD') AS desde,
-            to_char(fecha_vigencia_final, 'YYYY-MM-DD') AS hasta, to_char(fecha_vigencia_fin_actualizada, 'YYYY-MM-DD') AS hasta_actualizada
-       -- Sin las filas idénticas que repite la fuente (2,200 en 11 convocatorias): sumaban dos veces un adicional.
-       FROM (SELECT DISTINCT * FROM conosce_contratos WHERE codigo_convocatoria = $1) c
-      ORDER BY fecha_suscripcion NULLS LAST, codigo_contrato, num_item`, [codigo]);
+    `WITH f AS (
+       SELECT COALESCE(codigo_contrato, n_cod_contrato) AS codigo, num_contrato AS numero, num_item AS item,
+              COALESCE(codigo_contrato, n_cod_contrato, num_contrato, fecha_suscripcion::text || '-' || ruc_contratista) AS clave,
+              monto_contratado_total, monto_contratado_item, monto_adicional, monto_reduccion, monto_prorroga, monto_complementario,
+              moneda, ruc_contratista, url_contrato, fecha_publicacion, fecha_suscripcion, fecha_vigencia_inicial, fecha_vigencia_final,
+              fecha_vigencia_fin_actualizada
+         FROM conosce_contratos WHERE codigo_convocatoria = $1),
+     ci AS (
+       SELECT clave, max(codigo) AS codigo, max(numero) AS numero, item, max(monto_contratado_total) AS total,
+              max(monto_contratado_item) AS monto_item, sum(monto_adicional) AS adicional, sum(monto_reduccion) AS reduccion,
+              sum(monto_prorroga) AS prorroga, sum(monto_complementario) AS complementario, min(moneda) AS moneda,
+              min(ruc_contratista) AS ruc, min(url_contrato) AS url, min(fecha_publicacion) AS publicado, min(fecha_suscripcion) AS firmado,
+              min(fecha_vigencia_inicial) AS desde, min(fecha_vigencia_final) AS hasta, max(fecha_vigencia_fin_actualizada) AS hasta_actualizada
+         FROM f GROUP BY clave, item)
+     SELECT max(codigo) AS codigo, max(numero) AS numero, array_agg(item ORDER BY item) FILTER (WHERE item IS NOT NULL) AS items,
+            max(total)::float AS total, sum(monto_item)::float AS suma_items, sum(adicional)::float AS adicional,
+            sum(reduccion)::float AS reduccion, sum(prorroga)::float AS prorroga, sum(complementario)::float AS complementario,
+            min(moneda) AS moneda, min(ruc) AS ruc, min(url) AS url, to_char(min(publicado), 'YYYY-MM-DD') AS publicado,
+            to_char(min(firmado), 'YYYY-MM-DD') AS firmado, to_char(min(desde), 'YYYY-MM-DD') AS desde,
+            to_char(min(hasta), 'YYYY-MM-DD') AS hasta, to_char(max(hasta_actualizada), 'YYYY-MM-DD') AS hasta_actualizada
+       FROM ci GROUP BY clave
+      ORDER BY min(firmado) NULLS LAST, max(codigo)`, [codigo]);
   return r.rows as FilaContrato[];
 }
 
 const maximo = (xs: (number | null)[]) => xs.reduce<number | null>((m, x) => (x == null ? m : m == null || x > m ? x : m), null);
-const suma = (xs: (number | null)[]) => xs.reduce<number | null>((s, x) => (x == null ? s : (s ?? 0) + x), null);
 /** La fecha más reciente de una lista (AAAA-MM-DD), o null. */
 const ultima = (xs: unknown[]) => xs.map(dia).filter((x): x is string => !!x).sort().pop() ?? null;
 const redondear1 = (n: number) => Math.round(n * 10) / 10;
@@ -418,10 +435,12 @@ export function armarContrato(e: {
   }
   const contratosPorItem = new Map<number, Set<string>>();
   for (const f of e.filas) {
-    if (f.item == null || !f.codigo) continue;
-    const l = contratosPorItem.get(f.item);
-    if (l) l.add(String(f.codigo));
-    else contratosPorItem.set(f.item, new Set([String(f.codigo)]));
+    if (!f.codigo) continue;
+    for (const item of f.items ?? []) {
+      const l = contratosPorItem.get(item);
+      if (l) l.add(String(f.codigo));
+      else contratosPorItem.set(item, new Set([String(f.codigo)]));
+    }
   }
   const items: ItemAdjudicado[] = [...posiciones].sort((a, b) => a - b).map((pos) => {
     const it = itemPorPos.get(pos);
@@ -451,24 +470,15 @@ export function armarContrato(e: {
     };
   });
 
-  const porContrato = new Map<string, FilaContrato[]>();
-  for (const f of e.filas) {
-    const clave = String(f.codigo ?? f.numero ?? `${f.firmado}-${f.ruc}`);
-    const l = porContrato.get(clave);
-    if (l) l.push(f);
-    else porContrato.set(clave, [f]);
-  }
-  let firmados: ContratoFirmado[] = [...porContrato.values()].map((fs) => {
-    const f = fs[0];
+  // Cada fila ya es un contrato (contratosConosce agrupa en la base).
+  let firmados: ContratoFirmado[] = e.filas.map((f) => {
     const hasta = dia(f.hasta_actualizada) ?? dia(f.hasta);
     return {
       codigo: texto(f.codigo), numero: texto(f.numero),
-      items: [...new Set(fs.map((x) => x.item).filter((x): x is number => x != null))].sort((a, b) => a - b),
-      // El monto de todo el contrato se repite en cada fila; sin él, lo de cada ítem (una vez por ítem).
-      monto: maximo(fs.map((x) => num(x.total)))
-        ?? suma([...new Map(fs.map((x) => [x.item, num(x.monto_item)])).values()]),
-      adicional: suma(fs.map((x) => num(x.adicional))), reduccion: suma(fs.map((x) => num(x.reduccion))),
-      prorroga: suma(fs.map((x) => num(x.prorroga))), complementario: suma(fs.map((x) => num(x.complementario))),
+      items: f.items ?? [],
+      // El monto de todo el contrato (se repite en cada fila de CONOSCE); sin él, lo de cada ítem una vez.
+      monto: num(f.total) ?? num(f.suma_items),
+      adicional: num(f.adicional), reduccion: num(f.reduccion), prorroga: num(f.prorroga), complementario: num(f.complementario),
       moneda: texto(f.moneda),
       firmado: dia(f.firmado), vigenciaDesde: dia(f.desde), vigenciaHasta: hasta,
       vigenciaOriginal: dia(f.hasta) && hasta && dia(f.hasta) !== hasta ? dia(f.hasta) : null,
