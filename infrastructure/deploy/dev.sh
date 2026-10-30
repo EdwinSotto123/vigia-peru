@@ -38,7 +38,11 @@ web() {
     fi
     ( cd "$REPO_ROOT/frontend"
       if [[ -z "${SIN_BUILD:-}" ]]; then
-        NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" \
+        # La API sólo atiende a nuestros Workers: con VIGIA_BUILD_TOKEN en el entorno (el BUILD_TOKEN de las APIs, el mismo de
+        # la variable del CI) el build prerenderiza con datos (scripts/fetch-build.cjs); sin él, las estáticas salen vacías.
+        PRECARGA=""
+        [[ -n "${VIGIA_BUILD_TOKEN:-}" ]] && PRECARGA=" --require $REPO_ROOT/frontend/scripts/fetch-build.cjs"
+        NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}$PRECARGA" \
           NEXT_PUBLIC_SITE_URL=https://vigia-web-dev.vigiaperu.workers.dev \
           NEXT_PUBLIC_VIGIA_API_URL=https://vigia-api-dev.vigiaperu.workers.dev \
           NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \

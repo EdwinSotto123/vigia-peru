@@ -18,7 +18,8 @@ import urllib.request
 from html import escape
 from pathlib import Path
 
-API = os.getenv("VIGIA_API", "https://vigia-api.vigiaperu.workers.dev")
+# Por la web (/v1): la API sólo atiende a nuestros Workers desde el 2026-10-30.
+API = os.getenv("VIGIA_API", "https://vigia.gobserva.cloud/v1")
 SALIDA = Path(__file__).resolve().parents[2] / "docs" / "img"
 
 BG = "#0B0F0F"
