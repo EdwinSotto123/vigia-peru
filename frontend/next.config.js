@@ -45,6 +45,17 @@ const nextConfig = {
       { protocol: "https", hostname: "storage.googleapis.com", pathname: "/vigia-peru-reportes/**" },
     ],
   },
+  // Rutas viejas. Antes eran páginas con `redirect()`: se prerenderizaban, y en Workers salían como un 307 sin Location
+  // (sólo redirigían con JavaScript; un buscador o un enlace sin JS se quedaba en una página vacía). /donar lleva al
+  // aporte al fondo común desde el 2026-10-30.
+  async redirects() {
+    return [
+      { source: "/donar", destination: "/app/apoyar", permanent: false },
+      { source: "/financiar", destination: "/app/financiar", permanent: false },
+      { source: "/financiar/:ubigeo(\\d{2}|\\d{4}|\\d{6})", destination: "/app/financiar/:ubigeo", permanent: false },
+      { source: "/app/financiar/entidad", destination: "/app/financiar?por=entidad", permanent: false },
+    ];
+  },
   // En `next dev` no corre worker-prod.js: `/v1` (lo que el navegador le pide a la API, lib/api-client.ts) va directo a la
   // API. Como la API sólo atiende a nuestros Workers (backend/api/src/lib/antibots.ts), en local VIGIA_API_URL apunta a
   // una API local (`npm run dev` en backend/api), que no tiene ese cierre.
