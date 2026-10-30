@@ -386,15 +386,23 @@ export async function contratosConosce(codigo: string): Promise<FilaContrato[]> 
      ci AS (
        SELECT clave, max(codigo) AS codigo, max(numero) AS numero, item, max(monto_contratado_total) AS total,
               max(monto_contratado_item) AS monto_item, sum(monto_adicional) AS adicional, sum(monto_reduccion) AS reduccion,
-              sum(monto_prorroga) AS prorroga, sum(monto_complementario) AS complementario, min(moneda) AS moneda,
-              min(ruc_contratista) AS ruc, min(url_contrato) AS url, min(fecha_publicacion) AS publicado, min(fecha_suscripcion) AS firmado,
-              min(fecha_vigencia_inicial) AS desde, max(fecha_vigencia_final) AS hasta, max(fecha_vigencia_fin_actualizada) AS hasta_actualizada
+              sum(monto_prorroga) AS prorroga, sum(monto_complementario) AS complementario,
+              -- De la primera fila (la firma más temprana), como antes de agrupar: hay códigos de contrato de compras
+              -- corporativas con decenas de proveedores, y el contrato se muestra con el de su primera fila.
+              (array_agg(moneda ORDER BY fecha_suscripcion NULLS LAST))[1] AS moneda,
+              (array_agg(ruc_contratista ORDER BY fecha_suscripcion NULLS LAST))[1] AS ruc,
+              (array_agg(url_contrato ORDER BY fecha_suscripcion NULLS LAST))[1] AS url,
+              (array_agg(fecha_publicacion ORDER BY fecha_suscripcion NULLS LAST))[1] AS publicado,
+              (array_agg(fecha_vigencia_inicial ORDER BY fecha_suscripcion NULLS LAST))[1] AS desde,
+              min(fecha_suscripcion) AS firmado, max(fecha_vigencia_final) AS hasta, max(fecha_vigencia_fin_actualizada) AS hasta_actualizada
          FROM f GROUP BY clave, item)
      SELECT max(codigo) AS codigo, max(numero) AS numero, array_agg(item ORDER BY item) FILTER (WHERE item IS NOT NULL) AS items,
             max(total)::float AS total, sum(monto_item)::float AS suma_items, sum(adicional)::float AS adicional,
             sum(reduccion)::float AS reduccion, sum(prorroga)::float AS prorroga, sum(complementario)::float AS complementario,
-            min(moneda) AS moneda, min(ruc) AS ruc, min(url) AS url, to_char(min(publicado), 'YYYY-MM-DD') AS publicado,
-            to_char(min(firmado), 'YYYY-MM-DD') AS firmado, to_char(min(desde), 'YYYY-MM-DD') AS desde,
+            (array_agg(moneda ORDER BY firmado NULLS LAST, item))[1] AS moneda, (array_agg(ruc ORDER BY firmado NULLS LAST, item))[1] AS ruc,
+            (array_agg(url ORDER BY firmado NULLS LAST, item))[1] AS url,
+            to_char((array_agg(publicado ORDER BY firmado NULLS LAST, item))[1], 'YYYY-MM-DD') AS publicado,
+            to_char(min(firmado), 'YYYY-MM-DD') AS firmado, to_char((array_agg(desde ORDER BY firmado NULLS LAST, item))[1], 'YYYY-MM-DD') AS desde,
             to_char(max(hasta), 'YYYY-MM-DD') AS hasta, to_char(max(hasta_actualizada), 'YYYY-MM-DD') AS hasta_actualizada
        FROM ci GROUP BY clave
       ORDER BY min(firmado) NULLS LAST, max(codigo)`, [codigo]);
