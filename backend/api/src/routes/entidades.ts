@@ -225,7 +225,7 @@ export const ListQuery = z.object({
   // Con `facetas=1`, cuántas entidades hay en cada opción de los filtros (lo pide /app/entidades).
   facetas: z.enum(["1"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 type ListaEntidadesQ = z.infer<typeof ListQuery>;
 

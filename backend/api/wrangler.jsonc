@@ -27,8 +27,13 @@
   // workers.dev de la misma cuenta (error 1042), así que va por service binding.
   "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }],
 
-  // Escrituras públicas: 10 por minuto por IP y ruta (lib/antibots.ts). Además del captcha (Turnstile).
-  "ratelimits": [{ "name": "LIMITE_ESCRITURA", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
+  // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
+  // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
+  "ratelimits": [
+    { "name": "LIMITE_ESCRITURA", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "LIMITE_LECTURA", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
+    { "name": "LIMITE_BUSQUEDA", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } }
+  ],
 
   // Las mismas de infrastructure/deploy/gcp/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY, DISPATCHER_TOKEN, TURNSTILE_SECRET_KEY (copia en
@@ -39,6 +44,8 @@
     "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
     "GCS_BUCKET_REPORTES": "vigia-peru-reportes",
     "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev,https://vigia.gobserva.cloud",
+    // Zonas de nuestros Workers (cabecera CF-Worker): sus lecturas no cuentan en el límite por IP (lib/antibots.ts).
+    "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
     // Relay de descargas: el Worker vigia-relay (backend/relay-worker); el VPS de Lima ya no existe.
     "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
     // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app
@@ -59,11 +66,16 @@
       ],
       "r2_buckets": [{ "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }],
       "services": [],
-      "ratelimits": [{ "name": "LIMITE_ESCRITURA", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }],
+      "ratelimits": [
+        { "name": "LIMITE_ESCRITURA", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
+        { "name": "LIMITE_LECTURA", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
+        { "name": "LIMITE_BUSQUEDA", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } }
+      ],
       "vars": {
         "VIGIA_ENTORNO": "dev",
         "FIREBASE_PROJECT_ID": "simplia-project",
         "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev",
+        "WORKERS_PROPIOS": "vigiaperu.workers.dev",
         "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
         "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
       }

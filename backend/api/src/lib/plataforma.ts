@@ -75,7 +75,7 @@ export interface AmbitoPedido {
    */
   servicio?(nombre: "dispatcher"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
   /** Binding de Rate Limiting de Workers (lib/antibots.ts); sin él, el límite va en memoria. */
-  limitador?(nombre: "escritura"): { limit(o: { key: string }): Promise<{ success: boolean }> } | undefined;
+  limitador?(nombre: "escritura" | "lectura" | "busqueda"): { limit(o: { key: string }): Promise<{ success: boolean }> } | undefined;
 }
 
 export const ambitoPedido = new AsyncLocalStorage<AmbitoPedido>();

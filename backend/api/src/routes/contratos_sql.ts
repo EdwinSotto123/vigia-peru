@@ -137,7 +137,7 @@ export const ETAPAS = ["planificacion", "convocada", "adjudicada", "contratada",
 export const RIESGOS = ["alto", "medio", "bajo", "sin_analizar", "en_revision", "descartado"] as const;
 
 export const ListQuery = z.object({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(50_000).default(1),
   size: z.coerce.number().int().min(1).max(100).default(50),
   q: z.string().trim().max(120).optional(),
   tipo: z.enum(TIPOS).optional(),

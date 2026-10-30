@@ -25,6 +25,9 @@ export interface Env {
   DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
   /** Rate Limiting por IP y ruta de las escrituras públicas (lib/antibots.ts): 10 por 60 s. */
   LIMITE_ESCRITURA?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+  /** Rate Limiting por IP de las lecturas (lib/antibots.ts): 120 por 60 s; las búsquedas de texto, 30. */
+  LIMITE_LECTURA?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+  LIMITE_BUSQUEDA?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 
   // secretos
   ADMIN_TOKEN?: string;

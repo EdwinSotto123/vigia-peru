@@ -106,15 +106,17 @@ test("cronograma: en orden, con su fuente; la buena pro de CONOSCE y del OCDS de
   assert.deepEqual(h[4].fuentes, ["conosce", "ocds"]);
 });
 
-test("contrato: los adicionales de cada modificación se suman; sin CONOSCE, el contrato del OCDS", () => {
-  const filaK = (adicional: number) => ({
-    codigo: "2380174", numero: "005-2026", item: 1, total: 288450, monto_item: 288450, adicional, reduccion: 0, prorroga: 0, complementario: 0,
-    moneda: "Soles", ruc: "20131378972", url: null, publicado: "2026-03-09", firmado: "2026-03-05", desde: "2026-03-06", hasta: "2026-08-31", hasta_actualizada: "2026-10-31",
-  });
+test("contrato: una fila por contrato (la base ya sumó sus modificaciones); sin CONOSCE, el contrato del OCDS", () => {
+  // contratosConosce agrupa en SQL las filas de cada modificación: llegan los adicionales ya sumados (11381 + 15295 + 8031.53).
+  const fila = {
+    codigo: "2380174", numero: "005-2026", items: [1], total: 288450, suma_items: 288450, adicional: 34707.53, reduccion: 0, prorroga: 0,
+    complementario: 0, moneda: "Soles", ruc: "20131378972", url: null, publicado: "2026-03-09", firmado: "2026-03-05", desde: "2026-03-06",
+    hasta: "2026-08-31", hasta_actualizada: "2026-10-31",
+  };
   const k = armarContrato({
     items: [{ id: "9", posicion: 1, descripcion: "OBRA", montoPen: 300000, estado: "CONTRATADO" }],
     conosce: [{ item: 1, ruc: "20131378972", proveedor: "CONSTRUCTORA S.A.C.", cantidad: 1, montoPen: 288450, estado: "Contratado", referencial: 300000, fechaBuenaPro: "2026-02-20" }],
-    adjudicaciones: [], filas: [filaK(11381), filaK(15295), filaK(8031.53)], contratosOcds: null, nombres: new Map([["20131378972", "CONSTRUCTORA S.A.C."]]),
+    adjudicaciones: [], filas: [fila], contratosOcds: null, nombres: new Map([["20131378972", "CONSTRUCTORA S.A.C."]]),
   });
   assert.equal(k.items[0].porcentaje, 96.2);
   assert.deepEqual(k.items[0].contratos, ["2380174"]);

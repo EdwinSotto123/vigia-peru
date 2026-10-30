@@ -130,7 +130,7 @@ const RankingQuery = z.object({
   periodo: z.enum(["mes", "anio", "todo"]).default("todo"),
   region: z.string().regex(/^\d{2,6}$/).optional(),
   limit: z.coerce.number().int().min(1).max(60).default(60),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
   // Busca por el nombre público (sólo aliados visibles); el puesto sigue siendo el del ranking entero.
   q: z.string().trim().min(2).max(80).optional(),
 });

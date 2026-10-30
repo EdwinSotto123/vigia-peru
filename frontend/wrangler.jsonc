@@ -3,7 +3,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vigia-web",
-  "main": ".open-next/worker.js",
+  // El build de OpenNext envuelto (worker-prod.js): lleva vigia-web.vigiaperu.workers.dev al dominio y limita páginas por IP.
+  "main": "worker-prod.js",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -20,7 +21,11 @@
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
   ],
   // Subidas por IP en /api/upload (lib/limite-ip.ts): 10 cada 60 s. Fuera de Workers, en memoria.
-  "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } }],
+  // Páginas por IP (worker-prod.js): 300 por minuto, sin contar los prefetch de Next.
+  "ratelimits": [
+    { "name": "LIMITE_SUBIDAS", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "LIMITE_PAGINAS", "namespace_id": "2003", "simple": { "limit": 300, "period": 60 } }
+  ],
   "vars": {
     "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
     "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",

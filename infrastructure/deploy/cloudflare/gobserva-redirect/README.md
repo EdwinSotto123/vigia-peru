@@ -39,4 +39,21 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   23:51 (Lima). `NEXT_PUBLIC_SITE_URL=https://vigia.gobserva.cloud` en `deploy:web:prod` desde el commit 5130e37.
 - También dependen del dominio: el widget de Turnstile «Vigía Perú — formularios públicos» (lista de dominios) y los
   dominios autorizados de Firebase Auth (proyecto `simplia-project`, para el ingreso con Google del admin). Ambos ya
-  incluyen `vigia.gobserva.cloud`. Un dominio nuevo para Vigía tiene que sumarse en los dos y en `ALLOWED_ORIGINS`.
+  incluyen `vigia.gobserva.cloud`. Un dominio nuevo para Vigía tiene que sumarse en los dos, en `ALLOWED_ORIGINS` y en
+  `WORKERS_PROPIOS` (backend/api/wrangler.jsonc: si no, la API limita a la web como si fuera un solo visitante).
+
+## Protección contra abuso (2026-10-30)
+
+Todo el tráfico de internet pasa por la zona: `frontend/worker-prod.js` redirige `vigia-web.vigiaperu.workers.dev` a
+`vigia.gobserva.cloud` (en *.workers.dev no hay WAF ni nada de lo que sigue). Por capas:
+
+| Dónde | Qué |
+|-------|-----|
+| Zona (`proteger_zona.py`) | HTTPS siempre, TLS ≥ 1.2, HSTS; bloqueo de rastreadores de entrenamiento de IA (`ai_training` + regla por nombre); bloqueo de rutas de escáneres; desafío a clientes de scripts (los bots verificados pasan); 100 pedidos cada 10 s por IP fuera de `/_next/` |
+| `frontend/app/robots.ts` | Los rastreadores de entrenamiento no entran; nadie recorre las listas de `/app` con filtros |
+| `frontend/worker-prod.js` | 300 páginas por minuto por IP (una IPv6 por su /64), sin contar los prefetch de Next |
+| `backend/api/src/lib/antibots.ts` | La API no tiene zona: 120 lecturas y 30 búsquedas por minuto por IP; 10 escrituras por minuto y ruta, con Turnstile. Lo que piden nuestros Workers (cabecera `CF-Worker`, que Cloudflare no deja falsificar) no cuenta |
+
+Los buscadores (Googlebot, Bingbot), las vistas previas de enlaces (WhatsApp, Telegram, Facebook) y los asistentes que
+abren una página porque una persona lo pidió (ChatGPT-User, Claude-User, Perplexity) siguen entrando. Para revisar o
+volver a aplicar lo de la zona: `CLOUDFLARE_API_TOKEN=… python proteger_zona.py estado` (o `todo`).

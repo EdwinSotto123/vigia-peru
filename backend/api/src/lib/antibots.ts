@@ -1,11 +1,14 @@
 /**
- * Protección contra bots de las escrituras públicas (sin zona propia en Cloudflare no hay WAF de zona
- * ni Bot Fight Mode: todo corre en *.workers.dev, así que la protección va acá).
+ * Protección contra bots y abuso de la API. La API vive en *.workers.dev, sin zona propia: el WAF, el bloqueo de
+ * rastreadores de IA y el límite por IP de la zona gobserva.cloud no la cubren, así que la protección va acá.
  *
- *   · Turnstile (widget "managed": invisible para la gente, desafío solo ante sospecha). El token llega
- *     en el header `cf-turnstile-response` y se valida con siteverify; sirve UNA sola vez.
- *   · Límite por IP y ruta para las escrituras: en Workers con el binding de Rate Limiting
- *     (`LIMITE_ESCRITURA`, wrangler.jsonc); en Cloud Run con una ventana en memoria por instancia.
+ *   · Turnstile en las escrituras (widget "managed": invisible para la gente, desafío solo ante sospecha). El token
+ *     llega en el header `cf-turnstile-response` y se valida con siteverify; sirve UNA sola vez.
+ *   · Límite por IP y ruta para las escrituras (10 por minuto) y por IP para las lecturas (120 por minuto; 30 las
+ *     búsquedas de texto, las más caras para la base). En Workers con los bindings de Rate Limiting (`LIMITE_*`,
+ *     wrangler.jsonc); en Cloud Run con una ventana en memoria por instancia.
+ *   · Las lecturas de nuestros propios Workers no cuentan: la web pide a la API desde su servidor con la IP de salida
+ *     de Cloudflare, la misma para todos sus visitantes (ver `pedidoInterno`).
  *
  * Errores (contrato con el frontend):
  *   403 { error: "captcha_requerido" }   falta el token
@@ -15,15 +18,20 @@
  * Sin `TURNSTILE_SECRET_KEY` (desarrollo local) no se exige el token: se avisa en el registro una vez.
  */
 import type { Context, MiddlewareHandler } from "hono";
+import { SIN_CACHE } from "./http.js";
 import { ambitoPedido } from "./plataforma.js";
 import { registrar } from "./registro.js";
 
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 export const HEADER_TURNSTILE = "cf-turnstile-response";
 
-/** Escrituras por IP y ruta en la ventana (el binding de Workers usa el mismo número). */
+/** Pedidos por IP en la ventana (los bindings de Workers usan los mismos números, wrangler.jsonc). */
 export const LIMITE_ESCRITURAS = 10;
+export const LIMITE_LECTURAS = 120;
+export const LIMITE_BUSQUEDAS = 30;
 export const VENTANA_S = 60;
+type Limite = "escritura" | "lectura" | "busqueda";
+const LIMITES: Record<Limite, number> = { escritura: LIMITE_ESCRITURAS, lectura: LIMITE_LECTURAS, busqueda: LIMITE_BUSQUEDAS };
 
 /** La IP de quien llama: la de Cloudflare (Workers) o la primera de x-forwarded-for (Cloud Run). */
 export function ipCliente(c: Context): string {
@@ -32,6 +40,48 @@ export function ipCliente(c: Context): string {
   const xff = c.req.header("x-forwarded-for");
   if (xff) return xff.split(",")[0]!.trim();
   return "desconocida";
+}
+
+/**
+ * La IP como clave del límite: una IPv4 entera; una IPv6 por su /64, que el proveedor le da entero a cada cliente
+ * (rotar direcciones dentro de él no cuesta nada).
+ */
+export function claveIp(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  if (ip.includes(".")) return ip.slice(ip.lastIndexOf(":") + 1);   // IPv4 escrita como IPv6 (::ffff:1.2.3.4)
+  const comprimida = ip.toLowerCase().includes("::");
+  const [cabeza = "", cola = ""] = ip.toLowerCase().split("::");
+  const antes = cabeza ? cabeza.split(":") : [];
+  const despues = comprimida && cola ? cola.split(":") : [];
+  const grupos = comprimida ? [...antes, ...Array<string>(Math.max(0, 8 - antes.length - despues.length)).fill("0"), ...despues] : antes;
+  return `${grupos.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
+/**
+ * Zonas de nuestros Workers. Cloudflare pone `CF-Worker: <zona>` en todo subpedido de un Worker y borra el que mande un
+ * cliente (probado el 2026-10-30): la web llega como `vigiaperu.workers.dev` o `gobserva.cloud` según por dónde entró
+ * su visitante. Un dominio nuevo para Vigía se suma en `WORKERS_PROPIOS` (wrangler.jsonc).
+ */
+function workersPropios(): Set<string> {
+  return new Set((process.env.WORKERS_PROPIOS ?? "vigiaperu.workers.dev,gobserva.cloud").split(",").map((s) => s.trim()).filter(Boolean));
+}
+
+/** Un pedido de nuestros Workers, o que no vino de internet (el cron, un service binding: sin IP de cliente). */
+export function pedidoInterno(c: Context): boolean {
+  const worker = c.req.header("cf-worker");
+  if (worker && workersPropios().has(worker)) return true;
+  return ipCliente(c) === "desconocida";
+}
+
+/** Una búsqueda de texto: /buscar o una lista con `?q=`. */
+function esBusqueda(c: Context): boolean {
+  return /(^|\/)buscar(\/|$)/.test(c.req.path) || !!c.req.query("q")?.trim();
+}
+
+function demasiados(c: Context): Response {
+  c.header("Retry-After", String(VENTANA_S));
+  c.header("Cache-Control", SIN_CACHE);
+  return c.json({ error: "demasiados_pedidos", reintentarEn: VENTANA_S }, 429);
 }
 
 // ─── Límite por IP ─────────────────────────────────────────────────────────────
@@ -55,8 +105,8 @@ export function limitarEnMemoria(clave: string, limite = LIMITE_ESCRITURAS, vent
 }
 
 /** true si el pedido entra en el límite. En Workers, el binding; si no, la ventana en memoria. */
-async function dentroDelLimite(clave: string): Promise<boolean> {
-  const binding = ambitoPedido.getStore()?.limitador?.("escritura");
+async function dentroDelLimite(limite: Limite, clave: string): Promise<boolean> {
+  const binding = ambitoPedido.getStore()?.limitador?.(limite);
   if (binding) {
     try {
       return (await binding.limit({ key: clave })).success;
@@ -64,16 +114,24 @@ async function dentroDelLimite(clave: string): Promise<boolean> {
       registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
     }
   }
-  return limitarEnMemoria(clave);
+  return limitarEnMemoria(`${limite}|${clave}`, LIMITES[limite]);
 }
 
 /** Middleware: límite de escrituras por IP y ruta (sin contar el prefijo /v1). */
 export const limiteEscritura: MiddlewareHandler = async (c, next) => {
   const ruta = c.req.routePath.replace(/^\/v1(?=\/)/, "");
-  if (!(await dentroDelLimite(`${ipCliente(c)}|${c.req.method}|${ruta}`))) {
-    c.header("Retry-After", String(VENTANA_S));
-    return c.json({ error: "demasiados_pedidos", reintentarEn: VENTANA_S }, 429);
-  }
+  if (!(await dentroDelLimite("escritura", `${ipCliente(c)}|${c.req.method}|${ruta}`))) return demasiados(c);
+  return next();
+};
+
+/**
+ * Middleware: lecturas por IP (una IPv6 por su /64), aparte las búsquedas de texto. Frena a quien baja la base pedido
+ * a pedido; una persona navegando no llega ni cerca. Lo interno no cuenta (`pedidoInterno`).
+ */
+export const limiteLectura: MiddlewareHandler = async (c, next) => {
+  if ((c.req.method !== "GET" && c.req.method !== "HEAD") || pedidoInterno(c)) return next();
+  const limite: Limite = esBusqueda(c) ? "busqueda" : "lectura";
+  if (!(await dentroDelLimite(limite, claveIp(ipCliente(c))))) return demasiados(c);
   return next();
 };
 

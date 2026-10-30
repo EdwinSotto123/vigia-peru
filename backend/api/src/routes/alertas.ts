@@ -35,7 +35,7 @@ const ListQuery = z.object({
   scoreMin: z.coerce.number().int().min(0).max(100).optional(),
   conSenales: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 
 alertasRouter.get("/", async (c) => {

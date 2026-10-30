@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { compress } from "hono/compress";
 import { bodyLimit } from "hono/body-limit";
+import { limiteLectura } from "./lib/antibots.js";
 import { ping } from "./lib/db.js";
 import { SIN_CACHE } from "./lib/http.js";
 import { EN_WORKERS } from "./lib/plataforma.js";
@@ -95,6 +96,10 @@ app.use("*", async (c, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) return next();
   return (/^\/(v1\/)?admin(\/|$)/.test(c.req.path) ? demasiadoGrandeAdmin : demasiadoGrande)(c, next);
 });
+
+// Lecturas por IP (lib/antibots.ts): después de CORS, para que el navegador pueda leer el 429. Lo guardado en la
+// caché del borde (workers/cdn.ts) se responde antes y no cuenta: no cuesta una consulta.
+app.use("*", limiteLectura);
 
 // ─── Rutas: sin prefijo (como siempre) y bajo /v1 (Firebase Hosting reenvía /v1/** con la ruta entera) ──
 const api = new Hono();
