@@ -27,7 +27,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "infrastructure" / "aws"))
 from tunel_rds import conexion  # noqa: E402
 
-API = "https://vigia-api.vigiaperu.workers.dev"
+# Por la web (/v1, frontend/worker-prod.js): la API sólo atiende a nuestros Workers desde el 2026-10-30. Lo que pide la web
+# entra a la caché del borde de la API con la misma clave que las páginas que arma el servidor.
+API = "https://vigia.gobserva.cloud/v1"
 
 
 class Ritmo:
