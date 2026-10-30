@@ -1,0 +1,12 @@
+// La raíz de gobserva.cloud redirige a Vigía (worker.js). Sólo se despliega con la zona gobserva.cloud ya activa en
+// Cloudflare: los custom domains crean su registro DNS y su certificado. README.md de esta carpeta.
+{
+  "name": "gobserva-redirect",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "gobserva.cloud", "custom_domain": true },
+    { "pattern": "www.gobserva.cloud", "custom_domain": true }
+  ]
+}
