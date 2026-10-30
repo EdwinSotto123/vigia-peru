@@ -63,6 +63,10 @@ interface Mes { mes: string | null; contratos: number; conRecord: number; conDoc
 interface Lote { id: string; tipo: string; estado: string; total: number; ok: number; fallidos: number; iniciadoAt: string | null; finalizadoAt: string | null; error: string | null }
 interface Cobertura {
   meses: Mes[];
+  /** Meses entre la primera y la última convocatoria que todavía no se calcularon (migración 218: se calculan de a pocos). */
+  mesesSinCalcular?: number | null;
+  /** Cuándo se calculó el mes más viejo de calcular: hasta ahí puede estar atrasado el resumen. */
+  mesesCalculadoDesde?: string | null;
   lotes: Lote[];
   documentos: { total: number; vigentes: number; bytesVigentes: number | string; proximaExpiracion: string | null } | null;
   porFormato: { formato: string | null; n: number; bytes: number | string }[];
@@ -360,7 +364,7 @@ function TabMeses({ cob }: { cob: Consulta<Cobertura> }) {
     <PageSection
       titulo="Cobertura por mes"
       meta={meses.length ? `${fmtNum(tot.contratos)} contratos` : undefined}
-      descripcion={d ? `Cifras de la base, actualizadas ${fmtFechaHora(d.generadoAt)}` : undefined}
+      descripcion={d?.mesesCalculadoDesde ? `Precalculado: el mes más atrasado se calculó ${hace(d.mesesCalculadoDesde)}` : undefined}
       ayuda={
         <Ayuda titulo="¿Qué mide cada columna?">
           <span className="block">
@@ -391,6 +395,13 @@ function TabMeses({ cob }: { cob: Consulta<Cobertura> }) {
       >
         {() => (
           <>
+            {/* Los meses se calculan de a pocos cada 10 minutos (migración 218): mientras falten, se dice cuántos. */}
+            {!!d?.mesesSinCalcular && (
+              <p className="text-meta text-inkSoft" role="status">
+                Faltan {fmtNum(d.mesesSinCalcular)} {d.mesesSinCalcular === 1 ? "mes" : "meses"} por calcular: se completan solos, unos
+                pocos cada 10 minutos.
+              </p>
+            )}
             {meses.length > 0 && (
               <StatGrid columnas={4}>
                 <StatCard etiqueta="Expediente completo" valor={tot.conRecord} tono="ok" pista={`${pct(tot.conRecord, tot.contratos)} % del total`} />

@@ -194,6 +194,8 @@ export interface InformeRevision {
 // ─── U4 · Cobertura: progreso del lote nocturno (GET /admin/cobertura/progreso) ──
 
 export interface ProgresoDocumentos {
+  /** Contratos que pasaron a lectura: los únicos cuyos documentos se bajan, y contra los que se mide el avance. */
+  contratos?: number;
   publicados: number; vigentes: number; restantes: number; pct: number;
   contratosConDocsPublicados: number; contratosConDocs: number; contratosSinBajar: number;
   ritmo: { dia: string; n: number; contratos: number }[];

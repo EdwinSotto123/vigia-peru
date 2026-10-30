@@ -525,7 +525,16 @@ adminRouter.post("/asignar", async (c) => {
     await pool.query("SELECT refresh_financiamiento()");
     refrescado = true;
   }
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length });
+  // Cobertura por mes (migración 218): hasta 12 meses por vuelta, con tope de 45 s (los 142 meses tardaron 67 s en la base
+  // chica de DEV): el ciclo entero se renueva en un par de horas. Si falla o la base no tiene la migración, el resto de la
+  // tarea ya quedó hecho: se anota y sigue.
+  const cobertura = await pool.query<{ n: number }>("SELECT refrescar_cobertura(12, 45) AS n")
+    .then((q) => q.rows[0].n)
+    .catch((e) => {
+      if (!esErrorPg(e, "42883")) console.warn(`[asignar] refrescar_cobertura: ${(e as Error).message}`);
+      return null;
+    });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────
@@ -557,15 +566,23 @@ adminRouter.get("/procesamientos", async (c) => {
   return c.json({ data: r.rows });
 });
 
-// Cobertura (migración 16): qué tenemos de cada mes — record completo, documentos vigentes en GCS,
-// clasificación, análisis — más los lotes ingeridos y el estado del bucket según la DB.
+// Cobertura (migración 16): qué tenemos de cada mes — record completo, documentos vigentes en el almacén,
+// clasificación, análisis — más los lotes ingeridos y el estado del almacén según la DB. Los meses salen de la tabla
+// precalculada `cobertura_mes` (migración 218), que el cron recalcula de a pocos: antes se sumaban en cada visita sobre
+// las ~830 mil convocatorias y la página no terminaba de cargar.
+const MESES_SIN_CALCULAR = `SELECT count(*)::int AS n
+  FROM (SELECT generate_series(date_trunc('month', min(fecha_convocatoria)::timestamp),
+                               date_trunc('month', max(fecha_convocatoria)::timestamp), interval '1 month')::date AS mes
+          FROM convocatorias) ms
+ WHERE ms.mes IS NOT NULL AND NOT EXISTS (SELECT 1 FROM cobertura_mes cm WHERE cm.mes = ms.mes)`;
 let coberturaCache: { at: number; body: unknown } | null = null;
 adminRouter.get("/cobertura", async (c) => {
   if (coberturaCache && Date.now() - coberturaCache.at < 60_000) return c.json(coberturaCache.body);
-  const [meses, lotes, docs, gcs, fuentes] = await Promise.all([
+  const [meses, sinCalcular, lotes, docs, gcs, fuentes] = await Promise.all([
     pool.query(`SELECT mes, contratos, con_record AS "conRecord", con_docs AS "conDocs", docs_publicados::int AS "docsPublicados",
-                       docs_vigentes::int AS "docsVigentes", clasificados, analizados, en_cola AS "enCola"
-                FROM cobertura_resumen()`).catch(() => ({ rows: [] })),
+                       docs_vigentes::int AS "docsVigentes", clasificados, analizados, en_cola AS "enCola", calculado_at AS "calculadoAt"
+                FROM cobertura_mes ORDER BY mes DESC`).catch(() => ({ rows: [] })),
+    pool.query(MESES_SIN_CALCULAR).then((q) => q.rows[0].n as number).catch(() => null),
     pool.query(`SELECT id, tipo, estado, total::int, ok::int, fallidos::int, iniciado_at AS "iniciadoAt", finalizado_at AS "finalizadoAt", error
                 FROM lotes_ingesta ORDER BY iniciado_at DESC NULLS LAST LIMIT 30`).catch(() => ({ rows: [] })),
     pool.query(`SELECT count(*)::int AS total, count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS vigentes,
@@ -580,7 +597,12 @@ adminRouter.get("/cobertura", async (c) => {
                        ultima_clave AS "ultimaClave", ultima_descarga AS "ultimaDescarga", ultima_carga AS "ultimaCarga", ultimo_error AS "ultimoError"
                 FROM datasets_cobertura ORDER BY fuente`).catch(() => ({ rows: [] })),
   ]);
-  const body = { meses: meses.rows, lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, fuentes: fuentes.rows, generadoAt: new Date().toISOString() };
+  // Cuándo se calculó el mes más viejo de calcular: hasta ahí puede estar atrasado el resumen.
+  const calculados = meses.rows.map((m: { calculadoAt: Date }) => new Date(m.calculadoAt).getTime()).filter(Number.isFinite);
+  const body = {
+    meses: meses.rows, mesesSinCalcular: sinCalcular, mesesCalculadoDesde: calculados.length ? new Date(Math.min(...calculados)).toISOString() : null,
+    lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, fuentes: fuentes.rows, generadoAt: new Date().toISOString(),
+  };
   coberturaCache = { at: Date.now(), body };
   return c.json(body);
 });

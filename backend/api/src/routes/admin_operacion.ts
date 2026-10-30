@@ -100,11 +100,15 @@ let progresoCache: { at: number; body: unknown } | null = null;
 adminOperacionRouter.get("/cobertura/progreso", async (c) => {
   if (progresoCache && Date.now() - progresoCache.at < 60_000) return c.json(progresoCache.body);
   const [tot, ritmo, errores, loteActual, pendientesDocs] = await Promise.all([
-    pool.query(`SELECT COALESCE(sum(docs_publicados), 0)::bigint AS publicados, COALESCE(sum(docs_vigentes), 0)::bigint AS vigentes,
-                       count(*) FILTER (WHERE docs_publicados > 0)::int AS "contratosConDocsPublicados",
-                       count(*) FILTER (WHERE docs_vigentes > 0)::int AS "contratosConDocs",
-                       count(*) FILTER (WHERE docs_publicados > 0 AND docs_vigentes = 0)::int AS "contratosSinBajar"
-                FROM cobertura_contratos`).then((q) => q.rows[0]),
+    // Sólo se bajan los documentos de los contratos que pasan a lectura (procesamientos): el avance se mide contra ellos.
+    // Antes sumaba lo publicado por las ~830 mil convocatorias (no terminaba nunca, y «faltan» y «fin estimado» contaban
+    // documentos que nadie va a bajar). Unido por ocid, la vista sólo calcula esas filas (~320).
+    pool.query(`SELECT count(*)::int AS contratos,
+                       COALESCE(sum(cc.docs_publicados), 0)::bigint AS publicados, COALESCE(sum(cc.docs_vigentes), 0)::bigint AS vigentes,
+                       count(*) FILTER (WHERE cc.docs_publicados > 0)::int AS "contratosConDocsPublicados",
+                       count(*) FILTER (WHERE cc.docs_vigentes > 0)::int AS "contratosConDocs",
+                       count(*) FILTER (WHERE cc.docs_publicados > 0 AND cc.docs_vigentes = 0)::int AS "contratosSinBajar"
+                FROM procesamientos p JOIN cobertura_contratos cc ON cc.ocid = p.ocid`).then((q) => q.rows[0]),
     pool.query(`SELECT date_trunc('day', creado_at)::date AS dia, count(*)::int AS n, count(DISTINCT ocid)::int AS contratos
                 FROM documentos_gcs WHERE creado_at >= now() - interval '7 days' GROUP BY 1 ORDER BY 1`).then((q) => q.rows),
     pool.query(`SELECT li.lote_id AS "loteId", li.clave, li.error, li.procesado_at AS "procesadoAt"
@@ -122,6 +126,7 @@ adminOperacionRouter.get("/cobertura/progreso", async (c) => {
   const porNoche = nochesActivas.length ? Math.round(nochesActivas.reduce((a, r) => a + r.n, 0) / nochesActivas.length) : 0;
   const nochesRestantes = porNoche > 0 ? Math.ceil(restantes / porNoche) : null;
   const body = {
+    contratos: tot.contratos as number,
     publicados, vigentes, restantes, pct: publicados ? Math.round((vigentes / publicados) * 1000) / 10 : 0,
     contratosConDocsPublicados: tot.contratosConDocsPublicados, contratosConDocs: tot.contratosConDocs, contratosSinBajar: tot.contratosSinBajar,
     ritmo, porNoche, nochesRestantes,

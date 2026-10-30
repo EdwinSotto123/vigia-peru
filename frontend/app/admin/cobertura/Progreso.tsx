@@ -47,7 +47,9 @@ function LineaEstado({ icono, titulo, children }: { icono: React.ReactNode; titu
 }
 
 /**
- * El avance de las descargas, en la pestaña Documentos de Cobertura: arriba las cuatro cifras (cuánto hay, cuánto falta,
+ * El avance de las descargas, medido contra los contratos que pasaron a lectura (los únicos cuyos documentos se bajan;
+ * antes contra todo lo que publica el SEACE, y el «fin estimado» daba años), en la pestaña Documentos de Cobertura:
+ * arriba las cuatro cifras (cuánto hay, cuánto falta,
  * a qué ritmo, cuándo terminaría), una línea con el último lote y, en dos columnas, lo bajado por noche y los errores
  * agrupados por causa. Rediseño del 2026-10-30: la tarjeta con el porcentaje grande pasó a la franja de cifras y las
  * cajas plegables de cada causa, que iban dentro del panel de errores (cajas dentro de cajas), a filas con separador.
@@ -69,7 +71,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
           etiqueta="Ya en el almacén"
           valor={`${pr.pct.toLocaleString("es-PE")} %`}
           tono={pr.restantes ? "neutral" : "ok"}
-          pista={`${fmtNum(pr.vigentes)} de ${fmtNum(pr.publicados)} publicados`}
+          pista={`${fmtNum(pr.vigentes)} de ${fmtNum(pr.publicados)} publicados${pr.contratos != null ? `, de ${fmtNum(pr.contratos)} contratos en lectura` : ""}`}
         />
         <StatCard etiqueta="Faltan" valor={pr.restantes} tono={pr.restantes ? "warn" : "ok"} pista={`documentos, de ${fmtNum(pr.contratosSinBajar)} contratos`} />
         <StatCard
