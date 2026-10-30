@@ -369,7 +369,9 @@ export interface FilaContrato {
  * Los contratos que CONOSCE registra para el proceso, uno por fila. CONOSCE da una fila por contrato, ítem y modificación,
  * con el monto del contrato repetido en cada una: se agrupa en la base (antes llegaban todas: 412 mil filas en un proceso
  * de 2,232 contratos, 15 s; auditoría del 2026-10-29). El monto del contrato es el mayor de sus filas y, sin él, lo de
- * cada ítem una vez; los adicionales, reducciones y prórrogas se suman (como el cruce `adicional`, migración 121).
+ * cada ítem una vez; los adicionales, reducciones y prórrogas se suman (como el cruce `adicional`, migración 121). La
+ * vigencia es la de todo el contrato: desde su primer inicio hasta el fin más tardío de sus ítems (el original y el
+ * actualizado).
  */
 export async function contratosConosce(codigo: string): Promise<FilaContrato[]> {
   if (!/^\d+$/.test(codigo)) return [];
@@ -386,14 +388,14 @@ export async function contratosConosce(codigo: string): Promise<FilaContrato[]> 
               max(monto_contratado_item) AS monto_item, sum(monto_adicional) AS adicional, sum(monto_reduccion) AS reduccion,
               sum(monto_prorroga) AS prorroga, sum(monto_complementario) AS complementario, min(moneda) AS moneda,
               min(ruc_contratista) AS ruc, min(url_contrato) AS url, min(fecha_publicacion) AS publicado, min(fecha_suscripcion) AS firmado,
-              min(fecha_vigencia_inicial) AS desde, min(fecha_vigencia_final) AS hasta, max(fecha_vigencia_fin_actualizada) AS hasta_actualizada
+              min(fecha_vigencia_inicial) AS desde, max(fecha_vigencia_final) AS hasta, max(fecha_vigencia_fin_actualizada) AS hasta_actualizada
          FROM f GROUP BY clave, item)
      SELECT max(codigo) AS codigo, max(numero) AS numero, array_agg(item ORDER BY item) FILTER (WHERE item IS NOT NULL) AS items,
             max(total)::float AS total, sum(monto_item)::float AS suma_items, sum(adicional)::float AS adicional,
             sum(reduccion)::float AS reduccion, sum(prorroga)::float AS prorroga, sum(complementario)::float AS complementario,
             min(moneda) AS moneda, min(ruc) AS ruc, min(url) AS url, to_char(min(publicado), 'YYYY-MM-DD') AS publicado,
             to_char(min(firmado), 'YYYY-MM-DD') AS firmado, to_char(min(desde), 'YYYY-MM-DD') AS desde,
-            to_char(min(hasta), 'YYYY-MM-DD') AS hasta, to_char(max(hasta_actualizada), 'YYYY-MM-DD') AS hasta_actualizada
+            to_char(max(hasta), 'YYYY-MM-DD') AS hasta, to_char(max(hasta_actualizada), 'YYYY-MM-DD') AS hasta_actualizada
        FROM ci GROUP BY clave
       ORDER BY min(firmado) NULLS LAST, max(codigo)`, [codigo]);
   return r.rows as FilaContrato[];

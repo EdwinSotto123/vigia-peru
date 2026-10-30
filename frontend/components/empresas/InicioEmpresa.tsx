@@ -209,7 +209,16 @@ export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
   const sunat: DatoClave[] = haySunat
     ? [
         { etiqueta: "Estado", valor: e.estadoSunat ? oracion(e.estadoSunat) : null },
-        { etiqueta: "Inscrita", valor: e.fechaAlta ? fecha(e.fechaAlta) : null },
+        {
+          etiqueta: "Inscrita",
+          // La fecha de la SUNAT es la de su inscripción (o reinscripción), no la de su fundación: si ya le vendía al Estado
+          // antes, se dice (9,288 empresas; auditoría del 2026-10-29).
+          valor: e.fechaAlta
+            ? e.primera && e.primera < e.fechaAlta
+              ? `${fecha(e.fechaAlta)}; ya le vendía al Estado desde el ${fecha(e.primera)}, así que puede ser la fecha de una reinscripción del RUC`
+              : fecha(e.fechaAlta)
+            : null,
+        },
         { etiqueta: "Domicilio fiscal", valor: e.domicilio ? tituloNatural(e.domicilio) : null },
         { etiqueta: "Actividad", valor: e.actividad ? oracion(e.actividad) : null },
       ]
