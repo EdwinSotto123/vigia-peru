@@ -95,6 +95,7 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm')
        AND a.attname ~* '(^|_)(dni|doc|documento|numero_documento|nro_documento|pariente_doc|num_doc)($|_)'
+       AND a.attname !~* '(^|_)id($|_)'   -- ocds_doc_id, id_documento_contrato: ids de documentos, no de personas (215)
   LOOP
     EXECUTE format('GRANT SELECT ON public.%I TO rds_pgaudit', t);
   END LOOP;

@@ -77,8 +77,9 @@ resource "aws_db_parameter_group" "pg16" {
     value = "ddl,role"
   }
   # Lecturas de datos personales (2026-10-30): auditoría por objeto. rds_pgaudit tiene SELECT sobre las tablas con
-  # documentos de personas (migración 213); toda lectura de ellas, de cualquier rol, queda en el log (CloudWatch, que
-  # guarda un año en producción y 30 días en DEV), sin los valores de los parámetros.
+  # documentos de personas (migraciones 213 y 215); toda lectura de ellas, de cualquier rol, queda en el log (CloudWatch,
+  # que guarda un año en producción y 30 días en DEV), sin los valores de los parámetros y con cuántas filas devolvió
+  # (una descarga masiva se ve por ese número). Unos 0,3 GB de log al día en producción con el tráfico de octubre.
   parameter {
     name  = "pgaudit.role"
     value = "rds_pgaudit"
@@ -86,6 +87,10 @@ resource "aws_db_parameter_group" "pg16" {
   parameter {
     name  = "pgaudit.log_parameter"
     value = "0"
+  }
+  parameter {
+    name  = "pgaudit.log_rows"
+    value = "1"
   }
 }
 
@@ -95,7 +100,7 @@ resource "aws_db_instance" "esta" {
   engine_version               = "16.15" # misma versión que Cloud SQL
   instance_class               = var.clase
   allocated_storage            = var.almacenamiento_gb
-  max_allocated_storage        = 100
+  max_allocated_storage        = 200   # 100 hasta el 2026-10-30: la base llegó al tope (66 GB + WAL + temporales)
   storage_type                 = "gp3"
   storage_encrypted            = true
   db_name                      = var.db_nombre
