@@ -54,6 +54,10 @@ Todo el tráfico de internet pasa por la zona: `frontend/worker-prod.js` redirig
 | `frontend/worker-prod.js` | 300 páginas por minuto por IP (una IPv6 por su /64), sin contar los prefetch de Next |
 | `backend/api/src/lib/antibots.ts` | La API no tiene zona: 120 lecturas y 30 búsquedas por minuto por IP; 10 escrituras por minuto y ruta, con Turnstile. Lo que piden nuestros Workers (cabecera `CF-Worker`, que Cloudflare no deja falsificar) no cuenta |
 
+Los límites por IP de la API y de la web los cuenta un Durable Object por clave (`backend/api/src/workers/limitador.ts`):
+los bindings de Rate Limiting de Workers cuentan en cada máquina y, con el placement en us-east-2, dejaban pasar casi todo
+(600 pedidos en 9 s sin un 429).
+
 Los buscadores (Googlebot, Bingbot), las vistas previas de enlaces (WhatsApp, Telegram, Facebook) y los asistentes que
 abren una página porque una persona lo pidió (ChatGPT-User, Claude-User, Perplexity) siguen entrando. Para revisar o
 volver a aplicar lo de la zona: `CLOUDFLARE_API_TOKEN=… python proteger_zona.py estado` (o `todo`).

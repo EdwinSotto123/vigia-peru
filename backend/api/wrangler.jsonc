@@ -29,11 +29,10 @@
 
   // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
   // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
-  "ratelimits": [
-    { "name": "LIMITE_ESCRITURA", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "LIMITE_LECTURA", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
-    { "name": "LIMITE_BUSQUEDA", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } }
-  ],
+  // Cuenta un Durable Object por clave (workers/limitador.ts): los bindings de Rate Limiting dejaban pasar casi todo con
+  // el placement de arriba. La web usa la misma clase (frontend/wrangler.jsonc, script_name "vigia-api").
+  "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
+  "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
 
   // Las mismas de infrastructure/deploy/gcp/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY, DISPATCHER_TOKEN, TURNSTILE_SECRET_KEY (copia en
@@ -66,11 +65,8 @@
       ],
       "r2_buckets": [{ "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }],
       "services": [],
-      "ratelimits": [
-        { "name": "LIMITE_ESCRITURA", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
-        { "name": "LIMITE_LECTURA", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
-        { "name": "LIMITE_BUSQUEDA", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } }
-      ],
+      "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
+      "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
       "vars": {
         "VIGIA_ENTORNO": "dev",
         "FIREBASE_PROJECT_ID": "simplia-project",

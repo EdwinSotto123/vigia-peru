@@ -21,11 +21,10 @@
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
   ],
   // Subidas por IP en /api/upload (lib/limite-ip.ts): 10 cada 60 s. Fuera de Workers, en memoria.
-  // Páginas por IP (worker-prod.js): 300 por minuto, sin contar los prefetch de Next.
-  "ratelimits": [
-    { "name": "LIMITE_SUBIDAS", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "LIMITE_PAGINAS", "namespace_id": "2003", "simple": { "limit": 300, "period": 60 } }
-  ],
+  "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } }],
+  // Páginas por IP (worker-prod.js): el Durable Object de la API (backend/api/src/workers/limitador.ts), que cuenta
+  // exacto; un binding de Rate Limiting deja pasar casi todo con el placement de abajo. Se despliega después de la API.
+  "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador", "script_name": "vigia-api" }] },
   "vars": {
     "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
     "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",

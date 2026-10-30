@@ -52,8 +52,10 @@ class Ambito implements AmbitoPedido {
     return nombre === "dispatcher" ? this.env.DISPATCHER : undefined;
   }
 
-  limitador(nombre: "escritura" | "lectura" | "busqueda") {
-    return { escritura: this.env.LIMITE_ESCRITURA, lectura: this.env.LIMITE_LECTURA, busqueda: this.env.LIMITE_BUSQUEDA }[nombre];
+  limitador() {
+    const ns = this.env.LIMITADOR;
+    if (!ns) return undefined;
+    return { contar: (clave: string, tope: number, ventanaS: number) => ns.get(ns.idFromName(clave)).contar(tope, ventanaS * 1000) };
   }
 
   seguir(p: Promise<unknown>): void {

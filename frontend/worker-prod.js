@@ -7,9 +7,10 @@
  *     (mismo camino y consulta). En *.workers.dev no hay zona: ni WAF, ni bloqueo de rastreadores de IA, ni límite por
  *     IP de Cloudflare (infrastructure/deploy/cloudflare/gobserva-redirect/README.md). El 2026-10-30 casi todo lo que
  *     llegaba por ahí era el rastreador de entrenamiento de Meta recorriendo /app/personas con filtros.
- *   · Páginas por IP (binding LIMITE_PAGINAS: 300 por minuto; una IPv6 por su /64). No cuentan los prefetch de Next
- *     (`Next-Router-Prefetch`): una lista con 50 enlaces pide 50 de golpe y sólo traen el esqueleto, sin datos.
- *     Los estáticos (/_next/static) no pasan por acá: los entrega Cloudflare antes.
+ *   · Páginas por IP: 300 por minuto (una IPv6 por su /64), contadas por el Durable Object `Limitador` de la API
+ *     (binding LIMITADOR con script_name "vigia-api"; un binding de Rate Limiting deja pasar casi todo con el placement
+ *     en us-east-2). No cuentan los prefetch de Next (`Next-Router-Prefetch`): una lista con 50 enlaces pide 50 de golpe
+ *     y sólo traen el esqueleto, sin datos. Los estáticos (/_next/static) no pasan por acá: los entrega Cloudflare antes.
  *   · Lo interno pasa tal cual: la revalidación ISR (WORKER_SELF_REFERENCE) llega sin CF-Connecting-IP, que Cloudflare
  *     pone (y no deja falsificar) en todo pedido que entra de internet.
  */
@@ -19,6 +20,7 @@ export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-nex
 
 const DOMINIO = "https://vigia.gobserva.cloud";
 const HOST_VIEJO = "vigia-web.vigiaperu.workers.dev";
+const TOPE_PAGINAS = 300;
 const VENTANA_S = 60;
 
 /** Una IPv4 entera; una IPv6 por su /64 (como backend/api/src/lib/antibots.ts → claveIp). */
@@ -50,10 +52,11 @@ export default {
         const metodoSeguro = req.method === "GET" || req.method === "HEAD";
         return Response.redirect(`${DOMINIO}${url.pathname}${url.search}`, metodoSeguro ? 301 : 308);
       }
-      if (env.LIMITE_PAGINAS && !req.headers.has("next-router-prefetch")) {
+      if (env.LIMITADOR && !req.headers.has("next-router-prefetch")) {
         let dentro = true;
         try {
-          dentro = (await env.LIMITE_PAGINAS.limit({ key: claveIp(ip) })).success;
+          const objeto = env.LIMITADOR.get(env.LIMITADOR.idFromName(`paginas|${claveIp(ip)}`));
+          dentro = await objeto.contar(TOPE_PAGINAS, VENTANA_S * 1000);
         } catch {
           // Si el limitador falla, se atiende: es preferible eso a dejar el sitio caído.
         }

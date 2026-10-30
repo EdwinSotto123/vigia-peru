@@ -5,8 +5,9 @@
  *   · Turnstile en las escrituras (widget "managed": invisible para la gente, desafío solo ante sospecha). El token
  *     llega en el header `cf-turnstile-response` y se valida con siteverify; sirve UNA sola vez.
  *   · Límite por IP y ruta para las escrituras (10 por minuto) y por IP para las lecturas (120 por minuto; 30 las
- *     búsquedas de texto, las más caras para la base). En Workers con los bindings de Rate Limiting (`LIMITE_*`,
- *     wrangler.jsonc); en Cloud Run con una ventana en memoria por instancia.
+ *     búsquedas de texto, las más caras para la base). En Workers con un Durable Object por clave (workers/limitador.ts:
+ *     los bindings de Rate Limiting dejaban pasar casi todo con la API ubicada en us-east-2); en Cloud Run con una
+ *     ventana en memoria por instancia.
  *   · Las lecturas de nuestros propios Workers no cuentan: la web pide a la API desde su servidor con la IP de salida
  *     de Cloudflare, la misma para todos sus visitantes (ver `pedidoInterno`).
  *
@@ -25,7 +26,7 @@ import { registrar } from "./registro.js";
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 export const HEADER_TURNSTILE = "cf-turnstile-response";
 
-/** Pedidos por IP en la ventana (los bindings de Workers usan los mismos números, wrangler.jsonc). */
+/** Pedidos por IP en la ventana. */
 export const LIMITE_ESCRITURAS = 10;
 export const LIMITE_LECTURAS = 120;
 export const LIMITE_BUSQUEDAS = 30;
@@ -104,17 +105,18 @@ export function limitarEnMemoria(clave: string, limite = LIMITE_ESCRITURAS, vent
   return true;
 }
 
-/** true si el pedido entra en el límite. En Workers, el binding; si no, la ventana en memoria. */
+/** true si el pedido entra en el límite. En Workers, el Durable Object (exacto); si no, la ventana en memoria. */
 async function dentroDelLimite(limite: Limite, clave: string): Promise<boolean> {
-  const binding = ambitoPedido.getStore()?.limitador?.(limite);
-  if (binding) {
+  const k = `${limite}|${clave}`;
+  const limitador = ambitoPedido.getStore()?.limitador?.();
+  if (limitador) {
     try {
-      return (await binding.limit({ key: clave })).success;
+      return await limitador.contar(k, LIMITES[limite], VENTANA_S);
     } catch (e) {
       registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
     }
   }
-  return limitarEnMemoria(`${limite}|${clave}`, LIMITES[limite]);
+  return limitarEnMemoria(k, LIMITES[limite]);
 }
 
 /** Middleware: límite de escrituras por IP y ruta (sin contar el prefijo /v1). */

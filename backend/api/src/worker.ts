@@ -13,6 +13,9 @@ import { atenderConAmbito } from "./workers/ambito.js";
 import { conCdn } from "./workers/cdn.js";
 import type { Env } from "./workers/env.js";
 
+// Límite por IP (lib/antibots.ts): la clase del Durable Object se exporta desde la entrada (wrangler.jsonc → durable_objects).
+export { Limitador } from "./workers/limitador.js";
+
 export default {
   fetch(request, env, ctx) {
     // Lecturas públicas desde la caché del borde (workers/cdn.ts), como Firebase Hosting delante de Cloud Run.

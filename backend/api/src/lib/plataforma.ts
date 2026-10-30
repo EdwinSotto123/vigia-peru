@@ -74,8 +74,8 @@ export interface AmbitoPedido {
    * otro *.workers.dev de la misma cuenta (error 1042): el dispatcher se llama por acá.
    */
   servicio?(nombre: "dispatcher"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
-  /** Binding de Rate Limiting de Workers (lib/antibots.ts); sin él, el límite va en memoria. */
-  limitador?(nombre: "escritura" | "lectura" | "busqueda"): { limit(o: { key: string }): Promise<{ success: boolean }> } | undefined;
+  /** Límite por clave exacto entre todas las instancias (Durable Object, workers/limitador.ts); sin él, en memoria. */
+  limitador?(): { contar(clave: string, tope: number, ventanaS: number): Promise<boolean> } | undefined;
 }
 
 export const ambitoPedido = new AsyncLocalStorage<AmbitoPedido>();
