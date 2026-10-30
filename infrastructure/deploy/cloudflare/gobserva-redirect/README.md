@@ -53,6 +53,7 @@ Todo el tráfico de internet pasa por la zona: `frontend/worker-prod.js` redirig
 | `frontend/app/robots.ts` | Los rastreadores de entrenamiento no entran; nadie recorre las listas de `/app` con filtros |
 | `frontend/worker-prod.js` | 300 páginas por minuto por IP (una IPv6 por su /64), sin contar los prefetch de Next |
 | `backend/api/src/lib/antibots.ts` | La API no tiene zona: 120 lecturas y 30 búsquedas por minuto por IP; 10 escrituras por minuto y ruta, con Turnstile. Lo que piden nuestros Workers (cabecera `CF-Worker`, que Cloudflare no deja falsificar) no cuenta |
+| `backend/mcp-worker/src/index.ts` | El MCP es abierto (datos públicos, solo lectura): 120 llamadas por minuto por IP, alto porque los clientes de IA alojados comparten IPs |
 
 Los límites por IP de la API y de la web los cuenta un Durable Object por clave (`backend/api/src/workers/limitador.ts`):
 los bindings de Rate Limiting de Workers cuentan en cada máquina y, con el placement en us-east-2, dejaban pasar casi todo
