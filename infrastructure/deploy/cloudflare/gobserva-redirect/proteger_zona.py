@@ -55,13 +55,17 @@ def ajustes():
 
 
 def bots():
-    informar("bots", llamar("PUT", f"/zones/{ZONA}/bot_management", {"ai_training": "block"}))
+    # "disabled" desde el 2026-10-30: con "block", la regla administrada «Block AI training crawlers» (BOBA-199) devolvía
+    # 403 a Googlebot y a Bingbot (Search Console no leía el sitemap) y corre ANTES que las reglas propias, así que un
+    # `skip` no la salta. Los rastreadores de entrenamiento quedan fuera por nombre (la primera regla de `waf`) y por
+    # robots.txt.
+    informar("bots", llamar("PUT", f"/zones/{ZONA}/bot_management", {"ai_training": "disabled"}))
 
 
 # Los mismos nombres que frontend/app/robots.ts (menos los que sólo existen en robots.txt, como Google-Extended).
 UA_ENTRENAMIENTO = ["gptbot", "claudebot", "anthropic-ai", "ccbot", "bytespider", "meta-externalagent", "facebookbot",
                     "amazonbot", "cohere-ai", "cohere-training-data-crawler", "diffbot", "omgili", "timpibot",
-                    "imagesiftbot", "ai2bot", "pangubot", "img2dataset"]
+                    "imagesiftbot", "ai2bot", "pangubot", "img2dataset", "kangaroo bot", "icc-crawler"]
 RUTAS_ESCANER = [".php", "/wp-", "/.env", "/.git", "/.aws", "/.ssh", "/.ds_store", "/.vscode", "/cgi-bin", "phpmyadmin",
                  "/xmlrpc", "/actuator", "/server-status", "/vendor/phpunit", "/.htaccess", "/.svn"]
 UA_SCRIPTS = ["python-requests", "python-urllib", "aiohttp", "httpx", "scrapy", "go-http-client", "curl/", "wget/",
