@@ -27,6 +27,7 @@ import { visitasRouter } from "./routes/visitas.js";
 import { estadoRouter } from "./routes/estado.js";
 import { novedadesRouter } from "./routes/novedades.js";
 import { sitemapRouter } from "./routes/sitemap.js";
+import { pagosRouter } from "./routes/pagos.js";
 import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
 import { financiamientoRouter } from "./routes/financiamiento.js";
@@ -134,6 +135,7 @@ api.route("/visitas", visitasRouter);
 api.route("/estado", estadoRouter);
 api.route("/novedades", novedadesRouter);
 api.route("/sitemap", sitemapRouter);
+api.route("/pagos", pagosRouter);
 api.route("/reportes", reportesRouter);
 api.route("/upload", uploadRouter);
 api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)

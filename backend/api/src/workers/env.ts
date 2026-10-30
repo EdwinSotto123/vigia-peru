@@ -28,6 +28,10 @@ export interface Env {
 
   // secretos
   ADMIN_TOKEN?: string;
+  /** Mercado Pago (routes/pagos.ts, lib/mercadopago.ts): en vigia-api-dev, los de la cuenta de prueba. */
+  MP_ACCESS_TOKEN?: string;
+  MP_PUBLIC_KEY?: string;
+  MP_WEBHOOK_SECRET?: string;
   GCP_SA_KEY?: string;
   /** Secreto del widget Turnstile (lib/antibots.ts). */
   TURNSTILE_SECRET_KEY?: string;

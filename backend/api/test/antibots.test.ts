@@ -117,6 +117,10 @@ test("cerradaAlPublico: de internet sólo la portada, la salud y el panel con su
     assert.equal(pedir("/v1/contratos?q=agua", internet)?.status, 403);
     assert.equal(pedir("/reportes", internet, "POST")?.status, 403);
     for (const r of ["/", "/health", "/livez", "/v1/health"]) assert.equal(pedir(r, internet), null, r);
+    // El aviso de Mercado Pago pasa (la ruta exige su firma); el cobro y cualquier otro método, no.
+    assert.equal(pedir("/v1/pagos/mercadopago/webhook", internet, "POST"), null);
+    assert.equal(pedir("/v1/pagos/mercadopago/webhook", internet)?.status, 403);
+    assert.equal(pedir("/v1/pagos/aporte", internet, "POST")?.status, 403);
     assert.equal(pedir("/empresas/1", internet, "OPTIONS"), null);
     assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "token-de-prueba" }), null);
     assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "otro" })?.status, 403);

@@ -112,6 +112,8 @@ export function cerradaAlPublico(req: Request): Response | null {
   if (!req.headers.get("cf-connecting-ip")) return null;   // no vino de internet: el cron, un service binding
   const ruta = new URL(req.url).pathname.replace(/^\/v1(?=\/|$)/, "") || "/";
   if (ruta === "/" || ruta === "/health" || ruta === "/livez") return null;
+  // Los avisos de Mercado Pago llegan desde sus servidores: la ruta exige su firma (routes/pagos.ts).
+  if (req.method === "POST" && ruta === "/pagos/mercadopago/webhook") return null;
   if (tokenIgual(req.headers.get("x-admin-token"), process.env.ADMIN_TOKEN)) return null;
   if (tokenIgual(req.headers.get("x-vigia-build"), process.env.BUILD_TOKEN)) return null;
   return new Response(JSON.stringify({ error: "api_privada", mensaje: "Los datos de Vigía se consultan en https://vigia.gobserva.cloud" }), {

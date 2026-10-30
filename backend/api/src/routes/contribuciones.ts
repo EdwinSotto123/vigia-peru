@@ -29,6 +29,7 @@ import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { hayAporteEntidad } from "../lib/esquema.js";
 import { colaDeEntidad, colaDePartido, entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres, tarifaVigente } from "../lib/aportes.js";
+import { mpPublicKey } from "../lib/mercadopago.js";
 
 export const contribucionesRouter = new Hono();
 
@@ -42,7 +43,10 @@ export async function getPagosConfig() {
     cuentas: Array.isArray(v.cuentas) ? v.cuentas : [],
     instrucciones: v.instrucciones || "Transfiere el monto exacto indicando el código de tu aporte como concepto y sube el comprobante. Validamos en menos de 48 h.",
     contactoEmail: v.contacto_email || null,
+    // Yape, Plin o transferencia (lo que valida el panel). La tarjeta va aparte: routes/pagos.ts.
     configurado: Boolean(v.yape?.numero || v.plin?.numero || (Array.isArray(v.cuentas) && v.cuentas.length)),
+    /** Pago con tarjeta por Mercado Pago (la clave pública es para el formulario del navegador). */
+    tarjeta: mpPublicKey() ? { publicKey: mpPublicKey() as string } : null,
   };
 }
 
@@ -57,7 +61,7 @@ type Financiador = { tipo: "empresa" | "persona" | "organizacion"; nombrePublico
  * cualquiera cambiar el nombre y el logo públicos de un financiador ajeno (auditoría 2026-10-21). Con sesión no hace
  * falta repetir nombre/logo. Marca el conflicto de interés (regla 3: sanción vigente o proveedor con alertas activas).
  */
-async function resolverFinanciador(client: import("pg").PoolClient, uid: string | null, f: Financiador): Promise<number> {
+export async function resolverFinanciador(client: import("pg").PoolClient, uid: string | null, f: Financiador): Promise<number> {
   let cuenta: { financiador_id: number | null; correo: string | null; nombre_publico: string | null } | null = null;
   if (uid) {
     cuenta = (await client.query(
