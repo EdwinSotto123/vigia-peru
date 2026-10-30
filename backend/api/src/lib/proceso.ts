@@ -687,12 +687,12 @@ export const CONTRATOS_OCDS_SQL = `(SELECT jsonb_agg(jsonb_build_object('id', k-
 
 /** Cuántos contratos firmados caben en la ficha: con más, van los de mayor monto (`recortarContrato`). */
 export const TOPE_FIRMADOS = 300;
-const TOPE_LISTA = 20;
+const TOPE_LISTA = 10;
 
 /**
  * Un proceso enorme (compras corporativas: 2,232 contratos con 128 mil ítems en uno de CENARES) no cabe entero en la
- * ficha: la página no llegaba a armarse (503). Van los 300 contratos de mayor monto, cada uno con hasta 20 de sus ítems y
- * cada ítem con hasta 20 de esos contratos, y los totales para decirlo (`firmadosTotal`, `montoFirmados`, `itemsTotal`,
+ * ficha: la página no llegaba a armarse (503). Van los 300 contratos de mayor monto, cada uno con hasta 10 de sus ítems y
+ * cada ítem con hasta 10 de esos contratos, y los totales para decirlo (`firmadosTotal`, `montoFirmados`, `itemsTotal`,
  * `contratosTotal`); la lista entera está en CONOSCE. Un proceso normal pasa igual, con sus totales.
  */
 export function recortarContrato(k: { items: ItemAdjudicado[]; firmados: ContratoFirmado[] }) {
