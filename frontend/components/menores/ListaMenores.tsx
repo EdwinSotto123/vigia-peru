@@ -14,7 +14,9 @@ import {
   PaginadorHayMas,
   SinAntecedentes,
   antecedenteInhabilitado,
+  conFicha,
   datoFecha,
+  fichasCompra,
   filtroRuc,
   hrefConFiltro,
   hrefPagina,
@@ -23,8 +25,7 @@ import {
 } from "@/components/ordenes/ListaOrdenes";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
-import { enlaceProveedor } from "@/lib/empresas";
-import { fecha as fechaLarga, fechaCorta, oracion, soles } from "@/lib/formato";
+import { fecha as fechaLarga, fechaConAnio, oracion, soles } from "@/lib/formato";
 import { CONSULTA_RUC_SUNAT, SEACE_CONTRATOS, SEACE_MENORES } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import {
@@ -268,14 +269,16 @@ export async function ListaMenores({
     const proveedor = m.proveedor ? tituloNatural(m.proveedor) : null;
     const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
     const objeto = objetoTxt(m.objeto);
-    const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaCorta(m.cotizaDesde)} – ${fechaCorta(m.cotizaHasta)}` : null;
+    // Las fechas del panel, siempre con el año (un rango «28 dic. – 3 ene.» cruza de un año a otro).
+    const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaConAnio(m.cotizaDesde)} – ${fechaConAnio(m.cotizaHasta)}` : null;
     const sunat = antecedentesSunat(m);
     // Las banderas de la fila: lo de la SUNAT y, si el Tribunal lo tenía inhabilitado al firmar, eso (lo más grave).
     const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []), ...sunat];
     const estado = <EstadoCompra estado={m.estado} />;
-    // La ficha del proveedor (empresas, RUC 20): donde está lo que dice la SUNAT. No desde su propia ficha.
-    const ficha = enlaceProveedor(m.proveedorRuc);
-    const fichaProveedor = ficha && !ruta.startsWith(ficha.split("?")[0]) ? ficha : null;
+    // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
+    // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
+    const fichas = fichasCompra(ruta, m.entidadRuc, m.proveedorRuc);
+    const fichaProveedor = fichas.proveedor;
     const soloEntidad = enGeneral && m.entidadRuc && parametros[P_MEN.entidad] !== m.entidadRuc
       ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.entidad]: m.entidadRuc }) : null;
     const soloProveedor = enGeneral && /^20\d{9}$/.test(m.proveedorRuc ?? "") && parametros[P_MEN.proveedor] !== m.proveedorRuc
@@ -283,11 +286,11 @@ export async function ListaMenores({
     const items: (DatoClave | null)[] = [
       { etiqueta: "Qué se contrató", valor: descripcion },
       objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
-      { etiqueta: "Entidad", valor: entidad },
-      { etiqueta: "Proveedor", valor: proveedor },
+      { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
+      { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
       m.provTipo ? { etiqueta: "Tipo de proveedor", valor: oracion(m.provTipo) } : null,
       m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
-      m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaCorta(m.provDesde), mono: true } : null,
+      m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaConAnio(m.provDesde), mono: true } : null,
       datoFecha("Suscrito", m.fecha, FUENTE),
       {
         etiqueta: "Monto",

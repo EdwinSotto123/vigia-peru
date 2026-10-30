@@ -1,10 +1,11 @@
 import { Building2, CalendarRange, CloudOff, History, List } from "lucide-react";
 import Link from "next/link";
+import { Fragment } from "react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { FuenteDato, Nota, Pestanas, type Pestana } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
-import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, numero, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
 import { AccionesHecho, DetalleHecho } from "./DetalleHecho";
 import { Destacados } from "./Destacados";
@@ -56,6 +57,32 @@ export async function HistoriaFicha({
   // La historia en la página: con ella se hablan las tarjetas de arriba y su línea.
   const clave = `${tipo}-${id}`;
   const hilos = h.hilos ?? [];
+  // Antes decía que los que faltan estaban en «Todos los hechos»: esa lista usa los mismos hechos que la línea (la API
+  // pone un tope por renglón). Lo completo es la lista de la pestaña de cada renglón, enlazada si la tiene. Va bajo la
+  // línea y bajo la lista: las dos llevan lo mismo.
+  const notaOmitidos =
+    omitidos.length > 0 ? (
+      <Nota>
+        En la línea y en «Todos los hechos» van los hechos más graves y los más grandes de cada renglón. Quedaron fuera{" "}
+        {omitidos.map(([c, n], i) => {
+          const href = h.series.find((s) => s.carril === c)?.href;
+          const texto = `${numero(n)} de «${titulo(c)}»`;
+          return (
+            <Fragment key={c}>
+              {i > 0 && (i === omitidos.length - 1 ? " y " : ", ")}
+              {href ? (
+                <Link href={href} prefetch={false} className="font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate">
+                  {texto}
+                </Link>
+              ) : (
+                texto
+              )}
+            </Fragment>
+          );
+        })}
+        : el registro completo de cada uno está en su pestaña de la ficha.
+      </Nota>
+    ) : null;
 
   const formas: Pestana[] = [
     {
@@ -65,12 +92,7 @@ export async function HistoriaFicha({
       contenido: (
         <div className="space-y-2">
           <LineaDeTiempo h={h} etiqueta={`Historia de ${nombre}`} clave={clave} />
-          {omitidos.length > 0 && (
-            <Nota>
-              En la línea van los hechos más graves y los más grandes de cada renglón:{" "}
-              {omitidos.map(([c, n]) => `${numero(n)} más en «${titulo(c)}»`).join(", ")}. Están todos en «Todos los hechos» y en su pestaña.
-            </Nota>
-          )}
+          {notaOmitidos}
         </div>
       ),
     },
@@ -98,7 +120,12 @@ export async function HistoriaFicha({
       etiqueta: "Todos los hechos",
       conteo: h.eventos.length + h.secuencias.length,
       icono: <List size={15} aria-hidden />,
-      contenido: <ListaHechos h={h} titulo={titulo} />,
+      contenido: (
+        <div className="space-y-2">
+          <ListaHechos h={h} titulo={titulo} />
+          {notaOmitidos}
+        </div>
+      ),
     },
   ];
 
@@ -128,7 +155,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
           <CeldaPrincipal
             titulo={s.titulo}
             meta={[
-              <Dato key="f" tipo="fecha" nombre="Cuándo">{`${fechaCorta(s.pasos[0].fecha)} a ${fechaCorta(s.pasos[s.pasos.length - 1].fecha)}`}</Dato>,
+              <Dato key="f" tipo="fecha" nombre="Cuándo">{`${fechaConAnio(s.pasos[0].fecha)} a ${fechaConAnio(s.pasos[s.pasos.length - 1].fecha)}`}</Dato>,
               <Dato key="c" tipo="tipo" nombre="Renglón">Una cosa lleva a otra</Dato>,
             ]}
           />
@@ -144,7 +171,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
             <ol className="space-y-1.5">
               {s.pasos.map((p, i) => (
                 <li key={i} className="text-meta text-ink">
-                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{fechaCorta(p.fecha)}</span> {p.texto}
+                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{fechaConAnio(p.fecha)}</span> {p.texto}
                 </li>
               ))}
             </ol>
@@ -175,7 +202,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
                   {e.quien.nombre}
                 </Dato>
               ) : null,
-              <Dato key="f" tipo="fecha" nombre="Cuándo">{e.hasta ? `${fechaCorta(e.fecha)} a ${fechaCorta(e.hasta)}` : fechaCorta(e.fecha)}</Dato>,
+              <Dato key="f" tipo="fecha" nombre="Cuándo">{e.hasta ? `${fechaConAnio(e.fecha)} a ${fechaConAnio(e.hasta)}` : fechaConAnio(e.fecha)}</Dato>,
               <Dato key="c" tipo="tipo" nombre="Renglón">{titulo(e.carril)}</Dato>,
               sev(e.severidad) && e.carril !== "gobierno" ? <Dato key="s" tipo="tipo" nombre="Gravedad">{sev(e.severidad)}</Dato> : null,
             ]}

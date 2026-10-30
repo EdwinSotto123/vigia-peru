@@ -2,7 +2,7 @@ import { CloudOff, DoorOpen } from "lucide-react";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { AyudaTermino, FuenteDato, Nota } from "@/components/patrones";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
-import { fecha, fechaCorta, numero, plural, porcentaje } from "@/lib/formato";
+import { fecha, fechaConAnio, numero, plural, porcentaje } from "@/lib/formato";
 import { getVisitasEntidad } from "@/lib/visitas";
 import { Areas, EmpresasDeSuGente, ListaVisitas, Organizaciones, Parientes } from "./VisitasTablas";
 
@@ -40,7 +40,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
     {
       valor: numero(d.total),
       etiqueta: d.total === 1 ? "visita registrada" : "visitas registradas",
-      contexto: d.desde && d.hasta ? `del ${fechaCorta(d.desde)} al ${fechaCorta(d.hasta)}` : undefined,
+      contexto: d.desde && d.hasta ? `del ${fechaConAnio(d.desde)} al ${fechaConAnio(d.hasta)}` : undefined,
       ayuda: <AyudaTermino clave="registro-visitas" />,
     },
     {
@@ -82,7 +82,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
       </Nota>
       {emp && emp.lista.length > 0 && <EmpresasDeSuGente e={emp} entidadRuc={ruc} />}
       {orgs.length > 0 && <Organizaciones orgs={orgs} sinDespues={sinDespues} />}
-      {(d.parientes ?? []).length > 0 && <Parientes ps={d.parientes!} />}
+      {(d.parientes ?? []).length > 0 && <Parientes ps={d.parientes!} entidadRuc={ruc} fuentes={d.fuentes} />}
       {(d.areas ?? []).length > 0 && <Areas areas={d.areas!} />}
       <ListaVisitas vs={d.visitas ?? []} total={d.total} />
       <FuenteDato fuente="El registro de visitas de cada entidad" enlaces={d.fuentes ?? []} />

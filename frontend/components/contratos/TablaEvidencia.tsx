@@ -7,7 +7,7 @@ import { Buscador } from "@/components/listado/BarraFiltros";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import type { EvidenciaCruce } from "@/lib/contratos";
-import { coincide, fechaCorta, numero, oracion, paraBuscar, porcentaje, soles } from "@/lib/formato";
+import { coincide, fechaConAnio, numero, oracion, paraBuscar, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { descargarCsv, nombreArchivo } from "@/lib/csv";
 
@@ -224,10 +224,10 @@ export function TablaEvidencia({
   );
 }
 
-/** El texto en que busca una celda: lo mismo que se ve. */
+/** El texto en que busca una celda: lo mismo que se ve (la fecha con su año, como en `Celda`: buscar «2024» la encuentra). */
 function textoDe(tipo: EvidenciaCruce["columnas"][number]["tipo"], valor: unknown): string {
   if (valor == null || valor === "") return "";
-  if (tipo === "fecha") return fechaCorta(String(valor));
+  if (tipo === "fecha") return fechaConAnio(String(valor));
   if (tipo === "enlace" && typeof valor === "object") return String((valor as { texto?: string }).texto ?? "");
   return String(valor);
 }
@@ -237,10 +237,13 @@ function MarcaDespues() {
   return <span className="ml-1.5 whitespace-nowrap rounded bg-paperDeep px-1.5 py-px text-micro font-medium text-inkSoft">después</span>;
 }
 
-/** Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. */
+/**
+ * Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. La fecha
+ * siempre con el año: los registros mezclan años y «4 ago.» al lado de «4 ago. 2025» no decía de cuál era.
+ */
 function Celda({ tipo, valor }: { tipo?: EvidenciaCruce["columnas"][number]["tipo"]; valor: unknown }) {
   if (valor == null || valor === "") return <span className="text-mute">Sin dato</span>;
-  if (tipo === "fecha") return <>{fechaCorta(String(valor))}</>;
+  if (tipo === "fecha") return <>{fechaConAnio(String(valor))}</>;
   if (tipo === "soles") return <>{soles(Number(valor))}</>;
   if (tipo === "pct") {
     const v = Number(valor);

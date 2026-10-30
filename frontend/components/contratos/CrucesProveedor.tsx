@@ -21,7 +21,9 @@ import { CuentaGrupo } from "@/components/listado";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import type { CruceProveedor } from "@/lib/contratos";
-import { fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { inversionSsi, obraInfobras } from "@/lib/fuentes";
+import { rutaPartido } from "@/lib/partidos";
 import { tituloNatural } from "@/lib/landing";
 import { recortar } from "./recortar";
 import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
@@ -75,7 +77,7 @@ const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && 
 const rango = (a: unknown, b: unknown) => {
   const x = txt(String(a ?? "")), y = txt(String(b ?? ""));
   if (!x && !y) return null;
-  const f = (s: string | null) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? fechaCorta(s) : s);
+  const f = (s: string | null) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? fechaConAnio(s) : s);
   return x === y || !y ? f(x) : `${f(x) ?? "?"} – ${f(y)}`;
 };
 /** Otra empresa del cruce, con enlace a su ficha (RUC 20); una persona natural (RUC 10), sin nombre ni código. */
@@ -91,9 +93,43 @@ function OtraEmpresa({ ruc, nombre, conRuc = false }: { ruc: string; nombre: str
   );
 }
 
-/** La empresa ganadora de la que habla el cruce, en negrita. */
+const ENLACE_TXT = "font-semibold underline decoration-line underline-offset-2 hover:decoration-ink";
+
+/** Un partido con enlace a su ficha, del gobierno del año del dato («ERM2022» también sirve). */
+function Partido({ nombre, anio }: { nombre: string | null | undefined; anio?: unknown }) {
+  if (!nombre) return <b>una organización política</b>;
+  const a = String(anio ?? "").match(/\d{4}/)?.[0];
+  return (
+    <Link href={rutaPartido(nombre, a)} prefetch={false} className={ENLACE_TXT}>
+      {nombre}
+    </Link>
+  );
+}
+
+/** Una entidad con enlace a su ficha, si se conoce su RUC (la visitada se reconoce por su nombre: puede no tenerlo). */
+function Entidad({ nombre, ruc }: { nombre: string; ruc?: string | null }) {
+  return ruc ? (
+    <Link href={`/entidad/${ruc}`} prefetch={false} className={ENLACE_TXT}>
+      {nombre}
+    </Link>
+  ) : (
+    <b>{nombre}</b>
+  );
+}
+
+/** La empresa ganadora de la que habla el cruce, con enlace a su ficha (sólo una empresa: un RUC 10 no se enlaza). */
 function Emp({ c }: { c: CruceProveedor }) {
-  const emp = c.proveedor ? <b>{c.proveedor}</b> : <>la empresa ganadora</>;
+  const emp = c.proveedor ? (
+    /^20\d{9}$/.test(c.rucProveedor) ? (
+      <Link href={`/empresa/${c.rucProveedor}`} prefetch={false} className={ENLACE_TXT}>
+        {c.proveedor}
+      </Link>
+    ) : (
+      <b>{c.proveedor}</b>
+    )
+  ) : (
+    <>la empresa ganadora</>
+  );
   if (!c.consorcio) return emp;
   return (
     <>
@@ -112,7 +148,14 @@ function quien(c: CruceProveedor, rol = c.socios[0]?.rol, nombre = c.socios[0]?.
   if (!nombre) return <Emp c={c} />;
   return (
     <>
-      <span className="font-semibold">{nombre}</span>
+      {/* A «Su gente» de la empresa (su nombre con un apellido tapado; nunca su documento). */}
+      {/^20\d{9}$/.test(c.rucProveedor) ? (
+        <Link href={`/empresa/${c.rucProveedor}?seccion=gente`} prefetch={false} className={ENLACE_TXT}>
+          {nombre}
+        </Link>
+      ) : (
+        <span className="font-semibold">{nombre}</span>
+      )}
       {rol === "titular" ? (
         <span className="text-inkSoft"> (titular del RUC ganador)</span>
       ) : (
@@ -130,22 +173,34 @@ const POR_VISITA: Record<string, string> = { fin_de_semana: "fin de semana", tem
 
 /** «el sábado 4 ago. a las 20:15 (3 h 10 min)»: una visita en palabras (la hora, si la hay). */
 function unaVisita(v: CruceProveedor["visitas"][number], conPorque = false): string {
-  const f = v.fecha ? `el ${DIA_SEMANA.format(new Date(`${v.fecha}T12:00:00Z`))} ${fechaCorta(v.fecha)}` : "un día sin fecha";
+  const f = v.fecha ? `el ${DIA_SEMANA.format(new Date(`${v.fecha}T12:00:00Z`))} ${fechaConAnio(v.fecha)}` : "un día sin fecha";
   const h = v.hora ? ` a las ${v.hora}` : "";
   const m = v.minutos != null && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
   const por = conPorque && v.por && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";
   return `${f}${h}${m}${por}`;
 }
 
-/** Las visitas de un patrón en una línea: las seis primeras y cuántas más. */
+/** Las visitas de un patrón: las seis primeras en la línea y, si hay más, todas en una lista que se abre. */
 function VisitasEnLinea({ visitas, conPorque = false }: { visitas: CruceProveedor["visitas"]; conPorque?: boolean }) {
   if (!visitas.length) return null;
-  // recorte: la línea lleva seis visitas; la cuenta dice cuántas más hubo.
   const vistas = visitas.slice(0, 6);
   return (
     <>
       {" "}Las visitas: {vistas.map((v) => unaVisita(v, conPorque)).join("; ")}
-      {visitas.length > vistas.length ? `; y ${numero(visitas.length - vistas.length)} más` : ""}.
+      {visitas.length > vistas.length ? `; y ${numero(visitas.length - vistas.length)} más.` : "."}
+      {visitas.length > vistas.length && (
+        <details className="group/vis mt-1">
+          <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-meta font-semibold text-granate underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
+            Ver las {numero(visitas.length)} visitas
+            <ChevronDown size={14} aria-hidden className="shrink-0 transition-transform duration-rapido group-open/vis:rotate-180" />
+          </summary>
+          <ol className="mt-1 space-y-0.5 text-meta text-inkSoft">
+            {visitas.map((v, i) => (
+              <li key={i} className="tabular-nums">{unaVisita(v, conPorque)}</li>
+            ))}
+          </ol>
+        </details>
+      )}
     </>
   );
 }
@@ -274,7 +329,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       return (
         <>
           {c.tipo === "aporte" ? quien(c) : <Emp c={c} />} aportó <b>{solesCompacto(c.montoSoles)}</b> a{" "}
-          <b>{txt(d.partido) ?? "una organización política"}</b>
+          <Partido nombre={txt(d.partido)} anio={d.hasta ?? d.desde ?? c.fecha} />
           {veces && veces > 1 ? ` en ${numero(veces)} aportes` : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
           <AQuien partido={txt(d.partido)} gobierna={gobierna} />
@@ -286,7 +341,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
     case "candidato":
       return (
         <>
-          {quien(c)} postuló{txt(d.cargo) ? ` a ${txt(d.cargo)!.toLowerCase()}` : ""} por <b>{txt(d.organizacion) ?? "una organización política"}</b>
+          {quien(c)} postuló{txt(d.cargo) ? ` a ${txt(d.cargo)!.toLowerCase()}` : ""} por <Partido nombre={txt(d.organizacion)} anio={d.proceso} />
           {txt(d.proceso) ? ` en ${d.proceso}` : ""}
           {txt(d.departamento) ? ` (${d.departamento})` : ""}.
           <Gano c={c} />
@@ -298,7 +353,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         <>
           {quien(c)} es <b>{txt(d.cargo)?.toLowerCase() ?? "autoridad"}</b>
           {lugar ? ` de ${lugar}` : ""}
-          {txt(d.organizacion) ? ` por ${d.organizacion}` : ""}
+          {txt(d.organizacion) ? <> por <Partido nombre={txt(d.organizacion)} anio={d.desde ?? c.fecha} /></> : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
           <Gano c={c} />
         </>
@@ -347,8 +402,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const dias = n(d.dias_antes);
       return (
         <>
-          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{v?.entidad ?? "una entidad"}</b>
-          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} el {fechaCorta(v?.fecha ?? c.fecha)}
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <Entidad nombre={v?.entidad ?? "una entidad"} ruc={c.referencias?.entidadVisitadaRuc} />
+          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} el {fechaConAnio(v?.fecha ?? c.fecha)}
           {/* De quien recibió, sólo su cargo y su área: su nombre no se publica. */}
           {v?.cargoFuncionario || v?.areaFuncionario ? (
             <>
@@ -370,7 +425,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         <>
           {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó en <b>{numero(dias)} días distintos</b> a quien tiene el cargo de{" "}
           {(v?.cargoFuncionario ?? "funcionario").toLowerCase()}
-          {v?.areaFuncionario ? <> en {v.areaFuncionario.toLowerCase()}</> : ""} de <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>
+          {v?.areaFuncionario ? <> en {v.areaFuncionario.toLowerCase()}</> : ""} de <Entidad nombre={txt(d.entidad_visitada) ?? "la entidad"} ruc={c.referencias?.entidadVisitadaRuc} />
           {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""}
           {v?.decisor ? <b>, que decide las compras de la entidad</b> : ""}, en los 180 días antes de la buena pro
           {total != null && total > dias ? ` (${numero(total)} visitas en total)` : ""}.
@@ -383,7 +438,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const v = c.visitas[0];
       return (
         <>
-          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <Entidad nombre={txt(d.entidad_visitada) ?? "la entidad"} ruc={c.referencias?.entidadVisitadaRuc} />
           {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} fuera del horario de atención (de noche, de madrugada
           o en fin de semana), en los 180 días antes de la buena pro.
           <VisitasEnLinea visitas={c.visitas} conPorque />
@@ -397,7 +452,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const conv = txt(d.convocatoria);
       return (
         <>
-          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{txt(d.entidad_visitada) ?? "la entidad"}</b>{" "}
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <Entidad nombre={txt(d.entidad_visitada) ?? "la entidad"} ruc={c.referencias?.entidadVisitadaRuc} />{" "}
           {antes === 0 ? "el mismo día" : <b>{numero(antes ?? 0)} {antes === 1 ? "día" : "días"} antes</b>} de que se convocara este proceso
           {conv ? ` (convocatoria del ${fechaCorta(conv)})` : ""}
           <Recibio v={v} />.
@@ -427,7 +482,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       return (
         <>
           {c.socios.length ? quien(c) : <Emp c={c} />} le vendió <b>{solesCompacto(c.montoSoles)}</b> a la campaña de{" "}
-          <b>{txt(d.organizacion) ?? "una organización política"}</b>
+          <Partido nombre={txt(d.organizacion)} anio={d.proceso} />
           {txt(d.proceso) ? ` (${d.proceso})` : ""}.
         </>
       );
@@ -438,7 +493,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const accion = via === "proveedor_campana" ? "le vendió a la campaña de" : "aportó a";
       return (
         <>
-          {c.socios.length ? quien(c) : <Emp c={c} />} {accion} <b>{partido ?? "una organización política"}</b>
+          {c.socios.length ? quien(c) : <Emp c={c} />} {accion} <Partido nombre={partido} anio={d.proceso ?? d.hasta ?? c.fecha} />
           {c.montoSoles ? ` (${solesCompacto(c.montoSoles)})` : ""}
           {txt(d.proceso) ? ` en ${d.proceso}` : ""}. Es el partido del {txt(d.cargo_gobernante)?.toLowerCase() ?? "alcalde"} que gobernaba la
           entidad cuando dio la buena pro.
@@ -557,7 +612,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       return (
         <>
           <Emp c={c} /> ganó este proceso con <b>{tiempo} de fundada</b>
-          {fund ? ` (figura de alta en la SUNAT desde el ${fechaCorta(fund)})` : ""}
+          {fund ? ` (figura de alta en la SUNAT desde el ${fechaConAnio(fund)})` : ""}
           {d.millonario && c.montoSoles != null ? (
             <>, y por <b>{solesCompacto(c.montoSoles)}</b>: un contrato millonario para una empresa tan nueva</>
           ) : c.montoSoles != null ? (
@@ -588,7 +643,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const ent = txt(d.entidad);
       return (
         <>
-          {quien(c)} es, además, <b>persona contratada por {ent ? tituloNatural(ent) : "esta entidad"}</b>
+          {quien(c)} es, además, <b>persona contratada por</b> <Entidad nombre={ent ? tituloNatural(ent) : "esta entidad"} ruc={c.entidadRuc} />
           {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
           {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
         </>
@@ -602,7 +657,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       return (
         <>
           Un <b>{par}</b> de un funcionario de esta entidad{cargo ? <> (cargo declarado: {cargo.toLowerCase()})</> : ""} figura en el RNP como{" "}
-          <b>{rol ?? "parte"}</b> de <Emp c={c} />{txt(d.desde_en_empresa) ? ` desde el ${fechaCorta(txt(d.desde_en_empresa)!)}` : ""}. Lo declaró el funcionario
+          <b>{rol ?? "parte"}</b> de <Emp c={c} />{txt(d.desde_en_empresa) ? ` desde el ${fechaConAnio(txt(d.desde_en_empresa)!)}` : ""}. Lo declaró el funcionario
           en su DJI ante la Contraloría. No se dice quiénes son.
           <Gano c={c} />
         </>
@@ -632,9 +687,9 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {quien(c)} también figura{rolAlla ? ` como ${rolAlla}` : ""} en{" "}
           {ruc ? <OtraEmpresa ruc={ruc} nombre={txt(d.sancionada)} conRuc /> : <b>{txt(d.sancionada) ?? "otra empresa"}</b>}, que el Tribunal de
           Contrataciones inhabilitó {d.definitiva === true ? <b>de forma definitiva</b> : <b>temporalmente</b>}
-          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : txt(d.desde) ? ` (desde el ${fechaCorta(txt(d.desde)!)})` : ""}
+          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : txt(d.desde) ? ` (desde el ${fechaConAnio(txt(d.desde)!)})` : ""}
           {txt(d.resolucion) ? `, Res. ${d.resolucion}` : ""}. <Emp c={c} /> ganó este contrato el <b>{fechaCorta(c.buenaPro?.fecha ?? c.fecha)}</b>, dentro de
-          esa inhabilitación{fundada ? <>; se fundó el {fechaCorta(fundada)}</> : ""}.
+          esa inhabilitación{fundada ? <>; se fundó el {fechaConAnio(fundada)}</> : ""}.
         </>
       );
     }
@@ -686,7 +741,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const ent = txt(d.entidad);
       return (
         <>
-          <Emp c={c} /> recibe {parte != null ? <>el <b>{(parte * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })}%</b></> : "casi todo"} de lo que le compra el Estado de <b>{ent ? tituloNatural(ent) : "esta entidad"}</b>
+          <Emp c={c} /> recibe {parte != null ? <>el <b>{(parte * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })}%</b></> : "casi todo"} de lo que le compra el Estado de <Entidad nombre={ent ? tituloNatural(ent) : "esta entidad"} ruc={c.entidadRuc} />
           {n(d.total_empresa) ? <> (<b>{solesCompacto(n(d.total_empresa))}</b> en {numero(n(d.procesos) ?? 0)} procesos)</> : ""}: depende casi por completo de ella.
         </>
       );
@@ -726,7 +781,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <span className="text-inkSoft"> ({p?.rol ? oracion(p.rol) : "funcionario"} de la entidad)</span> declaró en su Declaración
           Jurada de Intereses {que} <Emp c={c} />
           {txt(d.detalle) ? <> ({oracion(txt(d.detalle)!).slice(0, 80)})</> : ""}
-          {desde ? <>, desde el {fechaCorta(desde)}{hasta ? <> hasta el {fechaCorta(hasta)}</> : " hasta hoy"}</> : ""}.{" "}
+          {desde ? <>, desde el {fechaConAnio(desde)}{hasta ? <> hasta el {fechaConAnio(hasta)}</> : " hasta hoy"}</> : ""}.{" "}
           {d.dentro === true
             ? empleo
               ? "La buena pro llegó mientras trabajaba para esa empresa."
@@ -756,7 +811,7 @@ function TextoObra({ c }: { c: CruceProveedor }) {
   if (c.tipo.startsWith("inversion_")) {
     return (
       <>
-        {nombreInv ? <>La inversión <b>{oracion(nombreInv)}</b>{txt(String(d.cui ?? "")) ? ` (CUI ${String(d.cui)})` : ""}: </> : null}
+        {nombreInv ? <>La inversión <b>{oracion(nombreInv)}</b>{txt(String(d.cui ?? "")) ? <> (<a href={inversionSsi(String(d.cui))} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>CUI {String(d.cui)}</a>)</> : ""}: </> : null}
         {fraseBandera(b, "La inversión")}
       </>
     );
@@ -766,7 +821,7 @@ function TextoObra({ c }: { c: CruceProveedor }) {
       {nombre ? (
         <>
           {supervisa ? "Este contrato supervisa la obra" : "Este contrato ejecuta la obra"} <b>{oracion(nombre)}</b>
-          {n(d.obra) ? ` (INFOBRAS ${String(d.obra)})` : ""}.{" "}
+          {n(d.obra) ? <> (<a href={obraInfobras(String(d.obra))} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>INFOBRAS {String(d.obra)}</a>)</> : ""}.{" "}
         </>
       ) : null}
       {fraseBandera(b, "La obra")}

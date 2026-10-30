@@ -383,7 +383,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
               <div className="space-y-4">
                 <CabeceraPestana>Las entidades que le adjudicaron un proceso o le compraron por órdenes.</CabeceraPestana>
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Entidad", ancho: "1fr" }]} filas={8} />}>
-                  <ClientesEmpresa datos={clientesP} />
+                  <ClientesEmpresa datos={clientesP} ruc={e.ruc} />
                 </Suspense>
               </div>
             ),
@@ -512,7 +512,23 @@ function Identidad({ f, razonSocial }: { f: FichaEmpresa; razonSocial: string | 
     </DatoCabecera>,
     // El nombre tal como lo publica el registro, en el `title`: para copiarlo exacto.
     razonSocial && <DatoCabecera key="razon" icono={Briefcase} nombre="Razón social" title={e.nombre}>{razonSocial}</DatoCabecera>,
-    e.departamento && <DatoCabecera key="lugar" icono={MapPin}>Vende sobre todo en {tituloNatural(e.departamento)}</DatoCabecera>,
+    // El lugar lleva a lo que le vendió ahí: sus contratos filtrados por ese departamento o, si sólo tiene órdenes, sus órdenes.
+    e.departamento && (
+      <DatoCabecera key="lugar" icono={MapPin}>
+        Vende sobre todo en{" "}
+        <Link
+          href={
+            e.adjProcesos + e.consProcesos > 0 || !e.ordN
+              ? rutaEmpresa(e.ruc, "contratos", { [P_CONTRATOS.departamento]: e.departamento })
+              : rutaEmpresa(e.ruc, "ordenes", { [P_ORDENES.departamento]: e.departamento })
+          }
+          prefetch={false}
+          className="text-granate underline-offset-2 hover:underline"
+        >
+          {tituloNatural(e.departamento)}
+        </Link>
+      </DatoCabecera>
+    ),
     e.objeto && <DatoCabecera key="objeto" icono={Package} nombre="Lo que más vende">{OBJETO_TEXTO[e.objeto] ?? e.objeto}</DatoCabecera>,
     e.primera && e.ultima && (
       <DatoCabecera key="anios" icono={CalendarRange} nombre="Le vende al Estado">

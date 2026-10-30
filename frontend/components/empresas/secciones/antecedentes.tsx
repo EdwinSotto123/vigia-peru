@@ -121,7 +121,8 @@ function rucPorNombre(clientes: ClienteEmpresa[]): Map<string, string | null> {
  * qué severidad, qué quiere decir (en su ⓘ) y cada caso en una tabla paginada (lo que dice el registro, el proceso en que
  * pesa con su evidencia, la fuente). Antes iba un caso por tarjeta: 160 tarjetas casi iguales.
  */
-export const P_ANTECEDENTES = { tipo: "atipo", gravedad: "agrav" } as const;
+export { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
+import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
 
 export async function AntecedentesEmpresa({
   datos,

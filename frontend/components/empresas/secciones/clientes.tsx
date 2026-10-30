@@ -1,10 +1,12 @@
-import { EstadoVacio } from "@/components/patrones";
+import { CuerpoDetalle, DatosClave, EstadoVacio, PieDetalle } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
-import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { fechaConAnio, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { type ClienteEmpresa } from "@/lib/empresas";
+import { rutaEmpresa, type ClienteEmpresa } from "@/lib/empresas";
+import { P_CONTRATOS, P_ORDENES } from "@/lib/parametrosEmpresa";
 import { entidadTexto, NoCargo, opcionesLocales, paraClave } from "./comun";
 
 /** La pestaña Clientes: las entidades que le adjudicaron o le compraron. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
@@ -19,12 +21,58 @@ const COLUMNAS_CLIENTES: Columna[] = [
   { clave: "ultima", titulo: "Última", ancho: "92px", desde: "xl" },
 ];
 
-export function filasClientes(data: ClienteEmpresa[]): FilaFiltrable[] {
+/**
+ * El panel de un cliente: lo que le dio esa entidad y adónde ir. Sus contratos y sus órdenes CON ESA entidad (las listas
+ * de la empresa ya filtradas) y la ficha de la entidad; la primera acción es la principal.
+ */
+function detalleCliente(c: ClienteEmpresa, entidad: string, ruc: string): NonNullable<FilaFiltrable["detalle"]> {
+  const acciones = [
+    c.contratos > 0 ? { texto: "Sus contratos con esta entidad", href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.entidad]: c.entidadRuc }) } : null,
+    c.ordenes > 0 ? { texto: "Sus órdenes de esta entidad", href: rutaEmpresa(ruc, "ordenes", { [P_ORDENES.entidad]: c.entidadRuc }) } : null,
+    { texto: "Ver la entidad", href: `/entidad/${c.entidadRuc}` },
+  ].filter((a): a is { texto: string; href: string } => !!a);
+  return {
+    titulo: entidad,
+    etiqueta: `Ver lo que le vendió a ${entidad}`,
+    descripcion: c.departamento ? tituloNatural(c.departamento) : undefined,
+    contenido: (
+      <CuerpoDetalle>
+        <DatosClave
+          items={[
+            { etiqueta: "Contratos", valor: c.contratos ? `${plural(c.contratos, "proceso", "procesos")} por ${soles(c.adjudicado)}` : "Ninguno" },
+            { etiqueta: "Órdenes", valor: c.ordenes ? `${plural(c.ordenes, "orden", "órdenes")} por ${soles(c.ordenado)}` : "Ninguna" },
+            ...(c.dudosas > 0 ? [{ etiqueta: "Con posible error de carga", valor: plural(c.dudosas, "orden", "órdenes") }] : []),
+            { etiqueta: "Visitas de su gente", valor: c.visitas ? plural(c.visitas, "visita", "visitas") : "Ninguna registrada" },
+            {
+              etiqueta: "Le vende",
+              valor: !c.primera ? null : c.ultima && c.ultima !== c.primera ? `Del ${fechaConAnio(c.primera)} al ${fechaConAnio(c.ultima)}` : `El ${fechaConAnio(c.primera)}`,
+            },
+          ]}
+        />
+      </CuerpoDetalle>
+    ),
+    pie: (
+      <PieDetalle
+        principal={acciones.map((a, i) => (
+          <EnlaceAccion key={a.href} href={a.href} variante={i === 0 ? "primario" : "secundario"} flecha={i === 0}>
+            {a.texto}
+          </EnlaceAccion>
+        ))}
+      />
+    ),
+  };
+}
+
+/**
+ * Con `ruc` (el de la empresa), cada fila abre su panel con sus contratos y sus órdenes de esa entidad; sin él, la fila
+ * lleva a la ficha de la entidad, como antes.
+ */
+export function filasClientes(data: ClienteEmpresa[], ruc?: string): FilaFiltrable[] {
   return data.map((c) => {
     const entidad = entidadTexto(c.entidad, c.entidadRuc);
     return {
       id: c.entidadRuc,
-      href: `/entidad/${c.entidadRuc}`,
+      ...(ruc ? { detalle: detalleCliente(c, entidad, ruc) } : { href: `/entidad/${c.entidadRuc}` }),
       buscable: `${entidad} ${c.entidadRuc} ${c.departamento ?? ""}`,
       valores: {
         region: c.departamento ? paraClave(c.departamento) : null,
@@ -65,11 +113,11 @@ export function filasClientes(data: ClienteEmpresa[]): FilaFiltrable[] {
   });
 }
 
-export async function ClientesEmpresa({ datos }: { datos: Promise<{ total: number; data: ClienteEmpresa[] } | null> }) {
+export async function ClientesEmpresa({ datos, ruc }: { datos: Promise<{ total: number; data: ClienteEmpresa[] } | null>; ruc?: string }) {
   const d = await datos;
   if (!d) return <NoCargo que="sus clientes" />;
   if (!d.total) return <EstadoVacio compacto titulo="Ninguna entidad le adjudicó ni le compró">Sólo figura como postor.</EstadoVacio>;
-  const filas = filasClientes(d.data);
+  const filas = filasClientes(d.data, ruc);
   return (
     <TablaFiltrable
       columnas={COLUMNAS_CLIENTES}

@@ -13,11 +13,13 @@
  */
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { PersonName, Ruc } from "@/components/Redact";
 import { Ayuda, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { enlacesProceso } from "@/lib/fuentes";
+import { enlaceProveedor } from "@/lib/empresas";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, ListaPaginada, TablaPaginada, type Columna, type Fila } from "@/components/listado";
-import { CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
+import { ChevronDown, CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
 import { Dato } from "@/components/ui/Dato";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
@@ -26,7 +28,7 @@ import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import { fecha, numero, porcentaje, soles } from "@/lib/formato";
 import {
   cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
-  type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
+  type CitaDocumento, type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 import { Partes } from "@/components/ui/Partes";
@@ -276,10 +278,15 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
       : cambio && p.ruc && rucsQuedan.has(p.ruc)
         ? "Contratado"
         : p.esGanador ? "Ganador" : humanizarCodigo(p.estado);
+    // Una empresa (RUC 20) lleva a su ficha: qué más ganó, con quién postula. Una persona natural, nunca (su RUC lleva
+    // el DNI y no va en una URL); un consorcio sin RUC propio, tampoco.
+    const ficha = enlaceProveedor(p.ruc);
     const nombre = p.razonSocial
       ? esPersonaNatural(p.ruc)
         ? <PersonName name={p.razonSocial} orden={ordenNombrePostor(p.razonSocial, p.ruc, c.proveedor, c.proveedorRuc)} />
-        : p.razonSocial
+        : ficha
+          ? <Link href={ficha} prefetch={false} className="text-granate underline-offset-2 hover:underline">{p.razonSocial}</Link>
+          : p.razonSocial
       : "Sin razón social";
     return {
       id: `${p.ruc ?? p.razonSocial ?? "postor"}-${i}`,
@@ -437,15 +444,39 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
                 </p>
               )}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {/* recorte: las 4 primeras en la línea; las demás, todas, plegadas debajo (CitasPlegadas) */}
                 {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
-                {(b.citas?.length ?? 0) > 4 && <span className="self-center text-rotulo text-mute">{`y ${(b.citas?.length ?? 0) - 4} citas más`}</span>}
               </div>
+              <CitasPlegadas c={c} citas={(b.citas ?? []).slice(4)} />
             </div>
           ),
         }))}
       />
       <FuenteDato fuente="documentos del expediente, página por página" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
+  );
+}
+
+/**
+ * Las citas de una señal que no entran en la primera línea (pasadas las 4), plegadas pero todas: antes decía «y 6 citas
+ * más» y no había cómo verlas. `<details>` nativo: abre sin JavaScript y la ficha sigue siendo de servidor.
+ */
+function CitasPlegadas({ c, citas }: { c: Detalle; citas: CitaDocumento[] }) {
+  if (citas.length === 0) return null;
+  const n = citas.length;
+  return (
+    <details className="group/citas mt-1">
+      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-lg text-rotulo font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+        <span className="group-open/citas:hidden">{n === 1 ? "Ver 1 cita más" : `Ver ${numero(n)} citas más`}</span>
+        <span className="hidden group-open/citas:inline">{n === 1 ? "Ocultar la otra cita" : "Ocultar las otras citas"}</span>
+        <ChevronDown size={14} aria-hidden className="shrink-0 transition-transform duration-rapido group-open/citas:rotate-180" />
+      </summary>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {citas.map((ct, j) => (
+          <CitaPagina key={j} ocid={c.ocid} cita={ct} />
+        ))}
+      </div>
+    </details>
   );
 }
 

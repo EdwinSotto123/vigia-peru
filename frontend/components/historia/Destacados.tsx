@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Link2, LocateFixed, TrendingUp } from "lucide-react";
 import { irAPestana } from "@/components/patrones/Pestanas";
 import { Severidad } from "@/components/ui/Severidad";
-import { fechaCorta } from "@/lib/formato";
+import { fechaConAnio } from "@/lib/formato";
 import { mesLargo, type PatronHistoria, type SecuenciaHistoria, type SeveridadHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
 
@@ -88,8 +88,8 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
           const cuando =
             x.tipo === "secuencia"
               ? x.s.pasos.length > 1
-                ? `${fechaCorta(x.s.pasos[0].fecha)} a ${fechaCorta(x.s.pasos[x.s.pasos.length - 1].fecha)}`
-                : fechaCorta(x.s.pasos[0]?.fecha)
+                ? `${fechaConAnio(x.s.pasos[0].fecha)} a ${fechaConAnio(x.s.pasos[x.s.pasos.length - 1].fecha)}`
+                : fechaConAnio(x.s.pasos[0]?.fecha)
               : x.p.hasta && x.p.hasta !== x.p.mes
                 ? `${mesLargo(x.p.mes)} a ${mesLargo(x.p.hasta)}`
                 : mesLargo(x.p.mes);
@@ -114,7 +114,7 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
                 <ol className="space-y-1 border-l-2 border-line pl-3">
                   {x.s.pasos.map((p, k) => (
                     <li key={k} className="text-rotulo leading-snug text-inkSoft">
-                      <span className="font-mono tabular-nums text-ink">{fechaCorta(p.fecha)}</span> {p.texto}
+                      <span className="font-mono tabular-nums text-ink">{fechaConAnio(p.fecha)}</span> {p.texto}
                     </li>
                   ))}
                 </ol>

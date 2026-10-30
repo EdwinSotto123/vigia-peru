@@ -7,7 +7,7 @@ import { GobiernosPartido, P_GOB, filtrosGobiernos } from "@/components/partidos
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import {
@@ -343,12 +343,18 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                     </Ayuda>
                   }
                 >
-                  Los {numero(gobiernos.length || totalGobiernos)} gobiernos que ganó para {periodoTexto(anio)}, con su dinero, sus contratos y lo que leyó Vigía.
+                  {gobiernos.length || totalGobiernos ? `Los ${numero(gobiernos.length || totalGobiernos)} gobiernos` : "Los gobiernos"} que ganó para{" "}
+                  {periodoTexto(anio)}, con su dinero, sus contratos y lo que leyó Vigía.
                 </CabeceraPestana>
                 {gobiernos.length > 0 ? (
                   <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_GOBIERNOS} filas={10} />}>
                     <GobiernosPartido d={d} gasto={gastoP} filtros={fg} ruta={ruta} anio={anio} />
                   </Suspense>
+                ) : totalGobiernos === 0 ? (
+                  // Un período sin gobiernos no es un error: no ganó ninguno (antes decía «No pudimos leer sus gobiernos»).
+                  <EstadoVacio compacto titulo={`No ganó gobiernos para ${periodoTexto(anio)}`}>
+                    En esas elecciones no ganó ningún gobierno regional, provincial ni distrital.
+                  </EstadoVacio>
                 ) : (
                   <p className="text-dato leading-5 text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
                 )}

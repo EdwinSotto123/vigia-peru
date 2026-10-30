@@ -10,7 +10,7 @@ import { cargarDossier, idLegible } from "@/lib/dossier-servidor";
 import { rutaContrato, type VistaContrato } from "@/lib/rutas";
 import { limpiarObjeto, recortar as corto } from "@/components/contratos/recortar";
 import { Pagina } from "@/components/patrones";
-import { leerDesde } from "@/lib/desde";
+import { leerDesde, migasConDesde } from "@/lib/desde";
 import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { soles } from "@/lib/formato";
@@ -90,10 +90,13 @@ export default async function ContratoPage({
   if (vista === "vivo") {
     const data = await getProcesamiento(c.ocid);
     if (!data) redirect(rutaContrato(c.ocid));
+    // La misma ruta que la ficha y el dictamen (con el origen, si se vino de una lista con `?desde`): antes la lectura
+    // en vivo no tenía migas.
+    const migas = migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }]);
     return (
       <Pagina className="space-y-4">
         {selector}
-        <ContratoEnVivo ocid={c.ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} />
+        <ContratoEnVivo ocid={c.ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} migas={migas} />
       </Pagina>
     );
   }

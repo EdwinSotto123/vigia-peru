@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { Partes, hayDato } from "@/components/ui/Partes";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
-import { fechaCorta } from "@/lib/formato";
+import { fechaConAnio } from "@/lib/formato";
 import { BotonFila, ProveedorDetalle } from "./DetalleFilas";
 
 /**
@@ -444,8 +444,12 @@ export function CeldaTexto({ children, sub }: { children: ReactNode; sub?: React
   );
 }
 
+/**
+ * La fecha de una fila, siempre con el año: una tabla mezcla años, y «4 ago.» al lado de «4 ago. 2025» hacía creer que
+ * la primera era de otro año o que le faltaba el dato.
+ */
 export function CeldaFecha({ fecha }: { fecha: string | null | undefined }) {
-  return <span className="text-meta tabular-nums text-mute">{fecha ? fechaCorta(fecha) : "Sin fecha"}</span>;
+  return <span className="text-meta tabular-nums text-mute">{fecha ? fechaConAnio(fecha) : "Sin fecha"}</span>;
 }
 
 /** Misma rejilla que la tabla real: nada salta cuando llegan los datos. */

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DatosClave, EstadoVacio, FuenteDato } from "@/components/patrones";
 import { CONOSCE_BUSCADOR } from "@/lib/fuentes";
 import {
@@ -13,7 +14,7 @@ import {
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha, fechaCorta, numero, oracion, plural, soles } from "@/lib/formato";
+import { fecha, fechaConAnio, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion } from "@/lib/personas";
 import { type FacetasOrdenes, type OrdenEmpresa, type Pagina } from "@/lib/empresas";
@@ -109,8 +110,20 @@ export async function OrdenesEmpresa({ pagina: p, ruta, parametros, actual }: { 
             <DatosClave
               items={[
                 { etiqueta: "Qué se compró", valor: descripcion },
-                { etiqueta: "Entidad", valor: entidad },
-                { etiqueta: "Emitida", valor: o.fecha ? fechaCorta(o.fecha) : null, mono: true },
+                // La entidad lleva a su ficha (el proveedor es esta empresa: no se enlaza). Sólo en el panel: la fila
+                // entera ya es un botón.
+                {
+                  etiqueta: "Entidad",
+                  valor: entidad && o.entidadRuc ? (
+                    <Link href={`/entidad/${o.entidadRuc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+                      {entidad}
+                    </Link>
+                  ) : (
+                    entidad
+                  ),
+                },
+                // Con el año: «Emitida: 4 ago.» no decía de qué año era la orden.
+                { etiqueta: "Emitida", valor: o.fecha ? fechaConAnio(o.fecha) : null, mono: true },
                 { etiqueta: "Estado", valor: o.estado },
                 { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
                 { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },

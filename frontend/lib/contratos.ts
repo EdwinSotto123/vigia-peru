@@ -13,6 +13,7 @@ import { nivelDeScore } from "./severidad";
 import { esRucPersonaNatural } from "./privacidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 import type { ProcesoContrato } from "./procesoContrato";
+import type { ReferenciasAntecedente } from "./empresas";
 export type { CitaDocumento };
 
 export type TipoContrato = "bienes" | "servicios" | "consultoria" | "obras" | "convenio" | "directa" | "otro";
@@ -242,6 +243,10 @@ export interface CruceProveedor {
   evidencia?: EvidenciaCruce[];
   /** Pasó después de que se convocó este proceso: no era un antecedente (migración 83). Sólo en la ficha. */
   posterior?: boolean;
+  /** Las referencias del antecedente (la entidad visitada por su RUC, la elección, el cargo…). Falta en la API vieja. */
+  referencias?: ReferenciasAntecedente | null;
+  /** El RUC de la entidad del proceso, para enlazarla en el texto. */
+  entidadRuc?: string | null;
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { BotonCerrar, GrafoMarco } from "@/components/grafo/primitivos";
-import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
 import { mesDe, mesesDe, mesLargo, sumarMes, type EventoHistoria, type HechoHilo, type HiloHistoria, type MarcaHistoria } from "@/lib/historia";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -151,7 +151,7 @@ export function HilosHistoria({
               ))}
               {marcas.filter((m) => mesDe(m.fecha) >= primero).map((m) => (
                 <line key={`${m.tipo}-${m.fecha}`} x1={xF(m.fecha)} x2={xF(m.fecha)} y1={EJE - 8} y2={H} strokeWidth={m.tipo === "gobierno" ? 1.5 : 1} strokeDasharray={m.tipo === "eleccion" ? "3 3" : undefined} className={m.tipo === "gobierno" ? "stroke-ink/50" : "stroke-ink/30"}>
-                  <title>{`${fechaCorta(m.fecha)}: ${m.texto}`}</title>
+                  <title>{`${fechaConAnio(m.fecha)}: ${m.texto}`}</title>
                 </line>
               ))}
 
@@ -174,7 +174,7 @@ export function HilosHistoria({
                         key={k}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${tituloNatural(x.nombre)}: ${fechaCorta(h.fecha)}, ${h.titulo}`}
+                        aria-label={`${tituloNatural(x.nombre)}: ${fechaConAnio(h.fecha)}, ${h.titulo}`}
                         onClick={abre}
                         onKeyDown={tecla(abre)}
                         onMouseEnter={(e) => {
@@ -222,7 +222,7 @@ export function HilosHistoria({
               <li key={k} className="space-y-0.5">
                 <span aria-hidden className={cn("absolute -left-[5px] mt-1.5 inline-block size-2.5 rounded-full", h.severidad === "alta" ? "bg-crimson" : h.severidad === "media" ? "bg-amber" : "bg-ink/40")} />
                 <p className="text-meta text-ink">
-                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{h.hasta ? `${fechaCorta(h.fecha)} a ${fechaCorta(h.hasta)}` : fechaCorta(h.fecha)}</span>{" "}
+                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{h.hasta ? `${fechaConAnio(h.fecha)} a ${fechaConAnio(h.hasta)}` : fechaConAnio(h.fecha)}</span>{" "}
                   <span className="font-semibold">{h.titulo}</span>
                   {h.monto ? `, ${solesCompacto(h.monto)}` : ""}
                 </p>
@@ -259,7 +259,7 @@ function Globo({ h, nombre, x, y, ancho }: { h: HechoHilo; nombre: string; x: nu
     >
       <p className="text-rotulo font-semibold text-ink">{tituloNatural(nombre)}</p>
       <p className="text-micro text-inkSoft">
-        <span className="font-mono tabular-nums">{h.hasta ? `${fechaCorta(h.fecha)} a ${fechaCorta(h.hasta)}` : fechaCorta(h.fecha)}</span>{" "}
+        <span className="font-mono tabular-nums">{h.hasta ? `${fechaConAnio(h.fecha)} a ${fechaConAnio(h.hasta)}` : fechaConAnio(h.fecha)}</span>{" "}
         <span className="font-semibold text-ink">{h.titulo}</span>
         {h.monto ? `, ${solesCompacto(h.monto)}` : ""}
       </p>

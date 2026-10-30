@@ -419,17 +419,21 @@ export function PartidosExplorador({
                 <div className="border-t border-line px-4 py-3">
                   <p className="text-meta text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
                   <ul className={cn("mt-2 flex gap-x-4 gap-y-1.5 text-rotulo text-mute", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
+                    {/* Los mismos colores y tramos que `colorLectura` (cinco escalones y «Ninguno» con el gris del mapa, que
+                        cambia con el modo): antes la leyenda tenía un hex fijo y cuatro tramos, y el de 3 % o más no salía. El
+                        borde, para que el gris claro del modo día se vea sobre el fondo. */}
                     {(
                       [
-                        ["#1F2A2A", "Ninguno"],
-                        [RAMPA[0], "menos de 0,5 %"],
-                        [RAMPA[1], "0,5 a 1 %"],
+                        [paleta.sinDato, "Ninguno"],
+                        [RAMPA[0], "menos de 0.5 %"],
+                        [RAMPA[1], "0.5 a 1 %"],
                         [RAMPA[2], "1 a 2 %"],
-                        [RAMPA[3], "2 % o más"],
+                        [RAMPA[3], "2 a 3 %"],
+                        [RAMPA[4], "3 % o más"],
                       ] as const
                     ).map(([c, t]) => (
                       <li key={t} className="flex items-center gap-1.5">
-                        <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} /> {t}
+                        <span aria-hidden className="h-2.5 w-2.5 rounded-sm ring-1 ring-line" style={{ background: c }} /> {t}
                       </li>
                     ))}
                   </ul>

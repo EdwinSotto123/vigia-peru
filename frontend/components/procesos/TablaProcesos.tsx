@@ -8,7 +8,8 @@ import { limpiarObjeto } from "@/components/contratos/recortar";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
-import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { enlaceProveedor } from "@/lib/empresas";
 import { tituloNatural } from "@/lib/landing";
 import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 import type { DatoDudosoContrato } from "@/lib/contratos";
@@ -130,6 +131,9 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
   // Sin los "¿" que el SEACE deja donde iban comillas y en oración, como la lista de contratos.
   const titulo = p.descripcion ? oracion(limpiarObjeto(p.descripcion)) : p.nomenclatura ?? `Proceso ${p.codigo}`;
   const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
+  // El ganador lleva a su ficha si es una empresa (RUC 20); una persona natural, no (su RUC lleva el DNI). Sólo en el
+  // panel: la fila entera ya es un botón y un enlace adentro sería un control dentro de otro.
+  const fichaGanador = enlaceProveedor(p.rucProveedor);
   const datos: DatoClave[] = [
     { etiqueta: "Nomenclatura", valor: p.nomenclatura ?? "Sin dato", mono: true },
     {
@@ -143,12 +147,29 @@ function filaDe(p: Proceso, deEntidad: boolean): Fila {
     },
     { etiqueta: "Tipo de proceso", valor: p.tipoProceso ?? "Sin dato" },
     { etiqueta: "Objeto", valor: p.objeto ?? "Sin dato" },
-    { etiqueta: "Convocado", valor: p.fecha },
+    // La fecha como en todo panel, con el año (antes iba cruda: «2024-03-15»).
+    { etiqueta: "Convocado", valor: p.fecha ? fechaConAnio(p.fecha) : null, mono: true },
     { etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}`} className="text-granate underline-offset-2 hover:underline">{entidad}</Link> },
     ...(p.nivel ? [{ etiqueta: "Gobierno", valor: [NIVEL[p.nivel], p.lugar].filter(Boolean).join(", ") }] : []),
     { etiqueta: "Valor referencial", valor: monto(p.montoReferencial, p) },
     { etiqueta: "Adjudicado", valor: monto(p.montoAdjudicado, p) },
-    { etiqueta: p.proveedores > 1 ? `Ganadores (${p.proveedores})` : "Ganador", valor: p.proveedor ? (p.proveedores > 1 ? `${p.proveedor} y otros` : p.proveedor) : "Sin dato" },
+    {
+      etiqueta: p.proveedores > 1 ? `Ganadores (${p.proveedores})` : "Ganador",
+      valor: p.proveedor ? (
+        <>
+          {fichaGanador ? (
+            <Link href={fichaGanador} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+              {p.proveedor}
+            </Link>
+          ) : (
+            p.proveedor
+          )}
+          {p.proveedores > 1 ? " y otros" : ""}
+        </>
+      ) : (
+        "Sin dato"
+      ),
+    },
     { etiqueta: "Ítems", valor: numero(p.items) },
   ];
   return {

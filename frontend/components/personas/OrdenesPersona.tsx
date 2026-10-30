@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import Link from "next/link";
 import { Ayuda, AyudaTermino, CabeceraPestana, DatosClave, EstadoError, EstadoVacio, FuenteDato } from "@/components/patrones";
 import {
   BarraFiltros,
@@ -17,7 +18,7 @@ import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fechaCorta, oracion, soles } from "@/lib/formato";
+import { fechaConAnio, oracion, soles } from "@/lib/formato";
 import { CONOSCE_BUSCADOR } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion, type FichaPersona, type OrdenesPersona, type filtrosOrdenesDeUrl } from "@/lib/personas";
@@ -168,8 +169,20 @@ async function TablaOrdenes({ pagina: p, parametros, ruta, actual }: { pagina: P
             <DatosClave
               items={[
                 { etiqueta: "Qué se pagó", valor: descripcion },
-                { etiqueta: "Entidad", valor: entidad },
-                { etiqueta: "Emitida", valor: o.fecha ? fechaCorta(o.fecha) : null, mono: true },
+                // La entidad lleva a su ficha (el proveedor es esta persona: no se enlaza). Sólo en el panel: la fila
+                // entera ya es un botón.
+                {
+                  etiqueta: "Entidad",
+                  valor: entidad && o.entidadRuc ? (
+                    <Link href={`/entidad/${o.entidadRuc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+                      {entidad}
+                    </Link>
+                  ) : (
+                    entidad
+                  ),
+                },
+                // Con el año: «Emitida: 4 ago.» no decía de qué año era la orden.
+                { etiqueta: "Emitida", valor: o.fecha ? fechaConAnio(o.fecha) : null, mono: true },
                 { etiqueta: "Estado", valor: o.estado },
                 { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
                 { etiqueta: "Tipo de servicio", valor: o.servicio },

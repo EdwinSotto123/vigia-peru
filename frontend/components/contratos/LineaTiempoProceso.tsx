@@ -1,5 +1,5 @@
 import { dia } from "./EvidenciaContrato";
-import { fechaCorta, plural } from "@/lib/formato";
+import { fechaConAnio, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { adjudicacionesVigentes, type ContratoDetalle } from "@/lib/contratos";
 
@@ -96,8 +96,10 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
               <div className={cn("min-w-0", !ultimo && "pb-3")}>
                 <div className="flex items-baseline justify-between gap-3 text-meta">
                   <span className={cn("font-medium", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
+                  {/* Con el año, también el de este: la línea cruza años (convocatoria en diciembre, contrato en enero) y
+                      «4 ago.» debajo de «20 dic. 2025» no decía de cuál era. */}
                   <time dateTime={h.fecha} className="shrink-0 font-mono text-rotulo tabular-nums text-inkSoft">
-                    {fechaCorta(h.fecha)}
+                    {fechaConAnio(h.fecha)}
                   </time>
                 </div>
                 {salto !== null && salto > 0 && (

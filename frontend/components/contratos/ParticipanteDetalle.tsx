@@ -10,10 +10,11 @@
  */
 
 import Link from "next/link";
-import { AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones";
+import { AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
 import { PersonName } from "@/components/Redact";
 import { conDesde } from "@/lib/desde";
-import { rutaEmpresa } from "@/lib/empresas";
+import { esRucEmpresa, rutaEmpresa } from "@/lib/empresas";
+import { CONSULTA_RUC_SUNAT, fichaRnp } from "@/lib/fuentes";
 import { Severidad } from "@/components/ui/Severidad";
 import { CrucesCelda } from "./CrucesCelda";
 import { CORTO_EMPRESA } from "@/lib/empresas";
@@ -22,9 +23,10 @@ import { tituloNatural } from "@/lib/landing";
 import { esRucPersonaNatural } from "@/lib/privacidad";
 import {
   ETIQUETAS_PARTICIPANTE, EXPLICA_VINCULO, antiguedad, estadoParticipante, explicaBandera, nombreBandera, rucVisibleDe, tipoVinculo,
-  vinculosComoBanderas, type Participante,
+  vinculosComoBanderas, type Participante, type PersonaProceso,
 } from "@/lib/procesoContrato";
 import { cn } from "@/lib/utils";
+import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
 
 /** El nombre en pantalla: el de una persona natural con su apellido tapado (ya viene así de la API). */
 export function NombreParticipante({ ruc, nombre }: { ruc: string; nombre: string | null }) {
@@ -51,6 +53,12 @@ export function ChipEstado({ estado }: { estado: ReturnType<typeof estadoPartici
 }
 
 const items = (xs: number[]) => (xs.length === 1 ? `el ítem ${xs[0]}` : `los ítems ${listaY(xs.map(String))}`);
+
+/** La ficha de una empresa (RUC 20), con la vuelta a esta pestaña; null para una persona natural o un consorcio sin RUC. */
+const fichaDe = (x: PersonaProceso, aqui?: string): string | null => {
+  const ruc = rucVisibleDe(x);
+  return ruc && esRucEmpresa(ruc) ? conDesde(rutaEmpresa(ruc), aqui) : null;
+};
 
 export function DetalleParticipante({
   p,
@@ -101,6 +109,11 @@ export function DetalleParticipante({
       ]
     : [{ etiqueta: "Ficha RUC", valor: "Vigía no tiene su ficha de la SUNAT" }];
   const antecedentes = [...(h?.antecedentes ?? [])].sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0]));
+  // Cada antecedente abre sus casos en la ficha de la empresa (pestaña Antecedentes, filtrada por ese tipo): ahí está la
+  // evidencia de cada uno. Sólo una empresa (RUC 20): una persona natural no tiene ficha pública.
+  const rucEmpresa = rucVisibleDe(p);
+  const alAntecedente = (tipo: string) =>
+    rucEmpresa && esRucEmpresa(rucEmpresa) ? conDesde(rutaEmpresa(rucEmpresa, "antecedentes", { [P_ANTECEDENTES.tipo]: tipo }), aqui) : null;
   return (
     <CuerpoDetalle>
       <ChipsDetalle>
@@ -116,22 +129,46 @@ export function DetalleParticipante({
             {p.vinculos.map((v) => (
               <li key={`${v.tipo}-${v.con.map((x) => x.ruc).join("-")}`} className="flex gap-2">
                 <Severidad bandera={v.severidad} formato="punto" className="mt-0.5 shrink-0" />
-                <span className="min-w-0">
+                {/* div y no span: la fuente (FuenteDato) es un bloque. */}
+                <div className="min-w-0">
                   <span className="block text-dato font-semibold leading-snug text-ink">{nombreBandera(tipoVinculo(v, p.gano))}</span>
                   <span className="mt-0.5 block text-meta leading-snug text-inkSoft">
                     Con{" "}
-                    {v.con.map((x, i) => (
-                      <span key={x.ruc}>
-                        {i > 0 && (i === v.con.length - 1 ? " y " : ", ")}
-                        <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
-                      </span>
-                    ))}
+                    {v.con.map((x, i) => {
+                      // La otra empresa lleva a su ficha (ver con quién más comparte socios o domicilio); una persona
+                      // natural va tapada y sin enlace.
+                      const href = fichaDe(x, aqui);
+                      return (
+                        <span key={x.ruc}>
+                          {i > 0 && (i === v.con.length - 1 ? " y " : ", ")}
+                          {href ? (
+                            <Link href={href} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+                              <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
+                            </Link>
+                          ) : (
+                            <NombreParticipante ruc={x.ruc} nombre={x.nombre} />
+                          )}
+                        </span>
+                      );
+                    })}
                     {v.tipo === "domicilio_compartido" && v.domicilio ? `: ${tituloNatural(v.domicilio)}` : ""}.
                   </span>
-                  <span className="mt-0.5 block text-rotulo text-mute">
-                    {v.tipo === "domicilio_compartido" ? "Fuente: SUNAT (ficha RUC)" : "Fuente: RNP (socios y representantes)"}
-                  </span>
-                </span>
+                  {/* La fuente, con dónde comprobarlo: la consulta RUC de la SUNAT (no tiene enlace por registro) o la ficha
+                      de cada empresa en el RNP, con sus socios y representantes. `fichaRnp` sólo arma la de un RUC 20. */}
+                  {v.tipo === "domicilio_compartido" ? (
+                    <FuenteDato fuente="SUNAT (ficha RUC)" href={CONSULTA_RUC_SUNAT} className="mt-0.5" />
+                  ) : (
+                    <FuenteDato
+                      fuente="RNP (socios y representantes)"
+                      href={fichaRnp(rucVisibleDe(p))}
+                      enlaces={v.con.map((x) => {
+                        const ruc = rucVisibleDe(x);
+                        return ruc && esRucEmpresa(ruc) ? { texto: `${x.nombre ?? `RUC ${ruc}`} en el RNP`, href: fichaRnp(ruc) } : null;
+                      })}
+                      className="mt-0.5"
+                    />
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -151,18 +188,28 @@ export function DetalleParticipante({
             />
             {antecedentes.length > 0 ? (
               <ul className="space-y-3" aria-label="Antecedentes en otros registros">
-                {antecedentes.map((a) => (
-                  <li key={a.tipo} className="flex gap-2">
-                    <Severidad bandera={a.severidad} formato="punto" className="mt-0.5 shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block text-dato font-semibold leading-snug text-ink">
-                        {CORTO_EMPRESA[a.tipo] ?? nombreBandera(a.tipo)}
-                        {a.n > 1 && <span className="ml-1.5 font-normal tabular-nums text-mute">{plural(a.n, "registro", "registros")}</span>}
+                {antecedentes.map((a) => {
+                  const titulo = CORTO_EMPRESA[a.tipo] ?? nombreBandera(a.tipo);
+                  const href = alAntecedente(a.tipo);
+                  return (
+                    <li key={a.tipo} className="flex gap-2">
+                      <Severidad bandera={a.severidad} formato="punto" className="mt-0.5 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-dato font-semibold leading-snug text-ink">
+                          {href ? (
+                            <Link href={href} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+                              {titulo}
+                            </Link>
+                          ) : (
+                            titulo
+                          )}
+                          {a.n > 1 && <span className="ml-1.5 font-normal tabular-nums text-mute">{plural(a.n, "registro", "registros")}</span>}
+                        </span>
+                        {explicaBandera(a.tipo) && <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{explicaBandera(a.tipo)}</span>}
                       </span>
-                      {explicaBandera(a.tipo) && <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{explicaBandera(a.tipo)}</span>}
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="text-dato text-inkSoft">Ningún otro registro público la nombra.</p>

@@ -33,12 +33,13 @@ import Link from "next/link";
 import { ArrowRight, Award, Flag, ListFilter } from "lucide-react";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
-import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, EstadoError, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { enlacesProceso } from "@/lib/fuentes";
 import { Llamita } from "@/components/marca/Llamita";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
-import { numero, oracion, plural } from "@/lib/formato";
+import { fechaConAnio, numero, oracion, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
-import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
+import { esPersonaNatural, etapaLabel, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
 import { DetalleContrato } from "./DetalleContrato";
 import { CrucesCelda } from "./CrucesCelda";
@@ -289,7 +290,8 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       descripcion: (
         <span className="flex flex-wrap items-baseline gap-x-3">
           <span className="font-mono">{c.codigo}</span>
-          {c.fecha && <span className="tabular-nums">Convocada el {formatFecha(c.fecha)}</span>}
+          {/* Con el año, como la columna «Convocada» de la fila. */}
+          {c.fecha && <span className="tabular-nums">Convocada el {fechaConAnio(c.fecha.slice(0, 10))}</span>}
           {c.zona && <span>{c.zona}</span>}
         </span>
       ),
@@ -305,16 +307,18 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
           )}
         </div>
       ),
+      // La fuente con dónde comprobarlo (el proceso en Contrataciones Abiertas del OECE), como en el panel de un proceso:
+      // antes era un «Fuente: SEACE/OECE, vía la API OCDS» sin enlace.
       pie: (
-        <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-rotulo text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <FuenteDato fuente="registro OCDS del OECE (SEACE)" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} />
           <Link
             href={conDesde(`${RUTA}/${encodeURIComponent(c.ocid)}`, desde)}
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             Ver el dossier completo <ArrowRight size={14} aria-hidden />
           </Link>
-        </span>
+        </div>
       ),
     },
   };

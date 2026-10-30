@@ -55,7 +55,7 @@ import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaCorta, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
+import { fecha, fechaConAnio, fechaCorta, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
 import {
   adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
@@ -397,19 +397,21 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
     });
   } else faltan.push("monto adjudicado");
 
+  // Las fechas con el año, también las de este: un proceso convocado en diciembre se adjudica en enero, y «4 ene.» al
+  // lado de «20 dic. 2025» no decía de qué año era.
   if (c.fecha) {
     tarjetas.push({
-      valor: fechaCorta(c.fecha),
+      valor: fechaConAnio(c.fecha),
       etiqueta: "convocatoria",
       ayuda: <AyudaTermino clave="convocatoria" />,
       // Sin fecha de buena pro en el registro, la de la adjudicación: la misma de la línea de tiempo y de «cuando ganó» en
       // los antecedentes (antes la cifra decía «sin fecha» al lado de una adjudicación con fecha).
-      contexto: gano ? `${gano.deAdjudicacion ? "adjudicada el" : "buena pro:"} ${fechaCorta(gano.fecha)}` : "buena pro: sin fecha",
+      contexto: gano ? `${gano.deAdjudicacion ? "adjudicada el" : "buena pro:"} ${fechaConAnio(gano.fecha)}` : "buena pro: sin fecha",
     });
   } else if (gano) {
     // Sin fecha de convocatoria, la de la buena pro (o la de la adjudicación) es la cifra: es la única fecha que hay.
     tarjetas.push({
-      valor: fechaCorta(gano.fecha),
+      valor: fechaConAnio(gano.fecha),
       etiqueta: gano.deAdjudicacion ? "adjudicación" : "buena pro",
       ayuda: gano.deAdjudicacion ? undefined : <AyudaTermino clave="buena-pro" />,
       contexto: "convocatoria: sin fecha",
@@ -898,8 +900,20 @@ function Descripcion({ texto }: { texto: string }) {
  */
 function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnType<typeof cambioDeGanador>> }) {
   const { original, queda, diferencia, porcentaje } = cambio;
-  const nombre = (a: { proveedor: string | null; proveedorRuc: string | null }) =>
-    a.proveedor ? (esPersonaNatural(a.proveedorRuc) ? <PersonName name={a.proveedor} orden="sunat" /> : a.proveedor) : "otro postor";
+  // Una empresa (RUC 20) lleva a su ficha: ver quién era el primero y quién quedó sin tener que buscarlos. Una persona
+  // natural va tapada y sin enlace (su RUC lleva el DNI); un consorcio sin RUC propio, sin enlace.
+  const nombre = (a: { proveedor: string | null; proveedorRuc: string | null }) => {
+    if (!a.proveedor) return "otro postor";
+    if (esPersonaNatural(a.proveedorRuc)) return <PersonName name={a.proveedor} orden="sunat" />;
+    const ficha = enlaceProveedor(a.proveedorRuc);
+    return ficha ? (
+      <Link href={ficha} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+        {a.proveedor}
+      </Link>
+    ) : (
+      a.proveedor
+    );
+  };
   const sube = diferencia != null && diferencia > 0;
   return (
     <section aria-labelledby="cambio-ganador" className={cn("rounded-2xl border bg-paper px-4 py-3.5", sube ? "border-amber/40" : "border-line")}>

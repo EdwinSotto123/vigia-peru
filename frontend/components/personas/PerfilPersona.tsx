@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { AyudaTermino, Seccion, Nota, EnlaceFuente, FuenteDato, EstadoError } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
 import { Dato } from "@/components/ui/Dato";
 import { FECHA_ELECCION, enlaceVisita } from "@/components/personas/EvidenciaSenal";
-import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { CLARIDAD_ONPE, DATASET_AUTORIDADES_JNE, DATASET_SOCIOS_RNP, DJI_CONSULTA, INFOGOB_JNE, PLATAFORMA_JNE, PORTAL_TRANSPARENCIA, VISITAS_EN_LINEA, djiEntidad, fichaRnp, personalPte, avisoVisitas } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
+import { rutaPartido } from "@/lib/partidos";
 import { GRADO_PARIENTE, getPerfilPersona, type PerfilPersona } from "@/lib/personas";
 import { REGIMEN, cargoEnOracion, mes, nombrePartido } from "@/lib/planilla";
 
@@ -87,7 +89,7 @@ function hitosPerfil(p: PerfilPersona): Hito[] {
   const conPrevia = new Set(previas.map((v) => v.entidadRuc));
   for (const v of (p.visitas.porEntidad ?? []).slice(0, 4)) {
     if (!v.primera || (v.entidadRuc && conPrevia.has(v.entidadRuc))) continue;
-    const hasta = v.ultima && v.ultima !== v.primera ? `, hasta el ${fechaCorta(v.ultima)}` : "";
+    const hasta = v.ultima && v.ultima !== v.primera ? `, hasta el ${fechaConAnio(v.ultima)}` : "";
     h.push({ fecha: v.primera, texto: `Visitó ${tituloNatural(v.entidad ?? "una entidad")}${v.n > 1 ? ` ${plural(v.n, "vez", "veces")}${hasta}` : ""}` });
   }
   return h;
@@ -117,7 +119,7 @@ function Empresas({ p }: { p: PerfilPersona }) {
           titulo={e.nombre ? tituloNatural(e.nombre) : `Empresa con RUC ${e.ruc}`}
           meta={[
             <Dato key="rol" tipo="personas" nombre="Su papel">{rolCorto(e.rol)}</Dato>,
-            e.desde ? <Dato key="d" tipo="fecha" nombre="Desde">{`Desde ${fechaCorta(e.desde)}`}</Dato> : null,
+            e.desde ? <Dato key="d" tipo="fecha" nombre="Desde">{`Desde ${fechaConAnio(e.desde)}`}</Dato> : null,
             e.inhabilitada ? <Dato key="i" icono={AlertTriangle} nombre="Alerta">Inhabilitada</Dato> : null,
             e.estadoSunat && !/ACTIVO/i.test(e.estadoSunat) ? <Dato key="s" icono={AlertTriangle} nombre="Estado en SUNAT">{tituloNatural(e.estadoSunat)}</Dato> : null,
           ]}
@@ -153,6 +155,19 @@ function Empresas({ p }: { p: PerfilPersona }) {
   );
 }
 
+/**
+ * El partido como enlace a su ficha, en el período del dato (como en sus Señales, EvidenciaSenal): por su clave
+ * (`rutaPartido`), porque con el nombre crudo la ficha no lo encontraba. Las filas de «Política» no llevan a otra parte:
+ * el enlace puede ir adentro.
+ */
+function PartidoEnlace({ nombre, anio }: { nombre: string; anio?: unknown }) {
+  return (
+    <Link href={rutaPartido(nombre, anio)} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+      {nombrePartido(nombre) ?? nombre}
+    </Link>
+  );
+}
+
 function Politica({ p }: { p: PerfilPersona }) {
   const totalAportes = p.aportes.reduce((t, a) => t + (a.monto ?? 0), 0);
   const filas: Fila[] = [
@@ -163,7 +178,7 @@ function Politica({ p }: { p: PerfilPersona }) {
           <CeldaPrincipal
             titulo={`${a.vigente ? "Es" : "Fue"} ${cargoEnOracion(a.cargo) ?? "autoridad"}`}
             meta={[
-              a.partido ? <Dato key="p" tipo="partido">{nombrePartido(a.partido)}</Dato> : null,
+              a.partido ? <Dato key="p" tipo="partido"><PartidoEnlace nombre={a.partido} anio={a.desde} /></Dato> : null,
               [a.distrito, a.provincia, a.departamento].find(Boolean) ? <Dato key="z" tipo="lugar">{tituloNatural([a.distrito, a.provincia, a.departamento].find(Boolean)!)}</Dato> : null,
             ]}
           />
@@ -178,7 +193,7 @@ function Politica({ p }: { p: PerfilPersona }) {
           <CeldaPrincipal
             titulo={`Postuló${c.cargo ? ` a ${cargoEnOracion(c.cargo) ?? tituloNatural(c.cargo)}` : ""}${c.resultado === "electo" ? " y salió electo" : ""}`}
             meta={[
-              c.partido ? <Dato key="p" tipo="partido">{nombrePartido(c.partido)}</Dato> : null,
+              c.partido ? <Dato key="p" tipo="partido"><PartidoEnlace nombre={c.partido} anio={c.anio} /></Dato> : null,
               [c.distrito, c.provincia, c.region].find(Boolean) ? <Dato key="z" tipo="lugar">{tituloNatural([c.distrito, c.provincia, c.region].find(Boolean)!)}</Dato> : null,
             ]}
           />
@@ -191,11 +206,16 @@ function Politica({ p }: { p: PerfilPersona }) {
       celdas: {
         hecho: (
           <CeldaPrincipal
-            titulo={`Aportó ${soles(a.monto ?? 0)} a ${nombrePartido(a.partido) ?? "un partido"}`}
+            titulo={
+              <>
+                Aportó {soles(a.monto ?? 0)} a {a.partido ? <PartidoEnlace nombre={a.partido} anio={a.fecha ?? a.anio} /> : "un partido"}
+              </>
+            }
+            textoCompleto={`Aportó ${soles(a.monto ?? 0)} a ${nombrePartido(a.partido) ?? "un partido"}`}
             meta={[a.nivel === "campaña" ? <Dato key="n" tipo="tipo">A la campaña</Dato> : null, a.tipo ? <Dato key="t" tipo="tipo">{tituloNatural(a.tipo)}</Dato> : null]}
           />
         ),
-        cuando: <span className="text-meta tabular-nums text-inkSoft">{a.fecha ? fechaCorta(a.fecha) : a.anio ?? "Sin fecha"}</span>,
+        cuando: <span className="text-meta tabular-nums text-inkSoft">{a.fecha ? fechaConAnio(a.fecha) : a.anio ?? "Sin fecha"}</span>,
       },
     })),
   ];
@@ -324,16 +344,35 @@ function Planilla({ p }: { p: PerfilPersona }) {
 }
 
 function Visitas({ p }: { p: PerfilPersona }) {
+  // El RUC de cada entidad visitada por el nombre con que la escribe el registro de visitas: lo trae `porEntidad` (las
+  // que más visitó, con el mismo nombre que cada visita). Sólo RUC de entidad (20…); las demás van sin enlace.
+  const rucDe = new Map(
+    (p.visitas.porEntidad ?? []).flatMap((x) => (x.entidad && x.entidadRuc && /^20\d{9}$/.test(x.entidadRuc) ? [[x.entidad, x.entidadRuc] as const] : [])),
+  );
   const filas: Fila[] = p.visitas.ultimas.map((v, i) => {
     // Cada visita con su registro oficial, por el registro del que salió (el del Congreso, el reporte de la PNDA o el
-    // registro en línea): las filas no llevan a otra parte, el enlace va en la fila.
+    // registro en línea): las filas no llevan a otra parte, el enlace va en la fila. También el de la entidad, a su ficha.
     const fuente = enlaceVisita(v.fecha, v.fuente);
+    const entidad = tituloNatural(v.entidad ?? "Entidad");
+    const ruc = v.entidad ? rucDe.get(v.entidad) : undefined;
     return {
       id: String(i),
+      // Lo que se ve en la fila y se puede buscar: la entidad, el cargo y la oficina de quien recibió, el motivo y el año.
+      // Ningún nombre: de quien recibe, el registro sólo da su cargo.
+      buscable: [v.entidad, v.cargo, v.area, v.motivo, v.fecha?.slice(0, 4)].filter(Boolean).join(" "),
       celdas: {
         visita: (
           <CeldaPrincipal
-            titulo={tituloNatural(v.entidad ?? "Entidad")}
+            titulo={
+              ruc ? (
+                <Link href={`/entidad/${ruc}`} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+                  {entidad}
+                </Link>
+              ) : (
+                entidad
+              )
+            }
+            textoCompleto={entidad}
             meta={[
               v.cargo ? <Dato key="c" tipo="cargo" nombre="Visitó a">{tituloNatural(v.cargo)}</Dato> : null,
               v.area ? <Dato key="a" tipo="dependencia" nombre="Oficina">{tituloNatural(v.area)}</Dato> : null,
@@ -341,7 +380,7 @@ function Visitas({ p }: { p: PerfilPersona }) {
           />
         ),
         motivo: <span className="text-meta text-inkSoft">{v.motivo ? tituloNatural(v.motivo) : "Sin motivo"}</span>,
-        fecha: <span className="text-meta tabular-nums text-inkSoft">{v.fecha ? fechaCorta(v.fecha) : "Sin fecha"}</span>,
+        fecha: <span className="text-meta tabular-nums text-inkSoft">{v.fecha ? fechaConAnio(v.fecha) : "Sin fecha"}</span>,
         fuente: <EnlaceFuente href={fuente.href} className="text-meta">{fuente.texto}</EnlaceFuente>,
       },
     };
@@ -350,10 +389,11 @@ function Visitas({ p }: { p: PerfilPersona }) {
   return (
     <Seccion
       titulo="Visitas a entidades"
-      descripcion={`${plural(p.visitas.total, "visita registrada", "visitas registradas")}${mostradas < p.visitas.total ? `; las ${numero(mostradas)} más recientes` : ""}.`}
+      // La API manda las más recientes (100), no todas: se dice, y que el buscador busca en ésas.
+      descripcion={`${plural(p.visitas.total, "visita registrada", "visitas registradas")}${mostradas < p.visitas.total ? `; aquí van las ${numero(mostradas)} más recientes y el buscador busca en ellas` : ""}.`}
       ayuda={<AyudaTermino clave="registro-visitas" />}
     >
-      <Lista
+      <TablaPaginada
         etiqueta="Visitas a entidades del Estado"
         columnas={[
           { clave: "visita", titulo: "Entidad y a quién visitó", ancho: "minmax(0,1fr)" },
@@ -362,6 +402,11 @@ function Visitas({ p }: { p: PerfilPersona }) {
           { clave: "fuente", titulo: "Fuente", ancho: "9rem", desde: "lg", apilar: "con-rotulo" },
         ]}
         filas={filas}
+        tam={10}
+        nombre="visitas"
+        buscar={{ placeholder: "Buscar entidad, cargo o motivo…", etiqueta: "Buscar en sus visitas" }}
+        medida="contenedor"
+        densidad="compacta"
       />
       {avisoVisitas(p.visitas.hasta) && <Nota className="mt-2">{avisoVisitas(p.visitas.hasta)}</Nota>}
       <FuenteDato fuente="Registro de visitas en línea de las entidades" href={VISITAS_EN_LINEA} className="mt-2" />

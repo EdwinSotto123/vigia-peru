@@ -1,16 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
-import { Ayuda, CuerpoDetalle, DatosClave, EnlaceFuente, PieDetalle, type DatoClave } from "@/components/patrones";
+import { Ayuda, CuerpoDetalle, DatosClave, FuenteDato, PieDetalle, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEmpresa } from "@/lib/empresas";
-import { fecha, fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaConAnio, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { VISITAS_EN_LINEA, djiEntidad, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { P_CONTRATOS, P_ORDENES } from "@/lib/parametrosEmpresa";
 import { rutaContrato } from "@/lib/rutas";
-import { parentescoLlano, type EmpresaVisitante, type VisitasEntidad as Datos } from "@/lib/visitas";
+import { parentescoLlano, type EmpresaVisitante, type VisitaEntidad, type VisitasEntidad as Datos } from "@/lib/visitas";
 
 /**
  * Las tablas de la pestaña «Visitas» de una entidad, armadas en el navegador: el servidor manda las filas como datos (las
@@ -83,7 +83,7 @@ export function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["emp
     const datos: DatoClave[] = [
       {
         etiqueta: "Visitas",
-        valor: `${plural(x.visitas, "visita", "visitas")} de ${plural(x.visitantes, "persona", "personas")}, ${x.primera === x.ultima ? `el ${fecha(x.primera)}` : `del ${fechaCorta(x.primera)} al ${fechaCorta(x.ultima)}`}`,
+        valor: `${plural(x.visitas, "visita", "visitas")} de ${plural(x.visitantes, "persona", "personas")}, ${x.primera === x.ultima ? `el ${fecha(x.primera)}` : `del ${fechaConAnio(x.primera)} al ${fechaConAnio(x.ultima)}`}`,
       },
       {
         etiqueta: "Quién la visitó",
@@ -99,7 +99,7 @@ export function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["emp
       },
       {
         etiqueta: "Lo primero después",
-        valor: `${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, del ${fechaCorta(x.despues)}${
+        valor: `${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, del ${fechaConAnio(x.despues)}${
           x.dias == null ? "" : x.dias === 0 ? ", el día de una visita" : `, a ${plural(x.dias, "día", "días")} de una visita`}`,
       },
       ...(x.despuesDetalle ? [{ etiqueta: "Qué se compró", valor: `«${oracion(x.despuesDetalle)}»` }] : []),
@@ -129,7 +129,7 @@ export function EmpresasDeSuGente({ e, entidadRuc }: { e: NonNullable<Datos["emp
         ),
         visitas: <CeldaNumero sub={plural(x.visitantes, "persona", "personas")}>{numero(x.visitas)}</CeldaNumero>,
         despues: (
-          <CeldaNumero sub={`${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, ${fechaCorta(x.despues)}`}>
+          <CeldaNumero sub={`${cual(x.despuesTipo, x.despuesNumero, x.despuesOrden)}, ${fechaConAnio(x.despues)}`}>
             {x.monto > 0 ? solesCompacto(x.monto) : x.consorcios > 0 ? plural(x.consorcios, "en consorcio", "en consorcio") : "Sin monto"}
           </CeldaNumero>
         ),
@@ -259,14 +259,14 @@ export function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable
           meta={[
             <Dato key="t" tipo="tipo" nombre="Tipo">{o.tipo === "publica" ? "Entidad pública" : o.ruc ? "Empresa" : "Organización privada"}</Dato>,
             <Dato key="p" tipo="personas" nombre="Personas">{plural(o.visitantes, "persona", "personas")}</Dato>,
-            o.primera ? <Dato key="f" tipo="fecha" nombre="Cuándo">{o.primera === o.ultima ? fechaCorta(o.primera) : `${fechaCorta(o.primera)} a ${fechaCorta(o.ultima)}`}</Dato> : null,
+            o.primera ? <Dato key="f" tipo="fecha" nombre="Cuándo">{o.primera === o.ultima ? fechaConAnio(o.primera) : `${fechaConAnio(o.primera)} a ${fechaConAnio(o.ultima)}`}</Dato> : null,
             o.decisores > 0 ? <Dato key="d" tipo="cargo" nombre="A quien decide">{plural(o.decisores, "a quien decide", "a quien decide")}</Dato> : null,
           ]}
         />
       ),
       visitas: <CeldaNumero>{numero(o.visitas)}</CeldaNumero>,
       despues: (
-        <CeldaNumero sub={o.despues && o.despuesTipo ? `${cual(o.despuesTipo, o.despuesNumero)}, ${fechaCorta(o.despues)}` : undefined}>
+        <CeldaNumero sub={o.despues && o.despuesTipo ? `${cual(o.despuesTipo, o.despuesNumero)}, ${fechaConAnio(o.despues)}` : undefined}>
           {o.despues ? solesCompacto(o.montoDespues) : sinDespues ? "Sin calcular" : "Nada después"}
         </CeldaNumero>
       ),
@@ -308,7 +308,20 @@ export function Organizaciones({ orgs, sinDespues = false }: { orgs: NonNullable
   );
 }
 
-export function Parientes({ ps }: { ps: NonNullable<Datos["parientes"]> }) {
+/**
+ * Las visitas de familiares declarados de sus funcionarios. Sin la fuente de cada una (la API no la manda en esta lista),
+ * al pie van los registros de visitas de la entidad (`fuentes` de la API) y las DJI de sus funcionarios, de donde sale el
+ * parentesco.
+ */
+export function Parientes({
+  ps,
+  entidadRuc,
+  fuentes = [{ texto: "Registro de Visitas en Línea (PCM)", href: VISITAS_EN_LINEA }],
+}: {
+  ps: NonNullable<Datos["parientes"]>;
+  entidadRuc: string;
+  fuentes?: { texto: string; href: string }[];
+}) {
   const columnas: Columna[] = [
     { clave: "quien", titulo: "Visita", ancho: "minmax(0,1fr)" },
     { clave: "fecha", titulo: "Fecha", ancho: "7rem", alinear: "der" },
@@ -326,7 +339,7 @@ export function Parientes({ ps }: { ps: NonNullable<Datos["parientes"]> }) {
           ]}
         />
       ),
-      fecha: <CeldaNumero>{fechaCorta(p.fecha)}</CeldaNumero>,
+      fecha: <CeldaNumero>{fechaConAnio(p.fecha)}</CeldaNumero>,
     },
     buscable: `${p.parentesco ?? ""} ${p.cargo ?? ""} ${p.area ?? ""}`,
     valores: { proveedor: p.proveedor ? "si" : "no", decisor: p.decisor ? "si" : "no" },
@@ -355,6 +368,10 @@ export function Parientes({ ps }: { ps: NonNullable<Datos["parientes"]> }) {
           { clave: "decisor", etiqueta: "Lo recibió quien decide", corta: "A quien decide", opciones: [{ valor: "si", etiqueta: "Sí" }, { valor: "no", etiqueta: "No" }] },
         ]}
         ordenes={[{ valor: "reciente", etiqueta: "Lo más reciente", clave: "fecha", dir: "desc" }]}
+      />
+      <FuenteDato
+        fuente="El registro de visitas de la entidad y las Declaraciones Juradas de Intereses de sus funcionarios"
+        enlaces={[...fuentes, { texto: "Sus Declaraciones Juradas de Intereses (Contraloría)", href: djiEntidad(entidadRuc) }]}
       />
     </section>
   );
@@ -401,6 +418,30 @@ export function Areas({ areas }: { areas: NonNullable<Datos["areas"]> }) {
   );
 }
 
+/** De dónde dijo venir quien visita: la organización que declaró o, sin ella, qué clase de visita fue. */
+function deDonde(v: VisitaEntidad): string {
+  if (v.organizacion) return tituloNatural(v.organizacion);
+  if (v.tipo === "privada") return "Una organización privada, sin su nombre en el registro";
+  if (v.tipo === "publica") return "Una entidad pública, sin su nombre en el registro";
+  return "Ninguna organización: vino a título personal";
+}
+
+/**
+ * El registro del que salió una visita, como en la ficha de la empresa: el del Congreso, el reporte mensual de la PNDA
+ * (que es sólo de Loreto) o el registro en línea de la PCM, y este último también cuando la visita viene de otro.
+ */
+function FuenteVisita({ v }: { v: VisitaEntidad }) {
+  const r = registroVisita(v.fecha, v.fuente);
+  const href = v.enlace ?? r.href;
+  return (
+    <FuenteDato
+      fuente={r.fuente}
+      href={href}
+      enlaces={[href !== VISITAS_EN_LINEA && { texto: "Registro de visitas en línea", href: VISITAS_EN_LINEA }]}
+    />
+  );
+}
+
 export function ListaVisitas({ vs, total }: { vs: NonNullable<Datos["visitas"]>; total: number }) {
   const columnas: Columna[] = [
     { clave: "visita", titulo: "Visita", ancho: "minmax(0,1fr)" },
@@ -421,36 +462,47 @@ export function ListaVisitas({ vs, total }: { vs: NonNullable<Datos["visitas"]>;
           ]}
         />
       ),
-      fecha: <CeldaNumero sub={v.hora && !v.fueraDeHora ? v.hora : undefined}>{v.fecha ? fechaCorta(v.fecha) : "Sin fecha"}</CeldaNumero>,
+      fecha: <CeldaNumero sub={v.hora && !v.fueraDeHora ? v.hora : undefined}>{v.fecha ? fechaConAnio(v.fecha) : "Sin fecha"}</CeldaNumero>,
     },
+    // Como el panel de una visita en la ficha de la empresa: etiqueta y valor en filas (antes eran párrafos sueltos) y, al
+    // pie, el registro del que salió. De quien la recibió, sólo su cargo y su área; del familiar de un funcionario, nada.
     detalle: {
       titulo: v.pariente ? "Visita de un familiar de un funcionario" : v.organizacion ? tituloNatural(v.organizacion) : "Visita",
       etiqueta: "Visita",
       contenido: (
-        <div className="space-y-2 text-meta text-ink">
-          <p>
-            {v.fecha ? fecha(v.fecha) : "Sin fecha"}
-            {v.hora ? `, a las ${v.hora}` : ""}
-            {v.duracion ? `; duró ${plural(v.duracion, "minuto", "minutos")}` : ""}.
-          </p>
-          {(v.cargo || v.area) && <p>La recibió quien tiene el cargo de {[v.cargo, v.area].filter(Boolean).join(", en ").toLowerCase()}.</p>}
-          {v.motivo && <p>Motivo declarado: «{v.motivo}».</p>}
-          {v.pariente && <p>Su documento es el de un pariente que un funcionario de la entidad declaró en su DJI. No se dice quién es.</p>}
-          {v.empresa && (
-            <p>
-              Se reconoce como gente de{" "}
-              <Link href={`/empresa/${v.empresa.ruc}?seccion=gente&vista=visitas`} prefetch={false} className="font-semibold text-granate underline decoration-granate/40 underline-offset-2">
-                {v.empresa.nombre ? tituloNatural(v.empresa.nombre) : `la empresa ${v.empresa.ruc}`}
-              </Link>
-              .
+        <CuerpoDetalle>
+          <DatosClave
+            items={[
+              { etiqueta: "Cuándo", valor: v.fecha ? `${fecha(v.fecha)}${v.hora ? `, a las ${v.hora}` : ""}` : null },
+              ...(v.duracion ? [{ etiqueta: "Duración", valor: plural(v.duracion, "minuto", "minutos") }] : []),
+              ...(v.fueraDeHora ? [{ etiqueta: "Horario", valor: "Fuera del horario de oficina" }] : []),
+              { etiqueta: "Quién visitó", valor: v.pariente ? "Un familiar de un funcionario de la entidad" : v.visitante },
+              ...(v.pariente ? [] : [{ etiqueta: "Dijo venir de", valor: deDonde(v) }]),
+              { etiqueta: "Cargo de quien la recibió", valor: v.cargo ? tituloNatural(v.cargo) : null },
+              { etiqueta: "Área", valor: v.area ? tituloNatural(v.area) : null },
+              ...(v.decisor ? [{ etiqueta: "Decide las compras", valor: "Sí, por su cargo o su área" }] : []),
+              { etiqueta: "Motivo declarado", valor: v.motivo ? `«${oracion(v.motivo)}»` : null },
+              ...(v.empresa
+                ? [{ etiqueta: "Se reconoce como gente de", valor: v.empresa.nombre ? tituloNatural(v.empresa.nombre) : `La empresa con RUC ${v.empresa.ruc}` }]
+                : []),
+            ]}
+          />
+          {v.pariente && (
+            <p className="text-rotulo leading-relaxed text-mute">
+              Su documento es el de un pariente que un funcionario de la entidad declaró en su Declaración Jurada de Intereses. No se
+              dice quién es.
             </p>
           )}
-          {v.enlace && (
-            <p className="text-rotulo text-mute">
-              Fuente: <EnlaceFuente href={v.enlace}>{v.fuente === "congreso_visitas" ? "Registro de visitas del Congreso" : "Registro de Visitas en Línea"}</EnlaceFuente>
-            </p>
-          )}
-        </div>
+        </CuerpoDetalle>
+      ),
+      pie: (
+        <PieDetalle
+          principal={
+            // `empresa` llega sólo con RUC 20 (la API descarta lo demás): su ficha, en la lista de visitas de su gente.
+            v.empresa ? <EnlaceAccion href={rutaEmpresa(v.empresa.ruc, "visitas")} flecha>Ver las visitas de la empresa</EnlaceAccion> : undefined
+          }
+          secundarias={<FuenteVisita v={v} />}
+        />
       ),
     },
     buscable: `${v.organizacion ?? ""} ${v.pariente ? "" : v.visitante ?? ""} ${v.cargo ?? ""} ${v.area ?? ""} ${v.motivo ?? ""} ${v.empresa?.nombre ?? ""}`,

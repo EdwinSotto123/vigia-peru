@@ -538,7 +538,18 @@ export default async function EntidadProfile({
               </span>
               {region && (
                 <span className="inline-flex items-center gap-1.5">
-                  <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+                  <MapPin size={14} className="shrink-0 text-mute" aria-hidden />
+                  {/* La región, a su ficha (por su ubigeo); la provincia y el distrito, como texto. */}
+                  <span>
+                    {dep ? (
+                      <Link href={rutaRegion(dep)} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+                        {region}
+                      </Link>
+                    ) : (
+                      region
+                    )}
+                    {[e.provincia, e.distrito].filter(Boolean).map((x) => `, ${x}`).join("")}
+                  </span>
                 </span>
               )}
             </span>

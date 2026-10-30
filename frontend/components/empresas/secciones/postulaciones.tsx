@@ -94,7 +94,17 @@ export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual
           <div className="space-y-3">
             <DatosClave
               items={[
-                { etiqueta: "Entidad", valor: x.entidad ? tituloNatural(x.entidad) : null },
+                {
+                  etiqueta: "Entidad",
+                  // La entidad que convocó, a su ficha (si la API trae su RUC).
+                  valor: !x.entidad ? null : x.entidadRuc ? (
+                    <Link href={`/entidad/${x.entidadRuc}`} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
+                      {tituloNatural(x.entidad)}
+                    </Link>
+                  ) : (
+                    tituloNatural(x.entidad)
+                  ),
+                },
                 { etiqueta: "Propuesta", valor: x.fecha ? fecha(x.fecha) : null },
                 { etiqueta: "Postuló", valor: x.consorcio ? `En ${tituloNatural(x.consorcio)}` : "Sola" },
                 { etiqueta: "Resultado", valor: x.gano ? "Ganó" : otros.length ? "Ganó otro postor" : "Sin adjudicación publicada" },

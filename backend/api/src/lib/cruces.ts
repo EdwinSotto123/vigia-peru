@@ -15,6 +15,7 @@ import { pool } from "./db.js";
 import { evidenciasDe, ofertasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
 import { CONSULTA_RUC_SUNAT, enlaceFuente } from "./fuentes.js";
 import { ETIQUETA_OBRA } from "./obras.js";
+import { referenciasDe, type Referencias } from "./referencias.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
   aporte: "Aportó a una organización política",
@@ -106,6 +107,10 @@ export interface Cruce {
   consorcio?: { codigo: string; nombre: string | null } | null;
   /** socio_comun: los otros postores del proceso con el mismo socio, con su razón social. */
   otrosPostores?: { ruc: string; nombre: string | null }[];
+  /** Las referencias del antecedente (lib/referencias.ts): la entidad visitada por su RUC, la elección, el cargo… */
+  referencias?: Referencias | null;
+  /** El RUC de la entidad del proceso (para enlazarla en el texto del antecedente). */
+  entidadRuc?: string | null;
   /** fraccionamiento: cada día con sus órdenes (número, descripción, monto, estado), de ordenes_fraccionadas. */
   ordenesDias?: DiaFraccionado[];
   /** Los registros oficiales que sostienen el cruce (lib/evidencia.ts): sin DNI ni nombres de personas naturales. */
@@ -304,6 +309,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     if (r.tipo === "aporte" || r.tipo === "aporte_empresa") return gobernantes.has(clave({ ...r, detalle: { partido: r.detalle?.partido } }));
     return false;
   });
+  // Las referencias de cada antecedente, como en la ficha de la empresa (2026-10-29: «faltan referencias»).
+  const refs = await referenciasDe(crudas).catch(() => crudas.map(() => null));
   const resultado: Cruce[] = cruces.map((c, i) => {
     const g = porRuc.get(c.rucProveedor);
     const anteriores = soloAnteriores(c, evidencias[i], proceso.fecha);
@@ -313,6 +320,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       proveedor: g?.proveedor ?? null,
       buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
       consorcio: g?.consorcio ?? null,
+      referencias: refs[i] ?? null,
+      entidadRuc: proceso.entidadRuc,
       ...(c.tipo === "socio_comun"
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),

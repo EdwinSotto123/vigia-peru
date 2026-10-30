@@ -53,7 +53,8 @@ export interface EventoHistoria {
   /** `persona`: alguien de la empresa (con un apellido tapado por publicar()); si no, una entidad o una organización. */
   quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…): para el detalle. */
-  datos?: { etiqueta: string; valor: string }[];
+  /** Cada dato con su referencia (2026-10-29): `href` a una ficha de Vigía o, con `fuera`, al registro oficial. */
+  datos?: { etiqueta: string; valor: string; href?: string | null; fuera?: boolean }[];
   /**
    * Un antecedente del ganador (la Historia del contrato): el registro entero, como lo da GET /empresas/:ruc/antecedentes
    * (aCruce + su proceso + sus referencias), para que su panel muestre el detalle de su tipo y pida su evidencia.
@@ -819,4 +820,15 @@ export function armarHilos(
     });
   }
   return out.sort((a, b) => b.peso - a.peso).slice(0, max).map(({ peso: _peso, ...x }) => x);
+}
+
+/**
+ * La ficha de un partido desde su nombre: la clave de backend/scripts/cargar_gobiernos.py (la misma que `claveOrg` de
+ * frontend/lib/partidos.ts) y el gobierno de ese año (2014, 2018 o 2022), como `rutaPartido` del frontend.
+ */
+export function rutaPartido(nombre: string, anio?: unknown): string {
+  const clave = nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, "-").slice(0, 80);
+  const y = Number(String(anio ?? "").slice(0, 4));
+  const a = !Number.isInteger(y) || y < 2014 || y > 2026 ? null : y === 2014 || y === 2018 || y === 2022 ? y : y < 2018 ? 2014 : y < 2022 ? 2018 : 2022;
+  return `/app/partidos/${clave}${a ? `?anio=${a}` : ""}`;
 }

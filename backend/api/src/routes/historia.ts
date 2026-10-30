@@ -26,6 +26,7 @@ import {
   cualDespues,
   dia,
   fechaEleccion,
+  rutaPartido,
   textoEleccion,
   marcasEleccion,
   olasDeGestion,
@@ -417,8 +418,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       detalle: [o.estado ? `Estado: ${o.estado.toLowerCase()}` : null, o.ejecutor && o.ejecutor_ruc?.startsWith("20") ? `La ejecuta ${titulo(o.ejecutor)}` : null].filter(Boolean).join("; ") || null,
       href: `${base}?seccion=obras`, fuente: "INFOBRAS (Contraloría)", enlace: obraInfobras(o.codigo),
       quien: o.ejecutor && o.ejecutor_ruc?.startsWith("20") ? { nombre: titulo(o.ejecutor), rol: "La ejecuta", href: `/empresa/${o.ejecutor_ruc}?seccion=obras` } : null,
-      datos: [o.estado ? { etiqueta: "Estado", valor: oracion(o.estado)! } : null, { etiqueta: "Código INFOBRAS", valor: String(o.codigo) }]
-        .filter((x): x is { etiqueta: string; valor: string } => !!x),
+      datos: [o.estado ? { etiqueta: "Estado", valor: oracion(o.estado)! } : null, { etiqueta: "Código INFOBRAS", valor: String(o.codigo), href: obraInfobras(o.codigo), fuera: true }]
+        .filter((x): x is NonNullable<typeof x> => !!x),
     });
     if (o.paralizada && o.fecha_par) {
       eventos.push({
@@ -866,7 +867,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       detalle: recibio ? `Lo recibió: ${recibio}` : null,
       quien,
       datos: [
-        { etiqueta: "Entidad", valor: v.entidad ? titulo(v.entidad) : "Sin dato" },
+        { etiqueta: "Entidad", valor: v.entidad ? titulo(v.entidad) : "Sin dato", href: v.entidad_ruc ? `/entidad/${v.entidad_ruc}` : null },
         ...(recibio ? [{ etiqueta: "Lo recibió", valor: recibio }] : []),
         ...(v.motivo ? [{ etiqueta: "Motivo", valor: corto(v.motivo, 160) ?? v.motivo }] : []),
         ...(horario ? [{ etiqueta: "Hora", valor: horario }] : []),
@@ -976,7 +977,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       datos: [
         { etiqueta: "Cargo", valor: oracionMayus(cargo) },
         { etiqueta: "Dónde", valor: [a.distrito, a.provincia, a.departamento].filter(Boolean).map((x) => titulo(x)).join(", ") || "Sin dato" },
-        ...(a.org ? [{ etiqueta: "Partido", valor: titulo(a.org) }] : []),
+        ...(a.org ? [{ etiqueta: "Partido", valor: titulo(a.org), href: rutaPartido(a.org, desde) }] : []),
         { etiqueta: "Periodo", valor: `${desde.slice(0, 4)} a ${a.hasta ? a.hasta.slice(0, 4) : "hoy"}` },
         ...(a.proceso ? [{ etiqueta: "Elegido en", valor: textoEleccion(a.proceso) ?? a.proceso }] : []),
         { etiqueta: "Hoy", valor: a.vigente ? "Sigue en el cargo" : "Ya dejó el cargo" },
@@ -1001,7 +1002,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       datos: [
         ...(cargo ? [{ etiqueta: "A qué postuló", valor: oracionMayus(cargo) }] : []),
         ...(lugar || c.region ? [{ etiqueta: "Dónde", valor: [c.distrito, c.provincia, c.region].filter(Boolean).map((x) => titulo(x)).join(", ") }] : []),
-        ...(c.partido ? [{ etiqueta: "Partido", valor: titulo(c.partido) }] : []),
+        ...(c.partido ? [{ etiqueta: "Partido", valor: titulo(c.partido), href: rutaPartido(c.partido, c.anio) }] : []),
         { etiqueta: "Elección", valor: textoEleccion(proceso) ?? proceso! },
         ...(c.resultado ? [{ etiqueta: "Resultado", valor: c.resultado === "electo" ? "Fue elegido" : "No fue elegido" }] : []),
         ...enLaEmpresa(c.doc, fecha),
@@ -1021,7 +1022,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       detalle: campana ? `Para su campaña${o.proceso ? ` (${textoEleccion(o.proceso)})` : ""}` : anual ? "Al partido, en su informe del año" : null,
       quien: quienDe(o.doc),
       datos: [
-        { etiqueta: "Partido", valor: titulo(o.partido) },
+        { etiqueta: "Partido", valor: titulo(o.partido), href: rutaPartido(o.partido, fecha) },
         ...(o.tipo ? [{ etiqueta: "Cómo", valor: o.tipo === "efectivo" ? "En efectivo" : o.tipo === "especie" ? "En especie (bienes o servicios)" : oracionMayus(o.tipo) }] : []),
         ...(campana || anual
           ? [{ etiqueta: "Para qué", valor: campana ? `La campaña${o.proceso ? ` de las ${textoEleccion(o.proceso)}` : ""}` : `El partido (informe financiero de ${o.anio ?? fecha.slice(0, 4)})` }]
@@ -1246,11 +1247,21 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
   const [k] = await filas<{
     ocid: string; codigo: string | null; entidad_ruc: string | null; entidad: string | null; objeto: string | null; tipo: string | null;
     tipo_proceso: string | null; referencial: number | null; conv: string | null; bp: string | null; gobierno: Record<string, any> | null;
+    docs: { titulo: string | null; tipo: string | null; fecha: string | null; formato: string | null }[] | null; consultas: Record<string, unknown> | null;
   }>(
     "contrato",
     `SELECT c.ocid, c.codigo, c.entidad_ruc::text AS entidad_ruc, e.nombre AS entidad, c.objeto, c.tipo_contratacion AS tipo,
             c.tipo_proceso, c.cuantia_referencial::float AS referencial,
-            to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS conv, to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS bp, ${COL_GOBIERNO}
+            to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS conv, to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS bp, ${COL_GOBIERNO},
+            -- Los documentos que publicó el SEACE (convocatoria, buena pro, contrato), como el Cronograma (lib/proceso.ts).
+            (SELECT COALESCE(jsonb_agg(jsonb_build_object('titulo', d->>'title', 'tipo', d->>'documentType',
+                                                          'fecha', left(d->>'datePublished', 10), 'formato', d->>'format')), '[]'::jsonb)
+               FROM (SELECT d FROM jsonb_array_elements(COALESCE(c.ocds_payload->'tender'->'documents', '[]'::jsonb)) d
+                     UNION ALL SELECT d FROM jsonb_array_elements(COALESCE(c.ocds_payload->'awards', '[]'::jsonb)) a,
+                                             jsonb_array_elements(COALESCE(a->'documents', '[]'::jsonb)) d
+                     UNION ALL SELECT d FROM jsonb_array_elements(COALESCE(c.ocds_payload->'contracts', '[]'::jsonb)) k,
+                                             jsonb_array_elements(COALESCE(k->'documents', '[]'::jsonb)) d) x) AS docs,
+            c.ocds_payload->'tender'->'enquiryPeriod' AS consultas
        FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc ${gobiernoDeFila("c.ocid")}
       WHERE c.ocid = $1`, [ocid]);
   if (!k) return null;
@@ -1353,8 +1364,9 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
     const f = dia(fecha);
     if (f) eventos.push({ id, carril: "compras", tipo: id, fecha: f, titulo: tituloE, detalle: detalle ?? null, href: aqui, fuente: "SEACE y CONOSCE (OECE)", enlace: procesoOece(ocid), ...extra });
   };
-  const datos = (xs: ({ etiqueta: string; valor: string | null | undefined } | null | false | undefined)[]) =>
-    xs.filter((x): x is { etiqueta: string; valor: string } => !!x && !!x.valor);
+  type Dato = { etiqueta: string; valor: string | null | undefined; href?: string | null; fuera?: boolean };
+  const datos = (xs: (Dato | null | false | undefined)[]) =>
+    xs.filter((x): x is Dato & { valor: string } => !!x && !!x.valor);
 
   // 1. El proceso, cada paso con quién y lo que se sabe.
   const conv = dia(k.conv);
@@ -1374,9 +1386,46 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
       { etiqueta: "Nomenclatura", valor: adj.find((a) => a.nomenclatura)?.nomenclatura ?? null },
       { etiqueta: "Valor referencial", valor: referencial != null ? pen(referencial) : null },
       { etiqueta: "Proceso", valor: k.codigo },
-      { etiqueta: "Gobernaba la entidad", valor: gobierna },
+      { etiqueta: "Gobernaba la entidad", valor: gobierna, href: g?.clave ? `/app/partidos/${g.clave}${g.anio ? `?anio=${g.anio}` : ""}` : null },
     ]),
   });
+  // El plazo de consultas y observaciones (OCDS) y los documentos de cada día (SEACE): uno anterior a la convocatoria es de
+  // otra convocatoria del mismo procedimiento (el registro las junta) y no va.
+  const cq = (k.consultas ?? {}) as Record<string, unknown>;
+  const cDesde = dia(cq.startDate as string | undefined);
+  const cHasta = dia(cq.endDate as string | undefined);
+  if (cDesde) {
+    eventos.push({
+      id: "consultas", carril: "compras", tipo: "consultas", fecha: cDesde, hasta: cHasta && cHasta > cDesde ? cHasta : null,
+      titulo: "Plazo de consultas y observaciones", detalle: null, href: `${aqui}?seccion=cronograma`,
+      fuente: "Registro OCDS (SEACE)", enlace: procesoOece(ocid),
+      datos: datos([
+        { etiqueta: "Qué es", valor: "Los participantes pueden preguntar u observar las bases antes de ofertar" },
+        { etiqueta: "Desde", valor: fechaLarga(cDesde) },
+        { etiqueta: "Hasta", valor: cHasta ? fechaLarga(cHasta) : null },
+      ]),
+    });
+  }
+  const porDia = new Map<string, { titulo: string | null; tipo: string | null; formato: string | null }[]>();
+  for (const d of k.docs ?? []) {
+    const f = dia(d.fecha);
+    if (!f || (conv && f < conv)) continue;
+    porDia.set(f, [...(porDia.get(f) ?? []), d]);
+  }
+  for (const [f, ds] of porDia) {
+    const titulos = ds.map((d) => d.titulo ?? "Documento sin título");
+    eventos.push({
+      id: `documentos:${f}`, carril: "compras", tipo: "documentos", fecha: f,
+      titulo: ds.length === 1 ? `Se publicó: ${corto(titulos[0], 120)}` : `Se publicaron ${ds.length} documentos`,
+      detalle: ds.length > 1 ? corto(listaY(titulos), 180) : null, href: `${aqui}?seccion=documentos`,
+      fuente: "Documentos del SEACE", enlace: procesoOece(ocid),
+      // Cada documento, con su formato (sin el enlace al archivo: el SEACE no deja abrirlo desde fuera; va en la pestaña).
+      datos: ds.slice(0, 12).map((d, i) => ({
+        etiqueta: ds.length === 1 ? "Documento" : `Documento ${i + 1}`,
+        valor: `${d.titulo ?? "Sin título"}${d.formato ? ` (${String(d.formato).replace(/^application\//i, "").toUpperCase()})` : ""}`,
+      })),
+    });
+  }
   const ofertaron = pos.filter((p) => p.oferta);
   const primeraOferta = ofertaron.map((p) => p.oferta!).sort()[0];
   const nombrePostor = (p: { ruc: string; postor: string | null }) =>
@@ -1387,7 +1436,8 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
         { etiqueta: "Participantes registrados", valor: String(pos.length) },
         { etiqueta: "Presentaron oferta", valor: String(ofertaron.length) },
         // recorte: los primeros diez; la pestaña Participantes los lista todos.
-        { etiqueta: "Quiénes ofertaron", valor: listaY(ofertaron.slice(0, 10).map(nombrePostor)) + (ofertaron.length > 10 ? ` y ${ofertaron.length - 10} más` : "") },
+        // recorte: los primeros diez; el enlace lleva a la pestaña Participantes, con todos y lo que hizo cada uno.
+        { etiqueta: "Quiénes ofertaron", valor: listaY(ofertaron.slice(0, 10).map(nombrePostor)) + (ofertaron.length > 10 ? ` y ${ofertaron.length - 10} más` : ""), href: `${aqui}?seccion=participantes` },
         { etiqueta: "Sólo se registraron", valor: pos.length > ofertaron.length ? String(pos.length - ofertaron.length) : null },
       ]),
     });
@@ -1399,7 +1449,7 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
     monto: montoAdj,
     quien: adj.length === 1 ? ganadorQuien(adj[0].ruc, "Ganó la buena pro") : entidadQuien("Dio la buena pro"),
     datos: datos([
-      { etiqueta: adj.length > 1 ? "Ganaron" : "Ganó", valor: adj.length ? listaY(adj.map((a) => quien(a.ruc))) : null },
+      { etiqueta: adj.length > 1 ? "Ganaron" : "Ganó", valor: adj.length ? listaY(adj.map((a) => quien(a.ruc))) : null, href: adj.length === 1 && /^20\d{9}$/.test(adj[0].ruc) ? `/empresa/${adj[0].ruc}` : null },
       { etiqueta: "En consorcio", valor: consorcio ? titulo(consorcio) : null },
       { etiqueta: "Monto adjudicado", valor: montoAdj != null ? pen(montoAdj) : null },
       {
@@ -1408,7 +1458,7 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
       },
       { etiqueta: "Postores que ofertaron", valor: ofertaron.length ? String(ofertaron.length) : null },
       { etiqueta: "Días desde la convocatoria", valor: conv && dia(bp) ? String(diasEntre(conv, dia(bp)!)) : null },
-      { etiqueta: "La dio", valor: ent },
+      { etiqueta: "La dio", valor: ent, href: k.entidad_ruc ? `/entidad/${k.entidad_ruc}` : null },
     ]),
   });
   const cons = adj.map((a) => a.cons).filter((x): x is string => !!x).sort().pop();
@@ -1480,7 +1530,9 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
         titulo: `Alguien de ${quien(x.ruc)} visitó ${ent}`,
         detalle: cargo || area ? `Lo recibió: ${[cargo, area].filter(Boolean).join(", ")}${d.decisor === true ? " (decide las compras)" : ""}` : null,
         quien: quienCruce, antecedente,
-        href: `${aqui}?seccion=antecedentes`, fuente: "Registro de visitas", enlace: enlaceFuente("visitas_entidades", null, { detalle: d, fecha: f }),
+        // «Ver la entidad que visitó»: la ficha de la entidad visitada, si su nombre se reconoce; si no, los antecedentes.
+        href: refs[i]?.entidadVisitadaRuc ? `/entidad/${refs[i]!.entidadVisitadaRuc}` : `${aqui}?seccion=antecedentes`,
+        fuente: "Registro de visitas", enlace: enlaceFuente("visitas_entidades", null, { detalle: d, fecha: f }),
       });
       return;
     }
@@ -1523,7 +1575,7 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
       quien: { tipo: "entidad", nombre: "Tribunal de Contrataciones del Estado (OECE)", rol: multa ? "La multó" : "La inhabilitó" },
       datos: datos([
         { etiqueta: "Sanción", valor: multa ? "Multa" : s.tipo === "definitivo" ? "Inhabilitación definitiva" : "Inhabilitación temporal" },
-        { etiqueta: "A quién", valor: quien(s.ruc) },
+        { etiqueta: "A quién", valor: quien(s.ruc), href: `/empresa/${s.ruc}?seccion=antecedentes` },
         { etiqueta: "Vigencia", valor: !multa && s.desde ? `Del ${fechaLarga(s.desde)}${s.hasta ? ` al ${fechaLarga(s.hasta)}` : ", sin fecha de fin"}` : null },
         { etiqueta: "Al convocarse este proceso", valor: !multa && s.desde && conv ? (s.desde <= conv && (!s.hasta || s.hasta >= conv) ? "Seguía vigente" : s.desde > conv ? "Todavía no empezaba" : "Ya había terminado") : null },
         { etiqueta: "Infracción", valor: s.infraccion ? corto(s.infraccion.replace(/^[-\s]*(?:[a-z]|i+)\)\s*/i, ""), 300) : null },
@@ -1539,7 +1591,7 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
       titulo: `Penalidad a ${quien(p.ruc)}${p.entidad ? ` de ${titulo(p.entidad)}` : ""}`, detalle: p.tipo,
       quien: { tipo: "entidad", nombre: p.entidad ? titulo(p.entidad) : "Una entidad", rol: "La aplicó" },
       datos: datos([
-        { etiqueta: "A quién", valor: quien(p.ruc) },
+        { etiqueta: "A quién", valor: quien(p.ruc), href: `/empresa/${p.ruc}?seccion=antecedentes` },
         { etiqueta: "Penalidad", valor: p.tipo ? oracionMayus(p.tipo.toLowerCase()) : null },
         { etiqueta: "Por", valor: corto(p.descripcion ?? p.objeto, 300) },
         { etiqueta: "Monto", valor: num(p.monto) != null ? pen(num(p.monto)!) : null },
@@ -1556,7 +1608,7 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
     const datosObra = (extra: { etiqueta: string; valor: string | null | undefined }[] = []) =>
       datos([
         { etiqueta: "Obra", valor: o.nombre ? corto(o.nombre, 300) : null },
-        { etiqueta: "Código INFOBRAS", valor: String(o.codigo) },
+        { etiqueta: "Código INFOBRAS", valor: String(o.codigo), href: obraInfobras(o.codigo), fuera: true },
         { etiqueta: "Este contrato", valor: o.rol === "supervisor" || o.rol === "supervision" ? "La supervisa" : "La ejecuta" },
         { etiqueta: "Estado hoy", valor: o.estado },
         ...extra,
@@ -1571,7 +1623,10 @@ async function historiaContrato(ocid: string): Promise<Historia | null> {
   }
 
   const secuencias = secuenciasDeCruces(cru, rutaContrato);
-  const { eventos: quedan, omitidos } = acotar(eventos, { compras: 20, visitas: 80, banderas: 120, control: 80, empresa: 10, obras: 30 }, fijosDe(secuencias, eventos));
+  // Los hitos del proceso van siempre: con muchos documentos publicados, el tope del renglón sacaba la convocatoria.
+  const fijos = fijosDe(secuencias, eventos);
+  for (const id of ["convocatoria", "consultas", "ofertas", "buena_pro", "consentimiento", "contrato", "vigencia"]) fijos.add(id);
+  const { eventos: quedan, omitidos } = acotar(eventos, { compras: 40, visitas: 80, banderas: 120, control: 80, empresa: 10, obras: 30 }, fijos);
   // Desde el primer hecho (el más viejo suele ser la fundación o una sanción), no antes de 2015; hasta hoy.
   const primera = quedan.map((e) => e.fecha).filter((f) => f >= DESDE).sort()[0];
   const desde = primera ? `${primera.slice(0, 4)}-01-01` : DESDE;

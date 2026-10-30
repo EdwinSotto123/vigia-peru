@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { BloqueDetalle, DatosClave } from "@/components/patrones/Detalle";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import type { AntecedenteEmpresa } from "@/lib/empresas";
-import { fechaCorta, numero } from "@/lib/formato";
+import { fechaConAnio, numero } from "@/lib/formato";
 import { txtONumero } from "@/lib/utils";
 import { datosDe, type DatoCaso } from "./casoAntecedente";
 import { EvidenciaDelAntecedente } from "./EvidenciaAntecedente";
@@ -52,7 +52,7 @@ const POR_VISITA: Record<string, string> = { fin_de_semana: "en fin de semana", 
 /** «Sábado 4 ago. 2024, a las 20:15 (3 h 10 min), en fin de semana»: una visita de un patrón. */
 export function unaVisita(v: Record<string, unknown>): string {
   const f = txt(v.fecha);
-  const dia = f ? `${DIA_SEMANA.format(new Date(`${f.slice(0, 10)}T12:00:00Z`))} ${fechaCorta(f)}` : "Un día sin fecha";
+  const dia = f ? `${DIA_SEMANA.format(new Date(`${f.slice(0, 10)}T12:00:00Z`))} ${fechaConAnio(f)}` : "Un día sin fecha";
   const h = txt(v.hora) ? `, a las ${txt(v.hora)!.slice(0, 5)}` : "";
   const m = typeof v.minutos === "number" && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
   const por = typeof v.por === "string" && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";

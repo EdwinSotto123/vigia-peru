@@ -34,7 +34,7 @@ import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { decimal, fechaConAnio, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import {
   SENAL,
@@ -95,7 +95,8 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const sentUrl = uno(searchParams?.sent);
   const sent = sentUrl && f.entidades.some((e) => e.entidadRuc === sentUrl) ? sentUrl : undefined;
   const ordenesP = getOrdenesPersona(params.codigo, { ...filtrosOrdenes, size: TAM_ORDENES });
-  const fechas = p.primera && p.ultima ? (p.primera === p.ultima ? `El ${fechaCorta(p.primera)}` : `Del ${fechaCorta(p.primera)} al ${fechaCorta(p.ultima)}`) : null;
+  // Las dos puntas con su año: «Del 23 ene. 2018 al 25 ago.» dejaba la segunda sin año (era la del año en curso).
+  const fechas = p.primera && p.ultima ? (p.primera === p.ultima ? `El ${fechaConAnio(p.primera)}` : `Del ${fechaConAnio(p.primera)} al ${fechaConAnio(p.ultima)}`) : null;
   // El ⓘ va pegado al último dato de la bajada, dentro de su fila: como `ayuda` del encabezado caía en un renglón propio
   // (la bajada es una fila flexible y el ⓘ iba después de ella).
   const ayuda = (
@@ -378,7 +379,8 @@ function filaPago(a: AnioDePersona, ruta: string): Fila {
           {veces == null ? (
             <span className="font-sans text-mute">Sin comparar</span>
           ) : (
-            <span className={veces >= 2.5 ? "font-semibold text-crimsonTexto" : undefined}>{`${veces.toFixed(1).replace(".", ",")} veces`}</span>
+            // Punto decimal, como el resto del sitio: «2,5 veces» junto a «S/ 1,234» se leía como veinticinco.
+            <span className={veces >= 2.5 ? "font-semibold text-crimsonTexto" : undefined}>{`${decimal(veces)} veces`}</span>
           )}
         </CeldaNumero>
       ),
@@ -401,7 +403,7 @@ function textoCambio(c: { nivel: string; quien: string | null }): string {
 function cuandoEntro(e: EntidadDePersona): string | null {
   const g = e.gestion;
   if (!g || !e.primera) return null;
-  const cual = g.nivel === "nacional" ? `el gobierno que asumió el ${fechaCorta(g.desde)}` : `la ${(g.quien ?? "gestión actual").replace(/^Gestión/, "gestión")}`;
+  const cual = g.nivel === "nacional" ? `el gobierno que asumió el ${fechaConAnio(g.desde)}` : `la ${(g.quien ?? "gestión actual").replace(/^Gestión/, "gestión")}`;
   if (e.primera >= g.desde) return `Entró con ${cual}`;
   return e.ultima && e.ultima >= g.desde ? `Ya estaba antes de ${cual} y siguió` : `Antes de ${cual}`;
 }
@@ -422,7 +424,10 @@ function Pagos({ ficha: f, nombre, ruta }: { ficha: FichaPersona; nombre: string
         clave: g.ruc,
         titulo: (
           <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <span className="min-w-0">{nombreEnt}</span>
+            {/* La entidad, a su ficha: el rótulo del grupo no es parte de una fila (cada año lleva a sus órdenes). */}
+            <Link href={`/entidad/${g.ruc}`} prefetch={false} className="min-w-0 text-granate underline-offset-2 hover:underline">
+              {nombreEnt}
+            </Link>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-meta font-normal text-mute">
               <CuentaGrupo>{soles(g.monto)}</CuentaGrupo>
               {`en ${plural(g.ordenes, "orden", "órdenes")}`}

@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Ayuda, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, Nota, PieDetalle, type DatoClave } from "@/components/patrones";
 import { CeldaFecha, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { fecha, fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaConAnio, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { VISITAS_EN_LINEA, avisoVisitas, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaEmpresa, type VisitaEmpresa } from "@/lib/empresas";
@@ -94,7 +95,7 @@ export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promi
       ? [
           {
             etiqueta: "Lo primero después",
-            valor: `${queFue(v)}${p?.numero ? ` N.° ${p.numero}` : ""}, del ${fechaCorta(v.despues)} (${cuando(v.diasDespues)} de la visita)`,
+            valor: `${queFue(v)}${p?.numero ? ` N.° ${p.numero}` : ""}, del ${fechaConAnio(v.despues)} (${cuando(v.diasDespues)} de la visita)`,
           },
           ...(p?.descripcion ? [{ etiqueta: "Qué se compró", valor: `«${oracion(p.descripcion)}»` }] : []),
           {
@@ -151,16 +152,35 @@ export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promi
       },
       detalle: {
         titulo: `Visita a ${entidad}`,
-        etiqueta: `Ver el detalle de la visita del ${v.fecha ? fechaCorta(v.fecha) : ""}`.trim(),
-        descripcion: v.fecha ? fechaCorta(v.fecha) : undefined,
+        etiqueta: `Ver el detalle de la visita del ${v.fecha ? fechaConAnio(v.fecha) : ""}`.trim(),
+        descripcion: v.fecha ? fechaConAnio(v.fecha) : undefined,
         contenido: (
           <CuerpoDetalle>
             <DatosClave
               items={[
-                { etiqueta: "Quién fue", valor: v.visitante },
+                {
+                  etiqueta: "Quién fue",
+                  // Su socio, representante o directivo está en «Su gente» (quien sólo dijo venir de ella, no).
+                  valor: v.visitante && /socio|representante|directivo/i.test(v.via) ? (
+                    <Link href={rutaEmpresa(ruc, "socios")} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+                      {v.visitante}
+                    </Link>
+                  ) : (
+                    v.visitante
+                  ),
+                },
                 { etiqueta: "Qué es de la empresa", valor: v.via },
                 { etiqueta: "Dijo venir de", valor: v.entidadDeclarada },
-                { etiqueta: "Entidad visitada", valor: entidad },
+                {
+                  etiqueta: "Entidad visitada",
+                  valor: v.entidadRuc ? (
+                    <Link href={`/entidad/${v.entidadRuc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+                      {entidad}
+                    </Link>
+                  ) : (
+                    entidad
+                  ),
+                },
                 { etiqueta: "Cargo de quien la recibió", valor: v.cargoFuncionario ? tituloNatural(v.cargoFuncionario) : null },
                 { etiqueta: "Área", valor: v.area ? tituloNatural(v.area) : null },
                 { etiqueta: "Motivo", valor: v.motivo ? oracion(v.motivo) : null },

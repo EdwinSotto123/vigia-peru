@@ -38,10 +38,11 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fecha as fechaLarga, fechaCorta, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
+import { enlaceProveedor } from "@/lib/empresas";
+import { fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
 import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
-import { FUENTE_TEXTO, SENAL, tipoContratacion } from "@/lib/personas";
+import { FUENTE_TEXTO, SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
 import {
   ANTECEDENTES_ORDEN,
   COMO_ORDEN,
@@ -66,7 +67,8 @@ import {
  * la inhabilitación del Tribunal vigente al emitirse (con su resolución).
  *
  * También exporta las piezas que comparte con la lista de contratos menores (components/menores): el chip de estado, la
- * fecha posterior a hoy, la celda sin antecedentes, el paginador por «hay más», la espera y la inhabilitación.
+ * fecha posterior a hoy, la celda sin antecedentes, el paginador por «hay más», la espera, la inhabilitación y los
+ * enlaces del panel a la ficha de la entidad y del proveedor.
  */
 
 // ─── Piezas compartidas con la lista de contratos menores ──────────────────────
@@ -110,14 +112,17 @@ export function CeldaFechaCompra({ fecha, fuente }: { fecha: string | null | und
   );
 }
 
-/** El valor de una fecha en el panel (`DatosClave`): la fecha, su bandera si es futura y el porqué a un clic. */
+/**
+ * El valor de una fecha en el panel (`DatosClave`): la fecha, su bandera si es futura y el porqué a un clic. Siempre con
+ * el año: «Emitida: 4 ago.» no decía de qué año era la orden.
+ */
 export function datoFecha(etiqueta: string, f: string | null | undefined, fuente: string): DatoClave {
-  if (!esFutura(f)) return { etiqueta, valor: f ? fechaCorta(f) : null, mono: true };
+  if (!esFutura(f)) return { etiqueta, valor: f ? fechaConAnio(f) : null, mono: true };
   return {
     etiqueta,
     valor: (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        {fechaCorta(f)}
+        {fechaConAnio(f)}
         <FechaFutura fuente={fuente} />
       </span>
     ),
@@ -129,6 +134,38 @@ export function datoFecha(etiqueta: string, f: string | null | undefined, fuente
       </Ayuda>
     ),
   };
+}
+
+/**
+ * Adónde lleva cada nombre del panel de una compra: la entidad, a su ficha; el proveedor, a la de su empresa (RUC 20) o,
+ * si es una persona con ficha, a la suya por su código (nunca por su RUC 10: lleva el DNI). Nada si ya se está en esa
+ * ficha (la lista de una entidad o de una empresa).
+ */
+export function fichasCompra(
+  ruta: string,
+  entidadRuc: string | null | undefined,
+  proveedorRuc: string | null | undefined,
+  personaCodigo?: string | null,
+): { entidad: string | null; proveedor: string | null } {
+  const fuera = (href: string | null) => (href && !ruta.startsWith(href.split("?")[0]) ? href : null);
+  return {
+    entidad: fuera(entidadRuc ? `/entidad/${entidadRuc}` : null),
+    proveedor: fuera(enlaceProveedor(proveedorRuc) ?? (personaCodigo ? rutaPersona(personaCodigo) : null)),
+  };
+}
+
+/**
+ * Un nombre del panel con el enlace a su ficha, si tiene (`fichasCompra`); si no, el nombre solo (y sin nombre, null:
+ * `DatosClave` dice «Sin dato»). Sólo en el panel: la fila entera ya es un botón y un enlace adentro sería un control
+ * dentro de otro.
+ */
+export function conFicha(nombre: string | null, href: string | null): ReactNode {
+  if (!nombre || !href) return nombre;
+  return (
+    <Link href={href} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+      {nombre}
+    </Link>
+  );
 }
 
 /**
@@ -640,6 +677,7 @@ export async function ListaOrdenes({
       ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.entidad]: o.entidadRuc }) : null;
     const soloProveedor = enGeneral && /^20\d{9}$/.test(o.rucContratista ?? "") && parametros[P_ORD.proveedor] !== o.rucContratista
       ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.proveedor]: o.rucContratista! }) : null;
+    const fichas = fichasCompra(ruta, o.entidadRuc, o.rucContratista, o.personaCodigo);
     return {
       id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
       celdas: {
@@ -683,11 +721,11 @@ export async function ListaOrdenes({
               items={[
                 { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
                 o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
-                { etiqueta: "Entidad", valor: entidad },
-                { etiqueta: "Proveedor", valor: proveedor },
+                { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
+                { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
                 datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
-                o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaCorta(o.fechaNotificacion), mono: true } : null,
-                o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaCorta(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
+                o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
+                o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
                 { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
                 { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
                 { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },

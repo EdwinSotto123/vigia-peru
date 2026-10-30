@@ -6,7 +6,7 @@ import { ExternalLink } from "lucide-react";
 import { LineaHitos } from "@/components/charts/LineaHitos";
 import { BotonCerrar, GrafoMarco } from "@/components/grafo/primitivos";
 import { irAPestana } from "@/components/patrones/Pestanas";
-import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
 import {
   INICIAL_MES,
   MINIMO_PICO,
@@ -410,7 +410,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
                   .filter((m) => visible(mesDe(m.fecha)))
                   .map((m) => (
                     <g key={`${m.tipo}-${m.fecha}`}>
-                      <title>{`${fechaCorta(m.fecha)}: ${m.texto}`}</title>
+                      <title>{`${fechaConAnio(m.fecha)}: ${m.texto}`}</title>
                       <line
                         x1={xFecha(m.fecha)}
                         x2={xFecha(m.fecha)}
@@ -449,7 +449,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
           {mesElegido && (
             <DetalleMes
               lineas={delMes(mesElegido)} marcas={h.marcas.filter((m) => mesDe(m.fecha) === mesElegido)} gestion={gestionDe(mesElegido)}
-              patrones={patronesDelMes(mesElegido)} elegir={(id) => setSel({ tipo: "evento", id })}
+              patrones={patronesDelMes(mesElegido)} elegir={(id) => setSel({ tipo: "evento", id })} omitidos={h.omitidos}
             />
           )}
           {elegido && <DetalleHecho e={elegido} renglon={h.carriles.find((c) => c.clave === elegido.carril)?.titulo} />}
@@ -600,7 +600,7 @@ function Hechos({
             key={e.id}
             role="button"
             tabIndex={0}
-            aria-label={`${e.titulo}, de ${fechaCorta(e.fecha)} a ${fechaCorta(e.hasta!)}`}
+            aria-label={`${e.titulo}, de ${fechaConAnio(e.fecha)} a ${fechaConAnio(e.hasta!)}`}
             onClick={(ev) => {
               ev.stopPropagation();
               elegir({ tipo: "evento", id: e.id });
@@ -608,7 +608,7 @@ function Hechos({
             onKeyDown={tecla(() => elegir({ tipo: "evento", id: e.id }))}
             className="cursor-pointer focus:outline-none [&:focus-visible>rect]:stroke-granate"
           >
-            <title>{`${e.titulo} (${fechaCorta(e.fecha)} a ${fechaCorta(e.hasta!)})`}</title>
+            <title>{`${e.titulo} (${fechaConAnio(e.fecha)} a ${fechaConAnio(e.hasta!)})`}</title>
             <rect x={x0 + 0.5} y={yy} width={x1 - x0 - 1} height={alto} rx={gob ? 4 : 3} strokeWidth={elegido === e.id ? 2 : 0} className={cn(gob ? (i % 2 ? "fill-paperDeep" : "fill-line/70") : TRAMO[e.severidad ?? "ninguna"], elegido === e.id ? "stroke-granate" : "stroke-transparent")} />
             {texto && (
               <text x={x0 + 7} y={yy + alto / 2 + 4} className="pointer-events-none fill-ink" style={{ fontSize: "11px" }}>
@@ -628,7 +628,7 @@ function Hechos({
             key={mes}
             role="button"
             tabIndex={0}
-            aria-label={uno ? `${uno.titulo}, ${fechaCorta(uno.fecha)}` : `${plural(xs.length, "hecho", "hechos")} en ${mesLargo(mes)}`}
+            aria-label={uno ? `${uno.titulo}, ${fechaConAnio(uno.fecha)}` : `${plural(xs.length, "hecho", "hechos")} en ${mesLargo(mes)}`}
             onClick={(ev) => {
               ev.stopPropagation();
               elegirlo();
@@ -704,7 +704,7 @@ interface LineaMes {
   sinDatos: string | null;
 }
 
-/** «3,2 veces lo normal (40)» en ámbar o rojo si es un pico; nada si es como siempre. */
+/** «3.2 veces lo normal (40)» en ámbar o rojo si es un pico; nada si es como siempre. */
 function Normal({ n, min }: { n: { mediana: number; veces: number } | null; min?: number }) {
   if (!n || (n.veces > 0.5 && n.veces < 1.5)) return null;
   const pico = n.veces >= 2.5 && (min == null || n.mediana * n.veces - n.mediana >= min);
@@ -778,9 +778,11 @@ function Abrir({ href, children }: { href: string; children: ReactNode }) {
 }
 
 function DetalleMes({
-  lineas, marcas, gestion, patrones, elegir,
+  lineas, marcas, gestion, patrones, elegir, omitidos,
 }: {
   lineas: LineaMes[]; marcas: Historia["marcas"]; gestion: { titulo: string; mes: number } | null; patrones: PatronHistoria[]; elegir: (id: string) => void;
+  /** Cuántos hechos de cada renglón dejó fuera el tope de la API: no están en la línea ni en «Todos los hechos». */
+  omitidos: Historia["omitidos"];
 }) {
   if (!lineas.length && !marcas.length) return <p className="text-meta text-inkSoft">Ese mes no tiene datos en ningún renglón.</p>;
   return (
@@ -794,7 +796,7 @@ function DetalleMes({
       ))}
       {marcas.map((m) => (
         <p key={m.fecha + m.texto} className="text-meta font-semibold text-ink">
-          {fechaCorta(m.fecha)}: {m.texto}
+          {fechaConAnio(m.fecha)}: {m.texto}
         </p>
       ))}
       <ul className="divide-y divide-line/60">
@@ -813,11 +815,12 @@ function DetalleMes({
             )}
             {l.ev.length > 0 && (
               <ul className="space-y-1">
-                {/* recorte: seis por renglón; «y N más» lleva a la lista completa de abajo. */}
+                {/* «Todos los hechos» tiene los mismos hechos que la línea, no todos los registros (el tope de la API deja
+                    fuera los de `omitidos`). recorte: seis por renglón; «y N más» lleva a «Todos los hechos». */}
                 {l.ev.slice(0, 6).map((e) => (
                   <li key={e.id}>
                     <button type="button" onClick={() => elegir(e.id)} className="text-left text-meta text-inkSoft underline decoration-line underline-offset-2 hover:text-ink">
-                      {fechaCorta(e.fecha)}: {e.titulo}
+                      {fechaConAnio(e.fecha)}: {e.titulo}
                       {e.monto ? `, ${solesCompacto(e.monto)}` : ""}
                     </button>
                   </li>
@@ -831,6 +834,13 @@ function DetalleMes({
                     >
                       Y {numero(l.ev.length - 6)} más en «Todos los hechos»
                     </button>
+                  </li>
+                )}
+                {/* Antes decía que ahí estaban todos: la línea y la lista llevan los más graves y los más grandes de cada
+                    renglón; lo que el tope dejó fuera está en la lista de su pestaña («Ver la lista», arriba). */}
+                {l.fila.carril && (omitidos[l.fila.carril] ?? 0) > 0 && (
+                  <li className="text-micro text-mute">
+                    {`La línea y «Todos los hechos» llevan los más graves y los más grandes de este renglón: ${plural(omitidos[l.fila.carril] ?? 0, "hecho quedó", "hechos quedaron")} fuera. El registro completo está en ${l.fila.serie?.href ? "«Ver la lista»" : "su pestaña de la ficha"}.`}
                   </li>
                 )}
               </ul>
@@ -869,7 +879,7 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
     <div className="space-y-2 rounded-xl border border-line bg-paper px-3.5 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-rotulo text-inkSoft">
         <Muestra texto="Cuánto hubo ese mes"><rect x={3} y={4} width={4} height={10} rx={1} className="fill-ink/30" /><rect x={9} y={7} width={4} height={7} rx={1} className="fill-ink/30" /></Muestra>
-        {hayPicos && <Muestra texto="Pico: 2,5 veces lo normal"><rect x={6} y={2} width={6} height={12} rx={1} className="fill-amber/85" /></Muestra>}
+        {hayPicos && <Muestra texto="Pico: 2.5 veces lo normal"><rect x={6} y={2} width={6} height={12} rx={1} className="fill-amber/85" /></Muestra>}
         {hayPicos && <Muestra texto="4 veces lo normal o más"><rect x={6} y={1} width={6} height={13} rx={1} className="fill-crimson/75" /></Muestra>}
         <Muestra texto="Un hecho grave"><circle cx={9} cy={7} r={4.5} className="fill-crimson" /></Muestra>
         <Muestra texto="Medio"><circle cx={9} cy={7} r={4.5} className="fill-amber" /></Muestra>
@@ -886,7 +896,7 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
         <summary className="cursor-pointer text-rotulo font-semibold text-granate">Cómo leer esta línea</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-rotulo leading-relaxed text-inkSoft">
           <li>Cada renglón es una fuente: las barras dicen cuánto hubo cada mes. Cada renglón tiene su propia escala: compara sus barras entre sí, no con las de otro renglón.</li>
-          <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2,5 veces lo normal; roja, de 4 veces o más.</li>
+          <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2.5 veces lo normal; roja, de 4 veces o más.</li>
           <li>Las líneas verticales cruzan todos los renglones: la continua es un cambio de gobierno y la punteada, una elección. Mira qué cambia justo después.</li>
           <li>Pasa el mouse por un mes para ver lo de todos los renglones juntos, en qué gestión cae y cuánto se aleja de lo normal. Tócalo para ver cada hecho con su fuente.</li>
           <li>Lo rayado en rojo es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde 2025), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>

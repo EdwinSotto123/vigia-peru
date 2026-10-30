@@ -18,12 +18,14 @@ import { ArrowRight, ChevronRight } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { AyudaTermino } from "@/components/patrones/AyudaTermino";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { PersonName, Ruc } from "@/components/Redact";
 import { enlaceProveedor } from "@/lib/empresas";
+import { busquedaOece, procesoOece } from "@/lib/fuentes";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
-import { plural } from "@/lib/formato";
+import { fechaConAnio, plural } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { esCodigoConsorcio, esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, type ContratoResumen, type GanadorContrato } from "@/lib/contratos";
+import { esCodigoConsorcio, esPersonaNatural, etapaLabel, formatMonto, tipoLabel, type ContratoResumen, type GanadorContrato } from "@/lib/contratos";
 import { ChipsCruces } from "./CrucesCelda";
 import { limpiarObjeto } from "./recortar";
 import { PuntoLectura, estadoLecturaDe } from "./estadoLectura";
@@ -102,7 +104,8 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
     { etiqueta: "Tipo", valor: tipoLabel(c.tipo) ?? <Vacio>Sin clasificar</Vacio> },
     { etiqueta: "Etapa", valor: etapaLabel(c.etapa) ?? <Vacio>Sin clasificar</Vacio> },
     ...(c.modalidad ? [{ etiqueta: "Modalidad", valor: c.modalidad }] : []),
-    { etiqueta: "Convocada", valor: c.fecha ? formatFecha(c.fecha) : <Vacio>Sin fecha publicada</Vacio> },
+    // Con el año, como en la fila que abre este panel (sólo el día: una medianoche UTC no se corre al día anterior).
+    { etiqueta: "Convocada", valor: c.fecha ? fechaConAnio(c.fecha.slice(0, 10)) : <Vacio>Sin fecha publicada</Vacio> },
     {
       etiqueta: "Valor referencial",
       mono: true,
@@ -144,7 +147,18 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
             mono: true,
           }]
         : []),
-    { etiqueta: "Código SEACE", valor: c.codigo, mono: true, ayuda: <AyudaTermino clave="seace" /> },
+    {
+      etiqueta: "Código SEACE",
+      // El código abre el proceso en Contrataciones Abiertas del OECE, como en su ficha: con el OCID completo (con el
+      // código solo no abre); sin OCID, su búsqueda por el código.
+      valor: (
+        <EnlaceFuente href={c.ocid ? procesoOece(c.ocid) : busquedaOece(c.codigo)} className="font-mono">
+          {c.codigo}
+        </EnlaceFuente>
+      ),
+      mono: true,
+      ayuda: <AyudaTermino clave="seace" />,
+    },
     { etiqueta: "OCID", valor: <span className="break-all">{c.ocid}</span>, mono: true, ayuda: <AyudaTermino clave="ocid" /> },
   ];
 

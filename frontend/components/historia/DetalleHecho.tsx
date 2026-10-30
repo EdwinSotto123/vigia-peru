@@ -8,7 +8,7 @@ import { ICONO_NIVEL, Severidad } from "@/components/ui/Severidad";
 import { fecha, numero, soles, solesCompacto } from "@/lib/formato";
 import type { EventoHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
-import { DetalleDelAntecedente } from "@/components/empresas/secciones/PanelAntecedente";
+import { DetalleDelAntecedente, ValorCaso } from "@/components/empresas/secciones/PanelAntecedente";
 
 /** Adónde lleva «Ver…» según qué es el hecho (sin una, «Verlo en Vigía»). */
 const VER: Record<string, string> = {
@@ -28,6 +28,8 @@ const VER: Record<string, string> = {
   candidatura: "Ver sus antecedentes",
   autoridad: "Ver sus antecedentes",
   conformacion: "Ver sus socios",
+  documentos: "Ver los documentos",
+  consultas: "Ver el cronograma",
 };
 
 // La gravedad de cada bandera con sus tres canales (color, ícono y palabra), como BanderasFicha.
@@ -128,7 +130,8 @@ export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria;
 
       {!banderas.length && !datos.length && !e.antecedente && e.detalle && <p className="text-dato text-ink">{e.detalle}</p>}
 
-      {datos.length > 0 && <DatosClave items={datos.map((d) => ({ etiqueta: d.etiqueta, valor: d.valor, mono: MONO.has(d.etiqueta) }))} />}
+      {/* Cada dato con su enlace, si lo trae (el partido, la entidad, la empresa, la obra en INFOBRAS). */}
+      {datos.length > 0 && <DatosClave items={datos.map((d) => ({ etiqueta: d.etiqueta, valor: <ValorCaso x={d} />, mono: MONO.has(d.etiqueta) }))} />}
 
       {/* Un antecedente del ganador (Historia del contrato): lo mismo que su panel en la pestaña Antecedentes. */}
       {e.antecedente && <DetalleDelAntecedente a={e.antecedente} sinQuien={!!e.quien} />}

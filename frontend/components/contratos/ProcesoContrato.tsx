@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CONSULTA_AMIGABLE, DATASET_MEF, enlacesProceso, inversionSsi } from "@/lib/fuentes";
@@ -20,8 +21,9 @@ import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { PersonName } from "@/components/Redact";
 import { SeccionParticipantes } from "./ParticipantesContrato";
 import { monto, OCDS } from "./EvidenciaContrato";
-import { fecha, fechaCorta, listaY, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { fecha, fechaConAnio, listaY, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type ContratoDetalle as Detalle } from "@/lib/contratos";
+import { enlaceProveedor } from "@/lib/empresas";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
 import { ObrasDelContrato } from "@/components/obras/ObraContrato";
 
@@ -46,10 +48,22 @@ export function pestanasProceso({ c }: { c: Detalle }): { participantes: Pestana
   };
 }
 
-/** Un nombre en pantalla: el de una persona natural ya viene con su apellido tapado (la API lo tapa). */
-function Nombre({ p }: { p: PersonaProceso | null }) {
+/**
+ * Un nombre en pantalla: el de una persona natural ya viene con su apellido tapado (la API lo tapa). Con `enlace`, una
+ * empresa (RUC 20) lleva a su ficha: qué más ganó y con quién. Sin él en la fila de una tabla que abre un panel (sería un
+ * enlace dentro de un botón): ahí el enlace va en el panel. Una persona natural nunca lleva enlace (su RUC lleva el DNI).
+ */
+function Nombre({ p, enlace = false }: { p: PersonaProceso | null; enlace?: boolean }) {
   if (!p?.nombre) return <>{p ? "Sin razón social" : "Sin dato"}</>;
-  return esPersonaNatural(p.ruc) ? <PersonName name={p.nombre} orden="sunat" /> : <>{p.nombre}</>;
+  if (esPersonaNatural(p.ruc)) return <PersonName name={p.nombre} orden="sunat" />;
+  const ficha = enlace ? enlaceProveedor(p.ruc) : null;
+  return ficha ? (
+    <Link href={ficha} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+      {p.nombre}
+    </Link>
+  ) : (
+    <>{p.nombre}</>
+  );
 }
 
 /** El chip de estado de un ítem (§14.1). */
@@ -167,7 +181,7 @@ function datosItem(it: ItemAdjudicado, c: Detalle, { sinMontos = false } = {}): 
         <span className="block space-y-0.5">
           {it.proveedores.map((p) => (
             <span key={p.ruc} className="block">
-              <Nombre p={p} />
+              <Nombre p={p} enlace />
               {it.proveedores.length > 1 && p.monto != null && <span className="ml-1.5 font-mono text-meta tabular-nums text-mute">{monto(p.monto, c.moneda)}</span>}
             </span>
           ))}
@@ -247,7 +261,7 @@ function datosContrato(f: ContratoFirmado, c: Detalle): DatoClave[] {
   return [
     { etiqueta: "Número", valor: numeroContrato(f.numero) ?? "Sin número" },
     ...(f.codigo ? [{ etiqueta: "Código del contrato", valor: f.codigo, mono: true }] : []),
-    ...(f.contratista ? [{ etiqueta: "Contratista", valor: <Nombre p={f.contratista} /> }] : []),
+    ...(f.contratista ? [{ etiqueta: "Contratista", valor: <Nombre p={f.contratista} enlace /> }] : []),
     ...(f.items.length ? [{ etiqueta: f.items.length > 1 ? "Ítems" : "Ítem", valor: listaY(f.items.map(String)) }] : []),
     { etiqueta: "Monto contratado", valor: enMoneda(f.monto), mono: f.monto != null },
     ...(f.fuente === "conosce"
@@ -299,7 +313,8 @@ function TablaContratos({ firmados, c }: { firmados: ContratoFirmado[]; c: Detal
           ]}
         />
       ),
-      firmado: f.firmado ? <CeldaTexto>{fechaCorta(f.firmado)}</CeldaTexto> : undefined,
+      // Con el año: los contratos de un proceso se firman a veces en años distintos.
+      firmado: f.firmado ? <CeldaTexto>{fechaConAnio(f.firmado)}</CeldaTexto> : undefined,
       monto: f.monto != null
         ? <CeldaNumero sub={f.adicional ? `+${soles(f.adicional)} adicionales` : undefined}>{monto(f.monto, c.moneda)}</CeldaNumero>
         : undefined,
@@ -421,7 +436,8 @@ function SeccionCronograma({ c }: { c: Detalle }) {
     return {
       id: `${h.clave}-${h.fecha}-${i}`,
       celdas: {
-        fecha: <CeldaTexto sub={h.hasta ? `al ${fechaCorta(h.hasta)}` : undefined}>{fechaCorta(h.fecha)}</CeldaTexto>,
+        // Con el año: un cronograma cruza de un año a otro (la convocatoria en diciembre, el contrato en enero).
+        fecha: <CeldaTexto sub={h.hasta ? `al ${fechaConAnio(h.hasta)}` : undefined}>{fechaConAnio(h.fecha)}</CeldaTexto>,
         hito: (
           <CeldaPrincipal
             titulo={textoHito(h)}

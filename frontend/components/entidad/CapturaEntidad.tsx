@@ -2,11 +2,17 @@ import Link from "next/link";
 import { Network } from "lucide-react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
-import { clavePartido, type GrafoCaptura, type PoderEntidad } from "@/lib/poder";
+import type { GrafoCaptura, PoderEntidad } from "@/lib/poder";
 import { esLazoFuerte } from "@/lib/grafo";
 import { TIPO_CRUCE } from "@/lib/cruces";
+import { rutaEmpresa } from "@/lib/empresas";
+import { DATASET_AUTORIDADES_JNE, INFOGOB_JNE } from "@/lib/fuentes";
+import { rutaPartido } from "@/lib/partidos";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle, DatosClave, PieDetalle } from "@/components/patrones/Detalle";
+import { FuenteDato } from "@/components/patrones/Estructura";
+// De lib/parametrosEmpresa y no de la sección Antecedentes: así no se trae la sección entera a la ficha de la entidad.
+import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { Dato } from "@/components/ui/Dato";
@@ -127,7 +133,15 @@ export function EmpresasLigadas({
               <ul className="space-y-2">
                 {e.lazos.map((l) => (
                   <li key={l} className="text-dato leading-relaxed text-inkSoft">
-                    <span className="font-semibold text-ink">{TIPO_CRUCE[l]?.corto ?? l}.</span> {TIPO_CRUCE[l]?.explica}
+                    {/* Cada lazo abre los antecedentes de ese tipo en la ficha de la empresa: ahí está la evidencia de cada caso. */}
+                    <Link
+                      href={rutaEmpresa(e.ruc, "antecedentes", { [P_ANTECEDENTES.tipo]: l })}
+                      prefetch={false}
+                      className="font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
+                    >
+                      {TIPO_CRUCE[l]?.corto ?? l}
+                    </Link>
+                    . {TIPO_CRUCE[l]?.explica}
                   </li>
                 ))}
               </ul>
@@ -248,7 +262,8 @@ export function QuienGobierna({ poder }: { poder: PoderEntidad | null }) {
           {
             etiqueta: "Partido",
             valor: (
-              <Link href={`/app/poder/${clavePartido(poder.partido)}`} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
+              // La ficha del partido en el período de este gobierno (antes iba a /app/poder, que no es su ficha).
+              <Link href={rutaPartido(poder.partido, poder.periodoInicio)} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
                 {tituloNatural(poder.partido)}
               </Link>
             ),
@@ -256,6 +271,12 @@ export function QuienGobierna({ poder }: { poder: PoderEntidad | null }) {
           { etiqueta: cargo, valor: poder.autoridad ? tituloNatural(poder.autoridad) : null },
           { etiqueta: "Período", valor: desde && hasta ? `${desde} a ${hasta}` : (hasta ? `Hasta ${hasta}` : null) },
         ]}
+      />
+      <FuenteDato
+        fuente="JNE, autoridades vigentes (datos abiertos)"
+        href={DATASET_AUTORIDADES_JNE}
+        enlaces={[{ texto: "Infogob (JNE): candidaturas y autoridades de cada elección", href: INFOGOB_JNE }]}
+        className="mt-2"
       />
     </BloqueInicio>
   );

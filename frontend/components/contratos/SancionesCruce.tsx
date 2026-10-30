@@ -11,6 +11,7 @@
  */
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { FuenteDato } from "@/components/patrones";
 import { CeldaNumero, TablaPaginada, type Columna, type Fila } from "@/components/listado";
@@ -18,7 +19,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
 import { Partes } from "@/components/ui/Partes";
 import { esPersonaNatural, type CruceProveedor, type EvidenciaCruce } from "@/lib/contratos";
-import { fechaCorta, hoyLima, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import { enlaceProveedor } from "@/lib/empresas";
+import { fechaConAnio, hoyLima, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce } from "./EvidenciaCruce";
 
@@ -43,7 +45,10 @@ const claseDe = (c: CruceProveedor): Clase => {
 
 const unir = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
 
-/** «30 definitivas, ninguna vigente al ganar este proceso (23 set.); la última terminó el 5 jun. 2024.» Sólo datos. */
+/**
+ * «30 definitivas, ninguna vigente al ganar este proceso (23 set. 2026); la última terminó el 5 jun. 2024.» Sólo datos.
+ * Las fechas siempre con el año: al lado de una de otro año, «23 set.» no decía de cuál era.
+ */
 function Resumen({ grupo, buenaPro }: { grupo: CruceProveedor[]; buenaPro: string | null }) {
   const cuenta = { definitivo: 0, temporal: 0, multa: 0 };
   for (const c of grupo) cuenta[claseDe(c)]++;
@@ -77,7 +82,7 @@ function Resumen({ grupo, buenaPro }: { grupo: CruceProveedor[]; buenaPro: strin
       <p className="text-meta leading-relaxed text-ink">
         {cabeza};{" "}
         <b className="font-semibold text-crimsonTexto">
-          {cuantas} al ganar este proceso ({fechaCorta(buenaPro)})
+          {cuantas} al ganar este proceso ({fechaConAnio(buenaPro)})
         </b>
         .
       </p>
@@ -87,9 +92,9 @@ function Resumen({ grupo, buenaPro }: { grupo: CruceProveedor[]; buenaPro: strin
   const mixto = multas.length > 0 && nInhab > 0;
   const ninguna = mixto ? (nInhab === 1 ? "la inhabilitación no estaba vigente" : "ninguna inhabilitación estaba vigente") : nInhab === 1 ? "no estaba vigente" : "ninguna vigente";
   const cola: ReactNode[] = [];
-  if (nInhab && buenaPro) cola.push(<span key="v">{ninguna} al ganar este proceso ({fechaCorta(buenaPro)})</span>);
-  if (nInhab && ultima) cola.push(<span key="u">la última terminó el <b className="font-semibold">{fechaCorta(ultima)}</b></span>);
-  if (!nInhab && masReciente) cola.push(<span key="m">la más reciente, del {fechaCorta(masReciente)}</span>);
+  if (nInhab && buenaPro) cola.push(<span key="v">{ninguna} al ganar este proceso ({fechaConAnio(buenaPro)})</span>);
+  if (nInhab && ultima) cola.push(<span key="u">la última terminó el <b className="font-semibold">{fechaConAnio(ultima)}</b></span>);
+  if (!nInhab && masReciente) cola.push(<span key="m">la más reciente, del {fechaConAnio(masReciente)}</span>);
   return (
     <p className="text-meta leading-relaxed text-ink">
       {cabeza}
@@ -104,12 +109,15 @@ function Resumen({ grupo, buenaPro }: { grupo: CruceProveedor[]; buenaPro: strin
   );
 }
 
-/** "5 jun. 2023 – 5 jun. 2024"; sin fin, "desde el 5 jun. 2023". */
+/**
+ * "5 jun. 2023 – 5 jun. 2024"; sin fin, "desde el 5 jun. 2023". Siempre con el año: «26 mar. – 26 jul.» de una sanción
+ * de este año no decía si cruzaba de un año a otro.
+ */
 function Vigencia({ desde, hasta }: { desde: string | null; hasta: string | null }) {
   if (!desde && !hasta) return <span className="text-meta text-mute">Sin fecha</span>;
   return (
     <span className="text-meta tabular-nums text-ink">
-      {desde && hasta ? `${fechaCorta(desde)} – ${fechaCorta(hasta)}` : desde ? `desde el ${fechaCorta(desde)}` : `hasta el ${fechaCorta(hasta)}`}
+      {desde && hasta ? `${fechaConAnio(desde)} – ${fechaConAnio(hasta)}` : desde ? `desde el ${fechaConAnio(desde)}` : `hasta el ${fechaConAnio(hasta)}`}
     </span>
   );
 }
@@ -136,6 +144,27 @@ function AlGanar({ c, buenaPro }: { c: CruceProveedor; buenaPro: string }) {
 function empresaDe(c: CruceProveedor): string | null {
   if (!c.proveedor) return null;
   return c.consorcio ? `${c.proveedor} (integrante de ${c.consorcio.nombre ?? "un consorcio"})` : c.proveedor;
+}
+
+/**
+ * La misma empresa en la fila, con el enlace a su ficha si es una (RUC 20): con dos ganadores o un consorcio, ver a la
+ * otra sin tener que buscarla. Una persona natural (RUC 10) no lleva enlace: su RUC nunca va en una URL.
+ */
+function EmpresaDeLaSancion({ c }: { c: CruceProveedor }) {
+  const href = enlaceProveedor(c.rucProveedor);
+  const integrante = c.consorcio ? ` (integrante de ${c.consorcio.nombre ?? "un consorcio"})` : "";
+  return (
+    <>
+      {href ? (
+        <Link href={href} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+          {c.proveedor}
+        </Link>
+      ) : (
+        c.proveedor
+      )}
+      {integrante}
+    </>
+  );
 }
 
 export function GrupoSanciones({ grupo, fuente }: { grupo: CruceProveedor[]; fuente: string }) {
@@ -170,7 +199,11 @@ export function GrupoSanciones({ grupo, fuente }: { grupo: CruceProveedor[]; fue
               <Partes
                 partes={[
                   resolucion && <Dato key="r" tipo="documento" nombre="Resolución">Res. {resolucion}</Dato>,
-                  empresa && <Dato key="e" tipo="entidad" nombre="Empresa">{empresa}</Dato>,
+                  empresa && (
+                    <Dato key="e" tipo="entidad" nombre="Empresa">
+                      <EmpresaDeLaSancion c={c} />
+                    </Dato>
+                  ),
                 ]}
               />
             </span>

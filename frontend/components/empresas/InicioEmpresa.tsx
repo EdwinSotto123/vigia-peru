@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { AyudaTermino, DatosClave, type DatoClave } from "@/components/patrones";
-import { fecha, numero, oracion, plural, solesCompacto } from "@/lib/formato";
+import { AyudaTermino, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
+import { fecha, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
+import { CONSULTA_RUC_SUNAT, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import {
   rutaEmpresa,
@@ -155,19 +156,22 @@ export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<Pos
   const f = (await pagina)?.facetas;
   const g = f?.ganadores ?? [];
   const r = f?.resultado;
+  const postulo = r ? r.gano + r.perdio + r.sin : 0;
   return (
     <Bloque
       titulo="Quién le gana"
-      explica={r ? `Postuló a ${numero(r.gano + r.perdio + r.sin)} procesos: ganó ${numero(r.gano)} y perdió ${numero(r.perdio)}.` : undefined}
+      explica={r ? `Postuló a ${numero(postulo)} procesos: ganó ${numero(r.gano)} y perdió ${numero(r.perdio)}.` : undefined}
       vacio="No perdió ningún proceso contra otra empresa con RUC."
       items={g.slice(0, 5).map((x) => ({
         clave: String(x.valor),
-        titulo: String(x.etiqueta ?? x.valor),
+        // El nombre como se escribe (la API lo da en mayúsculas); sin nombre, su RUC (sólo empresas: RUC 20).
+        titulo: x.etiqueta ? tituloNatural(String(x.etiqueta)) : String(x.valor),
         valor: plural(x.n, "vez", "veces"),
         parte: x.n / Math.max(1, g[0]?.n ?? 1),
         href: rutaEmpresa(ruc, "postulaciones", { [P_POSTULACIONES.ganador]: String(x.valor) }),
       }))}
-      verTodo={g.length ? { href: rutaEmpresa(String(g[0].valor)), texto: `Abrir la ficha de ${String(g[0].etiqueta ?? g[0].valor)}` } : undefined}
+      // Su lista de postulaciones entera (antes abría la ficha del primer competidor, que no es lo que dice el bloque).
+      verTodo={postulo > 0 || g.length ? { href: rutaEmpresa(ruc, "postulaciones"), texto: postulo > 0 ? `Ver sus ${numero(postulo)} postulaciones` : "Ver sus postulaciones" } : undefined}
     />
   );
 }
@@ -189,7 +193,19 @@ function EnlaceDato({ href, children }: { href: string; children: string }) {
  */
 export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
   const haySunat = !!(e.estadoSunat || e.fechaAlta || e.domicilio || e.actividad);
-  const personas = e.socios + e.representantes + e.directivos;
+  // Papeles, no personas: quien es socio y representante cuenta dos veces aquí. La pestaña cuenta personas distintas
+  // (`personas`, que falta en respuestas viejas de la API): con ese dato, las personas primero y sus papeles al lado.
+  const papeles = e.socios + e.representantes + e.directivos;
+  const dePapeles = listaY(
+    [
+      e.socios ? plural(e.socios, "socio", "socios") : null,
+      e.representantes ? plural(e.representantes, "representante", "representantes") : null,
+      e.directivos ? plural(e.directivos, "directivo", "directivos") : null,
+    ].filter((x): x is string => !!x),
+  );
+  const suGente = e.personas
+    ? `${plural(e.personas, "persona", "personas")}${e.personas < papeles ? ` con ${numero(papeles)} papeles` : ""}: ${dePapeles}`
+    : dePapeles;
   const sunat: DatoClave[] = haySunat
     ? [
         { etiqueta: "Estado", valor: e.estadoSunat ? oracion(e.estadoSunat) : null },
@@ -201,11 +217,7 @@ export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
   const rnp: DatoClave[] = [
     {
       etiqueta: "Su gente",
-      valor: personas ? (
-        <EnlaceDato href={rutaEmpresa(e.ruc, "socios")}>
-          {[plural(e.socios, "socio", "socios"), plural(e.representantes, "representante", "representantes"), plural(e.directivos, "directivo", "directivos")].join(", ")}
-        </EnlaceDato>
-      ) : "Sin registro en el RNP",
+      valor: papeles ? <EnlaceDato href={rutaEmpresa(e.ruc, "socios")}>{suGente}</EnlaceDato> : "Sin registro en el RNP",
     },
     {
       etiqueta: "Empresas vinculadas",
@@ -225,6 +237,8 @@ export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
       <section aria-labelledby="datos-sunat" className="min-w-0 space-y-1">
         <h3 id="datos-sunat" className="font-display text-cuerpo font-bold text-ink">En la SUNAT</h3>
         <DatosClave items={sunat} />
+        {/* La consulta RUC de la SUNAT no tiene un enlace por empresa: se busca con el RUC de la cabecera. */}
+        <FuenteDato fuente="Consulta RUC de la SUNAT" href={CONSULTA_RUC_SUNAT} className="pt-1" />
       </section>
       <section aria-labelledby="datos-rnp" className="min-w-0 space-y-1">
         <div className="flex items-center gap-1">
@@ -232,6 +246,8 @@ export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
           <AyudaTermino clave="rnp" />
         </div>
         <DatosClave items={rnp} />
+        {/* Su ficha en el Registro Nacional de Proveedores del OECE, con sus socios, representantes y directivos. */}
+        <FuenteDato fuente="Su ficha en el Registro Nacional de Proveedores (OECE)" href={fichaRnp(e.ruc)} className="pt-1" />
       </section>
     </div>
   );

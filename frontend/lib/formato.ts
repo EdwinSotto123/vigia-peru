@@ -124,6 +124,16 @@ export function fechaCorta(d: string | number | Date | null | undefined): string
 }
 
 /**
+ * "24 set. 2026", siempre con el año: en tablas, historias y rangos que cruzan años («26 mar. a 26 jul.» de una sanción,
+ * «4 ago.» al lado de «4 ago. 2025») el año en curso también se dice (auditoría del 2026-10-29).
+ */
+export function fechaConAnio(d: string | number | Date | null | undefined): string {
+  const f = aFecha(typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00-05:00` : d);
+  if (!f) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-PE", { timeZone: ZONA_LIMA, day: "numeric", month: "short", year: "numeric" }).format(f);
+}
+
+/**
  * Relativo sólo para lo reciente (< 7 días): "hace 5 min", "hace 3 h", "ayer";
  * después, la fecha corta. Un "hace 43 días" obliga a hacer la cuenta. Número y unidad
  * van unidos por un espacio duro: "hace 21 / h" partido en dos líneas no se lee.

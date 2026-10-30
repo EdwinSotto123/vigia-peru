@@ -43,7 +43,8 @@ export interface EventoHistoria {
   /** `persona`: alguien de la empresa, con un apellido tapado (la API lo tapa); si no, una entidad u organización. */
   quien?: { nombre: string; rol: string; href?: string | null; tipo?: "persona" | "entidad" } | null;
   /** Lo que se sabe del hecho, en orden («Qué se contrató», «Responsabilidad»…). */
-  datos?: { etiqueta: string; valor: string }[];
+  /** Cada dato con su referencia: `href` a una ficha de Vigía o, con `fuera`, al registro oficial. */
+  datos?: { etiqueta: string; valor: string; href?: string | null; fuera?: boolean }[];
   /** Un antecedente del ganador (Historia del contrato): el registro entero, para detallarlo por tipo y pedir su evidencia. */
   antecedente?: AntecedenteEmpresa | null;
   /** Las banderas que lo explican (los antecedentes del ganador), cada una con su gravedad. */

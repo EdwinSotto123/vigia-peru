@@ -31,7 +31,7 @@ import { Clock, Landmark, Play, WifiOff } from "lucide-react";
 import { numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { limpiarObjeto } from "@/components/contratos/recortar";
 import { tituloNatural } from "@/lib/landing";
-import { BarraCompartir, EstadoError, Seccion, Volver } from "@/components/patrones";
+import { BarraCompartir, EstadoError, Migas, Seccion, Volver, type Miga } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import {
   ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, fasesEfectivas, fechaLima, progresoFases,
@@ -48,6 +48,11 @@ interface Props {
   initial?: ProcesamientoDetalle | null;
   pollMs?: number;
   compacto?: boolean;
+  /**
+   * La ruta de la página (Inicio › Contratos › Contrato …), la misma de la ficha y del dictamen: la arma la página con
+   * su `?desde`. Sin ella, el «← Auditoría en vivo» de antes.
+   */
+  migas?: Miga[];
 }
 
 /** Cada cuánto se vuelve a consultar según el estado; null = no se consulta más. */
@@ -73,7 +78,7 @@ const edad = (ms: number) => {
   return d >= 1 ? `${d} ${d === 1 ? "día" : "días"}` : duracion(ms);
 };
 
-export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false }: Props) {
+export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false, migas }: Props) {
   const router = useRouter();
   const [data, setData] = useState<ProcesamientoDetalle | null>(initial ?? null);
   const [cargando, setCargando] = useState(initial == null);
@@ -250,22 +255,28 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       {regionViva}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* Volver a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no, al
-            tablero sin filtros. `Volver` es un enlace simple: la vuelta atrás se decide al
-            capturar el clic, antes que el enlace (que respeta el `preventDefault`). */}
-        <span
-          onClickCapture={(e) => {
-            try {
-              const ref = document.referrer ? new URL(document.referrer) : null;
-              if (ref && ref.origin === window.location.origin && ref.pathname === "/app/auditoria" && window.history.length > 1) {
-                e.preventDefault();
-                router.back();
-              }
-            } catch { /* referrer ilegible: se sigue el enlace */ }
-          }}
-        >
-          <Volver href="/app/auditoria">Auditoría en vivo</Volver>
-        </span>
+        {migas ? (
+          // La ruta de la página, como en la ficha y el dictamen del contrato: antes la lectura en vivo sólo tenía
+          // «← Auditoría en vivo» y no decía dónde se estaba.
+          <Migas items={migas} />
+        ) : (
+          // Volver a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no, al
+          // tablero sin filtros. `Volver` es un enlace simple: la vuelta atrás se decide al
+          // capturar el clic, antes que el enlace (que respeta el `preventDefault`).
+          <span
+            onClickCapture={(e) => {
+              try {
+                const ref = document.referrer ? new URL(document.referrer) : null;
+                if (ref && ref.origin === window.location.origin && ref.pathname === "/app/auditoria" && window.history.length > 1) {
+                  e.preventDefault();
+                  router.back();
+                }
+              } catch { /* referrer ilegible: se sigue el enlace */ }
+            }}
+          >
+            <Volver href="/app/auditoria">Auditoría en vivo</Volver>
+          </span>
+        )}
         {enVivoBadge}
       </div>
 
