@@ -4,6 +4,7 @@ import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, apellidoFuncionario, publicar } from "../lib/privacidad.js";
+import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
@@ -348,6 +349,10 @@ personasRouter.get("/:codigo", async (c) => {
     const p = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [codigo]);
     const ruc = p.rows[0]?.ruc;
     if (!ruc) return null;
+    // Si es o fue autoridad electa, su nombre va completo (lib/electos.ts). El DNI son los dígitos 3 a 10 de su RUC 10.
+    const electoP = /^10\d{9}$/.test(ruc)
+      ? pool.query<{ e: boolean }>(`SELECT ${esElectoSql("$1::text")} AS e`, [ruc.slice(2, 10)])
+      : Promise.resolve(null);
     const [ent, senales, anual, mensual, dudosas, cambios] = await Promise.all([
       // Con la gestión que gobierna hoy cada entidad (migración 181): «entró con la gestión 2023-2026».
       pool.query(
@@ -550,9 +555,10 @@ personasRouter.get("/:codigo", async (c) => {
     const entidades = ent.rows.map((e) => ({ ...e, nombre: e.nombre ? conEnie(e.nombre) : e.nombre, senalesDetalle: porEntidad.get(e.entidadRuc) ?? [] }));
     const sum = (k: "ordenes" | "monto" | "meses") => entidades.reduce((t, e) => t + Number(e[k] ?? 0), 0);
     const fechas = (k: "primera" | "ultima") => entidades.map((e) => e[k]).filter(Boolean).sort();
+    const electo = (await electoP)?.rows[0]?.e === true;
     return publicar({
       persona: {
-        codigo, ruc, nombre: entidades[0].nombre, entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
+        codigo, ruc, nombre: entidades[0].nombre, ...marcaElecto(electo), entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
         meses: sum("meses"), primera: fechas("primera")[0] ?? null, ultima: fechas("ultima").at(-1) ?? null,
         nSenales: senales.rows.length,
         dudosas: dudosas.rows[0]?.ordenes ? dudosas.rows[0] : null,

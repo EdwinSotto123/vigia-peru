@@ -3,6 +3,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
 import { pareceEmpresa, publicar } from "../lib/privacidad.js";
+import { marcaElecto } from "../lib/electos.js";
 import { visitasHasta } from "../lib/visitas.js";
 import {
   CLARIDAD_ONPE,
@@ -795,7 +796,9 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
   // Cada persona de su gente por su DNI (que no sale de aquí): su nombre, sus papeles y desde cuándo está.
   const gente = new Map(gen.map((g) => [g.doc, g]));
   const papeles = (roles: string[] | null | undefined) => ORDEN_ROL.filter((r) => roles?.includes(r)).map((r) => PAPEL[r]);
-  /** «Su representante legal, socio y directivo»: el rol del recuadro «quién» (nunca un cargo de elección: publicar() lo destaparía). */
+  // Su gente que es o fue autoridad electa: su nombre va completo (decisión del 2026-10-30, lib/electos.ts).
+  const electos = new Set([...aut.map((a) => a.doc), ...cand.filter((x) => x.resultado === "electo").map((x) => x.doc)]);
+  /** «Su representante legal, socio y directivo»: el rol del recuadro «quién»; el cargo de elección va en los datos del hecho. */
   const rolDe = (roles: string[] | null | undefined) => {
     const p = papeles(roles);
     return p.length ? `Su ${listaY(p)}` : "De su gente";
@@ -1086,7 +1089,8 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       // Las personas de su conformación (también las de carné de extranjería o pasaporte, que no entran por DNI) y los
       // visitantes, en el orden SUNAT: apellidos y nombres.
       socios: [
-        ...gen.map((g) => ({ nombre: g.nombre })),
+        // Quien es o fue autoridad electa va completo (lib/electos.ts): lo dicen sus filas de autoridad y de candidaturas ganadas.
+        ...gen.map((g) => ({ nombre: g.nombre, ...marcaElecto(electos.has(g.doc)) })),
         ...soc.flatMap((s) => (s.nombres ?? []).filter((n) => !pareceEmpresa(n)).map((n) => ({ nombre: n }))),
       ],
       visitas: vis.filter((v) => v.visitante).map((v) => ({ visitante: v.visitante })),

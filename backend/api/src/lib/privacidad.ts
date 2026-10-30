@@ -12,7 +12,8 @@
  *   · RUC 10 (persona natural: sus dígitos 3 a 10 son el DNI): como valor de un campo, `10·ref·7K2Q9A`
  *     (la ref de su DNI: único, y une al proveedor con la misma persona como socio o firmante); en texto,
  *     `10•••••••••`. Los RUC 20 (empresas) no se tocan.
- *   · Nombres de personas naturales privadas (todas salvo las autoridades electas): un apellido tapado,
+ *   · Nombres de personas naturales privadas (todas salvo las autoridades electas, que van completas: las reconoce su
+ *     cargo de elección al lado del nombre o la marca `electo: true` que pone la ruta, lib/electos.ts): un apellido tapado,
  *     `•••`. El materno: la última palabra si el nombre va primero ("JOSE MANUEL SARA •••"), la segunda en
  *     orden SUNAT/RNP ("CARPIO ••• ABEL"). Se buscan en todo el JSON (valores, claves y prosa), en los dos
  *     órdenes, sin tildes y por palabras completas.
@@ -457,6 +458,8 @@ function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = fa
   } else {
     const papel = PAPELES[clavePadre];
     if (papel) for (const [campo, orden] of papel.campos) r.persona(o[campo], orden, papel.tipo);
+    // La ruta ya sabe por su DNI que es o fue autoridad electa (lib/electos.ts): su nombre va completo donde aparezca.
+    if (o.electo === true) for (const n of [o.nombre, o.nombre_completo, o.visitante, o.persona, o.autoridad, o.firmante]) r.electo(n);
     // Quien ejerce un cargo de elección (el alcalde que firma, un regidor en el comité) es público
     // donde aparezca. `vinculo_autoridades` mezcla electos con designados (un gerente municipal): ahí
     // decide el cargo.

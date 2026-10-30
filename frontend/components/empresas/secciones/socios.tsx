@@ -383,7 +383,7 @@ export async function SociosEmpresa({
             <h3 id="quienes-estan-detras" className="font-display text-bloque font-bold text-ink">Quiénes están detrás</h3>
             <p className="max-w-prose text-meta text-inkSoft">
               Lo que la empresa declaró al Registro Nacional de Proveedores{d.corte ? ` (corte del ${fechaCorta(d.corte)})` : ""}. Sin
-              documento y con un apellido tapado.
+              documento y con un apellido tapado, salvo las autoridades electas, que van completas.
             </p>
           </div>
           {personas.length > 0 && (

@@ -87,8 +87,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "64": la historia de una empresa dice quién hizo cada hecho (`quien` con su `tipo`, persona con un apellido tapado o
  *       entidad) y lo que se sabe en filas (`datos`): dónde, partido, periodo, motivo y hora de una visita…; «Lo nuevo»
  *       trae los antecedentes de cada contrato (`cruces`).
+ * "74": las autoridades electas con su nombre completo también en «Su gente», la historia de la empresa, las visitas y la
+ *       ficha de la persona (marca `electo`, lib/electos.ts; decisión del 2026-10-30).
  */
-const VERSION_CACHE = "73";
+const VERSION_CACHE = "74";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

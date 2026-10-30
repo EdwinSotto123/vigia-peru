@@ -15,7 +15,7 @@ export function NotaPrivacidad({ className }: { className?: string }) {
   const ruta = usePathname() || "/";
   return (
     <Nota icono={<ShieldCheck size={15} aria-hidden />} className={className}>
-      Datos personales protegidos (Ley 29733): sin DNI y con un apellido tapado. El dato completo está en la fuente oficial.{" "}
+      Datos personales protegidos (Ley 29733): sin DNI y con un apellido tapado, salvo las autoridades electas. El dato completo está en la fuente oficial.{" "}
       <Link
         href={`/privacidad?enlace=${encodeURIComponent(ruta)}#pedido`}
         className="font-medium text-inkSoft underline decoration-line underline-offset-2 transition-colors duration-rapido hover:text-ink hover:decoration-granate"

@@ -53,7 +53,7 @@ const MONO = new Set(["Proceso", "Informe", "Código INFOBRAS", "Nomenclatura", 
  * datos dos veces era parte de «se repite información». Server-safe.
  */
 export function DetalleHecho({ e, renglon, conPie = true }: { e: EventoHistoria; renglon?: string; conPie?: boolean }) {
-  // Quién: una persona de la empresa (su nombre, con un apellido tapado) o una entidad, cada una con su ícono.
+  // Quién: una persona de la empresa (su nombre, con un apellido tapado salvo si es autoridad electa) o una entidad, cada una con su ícono.
   const IconoQuien = e.quien?.tipo === "persona" ? UserRound : Building2;
   // Con el año siempre (la fecha corta lo omite en el año en curso, y una historia cruza muchos años).
   const cuando = e.hasta ? `Del ${fecha(e.fecha)} al ${fecha(e.hasta)}` : fecha(e.fecha);

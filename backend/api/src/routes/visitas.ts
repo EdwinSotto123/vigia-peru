@@ -3,6 +3,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
+import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuentes.js";
 
 /**
@@ -144,7 +145,8 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
         : Promise.resolve({ rows: [] }),
       pool.query(
         `SELECT v.id, to_char(v.fecha_visita, 'YYYY-MM-DD') AS fecha, to_char(v.hora_ingreso, 'HH24:MI') AS hora, v.duracion_min AS duracion,
-                v.visitante, v.tipo_entidad_visitante AS tipo, v.entidad_visitante AS organizacion,
+                v.visitante, (v.numero_documento ~ '^[0-9]{8}$' AND ${esElectoSql("v.numero_documento")}) AS electo,
+                v.tipo_entidad_visitante AS tipo, v.entidad_visitante AS organizacion,
                 v.funcionario_cargo AS cargo, v.funcionario_area AS area, left(v.motivo, 160) AS motivo, v.fuente,
                 ${decisor} AS decisor, ${FUERA_DE_HORA} AS "fueraDeHora",
                 ${conParientes ? `EXISTS (SELECT 1 FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1 AND p.visita_id = v.id)` : "false"} AS pariente,
@@ -224,10 +226,12 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
         : {}),
       areas: areas.rows,
       parientes: parientes.rows,
-      // Bajo `visitas`: publicar() le tapa un apellido a quien visita. El familiar de un funcionario va sin nombre.
-      visitas: lista.rows.map(({ id, ruc: rucEmpresa, ...v }) => ({
+      // Bajo `visitas`: publicar() le tapa un apellido a quien visita, salvo a una autoridad electa (lib/electos.ts). El
+      // familiar de un funcionario va sin nombre.
+      visitas: lista.rows.map(({ id, ruc: rucEmpresa, electo, ...v }) => ({
         ...v,
         visitante: v.pariente ? null : v.visitante,
+        ...marcaElecto(electo === true && !v.pariente),
         empresa: rucEmpresa && /^20\d{9}$/.test(rucEmpresa) ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null,
         // Su registro: el del Congreso, el reporte mensual de la PNDA (que es sólo de Loreto) o el registro en línea de la
         // PCM (la plataforma nacional y su exportación). Antes una visita nacional de 2025 iba al reporte de Loreto.

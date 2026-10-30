@@ -6,6 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { aCruce, aDia, ETIQUETA_CRUCE } from "../lib/cruces.js";
 import { evidenciasDe, type FilaCruce, type ProcesoCruce } from "../lib/evidencia.js";
 import { publicar } from "../lib/privacidad.js";
+import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { claveCruce, referenciasDe } from "../lib/referencias.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { conEnie, palabrasBusqueda } from "./personas.js";
@@ -952,6 +953,8 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                    ORDER BY a.vigente DESC NULLS LAST, a.periodo_inicio DESC NULLS LAST LIMIT 1) END AS autoridad,
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN
                   (SELECT count(*)::int FROM jne_candidaturas j WHERE j.numero_documento = r.numero_documento) END AS candidaturas,
+                -- Autoridad electa (es o fue autoridad, o ganó una elección): su nombre va completo (lib/electos.ts).
+                (r.numero_documento ~ '^[0-9]{8}$' AND ${esElectoSql("r.numero_documento")}) AS electo,
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
                   SELECT jsonb_agg(z.x ORDER BY z.anio DESC NULLS LAST)
                     FROM (SELECT j."año" AS anio, jsonb_build_object('cargo', j.cargo, 'partido', j.partido, 'anio', j."año", 'resultado', j.resultado,
@@ -1001,9 +1004,10 @@ empresasRouter.get("/:ruc/socios", async (c) => {
     ]);
     const roles = (rs: string[] | null) => (rs ?? []).map((x) => ROL[x] ?? x.toLowerCase().replace(/_/g, " "));
     return publicar({
-      // Las personas bajo `socios` (publicar() les tapa un apellido, en orden SUNAT); las empresas socias, aparte y completas.
+      // Las personas bajo `socios` (publicar() les tapa un apellido, en orden SUNAT, salvo a las autoridades electas); las
+      // empresas socias, aparte y completas.
       socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({
-        nombre: s.nombre, roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas,
+        nombre: s.nombre, ...marcaElecto(s.electo), roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas,
         enElEstado: s.locador || s.autoridad || s.candidaturas || s.aportes
           ? {
               locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null,
@@ -1052,7 +1056,7 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
                        FROM (SELECT $1::text AS c UNION SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1) z),
             vis AS (
               SELECT v.id, v.fecha_visita, v.entidad_visitada, ev.via, v.visitante, v.funcionario_cargo, v.funcionario_area, v.motivo,
-                     v.lugar_especifico, v.entidad_visitante, v.fuente,
+                     v.lugar_especifico, v.entidad_visitante, v.fuente, v.numero_documento,
                      COALESCE(ev.entidad_ruc, (SELECT min(m.ruc) FROM visita_entidad_ruc m WHERE m.entidad_visitada = v.entidad_visitada)) AS ent
                 FROM empresa_visita ev JOIN visitas_entidades v ON v.id = ev.visita_id
                WHERE ev.ruc = $1
@@ -1106,7 +1110,8 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
                    WHERE a1.f IS NOT NULL AND a1.f < d.fecha_visita + 90 AND a.ruc_proveedor = ANY(p.codigos) AND a.entidad_ruc = d.ent
                      AND a.fecha_buenapro >= d.fecha_visita AND a.fecha_buenapro < d.fecha_visita + 90) wa ON true)
        SELECT to_char(x.fecha_visita, 'YYYY-MM-DD') AS fecha, x.entidad_visitada AS entidad, x.ent AS "entidadRuc", x.via,
-              x.visitante, x.funcionario_cargo AS "cargoFuncionario", x.funcionario_area AS area,
+              x.visitante, (x.numero_documento ~ '^[0-9]{8}$' AND ${esElectoSql("x.numero_documento")}) AS electo,
+              x.funcionario_cargo AS "cargoFuncionario", x.funcionario_area AS area,
               x.motivo, x.lugar_especifico AS lugar, x.entidad_visitante AS "entidadDeclarada", x.fuente,
               to_char(r.of, 'YYYY-MM-DD') AS "ordenFecha", r.onum AS "ordenNumero", r.otipo AS "ordenTipo",
               r.odesc AS "ordenDescripcion", r.omonto AS "ordenMonto",
@@ -1126,7 +1131,8 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
       total: r.rows.length,
       // Hasta qué día llega el registro de visitas (la PNDA no publicó después de mayo de 2026).
       hasta: await visitasHasta(),
-      // Bajo `visitas`: publicar() le tapa un apellido al visitante. De quien recibió, sólo su cargo y su área (nunca su nombre).
+      // Bajo `visitas`: publicar() le tapa un apellido al visitante (salvo si es autoridad electa). De quien recibió, sólo su
+      // cargo y su área (nunca su nombre).
       visitas: r.rows.map((v) => {
         // Lo primero: el contrato si llegó antes o el mismo día que la orden; si no, la orden.
         const esContrato = !!v.contratoFecha && (!v.ordenFecha || v.contratoFecha <= v.ordenFecha);
@@ -1135,7 +1141,7 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
           ? { numero: v.contratoNumero, descripcion: v.contratoDescripcion, monto: v.contratoMonto, tipoOrden: null, codigo: v.contratoCodigo, ocid: v.contratoOcid }
           : { numero: v.ordenNumero, descripcion: v.ordenDescripcion, monto: v.ordenMonto, tipoOrden: v.ordenTipo, codigo: null, ocid: null };
         return {
-          fecha: v.fecha, entidad: v.entidad, entidadRuc: v.entidadRuc, via: VIA[v.via] ?? v.via, visitante: v.visitante,
+          fecha: v.fecha, entidad: v.entidad, entidadRuc: v.entidadRuc, via: VIA[v.via] ?? v.via, visitante: v.visitante, ...marcaElecto(v.electo),
           cargoFuncionario: v.cargoFuncionario, area: v.area, motivo: v.motivo, lugar: v.lugar, entidadDeclarada: v.entidadDeclarada,
           fuente: v.fuente,
           despues,

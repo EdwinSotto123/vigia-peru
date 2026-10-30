@@ -78,7 +78,7 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
       <Nota>
         Las visitas vienen de los reportes que publicó la entidad o la PCM y, en el Congreso, de su propio registro; llegan hasta el{" "}
         {d.hasta ? fecha(d.hasta) : "último día cargado"}. De quien recibe la visita se muestra sólo su cargo y su área; de quien visita,
-        su nombre con un apellido tapado, y nada si es familiar de un funcionario.
+        su nombre con un apellido tapado (completo si es autoridad electa), y nada si es familiar de un funcionario.
       </Nota>
       {emp && emp.lista.length > 0 && <EmpresasDeSuGente e={emp} entidadRuc={ruc} />}
       {orgs.length > 0 && <Organizaciones orgs={orgs} sinDespues={sinDespues} total={d.totales?.organizaciones} entidadRuc={ruc} />}

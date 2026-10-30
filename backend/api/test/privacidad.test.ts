@@ -336,3 +336,19 @@ test("nepotismo: el primer apellido del funcionario sólo si el parentesco no pu
   for (const p of ["HIJO(A)", "SOBRINO(A)", "PRIMO(A)", "NIETO(A)", "OTRO", ""]) assert.equal(apellidoFuncionario(p, "rojas perez maria"), null, p);
   assert.equal(apellidoFuncionario(null, "rojas perez maria"), null);
 });
+
+test("autoridad electa marcada por la ruta (electo: true): su nombre completo en toda la respuesta; el resto, tapado", () => {
+  const r = publicar({
+    socios: [{ nombre: "PEREZ QUISPE JUAN", electo: true }, { nombre: "ROJAS PAZ ELENA" }],
+    visitas: [{ visitante: "PEREZ QUISPE JUAN" }, { visitante: "TORRES LIMA ANA", electo: true }],
+    nota: "Su representante legal, PEREZ QUISPE JUAN, y la socia ROJAS PAZ ELENA",
+  });
+  assert.equal(r.socios[0].nombre, "PEREZ QUISPE JUAN");
+  assert.equal(r.socios[1].nombre, "ROJAS ••• ELENA");
+  assert.equal(r.visitas[0].visitante, "PEREZ QUISPE JUAN");
+  assert.equal(r.visitas[1].visitante, "TORRES LIMA ANA");
+  assert.equal(r.nota, "Su representante legal, PEREZ QUISPE JUAN, y la socia ROJAS ••• ELENA");
+  // Una marca falsa o con otro valor no destapa a nadie.
+  const s = publicar({ socios: [{ nombre: "ROJAS PAZ ELENA", electo: "si" }] });
+  assert.equal(s.socios[0].nombre, "ROJAS ••• ELENA");
+});
