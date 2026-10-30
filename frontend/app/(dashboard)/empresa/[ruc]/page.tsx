@@ -78,9 +78,9 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
     title: `${e.nombre}, empresa`,
     description: descripcion([
       `${e.nombre} (RUC ${e.ruc}):`,
-      e.adjProcesos > 0
-        ? `${plural(e.adjProcesos, "proceso ganado", "procesos ganados")} con el Estado peruano${e.entidades > 0 ? ` para ${plural(e.entidades, "entidad", "entidades")}` : ""}.`
-        : null,
+      e.adjProcesos > 0 ? `${plural(e.adjProcesos, "proceso ganado", "procesos ganados")} con el Estado peruano.` : null,
+      // `entidades`: las distintas que le adjudicaron o le compraron (migración 109), no sólo las de esos procesos.
+      e.entidades > 0 ? `${plural(e.entidades, "entidad le adjudicó o le compró", "entidades le adjudicaron o le compraron")}.` : null,
       "Sus contratos, órdenes de compra, socios y antecedentes, con la fuente oficial de cada dato.",
     ]),
     alternates: canonica(`/empresa/${e.ruc}`),

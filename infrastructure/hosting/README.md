@@ -21,9 +21,12 @@ Desplegar: `bash infrastructure/deploy/gcp/hosting.sh` (solo publica la configur
 
 ## Modo pausa (Cloud Run apagado)
 
-`firebase.pausa.json` manda `vigia-peru.web.app` a la réplica en Cloudflare con un 302 (temporal, para
-poder volver): `/v1/**` a `vigia-api.vigiaperu.workers.dev` y el resto a `vigia-web.vigiaperu.workers.dev`.
-Se usa con `vigia-peru-frontend` y `vigia-peru-api` en `--ingress internal` (sin tráfico, sin costo).
+`firebase.pausa.json` manda `vigia-peru.web.app` al dominio de Vigía, `https://vigia.gobserva.cloud`, con un 301
+(permanente desde el 2026-10-30: el dominio es el definitivo y así los buscadores pasan a él lo que tenían del viejo;
+antes era un 302 a `vigia-web.vigiaperu.workers.dev`, que a su vez redirigía al dominio). `/v1/**` va al `/v1` del
+dominio, que la web reenvía a la API (la API ya no atiende al público directo). Se usa con `vigia-peru-frontend` y
+`vigia-peru-api` en `--ingress internal` (sin tráfico, sin costo). Ojo: los navegadores guardan un 301; volver a GCP
+con este mismo dominio tardaría en notarse para quien ya lo visitó.
 
 - Activar: `firebase deploy --only hosting:vigia-peru --project vivid-spot-480905-a4 --config firebase.pausa.json`
   desde esta carpeta, y `gcloud run services update <servicio> --ingress internal` en los dos servicios.

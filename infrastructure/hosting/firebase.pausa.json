@@ -4,9 +4,9 @@
     "public": "public",
     "ignore": ["firebase.json", "firebase.pausa.json", "**/.*"],
     "redirects": [
-      { "source": "/", "destination": "https://vigia-web.vigiaperu.workers.dev/", "type": 302 },
-      { "source": "/v1/:ruta*", "destination": "https://vigia-api.vigiaperu.workers.dev/v1/:ruta", "type": 302 },
-      { "source": "/:ruta*", "destination": "https://vigia-web.vigiaperu.workers.dev/:ruta", "type": 302 }
+      { "source": "/", "destination": "https://vigia.gobserva.cloud/", "type": 301 },
+      { "source": "/v1/:ruta*", "destination": "https://vigia.gobserva.cloud/v1/:ruta", "type": 301 },
+      { "source": "/:ruta*", "destination": "https://vigia.gobserva.cloud/:ruta", "type": 301 }
     ]
   }
 }
