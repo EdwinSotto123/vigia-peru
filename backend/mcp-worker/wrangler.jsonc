@@ -10,6 +10,8 @@
   "observability": { "enabled": true },
   // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare/base.sh).
   "placement": { "region": "aws:us-east-2" },
+  // Límite por IP (src/index.ts): el Durable Object de vigia-api; se despliega después de la API.
+  "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador", "script_name": "vigia-api" }] },
   "minify": true,
   "upload_source_maps": true,
   "hyperdrive": [

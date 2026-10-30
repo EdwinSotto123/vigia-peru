@@ -5,6 +5,8 @@ import { Client, types } from "pg";
 
 export interface Env {
   HYPERDRIVE: Hyperdrive;
+  /** Límite por IP: el Durable Object `Limitador` de vigia-api (backend/api/src/workers/limitador.ts). */
+  LIMITADOR?: DurableObjectNamespace;
 }
 
 const OID_DATE = 1082;
