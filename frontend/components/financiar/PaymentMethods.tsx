@@ -17,7 +17,10 @@ export interface PagoPublico {
   cuentas: { banco: string; moneda: "PEN" | "USD"; tipo: string; numero: string; cci: string; titular: string }[];
   instrucciones: string;
   contactoEmail: string | null;
+  /** Yape, Plin o transferencia (los valida el panel). */
   configurado: boolean;
+  /** Pago con tarjeta por Mercado Pago: la clave pública del formulario (falta en respuestas viejas). */
+  tarjeta?: { publicKey: string } | null;
 }
 
 const BRAND: Record<string, { bg: string; fg: string; label: string }> = {

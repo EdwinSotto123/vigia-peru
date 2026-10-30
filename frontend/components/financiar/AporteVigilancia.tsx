@@ -6,17 +6,19 @@
  * fijo (la base de datos, los servidores, la captura de datos) y la lectura a fondo de un contrato cuesta mucho menos
  * que S/ 3; contar el aporte en contratos no explicaba ni cubría eso.
  *
- *   - cuánto y cada cuánto: S/ 10, 20, 50, 100 u otro (mínimo S/ 5); cada mes o una vez. «Cada mes» es lo que eliges
- *     hacer: sin pasarela, cada mes es un aporte nuevo con el mismo trámite (Yape, Plin o transferencia).
+ *   - cuánto y cada cuánto: S/ 10, 20, 50, 100 u otro (mínimo S/ 5); cada mes o una vez. Con tarjeta (Mercado Pago,
+ *     2026-10-30), «cada mes» es una suscripción con cobro automático; con Yape, Plin o transferencia, cada mes es un
+ *     aporte nuevo con el mismo trámite.
  *   - quién: persona, empresa u organización, o anónimo; con sesión, desde la cuenta.
  *   - `para`: la entidad o la región que mirabas al llegar. Sólo dice qué te motivó: no dirige ninguna lectura.
- *   - pago: los medios de /admin/pagos, con el código como concepto; el comprobante por foto es opcional.
- *   - sin medio de pago configurado no hay formulario: se dice, y se dice quién sostiene hoy a Vigía.
+ *   - pago: con tarjeta, el formulario de Mercado Pago (PagoTarjeta) y el aporte se valida solo; con los medios de
+ *     /admin/pagos, el código como concepto y el comprobante por foto opcional.
+ *   - sin ningún medio de pago no hay formulario: se dice, y se dice quién sostiene hoy a Vigía.
  */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, CheckCircle2, HandHeart, Loader2, Lock, X } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, CreditCard, HandHeart, Loader2, Lock, X } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { soles } from "@/lib/formato";
 import { idToken, useCuenta } from "@/lib/cuentas";
@@ -28,13 +30,23 @@ import { useTurnstile } from "@/components/seguridad/Turnstile";
 import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { cn } from "@/lib/utils";
 import { PaymentMethods, type PagoPublico } from "./PaymentMethods";
+import { PagoTarjeta, type DatosTarjeta } from "./PagoTarjeta";
 import { SubirComprobante } from "./SubirComprobante";
 import { TarjetaConfirmacion } from "./TarjetaConfirmacion";
 import { ETIQUETA_GRUPO, OpcionRadio, TARJETA } from "./PasosAporte";
 
 type Tipo = "persona" | "empresa" | "organizacion" | "anonimo";
-type Metodo = "yape" | "plin" | "transferencia";
+type Metodo = "tarjeta" | "yape" | "plin" | "transferencia";
 type Periodicidad = "mensual" | "unica";
+
+/** Lo que responde POST /pagos/aporte: pagada al instante, en revisión de Mercado Pago o la suscripción activa. */
+interface ConTarjeta {
+  codigo: string;
+  estado: "pagada" | "en_revision" | "suscrita";
+  montoPen: number;
+  periodicidad: Periodicidad;
+  detail?: string;
+}
 
 export interface ParaAporte {
   ruc?: string;
@@ -62,6 +74,9 @@ const ERRORES: Record<string, string> = {
   ruc_required: "Empresas y organizaciones deben indicar su RUC.",
   invalid_body: "Revisa el monto (mínimo S/ 5) y los datos.",
   demasiados_pedidos: "Muchos intentos seguidos. Espera un momento y vuelve a intentarlo.",
+  tarjeta_cerrada: "El pago con tarjeta no está disponible ahora. Puedes aportar con Yape o Plin.",
+  captcha_requerido: "No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.",
+  captcha_invalido: "No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.",
 };
 
 function leer(): Creado | null {
@@ -93,8 +108,11 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   const [ruc, setRuc] = useState("");
   const [email, setEmail] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const metodos = ([pago.yape && "yape", pago.plin && "plin", pago.cuentas.length > 0 && "transferencia"].filter(Boolean) as Metodo[]);
+  const metodos = ([pago.tarjeta && "tarjeta", pago.yape && "yape", pago.plin && "plin", pago.cuentas.length > 0 && "transferencia"]
+    .filter(Boolean) as Metodo[]);
   const [metodo, setMetodo] = useState<Metodo>(metodos[0] ?? "yape");
+  const [paso, setPaso] = useState<"datos" | "tarjeta">("datos");
+  const [conTarjeta, setConTarjeta] = useState<ConTarjeta | null>(null);
   const [motivo, setMotivo] = useState<ParaAporte | null>(para);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +131,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     if (perfil.ruc) setRuc(perfil.ruc);
   }, [perfil]);
 
-  if (!pago.configurado) {
+  if (!pago.configurado && !pago.tarjeta) {
     return (
       <div className={TARJETA}>
         <p className="inline-flex items-center gap-1.5 text-meta font-semibold text-inkSoft">
@@ -150,6 +168,8 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     if (necesitaRuc && !/^\d{11}$/.test(ruc)) return setError("Ingresa un RUC de 11 dígitos.");
     if (tipo !== "anonimo" && nombre.trim().length < 2) return setError("Ingresa el nombre que quieres mostrar.");
     if (!conCuenta && !/^\S+@\S+\.\S+$/.test(email)) return setError(ERRORES.email_required);
+    // Con tarjeta, el aporte se crea cuando la tarjeta se confirma (pagarConTarjeta).
+    if (metodo === "tarjeta") return setPaso("tarjeta");
     setCargando(true);
     try {
       const token = conCuenta ? await idToken() : null;
@@ -182,11 +202,88 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     }
   }
 
+  /** El formulario de Mercado Pago confirmó la tarjeta: se cobra (o se suscribe) en la API. Rechaza para reintentar. */
+  async function pagarConTarjeta(d: DatosTarjeta) {
+    setError(null);
+    try {
+      const token = conCuenta ? await idToken() : null;
+      const verificado = await verificacion.obtenerToken();
+      const r = await fetch(`${PUBLIC_API_BASE}/pagos/aporte`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...cabeceraTurnstile(verificado) },
+        body: JSON.stringify({
+          montoPen: Math.round(cantidad * 100) / 100,
+          periodicidad,
+          mensajePublico: mensaje.trim() || undefined,
+          financiador: {
+            tipo: tipo === "anonimo" ? "persona" : tipo,
+            nombrePublico: tipo === "anonimo" ? undefined : nombre.trim(),
+            ruc: necesitaRuc ? ruc : undefined,
+            email: email.trim() || undefined,
+          },
+          para: motivo ? { ruc: motivo.ruc, ubigeo: motivo.ubigeo } : undefined,
+          tarjeta: { ...d, email: d.email || email.trim() },
+        }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(ERRORES[j?.error] ?? j?.detail ?? "No se pudo procesar el pago. Inténtalo de nuevo.");
+      setConTarjeta(j as ConTarjeta);
+    } catch (err) {
+      setError((err as Error).message);
+      throw err;
+    }
+  }
+
   const otroAporte = (
-    <button type="button" onClick={() => { guardar(null); setCreado(null); setSubido(false); }} className="min-h-[24px] text-rotulo underline underline-offset-2 hover:text-ink">
+    <button
+      type="button"
+      onClick={() => { guardar(null); setCreado(null); setSubido(false); setConTarjeta(null); setPaso("datos"); setError(null); }}
+      className="min-h-[24px] text-rotulo underline underline-offset-2 hover:text-ink"
+    >
       Hacer otro aporte
     </button>
   );
+
+  if (conTarjeta) {
+    const titulo =
+      conTarjeta.estado === "suscrita" ? "¡Gracias! Tu aporte mensual quedó activo"
+        : conTarjeta.estado === "en_revision" ? "Tu pago está en revisión"
+        : "¡Gracias! Tu aporte quedó confirmado";
+    return (
+      <TarjetaConfirmacion
+        titulo={titulo}
+        acciones={
+          <EnlaceAccion href={`/impacto/${conTarjeta.codigo}`} prefetch={false}>
+            Ver mi comprobante <ArrowRight size={14} aria-hidden />
+          </EnlaceAccion>
+        }
+        pie={<div className="mt-3">{otroAporte}</div>}
+      >
+        {conTarjeta.estado === "suscrita" ? (
+          <>
+            <p>
+              Mercado Pago hace el primer cobro de {soles(conTarjeta.montoPen)} en unos minutos y después uno cada mes. Tu código es{" "}
+              <span className="font-mono font-semibold text-ink">{conTarjeta.codigo}</span>.
+            </p>
+            <p className="mt-2 inline-flex items-start gap-1.5 text-meta">
+              <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0" />
+              Lo cancelas cuando quieras desde tu cuenta de Mercado Pago, en Suscripciones.
+            </p>
+          </>
+        ) : conTarjeta.estado === "en_revision" ? (
+          <p>
+            {conTarjeta.detail ?? "Mercado Pago está revisando el pago."} Tu código es{" "}
+            <span className="font-mono font-semibold text-ink">{conTarjeta.codigo}</span>.
+          </p>
+        ) : (
+          <p>
+            Tu aporte <span className="font-mono font-semibold text-ink">{conTarjeta.codigo}</span> de {soles(conTarjeta.montoPen)} ya suma a lo
+            recaudado del mes.
+          </p>
+        )}
+      </TarjetaConfirmacion>
+    );
+  }
 
   if (creado && subido) {
     return (
@@ -248,6 +345,36 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     );
   }
 
+  if (paso === "tarjeta" && pago.tarjeta) {
+    return (
+      <div className={TARJETA}>
+        <h2 className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
+          <CreditCard size={20} aria-hidden className="text-granate" /> Paga con tarjeta
+        </h2>
+        <p className="mt-1 text-dato leading-5 text-inkSoft">
+          {periodicidad === "mensual"
+            ? `${soles(cantidad)} cada mes, con cobro automático. Lo cancelas cuando quieras.`
+            : `Un aporte de ${soles(cantidad)}.`}
+        </p>
+        <div className="mt-4">
+          <PagoTarjeta clavePublica={pago.tarjeta.publicKey} monto={Math.round(cantidad * 100) / 100} email={email.trim() || undefined} onPagar={pagarConTarjeta} />
+        </div>
+        <div className="mt-3 flex flex-col gap-3">
+          {verificacion.widget}
+          {error && <p className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
+          <p className="text-rotulo text-mute">El pago lo procesa Mercado Pago: Vigía no ve ni guarda los datos de tu tarjeta.</p>
+          <button
+            type="button"
+            onClick={() => { setPaso("datos"); setError(null); }}
+            className="min-h-[24px] self-start text-rotulo underline underline-offset-2 hover:text-ink"
+          >
+            Volver a mis datos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={enviar} className={TARJETA} aria-labelledby="aporte-titulo" noValidate>
       <h2 id="aporte-titulo" className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
@@ -261,7 +388,11 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
           <OpcionRadio name="periodicidad" checked={periodicidad === "unica"} onChange={() => setPeriodicidad("unica")}>Una vez</OpcionRadio>
         </div>
         {periodicidad === "mensual" && (
-          <p className="mt-2 text-rotulo text-inkSoft">Lo que más ayuda: con aportes de cada mes podemos planear. Por ahora cada mes es un pago nuevo (no hay cobro automático).</p>
+          <p className="mt-2 text-rotulo text-inkSoft">
+            {metodo === "tarjeta"
+              ? "Lo que más ayuda: con aportes de cada mes podemos planear. Con tarjeta, Mercado Pago lo cobra solo cada mes y lo cancelas cuando quieras."
+              : "Lo que más ayuda: con aportes de cada mes podemos planear. Con Yape, Plin o transferencia, cada mes es un pago nuevo."}
+          </p>
         )}
       </fieldset>
 
@@ -347,7 +478,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
           <div className="flex flex-wrap gap-2">
             {metodos.map((m) => (
               <OpcionRadio key={m} name="metodo" checked={metodo === m} onChange={() => setMetodo(m)}>
-                {m === "yape" ? "Yape" : m === "plin" ? "Plin" : "Transferencia"}
+                {m === "tarjeta" ? "Tarjeta" : m === "yape" ? "Yape" : m === "plin" ? "Plin" : "Transferencia"}
               </OpcionRadio>
             ))}
           </div>
@@ -358,11 +489,17 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         {verificacion.widget}
         <Button type="submit" disabled={cargando || !montoValido} className="w-full sm:w-auto">
           {cargando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
-          {montoValido ? `Aportar ${soles(cantidad)}${periodicidad === "mensual" ? " cada mes" : ""}` : "Aportar"}
+          {!montoValido
+            ? "Aportar"
+            : metodo === "tarjeta"
+              ? `Seguir con la tarjeta: ${soles(cantidad)}${periodicidad === "mensual" ? " cada mes" : ""}`
+              : `Aportar ${soles(cantidad)}${periodicidad === "mensual" ? " cada mes" : ""}`}
         </Button>
         {error && <p className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
         <p className="text-rotulo text-mute">
-          Te damos un código para el concepto del pago y un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta.
+          {metodo === "tarjeta"
+            ? "Pagas con Mercado Pago y recibes un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta."
+            : "Te damos un código para el concepto del pago y un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta."}
         </p>
       </div>
     </form>
