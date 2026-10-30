@@ -298,7 +298,10 @@ function datosContrato(f: ContratoFirmado, c: Detalle): DatoClave[] {
     {
       etiqueta: "Vigencia",
       valor: f.vigenciaDesde || f.vigenciaHasta
-        ? `${f.vigenciaDesde ? `Del ${fecha(f.vigenciaDesde)}` : "Hasta"}${f.vigenciaHasta ? `${f.vigenciaDesde ? " al " : " el "}${fecha(f.vigenciaHasta)}` : ""}${f.vigenciaOriginal ? ` (se amplió: iba hasta el ${fecha(f.vigenciaOriginal)})` : ""}`
+        ? `${f.vigenciaDesde ? `Del ${fecha(f.vigenciaDesde)}` : "Hasta"}${f.vigenciaHasta ? `${f.vigenciaDesde ? " al " : " el "}${fecha(f.vigenciaHasta)}` : ""}${f.vigenciaOriginal ? ` (se amplió: iba hasta el ${fecha(f.vigenciaOriginal)})` : ""}${
+            // 1,328 contratos traen el fin antes del inicio en CONOSCE: se muestra tal cual, diciendo que no cuadra.
+            f.vigenciaDesde && f.vigenciaHasta && f.vigenciaHasta < f.vigenciaDesde ? ". CONOSCE trae el fin antes del inicio: una de las fechas está mal cargada" : ""
+          }`
         : null,
     },
     ...(f.publicado ? [{ etiqueta: "Publicado en el SEACE", valor: fecha(f.publicado) }] : []),

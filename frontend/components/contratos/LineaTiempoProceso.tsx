@@ -59,6 +59,10 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
   }
   const hitos = [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
   if (hitos.length < 2) return null;
+  // CONOSCE registra a veces el consentimiento ANTES de la buena pro (692 procesos): una de las dos fechas está mal cargada.
+  const fConsentimiento = crudos.find((x) => x.texto === "Consentimiento")?.fecha;
+  const fBuenaPro = crudos.filter((x) => x.texto === "Buena pro" || x.texto === "Adjudicación").map((x) => x.fecha).sort()[0];
+  const consentimientoAntes = !!fConsentimiento && !!fBuenaPro && fConsentimiento < fBuenaPro;
 
   const conv = dia(c.fecha);
   const gano = fechaGano(c);
@@ -105,6 +109,11 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
                 {salto !== null && salto > 0 && (
                   <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-micro text-mute">
                     {plural(salto, "día", "días")} después
+                  </span>
+                )}
+                {consentimientoAntes && h.textos.includes("Consentimiento") && (
+                  <span className="mt-1 block text-micro text-amberTexto">
+                    Antes de la buena pro: CONOSCE tiene mal cargada una de las dos fechas.
                   </span>
                 )}
               </div>
