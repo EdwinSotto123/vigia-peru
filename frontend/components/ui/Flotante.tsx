@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-type Lado = "arriba" | "abajo";
+export type Lado = "arriba" | "abajo";
 
 /**
  * Posicionamiento compartido de tooltip y popover.
@@ -22,7 +22,7 @@ type Lado = "arriba" | "abajo";
  * ir en medio de una oración (`<p>… <Ayuda/></p>`) sin romper la hidratación. Por
  * lo mismo, su contenido es texto o `<span className="block">`, nunca `<p>`/`<div>`.
  */
-function usarFlotante(abierto: boolean, preferir: Lado = "arriba") {
+export function usarFlotante(abierto: boolean, preferir: Lado = "arriba") {
   const anclaRef = useRef<HTMLElement>(null);
   const flotanteRef = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; lado: Lado } | null>(null);

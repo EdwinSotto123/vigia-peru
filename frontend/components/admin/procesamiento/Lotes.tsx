@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Partes } from "@/components/ui/Partes";
-import { PageSection, claseBoton } from "@/components/admin/ui";
-import { type ProcAdmin, type Conteo, conteoVacio, ESTADO_UI, ORDEN_BARRA, TOPE_LISTA } from "./tipos";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { DataTable, EmptyState, type Columna } from "@/components/admin/ui";
+import { type ProcAdmin, type Conteo, conteoVacio, ESTADO_UI, hace, ORDEN_BARRA, TOPE_LISTA } from "./tipos";
 // ── Los lotes ─────────────────────────────────────────────────────────────
 
 export interface Lote {
@@ -35,75 +35,112 @@ export function agruparLotes(rows: ProcAdmin[]): Lote[] {
   return [...m.values()].sort((a, b) => Number(activo(b)) - Number(activo(a)) || b.ultimo - a.ultimo || b.codigo.localeCompare(a.codigo));
 }
 
+/** "Lima, Callao y 3 más": las zonas de un lote en una línea, sin perder la cuenta de las que no se nombran. */
+const zonasDe = (l: Lote) => (l.zonas.length > 2 ? `${l.zonas.slice(0, 2).join(", ")} y ${l.zonas.length - 2} más` : l.zonas.join(", "));
+
+/** Cuánto de cada estado tiene el lote, en los colores del flujo. */
+function BarraLote({ l }: { l: Lote }) {
+  return (
+    <span className="flex h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+      {ORDEN_BARRA.map((e) => (l.c[e] > 0 ? <span key={e} className={ESTADO_UI[e].barra} style={{ width: `${(l.c[e] / l.total) * 100}%` }} /> : null))}
+    </span>
+  );
+}
+
+/** Lo que todavía no se leyó, por estado; o que ya está todo. */
+function Pendiente({ l }: { l: Lote }) {
+  const abiertos = ORDEN_BARRA.filter((e) => e !== "procesado" && l.c[e] > 0);
+  if (!abiertos.length) return <span className="text-rotulo text-mossTexto">todo leído</span>;
+  return (
+    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-rotulo text-inkSoft">
+      {abiertos.map((e) => (
+        <span key={e} className="inline-flex items-center gap-1 whitespace-nowrap">
+          <span className={cn("h-1.5 w-1.5 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
+          {l.c[e]} {ESTADO_UI[e].corto}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Los lotes (un aporte validado o un lote a nombre de Vigía) en una lista compacta y paginada: antes eran tarjetas
+ * de 100 px, tres a la vista y «Ver los 11» para el resto. Elegir uno filtra la lista de contratos por ese lote
+ * (la página pasa a la pestaña Contratos); el elegido queda marcado.
+ */
 export function Lotes({
   lotes,
   activo,
   onElegir,
   incompletos = false,
 }: {
-  lotes: Lote[];
+  /** null = la lista de contratos todavía no llegó. */
+  lotes: Lote[] | null;
   activo: string | null;
   onElegir: (codigo: string) => void;
   /** La lista de la que salen vino con tope: un lote puede tener más contratos de los que se cuentan acá. */
   incompletos?: boolean;
 }) {
-  const [todos, setTodos] = useState(false);
-  const mostrados = todos ? lotes : lotes.slice(0, 3);
+  const columnas: Columna<Lote>[] = [
+    {
+      clave: "lote",
+      titulo: "Lote",
+      principal: true,
+      className: "max-w-[28rem]",
+      celda: (l) => (
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0 font-mono text-rotulo font-semibold text-ink">{l.codigo}</span>
+          <span className="truncate text-rotulo text-mute">
+            <Partes partes={[l.financiador, zonasDe(l)]} />
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: "leidos",
+      titulo: "Leídos",
+      celda: (l) => (
+        <span className="flex items-center gap-2 whitespace-nowrap text-rotulo text-inkSoft">
+          <BarraLote l={l} />
+          <span>
+            <span className="font-mono text-ink">{l.c.procesado}</span> de {l.total}
+          </span>
+        </span>
+      ),
+    },
+    { clave: "pendiente", titulo: "Pendiente", celda: (l) => <Pendiente l={l} /> },
+    {
+      clave: "movimiento",
+      titulo: "Movimiento",
+      className: "whitespace-nowrap text-rotulo text-mute",
+      celda: (l) => (l.ultimo ? hace(new Date(l.ultimo).toISOString()) : null) ?? "sin movimiento",
+    },
+  ];
+
   return (
-    <PageSection
-      titulo="Lotes"
-      meta={`${lotes.length} ${lotes.length === 1 ? "lote" : "lotes"}${incompletos ? " en la lista" : ""}`}
-      acciones={
-        lotes.length > 3 && (
-          <button onClick={() => setTodos((v) => !v)} aria-expanded={todos} className={claseBoton("fantasma")}>
-            {todos ? "Ver menos" : `Ver los ${lotes.length}`}
-          </button>
-        )
-      }
-      className="mt-6"
-    >
-      {incompletos && (
-        <p className="mb-2 text-rotulo text-inkSoft">
-          Se cuentan sólo los contratos de la lista de abajo, que trae los {TOPE_LISTA} con movimiento más reciente: a un lote grande o antiguo
-          le pueden faltar contratos aquí.
-        </p>
-      )}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {mostrados.map((l) => {
-          const sel = activo === l.codigo;
-          return (
-            <button
-              key={l.codigo}
-              onClick={() => onElegir(l.codigo)}
-              aria-pressed={sel}
-              className={cn(
-                "rounded-2xl border p-4 text-left transition-colors duration-rapido",
-                sel ? "border-granate/60 bg-granate-50 ring-1 ring-inset ring-granate/40" : "border-line bg-paperSoft hover:border-paperEdge hover:bg-paperDeep/60",
-              )}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-dato leading-5 font-semibold text-ink">{l.codigo}</span>
-                <span className="text-rotulo text-mute">
-                  <span className="font-mono text-ink">{l.c.procesado}</span> de {l.total} leídos{incompletos ? " en la lista" : ""}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-rotulo text-mute"><Partes partes={[l.financiador, l.zonas.slice(0, 2).join(", ")]} /></p>
-              <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                {ORDEN_BARRA.map((e) => (l.c[e] > 0 ? <span key={e} className={ESTADO_UI[e].barra} style={{ width: `${(l.c[e] / l.total) * 100}%` }} /> : null))}
-              </div>
-              <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-rotulo text-inkSoft">
-                {ORDEN_BARRA.filter((e) => e !== "procesado" && l.c[e] > 0).map((e) => (
-                  <span key={e} className="inline-flex items-center gap-1">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
-                    {l.c[e]} {ESTADO_UI[e].corto}
-                  </span>
-                ))}
-                {l.c.procesado === l.total && <span className="text-mossTexto">{incompletos ? "todo lo de la lista, leído" : "todo leído"}</span>}
-              </p>
-            </button>
-          );
-        })}
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-meta text-mute">Elige un lote para ver sus contratos.</span>
+        <Ayuda titulo="¿Cómo se cuentan?">
+          Un lote es lo que se pidió leer junto: un aporte validado o un lote procesado a nombre de Vigía. Primero van los que todavía tienen trabajo y
+          después el de movimiento más reciente.
+          {incompletos &&
+            ` Se cuentan sólo los contratos de la lista, que trae los ${TOPE_LISTA} con movimiento más reciente: a un lote grande o antiguo le pueden faltar contratos aquí, y «todo leído» es lo de la lista.`}
+        </Ayuda>
       </div>
-    </PageSection>
+      <DataTable
+        className="mt-3"
+        etiqueta="Lotes"
+        columnas={columnas}
+        filas={lotes}
+        claveFila={(l) => l.codigo}
+        onFila={(l) => onElegir(l.codigo)}
+        filaActiva={(l) => l.codigo === activo}
+        cargando={lotes === null}
+        porPagina={15}
+        compactoMovil
+        vacio={<EmptyState compacto titulo="Todavía no hay lotes en la lista" descripcion="Aparecen al validar un aporte o al procesar un lote a nombre de Vigía." />}
+      />
+    </>
   );
 }

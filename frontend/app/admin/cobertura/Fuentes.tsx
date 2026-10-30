@@ -41,6 +41,11 @@ function estadoFuente({ f, meta }: Fila): { label: string; tono: Tone; pista: st
   return { label: "Sin errores", tono: "ok", pista: `${fmtNum(f.cargas)} ${f.cargas === 1 ? "carga" : "cargas"}` };
 }
 
+/**
+ * La tabla de fuentes externas (pestaña Fuentes externas de Cobertura) y, plegado debajo, el detalle técnico de cada
+ * carga: tabla, último archivo y último error. En el celular cada fuente es su nombre y una línea («En la nube, días 1 y
+ * 15, 10 M filas, hace 3 días, sin errores»); el detalle técnico va en filas con separador, no en una tarjeta por fuente.
+ */
 export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
   // Todas las conocidas + cualquiera nueva que aparezca en la base.
   const claves = Array.from(new Set([...Object.keys(FUENTES), ...fuentes.map((f) => f.fuente)]));
@@ -53,6 +58,7 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
   const orden = (x: Fila) => (x.f?.cargasConError ? 0 : x.f ? 1 : 2);
   filas.sort((a, b) => orden(a) - orden(b));
 
+  // En escritorio la segunda línea de cada celda (cadencia, pista) va debajo; en la fila compacta del celular, al lado.
   const columnas: Columna<Fila>[] = [
     {
       clave: "fuente",
@@ -70,18 +76,44 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
       clave: "donde",
       titulo: "Dónde corre",
       celda: ({ meta }) => (
-        <span title={DONDE[meta.donde].ayuda}>
-          <Badge tono={DONDE[meta.donde].tono} punto>{DONDE[meta.donde].label}</Badge>
-          <span className="mt-0.5 block text-micro text-mute">{meta.cadencia}</span>
+        <span title={DONDE[meta.donde].ayuda} className="inline-flex flex-wrap items-center gap-x-1.5 lg:block">
+          <Badge tono={DONDE[meta.donde].tono} punto>
+            {DONDE[meta.donde].label}
+          </Badge>
+          <span className="text-micro text-mute lg:mt-0.5 lg:block">{meta.cadencia}</span>
         </span>
       ),
     },
-    { clave: "filas", titulo: "Filas", alinear: "derecha", celda: ({ f }) => (f ? fmtNum(f.filas) : <span className="font-sans text-rotulo text-mute">—</span>) },
+    {
+      clave: "filas",
+      titulo: "Filas",
+      alinear: "derecha",
+      celda: ({ f }) =>
+        f ? (
+          <>
+            {fmtNum(f.filas)}
+            {/* Sin encabezado de columna en el celular: el número dice qué es. */}
+            <span aria-hidden className="font-sans text-mute lg:hidden"> filas</span>
+          </>
+        ) : (
+          <span className="hidden font-sans text-rotulo text-mute lg:inline">—</span>
+        ),
+    },
     {
       clave: "ultima",
       titulo: "Última carga",
       className: "whitespace-nowrap text-rotulo",
-      celda: ({ f }) => (f?.ultimaCarga ? <span className="text-ink" title={fmtFechaHora(f.ultimaCarga) ?? undefined}>{hace(f.ultimaCarga)}</span> : <SinDato texto="Sin dato" />),
+      celda: ({ f }) =>
+        f?.ultimaCarga ? (
+          <span className="text-ink" title={fmtFechaHora(f.ultimaCarga) ?? undefined}>
+            {hace(f.ultimaCarga)}
+          </span>
+        ) : (
+          // Sin cargas ya lo dice el estado: en la fila del celular sobra.
+          <span className="hidden lg:inline">
+            <SinDato texto="Sin dato" />
+          </span>
+        ),
     },
     {
       clave: "estado",
@@ -89,36 +121,43 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
       celda: (x) => {
         const e = estadoFuente(x);
         return (
-          <>
+          <span className="inline-flex flex-wrap items-center gap-x-1.5 lg:block">
             <Badge tono={e.tono}>{e.label}</Badge>
-            <span className="mt-0.5 block text-micro text-mute">{e.pista}</span>
-          </>
+            <span className="text-micro text-mute lg:mt-0.5 lg:block">{e.pista}</span>
+          </span>
         );
       },
     },
   ];
 
-  const conCargas = filas.filter((x) => x.f).length;
+  const conCargas = filas.filter((x) => x.f);
 
   return (
     <div className="space-y-3">
-      <DataTable etiqueta="Fuentes externas" columnas={columnas} filas={filas} claveFila={(x) => x.clave} />
-      <Expandable variante="linea" resumen={`Detalle técnico de las cargas (${conCargas} fuentes con registro)`}>
-        <div className="grid gap-2 md:grid-cols-2">
-          {filas.filter((x) => x.f).map(({ clave, f, meta }) => (
-            <div key={clave} className="min-w-0 rounded-xl border border-line bg-paperSoft px-3 py-2">
-              <p className="text-meta font-medium text-ink">{meta.nombre}</p>
-              <p className="truncate font-mono text-micro text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>{clave}{f!.tabla ? ` → ${f!.tabla}` : ""}</p>
-              <p className="text-rotulo leading-snug text-inkSoft">
-                Último archivo <span className="font-mono text-ink">{f!.ultimaClave ?? "sin dato"}</span>, descargado {fmtFechaHora(f!.ultimaDescarga) ?? "sin fecha"}.
-              </p>
-              <p className={`truncate text-rotulo ${f!.ultimoError ? "font-mono text-crimsonTexto" : "text-mute"}`} title={f!.ultimoError ?? undefined}>
-                {f!.ultimoError ? `Último error: ${f!.ultimoError}` : "Sin errores registrados"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </Expandable>
+      <DataTable etiqueta="Fuentes externas" columnas={columnas} filas={filas} claveFila={(x) => x.clave} apilarHasta="lg" compactoMovil />
+      {conCargas.length > 0 && (
+        <Expandable variante="linea" resumen={`Detalle técnico de las cargas (${conCargas.length} fuentes con registro)`}>
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-paperSoft">
+            {conCargas.map(({ clave, f, meta }) => (
+              <li key={clave} className="min-w-0 px-4 py-2.5">
+                <p className="text-meta font-medium text-ink">{meta.nombre}</p>
+                <p className="truncate font-mono text-micro text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>
+                  {clave}
+                  {f!.tabla ? ` → ${f!.tabla}` : ""}
+                </p>
+                <p className="text-rotulo leading-snug text-inkSoft">
+                  {/* Sin punto final: la fecha ya termina en «p. m.». */}
+                  Último archivo <span className="break-all font-mono text-ink">{f!.ultimaClave ?? "sin dato"}</span>, descargado{" "}
+                  {fmtFechaHora(f!.ultimaDescarga) ?? "sin fecha"}
+                </p>
+                <p className={`truncate text-rotulo ${f!.ultimoError ? "font-mono text-crimsonTexto" : "text-mute"}`} title={f!.ultimoError ?? undefined}>
+                  {f!.ultimoError ? `Último error: ${f!.ultimoError}` : "Sin errores registrados"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Expandable>
+      )}
     </div>
   );
 }

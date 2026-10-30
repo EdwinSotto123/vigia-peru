@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow } from "lucide-react";
 import { FranjaTextil, Marca } from "@/components/marca";
-import { precargarAdmin } from "@/lib/useAdmin";
+import { precargarAdmin, useAdmin } from "@/lib/useAdmin";
+import type { Operacion } from "@/lib/admin";
 import { useSesionEquipo } from "@/lib/useEquipo";
 import { puedeVerSeccion, ROLES } from "@/lib/permisos";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,7 @@ import { StatCard } from "@/components/admin/ui/StatCard";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { SkeletonPanel } from "@/components/admin/ui/Skeleton";
 import { claseBoton } from "@/components/admin/ui/boton";
-import type { Tone } from "@/components/admin/ui/tono";
+import { TONO, type Tone } from "@/components/admin/ui/tono";
 
 /**
  * Navegación del panel, agrupada por para qué se entra. `precargar` son las
@@ -30,7 +31,9 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
       { href: "/admin/revision", label: "Revisión humana", icon: Eye, precargar: ["/revision?estado=revision"] },
       { href: "/admin/procesamientos", label: "Procesamiento", icon: Activity, precargar: ["/procesamientos", "/operacion", "/pedidos"] },
       { href: "/admin/clasificacion", label: "Clasificación", icon: Grid3x3, precargar: ["/clasificacion/resumen", "/config/procesamiento"] },
-      { href: "/admin/cobertura", label: "Cobertura", icon: Database, precargar: ["/cobertura", "/cobertura/progreso"] },
+      // Sin precarga: sus dos consultas recorren todas las convocatorias (minutos en una base chica) y pasar el mouse
+      // por el menú no debe dispararlas.
+      { href: "/admin/cobertura", label: "Cobertura", icon: Database },
       { href: "/admin/fuentes", label: "Fuentes y procesos", icon: Workflow, precargar: ["/fuentes"] },
       { href: "/admin/analisis", label: "Análisis a demanda", icon: FlaskConical },
     ],
@@ -62,11 +65,40 @@ function precargar(paths: string[] | undefined) {
 
 const esActivo = (pathname: string, { href, exact }: ItemNav) => (exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
 
+/**
+ * Lo que espera a alguien en cada sección, junto a su nombre en el menú: alertas por decidir, pagos por validar y
+ * contratos con error. Sale de GET /admin/operacion (el mismo pedido del Resumen, cada minuto): se ve dónde hay
+ * trabajo sin abrir cada página. Un cero no se muestra.
+ */
+function pendientesDe(op: Operacion | undefined): Record<string, { n: number; tono: Tone; que: string }> {
+  const r: Record<string, { n: number; tono: Tone; que: string }> = {};
+  if (!op) return r;
+  if (op.revision?.n) r["/admin/revision"] = { n: op.revision.n, tono: "warn", que: "alertas esperan una decisión" };
+  if (op.aportes?.pendientesValidar) r["/admin/contribuciones"] = { n: op.aportes.pendientesValidar, tono: "warn", que: "aportes por validar" };
+  if (op.cola?.error) r["/admin/procesamientos"] = { n: op.cola.error, tono: "danger", que: "contratos con error" };
+  return r;
+}
+
+function Pendientes({ p, activo }: { p?: { n: number; tono: Tone; que: string }; activo?: boolean }) {
+  if (!p) return null;
+  return (
+    <span
+      title={`${p.n.toLocaleString("es-PE")} ${p.que}`}
+      className={cn("ml-auto shrink-0 rounded-full border px-1.5 py-px font-mono text-micro font-semibold tabular-nums", activo ? "border-paper/30 bg-paper/15 text-current" : TONO[p.tono].badge)}
+    >
+      {p.n.toLocaleString("es-PE")}
+      <span className="sr-only"> {p.que}</span>
+    </span>
+  );
+}
+
 export function AdminShell({ children, title, subtitle, actions }: { children: React.ReactNode; title: string; subtitle?: string; actions?: React.ReactNode }) {
   const pathname = usePathname();
   // Quién está en el panel y con qué perfil (lib/useEquipo.ts: una consulta por sesión).
   const { sesion, rol } = useSesionEquipo();
   const correo = sesion?.correo ?? null;
+  const { data: op } = useAdmin<Operacion>("/operacion", { refreshInterval: 60_000 });
+  const pendientes = pendientesDe(op);
   // Hasta saber el perfil se muestra lo mínimo (lo del revisor): un revisor nunca ve aparecer y
   // desaparecer las secciones de admin; a un admin le aparecen las suyas un instante después.
   const nav = NAV.map((g) => ({ ...g, items: g.items.filter((it) => puedeVerSeccion(rol ?? "revisor", it.href)) })).filter((g) => g.items.length);
@@ -149,6 +181,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
                           <Icon size={15} />
                         </span>
                         {it.label}
+                        <Pendientes p={pendientes[it.href]} />
                       </Link>
                     </li>
                   );
@@ -169,7 +202,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
               </span>
             </p>
           )}
-          <Link href="/app/financiar" target="_blank" className={CLASE_PIE_BARRA}>
+          <Link href="/" target="_blank" className={CLASE_PIE_BARRA}>
             <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center"><ExternalLink size={15} /></span>
             Ver sitio público
           </Link>
@@ -215,6 +248,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
                   )}
                 >
                   {it.label}
+                  {pendientes[it.href] && <span className="ml-1.5 font-mono tabular-nums">{pendientes[it.href].n.toLocaleString("es-PE")}</span>}
                 </Link>
               );
             })}

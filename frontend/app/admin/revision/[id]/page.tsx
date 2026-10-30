@@ -1,12 +1,12 @@
 "use client";
 
 import { rutaContrato } from "@/lib/rutas";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useDialog } from "@/components/admin/Dialog";
-import { ContratoDeAlerta, PanelDecision, ResumenAlerta } from "@/components/admin/revision/BarraDecision";
+import { BarraDecisionMovil, ContratoDeAlerta, EstadoAlerta, PanelDecision } from "@/components/admin/revision/BarraDecision";
 import { DetalleTecnico } from "@/components/admin/revision/DetalleTecnico";
 import { EsqueletoPagina, EsqueletoPorQue } from "@/components/admin/revision/Esqueleto";
 import { PorQueBloqueo } from "@/components/admin/revision/PorQueBloqueo";
@@ -16,32 +16,43 @@ import type { ApiResult } from "@/components/convocatoria/types";
 import { nombresPrivadosDe } from "@/components/convocatoria/nombresPrivados";
 import { setRedactNames } from "@/components/Redact";
 import type { AdminError, InformeRevision, RevisionDetalle } from "@/lib/admin";
-import { claseBoton, explicarError, mensajeError } from "@/components/admin/ui";
+import { claseBoton, explicarError, mensajeError, PanelPestana, Pestanas, usePestana } from "@/components/admin/ui";
 import { adaptLoadedToUi } from "@/lib/dossier-adaptar";
 import { refrescarTodo, useAdmin } from "@/lib/useAdmin";
 
 /**
- * Revisión de una alerta que la autoevaluación no dejó publicar. Dos columnas en escritorio:
- *  · a la izquierda, lo que se lee: contrato y por qué se frenó, el juicio del evaluador señal por
- *    señal, el INFORME tal como lo verá el público (plegado, el mismo <ResultadoView>) y el detalle
- *    técnico (evidencia cruda, verificación, agentes, descartes, bitácora), plegado;
- *  · a la derecha, pegada al borde, la decisión: estado y Publicar / Descartar. En el teléfono va primero.
+ * Revisión de una alerta que la autoevaluación no dejó publicar (rediseño 2026-10-30: antes eran 1.5 pantallas de
+ * escritorio con 12 párrafos y 7 cajas dentro de cajas). Dos columnas en escritorio:
+ *  · a la izquierda, el objeto del contrato y tres pestañas (`?tab=`; sólo se pinta la activa): «Por qué se bloqueó»
+ *    (el motivo con su cifra, cada señal con su juicio y las comprobaciones, en filas que se abren a pedido), «Así se
+ *    verá publicado» (el INFORME con el mismo <ResultadoView> del público; su JS se baja al abrir la pestaña) y
+ *    «Detalle técnico» (evidencia cruda, verificación, descartes, bitácora y umbrales);
+ *  · a la derecha, fija al bajar, la decisión (estado y Publicar / Descartar) y los datos del contrato y del análisis.
+ * En el celular: el objeto y el estado arriba, las pestañas, los datos al final, y Publicar / Descartar en una barra
+ * pegada al pie de la pantalla, siempre a mano.
  * Los DNI y apellidos que puedan venir en evidencias, juicios o dictamen pasan por Redact.
  */
-export default function RevisionDetallePage({ params }: { params: { id: string } }) {
-  const id = params.id;
+
+const PESTANAS = ["porque", "publicado", "tecnico"] as const;
+const TITULO = "Revisión";
+const SUBTITULO = "Decide si este análisis se publica";
+
+function Ficha({ id }: { id: string }) {
   const { open, toast } = useDialog();
+  const [tab, setTab] = usePestana(PESTANAS);
   // Sin keepPreviousData: al pasar de una alerta a otra no se puede mostrar, ni un instante, la anterior.
   const det = useAdmin<RevisionDetalle>(`/revision/${id}`, { keepPreviousData: false });
   const inf = useAdmin<InformeRevision>(`/revision/${id}/informe`, { keepPreviousData: false, revalidateOnFocus: false });
   const ui = useMemo(() => (inf.data ? (adaptLoadedToUi(inf.data) as ApiResult) : null), [inf.data]);
   // Los apellidos de las personas privadas del dossier se registran acá, en el render y antes de
-  // pintar los paneles: antes lo hacía sólo ResultadoView, que carga aparte (next/dynamic), y
+  // pintar las pestañas: antes lo hacía sólo ResultadoView, que carga aparte (next/dynamic), y
   // "Por qué se bloqueó" y el detalle técnico se pintaban primero con la lista vacía.
   const nombresPrivados = useMemo(() => (ui ? nombresPrivadosDe(ui) : []), [ui]);
   setRedactNames(nombresPrivados);
   const d = det.data;
-  // El informe público (~120 KB de JS) se baja recién al abrir su bloque plegado.
+  // El juicio del evaluador y la evidencia cruda pueden nombrar a personas privadas: esperan al diccionario que arma el
+  // informe (o a saber que no llegará) para pintarse ya tapados.
+  const nombresListos = !!ui || !!inf.error;
 
   function resolver(estado: "activa" | "descartada") {
     if (!d) return;
@@ -65,8 +76,8 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
 
   return (
     <AdminShell
-      title={d ? d.codigo : "Revisión"}
-      subtitle="Decide si este análisis se publica"
+      title={d ? d.codigo : TITULO}
+      subtitle={SUBTITULO}
       actions={
         <>
           <Link href="/admin/revision" className={claseBoton("secundario")}><ArrowLeft size={12} aria-hidden /> Cola</Link>
@@ -81,28 +92,76 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
       ) : !d ? (
         <EsqueletoPagina />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
-          <aside className="space-y-3 lg:sticky lg:top-20 lg:order-2">
-            <PanelDecision d={d} onDecidir={resolver} />
-            <ContratoDeAlerta d={d} />
-          </aside>
-          <div className="min-w-0 space-y-4 lg:order-1">
-            <ResumenAlerta d={d} />
-            {/* Los apellidos de personas privadas se tapan con el diccionario que arma el informe:
-                hasta que llegue, el juicio del evaluador (que puede nombrarlas) espera. */}
-            {ui || inf.error ? <PorQueBloqueo d={d} /> : <EsqueletoPorQue />}
-            <VistaPublicada
-              ui={ui}
-              publicada={d.estado === "activa" || d.estado === "confirmada"}
-              ocid={(inf.data?.ocid ?? d.ocid ?? "").split("-").pop() || null}
-              error={!inf.data && inf.error ? sinInforme(inf.error) : null}
-              onReintentar={() => inf.mutate()}
-            />
-            {(ui || inf.error) && <DetalleTecnico d={d} />}
+        // Un bloque que envuelve toda la ficha: la barra del celular se pega al pie mientras éste siga en pantalla.
+        <div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+            <div className="min-w-0">
+              {/* El objeto del contrato es el título de lo que se revisa (el h1 es el código): dos renglones como mucho
+                  en escritorio, tres en el celular; entero al pasar el mouse. */}
+              {d.objeto && (
+                <h2 className="line-clamp-3 break-words font-display text-destacado font-bold leading-snug text-ink lg:line-clamp-2" title={d.objeto}>
+                  {d.objeto}
+                </h2>
+              )}
+              {/* En escritorio el estado va en el panel de la derecha. */}
+              <EstadoAlerta d={d} className={d.objeto ? "mt-2 lg:hidden" : "lg:hidden"} />
+
+              <Pestanas
+                className="mt-3"
+                etiqueta={`Secciones de la revisión de ${d.codigo}`}
+                pestanas={[
+                  { clave: "porque", etiqueta: "Por qué se bloqueó" },
+                  { clave: "publicado", etiqueta: "Así se verá publicado" },
+                  { clave: "tecnico", etiqueta: "Detalle técnico" },
+                ]}
+                activa={tab}
+                onCambiar={setTab}
+              />
+              <PanelPestana clave={tab}>
+                {tab === "porque" ? (
+                  <PorQueBloqueo d={d} listo={nombresListos} />
+                ) : tab === "publicado" ? (
+                  <VistaPublicada
+                    ui={ui}
+                    publicada={d.estado === "activa" || d.estado === "confirmada"}
+                    ocid={(inf.data?.ocid ?? d.ocid ?? "").split("-").pop() || null}
+                    error={!inf.data && inf.error ? sinInforme(inf.error) : null}
+                    onReintentar={() => inf.mutate()}
+                  />
+                ) : nombresListos ? (
+                  <DetalleTecnico d={d} />
+                ) : (
+                  <EsqueletoPorQue />
+                )}
+              </PanelPestana>
+            </div>
+
+            {/* `flex gap` y no `space-y`: en el celular el panel de decisión no se pinta y no deja su margen. */}
+            <aside aria-label="Decisión y datos de la alerta" className="flex flex-col gap-3 lg:sticky lg:top-20">
+              <PanelDecision d={d} onDecidir={resolver} className="hidden lg:block" />
+              <ContratoDeAlerta d={d} />
+            </aside>
           </div>
+
+          {d.estado === "revision" && <BarraDecisionMovil codigo={d.codigo} onDecidir={resolver} />}
         </div>
       )}
     </AdminShell>
+  );
+}
+
+export default function RevisionDetallePage({ params }: { params: { id: string } }) {
+  // usePestana lee la URL (useSearchParams) y pide un límite de Suspense; mientras tanto, el esqueleto de la ficha.
+  return (
+    <Suspense
+      fallback={
+        <AdminShell title={TITULO} subtitle={SUBTITULO}>
+          <EsqueletoPagina />
+        </AdminShell>
+      }
+    >
+      <Ficha id={params.id} />
+    </Suspense>
   );
 }
 

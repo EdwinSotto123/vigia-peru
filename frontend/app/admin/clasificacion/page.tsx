@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2, RefreshCw, Save } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { adminFetch } from "@/lib/admin";
 import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 import { useSesionEquipo } from "@/lib/useEquipo";
@@ -11,18 +12,15 @@ import { puede } from "@/lib/permisos";
 import { etapaLabel, motivoLabel, tipoLabel } from "@/lib/contratos";
 import { fecha } from "@/lib/formato";
 import {
-  Aviso,
   Badge,
   Card,
   Chip,
   claseBoton,
-  EmptyState,
   ErrorBanner,
   Expandable,
   PageSection,
   Panel,
   SkeletonPanel,
-  SkeletonStats,
   SkeletonTabla,
   StatCard,
   StatGrid,
@@ -33,10 +31,12 @@ import {
 
 /**
  * Clasificación: cada contrato ingerido lleva un tipo (bienes, obras…) y una etapa (convocada,
- * contratada…). Arriba, qué combinaciones entran hoy a la cola financiable (migración 19); abajo,
- * la matriz tipo × etapa con la cuenta de contratos (docs/design/MATRIZ_TIPO_ETAPA.md) y por qué
- * algunos no se pueden analizar todavía.
- * Fuente: GET /api/admin/clasificacion/resumen · GET/PUT /api/admin/config/procesamiento
+ * contratada…). Arriba, qué combinaciones entran hoy a la cola de lectura (migración 19), en un
+ * formulario compacto; debajo, la franja de cifras y la matriz tipo × etapa con la cuenta de
+ * contratos (docs/design/MATRIZ_TIPO_ETAPA.md); al pie, lado a lado, por qué algunos no se pueden
+ * analizar y lo que los agentes no pudieron verificar. Lo que explica (qué significa cada cosa,
+ * cómo rehacer la clasificación) va en los ⓘ, no en párrafos abiertos (rediseño del 2026-10-30).
+ * Fuente: GET /api/admin/clasificacion/resumen, GET/PUT /api/admin/config/procesamiento
  */
 
 interface Celda { tipo: string; etapa: string; procesable: boolean | null; n: number }
@@ -58,7 +58,7 @@ const ETAPAS_CFG = ["convocada", "adjudicada", "contratada", "en_ejecucion", "fi
 const tipoTxt = (t: string) => (t === "sin_clasificar" ? "Sin clasificar" : tipoLabel(t) ?? humanizar(t) ?? t);
 const etapaTxt = (e: string) => (e === "sin_clasificar" ? "Sin clasificar" : etapaLabel(e) ?? humanizar(e) ?? e);
 
-/** Lo que el agente no pudo verificar por falta de datos (backend/core/clasificacion.py · VALIDACIONES). */
+/** Lo que el agente no pudo verificar por falta de datos (backend/core/clasificacion.py, VALIDACIONES). */
 const VALIDACION: Record<string, string> = {
   infobras_avance: "Sin avance físico ni financiero de la obra (INFOBRAS): no se verificó la ejecución",
   market_sin_items_fisicos: "Sin ítems con cantidad y unidad: no se comparó el precio de mercado",
@@ -68,7 +68,13 @@ const VALIDACION: Record<string, string> = {
 };
 const MOTIVO: Record<string, string> = { etapa_planificacion: "En planificación: todavía no hay bases ni postores" };
 
-/** Qué tipos × etapas entran hoy a la cola financiable. Lo demás se descarga y clasifica igual. */
+/** Rótulo de cada renglón del formulario: el mismo ancho para que los chips arranquen alineados. */
+const ROTULO = "mr-1 w-14 shrink-0 text-rotulo font-medium text-inkSoft";
+
+/**
+ * Qué tipos × etapas entran hoy a la cola de lectura. Lo demás se descarga y clasifica igual. Es su
+ * propia sección: el ⓘ lleva la explicación y la nota guardada con el alcance (antes, dos líneas sueltas).
+ */
 function ProcesamientoActivo() {
   const { data, error, isLoading, mutate } = useAdmin<ProcConfig>("/config/procesamiento", { revalidateOnFocus: false });
   // Qué se procesa lo decide un admin (cambia la cola y lo que se gasta); el revisor lo ve.
@@ -79,10 +85,8 @@ function ProcesamientoActivo() {
   const [msg, setMsg] = useState<{ ok: boolean; error?: unknown } | null>(null);
   useEffect(() => { if (data && !sucio) setV(data.valor); }, [data, sucio]);
 
-  if (error && !data) return <ErrorBanner error={error} titulo="No se pudo leer qué se procesa hoy" onReintentar={() => mutate()} />;
-  if (!v || !data) return isLoading ? <SkeletonPanel lineas={3} /> : null;
-
   const toggle = (k: "tipos_activos" | "etapas_activas", x: string) => {
+    if (!v) return;
     const cur = new Set(v[k] ?? []); cur.has(x) ? cur.delete(x) : cur.add(x);
     setV({ ...v, [k]: Array.from(cur) }); setSucio(true); setMsg(null);
   };
@@ -98,63 +102,86 @@ function ProcesamientoActivo() {
     } catch (e) { setMsg({ ok: false, error: e }); } finally { setSaving(false); }
   }
 
+  const nota = v?.nota?.trim();
   return (
-    <Card relleno="sm">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div className="space-y-2">
-          <div role="group" aria-label="Tipos de contratación activos" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Tipos</span>
-            {TIPOS_CFG.map((t) => editable
-              ? <Chip key={t} activo={!!v.tipos_activos?.includes(t)} onClick={() => toggle("tipos_activos", t)}>{tipoTxt(t)}</Chip>
-              : <Badge key={t} tono={v.tipos_activos?.includes(t) ? "ok" : "muted"} punto={!!v.tipos_activos?.includes(t)}>{tipoTxt(t)}</Badge>)}
-          </div>
-          <div role="group" aria-label="Etapas activas" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Etapas</span>
-            {ETAPAS_CFG.map((e) => editable
-              ? <Chip key={e} activo={!!v.etapas_activas?.includes(e)} onClick={() => toggle("etapas_activas", e)}>{etapaTxt(e)}</Chip>
-              : <Badge key={e} tono={v.etapas_activas?.includes(e) ? "ok" : "muted"} punto={!!v.etapas_activas?.includes(e)}>{etapaTxt(e)}</Badge>)}
-          </div>
-          {/* Migración 69: la base trae contratos desde 2015; a la cola sólo entran los convocados desde esta fecha. */}
-          <div role="group" aria-label="Desde qué fecha entra a la cola" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 w-14 text-rotulo font-medium text-inkSoft">Desde</span>
-            {editable ? (
-              <input
-                type="date"
-                value={v.cola_desde ?? ""}
-                onChange={(e) => { setV({ ...v, cola_desde: e.target.value || null }); setSucio(true); setMsg(null); }}
-                className="rounded-lg border border-line bg-paper px-2 py-1 font-mono text-rotulo text-ink"
-                aria-label="Fecha de convocatoria desde la que un contrato entra a la cola"
-              />
-            ) : (
-              <Badge tono="muted">{v.cola_desde ? fecha(v.cola_desde) : "Todas las fechas"}</Badge>
-            )}
-            <span className="text-rotulo text-mute">Los contratos anteriores se ven en la base, pero no se financian ni se descargan.</span>
-          </div>
-          {v.nota && <p className="text-rotulo text-mute">{v.nota}</p>}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-paperSoft px-3 py-2">
-          <div>
-            <p className="text-rotulo font-medium text-inkSoft">Cola financiable hoy</p>
-            <p className="font-mono text-xl font-semibold leading-tight text-ink">{fmtNum(data.cola) ?? "—"}</p>
-            <p className="text-rotulo text-mute">
-              {data.updatedAt ? `Editada ${fmtFechaHora(data.updatedAt)}${data.updatedBy ? ` por ${data.updatedBy}` : ", sin autor registrado"}` : "Nunca editada"}
-            </p>
-          </div>
-          {editable ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={guardar} disabled={saving || !sucio} className={claseBoton("primario")}>
-                {saving ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Save size={12} aria-hidden />} {saving ? "Guardando…" : "Guardar"}
-              </button>
-              {sucio && <Badge tono="warn" punto>Sin guardar</Badge>}
+    <PageSection
+      titulo="Qué entra a la cola"
+      ayuda={
+        <Ayuda titulo="¿Qué entra a la cola?">
+          <span className="block">
+            Solo los tipos y etapas marcados entran a la cola de lectura. Los demás se descargan y clasifican igual, y
+            aparecen como «documentos listos».
+          </span>
+          <span className="mt-1.5 block">Desde: los contratos convocados antes de esa fecha se ven en la base, pero no entran a la cola ni se descargan.</span>
+          {nota && <span className="mt-1.5 block">Nota del alcance: {nota}</span>}
+        </Ayuda>
+      }
+    >
+      {error && !data ? (
+        <ErrorBanner error={error} titulo="No se pudo leer qué se procesa hoy" onReintentar={() => mutate()} />
+      ) : !v || !data ? (
+        isLoading ? <SkeletonPanel lineas={3} /> : null
+      ) : (
+        <div className="space-y-3">
+          <Card relleno="sm">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="space-y-2">
+                <div role="group" aria-label="Tipos de contratación activos" className="flex flex-wrap items-center gap-1.5">
+                  <span className={ROTULO}>Tipos</span>
+                  {TIPOS_CFG.map((t) => editable
+                    ? <Chip key={t} activo={!!v.tipos_activos?.includes(t)} onClick={() => toggle("tipos_activos", t)}>{tipoTxt(t)}</Chip>
+                    : <Badge key={t} tono={v.tipos_activos?.includes(t) ? "ok" : "muted"} punto={!!v.tipos_activos?.includes(t)}>{tipoTxt(t)}</Badge>)}
+                </div>
+                <div role="group" aria-label="Etapas activas" className="flex flex-wrap items-center gap-1.5">
+                  <span className={ROTULO}>Etapas</span>
+                  {ETAPAS_CFG.map((e) => editable
+                    ? <Chip key={e} activo={!!v.etapas_activas?.includes(e)} onClick={() => toggle("etapas_activas", e)}>{etapaTxt(e)}</Chip>
+                    : <Badge key={e} tono={v.etapas_activas?.includes(e) ? "ok" : "muted"} punto={!!v.etapas_activas?.includes(e)}>{etapaTxt(e)}</Badge>)}
+                </div>
+                {/* Migración 69: la base trae contratos desde 2015; a la cola sólo entran los convocados desde esta fecha. */}
+                <div role="group" aria-label="Desde qué fecha entra a la cola" className="flex flex-wrap items-center gap-1.5">
+                  <span className={ROTULO}>Desde</span>
+                  {editable ? (
+                    <input
+                      type="date"
+                      value={v.cola_desde ?? ""}
+                      onChange={(e) => { setV({ ...v, cola_desde: e.target.value || null }); setSucio(true); setMsg(null); }}
+                      className="rounded-lg border border-line bg-paper px-2 py-1 font-mono text-rotulo text-ink"
+                      aria-label="Fecha de convocatoria desde la que un contrato entra a la cola"
+                    />
+                  ) : (
+                    <Badge tono="muted">{v.cola_desde ? fecha(v.cola_desde) : "Todas las fechas"}</Badge>
+                  )}
+                </div>
+              </div>
+              {/* La cifra y el guardar, separados por un filete (abajo en el celular, al costado en escritorio): no otra caja. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                <div>
+                  <p className="text-rotulo font-medium text-inkSoft">En la cola hoy</p>
+                  <p className="font-display text-seccion font-bold leading-tight tabular-nums text-ink">{fmtNum(data.cola) ?? "Sin dato"}</p>
+                  <p className="text-rotulo text-mute">
+                    {data.updatedAt ? `Editada ${fmtFechaHora(data.updatedAt)}${data.updatedBy ? ` por ${data.updatedBy}` : ", sin autor registrado"}` : "Nunca editada"}
+                  </p>
+                </div>
+                {editable ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={guardar} disabled={saving || !sucio} className={claseBoton("primario")}>
+                      {saving ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Save size={12} aria-hidden />} {saving ? "Guardando…" : "Guardar"}
+                    </button>
+                    {sucio && <Badge tono="warn" punto>Sin guardar</Badge>}
+                    {/* Lo guardado se dice junto al botón (y se anuncia), no en otra caja dentro de la tarjeta. */}
+                    <span role="status">{msg?.ok && !sucio && <Badge tono="ok" punto>Guardado: la cola se recalculó</Badge>}</span>
+                  </div>
+                ) : (
+                  <p className="text-rotulo text-inkSoft">Qué se procesa lo cambia un administrador.</p>
+                )}
+              </div>
             </div>
-          ) : (
-            <p className="text-rotulo text-inkSoft">Qué se procesa lo cambia un administrador.</p>
-          )}
+          </Card>
+          {msg && !msg.ok && <ErrorBanner error={msg.error} titulo="No se guardó el cambio" />}
         </div>
-      </div>
-      {msg?.ok && <Aviso tono="ok" titulo="Guardado. La cola financiable se recalculó." className="mt-3" />}
-      {msg && !msg.ok && <ErrorBanner error={msg.error} titulo="No se guardó el cambio" className="mt-3" />}
-    </Card>
+      )}
+    </PageSection>
   );
 }
 
@@ -178,107 +205,138 @@ export default function ClasificacionPage() {
   // La rampa de cantidades de la identidad Píxel: lima que sube en brillo (más brillante = más contratos).
   // Antes era ámbar, el color de "pide una decisión": una celda con muchos contratos parecía un aviso.
   const fondo = (n: number) => `rgb(var(--granate) / ${(0.04 + 0.26 * (n / max)).toFixed(3)})`;
+  const t = r?.totales;
 
   return (
     <AdminShell
       title="Clasificación"
-      subtitle="Tipo de contratación × etapa: qué se puede analizar y qué queda pendiente"
+      subtitle="Qué se puede analizar, por tipo y etapa"
       actions={
         <button onClick={() => mutate()} className={claseBoton("secundario")}>
           <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} aria-hidden /> Actualizar
         </button>
       }
     >
-      <div className="space-y-5">
-        <PageSection titulo="Qué entra a la cola" descripcion="Solo los tipos y etapas marcados se pueden financiar. Los demás se descargan y clasifican igual, y aparecen como “documentos listos”.">
-          <ProcesamientoActivo />
-        </PageSection>
+      <div className="space-y-6">
+        <ProcesamientoActivo />
 
         <ErrorBanner error={error} titulo="No se pudo leer la clasificación" onReintentar={() => mutate()} />
 
         <PageSection
           titulo="Contratos por tipo y etapa"
-          meta={r ? `${fmtNum(r.totales.total)} contratos` : undefined}
-          descripcion={r ? `Toca una cifra para ver esos contratos. Última clasificación: ${fmtFechaHora(r.totales.ultimaClasificacion) ?? "sin fecha"}` : undefined}
+          meta={t ? `${fmtNum(t.total)} contratos` : undefined}
+          ayuda={
+            <Ayuda titulo="¿Cómo se lee la matriz?">
+              Cada celda cuenta los contratos de ese tipo y etapa: tócala para verlos. Más intensa, más contratos. Entre
+              paréntesis, cuántos de la celda no se pueden procesar.
+            </Ayuda>
+          }
+          descripcion={
+            t ? (
+              <>
+                Última clasificación: {fmtFechaHora(t.ultimaClasificacion) ?? "sin fecha"}{" "}
+                <Ayuda titulo="¿Cómo se vuelve a clasificar todo?">
+                  <span className="block">La clasificación corre sola con cada ingesta. Para rehacerla completa (por ejemplo, tras cambiar las reglas), desde la carpeta del proyecto:</span>
+                  <code className="mt-1.5 block break-all rounded-lg bg-paperDeep px-2 py-1.5 font-mono text-rotulo text-ink">python -m backend.core.clasificacion --reclasificar</code>
+                </Ayuda>
+              </>
+            ) : undefined
+          }
         >
-          {!r ? (
-            isLoading && <div className="space-y-3"><SkeletonStats n={5} /><SkeletonTabla filas={6} columnas={8} /></div>
-          ) : (
-            <div className="space-y-3">
-              <StatGrid columnas={5}>
-                <StatCard etiqueta="Contratos" valor={r.totales.total} />
-                <StatCard etiqueta="Clasificados" valor={r.totales.clasificadas} pista={r.totales.total ? `${Math.round((r.totales.clasificadas / r.totales.total) * 100)} % del total` : undefined} />
-                <StatCard etiqueta="Procesables" valor={r.totales.procesables} tono="ok" />
-                <StatCard etiqueta="No procesables" valor={r.totales.noProcesables} tono={r.totales.noProcesables ? "warn" : "neutral"} pista="su tipo o etapa no tiene revisiones" />
-                <StatCard etiqueta="Pendientes en cola" valor={r.totales.pendientesDeProcesamiento} tono={r.totales.pendientesDeProcesamiento ? "pending" : "neutral"} pista="financiados sin análisis aplicable" />
+          <div className="space-y-3">
+            {/* La franja de cifras: el total ya va junto al título. `tarjeta`: la StatGrid es la caja y sus cifras
+                van sin marco (CifrasEnFila); antes eran cinco cajas, en dos renglones, dentro de otra. */}
+            {(t || isLoading) && (
+              <StatGrid columnas={4} className="tarjeta">
+                <StatCard
+                  etiqueta="Clasificados"
+                  valor={t?.clasificadas ?? null}
+                  cargando={!t}
+                  pista={t?.total ? `${Math.round((t.clasificadas / t.total) * 100)} % del total` : undefined}
+                />
+                <StatCard etiqueta="Procesables" valor={t?.procesables ?? null} cargando={!t} tono="ok" />
+                <StatCard etiqueta="No procesables" valor={t?.noProcesables ?? null} cargando={!t} tono={t?.noProcesables ? "warn" : "neutral"} pista="su tipo o etapa no tiene revisiones" />
+                <StatCard
+                  etiqueta="Pendientes en cola"
+                  valor={t?.pendientesDeProcesamiento ?? null}
+                  cargando={!t}
+                  tono={t?.pendientesDeProcesamiento ? "pending" : "neutral"}
+                  pista="en cola, sin análisis aplicable"
+                />
               </StatGrid>
+            )}
 
-              {/* Escritorio: la matriz completa. */}
-              <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paperSoft md:block">
-                <table className="w-full text-dato leading-5">
-                  <caption className="sr-only">Contratos por tipo de contratación y etapa</caption>
-                  <thead className="text-left text-micro text-mute">
-                    <tr>
-                      <th scope="col" className="px-4 py-2.5 font-medium">Tipo y etapa</th>
-                      {etapas.map((e) => <th key={e} scope="col" className="px-2 py-2.5 text-right font-medium">{etapaTxt(e)}</th>)}
-                      <th scope="col" className="px-4 py-2.5 text-right font-medium">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tipos.map((t) => (
-                      <tr key={t} className="border-t border-line">
-                        <th scope="row" className="px-4 py-2 text-left font-medium text-ink">{tipoTxt(t)}</th>
-                        {etapas.map((e) => {
-                          const v = grid.get(`${t}|${e}`);
-                          if (!v) return <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-mute">0</td>;
+            {!r ? (
+              isLoading && <SkeletonTabla filas={6} columnas={8} />
+            ) : (
+              <>
+                {/* Escritorio: la matriz completa. */}
+                <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paperSoft md:block">
+                  <table className="w-full text-dato leading-5">
+                    <caption className="sr-only">Contratos por tipo de contratación y etapa</caption>
+                    <thead className="text-left text-micro text-mute">
+                      <tr>
+                        <th scope="col" className="px-4 py-2.5 font-medium">Tipo y etapa</th>
+                        {etapas.map((e) => <th key={e} scope="col" className="px-2 py-2.5 text-right font-medium">{etapaTxt(e)}</th>)}
+                        <th scope="col" className="px-4 py-2.5 text-right font-medium">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tipos.map((tp) => (
+                        <tr key={tp} className="border-t border-line">
+                          <th scope="row" className="px-4 py-2 text-left font-medium text-ink">{tipoTxt(tp)}</th>
+                          {etapas.map((e) => {
+                            const v = grid.get(`${tp}|${e}`);
+                            if (!v) return <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-mute">0</td>;
+                            return (
+                              <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4" style={{ background: fondo(v.n) }}>
+                                <Link href={`/app/contratos?tipo=${tp}&etapa=${e}`} className="text-ink hover:underline" title={`${tipoTxt(tp)}, ${etapaTxt(e)}: ver contratos`}>{fmtNum(v.n)}</Link>
+                                {v.np > 0 && <span className="ml-1 text-micro text-amberTexto" title="no procesables">({fmtNum(v.np)})</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.porTipo[tp] ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-line bg-paperSoft">
+                        <th scope="row" className="px-4 py-2 text-left text-rotulo font-medium text-inkSoft">Total</th>
+                        {etapas.map((e) => <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-ink">{fmtNum(r.porEtapa[e] ?? 0)}</td>)}
+                        <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.totales.total)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Teléfono: un bloque plegable por tipo, con sus etapas adentro. */}
+                <div className="space-y-2 md:hidden">
+                  {tipos.map((tp) => (
+                    <Expandable key={tp} resumen={tipoTxt(tp)} meta={<span className="font-mono text-ink">{fmtNum(r.porTipo[tp] ?? 0)}</span>}>
+                      <ul className="space-y-1.5 text-meta">
+                        {etapas.filter((e) => grid.get(`${tp}|${e}`)).map((e) => {
+                          const v = grid.get(`${tp}|${e}`)!;
                           return (
-                            <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4" style={{ background: fondo(v.n) }}>
-                              <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="text-ink hover:underline" title={`${tipoTxt(t)}, ${etapaTxt(e)}: ver contratos`}>{fmtNum(v.n)}</Link>
-                              {v.np > 0 && <span className="ml-1 text-micro text-amberTexto" title="no procesables">({fmtNum(v.np)})</span>}
-                            </td>
+                            <li key={e}>
+                              <Link href={`/app/contratos?tipo=${tp}&etapa=${e}`} className="flex items-center gap-2 rounded-lg hover:bg-paperDeep/50">
+                                <span className="w-24 shrink-0 text-inkSoft">{etapaTxt(e)}</span>
+                                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden><span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(v.n / (r.porTipo[tp] || 1)) * 100}%` }} /></span>
+                                <span className="w-14 text-right font-mono text-ink">{fmtNum(v.n)}</span>
+                              </Link>
+                            </li>
                           );
                         })}
-                        <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.porTipo[t] ?? 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-line bg-paperSoft">
-                      <th scope="row" className="px-4 py-2 text-left text-rotulo font-medium text-inkSoft">Total</th>
-                      {etapas.map((e) => <td key={e} className="px-2 py-2 text-right font-mono text-rotulo leading-4 text-ink">{fmtNum(r.porEtapa[e] ?? 0)}</td>)}
-                      <td className="px-4 py-2 text-right font-mono text-rotulo leading-4 font-semibold text-ink">{fmtNum(r.totales.total)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Teléfono: un bloque plegable por tipo, con sus etapas adentro. */}
-              <div className="space-y-2 md:hidden">
-                {tipos.map((t) => (
-                  <Expandable key={t} resumen={tipoTxt(t)} meta={<span className="font-mono text-ink">{fmtNum(r.porTipo[t] ?? 0)}</span>}>
-                    <ul className="space-y-1.5 text-meta">
-                      {etapas.filter((e) => grid.get(`${t}|${e}`)).map((e) => {
-                        const v = grid.get(`${t}|${e}`)!;
-                        return (
-                          <li key={e}>
-                            <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="flex items-center gap-2 rounded-lg hover:bg-paperDeep/50">
-                              <span className="w-24 shrink-0 text-inkSoft">{etapaTxt(e)}</span>
-                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden><span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(v.n / (r.porTipo[t] || 1)) * 100}%` }} /></span>
-                              <span className="w-14 text-right font-mono text-ink">{fmtNum(v.n)}</span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </Expandable>
-                ))}
-              </div>
-              {Array.from(grid.values()).some((v) => v.np > 0) && <p className="text-rotulo text-inkSoft">Entre paréntesis: cuántos de la celda no se pueden procesar.</p>}
-            </div>
-          )}
+                      </ul>
+                    </Expandable>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </PageSection>
 
         {r && (
+          // Los dos lado a lado desde md, cada uno su propia tarjeta (o una línea si no hay nada que contar).
           <div className="grid items-start gap-3 md:grid-cols-2">
             <Lista
               titulo="Por qué no se pueden procesar"
@@ -287,25 +345,18 @@ export default function ClasificacionPage() {
             />
             <Lista
               titulo="Lo que los agentes no pudieron verificar"
-              descripcion="Contratos donde faltó un dato y se omitió esa parte del análisis."
+              ayuda={<Ayuda titulo="¿Qué cuenta esta lista?">Contratos donde faltó un dato y se omitió esa parte del análisis.</Ayuda>}
               rows={r.validacionesPendientes.map((v) => ({ codigo: v.validacion, texto: VALIDACION[v.validacion] ?? humanizar(v.validacion) ?? v.validacion, n: v.n }))}
               vacio="Ningún análisis quedó incompleto por falta de datos."
             />
           </div>
         )}
-
-        <Expandable variante="linea" resumen="Cómo volver a clasificar todo">
-          <p className="max-w-3xl leading-relaxed text-inkSoft">
-            La clasificación corre sola con cada ingesta. Para rehacerla completa (por ejemplo, tras cambiar las reglas), desde la carpeta del proyecto:
-          </p>
-          <code className="mt-2 inline-block rounded-lg bg-ink px-3 py-2 font-mono text-rotulo text-paper">python -m backend.core.clasificacion --reclasificar</code>
-        </Expandable>
       </div>
     </AdminShell>
   );
 }
 
-function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripcion?: string; rows: { codigo: string; texto: string; n: number }[]; vacio: string }) {
+function Lista({ titulo, ayuda, rows, vacio }: { titulo: string; ayuda?: React.ReactNode; rows: { codigo: string; texto: string; n: number }[]; vacio: string }) {
   const max = Math.max(1, ...rows.map((r) => r.n));
   // Sin filas no hace falta una caja con cabecera: una línea que diga la buena noticia.
   if (!rows.length)
@@ -316,22 +367,20 @@ function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripci
       </p>
     );
   return (
-    <Panel titulo={titulo} descripcion={descripcion}>
-      {(
-        <ul className="space-y-2">
-          {rows.map((r) => (
-            <li key={r.codigo} title={r.codigo}>
-              <div className="flex items-baseline justify-between gap-3 text-meta">
-                <span className="text-ink">{r.texto}</span>
-                <span className="shrink-0 font-mono text-ink">{fmtNum(r.n)}</span>
-              </div>
-              <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                <span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(r.n / max) * 100}%` }} />
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+    <Panel titulo={titulo} ayuda={ayuda}>
+      <ul className="space-y-2">
+        {rows.map((r) => (
+          <li key={r.codigo} title={r.codigo}>
+            <div className="flex items-baseline justify-between gap-3 text-meta">
+              <span className="text-ink">{r.texto}</span>
+              <span className="shrink-0 font-mono text-ink">{fmtNum(r.n)}</span>
+            </div>
+            <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+              <span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(r.n / max) * 100}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

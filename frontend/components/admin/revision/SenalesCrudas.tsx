@@ -3,7 +3,8 @@
 /**
  * Las señales tal como quedaron en la base: id de la regla, agente que la emitió, evidencia completa,
  * norma, fuente y la verificación determinista (cada identificador, monto, fecha o URL cotejado).
- * Va dentro del detalle técnico. La evidencia y los valores cotejados pasan por Redact.
+ * Va en la tarjeta de la pestaña «Detalle técnico»: una fila por señal, separadas por filetes (antes cada
+ * una era una caja dentro de la caja). La evidencia y los valores cotejados pasan por Redact.
  */
 
 import { useState } from "react";
@@ -61,9 +62,9 @@ function Cotejo({ raw }: { raw: string }) {
 }
 
 export function SenalesCrudas({ banderas, alertaId }: { banderas: BanderaRevision[]; alertaId?: string }) {
-  if (!banderas.length) return <p className="text-rotulo text-mute">Sin señales guardadas.</p>;
+  if (!banderas.length) return <p className="px-4 py-3 text-rotulo text-mute sm:px-5">Sin señales guardadas.</p>;
   return (
-    <ul className="space-y-2">
+    <ul className="mt-2 divide-y divide-line border-t border-line">
       {banderas.map((b) => <Senal key={b.id} b={b} alertaId={alertaId} />)}
     </ul>
   );
@@ -117,7 +118,7 @@ function Decision({ b, alertaId }: { b: BanderaRevision; alertaId: string }) {
 function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
   const url = urlSegura(b.fuenteUrl);
   return (
-    <li className="rounded-xl border border-line bg-paperSoft p-3">
+    <li className="px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-rotulo">
         <span className="font-mono text-ink">{b.regla}</span>
         <Badge tono={SEVERIDAD_UI[b.severidad]?.tono ?? SEVERIDAD_UI.baja.tono}>{b.severidad}</Badge>
@@ -138,7 +139,7 @@ function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
         )}
       </div>
       {b.verificacion ? (
-        <div className="mt-2 rounded-lg bg-paperSoft px-2.5 py-2 text-micro text-mute">
+        <div className="mt-2 text-micro text-mute">
           <div className={`inline-flex items-center gap-1 font-medium ${b.verificacion.ok ? "text-mossTexto" : "text-crimsonTexto"}`}>
             {b.verificacion.ok ? <ShieldCheck size={12} aria-hidden /> : <ShieldAlert size={12} aria-hidden />}
             Verificación automática {b.verificacion.ok ? "superada" : "fallida"}

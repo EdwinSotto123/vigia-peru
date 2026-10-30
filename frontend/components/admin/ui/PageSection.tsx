@@ -5,15 +5,18 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Sección de página, como `Seccion` del sitio público: título en la display, una línea de
- * descripción, un dato al lado del título (`meta`, p. ej. "19 pendientes") y acciones a la
- * derecha. Con `plegable` el título se vuelve un botón que abre y cierra el cuerpo (`abierto`
- * = estado inicial); el cuerpo cerrado queda en el DOM con `hidden`, no se desmonta.
+ * Sección de página, como `Seccion` del sitio público: título en la display, un dato al lado del título (`meta`,
+ * p. ej. "19 pendientes"), el ⓘ con la explicación (`ayuda`, un `<Ayuda>` de components/patrones) y acciones a la
+ * derecha. `descripcion` es UNA línea corta (lo que hace falta para leer la sección); todo lo que explica cómo
+ * funciona o de dónde sale va en `ayuda`: el panel tenía párrafos abiertos encima de cada tabla (rediseño del
+ * 2026-10-30). Con `plegable` el título se vuelve un botón que abre y cierra el cuerpo (`abierto` = estado inicial);
+ * el cuerpo cerrado queda en el DOM con `hidden`, no se desmonta.
  */
 export function PageSection({
   titulo,
   descripcion,
   meta,
+  ayuda,
   acciones,
   plegable,
   abierto: abiertoInicial = true,
@@ -24,6 +27,8 @@ export function PageSection({
   titulo: React.ReactNode;
   descripcion?: React.ReactNode;
   meta?: React.ReactNode;
+  /** El ⓘ junto al título: `<Ayuda titulo="¿De dónde sale?">…</Ayuda>`. */
+  ayuda?: React.ReactNode;
   acciones?: React.ReactNode;
   plegable?: boolean;
   abierto?: boolean;
@@ -47,7 +52,7 @@ export function PageSection({
     <section id={id} className={cn("scroll-mt-24", className)}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h2>
+          <h2 className="flex flex-wrap items-center gap-x-1.5">
             {plegable ? (
               <button
                 type="button"
@@ -61,8 +66,9 @@ export function PageSection({
             ) : (
               <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">{cabecera}</span>
             )}
+            {ayuda}
           </h2>
-          {descripcion && <p className="mt-1 max-w-3xl text-dato leading-snug text-inkSoft text-pretty">{descripcion}</p>}
+          {descripcion && <p className="mt-0.5 max-w-3xl text-meta leading-snug text-mute text-pretty">{descripcion}</p>}
         </div>
         {acciones && visible && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>

@@ -1,20 +1,46 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Eye, EyeOff, Users, X } from "lucide-react";
 import { fmtPEN, type FinanciadorAdmin } from "@/lib/admin";
 import { REDES } from "@/lib/perfilAliado";
 import { Ruc } from "@/components/Redact";
+import { cn } from "@/lib/utils";
 import { Aviso, Badge, KeyValue, SinDato, claseBoton, fmtDia, motivoNoVisibleLabel, tipoFinanciadorLabel } from "@/components/admin/ui";
 
 /**
  * Lo que un financiador publicó en su perfil, de SÓLO LECTURA: el perfil lo define quien aporta
  * desde su cuenta (/app/configuracion) y el panel no lo edita (PATCH /admin/financiadores/:id sólo
- * acepta visible y motivo). La única acción es moderar: ocultar o mostrar.
+ * acepta visible y motivo). La única acción es moderar: ocultar o mostrar. Desde el rediseño del
+ * 2026-10-30 es el ÚNICO lugar donde se modera: la lista ya no lleva un botón «Ocultar» en cada fila.
  */
 
 /** Sólo enlaces https bien formados se vuelven href (los escribe quien aporta). */
 const esHttps = (v: string | null | undefined): v is string => !!v && /^https:\/\/[^\s"'<>]+$/i.test(v);
+
+/** Un aviso dentro del detalle: franja de borde a borde de la tarjeta, sin caja propia (nada de cajas dentro de cajas). */
+const AVISO_EN_DETALLE = "-mx-4 rounded-none border-x-0 sm:-mx-5 sm:px-5";
+
+/**
+ * El logo que subió quien aporta, en la lista (chico) y en el detalle (`grande`). Si no carga (el bucket no responde o
+ * el enlace se rompió), el ícono de siempre en vez de la imagen rota con su texto alternativo cortado, que es lo que se
+ * veía en la lista. El fallo se recuerda por URL: un logo nuevo se vuelve a intentar.
+ */
+export function LogoFinanciador({ url, nombre, grande = false }: { url: string | null; nombre?: string; grande?: boolean }) {
+  const [rota, setRota] = useState<string | null>(null);
+  const caja = grande ? "h-12 w-12 rounded-xl" : "h-8 w-8 rounded-lg";
+  if (!url || rota === url)
+    return (
+      <span className={cn("grid shrink-0 place-items-center bg-paperDeep text-inkSoft", caja)} aria-hidden>
+        <Users size={grande ? 18 : 14} />
+      </span>
+    );
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt={nombre ? `Logo de ${nombre}` : ""} onError={() => setRota(url)} className={cn("shrink-0 border border-line bg-paper object-contain", caja)} />
+  );
+}
 
 function Enlace({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -43,12 +69,7 @@ export function DetalleFinanciador({
     <section className="rounded-2xl border border-line bg-paperSoft">
       <header className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
         <div className="flex min-w-0 items-start gap-3">
-          {f.logoUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={f.logoUrl} alt={`Logo de ${nombre}`} className="h-12 w-12 shrink-0 rounded-xl border border-line bg-paper object-contain" />
-          ) : (
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-paperDeep text-inkSoft" aria-hidden><Users size={18} /></span>
-          )}
+          <LogoFinanciador url={f.logoUrl} nombre={nombre} grande />
           <div className="min-w-0">
             <p className={f.nombrePublico ? "font-display text-bloque leading-7 font-bold text-ink" : "text-bloque leading-7 italic text-mute"}>{nombre}</p>
             <p className="text-rotulo text-mute">{tipoFinanciadorLabel(f.tipo)}</p>
@@ -69,13 +90,13 @@ export function DetalleFinanciador({
 
       <div className="space-y-4 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
         {(f.sancionVigente || f.alertasActivas) && (
-          <Aviso tono="danger" titulo="Conflicto de interés">
+          <Aviso tono="danger" titulo="Conflicto de interés" className={AVISO_EN_DETALLE}>
             {f.sancionVigente ? "Su RUC tiene una sanción OSCE vigente." : "Su RUC figura como proveedor en alertas activas."}
           </Aviso>
         )}
 
         {!perfilDisponible ? (
-          <Aviso tono="warn" titulo="Perfil público no disponible">
+          <Aviso tono="warn" titulo="Perfil público no disponible" className={AVISO_EN_DETALLE}>
             La base todavía no guarda el perfil público (falta la migración 30): sólo se ven nombre, tipo y logo.
           </Aviso>
         ) : (

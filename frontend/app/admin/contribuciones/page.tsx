@@ -3,11 +3,12 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Check, ExternalLink, EyeOff, FileImage, MousePointerClick, RefreshCw, Search, X } from "lucide-react";
+import { Check, ExternalLink, EyeOff, FileImage, ImageOff, RefreshCw, Search, X } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { adminFetch, fmtPEN, type ContribucionAdmin } from "@/lib/admin";
+import { adminFetch, fmtPEN, type ContribucionAdmin, type Operacion } from "@/lib/admin";
 import { refrescarAdmin, refrescarTodo, useAdmin } from "@/lib/useAdmin";
 import { useDialog } from "@/components/admin/Dialog";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import {
   Aviso,
   Badge,
@@ -19,6 +20,7 @@ import {
   Expandable,
   FilterChips,
   KeyValue,
+  SinDato,
   estadoAporte,
   fmtFechaHora,
   hace,
@@ -30,19 +32,34 @@ import {
   SkeletonPanel,
   tipoFinanciadorLabel,
   type Columna,
+  type OpcionChip,
 } from "@/components/admin/ui";
 
 /**
- * Contribuciones: la bandeja de aportes. A la izquierda la lista (filtrada por estado y
- * búsqueda), a la derecha el aporte elegido con su comprobante y las dos decisiones
- * (confirmar pago / rechazar). En el teléfono el detalle queda debajo y se baja hasta él.
+ * Contribuciones: la bandeja de aportes. Desde el 2026-10-30 todo aporte nuevo va al fondo común («Ayúdanos a seguir
+ * vigilando»): con tarjeta lo confirma Mercado Pago solo; con Yape, Plin o transferencia se valida aquí, mirando el
+ * comprobante. Los aportes viejos por contrato siguen en la lista con su zona y cuántos contratos ya se leyeron.
+ *
+ * Arriba las bandejas: chips en UNA fila que se desliza de costado en el celular (antes ocupaban tres renglones), con
+ * cuántos esperan en «Por validar», y la búsqueda. Abajo la lista, de 25 en 25, y al lado el aporte elegido con su
+ * comprobante y las dos decisiones (confirmar pago / rechazar). En el teléfono cada aporte va en dos renglones (código y
+ * quién; monto, estado y fecha) y el detalle queda debajo de la lista, que baja hasta él. Qué es cada bandeja, en el ⓘ.
  * Fuente: GET /api/admin/contribuciones · POST …/:codigo/validar · POST …/:codigo/rechazar · PATCH …/:codigo
  */
 
-const TABS = [
-  { valor: "pendiente_pago", etiqueta: "Por validar" }, { valor: "sin_comprobante", etiqueta: "Sin comprobante" }, { valor: "pagada", etiqueta: "Pagadas" }, { valor: "en_proceso", etiqueta: "En proceso" },
-  { valor: "procesada", etiqueta: "Procesadas" }, { valor: "rechazada", etiqueta: "Rechazadas" }, { valor: "todas", etiqueta: "Todas" },
+/** Las bandejas, en el orden del trabajo: lo que espera una decisión primero, «Todas» al final. */
+const BANDEJAS: OpcionChip<string>[] = [
+  { valor: "pendiente_pago", etiqueta: "Por validar" },
+  { valor: "sin_comprobante", etiqueta: "Sin comprobante" },
+  { valor: "pagada", etiqueta: "Pagadas" },
+  { valor: "en_proceso", etiqueta: "En proceso" },
+  { valor: "procesada", etiqueta: "Procesadas" },
+  { valor: "rechazada", etiqueta: "Rechazadas" },
+  { valor: "todas", etiqueta: "Todas" },
 ];
+
+/** Un aviso dentro del detalle: franja de borde a borde de la tarjeta, sin caja propia (nada de cajas dentro de cajas). */
+const AVISO_EN_DETALLE = "-mx-4 rounded-none border-x-0 sm:-mx-5 sm:px-5";
 
 function Page() {
   // El estado vive en la URL y se lee en cada cambio: antes se leía una sola vez, y el enlace del
@@ -65,6 +82,11 @@ function Page() {
     return () => clearTimeout(t);
   }, [q]);
   const { data, error, isLoading, isValidating, mutate } = useAdmin<{ data: ContribucionAdmin[] }>(`/contribuciones?estado=${estado}&q=${encodeURIComponent(qApi)}`);
+  // Cuántos esperan validación, para el chip «Por validar»: es el mismo pedido que ya hace el menú del panel
+  // (AdminShell, cada minuto), así que no suma uno nuevo. Las demás bandejas no tienen conteo propio en el API.
+  const { data: op } = useAdmin<Operacion>("/operacion");
+  const porValidar = op?.aportes?.pendientesValidar ?? 0;
+  const opciones = BANDEJAS.map((b) => (b.valor === "pendiente_pago" && porValidar > 0 ? { ...b, cuenta: porValidar, tono: "warn" as const } : b));
   // Sin pagos por validar la bandeja quedaba en una línea y el resto de la pantalla en blanco: se muestran los
   // últimos aportes (de cualquier estado) para poder abrir su comprobante y ver cómo van.
   const sinPendientes = estado === "pendiente_pago" && !qApi && !!data && data.data.length === 0;
@@ -132,50 +154,76 @@ function Page() {
     });
   }
 
+  // Cómo se pagó y si hay captura. Sólo en la tabla de escritorio: en el celular el segundo renglón es monto, estado y
+  // fecha, y el detalle lo dice entero.
+  const colPago: Columna<ContribucionAdmin> = {
+    clave: "pago",
+    titulo: "Pago",
+    soloEscritorio: true,
+    celda: (c) => {
+      // La captura sólo cuenta en lo que se paga a mano: la tarjeta la confirma Mercado Pago y el aporte de Vigía no lleva.
+      const aMano = c.pasarela !== "mercadopago" && c.pasarela !== "institucional";
+      return (
+        <>
+          <span className="block whitespace-nowrap text-meta text-ink">{pasarelaLabel(c.pasarela) ?? <SinDato />}</span>
+          {aMano &&
+            (c.tieneComprobante ? (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap text-micro text-mossTexto"><FileImage size={11} aria-hidden /> Con comprobante</span>
+            ) : (
+              <span className="whitespace-nowrap text-micro text-mute">Sin comprobante</span>
+            ))}
+        </>
+      );
+    },
+  };
+
   const columnas: Columna<ContribucionAdmin>[] = [
     {
       clave: "aporte",
       titulo: "Aporte",
       principal: true,
+      // En el celular código y quién van en UNA línea (la segunda es monto, estado y fecha); en la tabla, uno sobre otro,
+      // con el tipo y el RUC al lado del nombre.
       celda: (c) => (
-        <>
-          <span className="font-mono text-rotulo leading-4 font-medium text-ink">{c.codigo}</span>
-          <span className="mt-0.5 flex items-center gap-1.5 text-meta text-ink">
-            {c.nombrePublico ?? <span className="text-mute">Anónimo</span>}
-            {!c.visible && <EyeOff size={12} className="text-rust" aria-label="Sin reconocimiento público" />}
-            <span className="text-micro text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
+        <span className="flex min-w-0 items-baseline gap-2 lg:flex-col lg:items-start lg:gap-0.5">
+          <span className="shrink-0 font-mono text-rotulo font-medium leading-4 text-ink">{c.codigo}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-meta text-ink">
+            <span className="truncate" title={c.nombrePublico ?? undefined}>{c.nombrePublico ?? <span className="text-mute">Anónimo</span>}</span>
+            {!c.visible && <EyeOff size={12} className="shrink-0 text-rust" aria-label="Sin reconocimiento público" />}
+            <span className="hidden whitespace-nowrap text-micro text-mute lg:inline">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
           </span>
-        </>
+        </span>
       ),
     },
     {
-      clave: "zona",
-      titulo: "Zona",
+      clave: "destino",
+      titulo: "Destino",
+      soloEscritorio: true,
       celda: (c) =>
         c.tipoAporte === "apoyo" ? (
-          <span className="text-meta text-ink">Para seguir vigilando <span className="text-micro text-mute">{c.periodicidad === "mensual" ? "cada mes" : "una vez"}</span></span>
+          <>
+            <span className="block whitespace-nowrap text-meta text-ink">Fondo común</span>
+            <span className="block text-micro text-mute">{c.periodicidad === "mensual" ? "cada mes" : "una vez"}</span>
+          </>
         ) : (
-          <>{c.zona} <span className="text-micro text-mute">{nivelLabel(c.nivel ?? "")}</span></>
+          // Aporte por contrato, el modelo de antes: su zona y cuántos de sus contratos ya se leyeron (la barra, en el detalle).
+          <>
+            <span className="block text-meta text-ink">
+              {c.zona ?? <SinDato texto="Sin zona" />} <span className="text-micro text-mute">{nivelLabel(c.nivel)}</span>
+            </span>
+            <span className="block whitespace-nowrap text-micro text-inkSoft">
+              <span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} leídos
+              {c.asignados < c.contratos && c.estado !== "pendiente_pago" && c.estado !== "rechazada" && (
+                <span className="text-clayTexto">, {c.contratos - c.asignados} sin asignar</span>
+              )}
+            </span>
+          </>
         ),
     },
-    {
-      clave: "avance",
-      titulo: "Contratos leídos",
-      className: "w-40",
-      celda: (c) => c.tipoAporte === "apoyo" ? <span className="text-rotulo text-mute">Fondo común</span> : (
-        <div className="w-full max-w-[160px]">
-          <span className="text-rotulo text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos}</span>
-          <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} alto="sm" className="mt-1" />
-          {c.asignados < c.contratos && c.estado !== "pendiente_pago" && c.estado !== "rechazada" && <span className="text-micro text-clayTexto">{c.contratos - c.asignados} sin asignar</span>}
-        </div>
-      ),
-    },
     { clave: "monto", titulo: "Monto", alinear: "derecha", celda: (c) => fmtPEN(c.montoPen) },
-    {
-      clave: "comprobante",
-      titulo: "Comprobante",
-      celda: (c) => (c.tieneComprobante ? <span className="inline-flex items-center gap-1 text-rotulo text-mossTexto"><FileImage size={13} aria-hidden /> Subido</span> : <span className="text-rotulo text-mute">No subió</span>),
-    },
+    // Con el detalle abierto, el medio de pago del elegido se lee ahí: sin esta columna la tabla cabe a su lado sin
+    // deslizarse de costado.
+    ...(sel ? [] : [colPago]),
     { clave: "estado", titulo: "Estado", celda: (c) => { const e = estadoAporte(c.estado); return <Badge tono={e.tono}>{e.label}</Badge>; } },
     { clave: "fecha", titulo: "Fecha", className: "whitespace-nowrap text-rotulo text-mute", celda: (c) => <span title={fmtFechaHora(c.pagadaAt ?? c.createdAt) ?? undefined}>{hace(c.pagadaAt ?? c.createdAt)}</span> },
   ];
@@ -190,10 +238,31 @@ function Page() {
         </button>
       }
     >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterChips etiqueta="Estado del aporte" valor={estado} onCambiar={setEstado} opciones={TABS} />
-          <label className="relative w-full sm:ml-auto sm:w-72">
+      <div className="space-y-3">
+        {/* Las bandejas en una sola fila: en el celular se desliza de costado (sin barra), con el ⓘ fuera del desliz para
+            que siempre se vea; en escritorio envuelve si no entra. El relleno de 4 px deja ver el anillo de foco. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex min-w-0 items-center gap-1.5 sm:flex-1">
+            <FilterChips
+              etiqueta="Estado del aporte"
+              valor={estado}
+              onCambiar={setEstado}
+              opciones={opciones}
+              className="-m-1 min-w-0 flex-nowrap overflow-x-auto p-1 [scrollbar-width:none] lg:flex-wrap [&::-webkit-scrollbar]:hidden"
+            />
+            <Ayuda titulo="¿Qué hay en cada bandeja?">
+              <span className="block">
+                <strong className="font-semibold text-ink">Por validar</strong>: pagos con Yape, Plin o transferencia que subieron su comprobante.
+                Elige uno, mira la captura y confirma el pago o recházalo.
+              </span>
+              <span className="mt-1.5 block">
+                <strong className="font-semibold text-ink">Sin comprobante</strong>: no subieron la captura, que es opcional. Si el pago llegó con el
+                código del aporte, confírmalo igual; si no, vence solo a los 30 días.
+              </span>
+              <span className="mt-1.5 block">Los pagos con tarjeta los confirma Mercado Pago: no esperan tu validación.</span>
+            </Ayuda>
+          </div>
+          <label className="relative w-full sm:w-64 sm:shrink-0">
             <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código, nombre, RUC, correo o zona" aria-label="Buscar aporte" className="min-h-[34px] w-full rounded-full border border-line bg-paperDeep py-1.5 pl-8 pr-3 text-meta text-ink placeholder:text-mute focus:border-granate/60" />
           </label>
@@ -201,12 +270,12 @@ function Page() {
 
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
+        {/* Sin nada por validar, la lista muestra los últimos aportes: se dice en una línea, no en un párrafo con caja. */}
         {mostrandoRecientes && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-meta leading-snug text-inkSoft">
-            <Check size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
-            <span>
-              <strong className="font-semibold text-ink">No hay pagos por validar.</strong> Estos son los últimos {recientes.length} aportes: elige uno para ver su comprobante y
-              cuántos de sus contratos ya se leyeron.
+          <p className="flex items-center gap-2 text-meta text-inkSoft">
+            <Check size={15} className="shrink-0 text-moss" aria-hidden />
+            <span className="min-w-0 truncate">
+              <strong className="font-semibold text-ink">No hay pagos por validar.</strong> Los últimos {recientes.length} aportes:
             </span>
           </p>
         )}
@@ -223,12 +292,16 @@ function Page() {
             filaActiva={(c) => sel?.codigo === c.codigo}
             cargando={isLoading || (isValidating && qApi !== q)}
             apilarHasta="lg"
+            porPagina={25}
+            compactoMovil
             className="self-start"
             vacio={
-              q || estado !== "pendiente_pago" ? (
-                <EmptyState compacto titulo="Nada en esta bandeja" descripcion={q ? "Ningún aporte coincide con la búsqueda." : "Prueba con otro estado o con Todas."} />
+              q ? (
+                <EmptyState compacto titulo="Ningún aporte coincide con la búsqueda" />
+              ) : estado !== "pendiente_pago" ? (
+                <EmptyState compacto titulo="Nada en esta bandeja" />
               ) : (
-                <EmptyState compacto icono={<Check size={18} />} titulo="No hay pagos por validar" descripcion="Cuando un financiador registre un aporte y suba su comprobante, aparece aquí." />
+                <EmptyState compacto icono={<Check size={18} />} titulo="No hay pagos por validar" />
               )
             }
           />
@@ -239,12 +312,6 @@ function Page() {
             </aside>
           )}
         </div>
-        {!sel && !!rows?.length && (
-          <p className="flex items-center gap-2 text-meta text-inkSoft">
-            <MousePointerClick size={14} className="shrink-0" aria-hidden />
-            <span><strong className="font-semibold text-ink">Elige un aporte</strong> para ver su comprobante, a quién pertenece y confirmar el pago o rechazarlo.</span>
-          </p>
-        )}
       </div>
     </AdminShell>
   );
@@ -253,6 +320,9 @@ function Page() {
 function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; onValidar: () => void; onRechazar: () => void; onClose: () => void }) {
   const [nota, setNota] = useState(c.notaAdmin ?? "");
   const [guardada, setGuardada] = useState<"ok" | "error" | null>(null);
+  // El comprobante sale del bucket por el API: si no responde, o es un PDF (que una <img> no muestra), un marcador que
+  // lo dice en vez de la imagen rota. El enlace para abrirlo sigue debajo.
+  const [sinVista, setSinVista] = useState(false);
   useEffect(() => setNota(c.notaAdmin ?? ""), [c.codigo, c.notaAdmin]);
   async function guardarNota() {
     if ((c.notaAdmin ?? "") === nota) return;
@@ -299,7 +369,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
         />
 
         {!c.visible && (
-          <Aviso tono="danger" titulo="Sin reconocimiento público">
+          <Aviso tono="danger" titulo="Sin reconocimiento público" className={AVISO_EN_DETALLE}>
             {motivoNoVisibleLabel(c.motivoNoVisible) ?? "Sin motivo registrado"}. El aporte procesa contratos igual.
           </Aviso>
         )}
@@ -309,8 +379,15 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
           <p className="text-micro font-medium text-mute">Comprobante</p>
           {c.tieneComprobante ? (
             <a href={`/api/admin/contribuciones/${c.codigo}/comprobante`} target="_blank" className="mt-1 block overflow-hidden rounded-xl border border-line transition-colors duration-rapido hover:border-paperEdge">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/api/admin/contribuciones/${c.codigo}/comprobante`} alt={`Comprobante del aporte ${c.codigo}`} className="max-h-64 w-full bg-paperDeep object-contain" />
+              {sinVista ? (
+                <span className="flex min-h-24 flex-col items-center justify-center gap-1 bg-paperDeep px-3 py-3 text-center text-rotulo leading-snug text-inkSoft">
+                  <ImageOff size={18} aria-hidden />
+                  No se puede mostrar aquí: puede ser un PDF o el archivo no responde
+                </span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/admin/contribuciones/${c.codigo}/comprobante`} alt={`Comprobante del aporte ${c.codigo}`} onError={() => setSinVista(true)} className="max-h-64 w-full bg-paperDeep object-contain" />
+              )}
               <span className="flex items-center gap-1 px-2 py-1 text-micro text-inkSoft"><ExternalLink size={11} aria-hidden /> Abrir en pestaña nueva</span>
             </a>
           ) : (
@@ -324,9 +401,15 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
           {guardada && <span className={guardada === "ok" ? "text-micro text-mossTexto" : "text-micro text-crimsonTexto"}>{guardada === "ok" ? "Nota guardada" : "No se pudo guardar la nota"}</span>}
         </label>
 
+        {/* Un pago con tarjeta lo confirma Mercado Pago (el API no deja validarlo a mano): sólo se puede rechazar el
+            intento que quedó a medias. */}
         {c.estado === "pendiente_pago" && (
-          <div className="flex gap-2">
-            <button onClick={onValidar} className={claseBoton("exito", "md", "flex-1")}><Check size={14} aria-hidden /> Confirmar pago</button>
+          <div className="flex flex-wrap items-center gap-2">
+            {c.pasarela === "mercadopago" ? (
+              <span className="min-w-0 flex-1 text-meta text-inkSoft">Lo confirma Mercado Pago al cobrar la tarjeta.</span>
+            ) : (
+              <button onClick={onValidar} className={claseBoton("exito", "md", "flex-1")}><Check size={14} aria-hidden /> Confirmar pago</button>
+            )}
             <button onClick={onRechazar} className={claseBoton("peligro", "md")}><X size={14} aria-hidden /> Rechazar</button>
           </div>
         )}

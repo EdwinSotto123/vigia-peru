@@ -1,27 +1,32 @@
 /**
- * Esqueletos de carga con la forma de la página final (barra de decisión, informe con su columna
- * lateral, juicio del evaluador), para que nada salte cuando llegan los datos.
+ * Esqueletos de carga con la forma de la ficha final (rediseño 2026-10-30), para que nada salte cuando llegan los
+ * datos: a la izquierda el objeto, la barra de pestañas y la tarjeta de «Por qué se bloqueó» (resumen y filas); a la
+ * derecha la decisión y los datos (en el celular, debajo). El del informe imita la página pública.
  */
 
 const Barra = ({ className = "" }: { className?: string }) => <div className={`animate-pulse rounded-md bg-paperDeep motion-reduce:animate-none ${className}`} />;
 
+/** La decisión: el estado y los dos botones. */
 export function EsqueletoDecision() {
   return (
-    <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5" aria-hidden>
-      <div className="flex flex-col gap-5 lg:flex-row">
-        <div className="min-w-0 flex-1 space-y-2.5">
-          <div className="flex gap-2"><Barra className="h-5 w-40 rounded-full" /><Barra className="h-5 w-28" /></div>
-          <Barra className="h-5 w-11/12" />
-          <Barra className="h-4 w-3/4" />
-          <Barra className="mt-4 h-3 w-40" />
-          <Barra className="h-4 w-full max-w-xl" />
-          <Barra className="h-3 w-2/3 max-w-md" />
-        </div>
-        <div className="grid shrink-0 grid-cols-2 gap-2 lg:w-60 lg:grid-cols-1">
-          <Barra className="h-10 rounded-xl" />
-          <Barra className="h-10 rounded-xl" />
-        </div>
+    <div className="space-y-3 rounded-2xl border border-line bg-paperSoft p-3.5" aria-hidden>
+      <Barra className="h-5 w-40 rounded-full" />
+      <div className="grid gap-2">
+        <Barra className="h-10 rounded-full" />
+        <Barra className="h-10 rounded-full" />
       </div>
+    </div>
+  );
+}
+
+/** Los datos del contrato y del análisis: filas de rótulo y valor. */
+function EsqueletoDatos() {
+  return (
+    <div className="space-y-2 rounded-2xl border border-line bg-paperSoft p-3.5" aria-hidden>
+      <Barra className="h-3 w-24" />
+      {["w-32", "w-24", "w-20", "w-28", "w-24", "w-32"].map((w, i) => (
+        <div key={i} className="flex gap-3"><Barra className="h-3.5 w-16" /><Barra className={`h-3.5 ${w}`} /></div>
+      ))}
     </div>
   );
 }
@@ -47,30 +52,55 @@ export function EsqueletoInforme() {
   );
 }
 
-export function EsqueletoPorQue() {
+/**
+ * Las filas de las señales mientras llegan: dentro de la tarjeta de «Por qué se bloqueó» (el resumen ya se ve y el
+ * juicio del evaluador espera los nombres a tapar) o en el esqueleto entero. Se anuncia («Cargando…», como los
+ * esqueletos del kit) salvo dentro del esqueleto de la página, que ya lo dice una vez.
+ */
+export function EsqueletoFilas({ anunciar = true }: { anunciar?: boolean }) {
   return (
-    <div className="space-y-3 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5" aria-hidden>
-      <Barra className="h-3 w-32" />
-      <Barra className="h-3 w-2/3 max-w-lg" />
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="flex gap-3 border-t border-line pt-3">
-          <Barra className="h-5 w-5 rounded-full" />
-          <div className="flex-1 space-y-1.5"><Barra className="h-4 w-1/2" /><Barra className="h-3 w-full" /></div>
-        </div>
-      ))}
+    <div className="px-4 py-3 sm:px-5" role={anunciar ? "status" : undefined}>
+      {anunciar && <span className="sr-only">Cargando el juicio del evaluador…</span>}
+      <div aria-hidden>
+        <Barra className="h-4 w-24" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-2.5 border-b border-line py-2.5 last:border-0">
+            <Barra className="h-4 w-4 rounded-full" />
+            <Barra className="h-4 w-1/3" />
+            <Barra className="ml-auto h-5 w-24 rounded-full" />
+            <Barra className="hidden h-5 w-24 rounded-full sm:block" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** «Por qué se bloqueó» entera: el resumen arriba y las filas con ícono, nombre y etiquetas, separadas por filetes. */
+export function EsqueletoPorQue({ anunciar = true }: { anunciar?: boolean }) {
+  return (
+    <div className="divide-y divide-line rounded-2xl border border-line bg-paperSoft">
+      <div className="flex gap-2 px-4 py-3.5 sm:px-5" aria-hidden><Barra className="h-4 w-4 rounded-full" /><Barra className="h-4 w-2/3 max-w-lg" /></div>
+      <EsqueletoFilas anunciar={anunciar} />
     </div>
   );
 }
 
 export function EsqueletoPagina() {
   return (
-    <div className="space-y-6">
-      <EsqueletoDecision />
-      <div className="overflow-hidden rounded-2xl border border-line bg-paperSoft">
-        <div className="border-b border-line bg-paperSoft px-4 py-2"><Barra className="h-3 w-48" /></div>
-        <div className="px-3 py-4 sm:px-6 sm:py-6"><EsqueletoInforme /></div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start" role="status">
+      <span className="sr-only">Cargando la revisión…</span>
+      <div className="min-w-0 space-y-3" aria-hidden>
+        <Barra className="h-5 w-11/12" />
+        <Barra className="h-5 w-2/3" />
+        <Barra className="h-12 w-full rounded-2xl" />
+        <EsqueletoPorQue anunciar={false} />
       </div>
-      <EsqueletoPorQue />
+      {/* Como la ficha: en el celular la decisión va en la barra de abajo, no en esta columna. */}
+      <div className="flex flex-col gap-3" aria-hidden>
+        <div className="hidden lg:block"><EsqueletoDecision /></div>
+        <EsqueletoDatos />
+      </div>
     </div>
   );
 }

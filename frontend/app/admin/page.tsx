@@ -2,8 +2,9 @@
 
 import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ExternalLink, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowRight, ChevronDown, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 import { ESTADO_UI as ESTADO_PROC, ORDEN_BARRA, SONDEO_OPERACION, type Estado } from "@/components/admin/procesamiento/tipos";
 import { fmtPEN, PERFIL_LABEL, type Operacion, type Resumen, type SaludServicio } from "@/lib/admin";
@@ -36,9 +37,12 @@ import {
 } from "@/components/admin/ui";
 
 /**
- * Resumen: lo que espera una decisión, la salud del sistema, la cola, el dinero y lo último
- * que pasó. Cada bloque lleva a su página; cada chequeo de salud se abre para ver el detalle
- * (y, plegado, el técnico: servicios, direcciones, códigos).
+ * Resumen, en el orden de todo el panel: arriba lo que espera una decisión (tres cifras sueltas, cada una
+ * lleva a su bandeja); debajo, dos columnas. A la izquierda el sistema: la salud (un renglón por chequeo, que
+ * se abre para ver los datos, qué hacer y, plegado, el detalle técnico), la cola en una línea y los últimos
+ * contratos leídos. A la derecha la plata (una franja de cifras) y lo último de la bitácora. Cada bloque
+ * lleva a su página y lo que explica va en su ⓘ (rediseño del 2026-10-30: eran 7 cajas dentro de cajas y
+ * 3.6 pantallas en el celular).
  *
  * Tres pedidos independientes (/operacion, /resumen, /log), cada uno pinta su parte apenas
  * llega: /operacion tarda segundos (consulta los servicios desde la API, nunca desde el
@@ -54,6 +58,10 @@ type Relay = Operacion["relay"] & { ms?: number | null; error?: string | null };
 const HORAS_LOTE_PARADO = 30;
 
 const FILAS_COLA: Estado[] = ["procesando", "encolado", "esperando_documentos", "error", "pendiente_de_procesamiento", "procesado"];
+
+/** La bitácora muestra 8 líneas con las dos columnas (xl) y 6 cuando todo va en una: en el celular, menos scroll. */
+const ACTIVIDAD_ANCHO = 8;
+const ACTIVIDAD_ANGOSTO = 6;
 
 const duracion = (seg: number) => (seg < 90 ? `${Math.round(seg)} s` : `${Math.round(seg / 60)} min`);
 const cuando = (iso: string | null | undefined) => fmtFechaHora(iso) ?? "sin dato";
@@ -216,7 +224,7 @@ function chequeos(op: Operacion): Chequeo[] {
         : "Todavía no corrió ningún lote",
       extra: l && loteParado && (
         <p className="text-meta text-inkSoft">
-          Corre cada noche desde el servidor de Lima. Mientras no corra, los contratos financiados se quedan esperando sus documentos.
+          Corre cada noche desde el servidor de Lima. Mientras no corra, los contratos de la cola se quedan esperando sus documentos.
         </p>
       ),
       datos: l ? [
@@ -242,7 +250,7 @@ export default function AdminHome() {
   const verFinanciamiento = puede(rol, "ver_financiamiento");
   const op = opQ.data ?? null;
   const data = resQ.data ?? null;
-  const log = (logQ.data?.data ?? []).slice(0, 8);
+  const log = (logQ.data?.data ?? []).slice(0, ACTIVIDAD_ANCHO);
   const loading = opQ.isValidating || resQ.isValidating || logQ.isValidating;
   // Cargando = todavía sin datos ni error: cada bloque muestra su propio esqueleto.
   const cargandoOp = !op && !opQ.error;
@@ -258,26 +266,31 @@ export default function AdminHome() {
   const k = data?.kpi;
   const cola = op?.cola ?? {};
   const totalCola = FILAS_COLA.reduce((a, e) => a + (cola[e] ?? 0), 0);
+  const enRevision = op ? cola.revision ?? op.revision.n : 0;
   const salud = op ? chequeos(op) : [];
   const enOrden = salud.filter((c) => c.tono === "ok").length;
   const pedidos = op?.pedidos ?? null;
   const descargas = pedidos ? pedidos.pendientes + pedidos.descargando : null;
+  // Contratos con aporte asignado que todavía no se leyeron (desde el fondo común ya no se compra la lectura de uno).
+  const esperanLectura = k ? Math.max(0, k.asignados - k.procesados) : 0;
 
   return (
     <AdminShell
       title="Resumen"
-      subtitle="Lo que espera una decisión y cómo está el sistema, en una pantalla"
+      subtitle="Lo que espera una decisión y cómo está el sistema"
       actions={
         <button onClick={load} className={claseBoton("secundario")}>
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} aria-hidden /> Actualizar
         </button>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <ErrorBanner error={opQ.error} titulo="No se pudo leer el estado del sistema" onReintentar={() => opQ.mutate()} />
 
         <PageSection titulo="Espera una decisión">
-          <StatGrid columnas={verFinanciamiento ? 3 : 2}>
+          {/* Tres cifras sueltas, sin una caja que las envuelva: cada una es el atajo a su bandeja. En el celular, las
+              alertas a lo ancho (su pista es larga) y las otras dos lado a lado: tres apiladas medían 200 px. */}
+          <div className={cn("grid gap-2", verFinanciamiento ? "grid-cols-2 sm:grid-cols-3" : "sm:grid-cols-2")}>
             <StatCard
               etiqueta="Alertas en revisión"
               valor={op?.revision.n ?? null}
@@ -286,6 +299,7 @@ export default function AdminHome() {
               destacado={(op?.revision.n ?? 0) > 0}
               pista={op ? (op.revision.n > 0 && op.revision.masAntigua ? `la más antigua espera desde ${hace(op.revision.masAntigua)}` : "nada frenado") : undefined}
               href="/admin/revision"
+              className={verFinanciamiento ? "col-span-2 sm:col-span-1" : undefined}
             />
             {verFinanciamiento && (
               <StatCard
@@ -321,14 +335,24 @@ export default function AdminHome() {
               }
               href="/admin/procesamientos"
             />
-          </StatGrid>
+          </div>
         </PageSection>
 
         {/* Dos columnas que se apilan cada una por su cuenta: con una grilla de filas, la columna más corta
             dejaba un hueco hasta la fila siguiente. Izquierda, el sistema; derecha, la plata y lo que pasó. */}
-        <div className="grid items-start gap-6 xl:grid-cols-2">
-          <div className="min-w-0 space-y-6">
-            <PageSection titulo="Salud del sistema" meta={op ? `${enOrden} de ${salud.length} en orden` : undefined}>
+        <div className="grid items-start gap-4 sm:gap-6 xl:grid-cols-2">
+          <div className="min-w-0 space-y-4 sm:space-y-6">
+            <PageSection
+              titulo="Salud del sistema"
+              meta={op ? `${enOrden} de ${salud.length} en orden` : undefined}
+              ayuda={
+                <Ayuda titulo="¿Qué se revisa?">
+                  El procesamiento automático, los servicios de agentes, el servidor de Lima (lee el OECE desde una conexión
+                  peruana), las convocatorias nuevas y el lote nocturno de documentos. Abre un chequeo para ver sus datos, qué
+                  hacer y el detalle técnico.
+                </Ayuda>
+              }
+            >
               <div className={CAJA}>
                 {op ? (
                   <ul className="divide-y divide-line">
@@ -343,8 +367,19 @@ export default function AdminHome() {
             </PageSection>
 
             <PageSection
-              titulo="Cola de procesamiento"
+              // «Cola» a secas en el celular: con el nombre entero, el botón «Abrir» bajaba a otro renglón.
+              titulo={<>Cola<span className="hidden sm:inline"> de procesamiento</span></>}
               meta={op ? plural(totalCola, "contrato", "contratos") : undefined}
+              ayuda={
+                <Ayuda titulo="¿Qué es cada estado?">
+                  {AYUDA_COLA.map(([estado, que]) => (
+                    <span key={estado} className="block">
+                      <strong className="font-semibold">{estado}:</strong> {que}.
+                    </span>
+                  ))}
+                  <span className="mt-1.5 block">Toca un estado para ver esos contratos.</span>
+                </Ayuda>
+              }
               acciones={
                 <Link href="/admin/procesamientos" className={claseBoton("secundario")}>
                   Abrir <ArrowRight size={13} aria-hidden />
@@ -353,47 +388,52 @@ export default function AdminHome() {
             >
               <div className={CAJA}>
                 {op ? (
-                  <>
+                  // La cola en una línea: la barra del reparto (desde sm; en el celular, la línea de cifras basta) y la
+                  // cifra de cada estado que tiene algo (una lista de ceros no dice nada). Qué significa cada uno, en el ⓘ.
+                  <div className="space-y-2.5 px-4 py-3">
                     {totalCola > 0 && (
-                      <div className="px-4 pt-3.5" aria-hidden>
-                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep">
-                          {ORDEN_BARRA.map((e) => ((cola[e] ?? 0) > 0 ? <span key={e} className={ESTADO_PROC[e].barra} style={{ width: `${((cola[e] ?? 0) / totalCola) * 100}%` }} /> : null))}
-                        </div>
+                      <div className="hidden h-2 w-full overflow-hidden rounded-full bg-paperDeep sm:flex" aria-hidden>
+                        {ORDEN_BARRA.map((e) => ((cola[e] ?? 0) > 0 ? <span key={e} className={ESTADO_PROC[e].barra} style={{ width: `${((cola[e] ?? 0) / totalCola) * 100}%` }} /> : null))}
                       </div>
                     )}
-                    {/* Solo los estados que tienen algo: una lista de ceros no dice nada y la alarga. */}
-                    <ul className="mt-2 divide-y divide-line">
+                    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-meta">
                       {FILAS_COLA.filter((e) => (cola[e] ?? 0) > 0).map((e) => (
                         <li key={e}>
-                          <FilaCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} etiqueta={ESTADO_PROC[e].label} n={cola[e] ?? 0} ayuda={AYUDA_COLA[e]} />
+                          <EstadoCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} n={cola[e] ?? 0} etiqueta={ESTADO_PROC[e].corto} />
                         </li>
                       ))}
-                      {(cola.revision ?? op.revision.n) > 0 && (
+                      {enRevision > 0 && (
                         <li>
-                          <FilaCola href="/admin/revision" tono="pending" etiqueta="En revisión humana" n={cola.revision ?? op.revision.n} ayuda={AYUDA_COLA.revision} />
+                          <EstadoCola href="/admin/revision" tono="pending" n={enRevision} etiqueta="en revisión humana" />
                         </li>
                       )}
-                      {totalCola === 0 && !(cola.revision ?? op.revision.n) && (
-                        <li className="px-4 py-3 text-meta text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
-                      )}
+                      {totalCola === 0 && !enRevision && <li className="text-inkSoft">Nada en cola ni en revisión: todo lo asignado ya se leyó.</li>}
                     </ul>
-                  </>
+                    <p className="text-rotulo text-mute">
+                      {k ? (
+                        <>
+                          <span className="font-semibold tabular-nums text-ink">{fmtNum(k.colaGlobal)}</span> contratos más esperan turno en todo el país
+                        </>
+                      ) : cargandoRes ? (
+                        "Contando la cola del país…"
+                      ) : (
+                        "Sin dato de la cola del país"
+                      )}
+                    </p>
+                  </div>
                 ) : cargandoOp ? (
-                  <SkeletonFilas filas={6} columnas={2} />
+                  <SkeletonFilas filas={2} columnas={2} />
                 ) : (
                   <EmptyState compacto titulo="La cola no llegó" descripcion="Reintenta desde el aviso de arriba." />
                 )}
-                <p className="border-t border-line px-4 py-3 text-meta text-inkSoft">
-                  {k ? <><span className="font-semibold tabular-nums text-ink">{fmtNum(k.colaGlobal)}</span> contratos esperan financiamiento en todo el país.</> : cargandoRes ? "Contando los que esperan financiamiento…" : "Sin dato de la cola sin financiar."}
-                </p>
               </div>
             </PageSection>
 
             <PageSection
               titulo="Últimos procesados"
               acciones={
-                <Link href="/app/auditoria" target="_blank" className={claseBoton("secundario")}>
-                  <ExternalLink size={13} aria-hidden /> Tablero público
+                <Link href="/admin/procesamientos?estado=procesado" className={claseBoton("secundario")}>
+                  Ver procesados <ArrowRight size={13} aria-hidden />
                 </Link>
               }
             >
@@ -401,14 +441,15 @@ export default function AdminHome() {
                 {op ? (
                   op.ultimos.length ? (
                     <ul className="divide-y divide-line">
-                      {op.ultimos.map((u) => (
+                      {/* recorte: el resumen muestra los 5 últimos; la lista entera está en Procesamiento (enlace de arriba). */}
+                      {op.ultimos.slice(0, 5).map((u) => (
                         <li key={u.ocid}>
                           <Link href={rutaContrato(u.ocid, "vivo")} target="_blank" className={cn(FILA, "block")}>
                             <span className="flex items-start justify-between gap-3">
                               <span className="line-clamp-1 min-w-0 text-meta font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
                               <span className="shrink-0 text-rotulo text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>
                             </span>
-                            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
+                            <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
                               <span className="font-mono">{u.ocid}</span>
                               {u.score != null && <span>puntaje <span className="tabular-nums text-inkSoft">{u.score}</span></span>}
                               {u.segundos != null && <span>leído en {duracion(u.segundos)}</span>}
@@ -419,7 +460,7 @@ export default function AdminHome() {
                       ))}
                     </ul>
                   ) : (
-                    <EmptyState compacto icono={<ShieldCheck size={18} />} titulo="Nada procesado todavía" descripcion="Valida un aporte o procesa un lote: lo que se lea aparece aquí." />
+                    <EmptyState compacto icono={<ShieldCheck size={18} />} titulo="Nada procesado todavía" descripcion="Cuando se lea un contrato de la cola, aparece aquí." />
                   )
                 ) : cargandoOp ? (
                   <SkeletonFilas filas={5} columnas={2} />
@@ -430,25 +471,31 @@ export default function AdminHome() {
             </PageSection>
           </div>
 
-          <div className="min-w-0 space-y-6">
+          <div className="min-w-0 space-y-4 sm:space-y-6">
             {verFinanciamiento && (
+              // Sin botones en la cabecera: Recaudado lleva a Contribuciones y Financiadores a su página (las cifras son
+              // los atajos). Desde el fondo común no se compra la lectura de un contrato: se cuenta lo leído con aportes.
               <PageSection
                 titulo="Financiamiento"
-                acciones={
-                  <>
-                    <Link href="/admin/contribuciones" className={claseBoton("secundario")}>Contribuciones</Link>
-                    <Link href="/admin/financiadores" className={claseBoton("secundario")}>Financiadores</Link>
-                  </>
+                ayuda={
+                  <Ayuda titulo="¿Qué cuentan estas cifras?">
+                    <span className="block">Recaudado: los aportes confirmados (pagados, en proceso o procesados).</span>
+                    <span className="block">Leídos con aportes: contratos que ya se leyeron con un aporte asignado. Los aportes van a un fondo común, no a la lectura de un contrato.</span>
+                    <span className="block">Señales halladas: de esos contratos, los que tienen al menos una señal publicada; los que esperan revisión van aparte.</span>
+                  </Ayuda>
                 }
               >
                 <ErrorBanner error={resQ.error} titulo="No se pudieron leer las cifras de financiamiento" onReintentar={() => resQ.mutate()} className="mb-3" />
-                <StatGrid columnas={2}>
+                {/* `tarjeta`: la StatGrid ya es la caja; dentro de una `.tarjeta` sus cifras van sin marco (CifrasEnFila).
+                    Una franja de cifras, no cuatro cajas dentro de otra. De a dos por fila: en media pantalla, cuatro
+                    en fila dejaban celdas de 70 px y un monto de cinco cifras se salía. */}
+                <StatGrid columnas={2} className="tarjeta">
                   <StatCard etiqueta="Recaudado" valor={k ? fmtPEN(k.montoConfirmadoPen) : null} cargando={cargandoRes} pista={k ? `${fmtPEN(k.montoMesPen)} este mes` : undefined} href="/admin/contribuciones?estado=todas" />
                   <StatCard
-                    etiqueta="Contratos financiados"
-                    valor={k?.contratosFinanciados ?? null}
+                    etiqueta="Leídos con aportes"
+                    valor={k?.procesados ?? null}
                     cargando={cargandoRes}
-                    pista={k ? `${fmtNum(k.procesados)} leídos` : undefined}
+                    pista={k ? (esperanLectura > 0 ? `${fmtNum(esperanLectura)} esperan lectura` : "ninguno espera") : undefined}
                     href="/admin/procesamientos"
                   />
                   <StatCard etiqueta="Señales halladas" valor={k?.senales ?? null} cargando={cargandoRes} pista={k?.enRevision ? `${fmtNum(k.enRevision)} en revisión aparte` : undefined} />
@@ -461,16 +508,17 @@ export default function AdminHome() {
                   />
                 </StatGrid>
                 {data && data.porEstado.length > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-meta font-medium text-inkSoft">Aportes</span>
+                  // Los aportes por estado en UNA fila: en el celular se desliza de costado en vez de partirse en renglones.
+                  <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
+                    <span className="shrink-0 text-meta font-medium text-inkSoft">Aportes</span>
                     <ul className="contents">
                       {data.porEstado.map((e) => {
                         const x = estadoAporte(e.estado);
                         return (
-                          <li key={e.estado}>
+                          <li key={e.estado} className="shrink-0">
                             <Link
                               href={`/admin/contribuciones?estado=${encodeURIComponent(e.estado)}`}
-                              className="inline-flex min-h-[32px] items-center gap-2 rounded-full border border-line bg-paperSoft py-1 pl-1 pr-3 text-meta transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60"
+                              className="inline-flex min-h-[32px] items-center gap-2 whitespace-nowrap rounded-full border border-line bg-paperSoft py-1 pl-1 pr-3 text-meta transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60"
                             >
                               <Badge tono={x.tono} punto>{x.label}</Badge>
                               <span className="font-semibold tabular-nums text-ink">{fmtNum(e.n)}</span>
@@ -496,10 +544,12 @@ export default function AdminHome() {
               <ErrorBanner error={logQ.error} titulo="No se pudo leer la bitácora" onReintentar={() => logQ.mutate()} className="mb-3" />
               <div className={CAJA}>
                 {cargandoLog ? (
-                  <SkeletonFilas filas={5} columnas={2} />
+                  <SkeletonFilas filas={ACTIVIDAD_ANGOSTO} columnas={2} />
                 ) : log.length ? (
                   <ol className="divide-y divide-line">
-                    {log.map((e, i) => <FilaActividad key={`${e.createdAt}-${i}`} e={e} rol={rol} />)}
+                    {log.map((e, i) => (
+                      <FilaActividad key={`${e.createdAt}-${i}`} e={e} rol={rol} className={i >= ACTIVIDAD_ANGOSTO ? "hidden xl:block" : undefined} />
+                    ))}
                   </ol>
                 ) : (
                   <EmptyState compacto icono={<ScrollText size={18} />} titulo="Sin acciones registradas" descripcion="Validar un aporte, publicar una alerta o editar un ajuste deja aquí una línea con tu correo." />
@@ -516,21 +566,24 @@ export default function AdminHome() {
 /** Caja de una lista del resumen: la misma superficie que las tarjetas del panel. */
 const CAJA = "overflow-hidden rounded-2xl border border-line bg-paperSoft";
 /** Fila de una lista: un escalón más clara al pasar el mouse. */
-const FILA = "px-4 py-3 transition-colors duration-rapido hover:bg-paperDeep/50";
+const FILA = "px-4 py-2.5 transition-colors duration-rapido hover:bg-paperDeep/50";
 
-/** Un chequeo de salud: la fila dice el estado; se abre para ver los datos, qué hacer y el detalle técnico. */
+/**
+ * Un chequeo de salud en un renglón (desde sm, el nombre y la frase van juntos y la frase se corta; en el
+ * celular, dos líneas). Se abre para ver los datos, qué hacer y el detalle técnico.
+ */
 function FilaChequeo({ c }: { c: Chequeo }) {
   return (
     <li>
       <details>
-        <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperDeep/50 [&::-webkit-details-marker]:hidden">
-          <Punto tono={c.tono} className="mt-1.5" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-dato font-medium text-ink">{c.nombre}</span>
-            <span className="mt-0.5 block text-meta leading-snug text-mute">{c.frase}</span>
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2 transition-colors duration-rapido hover:bg-paperDeep/50 sm:py-2.5 [&::-webkit-details-marker]:hidden">
+          <Punto tono={c.tono} />
+          <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
+            <span className="block text-dato font-medium leading-5 text-ink sm:shrink-0">{c.nombre}</span>
+            <span className="block text-meta leading-snug text-mute sm:truncate" title={c.frase}>{c.frase}</span>
           </span>
           <Badge tono={c.tono}>{c.estado}</Badge>
-          <ChevronDown size={14} className="mt-0.5 shrink-0 text-inkSoft transition-transform duration-rapido [details[open]>summary_&]:rotate-180" aria-hidden />
+          <ChevronDown size={14} className="shrink-0 text-inkSoft transition-transform duration-rapido [details[open]>summary_&]:rotate-180" aria-hidden />
         </summary>
         <div className="space-y-3 border-t border-line bg-paperDeep/30 px-4 py-3 sm:pl-9">
           {c.extra}
@@ -544,7 +597,8 @@ function FilaChequeo({ c }: { c: Chequeo }) {
               )}
               {c.tecnico?.length ? (
                 <Expandable variante="linea" resumen="Detalle técnico" className="min-w-0 flex-1 pt-0.5">
-                  <ul className="space-y-1 rounded-xl border border-line bg-paper px-3 py-2 font-mono text-rotulo leading-relaxed text-inkSoft">
+                  {/* Un bloque de código, no otra caja: fondo de página sin borde. */}
+                  <ul className="space-y-1 rounded-lg bg-paper px-3 py-2 font-mono text-rotulo leading-relaxed text-inkSoft">
                     {c.tecnico.map((t, i) => <li key={i} className="break-all">{t}</li>)}
                   </ul>
                 </Expandable>
@@ -557,27 +611,24 @@ function FilaChequeo({ c }: { c: Chequeo }) {
   );
 }
 
-/** Qué significa cada estado de la cola, en una frase: quien lo mira no tiene que adivinar. */
-const AYUDA_COLA: Record<string, string> = {
-  procesando: "se están leyendo ahora",
-  encolado: "esperan su turno",
-  esperando_documentos: "falta bajar sus documentos",
-  error: "fallaron: se pueden re-encolar",
-  pendiente_de_procesamiento: "su tipo o etapa no tiene revisiones",
-  procesado: "ya tienen su análisis",
-  revision: "esperan que una persona decida",
-};
+/** Qué significa cada estado de la cola, en una frase: va en el ⓘ de la sección, no en cada fila. */
+const AYUDA_COLA: [string, string][] = [
+  ["Procesados", "ya tienen su análisis"],
+  ["En cola", "esperan su turno"],
+  ["Procesando", "se están leyendo ahora"],
+  ["Esperan documentos", "falta bajar sus documentos"],
+  ["Con error", "fallaron; se pueden volver a encolar"],
+  ["Sin análisis", "su tipo o etapa no tiene revisiones"],
+  ["En revisión humana", "esperan que una persona decida"],
+];
 
-function FilaCola({ href, tono, etiqueta, n, ayuda }: { href: string; tono: Tone; etiqueta: string; n: number; ayuda?: string; total?: number }) {
-  // La cifra va primero y pegada al nombre: la fila se lee de corrido, sin un hueco entre el nombre y el número.
+/** Un estado de la cola en su línea: punto, cifra y nombre, y lleva a esos contratos. La cifra va pegada al nombre. */
+function EstadoCola({ href, tono, n, etiqueta }: { href: string; tono: Tone; n: number; etiqueta: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-rapido hover:bg-paperDeep/50">
+    <Link href={href} className="inline-flex items-center gap-1.5 rounded-md text-inkSoft underline-offset-2 transition-colors duration-rapido hover:text-ink hover:underline">
       <Punto tono={tono} />
-      <span className={cn("w-12 shrink-0 text-right font-display text-bloque font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{fmtNum(n)}</span>
-      <span className="min-w-0 flex-1 text-meta leading-snug text-ink">
-        {etiqueta}
-        {ayuda && <span className="text-mute">, {ayuda}</span>}
-      </span>
+      <span className="font-semibold tabular-nums text-ink">{fmtNum(n)}</span>
+      {etiqueta}
     </Link>
   );
 }
@@ -587,7 +638,7 @@ function FilaCola({ href, tono, etiqueta, n, ayuda }: { href: string; tono: Tone
  * ahí. Sólo si quien mira puede entrar a esa sección: a un revisor no se le ofrece un enlace a
  * Contribuciones que termina en "sección sólo para administradores" (sin perfil todavía, tampoco).
  */
-function FilaActividad({ e, rol }: { e: EntradaBitacora; rol: Rol | null }) {
+function FilaActividad({ e, rol, className }: { e: EntradaBitacora; rol: Rol | null; className?: string }) {
   const a = leerAccion(e);
   const href = a.href && (a.externo || (rol && puedeVerSeccion(rol, a.href.split("?")[0]))) ? a.href : null;
   const cuerpo = (
@@ -602,13 +653,13 @@ function FilaActividad({ e, rol }: { e: EntradaBitacora; rol: Rol | null }) {
     </span>
   );
   return (
-    <li>
+    <li className={className}>
       {href ? (
         <Link href={href} target={a.externo ? "_blank" : undefined} className={cn(FILA, "block")}>
           {cuerpo}
         </Link>
       ) : (
-        <div className="px-4 py-3">{cuerpo}</div>
+        <div className="px-4 py-2.5">{cuerpo}</div>
       )}
     </li>
   );

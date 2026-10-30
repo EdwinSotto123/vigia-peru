@@ -29,12 +29,13 @@ export function Card({
 }
 
 /**
- * Caja con cabecera (título, descripción, acciones) y cuerpo. `sinRelleno` deja
- * el cuerpo a sangre para tablas y listas con separadores propios.
+ * Caja con cabecera (título, ⓘ, descripción de una línea, acciones) y cuerpo. `sinRelleno` deja
+ * el cuerpo a sangre para tablas y listas con separadores propios. Lo que explica va en `ayuda`.
  */
 export function Panel({
   titulo,
   descripcion,
+  ayuda,
   acciones,
   pie,
   sinRelleno,
@@ -45,6 +46,8 @@ export function Panel({
 }: {
   titulo: React.ReactNode;
   descripcion?: React.ReactNode;
+  /** El ⓘ junto al título: `<Ayuda titulo="…">…</Ayuda>`. */
+  ayuda?: React.ReactNode;
   acciones?: React.ReactNode;
   pie?: React.ReactNode;
   sinRelleno?: boolean;
@@ -57,7 +60,10 @@ export function Panel({
     <section id={id} className={cn("overflow-hidden rounded-2xl border", tono ? TONO[tono].caja : "border-line bg-paperSoft", className)}>
       <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 pt-3.5 sm:px-5">
         <div className="min-w-0">
-          <h3 className="text-dato font-semibold leading-snug text-ink">{titulo}</h3>
+          <h3 className="flex flex-wrap items-center gap-x-1.5 text-dato font-semibold leading-snug text-ink">
+            {titulo}
+            {ayuda}
+          </h3>
           {descripcion && <p className="mt-0.5 text-meta leading-snug text-mute">{descripcion}</p>}
         </div>
         {acciones && <div className="flex flex-wrap items-center gap-1.5">{acciones}</div>}

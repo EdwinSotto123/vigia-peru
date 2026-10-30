@@ -31,8 +31,8 @@ export interface ProcAdmin {
 }
 
 /**
- * Un color por estado, el mismo en las cajas, en las barras de avance y en la
- * etiqueta de cada fila: se aprende una vez. Los colores salen del tono del kit
+ * Un color por estado, el mismo en la franja del flujo, en los chips, en las barras
+ * y en la etiqueta de cada fila: se aprende una vez. Los colores salen del tono del kit
  * (components/admin/ui/tono.ts), así una etiqueta "En cola" se ve igual acá, en
  * el Resumen y en cualquier otra página.
  */
@@ -48,6 +48,24 @@ export const ESTADO_UI: Record<Estado, ReturnType<typeof ui>> = {
 };
 
 export const ORDEN_BARRA: Estado[] = ["procesado", "procesando", "encolado", "esperando_documentos", "error", "pendiente_de_procesamiento"];
+
+/** Las tres etapas del flujo, en orden, y aparte lo detenido (no es una etapa más): la franja y los chips de estado. */
+export const FLUJO: Estado[] = ["encolado", "procesando", "procesado"];
+export const DETENIDOS: Estado[] = ["esperando_documentos", "error", "pendiente_de_procesamiento"];
+
+/**
+ * Qué quiere decir cada estado, en pocas palabras (sirven para uno o para varios). Antes iba como texto debajo de
+ * cada caja del flujo y, para los detenidos, repetido en una columna «Detalle» de cada fila; ahora es el ⓘ de la
+ * franja y el `title` de cada etiqueta.
+ */
+export const PISTA_ESTADO: Record<Estado, string> = {
+  encolado: "el dispatcher toma la cola cada 5 min",
+  procesando: "en lectura ahora",
+  procesado: "informe listo",
+  esperando_documentos: "falta bajar sus documentos",
+  error: "3 intentos fallidos; se vuelven a encolar a mano",
+  pendiente_de_procesamiento: "su tipo o etapa no tiene revisiones que aplicar",
+};
 
 // El API puede devolver snake_case (columnas crudas) o camelCase: normalizamos acá.
 export function normalize(r: any): ProcAdmin {
@@ -122,5 +140,13 @@ export function loteNocturnoParado(op: { lote: { iniciadoAt: string | null; fina
  */
 export const SONDEO_OPERACION = { refreshInterval: 60_000, dedupingInterval: 30_000, focusThrottleInterval: 60_000 } as const;
 
-/** El mismo "hace 3 h" (y el mismo plural) que el resto del panel. */
-export { hace, plural } from "@/components/admin/ui/formato";
+/** El mismo "hace 3 h" (y el mismo plural y la misma fecha) que el resto del panel. */
+export { fmtFechaHora, hace, plural } from "@/components/admin/ui/formato";
+
+/**
+ * Filas de dos renglones en el celular con un «⋯» al final. En `compactoMovil` el DataTable pone las columnas de
+ * `acciones` en un renglón propio (tres por fila): el menú va como una columna más, la última, y esta clase (para el
+ * `className` del DataTable) la empuja al borde derecho de su renglón. Sólo toca la lista del celular: en la tabla de
+ * escritorio no hay <li>. Si el DataTable cambia su marcado, el «⋯» queda a la izquierda, nada se rompe.
+ */
+export const MENU_A_LA_DERECHA = "[&_li>div:nth-child(2)>span:last-child]:ml-auto";

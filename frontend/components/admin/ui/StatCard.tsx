@@ -148,8 +148,10 @@ export function StatGrid({ columnas = 4, className, children }: { columnas?: key
     href: c.href,
   }));
   let desde = 0;
+  // `tarjeta`: las cifras de adentro van sin marco (CifrasEnFila), una franja y no cajas dentro de una caja (el panel
+  // medía 7 anidadas en el Resumen por esto; rediseño del 2026-10-30).
   return (
-    <div className={cn("divide-y divide-line rounded-2xl border border-line bg-paperSoft px-4", className)}>
+    <div className={cn("tarjeta divide-y divide-line rounded-2xl border border-line bg-paperSoft px-4", className)}>
       {repartir(cifras.length, columnas).map((n, i) => {
         const fila = cifras.slice(desde, desde + n);
         desde += n;

@@ -109,7 +109,8 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
   }
 
   return (
-    <section className="mb-5 rounded-2xl border border-granate/30 bg-paper p-5">
+    // Sin margen propio: la página separa sus bloques con el mismo espacio (space-y-4).
+    <section className="rounded-2xl border border-granate/30 bg-paper p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-bloque leading-7 font-bold text-ink">Procesar a nombre de Vigía Perú</h2>
