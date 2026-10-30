@@ -650,9 +650,8 @@ personasRouter.get("/:codigo/perfil", async (c) => {
                 (SELECT fc.cargo FROM dji_funcionarios fc WHERE fc.codigo_ddjj = v.codigo_ddjj AND fc.cargo IS NOT NULL
                   ORDER BY fc.fecha_inicio_cargo DESC NULLS LAST LIMIT 1) AS cargo,
                 pp.ficha
-           FROM (SELECT DISTINCT ON (entidad_ruc, declarante_norm) entidad_ruc, declarante_norm, parentesco, grado, codigo_ddjj
-                   FROM dji_vinculos WHERE pariente_doc = $1 AND declarante_norm IS NOT NULL
-                  ORDER BY entidad_ruc, declarante_norm, codigo_ddjj) v
+           -- Por la función de la migración 213: la API no lee dji_vinculos (el DNI de los familiares nunca sale de la base).
+           FROM dji_familia_de($1) v
            LEFT JOIN entidades e ON e.ruc::text = v.entidad_ruc
            LEFT JOIN planilla_persona pp ON pp.entidad_ruc = v.entidad_ruc AND pp.nombre_norm = v.declarante_norm
           LIMIT 40`, [dni]),

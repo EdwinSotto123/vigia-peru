@@ -139,23 +139,19 @@ export const rucsPorTipo = (modelos: boolean) =>
 
 /**
  * Las entidades donde un pariente que un funcionario declaró en su DJI es su locador: lo mismo que la vista
- * dji_nepotismo (migraciones 136-139), sin agruparla. La vista cruza `substr(ruc, 3, 8)` con el DNI del pariente y
- * recorre todas las órdenes de cada entidad (la lista tardaba 2,6 s, y 6 s con el filtro puesto); el RUC 10 es «10» +
- * DNI + un dígito, así que basta un rango sobre la llave de persona_orden_anual (entidad, ruc). Son ~115 de 3,162: se
- * calculan una vez para todas (`entidadesConNepotismo`) y la lista y sus conteos sólo miran si el RUC está entre ellas.
+ * dji_nepotismo (migraciones 136-139), sin agruparla. Se cruza por el DNI del pariente, que la API no puede leer
+ * (migraciones 213 y 214): el cruce lo hacen funciones de la base que devuelven sólo la entidad y el funcionario. Son
+ * ~115 entidades de 3,162: se calculan una vez para todas (`entidadesConNepotismo`) y la lista y sus conteos sólo miran
+ * si el RUC está entre ellas.
  */
-export const PARIENTE_LOCADOR = `length(v.pariente_doc) = 8
-     AND EXISTS (SELECT 1 FROM persona_orden_anual po
-                  WHERE po.entidad_ruc = v.entidad_ruc AND po.ruc BETWEEN '10' || v.pariente_doc || '0' AND '10' || v.pariente_doc || '9')`;
 /** Los funcionarios (entidad y nombre normalizado, el de la planilla) que declararon a un pariente que es su locador. */
-export const SQL_NEPOTISMO = `SELECT DISTINCT v.entidad_ruc AS entidad, v.declarante_norm AS declarante FROM dji_vinculos v
-   WHERE v.declarante_norm IS NOT NULL AND ${PARIENTE_LOCADOR}`;
+export const SQL_NEPOTISMO = `SELECT entidad, declarante FROM dji_nepotismo_pares()`;
 
 export interface FuncionariosConPariente { entidades: string[]; declarantes: string[] }
 const nepotismoMemo = new Memo<FuncionariosConPariente>({ nombre: "entidades:nepotismo", ttlMs: 600_000, staleMs: 3_600_000, max: 1 });
 /**
  * Los pares entidad × funcionario del indicio (~320), calculados una vez para todas las listas (la de entidades y la de
- * planilla), o null si no se pudo (entonces cada condición va fila por fila, con `PARIENTE_LOCADOR`).
+ * planilla), o null si no se pudo (entonces cada condición va fila por fila, con las funciones de la migración 213).
  */
 export const funcionariosConPariente = () =>
   nepotismoMemo
@@ -173,7 +169,7 @@ const entidadesConNepotismo = async () => {
 
 /** El RUC (`ruc`, la columna) tiene el indicio: está en la lista (`param`, su `$n`) o, sin ella, por su cuenta. */
 const enNepotismo = (ruc: string, param: string | null) =>
-  param ? `${ruc}::text = ANY (${param}::text[])` : `EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = ${ruc} AND ${PARIENTE_LOCADOR})`;
+  param ? `${ruc}::text = ANY (${param}::text[])` : `dji_entidad_con_nepotismo(${ruc}::text)`;
 
 /**
  * Lo que otros registros dicen de la entidad, como condición sobre su RUC (`r`): la misma filtra la lista y cuenta cada

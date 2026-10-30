@@ -8,7 +8,7 @@ import { djiEntidad, personalPte } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { adscritosDe, armarOrganigrama, plantillaPorNombre, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type UnidadGobierno, type VisitaArea } from "../lib/organigrama.js";
 import { palabrasBusqueda } from "./personas.js";
-import { PARIENTE_LOCADOR, funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
+import { funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
 
 /**
  * Planilla (migración 92) y plazas CAS (migración 93).
@@ -116,7 +116,7 @@ const NORMAL = (col: string) => `regexp_replace(upper(btrim(${col})), '\\s+', ' 
 export const conPariente = (t: string, pares: FuncionariosConPariente | null, p: (v: unknown) => string) =>
   pares
     ? `(${t}.entidad_ruc, ${t}.nombre_norm) IN (SELECT x.e, x.d FROM unnest(${p(pares.entidades)}::text[], ${p(pares.declarantes)}::text[]) AS x(e, d))`
-    : `EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = ${t}.entidad_ruc AND v.declarante_norm = ${t}.nombre_norm AND ${PARIENTE_LOCADOR})`;
+    : `dji_declarante_con_nepotismo(${t}.entidad_ruc, ${t}.nombre_norm)`;
 
 export const ListaPlanilla = {
   ...Alcance,

@@ -64,7 +64,9 @@ test("entidades: el nepotismo mira la lista ya calculada; sin ella, la condició
   assert.ok(conLista.conds[0].includes("es.ruc::text = ANY ($1::text[])"));
   assert.deepEqual(conLista.vals, [["20131373237"]]);
   const sinLista = filtrosEntidades(q, "es", "es.nombre_norm");
-  assert.ok(sinLista.conds[0].startsWith("EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = es.ruc"));
+  // Sin leer dji_vinculos (el DNI de los familiares): la función de la migración 213.
+  assert.ok(sinLista.conds[0].startsWith("dji_entidad_con_nepotismo(es.ruc"));
+  assert.ok(!sinLista.conds[0].includes("dji_vinculos"));
   assert.deepEqual(sinLista.vals, []);
 });
 
@@ -109,7 +111,7 @@ test("planilla: el sueldo deja fuera lo dudoso; oficina y cargo sólo dentro de 
 
 test("planilla: sin los pares calculados, el pariente locador se mira fila por fila", () => {
   const sql = conPariente("p", null, () => "$9");
-  assert.ok(sql.startsWith("EXISTS (SELECT 1 FROM dji_vinculos v WHERE v.entidad_ruc = p.entidad_ruc AND v.declarante_norm = p.nombre_norm"));
+  assert.equal(sql, "dji_declarante_con_nepotismo(p.entidad_ruc, p.nombre_norm)");
   assert.ok(!sql.includes("$9"));
 });
 
