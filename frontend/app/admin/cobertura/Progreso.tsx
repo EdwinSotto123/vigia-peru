@@ -73,7 +73,13 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
           tono={pr.restantes ? "neutral" : "ok"}
           pista={`${fmtNum(pr.vigentes)} de ${fmtNum(pr.publicados)} publicados${pr.contratos != null ? `, de ${fmtNum(pr.contratos)} contratos en lectura` : ""}`}
         />
-        <StatCard etiqueta="Faltan" valor={pr.restantes} tono={pr.restantes ? "warn" : "ok"} pista={`documentos, de ${fmtNum(pr.contratosSinBajar)} contratos`} />
+        {/* «14 documentos, de 0 contratos» se leía como un error: faltan documentos sueltos de contratos que ya tienen otros. */}
+        <StatCard
+          etiqueta="Faltan"
+          valor={pr.restantes}
+          tono={pr.restantes ? "warn" : "ok"}
+          pista={pr.contratosSinBajar ? `documentos; ${fmtNum(pr.contratosSinBajar)} contratos no tienen ninguno` : pr.restantes ? "documentos sueltos: cada contrato ya tiene alguno" : "documentos"}
+        />
         <StatCard
           etiqueta="Ritmo"
           valor={pr.porNoche ? `${fmtNum(pr.porNoche)} / noche` : "Sin descargas"}
