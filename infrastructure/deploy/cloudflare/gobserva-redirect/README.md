@@ -35,5 +35,8 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   en `frontend/wrangler.jsonc`: así el deploy del CI no necesita permisos sobre la zona. Si un deploy lo borrara,
   volver a crearlo con esa llamada.
 - `gobserva-redirect` desplegado con `gobserva.cloud` y `www.gobserva.cloud`.
-- Falta: los nameservers en IONOS (el MCP de IONOS no tiene herramienta para eso) y, con la zona activa,
-  `NEXT_PUBLIC_SITE_URL` (paso 5).
+- Nameservers cambiados en IONOS a mano (el MCP de IONOS no tiene herramienta para eso); zona activa el 2026-10-29
+  23:51 (Lima). `NEXT_PUBLIC_SITE_URL=https://vigia.gobserva.cloud` en `deploy:web:prod` desde el commit 5130e37.
+- También dependen del dominio: el widget de Turnstile «Vigía Perú — formularios públicos» (lista de dominios) y los
+  dominios autorizados de Firebase Auth (proyecto `simplia-project`, para el ingreso con Google del admin). Ambos ya
+  incluyen `vigia.gobserva.cloud`. Un dominio nuevo para Vigía tiene que sumarse en los dos y en `ALLOWED_ORIGINS`.
