@@ -76,7 +76,7 @@ export default async function InicioApp() {
     pestanas.push({
       id: "entidades",
       etiqueta: "Entidades",
-      metrica: "Entidades con más contratos en cola, esperando que alguien financie su lectura.",
+      metrica: "Entidades con más contratos en la cola de lectura.",
       filas: entidades.items.slice(0, TOPE).map((e) => ({
         id: e.ruc,
         nombre: tituloNatural(e.nombre),

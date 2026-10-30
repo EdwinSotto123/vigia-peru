@@ -926,9 +926,10 @@ empresasRouter.get("/:ruc/socios", async (c) => {
       // Cada persona una vez, con todos sus papeles. Una empresa socia sale con su RUC (las empresas son públicas).
       pool.query(
         `SELECT max(r.nombre) AS nombre, array_agg(DISTINCT r.tipo_rol) AS roles, to_char(min(r.fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde,
-                bool_or(r.tipo_documento = 'REG. UNICO DE CONTRIBUYENTES') AS es_empresa,
-                CASE WHEN bool_or(r.tipo_documento = 'REG. UNICO DE CONTRIBUYENTES') AND max(r.numero_documento) ~ '^20[0-9]{9}$'
-                     THEN max(r.numero_documento) END AS ruc,
+                -- Empresa socia sólo con un RUC 20: el RNP tipa como «RUC» a personas con su DNI de 8 cifras o su RUC 10
+                -- (1,241 casos en PROD, 2026-10-29), que salían como «empresa socia» con el nombre completo. Van a personas.
+                r.numero_documento ~ '^20[0-9]{9}$' AS es_empresa,
+                CASE WHEN r.numero_documento ~ '^20[0-9]{9}$' THEN r.numero_documento END AS ruc,
                 max(r.forma_societaria) AS forma, to_char(max(r.fecha_corte), 'YYYY-MM-DD') AS corte,
                 (SELECT count(DISTINCT r2.ruc_empresa)::int FROM rnp_conformacion_juridica r2
                   WHERE r2.numero_documento = r.numero_documento AND r2.ruc_empresa <> $1 AND r2.ruc_empresa LIKE '20%') AS "otrasEmpresas",
@@ -1011,7 +1012,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
           : null,
       })),
       declaradaDji: declarada.rows,
-      empresasSocias: socios.rows.filter((s) => s.es_empresa).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde })),
+      empresasSocias: socios.rows.filter((s) => s.es_empresa && /^20\d{9}$/.test(s.ruc ?? "")).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde })),
       sociaDe: sociaDe.rows.map((s) => ({ ...s, roles: roles(s.roles) })),
       corte: socios.rows[0]?.corte ?? null,
       vinculadas: vinculadas.rows.map((v) => ({

@@ -58,7 +58,7 @@ const BASE: Record<EstadoLectura, LecturaInfo> = {
     estado: "en_cola",
     label: "En cola",
     detalle:
-      "Está dentro del alcance activo de los agentes: se puede financiar hoy y se procesa por orden de llegada. Quien financia no elige cuál.",
+      "Está dentro del alcance activo de los agentes: espera su lectura en la cola, donde lo más grave va primero. Ningún aporte elige cuál.",
   },
   procesado: {
     estado: "procesado",
@@ -110,11 +110,11 @@ export function estadoLecturaDe(
         detalle: "Los agentes lo están leyendo ahora mismo. El dossier muestra en vivo en qué paso va.",
       };
     case "encolado":
-      // "En cola" es lo que espera financiamiento (§10.1); éste ya está financiado.
+      // "En cola" es lo que espera su lectura (§10.1); éste ya tiene un aporte asignado y espera su turno.
       return {
         estado: "en_cola",
         label: "Esperando turno",
-        detalle: "Su lectura ya está financiada y espera turno. Se lee por orden de llegada.",
+        detalle: "Su lectura ya está financiada y espera turno: lo más grave va primero.",
       };
     case "esperando_documentos":
       return {

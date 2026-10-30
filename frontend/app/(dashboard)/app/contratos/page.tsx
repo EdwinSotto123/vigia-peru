@@ -103,8 +103,8 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
         bajada="Convocatorias del SEACE en la base de Vigía, con su tipo, etapa y estado de lectura."
         ayuda={
           <Ayuda titulo="¿Qué contratos hay aquí?">
-            Cada convocatoria del SEACE que Vigía tiene en su base. Las que aún no tienen dictamen esperan que alguien
-            financie su lectura; se leen por orden de llegada y nadie elige cuál.
+            Cada convocatoria del SEACE que Vigía tiene en su base. Las que aún no tienen dictamen esperan en la cola de
+            lectura, que se lee con el fondo común: lo más grave va primero y ningún aporte elige cuál.
           </Ayuda>
         }
       />

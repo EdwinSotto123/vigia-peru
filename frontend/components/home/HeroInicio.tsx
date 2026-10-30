@@ -67,8 +67,9 @@ function cifras(c: CifrasInicio): Indicador[] {
     {
       valor: c.enCola != null ? numero(c.enCola) : null,
       etiqueta: "en cola",
-      contexto: c.enCola != null ? "esperan que alguien financie su lectura" : undefined,
-      href: c.enCola != null ? "/app/financiar" : undefined,
+      // La cifra abre la lista que cuenta (los contratos en cola), no un pago: se leen con el fondo común, lo más grave primero.
+      contexto: c.enCola != null ? "esperan su lectura; lo más grave va primero" : undefined,
+      href: c.enCola != null ? "/app/contratos?operativo=en_cola" : undefined,
     },
   ];
   return items;

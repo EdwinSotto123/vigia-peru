@@ -728,7 +728,7 @@ function VacioTablero({
     : codigo
       ? "Los contratos se asignan al confirmar el pago. Cuando el aporte esté validado, aquí verás cada uno pasar de la cola al análisis."
       : ubigeo
-        ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
+        ? "Cuando a sus contratos les llegue el turno en la cola, verás aquí cada uno pasar al análisis y al dictamen."
         : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
   const titulo = filtrado ? "Nada coincide con estos filtros" : "Nada en proceso todavía";
   return (

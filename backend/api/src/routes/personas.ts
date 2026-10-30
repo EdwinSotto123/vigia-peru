@@ -616,7 +616,9 @@ personasRouter.get("/:codigo/perfil", async (c) => {
                 (COALESCE(er.adj_monto, 0) + COALESCE(er.ord_monto, 0))::float AS vendido, er.entidades,
                 er.inhabilitada, er.estado_sunat AS "estadoSunat", er.n_alta AS "nAlta"
            FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen er ON er.ruc = r.ruc_empresa::text
-          WHERE r.numero_documento = $1 AND r.tipo_documento LIKE 'DOC. NACIONAL%' AND r.ruc_empresa::text ~ '^20[0-9]{9}$'
+          -- También las filas que el RNP tipa como «RUC» con el DNI de 8 cifras (auditoría del 2026-10-29).
+          WHERE r.numero_documento = $1 AND (r.tipo_documento LIKE 'DOC. NACIONAL%' OR r.tipo_documento = 'REG. UNICO DE CONTRIBUYENTES')
+            AND r.ruc_empresa::text ~ '^20[0-9]{9}$'
           GROUP BY r.ruc_empresa, er.nombre, er.adj_monto, er.ord_monto, er.entidades, er.inhabilitada, er.estado_sunat, er.n_alta
           ORDER BY vendido DESC NULLS LAST, desde LIMIT 60`, [dni]),
       pool.query(

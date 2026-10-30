@@ -351,7 +351,7 @@ function ResumenTab({
           <Indicadores
             items={[
               // "En cola" (§10.1), la misma palabra que financiar y el Inicio para la misma cifra.
-              { valor: enteros(esperando), etiqueta: "en cola", contexto: "esperan que alguien financie su lectura" },
+              { valor: enteros(esperando), etiqueta: "en cola", contexto: "esperan su lectura" },
               {
                 valor: enteros(zona.financiados),
                 etiqueta: "financiados",
@@ -372,11 +372,11 @@ function ResumenTab({
               {esperando > 0 ? (
                 <>
                   <strong className="font-semibold text-ink">{enteros(esperando)}</strong>{" "}
-                  {esperando === 1 ? "contrato" : "contratos"} de {nombre} {esperando === 1 ? "espera" : "esperan"} que
-                  alguien financie su lectura.
+                  {esperando === 1 ? "contrato" : "contratos"} de {nombre} {esperando === 1 ? "espera" : "esperan"} su
+                  lectura; lo más grave va primero.
                 </>
               ) : (
-                <>Toda la cola de {nombre} está financiada. Se procesan en orden de llegada.</>
+                <>Toda la cola de {nombre} está financiada. Se lee primero lo más grave.</>
               )}
             </p>
           </div>
@@ -485,7 +485,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
                 ayuda: (
                   <Ayuda titulo="¿Qué entra en la cola?">
                     <span className="block">{alcanceLargo(detalle.alcance)}</span>
-                    <span className="mt-2 block">Se procesan en orden de llegada; quien financia no elige cuáles.</span>
+                    <span className="mt-2 block">Se lee primero lo más grave; quien aporta no elige cuáles.</span>
                   </Ayuda>
                 ),
               },

@@ -256,18 +256,18 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
           ayuda={
             // El número de agentes sale del catálogo (el DAG real del backend), no se escribe a mano.
             <Ayuda titulo="¿Cómo se lee un contrato?">
-              Cuando su lectura se financia, {TOTAL_AGENTES} agentes leen el expediente, lo cruzan con registros públicos
-              del Estado y publican las señales que encuentren con su norma citada. El resultado es público, lo señale a
-              quien lo señale.
+              Cuando le llega su turno en la cola (lo más grave va primero), {TOTAL_AGENTES} agentes leen el expediente,
+              lo cruzan con registros públicos del Estado y publican las señales que encuentren con su norma citada. El
+              resultado es público, lo señale a quien lo señale.
             </Ayuda>
           }
         >
           <p className="text-mute">Nadie ha leído este expediente todavía.</p>
           <Link
-            href={c.ubigeo ? `/app/financiar/${c.ubigeo}` : "/app/financiar"}
+            href={c.entidadRuc && c.entidad ? `/app/apoyar?para=${c.entidadRuc}&nombre=${encodeURIComponent(tituloNatural(c.entidad))}` : "/app/apoyar"}
             className="mt-2 inline-flex items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline"
           >
-            Financiar la lectura de {c.zona ?? "esta zona"} <ArrowRight size={13} aria-hidden />
+            Ayúdanos a seguir vigilando <ArrowRight size={13} aria-hidden />
           </Link>
         </BloqueDetalle>
       )}

@@ -778,7 +778,7 @@ function indicadores({
       contexto: resumen
         ? leidos === 0
           ? enCola > 0
-            ? `ninguno leído, ${numero(enCola)} esperan quien financie su lectura`
+            ? `ninguno leído, ${numero(enCola)} en la cola de lectura`
             : "ninguno leído todavía"
           : // La misma medida que la lista de entidades ("Con dictamen 13 de 331"): con dictamen publicado.
             `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
@@ -794,8 +794,8 @@ function indicadores({
           </span>
           {enCola > 0 && (
             <span className="mt-2 block">
-              {plural(enCola, "contrato espera", "contratos esperan")} que alguien financie su lectura: eliges la entidad,
-              no el contrato, que se asigna al azar entre los suyos.
+              {plural(enCola, "contrato espera", "contratos esperan")} en la cola de lectura, que se lee con el fondo común:
+              lo más grave va primero, aporte quien aporte.
             </span>
           )}
         </Ayuda>

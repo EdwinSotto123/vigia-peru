@@ -77,7 +77,7 @@ export function CabeceraEjecucion({
             {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
             {p.estado === "encolado" && (
               <Ayuda titulo="¿Cuándo le toca?">
-                Está asignado a un aporte confirmado. El sistema lo toma por orden de llegada: nadie elige cuál va primero.
+                Está asignado a un aporte confirmado. El sistema toma primero lo más grave: nadie elige cuál va primero.
               </Ayuda>
             )}
           </div>

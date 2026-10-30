@@ -5,7 +5,7 @@ import { numero, plural } from "@/lib/formato";
 /**
  * "Esta entidad en Vigía": una placa con sus contratos en la base (desde 2015) y en qué va cada uno, en una barra
  * partida con su leyenda (`BarraPartes`, la misma de «Sus contratos» en el Inicio de la entidad): leídos (y, dentro, los
- * de riesgo medio o alto), en la cola esperando quien financie su lectura, y fuera de la cola (otro tipo, otra etapa o
+ * de riesgo medio o alto), en la cola de lectura (lo más grave va primero), y fuera de la cola (otro tipo, otra etapa o
  * anteriores a la ventana de la cola), con o sin documentos. Antes eran cuatro renglones de texto sueltos. Sale de
  * /contratos/resumen?entidad=. Server-safe.
  */
@@ -21,7 +21,7 @@ export function EntidadEnVigia({
   total: number;
   leidos: number;
   conSenales: number;
-  /** En cola: esperan quien financie su lectura. */
+  /** En la cola de lectura (migración 206: se lee con el fondo común, lo más grave primero). */
   esperando: number;
   /** Fuera de la cola, pero con sus documentos ya bajados. */
   listos?: number;
@@ -60,14 +60,14 @@ export function EntidadEnVigia({
                 detalle: conSenales > 0 ? `${numero(conSenales)} de riesgo medio o alto` : null,
                 tonoDetalle: "text-amberTexto",
               },
-              { clave: "cola", etiqueta: "En la cola: esperan quien financie su lectura", n: esperando, clase: "bg-granate/45" },
+              { clave: "cola", etiqueta: "En la cola de lectura", n: esperando, clase: "bg-granate/45", detalle: "lo más grave va primero" },
               { clave: "listos", etiqueta: "Fuera de la cola, con documentos", n: listos, clase: "bg-granate/20" },
               { clave: "sin", etiqueta: "Fuera de la cola", n: fuera, clase: PISTA, detalle: "otro tipo, otra etapa o de años anteriores" },
             ]}
           />
           {leidos === 0 && esperando > 0 && (
             <p className="mt-2 text-rotulo text-mute">
-              Ninguno leído todavía: {plural(esperando, "espera", "esperan")} que alguien financie su lectura.
+              Ninguno leído todavía: {plural(esperando, "espera", "esperan")} en la cola de lectura.
             </p>
           )}
         </>

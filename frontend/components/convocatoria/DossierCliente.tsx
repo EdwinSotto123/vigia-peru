@@ -100,8 +100,8 @@ export function DossierCliente({
                         Ver los datos del contrato
                       </Link>
                     )}
-                    <Link href="/app/financiar" className={BOTON_PRIMARIO}>
-                      Financiar la lectura de tu zona
+                    <Link href="/app/apoyar" className={BOTON_PRIMARIO}>
+                      Ayúdanos a seguir vigilando
                     </Link>
                     {/* Procesar a demanda cuesta dinero: solo lo ve el equipo (cookie de admin). */}
                     {esAdmin && !esDemo && (

@@ -120,7 +120,7 @@ export default async function Image({ params }: { params: { slug: string } }) {
                     <span style={{ color: PAPER_75, marginLeft: 12 }}>{`de ${numero(puesto.de)} ${puesto.de === 1 ? "aliado" : "aliados"} en el ranking`}</span>
                   </>
                 ) : (
-                  <span style={{ color: PAPER_75 }}>Financia la lectura de contratos públicos</span>
+                  <span style={{ color: PAPER_75 }}>Ayuda a vigilar los contratos públicos</span>
                 )}
               </div>
             </div>

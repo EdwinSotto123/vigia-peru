@@ -313,7 +313,8 @@ export async function SociosEmpresa({
     ].filter(Boolean).join(" "),
   }));
   const filasEmpresas: Fila[] = [
-    ...d.empresasSocias.map((s, i) => ({
+    // Sólo empresas (RUC 20): una respuesta vieja de la API traía aquí personas tipadas como «RUC», con su nombre entero.
+    ...d.empresasSocias.filter((s) => /^20\d{9}$/.test(s.ruc ?? "")).map((s, i) => ({
       id: `e-${i}`,
       href: s.ruc ? rutaEmpresa(s.ruc) : undefined,
       celdas: {

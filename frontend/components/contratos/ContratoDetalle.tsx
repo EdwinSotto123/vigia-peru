@@ -713,8 +713,8 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
         titulo="Pendiente de procesamiento"
         ayuda={
           <Ayuda titulo="¿Qué pasa después?">
-            Cuando el proceso avance de etapa o se pueda leer este tipo de contrato, entrará a la cola de su zona. No se
-            cobra por lo que no se puede leer.
+            Cuando el proceso avance de etapa o se pueda leer este tipo de contrato, entrará a la cola de lectura, donde
+            lo más grave va primero.
           </Ayuda>
         }
         nota={falta}
@@ -743,11 +743,11 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
             {listo && (
               <span className="block">
                 Sus documentos ya están descargados y clasificados: cuando se active la lectura de {tipo} en esta etapa,
-                entrará a la cola de su zona en orden de llegada.
+                entrará a la cola de lectura, donde lo más grave va primero.
               </span>
             )}
             {hoy && <span className={cn("block", listo && "mt-2")}>{hoy}</span>}
-            {!listo && !hoy && <span className="block">Cuando se active, entrará a la cola de su zona en orden de llegada.</span>}
+            {!listo && !hoy && <span className="block">Cuando se active, entrará a la cola de lectura, donde lo más grave va primero.</span>}
           </Ayuda>
         }
       >
@@ -764,20 +764,24 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
       titulo="Todavía sin leer"
       ayuda={
         <Ayuda titulo="¿Cuándo se lee?">
-          Vigía lo leerá cuando alguien financie la lectura de su zona. El orden es por llegada: nadie elige cuál.
+          Vigía lee la cola con el fondo común que sostienen sus aliados: lo más grave va primero (los contratos cuyo
+          ganador tiene antecedentes graves), aporte quien aporte. Ningún aporte elige qué contrato se lee.
         </Ayuda>
       }
       nota={falta}
       acciones={[
-        c.ubigeo && (
-          <EnlaceAccion key="financiar" href={`/app/financiar/${c.ubigeo}`} flecha>
-            Financiar la lectura de {c.zona ?? "esta zona"}
-          </EnlaceAccion>
-        ),
+        // El aporte va al fondo común (migración 206): la entidad sólo dice qué te trajo, no elige qué se lee.
+        <EnlaceAccion
+          key="apoyar"
+          href={c.entidadRuc && c.entidad ? `/app/apoyar?para=${c.entidadRuc}&nombre=${encodeURIComponent(tituloNatural(c.entidad))}` : "/app/apoyar"}
+          flecha
+        >
+          Ayúdanos a seguir vigilando
+        </EnlaceAccion>,
         ...registro,
       ]}
     >
-      Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.
+      Espera en la cola de lectura.
     </FranjaEstado>
   );
 }

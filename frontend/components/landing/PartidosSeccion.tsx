@@ -88,7 +88,7 @@ export async function PartidosSeccion() {
 /**
  * Qué tanto vigilamos a cada partido, en una fila que se desliza. Cada contrato se asocia al partido
  * que gobernaba la entidad el mes en que se convocó (2023 a 2026). La barra muestra lo leído sobre lo
- * publicado; lo demás espera a que alguien lo financie.
+ * publicado; lo demás espera en la cola de lectura (lo más grave va primero).
  */
 function PorPartido({ r }: { r: RankingPartidos }) {
   const top = r.data.slice(0, 12);

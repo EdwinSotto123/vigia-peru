@@ -102,7 +102,7 @@ export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
 
 const FILAS_CUENTA: { que: string; sin: string | null; con: string }[] = [
   { que: "Ver el mapa, los contratos y las señales", sin: "Sí", con: "Sí" },
-  { que: "Financiar la lectura de contratos", sin: "Como invitado, con tu código VIG", con: "Con tus aportes reunidos y su progreso" },
+  { que: "Apoyar la vigilancia", sin: "Como invitado, con tu código VIG", con: "Con tus aportes reunidos y su progreso" },
   { que: "Denunciar una obra", sin: "Sin tu nombre", con: "Sin tu nombre, y ves el estado de las tuyas" },
   { que: "Seguir zonas y entidades", sin: null, con: "Con avisos de lo nuevo" },
   { que: "Aparecer en el ranking de aliados", sin: null, con: "Con tu perfil público, o como anónimo" },

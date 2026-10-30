@@ -163,12 +163,12 @@ export function TablaAnalisis({ universo, filtrados, query, ruta, parcial, total
       <EstadoVacio
         titulo="Todavía no hay análisis publicados"
         accion={
-          <Link href="/app/financiar" className={claseAccion("primario")}>
-            Financiar la lectura de tu zona
+          <Link href="/app/apoyar" className={claseAccion("primario")}>
+            Ayúdanos a seguir vigilando
           </Link>
         }
       >
-        Vigía lee los contratos en orden de cola, cuando alguien financia la lectura de su zona.
+        Vigía lee los contratos de la cola con el fondo común que sostienen sus aliados: lo más grave va primero.
       </EstadoVacio>
     );
   }
@@ -323,7 +323,7 @@ function SinResultados({ query, ruta }: { query: AnalisisQuery; ruta: string }) 
         </span>
       }
     >
-      Vigía no analiza a pedido: lee los contratos en orden de cola, cuando alguien financia la lectura de su zona.
+      Vigía no analiza a pedido: lee la cola con el fondo común que sostienen sus aliados, lo más grave primero.
     </EstadoVacio>
   );
 }

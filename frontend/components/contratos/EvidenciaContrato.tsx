@@ -495,7 +495,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
     guardados && docs.length > 0
       ? guardados.n > 0 && guardados.expiraAt
         ? `${numero(guardados.n)} guardados en Vigía hasta el ${fecha(dia(guardados.expiraAt))}.`
-        : "Sin copia en Vigía: se descargan al financiar la lectura."
+        : "Sin copia en Vigía: se descargan cuando se lee a fondo."
       : undefined;
   const columnas: Columna[] = [
     { clave: "tipo", titulo: "Tipo", ancho: "132px" },
