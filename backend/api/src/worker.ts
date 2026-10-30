@@ -9,6 +9,7 @@
 
 import "./workers/plataforma.js";
 import { app } from "./app.js";
+import { cerradaAlPublico } from "./lib/antibots.js";
 import { atenderConAmbito } from "./workers/ambito.js";
 import { conCdn } from "./workers/cdn.js";
 import type { Env } from "./workers/env.js";
@@ -18,6 +19,9 @@ export { Limitador } from "./workers/limitador.js";
 
 export default {
   fetch(request, env, ctx) {
+    // Sólo nuestros Workers: lo de internet entra por la web (lib/antibots.ts). Antes que la caché, que si no lo serviría.
+    const cerrada = cerradaAlPublico(request);
+    if (cerrada) return cerrada;
     // Lecturas públicas desde la caché del borde (workers/cdn.ts), como Firebase Hosting delante de Cloud Run.
     return conCdn(request, ctx, () => atenderConAmbito(env, ctx, () => app.fetch(request, env, ctx)));
   },

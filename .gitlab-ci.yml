@@ -4,6 +4,7 @@
 # Variables requeridas (Settings → CI/CD → Variables, "protected" y "masked"):
 #   CLOUDFLARE_API_TOKEN    token de Cloudflare con permiso "Workers Scripts: Edit" (y acceso a los Workers/KV/R2 usados)
 #   CLOUDFLARE_ACCOUNT_ID   id de la cuenta de Cloudflare (1cd0748daa880a849a2dae0baadfce34)
+#   VIGIA_BUILD_TOKEN       el BUILD_TOKEN de vigia-api y vigia-api-dev: el build de la web lee la API cerrada al público
 # wrangler y opennextjs-cloudflare leen esas dos variables del entorno.
 # Para el BUILD del web (claves PÚBLICAS de cliente, NO masked): NEXT_PUBLIC_FIREBASE_API_KEY, _AUTH_DOMAIN,
 # _PROJECT_ID, _STORAGE_BUCKET, _MESSAGING_SENDER_ID, _APP_ID, y NEXT_PUBLIC_TURNSTILE_SITE_KEY (la real de prod;
@@ -118,7 +119,9 @@ scrape:dji:
   script:
     - cd frontend
     - npm ci --no-audit --no-fund
-    - NODE_OPTIONS=--max-old-space-size=4096 npm run cf:build
+    # La API sólo atiende a nuestros Workers: el build prerenderiza con datos gracias a VIGIA_BUILD_TOKEN (variable
+    # enmascarada; scripts/fetch-build.cjs lo manda en x-vigia-build y la API, que tiene el mismo BUILD_TOKEN, deja leer).
+    - NODE_OPTIONS="--max-old-space-size=4096 --require $CI_PROJECT_DIR/frontend/scripts/fetch-build.cjs" npm run cf:build
     - npx opennextjs-cloudflare deploy $DEPLOY_ENV
   timeout: 40m
 

@@ -1,4 +1,4 @@
-import { API_BASE } from "./api-client";
+import { API_BASE, API_PUBLICA } from "./api-client";
 import type { InhabilitacionProveedor } from "./ordenes";
 
 /**
@@ -115,8 +115,9 @@ const consulta = (f: Record<string, unknown>) => {
 export const getMenores = (f: FiltrosMenores) => leer<MenoresPagina>(`/menores?${consulta(f)}`);
 
 /** URL del PDF (proxy por nuestra API, que añade las cabeceras que el WAF del SEACE exige). */
-export const urlRequerimiento = (id: number) => `${API_BASE}/menores/${id}/requerimiento`;
-export const urlContratoMenor = (id: number) => `${API_BASE}/menores/${id}/contrato`;
+// Enlaces: la ruta pública (`/v1`), la misma en el servidor y en el navegador (lib/api-client.ts).
+export const urlRequerimiento = (id: number) => `${API_PUBLICA}/menores/${id}/requerimiento`;
+export const urlContratoMenor = (id: number) => `${API_PUBLICA}/menores/${id}/contrato`;
 
 /** Claves en la URL (prefijo «m»), para no pisar los filtros de Contratos/Órdenes. */
 export const P_MEN = {

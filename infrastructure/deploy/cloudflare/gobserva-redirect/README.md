@@ -49,10 +49,10 @@ Todo el tráfico de internet pasa por la zona: `frontend/worker-prod.js` redirig
 
 | Dónde | Qué |
 |-------|-----|
-| Zona (`proteger_zona.py`) | HTTPS siempre, TLS ≥ 1.2, HSTS; bloqueo de rastreadores de entrenamiento de IA (`ai_training` + regla por nombre); bloqueo de rutas de escáneres; desafío a clientes de scripts (los bots verificados pasan); 100 pedidos cada 10 s por IP fuera de `/_next/` |
+| Zona (`proteger_zona.py`) | HTTPS siempre, TLS ≥ 1.2, HSTS; bloqueo de rastreadores de entrenamiento de IA (`ai_training` + regla por nombre); bloqueo de rutas de escáneres; desafío a clientes de scripts y a lo que llega desde redes de nubes y hosting (los bots verificados pasan); 100 pedidos cada 10 s por IP fuera de `/_next/` |
 | `frontend/app/robots.ts` | Los rastreadores de entrenamiento no entran; nadie recorre las listas de `/app` con filtros |
-| `frontend/worker-prod.js` | 300 páginas por minuto por IP (una IPv6 por su /64), sin contar los prefetch de Next |
-| `backend/api/src/lib/antibots.ts` | La API no tiene zona: 120 lecturas y 30 búsquedas por minuto por IP; 10 escrituras por minuto y ruta, con Turnstile. Lo que piden nuestros Workers (cabecera `CF-Worker`, que Cloudflare no deja falsificar) no cuenta |
+| `frontend/worker-prod.js` | 300 páginas por minuto por IP (una IPv6 por su /64), sin contar los prefetch de Next; reenvía `/v1/…` a la API con la IP del visitante (`x-vigia-ip`); trampa: un enlace escondido (`app/layout.tsx`) a `/app/indice-completo`, prohibido en `robots.txt`, veta una hora a la IP que lo pide |
+| `backend/api/src/lib/antibots.ts` | La API sólo atiende a nuestros Workers (`cerradaAlPublico`, antes de su caché): el navegador le pide por la web (`/v1`, detrás de todo lo anterior). Directo sólo `/`, `/health`, `/livez`, el token del panel y el del build del CI (`x-vigia-build` = `BUILD_TOKEN`, `frontend/scripts/fetch-build.cjs`); `API_PUBLICA=si` la reabre sin desplegar. 120 lecturas y 30 búsquedas por minuto por IP; 10 escrituras por minuto y ruta, con Turnstile |
 | `backend/mcp-worker/src/index.ts` | El MCP es abierto (datos públicos, solo lectura): 120 llamadas por minuto por IP, alto porque los clientes de IA alojados comparten IPs |
 
 Los límites por IP de la API y de la web los cuenta un Durable Object por clave (`backend/api/src/workers/limitador.ts`):

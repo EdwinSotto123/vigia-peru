@@ -33,4 +33,8 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   /** Clave de las referencias opacas de DNI y RUC 10 (lib/privacidad.ts). La misma que en Cloud Run. */
   PRIVACIDAD_CLAVE?: string;
+  /** El build de la web en el CI lo manda en `x-vigia-build` para leer con la API cerrada (lib/antibots.ts). */
+  BUILD_TOKEN?: string;
+  /** "si" vuelve a abrir la API al público (lib/antibots.ts → cerradaAlPublico). */
+  API_PUBLICA?: string;
 }

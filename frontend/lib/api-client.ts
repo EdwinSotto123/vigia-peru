@@ -11,7 +11,8 @@
 import type { Alerta, ReporteCiudadano } from "@/types";
 import { esAlertaDemo, esAlertaReal, esConvergenciaReal, esReporteReal } from "./semillas";
 
-export const API_BASE =
+/** La API, para pedirle desde el SERVIDOR de la web: directo, como uno de nuestros Workers. */
+const API_SERVIDOR =
   process.env.VIGIA_API_URL ??
   process.env.NEXT_PUBLIC_VIGIA_API_URL ??
   // Por defecto el Worker de Cloudflare (la plataforma vive ahí; GCP quedó sin facturación). En runtime el
@@ -20,19 +21,19 @@ export const API_BASE =
   "https://vigia-api.vigiaperu.workers.dev";
 
 /**
- * Base de la API para pedidos DESDE EL NAVEGADOR. Detrás de Firebase Hosting (*.web.app,
- * *.firebaseapp.com o el dominio propio en NEXT_PUBLIC_DOMINIO_HOSTING) se usa el mismo dominio con
- * `/v1`: Hosting lo reenvía a la API y su CDN cachea lo que la API marca `public, s-maxage`. En
- * cualquier otro origen (run.app, localhost) y en el servidor se va directo a la API. Solo se usa
- * dentro de efectos y handlers (nunca en el render), así que el valor distinto en servidor y
- * navegador no descuadra la hidratación.
+ * Lo que el NAVEGADOR le pide a la API va a la web misma, `/v1` (worker-prod.js lo reenvía con la IP de quien pide): la
+ * API sólo atiende a nuestros Workers (antiscraping, 2026-10-30; backend/api/src/lib/antibots.ts). Es la misma ruta en
+ * el servidor y en el navegador, así que sirve también para enlaces (un PDF, una descarga). En `next dev`, la reescritura
+ * de next.config.js.
  */
+export const API_PUBLICA = "/v1";
+
+/** La base de la API donde corre el código: directa en el servidor, `/v1` en el navegador. */
+export const API_BASE = typeof window === "undefined" ? API_SERVIDOR : API_PUBLICA;
+
+/** La base para pedidos que pueden correr en el servidor o en el navegador (efectos, handlers): la de cada lado. */
 export function baseApiNavegador(): string {
-  if (typeof window === "undefined") return API_BASE;
-  const host = window.location.hostname;
-  const propio = process.env.NEXT_PUBLIC_DOMINIO_HOSTING;
-  const detrasDeHosting = /\.(web\.app|firebaseapp\.com)$/.test(host) || (!!propio && host === propio);
-  return detrasDeHosting ? `${window.location.origin}/v1` : API_BASE;
+  return API_BASE;
 }
 
 const DEFAULT_INIT: RequestInit = {

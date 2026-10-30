@@ -8,9 +8,10 @@ El token es uno de cuenta con permisos de zona (configuración, WAF, bots); nunc
            sin ofuscación de correos (la web muestra correos como texto: reescribirlos rompe la hidratación de React).
   bots     bloquea los rastreadores de ENTRENAMIENTO de IA que Cloudflare reconoce (`ai_training`); los de búsqueda y los
            que abren una página porque una persona lo pidió siguen pasando.
-  waf      tres reglas propias: los mismos rastreadores por nombre (el reconocimiento de Cloudflare va por IP y uno falso
+  waf      cuatro reglas propias: los mismos rastreadores por nombre (el reconocimiento de Cloudflare va por IP y uno falso
            pasaba), rutas de escáneres que Vigía no tiene (.php, /wp-, /.env…) y un desafío a clientes de scripts sin
-           navegador (python-requests, curl, Go…), salvo los bots verificados (buscadores, vistas previas de enlaces).
+           navegador (python-requests, curl, Go…) y otro a lo que llega desde redes de nubes y hosting (de ahí sale casi
+           todo el scraping), salvo los bots verificados (buscadores, vistas previas de enlaces).
   limite   la regla de rate limiting del plan: 100 pedidos cada 10 s por IP fuera de /_next/ (los estáticos).
 El resto del abuso lo frenan los Workers: frontend/worker-prod.js (páginas por IP) y backend/api/src/lib/antibots.ts.
 """
@@ -66,6 +67,15 @@ UA_SCRIPTS = ["python-requests", "python-urllib", "aiohttp", "httpx", "scrapy", 
               "mechanize", "guzzlehttp"]
 
 
+# Redes de nubes y hosting (AWS, Google Cloud, Azure, DigitalOcean, Hetzner, OVH, Linode, Vultr, Contabo, Oracle,
+# Alibaba, Tencent, Scaleway, Huawei, Hostinger, ColoCrossing, netcup, M247 y Datacamp de VPN): de ahí sale casi todo el
+# scraping, y una persona casi nunca navega desde un servidor. Un desafío (no un bloqueo): quien usa una VPN lo resuelve.
+# Sin 15169 (Google): ahí están el traductor y la precarga de Chrome. Los bots verificados (buscadores, vistas previas)
+# pasan igual.
+ASN_NUBES = [16509, 14618, 8987, 396982, 8075, 14061, 24940, 16276, 63949, 20473, 51167, 40021, 31898, 45102, 132203,
+             12876, 136907, 47583, 36352, 197540, 9009, 60068]
+
+
 def _alguno(campo, valores):
     return " or ".join(f'(lower({campo}) contains "{v}")' for v in valores)
 
@@ -78,6 +88,9 @@ def waf():
          "expression": _alguno("http.request.uri.path", RUTAS_ESCANER), "enabled": True},
         {"description": "Clientes de scripts sin navegador (los bots verificados pasan)", "action": "managed_challenge",
          "expression": f'(not cf.client.bot) and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)})',
+         "enabled": True},
+        {"description": "Redes de nubes y hosting: desafio (los bots verificados pasan)", "action": "managed_challenge",
+         "expression": f'(not cf.client.bot) and (ip.geoip.asnum in {{{" ".join(str(a) for a in ASN_NUBES)}}})',
          "enabled": True},
     ]
     informar("waf", llamar("PUT", f"/zones/{ZONA}/rulesets/phases/http_request_firewall_custom/entrypoint",

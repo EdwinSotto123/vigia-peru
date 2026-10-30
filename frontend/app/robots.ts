@@ -22,7 +22,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: ["/", "/app/*?pagina=", "/app/*?page="],
-        disallow: ["/api/", "/admin", "/app/*?"],
+        // /app/indice-completo: la trampa para rastreadores (worker-prod.js); quien la pide igual queda vetado una hora.
+        // /v1/: lo que el navegador le pide a la API (worker-prod.js); no es una página.
+        disallow: ["/api/", "/v1/", "/admin", "/app/*?", "/app/indice-completo"],
       },
     ],
   };

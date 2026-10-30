@@ -45,6 +45,14 @@ const nextConfig = {
       { protocol: "https", hostname: "storage.googleapis.com", pathname: "/vigia-peru-reportes/**" },
     ],
   },
+  // En `next dev` no corre worker-prod.js: `/v1` (lo que el navegador le pide a la API, lib/api-client.ts) va directo a la
+  // API. Como la API sólo atiende a nuestros Workers (backend/api/src/lib/antibots.ts), en local VIGIA_API_URL apunta a
+  // una API local (`npm run dev` en backend/api), que no tiene ese cierre.
+  async rewrites() {
+    if (process.env.NODE_ENV === "production") return [];
+    const api = process.env.VIGIA_API_URL ?? process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "http://localhost:8080";
+    return [{ source: "/v1/:path*", destination: `${api}/v1/:path*` }];
+  },
   // Geojson de fronteras (departments 146KB, provinces 846KB) = data estática
   // que nunca cambia. Por defecto Next las sirve con max-age=0 → se re-bajan en
   // cada visita al mapa. Las cacheamos fuerte: tras la 1ra visita, 0 tráfico.

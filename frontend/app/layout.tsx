@@ -60,6 +60,11 @@ export default function RootLayout({
           {children}
           <PagoPendienteFlotante />
         </AuthProvider>
+        {/* Trampa para rastreadores (worker-prod.js): oculto para personas y lectores de pantalla, fuera del teclado y
+            prohibido en robots.txt. Sólo lo pide un programa que ignora las reglas, y su IP queda vetada una hora. */}
+        <a href="/app/indice-completo" hidden aria-hidden="true" tabIndex={-1} rel="nofollow">
+          Índice completo de datos
+        </a>
       </body>
     </html>
   );

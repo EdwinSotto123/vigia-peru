@@ -11,6 +11,7 @@
  * Desplegar: `bash infrastructure/deploy/dev.sh web` (ver docs/DEV.md).
  */
 import abierto from "./.open-next/worker.js";
+import { aLaApi, RUTA_API } from "./worker-comun.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -45,6 +46,13 @@ export default {
     // La revalidación ISR (memory-queue) se pide a sí misma por WORKER_SELF_REFERENCE, sin usuario: llega sin
     // CF-Connecting-IP (que Cloudflare pone, y no deja falsificar, en todo pedido que entra de internet).
     const interna = !req.headers.has("cf-connecting-ip") && req.headers.has("x-prerender-revalidate");
+    const url = new URL(req.url);
+    const ip = req.headers.get("cf-connecting-ip");
+    // Lo que el navegador le pide a la API (worker-comun.js). Una cuenta manda su token (Bearer) en vez de la clave del
+    // sitio: /v1/cuentas pasa igual, la API exige ahí un token válido.
+    if (ip && RUTA_API.test(url.pathname) && (autorizado(req, env) || /^\/v1\/cuentas(?:\/|$)/.test(url.pathname))) {
+      return aLaApi(req, env, url, ip);
+    }
     if (!interna && !autorizado(req, env)) {
       return new Response("Vigía DEV: pide usuario y clave al equipo.", {
         status: 401,

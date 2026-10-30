@@ -7,7 +7,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Hono } from "hono";
 import {
-  claveIp, exigirCaptcha, LIMITE_BUSQUEDAS, LIMITE_LECTURAS, limitarEnMemoria, limiteEscritura, limiteLectura, verificarTurnstile,
+  cerradaAlPublico, claveIp, exigirCaptcha, ipCliente, LIMITE_BUSQUEDAS, LIMITE_LECTURAS, limitarEnMemoria, limiteEscritura, limiteLectura,
+  pedidoInterno, verificarTurnstile,
 } from "../src/lib/antibots.js";
 
 const siteverify = (success: boolean, codigos: string[] = []) =>
@@ -91,4 +92,47 @@ test("limiteLectura: 120 lecturas y 30 búsquedas por IP; lo de nuestros Workers
   }
   assert.equal(busquedas, LIMITE_BUSQUEDAS);
   assert.equal((await pedir("/empresas/1", { "x-forwarded-for": "198.51.100.20" })).status, 200);   // leer sigue
+});
+
+test("la IP que reenvía la web (x-vigia-ip) sólo vale si viene de nuestro Worker; con ella, es un visitante y cuenta", async () => {
+  const app = new Hono();
+  app.get("*", (c) => c.json({ ip: ipCliente(c), interno: pedidoInterno(c) }));
+  const ver = async (headers: Record<string, string>) => (await (await app.request("/x", { headers })).json()) as { ip: string; interno: boolean };
+  const web = { "cf-connecting-ip": "2a06:98c0:3600::103", "cf-worker": "gobserva.cloud" };
+  assert.deepEqual(await ver(web), { ip: "2a06:98c0:3600::103", interno: true });                       // la web armando una página
+  assert.deepEqual(await ver({ ...web, "x-vigia-ip": "198.51.100.7" }), { ip: "198.51.100.7", interno: false });  // un visitante por /v1
+  assert.deepEqual(await ver({ "cf-connecting-ip": "203.0.113.5", "x-vigia-ip": "198.51.100.7" }), { ip: "203.0.113.5", interno: false });
+  assert.deepEqual(await ver({ "cf-connecting-ip": "203.0.113.5", "cf-worker": "otra.workers.dev", "x-vigia-ip": "1.1.1.1" }), { ip: "203.0.113.5", interno: false });
+});
+
+test("cerradaAlPublico: de internet sólo la portada, la salud y el panel con su token; nuestros Workers y lo interno pasan", () => {
+  const antes = { token: process.env.ADMIN_TOKEN, abierta: process.env.API_PUBLICA };
+  process.env.ADMIN_TOKEN = "token-de-prueba";
+  delete process.env.API_PUBLICA;
+  try {
+    const pedir = (ruta: string, headers: Record<string, string> = {}, method = "GET") =>
+      cerradaAlPublico(new Request(`https://vigia-api.vigiaperu.workers.dev${ruta}`, { method, headers }));
+    const internet = { "cf-connecting-ip": "203.0.113.5" };
+    assert.equal(pedir("/empresas/20131378034", internet)?.status, 403);
+    assert.equal(pedir("/v1/contratos?q=agua", internet)?.status, 403);
+    assert.equal(pedir("/reportes", internet, "POST")?.status, 403);
+    for (const r of ["/", "/health", "/livez", "/v1/health"]) assert.equal(pedir(r, internet), null, r);
+    assert.equal(pedir("/empresas/1", internet, "OPTIONS"), null);
+    assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "token-de-prueba" }), null);
+    assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "otro" })?.status, 403);
+    process.env.BUILD_TOKEN = "build-de-prueba";
+    assert.equal(pedir("/novedades", { ...internet, "x-vigia-build": "build-de-prueba" }), null);
+    assert.equal(pedir("/novedades", { ...internet, "x-vigia-build": "otro" })?.status, 403);
+    delete process.env.BUILD_TOKEN;
+    assert.equal(pedir("/novedades", { ...internet, "x-vigia-build": "" })?.status, 403);
+    assert.equal(pedir("/empresas/1", { ...internet, "cf-worker": "gobserva.cloud" }), null);
+    assert.equal(pedir("/empresas/1", { ...internet, "cf-worker": "vigiaperu.workers.dev", "x-vigia-ip": "198.51.100.7" }), null);
+    assert.equal(pedir("/empresas/1", { ...internet, "cf-worker": "otra.workers.dev" })?.status, 403);
+    assert.equal(pedir("/empresas/1"), null);   // sin IP de cliente: el cron
+    process.env.API_PUBLICA = "si";
+    assert.equal(pedir("/empresas/1", internet), null);
+  } finally {
+    if (antes.token === undefined) delete process.env.ADMIN_TOKEN; else process.env.ADMIN_TOKEN = antes.token;
+    if (antes.abierta === undefined) delete process.env.API_PUBLICA; else process.env.API_PUBLICA = antes.abierta;
+  }
 });

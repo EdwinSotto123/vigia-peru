@@ -18,6 +18,7 @@
  *
  * Sin `TURNSTILE_SECRET_KEY` (desarrollo local) no se exige el token: se avisa en el registro una vez.
  */
+import { timingSafeEqual } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import { SIN_CACHE } from "./http.js";
 import { ambitoPedido } from "./plataforma.js";
@@ -34,8 +35,14 @@ export const VENTANA_S = 60;
 type Limite = "escritura" | "lectura" | "busqueda";
 const LIMITES: Record<Limite, number> = { escritura: LIMITE_ESCRITURAS, lectura: LIMITE_LECTURAS, busqueda: LIMITE_BUSQUEDAS };
 
-/** La IP de quien llama: la de Cloudflare (Workers) o la primera de x-forwarded-for (Cloud Run). */
+/**
+ * La IP de quien llama: la de Cloudflare (Workers) o la primera de x-forwarded-for (Cloud Run). Lo que el navegador pide
+ * por la web (frontend/worker-prod.js reenvía `/v1` a la API) llega de nuestro Worker con la IP del visitante en
+ * `x-vigia-ip`: sólo a nuestros Workers se les cree.
+ */
 export function ipCliente(c: Context): string {
+  const reenviada = c.req.header("x-vigia-ip");
+  if (reenviada && esWorkerPropio(c)) return reenviada.trim();
   const cf = c.req.header("cf-connecting-ip");
   if (cf) return cf.trim();
   const xff = c.req.header("x-forwarded-for");
@@ -67,11 +74,50 @@ function workersPropios(): Set<string> {
   return new Set((process.env.WORKERS_PROPIOS ?? "vigiaperu.workers.dev,gobserva.cloud").split(",").map((s) => s.trim()).filter(Boolean));
 }
 
-/** Un pedido de nuestros Workers, o que no vino de internet (el cron, un service binding: sin IP de cliente). */
-export function pedidoInterno(c: Context): boolean {
+/** Viene de uno de nuestros Workers (su `CF-Worker`). */
+export function esWorkerPropio(c: Context): boolean {
   const worker = c.req.header("cf-worker");
-  if (worker && workersPropios().has(worker)) return true;
+  return !!worker && workersPropios().has(worker);
+}
+
+/**
+ * Un pedido de nuestros Workers por su cuenta (la web armando una página en su servidor) o que no vino de internet (el
+ * cron, un service binding: sin IP de cliente). Lo que la web reenvía del navegador (`x-vigia-ip`) es de un visitante.
+ */
+export function pedidoInterno(c: Context): boolean {
+  if (esWorkerPropio(c)) return !c.req.header("x-vigia-ip");
   return ipCliente(c) === "desconocida";
+}
+
+/** Un token contra su secreto en tiempo constante (como lib/adminlog.ts, sobre el pedido crudo). Sin secreto, nunca. */
+function tokenIgual(token: string | null, esperado: string | undefined): boolean {
+  if (!esperado || !token) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(esperado);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * La API es de nuestros Workers (antiscraping, 2026-10-30): lo que viene de internet entra por la web
+ * (vigia.gobserva.cloud/v1, frontend/worker-prod.js), detrás del WAF, el bloqueo de bots y el límite por IP de la zona
+ * gobserva.cloud; en *.workers.dev no hay nada de eso. Directo sólo la portada, la salud, lo que trae el token del panel
+ * y el build de la web en el CI (`x-vigia-build` = BUILD_TOKEN: prerenderiza páginas con datos; frontend/scripts/fetch-build.cjs).
+ * Devuelve el 403 o null si pasa. Corre ANTES de la caché del borde (workers/cdn.ts): si no, lo guardado le llegaría a
+ * cualquiera. `API_PUBLICA=si` (variable del Worker) la vuelve a abrir sin desplegar código.
+ */
+export function cerradaAlPublico(req: Request): Response | null {
+  if (process.env.API_PUBLICA === "si" || req.method === "OPTIONS") return null;
+  const worker = req.headers.get("cf-worker");
+  if (worker && workersPropios().has(worker)) return null;
+  if (!req.headers.get("cf-connecting-ip")) return null;   // no vino de internet: el cron, un service binding
+  const ruta = new URL(req.url).pathname.replace(/^\/v1(?=\/|$)/, "") || "/";
+  if (ruta === "/" || ruta === "/health" || ruta === "/livez") return null;
+  if (tokenIgual(req.headers.get("x-admin-token"), process.env.ADMIN_TOKEN)) return null;
+  if (tokenIgual(req.headers.get("x-vigia-build"), process.env.BUILD_TOKEN)) return null;
+  return new Response(JSON.stringify({ error: "api_privada", mensaje: "Los datos de Vigía se consultan en https://vigia.gobserva.cloud" }), {
+    status: 403,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": SIN_CACHE },
+  });
 }
 
 /** Una búsqueda de texto: /buscar o una lista con `?q=`. */
