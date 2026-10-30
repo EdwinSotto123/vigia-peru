@@ -17,6 +17,8 @@ export interface AuthedUser {
   uid: string;
   userId: string | null;   // displayName del Firebase user (en Vigía = user-id)
   email: string | null;
+  /** Firebase verificó que el correo es de quien inició sesión (claim email_verified). */
+  emailVerificado: boolean;
 }
 
 declare module "hono" {
@@ -37,6 +39,7 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
       uid: decoded.uid,
       userId: (decoded as any).name ?? null,
       email: decoded.email ?? null,
+      emailVerificado: (decoded as any).email_verified === true,
     });
     await next();
   } catch {
@@ -56,6 +59,7 @@ export const optionalAuth: MiddlewareHandler = async (c, next) => {
         uid: decoded.uid,
         userId: (decoded as any).name ?? null,
         email: decoded.email ?? null,
+        emailVerificado: (decoded as any).email_verified === true,
       });
     } catch {
       // sigue como anónimo

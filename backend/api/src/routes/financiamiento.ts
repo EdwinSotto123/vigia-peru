@@ -289,6 +289,9 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
   const cur = parsed.data.cursor ? decodificarCursor(parsed.data.cursor, "i", 2) : null;
   if (parsed.data.cursor && !cur) return c.json({ error: "invalid_cursor" }, 400);
   const conEntidad = await hayAporteEntidad();
+  // El comprobante público (nombre, monto, mensaje, logo, y la vista previa al compartirlo) existe sólo para un aporte
+  // con el pago confirmado (auditoría 2026-10-30): antes cualquiera, sin pagar, armaba en el dominio de Vigía un «X aportó
+  // S/ 50,000». Un aporte pendiente o rechazado da 404 aquí; su estado (sin datos de nadie) está en GET /contribuciones/:codigo.
   const head = await pool.query(
     `SELECT co.id, co.codigo, co.contratos, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt",
             co.created_at AS "createdAt", co.mensaje_publico AS "mensajePublico", co.pasarela,
@@ -299,7 +302,7 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
      JOIN financiadores f ON f.id = co.financiador_id
      JOIN zonas z ON z.ubigeo = co.ubigeo
      JOIN tarifas t ON t.id = co.tarifa_id
-     WHERE co.codigo = $1`, [codigo]);
+     WHERE co.codigo = $1 AND co.estado IN ('pagada', 'en_proceso', 'procesada')`, [codigo]);
   if (!head.rows.length) {
     // Un aporte de apoyo (migración 206): sin zona ni contratos; su comprobante dice cuánto, cuándo y qué lo motivó.
     const ap = await pool.query(
@@ -308,9 +311,10 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
               CASE WHEN f.visible THEN COALESCE(f.nombre_publico, 'Anónimo') ELSE 'Anónimo' END AS financiador,
               f.tipo AS "tipoFinanciador", CASE WHEN f.visible THEN f.slug END AS slug, f.visible,
               co.para_ruc AS "paraRuc", (SELECT e.nombre FROM entidades e WHERE e.ruc = co.para_ruc) AS "paraEntidad",
-              co.para_ubigeo AS "paraUbigeo", (SELECT z.nombre FROM zonas z WHERE z.ubigeo = co.para_ubigeo) AS "paraZona"
+              co.para_ubigeo AS "paraUbigeo", (SELECT z.nombre FROM zonas z WHERE z.ubigeo = co.para_ubigeo) AS "paraZona",
+              (SELECT s.estado FROM suscripciones_mp s WHERE s.id = co.suscripcion_id) AS "suscripcionEstado"
          FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
-        WHERE co.codigo = $1 AND co.tipo = 'apoyo'`, [codigo]).catch(() => ({ rows: [] as any[] }));
+        WHERE co.codigo = $1 AND co.tipo = 'apoyo' AND co.estado IN ('pagada', 'en_proceso', 'procesada')`, [codigo]).catch(() => ({ rows: [] as any[] }));
     if (!ap.rows.length) return c.json({ error: "not_found" }, 404);
     cache(c, 30);
     return c.json({ ...ap.rows[0], tipo: "apoyo" });

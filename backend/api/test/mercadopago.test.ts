@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { firmaValida, mensajeRechazo } from "../src/lib/mercadopago.js";
+import { DESCRIPTOR, MENSAJE_RECHAZO, corresponde, firmaValida, mensajeRechazo } from "../src/lib/mercadopago.js";
 
 const SECRETO = "clave-de-prueba";
 const firmar = (manifiesto: string, secreto = SECRETO) => createHmac("sha256", secreto).update(manifiesto).digest("hex");
@@ -27,9 +27,24 @@ test("mercadopago: otra clave, otro id, otra hora o sin cabecera no pasan", asyn
   assert.equal(await firmaValida(SECRETO, "v1=solo", "abc", "12345"), false);
 });
 
-test("mercadopago: el motivo del rechazo, dicho para quien paga", () => {
-  assert.match(mensajeRechazo("cc_rejected_insufficient_amount"), /saldo/);
-  assert.match(mensajeRechazo("cc_rejected_bad_filled_security_code"), /código de seguridad/);
-  assert.match(mensajeRechazo("algo_nuevo"), /Yape o Plin/);
-  assert.match(mensajeRechazo(null), /no se aprobó/);
+test("mercadopago: un solo mensaje de rechazo, que no le dice a quien prueba tarjetas qué falló", () => {
+  const motivos = ["cc_rejected_insufficient_amount", "cc_rejected_bad_filled_security_code", "cc_rejected_high_risk", "algo_nuevo", null];
+  for (const m of motivos) assert.equal(mensajeRechazo(m), MENSAJE_RECHAZO);
+  assert.doesNotMatch(MENSAJE_RECHAZO, /saldo|código de seguridad|vencimiento/);
+});
+
+test("mercadopago: un pago corresponde a un aporte sólo en soles, por su monto y cobrado por la cuenta de Vigía", () => {
+  const pago = { transaction_amount: 20, currency_id: "PEN", collector_id: 111 };
+  assert.equal(corresponde(pago, 20, 111), true);
+  assert.equal(corresponde({ ...pago, transaction_amount: 20.004 }, 20, 111), true);   // redondeo de centavos
+  assert.equal(corresponde({ ...pago, transaction_amount: 1 }, 20, 111), false);       // cobro de verificación
+  assert.equal(corresponde({ ...pago, transaction_amount: 50_000 }, 20, 111), false);
+  assert.equal(corresponde({ ...pago, currency_id: "USD" }, 20, 111), false);
+  assert.equal(corresponde({ ...pago, collector_id: 222 }, 20, 111), false);           // otra cuenta
+  assert.equal(corresponde(pago, 20, null), true);                                     // sin leer la cuenta: lo demás igual se mira
+  assert.equal(corresponde({ transaction_amount: 20 }, 20, 111), true);                // sin moneda: soles
+});
+
+test("mercadopago: el descriptor de la tarjeta entra en los 13 caracteres de Mercado Pago", () => {
+  assert.ok(DESCRIPTOR.length <= 13);
 });

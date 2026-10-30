@@ -7,8 +7,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Hono } from "hono";
 import {
-  cerradaAlPublico, claveIp, exigirCaptcha, ipCliente, LIMITE_BUSQUEDAS, LIMITE_LECTURAS, limitarEnMemoria, limiteEscritura, limiteLectura,
-  pedidoInterno, verificarTurnstile,
+  cerradaAlPublico, claveIp, cuantasEn, dentroDeTope, exigirCaptcha, ipCliente, LIMITE_BUSQUEDAS, LIMITE_LECTURAS, limitarEnMemoria,
+  limiteEscritura, limiteLectura, pedidoInterno, verificarTurnstile,
 } from "../src/lib/antibots.js";
 
 const siteverify = (success: boolean, codigos: string[] = []) =>
@@ -29,6 +29,30 @@ test("verificarTurnstile: sin secreto no exige; con secreto exige un token que s
   assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", siteverify(false, ["timeout-or-duplicate"])), "captcha_invalido");
   const caido = (async () => { throw new Error("sin red"); }) as unknown as typeof fetch;
   assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", caido), "captcha_invalido");
+});
+
+test("verificarTurnstile: con TURNSTILE_HOSTS, otro hostname se anota y sólo se rechaza en modo estricto", async () => {
+  const antes = { hosts: process.env.TURNSTILE_HOSTS, estricto: process.env.TURNSTILE_HOSTS_ESTRICTO };
+  const desde = (hostname: string) => (async () => new Response(JSON.stringify({ success: true, hostname }))) as unknown as typeof fetch;
+  process.env.TURNSTILE_HOSTS = "vigia.gobserva.cloud";
+  try {
+    assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", desde("vigia.gobserva.cloud")), "ok");
+    assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", desde("otro.example")), "ok");   // observación
+    process.env.TURNSTILE_HOSTS_ESTRICTO = "si";
+    assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", desde("otro.example")), "captcha_invalido");
+    assert.equal(await verificarTurnstile("tok", "1.2.3.4", "s", desde("vigia.gobserva.cloud")), "ok");
+  } finally {
+    if (antes.hosts === undefined) delete process.env.TURNSTILE_HOSTS; else process.env.TURNSTILE_HOSTS = antes.hosts;
+    if (antes.estricto === undefined) delete process.env.TURNSTILE_HOSTS_ESTRICTO; else process.env.TURNSTILE_HOSTS_ESTRICTO = antes.estricto;
+  }
+});
+
+test("dentroDeTope y cuantasEn: un tope propio por clave (sin Durable Object, en memoria)", async () => {
+  const clave = `tarjeta-10m|prueba-${Date.now()}`;
+  for (let i = 0; i < 3; i++) assert.equal(await dentroDeTope(clave, 3, 600), true);
+  assert.equal(await dentroDeTope(clave, 3, 600), false);
+  assert.equal(await cuantasEn(clave, 600), 3);
+  assert.equal(await cuantasEn(`${clave}-otra`, 600), 0);
 });
 
 test("middlewares: 403 sin captcha y 429 al pasar el límite, con Retry-After", async () => {
@@ -105,7 +129,7 @@ test("la IP que reenvía la web (x-vigia-ip) sólo vale si viene de nuestro Work
   assert.deepEqual(await ver({ "cf-connecting-ip": "203.0.113.5", "cf-worker": "otra.workers.dev", "x-vigia-ip": "1.1.1.1" }), { ip: "203.0.113.5", interno: false });
 });
 
-test("cerradaAlPublico: de internet sólo la portada, la salud y el panel con su token; nuestros Workers y lo interno pasan", () => {
+test("cerradaAlPublico: de internet sólo la portada, la salud, el aviso de Mercado Pago y el build; nuestros Workers y lo interno pasan", () => {
   const antes = { token: process.env.ADMIN_TOKEN, abierta: process.env.API_PUBLICA };
   process.env.ADMIN_TOKEN = "token-de-prueba";
   delete process.env.API_PUBLICA;
@@ -122,8 +146,10 @@ test("cerradaAlPublico: de internet sólo la portada, la salud y el panel con su
     assert.equal(pedir("/v1/pagos/mercadopago/webhook", internet)?.status, 403);
     assert.equal(pedir("/v1/pagos/aporte", internet, "POST")?.status, 403);
     assert.equal(pedir("/empresas/1", internet, "OPTIONS"), null);
-    assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "token-de-prueba" }), null);
+    // El token del panel ya no abre la puerta desde internet: el panel llega por la web y el cron por dentro.
+    assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "token-de-prueba" })?.status, 403);
     assert.equal(pedir("/admin/x", { ...internet, "x-admin-token": "otro" })?.status, 403);
+    assert.equal(pedir("/admin/x", { ...internet, "cf-worker": "gobserva.cloud", "x-admin-token": "token-de-prueba" }), null);
     process.env.BUILD_TOKEN = "build-de-prueba";
     assert.equal(pedir("/novedades", { ...internet, "x-vigia-build": "build-de-prueba" }), null);
     assert.equal(pedir("/novedades", { ...internet, "x-vigia-build": "otro" })?.status, 403);

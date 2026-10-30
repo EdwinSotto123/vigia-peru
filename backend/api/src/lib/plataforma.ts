@@ -75,7 +75,10 @@ export interface AmbitoPedido {
    */
   servicio?(nombre: "dispatcher"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
   /** Límite por clave exacto entre todas las instancias (Durable Object, workers/limitador.ts); sin él, en memoria. */
-  limitador?(): { contar(clave: string, tope: number, ventanaS: number): Promise<boolean> } | undefined;
+  limitador?(): {
+    contar(clave: string, tope: number, ventanaS: number, persistente?: boolean): Promise<boolean>;
+    cuantas(clave: string, ventanaS: number, persistente?: boolean): Promise<number>;
+  } | undefined;
 }
 
 export const ambitoPedido = new AsyncLocalStorage<AmbitoPedido>();

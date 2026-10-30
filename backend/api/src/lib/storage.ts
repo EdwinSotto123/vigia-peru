@@ -1,13 +1,9 @@
 /**
- * GCS: buckets de Vigía + helpers para firmar URLs de upload/lectura y leer objetos privados.
+ * GCS: buckets de Vigía + helpers para firmar URLs de lectura y leer objetos privados.
  *
- * Flujo de upload desde el frontend:
- *  1. Cliente pide POST /upload/sign con {bucket, filename, contentType}
- *  2. API devuelve {uploadUrl, blobUrl} — uploadUrl tiene firma temporal
- *  3. Cliente hace PUT directo a uploadUrl (no pasa por la API)
- *  4. Cuando termina, cliente nos manda el blobUrl y lo guardamos en Postgres
- *
- * Esto evita que la foto pase por nuestro Cloud Run (ahorra egress y memoria).
+ * Las subidas pasan por la web (frontend/app/api/upload): reconoce el archivo por sus bytes, le quita los metadatos y le
+ * pone nombre. La firma de URLs de escritura para el navegador (POST /upload/sign) se quitó el 2026-10-30: nadie la usaba
+ * y dejaba a cualquier cuenta subir lo que quisiera al bucket público de los QR de pago.
  *
  * El acceso a GCS depende de dónde corre (lib/plataforma.ts): en Node, @google-cloud/storage con la
  * identidad del servicio (node/plataforma.ts); en Workers, la API REST de GCS y firma v4 con la
@@ -38,23 +34,6 @@ export function ubicarComprobante(url: string): { bucket: string; ruta: string }
   const m = url.match(/^https:\/\/storage\.googleapis\.com\/([^/]+)\/(comprobantes\/[A-Za-z0-9._-]{1,120})$/);
   if (!m || !BUCKETS_COMPROBANTE.includes(m[1])) return null;
   return { bucket: m[1], ruta: m[2] };
-}
-
-export async function signUploadUrl(opts: {
-  bucket: BucketName;
-  filename: string;
-  contentType: string;
-  expiresInMs?: number;
-}): Promise<{ uploadUrl: string; blobUrl: string }> {
-  const bucketName = BUCKETS[opts.bucket];
-  const uploadUrl = await plataforma().firmarUrl(bucketName, opts.filename, {
-    action: "write",
-    expires: Date.now() + (opts.expiresInMs ?? 15 * 60 * 1000),
-    contentType: opts.contentType,
-  });
-  // Como los buckets son public-read, el blobUrl es directo
-  const blobUrl = `https://storage.googleapis.com/${bucketName}/${opts.filename}`;
-  return { uploadUrl, blobUrl };
 }
 
 /**

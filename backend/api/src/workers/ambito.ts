@@ -55,7 +55,11 @@ class Ambito implements AmbitoPedido {
   limitador() {
     const ns = this.env.LIMITADOR;
     if (!ns) return undefined;
-    return { contar: (clave: string, tope: number, ventanaS: number) => ns.get(ns.idFromName(clave)).contar(tope, ventanaS * 1000) };
+    return {
+      contar: (clave: string, tope: number, ventanaS: number, persistente = false) =>
+        ns.get(ns.idFromName(clave)).contar(tope, ventanaS * 1000, persistente),
+      cuantas: (clave: string, ventanaS: number, persistente = false) => ns.get(ns.idFromName(clave)).cuantas(ventanaS * 1000, persistente),
+    };
   }
 
   seguir(p: Promise<unknown>): void {

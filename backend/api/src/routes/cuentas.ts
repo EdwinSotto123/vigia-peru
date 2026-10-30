@@ -35,6 +35,7 @@ import {
   CAMPO_DEL_CHECK, CamposPerfil, esProblema, normalizarPerfil, problemaDeZod, setsDelPerfil, tocaPerfil,
 } from "../lib/perfilAliado.js";
 import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
+import { LOGO_PROPIO } from "./contribuciones.js";
 import { COLUMNA_SEGUIDO, TOPE_SEGUIDOS, empresasSeguidas, errorSeguido, novedadesSeguidas, partidosSeguidos } from "../lib/seguidos.js";
 
 export const cuentasRouter = new Hono();
@@ -119,7 +120,7 @@ const PutBody = z.object({
   visible: z.boolean().optional(),
   correo: z.string().trim().email().nullable().optional().or(z.literal("").transform(() => null)),
   notificaciones: z.record(z.boolean()).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoUrl: z.string().max(300).regex(LOGO_PROPIO).nullable().optional(),
   tipo: z.enum(["empresa", "persona", "organizacion"]).optional(),
   ...CamposPerfil,
   ruc: Ruc,
@@ -342,12 +343,16 @@ cuentasRouter.delete("/me/seguir", limiteEscritura, async (c) => {
 });
 
 // ─── POST /cuentas/me/reclamar — aporte hecho como invitado → mi cuenta ──────
-// El código es público (está en la URL del comprobante); el correo con el que se aportó es privado:
-// ambos juntos son la prueba de que el aporte es tuyo.
+// El código es público (está en la URL del comprobante); el correo con el que se aportó es privado. Además, ese correo
+// tiene que ser el de la cuenta, verificado por Firebase (auditoría 2026-10-30): si no, quien supiera el correo de un
+// aliado (el de contacto de una ONG) se llevaba su aporte y su constancia del podio a otra cuenta.
 cuentasRouter.post("/me/reclamar", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = z.object({ codigo: z.string().trim().max(20), email: z.string().trim().email() }).safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
+  if (!u.emailVerificado || !u.email || u.email.trim().toLowerCase() !== body.data.email.toLowerCase()) {
+    return c.json({ error: "correo_de_la_cuenta", detail: "Inicia sesión con la cuenta (verificada) del mismo correo con el que aportaste." }, 403);
+  }
   const codigo = body.data.codigo.toUpperCase();
   await asegurarUsuario(u.uid);
   const client = await pool.connect();

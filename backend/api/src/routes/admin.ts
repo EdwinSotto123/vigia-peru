@@ -36,6 +36,7 @@ import { z } from "zod";
 import { OCID_CANDIDATOS, esErrorPg, poolAdmin as pool } from "../lib/db.js";
 import { descargarObjeto, metadatosObjeto, ubicarComprobante } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
+import { registrar } from "../lib/registro.js";
 import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
@@ -144,9 +145,10 @@ adminRouter.get("/contribuciones", async (c) => {
   const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
   const vals: any[] = [];
   const conds: string[] = [];
-  // "pendiente_pago" (Por validar) son los que ya subieron comprobante: lo único que el panel puede validar.
-  // Los que no lo subieron van aparte en "sin_comprobante" y vencen solos a los 7 días (POST /asignar).
-  if (estado === "pendiente_pago") conds.push(`co.estado = 'pendiente_pago' AND co.comprobante_url IS NOT NULL`);
+  // "pendiente_pago" (Por validar) son los que ya subieron comprobante: lo único que el panel puede validar (los de
+  // tarjeta los resuelve Mercado Pago, no el panel). Los que no lo subieron van aparte en "sin_comprobante" y vencen
+  // solos a los 30 días (POST /asignar).
+  if (estado === "pendiente_pago") conds.push(`co.estado = 'pendiente_pago' AND co.comprobante_url IS NOT NULL AND co.pasarela IS DISTINCT FROM 'mercadopago'`);
   else if (estado === "sin_comprobante") conds.push(`co.estado = 'pendiente_pago' AND co.comprobante_url IS NULL`);
   else if (estado !== "todas") { vals.push(estado); conds.push(`co.estado = $${vals.length}`); }
   const conEntidad = await hayAporteEntidad();
@@ -235,11 +237,20 @@ adminRouter.post("/contribuciones/:codigo/validar", async (c) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Se valida a mano lo que se paga a mano (Yape, Plin, transferencia): un aporte con tarjeta lo valida sólo el pago
+    // aprobado de Mercado Pago. También uno que venció solo sin comprobante (pagado, pero sin captura a tiempo).
+    // Un número de operación valida un solo aporte (índice único, migración 217).
     const r = await client.query(
       `UPDATE contribuciones SET estado = 'pagada', pagada_at = now(), validada_por = $2,
               pasarela_ref = COALESCE($3, pasarela_ref), nota_admin = COALESCE($4, nota_admin)
-       WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING id`,
-      [codigo, who, typeof body?.referencia === "string" ? body.referencia : null, typeof body?.nota === "string" ? body.nota : null]);
+       WHERE codigo = $1 AND pasarela IS DISTINCT FROM 'mercadopago'
+         AND (estado = 'pendiente_pago' OR (estado = 'rechazada' AND validada_por = 'auto-vencimiento')) RETURNING id`,
+      [codigo, who, typeof body?.referencia === "string" ? body.referencia : null, typeof body?.nota === "string" ? body.nota : null])
+      .catch((e) => {
+        if (esErrorPg(e, "23505")) return null;
+        throw e;
+      });
+    if (r === null) { await client.query("ROLLBACK"); return c.json({ error: "operacion_usada", detail: "Ese número de operación ya validó otro aporte." }, 409); }
     if (!r.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "not_found_or_not_pending" }, 404); }
     const asig = await client.query("SELECT asignar_contribucion($1) AS n", [r.rows[0].id]);
     await client.query("COMMIT");
@@ -362,11 +373,14 @@ adminRouter.get("/config/pagos", async (c) => {
 adminRouter.put("/config/pagos", async (c) => {
   const body = PagosSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  // Lo que había antes queda en la bitácora: si alguien cambia el número de Yape que ven los donantes, se sabe cuál era.
+  const antes = (await pool.query(`SELECT valor FROM ajustes WHERE clave = 'pagos'`)).rows[0]?.valor ?? null;
   await pool.query(
     `INSERT INTO ajustes (clave, valor, updated_at, updated_by) VALUES ('pagos', $1, now(), $2)
      ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = now(), updated_by = EXCLUDED.updated_by`,
     [JSON.stringify(body.data), actor(c)]);
-  await log(actor(c), "editar_pagos", "ajustes:pagos");
+  await log(actor(c), "editar_pagos", "ajustes:pagos", { antes, despues: body.data });
+  registrar("WARNING", `[admin] ${actor(c)} cambió los medios de pago (antes y después en la bitácora)`);
   return c.json({ ok: true, valor: body.data });
 });
 
@@ -480,11 +494,14 @@ const COLA_ZONA_O_ENTIDAD = `CASE WHEN co.entidad_ruc IS NULL THEN ${COLA_ZONA}
   ELSE EXISTS (SELECT 1 FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE c.entidad_ruc = co.entidad_ruc) END`;
 
 adminRouter.post("/asignar", async (c) => {
-  // Vencimiento: un aporte que lleva 7 días en `pendiente_pago` sin comprobante es un código huérfano (el visitante
-  // creó el aporte y se fue). Pasa a `rechazada`; si el comprobante llega después, el admin lo ve en "Rechazadas".
+  // Vencimiento: un aporte que se paga a mano y lleva 30 días en `pendiente_pago` sin comprobante es un código huérfano
+  // (el visitante creó el aporte y se fue). Pasa a `rechazada`; si estaba pagado (la captura es opcional), el panel aún
+  // puede validarlo (POST /contribuciones/:codigo/validar acepta los vencidos). Los de tarjeta no vencen: los resuelve el
+  // aviso de Mercado Pago.
   const vencidos = await pool.query(
-    `UPDATE contribuciones SET estado = 'rechazada', rechazada_motivo = 'Venció sin comprobante (7 días)', validada_por = 'auto-vencimiento'
-      WHERE estado = 'pendiente_pago' AND comprobante_url IS NULL AND created_at < now() - interval '7 days' RETURNING codigo`);
+    `UPDATE contribuciones SET estado = 'rechazada', rechazada_motivo = 'Venció sin comprobante (30 días)', validada_por = 'auto-vencimiento'
+      WHERE estado = 'pendiente_pago' AND comprobante_url IS NULL AND pasarela IS DISTINCT FROM 'mercadopago'
+        AND created_at < now() - interval '30 days' RETURNING codigo`);
   if (vencidos.rows.length) await log("auto-vencimiento", "rechazar", "contribuciones", { codigos: vencidos.rows.map((v) => v.codigo), motivo: "sin comprobante" });
   const r = await pool.query(
     `SELECT co.id, co.codigo,

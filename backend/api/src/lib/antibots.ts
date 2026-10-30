@@ -100,10 +100,12 @@ function tokenIgual(token: string | null, esperado: string | undefined): boolean
 /**
  * La API es de nuestros Workers (antiscraping, 2026-10-30): lo que viene de internet entra por la web
  * (vigia.gobserva.cloud/v1, frontend/worker-prod.js), detrás del WAF, el bloqueo de bots y el límite por IP de la zona
- * gobserva.cloud; en *.workers.dev no hay nada de eso. Directo sólo la portada, la salud, lo que trae el token del panel
- * y el build de la web en el CI (`x-vigia-build` = BUILD_TOKEN: prerenderiza páginas con datos; frontend/scripts/fetch-build.cjs).
- * Devuelve el 403 o null si pasa. Corre ANTES de la caché del borde (workers/cdn.ts): si no, lo guardado le llegaría a
- * cualquiera. `API_PUBLICA=si` (variable del Worker) la vuelve a abrir sin desplegar código.
+ * gobserva.cloud; en *.workers.dev no hay nada de eso. Directo sólo la portada, la salud, el aviso firmado de Mercado
+ * Pago y el build de la web en el CI (`x-vigia-build` = BUILD_TOKEN: prerenderiza páginas con datos;
+ * frontend/scripts/fetch-build.cjs). El token del panel (`x-admin-token`) ya NO abre la puerta desde internet (auditoría
+ * 2026-10-30): el panel llega por la web (su proxy, con CF-Worker propio) y el cron por dentro; un token filtrado no
+ * sirve desde afuera. Devuelve el 403 o null si pasa. Corre ANTES de la caché del borde (workers/cdn.ts): si no, lo
+ * guardado le llegaría a cualquiera. `API_PUBLICA=si` (variable del Worker) la vuelve a abrir sin desplegar código.
  */
 export function cerradaAlPublico(req: Request): Response | null {
   if (process.env.API_PUBLICA === "si" || req.method === "OPTIONS") return null;
@@ -114,7 +116,6 @@ export function cerradaAlPublico(req: Request): Response | null {
   if (ruta === "/" || ruta === "/health" || ruta === "/livez") return null;
   // Los avisos de Mercado Pago llegan desde sus servidores: la ruta exige su firma (routes/pagos.ts).
   if (req.method === "POST" && ruta === "/pagos/mercadopago/webhook") return null;
-  if (tokenIgual(req.headers.get("x-admin-token"), process.env.ADMIN_TOKEN)) return null;
   if (tokenIgual(req.headers.get("x-vigia-build"), process.env.BUILD_TOKEN)) return null;
   return new Response(JSON.stringify({ error: "api_privada", mensaje: "Los datos de Vigía se consultan en https://vigia.gobserva.cloud" }), {
     status: 403,
@@ -167,12 +168,42 @@ async function dentroDelLimite(limite: Limite, clave: string): Promise<boolean> 
   return limitarEnMemoria(k, LIMITES[limite]);
 }
 
-/** Middleware: límite de escrituras por IP y ruta (sin contar el prefijo /v1). */
+/** Middleware: límite de escrituras por IP (una IPv6 por su /64) y ruta (sin contar el prefijo /v1). */
 export const limiteEscritura: MiddlewareHandler = async (c, next) => {
   const ruta = c.req.routePath.replace(/^\/v1(?=\/)/, "");
-  if (!(await dentroDelLimite("escritura", `${ipCliente(c)}|${c.req.method}|${ruta}`))) return demasiados(c);
+  if (!(await dentroDelLimite("escritura", `${claveIp(ipCliente(c))}|${c.req.method}|${ruta}`))) return demasiados(c);
   return next();
 };
+
+/**
+ * Un tope propio (los de la tarjeta, routes/pagos.ts): true si entra; cuenta este pedido. `persistente` guarda las marcas
+ * en disco del Durable Object, para ventanas de minutos u horas. Sin Durable Object, en memoria (por instancia).
+ */
+export async function dentroDeTope(clave: string, tope: number, ventanaS: number, persistente = false): Promise<boolean> {
+  const limitador = ambitoPedido.getStore()?.limitador?.();
+  if (limitador) {
+    try {
+      return await limitador.contar(clave, tope, ventanaS, persistente);
+    } catch (e) {
+      registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
+    }
+  }
+  return limitarEnMemoria(clave, tope, ventanaS * 1000);
+}
+
+/** Cuántos pedidos contó `clave` en la ventana, sin sumar este (el corte general de la tarjeta). */
+export async function cuantasEn(clave: string, ventanaS: number, persistente = false): Promise<number> {
+  const limitador = ambitoPedido.getStore()?.limitador?.();
+  if (limitador) {
+    try {
+      return await limitador.cuantas(clave, ventanaS, persistente);
+    } catch (e) {
+      registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
+    }
+  }
+  const ahora = Date.now();
+  return (ventanas.get(clave) ?? []).filter((t) => ahora - t < ventanaS * 1000).length;
+}
 
 /**
  * Middleware: lecturas por IP (una IPv6 por su /64), aparte las búsquedas de texto. Frena a quien baja la base pedido
@@ -209,7 +240,15 @@ export async function verificarTurnstile(
   if (ip && ip !== "desconocida") cuerpo.set("remoteip", ip);
   try {
     const r = await fetcher(SITEVERIFY, { method: "POST", body: cuerpo });
-    const j = (await r.json().catch(() => ({}))) as { success?: boolean; "error-codes"?: string[] };
+    const j = (await r.json().catch(() => ({}))) as { success?: boolean; hostname?: string; "error-codes"?: string[] };
+    // Con TURNSTILE_HOSTS (PROD: el dominio de la web), un token resuelto en otro sitio queda en el registro, y con
+    // TURNSTILE_HOSTS_ESTRICTO=si además se rechaza (se enciende cuando el registro confirme el hostname de la gente).
+    // Sin la variable (DEV y pruebas, cuyas claves de prueba devuelven otro hostname) no se mira.
+    const hosts = (process.env.TURNSTILE_HOSTS ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+    if (j.success && hosts.length && !hosts.includes(j.hostname ?? "")) {
+      registrar("WARNING", `[antibots] captcha resuelto en otro sitio: ${j.hostname ?? "sin hostname"}`);
+      if (process.env.TURNSTILE_HOSTS_ESTRICTO === "si") return "captcha_invalido";
+    }
     if (j.success) return "ok";
     registrar("INFO", `[antibots] captcha rechazado: ${(j["error-codes"] ?? []).join(",") || r.status}`);
     return "captcha_invalido";

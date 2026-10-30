@@ -22,13 +22,17 @@ export class ErrorMp extends Error {
   }
 }
 
-async function mp<T>(ruta: string, init: { metodo?: "GET" | "POST"; cuerpo?: unknown; idempotencia?: string } = {}): Promise<T> {
+async function mp<T>(
+  ruta: string,
+  init: { metodo?: "GET" | "POST" | "PUT"; cuerpo?: unknown; idempotencia?: string; cabeceras?: Record<string, string> } = {},
+): Promise<T> {
   const r = await fetch(`${API_MP}${ruta}`, {
     method: init.metodo ?? "GET",
     headers: {
       Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
       "Content-Type": "application/json",
       ...(init.idempotencia ? { "X-Idempotency-Key": init.idempotencia } : {}),
+      ...init.cabeceras,
     },
     body: init.cuerpo === undefined ? undefined : JSON.stringify(init.cuerpo),
   });
@@ -43,6 +47,10 @@ export interface PagoMp {
   status_detail: string;
   external_reference: string | null;
   transaction_amount: number;
+  currency_id?: string;
+  /** La cuenta que cobra: debe ser la de Vigía (cuentaPropia). */
+  collector_id?: number;
+  transaction_amount_refunded?: number;
 }
 export interface SuscripcionMp {
   id: string;
@@ -53,22 +61,33 @@ export interface CobroMp {
   id: number;
   preapproval_id: string;
   transaction_amount: number;
+  currency_id?: string;
   payment?: { id: number; status: string; status_detail?: string } | null;
 }
 
-/** Lo que entrega el Card Payment Brick (más el correo de quien paga). */
+/** Lo que entrega el Card Payment Brick (más el correo de quien paga y el dispositivo, para el antifraude). */
 export interface Tarjeta {
   token: string;
   paymentMethodId: string;
   issuerId?: string | number;
   email: string;
   identificacion?: { tipo: string; numero: string };
+  /** `MP_DEVICE_SESSION_ID` del script de seguridad de Mercado Pago (va en X-meli-session-id). */
+  dispositivo?: string;
 }
 
-export function crearPago(t: Tarjeta, monto: number, codigo: string): Promise<PagoMp> {
+/** Cómo aparece en el estado de cuenta de la tarjeta (Mercado Pago admite hasta 13 caracteres). */
+export const DESCRIPTOR = "VIGIA PERU";
+
+/**
+ * `ip`: la de quien aporta. Con el dispositivo y el detalle del ítem, el antifraude de Mercado Pago tiene con qué
+ * separar a una persona de quien prueba tarjetas robadas (y aprueba más pagos legítimos).
+ */
+export function crearPago(t: Tarjeta, monto: number, codigo: string, ip?: string): Promise<PagoMp> {
   return mp<PagoMp>("/v1/payments", {
     metodo: "POST",
     idempotencia: `pago-${codigo}`,
+    cabeceras: t.dispositivo && /^[\w.:-]{1,200}$/.test(t.dispositivo) ? { "X-meli-session-id": t.dispositivo } : undefined,
     cuerpo: {
       transaction_amount: monto,
       token: t.token,
@@ -77,10 +96,14 @@ export function crearPago(t: Tarjeta, monto: number, codigo: string): Promise<Pa
       ...(t.issuerId ? { issuer_id: Number(t.issuerId) } : {}),
       description: `Aporte a Vigía Perú ${codigo}`,
       external_reference: codigo,
-      statement_descriptor: "VIGIA GOBSERVA",
+      statement_descriptor: DESCRIPTOR,
       payer: {
         email: t.email,
         ...(t.identificacion ? { identification: { type: t.identificacion.tipo, number: t.identificacion.numero } } : {}),
+      },
+      additional_info: {
+        items: [{ id: "aporte-vigilancia", title: "Aporte a Vigía Perú", description: "Donación voluntaria para seguir vigilando", quantity: 1, unit_price: monto }],
+        ...(ip && ip !== "desconocida" ? { ip_address: ip } : {}),
       },
     },
   });
@@ -107,6 +130,31 @@ export const leerPago = (id: string) => mp<PagoMp>(`/v1/payments/${encodeURIComp
 export const leerSuscripcion = (id: string) => mp<SuscripcionMp>(`/preapproval/${encodeURIComponent(id)}`);
 export const leerCobro = (id: string) => mp<CobroMp>(`/authorized_payments/${encodeURIComponent(id)}`);
 export const leerContracargo = (id: string) => mp<{ id: string; payments?: (number | string)[] }>(`/v1/chargebacks/${encodeURIComponent(id)}`);
+/** Detiene el cobro mensual (lo pide quien aporta desde su comprobante, routes/pagos.ts). */
+export const cancelarSuscripcion = (id: string) =>
+  mp<SuscripcionMp>(`/preapproval/${encodeURIComponent(id)}`, { metodo: "PUT", cuerpo: { status: "cancelled" } });
+
+/** El id de la cuenta de Mercado Pago de Vigía (la del token), leído una vez por instancia. */
+let cuenta: Promise<number | null> | null = null;
+export function cuentaPropia(): Promise<number | null> {
+  cuenta ??= mp<{ id: number }>("/users/me").then((u) => u.id ?? null, () => {
+    cuenta = null;   // se vuelve a intentar en el próximo aviso
+    return null;
+  });
+  return cuenta;
+}
+
+/**
+ * Un pago aprobado valida un aporte sólo si es lo que se esperaba: en soles, por el monto del aporte y cobrado por la
+ * cuenta de Vigía (auditoría 2026-10-30: antes bastaba la referencia; el cobro mínimo de verificación de una suscripción
+ * o un pago de otro monto con la misma referencia validaba el aporte). `propia` null = no se pudo leer la cuenta: no se
+ * descarta por eso (lo demás igual se mira).
+ */
+export function corresponde(p: Pick<PagoMp, "transaction_amount" | "currency_id" | "collector_id">, monto: number, propia: number | null): boolean {
+  if ((p.currency_id ?? "PEN") !== "PEN") return false;
+  if (Math.abs(Number(p.transaction_amount) - monto) >= 0.005) return false;
+  return propia == null || p.collector_id == null || p.collector_id === propia;
+}
 
 /**
  * La firma de un aviso: `x-signature: ts=…,v1=…`, con v1 = HMAC-SHA256 (hex) de `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
@@ -144,20 +192,10 @@ function iguales(a: string, b: string): boolean {
   return d === 0;
 }
 
-/** Por qué no se aprobó un pago, dicho para quien paga (status_detail de Mercado Pago). */
-const RECHAZOS: Record<string, string> = {
-  cc_rejected_insufficient_amount: "La tarjeta no tiene saldo suficiente.",
-  cc_rejected_bad_filled_security_code: "Revisa el código de seguridad de la tarjeta.",
-  cc_rejected_bad_filled_date: "Revisa la fecha de vencimiento de la tarjeta.",
-  cc_rejected_bad_filled_card_number: "Revisa el número de la tarjeta.",
-  cc_rejected_bad_filled_other: "Revisa los datos de la tarjeta.",
-  cc_rejected_call_for_authorize: "Tu banco pide que autorices este pago: comunícate con él y vuelve a intentarlo.",
-  cc_rejected_card_disabled: "La tarjeta no está activa: actívala con tu banco o usa otra.",
-  cc_rejected_duplicated_payment: "Ya hiciste un pago igual hace un momento.",
-  cc_rejected_high_risk: "El pago no se aprobó por seguridad. Prueba con otra tarjeta.",
-  cc_rejected_max_attempts: "Llegaste al límite de intentos con esta tarjeta. Prueba con otra.",
-  cc_rejected_blacklist: "El pago no se aprobó. Prueba con otra tarjeta.",
-  cc_rejected_other_reason: "Tu banco no aprobó el pago. Prueba con otra tarjeta.",
-};
-export const mensajeRechazo = (detalle: string | null | undefined) =>
-  (detalle && RECHAZOS[detalle]) || "El pago no se aprobó. Prueba con otra tarjeta o con Yape o Plin.";
+/**
+ * Por qué no se aprobó un pago, dicho para quien paga: UN solo mensaje (auditoría 2026-10-30). Decir «sin saldo» o
+ * «revisa el código de seguridad» le confirma a quien prueba tarjetas robadas que la tarjeta existe. El motivo de Mercado
+ * Pago (status_detail) queda en `rechazada_motivo` para atender a quien escriba.
+ */
+export const MENSAJE_RECHAZO = "Tu banco o Mercado Pago no aprobó el pago. Revisa los datos, prueba con otra tarjeta o aporta con QR.";
+export const mensajeRechazo = (_detalle?: string | null) => MENSAJE_RECHAZO;

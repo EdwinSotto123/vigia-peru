@@ -8,7 +8,8 @@
  *                                              mensual, sin contratos ni zona; `para` (entidad o región) sólo dice qué lo motivó
  *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload);
  *                                              exige probar titularidad (sesión dueña o correo del aporte)
- *   GET  /contribuciones/:codigo               estado (privado: incluye email enmascarado) — requiere token
+ *   GET  /contribuciones/:codigo               estado, monto y fechas para quien tiene el código (público, sin datos de
+ *                                              nadie: ni nombre, ni correo, ni mensaje)
  *   (las rutas /admin/* viven en routes/admin.ts)
  *
  * Reglas de independencia codificadas acá (docs/design/FINANCIA_UNA_AUDITORIA.md §6):
@@ -22,7 +23,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
 import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
@@ -101,6 +102,17 @@ export async function resolverFinanciador(client: import("pg").PoolClient, uid: 
   return financiadorId;
 }
 
+/**
+ * Un logo sólo del bucket propio, como lo deja /api/upload (auditoría 2026-10-30): con cualquier URL, el podio y el
+ * comprobante mostraban una imagen de otro sitio, que además sabía la IP de cada visitante.
+ */
+export const LOGO_PROPIO = /^https:\/\/storage\.googleapis\.com\/vigia-peru-reportes\/logos\/[A-Za-z0-9._-]{1,160}$/;
+/**
+ * Tope de un aporte por el formulario: el 25 % de la UIT 2026 (S/ 5,500). Hasta ahí, el registro del pago sustenta lo
+ * recibido ante SUNAT; por encima hace falta un documento con fecha cierta, que se acuerda por correo.
+ */
+export const TOPE_APORTE = 1375;
+
 // Alcance: exactamente uno de `ubigeo` (zona) o `entidadRuc` (entidad, migración 39).
 const MINIMO_ZONA = 5;
 const CrearBody = z.object({
@@ -114,7 +126,7 @@ const CrearBody = z.object({
     nombrePublico: z.string().trim().min(2).max(80).optional(),   // ausente = anónimo
     ruc: z.string().regex(/^\d{11}$/).optional(),
     email: z.string().email().optional(),          // obligatorio sin sesión; con sesión sale de la cuenta
-    logoUrl: z.string().url().optional(),
+    logoUrl: z.string().max(300).regex(LOGO_PROPIO).optional(),
   }),
   mensajePublico: z.string().trim().max(140).optional(),
   metodo: z.enum(["transferencia", "yape", "plin"]).default("transferencia"),
@@ -242,7 +254,7 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
 // lee. `para` (la entidad o la región que mirabas) sólo dice qué te motivó. Mensual = lo que eliges hacer cada mes; sin
 // pasarela de pagos, cada mes es un aporte nuevo con el mismo trámite (Yape, Plin o transferencia y su validación).
 const ApoyoBody = z.object({
-  montoPen: z.number().min(5).max(50_000),
+  montoPen: z.number().min(5).max(TOPE_APORTE),
   periodicidad: z.enum(["unica", "mensual"]),
   metodo: z.enum(["transferencia", "yape", "plin"]).default("yape"),
   financiador: z.object({
@@ -344,10 +356,16 @@ contribucionesRouter.post("/:codigo/comprobante", limiteEscritura, exigirCaptcha
     return c.json({ error: "titularidad_no_coincide",
       detail: "El correo o la cuenta no coinciden con los del aporte." }, 403);
   }
+  // Sólo los aportes que se pagan a mano: uno con tarjeta lo resuelve Mercado Pago, y una captura no debe ponerlo en la
+  // lista del panel para validarlo a mano. Un archivo sirve para un solo aporte (índice único, migración 217).
   const r = await pool.query(
     `UPDATE contribuciones SET comprobante_url = $2, pasarela_ref = COALESCE($3, pasarela_ref)
-     WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING codigo`,
-    [codigo, body.data.url, body.data.referencia ?? null]);
+     WHERE codigo = $1 AND estado = 'pendiente_pago' AND pasarela IN ('yape', 'plin', 'transferencia') RETURNING codigo`,
+    [codigo, body.data.url, body.data.referencia ?? null]).catch((e) => {
+      if (esErrorPg(e, "23505")) return null;
+      throw e;
+    });
+  if (r === null) return c.json({ error: "comprobante_usado", detail: "Ese comprobante ya se adjuntó a otro aporte." }, 409);
   if (!r.rows.length) return c.json({ error: "not_found_or_not_pending" }, 404);
   // No hay envío de correos: el mensaje no puede prometer un aviso. El estado se consulta con el código
   // (GET /contribuciones/:codigo y el comprobante público /financiamiento/impacto/:codigo).
@@ -365,7 +383,7 @@ contribucionesRouter.get("/:codigo", async (c) => {
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
             co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", z.nombre AS zona, co.ubigeo,
             ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
-            co.tipo, co.periodicidad,
+            co.tipo, co.periodicidad, co.pasarela,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
      FROM contribuciones co LEFT JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);
