@@ -171,11 +171,13 @@ deploy:web:prod:
     DEPLOY_ENV: ""
     VIGIA_API_URL: "https://vigia-api.vigiaperu.workers.dev"
     NEXT_PUBLIC_VIGIA_API_URL: "https://vigia-api.vigiaperu.workers.dev"
-    NEXT_PUBLIC_SITE_URL: "https://vigia-web.vigiaperu.workers.dev"
+    # El dominio público (Vigía by Gobserva, 2026-10-29): enlaces para compartir e imágenes OG. vigia-web.vigiaperu.workers.dev
+    # sigue sirviendo el mismo sitio. infrastructure/deploy/cloudflare/gobserva-redirect/README.md.
+    NEXT_PUBLIC_SITE_URL: "https://vigia.gobserva.cloud"
     # NEXT_PUBLIC_TURNSTILE_SITE_KEY y los NEXT_PUBLIC_FIREBASE_* vienen de las variables del proyecto (prod reales).
   environment:
     name: production
-    url: https://vigia-web.vigiaperu.workers.dev
+    url: https://vigia.gobserva.cloud
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
