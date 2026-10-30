@@ -20,6 +20,7 @@ import { crucesDeProceso } from "../lib/cruces.js";
 import { obraDelContrato } from "../lib/obras.js";
 import {
   CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
+  recortarContrato,
   filasParticipantes, ganadoresDe, presupuestoDe, registradosDe, vinculosDelProceso,
   type FilaContrato, type FilaParticipante, type FilaVinculo, type Presupuesto,
 } from "../lib/proceso.js";
@@ -294,7 +295,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     participantes,
     ofertas,
     cronograma,
-    contrato,
+    // En un proceso enorme, los contratos de mayor monto y los totales (recortarContrato); el cronograma usa todos.
+    contrato: recortarContrato(contrato),
     presupuesto,
     // INFOBRAS e Invierte.pe (migración 160): la obra (estado, avance físico y financiero, paralización, adicionales) y la
     // inversión (monto viable y costo actualizado). Sus banderas van en `cruces`, con su evidencia.
