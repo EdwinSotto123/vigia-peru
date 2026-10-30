@@ -273,6 +273,13 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   // Y por mes, de cada entidad y de cada empresa, para su línea de tiempo (migración 187): los mismos dos meses atrás.
   resumen.ordenes_mes = await siExiste("refrescar_ordenes_mes", "refrescar_ordenes_mes(date,date)",
     "SELECT refrescar_ordenes_mes(current_date - 62) AS n");
+  // Y el año anterior entero, en su paso: los archivos del año traen órdenes emitidas el anterior (758 mil de 2025 en los
+  // de 2026) que no entraban en su conteo (auditoría del 2026-10-29: 92 entidades con 17 mil órdenes de 2025 de menos).
+  const anterior = "make_date(extract(year FROM current_date)::int - 1, 1, 1), make_date(extract(year FROM current_date)::int - 1, 12, 31)";
+  resumen.entidad_ordenes_anterior = await siExiste("refrescar_entidad_ordenes_anterior", "refrescar_entidad_ordenes(date,date)",
+    `SELECT refrescar_entidad_ordenes(${anterior}) AS n`);
+  resumen.ordenes_mes_anterior = await siExiste("refrescar_ordenes_mes_anterior", "refrescar_ordenes_mes(date,date)",
+    `SELECT refrescar_ordenes_mes(${anterior}) AS n`);
   // La ola de órdenes a personas tras cada cambio de gestión, sobre lo recién contado (migración 188).
   resumen.ola_gestion = await siExiste("refrescar_ola_gestion", "refrescar_ola_gestion()", "SELECT refrescar_ola_gestion() AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>

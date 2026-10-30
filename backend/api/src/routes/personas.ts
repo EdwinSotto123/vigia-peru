@@ -626,12 +626,14 @@ personasRouter.get("/:codigo/perfil", async (c) => {
            FROM jne_candidaturas WHERE numero_documento = $1 ORDER BY "año" DESC, cargo LIMIT 40`, [dni]),
       pool.query(
         `SELECT cargo, organizacion_politica AS partido, to_char(periodo_inicio, 'YYYY-MM-DD') AS desde,
-                to_char(periodo_fin, 'YYYY-MM-DD') AS hasta, vigente, departamento, provincia, distrito
+                to_char(periodo_fin, 'YYYY-MM-DD') AS hasta, (vigente AND (periodo_fin IS NULL OR periodo_fin >= current_date)) AS vigente,
+                departamento, provincia, distrito
            FROM jne_autoridades WHERE dni = $1 ORDER BY periodo_inicio DESC NULLS LAST LIMIT 20`, [dni]),
       pool.query(
         `SELECT partido, "año" AS anio, to_char(fecha_aporte, 'YYYY-MM-DD') AS fecha, monto::float AS monto, tipo_aporte AS tipo,
                 nivel, proceso
-           FROM onpe_aportantes WHERE numero_documento = $1 ORDER BY fecha_aporte DESC NULLS LAST, "año" DESC LIMIT 100`, [dni]),
+           -- Cada aporte una vez (migración 211: el mismo en el informe anual y en el de campaña se contaba dos veces).
+           FROM onpe_aporte_unico WHERE numero_documento = $1 ORDER BY fecha_aporte DESC NULLS LAST, "año" DESC LIMIT 100`, [dni]),
       pool.query(
         `SELECT count(*) OVER ()::int AS total, to_char(fecha_visita, 'YYYY-MM-DD') AS fecha, entidad_visitada AS entidad,
                 funcionario_cargo AS cargo, funcionario_area AS area, left(motivo, 160) AS motivo, fuente

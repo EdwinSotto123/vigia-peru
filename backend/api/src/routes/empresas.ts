@@ -945,7 +945,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                 -- La autoridad con su lugar y su partido; cada candidatura con su cargo, su lugar y su resultado (JNE); los aportes
                 -- con sus partidos y sus años (ONPE). El usuario (2026-10-29), de esta pestaña: «se entiende demasiado mal».
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
-                  SELECT jsonb_build_object('cargo', a.cargo, 'vigente', a.vigente, 'desde', to_char(a.periodo_inicio, 'YYYY'), 'hasta', to_char(a.periodo_fin, 'YYYY'),
+                  SELECT jsonb_build_object('cargo', a.cargo, 'vigente', (a.vigente AND (a.periodo_fin IS NULL OR a.periodo_fin >= current_date)), 'desde', to_char(a.periodo_inicio, 'YYYY'), 'hasta', to_char(a.periodo_fin, 'YYYY'),
                                             'distrito', a.distrito, 'provincia', a.provincia, 'departamento', a.departamento,
                                             'organizacion', a.organizacion_politica)
                     FROM jne_autoridades a WHERE a.dni = r.numero_documento
@@ -960,10 +960,10 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                            ORDER BY j."año" DESC NULLS LAST LIMIT 6) z) END AS postulaciones,
                 CASE WHEN r.numero_documento ~ '^[0-9]{8}$' THEN (
                   SELECT jsonb_build_object('n', count(*), 'monto', COALESCE(sum(o.monto), 0)::float,
-                                            'partidos', (SELECT jsonb_agg(DISTINCT o2.partido) FROM onpe_aportantes o2
+                                            'partidos', (SELECT jsonb_agg(DISTINCT o2.partido) FROM onpe_aporte_unico o2
                                                           WHERE o2.numero_documento = r.numero_documento AND o2.partido IS NOT NULL),
                                             'desde', min(o."año"), 'hasta', max(o."año"))
-                    FROM onpe_aportantes o WHERE o.numero_documento = r.numero_documento HAVING count(*) > 0) END AS aportes
+                    FROM onpe_aporte_unico o WHERE o.numero_documento = r.numero_documento HAVING count(*) > 0) END AS aportes
            FROM rnp_conformacion_juridica r WHERE r.ruc_empresa = $1 AND r.numero_documento IS NOT NULL
           GROUP BY r.numero_documento
           ORDER BY bool_or(r.tipo_rol = 'REPRESENTANTE_LEGAL') DESC, bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') DESC, max(r.nombre)`, [ruc]),

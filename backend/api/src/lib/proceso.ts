@@ -375,7 +375,8 @@ export async function contratosConosce(codigo: string): Promise<FilaContrato[]> 
             ruc_contratista AS ruc, url_contrato AS url, to_char(fecha_publicacion, 'YYYY-MM-DD') AS publicado,
             to_char(fecha_suscripcion, 'YYYY-MM-DD') AS firmado, to_char(fecha_vigencia_inicial, 'YYYY-MM-DD') AS desde,
             to_char(fecha_vigencia_final, 'YYYY-MM-DD') AS hasta, to_char(fecha_vigencia_fin_actualizada, 'YYYY-MM-DD') AS hasta_actualizada
-       FROM conosce_contratos WHERE codigo_convocatoria = $1
+       -- Sin las filas idénticas que repite la fuente (2,200 en 11 convocatorias): sumaban dos veces un adicional.
+       FROM (SELECT DISTINCT * FROM conosce_contratos WHERE codigo_convocatoria = $1) c
       ORDER BY fecha_suscripcion NULLS LAST, codigo_contrato, num_item`, [codigo]);
   return r.rows as FilaContrato[];
 }
@@ -405,9 +406,26 @@ export function armarContrato(e: {
     ruc ? { ruc, nombre: nombre ?? e.nombres.get(ruc) ?? null } : null;
   const vigentes = e.adjudicaciones.filter((a) => a.vigente !== false);
   const posiciones = new Set([...e.items.map((i) => i.posicion), ...e.conosce.map((k) => k.item).filter(Number.isFinite)]);
+  // Índices de una pasada: buscar en cada ítem recorría todas las filas (un proceso con miles de ítems y 412 mil filas de
+  // contratos de CONOSCE tardaba 15 s en armarse; auditoría del 2026-10-29).
+  const itemPorPos = new Map<number, (typeof e.items)[number]>();
+  for (const i of e.items) if (!itemPorPos.has(i.posicion)) itemPorPos.set(i.posicion, i);
+  const conoscePorItem = new Map<number, FilaAdjudicacion[]>();
+  for (const x of e.conosce) {
+    const l = conoscePorItem.get(x.item);
+    if (l) l.push(x);
+    else conoscePorItem.set(x.item, [x]);
+  }
+  const contratosPorItem = new Map<number, Set<string>>();
+  for (const f of e.filas) {
+    if (f.item == null || !f.codigo) continue;
+    const l = contratosPorItem.get(f.item);
+    if (l) l.add(String(f.codigo));
+    else contratosPorItem.set(f.item, new Set([String(f.codigo)]));
+  }
   const items: ItemAdjudicado[] = [...posiciones].sort((a, b) => a - b).map((pos) => {
-    const it = e.items.find((x) => x.posicion === pos);
-    const k = e.conosce.filter((x) => x.item === pos);
+    const it = itemPorPos.get(pos);
+    const k = conoscePorItem.get(pos) ?? [];
     const sola = it ? vigentes.filter((a) => a.items.length === 1 && a.items[0] === it.id) : [];
     // Un referencial de 0 es que el registro no lo publica (como en la pestaña Ítems), no un valor de cero.
     const referencial = (it?.montoPen || null) ?? maximo(k.map((x) => x.referencial || null));
@@ -429,14 +447,16 @@ export function armarContrato(e: {
       proveedores,
       fechaBuenaPro: ultima(k.map((x) => x.fechaBuenaPro)),
       fechaConsentimiento: ultima(k.map((x) => x.fechaConsentimiento)),
-      contratos: [...new Set(e.filas.filter((f) => f.item === pos && f.codigo).map((f) => String(f.codigo)))],
+      contratos: [...(contratosPorItem.get(pos) ?? [])],
     };
   });
 
   const porContrato = new Map<string, FilaContrato[]>();
   for (const f of e.filas) {
     const clave = String(f.codigo ?? f.numero ?? `${f.firmado}-${f.ruc}`);
-    porContrato.set(clave, [...(porContrato.get(clave) ?? []), f]);
+    const l = porContrato.get(clave);
+    if (l) l.push(f);
+    else porContrato.set(clave, [f]);
   }
   let firmados: ContratoFirmado[] = [...porContrato.values()].map((fs) => {
     const f = fs[0];

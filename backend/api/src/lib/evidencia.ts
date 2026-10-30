@@ -101,7 +101,7 @@ async function aportes(f: FilaCruce): Promise<Evidencia> {
   const partido = String(f.detalle?.partido ?? "");
   const r = await filas(
     `SELECT fecha_aporte, "año" AS anio, proceso, partido, tipo_aporte, monto, fuente_url, count(*) OVER () AS n
-       FROM onpe_aportantes WHERE numero_documento = $1 AND ($2 = '' OR partido = $2)
+       FROM onpe_aporte_unico WHERE numero_documento = $1 AND ($2 = '' OR partido = $2)
       ORDER BY fecha_aporte DESC NULLS LAST LIMIT ${TOPE}`, [doc, partido]);
   return {
     titulo: `Los aportes de ${quien(f)}`,
@@ -226,7 +226,9 @@ async function sanciones(f: FilaCruce): Promise<Evidencia> {
       { clave: "multa", titulo: "Multa", tipo: "soles" },
     ],
     filas: r.map((x) => ({
-      resolucion: x.resolucion, fecha: fecha(x.fecha_resolucion), tipo: [x.tipo, x.estado].filter(Boolean).join(", "),
+      // El estado por sus fechas: la fuente deja «VIGENTE» a 812 sanciones temporales ya cumplidas (auditoría del 2026-10-29).
+      resolucion: x.resolucion, fecha: fecha(x.fecha_resolucion),
+      tipo: [x.tipo, fecha(x.fecha_hasta) && fecha(x.fecha_hasta)! < new Date().toISOString().slice(0, 10) ? "ya cumplida" : x.estado].filter(Boolean).join(", "),
       vigencia: x.fecha_desde ? `${fecha(x.fecha_desde)} → ${fecha(x.fecha_hasta) ?? "sin fin"}` : null,
       infraccion: [x.infraccion, x.norma].filter(Boolean).join(" — ") || null, multa: num(x.monto_multa_soles),
     })),

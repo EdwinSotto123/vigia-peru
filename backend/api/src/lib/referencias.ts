@@ -73,7 +73,9 @@ const normalOrg = (s: unknown) => String(s ?? "").normalize("NFD").replace(/\p{M
  */
 async function autoridadDe(ruc: string, doc: string, cargo: string, fecha: string | null): Promise<Partial<Referencias>> {
   const a = (await pool.query(
-    `SELECT ubigeo, cargo, distrito, provincia, departamento, proceso, vigente,
+    `SELECT ubigeo, cargo, distrito, provincia, departamento, proceso,
+            -- Vigente sólo si su periodo no terminó: el JNE deja «vigente» a quien ya cumplió (auditoría del 2026-10-29).
+            (vigente AND (periodo_fin IS NULL OR periodo_fin >= current_date)) AS vigente,
             to_char(periodo_inicio, 'YYYY-MM-DD') AS desde, to_char(periodo_fin, 'YYYY-MM-DD') AS hasta
        FROM jne_autoridades WHERE dni = $1
       ORDER BY (cargo = $2) DESC, (periodo_inicio = $3::date) DESC NULLS LAST, periodo_inicio DESC NULLS LAST LIMIT 1`,

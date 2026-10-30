@@ -774,7 +774,8 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
     filas<{ doc: string; cargo: string | null; distrito: string | null; provincia: string | null; departamento: string | null; org: string | null; desde: string | null; hasta: string | null; proceso: string | null; vigente: boolean | null }>(
       "autoridades de su gente",
       `SELECT a.dni AS doc, a.cargo, a.distrito, a.provincia, a.departamento, a.organizacion_politica AS org,
-              to_char(a.periodo_inicio, 'YYYY-MM-DD') AS desde, to_char(a.periodo_fin, 'YYYY-MM-DD') AS hasta, a.proceso, a.vigente
+              to_char(a.periodo_inicio, 'YYYY-MM-DD') AS desde, to_char(a.periodo_fin, 'YYYY-MM-DD') AS hasta, a.proceso,
+              (a.vigente AND (a.periodo_fin IS NULL OR a.periodo_fin >= current_date)) AS vigente
          FROM jne_autoridades a WHERE a.dni IN (${GENTE}) AND a.periodo_inicio IS NOT NULL`, [ruc]),
     filas<{ doc: string; cargo: string | null; partido: string | null; anio: number | null; resultado: string | null; region: string | null; provincia: string | null; distrito: string | null }>(
       "candidaturas de su gente",
@@ -785,7 +786,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       "aportes de su gente",
       `SELECT o.numero_documento AS doc, to_char(o.fecha_aporte, 'YYYY-MM-DD') AS fecha, o."año" AS anio, o.monto::float AS monto, o.partido,
               o.tipo_aporte AS tipo, o.proceso, o.nivel
-         FROM onpe_aportantes o WHERE o.numero_documento IN (${GENTE})`, [ruc]),
+         FROM onpe_aporte_unico o WHERE o.numero_documento IN (${GENTE})`, [ruc]),
   ]);
 
   const hasta = hoy();
@@ -980,7 +981,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
         ...(a.org ? [{ etiqueta: "Partido", valor: titulo(a.org), href: rutaPartido(a.org, desde) }] : []),
         { etiqueta: "Periodo", valor: `${desde.slice(0, 4)} a ${a.hasta ? a.hasta.slice(0, 4) : "hoy"}` },
         ...(a.proceso ? [{ etiqueta: "Elegido en", valor: textoEleccion(a.proceso) ?? a.proceso }] : []),
-        { etiqueta: "Hoy", valor: a.vigente ? "Sigue en el cargo" : "Ya dejó el cargo" },
+        { etiqueta: "Hoy", valor: a.vigente ? "Sigue en el cargo" : a.hasta && a.hasta.slice(0, 10) < hoy() ? `Su periodo terminó el ${fechaLarga(a.hasta.slice(0, 10))}` : "Ya dejó el cargo" },
         ...enLaEmpresa(a.doc, desde),
       ],
       fuente: "JNE", enlace: PLATAFORMA_JNE, href: `${base}?seccion=antecedentes`,
@@ -1142,7 +1143,7 @@ async function historiaPartido(clave: string): Promise<Historia | null> {
     filas<{ mes: string; n: number; monto: number }>(
       "aportes",
       `SELECT to_char(date_trunc('month', fecha_aporte), 'YYYY-MM') AS mes, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto
-         FROM onpe_aportantes
+         FROM onpe_aporte_unico
         WHERE mef_norm(partido) IN (mef_norm($1), mef_norm($1) || ' DEL PERU') AND fecha_aporte >= DATE '2014-01-01' AND fecha_aporte <= current_date
         GROUP BY 1 ORDER BY 1`, [p.nombre]),
     filas<{ proceso: string; n: number; monto: number; proveedores: number }>(
