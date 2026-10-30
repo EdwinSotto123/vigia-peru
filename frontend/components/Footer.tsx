@@ -86,14 +86,18 @@ export function Footer() {
             <Link
               href="/"
               prefetch={false}
-              aria-label="Vigía Perú, ir al inicio"
+              aria-label="Vigía Perú, by Gobserva, ir al inicio"
               className="inline-flex rounded-lg transition-opacity duration-rapido hover:opacity-80"
             >
-              <Marca tono="oscuro" tamano="lg" />
+              <Marca tono="oscuro" tamano="lg" firma />
             </Link>
             <p className="mt-5 max-w-md text-pretty text-dato leading-relaxed text-paper/80">
               Vigilancia cívica de las compras públicas del Perú. Sin fines de lucro y de código abierto, para que
               la verdad no dependa de quién paga el servidor.
+            </p>
+            <p className="mt-3 max-w-md text-pretty text-meta leading-relaxed text-paper/70">
+              Vigía es un producto de <strong className="font-semibold text-paper">Gobserva</strong>, una GovTech: tecnología para que
+              cualquiera pueda vigilar al Estado con sus propios datos.
             </p>
           </div>
 

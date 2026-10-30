@@ -23,7 +23,7 @@ export const IMAGEN_COMPARTIR = {
 };
 
 export const OG_BASE = {
-  siteName: "Vigía Perú",
+  siteName: "Vigía by Gobserva",
   locale: "es_PE",
   images: [IMAGEN_COMPARTIR],
 } satisfies NonNullable<Metadata["openGraph"]>;

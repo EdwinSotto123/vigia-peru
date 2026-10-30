@@ -38,7 +38,7 @@
     "GCS_PROJECT_ID": "vivid-spot-480905-a4",
     "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
     "GCS_BUCKET_REPORTES": "vigia-peru-reportes",
-    "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev",
+    "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev,https://vigia.gobserva.cloud",
     // Relay de descargas: el Worker vigia-relay (backend/relay-worker); el VPS de Lima ya no existe.
     "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
     // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app

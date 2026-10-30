@@ -135,10 +135,10 @@ export function Header() {
       <div className={cn("container-page flex h-[60px] items-center justify-between gap-3 sm:gap-6", isLanding && "max-w-[1400px]")}>
         <Link
           href="/"
-          aria-label="Vigía Perú, ir al inicio"
+          aria-label="Vigía Perú, by Gobserva, ir al inicio"
           className="flex shrink-0 items-center rounded-lg transition-opacity duration-rapido hover:opacity-80"
         >
-          <Marca tono={oscuro ? "oscuro" : "claro"} />
+          <Marca tono={oscuro ? "oscuro" : "claro"} firma />
         </Link>
 
         {showNav && <NavDeslizante pathname={pathname} oscuro={oscuro} leyendo={leyendo} />}

@@ -191,6 +191,16 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
 
         <div className="container-page grid w-full max-w-7xl flex-1 items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:py-16">
           <header className="hero-texto relative z-10">
+            {/* Quién la hace: Vigía es un producto de Gobserva, GovTech (pedido del usuario, 2026-10-29). */}
+            <p className="mb-5 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-paper px-3.5 py-1.5 text-meta text-inkSoft">
+              <span className="font-mono font-bold text-ink">
+                vigía<span className="text-granate">_</span>
+              </span>
+              <span>
+                by <strong className="font-semibold text-ink">Gobserva</strong>
+              </span>
+              <span className="text-mute">GovTech para vigilar el gasto público</span>
+            </p>
             <h1
               id="hero-titulo"
               className="max-w-[18ch] text-balance font-display text-portada font-bold leading-[1.04] tracking-tight text-ink sm:text-vitrina lg:text-cartel"

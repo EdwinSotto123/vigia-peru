@@ -11,7 +11,8 @@ import { Isotipo } from "./Isotipo";
  *
  * `placaClara` es para una placa clara explícita (carbón sobre blanco). `tono` se
  * conserva por compatibilidad y se ignora: ahora todo fondo, claro u oscuro de banda,
- * es carbón. `isotipo={false}` deja sólo el nombre.
+ * es carbón. `isotipo={false}` deja sólo el nombre. `firma` agrega «by Gobserva» debajo
+ * (Vigía es un producto de Gobserva, GovTech; pedido del usuario, 2026-10-29).
  */
 
 const TAMANO = {
@@ -25,6 +26,7 @@ export function Marca({
   tamano = "md",
   nota,
   isotipo = true,
+  firma = false,
   className,
 }: {
   /** Histórico (antes elegía entre fondo claro y oscuro). Se ignora. */
@@ -35,12 +37,14 @@ export function Marca({
   /** Bajada opcional debajo del nombre, en versalitas. El pie la usa; el header no. */
   nota?: string;
   isotipo?: boolean;
+  /** «by Gobserva» debajo del nombre: la portada y el pie. */
+  firma?: boolean;
   className?: string;
 }) {
   const t = TAMANO[tamano];
   const sobreClaro = placaClara;
   return (
-    <span className={cn("inline-flex items-center gap-2.5 leading-none", className)} aria-label="Vigía Perú" role="img">
+    <span className={cn("inline-flex items-center gap-2.5 leading-none", className)} aria-label={firma ? "Vigía Perú, by Gobserva" : "Vigía Perú"} role="img">
       {isotipo && <Isotipo tamano={t.iso} tono={sobreClaro ? "claro" : "oscuro"} />}
       <span className="inline-flex flex-col" aria-hidden>
         {/* Colores por variable (globals.css: --marca-*): carbón y lima de noche, tinta y verde de día, claros sobre
@@ -52,6 +56,11 @@ export function Marca({
         {nota && (
           <span className={cn("mt-1.5 font-mono font-medium uppercase tracking-[0.14em]", t.nota, "text-[rgb(var(--marca-nota))]")}>
             {nota}
+          </span>
+        )}
+        {firma && (
+          <span className={cn("mt-1 font-mono font-medium tracking-[0.04em]", t.nota, sobreClaro ? "text-[#3E5C08]" : "text-[rgb(var(--marca-nota))]")}>
+            by <span className={cn("font-bold", sobreClaro ? "text-[#0B0F0F]" : "text-[rgb(var(--marca-texto))]")}>Gobserva</span>
           </span>
         )}
       </span>
