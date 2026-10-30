@@ -52,3 +52,61 @@ export async function aLaApi(req, env, url, ip) {
   }
   return new Response(r.body, { status: r.status, headers: out });
 }
+
+// ─── Páginas: límite por IP y trampa (worker-prod.js; en DEV, worker-dev.js con un veto corto para probarla) ──────────
+const TOPE_PAGINAS = 300;
+const VENTANA_S = 60;
+/** El enlace escondido de app/layout.tsx, prohibido en app/robots.ts. */
+export const TRAMPA = /^\/app\/indice-completo(?:\/|$)/;
+
+const ESPERA = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="robots" content="noindex"><title>Espera un momento | Vigía</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 1rem;line-height:1.5">
+<h1 style="font-size:1.4rem">Abriste muchas páginas seguidas</h1>
+<p>Desde tu conexión llegaron más pedidos de los que Vigía atiende en un minuto. Espera un minuto y vuelve a intentarlo.</p>
+<p><a href="/">Ir al inicio</a></p></body></html>`;
+
+const VETADO = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="robots" content="noindex"><title>Acceso pausado | Vigía</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 1rem;line-height:1.5">
+<h1 style="font-size:1.4rem">Acceso pausado por un rato</h1>
+<p>Desde tu conexión se pidieron páginas que el sitio pide no visitar, algo que solo hacen los programas automáticos.
+Vuelve a intentarlo más tarde.</p></body></html>`;
+
+const pagina = (html, status, segundos) =>
+  new Response(html, {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Retry-After": String(segundos), "Cache-Control": "no-store" },
+  });
+
+/**
+ * El freno de páginas por IP (una IPv6 por su /64) con el Durable Object `Limitador` de la API (binding LIMITADOR): la
+ * trampa veta a la IP por VETO_S segundos (una hora; en DEV, un minuto), una IP vetada recibe 403 y una que pasa de 300
+ * pedidos por minuto, 429. No cuentan los prefetch de Next. Devuelve la respuesta del freno, o null si pasa. Si el
+ * limitador falla, se atiende: es preferible eso a dejar el sitio caído.
+ */
+export async function frenoDePaginas(req, env, url, ip) {
+  if (!env.LIMITADOR) return null;
+  const vetoS = Number(env.VETO_S) || 3600;
+  const objeto = env.LIMITADOR.get(env.LIMITADOR.idFromName(`paginas|${claveIp(ip)}`));
+  if (TRAMPA.test(url.pathname)) {
+    try {
+      await objeto.vetar(vetoS * 1000);
+    } catch {
+      // Sin veto, igual no se sirve la trampa.
+    }
+    console.log(JSON.stringify({ severity: "WARNING", message: `[trampa] una IP pidió el enlace escondido: vetada ${vetoS} s` }));
+    return pagina(VETADO, 403, vetoS);
+  }
+  // Los prefetch de Next y los estáticos (en DEV pasan por el Worker: run_worker_first) no cuentan.
+  if (req.headers.has("next-router-prefetch") || url.pathname.startsWith("/_next/static/")) return null;
+  let paso = "ok";
+  try {
+    paso = await objeto.pasar(TOPE_PAGINAS, VENTANA_S * 1000);
+  } catch {
+    // ver arriba
+  }
+  if (paso === "vetado") return pagina(VETADO, 403, vetoS);
+  if (paso === "lleno") return pagina(ESPERA, 429, VENTANA_S);
+  return null;
+}

@@ -11,7 +11,7 @@
  * Desplegar: `bash infrastructure/deploy/dev.sh web` (ver docs/DEV.md).
  */
 import abierto from "./.open-next/worker.js";
-import { aLaApi, RUTA_API } from "./worker-comun.js";
+import { aLaApi, frenoDePaginas, RUTA_API } from "./worker-comun.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -52,6 +52,11 @@ export default {
     // sitio: /v1/cuentas pasa igual, la API exige ahí un token válido.
     if (ip && RUTA_API.test(url.pathname) && (autorizado(req, env) || /^\/v1\/cuentas(?:\/|$)/.test(url.pathname))) {
       return aLaApi(req, env, url, ip);
+    }
+    // El mismo freno que producción (worker-comun.js), con un veto de un minuto (VETO_S) para poder probar la trampa.
+    if (ip && autorizado(req, env)) {
+      const freno = await frenoDePaginas(req, env, url, ip);
+      if (freno) return freno;
     }
     if (!interna && !autorizado(req, env)) {
       return new Response("Vigía DEV: pide usuario y clave al equipo.", {

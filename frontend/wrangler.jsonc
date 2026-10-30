@@ -51,8 +51,11 @@
       "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache-dev" }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web-dev" }],
       "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } }],
+      // El freno de páginas y la trampa (worker-comun.js) con el Durable Object de vigia-api-dev; el veto dura un minuto.
+      "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador", "script_name": "vigia-api-dev" }] },
       "vars": {
         "VIGIA_ENTORNO": "dev",
+        "VETO_S": "60",
         "VIGIA_API_URL": "https://vigia-api-dev.vigiaperu.workers.dev",
         "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
         "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev"
