@@ -1,0 +1,15 @@
+# Cabeceras de los estáticos que sirve Cloudflare (Workers Static Assets). No toca las páginas: esas las arma el Worker.
+# Sin este archivo todo salía con max-age=0 y cada visita volvía a preguntar por 30 a 48 archivos (auditoría 2026-10-30).
+
+# Llevan un hash en el nombre: no cambian nunca.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Sin hash (datos del mapa, autoridades, imágenes): un día en el navegador, y una semana sirviendo lo guardado mientras
+# se pide de nuevo.
+/data/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.json
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Building2, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RankingRow } from "@/lib/financiamiento";
+import { logoPropio } from "@/lib/logos";
 import type { DatoIdentidad } from "./IdentidadAliado";
 
 /**
@@ -48,11 +49,11 @@ export function AvatarAliado({
   size?: keyof typeof DIMS;
 }) {
   const d = DIMS[size];
-  if (logoUrl) {
-    // El logo de Vigía Perú llega del API como URL absoluta a este mismo dominio: sin
-    // normalizarla, el optimizador de Next la trata como otra cache key que la del logo
-    // de la cabecera y redimensiona dos veces el mismo PNG.
-    const src = logoUrl.replace(/^https?:\/\/[^/]+\.run\.app/, "");
+  // Sólo un logo propio (lib/logos.ts). El de Vigía Perú llega del API como URL absoluta a este mismo dominio: sin
+  // normalizarla, el optimizador de Next la trata como otra cache key que la del logo de la cabecera y redimensiona dos
+  // veces el mismo PNG (logoPropio la deja relativa).
+  const src = logoPropio(logoUrl);
+  if (src) {
     return (
       <Image
         src={src}
@@ -61,7 +62,6 @@ export function AvatarAliado({
         height={d.px}
         className={cn(d.clase, "shrink-0 border border-line bg-paper object-contain")}
         {...(size === "perfil" ? { priority: true } : { loading: "lazy" as const })}
-        unoptimized={!/^(https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\/|\/)/.test(src)}
       />
     );
   }

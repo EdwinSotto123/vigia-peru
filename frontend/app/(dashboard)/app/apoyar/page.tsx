@@ -74,9 +74,11 @@ export default async function ApoyarPage({ searchParams }: { searchParams?: { pa
 
       <PorQue piso={piso} />
 
-      {/* En el celular: el formulario justo después del por qué; desde lg, fijo a la derecha de todo lo demás. */}
+      {/* En el celular: el formulario justo después del por qué; desde lg, fijo a la derecha de todo lo demás. Fijo pero
+          con su propio desplazamiento: si mide más que la pantalla, el botón para seguir no queda escondido hasta el final
+          de la página (auditoría 2026-10-30). */}
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
-        <aside id="aporte" className="min-w-0 scroll-mt-24 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-4 lg:row-start-1 lg:self-start">
+        <aside id="aporte" className="min-w-0 scroll-mt-24 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-4 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
           {pago ? (
             <AporteVigilancia pago={pago} para={para} />
           ) : (

@@ -305,7 +305,25 @@ export interface ComprobanteApoyo {
   paraEntidad: string | null;
   paraUbigeo: string | null;
   paraZona: string | null;
+  /** El de Mercado Pago (authorized, paused, cancelled…) si es un aporte mensual con tarjeta. */
+  suscripcionEstado?: string | null;
 }
+
+/**
+ * Un aporte que todavía no tiene comprobante público (sin confirmar, rechazado, reembolsado): sólo su estado, sin datos de
+ * nadie (GET /contribuciones/:codigo). El comprobante con nombre, monto y mensaje existe sólo con el pago confirmado.
+ */
+export interface EstadoAporte {
+  codigo: string;
+  estado: string;
+  createdAt: string;
+  pagadaAt: string | null;
+  tipo: string | null;
+  periodicidad: "unica" | "mensual" | null;
+  pasarela: string | null;
+}
+export const getEstadoAporte = (codigo: string) =>
+  getJson<EstadoAporte>(`/contribuciones/${encodeURIComponent(codigo)}`, 30);
 
 export const getComprobanteApoyo = (codigo: string) =>
   getJson<Comprobante | ComprobanteApoyo>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>

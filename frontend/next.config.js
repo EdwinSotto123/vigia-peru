@@ -38,8 +38,8 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "tile.openstreetmap.org" },
+      // Unsplash y OpenStreetMap ya no: no se usan, y cada foto en cada ancho era una transformación de Cloudflare Images
+      // a pedido de cualquiera (auditoría 2026-10-30).
       // logos de aliados y QR de pago: sólo el bucket público de Vigía. Sin `pathname` (y con **.run.app), el
       // optimizador servía y transformaba imágenes de cualquier bucket o servicio ajeno (auditoría 2026-10-21).
       { protocol: "https", hostname: "storage.googleapis.com", pathname: "/vigia-peru-reportes/**" },

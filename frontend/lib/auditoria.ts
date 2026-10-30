@@ -306,8 +306,12 @@ export function procesamientosQueryString(q: ProcesamientosQuery = {}): string {
   return params.toString();
 }
 
-export const getProcesamientos = (q: ProcesamientosQuery = {}) =>
-  getJson<{ data: Procesamiento[] }>(`/financiamiento/procesamientos?${procesamientosQueryString(q)}`).then((r) => r?.data ?? null);
+/**
+ * `revalidate` (s): 5 para lo en vivo; quien sólo muestra un resumen (el inicio de /app) pide más, porque el revalidate más
+ * corto de una página es el de toda la página (antes /app se armaba de nuevo cada 5 s por esta lista).
+ */
+export const getProcesamientos = (q: ProcesamientosQuery = {}, revalidate = 5) =>
+  getJson<{ data: Procesamiento[] }>(`/financiamiento/procesamientos?${procesamientosQueryString(q)}`, revalidate).then((r) => r?.data ?? null);
 
 export interface ProcesamientosPagina { data: Procesamiento[]; total: number; limit: number; offset: number }
 

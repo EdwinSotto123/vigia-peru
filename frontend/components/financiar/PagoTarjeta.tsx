@@ -22,6 +22,8 @@ interface MercadoPagoSdk {
 declare global {
   interface Window {
     MercadoPago?: new (clavePublica: string, opciones?: { locale?: string }) => MercadoPagoSdk;
+    /** Lo define el script de seguridad de Mercado Pago (el id de dispositivo para su antifraude). */
+    MP_DEVICE_SESSION_ID?: string;
   }
 }
 
@@ -32,6 +34,8 @@ export interface DatosTarjeta {
   issuerId?: string;
   email: string;
   identificacion?: { tipo: string; numero: string };
+  /** El id de dispositivo del script de seguridad de Mercado Pago, si cargó. */
+  dispositivo?: string;
 }
 
 interface FormularioBrick {
@@ -42,8 +46,29 @@ interface FormularioBrick {
 }
 
 const SDK = "https://sdk.mercadopago.com/js/v2";
+/** El script de seguridad de Mercado Pago: genera el id de dispositivo que su antifraude usa para aprobar pagos legítimos. */
+const SEGURIDAD = "https://www.mercadopago.com/v2/security.js";
 const CONTENEDOR = "vigia-pago-tarjeta";
 let cargaSdk: Promise<void> | null = null;
+let cargaSeguridad: Promise<void> | null = null;
+
+/** Sin él el pago sigue: sólo pierde una señal del antifraude. Por eso nunca rechaza. */
+function cargarSeguridad(): Promise<void> {
+  if (window.MP_DEVICE_SESSION_ID) return Promise.resolve();
+  cargaSeguridad ??= new Promise<void>((resolver) => {
+    const s = document.createElement("script");
+    s.src = SEGURIDAD;
+    s.async = true;
+    s.setAttribute("view", "checkout");
+    s.onload = () => resolver();
+    s.onerror = () => {
+      cargaSeguridad = null;
+      resolver();
+    };
+    document.head.appendChild(s);
+  });
+  return cargaSeguridad;
+}
 
 /** Un token de color de globals.css («R G B») como lo pide el formulario de Mercado Pago (#rrggbb). */
 function colorDe(estilo: CSSStyleDeclaration, token: string): string | undefined {
@@ -117,6 +142,7 @@ export function PagoTarjeta({
     let control: ControlBrick | null = null;
     setListo(false);
     setFalla(null);
+    void cargarSeguridad();
     cargarSdk()
       .then(async () => {
         if (!vivo || !window.MercadoPago) return;
@@ -145,6 +171,7 @@ export function PagoTarjeta({
                 identificacion: d.payer?.identification?.number
                   ? { tipo: d.payer.identification.type ?? "DNI", numero: d.payer.identification.number }
                   : undefined,
+                dispositivo: window.MP_DEVICE_SESSION_ID,
               }),
             onError: () => vivo && setFalla("El formulario de la tarjeta tuvo un problema. Recarga la página o aporta con Yape o Plin."),
           },

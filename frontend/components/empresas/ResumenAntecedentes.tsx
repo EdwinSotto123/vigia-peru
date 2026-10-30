@@ -41,6 +41,7 @@ export function ResumenAntecedentes({ antecedentes, ruc }: { antecedentes: Antec
       </ul>
       <Link
         href={rutaEmpresa(ruc, "antecedentes")}
+        prefetch={false}
         className="flex min-h-11 items-center justify-between gap-3 border-t border-line/70 px-4 py-2.5 text-meta font-semibold text-granate transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5"
       >
         {resto > 0 ? `Ver los ${numero(antecedentes.length)} tipos, cada caso con su fuente` : "Ver cada caso con su fuente"}
@@ -69,6 +70,7 @@ function FilaAntecedente({ a, href }: { a: AntecedentePorTipo; href: string }) {
         <span className="flex min-w-0 items-center gap-1 sm:flex-1">
           <Link
             href={href}
+            prefetch={false}
             className="min-w-0 text-dato font-medium leading-snug text-ink line-clamp-2 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-granate sm:line-clamp-1"
             title={titulo}
           >

@@ -7,7 +7,7 @@
  * «se ve feo y mucho texto»): una sola app a la vista, con su QR grande, y el plazo de validación dicho una vez.
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { ChevronDown, Landmark, Mail, QrCode, Upload } from "lucide-react";
 import { soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,10 @@ export function PagoConQr({
   email,
   onSubido,
   acciones,
+  tituloRef,
 }: {
+  /** Para llevarle el foco al llegar a esta pantalla (AporteVigilancia). */
+  tituloRef?: Ref<HTMLHeadingElement>;
   pago: PagoPublico;
   /** El medio con el que se registró el aporte: yape, plin o transferencia. */
   metodo: string;
@@ -57,8 +60,11 @@ export function PagoConQr({
   const carteras = (["yape", "plin"] as Cartera[]).filter((k) => pago[k]);
   const esTransferencia = metodo === "transferencia" || carteras.length === 0;
   const [cartera, setCartera] = useState<Cartera>(metodo === "plin" && pago.plin ? "plin" : carteras[0] ?? "yape");
+  // El QR que no cargó (por app): se esconde y queda el número.
+  const [sinQr, setSinQr] = useState<Partial<Record<Cartera, boolean>>>({});
   const w = pago[cartera];
   const app = cartera === "yape" ? "Yape" : "Plin";
+  const conQr = !!w?.qrUrl && !sinQr[cartera];
 
   return (
     <div className={TARJETA}>
@@ -66,7 +72,7 @@ export function PagoConQr({
         {esTransferencia ? <Landmark size={15} aria-hidden /> : <QrCode size={15} aria-hidden />}
         {esTransferencia ? "Transferencia bancaria" : "Con QR"}
       </p>
-      <h2 className="mt-1 font-display text-bloque font-bold leading-snug text-ink text-balance">
+      <h2 ref={tituloRef} tabIndex={-1} className="mt-1 font-display text-bloque font-bold leading-snug text-ink text-balance focus:outline-none">
         Paga {soles(montoPen)} {esTransferencia ? "por transferencia" : carteras.length > 1 ? "con Yape o Plin" : `con ${app}`}
       </h2>
       {mensual && <p className="mt-1 text-rotulo text-inkSoft">Es tu aporte de este mes: cada mes se paga de nuevo.</p>}
@@ -108,19 +114,31 @@ export function PagoConQr({
           </Paso>
         ) : (
           w && (
-            <Paso n={1} titulo={w.qrUrl ? `Escanea el QR con ${app} o usa el número` : `Paga con ${app} a este número`}>
-              {w.qrUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={w.qrUrl} alt={`QR de ${app} para pagar a Vigía`} className="h-44 w-44 rounded-xl border border-line bg-paper object-contain" />
-              )}
-              <div className={w.qrUrl ? "mt-3" : ""}>
-                <CopyValue value={w.numero} label="número" size="lg" />
+            // En el celular, desde el que no se puede escanear su propia pantalla, primero el número; el QR queda para
+            // pagar desde otro teléfono. En escritorio, el QR arriba.
+            <Paso n={1} titulo={conQr ? `Paga con ${app} al número o escanea el QR` : `Paga con ${app} a este número`}>
+              <div className="flex flex-col gap-3">
+                <div className="order-1 sm:order-2">
+                  <CopyValue value={w.numero} label="número" size="lg" />
+                  {w.titular && (
+                    <p className="mt-1.5 text-rotulo text-mute">
+                      A nombre de <span className="text-ink">{w.titular}</span>
+                    </p>
+                  )}
+                </div>
+                {conQr && (
+                  <div className="order-2 sm:order-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={w.qrUrl!}
+                      alt={`QR de ${app} para pagar a Vigía`}
+                      onError={() => setSinQr((s) => ({ ...s, [cartera]: true }))}
+                      className="h-44 w-44 rounded-xl border border-line bg-paper object-contain"
+                    />
+                    <p className="mt-1.5 text-rotulo text-mute sm:hidden">El QR se escanea desde otro teléfono; desde este, usa el número.</p>
+                  </div>
+                )}
               </div>
-              {w.titular && (
-                <p className="mt-1.5 text-rotulo text-mute">
-                  A nombre de <span className="text-ink">{w.titular}</span>
-                </p>
-              )}
             </Paso>
           )
         )}

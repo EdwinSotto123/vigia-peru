@@ -62,7 +62,7 @@ export default async function InicioApp() {
     getCifrasAnio(),
     getEstadoGlobal().catch(() => null),
     ultimosPublicados(),
-    getProcesamientos({ estado: "procesado", limit: 8 }).catch(() => null),
+    getProcesamientos({ estado: "procesado", limit: 8 }, 120).catch(() => null),
     getEntidadesFinanciables({ limit: TOPE }).catch(() => null),
     getRankingPartidos(ANIO_GOBIERNO_VIGENTE).catch(() => null),
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),

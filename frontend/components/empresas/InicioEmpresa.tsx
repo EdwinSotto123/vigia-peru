@@ -58,7 +58,7 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
             return (
               <li key={it.clave}>
                 {it.href ? (
-                  <Link href={it.href} className="block rounded-lg px-1 py-0.5 -mx-1 transition-colors duration-rapido hover:bg-paperSoft">
+                  <Link href={it.href} prefetch={false} className="block rounded-lg px-1 py-0.5 -mx-1 transition-colors duration-rapido hover:bg-paperSoft">
                     {cuerpo}
                   </Link>
                 ) : (
@@ -72,7 +72,7 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
         <p className="text-meta text-mute">{vacio}</p>
       )}
       {verTodo && (
-        <Link href={verTodo.href} className="inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">
+        <Link href={verTodo.href} prefetch={false} className="inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">
           {verTodo.texto}
         </Link>
       )}

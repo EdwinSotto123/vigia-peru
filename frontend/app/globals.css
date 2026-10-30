@@ -598,6 +598,12 @@ dialog:not([open]) {
 .carrusel-lista { scrollbar-width: none; -ms-overflow-style: none; }
 .carrusel-lista::-webkit-scrollbar { display: none; }
 
+/* Los campos de la tarjeta de Mercado Pago (PagoTarjeta) son iframes de otro sitio. De noche, la página es de esquema
+   oscuro y Mercado Pago les pone `color-scheme: normal`: al no coincidir, el navegador les pinta un fondo blanco opaco
+   y el texto claro que les pasa Vigía casi no se ve (auditoría 2026-10-30, 1,16:1). Declarados claros, quedan
+   transparentes sobre el campo de Vigía. Con `dark` o `light dark` la franja sigue (probado). */
+#vigia-pago-tarjeta iframe { color-scheme: light !important; }
+
 /* «Imprimir o guardar PDF» de la evidencia (TablaEvidencia): en el papel va sólo la copia de esa sección, con su
    cabecera (qué es, de qué página, cuándo) y la dirección de cada enlace a la fuente, para verificarla sin pantalla. */
 #vigia-impresion { display: none; }

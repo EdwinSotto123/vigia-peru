@@ -15,11 +15,12 @@ import { Ayuda, BarraCompartir, Pestanas } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
 import { esSenalPublicada, indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import { fecha, numero, plural, soles, solesCompacto } from "@/lib/formato";
-import { ReciboApoyo } from "@/components/financiar/ReciboApoyo";
+import { AporteSinConfirmar, ReciboApoyo } from "@/components/financiar/ReciboApoyo";
 import {
   TIPO_FINANCIADOR_LABEL,
   getComprobante,
   getComprobanteApoyo,
+  getEstadoAporte,
   mensajePublicoVisible,
   type Comprobante,
   type ComprobanteContrato,
@@ -47,6 +48,9 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
       const description = `${a.financiador} aportó ${soles(a.montoPen)} para que Vigía siga vigilando${a.periodicidad === "mensual" ? ", cada mes" : ""}.`;
       return { title: `Comprobante de aporte ${codigo}`, description, openGraph: { title: `Aporte para seguir vigilando`, description } };
     }
+    // Sin comprobante público (aporte sin confirmar): la vista previa no nombra a nadie ni dice un monto.
+    const description = `Aporte ${codigo} a Vigía Perú: todavía sin confirmar.`;
+    return { title: `Aporte ${codigo}`, description, openGraph: { title: `Aporte ${codigo}`, description } };
   }
   const description = c
     ? `${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} ${lugarPlano(c)}. ${numero(c.resumen.contratosConSenal ?? c.resumen.senales)} con al menos una señal.`
@@ -148,6 +152,9 @@ export default async function ImpactoPage({
     // Un aporte para seguir vigilando (migración 206) tiene su propio comprobante, sin contratos.
     const apoyo = await getComprobanteApoyo(params.codigo);
     if (apoyo) return <ReciboApoyo c={apoyo} />;
+    // Sin el pago confirmado no hay comprobante público: sólo su estado, sin datos de nadie.
+    const estado = await getEstadoAporte(params.codigo.toUpperCase());
+    if (estado) return <AporteSinConfirmar e={estado} />;
     notFound();
   }
   const institucional = c.pasarela === "institucional";

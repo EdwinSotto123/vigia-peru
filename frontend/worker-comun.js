@@ -35,8 +35,15 @@ const RESPUESTA = ["content-type", "cache-control", "etag", "last-modified", "re
 
 /** Reenvía `/v1/…` a la API (VIGIA_API_URL, que también atiende con el prefijo /v1). */
 export async function aLaApi(req, env, url, ip) {
-  // El panel tiene su propio paso, con sesión (app/api/admin): por acá no.
-  if (/^\/v1\/admin(?:\/|$)/.test(url.pathname)) return new Response("Not Found", { status: 404 });
+  // El panel tiene su propio paso, con sesión (app/api/admin): por acá no. Con la ruta decodificada y sin distinguir
+  // mayúsculas: `/v1/%61dmin` también es el panel (auditoría 2026-10-30).
+  let rutaPlana = url.pathname;
+  try {
+    rutaPlana = decodeURIComponent(rutaPlana);
+  } catch {
+    /* una ruta mal codificada se mira tal cual */
+  }
+  if (/^\/v1\/admin(?:\/|$)/i.test(rutaPlana)) return new Response("Not Found", { status: 404 });
   const h = new Headers();
   for (const k of PEDIDO) {
     const v = req.headers.get(k);

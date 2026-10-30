@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Building2, User, Users } from "lucide-react";
 import type { RankingRow } from "@/lib/financiamiento";
+import { logoPropio } from "@/lib/logos";
 
 /*
  * Aquí vivía también `RankingTable`, la tabla "Ranking de impacto" de /app/financiar con
@@ -13,17 +14,17 @@ import type { RankingRow } from "@/lib/financiamiento";
  */
 
 export function Avatar({ tipo, logoUrl, nombre }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string }) {
-  if (logoUrl) {
+  const logo = logoPropio(logoUrl);
+  if (logo) {
     return (
       <Image
-        src={logoUrl}
+        src={logo}
         alt=""
         title={nombre}
         width={32}
         height={32}
         className="h-8 w-8 shrink-0 rounded-xl border border-line bg-paper object-contain"
         loading="lazy"
-        unoptimized={!/^https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\//.test(logoUrl)}
       />
     );
   }

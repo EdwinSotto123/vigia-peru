@@ -43,8 +43,12 @@ export function rotuloDesde(url: string): string {
   return "Volver";
 }
 
-/** Una ruta interna segura (no externa, no protocol-relative). */
-const interno = (d: string | undefined): d is string => !!d && d.startsWith("/") && !d.startsWith("//");
+/**
+ * Una ruta interna segura (no externa, no protocol-relative). Sin barra invertida ni caracteres de control: el navegador
+ * lee `/\otro.sitio` como `//otro.sitio` y la miga «Volver» llevaba afuera (auditoría 2026-10-30).
+ */
+const interno = (d: string | undefined): d is string =>
+  !!d && d.startsWith("/") && !d.startsWith("//") && !/[\\\u0000-\u001f\u007f]/.test(d);
 
 /** Lee y valida `desde` de un searchParams (objeto de server o de useSearchParams ya decodificado). */
 export function leerDesde(sp: { desde?: string | string[] } | undefined): string | undefined {

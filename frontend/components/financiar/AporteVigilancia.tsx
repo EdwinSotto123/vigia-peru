@@ -18,7 +18,7 @@
  *   - sin ningún medio de pago no hay formulario: se dice, y se dice quién sostiene hoy a Vigía.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarClock, Clock, CreditCard, HandHeart, Landmark, Loader2, Lock, QrCode, X, Zap } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
@@ -66,6 +66,11 @@ interface Creado {
 }
 
 const MONTOS = [10, 20, 50, 100];
+/**
+ * Tope por el formulario (como la API, routes/contribuciones.ts → TOPE_APORTE): el 25 % de la UIT 2026. Más que eso pide
+ * un documento con fecha cierta ante SUNAT, y se acuerda por correo.
+ */
+const TOPE = 1375;
 const CLAVE = "vigia:aporte-vigilancia";
 const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-dato leading-5 text-ink placeholder:text-mute";
 const GRUPO = "mt-6 min-w-0 border-t border-line pt-5 [&>legend+*]:clear-left";
@@ -81,6 +86,8 @@ const ERRORES: Record<string, string> = {
   tarjeta_cerrada: "El pago con tarjeta no está disponible ahora. Puedes aportar con Yape o Plin.",
   captcha_requerido: "No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.",
   captcha_invalido: "No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.",
+  tarjeta_pausada: "El pago con tarjeta está en pausa unos minutos. Puedes aportar con QR o volver más tarde.",
+  demasiados_intentos: "Hiciste varios intentos con tarjeta. Espera unos minutos o aporta con QR.",
 };
 
 function leer(): Creado | null {
@@ -122,9 +129,22 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   const [motivo, setMotivo] = useState<ParaAporte | null>(para);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // El campo del error, para marcarlo y llevarle el foco (antes el aviso quedaba suelto bajo el botón).
+  const [campoError, setCampoError] = useState<"monto" | "correo" | null>(null);
+  const [autorizaMensual, setAutorizaMensual] = useState(false);
   const [creado, setCreado] = useState<Creado | null>(null);
   const [subido, setSubido] = useState(false);
   const verificacion = useTurnstile("aporte-vigilancia");
+  const montoRef = useRef<HTMLInputElement | null>(null);
+  const correoRef = useRef<HTMLInputElement | null>(null);
+  // Al cambiar de paso, el foco va al título del paso nuevo (si no, se perdía en <body> y el lector no lo anunciaba).
+  const tituloPaso = useRef<HTMLHeadingElement | null>(null);
+  const enfocarPaso = useRef(false);
+  useEffect(() => {
+    if (!enfocarPaso.current) return;
+    enfocarPaso.current = false;
+    tituloPaso.current?.focus();
+  }, [paso, creado]);
 
   // El aporte con QR guardado en este navegador, mientras siga sin pagar: uno ya validado, rechazado o que no existe
   // dejaba el «Paga S/ …» a la vista hasta 7 días.
@@ -182,19 +202,31 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   }
 
   const cantidad = monto === "otro" ? Number.parseFloat(otro.replace(",", ".")) : monto;
-  const montoValido = Number.isFinite(cantidad) && cantidad >= 5 && cantidad <= 50_000;
+  const montoValido = Number.isFinite(cantidad) && cantidad >= 5 && cantidad <= TOPE;
   const conCuenta = !!user;
   const necesitaRuc = tipo === "empresa" || tipo === "organizacion";
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!montoValido) return setError("El aporte mínimo es S/ 5.");
+    setCampoError(null);
+    if (!montoValido) {
+      setCampoError("monto");
+      montoRef.current?.focus();
+      return setError(cantidad > TOPE ? "Por este formulario se aporta hasta S/ 1,375. Para aportar más, escríbenos." : "El aporte mínimo es S/ 5.");
+    }
     if (necesitaRuc && !/^\d{11}$/.test(ruc)) return setError("Ingresa un RUC de 11 dígitos.");
     if (tipo !== "anonimo" && nombre.trim().length < 2) return setError("Ingresa el nombre que quieres mostrar.");
-    if (!conCuenta && !/^\S+@\S+\.\S+$/.test(email)) return setError(ERRORES.email_required);
+    if (!conCuenta && !/^\S+@\S+\.\S+$/.test(email)) {
+      setCampoError("correo");
+      correoRef.current?.focus();
+      return setError(ERRORES.email_required);
+    }
     // Con tarjeta, el aporte se crea cuando la tarjeta se confirma (pagarConTarjeta).
-    if (opcion === "tarjeta") return setPaso("tarjeta");
+    if (opcion === "tarjeta") {
+      enfocarPaso.current = true;
+      return setPaso("tarjeta");
+    }
     setCargando(true);
     try {
       const token = conCuenta ? await idToken() : null;
@@ -218,6 +250,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
       });
       const j = await r.json().catch(() => null);
       if (!r.ok) throw new Error(ERRORES[j?.error] ?? j?.detail ?? "No se pudo registrar el aporte. Inténtalo de nuevo.");
+      enfocarPaso.current = true;
       setCreado(j);
       guardar(j);
     } catch (err) {
@@ -230,6 +263,12 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
   /** El formulario de Mercado Pago confirmó la tarjeta: se cobra (o se suscribe) en la API. Rechaza para reintentar. */
   async function pagarConTarjeta(d: DatosTarjeta) {
     setError(null);
+    // Un cobro automático cada mes se autoriza aparte, con la casilla (reglas de las marcas para cobros recurrentes).
+    if (periodicidad === "mensual" && !autorizaMensual) {
+      const m = "Marca la casilla para autorizar el cobro de cada mes.";
+      setError(m);
+      throw new Error(m);
+    }
     try {
       const token = conCuenta ? await idToken() : null;
       const verificado = await verificacion.obtenerToken();
@@ -270,6 +309,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
     setPeriodicidad(creado.periodicidad);
     setOpcion("tarjeta");
     guardar(null);
+    enfocarPaso.current = true;
     setCreado(null);
     setPaso("datos");
     setError(null);
@@ -303,12 +343,13 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         {conTarjeta.estado === "suscrita" ? (
           <>
             <p>
-              Mercado Pago hace el primer cobro de {soles(conTarjeta.montoPen)} en unos minutos y después uno cada mes. Tu código es{" "}
-              <span className="font-mono font-semibold text-ink">{conTarjeta.codigo}</span>.
+              Mercado Pago hace el primer cobro de {soles(conTarjeta.montoPen)} dentro de la próxima hora y después uno cada mes, el
+              mismo día. Tu código es <span className="font-mono font-semibold text-ink">{conTarjeta.codigo}</span>: guárdalo.
             </p>
             <p className="mt-2 inline-flex items-start gap-1.5 text-meta">
               <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0" />
-              Lo cancelas cuando quieras desde tu cuenta de Mercado Pago, en Suscripciones.
+              Lo cancelas cuando quieras, sin costo, desde tu comprobante con tu código y tu correo (o en Mercado Pago, si tienes
+              cuenta).
             </p>
           </>
         ) : conTarjeta.estado === "en_revision" ? (
@@ -360,6 +401,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         mensual={creado.periodicidad === "mensual"}
         codigo={creado.codigo}
         email={email.trim() || null}
+        tituloRef={tituloPaso}
         onSubido={() => { setSubido(true); guardar(null); }}
         acciones={
           <>
@@ -387,15 +429,26 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
             <Lock size={13} aria-hidden /> Pago seguro
           </span>
         </div>
-        <h2 className="mt-3 font-display text-bloque font-bold leading-snug text-ink">
+        <h2 ref={tituloPaso} tabIndex={-1} className="mt-3 font-display text-bloque font-bold leading-snug text-ink focus:outline-none">
           {periodicidad === "mensual" ? `${soles(cantidad)} cada mes` : `Aporta ${soles(cantidad)}`}
         </h2>
         <p className="mt-1 text-dato leading-5 text-inkSoft">
           {periodicidad === "mensual"
-            ? "Con tarjeta de crédito o débito. Mercado Pago lo cobra solo cada mes y lo cancelas cuando quieras."
-            : "Con tarjeta de crédito o débito."}
+            ? `Con tarjeta de crédito o débito. Hoy se cobra ${soles(cantidad)} y después el mismo día de cada mes, hasta que lo canceles. Lo cancelas cuando quieras, sin costo, desde tu comprobante con tu código y tu correo.`
+            : "Con tarjeta de crédito o débito. Se cobra una sola vez."}
         </p>
         <TarjetasAceptadas className="mt-3" />
+        {periodicidad === "mensual" && (
+          <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-paperSoft px-3 py-2.5 text-dato leading-5 text-ink">
+            <input
+              type="checkbox"
+              checked={autorizaMensual}
+              onChange={(e) => setAutorizaMensual(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-granate"
+            />
+            <span>Autorizo que se cobre {soles(cantidad)} a mi tarjeta hoy y el mismo día de cada mes, hasta que lo cancele.</span>
+          </label>
+        )}
         <div className="mt-5">
           <PagoTarjeta clavePublica={pago.tarjeta.publicKey} monto={Math.round(cantidad * 100) / 100} email={email.trim() || undefined} onPagar={pagarConTarjeta} />
         </div>
@@ -417,7 +470,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
 
   return (
     <form onSubmit={enviar} className={TARJETA} aria-labelledby="aporte-titulo" noValidate>
-      <h2 id="aporte-titulo" className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink">
+      <h2 id="aporte-titulo" ref={tituloPaso} tabIndex={-1} className="inline-flex items-center gap-2 font-display text-bloque font-bold text-ink focus:outline-none">
         <HandHeart size={20} aria-hidden className="text-granate" /> Tu aporte
       </h2>
 
@@ -442,8 +495,17 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
         </div>
         {monto === "otro" && (
           <label className="mt-3 block max-w-[14rem] text-meta text-inkSoft">
-            Monto en soles (mínimo 5)
-            <input inputMode="decimal" value={otro} onChange={(e) => setOtro(e.target.value)} className={CAMPO} placeholder="30" aria-invalid={otro !== "" && !montoValido} />
+            Monto en soles (de 5 a 1,375)
+            <input
+              ref={montoRef}
+              inputMode="decimal"
+              value={otro}
+              onChange={(e) => setOtro(e.target.value)}
+              className={CAMPO}
+              placeholder="30"
+              aria-invalid={(otro !== "" && !montoValido) || campoError === "monto"}
+              aria-describedby={campoError === "monto" ? "aporte-error" : undefined}
+            />
           </label>
         )}
       </fieldset>
@@ -530,7 +592,16 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
               {!authLoading && !conCuenta && (
                 <label className="text-meta text-inkSoft">
                   Correo (no se publica)
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={CAMPO} autoComplete="email" />
+                  <input
+                    ref={correoRef}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={CAMPO}
+                    autoComplete="email"
+                    aria-invalid={campoError === "correo" || undefined}
+                    aria-describedby={campoError === "correo" ? "aporte-error" : undefined}
+                  />
                 </label>
               )}
             </div>
@@ -544,13 +615,14 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
 
       <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5">
         {verificacion.widget}
-        <Button type="submit" disabled={cargando || !montoValido} className="w-full sm:w-auto">
+        {/* Habilitado aunque el monto no sirva: al tocarlo dice por qué (antes se apagaba sin explicar nada). */}
+        <Button type="submit" disabled={cargando} className="w-full sm:w-auto">
           {cargando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
           {!montoValido
             ? "Aportar"
             : `${opcion === "tarjeta" ? "Seguir con Mercado Pago" : opcion === "qr" ? "Seguir con QR" : "Seguir con la transferencia"}: ${soles(cantidad)}${periodicidad === "mensual" ? " al mes" : ""}`}
         </Button>
-        {error && <p className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
+        {error && <p id="aporte-error" className="text-dato leading-5 text-crimsonTexto" role="alert">{error}</p>}
         <p className="text-rotulo text-mute">Recibes un comprobante público. Nadie elige qué contrato se lee, tampoco quien aporta.</p>
       </div>
     </form>

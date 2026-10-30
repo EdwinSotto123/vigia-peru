@@ -33,18 +33,21 @@ const DASHBOARD_PATHS = [
  * Navegación pública. El orden es el recorrido del producto: inicio → mapa → los datos (contratos con los cruces de su
  * ganador, señales de los leídos) → ver en vivo → partidos → aliados → denunciar. Financiar es el botón de la derecha.
  */
-const NAV = [
+// `desde`: el ancho desde el que el enlace entra en la barra (antes, en el menú ☰, que se ve hasta 2xl). Entre 1024 y
+// 1335 px los nueve enlaces empujaban «Apoyar» fuera de la pantalla (auditoría 2026-10-30).
+const NAV: { href: string; label: string; vivo?: boolean; dorado?: boolean; desde?: "xl" | "2xl" }[] = [
   { href: "/", label: "Inicio" },
   { href: "/app/mapa", label: "Mapa" },
   { href: "/app/contratos", label: "Contratos" },
   { href: "/app/hallazgos", label: "Señales" },
-  { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true },
-  { href: "/app/partidos", label: "Partidos" },
+  { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true, desde: "xl" },
+  { href: "/app/partidos", label: "Partidos", desde: "xl" },
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
   { href: "/app/aliados", label: "Aliados", dorado: true },
-  { href: "/reporte/nuevo", label: "Denunciar" },
-  { href: "/preguntas", label: "Preguntas" },
+  { href: "/reporte/nuevo", label: "Denunciar", desde: "2xl" },
+  { href: "/preguntas", label: "Preguntas", desde: "2xl" },
 ];
+const MOSTRAR: Record<"siempre" | "xl" | "2xl", string> = { siempre: "inline-flex", xl: "hidden xl:inline-flex", "2xl": "hidden 2xl:inline-flex" };
 
 type Tema = "claro" | "oscuro";
 
@@ -143,7 +146,7 @@ export function Header() {
 
         {showNav && <NavDeslizante pathname={pathname} oscuro={oscuro} leyendo={leyendo} />}
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <BotonModo className={oscuro ? "border-paper/15 bg-transparent text-paper hover:bg-paper/10" : undefined} />
           {!isAuth && <BuscarGlobal variant="boton" />}
           {/* En /login y /signup el botón "Entrar" llevaba a la misma página. */}
@@ -174,7 +177,8 @@ export function Header() {
               aria-controls="mobile-nav-panel"
               aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
               className={cn(
-                "inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors duration-rapido lg:hidden",
+                // Hasta 2xl: entre 1024 y 1535 px la barra muestra sólo parte de los enlaces (NAV.desde) y el resto está aquí.
+                "inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors duration-rapido 2xl:hidden",
                 oscuro ? "border-paper/20 bg-paper/10 text-paper hover:bg-paper/20" : "border-line bg-paperSoft text-ink hover:bg-paperDeep",
               )}
             >
@@ -284,7 +288,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
     <nav
       ref={lista}
       aria-label="Principal"
-      className="relative hidden items-center gap-0.5 lg:flex"
+      className="relative hidden min-w-0 items-center gap-0.5 lg:flex"
       onMouseLeave={() => setPildora((p) => ({ ...p, visible: false, deslizar: false }))}
     >
       <span
@@ -307,7 +311,8 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
             onMouseEnter={(e) => mover(e.currentTarget)}
             onFocus={(e) => mover(e.currentTarget)}
             className={cn(
-              "group relative z-10 inline-flex min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-dato leading-5 font-medium transition-colors duration-rapido xl:px-3",
+              "group relative z-10 min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-dato leading-5 font-medium transition-colors duration-rapido xl:px-3",
+              MOSTRAR[n.desde ?? "siempre"],
               "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:transition-transform after:duration-normal",
               active ? "after:scale-x-100" : "after:scale-x-0",
               oscuro
@@ -376,7 +381,7 @@ function MobileNavPanel({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 lg:hidden">
+    <div className="fixed inset-0 z-50 2xl:hidden">
       <button aria-label="Cerrar menú" tabIndex={-1} className="absolute inset-0 bg-ink/40 motion-safe:animate-fadeIn" onClick={onClose} />
       <div
         ref={panelRef}
