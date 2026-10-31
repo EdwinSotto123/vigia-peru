@@ -34,6 +34,25 @@ La Procuraduría no es un bloqueo por país: el propio DNS de MINJUS (`ns1.optic
 `procuraduriaanticorrupcion.minjus.gob.pe`, también desde una PC en el Perú. El sitio se mudó o se cayó; cuando aparezca su
 nueva dirección, puede ir directo o por aquí.
 
+## ¿Y sólo con Cloudflare?
+
+Probado el 2026-10-31 con Workers de prueba. Un Worker sale a internet con IPs de Cloudflare que se ubican en el país del
+centro de datos donde corre: desde Buenos Aires salió con 104.23.237.16 (Argentina) y desde Miami con 104.22.86.131 (EE.
+UU.). Cloudflare tiene un centro de datos en Lima, pero no hay forma de hacer correr ahí un Worker:
+
+| Intento | Resultado |
+|---|---|
+| Worker directo (corre donde entra el pedido: Ohio con `placement`, Buenos Aires desde el Perú, Miami desde AWS Lima) | Contraloría e INFOBRAS 522, SERVIR 403. Desde Miami la Contraloría contestó 6 de 10 veces: algunas IP de salida pasan y otras no, así que no sirve para una carga. |
+| Relay de Zúrich | 522 y 403. |
+| Browser Rendering | La Contraloría no responde. |
+| `placement` por `hostname` o `host` (el servidor de la Contraloría o de INFOBRAS) | El Worker no se mueve: sigue corriendo donde entra el pedido. |
+| `placement` por región `aws:us-east-1-lim-1` (la zona de Lima) | Cloudflare lo rechaza: «unsupported Cloud Region». Sólo acepta regiones de AWS, GCP y Azure, y ninguna está en el Perú. |
+| IP de salida dedicada de Cloudflare | Sólo en planes Enterprise. |
+
+Por eso la salida es una máquina con IP peruana. Cloudflare pone todo lo demás: el Worker, el cron, los reintentos, la
+bitácora, el túnel y la red privada (Workers VPC). La máquina no tiene que ser de AWS: el mismo relay.py y cloudflared
+corren en cualquier Linux con IP del Perú (un VPS peruano o una mini PC), con `relay_lima.py` adaptado.
+
 ## Uso
 
 ```bash
