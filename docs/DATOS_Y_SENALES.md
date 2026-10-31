@@ -392,7 +392,7 @@ Las ≤8 UIT no pasan por proceso de selección, así que no entran a `cruces_pr
 
 - **Fuente:** prod4 (contrato: entidad+RUC, proveedor+RUC, monto, PDF) + prod6 (requerimiento/TDR, ventana de
   cotización), unidos por código CM. Tabla `seace_menores` (10.6 k, 2025–26).
-- **Identidad del proveedor:** `seace_proveedor_sunat` (5.1 k) desde la consulta SUNAT (API Perú).
+- **Identidad del proveedor:** `seace_proveedor_sunat` (5.1 k) desde la Consulta Múltiple de RUC oficial de la SUNAT.
 - **Banderas que ya mostramos en el panel del menor** (join por `proveedor_ruc`):
 
 | Bandera | Criterio | Volumen |
@@ -648,8 +648,8 @@ Solo las columnas que sirven para cruzar o filtrar; no el esquema completo.
 ## 22. Qué NO tenemos (límites de datos)
 - **Sin registro de parentesco** oficial: la familia se infiere por apellidos (débil).
 - **Sin datos bancarios/SUNAT tributarios** (solo el padrón público de RUC).
-- **Sin API SUNAT en la nube**: la identidad de proveedores de menores vino de un scrape externo (API Perú); para nuevos
-  hay que re-correrlo.
+- **Sin API SUNAT en la nube**: la identidad de proveedores de menores vino de la Consulta Múltiple de RUC oficial de la
+  SUNAT, bajada desde una PC con navegador real; para nuevos hay que re-correrla.
 - **Menores solo 2025–26** (el módulo es nuevo); no hay historia previa.
 - **Lista de cotizantes de menores**: no es pública (solo el ganador).
 - **Empate por nombre** cuando falta RUC/DNI/ubigeo: ~78% en el grafo del Estado, variable en otros cruces.

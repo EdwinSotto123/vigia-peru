@@ -19,7 +19,7 @@ from tunel_rds import conexion  # noqa: E402
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--entorno", choices=["dev", "prod"], default="prod")
+    ap.add_argument("--entorno", choices=["dev", "prod"], required=True)
     a = ap.parse_args()
     with conexion(a.entorno) as c:
         cur = c.cursor()

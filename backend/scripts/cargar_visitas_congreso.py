@@ -194,7 +194,7 @@ class Base:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--entorno", choices=["prod", "dev"], default="prod")
+    ap.add_argument("--entorno", choices=["prod", "dev"], required=True)
     ap.add_argument("--desde", help="AAAA-MM-DD; sin él, 14 días antes de la última visita cargada (o 2020-01-01)")
     ap.add_argument("--hasta", help="AAAA-MM-DD; sin él, hoy")
     ap.add_argument("--pausa", type=float, default=1.5, help="segundos entre pedidos")

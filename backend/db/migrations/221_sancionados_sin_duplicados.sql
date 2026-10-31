@@ -14,6 +14,9 @@
 --
 -- Los cruces (sancion_vigente y demás) se rehacen solos en la corrida diaria del OECE (refrescar_cruces).
 
+-- Si una cadena de refrescos está leyendo la vista, mejor fallar y reintentar que dejar en cola a la API detrás del bloqueo.
+SET lock_timeout = '10s';
+
 -- 1. Duplicados por espacios. Entre dos filas sin estado gemelas queda la de id menor.
 DELETE FROM osce_sancionados s
  WHERE s.estado IS NULL

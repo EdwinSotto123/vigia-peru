@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Prueba en CI: flujo completo DJIC con navegador (buscar → captcha del DOM → descargar → parsear).
-Confirma que el runner de GitLab puede operar el portal de punta a punta. Portable (Linux/CI)."""
+Confirma que el runner de GitLab puede operar el portal de punta a punta. Portable (Linux/CI).
+
+Los apellidos del declarante de prueba van en la variable DJIC_PRUEBA_APELLIDOS (al lanzar el job manual `test:djic`,
+o en las variables del proyecto en GitLab): no en el código, que se publica en GitHub. DJIC_PRUEBA_RUC cambia la entidad."""
 import asyncio
 import os
 import sys
@@ -10,7 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parse_dji_pdf import familiares_pdf  # noqa: E402
 from playwright.async_api import async_playwright  # noqa: E402
 
-RUC, APELLIDOS = "20131378034", "MALDONADO AMAO"
+RUC = os.environ.get("DJIC_PRUEBA_RUC", "20131378034")
+APELLIDOS = os.environ.get("DJIC_PRUEBA_APELLIDOS", "").strip()
+if not APELLIDOS:
+    sys.exit("Falta DJIC_PRUEBA_APELLIDOS: los apellidos de un declarante de la entidad DJIC_PRUEBA_RUC.")
 BASE = "https://appdji.contraloria.gob.pe/DJIC/ConsultaPublicaDJICRUC.aspx?ruc="
 DEST = "/tmp/djic_ci.pdf"
 
@@ -42,8 +48,9 @@ async def main() -> int:
     kb = os.path.getsize(DEST) // 1024
     fams = familiares_pdf(DEST)
     print(f"PDF {kb}KB · familiares parseados: {len(fams)}")
-    for f in fams[:5]:
-        print("  ", f["doc"], f["grado"], f["parentesco"][:22], f["nombre"][:28])
+    # Sin datos personales en el log de CI (ni documento ni nombre): sólo cuántos familiares trajeron cada campo.
+    campos = {c: sum(1 for f in fams if f.get(c)) for c in ("doc", "nombre", "grado", "parentesco")}
+    print("   con cada campo:", ", ".join(f"{c} {n}" for c, n in campos.items()))
     print("CI DJIC FLOW OK" if fams else "FALLO: sin familiares")
     return 0 if fams else 1
 

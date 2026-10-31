@@ -103,3 +103,30 @@ descargan del Drive del equipo a `dataset/` (gitignored).
 
 Las tools del orquestador son *schema-aware*: si una tabla auxiliar no existe,
 devuelven `dataset_no_disponible: true` sin romper el pipeline.
+
+## 5. Cargadores manuales (desde tu PC)
+
+Lo que no corre solo en el Worker `vigia-scrapers`: cargas desde una PC en el Perú, por el túnel de Session Manager
+(`infrastructure/aws/tunel_rds.py`). Escriben en la base que digas (`--entorno dev|prod`, o `dev|prod` como primer
+argumento; `cargar_gobiernos.py` va por las variables `PG*`): prueba primero en `dev`, o con `--seco` donde exista. Los
+que tienen fuente en la última columna dejan su fila en `datasets_cargas`, que es lo que lee el panel (Cobertura, Fuentes
+de datos) para saber cuándo llegó el último dato.
+
+| Script | Qué carga | `datasets_cargas` |
+|---|---|---|
+| `cargar_contraloria_informes.py --entorno dev\|prod` | Informes de control → `informes_control` (sólo IP peruana) | `contraloria_informes` |
+| `cargar_ppedc_boletin.py --url <pdf> --entorno dev\|prod` | Boletín de la Procuraduría → `procuraduria_casos_sede` | `ppedc_boletin` |
+| `cargar_obras.py --entorno dev\|prod` | INFOBRAS e Invierte.pe → `obra_infobras`, `inversion_mef` (sólo IP peruana) | `infobras`, `invierte_pe` |
+| `cargar_servir_convocatorias.py --entorno dev\|prod` | Plazas CAS de SERVIR → `servir_convocatoria` | `servir_convocatorias` |
+| `cargar_entidades_oece.py --entorno dev\|prod` | RUC y código SIAF de cada entidad → `entidad_siaf` | `oece_entidades` |
+| `cargar_seace_menores.py --entorno dev\|prod --anio AAAA` | Relleno de compras menores → `seace_menores` | `seace_menores` |
+| `cargar_menores_proveedor.py --entorno dev\|prod` | Fichas SUNAT de los ganadores de menores → `seace_proveedor_sunat` | `sunat_ruc` |
+| `cargar_visitas_nacional.py --entorno dev\|prod --dir <ventanas>` | Visitas de la plataforma de la PCM → `visitas_entidades` | `portal_visitas_nacional` |
+| `cargar_visitas_congreso.py --entorno dev\|prod` | Relleno de visitas al Congreso → `visitas_entidades` | — |
+| `cargar_dji_parentesco.py --entorno dev\|prod --csv <Reporte2>` | Parentescos declarados en la DJI → `dji_parentesco` | — |
+| `cargar_gobiernos.py` | Quién gobierna cada región, provincia y distrito → `gobierno_periodo` | — |
+| `cadena_planilla.py dev\|prod` | No carga: corre en orden los 11 refrescos de la planilla y de las personas | — |
+
+Los scrapers que bajan con navegador real (fichas SUNAT de la Consulta Múltiple, visitas de la PCM) y la carga de las
+fichas SUNAT a `empresas` viven en [`backend/scrapers-pc/`](../scrapers-pc/), con sus datos fuera de git. Qué es cada
+fuente, dónde corre, cada cuánto y cómo saber si se cayó: [`SCRAPERS.md`](../../SCRAPERS.md), en la raíz del repo.

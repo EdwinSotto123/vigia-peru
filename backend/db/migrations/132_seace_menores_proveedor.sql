@@ -2,7 +2,7 @@
 -- personas naturales con negocio) NO están en empresa_resumen porque solo contratan por el módulo de menores; esta tabla
 -- les da identidad (razón social, estado/condición SUNAT, actividad CIIU, antigüedad) para mostrarla en el panel del
 -- menor y para las banderas: proveedor NO ACTIVO (baja/suspensión), NO HABIDO, y «ganó recién creada».
--- La llena backend/scripts/cargar_menores_proveedor.py desde el CSV de SUNAT (API Perú); la razón social de RUC-10
+-- La llena backend/scripts/cargar_menores_proveedor.py desde el CSV de la Consulta Múltiple de RUC de SUNAT; la razón social de RUC-10
 -- (persona natural) se redacta al mostrarla, como en el resto de Vigía.
 CREATE TABLE IF NOT EXISTS seace_proveedor_sunat (
   ruc                       TEXT PRIMARY KEY,

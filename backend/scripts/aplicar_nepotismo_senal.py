@@ -26,7 +26,9 @@ MIG = ROOT / "backend" / "db" / "migrations" / "137_dji_nepotismo_senal.sql"
 
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    entorno = args[0] if args else "prod"
+    if not args or args[0] not in ("dev", "prod"):
+        sys.exit("Uso: python backend/scripts/aplicar_nepotismo_senal.py dev|prod [--no-refresh]")
+    entorno = args[0]
     solo_migracion = "--no-refresh" in sys.argv  # aplica vista+función, sin refrescar (para ir antes del deploy del front)
     sql = MIG.read_text(encoding="utf-8")
     print(f"→ {entorno}: aplicando 137{'' if solo_migracion else ' + refrescando nepotismo'}…", flush=True)

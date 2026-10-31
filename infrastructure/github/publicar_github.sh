@@ -3,6 +3,8 @@
 #   · backend/scripts/ab_out$R/ y backend/scripts/dji_fixtures/golden_20.json: DNI de funcionarios, representantes y
 #     familiares (entraron el 2026-10-25, salieron de main el 27).
 #   · backend/scrapers-worker/dji_targets/: nombres completos de funcionarios de la DJI (el CI de GitLab los usa).
+#   · backend/scrapers-pc/ y SCRAPERS.md: cómo se bajan las fuentes que piden navegador real o IP peruana (SUNAT,
+#     visitas de la PCM) y la operación de cada scraper (2026-10-31). Quedan sólo en GitLab.
 # GitLab (privado) conserva la historia entera. A GitHub va una copia reescrita desde el último commit ya publicado antes
 # de esos archivos (f3ba0c5, 2026-10-24): lo anterior conserva sus SHA y el push es fast-forward. Es determinista: correrlo
 # de nuevo da los mismos SHA, así que cada publicación sigue a la anterior sin forzar nada.
@@ -20,13 +22,13 @@ trap 'rm -rf "$TMP"' EXIT
 
 git clone -q --no-hardlinks --single-branch --branch main "$RAIZ" "$TMP/pub"
 cat > "$TMP/filtro.sh" <<'FILTRO'
-git rm -r -q --cached --ignore-unmatch -- 'backend/scripts/ab_out$R' backend/scripts/dji_fixtures/golden_20.json backend/scrapers-worker/dji_targets
+git rm -r -q --cached --ignore-unmatch -- 'backend/scripts/ab_out$R' backend/scripts/dji_fixtures/golden_20.json backend/scrapers-worker/dji_targets backend/scrapers-pc SCRAPERS.md
 FILTRO
 cd "$TMP/pub"
 FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --index-filter "sh '$TMP/filtro.sh'" --prune-empty -- "$BASE..main" >/dev/null
 
 git merge-base --is-ancestor "$BASE" main || { echo "El commit base dejó de ser ancestro: no se publica." >&2; exit 1; }
-if [ -n "$(git log --format=%h main -- 'backend/scripts/ab_out$R' backend/scripts/dji_fixtures/golden_20.json backend/scrapers-worker/dji_targets)" ]; then
+if [ -n "$(git log --format=%h main -- 'backend/scripts/ab_out$R' backend/scripts/dji_fixtures/golden_20.json backend/scrapers-worker/dji_targets backend/scrapers-pc SCRAPERS.md)" ]; then
   echo "Quedaron archivos excluidos en la historia: no se publica." >&2
   exit 1
 fi

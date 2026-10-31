@@ -1,21 +1,31 @@
 """Carga la identidad SUNAT de los proveedores de contratos menores a `seace_proveedor_sunat` (migración 132),
-desde el CSV de la consulta múltiple SUNAT (API Perú) que arma el usuario fuera del repo.
+desde el CSV de la Consulta Múltiple de RUC de la SUNAT (la consulta oficial, con navegador) que arma
+backend/scrapers-pc/sunat_ruc (unir_sunat_ganadores.py deja proveedores_ganadores_con_sunat.csv).
 
-  python backend/scripts/cargar_menores_proveedor.py --entorno dev --csv "C:\\Users\\usuario\\ruc-fichas\\scraper_contratos_menores\\data_rucs\\proveedores_ganadores_con_sunat.csv"
+  python backend/scripts/cargar_menores_proveedor.py --entorno dev --csv <ruta/proveedores_ganadores_con_sunat.csv>
   python backend/scripts/cargar_menores_proveedor.py --entorno prod   # usa el CSV por defecto
 
-El CSV es ;-separado y utf-8-sig. Campos sunat_*; «-» y «» → NULL. Requiere psycopg2 y el túnel (tunel_rds.py).
+El CSV por defecto es $SUNAT_RUC_DATOS/menores/proveedores_ganadores_con_sunat.csv (sin la variable, dataset/sunat_ruc
+en la raíz del repo, fuera de git). Es ;-separado y utf-8-sig. Campos sunat_*; «-» y «» → NULL. Cada carga deja su fila
+en datasets_cargas (fuente sunat_ruc, clave menores_proveedores), que es lo que ve el panel. Requiere psycopg2 y el túnel
+(tunel_rds.py).
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
-CSV_DEF = r"C:\Users\usuario\ruc-fichas\scraper_contratos_menores\data_rucs\proveedores_ganadores_con_sunat.csv"
+CSV_DEF = (Path(os.environ.get("SUNAT_RUC_DATOS") or RAIZ / "dataset" / "sunat_ruc")
+           / "menores" / "proveedores_ganadores_con_sunat.csv")
+FUENTE = "sunat_ruc"
+URL_SUNAT = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsmulruc/jrmS00Alias"
 
 COLS = ["ruc", "razon_social", "tipo_persona", "tipo_contribuyente", "estado", "condicion", "fecha_inscripcion",
         "fecha_inicio_actividades", "departamento", "provincia", "distrito", "direccion", "actividad_ciiu",
@@ -80,6 +90,9 @@ def main() -> int:
                 entero(r.get("nro_trabajadores_sunat")),
             ))
     print(f"filas del CSV: {len(filas)}")
+    ruta = Path(a.csv)
+    sha = hashlib.sha256(ruta.read_bytes()).hexdigest()
+    bajado = datetime.fromtimestamp(ruta.stat().st_mtime).astimezone()
 
     sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
     from tunel_rds import BASES, conexion
@@ -89,7 +102,17 @@ def main() -> int:
             execute_values(cur, SQL, filas, page_size=1000)
             cur.execute("SELECT count(*), count(*) FILTER (WHERE estado<>'ACTIVO'), count(*) FILTER (WHERE condicion<>'HABIDO') FROM seace_proveedor_sunat")
             n, noact, nohab = cur.fetchone()
+            # La bitácora que lee el panel (migración 23), en la misma transacción: si la carga falla, no queda anotada.
+            cur.execute(
+                """INSERT INTO datasets_cargas (fuente, clave, tabla, archivo, sha256, bytes, filas, fuente_url, descargado_at,
+                                                cargado_at, estado)
+                   VALUES (%s, 'menores_proveedores', 'seace_proveedor_sunat', %s, %s, %s, %s, %s, %s, now(), 'ok')
+                   ON CONFLICT (fuente, clave) DO UPDATE SET archivo = EXCLUDED.archivo, sha256 = EXCLUDED.sha256,
+                     bytes = EXCLUDED.bytes, filas = EXCLUDED.filas, fuente_url = EXCLUDED.fuente_url,
+                     descargado_at = EXCLUDED.descargado_at, cargado_at = now(), estado = 'ok', error = NULL""",
+                (FUENTE, ruta.name, sha, ruta.stat().st_size, len(filas), URL_SUNAT, bajado))
     print(f"✓ {BASES[a.entorno]}: {n} proveedores · {noact} no-activos · {nohab} no-habidos/no-hallados")
+    print(f"  datasets_cargas: {FUENTE}/menores_proveedores, {len(filas)} filas, sha256 {sha[:12]}")
     return 0
 
 

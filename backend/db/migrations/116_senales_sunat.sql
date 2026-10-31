@@ -1,4 +1,5 @@
--- 116 · Señales de la empresa desde la SUNAT (API Perú, carga 2026-10): fundación y estado del contribuyente.
+-- 116 · Señales de la empresa desde la SUNAT (Consulta Múltiple de RUC oficial, carga 2026-10): fundación y estado del
+-- contribuyente.
 --
 -- Con la ficha oficial de la SUNAT cargada en `empresas` (fecha_alta_ruc, estado_sunat, metadata->>'condicion'), se
 -- derivan cuatro señales A NIVEL DE EMPRESA y se añaden a empresa_resumen.cruces/tipos/n_* para que salgan en la ficha
