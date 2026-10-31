@@ -2,7 +2,8 @@
  * /admin/fuentes — de dónde salen los datos y en qué está cada pipeline, auditable desde el panel.
  *
  *   GET /admin/fuentes  → {
- *     agenda:     cada fuente de vigia-scrapers con cuándo corre (la de src/calendario.ts) y su última corrida,
+ *     agenda:     cada fuente del catálogo (lib/catalogoFuentes.ts: Worker, PC y CI) con dónde y cuándo corre, su última
+ *                 corrida, sus cargas y su estado (al día, atrasada, falló…),
  *     corridas:   las últimas 150 corridas de corridas_fuente (migración 74): quién la lanzó, parámetros,
  *                 duración, resumen o error,
  *     documentos: los pedidos de descarga por estado (sólo contratos financiados) y los últimos lotes de la fuente
@@ -18,28 +19,9 @@
 import { Hono } from "hono";
 import { poolAdmin as pool } from "../lib/db.js";
 import { agregado, type ClaveAgregado } from "../lib/agregadosPanel.js";
+import { estadoFuentes } from "../lib/catalogoFuentes.js";
 
 export const adminFuentesRouter = new Hono();
-
-/**
- * La agenda de vigia-scrapers. Es la de backend/scrapers-worker/src/calendario.ts (crons de wrangler.jsonc, hora de
- * Lima): si cambia allá, cambia acá. `lanza` son las que corren dentro de otra.
- */
-const AGENDA: { fuente: string; nombre: string; agenda: string; que: string; lanza?: string[] }[] = [
-  { fuente: "oece_ocds", nombre: "OECE · contratos (OCDS)", agenda: "Diario, 06:00", que: "Convocatorias de los últimos 7 días con su ganador; después, cruces y casos cruzados. Con relleno: la historia desde 2015, día por día." },
-  { fuente: "documentos", nombre: "Documentos de los financiados", agenda: "Cada hora, al minuto 40", que: "Los expedientes (bases, actas, contratos) de los contratos financiados, a R2. Nada más se descarga." },
-  { fuente: "conosce", nombre: "CONOSCE · adjudicaciones, postores, contratos", agenda: "Sábados, 08:00", que: "Reportes del SEACE desde 2018; después, consorcios, procesos por partido y cruces." },
-  { fuente: "conosce_ordenes", nombre: "CONOSCE · órdenes de compra y servicio", agenda: "Sábados, 08:00", que: "Los últimos 3 meses de órdenes; después, fraccionamiento (órdenes del mismo día que pasan 8 UIT)." },
-  { fuente: "mef_presupuesto", nombre: "MEF · presupuesto", agenda: "Lunes, 08:00", que: "Presupuesto y gasto por ejecutora; lanza el detalle (en qué gasta) en tres pasadas.", lanza: ["mef_detalle", "mef_cargar_gasto"] },
-  { fuente: "onpe_claridad", nombre: "ONPE · aportes y candidatos", agenda: "Miércoles, 08:00", que: "Aportantes y candidatos de Claridad." },
-  { fuente: "onpe_gastos", nombre: "ONPE · gastos de campaña", agenda: "Miércoles, 08:00", que: "Proveedores de las campañas." },
-  { fuente: "pnda_sancionados", nombre: "Tribunal · sancionados", agenda: "Domingos, 08:00", que: "Proveedores sancionados e inhabilitados." },
-  { fuente: "pnda_visitas", nombre: "Registro de visitas", agenda: "Días 1 y 15, 08:00", que: "Visitas a las entidades." },
-  { fuente: "pnda_dji", nombre: "Declaraciones juradas de intereses", agenda: "Día 5, 08:00", que: "DJI de funcionarios." },
-  { fuente: "jne_infogob", nombre: "JNE · autoridades electas", agenda: "Día 5, 08:00", que: "Autoridades y su organización política." },
-  { fuente: "pnda_oece", nombre: "OECE · penalidades y adicionales", agenda: "Día 1, 08:00", que: "Datasets del OECE en la Plataforma Nacional de Datos Abiertos." },
-  { fuente: "oece_historico", nombre: "OECE · procesos 2015-2017", agenda: "A mano (relleno)", que: "Procesos adjudicados antes de 2018, que CONOSCE no trae." },
-];
 
 let cache: { at: number; body: unknown } | null = null;
 
@@ -55,14 +37,11 @@ const guardado = (clave: ClaveAgregado) => agregado<Record<string, unknown>[]>(c
 
 adminFuentesRouter.get("/fuentes", async (c) => {
   if (cache && Date.now() - cache.at < 60_000) return c.json(cache.body);
-  const [corridas, ultimas, pedidos, lotes, almacen, base, procesos, cola, derivados] = await Promise.all([
+  const [corridas, estados, pedidos, lotes, almacen, base, procesos, cola, derivados] = await Promise.all([
     filas(`SELECT instancia, fuente, origen, params, estado, inicio, fin, segundos, resumen, error
              FROM corridas_fuente ORDER BY inicio DESC LIMIT 150`),
-    // La última de cada fuente y cuántas salieron bien o mal en 30 días.
-    filas(`SELECT DISTINCT ON (fuente) fuente, instancia, estado, inicio, fin, segundos, error,
-                  count(*) FILTER (WHERE estado = 'ok' AND inicio > now() - interval '30 days') OVER (PARTITION BY fuente)::int AS ok30,
-                  count(*) FILTER (WHERE estado = 'error' AND inicio > now() - interval '30 days') OVER (PARTITION BY fuente)::int AS error30
-             FROM corridas_fuente ORDER BY fuente, inicio DESC`),
+    // Cada fuente del catálogo con su última corrida, sus cargas y su estado (lib/catalogoFuentes.ts).
+    estadoFuentes(pool),
     filas(`SELECT estado, motivo, count(*)::int AS n, max(solicitado_at) AS ultimo FROM pedidos_descarga GROUP BY 1, 2 ORDER BY 1, 2`),
     filas(`SELECT id, estado, total::int, ok::int, fallidos::int, iniciado_at AS "iniciadoAt", finalizado_at AS "finalizadoAt", error
              FROM lotes_ingesta WHERE id LIKE 'cf-%' ORDER BY iniciado_at DESC NULLS LAST LIMIT 15`),
@@ -79,10 +58,8 @@ adminFuentesRouter.get("/fuentes", async (c) => {
                   (SELECT sum(pendientes)::int FROM zona_estado WHERE length(ubigeo) = 2) AS financiable`),
     filas(`SELECT nombre, refrescado_at AS "refrescadoAt", duracion_ms AS "duracionMs", refrescos::int FROM derivados_refresco ORDER BY nombre`),
   ]);
-  const porFuente = new Map((ultimas ?? []).map((u) => [String(u.fuente), u]));
-  const agenda = AGENDA.map((a) => ({ ...a, ultima: porFuente.get(a.fuente) ?? null, lanzadas: (a.lanza ?? []).map((f) => porFuente.get(f) ?? { fuente: f }) }));
   const body = {
-    agenda,
+    agenda: estados,
     corridas: corridas ?? [],
     sinBitacora: corridas === null,
     documentos: { pedidos: pedidos ?? [], lotes: lotes ?? [], almacen: almacen?.[0] ?? null },

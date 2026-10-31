@@ -4,6 +4,7 @@ import { Suspense, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { RefreshCw, X } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { DONDE, estadoFuente, type EstadoFuente } from "../cobertura/Fuentes";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { useAdmin } from "@/lib/useAdmin";
 import { cn } from "@/lib/utils";
@@ -53,18 +54,8 @@ import {
  * Fuente: GET /api/admin/fuentes (caché de 1 min en el API): un solo pedido para las cuatro pestañas.
  */
 
-interface Ultima {
-  fuente: string;
-  instancia?: string;
-  estado?: "corriendo" | "ok" | "error";
-  inicio?: string;
-  fin?: string | null;
-  segundos?: number | null;
-  error?: string | null;
-  ok30?: number;
-  error30?: number;
-}
-interface FilaAgenda { fuente: string; nombre: string; agenda: string; que: string; lanza?: string[]; ultima: Ultima | null; lanzadas: Ultima[] }
+/** Una fuente del catálogo de la API (lib/catalogoFuentes.ts) con su última corrida y su estado: la misma fila que Cobertura. */
+type FilaAgenda = EstadoFuente;
 interface Corrida {
   instancia: string;
   fuente: string;
@@ -236,7 +227,30 @@ function TabFuentes({ d, cargando, onFuente }: { d?: Datos; cargando: boolean; o
         </span>
       ),
     },
-    { clave: "agenda", titulo: "Cuándo corre", className: "whitespace-nowrap text-rotulo text-inkSoft", celda: (a) => a.agenda },
+    {
+      clave: "donde",
+      titulo: "Dónde y cuándo",
+      celda: (a) => (
+        <span title={DONDE[a.donde].ayuda} className="inline-flex flex-wrap items-center gap-x-1.5 lg:block">
+          <Badge tono={DONDE[a.donde].tono} punto>
+            {DONDE[a.donde].label}
+          </Badge>
+          <span className="whitespace-nowrap text-micro text-mute lg:mt-0.5 lg:block">{a.agenda}</span>
+        </span>
+      ),
+    },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      celda: (a) => {
+        const e = estadoFuente(a);
+        return (
+          <span className="inline-flex flex-wrap items-center gap-x-1.5 lg:block" title={e.pista}>
+            <Badge tono={e.tono}>{e.label}</Badge>
+          </span>
+        );
+      },
+    },
     {
       clave: "ultima",
       titulo: "Última corrida",
@@ -282,8 +296,12 @@ function TabFuentes({ d, cargando, onFuente }: { d?: Datos; cargando: boolean; o
       meta={d ? `${d.agenda.length} fuentes` : undefined}
       ayuda={
         <Ayuda titulo="¿De dónde sale esta agenda?">
-          Cada fuente es un proceso de vigia-scrapers (Cloudflare) con su agenda en hora de Lima. La última corrida y cuántas salieron bien en 30 días
-          salen de la bitácora corridas_fuente. Toca una fuente para ver sus corridas.
+          <span className="block">
+            Todas las fuentes de Vigía, con su agenda en hora de Lima: las que corren solas en Cloudflare (vigia-scrapers) y las que se corren a mano
+            desde tu PC. La última corrida y cuántas salieron bien en 30 días salen de la bitácora corridas_fuente; las de tu PC sólo anotan sus
+            cargas (datasets_cargas).
+          </span>
+          <span className="mt-1.5 block">Toca una fuente para ver sus corridas. Qué hace cada una y cómo correrla: SCRAPERS.md, en la raíz del repo.</span>
         </Ayuda>
       }
     >

@@ -42,6 +42,7 @@ import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
 import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
 import { agregado, refrescarAgregadosPanel } from "../lib/agregadosPanel.js";
+import { estadoFuentes } from "../lib/catalogoFuentes.js";
 import { alcanceORespaldo } from "./financiamiento.js";
 import { conPerfilAliado, hayAporteEntidad } from "../lib/esquema.js";
 import { perfilPublicado } from "../lib/perfilAliado.js";
@@ -608,7 +609,9 @@ adminRouter.get("/cobertura", async (c) => {
   const calculados = meses.rows.map((m: { calculadoAt: Date }) => new Date(m.calculadoAt).getTime()).filter(Number.isFinite);
   const body = {
     meses: meses.rows, mesesSinCalcular: sinCalcular, mesesCalculadoDesde: calculados.length ? new Date(Math.min(...calculados)).toISOString() : null,
-    lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, fuentes: fuentes.rows, generadoAt: new Date().toISOString(),
+    lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, fuentes: fuentes.rows,
+    // Las mismas fuentes con dónde y cuándo corren, su última corrida y su estado (lib/catalogoFuentes.ts).
+    catalogo: await estadoFuentes(pool), generadoAt: new Date().toISOString(),
   };
   coberturaCache = { at: Date.now(), body };
   return c.json(body);

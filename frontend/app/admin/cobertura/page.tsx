@@ -36,7 +36,7 @@ import {
   type PestanaPanel,
 } from "@/components/admin/ui";
 import { Progreso } from "./Progreso";
-import { Fuentes, totalFuentes, type Fuente } from "./Fuentes";
+import { Fuentes, type EstadoFuente } from "./Fuentes";
 
 /**
  * Cobertura: qué tiene Vigía de cada mes, a ciencia cierta. Sale de las tablas que escribe el pipeline (migración 16),
@@ -70,7 +70,8 @@ interface Cobertura {
   lotes: Lote[];
   documentos: { total: number; vigentes: number; bytesVigentes: number | string; proximaExpiracion: string | null } | null;
   porFormato: { formato: string | null; n: number; bytes: number | string }[];
-  fuentes?: Fuente[];
+  /** Las fuentes del catálogo (lib/catalogoFuentes.ts de la API) con su última corrida, sus cargas y su estado. */
+  catalogo?: EstadoFuente[];
   generadoAt: string;
 }
 
@@ -449,17 +450,22 @@ function TabExternas({ cob }: { cob: Consulta<Cobertura> }) {
   const d = cob.data;
   return (
     <PageSection
-      titulo="Cargas de las fuentes externas"
-      meta={d ? `${totalFuentes(d.fuentes ?? [])} fuentes` : undefined}
+      titulo="Fuentes de datos"
+      meta={d?.catalogo ? `${d.catalogo.length} fuentes, ${d.catalogo.filter((f) => f.estado === "fallo" || f.estado === "atrasada").length} piden atención` : undefined}
       ayuda={
-        <Ayuda titulo="¿Qué son las fuentes externas?">
-          Datos que no vienen del SEACE y se cruzan con cada contrato: visitas, aportes de campaña, autoridades, declaraciones de intereses. Las filas,
-          la última carga y los errores salen del registro de cargas (datasets_cargas); un proceso que no anota sus cargas aparece «Sin registro».
+        <Ayuda titulo="¿Cómo se lee esta tabla?">
+          <span className="block">
+            Cada fuente de la que Vigía saca datos: dónde corre (sola en Cloudflare, o a mano desde tu PC cuando el portal bloquea la nube o pide
+            captcha), su última corrida y el último dato nuevo. Una fuente puede correr bien cada semana sin que su portal publique nada nuevo.
+          </span>
+          <span className="mt-1.5 block">
+            «Atrasada» es que pasó más de su plazo sin una carga buena: si es de tu PC, toca correrla. El detalle de cada una está en SCRAPERS.md.
+          </span>
         </Ayuda>
       }
     >
       <SegunPedido q={cob} que="las fuentes externas" esqueleto={<SkeletonTabla filas={6} columnas={5} />}>
-        {(datos) => <Fuentes fuentes={datos.fuentes ?? []} />}
+        {(datos) => <Fuentes fuentes={datos.catalogo ?? []} />}
       </SegunPedido>
     </PageSection>
   );
@@ -473,7 +479,8 @@ function Page() {
   // descargas, sólo a Documentos: se pide con esa pestaña abierta y deja de sondearse al salir de ella.
   const cob = useAdmin<Cobertura>("/cobertura", { refreshInterval: 60_000 });
   const pro = useAdmin<ProgresoDocumentos>(tab === "documentos" ? "/cobertura/progreso" : null, { refreshInterval: 60_000 });
-  const externasConError = (cob.data?.fuentes ?? []).some((f) => f.cargasConError > 0);
+  // La pestaña se pinta en rojo si alguna fuente falló en su última corrida o está atrasada.
+  const externasConError = (cob.data?.catalogo ?? []).some((f) => f.estado === "fallo" || f.estado === "atrasada");
 
   function refrescar() {
     void cob.mutate();
@@ -483,8 +490,8 @@ function Page() {
   const pestanas: PestanaPanel<Pestana>[] = [
     { clave: "documentos", etiqueta: "Documentos" },
     { clave: "meses", etiqueta: "Contratos por mes" },
-    // El punto rojo avisa que alguna fuente externa tiene cargas con error, sin abrir la pestaña.
-    { clave: "externas", etiqueta: "Fuentes externas", conteo: cob.data ? totalFuentes(cob.data.fuentes ?? []) : null, tono: externasConError ? "danger" : undefined },
+    // El punto rojo avisa, sin abrir la pestaña, que alguna fuente falló en su última corrida o está atrasada.
+    { clave: "externas", etiqueta: "Fuentes de datos", conteo: cob.data?.catalogo ? cob.data.catalogo.length : null, tono: externasConError ? "danger" : undefined },
   ];
 
   return (
