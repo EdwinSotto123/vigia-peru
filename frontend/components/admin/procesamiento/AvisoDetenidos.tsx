@@ -52,8 +52,8 @@ export function AvisoDetenidos({
             <>
               {plural(esperando, "contrato espera", "contratos esperan")} sus documentos{loteParado ? " y no van a avanzar solos" : ""}{" "}
               <Ayuda titulo="¿Por qué esperan?">
-                Los documentos los baja cada hora la fuente documentos, por el relay de Lima, porque el SEACE no deja entrar a la nube; los de
-                los contratos financiados los baja el lote nocturno (1:30). Si el lote no corre, esperan para siempre.
+                Los documentos de los contratos financiados los baja cada hora (minuto 40) la fuente documentos, por el relay de Zúrich,
+                porque el SEACE bloquea las otras regiones de la nube. Si esa fuente no corre, esperan.
               </Ayuda>
             </>
           }
@@ -72,7 +72,7 @@ export function AvisoDetenidos({
                 "no hay registro de ninguno"
               )}
             </span>
-            {relayCaido && <span className="font-medium text-crimsonTexto">El servidor de Lima (relay) no responde</span>}
+            {relayCaido && <span className="font-medium text-crimsonTexto">El relay de Zúrich no responde</span>}
           </span>
           {/* Las acciones van en el cuerpo (no en `acciones`): en el teléfono, a la derecha, apretaban el texto a una columna.
               El botón y «Cómo destrabarlo» comparten fila; abierto, el plegable baja a una fila propia (open:basis-full). */}
@@ -83,13 +83,13 @@ export function AvisoDetenidos({
             <Expandable variante="linea" resumen={<span className="font-semibold text-ink">Cómo destrabarlo</span>} className="text-meta open:basis-full">
               <ol className="list-decimal space-y-2 pl-5 text-meta text-inkSoft marker:font-semibold marker:text-ink">
                 <li>
-                  <strong className="text-ink">Ahora, desde tu computadora</strong> (conexión peruana), en la carpeta del proyecto:
-                  <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-rotulo text-paper">bash infrastructure/deploy/gcp/batch-nocturno.sh</code>
-                  Baja primero los contratos financiados; al terminar, se procesan solos.
+                  <strong className="text-ink">Ahora:</strong> lanza la fuente documentos a mano (el token y el comando completo están en SCRAPERS.md):
+                  <code className="mt-1 block break-all rounded-lg bg-ink px-3 py-2 font-mono text-rotulo text-paper">{'POST /correr {"fuente":"documentos"}'}</code>
+                  Toma hasta 30 contratos por corrida; al bajar sus documentos, se procesan solos.
                 </li>
                 <li>
-                  <strong className="text-ink">Para que no vuelva a pasar:</strong> reinicia el servidor de Lima (el relay) en su proveedor; corre el lote cada
-                  noche a la 1:30.
+                  <strong className="text-ink">Si vuelve a pasar:</strong> mira en Fuentes y procesos si la fuente documentos falla. Si es por 403, el SEACE
+                  bloqueó Zúrich: prueba otra región en el placement de backend/relay-worker.
                 </li>
               </ol>
             </Expandable>

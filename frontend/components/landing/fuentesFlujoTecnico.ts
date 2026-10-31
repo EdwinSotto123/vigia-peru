@@ -22,6 +22,11 @@
  *
  * Si cambia un pipeline, esto se actualiza con él: un número de línea que ya
  * no coincide es un dato inventado.
+ *
+ * DESACTUALIZADO en horarios y notas desde el 14 de octubre de 2026: las descargas pasaron de Cloud Scheduler (GCP) al
+ * Worker vigia-scrapers de Cloudflare (backend/scrapers-worker), el relay de Lima se retiró y la migración 221 hizo que
+ * las sanciones del job semanal sí lleguen a la vista de vigentes. Lo vigente, con su agenda y su estado, está en
+ * backend/api/src/lib/catalogoFuentes.ts y en el panel (Cobertura, Fuentes de datos).
  */
 
 export interface LineaCodigo {

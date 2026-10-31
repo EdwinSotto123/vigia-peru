@@ -115,8 +115,8 @@ export function PedidosDescarga({ onChange }: { onChange: () => void }) {
           {rows ? `${abiertos.length.toLocaleString("es-PE")} en espera, ${plural(listos, "atendida", "atendidas")}` : cargando ? "Cargando…" : "Sin dato"}
         </span>
         <Ayuda titulo="¿Qué son estas descargas?">
-          Contratos financiados que no tenían sus documentos. Los baja el lote nocturno (1:30) por el relay de Lima, porque el SEACE no deja entrar a la
-          nube. Toca uno para abrir su ficha; uno fallido se reintenta desde su «⋯».
+          Contratos financiados que no tenían sus documentos. Los baja cada hora (minuto 40) la fuente documentos por el relay de Zúrich, porque el
+          SEACE bloquea las otras regiones de la nube. Toca uno para abrir su ficha; uno fallido se reintenta desde su «⋯».
         </Ayuda>
       </div>
       <ErrorBanner error={q.error} titulo="No se pudieron leer las descargas" onReintentar={() => q.mutate()} className="mt-3" />

@@ -8,7 +8,9 @@
  * `fuentesFlujoTecnico.ts`, con la misma `clave`, para quien quiera verificar.
  *
  * Cada dato dice lo que pasa HOY, verificado contra el código el 24 de
- * setiembre de 2026:
+ * setiembre de 2026; las agendas, revisadas el 31 de octubre de 2026 (desde el
+ * 14 de octubre las descargas corren en Cloudflare: backend/scrapers-worker, y el
+ * catálogo de fuentes con su estado está en backend/api/src/lib/catalogoFuentes.ts):
  *  - `alimenta` sale de quién lee cada tabla (reglas, cruces de personas,
  *    paneles). Una fuente que nadie lee va con `alimenta: []`: su camino es
  *    punteado y su ficha dice "Servirá para".
@@ -76,13 +78,13 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     corto: "SEACE / OECE",
     url: CONTRATACIONES_ABIERTAS,
     aporta: "Cada contrato que el Estado publica: entidad, monto, fechas, postores y sus documentos. De aquí sale todo lo que ves en el mapa.",
-    agenda: { tipo: "diaria", hora: 1, minuto: 30 },
+    agenda: { tipo: "diaria", hora: 6, minuto: 0 },
     estado: "en_uso",
     sirve: "saber qué contratos existen, dónde y por cuánto, y leer sus documentos.",
     alimenta: ["contratos", "entidades", "proveedores", "personas", "senales", "informe"],
     llegaComo: "Datos en línea (formato abierto OCDS) y documentos en PDF",
     formato: "En línea",
-    frecuencia: "Cada noche",
+    frecuencia: "Todos los días a las 6:00",
     tomamos: ["Qué entidad compra", "Qué compra y por cuánto", "Fechas del proceso", "Quién se presentó y quién ganó", "Bases, actas y contrato"],
   },
   {
@@ -104,17 +106,17 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
   {
     clave: "sancionados",
     corto: "Sancionados",
-    // Lo que usa la regla es la exportación del buscador del OECE, cargada a
-    // mano; el job semanal de datos abiertos no llega a ella.
+    // La base la puso una exportación del buscador del OECE (mayo de 2026); desde entonces la completa cada domingo el
+    // dataset de la PNDA, y su vigencia sale de las fechas cuando no trae estado (migración 221).
     url: BUSCADOR_RNP,
     aporta: "Quién está inhabilitado para contratar con el Estado, desde cuándo y hasta cuándo.",
-    agenda: { tipo: "a_mano" },
+    agenda: { tipo: "semanal", diaSemana: 0, hora: 8 },
     estado: "en_uso",
     sirve: "avisar si quien ganó, o un socio suyo, tenía prohibido contratar con el Estado.",
     alimenta: ["senales", "informe"],
-    llegaComo: "Un archivo Excel",
-    formato: "Excel",
-    frecuencia: "Se descarga a mano",
+    llegaComo: "Archivos CSV de datos abiertos",
+    formato: "CSV",
+    frecuencia: "Cada domingo",
     tomamos: ["Empresa o persona sancionada", "Por qué infracción", "Desde y hasta cuándo", "Número de resolución"],
   },
   {
@@ -138,13 +140,13 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     corto: "Aportes ONPE",
     url: CLARIDAD_ONPE,
     aporta: "Quién financió a qué partido, cuánto y cuándo.",
-    agenda: { tipo: "a_mano" },
+    agenda: { tipo: "semanal", diaSemana: 3, hora: 8 },
     estado: "en_uso",
     sirve: "avisar si quien ganó, o un socio suyo, aportó a la campaña de la autoridad que contrata.",
     alimenta: ["personas", "relaciones", "senales", "informe"],
     llegaComo: "Datos en línea, consultados desde un navegador",
     formato: "En línea",
-    frecuencia: "A mano, una vez al mes (cada semana en campaña)",
+    frecuencia: "Cada miércoles",
     tomamos: ["Quién aportó", "A qué partido", "Cuánto", "Cuándo"],
   },
   {
@@ -169,13 +171,13 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     url: DATASET_DJI,
     aporta: "Dónde trabajó antes cada funcionario, según lo que él mismo declaró.",
     agenda: { tipo: "mensual", dias: [5], hora: 8 },
-    estado: "caida",
+    estado: "en_uso",
     sirve: "detectar la puerta giratoria: un funcionario que antes trabajó en la empresa que hoy gana.",
-    alimenta: [],
+    alimenta: ["personas", "relaciones", "senales"],
     // 1,8 millones de declaraciones y 2,7 millones de empleos previos.
     llegaComo: "Archivos CSV muy grandes, de millones de filas",
     formato: "CSV",
-    frecuencia: "Por ahora no se actualiza",
+    frecuencia: "El día 5 de cada mes",
     tomamos: ["Funcionario", "Entidad y cargo", "Empresas donde trabajó antes"],
   },
   {
@@ -183,13 +185,13 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     corto: "Presupuesto MEF",
     url: "https://datosabiertos.mef.gob.pe/",
     aporta: "Cuánto tiene asignado cada región y cuánto ejecutó, por sector, pliego y programa.",
-    agenda: { tipo: "mensual", dias: [12], hora: 8 },
-    estado: "caida",
+    agenda: { tipo: "semanal", diaSemana: 1, hora: 8 },
+    estado: "en_uso",
     sirve: "mostrar cuánto presupuesto tiene cada región y entidad, y cuánto gastó.",
     alimenta: ["entidades"],
-    llegaComo: "Datos en línea",
-    formato: "En línea",
-    frecuencia: "Por ahora no se actualiza",
+    llegaComo: "Archivos ZIP de datos abiertos, uno por año",
+    formato: "Varios",
+    frecuencia: "Cada lunes",
     tomamos: ["Presupuesto asignado", "Cuánto se gastó", "Por sector, pliego y programa"],
   },
   {
@@ -198,7 +200,7 @@ export const FUENTES_FLUJO: FuenteFlujo[] = [
     // Son siete conjuntos: el enlace es la búsqueda que los lista a todos.
     url: "https://www.datosabiertos.gob.pe/search/type/dataset?query=contrataciones%20p%C3%BAblicas%20eficientes",
     aporta: "Ofertantes, consorcios, profesionales certificados, pronunciamientos, cuadernos y valorizaciones de obra.",
-    agenda: { tipo: "mensual", dias: [1], hora: 9 },
+    agenda: { tipo: "mensual", dias: [1], hora: 8 },
     estado: "sin_cruce",
     sirve: "cruzar consorcios, ofertantes y obras.",
     alimenta: [],

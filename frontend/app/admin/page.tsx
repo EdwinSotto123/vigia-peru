@@ -116,7 +116,7 @@ function chequeos(op: Operacion): Chequeo[] {
   // Mismo orden de precedencia que antes: `comprobando` sólo cuenta mientras no hay respuesta.
   const relay: Pick<Chequeo, "tono" | "estado" | "frase"> =
     r.ok === true
-      ? { tono: "ok", estado: "En orden", frase: "Lee el OECE desde una conexión peruana" }
+      ? { tono: "ok", estado: "En orden", frase: "Pasa el filtro del OECE y del SEACE" }
       : r.ok === false
         ? { tono: "danger", estado: "Caído", frase: "No responde: los contratos nuevos no se pueden leer desde la nube" }
         : r.comprobando
@@ -186,11 +186,11 @@ function chequeos(op: Operacion): Chequeo[] {
     },
     {
       clave: "relay",
-      nombre: "Servidor de Lima",
+      nombre: "Relay de Zúrich",
       ...relay,
       extra: r.ok === false && (
         <p className="text-meta text-inkSoft">
-          Los contratos vuelven a la cola sin gastar intentos. Para destrabarlo, reinicia el servidor en su proveedor o corre el procesamiento desde una conexión peruana.
+          Los contratos vuelven a la cola sin gastar intentos. Si el OECE empezó a bloquear Zúrich, prueba otra región en el placement de backend/relay-worker y despliégalo (SCRAPERS.md).
         </p>
       ),
       tecnico: [
@@ -217,14 +217,14 @@ function chequeos(op: Operacion): Chequeo[] {
     },
     {
       clave: "lote",
-      nombre: "Lote nocturno de documentos",
+      nombre: "Descarga de documentos",
       ...lote,
       frase: l
         ? `${fmtNum(l.ok)} de ${fmtNum(l.total)} documentos${l.fallidos ? `, ${fmtNum(l.fallidos)} fallidos` : ""}, ${hace(finLote) ?? "sin fecha"}`
         : "Todavía no corrió ningún lote",
       extra: l && loteParado && (
         <p className="text-meta text-inkSoft">
-          Corre cada noche desde el servidor de Lima. Mientras no corra, los contratos de la cola se quedan esperando sus documentos.
+          La fuente documentos corre cada hora (minuto 40) por el relay de Zúrich. Mientras no corra, los contratos financiados se quedan esperando sus documentos.
         </p>
       ),
       datos: l ? [
@@ -347,8 +347,8 @@ export default function AdminHome() {
               meta={op ? `${enOrden} de ${salud.length} en orden` : undefined}
               ayuda={
                 <Ayuda titulo="¿Qué se revisa?">
-                  El procesamiento automático, los servicios de agentes, el servidor de Lima (lee el OECE desde una conexión
-                  peruana), las convocatorias nuevas y el lote nocturno de documentos. Abre un chequeo para ver sus datos, qué
+                  El procesamiento automático, los servicios de agentes, el relay de Zúrich (por donde se lee el OECE), las
+                  convocatorias nuevas y la descarga de documentos. Abre un chequeo para ver sus datos, qué
                   hacer y el detalle técnico.
                 </Ayuda>
               }
