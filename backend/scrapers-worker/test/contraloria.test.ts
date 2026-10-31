@@ -51,9 +51,9 @@ test("responsabilidades, fechas y consulta", () => {
   assert.equal(u.searchParams.get("pResponsabilidad"), '"PENAL" OR "CIVIL" OR "ADMINISTRATIVO ENTIDAD" OR "ADMINISTRATIVO PAS"');
 });
 
-test("contraloria_informes no tiene cron (la Contraloría no responde fuera del Perú: se carga con el script)", () => {
+test("contraloria_informes corre sólo el día 10 (por el relay de Lima)", () => {
   for (let d = 1; d <= 30; d++) {
     const ms = Date.parse(`2026-11-${String(d).padStart(2, "0")}T13:00:00Z`);
-    assert.ok(!fuentesDelCron(CRON_DATOS, ms).includes("contraloria_informes"), `día ${d}`);
+    assert.equal(fuentesDelCron(CRON_DATOS, ms).includes("contraloria_informes"), d === 10, `día ${d}`);
   }
 });

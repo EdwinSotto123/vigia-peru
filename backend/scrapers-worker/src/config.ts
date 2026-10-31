@@ -35,6 +35,12 @@ export interface Env {
   DOCUMENTOS: R2Bucket;
   /** Worker `vigia-relay` (Zúrich): la API OCDS del OECE responde 403 desde EE.UU. */
   RELAY: Fetcher;
+  /**
+   * Relay de Lima (backend/relay-lima): EC2 en la Local Zone de AWS en Lima, por el túnel `vigia-lima` y el servicio de
+   * Workers VPC `vigia-relay-lima` (`vpc_services` en wrangler.jsonc). La Contraloría, INFOBRAS, SERVIR y MINJUS sólo
+   * responden a IPs del Perú.
+   */
+  RELAY_LIMA?: Fetcher;
   /** Workflow `CorrerFuente`: una corrida de una fuente (src/workflow.ts). */
   CORRER: Workflow<ParamsCorrida>;
   /** Browser Rendering: Claridad (ONPE) está detrás de un challenge de Cloudflare que solo pasa un navegador. */
@@ -46,6 +52,8 @@ export interface Env {
   SCRAPERS_TOKEN?: string;
   /** El mismo de los jobs (secreto `local-downloader-token`): lo exige `/raw` del relay. */
   RELAY_TOKEN?: string;
+  /** X-Vigia-Token del relay de Lima (SSM /vigia/relay-lima/token, en us-east-2). */
+  RELAY_LIMA_TOKEN?: string;
 }
 
 export const activo = (env: Env) => (env.SCRAPERS_ACTIVO ?? "").trim() === "1";

@@ -27,6 +27,9 @@ import { correrSancionados } from "./fuentes/pnda_sancionados.ts";
 import { correrVisitas } from "./fuentes/pnda_visitas.ts";
 import { correrCongresoVisitas } from "./fuentes/congreso_visitas.ts";
 import { correrSeaceMenores } from "./fuentes/seace_menores.ts";
+import { correrOeceEntidades } from "./fuentes/oece_entidades.ts";
+import { correrSunatPadron } from "./fuentes/sunat_padron.ts";
+import { correrInviertePe } from "./fuentes/invierte_pe.ts";
 import { conDb } from "./db.ts";
 import { registrar } from "./registro.ts";
 
@@ -48,6 +51,9 @@ export const FUENTES: Record<string, Corredor> = {
   mef_opds_etes: correrMefOpdsEtes,
   conosce: correrConosce,
   conosce_ordenes: correrOrdenes,
+  oece_entidades: correrOeceEntidades,
+  sunat_padron: correrSunatPadron,
+  invierte_pe: correrInviertePe,
   onpe_gastos: correrGastos,
   onpe_claridad: correrOnpe,
   contraloria_informes: correrContraloria,

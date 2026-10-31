@@ -5,6 +5,8 @@
  * - Reintentos en 429/5xx con espera creciente (el `Retry(total=4, backoff_factor=1.5)` de la sesión).
  * - `relay: true` manda el GET por el Worker `vigia-relay` (Zúrich): la API OCDS del OECE responde 403
  *   a Cloudflare en EE.UU. El status que se devuelve es el del ORIGEN, como `http.get()` con RELAY_URL.
+ * - `relay: "lima"` lo manda por el relay de Lima (backend/relay-lima, binding RELAY_LIMA): la Contraloría, INFOBRAS,
+ *   SERVIR y MINJUS sólo responden a IPs del Perú (522, 403 o sin DNS desde Cloudflare y desde Zúrich).
  */
 
 import type { Env } from "./config.ts";
@@ -46,9 +48,25 @@ async function porRelay(env: Env, url: string, timeoutMs: number): Promise<Respo
   return r;
 }
 
+/** El servicio de Workers VPC del relay de Lima: la dirección con la que está definido (127.0.0.1:8080 de la instancia). */
+export const URL_LIMA = "http://127.0.0.1:8080";
+
+async function porLima(env: Env, url: string, timeoutMs: number): Promise<Response> {
+  if (!env.RELAY_LIMA) throw new Error("falta el binding RELAY_LIMA (vpc_services en wrangler.jsonc)");
+  const r = await env.RELAY_LIMA.fetch(`${URL_LIMA}/raw`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Vigia-Token": (env.RELAY_LIMA_TOKEN ?? "").trim() },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(Math.max(timeoutMs, 120_000)),
+  });
+  if (r.status === 401 && !r.headers.get("x-relay-status")) throw new Error("el relay de Lima rechazó RELAY_LIMA_TOKEN (401)");
+  return r;
+}
+
 export interface OpcionesGet {
   params?: Record<string, string | number | undefined>;
-  relay?: boolean;
+  /** true: por el relay de Zúrich; "lima": por el relay de Lima. */
+  relay?: boolean | "lima";
   /** Tiempo total del pedido (ms); las descargas grandes pasan `null` (las acota el timeout del paso). */
   timeoutMs?: number | null;
   /** Sin reintentos propios (el que llama ya reintenta, como `_get_json` de oece_ocds). */
@@ -61,7 +79,8 @@ export async function obtener(env: Env, url: string, op: OpcionesGet = {}): Prom
   const timeout = op.timeoutMs === undefined ? 90_000 : op.timeoutMs;
   for (let intento = 0; ; intento++) {
     let r: Response;
-    if (op.relay) r = await porRelay(env, destino, timeout ?? 120_000);
+    if (op.relay === "lima") r = await porLima(env, destino, timeout ?? 120_000);
+    else if (op.relay) r = await porRelay(env, destino, timeout ?? 120_000);
     else r = await fetch(destino, { headers: CABECERAS, redirect: "follow", ...(timeout ? { signal: AbortSignal.timeout(timeout) } : {}) });
     if (op.sinReintentos || !REINTENTABLE.has(r.status) || intento >= ESPERAS_S.length) return r;
     await r.body?.cancel();

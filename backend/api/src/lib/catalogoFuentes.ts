@@ -13,7 +13,7 @@
 import type pg from "pg";
 
 /** Por dónde sale el pedido: lo que hay que mirar si una fuente deja de llegar. */
-export type Donde = "cloudflare" | "zurich" | "navegador" | "pc" | "ci";
+export type Donde = "cloudflare" | "zurich" | "lima" | "navegador" | "pc" | "ci";
 
 export interface FuenteCatalogo {
   fuente: string;
@@ -67,22 +67,24 @@ export const CATALOGO: FuenteCatalogo[] = [
   { fuente: "oece_historico", nombre: "OECE: procesos 2015-2017", donde: "zurich", agenda: "A mano (relleno)", cadaDias: null,
     que: "Procesos adjudicados antes de 2018, que CONOSCE no trae." },
   // ── Desde una PC en el Perú: la fuente bloquea la nube o pide captcha ──────────────────────────────────────────
-  { fuente: "contraloria_informes", nombre: "Informes de control (Contraloría)", donde: "pc", agenda: "Mensual, a mano", cadaDias: 35,
-    que: "Informes con responsabilidad presunta. Sólo responde a IP peruana: backend/scripts/cargar_contraloria_informes.py." },
+  { fuente: "contraloria_informes", nombre: "Informes de control (Contraloría)", donde: "lima", agenda: "Día 10, 08:00", cadaDias: 33,
+    que: "Informes con responsabilidad presunta. Sólo responde a IP peruana: sale por el relay de Lima (backend/relay-lima)." },
   { fuente: "ppedc_boletin", nombre: "Casos de la Procuraduría Anticorrupción", donde: "pc", agenda: "Mensual, a mano (cuando sale el boletín)", cadaDias: 45,
     que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py." },
   { fuente: "infobras", nombre: "Obras públicas (INFOBRAS)", donde: "pc", agenda: "Semanal, a mano", cadaDias: 8,
     que: "Obras con su avance y CUI; sólo responde a IP peruana: backend/scripts/cargar_obras.py." },
-  { fuente: "invierte_pe", nombre: "Inversiones (Invierte.pe)", donde: "pc", agenda: "Semanal, a mano (con INFOBRAS)", cadaDias: 8,
-    que: "Proyectos de inversión por CUI; los baja el mismo cargar_obras.py." },
+  { fuente: "invierte_pe", nombre: "Inversiones (Invierte.pe)", donde: "cloudflare", agenda: "Viernes, 08:00", cadaDias: 7,
+    que: "Proyectos de inversión por CUI (DETALLE e CIERRE_INVERSIONES del MEF); después refrescar_obras()." },
   { fuente: "servir_convocatorias", nombre: "Plazas CAS (SERVIR)", donde: "pc", agenda: "Semanal, a mano", cadaDias: 8,
     que: "Convocatorias CAS; SERVIR responde 403 a Cloudflare: backend/scripts/cargar_servir_convocatorias.py." },
   { fuente: "portal_visitas_nacional", nombre: "Visitas: plataforma nacional (PCM)", donde: "pc", agenda: "Mensual, a mano", cadaDias: 35,
     que: "Visitas de todas las entidades. Tu Chrome con el Turnstile del portal (backend/scrapers-pc/visitas_pcm) y carga por túnel." },
+  { fuente: "sunat_padron", nombre: "Padrón reducido de SUNAT (empresas)", donde: "cloudflare", agenda: "Martes, 08:00", cadaDias: 7,
+    que: "Estado y condición de domicilio de todas las empresas (RUC 20), sin captcha: de baja, suspendida, no habida." },
   { fuente: "sunat_ruc", nombre: "Fichas SUNAT (Consulta Múltiple de RUC)", donde: "pc", agenda: "A mano, para RUC nuevos", cadaDias: null,
     que: "Estado, domicilio y fecha de alta de proveedores. Tu Chrome por lotes de 100 (backend/scrapers-pc/sunat_ruc)." },
-  { fuente: "oece_entidades", nombre: "Entidades del OECE y su código SIAF", donde: "pc", agenda: "A mano, cuando cambia", cadaDias: null,
-    que: "Une el RUC de cada entidad con su código del MEF: backend/scripts/cargar_entidades_oece.py." },
+  { fuente: "oece_entidades", nombre: "Entidades del OECE y su código SIAF", donde: "cloudflare", agenda: "Día 2, 08:00", cadaDias: 33,
+    que: "Une el RUC de cada entidad con su código del MEF (registro de la OECE); después refrescar_mef_presupuesto()." },
   { fuente: "portal_visitas_manual", nombre: "Visitas: exportación manual del portal (legado)", donde: "pc", agenda: "Legado (mayo de 2026)", cadaDias: null,
     que: "La exportación de ~345 entidades de mayo de 2026; la reemplaza la plataforma nacional." },
   // ── GitLab CI + PC ──────────────────────────────────────────────────────────────────────────────────────────

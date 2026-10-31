@@ -16,11 +16,11 @@
  * Una página por paso: se baja, se guarda limpia en R2 y se hace upsert por `codigo` (idempotente; un informe que deja
  * de aparecer no se borra). Al final refrescar_informes_control_entidad() resuelve ubigeo y RUC de todos.
  *
- * HOY NO LLEGA: el servidor del buscador (appbp.contraloria.gob.pe) sólo responde a IPs del Perú. Medido el 2026-10-21:
- * 522 directo (Miami), 522 por el relay (Zúrich), timeout con Browser Rendering y desde AWS us-east-2; 200 desde Lima.
- * Por eso no tiene cron: la carga mensual es backend/scripts/cargar_contraloria_informes.py (mismos campos y mismo
- * upsert), desde una PC en el Perú. La fuente queda para cuando haya una salida peruana (GET /diagnostico?partes=cgr
- * dice si ya llega).
+ * Va por el relay de Lima: el servidor del buscador (appbp.contraloria.gob.pe) sólo responde a IPs del Perú. Medido el
+ * 2026-10-21: 522 directo (Miami), 522 por el relay de Zúrich, timeout con Browser Rendering y desde AWS us-east-2. Desde
+ * el 2026-10-31 sale por la instancia de la Local Zone de AWS en Lima (backend/relay-lima): 200, con los mismos datos que
+ * desde una PC en el Perú. Cron: día 10 (src/calendario.ts). backend/scripts/cargar_contraloria_informes.py (mismos campos
+ * y mismo upsert) queda de respaldo. GET /diagnostico?partes=cgr,lima dice si llega.
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -140,26 +140,16 @@ export function parsearPagina(texto: string): { informes: Informe[]; paginas: nu
   return { informes, paginas: Number(filas[0]?.TotalPages ?? 0) || 0, total: Number(filas[0]?.TotalRows ?? 0) || 0 };
 }
 
-/** GET directo; si el buscador no responde a Cloudflare (403, 5xx o red), por el relay de Zúrich. */
+/** Por el relay de Lima: directo y por Zúrich el buscador no responde (sólo acepta IPs del Perú). */
 async function leerPagina(env: Env, url: string): Promise<{ texto: string; via: string }> {
-  try {
-    const r = await obtener(env, url, { timeoutMs: 120_000 });
-    if (r.ok) return { texto: await r.text(), via: "directo" };
-    await r.body?.cancel();
-    if (r.status !== 403 && r.status < 500) throw new ErrorHttp(r.status, url);
-    registrar("WARNING", `   Contraloría respondió ${r.status} directo: voy por el relay`, { fuente: FUENTE });
-  } catch (e) {
-    if (e instanceof ErrorHttp) throw e;
-    registrar("WARNING", `   Contraloría directo falló (${String((e as Error)?.message ?? e).slice(0, 120)}): voy por el relay`, { fuente: FUENTE });
-  }
-  const r = await obtener(env, url, { relay: true, timeoutMs: 120_000 });
+  const r = await obtener(env, url, { relay: "lima", timeoutMs: 120_000 });
   if (!r.ok) {
     await r.body?.cancel();
-    throw new ErrorHttp(r.status, url, r.status === 522 || r.status === 504
-      ? "por el relay: la Contraloría no responde fuera del Perú; cargar con backend/scripts/cargar_contraloria_informes.py"
-      : "por el relay");
+    throw new ErrorHttp(r.status, url, r.headers.get("x-relay-status")
+      ? "por el relay de Lima"
+      : "el relay de Lima no llegó al buscador (backend/relay-lima; respaldo: backend/scripts/cargar_contraloria_informes.py)");
   }
-  return { texto: await r.text(), via: "relay" };
+  return { texto: await r.text(), via: "lima" };
 }
 
 const COLS = ["codigo", "numero", "titulo", "modalidad", "sector", "nivel_gobierno", "entidad_nombre", "departamento", "provincia",

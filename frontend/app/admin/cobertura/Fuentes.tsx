@@ -4,7 +4,7 @@ import { Badge, DataTable, Expandable, SinDato, fmtFechaHora, fmtNum, hace, type
 
 // ── Fuentes de datos: el catálogo de la API (backend/api/src/lib/catalogoFuentes.ts) con su estado ──────────────────
 
-export type Donde = "cloudflare" | "zurich" | "navegador" | "pc" | "ci";
+export type Donde = "cloudflare" | "zurich" | "lima" | "navegador" | "pc" | "ci";
 export type EstadoClave = "al_dia" | "atrasada" | "fallo" | "en_curso" | "a_mano" | "sin_registro";
 
 export interface CargasFuente {
@@ -50,6 +50,7 @@ export interface EstadoFuente {
 export const DONDE: Record<Donde, { label: string; tono: Tone; ayuda: string }> = {
   cloudflare: { label: "Cloudflare", tono: "ok", ayuda: "Worker vigia-scrapers con su cron: corre solo" },
   zurich: { label: "Cloudflare vía Zúrich", tono: "ok", ayuda: "corre solo y sale por el relay de Zúrich: el OECE y el SEACE bloquean otras regiones" },
+  lima: { label: "Cloudflare vía Lima", tono: "ok", ayuda: "corre solo y sale por el relay de Lima (AWS): la fuente sólo responde a IPs del Perú" },
   navegador: { label: "Cloudflare con navegador", tono: "ok", ayuda: "corre solo con Browser Rendering: la ONPE filtra por la huella del navegador" },
   pc: { label: "Tu PC", tono: "pending", ayuda: "se corre a mano desde una PC en el Perú: la fuente bloquea la nube o pide un captcha" },
   ci: { label: "GitLab CI y tu PC", tono: "pending", ayuda: "rondas en GitLab CI (10 IP) que tu PC orquesta y procesa" },

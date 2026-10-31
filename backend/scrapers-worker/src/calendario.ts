@@ -31,10 +31,19 @@
  *   pte_personal       día 20, 08:00: la planilla de los dos meses anteriores (Portal de Transparencia Estándar; las
  *                      entidades la publican con atraso). Migración 92.
  *
- *   contraloria_informes  SIN cron: el buscador de la Contraloría no responde fuera del Perú (522 desde Cloudflare,
- *                      también por el relay). Mensual, a mano desde una PC en el Perú:
- *                      backend/scripts/cargar_contraloria_informes.py (docs/CORRUPCION.md). Si un día llega,
- *                      agregarlo acá (día 10) con `dia === 10`.
+ *   sunat_padron       martes 08:00: el padrón reducido de la SUNAT (sólo RUC 20) → estado y condición de las empresas
+ *                      (migración 224), sin el formulario con captcha de la Consulta Múltiple.
+ *
+ *   invierte_pe        viernes 08:00: el Banco de Inversiones del MEF (Invierte.pe: activas y cerradas, migración 223);
+ *                      antes iba con INFOBRAS en backend/scripts/cargar_obras.py, que ahora sólo lo carga con --con-mef.
+ *
+ *   oece_entidades     día 2, 08:00: el registro de entidades contratantes de la OECE (RUC → CODIGO_SIAF, migración
+ *                      150); antes, backend/scripts/cargar_entidades_oece.py a mano. Casi no cambia: con el mismo
+ *                      sha256 no hace nada.
+ *
+ *   contraloria_informes  día 10, 08:00: el buscador de informes de la Contraloría, por el relay de Lima (sólo responde
+ *                      a IPs del Perú: 522 desde Cloudflare y por Zúrich). Respaldo a mano:
+ *                      backend/scripts/cargar_contraloria_informes.py (docs/CORRUPCION.md).
  */
 
 export const CRON_DIARIO = "0 11 * * *";
@@ -56,13 +65,16 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "conosce_ordenes");
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
-  if (lima.getUTCDay() === 2) out.push("mef_opds_etes");
+  if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 4) out.push("congreso_visitas");
+  if (lima.getUTCDay() === 5) out.push("invierte_pe");
   if (lima.getUTCDay() === 6) out.push("conosce");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");
   if (dia === 20) out.push("pte_personal");
+  if (dia === 2) out.push("oece_entidades");
+  if (dia === 10) out.push("contraloria_informes");
   return out;
 }

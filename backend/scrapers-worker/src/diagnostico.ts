@@ -7,7 +7,7 @@
 
 import type { Env } from "./config.ts";
 import { conDb } from "./db.ts";
-import { obtener } from "./http.ts";
+import { obtener, URL_LIMA } from "./http.ts";
 
 type Resultado = Record<string, unknown>;
 
@@ -117,6 +117,11 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
       const t = await r.text();
       return { status: r.status, filas: filas(t) };
     });
+    out.cgr_lima = await medir(async () => {
+      const r = await obtener(env, url, { relay: "lima", sinReintentos: true, timeoutMs: 25_000 });
+      const t = await r.text();
+      return { status: r.status, filas: filas(t) };
+    });
     out.cgr_navegador = await medir(async () => {
       const { default: puppeteer } = await import("@cloudflare/puppeteer");
       const navegador = await puppeteer.launch(env.BROWSER);
@@ -129,6 +134,28 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
         await navegador.close().catch(() => undefined);
       }
     });
+  }
+  if (partes.has("lima")) {
+    // Relay de Lima (backend/relay-lima): su /health (IP de salida y zona) y una página de cada sitio que sólo responde
+    // a IPs del Perú. El status es el del origen; sin x-relay-status, el error es del relay (DNS, conexión).
+    out.lima_salud = await medir(async () => {
+      if (!env.RELAY_LIMA) throw new Error("falta el binding RELAY_LIMA");
+      const r = await env.RELAY_LIMA.fetch(`${URL_LIMA}/health`, { signal: AbortSignal.timeout(15_000) });
+      return { status: r.status, ...((await r.json().catch(() => ({}))) as Resultado) };
+    });
+    const sitios: Record<string, string> = {
+      lima_infobras: "https://infobras.contraloria.gob.pe/InfobrasWeb/DataSets",
+      lima_servir: "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml",
+      lima_minjus: "https://procuraduriaanticorrupcion.minjus.gob.pe/",
+    };
+    for (const [clave, sitio] of Object.entries(sitios)) {
+      out[clave] = await medir(async () => {
+        const r = await obtener(env, sitio, { relay: "lima", sinReintentos: true, timeoutMs: 30_000 });
+        const t = await r.text();
+        return { status: r.status, del_origen: r.headers.get("x-relay-status") !== null, bytes: t.length,
+                 titulo: /<title[^>]*>([^<]{0,80})/i.exec(t)?.[1]?.trim() ?? null };
+      });
+    }
   }
   if (partes.has("pte")) {
     // Portal de Transparencia Estándar, personal (planilla por entidad y mes) y SERVIR Talento Perú (plazas CAS):

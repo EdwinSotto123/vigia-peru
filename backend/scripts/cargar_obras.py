@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
-"""Carga las obras públicas de INFOBRAS (Contraloría) y las inversiones de Invierte.pe (MEF): migración 160.
+"""Carga las obras públicas de INFOBRAS (Contraloría): migración 160. Las inversiones de Invierte.pe (MEF), sólo con --con-mef.
 
-  · INFOBRAS: el XLSX «DataSet-Obras-Publicas DD-MM-YYYY» de https://infobras.contraloria.gob.pe/InfobrasWeb/DataSets
+  - INFOBRAS: el XLSX «DataSet-Obras-Publicas DD-MM-YYYY» de https://infobras.contraloria.gob.pe/InfobrasWeb/DataSets
     (~57 MB, 97 columnas, ~191 mil obras, cadenas en línea: se lee con zipfile + iterparse, sin openpyxl). La Contraloría
     no responde fuera del Perú: este script corre desde una PC en Lima.
-  · Invierte.pe: DETALLE_INVERSIONES.csv (activas) y CIERRE_INVERSIONES.csv (cerradas) de
-    https://fs.datosabiertos.mef.gob.pe/datastorefiles/. También responden desde la nube, pero van aquí para que las dos
-    fuentes se carguen juntas y el cruce obra ↔ inversión ↔ contrato salga de la misma foto (y porque los lectores de
-    CSV/XLSX del Worker de scrapers los están cambiando otras fuentes). NUNCA DIRECTORIO_INVIERTE.csv (correos y teléfonos
-    de funcionarios) ni PROCESO_SELECCION.csv (es el avance por componente, no procesos de selección).
+  - Invierte.pe: DETALLE_INVERSIONES.csv (activas) y CIERRE_INVERSIONES.csv (cerradas) de
+    https://fs.datosabiertos.mef.gob.pe/datastorefiles/. Responden desde la nube, así que desde la migración 223 los carga
+    cada semana el Worker de scrapers (fuente invierte_pe, backend/scrapers-worker/src/fuentes/invierte_pe.ts), con la
+    misma regla: COLUMNAS_MEF y LECTORES de abajo, escritos en SQL. Aquí quedan APAGADOS: --con-mef los carga desde la PC
+    como antes (si el Worker no puede, por ejemplo); no lo corras a la vez que el Worker. NUNCA DIRECTORIO_INVIERTE.csv
+    (correos y teléfonos de funcionarios) ni PROCESO_SELECCION.csv (es el avance por componente, no procesos de selección).
+    Cargadas desde aquí, las filas quedan con la huella de Python, que no es la del Worker: la corrida siguiente del Worker
+    las reescribe todas una vez (y al revés).
 
 Qué no se guarda (privacidad): de INFOBRAS, los nombres del residente y del supervisor de obra («Nombres Apellidos»), las
 fechas de labores del residente, los comentarios, la dirección y el documento de aprobación; de Invierte.pe, los
 responsables (RESPONSABLE_UEI) y la descripción de la alternativa. Ningún DNI.
 
 Qué hace:
-  1. Baja cada archivo a su propia carpeta nueva bajo dataset/ (infobras_AAAAMMDD/, invierte_AAAAMMDD/), o usa los que se
-     le pasen. Los archivos bajados son datos no confiables: este script se corre con `python -I`.
+  1. Baja cada archivo a su propia carpeta nueva bajo dataset/ (infobras_AAAAMMDD/ y, con --con-mef, invierte_AAAAMMDD/),
+     o usa los que se le pasen. Los archivos bajados son datos no confiables: este script se corre con `python -I`.
   2. Lee y normaliza (los montos de INFOBRAS vienen como «1205287 56» = 1205287.56, o «S/4 195 186 00»; las fechas
      dd/mm/aaaa), sin tener el archivo entero en memoria.
   3. En una transacción por fuente: COPY a una tabla temporal y upsert por la llave (Código INFOBRAS, CUI) que sólo
@@ -33,24 +36,28 @@ Uso (desde la raíz del repo; en Git Bash, con MSYS_NO_PATHCONV=1 AWS_PROFILE=fo
   python -I -X utf8 backend/scripts/cargar_obras.py --entorno dev
   python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --propagar
   ... --xlsx dataset/infobras_20261026/obras.xlsx     un XLSX ya bajado
-  ... --mef-dir dataset/invierte_20261027             los CSV del MEF ya bajados
-  ... --sin-infobras | --sin-mef                      una sola fuente
+  ... --con-mef                                       también Invierte.pe (lo carga el Worker cada semana: sólo si hace falta)
+  ... --con-mef --mef-dir dataset/invierte_20261027   los CSV del MEF ya bajados
+  ... --sin-infobras                                  sin INFOBRAS: con --con-mef, sólo Invierte.pe; sin él, sólo la base
   ... --sin-cruces                                    todo menos las banderas de los contratos en cruces_proveedor
   ... --encender-cruces                               enciende esas banderas (interruptor en obra_refresco, clave
                                                       'cruces') y las escribe. Mientras está apagado, refrescar_cruce_obras()
                                                       (y el pipeline de cruces) no las escribe: así se carga prod antes de
                                                       desplegar la API y la web que conocen los tipos (la ficha de hoy
                                                       mostraría el nombre interno de un tipo que no conoce). Una vez:
-  MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin PATH="/c/Users/usuario/bin:$PATH" python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --sin-infobras --sin-mef --encender-cruces --propagar
+  MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin PATH="/c/Users/usuario/bin:$PATH" python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --sin-infobras --encender-cruces --propagar
+  (--sin-mef se sigue aceptando por los comandos viejos, pero ya es lo de siempre.)
 
-Para refrescar (cada semana, a mano: no hay tarea programada en la PC), el comando exacto:
+Para refrescar INFOBRAS (cada semana, a mano: no hay tarea programada en la PC), el comando exacto:
   MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin PATH="/c/Users/usuario/bin:$PATH" python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --propagar
-Tarda ~25 min en prod (medido el 2026-10-27: leer el XLSX ~2 min, los CSV ~2 min, subir ~11 min con todas las filas
-nuevas, refrescar_obras() ~6.5 min, propagar ~5.5 min); pasa de 10 min, así que desde Claude se lanza desacoplado
-(Start-Process, como dice dataset/declaracion_jurada/procesos.json). El paso del pipeline (refrescar_cruce_obras()) tarda
+Con las dos fuentes tardaba ~25 min en prod (medido el 2026-10-27: leer el XLSX ~2 min, los CSV del MEF ~2 min, subir ~11
+min con todas las filas nuevas, de ellos ~6 de inversiones, refrescar_obras() ~6.5 min, propagar ~5.5 min); sin
+Invierte.pe, unos 8 min menos. Pasa de 10 min, así que desde Claude se lanza desacoplado (Start-Process, como dice
+dataset/declaracion_jurada/procesos.json). No lo corras mientras corre `invierte_pe` en el Worker: los dos terminan en
+refrescar_obras() y la carga del Worker espera bloqueos sólo 20 s. El paso del pipeline (refrescar_cruce_obras()) tarda
 ~2 a 4 min en prod, casi todo en leer los ganadores de los procesos de obras y consultoría.
-Cada corrida deja lo bajado en dataset/infobras_AAAAMMDD/ y dataset/invierte_AAAAMMDD/ (~430 MB): las carpetas viejas
-se pueden borrar. Sólo la base: `--sin-infobras --sin-mef` corre refrescar_obras() sin volver a cargar.
+Cada corrida deja lo bajado en dataset/infobras_AAAAMMDD/ (y en dataset/invierte_AAAAMMDD/ con --con-mef; las dos, ~430
+MB): las carpetas viejas se pueden borrar. Sólo la base: `--sin-infobras` corre refrescar_obras() sin volver a cargar.
 
 Requiere psycopg2, la CLI de AWS y session-manager-plugin (túnel de infrastructure/aws/tunel_rds.py).
 """
@@ -602,13 +609,16 @@ def paso(con, nombre: str, sql: str):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Carga las obras de INFOBRAS y las inversiones de Invierte.pe (migración 160).")
+    ap = argparse.ArgumentParser(description="Carga las obras de INFOBRAS (migración 160) y, con --con-mef, las inversiones de "
+                                             "Invierte.pe, que carga cada semana el Worker de scrapers (fuente invierte_pe).")
     ap.add_argument("--entorno", choices=["dev", "prod"])
     ap.add_argument("--seco", action="store_true", help="baja, lee y cuenta; no escribe")
     ap.add_argument("--xlsx", help="un XLSX de INFOBRAS ya bajado")
-    ap.add_argument("--mef-dir", help="una carpeta con DETALLE_INVERSIONES.csv y CIERRE_INVERSIONES.csv ya bajados")
+    ap.add_argument("--con-mef", action="store_true",
+                    help="también Invierte.pe (DETALLE_INVERSIONES y CIERRE_INVERSIONES); sin esto, lo carga el Worker de scrapers")
+    ap.add_argument("--mef-dir", help="con --con-mef: una carpeta con DETALLE_INVERSIONES.csv y CIERRE_INVERSIONES.csv ya bajados")
     ap.add_argument("--sin-infobras", action="store_true")
-    ap.add_argument("--sin-mef", action="store_true")
+    ap.add_argument("--sin-mef", action="store_true", help=argparse.SUPPRESS)   # ya es lo de siempre; queda por los comandos viejos
     ap.add_argument("--propagar", action="store_true", help="después, casos_cruce, su vista de totales y empresas")
     ap.add_argument("--sin-cruces", action="store_true",
                     help="todo menos las banderas en cruces_proveedor (antes de desplegar la API y la web que conocen sus tipos)")
@@ -619,6 +629,10 @@ def main() -> int:
         ap.error("falta --entorno (o --seco)")
     if a.sin_cruces and (a.propagar or a.encender_cruces):
         ap.error("--propagar y --encender-cruces no van con --sin-cruces")
+    if a.con_mef and a.sin_mef:
+        ap.error("--con-mef y --sin-mef no van juntos")
+    if a.mef_dir and not a.con_mef:
+        ap.error("--mef-dir va con --con-mef (Invierte.pe lo carga el Worker de scrapers)")
     sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     hoy = date.today().strftime("%Y%m%d")
     cuenta: Counter = Counter()
@@ -646,11 +660,14 @@ def main() -> int:
         print(f"  {len(codigos):,} obras (consulta del {consulta}), {time.time() - t0:.0f} s; "
               + ", ".join(f"{k} {v:,}" for k, v in sorted(cuenta.items()) if not k.startswith(("activa", "cerrada"))))
 
-    # 2. Invierte.pe
+    # 2. Invierte.pe: lo carga cada semana el Worker de scrapers (fuente invierte_pe, migración 223). Aquí, sólo con --con-mef.
     inv_csv: list = []
     cuis: set[str] = set()
     mef = []
-    if not a.sin_mef:
+    if not a.con_mef:
+        print("Invierte.pe: no se carga aquí (lo carga cada semana el Worker de scrapers, fuente invierte_pe; --con-mef para "
+              "cargarlo desde la PC)")
+    else:
         carpeta = Path(a.mef_dir) if a.mef_dir else RAIZ / "dataset" / f"invierte_{hoy}"
         vistos: set[str] = set()
         for nombre, origen in (("DETALLE_INVERSIONES", "activa"), ("CIERRE_INVERSIONES", "cerrada")):
