@@ -7,6 +7,8 @@
  *   a Cloudflare en EE.UU. El status que se devuelve es el del ORIGEN, como `http.get()` con RELAY_URL.
  * - `relay: "lima"` lo manda por el relay de Lima (backend/relay-lima, binding RELAY_LIMA): la Contraloría, INFOBRAS,
  *   SERVIR y MINJUS sólo responden a IPs del Perú (522, 403 o sin DNS desde Cloudflare y desde Zúrich).
+ * - `pedirLima` hace un pedido con sesión por ese relay (POST, cabeceras, cuerpo y las cookies que deja el origen): las
+ *   plazas CAS de SERVIR (src/fuentes/servir_convocatorias.ts).
  */
 
 import type { Env } from "./config.ts";
@@ -61,6 +63,76 @@ async function porLima(env: Env, url: string, timeoutMs: number): Promise<Respon
   });
   if (r.status === 401 && !r.headers.get("x-relay-status")) throw new Error("el relay de Lima rechazó RELAY_LIMA_TOKEN (401)");
   return r;
+}
+
+/**
+ * Un pedido con sesión por el relay de Lima (POST /raw con método, cabeceras y cuerpo): lo que necesita un sitio JSF como
+ * SERVIR, que guarda la sesión en una cookie y la página en el ViewState. El relay no guarda nada entre pedidos: las
+ * cookies las lleva el que llama (vuelven en `cookies` y se mandan en la cabecera Cookie del pedido siguiente).
+ */
+export interface PedidoLima {
+  url: string;
+  metodo?: "GET" | "HEAD" | "POST";
+  /**
+   * Para el origen. El relay sólo deja pasar Accept, Accept-Language, Content-Type, Cookie, Faces-Request,
+   * If-Modified-Since, If-None-Match, Origin, Range, Referer, User-Agent y X-Requested-With (CABECERAS_PERMITIDAS de
+   * backend/relay-lima/relay.py); sin User-Agent, pone uno de navegador.
+   */
+  cabeceras?: Record<string, string>;
+  /** El cuerpo de un POST, como texto (un formulario urlencoded, por ejemplo). */
+  cuerpo?: string;
+  /** Tiempo del pedido (ms); como mínimo 30 s. Por defecto, 120 s (lo que el relay espera al origen). */
+  timeoutMs?: number;
+  /** Sin reintentos propios: un POST que cambia algo en el origen (pasar de página) no se repite a ciegas. */
+  sinReintentos?: boolean;
+}
+
+export interface RespuestaLima {
+  /** La respuesta del relay: el status y el cuerpo del origen, o el error del propio relay (entonces `origen` es null). */
+  respuesta: Response;
+  /** El status del origen (x-relay-status); null si la respuesta es un error del relay (400, 413, 502…). */
+  origen: number | null;
+  /** La URL final, después de las redirecciones que siguió el relay (x-relay-url). */
+  url: string;
+  /** Las cookies que dejó el origen en este pedido (x-relay-cookies), para sumarlas a las de la sesión. */
+  cookies: Record<string, string>;
+}
+
+/** x-relay-cookies ({"JSESSIONID": "…"}) → objeto; vacío si no viene o no se lee. */
+export function cookiesDelRelay(cabecera: string | null): Record<string, string> {
+  if (!cabecera) return {};
+  try {
+    const d = JSON.parse(cabecera) as unknown;
+    if (!d || typeof d !== "object" || Array.isArray(d)) return {};
+    return Object.fromEntries(Object.entries(d as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string"));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Un pedido con sesión por el relay de Lima. Reintenta en 429/5xx como `obtener` (también el 502 del relay, que es «sin
+ * respuesta del origen»), salvo con `sinReintentos`. Devuelve la respuesta tal cual (no lanza por status) con la URL
+ * final y las cookies nuevas del origen. El cuerpo queda por leer: `(await pedirLima(…)).respuesta.text()`.
+ */
+export async function pedirLima(env: Env, p: PedidoLima): Promise<RespuestaLima> {
+  if (!env.RELAY_LIMA) throw new Error("falta el binding RELAY_LIMA (vpc_services en wrangler.jsonc)");
+  const cuerpo = JSON.stringify({ url: p.url, metodo: p.metodo ?? "GET", cabeceras: p.cabeceras ?? {}, ...(p.cuerpo === undefined ? {} : { cuerpo: p.cuerpo }) });
+  for (let intento = 0; ; intento++) {
+    const r = await env.RELAY_LIMA.fetch(`${URL_LIMA}/raw`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Vigia-Token": (env.RELAY_LIMA_TOKEN ?? "").trim() },
+      body: cuerpo,
+      signal: AbortSignal.timeout(Math.max(p.timeoutMs ?? 120_000, 30_000)),
+    });
+    const status = r.headers.get("x-relay-status");
+    if (r.status === 401 && !status) throw new Error("el relay de Lima rechazó RELAY_LIMA_TOKEN (401)");
+    if (p.sinReintentos || !REINTENTABLE.has(r.status) || intento >= ESPERAS_S.length) {
+      return { respuesta: r, origen: status ? Number(status) : null, url: r.headers.get("x-relay-url") || p.url, cookies: cookiesDelRelay(r.headers.get("x-relay-cookies")) };
+    }
+    await r.body?.cancel();
+    await dormir(ESPERAS_S[intento] * 1000);
+  }
 }
 
 export interface OpcionesGet {

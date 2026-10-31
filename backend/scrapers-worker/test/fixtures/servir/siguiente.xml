@@ -1,0 +1,186 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<partial-response><changes><update id="frmLstOfertsLabo"><![CDATA[
+<form id="frmLstOfertsLabo" name="frmLstOfertsLabo" method="post" action="/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="frmLstOfertsLabo" value="frmLstOfertsLabo" />
+<span id="frmLstOfertsLabo:mensaje"></span><script id="frmLstOfertsLabo:mensaje_s" type="text/javascript">$(function(){PrimeFaces.cw('Growl','widget_frmLstOfertsLabo_mensaje',{id:'frmLstOfertsLabo:mensaje',sticky:false,life:5000,escape:true,msgs:[]});});</script>
+			<div class="row" style="margin: 0px;"><input id="frmLstOfertsLabo:modalidadAcceso" name="frmLstOfertsLabo:modalidadAcceso" type="hidden" value="03" class="ui-inputfield ui-inputtext ui-widget ui-state-default ui-corner-all" />
+				<div class="col-sm-12">
+					<div class="row box-mb">
+						<div class="col-sm-12"><label for="frmLstOfertsLabo:txtPerfil" style="font-size:22px;" class="control-label2">Encuentra tu próximo empleo</label>
+						</div>
+					</div>
+					<div class="row box-mb">
+						<div class="col-sm-10">
+							<div class="form-group"><input id="frmLstOfertsLabo:txtPerfil" name="frmLstOfertsLabo:txtPerfil" type="text" value="" maxlength="150" tabindex="1" onkeyup="PrimeFaces.ab({s:&quot;frmLstOfertsLabo:txtPerfil&quot;,e:&quot;keyup&quot;,p:&quot;frmLstOfertsLabo:txtPerfil&quot;});" style="border: 2px solid #45BFE4!important;" class="ui-inputfield ui-inputtext ui-widget ui-state-default ui-corner-all form-control3" />
+								<i class="fa fa-search" style="position: absolute; right: 25px; top: 9px; color: #45BFE4;"></i>
+							</div>
+						</div>
+						<div class="col-sm-2"></div>
+					</div>
+					<div class="row box-mb">
+						<div class="col-sm-5"><div id="frmLstOfertsLabo:cboDep" class="ui-selectonemenu ui-widget ui-state-default ui-corner-all form-control form-control4 style-select2" style="border: 2px solid #45BFE4!important;"><div class="ui-helper-hidden-accessible"><input id="frmLstOfertsLabo:cboDep_focus" name="frmLstOfertsLabo:cboDep_focus" type="text" autocomplete="off" role="combobox" aria-haspopup="true" aria-expanded="false" /></div><div class="ui-helper-hidden-accessible"><select id="frmLstOfertsLabo:cboDep_input" name="frmLstOfertsLabo:cboDep_input" tabindex="-1"><option value="0">Ubicación</option><option value="01">AMAZONAS</option></select></div><label id="frmLstOfertsLabo:cboDep_label" class="ui-selectonemenu-label ui-inputfield ui-corner-all">&nbsp;</label><div class="ui-selectonemenu-trigger ui-state-default ui-corner-right"><span class="ui-icon ui-icon-triangle-1-s ui-c"></span></div><div id="frmLstOfertsLabo:cboDep_panel" class="ui-selectonemenu-panel ui-widget ui-widget-content ui-corner-all ui-helper-hidden ui-shadow"><div class="ui-selectonemenu-items-wrapper" style="height:200px"></div></div></div>
+							<i class="fa fa-map-marker" style="position: absolute; left: 25px; top: 7px; color: #A0A3A5;"></i>
+						</div>
+						<div class="col-sm-1"></div>
+						<div class="col-sm-6 text-left row text-left box-dig-btn" style="padding-left: 25px !important;"><button id="frmLstOfertsLabo:j_idt46" name="frmLstOfertsLabo:j_idt46" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt46&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;});return false;" style="width:150px!important;border-radius:5px!important;                           background-color:#146080!important;border: 1px solid #FFC729!important;" title="Buscar" type="submit"><span class="ui-button-text ui-c">Buscar</span></button>
+						</div>
+					</div>
+					<div class="row box-mb">
+						<div class="col-sm-5">
+							<div class="form-group"><input id="frmLstOfertsLabo:txtPuesto" name="frmLstOfertsLabo:txtPuesto" type="text" value="" maxlength="150" tabindex="1" onkeyup="PrimeFaces.ab({s:&quot;frmLstOfertsLabo:txtPuesto&quot;,e:&quot;keyup&quot;,p:&quot;frmLstOfertsLabo:txtPuesto&quot;});" style="border: 2px solid #45BFE4!important;" class="ui-inputfield ui-inputtext ui-widget ui-state-default ui-corner-all form-control" />
+							</div>
+						</div>
+						<div class="col-sm-1"></div>
+						<div class="col-sm-6 text-left row text-left box-dig-btn" style="padding-left: 25px !important;"><button id="frmLstOfertsLabo:j_idt51" name="frmLstOfertsLabo:j_idt51" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="PF('statusDialog').show();;PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt51&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;,onco:function(xhr,status,args){PF('statusDialog').hide();;}});return false;" style="width:150px!important;border-radius:5px!important;                          background-color:#76DCFF!important;color: #146080;border: 1px solid #FFC729!important;" title="Limpiar" type="submit"><span class="ui-button-text ui-c">Limpiar</span></button>
+						</div>
+					</div>
+			    
+					  <div class="row box-mb">
+						<div class="col-sm-7">
+							<div class="form-group"><span id="frmLstOfertsLabo:autocompletar" class="ui-autocomplete autoCompStyle"><input id="frmLstOfertsLabo:autocompletar_input" name="frmLstOfertsLabo:autocompletar_input" type="text" class="ui-autocomplete-input ui-inputfield ui-widget ui-state-default ui-corner-all" autocomplete="off" style="box-shadow:none;text-shadow:none;padding:0.25rem 1.0rem !important;                               border-radius:5;border:2px solid #45BFE4;background:#fff;height:30px;font-size:12px;width: 335px;" placeholder="INSTITUCIONES PÚBLICAS" value="" /><input id="frmLstOfertsLabo:autocompletar_hinput" name="frmLstOfertsLabo:autocompletar_hinput" type="hidden" autocomplete="off" value="" /><div id="frmLstOfertsLabo:autocompletar_panel" class="ui-autocomplete-panel ui-widget-content ui-corner-all ui-helper-hidden ui-shadow"></div></span>
+                            </div>
+						</div>
+					</div>
+					<div class="row box-mb">
+						<div class="col-sm-5">
+							<div class="form-group"><input id="frmLstOfertsLabo:txtNroConv" name="frmLstOfertsLabo:txtNroConv" type="text" value="" maxlength="150" tabindex="1" style="border: 2px solid #45BFE4!important;" class="ui-inputfield ui-inputtext ui-widget ui-state-default ui-corner-all form-control" />
+							</div>
+						</div>
+					</div>
+					<div style="height: 30px;"></div>
+					<label class="control-label"> <span>Descarga la
+							oferta de tu interés en Word</span><span style="font-size: 16px !important;"><b>*</b></span> <span>
+							y activa el modo leer. Aprende a usarlo </span> <a href="../resources/manuales/guia_leer_en_word.pdf" target="_blank" style="font-style: italic; cursor: pointer; color: #2186DF">aquí</a>.
+					</label>
+						<div class="row">
+							<div class="col-sm-2"></div>
+							<div class="col-sm-8"><button id="frmLstOfertsLabo:j_idt58" name="frmLstOfertsLabo:j_idt58" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-left btn-paginator" onclick="PF('statusDialog').show();;PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt58&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;,onco:function(xhr,status,args){PF('statusDialog').hide();;}});return false;" type="submit"><span class="ui-button-icon-left ui-icon ui-c icon-fast-backward imgIconLeft"></span><span class="ui-button-text ui-c">Primero</span></button><button id="frmLstOfertsLabo:j_idt60" name="frmLstOfertsLabo:j_idt60" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-left btn-paginator" onclick="PF('statusDialog').show();;PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt60&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;,onco:function(xhr,status,args){PF('statusDialog').hide();;}});return false;" type="submit"><span class="ui-button-icon-left ui-icon ui-c icon-backward imgIconLeft"></span><span class="ui-button-text ui-c">Atras</span></button><label class="control-label btn-paginator-cnt">Página 2 de 330</label><button id="frmLstOfertsLabo:j_idt62" name="frmLstOfertsLabo:j_idt62" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-left btn-paginator position-icon-right" onclick="PF('statusDialog').show();;PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt62&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;,onco:function(xhr,status,args){PF('statusDialog').hide();;}});return false;" type="submit"><span class="ui-button-icon-left ui-icon ui-c icon-forward imgIconRight"></span><span class="ui-button-text ui-c">Sig.</span></button><button id="frmLstOfertsLabo:j_idt63" name="frmLstOfertsLabo:j_idt63" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-left btn-paginator position-icon-right" onclick="PF('statusDialog').show();;PrimeFaces.ab({s:&quot;frmLstOfertsLabo:j_idt63&quot;,u:&quot;frmLstOfertsLabo:mensaje frmLstOfertsLabo&quot;,onco:function(xhr,status,args){PF('statusDialog').hide();;}});return false;" type="submit"><span class="ui-button-icon-left ui-icon ui-c icon-fast-forward imgIconRight"></span><span class="ui-button-text ui-c">Último</span></button>
+							</div>
+							<div class="col-sm-2"></div>
+						</div>
+					<div class="row box-mb">
+						<div class="col-sm-12">
+								<div class="col-sm-12 cuadro-vacantes">
+									<div class="row box-mb" style="width: 800px;">
+										<div class="col-sm-12 titulo-vacante" style="overflow-wrap: break-word;"><label>ESPECIALISTA LEGAL (OCTAVA CONVOCATORIA)</label>
+										</div>
+									</div>
+									<div class="row box-mb" style="overflow-wrap: break-word;">
+										<div class="col-sm-2 logo-vacante text-left">
+											<img src="../resources/img/logo-talento-peru.png" width="120px" height="45px" />
+										</div>
+										<div class="col-sm-3 text-center nombre-entidad">
+											<span class="detalle-sp" style="font-size: 18px;"><b>SUPERINTENDENCIA NACIONAL DE FISCALIZACION LABORAL - SUNAFIL</b></span>
+										</div>
+										<div class="col-sm-5">
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Ubicación:</span>  <span class="detalle-sp">LIMA
+														- LIMA</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Número de Convocatoria:</span> 
+													<span class="detalle-sp">D.LEG 1057 - DETERMINADO (SUPLENCIA)-029</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Cantidad de Vacantes:</span> 
+													<span class="detalle-sp">1</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Remuneración:</span>  <span class="detalle-sp"> S/. 6,500.00
+													</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Fecha Inicio de
+														Publicación:</span>  <span class="detalle-sp">30/10/2026
+													</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Fecha Fin de Publicación:</span> 
+													<span class="detalle-sp">12/11/2026
+													</span>
+												</div>
+											</div>
+										</div>
+										<div class="col-sm-2 text-center box-dig-btn"><button id="frmLstOfertsLabo:idPnlRepeatPuestos:0:j_idt78" name="frmLstOfertsLabo:idPnlRepeatPuestos:0:j_idt78" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="PF('statusDialog').show();ga('send', 'event', 'ver mas', 'Ver mas detalle ofertas', 'Ver mas detalle ofertas');;" style="border-radius:4px!important;width:90px!important;background-color:#146080!important;border: 1px solid #FFC729!important;" title="¡Ver más!" type="submit"><span class="ui-button-text ui-c">¡Ver más!</span></button>
+											    
+											<br /> <br /> <br /> <br /><button id="frmLstOfertsLabo:idPnlRepeatPuestos:0:j_idt81" name="frmLstOfertsLabo:idPnlRepeatPuestos:0:j_idt81" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="ga('send', 'event', 'Descargar word', 'Descargar word detalle ofertas laborales', 'Descargar word detalle ofertas laborales');;" style="border-radius:4px!important;                               white-space: pre;                               margin-top:10px;                               background-color: #76DCFF!important;     color: #146080;     border: 1px solid #FFC729!important;" title="Convocatoria en Word" type="submit"><span class="ui-button-text ui-c">Convocatoria en
+Word</span></button>
+										</div>
+									</div>
+								</div>
+								<div class="col-sm-12 cuadro-vacantes">
+									<div class="row box-mb" style="width: 800px;">
+										<div class="col-sm-12 titulo-vacante" style="overflow-wrap: break-word;"><label>ESPECIALISTA LEGAL PARA SEGUIMIENTO DE  MEDIDAS DE PROTECCIÓN (SUPLENCIA)</label>
+										</div>
+									</div>
+									<div class="row box-mb" style="overflow-wrap: break-word;">
+										<div class="col-sm-2 logo-vacante text-left">
+											<img src="../resources/img/logo-talento-peru.png" width="120px" height="45px" />
+										</div>
+										<div class="col-sm-3 text-center nombre-entidad">
+											<span class="detalle-sp" style="font-size: 18px;"><b>MINISTERIO DE LA MUJER Y POBLACIONES VULNERABLES</b></span>
+										</div>
+										<div class="col-sm-5">
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Ubicación:</span>  <span class="detalle-sp">LIMA
+														- LIMA</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Número de Convocatoria:</span> 
+													<span class="detalle-sp">D.LEG 1057 - DETERMINADO (SUPLENCIA)-213</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Cantidad de Vacantes:</span> 
+													<span class="detalle-sp">1</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Remuneración:</span>  <span class="detalle-sp"> S/. 6,000.00
+													</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Fecha Inicio de
+														Publicación:</span>  <span class="detalle-sp">30/10/2026
+													</span>
+												</div>
+											</div>
+											<div class="row box-mb">
+												<div class="col-sm-12">
+													<span class="sub-titulo">Fecha Fin de Publicación:</span> 
+													<span class="detalle-sp">12/11/2026
+													</span>
+												</div>
+											</div>
+										</div>
+										<div class="col-sm-2 text-center box-dig-btn"><button id="frmLstOfertsLabo:idPnlRepeatPuestos:1:j_idt78" name="frmLstOfertsLabo:idPnlRepeatPuestos:1:j_idt78" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="PF('statusDialog').show();ga('send', 'event', 'ver mas', 'Ver mas detalle ofertas', 'Ver mas detalle ofertas');;" style="border-radius:4px!important;width:90px!important;background-color:#146080!important;border: 1px solid #FFC729!important;" title="¡Ver más!" type="submit"><span class="ui-button-text ui-c">¡Ver más!</span></button>
+											    
+											<br /> <br /> <br /> <br /><button id="frmLstOfertsLabo:idPnlRepeatPuestos:1:j_idt81" name="frmLstOfertsLabo:idPnlRepeatPuestos:1:j_idt81" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only btn btn-primary btn-sensitive" onclick="ga('send', 'event', 'Descargar word', 'Descargar word detalle ofertas laborales', 'Descargar word detalle ofertas laborales');;" style="border-radius:4px!important;                               white-space: pre;                               margin-top:10px;                               background-color: #76DCFF!important;     color: #146080;     border: 1px solid #FFC729!important;" title="Convocatoria en Word" type="submit"><span class="ui-button-text ui-c">Convocatoria en
+Word</span></button>
+										</div>
+									</div>
+								</div>
+								</div>
+
+						</div>
+				</div>
+			</div>
+</form>]]></update><update id="javax.faces.ViewState"><![CDATA[8061150609640876926:-3386177225836678443]]></update></changes></partial-response>

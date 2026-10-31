@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Carga `servir_convocatoria` (migración 93): las plazas CAS publicadas en SERVIR Talento Perú, desde una PC en el Perú.
 
-SERVIR (app.servir.gob.pe/DifusionOfertasExterno, JSF + PrimeFaces) responde 403 a Cloudflare (GET /diagnostico?partes=pte
-de vigia-scrapers), así que no hay fuente en el Worker. Cómo se lee:
+Desde ahora las carga cada semana el Worker vigia-scrapers: fuente `servir_convocatorias`
+(backend/scrapers-worker/src/fuentes/servir_convocatorias.ts), que sale por el relay de Lima (backend/relay-lima) porque
+SERVIR responde 403 a Cloudflare y al relay de Zúrich. Mismo parseo y mismo upsert; la paridad la prueban
+backend/scrapers-worker/scripts/paridad_servir.py y paridad_servir.ts. Este script queda de respaldo: se corre a mano
+desde una PC en el Perú si el relay de Lima no llega (GET /diagnostico?partes=lima de vigia-scrapers lo dice).
+
+SERVIR (app.servir.gob.pe/DifusionOfertasExterno) es JSF + PrimeFaces. Cómo se lee:
   1. GET ofertas_laborales.xhtml: la primera página (10 plazas) y el ViewState de la sesión.
   2. Cada plaza: POST del formulario con su botón "¡Ver más!" → detalle_ofertas_laborales.xhtml (requisitos: experiencia,
      formación, especialización, conocimientos, competencias; número de aviso, sueldo, vacantes, fechas).
