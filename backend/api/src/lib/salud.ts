@@ -20,7 +20,7 @@
  * a sondear.
  */
 
-import { pool } from "./db.js";
+import { pool, poolAdmin } from "./db.js";
 import { cabecerasInvocacion } from "./cloudrun-auth.js";
 import { Memo } from "./cache.js";
 import { EN_WORKERS, enSegundoPlano } from "./plataforma.js";
@@ -225,13 +225,15 @@ export async function saludServicios(): Promise<{ data: SaludServicio[]; consult
 }
 
 // ─── Ingesta de convocatorias (compartida por /operacion y /salud) ───────────
-// Recorre las ~18 k convocatorias (15–28 ms en la base de 1 vCPU); el panel la pide cada minuto.
-export interface Ingesta { ultimaIngesta: Date | string | null; ultimas24h: number; total: number; conUbigeo: number }
+// El panel la pide cada minuto. Antes recorría todas las convocatorias (~830 mil: 0.36 s en PROD y, en la base chica de
+// DEV, más que el tope del proxy); ahora la última carga y las de 24 h salen del índice por created_at (migración 28) y el
+// total, de la cobertura por mes (migración 218, la misma cifra que muestra Cobertura): <1 ms. Sólo la pide el panel:
+// va por el rol del panel, el único con permiso sobre cobertura_mes.
+export interface Ingesta { ultimaIngesta: Date | string | null; ultimas24h: number; total: number }
 const ingestaMemo = new Memo<Ingesta>({ nombre: "ingesta", ttlMs: 30_000, staleMs: 60_000 });
 export function ingestaConvocatorias(): Promise<Ingesta> {
-  return ingestaMemo.obtener("ingesta", async () => (await pool.query<Ingesta>(
-    `SELECT max(created_at) AS "ultimaIngesta",
-            count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS "ultimas24h",
-            count(*)::int AS total, count(ubigeo)::int AS "conUbigeo"
-     FROM convocatorias`)).rows[0]);
+  return ingestaMemo.obtener("ingesta", async () => (await poolAdmin.query<Ingesta>(
+    `SELECT (SELECT max(created_at) FROM convocatorias) AS "ultimaIngesta",
+            (SELECT count(*) FROM convocatorias WHERE created_at >= now() - interval '24 hours')::int AS "ultimas24h",
+            (SELECT COALESCE(sum(contratos), 0) FROM cobertura_mes)::int AS total`)).rows[0]);
 }

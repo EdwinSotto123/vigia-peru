@@ -45,8 +45,8 @@ adminOperacionRouter.get("/operacion", async (c) => {
     pool.query(`SELECT id, tipo, estado, total::int, ok::int, fallidos::int, iniciado_at AS "iniciadoAt", finalizado_at AS "finalizadoAt", error
                 FROM lotes_ingesta WHERE tipo = 'documentos' ORDER BY COALESCE(finalizado_at, iniciado_at, creado_at) DESC NULLS LAST LIMIT 1`)
       .then((q) => q.rows[0] ?? null).catch(() => null),
-    // Compartida con /salud y en caché 30 s (recorre las ~18 k convocatorias). Misma forma que antes, sin conUbigeo.
-    ingestaConvocatorias().then(({ conUbigeo: _c, ...i }) => i),
+    // Compartida con /salud y en caché 30 s (lib/salud.ts).
+    ingestaConvocatorias(),
     // Salud externa (lib/salud.ts): último estado conocido al instante; el sondeo corre en segundo plano.
     saludServicios(),
     saludRelay(),

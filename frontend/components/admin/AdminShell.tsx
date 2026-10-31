@@ -104,10 +104,12 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
   const nav = NAV.map((g) => ({ ...g, items: g.items.filter((it) => puedeVerSeccion(rol ?? "revisor", it.href)) })).filter((g) => g.items.length);
   const todos = nav.flatMap((g) => g.items);
   const soloAdmin = !puedeVerSeccion("revisor", pathname);
-  const contenido = !soloAdmin ? children
-    : !rol ? <SkeletonPanel lineas={4} />
-    : puedeVerSeccion(rol, pathname) ? children
-    : <SinAcceso />;
+  // En una sección de admin, mientras llega el perfil la página ya está montada pero oculta: sus pedidos salen en
+  // paralelo con el del perfil y no después (antes, una cascada de ida y vuelta más en cada carga). Un revisor nunca
+  // la ve: al saberse su perfil se desmonta y queda el aviso. Siempre en el mismo lugar del árbol, para que no se
+  // vuelva a montar al mostrarse.
+  const sinPerfil = soloAdmin && !rol;
+  const sinAcceso = soloAdmin && !!rol && !puedeVerSeccion(rol, pathname);
 
   // En el teléfono la barra de secciones scrollea de costado: centra la activa para que se vea dónde estás.
   const navMovil = useRef<HTMLElement>(null);
@@ -255,7 +257,9 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
           </nav>
         </div>
         <main id="contenido-admin" className={cn(ANCHO, "py-5 sm:py-6")}>
-          {contenido}
+          {sinPerfil && <SkeletonPanel lineas={4} />}
+          {sinAcceso && <SinAcceso />}
+          <div hidden={sinPerfil}>{!sinAcceso && children}</div>
         </main>
         <footer className={cn(ANCHO, "flex flex-wrap items-center gap-x-4 gap-y-2 pb-6 text-rotulo text-mute")}>
           <span className="flex items-center gap-2">

@@ -41,6 +41,7 @@ import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
 import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
+import { agregado, refrescarAgregadosPanel } from "../lib/agregadosPanel.js";
 import { alcanceORespaldo } from "./financiamiento.js";
 import { conPerfilAliado, hayAporteEntidad } from "../lib/esquema.js";
 import { perfilPublicado } from "../lib/perfilAliado.js";
@@ -534,7 +535,13 @@ adminRouter.post("/asignar", async (c) => {
       if (!esErrorPg(e, "42883")) console.warn(`[asignar] refrescar_cobertura: ${(e as Error).message}`);
       return null;
     });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura });
+  // Las cuentas pesadas del panel (migración 219): las de más de 25 min, ~4 s entre todas en PROD. Igual que arriba: si
+  // fallan, se anota y sigue.
+  const agregados = await refrescarAgregadosPanel().catch((e) => {
+    if (!esErrorPg(e, "42P01")) console.warn(`[asignar] agregados del panel: ${(e as Error).message}`);
+    return null;
+  });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────
@@ -643,38 +650,13 @@ adminRouter.post("/procesamientos/:ocid/reencolar", async (c) => {
 });
 
 // ─── Clasificación tipo × etapa (backend/core/clasificacion.py, migración 13) ───
+// Las sumas sobre las convocatorias salen de admin_cache (lib/agregadosPanel.ts, al día cada 25 min); los pendientes de
+// procesamiento, en vivo. `calculadoAt` dice de cuándo son las sumas.
 adminRouter.get("/clasificacion/resumen", async (c) => {
-  const [celdas, motivos, validaciones, totales] = await Promise.all([
-    pool.query(`
-      SELECT COALESCE(tipo_contratacion, 'sin_clasificar') AS tipo, COALESCE(etapa, 'sin_clasificar') AS etapa,
-             procesable, count(*)::int AS n
-      FROM convocatorias GROUP BY 1, 2, 3 ORDER BY n DESC`),
-    pool.query(`
-      SELECT motivo_no_procesable AS motivo, count(*)::int AS n
-      FROM convocatorias WHERE procesable = false GROUP BY 1 ORDER BY n DESC LIMIT 10`),
-    pool.query(`
-      SELECT v AS validacion, count(*)::int AS n
-      FROM convocatorias, unnest(validaciones_pendientes) v GROUP BY 1 ORDER BY n DESC LIMIT 10`),
-    pool.query(`
-      SELECT count(*)::int AS total,
-             count(*) FILTER (WHERE clasificado_at IS NOT NULL)::int AS clasificadas,
-             count(*) FILTER (WHERE procesable)::int AS procesables,
-             count(*) FILTER (WHERE procesable = false)::int AS "noProcesables",
-             (SELECT count(*) FROM procesamientos WHERE estado = 'pendiente_de_procesamiento')::int AS "pendientesDeProcesamiento",
-             max(clasificado_at) AS "ultimaClasificacion"
-      FROM convocatorias`),
+  type Resumen = { totales: Record<string, unknown>; celdas: unknown[] } & Record<string, unknown>;
+  const [{ valor, calculadoAt }, pendientes] = await Promise.all([
+    agregado<Resumen>("clasificacion"),
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'pendiente_de_procesamiento'`),
   ]);
-  const porTipo: Record<string, number> = {};
-  const porEtapa: Record<string, number> = {};
-  for (const r of celdas.rows) {
-    porTipo[r.tipo] = (porTipo[r.tipo] ?? 0) + r.n;
-    porEtapa[r.etapa] = (porEtapa[r.etapa] ?? 0) + r.n;
-  }
-  return c.json({
-    totales: totales.rows[0],
-    celdas: celdas.rows,            // [{tipo, etapa, procesable, n}]
-    porTipo, porEtapa,
-    motivosNoProcesable: motivos.rows,
-    validacionesPendientes: validaciones.rows,
-  });
+  return c.json({ ...valor, totales: { ...valor.totales, pendientesDeProcesamiento: pendientes.rows[0].n }, calculadoAt });
 });

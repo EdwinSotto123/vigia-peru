@@ -8,7 +8,8 @@
  *     documentos: los pedidos de descarga por estado (sólo contratos financiados) y los últimos lotes de la fuente
  *                 `documentos`, con lo que hay vigente en el almacén,
  *     base:       los contratos de la base por año (con ganador, en la cola, leídos) y los procesos adjudicados
- *                 (CONOSCE desde 2018, OCDS antes), y la ventana de la cola,
+ *                 (CONOSCE desde 2018, OCDS antes), guardados en admin_cache (migración 219) con `calculadoAt`, y la
+ *                 ventana de la cola,
  *     derivados:  cuándo se refrescaron las vistas del mapa, el financiamiento y los contratos.
  *   }
  * Con caché de 1 minuto, como /admin/cobertura. Lo lee también el revisor.
@@ -16,6 +17,7 @@
 
 import { Hono } from "hono";
 import { poolAdmin as pool } from "../lib/db.js";
+import { agregado, type ClaveAgregado } from "../lib/agregadosPanel.js";
 
 export const adminFuentesRouter = new Hono();
 
@@ -41,11 +43,15 @@ const AGENDA: { fuente: string; nombre: string; agenda: string; que: string; lan
 
 let cache: { at: number; body: unknown } | null = null;
 
+const avisar = (e: unknown) => {
+  console.warn(`[admin/fuentes] ${String((e as Error).message).slice(0, 160)}`);
+  return null;
+};
+
 const filas = <T = Record<string, unknown>>(sql: string, vals: unknown[] = []) =>
-  pool.query(sql, vals).then((r) => r.rows as T[]).catch((e) => {
-    console.warn(`[admin/fuentes] ${String((e as Error).message).slice(0, 160)}`);
-    return null;
-  });
+  pool.query(sql, vals).then((r) => r.rows as T[]).catch(avisar);
+
+const guardado = (clave: ClaveAgregado) => agregado<Record<string, unknown>[]>(clave).catch(avisar);
 
 adminFuentesRouter.get("/fuentes", async (c) => {
   if (cache && Date.now() - cache.at < 60_000) return c.json(cache.body);
@@ -65,23 +71,10 @@ adminFuentesRouter.get("/fuentes", async (c) => {
                   count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos,
                   count(*) FILTER (WHERE lote_id LIKE 'cf-%')::int AS "deCloudflare"
              FROM documentos_gcs`),
-    // Por año: contratos y cuántos tienen ganador, de convocatorias en vivo (sin abrir el jsonb: adjudicaciones o
-    // proveedor_ruc); la cola y lo leído, de la vista contratos_agregado (al día cada 10 min). Contratos y ganador de la
-    // misma tabla: si salían de fuentes distintas, durante una carga "con ganador" pasaba del 100 %.
-    filas(`SELECT g.anio, g.contratos, COALESCE(a."enCola", 0) AS "enCola", COALESCE(a.leidos, 0) AS leidos, g."conGanador" FROM
-             (SELECT extract(year FROM fecha_convocatoria)::int AS anio, count(*)::int AS contratos,
-                     count(*) FILTER (WHERE adjudicaciones IS NOT NULL OR proveedor_ruc IS NOT NULL)::int AS "conGanador"
-                FROM convocatorias WHERE ocid NOT LIKE 'ocds-vigia-%' GROUP BY 1) g
-             LEFT JOIN (SELECT extract(year FROM mes)::int AS anio,
-                               COALESCE(sum(n) FILTER (WHERE operativo = 'en_cola'), 0)::int AS "enCola",
-                               COALESCE(sum(n) FILTER (WHERE riesgo <> 'sin_analizar'), 0)::int AS leidos
-                          FROM contratos_agregado GROUP BY 1) a ON a.anio IS NOT DISTINCT FROM g.anio
-            ORDER BY g.anio DESC NULLS LAST`),
-    filas(`SELECT anio, sum(n)::int AS procesos, string_agg(DISTINCT fuente, ' y ') AS fuente FROM (
-             SELECT anio::int AS anio, count(DISTINCT codigo_convocatoria) AS n, 'CONOSCE' AS fuente FROM conosce_adjudicaciones GROUP BY 1
-             UNION ALL
-             SELECT extract(year FROM fecha_convocatoria)::int, count(*), 'OCDS' FROM procesos_historicos WHERE fecha_convocatoria < DATE '2018-01-01' GROUP BY 1
-           ) x GROUP BY anio ORDER BY anio DESC`),
+    // Los contratos y los procesos por año recorren las tablas grandes (0.7 y 2.2 s en PROD): salen de admin_cache, al día
+    // cada 25 min (lib/agregadosPanel.ts).
+    guardado("fuentes.base"),
+    guardado("fuentes.procesos"),
     filas(`SELECT (SELECT valor->>'cola_desde' FROM ajustes WHERE clave = 'procesamiento') AS desde,
                   (SELECT sum(pendientes)::int FROM zona_estado WHERE length(ubigeo) = 2) AS financiable`),
     filas(`SELECT nombre, refrescado_at AS "refrescadoAt", duracion_ms AS "duracionMs", refrescos::int FROM derivados_refresco ORDER BY nombre`),
@@ -93,7 +86,12 @@ adminFuentesRouter.get("/fuentes", async (c) => {
     corridas: corridas ?? [],
     sinBitacora: corridas === null,
     documentos: { pedidos: pedidos ?? [], lotes: lotes ?? [], almacen: almacen?.[0] ?? null },
-    base: { porAnio: base ?? [], procesos: procesos ?? [], cola: cola?.[0] ?? null },
+    base: {
+      porAnio: base?.valor ?? [],
+      procesos: procesos?.valor ?? [],
+      cola: cola?.[0] ?? null,
+      calculadoAt: base?.calculadoAt ?? null, // de cuándo son las cifras por año
+    },
     derivados: derivados ?? [],
     generadoAt: new Date().toISOString(),
   };

@@ -26,6 +26,7 @@ import {
   StatGrid,
   fmtFechaHora,
   fmtNum,
+  hace,
   humanizar,
 } from "@/components/admin/ui";
 
@@ -47,6 +48,8 @@ interface Resumen {
   porEtapa: Record<string, number>;
   motivosNoProcesable: { motivo: string; n: number }[];
   validacionesPendientes: { validacion: string; n: number }[];
+  /** De cuándo son las sumas (se guardan y se recalculan cada 25 min); los pendientes de procesamiento van en vivo. */
+  calculadoAt?: string;
 }
 interface ProcConfig { valor: { tipos_activos: string[]; etapas_activas: string[]; nota?: string; cola_desde?: string | null }; updatedAt?: string; updatedBy?: string; cola: number | null }
 
@@ -234,7 +237,8 @@ export default function ClasificacionPage() {
           descripcion={
             t ? (
               <>
-                Última clasificación: {fmtFechaHora(t.ultimaClasificacion) ?? "sin fecha"}{" "}
+                Última clasificación: {fmtFechaHora(t.ultimaClasificacion) ?? "sin fecha"}
+                {r?.calculadoAt ? `, cifras calculadas ${hace(r.calculadoAt)}` : ""}{" "}
                 <Ayuda titulo="¿Cómo se vuelve a clasificar todo?">
                   <span className="block">La clasificación corre sola con cada ingesta. Para rehacerla completa (por ejemplo, tras cambiar las reglas), desde la carpeta del proyecto:</span>
                   <code className="mt-1.5 block break-all rounded-lg bg-paperDeep px-2 py-1.5 font-mono text-rotulo text-ink">python -m backend.core.clasificacion --reclasificar</code>
