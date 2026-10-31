@@ -71,13 +71,25 @@ const CALCULOS = {
 
 export type ClaveAgregado = keyof typeof CALCULOS;
 
-async function recalcular(clave: ClaveAgregado): Promise<unknown> {
-  const valor = await CALCULOS[clave]();
-  await pool.query(
-    `INSERT INTO admin_cache (clave, valor, calculado_at) VALUES ($1, $2, now())
-     ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, calculado_at = EXCLUDED.calculado_at`,
-    [clave, JSON.stringify(valor)]);
-  return valor;
+/** Cálculos en vuelo en este isolate: dos visitas que no encuentran la cuenta esperan la misma (como Memo, lib/cache.ts). */
+const enVuelo = new Map<ClaveAgregado, { p: Promise<unknown>; t0: number }>();
+
+function recalcular(clave: ClaveAgregado): Promise<unknown> {
+  const previo = enVuelo.get(clave);
+  // Uno que lleva más de 2 min (colgado) ya no se comparte.
+  if (previo && Date.now() - previo.t0 < 120_000) return previo.p;
+  const p = (async () => {
+    const valor = await CALCULOS[clave]();
+    await pool.query(
+      `INSERT INTO admin_cache (clave, valor, calculado_at) VALUES ($1, $2, now())
+       ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, calculado_at = EXCLUDED.calculado_at`,
+      [clave, JSON.stringify(valor)]);
+    return valor;
+  })().finally(() => {
+    if (enVuelo.get(clave)?.p === p) enVuelo.delete(clave);
+  });
+  enVuelo.set(clave, { p, t0: Date.now() });
+  return p;
 }
 
 /** El último resultado de `clave` y cuándo se calculó (ver la cabecera). */
