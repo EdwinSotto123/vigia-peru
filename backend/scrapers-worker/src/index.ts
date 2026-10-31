@@ -13,6 +13,7 @@ import { autorizado } from "./auth.ts";
 import { fuentesDelCron } from "./calendario.ts";
 import { activo } from "./config.ts";
 import type { Env, ParamsCorrida } from "./config.ts";
+import { conDb } from "./db.ts";
 import { diagnosticar } from "./diagnostico.ts";
 import { registrar } from "./registro.ts";
 import { FUENTES } from "./workflow.ts";
@@ -26,6 +27,23 @@ const json = (datos: unknown, status = 200) =>
 function idCorrida(fuente: string): string {
   const t = new Date(Date.now() - 5 * 3600 * 1000).toISOString();   // hora de Lima
   return `${fuente}-${t.slice(0, 10).replaceAll("-", "")}-${t.slice(11, 16).replace(":", "")}-${crypto.randomUUID().slice(0, 4)}`;
+}
+
+/**
+ * Las corridas que siguen «corriendo» a las 12 h: el Workflow murió sin anotar el final (documentos el 21 y el 27 de
+ * octubre, mef_opds_etes el 27). La más larga de verdad (conosce_ordenes, todo un año) tarda ~6 h. Se cierran como error
+ * para que el panel no las muestre en curso para siempre. Corre con cada cron (el de documentos es cada hora).
+ */
+async function cerrarColgadas(env: Env): Promise<void> {
+  try {
+    const n = await conDb(env.HYPERDRIVE, (db) => db.ejecutar(
+      `UPDATE corridas_fuente SET estado = 'error', fin = now(),
+              error = 'sin cierre: el Workflow terminó sin anotar el final (se cerró sola a las 12 h)'
+        WHERE estado = 'corriendo' AND inicio < now() - interval '12 hours'`));
+    if (n) registrar("WARNING", `bitácora: ${n} corridas colgadas cerradas como error`);
+  } catch (e) {
+    registrar("WARNING", `bitácora: no pude cerrar las colgadas: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
+  }
 }
 
 export async function lanzar(env: Env, p: ParamsCorrida): Promise<string> {
@@ -92,6 +110,7 @@ export default {
   },
 
   async scheduled(controlador, env): Promise<void> {
+    await cerrarColgadas(env);
     const fuentes = fuentesDelCron(controlador.cron, controlador.scheduledTime);
     if (!fuentes.length) return;
     if (!activo(env)) {

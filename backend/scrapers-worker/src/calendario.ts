@@ -40,8 +40,9 @@
 export const CRON_DIARIO = "0 11 * * *";
 export const CRON_DATOS = "0 13 * * *";
 export const CRON_DOCUMENTOS = "40 * * * *";
-// Contratos menores del SEACE: cron propio (martes 05:00 Lima = 10:00 UTC, minuto 0) para NO competir con `documentos`
-// (que usa el mismo relay cada hora al minuto 40) ni con los otros de las 06:00/08:00. Semanal: los menores nuevos son pocos.
+// Contratos menores del SEACE: cron propio (minuto 0) para NO competir con `documentos` (que usa el mismo relay cada hora al
+// minuto 40) ni con los otros de las 06:00/08:00. Semanal: los menores nuevos son pocos. OJO: en los crons de Cloudflare el
+// día de la semana va de 1 (domingo) a 7, así que "2" es LUNES 05:00 Lima (10:00 UTC): corrió el lunes 2026-10-26.
 export const CRON_MENORES = "0 10 * * 2";
 
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */

@@ -16,7 +16,7 @@ import type { WorkflowStep } from "cloudflare:workers";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, fechaLima, refrescarVisitasDe } from "./comun.ts";
 
 const FUENTE = "congreso_visitas";
 const URL = "https://wb2server.congreso.gob.pe/regvisitastransparencia/filtrar";
@@ -146,12 +146,14 @@ export async function correrCongresoVisitas(env: Env, p: ParamsCorrida, step: Wo
   const total = Object.values(resumen).reduce((a, b) => a + b, 0);
   registrar("INFO", `   congreso_visitas ${desde} → ${hasta}: ${total} visitas`, { fuente: FUENTE, instancia: id });
   if (!p.seco) {
-    for (const fn of ["refrescar_visita_entidad_ruc", "refrescar_visita_pariente", "refrescar_visitas_entidad"]) {
-      await step.do(fn, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
-        const [{ existe }] = await db.filas<{ existe: boolean }>(`SELECT to_regprocedure('${fn}()') IS NOT NULL AS existe`);
-        return existe ? Number((await db.filas<{ n: number }>(`SELECT ${fn}() AS n`))[0]?.n ?? 0) : null;
-      }));
-    }
+    // El nombre de la entidad es siempre ENTIDAD (su RUC ya está en visita_entidad_ruc): sólo los parientes y los agregados
+    // de la pestaña Visitas, y éstos sólo del Congreso. Rehacer las ~450 entidades tarda 24-30 min con las 10,8 M visitas
+    // de la plataforma nacional y Hyperdrive lo cortaba: la corrida del 2026-10-29 no terminó (migración 222).
+    await step.do("refrescar_visita_pariente", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure('refrescar_visita_pariente()') IS NOT NULL AS existe");
+      return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_pariente() AS n"))[0]?.n ?? 0) : null;
+    }));
+    await step.do("refrescar_visitas_entidad", CARGA, () => conDb(env.HYPERDRIVE, (db) => refrescarVisitasDe(db, [ENTIDAD])));
   }
   return { desde, hasta, visitas: total, dias: resumen };
 }

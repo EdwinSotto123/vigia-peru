@@ -16,7 +16,7 @@
  * 2021 a 2026, registradas de enero a octubre de 2026); se reemplazan las del año con ese mes de emisión. En la tabla,
  * anio/mes siguen siendo el año y el mes de registro de cada orden.
  *
- * Semanal (sábados): el año en curso entero, y en enero y febrero también el anterior (con la partición por emisión,
+ * Semanal (domingos, para no cruzarse con `conosce` el sábado: calendario.ts): el año en curso entero, y en enero y febrero también el anterior (con la partición por emisión,
  * cualquier mes del año suma órdenes registradas tarde, y las de antes cambian de estado). Con `desde`/`hasta`
  * (AAAA o AAAA-MM), ese rango; hay datos desde 2018, y hasta diciembre del año en curso.
  *

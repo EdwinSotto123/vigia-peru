@@ -4,7 +4,7 @@
 
 import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import type { Env } from "../config.ts";
-import { conDb } from "../db.ts";
+import { conDb, type Db } from "../db.ts";
 import { registrar } from "../registro.ts";
 
 /** Lecturas (páginas de la PNDA, zonas, comprobación de sha256): idempotentes, con reintentos. */
@@ -19,6 +19,22 @@ const LIMA_MS = -5 * 3600 * 1000;   // Perú no tiene horario de verano
 /** AAAA-MM-DD de hoy en Lima (lo que da `date.today()` en un host peruano). */
 export function fechaLima(ms: number = Date.now()): string {
   return new Date(ms + LIMA_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Los agregados de la pestaña Visitas (migración 222) sólo de las entidades con estos nombres de registro: rehacer las ~450
+ * tarda 24-30 min con las 10,8 M visitas y Hyperdrive lo corta. En una base sin la 222, los de todas, como antes.
+ */
+export async function refrescarVisitasDe(db: Db, nombres: string[]): Promise<number | null> {
+  const [f] = await db.filas<{ porRuc: boolean; todas: boolean }>(
+    `SELECT to_regprocedure('refrescar_visitas_entidad(text[])') IS NOT NULL AS "porRuc",
+            to_regprocedure('refrescar_visitas_entidad()') IS NOT NULL AS todas`);
+  if (f.porRuc) {
+    const [{ n }] = await db.filas<{ n: number | null }>(
+      "SELECT refrescar_visitas_entidad(array_agg(DISTINCT ruc)) AS n FROM visita_entidad_ruc WHERE entidad_visitada = ANY($1::text[])", [nombres]);
+    return Number(n ?? 0);
+  }
+  return f.todas ? Number((await db.filas<{ n: number }>("SELECT refrescar_visitas_entidad() AS n"))[0]?.n ?? 0) : null;
 }
 
 export function sumarDias(fecha: string, n: number): string {

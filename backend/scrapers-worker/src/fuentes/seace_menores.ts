@@ -8,8 +8,8 @@
  * El requerimiento se espeja a R2 (DOCUMENTOS, clave `seace/menores/req/<id>.pdf`), que es lo que sirve la API
  * (/menores/:id/requerimiento). Idempotente (match_prod6, req_r2) y reanudable por pasos.
  *
- * Recursos SEPARADOS para no competir con `documentos` (que también usa el relay): cron propio (martes 05:00 Lima,
- * minuto 0, lejos del :40 de documentos), concurrencia modesta al relay (CONCURRENCIA) y tope por corrida
+ * Recursos SEPARADOS para no competir con `documentos` (que también usa el relay): cron propio (lunes 05:00 Lima,
+ * minuto 0, lejos del :40 de documentos; "* * 2" en Cloudflare es LUNES 05:00 Lima, ver calendario.ts), concurrencia modesta al relay (CONCURRENCIA) y tope por corrida
  * (MAX_POR_CORRIDA): tras el backfill, cada semana sólo quedan unos cientos nuevos.
  *
  * Cron semanal (año en curso, que es donde aparecen los menores nuevos). Con desde/hasta (AAAA) procesa esos años.

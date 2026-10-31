@@ -124,7 +124,13 @@ export async function correrSancionados(env: Env, p: ParamsCorrida, step: Workfl
         const tuplas = tanda.map((f) => {
           const b = vals.length;
           vals.push(...COLS.map((c) => f[c]));
-          return `(${COLS.map((c, k) => `$${b + k + 1}${c.startsWith("fecha") ? "::date" : c === "es_persona_natural" ? "::boolean" : ""}`).join(", ")})`;
+          return `(${COLS.map((c, k) => {
+            const ph = `$${b + k + 1}`;
+            // La resolución, sin espacios: la PNDA a veces la manda con espacios sueltos («1494-2008- TC-S3») y el índice
+            // único (ruc, resolucion) no reconocía la misma sanción (2,376 duplicados el 2026-09-16, migración 221).
+            if (c === "resolucion") return `regexp_replace(${ph}, '\\s+', '', 'g')`;
+            return `${ph}${c.startsWith("fecha") ? "::date" : c === "es_persona_natural" ? "::boolean" : ""}`;
+          }).join(", ")})`;
         });
         n += await db.ejecutar(`INSERT INTO osce_sancionados (${COLS.join(", ")}) VALUES ${tuplas.join(", ")} ON CONFLICT (ruc, resolucion) DO NOTHING`, vals);
       }

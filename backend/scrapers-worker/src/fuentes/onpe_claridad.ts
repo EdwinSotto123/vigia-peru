@@ -433,6 +433,13 @@ export async function correrOnpe(env: Env, p: ParamsCorrida, step: WorkflowStep,
       { fuente: FUENTE, instancia: id });
   }
 
+  // Los errores de corridas anteriores de pares que esta vez sí cargaron: sin esto, /admin/cobertura mostraba la fuente
+  // «Con errores» para siempre por un par que ya se arregló.
+  if (!p.seco) {
+    await step.do("limpiar errores resueltos", PASO, () => conDb(env.HYPERDRIVE, (db) =>
+      db.ejecutar("DELETE FROM datasets_cargas WHERE fuente = $1 AND clave LIKE 'error/%' AND NOT (clave = ANY($2::text[]))",
+        [FUENTE, resumen.fallidos.map((f) => `error/${slug(f)}`)])));
+  }
   if (!p.seco && resumen.fallidos.length) {
     await step.do("registrar fallidos", PASO, () => conDb(env.HYPERDRIVE, async (db) => {
       for (const f of resumen.fallidos) {
