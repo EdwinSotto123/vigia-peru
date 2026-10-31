@@ -79,9 +79,10 @@ export class Almacen {
 
   /**
    * Baja `url` a raw/<fuente>/<subdir o día>/<archivo> en streaming (calcula sha256 y bytes al pasar)
-   * y lo anota en el manifiesto. Si ya está al día, devuelve la entrada que había.
+   * y lo anota en el manifiesto. Si ya está al día, devuelve la entrada que había. `relay`: el de `obtener`
+   * (true, Zúrich; "lima", el relay de Lima, que pasa el Content-Length del origen y así R2 lo recibe en streaming).
    */
-  async bajar(url: string, op: { archivo?: string; modificado?: string | null; forzar?: boolean; subdir?: string } = {}): Promise<Entrada> {
+  async bajar(url: string, op: { archivo?: string; modificado?: string | null; forzar?: boolean; subdir?: string; relay?: boolean | "lima" } = {}): Promise<Entrada> {
     const modificado = op.modificado ?? null;
     if (!op.forzar && (await this.estaAlDia(url, modificado))) {
       const e = (await this.ultima(url))!;
@@ -90,7 +91,7 @@ export class Almacen {
     }
     const nombre = op.archivo ?? url.slice(url.lastIndexOf("/") + 1);
     const file = `${this.fuente}/${op.subdir ?? fechaLima()}/${nombre}`;
-    const r = await obtener(this.env, url, { timeoutMs: null });
+    const r = await obtener(this.env, url, { timeoutMs: null, relay: op.relay });
     if (!r.ok || !r.body) {
       await r.body?.cancel();
       throw new ErrorHttp(r.status, url);

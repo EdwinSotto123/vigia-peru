@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Carga las obras públicas de INFOBRAS (Contraloría): migración 160. Las inversiones de Invierte.pe (MEF), sólo con --con-mef.
 
+Desde la migración 225, INFOBRAS lo carga cada semana el Worker de scrapers (fuente `infobras`,
+backend/scrapers-worker/src/fuentes/infobras.ts), que sale por el relay de Lima (backend/relay-lima) y aplica la misma
+regla: COLUMNAS_INFOBRAS y LECTORES de abajo, escritos en SQL. Este script queda de RESPALDO, para cuando el Worker o el
+relay no puedan; no lo corras a la vez que el Worker. Las filas que deja tienen la huella de Python, que no es la del
+Worker: si lo usas, la corrida siguiente del Worker reescribe todas las obras una vez (y al revés).
+
   - INFOBRAS: el XLSX «DataSet-Obras-Publicas DD-MM-YYYY» de https://infobras.contraloria.gob.pe/InfobrasWeb/DataSets
     (~57 MB, 97 columnas, ~191 mil obras, cadenas en línea: se lee con zipfile + iterparse, sin openpyxl). La Contraloría
-    no responde fuera del Perú: este script corre desde una PC en Lima.
+    no responde fuera del Perú: este script corre desde una PC en Lima (el Worker, por el relay de Lima).
   - Invierte.pe: DETALLE_INVERSIONES.csv (activas) y CIERRE_INVERSIONES.csv (cerradas) de
     https://fs.datosabiertos.mef.gob.pe/datastorefiles/. Responden desde la nube, así que desde la migración 223 los carga
     cada semana el Worker de scrapers (fuente invierte_pe, backend/scrapers-worker/src/fuentes/invierte_pe.ts), con la
@@ -48,13 +54,13 @@ Uso (desde la raíz del repo; en Git Bash, con MSYS_NO_PATHCONV=1 AWS_PROFILE=fo
   MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin PATH="/c/Users/usuario/bin:$PATH" python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --sin-infobras --encender-cruces --propagar
   (--sin-mef se sigue aceptando por los comandos viejos, pero ya es lo de siempre.)
 
-Para refrescar INFOBRAS (cada semana, a mano: no hay tarea programada en la PC), el comando exacto:
+Para cargar INFOBRAS a mano (de respaldo: cada semana lo carga el Worker, fuente `infobras`), el comando exacto:
   MSYS_NO_PATHCONV=1 AWS_PROFILE=founder.edwin PATH="/c/Users/usuario/bin:$PATH" python -I -X utf8 backend/scripts/cargar_obras.py --entorno prod --propagar
 Con las dos fuentes tardaba ~25 min en prod (medido el 2026-10-27: leer el XLSX ~2 min, los CSV del MEF ~2 min, subir ~11
 min con todas las filas nuevas, de ellos ~6 de inversiones, refrescar_obras() ~6.5 min, propagar ~5.5 min); sin
 Invierte.pe, unos 8 min menos. Pasa de 10 min, así que desde Claude se lanza desacoplado (Start-Process, como dice
-dataset/declaracion_jurada/procesos.json). No lo corras mientras corre `invierte_pe` en el Worker: los dos terminan en
-refrescar_obras() y la carga del Worker espera bloqueos sólo 20 s. El paso del pipeline (refrescar_cruce_obras()) tarda
+dataset/declaracion_jurada/procesos.json). No lo corras mientras corre `invierte_pe` o `infobras` en el Worker: todos
+terminan en refrescar_obras() y la carga del Worker espera bloqueos sólo 20 s. El paso del pipeline (refrescar_cruce_obras()) tarda
 ~2 a 4 min en prod, casi todo en leer los ganadores de los procesos de obras y consultoría.
 Cada corrida deja lo bajado en dataset/infobras_AAAAMMDD/ (y en dataset/invierte_AAAAMMDD/ con --con-mef; las dos, ~430
 MB): las carpetas viejas se pueden borrar. Sólo la base: `--sin-infobras` corre refrescar_obras() sin volver a cargar.

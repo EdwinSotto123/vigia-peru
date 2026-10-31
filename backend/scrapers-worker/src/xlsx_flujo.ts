@@ -13,6 +13,11 @@
  * Desde el 2026-10-23 las órdenes de CONOSCE traen todo el texto en los textos compartidos (agosto de 2026: 722 mil
  * textos, 53 MB de XML, ~2 veces eso en los meses de diciembre). En un `string[]` no entraban en el isolate: van
  * comprimidos en memoria (`TextosCompartidos`).
+ *
+ * Las etiquetas pueden venir con prefijo de espacio de nombres: el XLSX de INFOBRAS (lo escribe el SDK de OpenXML de
+ * .NET) trae `<x:row><x:c t="str"><x:v>…</x:v></x:c>`, sin `r=` y con 726 MB de XML (2026-10-31). `filasXlsx` da las
+ * filas una por una, para quien arma su propio CSV (INFOBRAS: filas de título antes de la cabecera y columnas que no se
+ * guardan).
  */
 
 import { deflateRawSync, inflateRawSync } from "node:zlib";
@@ -134,11 +139,47 @@ export function desescapar(s: string): string {
   return s;
 }
 
+/** Las expresiones con que se leen las etiquetas de adentro de una fila o de un texto compartido, para un prefijo. */
+interface Etiquetas {
+  /** `<c …/>` o `<c …>…</c>`: grupo 1, los atributos; grupo 2, lo de adentro. */
+  celda: RegExp;
+  valor: RegExp;
+  texto: RegExp;
+  fonetica: RegExp;
+  /** «<rPh» (o «<x:rPh»): si no está, no hay guía fonética que quitar. */
+  inicioFonetica: string;
+}
+
+const ETIQUETAS = new Map<string, Etiquetas>();
+
+/**
+ * Las de un prefijo de espacio de nombres («x:» en `<x:c>`; «» sin prefijo: las de siempre, tal cual). Se supone que lo
+ * de adentro de una fila (o de un `<si>`) lleva el mismo prefijo que ella, como lo escribe el SDK de OpenXML.
+ */
+function etiquetas(prefijo: string): Etiquetas {
+  let e = ETIQUETAS.get(prefijo);
+  if (!e) {
+    const p = prefijo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    e = {
+      celda: new RegExp(`<${p}c\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/${p}c>)`, "g"),
+      valor: new RegExp(`<${p}v>([\\s\\S]*?)<\\/${p}v>`),
+      texto: new RegExp(`<${p}t(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${p}t>`, "g"),
+      fonetica: new RegExp(`<${p}rPh\\b[\\s\\S]*?<\\/${p}rPh>`, "g"),
+      inicioFonetica: `<${prefijo}rPh`,
+    };
+    // Un archivo anómalo con un prefijo por fila no debe llenar la memoria.
+    if (ETIQUETAS.size >= 8) ETIQUETAS.clear();
+    ETIQUETAS.set(prefijo, e);
+  }
+  return e;
+}
+
 /** El texto de un `<si>` o `<is>`: todos sus `<t>` (texto enriquecido), sin la guía fonética (`<rPh>`). */
-export function textoRico(xml: string): string {
-  const limpio = xml.indexOf("<rPh") !== -1 ? xml.replace(/<rPh\b[\s\S]*?<\/rPh>/g, "") : xml;
+export function textoRico(xml: string, prefijo = ""): string {
+  const e = etiquetas(prefijo);
+  const limpio = xml.indexOf(e.inicioFonetica) !== -1 ? xml.replace(e.fonetica, "") : xml;
   let out = "";
-  for (const m of limpio.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)) out += m[1];
+  for (const m of limpio.matchAll(e.texto)) out += m[1];
   return desescapar(out);
 }
 
@@ -149,11 +190,15 @@ function columna(letras: string): number {
   return n - 1;
 }
 
-/** Las celdas de una fila (`<row>` sin las etiquetas de afuera). */
-export function celdasFila(xml: string, compartidos: TextosCompartidos): (string | null)[] {
+/**
+ * Las celdas de una fila (`<row>` sin las etiquetas de afuera), con el prefijo de la fila (`CortadorFilas` lo da). Sin
+ * `r=` (INFOBRAS), cada celda va en la columna que sigue a la anterior.
+ */
+export function celdasFila(xml: string, compartidos: TextosCompartidos, prefijo = ""): (string | null)[] {
+  const e = etiquetas(prefijo);
   const out: (string | null)[] = [];
   let siguiente = 0;
-  for (const m of xml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+  for (const m of xml.matchAll(e.celda)) {
     const attrs = m[1];
     const ref = /\br="([A-Z]+)\d*"/.exec(attrs);
     const col = ref ? columna(ref[1]) : siguiente;
@@ -161,9 +206,9 @@ export function celdasFila(xml: string, compartidos: TextosCompartidos): (string
     const tipo = /\bt="(\w+)"/.exec(attrs)?.[1] ?? "n";
     const dentro = m[2] ?? "";
     let v: string | null = null;
-    if (tipo === "inlineStr") v = textoRico(dentro);
+    if (tipo === "inlineStr") v = textoRico(dentro, prefijo);
     else {
-      const crudo = /<v>([\s\S]*?)<\/v>/.exec(dentro)?.[1];
+      const crudo = e.valor.exec(dentro)?.[1];
       if (crudo != null) v = tipo === "s" ? compartidos.texto(Number(crudo)) : tipo === "b" ? (crudo === "1" ? "TRUE" : "FALSE") : desescapar(crudo);
     }
     while (out.length < col) out.push(null);
@@ -172,12 +217,24 @@ export function celdasFila(xml: string, compartidos: TextosCompartidos): (string
   return out;
 }
 
-/** Corta el XML de la hoja en filas a medida que llega. */
+/**
+ * El comienzo de una etiqueta `<row` (o `<si`), con prefijo de espacio de nombres (`<x:row`) o sin él, seguida de un
+ * espacio, `>` o `/`: «<rowBreaks>» no es una fila. En el grupo 1, el prefijo («x:» o «»).
+ */
+const INICIO_FILA = /<((?:[A-Za-z_][\w.-]*:)?)row[\s>\/]/g;
+const INICIO_TEXTO = /<((?:[A-Za-z_][\w.-]*:)?)si[\s>\/]/g;
+/** Lo que se guarda del final de un trozo sin etiquetas completas: alcanza para una de apertura partida, con su prefijo. */
+const COLA = 64;
+
+/** Corta el XML de la hoja en filas a medida que llega. A `alFila` le da cada fila y su prefijo («x:» o «»). */
 export class CortadorFilas {
   private buf = "";
-  private readonly alFila: (xmlFila: string) => void;
+  private readonly alFila: (xmlFila: string, prefijo: string) => void;
+  /** El prefijo de la última fila y su etiqueta de cierre («</x:row>»). */
+  private prefijo = "";
+  private cierre = "</row>";
 
-  constructor(alFila: (xmlFila: string) => void) {
+  constructor(alFila: (xmlFila: string, prefijo: string) => void) {
     this.alFila = alFila;
   }
 
@@ -186,27 +243,32 @@ export class CortadorFilas {
     const b = this.buf;
     let desde = 0;
     for (;;) {
-      let s = b.indexOf("<row", desde);
-      // "<rowBreaks>" no es una fila.
-      while (s !== -1 && s + 4 < b.length && !" >/\n\t\r".includes(b[s + 4])) s = b.indexOf("<row", s + 4);
-      if (s === -1 || s + 4 >= b.length) {
-        // Se guarda la cola por si "<row" quedó partido.
-        desde = s === -1 ? Math.max(desde, b.length - 4) : s;
+      INICIO_FILA.lastIndex = desde;
+      const m = INICIO_FILA.exec(b);
+      if (!m) {
+        // Se guarda la cola por si "<row" (o "<x:row") quedó partido.
+        desde = Math.max(desde, b.length - COLA);
         break;
+      }
+      const s = m.index;
+      if (m[1] !== this.prefijo) {
+        this.prefijo = m[1];
+        this.cierre = `</${m[1]}row>`;
       }
       const gt = b.indexOf(">", s);
       if (gt === -1) { desde = s; break; }
-      if (b[gt - 1] === "/") { this.alFila(""); desde = gt + 1; continue; }
-      const e = b.indexOf("</row>", gt);
+      if (b[gt - 1] === "/") { this.alFila("", this.prefijo); desde = gt + 1; continue; }
+      const e = b.indexOf(this.cierre, gt);
       if (e === -1) { desde = s; break; }
-      this.alFila(b.slice(gt + 1, e));
-      desde = e + 6;
+      this.alFila(b.slice(gt + 1, e), this.prefijo);
+      desde = e + this.cierre.length;
     }
     this.buf = b.slice(desde);
   }
 }
 
-const campoCsv = (v: string | null) => (v == null || v === "" ? "" : /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+/** Un valor como campo de CSV: vacío (NULL para COPY … NULL ''), tal cual o entre comillas si lo necesita. */
+export const campoCsv = (v: string | null) => (v == null || v === "" ? "" : /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
 /** Textos unidos en un string y dónde empieza cada uno (en UTF-16; el último corte es el fin). */
 interface Bloque {
@@ -419,13 +481,27 @@ const MAX_INDICE = 1 << 26;
 export async function contarUsos(leer: LeerRango, e: EntradaZip): Promise<Uint8Array> {
   let usos = new Uint8Array(1 << 16);
   let resto = "";
+  // Las etiquetas de las celdas, con el prefijo de la hoja si lo trae («<x:c>», «<x:v>»): se sabe con la primera celda.
+  let prefijo: string | null = null;
+  let inicioCelda = "<c";
+  let finCelda = "</c>";
+  let valor = "<v>";
   const t = await abrirTexto(leer, e, (x) => {
     const s = resto + x;
+    if (prefijo === null) {
+      const m = /<((?:[A-Za-z_][\w.-]*:)?)c[\s>\/]/.exec(s);
+      if (m) {
+        prefijo = m[1];
+        inicioCelda = `<${prefijo}c`;
+        finCelda = `</${prefijo}c>`;
+        valor = `<${prefijo}v>`;
+      }
+    }
     // Hasta el último fin de celda: lo que sigue puede ser una celda partida entre trozos.
-    const hasta = s.lastIndexOf("</c>");
+    const hasta = s.lastIndexOf(finCelda);
     if (hasta === -1) {
-      const k = s.lastIndexOf("<c");
-      resto = k === -1 ? s.slice(-8) : s.slice(k);
+      const k = s.lastIndexOf(inicioCelda);
+      resto = k === -1 ? s.slice(-COLA) : s.slice(k);
       return;
     }
     let p = 0;
@@ -436,11 +512,12 @@ export async function contarUsos(leer: LeerRango, e: EntradaZip): Promise<Uint8A
       p = gt + 1;
       if (s.charCodeAt(gt - 1) === 0x2f) continue;   // <c … t="s"/>: vacía
       const v = s.indexOf("<", gt);
-      if (v === -1 || !s.startsWith("<v>", v)) continue;
+      if (v === -1 || !s.startsWith(valor, v)) continue;
       let i = 0;
-      let d = v + 3;
+      const d0 = v + valor.length;
+      let d = d0;
       for (let c = s.charCodeAt(d); c >= 48 && c <= 57; c = s.charCodeAt(++d)) i = i * 10 + (c - 48);
-      if (d > v + 3 && i < MAX_INDICE) {
+      if (d > d0 && i < MAX_INDICE) {
         if (i >= usos.length) {
           const u = new Uint8Array(Math.max(usos.length * 2, i + 1));
           u.set(usos);
@@ -468,15 +545,24 @@ export async function textosCompartidos(leer: LeerRango, dir: Map<string, Entrad
   // Con poco XML (los libros chicos) van todos tal cual: ni se cuentan los usos ni se comprime.
   const out = new TextosCompartidos(e.tam > (op?.comprimirDesde ?? 8 << 20) ? await contarUsos(leer, hoja(dir)) : null, op);
   let buf = "";
+  // El prefijo del último texto y su etiqueta de cierre («</x:si>»).
+  let prefijo = "";
+  let cierre = "</si>";
   const t = await abrirTexto(leer, e, (x) => {
     buf += x;
     let desde = 0;
     for (;;) {
       // Cada <si>…</si> (o <si/>, vacío) es un texto, en orden: el índice de la celda es su posición.
-      const ini = buf.indexOf("<si", desde);
-      if (ini === -1) {
-        desde = Math.max(desde, buf.length - 2);   // por si "<si" quedó partido
+      INICIO_TEXTO.lastIndex = desde;
+      const m = INICIO_TEXTO.exec(buf);
+      if (!m) {
+        desde = Math.max(desde, buf.length - COLA);   // por si "<si" quedó partido
         break;
+      }
+      const ini = m.index;
+      if (m[1] !== prefijo) {
+        prefijo = m[1];
+        cierre = `</${prefijo}si>`;
       }
       const gt = buf.indexOf(">", ini);
       if (gt === -1) {
@@ -488,13 +574,13 @@ export async function textosCompartidos(leer: LeerRango, dir: Map<string, Entrad
         desde = gt + 1;
         continue;
       }
-      const fin = buf.indexOf("</si>", gt);
+      const fin = buf.indexOf(cierre, gt);
       if (fin === -1) {
         desde = ini;
         break;
       }
-      out.agregar(textoRico(buf.slice(gt + 1, fin)));
-      desde = fin + 5;
+      out.agregar(textoRico(buf.slice(gt + 1, fin), prefijo));
+      desde = fin + cierre.length;
     }
     buf = buf.slice(desde);
   });
@@ -537,8 +623,8 @@ export function xlsxComoCsv(leer: LeerRango, tam: number, trozoSalida = 1 << 20,
       if (!inflado) {
         const dir = await directorioZip(leer, tam);
         const textos = (compartidos = await textosCompartidos(leer, dir, undefined, op));
-        const cortador = new CortadorFilas((xml) => {
-          const celdas = celdasFila(xml, textos);
+        const cortador = new CortadorFilas((xml, prefijo) => {
+          const celdas = celdasFila(xml, textos, prefijo);
           const esCabecera = ancho === -1;
           if (esCabecera) {
             while (celdas.length && (celdas[celdas.length - 1] ?? "") === "") celdas.pop();
@@ -575,4 +661,24 @@ export function xlsxComoCsv(leer: LeerRango, tam: number, trozoSalida = 1 << 20,
       salida = "";
     },
   });
+}
+
+/**
+ * Las filas de la hoja como celdas (las de `celdasFila`), en orden y sin cargar el archivo; las vacías también (como []).
+ * Para quien arma su propio CSV: INFOBRAS trae filas de título antes de la cabecera y columnas que no se guardan. Infla de
+ * a ENTRADA_POR_VEZ: tiene en memoria sólo las filas de un trozo (~200 de INFOBRAS) y no infla más hasta que se piden.
+ */
+export async function* filasXlsx(leer: LeerRango, tam: number, op?: OpcionesTextos): AsyncGenerator<(string | null)[]> {
+  const dir = await directorioZip(leer, tam);
+  const textos = await textosCompartidos(leer, dir, undefined, op);
+  let listas: [xml: string, prefijo: string][] = [];
+  const cortador = new CortadorFilas((xml, prefijo) => listas.push([xml, prefijo]));
+  const inflado = await abrirTexto(leer, hoja(dir), (t) => cortador.agregar(t));
+  for (;;) {
+    const sigue = await inflado.empujar();
+    const filas = listas;
+    listas = [];
+    for (const [xml, prefijo] of filas) yield celdasFila(xml, textos, prefijo);
+    if (!sigue) return;
+  }
 }
