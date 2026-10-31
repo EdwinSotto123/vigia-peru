@@ -28,7 +28,7 @@
  *   congreso_visitas   jueves 08:00: las visitas al Congreso de los últimos 14 días (su registro propio, sin captcha;
  *                      el relleno desde 2020 lo hizo backend/scripts/cargar_visitas_congreso.py).
  *
- *   servir_convocatorias  jueves 08:00 (~1 h): las plazas CAS de SERVIR Talento Perú, por el relay de Lima (403 desde
+ *   servir_convocatorias  jueves 08:00 (~1,5 h: ~1,7 s por plaza, medido en PROD el 31-oct): las plazas CAS de SERVIR Talento Perú, por el relay de Lima (403 desde
  *                      Cloudflare y por Zúrich). Respaldo: backend/scripts/cargar_servir_convocatorias.py.
  *
  *   infobras           jueves 08:00: las obras de INFOBRAS (Contraloría), por el relay de Lima (522 fuera del Perú). No el
