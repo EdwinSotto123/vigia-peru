@@ -44,6 +44,9 @@ import { mefRouter } from "./routes/mef.js";
 import { estructuraRouter } from "./routes/estructura.js";
 import { cadenaRouter } from "./routes/cadena.js";
 import { obrasRouter } from "./routes/obras.js";
+import { gobservaRouter } from "./routes/gobserva.js";
+import { empleoRouter } from "./routes/empleo.js";
+import { licitacionesRouter } from "./routes/licitaciones.js";
 
 export const app = new Hono();
 
@@ -143,6 +146,11 @@ api.route("/contratos", contratosRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
 api.route("/obras", obrasRouter);
+// Gobserva (2026-11-01): los productos de pago con marca propia (empleo.gobserva.cloud y licitaciones.gobserva.cloud) y
+// la lista de espera de sus planes (migración 226).
+api.route("/gobserva", gobservaRouter);
+api.route("/empleo", empleoRouter);
+api.route("/licitaciones", licitacionesRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);

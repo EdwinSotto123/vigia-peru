@@ -42,12 +42,12 @@
     "GCS_PROJECT_ID": "vivid-spot-480905-a4",
     "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
     "GCS_BUCKET_REPORTES": "vigia-peru-reportes",
-    "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev,https://vigia.gobserva.cloud",
+    "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev,https://vigia.gobserva.cloud,https://empleo.gobserva.cloud,https://licitaciones.gobserva.cloud",
     // Zonas de nuestros Workers (cabecera CF-Worker): sus lecturas no cuentan en el límite por IP (lib/antibots.ts).
     "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
     // Dónde se resuelve el captcha de la gente (lib/antibots.ts → verificarTurnstile): otro hostname queda en el registro;
     // con TURNSTILE_HOSTS_ESTRICTO "si", además se rechaza.
-    "TURNSTILE_HOSTS": "vigia.gobserva.cloud",
+    "TURNSTILE_HOSTS": "vigia.gobserva.cloud,empleo.gobserva.cloud,licitaciones.gobserva.cloud",
     // Relay de descargas: el Worker vigia-relay (backend/relay-worker); el VPS de Lima ya no existe.
     "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
     // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app
@@ -73,8 +73,9 @@
       "vars": {
         "VIGIA_ENTORNO": "dev",
         "FIREBASE_PROJECT_ID": "simplia-project",
-        "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev",
-        "WORKERS_PROPIOS": "vigiaperu.workers.dev",
+        "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev,https://empleo-dev.gobserva.cloud,https://licitaciones-dev.gobserva.cloud",
+        // La web de DEV también entra por empleo-dev y licitaciones-dev.gobserva.cloud: sus subpedidos llegan con esa zona.
+        "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
         "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
         "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
       }

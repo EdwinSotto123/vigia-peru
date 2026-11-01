@@ -141,6 +141,38 @@ adminRouter.get("/resumen", async (c) => {
 });
 
 // ─── Contribuciones ──────────────────────────────────────────────────────────
+// ─── Gobserva: inscritos en los productos de pago (migración 226) ──────────────────────────────────────────────
+/**
+ * GET /admin/gobserva/suscripciones?producto=&plan= — quién se anotó en Gobserva Empleo, Gobserva Licitaciones o el MCP,
+ * con su plan, sus intereses y desde qué página: la lista de espera con la que se valida la demanda antes de cobrar.
+ * Sólo admin (no está entre las rutas del revisor): trae correos y teléfonos. Hasta 2,000, los más recientes primero.
+ */
+adminRouter.get("/gobserva/suscripciones", async (c) => {
+  // Además del proxy (lib/permisos.ts), como /privacidad: el revisor no llega a los correos ni aunque pida directo.
+  if (esRevisor(c)) return c.json({ error: "forbidden" }, 403);
+  const url = new URL(c.req.url);
+  const producto = url.searchParams.get("producto");
+  const plan = url.searchParams.get("plan");
+  const vals: unknown[] = [];
+  const conds: string[] = ["baja_at IS NULL"];
+  if (producto && /^(empleo|licitaciones|mcp)$/.test(producto)) { vals.push(producto); conds.push(`producto = $${vals.length}`); }
+  if (plan && /^[a-z]{3,15}$/.test(plan)) { vals.push(plan); conds.push(`plan = $${vals.length}`); }
+  const [filas, cuentas] = await Promise.all([
+    pool.query(
+      `SELECT id, producto, email, nombre, empresa, ruc, telefono, plan, intereses, origen, acepta,
+              to_char(creado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI') AS creado,
+              to_char(actualizado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI') AS actualizado
+         FROM gobserva_suscripciones WHERE ${conds.join(" AND ")}
+        ORDER BY creado_at DESC LIMIT 2000`, vals),
+    pool.query(
+      `SELECT producto, plan, count(*)::int AS n,
+              count(*) FILTER (WHERE creado_at >= now() - interval '7 days')::int AS semana
+         FROM gobserva_suscripciones WHERE baja_at IS NULL GROUP BY 1, 2 ORDER BY 1, 2`),
+  ]);
+  c.header("Cache-Control", SIN_CACHE);
+  return c.json({ data: filas.rows, cuentas: cuentas.rows });
+});
+
 adminRouter.get("/contribuciones", async (c) => {
   const url = new URL(c.req.url);
   const estado = url.searchParams.get("estado") ?? "pendiente_pago";

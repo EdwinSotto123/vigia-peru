@@ -5,6 +5,17 @@ este expone las mismas 3 tools read-only (`buscar_alertas`, `riesgo_convocatoria
 `empresa_sancionada`) con los mismos nombres, descripciones, esquemas, SQL y salida al carácter.
 
 - URL: `https://vigia-mcp.vigiaperu.workers.dev/mcp`
+- **Herramientas de Gobserva (2026-11-01, `src/gobserva.ts`)**: además de las 3 de Vigía, las de los productos de pago
+  (gratis durante la beta, anunciadas en empleo.gobserva.cloud y licitaciones.gobserva.cloud):
+  - `buscar_plazas_cas(texto, region, sueldo_min, sin_experiencia, limite)`: plazas CAS abiertas hoy (`servir_convocatoria`).
+  - `ficha_plaza_cas(aviso)`: requisitos, sueldo frente a otras entidades (p25/mediana/p75) y señales.
+  - `buscar_licitaciones(texto, region, tipo, dias, limite)`: convocatorias recientes (`convocatorias` + `entidades`).
+  - `mercado_rubro(rubro, meses)`: agregados de CONOSCE por la función `gobserva_mercado_rubro()` (migración 227,
+    SECURITY DEFINER: el rol `vigia_mcp` no lee `conosce_adjudicaciones`, que trae personas naturales).
+  Las palabras se buscan sin tildes con una expresión por palabra (sólo letras y cifras de lo escrito). Responden con un
+  único TextContent JSON (no imitan a FastMCP: no existen en el servidor de Python). Permisos: migración 226.
+- El borde de workers.dev bloquea el agente «Python-urllib» (403); los clientes MCP reales (httpx, node, Claude, ChatGPT)
+  pasan. Para probar con urllib, mandar otro User-Agent.
 - Transporte: MCP Streamable HTTP **sin estado** (sin `Mcp-Session-Id` ni Durable Objects), sólo `POST /mcp`;
   respuestas en SSE como FastMCP. `GET`/`DELETE` → 405, `/mcp/` → 307 a `/mcp`, otra ruta → 404.
 - Autenticación: **ninguna**, igual que Cloud Run (`--allow-unauthenticated`). Son datos públicos.
