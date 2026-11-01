@@ -96,7 +96,11 @@ export function Footer() {
               la verdad no dependa de quién paga el servidor.
             </p>
             <p className="mt-3 max-w-md text-pretty text-meta leading-relaxed text-paper/70">
-              Vigía es un producto de <strong className="font-semibold text-paper">Gobserva</strong>, una GovTech: tecnología para que
+              Vigía es un producto de{" "}
+              <a href="https://gobserva.cloud" className="font-semibold text-paper underline decoration-paper/40 underline-offset-2 hover:decoration-paper">
+                Gobserva
+              </a>
+              , una GovTech: tecnología para que
               cualquiera pueda vigilar al Estado con sus propios datos.
             </p>
           </div>

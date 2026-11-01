@@ -34,7 +34,7 @@ export async function generateMetadata({
   const { contrato: c } = await resolverContrato(decodeURIComponent(params.ocid));
   if (!c) return { title: "Contrato no encontrado" };
   const vista = vistaDe(searchParams?.vista);
-  // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
+  // Solo la parte de la página: el layout raíz agrega " | Vigía by Gobserva".
   // Sin los «¿» que el SEACE dejó donde iban comillas (la pestaña del navegador también lo muestra).
   const objeto = corto(c.titulo ? limpiarObjeto(c.titulo) : `Contrato ${c.codigo}`, 70);
   const base = c.entidad ? `${objeto}, ${corto(c.entidad, 48)}` : objeto;

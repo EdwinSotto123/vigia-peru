@@ -1,7 +1,16 @@
-# gobserva.cloud → vigia.gobserva.cloud
+# gobserva.cloud: la portada de Gobserva
 
 Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONOS) sirve a Vigía en
-`vigia.gobserva.cloud`, y la raíz (y `www`) redirige ahí con este Worker.
+`vigia.gobserva.cloud`, y este Worker (`gobserva-redirect`, el nombre quedó del principio) es la raíz:
+
+- **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`, HTML sin dependencias): para que «gobserva» y «gobserva
+  cloud» tengan una página que los buscadores puedan mostrar. Lleva los datos estructurados de la organización
+  (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`,
+  su `sitemap.xml` y la clave de IndexNow.
+- `www.gobserva.cloud` → 301 a `gobserva.cloud`; cualquier otra ruta → 301 a la misma en `vigia.gobserva.cloud` (los
+  enlaces viejos siguen andando). Antes (29 al 31-oct) la raíz redirigía entera a Vigía.
+- Al cambiar el texto: subir `ACTUALIZADA` en `worker.js`, `npx wrangler deploy` aquí y avisar a IndexNow:
+  `curl "https://api.indexnow.org/indexnow?url=https%3A%2F%2Fgobserva.cloud%2F&key=<CLAVE_INDEXNOW>"`.
 
 ## Pasos
 

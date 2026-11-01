@@ -4,7 +4,7 @@ import { MapaWrapper } from "@/components/MapaWrapper";
 import { Pagina } from "@/components/patrones";
 import type { ZonaTab } from "@/components/mapa/ZonaHubPanel";
 
-/** Sólo la parte de la página: el layout raíz le agrega " | Vigía Perú". */
+/** Sólo la parte de la página: el layout raíz le agrega " | Vigía by Gobserva". */
 export const metadata: Metadata = {
   title: "Mapa",
   description:

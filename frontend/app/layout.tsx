@@ -21,27 +21,33 @@ import { SCRIPT_MODO } from "@/lib/modoScript";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
 import { LOGO, absoluta } from "@/lib/seo";
 
-/** Quién publica y qué sitio es (schema.org): lo que un buscador muestra junto al nombre del sitio. */
+/**
+ * Quién publica y qué sitio es (schema.org): lo que un buscador muestra junto al nombre del sitio. La organización es la
+ * misma entidad que describe la portada de Gobserva (gobserva.cloud, infrastructure/deploy/cloudflare/gobserva-redirect):
+ * mismo @id, para que los buscadores unan las dos páginas a la marca.
+ */
+const GOBSERVA = "https://gobserva.cloud/#organizacion";
 const DATOS_SITIO = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "Organization",
-      "@id": absoluta("/#gobserva"),
+      "@id": GOBSERVA,
       name: "Gobserva",
-      url: SITIO,
+      alternateName: "Gobserva Cloud",
+      url: "https://gobserva.cloud/",
       logo: absoluta(LOGO),
     },
     {
       "@type": "WebSite",
       "@id": absoluta("/#sitio"),
       url: absoluta("/"),
-      name: "Vigía Perú",
-      alternateName: "Vigía by Gobserva",
+      name: "Vigía by Gobserva",
+      alternateName: ["Vigía", "Vigía Perú"],
       description:
         "Plataforma cívica que lee los contratos públicos del Perú, los cruza con registros oficiales y muestra señales de riesgo con la norma y la fuente de cada una.",
       inLanguage: "es-PE",
-      publisher: { "@id": absoluta("/#gobserva") },
+      publisher: { "@id": GOBSERVA },
     },
   ],
 };
@@ -50,9 +56,10 @@ export const metadata: Metadata = {
   // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
   // http://localhost:8080 en producción. El dominio público de cada despliegue: lib/compartir.ts.
   metadataBase: new URL(SITIO),
+  // «Gobserva» en el título de cada página: así los buscadores asocian la marca con todo el sitio (2026-11-01).
   title: {
-    default: "Vigía Perú: en qué se gasta el dinero de tu región",
-    template: "%s | Vigía Perú",
+    default: "Vigía by Gobserva: en qué se gasta el dinero de tu región",
+    template: "%s | Vigía by Gobserva",
   },
   description:
     "Plataforma cívica que lee los contratos públicos del Perú publicados en el SEACE, los cruza con fuentes oficiales y muestra señales de riesgo con la norma y la fuente de cada una.",

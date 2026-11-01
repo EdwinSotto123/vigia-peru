@@ -27,7 +27,7 @@ import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
-const TITULO_PORTADA = "Vigía Perú: en qué se gasta el dinero de tu región";
+const TITULO_PORTADA = "Vigía by Gobserva: en qué se gasta el dinero de tu región";
 const DESCRIPCION_PORTADA =
   "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, ayúdanos a seguir vigilando o denuncia una obra.";
 

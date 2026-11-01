@@ -40,7 +40,7 @@ import { numero } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 
 export const metadata = {
-  // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
+  // Solo la parte de la página: el layout raíz agrega " | Vigía by Gobserva".
   title: "Contratos",
   description: "Todos los contratos públicos del SEACE que tiene Vigía, con su tipo, etapa, zona y estado de lectura.",
   alternates: canonica("/app/contratos"),
