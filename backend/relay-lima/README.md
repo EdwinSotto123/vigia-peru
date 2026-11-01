@@ -1,5 +1,9 @@
 # Relay de Lima
 
+**Dónde corre hoy (2026-11-01):** en tu PC, con IP de Lima (`backend/scrapers-pc/salida_peru`, sin costo). La instancia de
+AWS de este README queda **apagada de respaldo** (~US$ 9 al mes por el disco y la IP; `relay_lima.py encender` la prende
+y `apagar` la apaga). Las dos usan este mismo `relay.py` y el mismo túnel; `/health` dice cuál atendió (`pc` o `aws-lima`).
+
 La salida con IP peruana de los scrapers. Algunas fuentes del Estado sólo responden a IPs del Perú: desde Cloudflare, y también
 por el relay de Zúrich, dan 522 o 403. Este relay corre en una instancia EC2 de la **Local Zone de AWS en Lima**
 (`us-east-1-lim-1a`), cuya IP ubican en Lima ipinfo e ip-api, y los Workers lo usan como cualquier otra salida.
@@ -80,9 +84,8 @@ Precios de AWS para la zona de Lima (2026-10-31):
 | IP pública | US$ 0,005 la hora | ~US$ 3,7 |
 | **Total** | | **~US$ 70** |
 
-Las fuentes que la usan corren unas horas por semana. Encenderla sólo de 07:45 a 10:45 (hora de Lima) con EventBridge
-Scheduler dejaría la instancia en ~US$ 8 y el total en ~US$ 17 al mes; una corrida a mano fuera de esa ventana tendría que
-encenderla antes.
+Desde el 2026-11-01 está apagada (la salida es tu PC): queda en ~US$ 9 al mes (disco e IP). Borrarla del todo (instancia,
+disco e IP elástica) deja el costo en cero, pero sin respaldo.
 
 ## Si algo falla
 

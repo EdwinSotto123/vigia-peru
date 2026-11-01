@@ -479,6 +479,8 @@ function relayFalso(archivo: Uint8Array | null) {
   const pedidos: { url: string; destino: string; token: string | null }[] = [];
   const fetcher = {
     async fetch(url: string, init: RequestInit) {
+      // El /health de la salida peruana (esperarRelayLima): responde siempre.
+      if (url.endsWith("/health")) return Response.json({ ok: true, nombre: "prueba" });
       const destino = (JSON.parse(String(init.body)) as { url: string }).url;
       pedidos.push({ url, destino, token: new Headers(init.headers).get("X-Vigia-Token") });
       if (destino === URL_DATASETS) return new Response(`<a href="${ENLACE}">Obras</a>`, { headers: { "x-relay-status": "200" } });
@@ -526,7 +528,7 @@ test("corrida: si la carga o la descarga fallan, el crudo igual se borra de R2 y
     HYPERDRIVE: { connectionString: "postgres://u:p@127.0.0.1:9/vigia" } } as unknown as Env;
   const a = pasosDe();
   await assert.rejects(correrInfobras(env, { fuente: "infobras", origen: "prueba" }, a.step, "prueba"), /ECONNREFUSED|connect/);
-  assert.deepEqual(a.pasos, ["descargar", "cargar obra_infobras", "borrar crudo"]);
+  assert.deepEqual(a.pasos, ["relay de Lima: ¿responde? (1)", "descargar", "cargar obra_infobras", "borrar crudo"]);
   assert.ok(!r2.objetos.has("raw/infobras/obras/obras.xlsx"));
   assert.ok(r2.borrados.includes("raw/infobras/obras/obras.xlsx"));
 
@@ -534,6 +536,6 @@ test("corrida: si la carga o la descarga fallan, el crudo igual se borra de R2 y
   const b = pasosDe();
   await assert.rejects(correrInfobras({ ...env, CRUDOS: sinArchivo.bucket, RELAY_LIMA: relayFalso(null).fetcher } as unknown as Env,
     { fuente: "infobras", origen: "prueba" }, b.step, "prueba"), /HTTP 404/);
-  assert.deepEqual(b.pasos, ["descargar", "borrar crudo"]);
+  assert.deepEqual(b.pasos, ["relay de Lima: ¿responde? (1)", "descargar", "borrar crudo"]);
   assert.deepEqual(sinArchivo.borrados, ["raw/infobras/obras/obras.xlsx"]);
 });

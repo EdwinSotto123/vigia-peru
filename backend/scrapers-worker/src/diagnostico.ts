@@ -144,6 +144,7 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
       return { status: r.status, ...((await r.json().catch(() => ({}))) as Resultado) };
     });
     const sitios: Record<string, string> = {
+      lima_contraloria: (await import("./fuentes/salud_lima.ts")).SITIOS_PERU.contraloria,
       lima_infobras: "https://infobras.contraloria.gob.pe/InfobrasWeb/DataSets",
       lima_servir: "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml",
       lima_minjus: "https://procuraduriaanticorrupcion.minjus.gob.pe/",

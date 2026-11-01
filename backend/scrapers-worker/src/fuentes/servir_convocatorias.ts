@@ -41,7 +41,7 @@ import { dormir, pedirLima, UA } from "../http.ts";
 import type { PedidoLima } from "../http.ts";
 import { colapsar, fechaIso, strip } from "../py.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, esperarRelayLima, fechaLima } from "./comun.ts";
 
 const FUENTE = "servir_convocatorias";
 export const URL_SERVIR = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml";
@@ -637,6 +637,7 @@ export function paginaParam(v: unknown): number | null {
 }
 
 export async function correrServir(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string, op: OpcionesCorrida = {}): Promise<unknown> {
+  await esperarRelayLima(env, step, FUENTE);
   const primera = paginaParam(p.desde) ?? 1;
   const ultima = paginaParam(p.hasta);
   let estado: Estado = { cookies: {}, pagina: primera, dia: fechaLima() };

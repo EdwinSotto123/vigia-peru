@@ -24,6 +24,8 @@
  *
  *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
  *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
+ *   salud_lima         todos los días a las 12:40, con el mismo cron: la prueba de la salida peruana (relay de Lima en
+ *                      tu PC, backend/scrapers-pc/salida_peru), a una hora en que la PC suele estar prendida.
  *
  *   congreso_visitas   jueves 08:00: las visitas al Congreso de los últimos 14 días (su registro propio, sin captcha;
  *                      el relleno desde 2020 lo hizo backend/scripts/cargar_visitas_congreso.py).
@@ -64,7 +66,7 @@ export const CRON_MENORES = "0 10 * * 2";
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
-  if (cron === CRON_DOCUMENTOS) return ["documentos"];
+  if (cron === CRON_DOCUMENTOS) return new Date(ms - 5 * 3600 * 1000).getUTCHours() === 12 ? ["documentos", "salud_lima"] : ["documentos"];
   if (cron === CRON_MENORES) return ["seace_menores"];
   if (cron !== CRON_DATOS) return [];
   const lima = new Date(ms - 5 * 3600 * 1000);

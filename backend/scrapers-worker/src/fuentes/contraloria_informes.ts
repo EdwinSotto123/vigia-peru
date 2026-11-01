@@ -30,7 +30,7 @@ import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { ErrorHttp, obtener } from "../http.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, esperarRelayLima, fechaLima } from "./comun.ts";
 
 const FUENTE = "contraloria_informes";
 export const URL_BUSCADOR = "https://appbp.contraloria.gob.pe/BuscadorCGR/Informes/BusquedaInformesCGR.ashx";
@@ -169,6 +169,7 @@ const SQL_UPSERT = `
 export async function correrContraloria(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
   const hoy = fechaLima();
   const resumen: Record<string, unknown> = { paginas: 0, informes: 0, escritos: 0, via: {} as Record<string, number> };
+  resumen.salida = await esperarRelayLima(env, step, FUENTE);
   let paginas = 1;
   for (let n = 1; n <= paginas && n <= MAX_PAGINAS; n++) {
     const r = await step.do(`página ${n}`, PASO, async () => {

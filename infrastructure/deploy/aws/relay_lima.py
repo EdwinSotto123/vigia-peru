@@ -7,6 +7,11 @@ servicio de Workers VPC por el que llega el Worker vigia-scrapers. Qué es y por
                                                               # instala el cloudflared más nuevo)
   python infrastructure/deploy/aws/relay_lima.py estado       # instancia, IP, túnel, servicio VPC y /health
   python infrastructure/deploy/aws/relay_lima.py ejecutar 'dig +short procuraduriaanticorrupcion.minjus.gob.pe'
+  python infrastructure/deploy/aws/relay_lima.py apagar       # la deja detenida (respaldo: disco e IP, ~US$ 9 al mes)
+  python infrastructure/deploy/aws/relay_lima.py encender     # la vuelve a prender y espera a que responda
+
+Desde el 2026-11-01 la salida principal es tu PC (backend/scrapers-pc/salida_peru): la instancia queda apagada de respaldo.
+Las dos se conectan al mismo túnel; con las dos prendidas, Cloudflare reparte los pedidos entre ellas.
 
 Requiere el perfil de AWS (AWS_PROFILE, por defecto founder.edwin) y `npx wrangler` con la sesión de Cloudflare de Vigía
 (la misma de infrastructure/deploy/cloudflare/base.sh). Los dos secretos (token del relay y del túnel) van de su origen a
@@ -351,6 +356,23 @@ def estado_() -> None:
     print(salida.strip())
 
 
+def apagar() -> None:
+    i = instancia()["InstanceId"]
+    aws("ec2", "stop-instances", "--instance-ids", i)
+    aws("ec2", "wait", "instance-stopped", "--instance-ids", i)
+    print(f"instancia {i}: detenida (el disco y la IP elástica quedan: ~US$ 9 al mes)")
+
+
+def encender() -> None:
+    i = instancia()["InstanceId"]
+    aws("ec2", "start-instances", "--instance-ids", i)
+    aws("ec2", "wait", "instance-running", "--instance-ids", i)
+    print(f"instancia {i}: prendida; espero a SSM y al relay…")
+    if not esperar_ssm(i, minutos=8):
+        sys.exit("no aparece en SSM: revisa la consola serie")
+    estado_()
+
+
 def ejecutar(comando: str) -> None:
     estado, salida, errores = en_la_instancia(instancia()["InstanceId"], [comando])
     print(estado, salida.rstrip(), errores.rstrip()[-1500:], sep="\n")
@@ -365,6 +387,10 @@ if __name__ == "__main__":
         actualizar("--cloudflared" in sys.argv)
     elif accion == "estado":
         estado_()
+    elif accion == "apagar":
+        apagar()
+    elif accion == "encender":
+        encender()
     elif accion == "ejecutar" and len(sys.argv) > 2:
         ejecutar(sys.argv[2])
     else:

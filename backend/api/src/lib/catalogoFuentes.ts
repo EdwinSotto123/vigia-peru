@@ -71,6 +71,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Informes con responsabilidad presunta. Sólo responde a IP peruana: sale por el relay de Lima (backend/relay-lima)." },
   { fuente: "ppedc_boletin", nombre: "Casos de la Procuraduría Anticorrupción", donde: "pc", agenda: "Mensual, a mano (cuando sale el boletín)", cadaDias: 45,
     que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py." },
+  { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
+    que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
   { fuente: "infobras", nombre: "Obras públicas (INFOBRAS)", donde: "lima", agenda: "Jueves, 08:00", cadaDias: 8,
     que: "Obras con su avance y CUI. La Contraloría sólo responde a IP peruana: sale por el relay de Lima." },
   { fuente: "invierte_pe", nombre: "Inversiones (Invierte.pe)", donde: "cloudflare", agenda: "Viernes, 08:00", cadaDias: 7,

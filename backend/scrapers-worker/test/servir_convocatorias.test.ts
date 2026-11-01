@@ -249,6 +249,8 @@ function entorno(servir: ServirSimulada) {
     RELAY_LIMA_TOKEN: " token-de-prueba ",
     RELAY_LIMA: {
       fetch: async (url: string, init: RequestInit) => {
+        // El /health de la salida peruana (esperarRelayLima): responde siempre.
+        if (url === `${URL_LIMA}/health`) return Response.json({ ok: true, nombre: "prueba" });
         assert.equal(url, `${URL_LIMA}/raw`);
         assert.equal((init.headers as Record<string, string>)["X-Vigia-Token"], "token-de-prueba");
         const pedido = JSON.parse(String(init.body)) as PedidoLima;
@@ -369,7 +371,7 @@ test("correrServir en seco: pasos de 10 páginas por el relay de Lima, sin tocar
     },
   } as unknown as WorkflowStep;
   const r = await correrServir(env, P, step, "prueba", sinPausa) as Record<string, unknown>;
-  assert.deepEqual(nombres, ["páginas 1-10", "páginas 11-20", "páginas 21-30"]);
+  assert.deepEqual(nombres, ["relay de Lima: ¿responde? (1)", "páginas 1-10", "páginas 11-20", "páginas 21-30"]);
   assert.equal(r.plazas, 50);
   assert.equal(r.paginas, 25);
   assert.equal(r.paginas_servir, 25);
@@ -391,7 +393,7 @@ test("correrServir en seco: pasos de 10 páginas por el relay de Lima, sin tocar
   const e2 = entorno(otra);
   const nombres2: string[] = [];
   const r2 = await correrServir(e2.env, { ...P, desde: "0002", hasta: "0003" }, { do: async (n: string, _c: unknown, f: () => Promise<unknown>) => (nombres2.push(n), f()) } as unknown as WorkflowStep, "p", sinPausa) as Record<string, unknown>;
-  assert.deepEqual(nombres2, ["páginas 2-3"]);
+  assert.deepEqual(nombres2, ["relay de Lima: ¿responde? (1)", "páginas 2-3"]);
   assert.equal(r2.plazas, 4);
   assert.deepEqual([paginaParam("3"), paginaParam("0003"), paginaParam(3), paginaParam("2026-10"), paginaParam("0"), paginaParam(undefined)], [3, 3, 3, null, null, null]);
 });

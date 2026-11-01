@@ -9,7 +9,7 @@ instancia) con el binding de Workers VPC `RELAY_LIMA` del Worker vigia-scrapers 
 
 Misma API que POST /raw del relay de Zúrich (backend/relay-worker), con lo que SERVIR necesita para su sesión:
 
-  GET  /health → {"ok": true, "ip": "...", "zona": "...", "version": "...", "desde": "..."}
+  GET  /health → {"ok": true, "nombre": "pc" | "aws-lima", "ip": "...", "zona": "...", "version": "...", "desde": "..."}
   POST /raw    {"url": "https://….gob.pe/…", "metodo"?: "GET" | "HEAD" | "POST", "cabeceras"?: {...}, "cuerpo"?: "..."}
                → los bytes del origen tal cual, con su status y:
                  x-relay-status   el status del origen (sin ella, el error es del relay: 400, 401, 502)
@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from http.cookiejar import CookieJar
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "2026-10-31"
+VERSION = "2026-11-01"
 PUERTO = int(os.environ.get("RELAY_PUERTO", "8080"))
 TOKEN = os.environ.get("RELAY_TOKEN", "").strip()
 # Lo que tarda como mucho cada operación de red con el origen (conectar, o esperar el siguiente pedazo de la respuesta).
@@ -103,6 +103,8 @@ def ip_de_la_instancia() -> tuple[str, str]:
 
 
 IP, ZONA = ip_de_la_instancia()
+# Quién es esta salida en /health: «pc» en la PC del Perú (backend/scrapers-pc/salida_peru), «aws-lima» en la instancia.
+NOMBRE = os.environ.get("RELAY_NOMBRE", "").strip() or ("aws-lima" if ZONA else "relay")
 
 
 class Relay(BaseHTTPRequestHandler):
@@ -124,7 +126,7 @@ class Relay(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path.split("?")[0] != "/health":
             return self.responder_json(404, {"detail": "no encontrado"})
-        self.responder_json(200, {"ok": True, "ip": IP, "zona": ZONA, "version": VERSION, "desde": DESDE,
+        self.responder_json(200, {"ok": True, "nombre": NOMBRE, "ip": IP, "zona": ZONA, "version": VERSION, "desde": DESDE,
                                   "protegido": bool(TOKEN)})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -231,7 +233,7 @@ def main() -> None:
         sys.exit("falta RELAY_TOKEN (/etc/vigia-relay/entorno)")
     servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), Relay)
     servidor.daemon_threads = True
-    registrar(f"relay de Lima {VERSION} en 127.0.0.1:{PUERTO} (ip {IP or '?'}, zona {ZONA or '?'})")
+    registrar(f"relay de Lima {VERSION} ({NOMBRE}) en 127.0.0.1:{PUERTO} (ip {IP or '?'}, zona {ZONA or '?'})")
     servidor.serve_forever()
 
 

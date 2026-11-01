@@ -53,6 +53,19 @@ async function porRelay(env: Env, url: string, timeoutMs: number): Promise<Respo
 /** El servicio de Workers VPC del relay de Lima: la dirección con la que está definido (127.0.0.1:8080 de la instancia). */
 export const URL_LIMA = "http://127.0.0.1:8080";
 
+/** GET /health del relay de Lima: quién atiende («pc» o «aws-lima») si responde; null si no (apagado, sin túnel). */
+export async function saludLima(env: Env): Promise<{ nombre: string } | null> {
+  if (!env.RELAY_LIMA) return null;
+  try {
+    const r = await env.RELAY_LIMA.fetch(`${URL_LIMA}/health`, { signal: AbortSignal.timeout(15_000) });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { ok?: boolean; nombre?: string };
+    return d.ok ? { nombre: d.nombre || "relay" } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function porLima(env: Env, url: string, timeoutMs: number): Promise<Response> {
   if (!env.RELAY_LIMA) throw new Error("falta el binding RELAY_LIMA (vpc_services en wrangler.jsonc)");
   const r = await env.RELAY_LIMA.fetch(`${URL_LIMA}/raw`, {

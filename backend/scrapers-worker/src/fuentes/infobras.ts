@@ -55,7 +55,7 @@ import { ErrorHttp, obtener } from "../http.ts";
 import { registrar } from "../registro.ts";
 import { campoCsv, filasXlsx } from "../xlsx_flujo.ts";
 import type { LeerRango } from "../xlsx_flujo.ts";
-import { CARGA, DESCARGA, LECTURA, fechaLima } from "./comun.ts";
+import { CARGA, DESCARGA, LECTURA, esperarRelayLima, fechaLima } from "./comun.ts";
 import { copiarEnTramos } from "./pnda_dji.ts";
 
 const FUENTE = "infobras";
@@ -526,6 +526,7 @@ const borrarCrudo = (env: Env, step: WorkflowStep) =>
 
 export async function correrInfobras(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
   const log = { fuente: FUENTE, instancia: id };
+  const salida = await esperarRelayLima(env, step, FUENTE);
   let carga: ResultadoCarga;
   try {
     const b = await step.do("descargar", DESCARGA, () => bajarObras(env));
@@ -534,7 +535,7 @@ export async function correrInfobras(env: Env, p: ParamsCorrida, step: WorkflowS
     // Cargado, ya cargado, en seco o fallido: el crudo no se queda en R2.
     await borrarCrudo(env, step);
   }
-  const resumen: { carga: ResultadoCarga; refrescar_obras?: Record<string, number> | null } = { carga };
+  const resumen: { salida: string; carga: ResultadoCarga; refrescar_obras?: Record<string, number> | null } = { salida, carga };
   if ("ya_cargado" in carga || carga.seco) return resumen;
   if (!hayCambios(carga)) {
     registrar("INFO", "   obra_infobras sin cambios y con la misma fecha: no se corre refrescar_obras()", log);

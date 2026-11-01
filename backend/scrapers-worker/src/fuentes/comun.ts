@@ -5,7 +5,30 @@
 import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import type { Env } from "../config.ts";
 import { conDb, type Db } from "../db.ts";
+import { saludLima } from "../http.ts";
 import { registrar } from "../registro.ts";
+
+/** Cuántas veces se mira, cada 30 min, si volvió el relay de Lima antes de rendirse: 24 = 12 h. */
+const VUELTAS_RELAY_LIMA = 24;
+
+/**
+ * Antes de una fuente que sólo llega por el relay de Lima (la Contraloría, INFOBRAS, SERVIR): que el relay responda. La
+ * salida peruana es tu PC (backend/scrapers-pc/salida_peru), que puede estar apagada a las 08:00: en vez de fallar, la
+ * corrida espera y vuelve a mirar cada 30 min, hasta 12 h. Devuelve quién atendió («pc» o «aws-lima»).
+ */
+export async function esperarRelayLima(env: Env, step: WorkflowStep, fuente: string): Promise<string> {
+  for (let i = 1; i <= VUELTAS_RELAY_LIMA; i++) {
+    const quien = await step.do(`relay de Lima: ¿responde? (${i})`, { retries: { limit: 1, delay: "10 seconds" }, timeout: "1 minute" },
+      async () => (await saludLima(env))?.nombre ?? null);
+    if (quien) {
+      if (i > 1) registrar("INFO", `   el relay de Lima volvió (${quien}) tras ${i - 1} esperas de 30 min`, { fuente });
+      return quien;
+    }
+    registrar("WARNING", `   el relay de Lima no responde (${i}/${VUELTAS_RELAY_LIMA}): espero 30 min`, { fuente });
+    if (i < VUELTAS_RELAY_LIMA) await step.sleep(`esperar al relay de Lima (${i})`, "30 minutes");
+  }
+  throw new Error("el relay de Lima no respondió en 12 horas: ¿la PC (backend/scrapers-pc/salida_peru) estuvo apagada todo el día?");
+}
 
 /** Lecturas (páginas de la PNDA, zonas, comprobación de sha256): idempotentes, con reintentos. */
 export const LECTURA: WorkflowStepConfig = { retries: { limit: 3, delay: "10 seconds", backoff: "exponential" }, timeout: "5 minutes" };
