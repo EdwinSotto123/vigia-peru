@@ -170,6 +170,20 @@ export const ICONOS_PIXEL = {
     "............",
     "............",
   ],
+  ciudadania: [
+    "..##....##..",
+    ".####..####.",
+    ".####..####.",
+    "..##....##..",
+    "............",
+    ".####..####.",
+    "######.#####",
+    "######.#####",
+    "######.#####",
+    "######.#####",
+    "............",
+    "............",
+  ],
   cuentas: [
     ".##########.",
     ".#........#.",
@@ -212,7 +226,8 @@ export function ojoVigia(clase = "") {
   OJO.forEach((fila, y) => {
     for (let x = 0; x < fila.length; x++) {
       if (fila[x] === ".") continue;
-      puntos += `<circle cx="${x + 0.5}" cy="${y + 0.5}" r=".42" class="${fila[x] === "A" ? "ojo-pupila" : "ojo-parpado"}"/>`;
+      const orden = Math.round(Math.hypot(x - 5, (y - 2) * 1.6));
+      puntos += `<circle cx="${x + 0.5}" cy="${y + 0.5}" r=".42" class="${fila[x] === "A" ? "ojo-pupila" : "ojo-parpado"}" style="--i:${orden}"/>`;
     }
   });
   return `<svg class="ojo ${clase}" viewBox="0 0 11 5" aria-hidden="true" focusable="false">${puntos}</svg>`;

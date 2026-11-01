@@ -3,11 +3,26 @@
 Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONOS) sirve a Vigía en
 `vigia.gobserva.cloud`, y este Worker (`gobserva-redirect`, el nombre quedó del principio) es la raíz:
 
-- **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`, HTML sin JavaScript): para que «gobserva» y «gobserva
-  cloud» tengan una página que los buscadores puedan mostrar. Lleva los datos estructurados de la organización
-  (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`,
-  su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo y el eslogan, cifras, qué hacemos (Observa.
-  Conecta. Entiende.), Vigía, los seis principios, las diez fuentes y el mapa.
+- **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`; el HTML llega completo y el JavaScript sólo anima): para
+  que «gobserva» y «gobserva cloud» tengan una página que los buscadores puedan mostrar. Lleva los datos estructurados de
+  la organización (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su
+  `robots.txt`, su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo, el eslogan y el mapa; la
+  presentación en cinco capítulos; Vigía; Próximamente; los seis principios y las diez fuentes.
+- **La presentación** (2026-11-01, pedido del usuario: «es la presentación: gráficas, datos, propuestas, valor»), del
+  problema a quién lo usa:
+
+  | Capítulo | Qué muestra | De dónde sale |
+  |----------|-------------|---------------|
+  | 01 El problema | 100 cuadros, 13 en óxido: lo que se pierde de cada 100 soles; S/ 24,268 millones y S/ 8,963 millones en inversión | Estimación de la Contraloría para 2023 (`CONTRALORIA` en `worker.js`: cambiarla a mano cuando publique la siguiente) |
+  | 02 La escala | Procesos de compra por año desde 2016 y mil cuadros con los pocos que se leen a fondo | API de Vigía: `/v1/contratos/resumen` por año y el de este año (`porRiesgo`, la misma cuenta de su portada) |
+  | 03 Dónde | Las diez regiones con más casos en trámite y, dentro de cada barra, los que tienen sentencia firme | Procuraduría, por la API (`/v1/corrupcion/region/NN`) |
+  | 04 Cómo funciona | Las diez instituciones entran, la lupa cruza y salen las señales (`SENALES`, las que Vigía ya marca) | Texto |
+  | 05 Para quién | Ciudadanía, periodismo y control, con lo que cada uno hace con la evidencia (`PUBLICOS`) | Texto |
+
+  Las animaciones las arma `publico/animaciones.js`: cada bloque con `data-anima` recibe `.visible` al entrar en pantalla
+  y el CSS lo enciende en escalones (`steps()`, como píxeles); las cifras con `data-contar` cuentan desde cero; el flujo
+  del capítulo 04 sólo se mueve mientras se ve. Sin JavaScript o con movimiento reducido no se pone la clase `.anima` y
+  todo se ve quieto y completo. Los capítulos 02 y 03 no salen si la API no respondió.
 - **El diseño** (tercera versión, 2026-11-01, pedido del usuario: «no tiene colores, falta píxeles, letras demasiado
   grandes», con las skills impeccable *colorize* y better-typography, halladas con find-skills):
   - **Color con significado.** Cada institución tiene el suyo en el mapa, las cifras, la ficha y las fuentes: Procuraduría
@@ -31,11 +46,14 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   compra desde 2015). Sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Piezas:
   - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 píxeles) de los límites de
     `frontend/public/peru-departments.json`. El Callao, más chico que una celda, se queda con 3.
-  - `publico/portada.js`: la lupa, el recorrido, el teclado y la ficha (sin dependencias). Al cambiarlo, o al regenerar la
-    malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los scripts un día en el navegador.
+  - `publico/portada.js`: la lupa, el recorrido, el teclado y la ficha (sin dependencias). Al cambiarlo, al cambiar
+    `animaciones.js` o al regenerar la malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los scripts un día en
+    el navegador.
   - Las cifras: el Worker las pide a la API de Vigía (`VIGIA_API_URL` en `wrangler.jsonc`; la API lo atiende porque
-    `gobserva.cloud` está en `WORKERS_PROPIOS`), son 26 pedidos y quedan en la caché de Cloudflare, que se renueva cada 6
-    horas en segundo plano. Si la API no responde, la página sale igual, con el mapa y un enlace a Vigía.
+    `gobserva.cloud` está en `WORKERS_PROPIOS`), son unos 40 pedidos (el plan gratis de Workers admite 50 por visita) y
+    quedan en la caché de Cloudflare (`CACHE_REGIONES`, hoy `regiones-v2`: cambiarle el nombre si cambia la forma de los
+    datos), que se renueva cada 6 horas en segundo plano. Si la API no responde, la página sale igual, con el mapa y un
+    enlace a Vigía.
   - Los rótulos siguen `docs/CORRUPCION.md`: la Procuraduría y la Contraloría nunca se suman.
 - **La marca** (logo con la lupa en la «o», eslogan, colores y cómo usarlos): [`marca/README.md`](marca/README.md). El
   logo y la ilustración van en línea desde `marca.js`; favicon, `logo.png`, `og.png` y el logo para descargar están en
