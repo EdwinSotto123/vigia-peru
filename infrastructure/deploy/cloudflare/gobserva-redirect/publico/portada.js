@@ -53,7 +53,6 @@
   const ordenGeo = regiones.map((_, k) => k).sort((a, b) => centros[a][1] - centros[b][1] || centros[a][0] - centros[b][0]);
   const RECORRIDO = ["15", "02", "13", "20", "06", "16", "22", "25", "12", "05", "08", "21", "04", "23", "18", "11", "09", "03",
     "19", "10", "01", "14", "24", "17", "07"].map((c) => regiones.indexOf(c));
-  caja.style.aspectRatio = `${cols} / ${filas}`;
   // El arranque: los píxeles se encienden en ola desde la región inicial (sin movimiento reducido).
   const ARRANQUE_OLA = 14; // ms por celda de distancia
   const ARRANQUE_PIXEL = 260; // lo que tarda cada píxel en llegar a su tamaño
@@ -99,7 +98,7 @@
     if (max) max.textContent = cifra(ordenados[ordenados.length - 1], metrica);
   }
 
-  // ─── Colores (del CSS: siguen al modo claro u oscuro) ────────────────────────────────────────────────────────────
+  // ─── Colores (del CSS: siguen al modo día o noche, el data-modo de <html>) ─────────────────────────────────────
   let colores = {};
   function leerColores() {
     const cs = getComputedStyle(caja);
@@ -568,6 +567,12 @@
     else programar(1500);
   });
   document.addEventListener("gobserva:pausa", () => (pausado() ? clearTimeout(siguientePaso) : programar(1500)));
+  // Día o noche (interfaz.js): los colores nuevos, y el mapa se pinta en el acto (el fundido del cambio lo fotografía ya
+  // pintado).
+  document.addEventListener("gobserva:modo", () => {
+    leerColores();
+    dibujar();
+  });
   new ResizeObserver(() => {
     medir();
     ponerEcos();
