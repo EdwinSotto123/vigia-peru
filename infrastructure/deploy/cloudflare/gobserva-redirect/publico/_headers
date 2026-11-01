@@ -1,0 +1,6 @@
+# Los archivos de publico/ (favicon, logo.png, og.png y el logo para descargar en /marca/): un día de caché, sin que el
+# navegador adivine el tipo y, si alguien abre un SVG directo, sin cargar nada de afuera.
+/*
+  Cache-Control: public, max-age=86400
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'

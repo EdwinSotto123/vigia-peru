@@ -1,10 +1,13 @@
-// La raíz de gobserva.cloud redirige a Vigía (worker.js). Sólo se despliega con la zona gobserva.cloud ya activa en
-// Cloudflare: los custom domains crean su registro DNS y su certificado. README.md de esta carpeta.
+// La portada de Gobserva en gobserva.cloud (worker.js) y la marca en publico/. Sólo se despliega con la zona
+// gobserva.cloud ya activa en Cloudflare: los custom domains crean su registro DNS y su certificado. README.md de esta carpeta.
 {
   "name": "gobserva-redirect",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "workers_dev": false,
+  // Lo que está en publico/ (favicon, logo.png, og.png, /marca/…) lo sirve Cloudflare antes de llegar al Worker, con los
+  // encabezados de publico/_headers; todo lo demás pasa por worker.js. Se regenera con marca/generar_marca.py.
+  "assets": { "directory": "./publico" },
   "routes": [
     { "pattern": "gobserva.cloud", "custom_domain": true },
     { "pattern": "www.gobserva.cloud", "custom_domain": true }

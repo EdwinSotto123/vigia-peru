@@ -3,12 +3,18 @@
 Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONOS) sirve a Vigía en
 `vigia.gobserva.cloud`, y este Worker (`gobserva-redirect`, el nombre quedó del principio) es la raíz:
 
-- **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`, HTML sin dependencias): para que «gobserva» y «gobserva
+- **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`, HTML sin JavaScript): para que «gobserva» y «gobserva
   cloud» tengan una página que los buscadores puedan mostrar. Lleva los datos estructurados de la organización
   (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`,
-  su `sitemap.xml` y la clave de IndexNow.
-- `www.gobserva.cloud` → 301 a `gobserva.cloud`; cualquier otra ruta → 301 a la misma en `vigia.gobserva.cloud` (los
-  enlaces viejos siguen andando). Antes (29 al 31-oct) la raíz redirigía entera a Vigía.
+  su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo y el eslogan, cifras, qué hacemos (Observa.
+  Conecta. Entiende.), Vigía, los seis principios, las diez fuentes y el mapa.
+- **La marca** (logo con la lupa en la «o», eslogan, colores y cómo usarlos): [`marca/README.md`](marca/README.md). El
+  logo y la ilustración van en línea desde `marca.js`; favicon, `logo.png`, `og.png` y el logo para descargar están en
+  `publico/`, que Cloudflare sirve antes de llegar al Worker (`assets` en `wrangler.jsonc`, encabezados en
+  `publico/_headers`). Todo eso lo escribe `marca/generar_marca.py`: no editarlo a mano.
+- `www.gobserva.cloud` → 301 a `gobserva.cloud`; cualquier otra ruta → 302 a la misma en `vigia.gobserva.cloud` (los
+  enlaces viejos siguen andando; 302 porque un 301 queda guardado en el navegador). Antes (29 al 31-oct) la raíz
+  redirigía entera a Vigía.
 - Al cambiar el texto: subir `ACTUALIZADA` en `worker.js`, `npx wrangler deploy` aquí y avisar a IndexNow:
   `curl "https://api.indexnow.org/indexnow?url=https%3A%2F%2Fgobserva.cloud%2F&key=<CLAVE_INDEXNOW>"`.
 

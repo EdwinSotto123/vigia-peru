@@ -19,12 +19,13 @@ import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlota
 import { OG_BASE, SITIO, TWITTER_BASE } from "@/lib/compartir";
 import { SCRIPT_MODO } from "@/lib/modoScript";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
-import { LOGO, absoluta } from "@/lib/seo";
+import { absoluta } from "@/lib/seo";
 
 /**
  * Quién publica y qué sitio es (schema.org): lo que un buscador muestra junto al nombre del sitio. La organización es la
  * misma entidad que describe la portada de Gobserva (gobserva.cloud, infrastructure/deploy/cloudflare/gobserva-redirect):
- * mismo @id, para que los buscadores unan las dos páginas a la marca.
+ * mismo @id, para que los buscadores unan las dos páginas a la marca. Logo y eslogan, también los mismos: la lupa con
+ * nodos de Gobserva (no el ojo de Vigía), servida por gobserva.cloud.
  */
 const GOBSERVA = "https://gobserva.cloud/#organizacion";
 const DATOS_SITIO = {
@@ -36,7 +37,8 @@ const DATOS_SITIO = {
       name: "Gobserva",
       alternateName: "Gobserva Cloud",
       url: "https://gobserva.cloud/",
-      logo: absoluta(LOGO),
+      logo: "https://gobserva.cloud/logo.png",
+      slogan: "Lo de todos, a la vista de todos.",
     },
     {
       "@type": "WebSite",
