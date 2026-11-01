@@ -8,12 +8,28 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`,
   su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo y el eslogan, cifras, qué hacemos (Observa.
   Conecta. Entiende.), Vigía, los seis principios, las diez fuentes y el mapa.
-- **El mapa de la portada** (desde el 2026-11-01): el Perú en una malla de puntos, en la identidad Píxel de Vigía, y la
-  lupa de Gobserva que lo recorre. Con el mouse sigue al puntero y agranda los puntos; la región que toca se enciende, a
+- **El diseño** (tercera versión, 2026-11-01, pedido del usuario: «no tiene colores, falta píxeles, letras demasiado
+  grandes», con las skills impeccable *colorize* y better-typography, halladas con find-skills):
+  - **Color con significado.** Cada institución tiene el suyo en el mapa, las cifras, la ficha y las fuentes: Procuraduría
+    óxido `#FF5A4D`, Contraloría ámbar `#FFB020`, OECE lima `#D4FF3F` (los tokens rust, amber y lima de Vigía). Los
+    productos que vienen tienen el suyo: Congreso violeta, Políticos cian, Obras naranja, Alertas rosa. Cada color lleva
+    su versión oscura en el modo claro, con contraste de 4.5:1 sobre el fondo.
+  - **Píxeles.** Los íconos se dibujan píxel a píxel en `pixeles.js` (12 x 12; también el ojo de puntos de Vigía).
+    Las tarjetas y los botones tienen esquinas en escalón (clase `esq`), el fondo lleva la trama de puntos de Vigía y la
+    cabecera, su línea de puntos lima.
+  - **Letras.** Space Grotesk para los títulos (de 22 a 28 px), Inter para el texto (16 px) y Doto, una letra de puntos
+    como el ojo de Vigía, para el titular y las cifras. Silkscreen sólo en los rótulos de estado («En vivo», «En
+    preparación»).
+  - **Próximamente.** Los monitores que vienen (Congreso, historia de políticos, obras, alertas): `PROXIMOS` en
+    `worker.js`, cada uno con lo que Vigía ya lee de él.
+- **El mapa de la portada** (desde el 2026-11-01): el Perú en una malla de píxeles, en la identidad Píxel de Vigía, y la
+  lupa de Gobserva que lo recorre. Al abrir, los píxeles se encienden en ola desde Lima; cada métrica pinta con su rampa
+  (Corrupción en óxido, Control en ámbar, Compras en lima), y las tres tarjetas de arriba son el selector, con la cifra
+  del país. Con el mouse sigue al puntero y agranda los puntos; la región que toca se enciende, a
   su lado salen sus cifras y la ficha cuenta lo que registran la Procuraduría Anticorrupción (casos en trámite y con
   sentencia firme), la Contraloría (informes con presunta responsabilidad, que no es una condena) y la OECE (procesos de
   compra desde 2015). Sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Piezas:
-  - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 puntos) de los límites de
+  - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 píxeles) de los límites de
     `frontend/public/peru-departments.json`. El Callao, más chico que una celda, se queda con 3.
   - `publico/portada.js`: la lupa, el recorrido, el teclado y la ficha (sin dependencias). Al cambiarlo, o al regenerar la
     malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los scripts un día en el navegador.

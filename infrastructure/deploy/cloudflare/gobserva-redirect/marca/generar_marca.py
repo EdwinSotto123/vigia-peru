@@ -232,10 +232,11 @@ def mapa_og(ancho=390, region="15"):
     mias = [(x, y) for x, y, r in puntos if r == k]
     cx, cy = sum(x for x, _ in mias) / len(mias), sum(y for _, y in mias) / len(mias)
     lupa = Lupa(cx, cy, ancho * 0.2, ancho * 0.2 * 0.085, ancho * 0.2 * 0.62, ancho * 0.2 * 0.119)
-    R, M, base = lupa.r_ext, 1.4, paso * 0.33
+    R, M, base = lupa.r_ext, 1.4, paso * 0.37
     s = []
     for x, y, r in puntos:
-        color, rad = ("#58763A" if r == k else "#33443C"), base
+        # La vista de la portada al abrir: «Corrupción» (casos de la Procuraduría), en la rampa óxido.
+        color, rad = ("#873B34" if r == k else "#4A2A27"), base
         d = math.hypot(x - cx, y - cy)
         if d < R:  # el mismo ojo de pez que publico/portada.js
             u = d / R
@@ -243,9 +244,9 @@ def mapa_og(ancho=390, region="15"):
             if d > 0.01:
                 x, y = cx + (x - cx) / d * u2 * R, cy + (y - cy) / d * u2 * R
             rad = base * (1 + 1.15 * (1 - u))
-            color = LIMA if r == k else "#80A532"
-        s.append(f'<circle cx="{num(x)}" cy="{num(y)}" r="{num(rad)}" fill="{color}"/>')
-    s.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(R)}" fill="{LIMA}" fill-opacity=".07" stroke="{CLARO}" stroke-width="{num(lupa.aro)}"/>')
+            color = "#FF5A4D" if r == k else "#B2463C"
+        s.append(f'<rect x="{num(x - rad)}" y="{num(y - rad)}" width="{num(rad * 2)}" height="{num(rad * 2)}" fill="{color}"/>')
+    s.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(R)}" fill="{LIMA}" fill-opacity=".06" stroke="{CLARO}" stroke-width="{num(lupa.aro)}"/>')
     s.append(f'<path d="M{num(lupa.p0[0])} {num(lupa.p0[1])}L{num(lupa.p1[0])} {num(lupa.p1[1])}" stroke="{CLARO}" stroke-width="{num(lupa.grosor_mango)}"/>')
     return f'<svg class="mapa" viewBox="0 0 {num(ancho)} {num(alto)}" width="{num(ancho)}" height="{num(alto)}">{"".join(s)}</svg>'
 
@@ -263,8 +264,9 @@ def dibujar(pagina, html, ancho, alto, transparente=False):
     pagina.set_viewport_size({"width": ancho, "height": alto})
     pagina.set_content(f'<!doctype html><meta charset="utf-8"><style>html,body{{margin:0;background:transparent}}'
                        f"{fuentes_css()}</style>{html}")
+    pagina.wait_for_load_state("networkidle")
     pagina.evaluate("document.fonts.ready")
-    pagina.wait_for_timeout(150)
+    pagina.wait_for_timeout(250)
     return Image.open(io.BytesIO(pagina.screenshot(clip={"x": 0, "y": 0, "width": ancho, "height": alto},
                                                    omit_background=transparente)))
 
@@ -277,19 +279,21 @@ def guardar_png(img, ruta, colores=None):
 
 
 def og_html(logo_oscuro):
-    return f"""<style>
+    return f"""<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@800&display=swap">
+<style>
 .og{{position:relative;width:1200px;height:630px;background:{CARBON};overflow:hidden;font-family:Inter,sans-serif}}
 .og .mapa{{position:absolute;right:96px;top:36px}}
 .texto{{position:absolute;left:80px;top:96px;width:620px}}
 .texto svg{{height:100px;display:block}}
-.eslogan{{margin:44px 0 0;color:{CLARO};font:500 54px/1.08 'Space Grotesk';letter-spacing:-0.02em}}
+.eslogan{{margin:40px 0 0;color:{CLARO};font:800 50px/1.12 Doto,'Space Grotesk'}}
+.eslogan em{{font-style:normal;color:{LIMA}}}
 .desc{{margin:26px 0 0;color:{TENUE_OSCURO};font:500 25px/1.35 Inter;max-width:470px;text-wrap:balance}}
 .dominio{{position:absolute;left:80px;bottom:62px;margin:0;color:{LIMA};font:600 24px Inter;letter-spacing:.01em}}
 </style>
 <div class="og">
   {mapa_og()}
   <div class="texto">{logo_oscuro}
-    <p class="eslogan">Lo de todos,<br>a la vista de todos.</p>
+    <p class="eslogan">Lo de todos,<br><em>a la vista</em> de todos.</p>
     <p class="desc">Tecnología cívica para vigilar el Estado peruano.</p>
   </div>
   <p class="dominio">gobserva.cloud</p>

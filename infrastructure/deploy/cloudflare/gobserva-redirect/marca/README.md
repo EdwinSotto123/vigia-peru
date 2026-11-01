@@ -41,7 +41,7 @@ Vigía (`vigia.gobserva.cloud`, que firma «Vigía by Gobserva»).
 | `marca/gobserva-isotipo.svg` y `.png` | La lupa sola, carbón sobre lima (PNG de 1024 px) |
 | `favicon.svg`, `favicon.ico` | La pestaña del navegador (el ICO trae 16, 32 y 48 px dibujados aparte) |
 | `apple-touch-icon.png`, `logo.png` | El ícono del teléfono (180 px) y el logo de los datos estructurados (512 px), con aire para las máscaras redondas |
-| `og.png` | La imagen al compartir el enlace (1200 x 630): el logo, el eslogan y el mapa de puntos con la lupa sobre Lima |
+| `og.png` | La imagen al compartir el enlace (1200 x 630): el logo, el eslogan en Doto y el mapa de píxeles en óxido con la lupa sobre Lima |
 
 La portada usa el logo en línea desde `../marca.js`: toma sus colores del CSS, así sigue al modo día o noche del
 visitante. El mapa de la portada tiene su propio generador (`../mapa/generar_mapa.py`).

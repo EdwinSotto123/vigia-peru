@@ -48,6 +48,12 @@
   const RECORRIDO = ["15", "02", "13", "20", "06", "16", "22", "25", "12", "05", "08", "21", "04", "23", "18", "11", "09", "03",
     "19", "10", "01", "14", "24", "17", "07"].map((c) => regiones.indexOf(c));
   caja.style.aspectRatio = `${cols} / ${filas}`;
+  // El arranque: los píxeles se encienden en ola desde la región inicial (sin movimiento reducido).
+  const ARRANQUE_OLA = 14; // ms por celda de distancia
+  const ARRANQUE_PIXEL = 260; // lo que tarda cada píxel en llegar a su tamaño
+  let distancias = new Float32Array(puntos.length);
+  let ARRANQUE_TOTAL = 0;
+  let arranque = 0;
 
   // ─── Lo que se mide ───────────────────────────────────────────────────────────────────────────────────────────────
   const corte = datos && datos.corte ? fecha(datos.corte) : null;
@@ -93,7 +99,7 @@
     const cs = getComputedStyle(caja);
     const v = (n) => cs.getPropertyValue(n).trim();
     colores = {
-      tonos: [v("--mapa-1"), v("--mapa-2"), v("--mapa-3"), v("--mapa-4"), v("--mapa-5")],
+      tonos: [v("--r1"), v("--r2"), v("--r3"), v("--r4"), v("--r5")],
       sin: v("--mapa-sin"),
       aro: v("--lupa-aro"),
       vidrio: v("--lupa-vidrio"),
@@ -203,17 +209,20 @@
     }
     dibujar();
     moverRotulos();
+    if (arranque) pedirCuadro();
   }
 
   function dibujar() {
     if (!W) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const base = paso * 0.33;
+    const base = paso * 0.37; // medio lado del píxel: queda una rendija entre vecinos
     const M = 1.4; // aumento de la lupa en el centro: 2,4 veces
+    const t = arranque ? performance.now() - arranque : 0;
     // Un trazo por tono y por si es la región encendida: así son doce rellenos por cuadro, no dos mil.
     const grupos = new Map();
-    for (const [i, j, k] of puntos) {
+    for (let n = 0; n < puntos.length; n++) {
+      const [i, j, k] = puntos[n];
       let x = enX(i + 0.5), y = enY(j + 0.5), r = base;
       const ddx = x - lupa.x, ddy = y - lupa.y;
       const d = Math.hypot(ddx, ddy);
@@ -228,13 +237,18 @@
         r = base * (1 + 1.15 * (1 - u));
       }
       const encendida = k === activa;
-      if (encendida) r *= 1.12;
+      if (encendida) r *= 1.08;
+      if (arranque) {
+        // Cada píxel se enciende según su distancia a la región inicial: una ola que sale de Lima.
+        const u = Math.min(1, Math.max(0, (t - distancias[n] * ARRANQUE_OLA) / ARRANQUE_PIXEL));
+        r *= 1 - Math.pow(1 - u, 3);
+        if (r <= 0.05) continue;
+      }
       const tono = clases[k] == null ? -1 : clases[k];
       const clave = `${tono}${encendida ? "+" : ""}`;
       let g = grupos.get(clave);
       if (!g) grupos.set(clave, (g = { tono, encendida, camino: new Path2D() }));
-      g.camino.moveTo(x + r, y);
-      g.camino.arc(x, y, r, 0, TAU);
+      g.camino.rect(x - r, y - r, r * 2, r * 2);
     }
     for (const g of grupos.values()) {
       ctx.globalAlpha = activa >= 0 && !g.encendida ? 0.45 : 1;
@@ -249,6 +263,7 @@
       }
     }
     ctx.globalAlpha = 1;
+    if (arranque && t > ARRANQUE_TOTAL) arranque = 0;
     // La lupa de Gobserva: vidrio, aro y mango a 45°, de corte recto.
     const aro = Math.max(3.5, R * 0.085);
     ctx.fillStyle = colores.vidrio;
@@ -440,6 +455,12 @@
     radio.addEventListener("change", () => {
       if (!radio.checked) return;
       metrica = radio.value;
+      const contenedor = caja.closest(".portada-mapa");
+      if (contenedor) {
+        contenedor.classList.remove("m-tramite", "m-penal", "m-procesos");
+        contenedor.classList.add(`m-${metrica}`);
+      }
+      leerColores();
       calcularClases();
       if (activa >= 0) pintarRotulos(activa);
       pedirCuadro();
@@ -474,6 +495,17 @@
   leerColores();
   calcularClases();
   medir();
+  {
+    const k0 = activa < 0 ? regiones.indexOf("15") : activa;
+    const [cx0, cy0] = centros[k0];
+    let lejos = 0;
+    puntos.forEach(([i, j], n) => {
+      distancias[n] = Math.hypot(i + 0.5 - cx0, j + 0.5 - cy0);
+      lejos = Math.max(lejos, distancias[n]);
+    });
+    ARRANQUE_TOTAL = lejos * ARRANQUE_OLA + ARRANQUE_PIXEL;
+    if (!reducido.matches) arranque = performance.now();
+  }
   elegir(activa < 0 ? regiones.indexOf("15") : activa, "inicio");
   programar(2600);
 
