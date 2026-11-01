@@ -8,6 +8,19 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`,
   su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo y el eslogan, cifras, qué hacemos (Observa.
   Conecta. Entiende.), Vigía, los seis principios, las diez fuentes y el mapa.
+- **El mapa de la portada** (desde el 2026-11-01): el Perú en una malla de puntos, en la identidad Píxel de Vigía, y la
+  lupa de Gobserva que lo recorre. Con el mouse sigue al puntero y agranda los puntos; la región que toca se enciende, a
+  su lado salen sus cifras y la ficha cuenta lo que registran la Procuraduría Anticorrupción (casos en trámite y con
+  sentencia firme), la Contraloría (informes con presunta responsabilidad, que no es una condena) y la OECE (procesos de
+  compra desde 2015). Sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Piezas:
+  - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 puntos) de los límites de
+    `frontend/public/peru-departments.json`. El Callao, más chico que una celda, se queda con 3.
+  - `publico/portada.js`: la lupa, el recorrido, el teclado y la ficha (sin dependencias). Al cambiarlo, o al regenerar la
+    malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los scripts un día en el navegador.
+  - Las cifras: el Worker las pide a la API de Vigía (`VIGIA_API_URL` en `wrangler.jsonc`; la API lo atiende porque
+    `gobserva.cloud` está en `WORKERS_PROPIOS`), son 26 pedidos y quedan en la caché de Cloudflare, que se renueva cada 6
+    horas en segundo plano. Si la API no responde, la página sale igual, con el mapa y un enlace a Vigía.
+  - Los rótulos siguen `docs/CORRUPCION.md`: la Procuraduría y la Contraloría nunca se suman.
 - **La marca** (logo con la lupa en la «o», eslogan, colores y cómo usarlos): [`marca/README.md`](marca/README.md). El
   logo y la ilustración van en línea desde `marca.js`; favicon, `logo.png`, `og.png` y el logo para descargar están en
   `publico/`, que Cloudflare sirve antes de llegar al Worker (`assets` en `wrangler.jsonc`, encabezados en

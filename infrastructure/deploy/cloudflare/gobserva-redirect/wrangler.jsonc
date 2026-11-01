@@ -8,6 +8,9 @@
   // Lo que está en publico/ (favicon, logo.png, og.png, /marca/…) lo sirve Cloudflare antes de llegar al Worker, con los
   // encabezados de publico/_headers; todo lo demás pasa por worker.js. Se regenera con marca/generar_marca.py.
   "assets": { "directory": "./publico" },
+  // De dónde saca la portada las cifras de cada región (worker.js, datosRegiones): la API de Vigía, que atiende a este
+  // Worker porque su zona (gobserva.cloud) está en WORKERS_PROPIOS.
+  "vars": { "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev" },
   "routes": [
     { "pattern": "gobserva.cloud", "custom_domain": true },
     { "pattern": "www.gobserva.cloud", "custom_domain": true }

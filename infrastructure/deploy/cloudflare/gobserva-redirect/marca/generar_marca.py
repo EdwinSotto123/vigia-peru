@@ -7,7 +7,7 @@ letras son las de la fuente y la lupa se dibuja con su mismo grosor. Escribe:
   ../publico/favicon.svg, favicon.ico   el ícono de la pestaña (16, 32 y 48 px)
   ../publico/apple-touch-icon.png       180 px, para la pantalla de inicio del teléfono
   ../publico/logo.png                   512 px, el logo de la organización para los buscadores (datos estructurados)
-  ../publico/og.png                     1200 x 630, la imagen al compartir el enlace
+  ../publico/og.png                     1200 x 630, la imagen al compartir el enlace (con el mapa de ../publico/mapa-peru.js)
   ../publico/marca/                     el logo en SVG y PNG para descargar (claro, oscuro, a una tinta, isotipo)
 
 Requisitos: fontTools, Pillow y Playwright con Chrome (los PNG se dibujan en el navegador, igual que en la página).
@@ -15,7 +15,9 @@ Uso: python marca/generar_marca.py   (desde cualquier carpeta). Las reglas de us
 """
 import base64
 import io
+import json
 import math
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -216,61 +218,36 @@ def isotipo(fondo=LIMA, aro=CARBON, vidrio=LIMA, nodo=CARBON, esquinas=14, lado=
     )
 
 
-# ─── La ilustración de la portada: la lupa sobre la red de lo público ─────────────────────────────────────────────
-# Afuera, una red tenue (aportes, visitas, socios, sanciones: lo que Vigía cruza); adentro, aumentado, el triángulo de
-# la marca con sus nombres: la empresa, el contrato y la entidad. viewBox 560 x 520.
-IL_LUPA = Lupa(250, 225, 165, 32, 100, 38)
-IL_AFUERA = {
-    "a": (52, 64, 6, "Aporte", "der"),
-    "f": (300, 20, 4, None, None),
-    "b": (474, 92, 7, "Visita", "der"),
-    "c": (520, 250, 5, None, None),
-    "i": (452, 300, 6, None, None),
-    "g": (536, 470, 5, None, None),
-    "h": (262, 476, 5, None, None),
-    "e": (118, 456, 6, "Sanción", "der"),
-    "d": (34, 300, 7, "Socio", "abajo"),
-    "j": (24, 170, 4, None, None),
-}
-IL_RED = ["a-f", "f-b", "b-c", "c-i", "i-g", "g-h", "h-e", "e-d", "d-j", "j-a"]
-IL_HACIA = {"a": 1, "f": 1, "b": 2, "c": 2, "i": 2, "h": 0, "d": 0, "j": 0, "e": 0}  # aristas que se meten bajo la lupa
-IL_DENTRO = ["Empresa", "Contrato", "Entidad"]
-
-
-def ilustracion():
+# ─── El mapa para la imagen al compartir: el de la portada, con la lupa sobre Lima ─────────────────────────────────
+def mapa_og(ancho=390, region="15"):
+    """El Perú en puntos (publico/mapa-peru.js, de mapa/generar_mapa.py) con la lupa encima, como SVG."""
+    datos = json.loads(re.search(r"= (\{.*\});", (PUBLICO / "mapa-peru.js").read_text(encoding="utf-8")).group(1))
+    cols, filas, regiones = datos["cols"], datos["filas"], datos["regiones"]
+    celdas = base64.b64decode(datos["celdas"])
+    paso = ancho / cols
+    alto = paso * filas
+    puntos = [((i + 0.5) * paso, (j + 0.5) * paso, celdas[j * cols + i] - 1)
+              for j in range(filas) for i in range(cols) if celdas[j * cols + i]]
+    k = regiones.index(region)
+    mias = [(x, y) for x, y, r in puntos if r == k]
+    cx, cy = sum(x for x, _ in mias) / len(mias), sum(y for _, y in mias) / len(mias)
+    lupa = Lupa(cx, cy, ancho * 0.2, ancho * 0.2 * 0.085, ancho * 0.2 * 0.62, ancho * 0.2 * 0.119)
+    R, M, base = lupa.r_ext, 1.4, paso * 0.33
     s = []
-    adentro = IL_LUPA.nodos()
-    lineas = []
-    for par in IL_RED:
-        a, b = par.split("-")
-        lineas.append((IL_AFUERA[a][:2], IL_AFUERA[b][:2]))
-    for k, destino in IL_HACIA.items():
-        lineas.append((IL_AFUERA[k][:2], adentro[destino][:2]))
-    d = "".join(f"M{num(p[0])} {num(p[1])}L{num(q[0])} {num(q[1])}" for p, q in lineas)
-    s.append(f'<path class="il-red" d="{d}" fill="none" stroke-width="2"/>')
-    for x, y, r, etiqueta, lado in IL_AFUERA.values():
-        s.append(f'<circle class="il-nodo" cx="{x}" cy="{y}" r="{r}"/>')
-        if etiqueta:
-            tx, ty, ancla = (x + r + 8, y + 5, "start") if lado == "der" else (x, y + r + 20, "start")
-            s.append(f'<text class="il-etiqueta" x="{tx}" y="{ty}" text-anchor="{ancla}">{etiqueta}</text>')
-    # La lupa: el vidrio tapa la red de atrás; adentro, el triángulo aumentado con sus nombres.
-    L = IL_LUPA
-    s.append(f'<circle class="il-vidrio" cx="{L.cx}" cy="{L.cy}" r="{num(L.r_aro)}"/>')
-    pts = [(x, y, r * 0.62) for x, y, r in adentro]
-    d = "".join(f"M{num(pts[a][0])} {num(pts[a][1])}L{num(pts[b][0])} {num(pts[b][1])}" for a, b in ARISTAS)
-    s.append(f'<path class="il-dentro-red" d="{d}" fill="none" stroke-width="5" stroke-linecap="round"/>')
-    # Los nombres: «Contrato» arriba de su nodo; «Empresa» y «Entidad» abajo, corridos hacia afuera para que no se toquen
-    # cuando el teléfono los agranda.
-    for (x, y, r), nombre, (arriba, dx) in zip(pts, IL_DENTRO, ((False, -8), (True, 0), (False, 8))):
-        s.append(f'<circle class="il-dentro" cx="{num(x)}" cy="{num(y)}" r="{num(r)}"/>')
-        ty = y - r - 12 if arriba else y + r + 24
-        s.append(f'<text class="il-texto" x="{num(x + dx)}" y="{num(ty)}" text-anchor="middle">{nombre}</text>')
-    s.append(
-        f'<path class="il-aro" d="M{num(L.p0[0])} {num(L.p0[1])}L{num(L.p1[0])} {num(L.p1[1])}" fill="none" '
-        f'stroke-width="{L.grosor_mango}"/>'
-    )
-    s.append(f'<circle class="il-aro" cx="{L.cx}" cy="{L.cy}" r="{num(L.r_aro)}" fill="none" stroke-width="{L.aro}"/>')
-    return "".join(s)
+    for x, y, r in puntos:
+        color, rad = ("#58763A" if r == k else "#33443C"), base
+        d = math.hypot(x - cx, y - cy)
+        if d < R:  # el mismo ojo de pez que publico/portada.js
+            u = d / R
+            u2 = ((M + 1) * u) / (M * u + 1)
+            if d > 0.01:
+                x, y = cx + (x - cx) / d * u2 * R, cy + (y - cy) / d * u2 * R
+            rad = base * (1 + 1.15 * (1 - u))
+            color = LIMA if r == k else "#80A532"
+        s.append(f'<circle cx="{num(x)}" cy="{num(y)}" r="{num(rad)}" fill="{color}"/>')
+    s.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(R)}" fill="{LIMA}" fill-opacity=".07" stroke="{CLARO}" stroke-width="{num(lupa.aro)}"/>')
+    s.append(f'<path d="M{num(lupa.p0[0])} {num(lupa.p0[1])}L{num(lupa.p1[0])} {num(lupa.p1[1])}" stroke="{CLARO}" stroke-width="{num(lupa.grosor_mango)}"/>')
+    return f'<svg class="mapa" viewBox="0 0 {num(ancho)} {num(alto)}" width="{num(ancho)}" height="{num(alto)}">{"".join(s)}</svg>'
 
 
 def fuentes_css():
@@ -302,10 +279,7 @@ def guardar_png(img, ruta, colores=None):
 def og_html(logo_oscuro):
     return f"""<style>
 .og{{position:relative;width:1200px;height:630px;background:{CARBON};overflow:hidden;font-family:Inter,sans-serif}}
-.il{{position:absolute;right:28px;top:70px;width:540px;height:501px}}
-.il .il-red{{stroke:#243131}} .il .il-nodo{{fill:#344543}} .il .il-etiqueta{{fill:#6F8582;font:500 15px Inter}}
-.il .il-vidrio{{fill:{LIMA}}} .il .il-dentro{{fill:{CARBON}}} .il .il-dentro-red{{stroke:{CARBON}}}
-.il .il-texto{{fill:{CARBON};font:600 16px Inter}} .il .il-aro{{stroke:{CLARO}}}
+.og .mapa{{position:absolute;right:96px;top:36px}}
 .texto{{position:absolute;left:80px;top:96px;width:620px}}
 .texto svg{{height:100px;display:block}}
 .eslogan{{margin:44px 0 0;color:{CLARO};font:500 54px/1.08 'Space Grotesk';letter-spacing:-0.02em}}
@@ -313,7 +287,7 @@ def og_html(logo_oscuro):
 .dominio{{position:absolute;left:80px;bottom:62px;margin:0;color:{LIMA};font:600 24px Inter;letter-spacing:.01em}}
 </style>
 <div class="og">
-  <svg class="il" viewBox="0 0 560 520">{ilustracion()}</svg>
+  {mapa_og()}
   <div class="texto">{logo_oscuro}
     <p class="eslogan">Lo de todos,<br>a la vista de todos.</p>
     <p class="desc">Tecnología cívica para vigilar el Estado peruano.</p>
@@ -345,14 +319,14 @@ def main():
         ruta.write_text(svg + "\n", encoding="utf-8", newline="\n")
         print(f"  {ruta.relative_to(WORKER)}  {len(svg.encode()) // 1024 + 1} KB")
 
-    # Para la portada: el mismo logo con clases (el CSS de la página le pone el color de día o de noche) y la ilustración.
+    # Para la portada: el mismo logo con clases (el CSS de la página le pone el color de día o de noche). La ilustración de
+    # la lupa sobre la red queda sólo en og.png: la portada tiene el mapa (mapa/generar_mapa.py y publico/portada.js).
     interior_pagina = f'<path class="gl-letras" d="{letras}"/>' + lupa.svg({"aro": "currentColor", "vidrio": LIMA, "nodo": CARBON})
     (WORKER / "marca.js").write_text(
-        "// Generado por marca/generar_marca.py: no editar a mano. El logo de Gobserva (la «o» es una lupa con nodos) y\n"
-        "// la ilustración de la portada, como SVG en línea: las clases gl-* e il-* toman su color del CSS de la página.\n"
+        "// Generado por marca/generar_marca.py: no editar a mano. El logo de Gobserva (la «o» es una lupa con nodos), como\n"
+        "// SVG en línea: las clases gl-* toman su color del CSS de la página.\n"
         f'export const LOGO_VIEWBOX = "{vb}";\n'
-        f"export const LOGO_INTERIOR = '{interior_pagina}';\n"
-        f"export const ILUSTRACION = '{ilustracion()}';\n",
+        f"export const LOGO_INTERIOR = '{interior_pagina}';\n",
         encoding="utf-8",
         newline="\n",
     )
