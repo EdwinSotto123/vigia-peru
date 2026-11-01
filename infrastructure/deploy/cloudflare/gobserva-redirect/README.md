@@ -4,51 +4,55 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
 `vigia.gobserva.cloud`, y este Worker (`gobserva-redirect`, el nombre quedó del principio) es la raíz:
 
 - **Desde el 2026-11-01, la portada de Gobserva** (`worker.js`; el HTML llega completo y el JavaScript sólo anima): para
-  que «gobserva» y «gobserva cloud» tengan una página que los buscadores puedan mostrar. Lleva los datos estructurados de
-  la organización (`https://gobserva.cloud/#organizacion`, el mismo `@id` que usa Vigía en `frontend/app/layout.tsx`), su
-  `robots.txt`, su `sitemap.xml` y la clave de IndexNow. Secciones: portada con el logo, el eslogan y el mapa; la
-  presentación en cinco capítulos; Vigía; Próximamente; los seis principios y las diez fuentes.
-- **La presentación** (2026-11-01, pedido del usuario: «es la presentación: gráficas, datos, propuestas, valor»), del
-  problema a quién lo usa:
+  que «gobserva» y «gobserva cloud» tengan una página que los buscadores puedan mostrar, y la puerta de entrada a los
+  productos. Lleva los datos estructurados de la organización (`https://gobserva.cloud/#organizacion`, el mismo `@id` que
+  usa Vigía en `frontend/app/layout.tsx`), su `robots.txt`, su `sitemap.xml` y la clave de IndexNow.
+- **El radar cívico** (2026-11-01, pedido del usuario: «un layout más complejo, más tecnológico, colores verdes,
+  animaciones, mensajes; recuerda que es el punto de entrada»): la portada es un instrumento de observación.
+  - **Un solo mundo, oscuro a propósito** (sin modo claro): negro verdoso `#030B07` con la cuadrícula de un visor; verde
+    fósforo `#3DFF8A` es la señal y rojo `#FF5A4D` la alerta (lo que se pierde, la sentencia firme, el riesgo alto, las
+    regiones con más casos). Cada institución conserva su luz: Procuraduría roja, Contraloría ámbar `#FFB020`, OECE
+    verde. El lima `#D4FF3F` queda para la marca y el botón de entrar.
+  - **Letras:** Archivo (títulos anchos con `font-stretch` y texto), JetBrains Mono (la consola y los rótulos, la misma
+    del logo) y Doto, de puntos, para las cifras.
+  - **Arriba**, en tres columnas desde 80rem (dos desde 64rem, una en el teléfono): el logo, el eslogan y la entrada a
+    Vigía; la **consola**, que escribe letra por letra lo que Gobserva lee (fuentes, procesos del año, leídos a fondo,
+    privacidad) y después cada región que muestra el radar; el **radar**; y la **lectura de la región** (la ficha de
+    siempre). Debajo, la **cinta** con las cifras del país, que corre sola.
+  - **Lo que el radar detecta:** cuatro paneles de instrumentos (escuadras de fósforo en las esquinas, número y fuente).
 
-  | Capítulo | Qué muestra | De dónde sale |
-  |----------|-------------|---------------|
-  | 01 El problema | 100 cuadros, 13 en óxido: lo que se pierde de cada 100 soles; S/ 24,268 millones y S/ 8,963 millones en inversión | Estimación de la Contraloría para 2023 (`CONTRALORIA` en `worker.js`: cambiarla a mano cuando publique la siguiente) |
-  | 02 La escala | Procesos de compra por año desde 2016 y mil cuadros con los pocos que se leen a fondo | API de Vigía: `/v1/contratos/resumen` por año y el de este año (`porRiesgo`, la misma cuenta de su portada) |
-  | 03 Dónde | Las diez regiones con más casos en trámite y, dentro de cada barra, los que tienen sentencia firme | Procuraduría, por la API (`/v1/corrupcion/region/NN`) |
-  | 04 Cómo funciona | Las diez instituciones entran, la lupa cruza y salen las señales (`SENALES`, las que Vigía ya marca) | Texto |
-  | 05 Para quién | Ciudadanía, periodismo y control, con lo que cada uno hace con la evidencia (`PUBLICOS`) | Texto |
+    | Panel | Qué muestra | De dónde sale |
+    |-------|-------------|---------------|
+    | 01 | 100 cuadros, 13 en rojo: lo que se pierde de cada 100 soles; S/ 24,268 millones y S/ 8,963 millones en inversión | Estimación de la Contraloría para 2023 (`CONTRALORIA` en `worker.js`: cambiarla a mano cuando publique la siguiente) |
+    | 02 | Procesos de compra por año desde 2016 | API de Vigía: `/v1/contratos/resumen` de cada año |
+    | 03 | Una aguja en un pajar: mil cuadros (100 x 10; 50 x 20 en pantallas angostas) con los pocos leídos a fondo este año | El resumen del año (`porRiesgo`, la misma cuenta de la portada de Vigía) |
+    | 04 | Las diez regiones con más casos en trámite y, dentro de cada barra, los que tienen sentencia firme | Procuraduría, por la API (`/v1/corrupcion/region/NN`) |
 
-  Las animaciones las arma `publico/animaciones.js`: cada bloque con `data-anima` recibe `.visible` al entrar en pantalla
-  y el CSS lo enciende en escalones (`steps()`, como píxeles); las cifras con `data-contar` cuentan desde cero; el flujo
-  del capítulo 04 sólo se mueve mientras se ve. Sin JavaScript o con movimiento reducido no se pone la clase `.anima` y
-  todo se ve quieto y completo. Los capítulos 02 y 03 no salen si la API no respondió.
-- **El diseño** (tercera versión, 2026-11-01, pedido del usuario: «no tiene colores, falta píxeles, letras demasiado
-  grandes», con las skills impeccable *colorize* y better-typography, halladas con find-skills):
-  - **Color con significado.** Cada institución tiene el suyo en el mapa, las cifras, la ficha y las fuentes: Procuraduría
-    óxido `#FF5A4D`, Contraloría ámbar `#FFB020`, OECE lima `#D4FF3F` (los tokens rust, amber y lima de Vigía). Los
-    productos que vienen tienen el suyo: Congreso violeta, Políticos cian, Obras naranja, Alertas rosa. Cada color lleva
-    su versión oscura en el modo claro, con contraste de 4.5:1 sobre el fondo.
-  - **Píxeles.** Los íconos se dibujan píxel a píxel en `pixeles.js` (12 x 12; también el ojo de puntos de Vigía).
-    Las tarjetas y los botones tienen esquinas en escalón (clase `esq`), el fondo lleva la trama de puntos de Vigía y la
-    cabecera, su línea de puntos lima.
-  - **Letras.** Space Grotesk para los títulos (de 22 a 28 px), Inter para el texto (16 px) y Doto, una letra de puntos
-    como el ojo de Vigía, para el titular y las cifras. Silkscreen sólo en los rótulos de estado («En vivo», «En
-    preparación»).
-  - **Próximamente.** Los monitores que vienen (Congreso, historia de políticos, obras, alertas): `PROXIMOS` en
-    `worker.js`, cada uno con lo que Vigía ya lee de él.
-- **El mapa de la portada** (desde el 2026-11-01): el Perú en una malla de píxeles, en la identidad Píxel de Vigía, y la
-  lupa de Gobserva que lo recorre. Al abrir, los píxeles se encienden en ola desde Lima; cada métrica pinta con su rampa
-  (Corrupción en óxido, Control en ámbar, Compras en lima), y las tres tarjetas de arriba son el selector, con la cifra
-  del país. Con el mouse sigue al puntero y agranda los puntos; la región que toca se enciende, a
-  su lado salen sus cifras y la ficha cuenta lo que registran la Procuraduría Anticorrupción (casos en trámite y con
-  sentencia firme), la Contraloría (informes con presunta responsabilidad, que no es una condena) y la OECE (procesos de
-  compra desde 2015). Sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Piezas:
+  - **Cómo funciona:** la cadena Observa, Conecta, Señala y Tú decides, con paquetes que corren entre etapas.
+  - **Elige por dónde entrar:** Vigía en línea (con sus seis accesos) y los monitores en preparación, de borde punteado
+    (`PROXIMOS`: Congreso, historia de políticos, obras, alertas), cada uno con lo que Vigía ya lee de él. Después: para
+    quién, los seis principios, las diez fuentes y el llamado al mapa de Vigía.
+  - **Animaciones** (`publico/animaciones.js`, sólo con JavaScript y sin movimiento reducido: la clase `.anima` en
+    `<html>`): el visor se enciende al abrir; cada bloque con `data-anima` recibe `.visible` al entrar en pantalla, el
+    panel lo recorre una línea de luz y lo de adentro se arma en escalones (`steps()`, como píxeles); las cifras con
+    `data-contar` cuentan desde cero; la consola escribe; la cinta y los paquetes corren mientras se ven. El botón
+    «Pausar animación» del radar (`aria-pressed`) pone `.pausado` y detiene todo lo que se mueve, el recorrido y la
+    consola. Sin JavaScript o con movimiento reducido todo se ve quieto y completo; los paneles 02 a 04 no salen si la API
+    no respondió.
+- **El radar** (`publico/portada.js` y el CSS de `worker.js`): el Perú en una malla de píxeles verdes (una sola rampa
+  para las tres métricas, más brillo con más casos) y la lupa de Gobserva, con su retícula, que lo recorre. Encima, la
+  retícula del radar (`RETICULA` en `worker.js`: anillos y rumbos cada 5° con `pathLength="360"`) y un barrido de CSS
+  que gira cada `--periodo` (6 s) con `mix-blend-mode: screen`, así aclara los puntos que pasa. Las tres regiones con
+  más de la métrica elegida son ecos rojos que se encienden cuando el barrido pasa por su rumbo (portada.js calcula el
+  retraso con el `currentTime` de la animación del barrido). Abajo a la derecha, las coordenadas de la lupa en grados y
+  minutos. Los canales de arriba (Corrupción, Control, Compras) eligen qué muestra, con la cifra del país. Con el mouse,
+  la lupa sigue al puntero; sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Cada
+  región elegida sale como el evento `gobserva:region`, que escribe la consola. Piezas:
   - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 píxeles) de los límites de
-    `frontend/public/peru-departments.json`. El Callao, más chico que una celda, se queda con 3.
-  - `publico/portada.js`: la lupa, el recorrido, el teclado y la ficha (sin dependencias). Al cambiarlo, al cambiar
-    `animaciones.js` o al regenerar la malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los scripts un día en
-    el navegador.
+    `frontend/public/peru-departments.json`, con `geo` (la esquina noroeste y el tamaño de la celda en grados) para las
+    coordenadas. El Callao, más chico que una celda, se queda con 3.
+  - Al cambiar `portada.js`, `animaciones.js` o la malla, subir `VERSION_JS` en `worker.js`: Cloudflare guarda los
+    scripts un día en el navegador.
   - Las cifras: el Worker las pide a la API de Vigía (`VIGIA_API_URL` en `wrangler.jsonc`; la API lo atiende porque
     `gobserva.cloud` está en `WORKERS_PROPIOS`), son unos 40 pedidos (el plan gratis de Workers admite 50 por visita) y
     quedan en la caché de Cloudflare (`CACHE_REGIONES`, hoy `regiones-v2`: cambiarle el nombre si cambia la forma de los
@@ -58,7 +62,8 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
 - **La marca** (logo con la lupa en la «o», eslogan, colores y cómo usarlos): [`marca/README.md`](marca/README.md). El
   logo y la ilustración van en línea desde `marca.js`; favicon, `logo.png`, `og.png` y el logo para descargar están en
   `publico/`, que Cloudflare sirve antes de llegar al Worker (`assets` en `wrangler.jsonc`, encabezados en
-  `publico/_headers`). Todo eso lo escribe `marca/generar_marca.py`: no editarlo a mano.
+  `publico/_headers`). Todo eso lo escribe `marca/generar_marca.py`: no editarlo a mano (`--og` rehace sólo `og.png`, que
+  dibuja el mapa en la pantalla del radar, como la portada).
 - `www.gobserva.cloud` → 301 a `gobserva.cloud`; cualquier otra ruta → 302 a la misma en `vigia.gobserva.cloud` (los
   enlaces viejos siguen andando; 302 porque un 301 queda guardado en el navegador). Antes (29 al 31-oct) la raíz
   redirigía entera a Vigía.

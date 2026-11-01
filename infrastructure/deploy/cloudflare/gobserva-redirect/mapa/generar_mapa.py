@@ -3,10 +3,12 @@
 Lee los límites de los 25 departamentos que ya usa Vigía (frontend/public/peru-departments.json) y marca cada celda de una
 malla cuadrada con el departamento que contiene su centro. Escribe ../publico/mapa-peru.js:
 
-  window.MAPA_PERU = { cols, filas, regiones: ["01", …, "25"], celdas: "<base64>" }
+  window.MAPA_PERU = { cols, filas, regiones: ["01", …, "25"], celdas: "<base64>", geo: { lon0, lat1, paso, kx } }
 
 `celdas` trae un byte por celda, fila por fila: 0 es mar o país vecino; k es el departamento regiones[k - 1]. El navegador
-(publico/portada.js) dibuja un punto por celda llena y sabe, para cada punto, de qué región es.
+(publico/portada.js) dibuja un punto por celda llena y sabe, para cada punto, de qué región es. `geo` vuelve a grados un
+punto de la malla (la esquina noroeste es lon0, lat1; cada celda mide `paso` grados de latitud y paso / kx de longitud): la
+portada muestra las coordenadas de la lupa, como el visor de un radar.
 
 Requisitos: shapely. Uso: python mapa/generar_mapa.py
 """
@@ -70,7 +72,10 @@ def main():
                 celdas[j * COLS + i] = k + 1
                 tiene += 1
     conteo = {codigos[k]: sum(1 for v in celdas if v == k + 1) for k in range(25)}
-    datos = {"cols": COLS, "filas": filas, "regiones": codigos, "celdas": base64.b64encode(bytes(celdas)).decode()}
+    datos = {
+        "cols": COLS, "filas": filas, "regiones": codigos, "celdas": base64.b64encode(bytes(celdas)).decode(),
+        "geo": {"lon0": round(lon0, 5), "lat1": round(lat1, 5), "paso": round(paso, 7), "kx": round(kx, 7)},
+    }
     SALIDA.write_text(
         "// Generado por mapa/generar_mapa.py (no editar a mano): el Perú en una malla de puntos, de los límites de los 25\n"
         "// departamentos de Vigía (frontend/public/peru-departments.json). Un byte por celda: 0 es mar; k, regiones[k - 1].\n"

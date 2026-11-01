@@ -17,10 +17,14 @@
 // procesos de compra de la OECE) y los guarda en la caché de Cloudflare: la página los lleva en #datos-regiones y
 // publico/portada.js los dibuja. Sin datos, la página sale igual, con el mapa y un enlace a Vigía.
 //
-// El diseño (tercera versión, el mismo día: «no tiene colores, falta píxeles, letras demasiado grandes»): cada institución
-// tiene su color en el mapa, las cifras y la ficha (Procuraduría óxido, Contraloría ámbar, OECE lima); cada producto, el
-// suyo (Vigía lima y los que vienen, en Próximamente); los íconos son de píxeles (pixeles.js) y las cifras van en Doto, una
-// letra de puntos como el ojo de Vigía. La escala de letras sigue la skill better-typography (títulos de 22 a 44 px).
+// El diseño (radar cívico, el mismo día: «un layout más complejo, más tecnológico, colores verdes, animaciones, mensajes;
+// recuerda que es el punto de entrada»): la portada es un instrumento de observación. El mapa es la pantalla de un radar
+// (anillos, rumbos, un barrido que aclara los puntos a su paso, las tres regiones con más casos encendidas en rojo y las
+// coordenadas de la lupa); una consola escribe lo que Gobserva lee y sigue al radar región por región; las cifras van en
+// paneles de instrumentos y los monitores (Vigía en línea, los demás en preparación) son la entrada a cada producto. Un
+// solo mundo oscuro y verde: verde es la señal; rojo, la alerta (lo que se pierde, la sentencia firme, el riesgo alto). Cada
+// institución conserva su luz (Procuraduría roja, Contraloría ámbar, OECE verde). Letras: Archivo (títulos anchos y texto),
+// JetBrains Mono (la consola y los rótulos, la misma del logo) y Doto, de puntos, para las cifras.
 //
 // Los archivos de publico/ (portada.js, mapa-peru.js, favicon, logo.png, og.png y el logo para descargar en /marca/) los
 // sirve Cloudflare tal cual, antes de llegar a este código (wrangler.jsonc, "assets"). El logo va en línea desde marca.js
@@ -37,7 +41,7 @@ const CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565";
 // La fecha de la última versión de la portada (sitemap y datos estructurados): cambiarla al cambiar el contenido.
 const ACTUALIZADA = "2026-11-01";
 // Va en la URL de los scripts de publico/: subirla al cambiarlos (Cloudflare los guarda un día en el navegador).
-const VERSION_JS = "2026-11-01c";
+const VERSION_JS = "2026-11-01r";
 const ESLOGAN = "Lo de todos, a la vista de todos.";
 
 // Una lista y no un objeto: en un objeto, JavaScript pone las claves "10" a "25" (índices) antes que "01" a "09".
@@ -249,32 +253,30 @@ const SENALES = [
   "Proveedor sancionado por el Tribunal de Contrataciones",
 ];
 
-// Para quién: [ícono, color, quién, qué gana, qué hace con Vigía].
+// Para quién: [ícono, quién, qué gana, qué hace con Vigía].
 const PUBLICOS = [
   [
     "ciudadania",
-    "lima",
     "Ciudadanía",
     "Entiende en qué se gasta el dinero de tu distrito, sin saber de contrataciones.",
     ["Busca tu región, tu municipalidad o una empresa", "Mira quién ganó cada contrato y con qué banderas", "Comparte la evidencia oficial"],
   ],
   [
     "entiende",
-    "cian",
     "Periodismo",
     "Encuentra el hilo y la evidencia para publicarlo sin que te desmientan.",
     ["Cruces ya hechos entre contratos, empresas, aportes y visitas", "La norma citada y el documento original al lado", "La evidencia lista para descargar en PDF"],
   ],
   [
     "escudo",
-    "violeta",
     "Control y fiscalización",
     "Señales trazables para actuar rápido: qué fuente, qué documento y qué norma.",
     ["Cada señal con su traza y su fuente", "Prioridad por riesgo, región y entidad", "La misma regla para todos, con código abierto"],
   ],
 ];
 
-// Lo que colorea el mapa: cada institución con su color (el mismo en el mapa, las cifras, la ficha y las fuentes).
+// Lo que muestra el radar: [valor, nombre, pie, institución]. El mapa es siempre verde, como la pantalla de un radar; cada
+// institución tiene su luz (la misma en los canales, la lectura de la región y las fuentes).
 const METRICAS = [
   ["tramite", "Corrupción", "casos en trámite en el país", "Procuraduría Anticorrupción"],
   ["penal", "Control", "informes con presunta responsabilidad penal", "Contraloría"],
@@ -290,11 +292,11 @@ const FUNCIONES = [
   ["Personas contratadas", "locadores, planillas y plazas CAS", "/app/personas"],
 ];
 
-// Lo que viene (pedido del usuario: «secciones de próximos, por ejemplo Monitoreo del Congreso, Monitoreo histórico de
-// políticos»). «Ya leemos» dice qué fuente de cada uno ya carga Vigía hoy (SCRAPERS.md): nada de esto está en línea todavía.
+// Los monitores que vienen (pedido del usuario: «secciones de próximos, por ejemplo Monitoreo del Congreso, Monitoreo
+// histórico de políticos»): [ícono, nombre, qué hará, qué fuente ya carga Vigía hoy (SCRAPERS.md)]. Nada de esto está en
+// línea todavía.
 const PROXIMOS = [
   [
-    "congreso",
     "congreso",
     "Monitoreo del Congreso",
     "Cómo vota cada congresista, a quién recibe en su despacho y qué leyes impulsa, con el registro oficial de cada sesión.",
@@ -302,20 +304,17 @@ const PROXIMOS = [
   ],
   [
     "politicos",
-    "politicos",
     "Monitoreo histórico de políticos",
     "La trayectoria de cada político en una línea de tiempo: partidos, cargos, declaraciones juradas, aportes de campaña y sentencias.",
     "Ya leemos el JNE, la ONPE y las declaraciones juradas.",
   ],
   [
     "obras",
-    "obras",
     "Monitoreo de obras públicas",
     "Las obras paralizadas o atrasadas de tu distrito: cuánto avanzan, cuánto cuestan y quién las ejecuta.",
     "Ya leemos INFOBRAS e Invierte.pe.",
   ],
   [
-    "alertas",
     "alertas",
     "Alertas de tu distrito",
     "Un aviso cuando tu municipalidad firme un contrato con banderas o la Contraloría publique un informe sobre ella.",
@@ -361,7 +360,7 @@ const PRINCIPIOS = [
   ],
 ];
 
-// [sigla, qué da, nombre completo, color de la institución en el mapa (si está en él)]
+// [sigla, qué da, nombre completo, la métrica del radar que mide (si mide una): su luz es la de esa métrica]
 const FUENTES = [
   ["OECE", "Contratos, órdenes de compra y servicio, postores y proveedores sancionados.", "Organismo Especializado para las Contrataciones Públicas Eficientes (antes OSCE), con el SEACE", "procesos"],
   ["Procuraduría", "Casos de corrupción en trámite y con sentencia firme.", "Procuraduría Pública Especializada en Delitos de Corrupción", "tramite"],
@@ -375,7 +374,7 @@ const FUENTES = [
   ["PCM", "Visitas a las entidades, planillas del Portal de Transparencia y datos abiertos.", "Presidencia del Consejo de Ministros"],
 ];
 
-/** La ficha de una región: lo que dice cada institución, sin sumar unas con otras (docs/CORRUPCION.md). */
+/** La lectura de una región: lo que dice cada institución, sin sumar unas con otras (docs/CORRUPCION.md). */
 function ficha(datos, codigo) {
   const r = datos?.regiones.find((x) => x.c === codigo);
   const opciones = REGIONES_LISTA.map(([c, n]) => `<option value="${c}"${c === codigo ? " selected" : ""}>${n}</option>`).join("");
@@ -385,7 +384,7 @@ function ficha(datos, codigo) {
         <a id="ficha-enlace" class="enlace" href="${VIGIA}/region/${codigo}">Ver ${REGIONES[codigo]} en Vigía</a>
       </div>`;
   if (!r) {
-    return `<div class="ficha esq" id="ficha">
+    return `<div class="ficha panel" id="ficha">
       ${cabeza}
       <p class="ficha-vacia">Ahora no pudimos traer las cifras de cada región. Están en Vigía, con su fuente: <a class="enlace" href="${VIGIA}/app/mapa">abre el mapa del Perú en Vigía</a>.</p>
     </div>`;
@@ -393,33 +392,35 @@ function ficha(datos, codigo) {
   const boletin = datos.fuente
     ? `<a class="enlace" href="${escapar(datos.fuente)}">boletín</a> al ${fechaLarga(datos.corte)}`
     : datos.corte ? `al ${fechaLarga(datos.corte)}` : "";
-  return `<div class="ficha esq" id="ficha">
+  return `<div class="ficha panel" id="ficha">
       ${cabeza}
-      <div class="ficha-grupo m-tramite">
-        <p class="ficha-fuente"><i class="pxl"></i>Procuraduría Anticorrupción<span>${boletin}</span></p>
-        <p class="ficha-fila"><b data-campo="tramite">${numero(r.tramite)}</b><span>casos de corrupción en trámite</span></p>
-        <p class="ficha-fila"><b data-campo="firme">${numero(r.firme)}</b><span>con sentencia firme</span></p>
-      </div>
-      <div class="ficha-grupo m-penal">
-        <p class="ficha-fuente"><i class="pxl"></i>Contraloría<span id="ficha-anios">${anios(r)}</span></p>
-        <p class="ficha-fila"><b data-campo="informes">${numero(r.informes)}</b><span>informes de control con responsabilidad señalada</span></p>
-        <p class="ficha-fila"><b data-campo="penal">${numero(r.penal)}</b><span>con presunta responsabilidad penal, que no es una condena</span></p>
-      </div>
-      <div class="ficha-grupo m-procesos">
-        <p class="ficha-fuente"><i class="pxl"></i>OECE<span>procesos desde 2015</span></p>
-        <p class="ficha-fila"><b data-campo="procesos">${numero(r.procesos)}</b><span>procesos de compra, por <i data-campo="monto">${soles(r.monto)}</i> de valor referencial</span></p>
+      <div class="ficha-grupos">
+        <div class="ficha-grupo m-tramite">
+          <p class="ficha-fuente"><i class="led"></i>Procuraduría Anticorrupción<span>${boletin}</span></p>
+          <p class="ficha-fila"><b data-campo="tramite">${numero(r.tramite)}</b><span>casos de corrupción en trámite</span></p>
+          <p class="ficha-fila"><b data-campo="firme">${numero(r.firme)}</b><span>con sentencia firme</span></p>
+        </div>
+        <div class="ficha-grupo m-penal">
+          <p class="ficha-fuente"><i class="led"></i>Contraloría<span id="ficha-anios">${anios(r)}</span></p>
+          <p class="ficha-fila"><b data-campo="informes">${numero(r.informes)}</b><span>informes de control con responsabilidad señalada</span></p>
+          <p class="ficha-fila"><b data-campo="penal">${numero(r.penal)}</b><span>con presunta responsabilidad penal, que no es una condena</span></p>
+        </div>
+        <div class="ficha-grupo m-procesos">
+          <p class="ficha-fuente"><i class="led"></i>OECE<span>procesos desde 2015</span></p>
+          <p class="ficha-fila"><b data-campo="procesos">${numero(r.procesos)}</b><span>procesos de compra, por <i data-campo="monto">${soles(r.monto)}</i> de valor referencial</span></p>
+        </div>
       </div>
       <p class="ficha-nota">Cada institución cuenta distinto: sus cifras no se suman.</p>
     </div>`;
 }
 
-/** Las 25 regiones en una tabla: lo mismo que la lupa, para leerlo de corrido (y sin JavaScript). */
+/** Las 25 regiones en una tabla: lo mismo que el radar, para leerlo de corrido (y sin JavaScript). */
 function tabla(datos) {
   if (!datos) return "";
   const filas = datos.regiones
-    .map((r) => `<tr><th scope="row"><a class="enlace" href="${VIGIA}/region/${r.c}">${REGIONES[r.c]}</a></th><td class="t-tramite">${numero(r.tramite)}</td><td class="t-tramite">${numero(r.firme)}</td><td class="t-penal">${numero(r.penal)}</td><td class="t-procesos">${numero(r.procesos)}</td></tr>`)
+    .map((r) => `<tr><th scope="row"><a class="enlace" href="${VIGIA}/region/${r.c}">${REGIONES[r.c]}</a></th><td>${numero(r.tramite)}</td><td>${numero(r.firme)}</td><td>${numero(r.penal)}</td><td>${numero(r.procesos)}</td></tr>`)
     .join("\n          ");
-  return `<details class="tabla-regiones marco" id="tabla-regiones">
+  return `<details class="tabla-regiones" id="tabla-regiones">
       <summary>Ver las 25 regiones en una tabla</summary>
       <div class="tabla-caja">
         <table>
@@ -433,15 +434,26 @@ function tabla(datos) {
     </details>`;
 }
 
-/** El mapa: qué colorea (con la cifra del país), el lienzo, los rótulos de la lupa y la leyenda. Lo anima portada.js. */
+// La retícula del radar, en unidades de un visor de 200 x 200 con el centro en el medio (recorta los costados en un visor
+// alto). pathLength="360" vuelve grados los guiones: una marca cada 5° y una larga cada 30°, como el rumbo de un radar.
+const RETICULA = `<svg class="radar-reticula" viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid slice" focusable="false">
+            <circle r="26"/><circle r="52"/><circle r="78"/><circle r="104"/>
+            <path d="M-140 0H140M0-140V140"/>
+            <circle class="rumbo" r="91" pathLength="360" stroke-dasharray=".35 4.65"/>
+            <circle class="rumbo mayor" r="91" pathLength="360" stroke-dasharray=".7 29.3"/>
+            <text x="0" y="-80">N</text>
+          </svg>`;
+
+/** El radar: los canales (qué muestra, con la cifra del país), el visor con el mapa, la retícula y el barrido, la lupa,
+ * sus coordenadas y la leyenda. Lo anima portada.js. */
 function mapa(datos) {
   const tramites = (datos?.regiones ?? []).map((r) => r.tramite).filter((v) => v != null);
   const metricas = tramites.length
     ? `<fieldset class="metricas" data-anima>
-        <legend class="sr">Qué colorea el mapa</legend>
-        ${METRICAS.map(([valor, nombre, pie, fuente], k) => `<label class="metrica esq m-${valor}">
+        <legend class="sr">Qué muestra el radar</legend>
+        ${METRICAS.map(([valor, nombre, pie, fuente], k) => `<label class="metrica m-${valor}">
           <input type="radio" name="metrica" value="${valor}"${k === 0 ? " checked" : ""}>
-          <span class="metrica-nombre"><i class="pxl"></i>${nombre}</span>
+          <span class="metrica-nombre"><i class="led"></i>${nombre}</span>
           <b class="metrica-cifra"${suma(datos, valor) != null ? ` data-contar="${suma(datos, valor)}"` : ""}>${numero(suma(datos, valor))}</b>
           <span class="metrica-pie">${pie}<span class="sr">, según ${fuente}</span></span>
         </label>`).join("\n        ")}
@@ -449,55 +461,129 @@ function mapa(datos) {
     : "";
   const leyenda = tramites.length
     ? `<div class="leyenda">
-        <p id="leyenda-titulo">Casos de corrupción en trámite, por región${datos.corte ? ` (Procuraduría Anticorrupción, al ${fechaLarga(datos.corte)})` : ""}</p>
-        <div class="leyenda-escala"><span id="leyenda-min">${numero(Math.min(...tramites))}</span><span class="leyenda-tonos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="leyenda-max">${numero(Math.max(...tramites))}</span></div>
-      </div>`
+          <div class="leyenda-escala"><span id="leyenda-min">${numero(Math.min(...tramites))}</span><span class="leyenda-tonos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="leyenda-max">${numero(Math.max(...tramites))}</span></div>
+          <p class="leyenda-blips"><i aria-hidden="true"></i>Las tres regiones con más</p>
+          <p id="leyenda-titulo">Casos de corrupción en trámite, por región${datos.corte ? ` (Procuraduría Anticorrupción, al ${fechaLarga(datos.corte)})` : ""}</p>
+        </div>`
     : "";
   return `<div class="portada-mapa m-tramite">
       ${metricas}
-      <div id="mapa" class="mapa" tabindex="0" role="group" aria-roledescription="mapa" aria-label="Mapa del Perú por regiones. Las flechas cambian de región y Enter la abre en Vigía.">
-        <canvas aria-hidden="true"></canvas>
-        <div class="lupa-rotulos" aria-hidden="true">
-          <p class="lupa-region esq"></p>
-          <p class="lupa-dato esq"><b></b><span></span></p>
-          <p class="lupa-dato esq"><b></b><span></span></p>
+      <div class="visor">
+        <div id="mapa" class="mapa" tabindex="0" role="group" aria-roledescription="mapa" aria-label="Mapa del Perú por regiones. Las flechas cambian de región y Enter la abre en Vigía.">
+          <canvas aria-hidden="true"></canvas>
+          <div class="radar" aria-hidden="true">
+            ${RETICULA}
+            <div class="radar-barrido"></div>
+            <div class="radar-blips"></div>
+          </div>
+          <div class="lupa-rotulos" aria-hidden="true">
+            <p class="lupa-region"></p>
+            <p class="lupa-dato"><b></b><span></span></p>
+            <p class="lupa-dato"><b></b><span></span></p>
+          </div>
+          <noscript><p class="sin-js">Con JavaScript, aquí pasas la lupa por el mapa. Las cifras de cada región están en la lectura de al lado y en la tabla de esta página.</p></noscript>
         </div>
-        <noscript><p class="sin-js">Con JavaScript, aquí pasas la lupa por el mapa. Las cifras de cada región están en la ficha y en la tabla de esta página.</p></noscript>
-      </div>
-      <div class="mapa-pie">
-        ${leyenda}
+        <p class="visor-coords" aria-hidden="true"><span>Lupa</span><span id="coords">12°03′ S 77°03′ O</span></p>
+        <button type="button" class="pausa" id="pausa" aria-pressed="false"><i aria-hidden="true"></i>Pausar animación</button>
         <p class="pista"><span class="pista-mouse">Pasa la lupa por una región; con un clic la abres en Vigía.</span><span class="pista-toque">Toca una región para ver sus cifras.</span></p>
+        <div class="mapa-pie">${leyenda}</div>
       </div>
     </div>`;
 }
 
-// ─── La presentación: cinco capítulos, del problema a quién lo usa (pedido del usuario: «es la presentación: gráficas,
-// datos, propuestas, valor»). Cada gráfica se anima al entrar en pantalla (publico/animaciones.js) y, sin JavaScript o
-// con movimiento reducido, se ve quieta y completa.
-
-/** 01: lo que se pierde, según la Contraloría. Cien cuadros, uno por cada sol de cien. */
-function capProblema() {
-  const marcados = Math.round(CONTRALORIA.porCien);
-  const cuadros = Array.from({ length: 100 }, (_, k) => (k < marcados ? `<i class="on" style="--i:${k}"></i>` : "<i></i>")).join("");
-  return `<section class="marco seccion" id="problema" aria-labelledby="t-problema">
-    <h2 id="t-problema"><span class="cap">01</span>Casi 13 de cada 100 soles se pierden</h2>
-    <p class="intro">La Contraloría estima que en ${CONTRALORIA.anio} la corrupción y la inconducta funcional se llevaron el ${NUM1.format(CONTRALORIA.porCien)} % del presupuesto que ejecutó el Estado.</p>
-    <div class="problema" data-anima>
-      <figure class="waffle-fig">
-        <div class="waffle" role="img" aria-label="Cien cuadros, trece en rojo: casi 13 de cada 100 soles">${cuadros}</div>
-        <figcaption>Cada cuadro es 1 de cada 100 soles del presupuesto ejecutado en ${CONTRALORIA.anio}.</figcaption>
-      </figure>
-      <div class="cifras-grandes">
-        <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.millones}">${NUM.format(CONTRALORIA.millones)}</span> millones</b><span>se habrían perdido en ${CONTRALORIA.anio} por corrupción e inconducta funcional</span></p>
-        <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.inversionMillones}">${NUM.format(CONTRALORIA.inversionMillones)}</span> millones</b><span>de eso, en inversión: carreteras, hospitales y colegios</span></p>
-        <p class="fuente-dato">Es una estimación de la Contraloría General de la República, no un conteo. <a class="enlace" href="${CONTRALORIA.url}">Ver la fuente</a></p>
-      </div>
-    </div>
-  </section>`;
+/** Lo que escribe la consola de la portada: preguntas y respuestas con las cifras de esta misma página. Sin JavaScript se
+ * ve así, quieta; con él, animaciones.js la escribe letra por letra y sigue al radar región por región. */
+function lineasConsola(datos) {
+  const l = [["cmd", "fuentes"], ["res", "10 instituciones del Estado, más de 20 registros públicos"]];
+  const lect = datos?.lectura;
+  if (lect) {
+    l.push(["cmd", `procesos ${lect.anio}`], ["res", `${NUM.format(lect.publicados)} publicados en el SEACE`]);
+    l.push(["cmd", "leídos a fondo"], ["res", `${NUM.format(lect.leidos)} por Vigía`], ["res alerta", `${NUM.format(lect.alto)} con riesgo alto`]);
+  }
+  l.push(["cmd", "privacidad"], ["res", "nunca publicamos un DNI"]);
+  const inicial = datos?.regiones?.find((r) => r.c === INICIAL);
+  if (inicial?.tramite != null) {
+    l.push(["cmd", `región ${REGIONES[INICIAL]}`], ["res", `${NUM.format(inicial.tramite)} casos de corrupción en trámite`]);
+    if (inicial.firme != null) l.push(["res alerta", `${NUM.format(inicial.firme)} con sentencia firme`]);
+  }
+  return l;
 }
 
-/** 02, a la derecha: mil cuadros por los procesos publicados este año; los pocos leídos a fondo, en lima. */
-function milCuadros(lect) {
+function consola(datos) {
+  return `<div class="consola" aria-hidden="true">
+        <p class="consola-barra"><span>gobserva / consola</span><span class="estado">En línea</span></p>
+        <ol class="consola-lineas">${lineasConsola(datos).map(([clase, t]) => `<li class="${clase}">${escapar(t)}</li>`).join("")}<li class="cmd escribiendo"></li></ol>
+      </div>`;
+}
+
+/** La cinta de cifras bajo el radar. Va dos veces para dar la vuelta sin corte; la copia no se lee. */
+function cinta(datos) {
+  const t = [];
+  const pais = (campo) => suma(datos, campo);
+  if (pais("procesos") != null) t.push([pais("procesos"), "procesos de compra desde 2015", "OECE"]);
+  if (pais("tramite") != null) t.push([pais("tramite"), "casos de corrupción en trámite", "Procuraduría"]);
+  if (pais("penal") != null) t.push([pais("penal"), "informes con presunta responsabilidad penal", "Contraloría"]);
+  const lect = datos?.lectura;
+  if (lect) t.push([lect.publicados, `procesos publicados en ${lect.anio}`, "OECE"], [lect.leidos, "leídos a fondo", "Vigía"], [lect.alto, "con riesgo alto", "Vigía"]);
+  t.push([`S/ ${NUM.format(CONTRALORIA.millones)} millones`, `perdidos en ${CONTRALORIA.anio}, según su estimación`, "Contraloría"]);
+  t.push([10, "instituciones conectadas", "Gobserva"]);
+  const fila = t.map(([v, d, f]) => `<li><b>${typeof v === "number" ? NUM.format(v) : v}</b>${d}<span>${f}</span></li>`).join("");
+  return `<div class="cinta">
+    <ul class="cinta-fila" aria-label="Cifras del Estado peruano">${fila}</ul>
+    <ul class="cinta-fila" aria-hidden="true">${fila}</ul>
+  </div>`;
+}
+
+// ─── Lo que el radar detecta: cuatro paneles de instrumentos (pedido del usuario: «es la presentación: gráficas, datos,
+// propuestas, valor»). Cada gráfica se arma al entrar en pantalla (publico/animaciones.js) y, sin JavaScript o con
+// movimiento reducido, se ve quieta y completa.
+
+/** Un panel de instrumento: su número, su título, lo de adentro y de dónde sale. */
+function panel(clase, num, id, titulo, cuerpo, pie) {
+  return `<div class="panel ${clase}" data-anima>
+        <div class="panel-cabeza"><span class="panel-num" aria-hidden="true">${num}</span><h3 id="${id}">${titulo}</h3></div>
+        ${cuerpo}
+        ${pie ? `<p class="panel-pie">${pie}</p>` : ""}
+      </div>`;
+}
+
+/** 01: lo que se pierde, según la Contraloría. Cien cuadros, uno por cada sol de cien. */
+function panelPerdida() {
+  const marcados = Math.round(CONTRALORIA.porCien);
+  const cuadros = Array.from({ length: 100 }, (_, k) => (k < marcados ? `<i class="on" style="--i:${k}"></i>` : "<i></i>")).join("");
+  return panel("p-perdida", "01", "t-perdida", "Casi 13 de cada 100 soles se pierden", `<div class="perdida">
+          <figure class="waffle-fig">
+            <div class="waffle" role="img" aria-label="Cien cuadros, trece en rojo: casi 13 de cada 100 soles">${cuadros}</div>
+            <figcaption>1 cuadro = 1 de cada 100 soles ejecutados en ${CONTRALORIA.anio}</figcaption>
+          </figure>
+          <div class="cifras-grandes">
+            <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.millones}">${NUM.format(CONTRALORIA.millones)}</span> millones</b><span>se habrían perdido en ${CONTRALORIA.anio} por corrupción e inconducta funcional: el ${NUM1.format(CONTRALORIA.porCien)} % del presupuesto que ejecutó el Estado</span></p>
+            <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.inversionMillones}">${NUM.format(CONTRALORIA.inversionMillones)}</span> millones</b><span>de eso, en inversión: carreteras, hospitales y colegios</span></p>
+          </div>
+        </div>`, `Es una estimación de la Contraloría General de la República, no un conteo. <a class="enlace" href="${CONTRALORIA.url}">Ver la fuente</a>`);
+}
+
+/** 02: los procesos de compra de cada año (la serie empieza en 2016: ver bajarRegiones). */
+function panelAnios(datos) {
+  const serie = (datos?.serie ?? []).filter((x) => x.total != null);
+  if (!serie.length) return "";
+  const anio = anioLima();
+  const completos = serie.filter((x) => x.anio < anio);
+  const minimo = completos.length ? Math.min(...completos.map((x) => x.total)) : Math.min(...serie.map((x) => x.total));
+  const max = Math.max(1, ...serie.map((x) => x.total));
+  const barras = serie
+    .map((x, k) => `<li style="--v:${(x.total / max).toFixed(3)};--i:${k}"><span class="sr">${x.anio}: ${NUM.format(x.total)} procesos</span><span class="valor-v" aria-hidden="true">${NUM.format(Math.round(x.total / 1000))}</span><span class="barra-v" aria-hidden="true"></span><span class="anio" aria-hidden="true">${String(x.anio).slice(2)}${x.anio === anio ? "*" : ""}</span></li>`)
+    .join("");
+  const hoy = serie.some((x) => x.anio === anio) ? ` * ${anio}, hasta hoy.` : "";
+  return panel("p-anios", "02", "t-anios", `Más de ${NUM.format(Math.floor(minimo / 1000))} mil procesos de compra al año`,
+    `<ol class="anios" style="--n:${serie.length}" aria-label="Procesos de compra publicados por año">${barras}</ol>`,
+    `Procesos publicados en el SEACE por año, en miles, de ${serie[0].anio} a ${serie[serie.length - 1].anio} (OECE).${hoy}`);
+}
+
+/** 03: mil cuadros por los procesos publicados este año; los pocos leídos a fondo se encienden. */
+function panelAguja(datos) {
+  const lect = datos?.lectura;
+  if (!lect) return "";
   const total = 1000;
   const leidos = Math.min(total, Math.max(1, Math.round((lect.leidos / lect.publicados) * total)));
   const altos = lect.alto ? Math.min(leidos, Math.max(1, Math.round((lect.alto / lect.publicados) * total))) : 0;
@@ -511,176 +597,92 @@ function milCuadros(lect) {
   const altosEn = new Set(pos.slice(0, altos));
   const leidosEn = new Set(pos);
   const cuadros = Array.from({ length: total }, (_, k) => (leidosEn.has(k) ? `<i class="${altosEn.has(k) ? "alto" : "leido"}"></i>` : "<i></i>")).join("");
-  return `<figure class="mil-fig" data-anima>
-        <div class="mil" role="img" aria-label="Mil cuadros por los procesos publicados en ${lect.anio}: ${leidos} en lima, los leídos a fondo; ${altos} en rojo, con riesgo alto">${cuadros}</div>
-        <figcaption>
-          <span class="mil-dato"><b data-contar="${lect.publicados}">${NUM.format(lect.publicados)}</b>procesos publicados en ${lect.anio}</span>
-          <span class="mil-dato m-procesos"><i class="pxl"></i><b data-contar="${lect.leidos}">${NUM.format(lect.leidos)}</b>leídos a fondo por Vigía</span>
-          <span class="mil-dato m-tramite"><i class="pxl"></i><b data-contar="${lect.alto}">${NUM.format(lect.alto)}</b>con riesgo alto</span>
-          <span class="mil-nota">Cada cuadro son unos ${NUM.format(Math.round(lect.publicados / total))} procesos. Hallar las señales a mano es buscar una aguja en un pajar: para eso es la lupa.</span>
-        </figcaption>
-      </figure>`;
+  return panel("p-aguja", "03", "t-aguja", "Una aguja en un pajar", `<figure class="mil-fig">
+          <div class="mil" role="img" aria-label="Mil cuadros por los procesos publicados en ${lect.anio}: ${leidos} encendidos, los leídos a fondo; ${altos} en rojo, con riesgo alto">${cuadros}</div>
+          <figcaption class="mil-datos">
+            <span class="mil-dato"><b data-contar="${lect.publicados}">${NUM.format(lect.publicados)}</b>procesos publicados en ${lect.anio}</span>
+            <span class="mil-dato m-procesos"><i class="led"></i><b data-contar="${lect.leidos}">${NUM.format(lect.leidos)}</b>leídos a fondo por Vigía</span>
+            <span class="mil-dato m-tramite"><i class="led"></i><b data-contar="${lect.alto}">${NUM.format(lect.alto)}</b>con riesgo alto</span>
+          </figcaption>
+        </figure>`, `Cada cuadro son unos ${NUM.format(Math.round(lect.publicados / total))} procesos. Hallar las señales a mano es buscar una aguja en un pajar: para eso es la lupa.`);
 }
 
-/** 02: la escala. Los procesos de compra de cada año, y lo poco que alcanza a leerse. */
-function capEscala(datos) {
-  const serie = (datos?.serie ?? []).filter((x) => x.total != null);
-  const lect = datos?.lectura;
-  if (!serie.length && !lect) return "";
-  const anio = anioLima();
-  const completos = serie.filter((x) => x.anio < anio);
-  const minimo = completos.length ? Math.min(...completos.map((x) => x.total)) : null;
-  const max = Math.max(1, ...serie.map((x) => x.total));
-  const barras = serie
-    .map((x, k) => `<li style="--v:${(x.total / max).toFixed(3)};--i:${k}"><span class="sr">${x.anio}: ${NUM.format(x.total)} procesos</span><span class="valor-v" aria-hidden="true">${NUM.format(Math.round(x.total / 1000))} mil</span><span class="barra-v" aria-hidden="true"></span><span class="anio" aria-hidden="true">${x.anio}${x.anio === anio ? "*" : ""}</span></li>`)
-    .join("");
-  const grafica = serie.length
-    ? `<figure class="anios-fig" data-anima>
-        <ol class="anios" style="--n:${serie.length}">${barras}</ol>
-        <figcaption>Procesos de compra publicados en el SEACE, por año (OECE).${serie.some((x) => x.anio === anio) ? ` * ${anio}, hasta hoy.` : ""}</figcaption>
-      </figure>`
-    : "";
-  return `<section class="marco seccion" id="escala" aria-labelledby="t-escala">
-    <h2 id="t-escala"><span class="cap">02</span>Más de lo que nadie alcanza a leer</h2>
-    <p class="intro">${minimo ? `El Estado publica más de ${NUM.format(Math.floor(minimo / 1000))} mil procesos de compra cada año. ` : ""}Cada uno trae bases, actas y contratos: leerlos todos a mano es imposible.</p>
-    <div class="escala">
-      ${grafica}
-      ${lect ? milCuadros(lect) : ""}
-    </div>
-  </section>`;
-}
-
-/** 03: dónde. Las diez regiones con más casos en trámite y, dentro de cada barra, los que ya tienen sentencia firme. */
-function capDonde(datos) {
+/** 04: dónde. Las diez regiones con más casos en trámite y, dentro de cada barra, los que ya tienen sentencia firme. */
+function panelDonde(datos) {
   const regs = (datos?.regiones ?? []).filter((r) => r.tramite).sort((a, b) => b.tramite - a.tramite).slice(0, 10);
   if (!regs.length) return "";
   const max = regs[0].tramite;
   const filas = regs
     .map((r, k) => `<li style="--v:${(r.tramite / max).toFixed(3)};--f:${r.firme != null ? Math.min(1, r.firme / r.tramite).toFixed(3) : 0};--i:${k}">
-        <a class="ranking-nombre" href="${VIGIA}/region/${r.c}">${REGIONES[r.c]}</a>
-        <span class="pista-barra" aria-hidden="true"><span class="barra-h"><span class="firme"></span></span></span>
-        <span class="ranking-cifra"><b data-contar="${r.tramite}">${NUM.format(r.tramite)}</b>${r.firme != null ? `<span>${NUM.format(r.firme)} con sentencia firme</span>` : ""}</span>
-      </li>`)
+            <a class="ranking-nombre" href="${VIGIA}/region/${r.c}">${REGIONES[r.c]}</a>
+            <span class="pista-barra" aria-hidden="true"><span class="barra-h"><span class="firme"></span></span></span>
+            <span class="ranking-cifra"><b data-contar="${r.tramite}">${NUM.format(r.tramite)}</b>${r.firme != null ? `<span>${NUM.format(r.firme)} con sentencia firme</span>` : ""}</span>
+          </li>`)
     .join("");
-  return `<section class="marco seccion" id="donde" aria-labelledby="t-donde">
-    <h2 id="t-donde"><span class="cap">03</span>Dónde están los casos</h2>
-    <p class="intro">Los casos de corrupción que la Procuraduría Anticorrupción tiene en trámite, en las diez regiones con más, y cuántos ya tienen sentencia firme.</p>
-    <figure class="ranking-fig" data-anima>
-      <p class="ranking-leyenda" aria-hidden="true"><span><i class="pxl tenue"></i>En trámite</span><span><i class="pxl"></i>Con sentencia firme</span></p>
-      <ol class="ranking">${filas}</ol>
-      <figcaption>Procuraduría Pública Especializada en Delitos de Corrupción${datos.fuente ? `, <a class="enlace" href="${escapar(datos.fuente)}">boletín</a>` : ""}${datos.corte ? ` al ${fechaLarga(datos.corte)}` : ""}. Cuenta cada caso en la región de la sede que lo lleva. <a class="enlace" href="#tabla-regiones">Ver las 25 regiones</a></figcaption>
-    </figure>
-  </section>`;
+  return panel("p-donde", "04", "t-donde", "Dónde están los casos", `<p class="ranking-leyenda" aria-hidden="true"><span><i></i>En trámite</span><span><i class="firme"></i>Con sentencia firme</span></p>
+        <ol class="ranking" aria-labelledby="t-donde">${filas}</ol>`,
+    `Casos de corrupción en trámite en la Procuraduría Pública Especializada en Delitos de Corrupción${datos.fuente ? ` (<a class="enlace" href="${escapar(datos.fuente)}">boletín</a>${datos.corte ? ` al ${fechaLarga(datos.corte)}` : ""})` : ""}, en las diez regiones con más. Cuenta cada caso en la región de la sede que lo lleva. <a class="enlace" href="#tabla-regiones">Ver las 25 regiones</a>`);
 }
 
-/** La lupa de Gobserva, grande, para el centro del flujo (las mismas clases del logo: sus colores y su latido). */
+/** La lupa de Gobserva, grande, para el centro de la cadena (las mismas clases del logo: sus colores y su latido). */
 const LUPA_GRANDE = `<svg class="lupa-grande" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path class="gl-aro" d="M38.6 38.6L53 53" stroke-width="8.6"/><circle class="gl-aro" cx="27" cy="27" r="16.2" fill="none" stroke-width="7.2"/><path class="gl-arista" d="M27 20.2L21.4 30.4M27 20.2L32.6 30.4M21.4 30.4H32.6" stroke-width="1.3" stroke-linecap="round"/><circle class="gl-nodo" cx="27" cy="20.2" r="2.7"/><circle class="gl-nodo" cx="21.4" cy="30.4" r="2.7"/><circle class="gl-nodo" cx="32.6" cy="30.4" r="2.7"/></svg>`;
-
-/** 04: la solución. Lo que entra (las diez instituciones), la lupa que cruza y lo que sale (señales). */
-function capComo() {
-  return `<section class="marco seccion" id="como-funciona" aria-labelledby="t-como">
-    <h2 id="t-como"><span class="cap">04</span>El Estado publica. Gobserva lee y cruza.</h2>
-    <p class="intro">Ningún portal del Estado lee sus propios contratos: los publica. Gobserva los lee, los cruza con los registros de diez instituciones y te dice cuáles mirar dos veces.</p>
-    <div class="flujo" data-anima>
-      <div class="flujo-paso">
-        <h3><span class="cap chico">1</span>Observa</h3>
-        <ul class="chips" aria-label="Las diez instituciones">${FUENTES.map(([sigla]) => `<li class="chip esq">${sigla}</li>`).join("")}</ul>
-        <p>Leemos cada día lo que publican: contratos, presupuesto, empresas, planillas, visitas y aportes.</p>
-      </div>
-      <div class="flujo-via" aria-hidden="true"></div>
-      <div class="flujo-paso flujo-centro">
-        ${LUPA_GRANDE}
-        <h3><span class="cap chico">2</span>Conecta</h3>
-        <p>Lo cruzamos por RUC, por entidad y por fecha.</p>
-      </div>
-      <div class="flujo-via" aria-hidden="true"></div>
-      <div class="flujo-paso">
-        <h3><span class="cap chico">3</span>Entiende</h3>
-        <ul class="senales">${SENALES.map((t, k) => `<li class="senal esq" style="--i:${k}">${pixel("bandera")}<span>${t}</span></li>`).join("")}</ul>
-        <p>Cada señal llega con su norma y el enlace al documento original. Tú decides qué mirar dos veces.</p>
-      </div>
-    </div>
-  </section>`;
-}
-
-/** 05: para quién, y qué hace cada uno con la evidencia. */
-function capParaQuien() {
-  return `<section class="marco seccion" id="para-quien" aria-labelledby="t-para">
-    <h2 id="t-para"><span class="cap">05</span>La misma evidencia, para tres trabajos</h2>
-    <p class="intro">Gobserva no reemplaza a nadie: le ahorra a cada uno las semanas de leer y cruzar a mano.</p>
-    <ul class="publicos" data-anima>${PUBLICOS.map(([icono, color, titulo, valor, usos], k) => `<li class="publico esq q-${color}" style="--i:${k}">${pixel(icono)}<h3>${titulo}</h3><p class="valor">${valor}</p><ul>${usos.map((u) => `<li><i class="pxl"></i>${u}</li>`).join("")}</ul></li>`).join("")}</ul>
-  </section>`;
-}
 
 const CSS = `
 :root {
+  /* Un solo mundo, oscuro a propósito: la pantalla de un instrumento de observación. Verde es la señal; rojo, la alerta. */
   color-scheme: dark;
-  --fondo: #0B0F0F; --superficie: #111717; --superficie-2: #172020; --linea: #1F2A29; --borde: #2C3939;
-  --puntos: rgba(231, 240, 238, .07);
-  --tinta: #E7F0EE; --tinta-suave: #BECDCA; --tenue: #8FA3A0;
-  --lima: #D4FF3F; --sobre-lima: #0B0F0F; --acento: #D4FF3F;
-  /* Lo que se mide, por institución: Procuraduría, Contraloría y OECE. */
-  --c-tramite: #FF5A4D; --c-penal: #FFB020; --c-procesos: #D4FF3F;
-  /* Los productos que vienen. */
-  --c-congreso: #B69CFF; --c-politicos: #4FD8F0; --c-obras: #FF9B5A; --c-alertas: #FF8FD0;
-  /* Rampas del mapa: más brillo, más casos. */
-  --rt1: #5C322E; --rt2: #873B34; --rt3: #B2463C; --rt4: #DA5146; --rt5: #FF5A4D;
-  --rp1: #4C3B1D; --rp2: #7A5B1D; --rp3: #A97B1E; --rp4: #D6961F; --rp5: #FFB020;
-  --rc1: #3B4D43; --rc2: #58763A; --rc3: #80A532; --rc4: #AAD835; --rc5: #D4FF3F;
-  --mapa-sin: #26302E;
-  --lupa-aro: #E7F0EE; --lupa-vidrio: rgba(212, 255, 63, .06); --rotulo: rgba(17, 23, 23, .94);
-  --banda: #111717; --banda-tinta: #E7F0EE; --banda-tenue: #8FA3A0; --banda-linea: #243030;
+  --fondo: #030B07; --fondo-2: #051209; --panel: #071810; --linea: #12301F; --borde: #1C4A33;
+  --reticula: rgba(61, 255, 138, .045);
+  --tinta: #E2F7EA; --tinta-suave: #A9CDB8; --tenue: #6F9D84;
+  --fosforo: #3DFF8A; --fosforo-2: #27C76B; --musgo: #123F28; --menta: #A8FFD0;
+  --lima: #D4FF3F; --sobre-lima: #04100A; --acento: var(--fosforo);
+  --alerta: #FF5A4D; --ambar: #FFB020;
+  /* La luz de cada institución: Procuraduría, Contraloría y OECE. */
+  --c-tramite: var(--alerta); --c-penal: var(--ambar); --c-procesos: var(--fosforo);
+  /* El mapa: una sola rampa verde para las tres métricas (más brillo, más casos), como la pantalla de un radar. */
+  --r1: #0F3A24; --r2: #165C38; --r3: #1E8A50; --r4: #2BBF6A; --r5: #3DFF8A;
+  --mapa-sin: #0B2417;
+  --lupa-aro: #A8FFD0; --lupa-vidrio: rgba(61, 255, 138, .06); --rotulo: rgba(4, 16, 10, .92);
   --logo-tinta: var(--tinta); --logo-aro: var(--lima); --logo-nodo: #FFFFFF;
-  --t-display: clamp(1.875rem, 1.35rem + 1.6vw, 2.625rem);
-  --t-title: clamp(1.375rem, 1.18rem + .65vw, 1.75rem);
+  --halo: 0 0 14px rgba(61, 255, 138, .4);
+  --f-texto: Archivo, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-led: Doto, "JetBrains Mono", monospace;
+  --t-display: clamp(1.5rem, 1.1rem + 1.4vw, 2.125rem);
+  --t-title: clamp(1.375rem, 1.15rem + .7vw, 1.875rem);
   --t-heading: 1.0625rem;
   --t-body: 1rem;
   --t-small: .875rem;
   --t-caption: .8125rem;
-  --e: 4px;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --fondo: #EFF3F2; --superficie: #FFFFFF; --superficie-2: #F6F9F8; --linea: #D5DEDB; --borde: #BECAC7;
-    --puntos: rgba(17, 24, 23, .09);
-    --tinta: #111817; --tinta-suave: #374442; --tenue: #586764;
-    --acento: #2F6B10;
-    --c-tramite: #C9342A; --c-penal: #8A5600; --c-procesos: #3F6B0E;
-    --c-congreso: #6D4FD6; --c-politicos: #066F85; --c-obras: #A84B17; --c-alertas: #B23A7A;
-    --rt1: #E6B9B3; --rt2: #D88A80; --rt3: #C65A4E; --rt4: #A9372C; --rt5: #7E1F16;
-    --rp1: #DDC48E; --rp2: #CDA34E; --rp3: #B0841B; --rp4: #8C6408; --rp5: #5E4200;
-    --rc1: #A4B4AE; --rc2: #7C9B64; --rc3: #557F29; --rc4: #33610F; --rc5: #1A4204;
-    --mapa-sin: #CBD5D1;
-    --lupa-aro: #111817; --lupa-vidrio: rgba(212, 255, 63, .28); --rotulo: rgba(255, 255, 255, .96);
-    --banda: #163A1E; --banda-tinta: #E7F0EE; --banda-tenue: #B6CBB8; --banda-linea: #2A5032;
-    --logo-aro: #2F6B10; --logo-nodo: #111817;
-  }
+  --t-mono: .75rem;
+  /* Una vuelta del barrido del radar (portada.js lo lee para encender las regiones a su paso). */
+  --periodo: 6s;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 5rem; scrollbar-color: var(--borde) var(--fondo); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 5rem; scrollbar-color: var(--borde) var(--fondo); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--fondo); }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body {
-  margin: 0; color: var(--tinta); caret-color: var(--acento);
-  font: 400 var(--t-body)/1.6 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* La trama de puntos de Vigía. */
-  background: var(--fondo) radial-gradient(var(--puntos) 1px, transparent 1.3px) 0 0 / 22px 22px;
+  margin: 0; color: var(--tinta); caret-color: var(--fosforo);
+  font: 400 var(--t-body)/1.6 var(--f-texto);
+  /* La cuadrícula de un visor. */
+  background: linear-gradient(var(--reticula) 1px, transparent 1px) 0 0 / 48px 48px, linear-gradient(90deg, var(--reticula) 1px, transparent 1px) 0 0 / 48px 48px, var(--fondo);
 }
-::selection { background: var(--lima); color: var(--sobre-lima); }
+::selection { background: var(--fosforo); color: var(--sobre-lima); }
 a { color: inherit; text-underline-offset: .22em; text-decoration-thickness: 1px; }
-:focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--fosforo); outline-offset: 3px; }
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .saltar { position: absolute; left: 1rem; top: -4rem; z-index: 20; background: var(--lima); color: var(--sobre-lima); padding: .6rem 1rem; font-weight: 600; }
 .saltar:focus { top: 1rem; }
 .marco {
-  max-width: 74rem; margin-inline: auto;
+  max-width: 80rem; margin-inline: auto;
   padding-left: max(1.25rem, env(safe-area-inset-left, 0px)); padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
 }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
-h2 { font: 700 var(--t-title)/1.2 "Space Grotesk", Inter, sans-serif; letter-spacing: -0.015em; max-width: 30ch; }
-h3 { font: 600 var(--t-heading)/1.3 "Space Grotesk", Inter, sans-serif; }
+h2 { font: 700 var(--t-title)/1.15 var(--f-texto); font-stretch: 115%; letter-spacing: -0.01em; max-width: 30ch; }
+/* Cada sección abre con una marca de fósforo, como un canal encendido. */
+.seccion > h2::before { content: ""; display: block; width: 2.5rem; height: 3px; margin-bottom: 1rem; background: var(--fosforo); box-shadow: var(--halo); }
+h3 { font: 700 var(--t-heading)/1.3 var(--f-texto); font-stretch: 108%; }
 p { text-wrap: pretty; }
-.junto { white-space: nowrap; }
 .logo { display: block; width: auto; max-width: 100%; }
 .logo .gl-letras { fill: var(--logo-tinta); }
 .logo .gl-aro { stroke: var(--logo-aro); }
@@ -691,103 +693,122 @@ p { text-wrap: pretty; }
 @media (prefers-reduced-motion: no-preference) { .logo-portada .gl-cursor, .logo-cabecera .gl-cursor { animation: titila 1.1s steps(1) infinite; } }
 @keyframes titila { 50% { opacity: 0; } }
 .px { display: block; width: 1.5rem; height: 1.5rem; fill: currentColor; flex: none; }
-.enlace { color: var(--acento); font-weight: 600; text-decoration: underline; }
+.enlace { color: var(--fosforo); font-weight: 600; text-decoration: underline; }
 .enlace:hover { text-decoration-thickness: 2px; }
-
-/* Esquinas de píxel: el borde se corta en escalones de var(--e). El foco va por dentro (el recorte taparía el contorno). */
-.esq {
-  clip-path: polygon(0 calc(var(--e) * 2), var(--e) calc(var(--e) * 2), var(--e) var(--e), calc(var(--e) * 2) var(--e), calc(var(--e) * 2) 0,
-    calc(100% - var(--e) * 2) 0, calc(100% - var(--e) * 2) var(--e), calc(100% - var(--e)) var(--e), calc(100% - var(--e)) calc(var(--e) * 2), 100% calc(var(--e) * 2),
-    100% calc(100% - var(--e) * 2), calc(100% - var(--e)) calc(100% - var(--e) * 2), calc(100% - var(--e)) calc(100% - var(--e)), calc(100% - var(--e) * 2) calc(100% - var(--e)), calc(100% - var(--e) * 2) 100%,
-    calc(var(--e) * 2) 100%, calc(var(--e) * 2) calc(100% - var(--e)), var(--e) calc(100% - var(--e)), var(--e) calc(100% - var(--e) * 2), 0 calc(100% - var(--e) * 2));
-}
-.esq:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--acento); }
-/* Un píxel de color: la marca de cada institución o producto. */
-.pxl { display: inline-block; width: .625rem; height: .625rem; background: var(--c, var(--lima)); flex: none; }
-.m-tramite { --c: var(--c-tramite); --r1: var(--rt1); --r2: var(--rt2); --r3: var(--rt3); --r4: var(--rt4); --r5: var(--rt5); }
-.m-penal { --c: var(--c-penal); --r1: var(--rp1); --r2: var(--rp2); --r3: var(--rp3); --r4: var(--rp4); --r5: var(--rp5); }
-.m-procesos { --c: var(--c-procesos); --r1: var(--rc1); --r2: var(--rc2); --r3: var(--rc3); --r4: var(--rc4); --r5: var(--rc5); }
-.estado { display: inline-flex; align-items: center; gap: .4rem; font: 400 .75rem/1 Silkscreen, "Space Grotesk", monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--c, var(--lima)); white-space: nowrap; }
-.estado::before { content: ""; width: .5rem; height: .5rem; background: currentColor; }
+/* La luz de una institución o de un estado. */
+.led { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c, var(--fosforo)); box-shadow: 0 0 8px var(--c, var(--fosforo)); flex: none; }
+.m-tramite { --c: var(--c-tramite); } .m-penal { --c: var(--c-penal); } .m-procesos { --c: var(--c-procesos); }
+.estado { display: inline-flex; align-items: center; gap: .45rem; margin: 0; font: 500 var(--t-mono)/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--c, var(--fosforo)); white-space: nowrap; }
+.estado::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.estado.apagado { color: var(--tenue); }
+.estado.apagado::before { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
 
 /* Botones */
 .boton {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .625rem 1.125rem;
-  font: 600 .9375rem/1.2 Inter, sans-serif; text-decoration: none; border: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.75rem; padding: .625rem 1.125rem;
+  font: 600 .9375rem/1.2 var(--f-texto); text-decoration: none; border: 0;
 }
-.boton.lima { background: var(--lima); color: var(--sobre-lima); }
-.boton.lima:hover { filter: brightness(.93); }
-.boton.borde { color: var(--tinta); background: var(--superficie-2); box-shadow: inset 0 0 0 1px var(--borde); }
-.boton.borde:hover { box-shadow: inset 0 0 0 1px var(--acento); }
+.boton.lima { background: var(--lima); color: var(--sobre-lima); box-shadow: 0 0 24px rgba(212, 255, 63, .22); }
+.boton.lima:hover { filter: brightness(1.07); box-shadow: 0 0 32px rgba(212, 255, 63, .38); }
+.boton.borde { color: var(--tinta); background: rgba(61, 255, 138, .04); box-shadow: inset 0 0 0 1px var(--borde); }
+.boton.borde:hover { color: var(--fosforo); box-shadow: inset 0 0 0 1px var(--fosforo); }
 .boton.chico { min-height: 2.375rem; padding: .5rem .875rem; font-size: .875rem; }
 .acciones { display: flex; flex-wrap: wrap; gap: .625rem; margin-top: 1.5rem; }
 
-/* Cabecera, con la línea de puntos de Vigía debajo */
-.cabecera { position: sticky; top: 0; z-index: 10; background: var(--fondo); background: color-mix(in srgb, var(--fondo) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.cabecera::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: radial-gradient(circle, var(--lima) 1.1px, transparent 1.4px) 0 50% / 9px 3px repeat-x; opacity: .7; }
+/* Cabecera, con la regla de un instrumento debajo */
+.cabecera { position: sticky; top: 0; z-index: 10; background: rgba(3, 11, 7, .84); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.cabecera::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(61, 255, 138, .5) 1px, transparent 1px) 0 100% / 8px 3px repeat-x, linear-gradient(90deg, rgba(61, 255, 138, .8) 1px, transparent 1px) 0 100% / 64px 7px repeat-x, linear-gradient(var(--linea), var(--linea)) 0 100% / 100% 1px no-repeat; }
 .cabecera-fila { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.75rem; }
 .marca { display: block; padding-block: .5rem; }
-.logo-cabecera { height: 2rem; }
+.logo-cabecera { height: 1.875rem; }
 .cabecera ul { display: flex; align-items: center; gap: .25rem 1.5rem; list-style: none; margin: 0; padding: 0; }
 .cabecera .ancla a { font-weight: 500; font-size: var(--t-small); color: var(--tinta-suave); text-decoration: none; }
-.cabecera .ancla a:hover { color: var(--tinta); text-decoration: underline; }
+.cabecera .ancla a:hover { color: var(--fosforo); text-decoration: underline; }
 
-/* Portada */
-.portada-grilla {
-  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr;
-  grid-template-areas: "texto mapa" "ficha mapa"; gap: 1.75rem 3rem; align-items: start;
-  padding-block: clamp(1.5rem, 3.5vw, 2.5rem) 1.5rem;
+/* Paneles: el bisel de un instrumento, con escuadras de fósforo en las esquinas */
+.panel { position: relative; min-width: 0; background: linear-gradient(180deg, var(--panel), var(--fondo-2)); border: 1px solid var(--linea); }
+.panel::before {
+  content: ""; position: absolute; inset: -1px; pointer-events: none;
+  background:
+    linear-gradient(var(--fosforo-2), var(--fosforo-2)) 0 0 / 14px 1px, linear-gradient(var(--fosforo-2), var(--fosforo-2)) 0 0 / 1px 14px,
+    linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 0 / 14px 1px, linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 0 / 1px 14px,
+    linear-gradient(var(--fosforo-2), var(--fosforo-2)) 0 100% / 14px 1px, linear-gradient(var(--fosforo-2), var(--fosforo-2)) 0 100% / 1px 14px,
+    linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 100% / 14px 1px, linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 100% / 1px 14px;
+  background-repeat: no-repeat;
 }
+
+/* Portada: el texto, el radar y la lectura de la región */
+.portada { position: relative; background: radial-gradient(55% 60% at 64% 36%, rgba(61, 255, 138, .085), transparent 72%); border-bottom: 1px solid var(--linea); }
+.portada-grilla { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "texto" "mapa" "ficha" "consola"; gap: 1.75rem; padding-block: 1.75rem 2.25rem; }
 .portada-texto { grid-area: texto; }
 .portada-mapa { grid-area: mapa; }
 .ficha { grid-area: ficha; }
+.consola { grid-area: consola; }
 .portada h1 { margin: 0; line-height: 0; }
-.logo-portada { height: clamp(3.25rem, 2.2rem + 3.2vw, 5.25rem); }
-.eslogan { margin: 1.125rem 0 0; font: 800 clamp(1.375rem, 1.05rem + 1.1vw, 2rem)/1.2 Doto, "Space Grotesk", monospace; text-wrap: balance; }
-.eslogan em { font-style: normal; color: var(--acento); }
-.entrada { margin: .875rem 0 0; max-width: 46ch; color: var(--tinta-suave); }
+.logo-portada { height: clamp(3rem, 2rem + 3vw, 4.75rem); }
+.eslogan { margin: 1rem 0 0; font: 800 var(--t-display)/1.18 var(--f-led); color: var(--menta); text-shadow: var(--halo); text-wrap: balance; }
+.entrada { margin: .875rem 0 0; max-width: 44ch; color: var(--tinta-suave); }
 
-.metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; margin: 0; padding: 0; border: 0; }
-.metrica { --e: 4px; position: relative; display: grid; gap: .125rem; padding: .625rem .75rem .6875rem; cursor: pointer; background: color-mix(in srgb, var(--c) 8%, var(--superficie)); }
-.metrica:hover { background: color-mix(in srgb, var(--c) 13%, var(--superficie)); }
-.metrica:has(input:checked) { background: color-mix(in srgb, var(--c) 20%, var(--superficie)); box-shadow: inset 0 0 0 2px var(--c); }
-.metrica:has(input:focus-visible) { box-shadow: inset 0 0 0 3px var(--acento); }
+/* La consola */
+.consola { align-self: start; border: 1px solid var(--borde); background: rgba(5, 18, 9, .88); font: 400 .8125rem/1.65 var(--f-mono); }
+.consola-barra { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: 0; padding: .45rem .75rem; border-bottom: 1px solid var(--linea); color: var(--tenue); font-size: .6875rem; letter-spacing: .03em; }
+.consola-barra .estado { font-size: .625rem; }
+.consola-lineas { list-style: none; margin: 0; padding: .625rem .875rem .75rem; height: calc(10 * 1.65em + 1.375rem); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(transparent, #000 3.5em); mask-image: linear-gradient(transparent, #000 3.5em); }
+.consola li { flex: none; min-height: 1.65em; overflow-wrap: anywhere; }
+.consola .cmd { color: var(--tinta); }
+.consola .cmd::before { content: "gobserva ›"; margin-right: .6em; color: var(--fosforo); }
+.consola .res { padding-left: 1.4em; color: var(--fosforo-2); }
+.consola .res.alerta { color: var(--alerta); }
+.consola .escribiendo::after { content: "_"; margin-left: .1em; color: var(--fosforo); font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) { .consola .escribiendo::after { animation: titila 1s steps(1) infinite; } }
+
+/* Los canales del radar: qué muestra, con la cifra del país */
+.portada-mapa { position: relative; display: grid; gap: .75rem; min-width: 0; }
+.metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; margin: 0; padding: 0; border: 0; min-width: 0; }
+.metrica { position: relative; display: grid; align-content: start; gap: .1rem; padding: .5rem .65rem .55rem; cursor: pointer; background: var(--panel); border: 1px solid var(--linea); }
+.metrica:hover { border-color: var(--borde); }
+.metrica:has(input:checked) { border-color: var(--fosforo); background: linear-gradient(180deg, rgba(61, 255, 138, .11), rgba(61, 255, 138, .02)); box-shadow: 0 0 20px rgba(61, 255, 138, .12); }
+.metrica:has(input:focus-visible) { outline: 2px solid var(--fosforo); outline-offset: 2px; }
 .metrica input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.metrica-nombre { display: flex; align-items: center; gap: .4rem; font-weight: 600; font-size: var(--t-small); }
-.metrica-cifra { font: 800 1.625rem/1.15 Doto, monospace; color: var(--c); font-variant-numeric: tabular-nums; }
-.metrica-pie { font-size: .75rem; line-height: 1.35; color: var(--tenue); }
+.metrica-nombre { display: flex; align-items: center; gap: .45rem; font-weight: 600; font-size: var(--t-small); }
+.metrica-cifra { font: 800 1.375rem/1.15 var(--f-led); color: var(--fosforo); text-shadow: var(--halo); font-variant-numeric: tabular-nums; }
+.metrica-pie { font-size: .6875rem; line-height: 1.3; color: var(--tenue); }
 
-.ficha { --e: 5px; padding: .875rem 1.125rem .25rem; background: var(--superficie); max-width: 31rem; }
-.ficha-cabeza { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .375rem 1rem; padding-bottom: .625rem; font-size: var(--t-small); }
-.ficha select {
-  font: 700 1.25rem/1.25 "Space Grotesk", Inter, sans-serif; color: var(--tinta); background-color: transparent;
-  border: 0; border-bottom: 2px dotted var(--borde); border-radius: 0; padding: 0 1.5rem .05rem 0; max-width: 100%;
-  -webkit-appearance: none; appearance: none; cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges' fill='%238FA3A0'%3E%3Cpath d='M2 4h8v2H8v2H6v2H6V8H4V6H2z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right center; background-size: .75rem;
+/* El visor del radar */
+.visor { position: relative; border: 1px solid var(--linea); background: radial-gradient(closest-side, rgba(61, 255, 138, .07), transparent), var(--fondo-2); }
+.visor::before {
+  content: ""; position: absolute; inset: -1px; z-index: 3; pointer-events: none;
+  background:
+    linear-gradient(var(--fosforo), var(--fosforo)) 0 0 / 18px 2px, linear-gradient(var(--fosforo), var(--fosforo)) 0 0 / 2px 18px,
+    linear-gradient(var(--fosforo), var(--fosforo)) 100% 0 / 18px 2px, linear-gradient(var(--fosforo), var(--fosforo)) 100% 0 / 2px 18px,
+    linear-gradient(var(--fosforo), var(--fosforo)) 0 100% / 18px 2px, linear-gradient(var(--fosforo), var(--fosforo)) 0 100% / 2px 18px,
+    linear-gradient(var(--fosforo), var(--fosforo)) 100% 100% / 18px 2px, linear-gradient(var(--fosforo), var(--fosforo)) 100% 100% / 2px 18px;
+  background-repeat: no-repeat;
 }
-.ficha select:hover { border-bottom-color: var(--acento); }
-.ficha select option { background: var(--superficie); color: var(--tinta); font: 500 1rem Inter, sans-serif; }
-.ficha-grupo { padding-block: .5rem; border-top: 1px dotted var(--borde); }
-.ficha-fuente { display: flex; flex-wrap: wrap; gap: .1rem .5rem; align-items: center; margin: 0 0 .25rem; font-weight: 600; font-size: var(--t-caption); }
-.ficha-fuente span { font-weight: 400; color: var(--tenue); }
-.ficha-fila { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr); gap: .75rem; align-items: baseline; margin: .0625rem 0; font-size: var(--t-small); line-height: 1.4; }
-.ficha-fila b { font: 800 1.125rem/1.35 Doto, monospace; color: var(--c); text-align: right; font-variant-numeric: tabular-nums; }
-.ficha-fila span { color: var(--tinta-suave); }
-.ficha-fila i { font-style: normal; color: var(--tinta); font-weight: 600; white-space: nowrap; }
-.ficha-nota, .ficha-vacia { margin: 0; padding-block: .5rem .625rem; border-top: 1px dotted var(--borde); color: var(--tenue); font-size: .75rem; line-height: 1.45; }
-
-.portada-mapa { position: relative; display: grid; justify-items: center; gap: .75rem; min-width: 0; }
-.mapa { position: relative; width: 100%; height: clamp(24rem, calc(100svh - 14rem), 44rem); touch-action: manipulation; }
+/* Las líneas de barrido de un tubo de fósforo, sobre el mapa y bajo los rótulos. */
+.visor::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .2) 0 1px, transparent 1px 3px); }
+.mapa { position: relative; width: 100%; height: clamp(24rem, calc(100svh - 17.5rem), 40rem); touch-action: manipulation; }
 .mapa canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .con-mapa .mapa:not(.tactil) { cursor: none; }
-.mapa:focus-visible { outline-offset: 4px; }
+.mapa:focus-visible { outline-offset: -3px; }
 .sin-js { position: absolute; inset: auto 1rem 40% 1rem; margin: 0; text-align: center; color: var(--tenue); }
-.lupa-rotulos { position: absolute; left: 0; top: 0; display: grid; justify-items: start; gap: .25rem; max-width: 15.5rem; pointer-events: none; transition: opacity .15s; }
-.lupa-rotulos p { --e: 3px; margin: 0; background: var(--rotulo); box-shadow: inset 0 0 0 1px var(--linea); }
-.lupa-region { padding: .25rem .5rem; font: 700 .9375rem/1.3 "Space Grotesk", Inter, sans-serif; }
+/* El radar se suma a la luz del mapa: el barrido aclara los puntos que pasa, como el fósforo. */
+.radar { position: absolute; inset: 0; overflow: hidden; pointer-events: none; mix-blend-mode: screen; }
+.radar-reticula { position: absolute; inset: 0; width: 100%; height: 100%; }
+.radar-reticula circle, .radar-reticula path { fill: none; stroke: var(--fosforo); stroke-opacity: .16; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.radar-reticula .rumbo { stroke-opacity: .34; stroke-width: 2.6; vector-effect: none; }
+.radar-reticula .rumbo.mayor { stroke-opacity: .6; stroke-width: 5.5; }
+.radar-reticula text { fill: var(--fosforo); fill-opacity: .75; font: 700 6px var(--f-mono); text-anchor: middle; dominant-baseline: middle; }
+.radar-barrido { position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0deg 285deg, rgba(61, 255, 138, .035) 285deg, rgba(61, 255, 138, .2) 356deg, rgba(168, 255, 208, .75) 359.5deg, transparent 360deg); }
+.blip { position: absolute; left: 0; top: 0; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--alerta); box-shadow: 0 0 10px 2px rgba(255, 90, 77, .7); translate: var(--x) var(--y); }
+.blip::after { content: ""; position: absolute; inset: -7px; border: 1px solid var(--alerta); border-radius: 50%; opacity: 0; }
+.lupa-rotulos { position: absolute; left: 0; top: 0; z-index: 3; display: grid; justify-items: start; gap: .25rem; max-width: 15rem; pointer-events: none; transition: opacity .15s; }
+.lupa-rotulos p { margin: 0; background: var(--rotulo); border: 1px solid var(--borde); }
+.lupa-region { padding: .25rem .5rem; font: 700 .8125rem/1.3 var(--f-mono); color: var(--fosforo); text-transform: uppercase; letter-spacing: .05em; }
 .lupa-dato { padding: .3rem .5rem; color: var(--tinta-suave); font-size: .75rem; line-height: 1.3; }
-.lupa-dato b { display: block; color: var(--c); font: 800 1.0625rem/1.25 Doto, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lupa-dato b { display: block; color: var(--tinta); font: 800 1.0625rem/1.25 var(--f-led); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sobre-mar .lupa-rotulos, .lupa-rotulos:not(:has(.lupa-region:not(:empty))) { opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .lupa-rotulos.entra > * { animation: aparece .24s steps(4, end) backwards; }
@@ -795,237 +816,309 @@ p { text-wrap: pretty; }
   .lupa-rotulos.entra > :nth-child(3) { animation-delay: .1s; }
 }
 @keyframes aparece { from { opacity: 0; transform: translateX(-6px); } }
-.mapa-pie { display: grid; justify-items: center; gap: .375rem; text-align: center; }
+.visor-coords { position: absolute; right: .75rem; bottom: .625rem; z-index: 3; display: grid; justify-items: end; gap: .2rem; margin: 0; font: 500 .6875rem/1.2 var(--f-mono); color: var(--fosforo); letter-spacing: .04em; font-variant-numeric: tabular-nums; pointer-events: none; }
+.visor-coords span:first-child { color: var(--tenue); }
+.pausa { position: absolute; right: .5rem; top: .5rem; z-index: 4; display: none; align-items: center; gap: .45rem; min-height: 2rem; padding: .3rem .6rem; font: 500 .6875rem/1 var(--f-mono); color: var(--tinta-suave); background: rgba(4, 16, 10, .88); border: 1px solid var(--borde); cursor: pointer; }
+.anima .pausa { display: inline-flex; }
+.pausa:hover, .pausa[aria-pressed="true"] { color: var(--fosforo); border-color: var(--fosforo); }
+.pausa i { width: .5rem; height: .625rem; border-inline: 2px solid currentColor; }
+.pausa[aria-pressed="true"] i { width: 0; height: 0; border-inline: .5rem solid currentColor; border-inline-end: 0; border-block: .3125rem solid transparent; }
+.mapa-pie { display: grid; justify-items: center; gap: .375rem; padding: .75rem; text-align: center; }
 .leyenda { display: grid; justify-items: center; gap: .3rem; max-width: 30rem; }
-.leyenda p { margin: 0; color: var(--tenue); font-size: .75rem; line-height: 1.4; text-wrap: balance; }
-.leyenda-escala { display: flex; align-items: center; gap: .5rem; font: 800 .875rem Doto, monospace; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.leyenda p { margin: 0; color: var(--tenue); font-size: .6875rem; line-height: 1.4; text-wrap: balance; }
+.leyenda-escala { display: flex; align-items: center; gap: .5rem; font: 800 .875rem var(--f-led); color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
 .leyenda-tonos { display: flex; gap: 2px; }
 .leyenda-tonos i { width: .75rem; height: .75rem; background: var(--r1); }
 .leyenda-tonos i:nth-child(2) { background: var(--r2); }
 .leyenda-tonos i:nth-child(3) { background: var(--r3); }
 .leyenda-tonos i:nth-child(4) { background: var(--r4); }
 .leyenda-tonos i:nth-child(5) { background: var(--r5); }
-.pista { margin: 0; color: var(--tenue); font-size: .75rem; }
+.leyenda .leyenda-blips { display: inline-flex; align-items: center; gap: .45rem; }
+.leyenda-blips i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--alerta); box-shadow: 0 0 8px var(--alerta); }
+.pista { margin: 0; padding: .5rem .75rem 0; color: var(--tenue); font: 400 .6875rem/1.4 var(--f-mono); text-align: center; }
 .pista-toque { display: none; }
 @media (hover: none), (pointer: coarse) { .pista-mouse { display: none; } .pista-toque { display: inline; } }
 
-.tabla-regiones { padding-bottom: .5rem; }
-.tabla-regiones summary { cursor: pointer; width: fit-content; color: var(--acento); font-weight: 600; font-size: var(--t-small); text-decoration: underline; text-underline-offset: .22em; }
-.tabla-caja { overflow-x: auto; margin-top: .875rem; background: var(--superficie); box-shadow: inset 0 0 0 1px var(--linea); }
-.tabla-caja table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
-.tabla-caja caption { caption-side: bottom; text-align: left; padding: .625rem 1rem; color: var(--tenue); font-size: .75rem; }
-.tabla-caja th, .tabla-caja td { padding: .4rem 1rem; border-bottom: 1px dotted var(--linea); text-align: right; white-space: nowrap; }
-.tabla-caja thead th { font-weight: 600; font-size: .75rem; color: var(--tinta-suave); white-space: normal; vertical-align: bottom; }
-.tabla-caja th[scope="row"], .tabla-caja thead th:first-child { text-align: left; }
-.tabla-caja td { font: 800 .9375rem Doto, monospace; font-variant-numeric: tabular-nums; }
-.t-tramite { color: var(--c-tramite); } .t-penal { color: var(--c-penal); } .t-procesos { color: var(--c-procesos); }
+/* La lectura de la región */
+.ficha { padding: .875rem 1.125rem .25rem; container-type: inline-size; align-self: start; }
+.ficha-cabeza { display: grid; justify-items: start; gap: .3rem; padding-bottom: .75rem; font-size: var(--t-small); }
+.ficha select {
+  font: 700 1.25rem/1.25 var(--f-texto); font-stretch: 112%; color: var(--tinta); background-color: transparent;
+  border: 0; border-bottom: 2px dashed var(--borde); border-radius: 0; padding: 0 1.5rem .05rem 0; max-width: 100%;
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges' fill='%233DFF8A'%3E%3Cpath d='M2 4h8v2H8v2H6v2H6V8H4V6H2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right center; background-size: .75rem;
+}
+.ficha select:hover { border-bottom-color: var(--fosforo); }
+.ficha select option { background: var(--panel); color: var(--tinta); font: 500 1rem var(--f-texto); }
+.ficha-grupos { display: grid; }
+@container (min-width: 40rem) { .ficha-grupos { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 1.5rem; } }
+.ficha-grupo { padding-block: .55rem; border-top: 1px dashed var(--linea); }
+.ficha-fuente { display: flex; flex-wrap: wrap; gap: .1rem .5rem; align-items: center; margin: 0 0 .3rem; font: 600 .6875rem/1.4 var(--f-mono); letter-spacing: .02em; }
+.ficha-fuente span { font-weight: 400; color: var(--tenue); }
+.ficha-fila { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr); gap: .75rem; align-items: baseline; margin: .0625rem 0; font-size: var(--t-small); line-height: 1.4; }
+.ficha-fila b { font: 800 1.125rem/1.35 var(--f-led); color: var(--fosforo); text-align: right; font-variant-numeric: tabular-nums; }
+.ficha-fila span { color: var(--tinta-suave); }
+.ficha-fila i { font-style: normal; color: var(--tinta); font-weight: 600; white-space: nowrap; }
+.ficha-nota, .ficha-vacia { margin: 0; padding-block: .5rem .625rem; border-top: 1px dashed var(--linea); color: var(--tenue); font-size: .75rem; line-height: 1.45; }
 
-/* Una franja de píxeles de todos los colores: separa la portada de lo demás y abre el pie. */
-.franja { height: 6px; background: linear-gradient(90deg, var(--c-procesos) 0 6px, transparent 6px 12px, var(--c-penal) 12px 18px, transparent 18px 24px, var(--c-tramite) 24px 30px, transparent 30px 36px, var(--c-congreso) 36px 42px, transparent 42px 48px, var(--c-politicos) 48px 54px, transparent 54px 60px, var(--c-obras) 60px 66px, transparent 66px 72px, var(--c-alertas) 72px 78px, transparent 78px 84px) 0 0 / 84px 6px repeat-x; opacity: .85; }
+/* La cinta de cifras */
+.cinta { display: flex; overflow: hidden; border-bottom: 1px solid var(--linea); background: var(--fondo-2); font: 500 .8125rem/1.2 var(--f-mono); color: var(--tinta-suave); }
+.cinta-fila { display: flex; flex: none; gap: 2.75rem; margin: 0; padding: .8rem 1.375rem; list-style: none; white-space: nowrap; }
+.cinta-fila li { display: flex; align-items: baseline; gap: .5rem; }
+.cinta-fila li::before { content: ""; align-self: center; width: .375rem; height: .375rem; background: var(--fosforo); box-shadow: 0 0 6px var(--fosforo); }
+.cinta b { font: 800 1rem/1 var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
+.cinta span { color: var(--tenue); }
+html:not(.anima) .cinta-fila { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; white-space: normal; gap: .5rem 2rem; }
+html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
 
 /* Secciones */
-.seccion { padding-block: clamp(3rem, 7vw, 5rem) 0; }
-.intro { margin: .75rem 0 0; color: var(--tinta-suave); max-width: 60ch; }
+.seccion { padding-block: clamp(3.5rem, 7vw, 5.5rem) 0; }
+.intro { margin: .75rem 0 0; color: var(--tinta-suave); max-width: 62ch; }
 
-.vigia { --e: 6px; --c: var(--acento); display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem 2.5rem; align-items: start; padding: clamp(1.25rem, 3vw, 2rem); background: color-mix(in srgb, var(--lima) 7%, var(--superficie)); }
-.vigia .ojo { width: 7.5rem; display: block; }
-.ojo-parpado { fill: var(--acento); }
-.ojo-pupila { fill: var(--tinta); }
-.vigia-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .5rem; }
-.vigia-dominio { color: var(--tenue); font-size: var(--t-caption); }
-.vigia .intro { font-size: .9375rem; }
-.funciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-.funciones a { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .75rem; align-items: baseline; padding: .5625rem 0; border-bottom: 1px dotted var(--borde); text-decoration: none; font-size: .9375rem; }
-.funciones a:first-child { padding-top: 0; }
-.funciones .pxl { width: .5rem; height: .5rem; transform: translateY(-.1rem); }
-.funciones strong { font-weight: 600; }
-.funciones span.d { color: var(--tenue); }
-.funciones a:hover strong { text-decoration: underline; color: var(--acento); }
+/* Lo que el radar detecta: los cuatro paneles */
+.tablero { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1rem; margin-top: 2rem; }
+.tablero > .panel { display: flex; flex-direction: column; padding: 1.25rem 1.375rem 1.125rem; }
+.p-perdida { grid-column: span 7; }
+.p-anios { grid-column: span 5; }
+.p-aguja, .p-donde { grid-column: 1 / -1; }
+.tablero:not(:has(.p-anios)) > .panel { grid-column: 1 / -1; }
+.panel-cabeza { display: flex; align-items: center; gap: .75rem; padding-bottom: .875rem; margin-bottom: 1.125rem; border-bottom: 1px dashed var(--linea); }
+.panel-num { font: 600 .6875rem/1 var(--f-mono); color: var(--sobre-lima); background: var(--fosforo); padding: .3rem .4rem; box-shadow: var(--halo); }
+.panel-cabeza h3 { font-size: 1.125rem; }
+.panel-pie { margin: auto 0 0; padding-top: 1rem; color: var(--tenue); font-size: var(--t-caption); }
 
-.proximos { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
-.proximo { --e: 5px; display: flex; flex-direction: column; gap: .625rem; padding: 1.125rem 1.125rem 1rem; background: color-mix(in srgb, var(--c) 9%, var(--superficie)); }
-.proximo .px { width: 2.25rem; height: 2.25rem; color: var(--c); }
-.proximo h3 { font-size: 1.0625rem; }
-.proximo p { margin: 0; color: var(--tinta-suave); font-size: .875rem; line-height: 1.5; }
-.proximo .ya { margin-top: auto; padding-top: .5rem; border-top: 1px dotted color-mix(in srgb, var(--c) 45%, transparent); color: var(--tenue); font-size: .75rem; }
-.p-congreso { --c: var(--c-congreso); } .p-politicos { --c: var(--c-politicos); } .p-obras { --c: var(--c-obras); } .p-alertas { --c: var(--c-alertas); }
-
-.principios { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.75rem 2.5rem; }
-.principios li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .875rem; align-items: start; }
-.principios .px { color: var(--acento); width: 1.5rem; height: 1.5rem; margin-top: .05rem; }
-.principios h3 { margin-bottom: .25rem; }
-.principios p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
-.principios .enlace { display: inline-block; margin-top: .375rem; font-size: var(--t-small); }
-
-.fuentes { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 3rem; }
-.fuentes li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .25rem 1rem; padding-block: .75rem; border-top: 1px dotted var(--borde); font-size: .9375rem; }
-.sigla { display: flex; align-items: center; gap: .5rem; font: 700 1rem/1.5 "Space Grotesk", Inter, sans-serif; }
-.sigla .pxl { background: var(--borde); }
-.fuentes .que { margin: 0; }
-.fuentes .nombre { margin: .125rem 0 0; color: var(--tenue); font-size: .8125rem; line-height: 1.45; }
-.ver-mas { margin: 1.25rem 0 0; font-size: var(--t-small); }
-
-/* Llamado y pie (la misma banda) */
-.llamado, .pie { background: var(--banda); color: var(--banda-tinta); --acento: var(--lima); --logo-tinta: var(--banda-tinta); --logo-aro: var(--lima); --logo-nodo: #FFFFFF; }
-.llamado { margin-top: clamp(3rem, 7vw, 5rem); }
-.llamado .marco { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem 2.5rem; padding-block: clamp(2rem, 5vw, 3rem); }
-.llamado .intro { color: var(--banda-tenue); margin-top: .5rem; }
-.pie .marco { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 2rem; padding-block: 2.25rem 2.5rem; border-top: 1px dotted var(--banda-linea); }
-.logo-pie { height: 2.25rem; }
-.pie .pie-eslogan { font: 800 1.0625rem/1.3 Doto, "Space Grotesk", monospace; margin: .875rem 0 0; color: var(--banda-tinta); }
-.pie p { margin: .375rem 0 0; color: var(--banda-tenue); font-size: var(--t-small); }
-.pie h2 { font: 400 .75rem/1.2 Silkscreen, monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--banda-tenue); margin: .25rem 0 .875rem; }
-.pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font-size: var(--t-small); }
-.pie a { text-decoration: none; }
-.pie a:hover { text-decoration: underline; }
-
-/* La presentación: capítulos con su número, en píxeles */
-.cap { display: inline-block; margin-right: .625rem; padding: .3rem .4rem .25rem; font: 400 .75rem/1 Silkscreen, monospace; color: var(--sobre-lima); background: var(--lima); vertical-align: .3em; }
-.cap.chico { margin-right: .4rem; padding: .2rem .3rem .15rem; font-size: .625rem; vertical-align: .2em; }
-.fuente-dato { margin: 0; color: var(--tenue); font-size: var(--t-caption); }
-
-.problema { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2rem 3.5rem; align-items: center; margin-top: 2rem; }
+.perdida { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.5rem 2.25rem; align-items: center; }
 .waffle-fig { margin: 0; }
-.waffle { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; width: clamp(13rem, 24vw, 18rem); }
-.waffle i { aspect-ratio: 1; background: var(--mapa-sin); }
-.waffle i.on { background: var(--c-tramite); }
-.waffle-fig figcaption { margin-top: .75rem; max-width: 18rem; color: var(--tenue); font-size: var(--t-caption); }
-.cifras-grandes { display: grid; gap: 1.5rem; }
+.waffle { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; width: clamp(10rem, 15vw, 13rem); }
+.waffle i { aspect-ratio: 1; background: var(--musgo); }
+.waffle i.on { background: var(--alerta); box-shadow: 0 0 8px rgba(255, 90, 77, .55); }
+.waffle-fig figcaption { margin-top: .625rem; max-width: 13rem; color: var(--tenue); font: 400 .6875rem/1.45 var(--f-mono); }
+.cifras-grandes { display: grid; gap: 1.25rem; }
 .cifra-grande { margin: 0; display: grid; gap: .25rem; }
-.cifra-grande b { font: 800 clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem)/1.1 Doto, monospace; color: var(--c-tramite); font-variant-numeric: tabular-nums; }
-.cifra-grande > span { color: var(--tinta-suave); max-width: 42ch; }
+.cifra-grande b { font: 800 clamp(1.625rem, 1.2rem + 1.3vw, 2.25rem)/1.1 var(--f-led); color: var(--alerta); text-shadow: 0 0 14px rgba(255, 90, 77, .4); font-variant-numeric: tabular-nums; }
+.cifra-grande > span { color: var(--tinta-suave); font-size: .9375rem; max-width: 42ch; }
 
-.escala { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 2.5rem 3.5rem; margin-top: 2rem; align-items: end; }
-.anios-fig, .mil-fig { margin: 0; min-width: 0; }
-.anios { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: .375rem; height: 15rem; }
-.anios li { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; min-width: 0; }
-.valor-v { font: 800 .6875rem/1.2 Doto, monospace; color: var(--tinta-suave); margin-bottom: .25rem; white-space: nowrap; }
-.barra-v { display: block; height: calc(var(--v) * 80%); background: repeating-linear-gradient(0deg, var(--c-procesos) 0 6px, transparent 6px 8px); transform-origin: bottom; }
-.anio { margin-top: .375rem; font: 400 .625rem/1 Silkscreen, monospace; color: var(--tenue); }
-.anios-fig figcaption, .ranking-fig figcaption { margin-top: .875rem; color: var(--tenue); font-size: var(--t-caption); }
-.mil { display: grid; grid-template-columns: repeat(50, 1fr); gap: 2px; }
-.mil i { aspect-ratio: 1; background: color-mix(in srgb, var(--tinta) 10%, transparent); }
-.mil i.leido { background: var(--c-procesos); }
-.mil i.alto { background: var(--c-tramite); }
-.mil-fig figcaption { display: grid; gap: .2rem; margin-top: .875rem; font-size: var(--t-small); color: var(--tinta-suave); }
-.mil-dato { display: flex; align-items: baseline; gap: .4rem; }
-.mil-dato b { font: 800 1.25rem/1.2 Doto, monospace; color: var(--tinta); font-variant-numeric: tabular-nums; }
-.mil-dato.m-procesos b, .mil-dato.m-tramite b { color: var(--c); }
-.mil-dato .pxl { transform: translateY(-.05rem); }
-.mil-nota { margin-top: .375rem; color: var(--tenue); font-size: var(--t-caption); }
+.tablero > .p-anios { display: grid; grid-template-rows: auto minmax(12rem, 1fr) auto; }
+.anios { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); grid-template-rows: 100%; gap: .3rem; min-height: 12rem; filter: drop-shadow(0 0 6px rgba(61, 255, 138, .28)); }
+.anios li { position: relative; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; min-width: 0; }
+.valor-v { font: 800 .75rem/1.2 var(--f-led); color: var(--tinta-suave); margin-bottom: .25rem; }
+.barra-v { display: block; height: calc(var(--v) * 80%); background: repeating-linear-gradient(0deg, var(--fosforo) 0 5px, transparent 5px 7px); transform-origin: bottom; }
+.anio { margin-top: .4rem; font: 500 .6875rem/1 var(--f-mono); color: var(--tenue); }
 
-.ranking-fig { margin: 1.75rem 0 0; }
-.ranking-leyenda { display: flex; gap: 1.25rem; margin: 0 0 .875rem; font-size: var(--t-caption); color: var(--tinta-suave); }
+.mil-fig { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem); gap: 1.25rem 2rem; align-items: center; }
+.mil { --cols: 100; display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 2px; }
+.mil i { aspect-ratio: 1; background: rgba(61, 255, 138, .1); }
+.mil i.leido { background: var(--fosforo); box-shadow: 0 0 6px var(--fosforo); }
+.mil i.alto { background: var(--alerta); box-shadow: 0 0 6px var(--alerta); }
+.mil-datos { display: grid; gap: .4rem; font-size: var(--t-small); color: var(--tinta-suave); }
+.mil-dato { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .5rem; }
+.mil-dato b { font: 800 1.375rem/1.15 var(--f-led); color: var(--tinta); font-variant-numeric: tabular-nums; }
+.mil-dato.m-procesos b { color: var(--fosforo); }
+.mil-dato.m-tramite b { color: var(--alerta); }
+.mil-dato .led { align-self: center; }
+
+.ranking-leyenda { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 0 0 .875rem; font-size: var(--t-caption); color: var(--tinta-suave); }
 .ranking-leyenda span { display: inline-flex; align-items: center; gap: .4rem; }
-.ranking-leyenda .pxl { background: var(--c-tramite); }
-.ranking-leyenda .pxl.tenue { background: color-mix(in srgb, var(--c-tramite) 45%, var(--fondo)); }
+.ranking-leyenda i { width: .625rem; height: .625rem; background: rgba(61, 255, 138, .55); }
+.ranking-leyenda i.firme { background: var(--alerta); }
 /* Una sola grilla para las diez filas (subgrid): la columna de las cifras toma el ancho de la más larga y todas las barras
    miden sobre la misma pista, así se comparan entre sí. */
 .ranking { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) max-content; gap: .5rem .875rem; }
 .ranking li { grid-column: 1 / -1; display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 15.5rem; grid-template-columns: subgrid; row-gap: .25rem; align-items: center; }
 .ranking-nombre { font-weight: 600; font-size: var(--t-small); text-decoration: none; }
-.ranking-nombre:hover { color: var(--acento); text-decoration: underline; }
+.ranking-nombre:hover { color: var(--fosforo); text-decoration: underline; }
 .pista-barra { display: block; height: 1.125rem; }
-.barra-h { position: relative; display: block; height: 100%; width: calc(var(--v) * 100%); transform-origin: left; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--c-tramite) 45%, var(--fondo)) 0 7px, transparent 7px 9px); }
-.barra-h .firme { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: repeating-linear-gradient(90deg, var(--c-tramite) 0 7px, transparent 7px 9px); }
+.barra-h { position: relative; display: block; height: 100%; width: calc(var(--v) * 100%); transform-origin: left; background: repeating-linear-gradient(90deg, rgba(61, 255, 138, .55) 0 6px, transparent 6px 8px); }
+.barra-h .firme { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: repeating-linear-gradient(90deg, var(--alerta) 0 6px, transparent 6px 8px); }
 .ranking-cifra { display: flex; align-items: baseline; gap: .5rem; font-size: var(--t-caption); color: var(--tenue); white-space: nowrap; }
-.ranking-cifra b { font: 800 1.0625rem/1.2 Doto, monospace; color: var(--c-tramite); font-variant-numeric: tabular-nums; }
+.ranking-cifra b { font: 800 1.0625rem/1.2 var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
 
-.flujo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(2rem, 4.5rem) auto minmax(2rem, 4.5rem) minmax(0, 1fr); gap: 1rem; align-items: center; margin-top: 2.25rem; }
-.flujo-paso h3 { margin-bottom: .75rem; font-size: 1.125rem; }
-.flujo-paso p { margin: .75rem 0 0; color: var(--tinta-suave); font-size: .9375rem; }
-.flujo-centro { display: grid; justify-items: center; text-align: center; max-width: 13rem; }
-.lupa-grande { width: 8.5rem; height: 8.5rem; display: block; margin-bottom: .5rem; }
+.tabla-regiones { margin-top: 1rem; }
+.tabla-regiones summary { cursor: pointer; width: fit-content; color: var(--fosforo); font: 600 var(--t-small) var(--f-mono); text-decoration: underline; text-underline-offset: .22em; }
+.tabla-caja { overflow-x: auto; margin-top: .875rem; background: var(--panel); border: 1px solid var(--linea); }
+.tabla-caja table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+.tabla-caja caption { caption-side: bottom; text-align: left; padding: .625rem 1rem; color: var(--tenue); font-size: .75rem; }
+.tabla-caja th, .tabla-caja td { padding: .4rem 1rem; border-bottom: 1px dashed var(--linea); text-align: right; white-space: nowrap; }
+.tabla-caja thead th { font: 600 .6875rem/1.35 var(--f-mono); color: var(--tinta-suave); white-space: normal; vertical-align: bottom; }
+.tabla-caja th[scope="row"], .tabla-caja thead th:first-child { text-align: left; }
+.tabla-caja td { font: 800 .9375rem var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
+
+/* Cómo funciona: la cadena de la señal, con paquetes que corren entre etapas */
+.cadena { list-style: none; margin: 2.25rem 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, .95fr); gap: 3rem; align-items: start; }
+.etapa { position: relative; display: grid; gap: .75rem; align-content: start; justify-items: start; }
+.etapa-num { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; font: 600 .75rem/1 var(--f-mono); color: var(--fosforo); border: 1px solid var(--fosforo); box-shadow: var(--halo); }
+.etapa h3 { font-size: 1.125rem; }
+.etapa p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
+.etapa:not(:last-child)::after { content: ""; position: absolute; top: .875rem; left: calc(100% + .5rem); width: 2rem; height: 4px; translate: 0 -50%; background: radial-gradient(circle, var(--fosforo) 1.5px, transparent 2px) 0 50% / 10px 4px repeat-x; }
+.lupa-grande { width: 6.5rem; height: 6.5rem; display: block; filter: drop-shadow(0 0 14px rgba(212, 255, 63, .3)); }
 .lupa-grande .gl-aro { fill: none; stroke: var(--logo-aro); }
 .lupa-grande .gl-arista { fill: none; stroke: var(--logo-nodo); }
 .lupa-grande .gl-nodo { fill: var(--logo-nodo); }
 .chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .375rem; }
-.chip { --e: 3px; padding: .3rem .55rem; font: 600 .8125rem/1.2 Inter, sans-serif; background: var(--superficie-2); box-shadow: inset 0 0 0 1px var(--borde); }
-.senales { list-style: none; margin: 0; padding: 0; display: grid; gap: .375rem; }
-.senal { --e: 3px; display: flex; align-items: center; gap: .5rem; padding: .45rem .625rem; font-size: .875rem; line-height: 1.35; background: color-mix(in srgb, var(--c-tramite) 12%, var(--superficie)); }
-.senal .px { width: 1rem; height: 1rem; color: var(--c-tramite); }
-.flujo-via { height: 4px; background: radial-gradient(circle, var(--c-procesos) 1.6px, transparent 2.1px) 0 50% / 12px 4px repeat-x; }
+.chip { padding: .3rem .5rem; font: 500 .75rem/1.2 var(--f-mono); color: var(--tinta); background: rgba(61, 255, 138, .05); border: 1px solid var(--linea); }
+.senales { list-style: none; margin: 0; padding: 0; display: grid; gap: .375rem; width: 100%; }
+.senal { display: flex; align-items: center; gap: .55rem; padding: .45rem .625rem; font-size: .875rem; line-height: 1.35; background: rgba(255, 90, 77, .08); border: 1px solid rgba(255, 90, 77, .3); }
+.senal .px { width: 1rem; height: 1rem; color: var(--alerta); }
 
-.publicos { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
-.publico { --e: 5px; display: grid; gap: .625rem; align-content: start; padding: 1.25rem 1.25rem 1.375rem; background: color-mix(in srgb, var(--c) 9%, var(--superficie)); }
-.publico .px { width: 2.25rem; height: 2.25rem; color: var(--c); }
-.publico .valor { margin: 0; color: var(--tinta); }
-.publico ul { list-style: none; margin: .25rem 0 0; padding: .625rem 0 0; display: grid; gap: .4rem; border-top: 1px dotted color-mix(in srgb, var(--c) 45%, transparent); font-size: .875rem; color: var(--tinta-suave); }
-.publico ul li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; align-items: baseline; }
-.publico ul .pxl { width: .4375rem; height: .4375rem; background: var(--c); transform: translateY(-.1rem); }
-.q-lima { --c: var(--acento); } .q-cian { --c: var(--c-politicos); } .q-violeta { --c: var(--c-congreso); }
+/* Los monitores: Vigía en línea y los que vienen, de borde punteado mientras se arman */
+.monitores { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem; margin-top: 2rem; align-items: stretch; }
+.monitor-vigia { display: grid; gap: 1rem; align-content: start; padding: clamp(1.25rem, 2.5vw, 1.75rem); background: radial-gradient(80% 60% at 0% 0%, rgba(212, 255, 63, .08), transparent 60%), linear-gradient(180deg, var(--panel), var(--fondo-2)); }
+.vigia-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; }
+.vigia-cabeza .ojo { width: 5.5rem; display: block; }
+.ojo-parpado { fill: var(--lima); }
+.ojo-pupila { fill: var(--tinta); }
+.vigia-cabeza h3 { font-size: 1.5rem; font-stretch: 115%; }
+.vigia-dominio { margin: .2rem 0 0; color: var(--tenue); font: 400 var(--t-mono) var(--f-mono); }
+.vigia-lema { margin: 0; font-size: 1.0625rem; color: var(--tinta); }
+.monitor-vigia > p:not(.vigia-lema) { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
+.monitor-vigia .acciones { margin-top: .25rem; }
+.funciones { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+.funciones a { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem; align-items: baseline; padding: .55rem 0; border-bottom: 1px dashed var(--linea); text-decoration: none; font-size: .9375rem; }
+.funciones .led { transform: translateY(-.1rem); }
+.funciones strong { font-weight: 600; }
+.funciones .d { display: block; color: var(--tenue); font-size: .8125rem; line-height: 1.4; }
+.funciones a:hover strong { color: var(--fosforo); text-decoration: underline; }
+.proximos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.proximo { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.125rem; border: 1px dashed var(--borde); background: rgba(61, 255, 138, .025); }
+.proximo .px { width: 2rem; height: 2rem; color: var(--fosforo-2); }
+.proximo h3 { font-size: 1rem; }
+.proximo p { margin: 0; color: var(--tinta-suave); font-size: .875rem; line-height: 1.5; }
+.proximo .ya { margin-top: auto; padding-top: .5rem; border-top: 1px dashed var(--linea); color: var(--tenue); font: 400 .75rem/1.45 var(--f-mono); }
 
-/* Las animaciones: sólo con JavaScript y sin movimiento reducido (la clase .anima la pone animaciones.js). Lo que todavía
-   no entró en pantalla espera en su estado inicial; al entrar (.visible) se arma en escalones, como píxeles. */
-.anima [data-anima]:not(.visible) .waffle i.on { background: var(--mapa-sin); }
-.anima .problema .waffle i.on { transition: background-color 0s linear calc(250ms + var(--i) * 110ms); }
-.anima .anios-fig:not(.visible) .barra-v { transform: scaleY(0); }
-.anima .anios-fig .barra-v { transition: transform .9s steps(9) calc(var(--i) * 80ms); }
-.anima .anios-fig:not(.visible) .valor-v { opacity: 0; }
-.anima .anios-fig .valor-v { transition: opacity .2s steps(2) calc(.8s + var(--i) * 80ms); }
-.anima .mil-fig:not(.visible) .mil { clip-path: inset(0 0 100% 0); }
-.anima .mil-fig .mil { transition: clip-path 1.2s steps(20); }
-.anima .mil-fig.visible .mil i.leido, .anima .mil-fig.visible .mil i.alto { animation: destella .5s steps(2) 1.4s 4; }
+/* Para quién: una ficha técnica de tres filas */
+.publicos { list-style: none; margin: 2rem 0 0; padding: 0; border-top: 1px solid var(--linea); }
+.publico { display: grid; grid-template-columns: 2.75rem minmax(0, 19rem) minmax(0, 1fr); gap: .75rem 2rem; align-items: start; padding-block: 1.25rem; border-bottom: 1px solid var(--linea); }
+.publico .px { width: 2.25rem; height: 2.25rem; color: var(--fosforo); }
+.publico h3 { font-size: 1.125rem; margin-bottom: .3rem; }
+.publico .valor { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
+.publico ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; font-size: .9375rem; }
+.publico ul li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .55rem; align-items: baseline; }
+.publico ul li::before { content: "›"; color: var(--fosforo); font: 700 1rem/1 var(--f-mono); }
+
+/* Principios: el protocolo, en una grilla de celdas */
+.principios { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--linea); border-left: 1px solid var(--linea); }
+.principios li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .875rem; align-items: start; padding: 1.25rem 1.25rem 1.375rem; border-right: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
+.principios .px { color: var(--fosforo); width: 1.5rem; height: 1.5rem; margin-top: .1rem; }
+.principios h3 { margin-bottom: .3rem; }
+.principios p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
+.principios .enlace { display: inline-block; margin-top: .4rem; font-size: var(--t-small); }
+
+.fuentes { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 3rem; }
+.fuentes li { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: .25rem 1rem; padding-block: .8rem; border-top: 1px dashed var(--linea); font-size: .9375rem; }
+.sigla { display: flex; align-items: center; gap: .55rem; font: 600 .875rem/1.5 var(--f-mono); color: var(--fosforo); }
+.fuentes .que { margin: 0; }
+.fuentes .nombre { margin: .125rem 0 0; color: var(--tenue); font-size: .8125rem; line-height: 1.45; }
+.ver-mas { margin: 1.25rem 0 0; font-size: var(--t-small); }
+
+/* Llamado y pie */
+.llamado { margin-top: clamp(3.5rem, 7vw, 5.5rem); border-block: 1px solid var(--linea); background: radial-gradient(45% 140% at 88% 50%, rgba(212, 255, 63, .09), transparent 70%), var(--fondo-2); }
+.llamado .marco { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem 2.5rem; padding-block: clamp(2.25rem, 5vw, 3.25rem); }
+.llamado .intro { margin-top: .5rem; }
+.pie .marco { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 2rem; padding-block: 2.25rem 2.5rem; }
+.logo-pie { height: 2.125rem; }
+.pie .pie-eslogan { font: 800 1.0625rem/1.3 var(--f-led); margin: .875rem 0 0; color: var(--menta); }
+.pie p { margin: .375rem 0 0; color: var(--tenue); font-size: var(--t-small); }
+.pie .pie-datos { font: 400 .6875rem/1.5 var(--f-mono); }
+.pie h2 { font: 500 var(--t-mono)/1.2 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); margin: .25rem 0 .875rem; max-width: none; }
+.pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font-size: var(--t-small); }
+.pie a { text-decoration: none; }
+.pie a:hover { color: var(--fosforo); text-decoration: underline; }
+
+/* Las animaciones: sólo con JavaScript y sin movimiento reducido (la clase .anima la pone animaciones.js). */
+/* El radar: gira mientras se ve; el visor se enciende al abrir la página. */
+.anima .radar-barrido { opacity: 1; animation: gira var(--periodo) linear infinite; }
+.anima .blip { opacity: .3; animation: blip var(--periodo) linear var(--retraso, 0s) infinite; }
+.anima .blip::after { animation: onda var(--periodo) cubic-bezier(.2, .7, .3, 1) var(--retraso, 0s) infinite; }
+.anima .mapa:not(.en-pantalla) .radar-barrido, .anima .mapa:not(.en-pantalla) .blip, .anima .mapa:not(.en-pantalla) .blip::after { animation-play-state: paused; }
+@keyframes gira { from { rotate: 0deg; } to { rotate: 360deg; } }
+@keyframes blip { 0%, 3% { opacity: 1; } 55% { opacity: .3; } 100% { opacity: .3; } }
+@keyframes onda { 0% { opacity: .9; scale: .3; } 30% { opacity: 0; scale: 2.4; } 100% { opacity: 0; scale: 2.4; } }
+.anima .visor { animation: enciende 1s steps(8) both; }
+@keyframes enciende { 0% { opacity: 0; } 30% { opacity: .5; filter: brightness(1.8); } 60% { opacity: .35; } 100% { opacity: 1; filter: none; } }
+/* La cinta corre sola y se detiene bajo el mouse. */
+.anima .cinta-fila { animation: desliza 75s linear infinite; }
+.anima .cinta:hover .cinta-fila { animation-play-state: paused; }
+@keyframes desliza { to { translate: -100% 0; } }
+/* Pausar detiene todo lo que se mueve (botón del radar). */
+.pausado *, .pausado *::before, .pausado *::after { animation-play-state: paused !important; }
+/* Cada panel se enciende con una línea que lo recorre de arriba abajo; lo de adentro se arma en escalones, como píxeles. */
+.anima .panel[data-anima]::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(180deg, transparent 0 45%, rgba(61, 255, 138, .1) 48%, rgba(168, 255, 208, .45) 50%, transparent 51%) 0 100% / 100% 220% no-repeat; }
+.anima .panel.visible::after { animation: escanea 1.1s ease-out 1; }
+@keyframes escanea { 0% { opacity: 1; background-position: 0 100%; } 90% { opacity: 1; } 100% { opacity: 0; background-position: 0 0; } }
+.anima [data-anima]:not(.visible) .waffle i.on { background: var(--musgo); box-shadow: none; }
+.anima .p-perdida .waffle i.on { transition: background-color 0s linear calc(250ms + var(--i) * 110ms), box-shadow 0s linear calc(250ms + var(--i) * 110ms); }
+.anima .p-anios:not(.visible) .barra-v { transform: scaleY(0); }
+.anima .p-anios .barra-v { transition: transform .9s steps(9) calc(var(--i) * 80ms); }
+.anima .p-anios:not(.visible) .valor-v { opacity: 0; }
+.anima .p-anios .valor-v { transition: opacity .2s steps(2) calc(.8s + var(--i) * 80ms); }
+.anima .p-aguja:not(.visible) .mil { clip-path: inset(0 0 100% 0); }
+.anima .p-aguja .mil { transition: clip-path 1.2s steps(20); }
+.anima .p-aguja.visible .mil i.leido, .anima .p-aguja.visible .mil i.alto { animation: destella .5s steps(2) 1.4s 4; }
 @keyframes destella { 50% { background: var(--tinta); } }
-.anima .ranking-fig:not(.visible) .barra-h { transform: scaleX(0); }
-.anima .ranking-fig .barra-h { transition: transform .8s steps(12) calc(var(--i) * 70ms); }
-.anima .flujo:not(.visible) .senal { opacity: 0; transform: translateX(8px); }
-.anima .flujo .senal { transition: opacity .3s steps(3) calc(.5s + var(--i) * 260ms), transform .3s steps(3) calc(.5s + var(--i) * 260ms); }
-.anima .flujo.andando .flujo-via { animation: fluye .9s linear infinite; }
-.anima .flujo.andando .lupa-grande .gl-nodo { animation: late 1.8s ease-in-out infinite; }
-@keyframes fluye { to { background-position: 12px 50%; } }
+.anima .p-donde:not(.visible) .barra-h { transform: scaleX(0); }
+.anima .p-donde .barra-h { transition: transform .8s steps(12) calc(var(--i) * 70ms); }
+.anima .cadena:not(.visible) .senal { opacity: 0; transform: translateX(8px); }
+.anima .cadena .senal { transition: opacity .3s steps(3) calc(.5s + var(--i) * 260ms), transform .3s steps(3) calc(.5s + var(--i) * 260ms); }
+.anima .cadena.andando .etapa::after { animation: fluye .8s linear infinite; }
+.anima .cadena.andando .lupa-grande .gl-nodo { animation: late 1.8s ease-in-out infinite; }
+@keyframes fluye { to { background-position: 10px 50%; } }
 @keyframes late { 50% { opacity: .3; } }
 .anima .publicos:not(.visible) > li, .anima .proximos:not(.visible) > li { opacity: 0; transform: translateY(10px); }
 .anima .publicos > li, .anima .proximos > li { transition: opacity .45s steps(5) calc(var(--i) * 120ms), transform .45s steps(5) calc(var(--i) * 120ms); }
-.anima .vigia:not(.visible) .ojo circle { transform: scale(0); }
-.anima .vigia .ojo circle { transform-box: fill-box; transform-origin: center; transition: transform .4s cubic-bezier(.22, 1, .36, 1) calc(var(--i) * 45ms); }
-
-@media (max-width: 63.99rem) {
-  .problema, .escala { grid-template-columns: minmax(0, 1fr); }
-  .flujo { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
-  .flujo-centro { justify-self: center; }
-  .flujo-via { justify-self: center; width: 4px; height: 2.5rem; background: radial-gradient(circle, var(--c-procesos) 1.6px, transparent 2.1px) 50% 0 / 4px 12px repeat-y; }
-  .anima .flujo.andando .flujo-via { animation-name: fluye-v; }
-  .publicos { grid-template-columns: minmax(0, 1fr); }
-  .ranking { grid-template-columns: 6.5rem minmax(0, 1fr); }
-  .ranking li { grid-template-columns: 6.5rem minmax(0, 1fr); grid-template-columns: subgrid; }
-  .ranking-cifra { grid-column: 2; }
-}
-@keyframes fluye-v { to { background-position: 50% 12px; } }
-@media (max-width: 39.99rem) {
-  .valor-v { display: none; }
-  .anios { height: 11rem; gap: .25rem; }
-}
-
+.anima .monitor-vigia:not(.visible) .ojo circle { transform: scale(0); }
+.anima .monitor-vigia .ojo circle { transform-box: fill-box; transform-origin: center; transition: transform .4s cubic-bezier(.22, 1, .36, 1) calc(var(--i) * 45ms); }
 @media (prefers-reduced-motion: no-preference) {
-  .boton, .funciones a, .metrica { transition: filter .15s, background-color .15s, box-shadow .15s, color .15s; }
+  .boton, .funciones a, .metrica, .pausa { transition: filter .15s, background-color .15s, box-shadow .15s, color .15s, border-color .15s; }
 }
+
+/* Escritorio: el radar al lado del texto y, desde 80rem, la lectura de la región en una tercera columna */
 @media (min-width: 64rem) {
-  .mapa-pie { position: absolute; left: 0; bottom: .25rem; justify-items: start; text-align: left; max-width: 14rem; pointer-events: none; }
+  .portada-grilla { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); grid-template-rows: auto 1fr auto; grid-template-areas: "texto mapa" "consola mapa" "ficha ficha"; gap: 1.5rem 2.5rem; }
+  .mapa-pie { position: absolute; left: .75rem; bottom: .625rem; z-index: 3; justify-items: start; padding: 0; text-align: left; max-width: 12.5rem; pointer-events: none; }
+  .pista { position: absolute; left: .75rem; top: .625rem; z-index: 3; max-width: 11rem; padding: 0; text-align: left; pointer-events: none; }
   .leyenda { justify-items: start; }
 }
-@media (max-width: 63.99rem) {
-  .portada-grilla { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "texto" "mapa" "ficha"; }
-  .ficha { max-width: none; }
-  .mapa { height: auto; aspect-ratio: 58 / 85; max-width: min(28rem, 100%); }
-  .vigia { grid-template-columns: minmax(0, 1fr); }
-  .proximos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .principios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 80rem) {
+  .portada-grilla { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(16rem, .74fr); grid-template-rows: auto 1fr; grid-template-areas: "texto mapa ficha" "consola mapa ficha"; }
 }
+@media (max-width: 63.99rem) {
+  .mapa { height: auto; aspect-ratio: 58 / 85; max-width: min(30rem, 100%); margin-inline: auto; }
+  .tablero > .panel { grid-column: 1 / -1; grid-row: auto; }
+  .mil { --cols: 50; }
+  .cadena { grid-template-columns: minmax(0, 1fr); gap: 2.75rem; }
+  .etapa:not(:last-child)::after { top: auto; bottom: -2.125rem; left: .875rem; width: 4px; height: 1.5rem; translate: -50% 0; background: radial-gradient(circle, var(--fosforo) 1.5px, transparent 2px) 50% 0 / 4px 10px repeat-y; }
+  .anima .cadena.andando .etapa::after { animation-name: fluye-v; }
+  .monitores { grid-template-columns: minmax(0, 1fr); }
+  .principios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ranking { grid-template-columns: 6.5rem minmax(0, 1fr); }
+  .ranking li { grid-template-columns: 6.5rem minmax(0, 1fr); grid-template-columns: subgrid; }
+  .ranking-cifra { grid-column: 2; flex-wrap: wrap; white-space: normal; row-gap: 0; }
+  /* En el teléfono, las coordenadas van bajo el mapa (abajo están la pista y la leyenda). */
+  .visor-coords { position: static; grid-auto-flow: column; justify-content: end; gap: .5rem; padding: .375rem .75rem 0; }
+}
+@keyframes fluye-v { to { background-position: 50% 10px; } }
 @media (max-width: 47.99rem) {
   .cabecera .ancla { display: none; }
   .logo-cabecera { height: 1.75rem; }
+  .perdida, .mil-fig { grid-template-columns: minmax(0, 1fr); }
   .fuentes { grid-template-columns: minmax(0, 1fr); }
+  .publico { grid-template-columns: 2.75rem minmax(0, 1fr); }
+  .publico ul { grid-column: 2; }
   .pie .marco { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pie .marco > :first-child { grid-column: 1 / -1; }
   .lupa-dato { display: none; }
 }
 @media (max-width: 39.99rem) {
-  .proximos, .principios { grid-template-columns: minmax(0, 1fr); }
+  .proximos, .principios, .funciones { grid-template-columns: minmax(0, 1fr); }
   .metrica { padding: .5rem .5625rem; }
   .metrica-cifra { font-size: 1.125rem; }
   .metrica-pie { display: none; }
   .fuentes li { grid-template-columns: minmax(0, 1fr); }
+  .valor-v { display: none; }
+  .anio { font-size: .5625rem; }
+  .tablero > .p-anios { grid-template-rows: auto 11rem auto; }
+  .anios { min-height: 11rem; gap: .2rem; }
 }
 `;
 
@@ -1044,7 +1137,7 @@ function portada(datos) {
 <meta name="description" content="${DESCRIPCION}">
 <link rel="canonical" href="${RAIZ}/">
 <meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="dark">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Gobserva">
 <meta property="og:locale" content="es_PE">
@@ -1054,19 +1147,18 @@ function portada(datos) {
 <meta property="og:image" content="${RAIZ}/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Gobserva: ${ESLOGAN} El mapa del Perú en puntos, con una lupa sobre Lima.">
+<meta property="og:image:alt" content="Gobserva: ${ESLOGAN} El mapa del Perú en puntos verdes, en la pantalla de un radar.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${TITULO}">
 <meta name="twitter:description" content="${DESCRIPCION}">
 <meta name="twitter:image" content="${RAIZ}/og.png">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B0F0F">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#EFF3F2">
+<meta name="theme-color" content="#030B07">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@800&family=Inter:wght@400;500;600&family=Silkscreen&family=Space+Grotesk:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=Doto:wght@800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <script type="application/ld+json">${JSON.stringify(ORGANIZACION)}</script>
 <style>${CSS}</style>
 </head>
@@ -1077,11 +1169,11 @@ function portada(datos) {
     <a class="marca" href="${RAIZ}/" aria-label="Gobserva, inicio">${logo("logo-cabecera")}</a>
     <nav aria-label="Principal">
       <ul>
-        <li class="ancla"><a href="#problema">El problema</a></li>
+        <li class="ancla"><a href="#datos">Datos</a></li>
         <li class="ancla"><a href="#como-funciona">Cómo funciona</a></li>
-        <li class="ancla"><a href="#para-quien">Para quién</a></li>
-        <li class="ancla"><a href="#proximamente">Próximamente</a></li>
-        <li><a class="boton lima chico esq" href="${VIGIA}/">Entrar a Vigía</a></li>
+        <li class="ancla"><a href="#monitores">Monitores</a></li>
+        <li class="ancla"><a href="#principios">Principios</a></li>
+        <li><a class="boton lima chico" href="${VIGIA}/">Entrar a Vigía</a></li>
       </ul>
     </nav>
   </div>
@@ -1091,51 +1183,97 @@ function portada(datos) {
     <div class="marco portada-grilla">
       <div class="portada-texto">
         <h1 id="titulo"><span class="sr">Gobserva</span>${logo("logo-portada")}</h1>
-        <p class="eslogan">Lo de todos, <span class="junto"><em>a la vista</em> de todos.</span></p>
-        <p class="entrada">Somos una GovTech peruana: cruzamos lo que el Estado publica y te lo mostramos con su fuente al lado. Pasa la lupa por el mapa: cada región muestra lo que la Procuraduría Anticorrupción, la Contraloría y la OECE ya registraron.</p>
+        <p class="eslogan">${ESLOGAN}</p>
+        <p class="entrada">Somos una GovTech peruana. Leemos lo que el Estado publica, lo cruzamos entre diez instituciones y te mostramos dónde mirar dos veces, con la fuente al lado.</p>
         <div class="acciones">
-          <a class="boton lima esq" href="${VIGIA}/">Entrar a Vigía</a>
-          <a class="boton borde esq" href="#proximamente">Lo que viene</a>
+          <a class="boton lima" href="${VIGIA}/">Entrar a Vigía</a>
+          <a class="boton borde" href="#como-funciona">Cómo funciona</a>
         </div>
       </div>
+      ${consola(datos)}
       ${mapa(datos)}
       ${ficha(datos, INICIAL)}
     </div>
-    ${tabla(datos)}
     <p id="anuncio" class="sr" aria-live="polite"></p>
   </section>
+  ${cinta(datos)}
 
-  <div class="franja" aria-hidden="true"></div>
+  <section class="marco seccion" id="datos" aria-labelledby="t-datos">
+    <h2 id="t-datos">Lo que el radar detecta</h2>
+    <p class="intro">Tres instituciones miden el mismo problema de tres maneras. Sus cifras no se suman: cada una cuenta distinto.</p>
+    <div class="tablero">
+      ${panelPerdida()}
+      ${panelAnios(datos)}
+      ${panelAguja(datos)}
+      ${panelDonde(datos)}
+    </div>
+    ${tabla(datos)}
+  </section>
 
-  ${capProblema()}
-  ${capEscala(datos)}
-  ${capDonde(datos)}
-  ${capComo()}
-  ${capParaQuien()}
+  <section class="marco seccion" id="como-funciona" aria-labelledby="t-como">
+    <h2 id="t-como">El Estado publica. Gobserva lee y cruza.</h2>
+    <p class="intro">Ningún portal del Estado lee sus propios contratos: los publica. Nosotros los leemos cada día, los cruzamos entre instituciones y te decimos cuáles mirar dos veces.</p>
+    <ol class="cadena" data-anima>
+      <li class="etapa">
+        <span class="etapa-num" aria-hidden="true">1</span>
+        <h3>Observa</h3>
+        <p>Leemos lo que publican diez instituciones: contratos, presupuesto, empresas, planillas, visitas y aportes.</p>
+        <ul class="chips" aria-label="Las diez instituciones">${FUENTES.map(([sigla]) => `<li class="chip">${sigla}</li>`).join("")}</ul>
+      </li>
+      <li class="etapa">
+        <span class="etapa-num" aria-hidden="true">2</span>
+        ${LUPA_GRANDE}
+        <h3>Conecta</h3>
+        <p>Cruzamos los registros por RUC, por entidad y por fecha.</p>
+      </li>
+      <li class="etapa">
+        <span class="etapa-num" aria-hidden="true">3</span>
+        <h3>Señala</h3>
+        <ul class="senales">${SENALES.map((t, k) => `<li class="senal" style="--i:${k}">${pixel("bandera")}<span>${t}</span></li>`).join("")}</ul>
+      </li>
+      <li class="etapa">
+        <span class="etapa-num" aria-hidden="true">4</span>
+        <h3>Tú decides</h3>
+        <p>Cada señal llega con su norma y el enlace al documento original. Es una razón para mirar de nuevo, no una prueba.</p>
+        <a class="enlace" href="${VIGIA}/glosario">Qué significa cada señal</a>
+      </li>
+    </ol>
+  </section>
 
-  <section class="marco seccion" id="vigia" aria-labelledby="t-vigia">
-    <div class="vigia esq" data-anima>
-      ${ojoVigia()}
-      <div>
-        <div class="vigia-cabeza"><span class="estado">En vivo</span><span class="vigia-dominio">vigia.gobserva.cloud</span></div>
-        <h2 id="t-vigia">Vigía revisa los contratos del Estado y te dice cuáles mirar dos veces</h2>
-        <p class="intro">Nuestro primer producto. Lee los contratos y las órdenes de compra, los cruza con más de veinte registros oficiales y marca con una bandera los que merecen otra mirada: proveedores sancionados, empresas recién creadas que ganan contratos grandes, aportes a campañas, visitas antes de una buena pro.</p>
+  <section class="marco seccion" id="monitores" aria-labelledby="t-monitores">
+    <h2 id="t-monitores">Elige por dónde entrar</h2>
+    <p class="intro">Vigía ya está en línea. Los demás monitores se arman sobre los mismos datos y las mismas reglas: datos oficiales, la fuente al lado y señales, no acusaciones.</p>
+    <div class="monitores">
+      <div class="monitor-vigia panel" data-anima>
+        <div class="vigia-cabeza">
+          ${ojoVigia()}
+          <div>
+            <h3>Vigía</h3>
+            <p class="vigia-dominio">vigia.gobserva.cloud</p>
+          </div>
+          <p class="estado">En línea</p>
+        </div>
+        <p class="vigia-lema">Revisa los contratos del Estado y te dice cuáles mirar dos veces.</p>
+        <p>Lee los contratos y las órdenes de compra, los cruza con más de veinte registros oficiales y marca con una bandera los que merecen otra mirada: proveedores sancionados, empresas recién creadas que ganan contratos grandes, aportes a campañas, visitas antes de una buena pro.</p>
+        <ul class="funciones" aria-label="Qué puedes ver en Vigía">
+          ${FUNCIONES.map(([titulo, d, ruta]) => `<li><a href="${VIGIA}${ruta}"><i class="led"></i><span><strong>${titulo}</strong><span class="d">${d}</span></span></a></li>`).join("\n          ")}
+        </ul>
         <div class="acciones">
-          <a class="boton lima esq" href="${VIGIA}/">Explorar Vigía</a>
-          <a class="boton borde esq" href="${VIGIA}/fuentes">De dónde salen los datos</a>
+          <a class="boton lima" href="${VIGIA}/">Entrar a Vigía</a>
+          <a class="boton borde" href="${VIGIA}/fuentes">De dónde salen los datos</a>
         </div>
       </div>
-      <ul class="funciones" aria-label="Qué puedes ver en Vigía">
-        ${FUNCIONES.map(([titulo, d, ruta]) => `<li><a href="${VIGIA}${ruta}"><i class="pxl"></i><span><strong>${titulo}</strong> <span class="d">${d}</span></span></a></li>`).join("\n        ")}
+      <ul class="proximos" data-anima aria-label="Monitores en preparación">
+        ${PROXIMOS.map(([icono, titulo, texto, ya], k) => `<li class="proximo" style="--i:${k}">${pixel(icono)}<p class="estado apagado">En preparación</p><h3>${titulo}</h3><p>${texto}</p><p class="ya">${ya}</p></li>`).join("\n        ")}
       </ul>
     </div>
   </section>
 
-  <section class="marco seccion" id="proximamente" aria-labelledby="t-proximos">
-    <h2 id="t-proximos">Próximamente</h2>
-    <p class="intro">Vigía es el primero. Estos monitores vienen después, con los mismos principios: datos oficiales, la fuente al lado y señales, no acusaciones.</p>
-    <ul class="proximos" data-anima>
-      ${PROXIMOS.map(([icono, clase, titulo, texto, ya], k) => `<li class="proximo esq p-${clase}" style="--i:${k}">${pixel(icono)}<span class="estado">En preparación</span><h3>${titulo}</h3><p>${texto}</p><p class="ya">${ya}</p></li>`).join("\n      ")}
+  <section class="marco seccion" id="para-quien" aria-labelledby="t-para">
+    <h2 id="t-para">La misma evidencia, para tres trabajos</h2>
+    <p class="intro">Gobserva no reemplaza a nadie: le ahorra a cada uno las semanas de leer y cruzar a mano.</p>
+    <ul class="publicos" data-anima>
+      ${PUBLICOS.map(([icono, titulo, valor, usos], k) => `<li class="publico" style="--i:${k}">${pixel(icono)}<div><h3>${titulo}</h3><p class="valor">${valor}</p></div><ul>${usos.map((u) => `<li>${u}</li>`).join("")}</ul></li>`).join("\n      ")}
     </ul>
   </section>
 
@@ -1148,23 +1286,22 @@ function portada(datos) {
   </section>
 
   <section class="marco seccion" id="fuentes" aria-labelledby="t-fuentes">
-    <h2 id="t-fuentes">De dónde salen los datos</h2>
-    <p class="intro">Diez instituciones del Estado peruano y más de veinte registros públicos, cruzados entre sí. Las tres del mapa llevan su color.</p>
+    <h2 id="t-fuentes">Diez fuentes oficiales, conectadas</h2>
+    <p class="intro">Diez instituciones del Estado peruano y más de veinte registros públicos, cruzados entre sí. Las tres que mide el radar llevan su luz.</p>
     <ul class="fuentes">
-      ${FUENTES.map(([sigla, que, nombre, metrica]) => `<li><span class="sigla"><i class="pxl"${metrica ? ` style="background: var(--c-${metrica})"` : ""}></i>${sigla}</span><div><p class="que">${que}</p><p class="nombre">${nombre}</p></div></li>`).join("\n      ")}
+      ${FUENTES.map(([sigla, que, nombre, metrica]) => `<li><span class="sigla"><i class="led"${metrica ? ` style="--c: var(--c-${metrica})"` : ' style="--c: var(--fosforo-2)"'}></i>${sigla}</span><div><p class="que">${que}</p><p class="nombre">${nombre}</p></div></li>`).join("\n      ")}
     </ul>
     <p class="ver-mas"><a class="enlace" href="${VIGIA}/fuentes">Cada fuente y su cobertura en Vigía</a></p>
   </section>
 </main>
 
 <section class="llamado" aria-labelledby="t-llamado">
-  <div class="franja" aria-hidden="true"></div>
   <div class="marco">
     <div>
       <h2 id="t-llamado">¿En qué se gasta el dinero de tu región?</h2>
       <p class="intro">En Vigía está cada contrato de tu región: quién lo ganó, por cuánto y con qué banderas.</p>
     </div>
-    <a class="boton lima esq" href="${VIGIA}/app/mapa">Abrir el mapa del Perú en Vigía</a>
+    <a class="boton lima" href="${VIGIA}/app/mapa">Abrir el mapa del Perú en Vigía</a>
   </div>
 </section>
 <footer class="pie">
@@ -1173,6 +1310,7 @@ function portada(datos) {
       <a class="marca" href="${RAIZ}/" aria-label="Gobserva, inicio">${logo("logo-pie")}</a>
       <p class="pie-eslogan">${ESLOGAN}</p>
       <p>Tecnología cívica desde Lima, Perú.</p>
+      <p class="pie-datos">Cifras de la API de Vigía, renovadas cada 6 horas.</p>
       <p>© 2026 Gobserva</p>
     </div>
     <nav aria-labelledby="pie-vigia">
@@ -1188,10 +1326,10 @@ function portada(datos) {
     <nav aria-labelledby="pie-gobserva">
       <h2 id="pie-gobserva">Gobserva</h2>
       <ul>
-        <li><a href="#problema">El problema</a></li>
+        <li><a href="#datos">Datos</a></li>
         <li><a href="#como-funciona">Cómo funciona</a></li>
+        <li><a href="#monitores">Monitores</a></li>
         <li><a href="#para-quien">Para quién</a></li>
-        <li><a href="#proximamente">Próximamente</a></li>
         <li><a href="#principios">Principios</a></li>
         <li><a href="https://github.com/EdwinSotto123/vigia-peru">Código abierto</a></li>
         <li><a href="/marca/gobserva-logo.svg" download>Descarga el logo</a></li>

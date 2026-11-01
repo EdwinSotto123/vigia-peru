@@ -10,11 +10,13 @@ Escribe:
   ../publico/favicon.svg, favicon.ico   el ícono de la pestaña (16, 32 y 48 px)
   ../publico/apple-touch-icon.png       180 px, para la pantalla de inicio del teléfono
   ../publico/logo.png                   512 px, el logo de la organización para los buscadores (datos estructurados)
-  ../publico/og.png                     1200 x 630, la imagen al compartir el enlace (con el mapa de ../publico/mapa-peru.js)
+  ../publico/og.png                     1200 x 630, la imagen al compartir el enlace: el mapa de ../publico/mapa-peru.js en la
+                                        pantalla del radar, como la portada (verde fósforo sobre negro verdoso)
   ../publico/marca/                     el logo en SVG y PNG para descargar (oscuro, claro, a una tinta, isotipo)
 
 Requisitos: fontTools, Pillow y Playwright con Chrome (los PNG se dibujan en el navegador, igual que en la página).
-Uso: python marca/generar_marca.py   (desde cualquier carpeta). Las reglas de uso del logo: marca/README.md.
+Uso: python marca/generar_marca.py   (desde cualquier carpeta); con --og, sólo la imagen al compartir. Las reglas de uso del
+logo: marca/README.md.
 """
 import base64
 import io
@@ -49,6 +51,10 @@ BLANCO = "#FFFFFF"
 LIMA = "#D4FF3F"
 VERDE = "#2F6B10"  # el lima de Vigía sobre fondo claro
 TENUE_OSCURO = "#8FA3A0"
+# La pantalla del radar de la portada (worker.js): la imagen al compartir usa sus colores.
+RADAR_FONDO = "#030B07"
+FOSFORO = "#3DFF8A"
+MENTA = "#A8FFD0"
 
 PALABRA = "gobserva_"
 PESO = 800
@@ -154,9 +160,10 @@ def isotipo(fondo=CARBON, aro=LIMA, nodo=BLANCO, esquinas=14, lado=64, escala=1.
             f'aria-label="Gobserva">{rect}{lupa.svg(aro, nodo)}</svg>')
 
 
-# ─── El mapa para la imagen al compartir: el de la portada, con la lupa sobre Lima ─────────────────────────────────
+# ─── El mapa para la imagen al compartir: el de la portada, en el radar, con la lupa sobre Lima ─────────────────────
 def mapa_og(ancho=390, region="15"):
-    """El Perú en píxeles (publico/mapa-peru.js, de mapa/generar_mapa.py) con la lupa encima, como SVG."""
+    """El Perú en píxeles (publico/mapa-peru.js, de mapa/generar_mapa.py) con la lupa encima, como SVG, en los verdes
+    del radar de la portada."""
     datos = json.loads(re.search(r"= (\{.*\});", (PUBLICO / "mapa-peru.js").read_text(encoding="utf-8")).group(1))
     cols, filas, regiones = datos["cols"], datos["filas"], datos["regiones"]
     celdas = base64.b64decode(datos["celdas"])
@@ -170,8 +177,8 @@ def mapa_og(ancho=390, region="15"):
     R, M, base = ancho * 0.2, 1.4, paso * 0.37
     s = []
     for x, y, r in puntos:
-        # La vista de la portada al abrir: «Corrupción» (casos de la Procuraduría), en la rampa óxido.
-        color, rad = ("#873B34" if r == k else "#4A2A27"), base
+        # La vista de la portada al abrir: la región bajo la lupa más encendida que las demás, en la rampa verde del radar.
+        color, rad = ("#2BBF6A" if r == k else "#165C38"), base
         d = math.hypot(x - cx, y - cy)
         if d < R:  # el mismo ojo de pez que publico/portada.js
             u = d / R
@@ -179,13 +186,17 @@ def mapa_og(ancho=390, region="15"):
             if d > 0.01:
                 x, y = cx + (x - cx) / d * u2 * R, cy + (y - cy) / d * u2 * R
             rad = base * (1 + 1.15 * (1 - u))
-            color = "#FF5A4D" if r == k else "#B2463C"
+            color = FOSFORO if r == k else "#27C76B"
         s.append(f'<rect x="{num(x - rad)}" y="{num(y - rad)}" width="{num(rad * 2)}" height="{num(rad * 2)}" fill="{color}"/>')
     aro = R * 0.085
     u = math.sqrt(0.5)
-    s.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(R)}" fill="{LIMA}" fill-opacity=".06" stroke="{CLARO}" stroke-width="{num(aro)}"/>')
+    s.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(R)}" fill="{FOSFORO}" fill-opacity=".06" stroke="{MENTA}" stroke-width="{num(aro)}"/>')
+    # La retícula de la lupa (publico/portada.js): una cruz fina con el centro libre.
+    cruz = "".join(f"M{num(cx + dx * R * .2)} {num(cy + dy * R * .2)}L{num(cx + dx * R * .52)} {num(cy + dy * R * .52)}"
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+    s.append(f'<path d="{cruz}" stroke="{MENTA}" stroke-opacity=".55" stroke-width="1.2"/>')
     s.append(f'<path d="M{num(cx + u * (R + aro * .4))} {num(cy + u * (R + aro * .4))}L{num(cx + u * R * 1.62)} {num(cy + u * R * 1.62)}" '
-             f'stroke="{CLARO}" stroke-width="{num(aro * 1.4)}"/>')
+             f'stroke="{MENTA}" stroke-width="{num(aro * 1.4)}"/>')
     return f'<svg class="mapa" viewBox="0 0 {num(ancho)} {num(alto)}" width="{num(ancho)}" height="{num(alto)}">{"".join(s)}</svg>'
 
 
@@ -212,22 +223,37 @@ def guardar_png(img, ruta, colores=None):
     print(f"  {ruta.relative_to(WORKER)}  {ruta.stat().st_size // 1024} KB")
 
 
+def anillos_og():
+    """La retícula del radar de la portada (worker.js, RETICULA): anillos, cruz y rumbos cada 5° y cada 30°."""
+    linea = f'fill="none" stroke="{FOSFORO}" stroke-opacity=".18" stroke-width="1" vector-effect="non-scaling-stroke"'
+    anillos = "".join(f'<circle r="{r}" {linea}/>' for r in (26, 52, 78, 104))
+    return (f'<svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid slice" '
+            f'style="position:absolute;inset:0;width:100%;height:100%">{anillos}<path d="M-140 0H140M0-140V140" {linea}/>'
+            f'<circle r="91" pathLength="360" stroke-dasharray=".35 4.65" fill="none" stroke="{FOSFORO}" stroke-opacity=".34" stroke-width="2.6"/>'
+            f'<circle r="91" pathLength="360" stroke-dasharray=".7 29.3" fill="none" stroke="{FOSFORO}" stroke-opacity=".6" stroke-width="5.5"/></svg>')
+
+
 def og_html(logo_oscuro):
-    return f"""<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@800&display=swap">
+    return f"""<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@800&family=JetBrains+Mono:wght@600&display=swap">
 <style>
-.og{{position:relative;width:1200px;height:630px;background:{CARBON};overflow:hidden;font-family:Inter,sans-serif}}
-.og .mapa{{position:absolute;right:96px;top:36px}}
-.texto{{position:absolute;left:80px;top:104px;width:640px}}
+.og{{position:relative;width:1200px;height:630px;overflow:hidden;font-family:Inter,sans-serif;
+  background:linear-gradient(rgba(61,255,138,.05) 1px,transparent 1px) 0 0/40px 40px,linear-gradient(90deg,rgba(61,255,138,.05) 1px,transparent 1px) 0 0/40px 40px,
+  radial-gradient(42% 70% at 79% 50%,rgba(61,255,138,.13),transparent 72%),{RADAR_FONDO}}}
+.visor{{position:absolute;right:64px;top:22px;width:440px;height:586px;border:1px solid #12301F}}
+.visor .mapa{{position:absolute;inset:0;margin:auto}}
+.radar{{position:absolute;inset:0;overflow:hidden;mix-blend-mode:screen}}
+.barrido{{position:absolute;left:50%;top:50%;width:190%;aspect-ratio:1;translate:-50% -50%;rotate:128deg;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0deg 285deg,rgba(61,255,138,.04) 285deg,rgba(61,255,138,.22) 356deg,rgba(168,255,208,.8) 359.5deg,transparent 360deg)}}
+.texto{{position:absolute;left:80px;top:100px;width:600px}}
 .texto svg{{height:92px;display:block}}
-.eslogan{{margin:44px 0 0;color:{CLARO};font:800 48px/1.12 Doto,monospace}}
-.eslogan em{{font-style:normal;color:{LIMA}}}
-.desc{{margin:24px 0 0;color:{TENUE_OSCURO};font:500 25px/1.35 Inter;max-width:470px;text-wrap:balance}}
-.dominio{{position:absolute;left:80px;bottom:62px;margin:0;color:{LIMA};font:600 24px Inter;letter-spacing:.01em}}
+.eslogan{{margin:44px 0 0;color:{MENTA};font:800 48px/1.15 Doto,monospace;text-shadow:0 0 18px rgba(61,255,138,.45)}}
+.desc{{margin:24px 0 0;color:#A9CDB8;font:500 25px/1.35 Inter;max-width:470px;text-wrap:balance}}
+.dominio{{position:absolute;left:80px;bottom:62px;margin:0;color:{FOSFORO};font:600 24px 'JetBrains Mono',monospace}}
 </style>
 <div class="og">
-  {mapa_og()}
+  <div class="visor">{mapa_og()}<div class="radar">{anillos_og()}<div class="barrido"></div></div></div>
   <div class="texto">{logo_oscuro}
-    <p class="eslogan">Lo de todos,<br><em>a la vista</em> de todos.</p>
+    <p class="eslogan">Lo de todos,<br>a la vista de todos.</p>
     <p class="desc">Tecnología cívica para vigilar el Estado peruano.</p>
   </div>
   <p class="dominio">gobserva.cloud</p>
@@ -241,6 +267,12 @@ def main():
     destino_marca.mkdir(parents=True, exist_ok=True)
 
     oscuro = logo_svg(vb, letras, cursor, lupa, CLARO, LIMA, BLANCO)
+    if "--og" in sys.argv:
+        with sync_playwright() as p:
+            nav = p.chromium.launch(channel="chrome")
+            guardar_png(dibujar(nav.new_page(device_scale_factor=1), og_html(oscuro), 1200, 630), PUBLICO / "og.png", colores=128)
+            nav.close()
+        return
     claro = logo_svg(vb, letras, cursor, lupa, TINTA, VERDE, TINTA)
     mono = logo_svg(vb, letras, cursor, lupa, TINTA, TINTA, TINTA)
     iso = isotipo()

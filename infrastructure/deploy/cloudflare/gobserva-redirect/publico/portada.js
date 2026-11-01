@@ -6,6 +6,11 @@
 // Procuraduría Anticorrupción, la Contraloría y la OECE registran de ella. Si nadie la mueve, recorre sola las regiones.
 // Con el teclado, el mapa toma el foco: las flechas cambian de región y Enter la abre en Vigía. Con movimiento reducido
 // no hay recorrido ni deslizamiento: la lupa salta a la región elegida.
+//
+// El radar (worker.js, la portada como instrumento): el barrido gira con CSS y este código pone las tres regiones con más
+// casos de la métrica elegida como ecos rojos que se encienden cuando el barrido pasa por su rumbo; muestra las coordenadas
+// de la lupa (mapa-peru.js trae la malla en grados) y avisa cada región elegida con el evento «gobserva:region» (la
+// consola de animaciones.js la escribe). El botón de pausa (animaciones.js) detiene el recorrido.
 (() => {
   "use strict";
   const MAPA = window.MAPA_PERU;
@@ -22,6 +27,7 @@
   const nombres = new Map([...document.querySelectorAll("#region option")].map((o) => [o.value, o.textContent]));
   const fmt = new Intl.NumberFormat("es-PE");
   const reducido = matchMedia("(prefers-reduced-motion: reduce)");
+  const pausado = () => document.documentElement.classList.contains("pausado");
   const finoConMouse = matchMedia("(hover: hover) and (pointer: fine)");
 
   // ─── La malla ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -175,6 +181,7 @@
     if (cambia || origen === "inicio") {
       pintarFicha(k);
       pintarRotulos(k);
+      avisar(k, origen);
     }
     if (origen === "teclado" || origen === "lista") anunciar(k);
     pedirCuadro();
@@ -209,6 +216,7 @@
     }
     dibujar();
     moverRotulos();
+    ponerCoordenadas();
     if (arranque) pedirCuadro();
   }
 
@@ -275,6 +283,16 @@
     ctx.beginPath();
     ctx.arc(lupa.x, lupa.y, R, 0, TAU);
     ctx.stroke();
+    // La retícula: una cruz fina con el centro libre, como en el visor de un instrumento.
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.moveTo(lupa.x + ux * R * 0.2, lupa.y + uy * R * 0.2);
+      ctx.lineTo(lupa.x + ux * R * 0.52, lupa.y + uy * R * 0.52);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     const a = Math.PI / 4;
     ctx.lineWidth = aro * 1.4;
     ctx.lineCap = "butt";
@@ -350,9 +368,76 @@
     anuncio.textContent = `${nombres.get(c) || c}${t == null ? "" : `: ${fmt.format(t)} casos de corrupción en trámite`}`;
   }
 
+  // ─── El radar ─────────────────────────────────────────────────────────────────────────────────────────────────────
+  const capaEcos = caja.querySelector(".radar-blips");
+  const barrido = caja.querySelector(".radar-barrido");
+  function periodo() {
+    const v = getComputedStyle(caja).getPropertyValue("--periodo").trim();
+    const n = parseFloat(v);
+    return n > 0 ? (v.endsWith("ms") ? n : n * 1000) : 6000;
+  }
+
+  // Las tres regiones con más de la métrica elegida, como ecos: cada uno se enciende cuando el barrido pasa por su rumbo
+  // (medido como el barrido, desde el norte y en el sentido del reloj, desde el centro del visor).
+  function ponerEcos() {
+    if (!capaEcos || !W) return;
+    const T = periodo();
+    const anim = barrido && barrido.getAnimations ? barrido.getAnimations()[0] : null;
+    const fase = anim && typeof anim.currentTime === "number" ? anim.currentTime % T : 0;
+    const top = regiones
+      .map((c, k) => [k, valor(c, metrica)])
+      .filter(([, v]) => v != null)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    capaEcos.textContent = "";
+    for (const [k] of top) {
+      const x = enX(centros[k][0]), y = enY(centros[k][1]);
+      const rumbo = ((Math.atan2(x - W / 2, -(y - H / 2)) * 180) / Math.PI + 360) % 360;
+      const retraso = ((((rumbo / 360) * T - fase) % T) + T) % T;
+      const eco = document.createElement("span");
+      eco.className = "blip";
+      eco.style.setProperty("--x", `${x.toFixed(1)}px`);
+      eco.style.setProperty("--y", `${y.toFixed(1)}px`);
+      eco.style.setProperty("--retraso", `${Math.round(retraso)}ms`);
+      capaEcos.append(eco);
+    }
+  }
+
+  // Las coordenadas de la lupa, en grados y minutos (sólo cambian cuando cambia un minuto: nada de redibujar texto).
+  const GEO = MAPA.geo;
+  const coords = document.getElementById("coords");
+  let coordsTexto = "";
+  function ponerCoordenadas() {
+    if (!coords || !GEO || !W) return;
+    const i = (lupa.x - ox) / paso, j = (lupa.y - oy) / paso;
+    const lat = GEO.lat1 - j * GEO.paso;
+    const lon = GEO.lon0 + (i * GEO.paso) / GEO.kx;
+    const t = `${gradoMinuto(lat, "N", "S")} ${gradoMinuto(lon, "E", "O")}`;
+    if (t !== coordsTexto) coords.textContent = coordsTexto = t;
+  }
+  function gradoMinuto(v, mas, menos) {
+    const a = Math.abs(v);
+    let g = Math.floor(a);
+    let m = Math.round((a - g) * 60);
+    if (m === 60) {
+      g++;
+      m = 0;
+    }
+    return `${g}°${String(m).padStart(2, "0")}′ ${v >= 0 ? mas : menos}`;
+  }
+
+  // Cada región elegida, para la consola (animaciones.js): quién la eligió y qué cifras tiene.
+  function avisar(k, origen) {
+    const c = regiones[k];
+    caja.dispatchEvent(new CustomEvent("gobserva:region", {
+      bubbles: true,
+      detail: { codigo: c, nombre: nombres.get(c) || c, origen, metrica, valores: porCodigo.get(c) || null },
+    }));
+  }
+
   // ─── El recorrido solo ────────────────────────────────────────────────────────────────────────────────────────────
   function puedeRecorrer() {
-    return !reducido.matches && visible && !document.hidden;
+    return !reducido.matches && visible && !document.hidden && !pausado();
   }
 
   function programar(ms) {
@@ -462,6 +547,7 @@
       }
       leerColores();
       calcularClases();
+      ponerEcos();
       if (activa >= 0) pintarRotulos(activa);
       pedirCuadro();
     });
@@ -470,6 +556,7 @@
   // Fuera de pantalla o en otra pestaña, nada se mueve ni se dibuja.
   new IntersectionObserver(([e]) => {
     visible = e.isIntersecting;
+    caja.classList.toggle("en-pantalla", visible);
     if (visible) {
       pedirCuadro();
       programar(1500);
@@ -480,12 +567,10 @@
     if (reducido.matches) tomarControl("fijo");
     else programar(1500);
   });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    leerColores();
-    pedirCuadro();
-  });
+  document.addEventListener("gobserva:pausa", () => (pausado() ? clearTimeout(siguientePaso) : programar(1500)));
   new ResizeObserver(() => {
     medir();
+    ponerEcos();
     pedirCuadro();
   }).observe(caja);
 
@@ -507,6 +592,8 @@
     if (!reducido.matches) arranque = performance.now();
   }
   elegir(activa < 0 ? regiones.indexOf("15") : activa, "inicio");
+  ponerEcos();
+  ponerCoordenadas();
   programar(2600);
 
   // ─── Utilidades ───────────────────────────────────────────────────────────────────────────────────────────────────
