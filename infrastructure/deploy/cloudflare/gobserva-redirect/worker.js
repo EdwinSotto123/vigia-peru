@@ -5,7 +5,10 @@
 //   gobserva.cloud/robots.txt          los buscadores sí; los rastreadores de entrenamiento de IA, no (como Vigía)
 //   gobserva.cloud/sitemap.xml         la portada
 //   gobserva.cloud/<CLAVE_INDEXNOW>.txt  la clave pública de IndexNow (Bing y compañía se enteran al momento de un cambio)
-//   gobserva.cloud/<otra ruta>         301 a la misma ruta en vigia.gobserva.cloud: los enlaces viejos siguen andando
+//   gobserva.cloud/<otra ruta>         302 a la misma ruta en vigia.gobserva.cloud: los enlaces viejos siguen andando.
+//                                      Temporal a propósito: un 301 queda guardado en el navegador para siempre (el 01-11 la
+//                                      raíz vieja, un 301 a Vigía, seguía redirigiendo en los navegadores que ya la conocían)
+//                                      y Gobserva puede tener más páginas.
 //   www.gobserva.cloud/<ruta>          301 a gobserva.cloud/<ruta> (un solo dominio para los buscadores)
 //
 // El nombre del Worker (gobserva-redirect) se mantiene: los custom domains están atados a él. Despliegue: README.md.
@@ -294,7 +297,7 @@ export default {
       case "/favicon.ico":
         return new Response(null, { status: 204 });
       default:
-        return Response.redirect(`${VIGIA}${url.pathname}${url.search}`, 301);
+        return Response.redirect(`${VIGIA}${url.pathname}${url.search}`, 302);
     }
   },
 };
