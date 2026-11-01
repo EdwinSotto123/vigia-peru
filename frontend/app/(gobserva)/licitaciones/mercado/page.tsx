@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Building2, ChartNoAxesCombined, Landmark, Search, Target, Trophy, Users } from "lucide-react";
 import { BarrasEnlace, SerieMeses } from "@/components/licitaciones/Graficas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
@@ -95,7 +95,7 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Cifra Icono={ChartNoAxesCombined} valor={solesCompacto(m.monto)} etiqueta={`adjudicados en ${numero(m.procesos)} procesos (12 meses)`} />
             <Cifra Icono={Building2} valor={numero(m.entidades)} etiqueta={m.entidades === 1 ? "entidad compradora" : "entidades compradoras"} />
-            <Cifra Icono={Users} valor={m.postoresPromedio ? numero(Math.round(m.postoresPromedio * 10) / 10) : "Sin dato"} etiqueta="postores por proceso, en promedio" />
+            <Cifra Icono={Users} valor={m.postoresPromedio ? decimal(m.postoresPromedio) : "Sin dato"} etiqueta="postores por proceso, en promedio" />
             <Cifra
               Icono={Target}
               valor={unSolo != null ? porcentaje(unSolo * 100) : "Sin dato"}

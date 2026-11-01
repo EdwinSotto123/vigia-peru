@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { fechaCorta, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { decimal, fechaCorta, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
@@ -186,7 +186,7 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
                     </p>
                     <p className="mt-2 font-display text-cifra font-bold leading-none tabular-nums text-ink">{p.mediana != null ? soles(p.mediana) : "Sin dato"}</p>
                     <p className="mt-1 text-meta text-inkSoft">
-                      precio {p.base === "adjudicado" ? "adjudicado" : "referencial"} típico (mediana) en {numero(p.anio)}
+                      precio {p.base === "adjudicado" ? "adjudicado" : "referencial"} típico (mediana) en {p.anio}
                     </p>
                     <p className="mt-2 text-meta text-inkSoft">
                       Rango: {p.p25 != null ? soles(p.p25) : "Sin dato"} a {p.p75 != null ? soles(p.p75) : "Sin dato"}, en {numero(p.n)} compras de {numero(p.entidades)}{" "}
@@ -262,7 +262,7 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
                 <dl className="mt-4 grid grid-cols-2 gap-3">
                   <Mini valor={numero(intel.procesos)} etiqueta="procesos adjudicados" />
                   <Mini valor={solesCompacto(intel.monto ?? 0)} etiqueta="adjudicados" />
-                  <Mini valor={intel.postoresPromedio ? numero(Math.round(intel.postoresPromedio * 10) / 10) : "Sin dato"} etiqueta="postores por proceso" />
+                  <Mini valor={intel.postoresPromedio ? decimal(intel.postoresPromedio) : "Sin dato"} etiqueta="postores por proceso" />
                   <Mini valor={unSolo != null ? porcentaje(unSolo * 100) : "Sin dato"} etiqueta="con un solo postor" />
                 </dl>
                 {intel.adjSobreRef ? (

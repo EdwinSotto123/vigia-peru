@@ -8,7 +8,7 @@ import { BarrasEnlace } from "@/components/licitaciones/Graficas";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { TarjetaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { RUBROS_EJEMPLO, getResumen, nombreRegion, nombreTipo } from "@/lib/licitaciones";
@@ -189,7 +189,7 @@ export default async function InicioLicitaciones() {
               </div>
             </div>
             <dl className="grid grid-cols-2 gap-3">
-              <Dato Icono={Users} valor={comp.postoresPromedio ? numero(Math.round(comp.postoresPromedio * 10) / 10) : "Sin dato"} etiqueta="postores por proceso, en promedio" />
+              <Dato Icono={Users} valor={comp.postoresPromedio ? decimal(comp.postoresPromedio) : "Sin dato"} etiqueta="postores por proceso, en promedio" />
               <Dato Icono={Target} valor={unSolo != null ? porcentaje(unSolo * 100) : "Sin dato"} etiqueta={`de los procesos tuvo un solo postor${comp.procesos ? ` (de ${numero(comp.procesos)})` : ""}`} destacado />
               <Dato Icono={Building2} valor={comp.adjudicado ? solesCompacto(comp.adjudicado) : "Sin dato"} etiqueta="adjudicados por el Estado en 12 meses" />
               <Dato Icono={ChartNoAxesCombined} valor={comp.adjSobreRef ? porcentaje(comp.adjSobreRef * 100) : "Sin dato"} etiqueta="del valor referencial es lo que se adjudica, en promedio" />
