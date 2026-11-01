@@ -32,22 +32,32 @@ const DASHBOARD_PATHS = [
 /**
  * Navegación pública. El orden es el recorrido del producto: inicio → mapa → los datos (contratos con los cruces de su
  * ganador, señales de los leídos) → ver en vivo → partidos → aliados → denunciar. Financiar es el botón de la derecha.
+ *
+ * Qué enlaces entran en la barra se MIDE (`useEnlacesQueEntran`): antes se decidía por el ancho de la pantalla (`xl`,
+ * `2xl`), pero la fila no crece más allá de `container-page` (1280 px), así que desde 2xl entraban los nueve enlaces y
+ * «Apoyar la vigilancia» entero en el mismo espacio y «Preguntas» quedaba encima del botón de día y noche (el dueño,
+ * 2026-11-01: «se sobreponen unos sobre otros»). `prioridad`: el orden en que se quedan en la barra cuando no entran
+ * todos (1 se queda siempre); los que no entran van al menú ☰. `desde`: la regla vieja, sólo para lo que pinta el
+ * servidor antes de medir (con `nunca`, sólo si la medida dice que entra).
  */
-// `desde`: el ancho desde el que el enlace entra en la barra (antes, en el menú ☰, que se ve hasta 2xl). Entre 1024 y
-// 1335 px los nueve enlaces empujaban «Apoyar» fuera de la pantalla (auditoría 2026-10-30).
-const NAV: { href: string; label: string; vivo?: boolean; dorado?: boolean; desde?: "xl" | "2xl" }[] = [
-  { href: "/", label: "Inicio" },
-  { href: "/app/mapa", label: "Mapa" },
-  { href: "/app/contratos", label: "Contratos" },
-  { href: "/app/hallazgos", label: "Señales" },
-  { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true, desde: "xl" },
-  { href: "/app/partidos", label: "Partidos", desde: "xl" },
+const NAV: { href: string; label: string; vivo?: boolean; dorado?: boolean; desde?: "xl" | "nunca"; prioridad: number }[] = [
+  { href: "/", label: "Inicio", prioridad: 1 },
+  { href: "/app/mapa", label: "Mapa", prioridad: 2 },
+  { href: "/app/contratos", label: "Contratos", prioridad: 3 },
+  { href: "/app/hallazgos", label: "Señales", prioridad: 4 },
+  { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true, desde: "xl", prioridad: 6 },
+  { href: "/app/partidos", label: "Partidos", desde: "xl", prioridad: 7 },
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
-  { href: "/app/aliados", label: "Aliados", dorado: true },
-  { href: "/reporte/nuevo", label: "Denunciar", desde: "2xl" },
-  { href: "/preguntas", label: "Preguntas", desde: "2xl" },
+  { href: "/app/aliados", label: "Aliados", dorado: true, prioridad: 5 },
+  { href: "/reporte/nuevo", label: "Denunciar", desde: "nunca", prioridad: 8 },
+  { href: "/preguntas", label: "Preguntas", desde: "nunca", prioridad: 9 },
 ];
-const MOSTRAR: Record<"siempre" | "xl" | "2xl", string> = { siempre: "inline-flex", xl: "hidden xl:inline-flex", "2xl": "hidden 2xl:inline-flex" };
+const MOSTRAR: Record<"siempre" | "xl" | "nunca", string> = { siempre: "inline-flex", xl: "hidden xl:inline-flex", nunca: "hidden" };
+const POR_PRIORIDAD = [...NAV].sort((a, b) => a.prioridad - b.prioridad);
+/** Las clases que fijan el ancho de un enlace de la barra: las mismas en la barra y en la fila que se mide. */
+const CAJA_ENLACE = "min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-dato leading-5 font-medium xl:px-3";
+/** El `gap-0.5` de la barra, en px. */
+const ENTRE_ENLACES = 2;
 
 type Tema = "claro" | "oscuro";
 
@@ -91,6 +101,10 @@ export function Header() {
   const leyendo = useLeyendoAhora(showNav);
   const barra = useRef<HTMLDivElement>(null);
   const cabecera = useRef<HTMLElement>(null);
+  // Los enlaces que entran en la barra (null: todavía sin medir). Los que no, en el menú ☰, que entonces se ve en
+  // cualquier ancho; antes de medir, también (el servidor no sabe cuánto mide la pantalla).
+  const [entran, setEntran] = useState<Set<string> | null>(null);
+  const conMenu = entran === null || entran.size < NAV.length;
 
   // Cambiar de ruta (clic en un link del propio drawer, o navegación por otra vía) cierra
   // el menú — evita que quede abierto tapando la página nueva.
@@ -100,7 +114,9 @@ export function Header() {
     let cuadro = 0;
     const leer = () => {
       cuadro = 0;
-      const alto = cabecera.current?.offsetHeight ?? 64;
+      // El borde de abajo en la pantalla, no el alto: arriba de todo la cabecera no empieza en 0 (encima va el
+      // cintillo de aliados, que se va al bajar).
+      const alto = cabecera.current?.getBoundingClientRect().bottom ?? 64;
       // Lo que está justo debajo del borde inferior de la cabecera, en el centro.
       const bajo = document
         .elementsFromPoint(window.innerWidth / 2, alto + 2)
@@ -144,7 +160,7 @@ export function Header() {
           <Marca tono={oscuro ? "oscuro" : "claro"} firma />
         </Link>
 
-        {showNav && <NavDeslizante pathname={pathname} oscuro={oscuro} leyendo={leyendo} />}
+        {showNav && <NavDeslizante pathname={pathname} oscuro={oscuro} leyendo={leyendo} entran={entran} alMedir={setEntran} />}
 
         <div className="flex shrink-0 items-center gap-2">
           <BotonModo className={oscuro ? "border-paper/15 bg-transparent text-paper hover:bg-paper/10" : undefined} />
@@ -177,8 +193,9 @@ export function Header() {
               aria-controls="mobile-nav-panel"
               aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
               className={cn(
-                // Hasta 2xl: entre 1024 y 1535 px la barra muestra sólo parte de los enlaces (NAV.desde) y el resto está aquí.
-                "inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors duration-rapido 2xl:hidden",
+                // En el celular siempre; en escritorio, mientras algún enlace no entre en la barra (los que no entran están aquí).
+                "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors duration-rapido",
+                !conMenu && "lg:hidden",
                 oscuro ? "border-paper/20 bg-paper/10 text-paper hover:bg-paper/20" : "border-line bg-paperSoft text-ink hover:bg-paperDeep",
               )}
             >
@@ -264,8 +281,22 @@ const esActivo = (pathname: string, href: string) =>
  * parpadear. Entra sin deslizarse desde cero la primera vez, y al salir del
  * menú se desvanece. El subrayado queda para la página activa.
  */
-function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro: boolean; leyendo: number | null }) {
+function NavDeslizante({
+  pathname,
+  oscuro,
+  leyendo,
+  entran,
+  alMedir,
+}: {
+  pathname: string;
+  oscuro: boolean;
+  leyendo: number | null;
+  entran: Set<string> | null;
+  alMedir: (entran: Set<string>) => void;
+}) {
   const lista = useRef<HTMLElement>(null);
+  const regla = useRef<HTMLSpanElement>(null);
+  useEnlacesQueEntran(lista, regla, alMedir);
   const [pildora, setPildora] = useState<{ x: number; w: number; visible: boolean; deslizar: boolean }>({
     x: 0,
     w: 0,
@@ -288,9 +319,19 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
     <nav
       ref={lista}
       aria-label="Principal"
-      className="relative hidden min-w-0 items-center gap-0.5 lg:flex"
+      // Ocupa lo que dejan la marca y los botones, y recorta lo que no entra: un enlace nunca se pinta encima de un botón
+      // (antes de medir, el servidor pinta según el ancho y puede sobrar algo). Centrada mientras entra todo (`safe`).
+      className="relative hidden min-w-0 flex-1 items-center justify-[safe_center] gap-0.5 overflow-hidden lg:flex"
       onMouseLeave={() => setPildora((p) => ({ ...p, visible: false, deslizar: false }))}
     >
+      {/* Todos los enlaces, invisibles y fuera del flujo: de aquí sale el ancho de cada uno para decidir cuáles entran. */}
+      <span ref={regla} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex w-max gap-0.5">
+        {NAV.map((n) => (
+          <span key={n.href} data-href={n.href} className={cn("inline-flex", CAJA_ENLACE)}>
+            <ContenidoEnlace n={n} leyendo={leyendo} />
+          </span>
+        ))}
+      </span>
       <span
         aria-hidden
         className={cn(
@@ -311,8 +352,9 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
             onMouseEnter={(e) => mover(e.currentTarget)}
             onFocus={(e) => mover(e.currentTarget)}
             className={cn(
-              "group relative z-10 min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-dato leading-5 font-medium transition-colors duration-rapido xl:px-3",
-              MOSTRAR[n.desde ?? "siempre"],
+              "group relative z-10 shrink-0 transition-colors duration-rapido",
+              CAJA_ENLACE,
+              entran ? (entran.has(n.href) ? "inline-flex" : "hidden") : MOSTRAR[n.desde ?? "siempre"],
               "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:transition-transform after:duration-normal",
               active ? "after:scale-x-100" : "after:scale-x-0",
               oscuro
@@ -320,21 +362,73 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
                 : cn("after:bg-granate", active ? "text-granate" : "text-inkSoft hover:text-ink"),
             )}
           >
-            {"dorado" in n && n.dorado ? (
-              // Pastilla de maíz con texto tinta (legible sobre claro y sobre oscuro).
-              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-[rgb(var(--sobre-maiz))] shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
-                <Crown size={13} aria-hidden className="text-[rgb(var(--sobre-maiz))]" />
-                {n.label}
-              </span>
-            ) : (
-              n.label
-            )}
-            {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
+            <ContenidoEnlace n={n} leyendo={leyendo} />
           </LinkIntencion>
         );
       })}
     </nav>
   );
+}
+
+/** Lo de adentro de un enlace de la barra: el nombre (Aliados, en su pastilla de maíz) y el punto «en vivo». */
+function ContenidoEnlace({ n, leyendo }: { n: (typeof NAV)[number]; leyendo: number | null }) {
+  return (
+    <>
+      {n.dorado ? (
+        // Pastilla de maíz con texto tinta (legible sobre claro y sobre oscuro).
+        <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-[rgb(var(--sobre-maiz))] shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
+          <Crown size={13} aria-hidden className="text-[rgb(var(--sobre-maiz))]" />
+          {n.label}
+        </span>
+      ) : (
+        n.label
+      )}
+      {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
+    </>
+  );
+}
+
+/**
+ * Cuáles enlaces entran en la barra, por `prioridad`: el ancho de cada uno sale de la fila invisible (`regla`) y se
+ * compara con el que le queda a la barra. Se vuelve a medir cuando cambia cualquiera de los dos (la ventana, la fuente
+ * que termina de cargar, el «Entrar» que pasa a avatar, el punto «en vivo» que aparece). Uno que no entra deja fuera a
+ * los de menor prioridad aunque sean más cortos: la barra no salta de un orden a otro según el ancho.
+ */
+function useEnlacesQueEntran(
+  lista: React.RefObject<HTMLElement>,
+  regla: React.RefObject<HTMLElement>,
+  alMedir: (entran: Set<string>) => void,
+) {
+  useLayoutEffect(() => {
+    const nav = lista.current;
+    const fila = regla.current;
+    if (!nav || !fila) return;
+    let previa = "";
+    const medir = () => {
+      const anchos = new Map<string, number>();
+      for (const el of Array.from(fila.children) as HTMLElement[]) anchos.set(el.dataset.href ?? "", el.offsetWidth);
+      // Oculta (debajo de lg), la barra mide 0: no entra ninguno y todo queda en el menú.
+      const disponible = nav.clientWidth;
+      const entran = new Set<string>();
+      let usado = 0;
+      for (const n of POR_PRIORIDAD) {
+        const w = (anchos.get(n.href) ?? 0) + (entran.size ? ENTRE_ENLACES : 0);
+        if (usado + w > disponible) break;
+        usado += w;
+        entran.add(n.href);
+      }
+      const clave = [...entran].join("|");
+      if (clave !== previa) {
+        previa = clave;
+        alMedir(entran);
+      }
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(nav);
+    observador.observe(fila);
+    return () => observador.disconnect();
+  }, [lista, regla, alMedir]);
 }
 
 /** Drawer mobile: mismos items de NAV + el CTA de financiar. Este bug (0 navegación
@@ -381,7 +475,8 @@ function MobileNavPanel({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 2xl:hidden">
+    // En cualquier ancho: en escritorio el ☰ se ve mientras algún enlace no entre en la barra.
+    <div className="fixed inset-0 z-50">
       <button aria-label="Cerrar menú" tabIndex={-1} className="absolute inset-0 bg-ink/40 motion-safe:animate-fadeIn" onClick={onClose} />
       <div
         ref={panelRef}

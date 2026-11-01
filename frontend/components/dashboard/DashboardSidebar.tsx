@@ -141,11 +141,12 @@ const SECTIONS: Section[] = [
           p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
       },
       {
-        // Lo nuevo de la semana: contratos con antecedentes graves, sanciones e informes (fase 6).
+        // Lo nuevo: la última semana que publicó el Estado (contratos con antecedentes graves), informes y sanciones.
+        // «De esta semana» no era cierto: el Estado publica las buenas pro con semanas de atraso.
         href: "/app/novedades",
         label: "Lo nuevo",
         icon: <Newspaper size={16} />,
-        hint: "De esta semana",
+        hint: "Lo último publicado",
         intencion: "alertas",
         match: (p) => p.startsWith("/app/novedades"),
       },

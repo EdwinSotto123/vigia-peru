@@ -30,6 +30,8 @@ const TIPO_ICONO: Record<RankingRow["tipo"], DatoIdentidad["icono"]> = {
 export const esFundador = (row: { slug: string | null }) => row.slug === "vigia-peru";
 
 const DIMS = {
+  /** El del cintillo de aliados (FranjaAliados): cabe en una placa de 36 px. */
+  xs: { clase: "h-6 w-6 rounded-md", px: 24, icono: 13 },
   sm: { clase: "h-8 w-8 rounded-lg", px: 32, icono: 15 },
   lg: { clase: "h-14 w-14 rounded-xl", px: 56, icono: 24 },
   xl: { clase: "h-20 w-20 rounded-2xl", px: 80, icono: 32 },
