@@ -66,8 +66,10 @@ export default {
       });
     }
     // Los estáticos también pasan por aquí (run_worker_first en wrangler.jsonc): antes Cloudflare los entregaba sin
-    // usuario ni clave y sin noindex. Primero el archivo; si no existe, la web.
-    const archivo = env.ASSETS ? await env.ASSETS.fetch(req) : null;
+    // usuario ni clave y sin noindex. Primero el archivo; si no existe, la web. Sólo para GET y HEAD: ASSETS.fetch se
+    // lleva el cuerpo del pedido, y un POST que seguía a la web llegaba sin él («Body has already been used»: el
+    // panel no podía confirmar ni rechazar un aporte en DEV, y ningún POST a Next andaba).
+    const archivo = env.ASSETS && (req.method === "GET" || req.method === "HEAD") ? await env.ASSETS.fetch(req) : null;
     const r = archivo && archivo.status !== 404 ? archivo : await abierto.fetch(req, env, ctx);
     const res = new Response(r.body, r);
     res.headers.set("X-Robots-Tag", "noindex, nofollow");
