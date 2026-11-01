@@ -108,7 +108,13 @@ def fecha(t: str | None) -> str | None:
 
 def monto(t: str | None) -> float | None:
     m = re.search(r"(\d[\d,]*(?:\.\d+)?)", t or "")
-    return float(m.group(1).replace(",", "")) if m else None
+    if not m:
+        return None
+    s = m.group(1)
+    # Sin punto y con dos cifras tras la última coma, esa coma es la de los decimales: «S/. 8,364,19» → 8364.19.
+    if re.fullmatch(r"\d+(?:,\d{3})*,\d{2}", s):
+        return float(s[:-3].replace(",", "") + "." + s[-2:])
+    return float(s.replace(",", ""))
 
 
 ETIQUETAS = {

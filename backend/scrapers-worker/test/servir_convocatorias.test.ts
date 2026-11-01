@@ -104,6 +104,16 @@ test("variantes del detalle: lo mismo que Python (salvo la fecha que no existe)"
   assert.equal(monto("S/. 99,999,999,999,999.00"), null);
 });
 
+test("monto: la coma de los decimales no multiplica el sueldo por cien", () => {
+  assert.equal(monto("S/. 8,364,19"), 8364.19);
+  assert.equal(monto("S/ 2500,00 MENSUALES"), 2500);
+  assert.equal(monto("S/. 2,572.00"), 2572);
+  assert.equal(monto("S/. 2,572"), 2572);
+  assert.equal(monto("S/. 15,600"), 15600);
+  assert.equal(monto("S/ 1.500,50 MENSUALES"), 1.5);   // así lo sigue leyendo Python
+  assert.equal(monto("A TRATAR"), null);
+});
+
 test("desescapar = html.unescape de Python", () => {
   const PY: Record<string, string> = {
     "&amp;": "&", "&amp": "&", "&ampx": "&x", "&notin": "¬in", "&aacute;": "á", "&Aacute": "Á", "&nbsp;x": " x", "&#0;": "�",

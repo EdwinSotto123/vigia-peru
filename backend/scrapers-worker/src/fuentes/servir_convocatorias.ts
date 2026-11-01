@@ -177,11 +177,16 @@ export function fecha(t: string | null | undefined): string | null {
   return m ? fechaIso(Number(m[3]), Number(m[2]), Number(m[1])) : null;
 }
 
-/** `monto()`: «S/. 2,572.00» → 2572 (null si no hay número, o si no cabe en NUMERIC(14, 2)). */
+/**
+ * `monto()`: «S/. 2,572.00» → 2572 (null si no hay número, o si no cabe en NUMERIC(14, 2)). Sin punto y con dos cifras
+ * tras la última coma, esa coma es la de los decimales: «S/. 8,364,19» → 8364.19 y «S/ 2500,00» → 2500 (2026-11-01:
+ * antes salían 836419 y 250000, la plaza encabezaba «Las mejor pagadas» y se marcaba con sueldo alto).
+ */
 export function monto(t: string | null | undefined): number | null {
   const m = /(\d[\d,]*(?:\.\d+)?)/.exec(t ?? "");
   if (!m) return null;
-  const n = Number(m[1].replaceAll(",", ""));
+  const s = m[1];
+  const n = /^\d+(?:,\d{3})*,\d{2}$/.test(s) ? Number(`${s.slice(0, -3).replaceAll(",", "")}.${s.slice(-2)}`) : Number(s.replaceAll(",", ""));
   return Number.isFinite(n) && n < 1e12 ? n : null;
 }
 
