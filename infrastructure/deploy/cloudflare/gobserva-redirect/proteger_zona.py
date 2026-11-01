@@ -8,11 +8,13 @@ El token es uno de cuenta con permisos de zona (configuración, WAF, bots); nunc
            sin ofuscación de correos (la web muestra correos como texto: reescribirlos rompe la hidratación de React).
   bots     bloquea los rastreadores de ENTRENAMIENTO de IA que Cloudflare reconoce (`ai_training`); los de búsqueda y los
            que abren una página porque una persona lo pidió siguen pasando.
-  waf      cinco reglas propias: primero, los buscadores verificados (Googlebot, Bingbot…) saltan las reglas administradas y
-           el límite (la de entrenamiento de IA de Cloudflare los bloqueaba); después los rastreadores de entrenamiento por
+  waf      cinco reglas propias (el tope del plan Free: una sexta da error 50001): primero, los buscadores verificados
+           (Googlebot, Bingbot…) saltan las reglas administradas y el límite (la de entrenamiento de IA de Cloudflare los
+           bloqueaba); después los rastreadores de entrenamiento por
            nombre (el reconocimiento de Cloudflare va por IP y uno falso pasaba), rutas de escáneres que Vigía no tiene
            (.php, /wp-, /.env…) y un desafío a clientes de scripts sin navegador (python-requests, curl, Go…) y otro a lo
-           que llega desde redes de nubes y hosting (de ahí sale casi todo el scraping), salvo los bots verificados.
+           que llega desde redes de nubes y hosting (de ahí sale casi todo el scraping), salvo los bots verificados y la
+           clave pública de IndexNow (la lee el verificador de Bing desde la nube, sin ser un bot verificado).
   limite   la regla de rate limiting del plan: más de 100 pedidos en 10 s por IP fuera de /_next/ (los estáticos) →
            bloqueo por 10 s (el plan Free no permite el desafío en esta regla).
 El resto del abuso lo frenan los Workers: frontend/worker-prod.js (páginas por IP) y backend/api/src/lib/antibots.ts.
@@ -91,6 +93,12 @@ def _alguno(campo, valores):
 # bloqueaba a Googlebot y a Bingbot: Search Console no podía leer el sitemap (403).
 UA_BUSCADORES = ["googlebot", "google-inspectiontool", "bingbot", "duckduckbot", "applebot", "yandexbot"]
 
+# La clave pública de IndexNow (la misma en gobserva.cloud y vigia.gobserva.cloud: worker.js de esta carpeta y
+# frontend/public/<clave>.txt). Sin esta excepción, el desafío a clientes sin navegador y a redes de nubes le daba 403 al
+# verificador de IndexNow y la API rechazaba los avisos (probado el 2026-11-01).
+CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565"
+SIN_CLAVE = f'(http.request.uri.path ne "/{CLAVE_INDEXNOW}.txt")'
+
 
 def waf():
     reglas = [
@@ -102,10 +110,10 @@ def waf():
         {"description": "Escaneres de vulnerabilidades (rutas que Vigia no tiene)", "action": "block",
          "expression": _alguno("http.request.uri.path", RUTAS_ESCANER), "enabled": True},
         {"description": "Clientes de scripts sin navegador (los bots verificados pasan)", "action": "managed_challenge",
-         "expression": f'(not cf.client.bot) and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)})',
+         "expression": f'(not cf.client.bot) and {SIN_CLAVE} and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)})',
          "enabled": True},
         {"description": "Redes de nubes y hosting: desafio (los bots verificados pasan)", "action": "managed_challenge",
-         "expression": f'(not cf.client.bot) and (ip.geoip.asnum in {{{" ".join(str(a) for a in ASN_NUBES)}}})',
+         "expression": f'(not cf.client.bot) and {SIN_CLAVE} and (ip.geoip.asnum in {{{" ".join(str(a) for a in ASN_NUBES)}}})',
          "enabled": True},
     ]
     informar("waf", llamar("PUT", f"/zones/{ZONA}/rulesets/phases/http_request_firewall_custom/entrypoint",
