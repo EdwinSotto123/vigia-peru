@@ -14,6 +14,9 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export const TAMANO_OG = { width: 1200, height: 630 };
 
+/** Las dos últimas palabras juntas (espacio duro): ninguna línea termina con una palabra sola, como «día». */
+const sinViuda = (t: string) => t.replace(/\s+(\S+)\s*$/, "\u00a0$1");
+
 export async function imagenOg(producto: Producto, titular: string, detalle: string): Promise<Response> {
   const fija = await imagenFijaEnWindows();
   if (fija) return fija;
@@ -37,8 +40,8 @@ export async function imagenOg(producto: Producto, titular: string, detalle: str
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "flex", fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 1000 }}>{titular}</div>
-          <div style={{ display: "flex", fontSize: 30, lineHeight: 1.3, color: BLANCO_75, maxWidth: 980 }}>{detalle}</div>
+          <div style={{ display: "flex", fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 1000 }}>{sinViuda(titular)}</div>
+          <div style={{ display: "flex", fontSize: 30, lineHeight: 1.3, color: BLANCO_75, maxWidth: 980 }}>{sinViuda(detalle)}</div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: MONO, fontSize: 26, color: BLANCO_75 }}>
           <span style={{ display: "flex", color: LIMA }}>{p.host}</span>

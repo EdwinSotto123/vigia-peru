@@ -111,7 +111,7 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
               <Building2 size={18} aria-hidden className="mt-0.5 shrink-0 text-mute" />
               {entidadNombre(p.entidad)}
             </p>
-            <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Datos de la plaza">
+            <ul className="mt-4 flex flex-wrap gap-1.5 [&>li]:min-w-0 [&>li]:max-w-full" aria-label="Datos de la plaza">
               <li>
                 <Chip icono={<Timer size={13} aria-hidden />} tono={tonoCierre(dias)}>
                   {textoCierre(dias)}
