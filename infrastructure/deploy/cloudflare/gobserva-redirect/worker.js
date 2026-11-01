@@ -442,7 +442,7 @@ const CSS = `
   --mapa-sin: #26302E;
   --lupa-aro: #E7F0EE; --lupa-vidrio: rgba(212, 255, 63, .06); --rotulo: rgba(17, 23, 23, .94);
   --banda: #111717; --banda-tinta: #E7F0EE; --banda-tenue: #8FA3A0; --banda-linea: #243030;
-  --logo-tinta: var(--tinta);
+  --logo-tinta: var(--tinta); --logo-aro: var(--lima); --logo-nodo: #FFFFFF;
   --t-display: clamp(1.875rem, 1.35rem + 1.6vw, 2.625rem);
   --t-title: clamp(1.375rem, 1.18rem + .65vw, 1.75rem);
   --t-heading: 1.0625rem;
@@ -466,6 +466,7 @@ const CSS = `
     --mapa-sin: #CBD5D1;
     --lupa-aro: #111817; --lupa-vidrio: rgba(212, 255, 63, .28); --rotulo: rgba(255, 255, 255, .96);
     --banda: #163A1E; --banda-tinta: #E7F0EE; --banda-tenue: #B6CBB8; --banda-linea: #2A5032;
+    --logo-aro: #2F6B10; --logo-nodo: #111817;
   }
 }
 * { box-sizing: border-box; }
@@ -494,10 +495,13 @@ p { text-wrap: pretty; }
 .junto { white-space: nowrap; }
 .logo { display: block; width: auto; max-width: 100%; }
 .logo .gl-letras { fill: var(--logo-tinta); }
-.logo .gl-aro { stroke: var(--logo-tinta); }
-.logo .gl-vidrio { fill: var(--lima); }
-.logo .gl-red { stroke: var(--sobre-lima); }
-.logo .gl-nodo { fill: var(--sobre-lima); }
+.logo .gl-aro { stroke: var(--logo-aro); }
+.logo .gl-nodo { fill: var(--logo-nodo); }
+.logo .gl-arista { fill: none; stroke: var(--logo-nodo); }
+.logo .gl-cursor { fill: var(--logo-aro); }
+/* El cursor titila, como el de «vigía_». */
+@media (prefers-reduced-motion: no-preference) { .logo-portada .gl-cursor, .logo-cabecera .gl-cursor { animation: titila 1.1s steps(1) infinite; } }
+@keyframes titila { 50% { opacity: 0; } }
 .px { display: block; width: 1.5rem; height: 1.5rem; fill: currentColor; flex: none; }
 .enlace { color: var(--acento); font-weight: 600; text-decoration: underline; }
 .enlace:hover { text-decoration-thickness: 2px; }
@@ -535,7 +539,7 @@ p { text-wrap: pretty; }
 .cabecera::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: radial-gradient(circle, var(--lima) 1.1px, transparent 1.4px) 0 50% / 9px 3px repeat-x; opacity: .7; }
 .cabecera-fila { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.75rem; }
 .marca { display: block; padding-block: .5rem; }
-.logo-cabecera { height: 1.625rem; }
+.logo-cabecera { height: 2rem; }
 .cabecera ul { display: flex; align-items: center; gap: .25rem 1.5rem; list-style: none; margin: 0; padding: 0; }
 .cabecera .ancla a { font-weight: 500; font-size: var(--t-small); color: var(--tinta-suave); text-decoration: none; }
 .cabecera .ancla a:hover { color: var(--tinta); text-decoration: underline; }
@@ -549,14 +553,11 @@ p { text-wrap: pretty; }
 .portada-texto { grid-area: texto; }
 .portada-mapa { grid-area: mapa; }
 .ficha { grid-area: ficha; }
-.sello { display: inline-flex; align-items: center; gap: .5rem; margin: 0 0 1.125rem; padding: .375rem .75rem; background: var(--superficie); box-shadow: inset 0 0 0 1px var(--borde); font-size: var(--t-caption); color: var(--tinta-suave); }
-.sello b { font: 400 .75rem/1 Silkscreen, monospace; letter-spacing: .03em; color: var(--tinta); }
-.cursor { width: .5rem; height: .875rem; background: var(--lima); }
-@media (prefers-reduced-motion: no-preference) { .cursor { animation: titila 1.1s steps(1) infinite; } }
-@keyframes titila { 50% { opacity: 0; } }
-.portada h1 { font: 800 var(--t-display)/1.12 Doto, "Space Grotesk", monospace; letter-spacing: 0; }
-.portada h1 em { font-style: normal; color: var(--acento); }
-.entrada { margin: 1rem 0 0; max-width: 46ch; color: var(--tinta-suave); }
+.portada h1 { margin: 0; line-height: 0; }
+.logo-portada { height: clamp(3.25rem, 2.2rem + 3.2vw, 5.25rem); }
+.eslogan { margin: 1.125rem 0 0; font: 800 clamp(1.375rem, 1.05rem + 1.1vw, 2rem)/1.2 Doto, "Space Grotesk", monospace; text-wrap: balance; }
+.eslogan em { font-style: normal; color: var(--acento); }
+.entrada { margin: .875rem 0 0; max-width: 46ch; color: var(--tinta-suave); }
 
 .metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; margin: 0; padding: 0; border: 0; }
 .metrica { --e: 4px; position: relative; display: grid; gap: .125rem; padding: .625rem .75rem .6875rem; cursor: pointer; background: color-mix(in srgb, var(--c) 8%, var(--superficie)); }
@@ -686,12 +687,12 @@ p { text-wrap: pretty; }
 .ver-mas { margin: 1.25rem 0 0; font-size: var(--t-small); }
 
 /* Llamado y pie (la misma banda) */
-.llamado, .pie { background: var(--banda); color: var(--banda-tinta); --acento: var(--lima); --logo-tinta: var(--banda-tinta); }
+.llamado, .pie { background: var(--banda); color: var(--banda-tinta); --acento: var(--lima); --logo-tinta: var(--banda-tinta); --logo-aro: var(--lima); --logo-nodo: #FFFFFF; }
 .llamado { margin-top: clamp(3rem, 7vw, 5rem); }
 .llamado .marco { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem 2.5rem; padding-block: clamp(2rem, 5vw, 3rem); }
 .llamado .intro { color: var(--banda-tenue); margin-top: .5rem; }
 .pie .marco { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 2rem; padding-block: 2.25rem 2.5rem; border-top: 1px dotted var(--banda-linea); }
-.logo-pie { height: 1.875rem; }
+.logo-pie { height: 2.25rem; }
 .pie .pie-eslogan { font: 800 1.0625rem/1.3 Doto, "Space Grotesk", monospace; margin: .875rem 0 0; color: var(--banda-tinta); }
 .pie p { margin: .375rem 0 0; color: var(--banda-tenue); font-size: var(--t-small); }
 .pie h2 { font: 400 .75rem/1.2 Silkscreen, monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--banda-tenue); margin: .25rem 0 .875rem; }
@@ -717,14 +718,13 @@ p { text-wrap: pretty; }
 }
 @media (max-width: 47.99rem) {
   .cabecera .ancla { display: none; }
-  .logo-cabecera { height: 1.5rem; }
+  .logo-cabecera { height: 1.75rem; }
   .fuentes { grid-template-columns: minmax(0, 1fr); }
   .pie .marco { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pie .marco > :first-child { grid-column: 1 / -1; }
   .lupa-dato { display: none; }
 }
 @media (max-width: 39.99rem) {
-  .sello-texto { display: none; }
   .proximos, .principios { grid-template-columns: minmax(0, 1fr); }
   .metrica { padding: .5rem .5625rem; }
   .metrica-cifra { font-size: 1.125rem; }
@@ -794,9 +794,9 @@ function portada(datos) {
   <section class="portada" aria-labelledby="titulo">
     <div class="marco portada-grilla">
       <div class="portada-texto">
-        <p class="sello"><span class="cursor" aria-hidden="true"></span><b>GovTech peruana</b><span class="sello-texto">tecnología cívica con datos del Estado</span></p>
-        <h1 id="titulo"><span class="sr">Gobserva: </span>Lo de todos, <span class="junto"><em>a la vista</em> de todos.</span></h1>
-        <p class="entrada">Cruzamos lo que el Estado peruano publica y te lo mostramos con su fuente al lado. Pasa la lupa por el mapa: cada región muestra lo que la Procuraduría Anticorrupción, la Contraloría y la OECE ya registraron.</p>
+        <h1 id="titulo"><span class="sr">Gobserva</span>${logo("logo-portada")}</h1>
+        <p class="eslogan">Lo de todos, <span class="junto"><em>a la vista</em> de todos.</span></p>
+        <p class="entrada">Somos una GovTech peruana: cruzamos lo que el Estado publica y te lo mostramos con su fuente al lado. Pasa la lupa por el mapa: cada región muestra lo que la Procuraduría Anticorrupción, la Contraloría y la OECE ya registraron.</p>
         <div class="acciones">
           <a class="boton lima esq" href="${VIGIA}/">Entrar a Vigía</a>
           <a class="boton borde esq" href="#proximamente">Lo que viene</a>
