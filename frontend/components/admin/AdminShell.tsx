@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow } from "lucide-react";
+import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow, Rocket } from "lucide-react";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { precargarAdmin, useAdmin } from "@/lib/useAdmin";
 import type { Operacion } from "@/lib/admin";
@@ -45,6 +45,11 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
       { href: "/admin/financiadores", label: "Financiadores", icon: Users, precargar: ["/financiadores"] },
       { href: "/admin/pagos", label: "Medios de pago", icon: Wallet, precargar: ["/config/pagos"] },
     ],
+  },
+  {
+    // Los productos de pago de Gobserva (empleo y licitaciones): quién se anotó y a qué plan (migración 226).
+    grupo: "Gobserva",
+    items: [{ href: "/admin/gobserva", label: "Inscritos", icon: Rocket, precargar: ["/gobserva/suscripciones"] }],
   },
   {
     grupo: "Registro",

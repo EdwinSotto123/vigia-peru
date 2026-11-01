@@ -32,7 +32,8 @@ export const esRol = (x: unknown): x is Rol => x === "admin" || x === "revisor";
 
 /** Secciones del panel que el revisor NO ve (el resto, sí). */
 // Privacidad: los pedidos llevan el correo y el mensaje de una persona (Ley 29733).
-const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo", "/admin/privacidad"];
+// Gobserva: los inscritos en los productos dejan su correo y, si quieren, su WhatsApp.
+const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo", "/admin/privacidad", "/admin/gobserva"];
 
 export function puedeVerSeccion(rol: Rol, pathname: string): boolean {
   if (rol === "admin") return true;
