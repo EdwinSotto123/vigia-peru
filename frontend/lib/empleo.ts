@@ -75,11 +75,16 @@ export interface ListaEmpleo {
 export interface FiltrosEmpleo {
   q?: string;
   region?: string;
+  /** El nivel exacto que pide la plaza («Qué estudios piden» de la portada). */
   nivel?: NivelEmpleo;
+  /** Los estudios de quien busca: las plazas que piden ese nivel o uno menor («Tus estudios»). */
+  tengo?: NivelPersona;
   sueldo?: number;
   exp?: number;
   cierra?: "hoy" | "2dias" | "semana";
   senal?: SenalEmpleo;
+  /** El RUC de la entidad que convoca. */
+  entidad?: string;
   orden?: "cierre" | "sueldo" | "reciente" | "vacantes";
   page?: number;
 }
@@ -94,6 +99,18 @@ export const NIVEL: Record<NivelEmpleo, { corto: string; largo: string }> = {
   sin_dato: { corto: "Según el perfil", largo: "Según el perfil del puesto" },
 };
 export const NIVELES_ORDEN: NivelEmpleo[] = ["secundaria", "tecnica", "egresado", "bachiller", "titulo", "posgrado", "sin_dato"];
+/** Los estudios que una persona puede tener (sin «según el perfil», que es de la plaza). */
+export type NivelPersona = Exclude<NivelEmpleo, "sin_dato">;
+export const NIVELES_PERSONA: NivelPersona[] = ["secundaria", "tecnica", "egresado", "bachiller", "titulo", "posgrado"];
+
+/**
+ * Cuántas plazas puede postular quien tiene ese nivel: las que piden el suyo o uno menor (las «según el perfil» no se
+ * cuentan: no se sabe qué piden). `porNivel` son los conteos de cada nivel exacto que trae la API.
+ */
+export function plazasHasta(porNivel: Conteo[], tengo: NivelPersona): number {
+  const hasta = NIVELES_PERSONA.slice(0, NIVELES_PERSONA.indexOf(tengo) + 1) as string[];
+  return porNivel.filter((c) => hasta.includes(c.clave)).reduce((s, c) => s + c.n, 0);
+}
 
 /** Los 25 departamentos (y el Callao) como los nombra la API, con su nombre bien escrito. */
 const REGION_NOMBRE: Record<string, string> = {
@@ -282,12 +299,12 @@ export function enumerar(lista: string[], conector: "y" | "ni" = "y"): string {
 
 /** Cuántos filtros de la lista están puestos, sin contar el texto (que se ve en su campo) ni el orden ni la página. */
 export function filtrosPuestos(f: FiltrosEmpleo): number {
-  return [f.region, f.nivel, f.sueldo, f.exp, f.cierra, f.senal].filter((v) => v != null && v !== "").length;
+  return [f.region, f.nivel, f.tengo, f.sueldo, f.exp, f.cierra, f.senal, f.entidad].filter((v) => v != null && v !== "").length;
 }
 
 /** Si la búsqueda se puede guardar como alerta: tiene al menos uno de los filtros que una alerta entiende (comun.tsx). */
 export function esAlertable(f: FiltrosEmpleo): boolean {
-  return !!(f.q || f.region || f.nivel || f.sueldo || f.exp != null);
+  return !!(f.q || f.region || f.nivel || f.tengo || f.sueldo || f.exp != null || f.cierra || f.senal || f.entidad);
 }
 
 /** La consulta de /plazas (sin vacíos), para la URL y para la API. */
@@ -326,6 +343,8 @@ export function filtrosDeUrl(sp: Record<string, string | string[] | undefined> |
   const q = uno("q");
   const region = uno("region");
   const nivel = uno("nivel") as NivelEmpleo | undefined;
+  const tengo = uno("tengo") as NivelPersona | undefined;
+  const entidad = uno("entidad");
   const cierra = uno("cierra");
   const senal = uno("senal") as SenalEmpleo | undefined;
   const orden = uno("orden");
@@ -333,6 +352,8 @@ export function filtrosDeUrl(sp: Record<string, string | string[] | undefined> |
     q: q && q.length >= 2 ? q.slice(0, 80) : undefined,
     region: region && /^[a-z-]{3,30}$/.test(region) ? region : undefined,
     nivel: nivel && nivel in NIVEL ? nivel : undefined,
+    tengo: tengo && NIVELES_PERSONA.includes(tengo) ? tengo : undefined,
+    entidad: entidad && /^\d{11}$/.test(entidad) ? entidad : undefined,
     sueldo: num("sueldo", 100000) || undefined,
     exp: num("exp", 30),
     cierra: cierra === "hoy" || cierra === "2dias" || cierra === "semana" ? cierra : undefined,

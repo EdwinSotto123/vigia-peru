@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 type Params = Record<string, string | string[] | undefined>;
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
-const CLAVES = ["q", "region", "tipo", "dias", "orden", "min", "max", "entidad", "page"] as const;
+const CLAVES = ["q", "region", "tipo", "dias", "orden", "min", "max", "entidad", "consultas", "page"] as const;
 /** La API sirve hasta la página 50 (de 20 en 20): las primeras 1,000 de una búsqueda. */
 const PAGINAS_MAX = 50;
 
@@ -47,7 +47,8 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
   if (v.region && /^\d{2}$/.test(v.region)) api.set("region", v.region);
   if (v.tipo && TIPOS.some((t) => t.clave === v.tipo)) api.set("tipo", v.tipo);
   if (v.dias && ["7", "15", "30", "60"].includes(v.dias)) api.set("dias", v.dias);
-  if (v.orden === "valor") api.set("orden", "valor");
+  if (v.orden === "valor" || v.orden === "consultas") api.set("orden", v.orden);
+  if (v.consultas === "abiertas" || v.consultas === "semana") api.set("consultas", v.consultas);
   const cifra = (x?: string) => (x ? Number(x.replace(/[^\d.]/g, "")) : NaN);
   if (Number.isFinite(cifra(v.min)) && cifra(v.min) > 0) api.set("min", String(cifra(v.min)));
   if (Number.isFinite(cifra(v.max)) && cifra(v.max) > 0) api.set("max", String(cifra(v.max)));
@@ -80,7 +81,8 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
   const dias = Number(api.get("dias") ?? 15);
   const tipo = api.get("tipo");
   const region = api.get("region");
-  const orden = api.get("orden") === "valor" ? "valor" : "reciente";
+  const orden = api.get("orden") === "valor" ? "valor" : api.get("orden") === "consultas" ? "consultas" : "reciente";
+  const consultas = api.get("consultas");
   const ultima = d ? Math.min(PAGINAS_MAX, Math.max(1, Math.ceil(d.total / d.size))) : 1;
   const entidadNombre = v.entidad ? d?.data.find((o) => o.entidadRuc === v.entidad)?.entidad : undefined;
   const conRango = !!(api.get("min") || api.get("max"));
@@ -94,6 +96,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
     api.get("min") ? { clave: "min", texto: `Desde ${soles(Number(api.get("min")))}`, href: enlace({ min: null }) } : null,
     api.get("max") ? { clave: "max", texto: `Hasta ${soles(Number(api.get("max")))}`, href: enlace({ max: null }) } : null,
     api.get("entidad") ? { clave: "entidad", texto: entidadNombre ? tituloNatural(entidadNombre) : "Una entidad", href: enlace({ entidad: null }) } : null,
+    consultas ? { clave: "consultas", texto: consultas === "semana" ? "Consultas vencen esta semana" : "Consultas abiertas", href: enlace({ consultas: null }) } : null,
   ].filter((x): x is { clave: string; texto: string; href: string } => !!x);
 
   // Lo que se puede probar cuando no hay ninguna.
@@ -104,6 +107,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
     conRango ? { texto: "Sin rango de valor", href: enlace({ min: null, max: null }) } : null,
     dias < 60 ? { texto: "Los últimos 60 días", href: enlace({ dias: "60" }) } : null,
     api.get("entidad") ? { texto: "De todas las entidades", href: enlace({ entidad: null }) } : null,
+    consultas ? { texto: "Con o sin plazo de consultas", href: enlace({ consultas: null }) } : null,
   ].filter((x): x is { texto: string; href: string } => !!x);
 
   const conteos = d
@@ -215,12 +219,14 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
               </dl>
             </div>
             <nav aria-label="Ordenar las oportunidades" className="flex items-center gap-2">
-              <span className="text-meta text-mute">Ordenar</span>
+              <span className="hidden text-meta text-mute sm:inline">Ordenar</span>
               <span className="inline-flex rounded-full border border-line bg-paper p-0.5">
                 {(
                   [
                     { clave: "reciente", texto: "Más recientes", href: `${enlace({ orden: null })}#resultados` },
                     { clave: "valor", texto: "Mayor valor", href: `${enlace({ orden: "valor" })}#resultados` },
+                    // Las que vencen antes arriba (sólo las que todavía tienen consultas abiertas; las demás, al final).
+                    { clave: "consultas", texto: "Por vencer", href: `${enlace({ orden: "consultas" })}#resultados` },
                   ] as const
                 ).map((o) => (
                   <Link

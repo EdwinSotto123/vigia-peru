@@ -5,7 +5,9 @@ import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { BarrasEnlace, Buscador, CLASE_VER_TODAS, CifraEmpleo, Preguntas } from "@/components/empleo/Piezas";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { NIVEL, NIVELES_ORDEN, canalAlertas, entidadNombre, getResumenEmpleo, nombreRegion, qsEmpleo, slugRegion, type ResumenEmpleo, type SenalEmpleo } from "@/lib/empleo";
+import {
+  NIVEL, NIVELES_ORDEN, canalAlertas, entidadNombre, getResumenEmpleo, nombreRegion, plazasHasta, qsEmpleo, slugRegion, type ResumenEmpleo, type SenalEmpleo,
+} from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor, precioDe, type PlanesServidor } from "@/lib/gobserva-planes";
@@ -149,7 +151,8 @@ export default async function InicioEmpleo() {
                   clave: `${e.entidad}-${i}`,
                   nombre: entidadNombre(e.entidad),
                   n: e.n,
-                  href: plazas({ q: entidadNombre(e.entidad).slice(0, 80) }),
+                  // Por su RUC, la cifra exacta (el nombre como texto también traía plazas de otras entidades).
+                  href: e.ruc ? plazas({ entidad: e.ruc }) : plazas({ q: entidadNombre(e.entidad).slice(0, 80) }),
                   detalle: `${numero(e.vacantes)} ${e.vacantes === 1 ? "vacante" : "vacantes"}`,
                 }))}
               />
@@ -234,8 +237,9 @@ function Heroe({ base, r, plazas }: { base: string; r: ResumenEmpleo | null; pla
   const atajos = r
     ? [
         { texto: "Hasta 1 año de experiencia", n: r.hasta1Anio, href: plazas({ exp: 1 }) },
-        { texto: "Con secundaria completa", n: r.porNivel.find((x) => x.clave === "secundaria")?.n ?? 0, href: plazas({ nivel: "secundaria" }) },
-        { texto: "Con estudios técnicos", n: r.porNivel.find((x) => x.clave === "tecnica")?.n ?? 0, href: plazas({ nivel: "tecnica" }) },
+        // Lo que puede postular quien tiene esos estudios: su nivel y los de abajo (un técnico también a las de secundaria).
+        { texto: "Con secundaria completa", n: plazasHasta(r.porNivel, "secundaria"), href: plazas({ tengo: "secundaria" }) },
+        { texto: "Con estudios técnicos", n: plazasHasta(r.porNivel, "tecnica"), href: plazas({ tengo: "tecnica" }) },
         { texto: `Desde ${soles(5000)}`, n: r.mas5000, href: plazas({ sueldo: 5000, orden: "sueldo" }) },
         { texto: "Cierran en 2 días", n: r.cierran2dias, href: plazas({ cierra: "2dias" }) },
         { texto: "En Lima", n: r.porRegion.find((x) => x.clave === "LIMA")?.n ?? 0, href: plazas({ region: "lima" }) },

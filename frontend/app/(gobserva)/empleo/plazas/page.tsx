@@ -10,7 +10,7 @@ import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda"
 import { Nota } from "@/components/patrones/Estructura";
 import { Franja } from "@/components/patrones/Franja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { NIVEL, canalAlertas, claveDeSlug, esAlertable, filtrosDeUrl, getPlazasEmpleo, nombreRegion, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
+import { NIVEL, canalAlertas, claveDeSlug, entidadNombre, esAlertable, filtrosDeUrl, getPlazasEmpleo, nombreRegion, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
@@ -66,10 +66,14 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
   const canal = canalAlertas(cat.correoActivo);
   const alertable = esAlertable(f);
 
+  // La entidad del filtro, con el nombre que trae su primera plaza (la URL sólo lleva el RUC).
+  const deLaEntidad = f.entidad ? d?.data.find((x) => x.entidadRuc === f.entidad)?.entidad : undefined;
   const puestos: { texto: string; href: string }[] = [
     f.q ? { texto: `«${f.q}»`, href: sin("q") } : null,
+    f.entidad ? { texto: deLaEntidad ? entidadNombre(deLaEntidad) : "Una entidad", href: sin("entidad") } : null,
     f.region ? { texto: nombreRegion(claveDeSlug(f.region)), href: sin("region") } : null,
-    f.nivel ? { texto: NIVEL[f.nivel].largo, href: sin("nivel") } : null,
+    f.tengo ? { texto: `Tus estudios: ${NIVEL[f.tengo].largo}`, href: sin("tengo") } : null,
+    f.nivel ? { texto: `Piden: ${NIVEL[f.nivel].largo}`, href: sin("nivel") } : null,
     f.sueldo ? { texto: `Desde ${soles(f.sueldo)}`, href: sin("sueldo") } : null,
     f.exp != null ? { texto: f.exp === 0 ? "Sin experiencia" : `Hasta ${f.exp} ${f.exp === 1 ? "año" : "años"} de experiencia`, href: sin("exp") } : null,
     f.cierra ? { texto: f.cierra === "hoy" ? "Cierran hoy" : f.cierra === "2dias" ? "Cierran en 2 días" : "Cierran esta semana", href: sin("cierra") } : null,

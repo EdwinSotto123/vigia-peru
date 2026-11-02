@@ -9,7 +9,7 @@ import { Nota } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
@@ -225,6 +225,8 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
                   valor: g.monto ?? 0,
                   texto: solesCompacto(g.monto ?? 0),
                   detalle: `${numero(g.procesos)} ${g.procesos === 1 ? "proceso" : "procesos"}${m.monto ? `, ${porcentaje(((g.monto ?? 0) / m.monto) * 100)} del mercado` : ""}`,
+                  // Su historial completo (contratos, antecedentes) en Vigía.
+                  href: fichaEmpresaVigia(g.ruc) ?? undefined,
                 }))}
               />
             </section>

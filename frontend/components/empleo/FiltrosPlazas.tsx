@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { ArrowDownUp, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { NIVEL, NIVELES_ORDEN, REGIONES_EMPLEO, filtrosPuestos, nombreRegion, qsEmpleo, slugRegion, type Conteo, type FiltrosEmpleo, type NivelEmpleo } from "@/lib/empleo";
+import {
+  NIVEL, NIVELES_PERSONA, REGIONES_EMPLEO, filtrosPuestos, nombreRegion, plazasHasta, qsEmpleo, slugRegion, type Conteo, type FiltrosEmpleo, type NivelPersona,
+} from "@/lib/empleo";
 import { numero } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
@@ -76,7 +78,6 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
   }, [buscando]);
   const lista = rutaEn(base, "/plazas");
   const porRegion = new Map(facetas.region.map((f) => [f.clave, f.n]));
-  const porNivel = new Map(facetas.nivel.map((f) => [f.clave, f.n]));
   const conFacetas = facetas.region.length > 0;
   const n = filtrosPuestos(filtros);
   const sinFiltros = `${lista}${qsEmpleo({ q: filtros.q, orden: filtros.orden })}`;
@@ -90,7 +91,10 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
     const f: FiltrosEmpleo = {
       q: v("q"),
       region: v("region"),
-      nivel: v("nivel") as NivelEmpleo | undefined,
+      // El nivel exacto (de «Qué estudios piden» en la portada) y la entidad no tienen campo: viajan como vinieron.
+      nivel: filtros.nivel,
+      tengo: v("tengo") as NivelPersona | undefined,
+      entidad: filtros.entidad,
       sueldo: v("sueldo") ? Number(v("sueldo")) : undefined,
       exp: exp != null ? Number(exp) : undefined,
       cierra: v("cierra") as FiltrosEmpleo["cierra"],
@@ -119,6 +123,8 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
     >
       {/* Sin JavaScript, lo que no tiene campo viaja igual: la señal (llega de la portada) y el orden. */}
       {filtros.senal && <input type="hidden" name="senal" value={filtros.senal} />}
+      {filtros.nivel && <input type="hidden" name="nivel" value={filtros.nivel} />}
+      {filtros.entidad && <input type="hidden" name="entidad" value={filtros.entidad} />}
       {filtros.orden && filtros.orden !== "cierre" && <input type="hidden" name="orden" value={filtros.orden} />}
 
       <div className="mb-3 hidden items-center justify-between gap-2 lg:flex">
@@ -171,12 +177,13 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
             })}
           </select>
         </Campo>
-        <Campo etiqueta="Estudios que piden" htmlFor="f-nivel">
-          <select id="f-nivel" name="nivel" defaultValue={filtros.nivel ?? ""} onChange={cambio} className={CAMPO}>
-            <option value="">Cualquier nivel</option>
-            {NIVELES_ORDEN.map((nv) => (
+        {/* Lo que tiene quien busca: las plazas a las que puede postular (las que piden su nivel o uno menor). */}
+        <Campo etiqueta="Tus estudios" htmlFor="f-tengo">
+          <select id="f-tengo" name="tengo" defaultValue={filtros.tengo ?? ""} onChange={cambio} className={CAMPO}>
+            <option value="">Cualquiera</option>
+            {NIVELES_PERSONA.map((nv) => (
               <option key={nv} value={nv}>
-                {NIVEL[nv].largo} ({numero(porNivel.get(nv) ?? 0)})
+                {NIVEL[nv].largo} ({numero(plazasHasta(facetas.nivel, nv))})
               </option>
             ))}
           </select>

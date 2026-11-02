@@ -117,6 +117,20 @@ def monto(t: str | None) -> float | None:
     return float(s.replace(",", ""))
 
 
+def vacantes_de(texto: str | None, remuneracion: float | None) -> int | None:
+    """La cantidad de vacantes, o None si no es una cantidad: algunos avisos traen ahí el sueldo (2026-11-02, «Secretario
+    judicial»: 6,620 vacantes y S/ 6,620). Un número de más de 50 igual al sueldo no se cuenta (igual que vacantesDe del Worker)."""
+    if re.search(r"S/|\d[.,]\d{2}\b", texto or ""):
+        return None
+    m = re.search(r"\d+", texto or "")
+    n = int(m.group(0)) if m else None
+    if n is None or n > 2_147_483_647:
+        return None
+    if n > 50 and remuneracion is not None and n == round(remuneracion):
+        return None
+    return n
+
+
 ETIQUETAS = {
     "experiencia": "EXPERIENCIA:", "formacion": "FORMACIÓN ACADÉMICA - PERFIL:", "especializacion": "ESPECIALIZACIÓN:",
     "conocimiento": "CONOCIMIENTO:", "competencias": "COMPETENCIAS:", "detalle_url": "DETALLE:", "vacantes": "CANTIDAD DE VACANTES:",
@@ -144,10 +158,10 @@ def parsear_detalle(h: str) -> dict | None:
     if not aviso or not titulo or not d.get("entidad"):
         return None
     ubic = re.search(r'Ubicaci.n:\s*\|\s*([^|]+)', texto_plano(h))
-    vac = re.search(r"\d+", d.get("vacantes") or "")
+    remuneracion = monto(d.get("remuneracion"))
     return {
         "aviso": int(aviso.group(0)), "titulo": titulo, "entidad": d["entidad"], "ubicacion": ubic.group(1).strip() if ubic else None,
-        "numero": d.get("numero"), "vacantes": int(vac.group(0)) if vac else None, "remuneracion": monto(d.get("remuneracion")),
+        "numero": d.get("numero"), "vacantes": vacantes_de(d.get("vacantes"), remuneracion), "remuneracion": remuneracion,
         "fecha_inicio": fecha(d.get("fecha_inicio")), "fecha_fin": fecha(d.get("fecha_fin")), "experiencia": d.get("experiencia"),
         "formacion": d.get("formacion"), "especializacion": d.get("especializacion"), "conocimiento": d.get("conocimiento"),
         "competencias": d.get("competencias"),

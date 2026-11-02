@@ -14,6 +14,8 @@ export interface ValoresFiltro {
   min?: string;
   max?: string;
   entidad?: string;
+  /** El plazo de consultas: «abiertas» o «semana» (vence en los próximos 7 días). */
+  consultas?: string;
 }
 
 /** Cuántas oportunidades hay en cada región y en cada tipo con los demás filtros puestos: van en sus opciones. */
@@ -37,8 +39,8 @@ const BOTON =
  */
 export function FiltrosOportunidades({ base, v, conteos, className }: { base: string; v: ValoresFiltro; conteos?: ConteosFiltro; className?: string }) {
   const diasPuestos = !!v.dias && v.dias !== "15";
-  const plegados = [v.region, v.tipo, v.min, v.max].filter(Boolean).length + (diasPuestos ? 1 : 0);
-  const hayFiltros = !!(v.q || v.region || v.tipo || v.min || v.max || v.entidad || diasPuestos || (v.orden && v.orden !== "reciente"));
+  const plegados = [v.region, v.tipo, v.min, v.max, v.consultas].filter(Boolean).length + (diasPuestos ? 1 : 0);
+  const hayFiltros = !!(v.q || v.region || v.tipo || v.min || v.max || v.entidad || v.consultas || diasPuestos || (v.orden && v.orden !== "reciente"));
   const cuenta = (n: number | undefined) => (n == null ? "" : ` (${numero(n)})`);
   return (
     <form
@@ -113,6 +115,14 @@ export function FiltrosOportunidades({ base, v, conteos, className }: { base: st
         </label>
         <div className="col-span-2 grid grid-cols-2 gap-2 md:col-span-3 md:col-start-1 md:row-start-2 md:flex md:flex-wrap md:items-end md:gap-3">
           <label className="col-span-2 block min-w-0 md:w-56">
+            <span className={ROTULO}>Consultas y observaciones</span>
+            <select name="consultas" defaultValue={v.consultas ?? ""} className={CAMPO}>
+              <option value="">Con o sin plazo</option>
+              <option value="abiertas">Todavía abiertas</option>
+              <option value="semana">Vencen esta semana</option>
+            </select>
+          </label>
+          <label className="col-span-2 block min-w-0 md:w-56">
             <span className={ROTULO}>Convocadas en</span>
             <select name="dias" defaultValue={v.dias ?? "15"} className={CAMPO}>
               <option value="7">Los últimos 7 días</option>
@@ -146,7 +156,7 @@ export function FiltrosOportunidades({ base, v, conteos, className }: { base: st
       </div>
 
       {v.entidad && <input type="hidden" name="entidad" value={v.entidad} />}
-      {v.orden === "valor" && <input type="hidden" name="orden" value="valor" />}
+      {(v.orden === "valor" || v.orden === "consultas") && <input type="hidden" name="orden" value={v.orden} />}
     </form>
   );
 }

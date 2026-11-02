@@ -91,6 +91,13 @@ export const otrosProductos = (p: Producto): InfoProducto[] => Object.values(PRO
 /** El servidor MCP público de Gobserva (backend/mcp-worker): lo que se pega en Claude, ChatGPT o Cursor. */
 export const URL_MCP = "https://vigia-mcp.vigiaperu.workers.dev/mcp";
 
+/**
+ * La ficha de una empresa en Vigía (sus contratos, sus antecedentes y su gente): sólo con un RUC 20, el de una persona
+ * jurídica. Un RUC 10 es de una persona natural y nunca se enlaza ni se muestra.
+ */
+export const fichaEmpresaVigia = (ruc?: string | null): string | null =>
+  ruc && /^20\d{9}$/.test(ruc) ? `https://vigia.gobserva.cloud/empresa/${ruc}` : null;
+
 /** Correo de contacto de Gobserva (correo de IONOS del dominio). */
 export const CORREO_GOBSERVA = "hello@gobserva.cloud";
 

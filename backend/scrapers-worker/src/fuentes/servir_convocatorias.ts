@@ -220,6 +220,20 @@ export interface Plaza {
 }
 
 /**
+ * `vacantes_de()`: la cantidad de vacantes, o null si no es una cantidad. Algunos avisos traen en esa celda el sueldo (el
+ * 2026-11-02, «Secretario judicial»: 6,620 vacantes y S/ 6,620): un número de más de 50 igual al sueldo no se cuenta (los
+ * tres que había inflaban el total de 4,836 a 20,716 vacantes).
+ */
+export function vacantesDe(texto: string | null | undefined, remuneracion: number | null): number | null {
+  if (/S\/|\d[.,]\d{2}\b/.test(texto ?? "")) return null; // un monto, no una cantidad
+  const m = /\d+/.exec(texto ?? "");
+  const n = m ? Number(m[0]) : null;
+  if (n === null || n > MAX_INT) return null;
+  if (n > 50 && remuneracion !== null && n === Math.round(remuneracion)) return null;
+  return n;
+}
+
+/**
  * `parsear_detalle()`: el detalle de una plaza. Cada dato es el texto que sigue a su etiqueta (las celdas van separadas
  * por «|»); el aviso es el «N° 823283» solo en su celda, junto a «Imprimir aviso» (el menú nombra decretos con «N°»).
  */
@@ -241,11 +255,10 @@ export function parsearDetalle(h: string): Plaza | null {
   const titulo = i >= 0 && i + 1 < partes.length ? partes[i + 1] : null;
   if (aviso === null || aviso > MAX_INT || !titulo || !d.entidad) return null;
   const ubic = /Ubicaci.n:\s*\|\s*([^|]+)/.exec(plano);
-  const vac = /\d+/.exec(d.vacantes ?? "");
-  const vacantes = vac ? Number(vac[0]) : null;
+  const remuneracion = monto(d.remuneracion);
   return {
     aviso, titulo, entidad: d.entidad, ubicacion: ubic ? strip(ubic[1]) : null, numero: d.numero ?? null,
-    vacantes: vacantes !== null && vacantes <= MAX_INT ? vacantes : null, remuneracion: monto(d.remuneracion),
+    vacantes: vacantesDe(d.vacantes, remuneracion), remuneracion,
     fecha_inicio: fecha(d.fecha_inicio), fecha_fin: fecha(d.fecha_fin), experiencia: d.experiencia ?? null,
     formacion: d.formacion ?? null, especializacion: d.especializacion ?? null, conocimiento: d.conocimiento ?? null,
     competencias: d.competencias ?? null, detalle_url: (d.detalle_url ?? "").startsWith("http") ? d.detalle_url! : null,

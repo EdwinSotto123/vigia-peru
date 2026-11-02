@@ -24,7 +24,7 @@ import { Dato, TiraCifras, iconoSector } from "@/components/gobserva-obras/Pieza
 import { Nota } from "@/components/patrones/Estructura";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, porcentaje, solesCompacto } from "@/lib/formato";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
 import { SECTORES, TAMANOS, getMercadoObras, nombreEmpresa, nombreLugar, nombreProyecto, nombreSector, type Ranking } from "@/lib/gobserva-obras";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { REGIONES_UBIGEO, nombreRegion } from "@/lib/licitaciones";
@@ -411,6 +411,8 @@ function RankingEmpresas({ Icono, titulo, filas }: { Icono: typeof Trophy; titul
             valor: e.monto,
             texto: solesCompacto(e.monto),
             detalle: `RUC ${e.ruc}, ${numero(e.procesos)} ${e.procesos === 1 ? "proceso" : "procesos"}${e.enConsorcio ? ` (${numero(e.enConsorcio)} en consorcio)` : ""}`,
+            // Su historial completo (contratos, antecedentes) en Vigía.
+            href: fichaEmpresaVigia(e.ruc) ?? undefined,
           }))}
         />
       )}

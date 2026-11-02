@@ -26,7 +26,7 @@ import { Nota, Volver } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
-import { palabrasClave, rutaEn, urlCanonica } from "@/lib/gobserva";
+import { fichaEmpresaVigia, palabrasClave, rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { tildesEnTitulo } from "@/lib/tildes";
@@ -381,9 +381,16 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
                         return (
                           <li key={p.ruc} className="min-w-0">
                             <span className="flex items-baseline justify-between gap-2 text-meta">
-                              <span className="min-w-0 truncate text-paper" title={p.nombre ?? p.ruc}>
-                                {p.nombre ? tituloNatural(p.nombre) : p.ruc}
-                              </span>
+                              {fichaEmpresaVigia(p.ruc) ? (
+                                // Su historial completo en Vigía (sólo empresas, RUC 20).
+                                <a href={fichaEmpresaVigia(p.ruc)!} className="min-w-0 truncate text-paper underline-offset-2 hover:underline" title={`${p.nombre ?? p.ruc}: su historial en Vigía`}>
+                                  {p.nombre ? tituloNatural(p.nombre) : p.ruc}
+                                </a>
+                              ) : (
+                                <span className="min-w-0 truncate text-paper" title={p.nombre ?? p.ruc}>
+                                  {p.nombre ? tituloNatural(p.nombre) : p.ruc}
+                                </span>
+                              )}
                               <span className="shrink-0 font-mono tabular-nums text-paper/85">{solesCompacto(p.monto ?? 0)}</span>
                             </span>
                             <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paper/10">

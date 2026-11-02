@@ -43,6 +43,10 @@ const NIVEL = `CASE
   WHEN fz.f ~ '(MAESTR|MAGISTER|DOCTOR)' THEN 'posgrado'
   ELSE 'sin_dato' END`;
 export const NIVELES_EMPLEO = ["secundaria", "tecnica", "egresado", "bachiller", "titulo", "posgrado", "sin_dato"] as const;
+/** Los niveles de estudio que alguien puede tener, de menor a mayor («sin_dato» es de la plaza, no de la persona). */
+const NIVELES_PERSONA = ["secundaria", "tecnica", "egresado", "bachiller", "titulo", "posgrado"] as const;
+/** «tengo título» → las plazas que piden secundaria, técnica, egresado, bachiller o título: el suyo y los de abajo. */
+const nivelesHasta = (n: (typeof NIVELES_PERSONA)[number]) => NIVELES_PERSONA.slice(0, NIVELES_PERSONA.indexOf(n) + 1);
 const SENALES = ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"] as const;
 
 /** Las columnas de una plaza en la lista y en la portada (la ficha entera es GET /plazas/:aviso). */
@@ -98,6 +102,8 @@ const Lista = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   region: z.string().regex(/^[a-z-]{3,30}$/).optional(),
   nivel: z.enum(NIVELES_EMPLEO).optional(),
+  /** Los estudios de quien busca: las plazas cuyo nivel mínimo es el suyo o uno menor (las alertas y «Tus estudios»). */
+  tengo: z.enum(NIVELES_PERSONA).optional(),
   sueldo: z.coerce.number().int().min(0).max(100000).optional(),
   exp: z.coerce.number().min(0).max(30).optional(),
   cierra: z.enum(["hoy", "2dias", "semana"]).optional(),
@@ -137,7 +143,11 @@ function condicionesPlazas(q: FiltrosPlazas, nuevasDesde?: Date) {
   vals.push(q.region ? q.region.replace(/-/g, " ").toUpperCase() : null);
   const rc = `($${vals.length}::text IS NULL OR region = $${vals.length})`;
   vals.push(q.nivel ?? null);
-  const nc = `($${vals.length}::text IS NULL OR nivel = $${vals.length})`;
+  let nc = `($${vals.length}::text IS NULL OR nivel = $${vals.length})`;
+  if (q.tengo) {
+    vals.push([...nivelesHasta(q.tengo)]);
+    nc = `(${nc} AND nivel = ANY($${vals.length}::text[]))`;
+  }
   return { conds, vals, rc, nc };
 }
 

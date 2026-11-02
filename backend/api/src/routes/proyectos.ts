@@ -293,7 +293,10 @@ proyectosRouter.get("/lista", async (c) => {
     const conteo = (f: Faceta, col: string, extra = "") =>
       `COALESCE((SELECT json_agg(t ORDER BY t.n DESC, t.clave) FROM (SELECT ${col} AS clave, count(*)::int AS n FROM b
                   WHERE ${sin(f)}${extra} GROUP BY 1) t), '[]')`;
-    const [filas, resumen] = await Promise.all([
+    // Cuántos hay en cada pestaña con los demás filtros: la misma búsqueda sin la pestaña (ni la fase, que el enlace de
+    // cada pestaña quita), contada de una vez.
+    const sinPestana = condicionesProyectos({ ...q, pestana: undefined, fase: undefined } as FiltrosProyectos);
+    const [filas, resumen, pestanas] = await Promise.all([
       pool.query(
         `SELECT ${COLS} FROM gobserva_proyecto p WHERE ${[...fijas, ...todas].join(" AND ")}
           ORDER BY ${ordenDe(q)} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`,
@@ -317,11 +320,17 @@ proyectosRouter.get("/lista", async (c) => {
                 ${conteo("tipo", "tipo")} AS tipo`,
         vals,
       ),
+      pool.query(
+        `SELECT ${PESTANAS.map((t) => `count(*) FILTER (WHERE ${PESTANA_SQL[t]})::int AS ${t}`).join(", ")}
+           FROM gobserva_proyecto p WHERE ${sinPestana.where}`,
+        sinPestana.vals,
+      ),
     ]);
     const r = resumen.rows[0] as Record<string, unknown>;
     return publicar({
       ...q,
       total: r.total,
+      pestanas: pestanas.rows[0] ?? null,
       resumen: { monto: r.monto, porEjecutar: r.porEjecutar, entidades: r.entidades },
       facetas: { region: r.region, sector: r.sector, nivel: r.nivel, fase: r.fase, modalidad: r.modalidad, tipo: r.tipo },
       data: filas.rows,

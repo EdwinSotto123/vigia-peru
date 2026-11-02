@@ -118,11 +118,25 @@ const QOportunidades = z.object({
   max: z.coerce.number().min(0).max(1e12).optional(),
   dias: z.coerce.number().int().min(1).max(60).default(15),
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  orden: z.enum(["reciente", "valor"]).default("reciente"),
+  /** El plazo de consultas y observaciones: «abiertas» (todavía se puede preguntar) o «semana» (vence en 7 días). */
+  consultas: z.enum(["abiertas", "semana"]).optional(),
+  orden: z.enum(["reciente", "valor", "consultas"]).default("reciente"),
   page: z.coerce.number().int().min(1).max(50).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
 type QOp = z.infer<typeof QOportunidades>;
+
+/** El fin del plazo de consultas del OCDS («YYYY-MM-DD»), el mismo texto que la columna «consultasHasta». */
+const FIN_CONSULTAS = `substr(c.ocds_payload->'tender'->'enquiryPeriod'->>'endDate', 1, 10)`;
+const HOY_TEXTO = `to_char((now() AT TIME ZONE 'America/Lima')::date, 'YYYY-MM-DD')`;
+const SEMANA_TEXTO = `to_char((now() AT TIME ZONE 'America/Lima')::date + 7, 'YYYY-MM-DD')`;
+
+/** El orden de la lista: «consultas» pone primero lo que vence antes y todavía está abierto (lo cerrado, al final). */
+function ordenOportunidades(orden: QOp["orden"]): string {
+  if (orden === "valor") return `c.cuantia_referencial DESC NULLS LAST, c.fecha_convocatoria DESC, c.ocid DESC`;
+  if (orden === "consultas") return `(${FIN_CONSULTAS} >= ${HOY_TEXTO}) DESC NULLS LAST, ${FIN_CONSULTAS} ASC NULLS LAST, c.fecha_convocatoria DESC, c.ocid DESC`;
+  return `c.fecha_convocatoria DESC, c.cuantia_referencial DESC NULLS LAST, c.ocid DESC`;
+}
 
 /** Las condiciones de una búsqueda, sin la dimensión `sin` (para contar sus opciones con los demás filtros). */
 function condiciones(q: QOp, sin?: "tipo" | "region", nuevasDesde?: Date) {
@@ -135,6 +149,8 @@ function condiciones(q: QOp, sin?: "tipo" | "region", nuevasDesde?: Date) {
   if (q.min != null) { vals.push(q.min); conds.push(`c.cuantia_referencial >= $${vals.length}`); }
   if (q.max != null) { vals.push(q.max); conds.push(`c.cuantia_referencial > 0 AND c.cuantia_referencial <= $${vals.length}`); }
   if (q.entidad) { vals.push(q.entidad); conds.push(`c.entidad_ruc = $${vals.length}::char(11)`); }
+  if (q.consultas === "abiertas") conds.push(`${FIN_CONSULTAS} >= ${HOY_TEXTO}`);
+  if (q.consultas === "semana") conds.push(`${FIN_CONSULTAS} BETWEEN ${HOY_TEXTO} AND ${SEMANA_TEXTO}`);
   for (const w of palabrasBusqueda(q.q)) { vals.push(`%${w}%`); conds.push(`${TEXTO_CONVOCATORIA} LIKE $${vals.length}`); }
   return { conds, vals };
 }
@@ -151,9 +167,8 @@ export function filtrosOportunidades(f: Record<string, unknown>): QOp | null {
  */
 export async function filasOportunidades(q: QOp, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
   const { conds, vals } = condiciones(nuevasDesde ? { ...q, dias: 60 } : q, undefined, nuevasDesde);
-  const orden = q.orden === "valor" && !nuevasDesde
-    ? `c.cuantia_referencial DESC NULLS LAST, c.fecha_convocatoria DESC, c.ocid DESC`
-    : `c.fecha_convocatoria DESC, c.cuantia_referencial DESC NULLS LAST, c.ocid DESC`;
+  // Una alerta va siempre de lo más reciente; la descarga, en el orden de la lista.
+  const orden = ordenOportunidades(nuevasDesde ? "reciente" : q.orden);
   const r = await pool.query(
     `SELECT ${COLS_OPORTUNIDAD} FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
       WHERE ${conds.join(" AND ")} ORDER BY ${orden} LIMIT ${Math.max(1, Math.min(5000, Math.floor(limite)))}`,
@@ -171,7 +186,7 @@ licitacionesRouter.get("/oportunidades", async (c) => {
     const sinTipo = condiciones(q, "tipo");
     const sinRegion = condiciones(q, "region");
     const desde = `FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc`;
-    const orden = q.orden === "valor" ? `c.cuantia_referencial DESC NULLS LAST, c.fecha_convocatoria DESC, c.ocid DESC` : `c.fecha_convocatoria DESC, c.cuantia_referencial DESC NULLS LAST, c.ocid DESC`;
+    const orden = ordenOportunidades(q.orden);
     const [filas, resumen, porTipo, porRegion] = await Promise.all([
       pool.query(`SELECT ${COLS_OPORTUNIDAD} ${desde} WHERE ${todo.conds.join(" AND ")} ORDER BY ${orden} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, todo.vals),
       pool.query(

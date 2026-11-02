@@ -13,7 +13,7 @@ import type { Env, ParamsCorrida } from "../src/config.ts";
 import {
   botonesVerMas, botonSiguiente, caminoA, campos, correrServir, desescapar, fecha, leerTanda, monto, OMITIDO, paginaDe, paginaParam,
   paginaParcial, paraGuardar, parsearDetalle, parsearListado, SesionServir, sinContactos, TiempoAgotado, ubicacionesDelListado, URL_SERVIR,
-  viewState,
+  vacantesDe, viewState,
 } from "../src/fuentes/servir_convocatorias.ts";
 import type { Plaza, RespuestaServir } from "../src/fuentes/servir_convocatorias.ts";
 import { cookiesDelRelay, pedirLima, URL_LIMA } from "../src/http.ts";
@@ -112,6 +112,16 @@ test("monto: la coma de los decimales no multiplica el sueldo por cien", () => {
   assert.equal(monto("S/. 15,600"), 15600);
   assert.equal(monto("S/ 1.500,50 MENSUALES"), 1.5);   // así lo sigue leyendo Python
   assert.equal(monto("A TRATAR"), null);
+});
+
+test("vacantes: el sueldo puesto en la celda de vacantes no cuenta", () => {
+  assert.equal(vacantesDe("1", 2500), 1);
+  assert.equal(vacantesDe("12 vacantes", 1800), 12);
+  assert.equal(vacantesDe("241", 1800), 241);
+  assert.equal(vacantesDe("6620", 6620), null); // «Secretario judicial» del 2026-11-02
+  assert.equal(vacantesDe("S/. 6,620.00", 6620), null);
+  assert.equal(vacantesDe("30", 30), 30); // chico: puede ser una casualidad
+  assert.equal(vacantesDe(null, 2500), null);
 });
 
 test("desescapar = html.unescape de Python", () => {

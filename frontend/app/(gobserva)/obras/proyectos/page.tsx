@@ -138,6 +138,7 @@ export default async function Proyectos({ searchParams }: Props) {
         <ul className="flex min-w-max gap-0.5 border-b border-line sm:gap-1">
           {PESTANAS.map((p) => {
             const activa = p.clave === pestana;
+            const n = d?.pestanas?.[p.clave];
             return (
               <li key={p.clave}>
                 <Link
@@ -150,6 +151,11 @@ export default async function Proyectos({ searchParams }: Props) {
                   )}
                 >
                   {p.nombre}
+                  {n != null && (
+                    <span className={cn("ml-1.5 rounded-full px-1.5 py-px text-rotulo font-semibold tabular-nums", activa ? "bg-granate-50 text-granate" : "bg-paperDeep text-inkSoft")}>
+                      {numero(n)}
+                    </span>
+                  )}
                 </Link>
               </li>
             );

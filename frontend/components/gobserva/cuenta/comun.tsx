@@ -90,10 +90,13 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
       mostrar: (v) => nombreRegionEmpleo(v.replace(/-/g, " ").toUpperCase()),
     },
     {
-      clave: "nivel", etiqueta: "Estudios que tienes", tipo: "opcion",
+      // Lo que tiene quien busca: las plazas que piden su nivel o uno menor (antes `nivel`, el nivel exacto de la plaza).
+      clave: "tengo", etiqueta: "Tus estudios", tipo: "opcion",
       opciones: NIVELES_ORDEN.filter((n) => n !== "sin_dato").map((n) => ({ valor: n, etiqueta: NIVEL[n].largo })),
-      mostrar: (v) => NIVEL[v as keyof typeof NIVEL]?.corto ?? v,
+      mostrar: (v) => `Con ${NIVEL[v as keyof typeof NIVEL]?.corto.toLocaleLowerCase("es") ?? v}`,
     },
+    // El nivel exacto que pide la plaza: llega de la lista («Qué estudios piden» de la portada) y de alertas viejas.
+    { clave: "nivel", etiqueta: "Estudios que piden", tipo: "opcion", oculto: true, mostrar: (v) => `Piden ${NIVEL[v as keyof typeof NIVEL]?.corto.toLocaleLowerCase("es") ?? v}` },
     { clave: "sueldo", etiqueta: "Sueldo mínimo (S/)", tipo: "numero", placeholder: "2500", mostrar: (v) => `Desde S/ ${MILES.format(Number(v))}` },
     { clave: "exp", etiqueta: "Años de experiencia que tienes", tipo: "numero", placeholder: "2", mostrar: (v) => `Hasta ${v} ${v === "1" ? "año" : "años"} de experiencia` },
     {

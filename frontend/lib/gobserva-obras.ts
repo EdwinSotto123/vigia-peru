@@ -132,6 +132,8 @@ export interface PaginaObras {
   total: number;
   resumen: { monto: number; porEjecutar: number; entidades: number };
   facetas: { region: Conteo[]; sector: Conteo[]; nivel: Conteo[]; fase: Conteo[]; modalidad: Conteo[]; tipo: Conteo[] };
+  /** Cuántos hay en cada pestaña con los demás filtros (sin la fase); null en una API vieja. */
+  pestanas?: Record<Pestana, number> | null;
   data: Proyecto[];
 }
 
