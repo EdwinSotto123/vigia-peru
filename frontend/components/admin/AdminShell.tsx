@@ -47,9 +47,9 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
     ],
   },
   {
-    // Los productos de pago de Gobserva (empleo y licitaciones): quién se anotó y a qué plan (migración 226).
+    // Los productos de pago de Gobserva (empleo, licitaciones y obras): cobros, clientes, avisos y configuración (migr. 230).
     grupo: "Gobserva",
-    items: [{ href: "/admin/gobserva", label: "Inscritos", icon: Rocket, precargar: ["/gobserva/suscripciones"] }],
+    items: [{ href: "/admin/gobserva", label: "Clientes y cobros", icon: Rocket, precargar: ["/gobserva/resumen", "/gobserva/cobros?estado=pendiente"] }],
   },
   {
     grupo: "Registro",

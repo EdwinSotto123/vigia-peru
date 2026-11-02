@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
+import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { ChevronLeft, ChevronRight, SearchX } from "lucide-react";
-import { Suscribirse } from "@/components/gobserva/Suscribirse";
 import { FiltrosOportunidades, type ValoresFiltro } from "@/components/licitaciones/Filtros";
-import { OPCIONES_PLAN_LICITACIONES } from "@/components/licitaciones/planes";
 import { TarjetaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { REGIONES_UBIGEO, TIPOS, getOportunidades, nombreRegion, nombreTipo } from "@/lib/licitaciones";
+import { TIPOS, getOportunidades, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -69,6 +70,11 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
       </p>
 
       <FiltrosOportunidades base={base} v={v} className="mt-6" />
+      <div id="crear-alerta" className="mt-4 scroll-mt-24">
+        <Suspense>
+          <AccionesBusqueda producto="licitaciones" base={base} />
+        </Suspense>
+      </div>
 
       {!d ? (
         <p className="mt-8 rounded-2xl border border-line bg-paperSoft p-6 text-dato text-inkSoft">No pudimos leer las convocatorias ahora. Vuelve a intentarlo en un momento.</p>
@@ -152,21 +158,14 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
         <div className="min-w-0">
           <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Que estas oportunidades te lleguen solas</h2>
           <p className="mt-3 text-cuerpo leading-relaxed text-inkSoft">
-            Deja tu rubro y tus regiones: cada mañana te mandamos las convocatorias nuevas que calzan contigo, con el plazo de consultas y lo
-            que sabemos de la entidad. Estamos abriendo por orden de llegada.
+            Guarda esta búsqueda como alerta: te mandamos las convocatorias nuevas que calzan contigo, con el plazo de consultas y lo que
+            sabemos de la entidad. Con el plan gratis llegan cada semana; con Pro, cada mañana.
           </p>
         </div>
-        <Suscribirse
-          producto="licitaciones"
-          planes={OPCIONES_PLAN_LICITACIONES}
-          planInicial="pro"
-          conEmpresa
-          origen="licitaciones:oportunidades"
-          intereses={[
-            { clave: "rubros", etiqueta: "Qué vendes", tipo: "texto", placeholder: v.q ?? "Ej.: combustible, uniformes, obras de saneamiento" },
-            { clave: "regiones", etiqueta: "Dónde puedes atender", tipo: "lista", opciones: REGIONES_UBIGEO.map((r) => ({ valor: r.ubigeo, etiqueta: r.nombre })) },
-          ]}
-        />
+        <div className="flex flex-col justify-center gap-3 sm:flex-row sm:items-center lg:justify-end">
+          <a href="#crear-alerta" className={claseAccion("primario", "", "md")}>Crear alerta con esta búsqueda</a>
+          <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "", "md")}>Ver los planes</Link>
+        </div>
       </div>
     </div>
   );

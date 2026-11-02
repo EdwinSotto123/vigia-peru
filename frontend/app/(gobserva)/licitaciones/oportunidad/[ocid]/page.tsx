@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { palabrasClave, rutaEn, urlCanonica } from "@/lib/gobserva";
+import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { TIPO_DOCUMENTO, diasHasta, getFicha, haceDias, limpiar, nombreRegion, nombreTipo } from "@/lib/licitaciones";
@@ -247,8 +248,20 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
               <span className="sr-only"> (se abre en otra pestaña)</span>
             </a>
             <p className="mt-2 text-center text-rotulo text-mute">El cronograma y la presentación de ofertas, en el SEACE.</p>
-            <Link href={`${ruta("/planes")}?plan=pro#unete`} className={claseAccion("secundario", "mt-3 w-full")}>
-              <BellRing size={16} aria-hidden /> Recibe oportunidades como esta
+            <BotonGuardar
+              producto="licitaciones"
+              base={base}
+              tipo="oportunidad"
+              codigo={f.ocid}
+              titulo={limpiar(f.objeto) || f.codigo || f.ocid}
+              datos={{ cierre: f.consultas?.hasta ?? null, entidad: f.entidad ?? null }}
+              className="mt-3"
+            />
+            <Link
+              href={`${ruta("/oportunidades")}?${new URLSearchParams({ q: palabrasClave(limpiar(f.objeto), 2), ...(f.region ? { region: f.region } : {}), ...(f.tipo ? { tipo: f.tipo } : {}) })}`}
+              className={claseAccion("fantasma", "mt-2 w-full")}
+            >
+              <BellRing size={16} aria-hidden /> Crear una alerta así
             </Link>
           </div>
 

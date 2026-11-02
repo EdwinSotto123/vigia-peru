@@ -10,6 +10,7 @@ import { TarjetaOportunidad } from "@/components/licitaciones/TarjetaOportunidad
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { RUBROS_EJEMPLO, getResumen, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
  */
 export default async function InicioLicitaciones() {
   const base = baseProducto("licitaciones");
-  const r = await getResumen();
+  const [r, cat] = await Promise.all([getResumen(), planesServidor("licitaciones")]);
   const ruta = (p: string) => rutaEn(base, p);
   const comp = r?.competencia ?? {};
   const unSolo = comp.procesos ? (comp.unSoloPostor ?? 0) / comp.procesos : null;
@@ -202,10 +203,10 @@ export default async function InicioLicitaciones() {
           <Cabecera
             id="planes-t"
             titulo="Planes"
-            bajada="Durante la beta todo lo que ves en la web es gratis. Reserva tu plan con precio de fundador: no cobramos nada hasta que lo abramos y lo confirmes."
+            bajada="Buscar y leer las fichas es gratis, y con tu cuenta te avisamos cada semana. Pro te avisa cada mañana, guarda tus procesos con su estado y baja tus búsquedas en Excel."
             accion={{ href: ruta("/planes"), etiqueta: "Comparar planes" }}
           />
-          <Planes className="mt-6" planes={planesLicitaciones(base)} />
+          <Planes className="mt-6" planes={planesLicitaciones(base, cat)} />
         </section>
 
         {/* ── MCP ─────────────────────────────────────────────────────────────── */}
@@ -238,8 +239,8 @@ export default async function InicioLicitaciones() {
             { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE, como siempre. Gobserva te avisa a tiempo y te da contexto para decidir; el cronograma oficial y las bases están en el SEACE y enlazamos cada proceso." },
             { p: "¿Es legal usar esta información?", r: "Sí. Son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva los ordena y los cruza; no vende datos personales ni nombra a personas naturales." },
             { p: "¿Cuándo se presentan las ofertas?", r: "Lo dice el cronograma de cada proceso en el SEACE. Te mostramos la fecha de convocatoria y, cuando la entidad lo publica, el plazo de consultas y observaciones; la presentación de ofertas suele venir después." },
-            { p: "¿Emiten factura?", r: "Sí: al abrir los planes de pago emitiremos factura electrónica. Ahora sólo reservas tu lugar, sin pagar." },
-            { p: "¿Qué hacen con mis datos?", r: "Los usamos sólo para escribirte sobre Gobserva Licitaciones. Nunca los vendemos y puedes pedir que los borremos cuando quieras." },
+            { p: "¿Cómo pago un plan?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos." },
+            { p: "¿Qué hacen con mis datos?", r: "Los usamos sólo para tu cuenta y tus alertas. Nunca los vendemos, y puedes borrar tu cuenta tú mismo desde tu perfil." },
           ]}
         />
       </div>

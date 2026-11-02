@@ -43,7 +43,7 @@ export default function McpEmpleo() {
           <p className="font-display text-bloque font-bold text-ink">¿Lo quieres para tu bolsa de trabajo o instituto?</p>
           <p className="mt-1 text-dato text-inkSoft">Más consultas, API y un widget de plazas con tu marca, en el plan para instituciones.</p>
         </div>
-        <Link href={rutaEn(base, "/planes#unete")} className={claseAccion("primario", "shrink-0")}>
+        <Link href={rutaEn(base, "/planes#plan-institucional")} className={claseAccion("primario", "shrink-0")}>
           Ver el plan para instituciones
         </Link>
       </div>

@@ -9,7 +9,8 @@ import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { diasParaCierre, entidadNombre, fechaDia, lugar, puesto, textoCierre, textoExperiencia } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { palabrasClave, rutaEn, urlCanonica } from "@/lib/gobserva";
+import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { SENAL_PLAZA, getFichaPlaza, type FichaPlaza } from "@/lib/planilla";
 
@@ -79,6 +80,8 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
   const p = d.plaza;
   const dias = diasParaCierre(p.fechaFin);
   const cerrada = dias != null && dias < 0;
+  // La región de la plaza para proponer la alerta («PASCO - YANACANCHA» → «pasco»).
+  const regionSlug = (p.ubicacion ?? "").split(" - ")[0].trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-") || null;
   const exp = textoExperiencia(p.expGeneral);
 
   const requisitos: Requisito[] = [
@@ -253,14 +256,25 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
                 <FileText size={16} aria-hidden /> Ver en SERVIR
                 <span className="sr-only"> (se abre en otra pestaña)</span>
               </a>
+              <BotonGuardar
+                producto="empleo"
+                base={base}
+                tipo="plaza"
+                codigo={String(p.aviso)}
+                titulo={puesto(p.titulo)}
+                datos={{ cierre: p.fechaFin ?? null, entidad: entidadNombre(p.entidad) }}
+              />
             </div>
             <p className="mt-3 text-meta leading-relaxed text-mute">Postular es gratis y siempre en la entidad. Nadie puede cobrarte por una plaza del Estado.</p>
           </div>
           <div className="rounded-3xl border border-granate/30 bg-granate-50 p-5">
             <p className="font-display text-bloque font-bold leading-tight text-ink">Plazas como esta, cada mañana</p>
-            <p className="mt-1.5 text-dato leading-relaxed text-inkSoft">Te avisamos por correo o WhatsApp cuando se publique otra parecida, y 2 días antes de que cierre.</p>
-            <Link href={rutaEn(base, "/planes#unete")} className={claseAccion("primario", "mt-4 w-full")}>
-              <BellRing size={16} aria-hidden /> Crear mi alerta
+            <p className="mt-1.5 text-dato leading-relaxed text-inkSoft">Te avisamos por correo cuando se publique otra parecida. Guarda esta y te recordamos 2 días antes de que cierre.</p>
+            <Link
+              href={rutaEn(base, `/plazas?${new URLSearchParams({ q: palabrasClave(p.titulo) || puesto(p.titulo).slice(0, 40), ...(regionSlug ? { region: regionSlug } : {}) })}`)}
+              className={claseAccion("primario", "mt-4 w-full")}
+            >
+              <BellRing size={16} aria-hidden /> Crear una alerta así
             </Link>
           </div>
         </aside>

@@ -8,6 +8,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { NIVEL, NIVELES_ORDEN, entidadNombre, getResumenEmpleo, nombreRegion, qsEmpleo, slugRegion, type ResumenEmpleo, type SenalEmpleo } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { planesServidor, precioDe, type PlanesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { SENAL_PLAZA } from "@/lib/planilla";
 
@@ -37,7 +38,7 @@ const fechaHora = (iso: string | null) => {
  */
 export default async function InicioEmpleo() {
   const base = baseProducto("empleo");
-  const r = await getResumenEmpleo();
+  const [r, cat] = await Promise.all([getResumenEmpleo(), planesServidor("empleo")]);
   const plazas = (f: Parameters<typeof qsEmpleo>[0]) => `${rutaEn(base, "/plazas")}${qsEmpleo(f)}`;
 
   return (
@@ -131,7 +132,7 @@ export default async function InicioEmpleo() {
             </ol>
           </section>
 
-          <Alertas base={base} />
+          <Alertas base={base} cat={cat} />
 
           <BloqueMCP
             id="mcp"
@@ -301,36 +302,49 @@ function NadieTeDice({ r, plazas }: { r: ResumenEmpleo; plazas: (f: Parameters<t
   );
 }
 
-/** La invitación a las alertas: lo que llega y cuánto cuesta. */
-function Alertas({ base }: { base: string }) {
+/** La invitación a las alertas: lo que llega, cuánto cuesta (el catálogo de la API) y el camino gratis. */
+function Alertas({ base, cat }: { base: string; cat: PlanesServidor }) {
+  const plan = cat.planes.find((p) => p.id === "alertas");
+  const precio = plan ? precioDe(plan) : null;
   return (
     <section aria-labelledby="alertas-t" className="overflow-hidden rounded-3xl border border-granate/30 bg-granate-50">
       <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
         <div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-granate px-3 py-1 text-meta font-semibold text-paper">
-            <Sparkles size={14} aria-hidden /> Precio de fundador
-          </p>
-          <h2 id="alertas-t" className="mt-4 text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
+          {precio?.antes && (
+            <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-granate px-3 py-1 text-meta font-semibold text-paper">
+              <Sparkles size={14} aria-hidden /> Precio de fundador
+            </p>
+          )}
+          <h2 id="alertas-t" className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
             Que las plazas te busquen a ti.
           </h2>
           <p className="mt-3 max-w-[56ch] text-cuerpo leading-relaxed text-inkSoft">
-            Dinos qué puesto, en qué región y desde cuánto sueldo. Cada mañana te llega por correo o WhatsApp lo nuevo que
-            calza contigo, y un recordatorio antes de que cierre.
+            Guarda tu búsqueda (qué puesto, en qué región, desde cuánto sueldo) y te llega lo nuevo que calza contigo, con un recordatorio antes de
+            que cierre. Gratis una vez por semana; cada mañana con Alertas.
           </p>
         </div>
         <div className="space-y-3">
           <ul className="space-y-2 text-dato text-ink">
-            {["Alertas diarias con tus filtros", "Aviso 2 días antes del cierre", "Tu lista de «¿Cumples?» guardada"].map((x) => (
+            {["Alertas cada mañana con tus filtros", "Aviso 2 días antes del cierre", "Tus plazas guardadas y tus postulaciones al día", "Tus búsquedas en Excel"].map((x) => (
               <li key={x} className="flex items-center gap-2">
                 <BellRing size={16} aria-hidden className="shrink-0 text-granate" />
                 {x}
               </li>
             ))}
           </ul>
-          <Link href={rutaEn(base, "/planes#unete")} className={claseAccion("primario", "w-full", "md")}>
-            Quiero mis alertas por S/ 4.90
+          {precio && (
+            <>
+              <Link href={rutaEn(base, "/checkout?plan=alertas")} className={claseAccion("primario", "w-full", "md")}>
+                Quiero mis alertas por {precio.precio}
+              </Link>
+              <p className="text-center text-meta text-mute">
+                {precio.antes ? `${precio.nota}; después ${precio.antes} al mes.` : `${precio.precio} ${precio.periodo}.`} Cancelas cuando quieras.
+              </p>
+            </>
+          )}
+          <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/plazas")}`)} className={claseAccion("secundario", "w-full", "md")}>
+            Empezar gratis, una vez por semana
           </Link>
-          <p className="text-center text-meta text-mute">Los 3 primeros meses; después S/ 9.90. Sin tarjeta para anotarte.</p>
         </div>
       </div>
     </section>

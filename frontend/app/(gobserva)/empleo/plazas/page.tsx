@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { BellRing, SearchX, X } from "lucide-react";
 import { FiltrosPlazas } from "@/components/empleo/FiltrosPlazas";
 import { Paginador } from "@/components/empleo/Piezas";
@@ -84,6 +86,11 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
       <div className="mt-6">
         <FiltrosPlazas base={base} filtros={f} facetas={d?.facetas ?? { region: [], nivel: [] }} />
       </div>
+      <div id="crear-alerta" className="mt-4 scroll-mt-24">
+        <Suspense>
+          <AccionesBusqueda producto="empleo" base={base} />
+        </Suspense>
+      </div>
 
       {puestos.length > 0 && (
         <ul className="mt-4 flex flex-wrap items-center gap-2" aria-label="Filtros puestos">
@@ -121,9 +128,9 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
             <Link href={lista} className={claseAccion("secundario")}>
               Ver todas las plazas
             </Link>
-            <Link href={rutaEn(base, "/planes#unete")} className={claseAccion("primario")}>
+            <a href="#crear-alerta" className={claseAccion("primario")}>
               <BellRing size={16} aria-hidden /> Avísame cuando aparezca
-            </Link>
+            </a>
           </div>
         </div>
       ) : (
@@ -141,11 +148,11 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
           <aside className="mt-10 flex flex-col items-start gap-4 rounded-3xl border border-granate/30 bg-granate-50 p-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-display text-bloque font-bold text-ink">¿No quieres revisar esto todos los días?</p>
-              <p className="mt-1 text-dato text-inkSoft">Guarda esta búsqueda como alerta y te llega cada mañana lo nuevo, por correo o WhatsApp.</p>
+              <p className="mt-1 text-dato text-inkSoft">Guarda esta búsqueda como alerta y te llega lo nuevo a tu correo, sin volver a buscar.</p>
             </div>
-            <Link href={rutaEn(base, "/planes#unete")} className={claseAccion("primario", "shrink-0")}>
+            <a href="#crear-alerta" className={claseAccion("primario", "shrink-0")}>
               <BellRing size={16} aria-hidden /> Crear mi alerta
-            </Link>
+            </a>
           </aside>
         </>
       )}

@@ -19,15 +19,15 @@ export interface Plan {
   destacado?: boolean;
   /** Lo que ya funciona hoy. */
   incluye: string[];
-  /** Lo prometido que llega con el lanzamiento (se marca «Pronto»). */
+  /** Lo prometido que todavía no funciona (se marca «Pronto»). */
   pronto?: string[];
   accion: { href: string; etiqueta: string };
 }
 
 /**
- * Los planes de un producto de Gobserva, en tarjetas: lo que ya funciona hoy con su marca y lo que llega con el
- * lanzamiento marcado «Pronto» (sin vender como hecho lo que todavía no lo está). El destacado lleva borde de acento y su
- * insignia. Server-safe.
+ * Los planes de un producto de Gobserva, en tarjetas: lo que ya funciona hoy con su marca y lo que todavía no, marcado
+ * «Pronto» (sin vender como hecho lo que no lo está). El destacado lleva borde de acento y su insignia; cada tarjeta tiene
+ * su ancla (#plan-pro) para enlazarla desde otras páginas. Server-safe.
  */
 export function Planes({ planes, className }: { planes: Plan[]; className?: string }) {
   return (
@@ -35,8 +35,9 @@ export function Planes({ planes, className }: { planes: Plan[]; className?: stri
       {planes.map((p) => (
         <li
           key={p.id}
+          id={`plan-${p.id}`}
           className={cn(
-            "relative flex flex-col rounded-3xl border bg-paper p-5 sm:p-6",
+            "relative flex scroll-mt-24 flex-col rounded-3xl border bg-paper p-5 sm:p-6",
             p.destacado ? "border-granate shadow-[0_18px_50px_-24px_rgb(var(--granate)/0.55)]" : "border-line",
           )}
         >

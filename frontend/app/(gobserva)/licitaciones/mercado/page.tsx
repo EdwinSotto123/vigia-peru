@@ -192,10 +192,10 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
           <div className="flex flex-col items-start gap-4 rounded-3xl border border-granate/40 bg-granate-50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
             <div className="min-w-0">
               <p className="font-display text-bloque font-bold leading-tight text-ink">¿Quieres que te avisemos de cada convocatoria de «{q}»?</p>
-              <p className="mt-1 text-dato text-inkSoft">Cada mañana, en tu correo o tu WhatsApp. Reserva tu precio de fundador.</p>
+              <p className="mt-1 text-dato text-inkSoft">Guarda la búsqueda como alerta y te llega cada convocatoria nueva a tu correo, gratis cada semana o cada mañana con Pro.</p>
             </div>
-            <Link href={`${ruta("/planes")}?plan=pro&rubro=${encodeURIComponent(q)}#unete`} className={claseAccion("primario", "shrink-0")}>
-              Recibir alertas <ArrowRight size={16} aria-hidden />
+            <Link href={`${ruta("/oportunidades")}?q=${encodeURIComponent(q)}#crear-alerta`} className={claseAccion("primario", "shrink-0")}>
+              Crear la alerta <ArrowRight size={16} aria-hidden />
             </Link>
           </div>
           <p className="text-meta text-mute">

@@ -1,89 +1,61 @@
 import type { Metadata } from "next";
-import { BadgeCheck, Lock, Receipt } from "lucide-react";
+import { BadgeCheck, CalendarX2, Handshake, Sparkles } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
+import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
 import { Planes } from "@/components/gobserva/Planes";
-import { Suscribirse } from "@/components/gobserva/Suscribirse";
 import { Faq } from "@/components/licitaciones/Faq";
-import { OPCIONES_PLAN_LICITACIONES, planesLicitaciones } from "@/components/licitaciones/planes";
+import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { urlCanonica } from "@/lib/gobserva";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { REGIONES_UBIGEO, TIPOS } from "@/lib/licitaciones";
 
 export const metadata: Metadata = {
   title: "Planes",
-  description: "Alertas diarias de licitaciones por rubro y región, inteligencia de mercado, API y MCP. Reserva tu precio de fundador: sin pagar nada hoy.",
+  description: "Alertas diarias de licitaciones por rubro y región, procesos guardados con su estado, descarga en Excel y MCP. Con precio de fundador para las primeras 50 empresas.",
   alternates: { canonical: urlCanonica("licitaciones", "/planes") },
 };
 
-const PLANES_VALIDOS = ["gratis", "pro", "empresa", "institucional"] as const;
-
-/** Los planes de Gobserva Licitaciones, la lista de espera con precio de fundador, el MCP y las preguntas frecuentes. */
-export default function PlanesLicitaciones({ searchParams }: { searchParams?: { plan?: string; rubro?: string } }) {
+/** Los planes de Gobserva Licitaciones (precios del catálogo de la API), cómo se paga, el MCP y las preguntas frecuentes. */
+export default async function PlanesLicitaciones() {
   const base = baseProducto("licitaciones");
-  const plan = PLANES_VALIDOS.find((p) => p === searchParams?.plan) ?? "pro";
-  const rubro = (searchParams?.rubro ?? "").trim().slice(0, 80);
+  const cat = await planesServidor("licitaciones");
+  const cupo = cat.planes.find((p) => p.id === "pro")?.fundador?.cupo;
 
   return (
     <div className="container-page space-y-16 py-10 sm:py-14">
       <header className="max-w-3xl">
         <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Elige cómo quieres ganarle al SEACE</h1>
         <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
-          Durante la beta todo lo que ves en la web es gratis. Los planes de pago suman las alertas de cada mañana, la descarga en Excel, el
-          histórico y la API. Reserva hoy tu precio de fundador: no cobramos nada hasta que abramos tu plan y lo confirmes.
+          Buscar, leer las fichas y medir tu mercado es gratis. Los planes de pago te traen lo nuevo cada mañana, guardan tus procesos con su estado y
+          bajan cualquier búsqueda en Excel.
         </p>
+        <AvisoPlanes texto={cat.aviso} className="mt-5" />
       </header>
 
-      <Planes planes={planesLicitaciones(base)} />
+      <Planes planes={planesLicitaciones(base, cat)} />
 
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Garantia Icono={Lock} titulo="Sin tarjeta hoy" texto="Reservar es gratis. Te escribimos antes de abrir tu plan y decides entonces." />
-        <Garantia Icono={Receipt} titulo="Con factura" texto="Al abrir los planes de pago emitimos factura electrónica a tu empresa." />
+        <Garantia Icono={CalendarX2} titulo="Sin permanencia" texto="Cancelas desde tu cuenta cuando quieras y sigues con tu plan hasta el final del mes pagado." />
+        {cupo ? (
+          <Garantia Icono={Sparkles} titulo="Tu precio se queda" texto={`Las primeras ${cupo} empresas conservan el precio de fundador mientras mantengan su plan.`} />
+        ) : (
+          <Garantia Icono={Handshake} titulo="Sin comisiones" texto="Pagas el plan y nada más: nunca cobramos un porcentaje de lo que ganes." />
+        )}
         <Garantia Icono={BadgeCheck} titulo="Datos oficiales" texto="Todo sale del SEACE y de CONOSCE (OECE), con el enlace a la fuente en cada ficha." />
       </ul>
 
-      <section id="unete" aria-labelledby="unete-t" className="scroll-mt-24 grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <div className="min-w-0">
-          <h2 id="unete-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
-            Reserva tu lugar
-          </h2>
-          <p className="mt-3 text-cuerpo leading-relaxed text-inkSoft">
-            Cuéntanos qué vendes y dónde puedes atender. Abrimos por orden de llegada y las primeras 50 empresas se quedan con el precio de
-            fundador mientras mantengan su plan.
-          </p>
-          <ol className="mt-6 space-y-3 text-dato text-inkSoft">
-            <li className="flex gap-3">
-              <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-granate font-mono text-meta font-bold text-paper">1</span>
-              Te anotas hoy, gratis.
-            </li>
-            <li className="flex gap-3">
-              <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-granate font-mono text-meta font-bold text-paper">2</span>
-              Te escribimos para afinar tus rubros y regiones.
-            </li>
-            <li className="flex gap-3">
-              <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-granate font-mono text-meta font-bold text-paper">3</span>
-              Empiezas a recibir tus oportunidades cada mañana, y recién ahí confirmas el pago.
-            </li>
-          </ol>
-        </div>
-        <Suscribirse
-          producto="licitaciones"
-          planes={OPCIONES_PLAN_LICITACIONES}
-          planInicial={plan}
-          conEmpresa
-          valoresIniciales={rubro ? { rubros: rubro } : undefined}
-          origen={`licitaciones:planes${rubro ? `:${rubro}` : ""}`}
-          intereses={[
-            { clave: "rubros", etiqueta: "Qué vendes", tipo: "texto", placeholder: rubro || "Ej.: combustible, uniformes, obras de saneamiento", ayuda: "Tus rubros en tus palabras, separados por comas." },
-            { clave: "tipos", etiqueta: "Tipo de contratación", tipo: "lista", opciones: TIPOS.map((t) => ({ valor: t.clave, etiqueta: t.nombre })) },
-            { clave: "regiones", etiqueta: "Dónde puedes atender", tipo: "lista", opciones: REGIONES_UBIGEO.map((r) => ({ valor: r.ubigeo, etiqueta: r.nombre })) },
-            { clave: "valorMinimo", etiqueta: "Valor referencial mínimo que te interesa (S/)", tipo: "numero", placeholder: "Ej.: 50000" },
-          ]}
-        />
-      </section>
+      <ComoFunciona
+        cat={cat}
+        pasos={[
+          { titulo: "Crea tu cuenta", texto: "Con Google o con tu correo, gratis y en un minuto." },
+          { titulo: "Busca lo que vendes", texto: "Filtra las convocatorias por palabras, región, tipo y monto, y guarda la búsqueda como alerta." },
+          { titulo: "Te llega cada mañana", texto: "Las convocatorias nuevas de tu búsqueda, con el plazo de consultas de cada una y el enlace a sus bases." },
+        ]}
+      />
 
       <BloqueMCP
         titulo="API y MCP para tu equipo"
-        bajada="Conecta tu asistente de IA al servidor MCP de Gobserva y pregunta por las licitaciones del día, por tu mercado o por una entidad. Gratis durante la beta; el plan Empresa suma una API para tu CRM y el Institucional, límites altos y soporte."
+        bajada="Conecta tu asistente de IA al servidor MCP de Gobserva y pregunta por las licitaciones del día, por tu mercado o por una entidad. Gratis durante la beta; el plan Empresa sumará una API para tu CRM y el Institucional, límites altos y soporte."
         ejemplos={[
           "Resume las convocatorias de señalización vial de esta semana con su valor referencial.",
           "¿Qué entidades de Arequipa compran más medicamentos y a quién le compran?",
@@ -97,11 +69,12 @@ export default function PlanesLicitaciones({ searchParams }: { searchParams?: { 
 
       <Faq
         preguntas={[
-          { p: "¿Qué pasa cuando me anoto?", r: "Quedas en la lista con el plan que elegiste y tu precio de fundador guardado. Te escribimos antes de abrirlo; recién entonces decides si pagas." },
-          { p: "¿Cómo llegan las alertas?", r: "Por correo y, si nos dejas tu número, por WhatsApp: una vez al día, con las convocatorias nuevas de tus rubros y regiones y el plazo de consultas de cada una." },
+          { p: "¿Cómo llegan las alertas?", r: "Por correo: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una. WhatsApp llega pronto." },
+          { p: "¿Cómo pago?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez." },
+          { p: "¿Qué es el precio de fundador?", r: "Un precio rebajado para las primeras empresas que contratan Pro. Lo conservas mientras mantengas tu plan, aunque después el precio suba." },
           { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE. Gobserva te avisa a tiempo y te da contexto; cada ficha enlaza al proceso oficial y a sus bases." },
           { p: "¿Es legal?", r: "Sí: son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva no vende datos personales ni nombra a personas naturales." },
-          { p: "¿Puedo cancelar?", r: "Sí, cuando quieras y sin penalidad: los planes son mensuales." },
+          { p: "¿Puedo cancelar?", r: "Sí, desde tu cuenta y sin penalidad. No se vuelve a cobrar y sigues con tu plan hasta el final de lo que pagaste." },
           { p: "¿Tienen relación con Vigía?", r: "Vigía es el proyecto cívico y gratuito de Gobserva que vigila las compras del Estado. Gobserva Licitaciones usa los mismos datos públicos para ayudar a las empresas a competir; pagar un plan nunca cambia lo que Vigía muestra de nadie." },
         ]}
       />
@@ -109,7 +82,7 @@ export default function PlanesLicitaciones({ searchParams }: { searchParams?: { 
   );
 }
 
-function Garantia({ Icono, titulo, texto }: { Icono: typeof Lock; titulo: string; texto: string }) {
+function Garantia({ Icono, titulo, texto }: { Icono: typeof Sparkles; titulo: string; texto: string }) {
   return (
     <li className="flex min-w-0 gap-3 rounded-2xl border border-line bg-paper p-4">
       <Icono size={20} aria-hidden className="mt-0.5 shrink-0 text-granate" />

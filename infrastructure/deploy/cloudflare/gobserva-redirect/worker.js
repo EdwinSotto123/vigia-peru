@@ -297,14 +297,14 @@ const FUNCIONES = [
 ];
 
 // Los productos de Gobserva en línea además de Vigía (2026-11-01, pedido del usuario: ganar plata con lo que Vigía ya
-// captura): [ícono, nombre, dominio, lema, qué hace, enlace, acción]. Marca propia, lista de espera con precio de fundador.
+// captura): [ícono, nombre, dominio, lema, qué hace, enlace, acción]. Marca propia, planes con precio de fundador.
 const PRODUCTOS_GOB = [
   [
     "ciudadania",
     "Gobserva Empleo",
     "empleo.gobserva.cloud",
     "Todas las plazas CAS del Estado, con sus requisitos claros.",
-    "Miles de plazas abiertas a la vez, con sueldo, vacantes, cuándo cierran y lo que nadie te dice: si la plaza se repite o si ya hay alguien haciendo ese trabajo. Alertas por correo y WhatsApp con precio de fundador.",
+    "Miles de plazas abiertas a la vez, con sueldo, vacantes, cuándo cierran y lo que nadie te dice: si la plaza se repite o si ya hay alguien haciendo ese trabajo. Alertas por correo: gratis cada semana o cada mañana con precio de fundador.",
     "https://empleo.gobserva.cloud",
     "Buscar plazas",
   ],
@@ -316,6 +316,15 @@ const PRODUCTOS_GOB = [
     "Las convocatorias del SEACE de tu rubro y tu región, con inteligencia de mercado: qué entidades compran, quién gana y a qué precio. Alertas diarias, API y MCP para conectar tu IA.",
     "https://licitaciones.gobserva.cloud",
     "Ver oportunidades",
+  ],
+  [
+    "obras",
+    "Gobserva Obras",
+    "obras.gobserva.cloud",
+    "Las obras públicas que se vienen, antes de que se liciten.",
+    "Los proyectos de inversión de tu región y tu sector: los viables que todavía no se licitan, las obras en marcha y las paralizadas, con su costo, su avance y quién las ejecuta. Alertas diarias y MCP para conectar tu IA.",
+    "https://obras.gobserva.cloud",
+    "Ver proyectos",
   ],
 ];
 
@@ -334,12 +343,6 @@ const PROXIMOS = [
     "Monitoreo histórico de políticos",
     "La trayectoria de cada político en una línea de tiempo: partidos, cargos, declaraciones juradas, aportes de campaña y sentencias.",
     "Ya leemos el JNE, la ONPE y las declaraciones juradas.",
-  ],
-  [
-    "obras",
-    "Monitoreo de obras públicas",
-    "Las obras paralizadas o atrasadas de tu distrito: cuánto avanzan, cuánto cuestan y quién las ejecuta.",
-    "Ya leemos INFOBRAS e Invierte.pe.",
   ],
   [
     "alertas",
@@ -1113,9 +1116,10 @@ html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
 .funciones .d { display: block; color: var(--tenue); font-size: .8125rem; line-height: 1.4; }
 .funciones a:hover strong { color: var(--fosforo); text-decoration: underline; }
 .proximos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.productos-gob { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.productos-gob { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
 .monitor-producto .vigia-cabeza svg { width: 3rem; height: 3rem; display: block; }
-@media (max-width: 52rem) { .productos-gob { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 64rem) { .productos-gob { grid-template-columns: minmax(0, 1fr); } }
+.proximos > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .proximo { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.125rem; border: 1px dashed var(--borde); background: color-mix(in srgb, var(--fosforo) 2.5%, transparent); }
 .proximo .px { width: 2rem; height: 2rem; color: var(--fosforo-2); }
 .proximo h3 { font-size: 1rem; }
@@ -1386,7 +1390,7 @@ function portada(datos) {
 
   <section class="marco seccion" id="monitores" aria-labelledby="t-monitores">
     ${tituloSeccion("monitores", "t-monitores", "Elige por dónde entrar")}
-    <p class="intro">Vigía, Empleo y Licitaciones ya están en línea. Los demás monitores se arman sobre los mismos datos y las mismas reglas: datos oficiales, la fuente al lado y señales, no acusaciones.</p>
+    <p class="intro">Vigía, Empleo, Licitaciones y Obras ya están en línea. Los demás monitores se arman sobre los mismos datos y las mismas reglas: datos oficiales, la fuente al lado y señales, no acusaciones.</p>
     <div class="monitores">
       <div class="monitor-vigia panel" data-anima>
         <div class="vigia-cabeza">

@@ -1,6 +1,7 @@
 /**
- * Los productos de pago de Gobserva (2026-11-01): Gobserva Empleo (empleo.gobserva.cloud, las plazas CAS del Estado) y
- * Gobserva Licitaciones (licitaciones.gobserva.cloud, las convocatorias del SEACE con inteligencia de mercado). Viven en
+ * Los productos de pago de Gobserva (2026-11-01): Gobserva Empleo (empleo.gobserva.cloud, las plazas CAS del Estado),
+ * Gobserva Licitaciones (licitaciones.gobserva.cloud, las convocatorias del SEACE con inteligencia de mercado) y Gobserva
+ * Obras (obras.gobserva.cloud, los proyectos de inversión pública y las obras en marcha). Viven en
  * esta misma app (app/(gobserva)/<producto>), con marca propia y sin la cabecera ni el menú de Vigía, que sigue gratis.
  *
  * Cada producto se sirve desde su subdominio: el middleware reescribe `empleo.gobserva.cloud/plaza/123` a
@@ -11,7 +12,7 @@
  * Sin JSX ni imports de servidor: lo usan el middleware, las páginas y los componentes de cliente.
  */
 
-export type Producto = "empleo" | "licitaciones";
+export type Producto = "empleo" | "licitaciones" | "obras";
 
 export interface InfoProducto {
   clave: Producto;
@@ -42,6 +43,14 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
     lema: "Las oportunidades para venderle al Estado, cada día, con lo que necesitas saber para ganarlas.",
     host: "licitaciones.gobserva.cloud",
     hostDev: "licitaciones-dev.gobserva.cloud",
+  },
+  obras: {
+    clave: "obras",
+    nombre: "obras",
+    titulo: "Gobserva Obras",
+    lema: "Las obras públicas que se vienen y las que están en marcha, con su plata, su avance y quién las construye.",
+    host: "obras.gobserva.cloud",
+    hostDev: "obras-dev.gobserva.cloud",
   },
 };
 
@@ -76,11 +85,28 @@ export function urlCanonica(producto: Producto, ruta = "/"): string {
   return `https://${PRODUCTOS[producto].host}${r === "/" ? "" : r}`;
 }
 
-/** El otro producto (para el pie y el menú). */
-export const otroProducto = (p: Producto): InfoProducto => PRODUCTOS[p === "empleo" ? "licitaciones" : "empleo"];
+/** Los demás productos (para el pie y el menú), en el orden de PRODUCTOS. */
+export const otrosProductos = (p: Producto): InfoProducto[] => Object.values(PRODUCTOS).filter((x) => x.clave !== p);
 
 /** El servidor MCP público de Gobserva (backend/mcp-worker): lo que se pega en Claude, ChatGPT o Cursor. */
 export const URL_MCP = "https://vigia-mcp.vigiaperu.workers.dev/mcp";
 
 /** Correo de contacto de Gobserva (correo de IONOS del dominio). */
 export const CORREO_GOBSERVA = "hello@gobserva.cloud";
+
+const VACIAS = new Set(["para", "por", "con", "del", "los", "las", "una", "uno", "que", "como", "entre", "sobre", "segun", "desde", "hasta", "contratacion", "adquisicion", "servicio", "servicios", "de", "la", "el", "en", "y", "a"]);
+
+/**
+ * Las palabras que identifican un título («MEDICO CIRUJANO ESPECIALISTA EN…» → «medico cirujano»): para proponer una
+ * alerta o una búsqueda parecida desde una ficha. Sin tildes ni palabras vacías.
+ */
+export function palabrasClave(titulo: string | null | undefined, n = 2): string {
+  return (titulo ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[^a-z0-9ñ]+/)
+    .filter((w) => w.length > 3 && !VACIAS.has(w))
+    .slice(0, n)
+    .join(" ");
+}

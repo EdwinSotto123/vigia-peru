@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { CORREO_GOBSERVA, PRODUCTOS, otroProducto, rutaEn, type Producto } from "@/lib/gobserva";
+import { CORREO_GOBSERVA, PRODUCTOS, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
+import { MenuCuenta } from "./cuenta/MenuCuenta";
 
 export interface EnlaceProducto {
   /** Ruta dentro del producto ("/plazas"): se le pone la base. */
@@ -38,7 +39,7 @@ export function MarcoProducto({
   children: ReactNode;
 }) {
   const p = PRODUCTOS[producto];
-  const otro = otroProducto(producto);
+  const otros = otrosProductos(producto);
   return (
     <div className="flex min-h-screen flex-col">
       <a
@@ -66,6 +67,12 @@ export function MarcoProducto({
           </nav>
           <div className="flex shrink-0 items-center gap-2">
             <BotonModo />
+            <span className="sm:hidden">
+              <MenuCuenta base={base} compacto />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <MenuCuenta base={base} />
+            </span>
             {/* En el celular no entra junto a la marca: va primera en la fila del menú, abajo. */}
             <Link href={rutaEn(base, accion.ruta)} className={claseAccion("primario", "hidden whitespace-nowrap sm:inline-flex")}>
               {accion.etiqueta}
@@ -102,11 +109,13 @@ export function MarcoProducto({
           <div>
             <p className="text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">Productos</p>
             <ul className="mt-3 space-y-2 text-dato">
-              <li>
-                <a href={`https://${otro.host}`} className="text-paper/85 underline-offset-2 hover:text-paper hover:underline">
-                  {otro.titulo}
-                </a>
-              </li>
+              {otros.map((o) => (
+                <li key={o.clave}>
+                  <a href={`https://${o.host}`} className="text-paper/85 underline-offset-2 hover:text-paper hover:underline">
+                    {o.titulo}
+                  </a>
+                </li>
+              ))}
               <li>
                 <a href="https://vigia.gobserva.cloud" className="text-paper/85 underline-offset-2 hover:text-paper hover:underline">
                   Vigía, la vigilancia cívica (gratis)

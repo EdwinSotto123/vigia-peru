@@ -55,8 +55,8 @@ export default {
       if (freno) return freno;
     }
     // Lo que el navegador le pide a la API (worker-comun.js). Una cuenta manda su token (Bearer) en vez de la clave del
-    // sitio: /v1/cuentas pasa igual, la API exige ahí un token válido.
-    if (ip && RUTA_API.test(url.pathname) && (autorizado(req, env) || /^\/v1\/cuentas(?:\/|$)/.test(url.pathname))) {
+    // sitio: /v1/cuentas y /v1/gobserva/cuenta pasan igual, la API exige ahí un token válido.
+    if (ip && RUTA_API.test(url.pathname) && (autorizado(req, env) || /^\/v1\/(?:cuentas|gobserva\/cuenta)(?:\/|$)/.test(url.pathname))) {
       return aLaApi(req, env, url, ip);
     }
     if (!interna && !autorizado(req, env)) {

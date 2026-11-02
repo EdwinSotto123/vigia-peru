@@ -23,7 +23,7 @@ export default function LayoutEmpleo({ children }: { children: ReactNode }) {
         { ruta: "/planes", etiqueta: "Planes" },
         { ruta: "/mcp", etiqueta: "Con tu IA (MCP)" },
       ]}
-      accion={{ ruta: "/planes#unete", etiqueta: "Recibir alertas" }}
+      accion={{ ruta: "/planes", etiqueta: "Recibir alertas" }}
       fuentes={[{ nombre: "SERVIR, ofertas laborales del Estado", url: "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml" }]}
     >
       {children}

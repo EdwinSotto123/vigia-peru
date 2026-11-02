@@ -24,7 +24,7 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
         { ruta: "/planes", etiqueta: "Planes" },
         { ruta: "/#mcp", etiqueta: "API y MCP" },
       ]}
-      accion={{ ruta: "/planes#unete", etiqueta: "Probar gratis" }}
+      accion={{ ruta: "/planes", etiqueta: "Ver planes" }}
       fuentes={[
         { nombre: "Contrataciones abiertas del OECE (OCDS)", url: "https://contratacionesabiertas.oece.gob.pe/" },
         { nombre: "CONOSCE, buscador del OECE", url: "https://conosce.oece.gob.pe/buscador/" },

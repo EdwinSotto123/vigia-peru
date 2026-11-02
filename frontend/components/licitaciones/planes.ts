@@ -1,14 +1,17 @@
 import type { Plan } from "@/components/gobserva/Planes";
-import type { OpcionPlan } from "@/components/gobserva/Suscribirse";
 import { rutaEn } from "@/lib/gobserva";
+import { entero, precioCorto, precioDe, precioHoy, type PlanesServidor } from "@/lib/gobserva-planes";
 
 /**
- * Los planes de Gobserva Licitaciones (2026-11-01, lista de espera con precio de fundador). Lo que ya funciona va en
- * `incluye`; lo que llega con el lanzamiento, en `pronto`. Durante la beta todo lo que se ve en la web es gratis.
+ * Los planes de Gobserva Licitaciones (2026-11-01), con el precio y los límites del catálogo de la API (los cambia el
+ * panel). Lo que ya funciona va en `incluye`; lo que todavía no, en `pronto`. Gratis crea la cuenta; Pro y Empresa van al
+ * pago; Institucional se conversa.
  */
-export function planesLicitaciones(base: string): Plan[] {
-  const unete = (plan: string) => rutaEn(base, `/planes?plan=${plan}#unete`);
-  return [
+export function planesLicitaciones(base: string, cat: PlanesServidor): Plan[] {
+  const pro = cat.planes.find((p) => p.id === "pro");
+  const empresa = cat.planes.find((p) => p.id === "empresa");
+  const g = cat.gratis;
+  const planes: Plan[] = [
     {
       id: "gratis",
       nombre: "Gratis",
@@ -19,48 +22,54 @@ export function planesLicitaciones(base: string): Plan[] {
         "La ficha de cada una: ítems con su CUBSO y las bases para descargar",
         "La entidad en 12 meses y procesos parecidos con sus precios",
         "El tamaño del mercado de cualquier rubro",
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} por correo cada semana`,
+        `Guarda hasta ${entero(g.guardados)} procesos, con recordatorio antes de que cierren las consultas`,
       ],
-      accion: { href: rutaEn(base, "/oportunidades"), etiqueta: "Buscar oportunidades" },
-    },
-    {
-      id: "pro",
-      nombre: "Pro",
-      para: "Para la empresa que le vende al Estado todos los meses.",
-      precio: "S/ 39",
-      periodo: "al mes",
-      antes: "S/ 79",
-      nota: "Precio de fundador para las primeras 50 empresas",
-      destacado: true,
-      incluye: ["Todo lo del plan Gratis", "Inteligencia completa de cada entidad y de tus competidores"],
-      pronto: ["Alertas cada mañana por correo y WhatsApp, por rubro y región", "Descarga en Excel (CSV) de cualquier búsqueda", "Histórico desde 2015"],
-      accion: { href: unete("pro"), etiqueta: "Reservar precio de fundador" },
-    },
-    {
-      id: "empresa",
-      nombre: "Empresa",
-      para: "Para equipos comerciales y consultoras.",
-      precio: "S/ 149",
-      periodo: "al mes",
-      incluye: ["Todo lo del plan Pro"],
-      pronto: ["Hasta 5 usuarios", "Rubros y regiones sin límite", "API para conectar tu CRM o tu Excel", "Reporte mensual de tu mercado"],
-      accion: { href: unete("empresa"), etiqueta: "Reservar mi lugar" },
-    },
-    {
-      id: "institucional",
-      nombre: "Institucional y MCP",
-      para: "Gremios, cámaras de comercio, medios y grandes cuentas.",
-      precio: "A medida",
-      incluye: ["MCP gratis durante la beta: pregúntale a Claude, ChatGPT o Cursor"],
-      pronto: ["MCP con límites altos y soporte", "API completa con todo el histórico", "Reportes por sector y región"],
-      accion: { href: unete("institucional"), etiqueta: "Conversemos" },
+      accion: { href: rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/oportunidades")}`), etiqueta: "Crear mi cuenta gratis" },
     },
   ];
+  if (pro) {
+    planes.push({
+      id: "pro",
+      nombre: pro.nombre,
+      para: "Para la empresa que le vende al Estado todos los meses.",
+      ...precioDe(pro),
+      destacado: true,
+      incluye: [
+        "Todo lo del plan Gratis",
+        `Hasta ${pro.limites.alertas} alertas cada mañana, por rubro, región y monto`,
+        `Guarda hasta ${entero(pro.limites.guardados)} procesos y marca si preparas, presentaste o ganaste`,
+        `Descarga en Excel (CSV) de cualquier búsqueda, hasta ${entero(pro.limites.filasCsv)} filas`,
+      ],
+      pronto: ["Alertas por WhatsApp", "Histórico desde 2015"],
+      accion: { href: rutaEn(base, "/checkout?plan=pro"), etiqueta: `Empezar por ${precioHoy(pro)}` },
+    });
+  }
+  if (empresa) {
+    planes.push({
+      id: "empresa",
+      nombre: empresa.nombre,
+      para: "Para equipos comerciales y consultoras.",
+      precio: precioCorto(empresa.precio),
+      periodo: "al mes",
+      incluye: [
+        "Todo lo del plan Pro",
+        `Hasta ${empresa.limites.alertas} alertas: una por rubro, región o vendedor`,
+        `Guarda hasta ${entero(empresa.limites.guardados)} procesos`,
+        `Descargas de hasta ${entero(empresa.limites.filasCsv)} filas`,
+      ],
+      pronto: ["Hasta 5 usuarios", "API para conectar tu CRM o tu Excel", "Reporte mensual de tu mercado"],
+      accion: { href: rutaEn(base, "/checkout?plan=empresa"), etiqueta: "Contratar Empresa" },
+    });
+  }
+  planes.push({
+    id: "institucional",
+    nombre: "Institucional y MCP",
+    para: "Gremios, cámaras de comercio, medios y grandes cuentas.",
+    precio: "A medida",
+    incluye: ["MCP gratis durante la beta: pregúntale a Claude, ChatGPT o Cursor"],
+    pronto: ["MCP con límites altos y soporte", "API completa con todo el histórico", "Reportes por sector y región"],
+    accion: { href: "mailto:hello@gobserva.cloud?subject=Gobserva%20Licitaciones%20institucional", etiqueta: "Conversemos" },
+  });
+  return planes;
 }
-
-/** Las mismas opciones, para el formulario de la lista de espera. */
-export const OPCIONES_PLAN_LICITACIONES: OpcionPlan[] = [
-  { id: "pro", nombre: "Pro", detalle: "S/ 39 al mes (precio de fundador; luego S/ 79)" },
-  { id: "empresa", nombre: "Empresa", detalle: "S/ 149 al mes, hasta 5 usuarios y API" },
-  { id: "institucional", nombre: "Institucional y MCP", detalle: "A medida: MCP, API y reportes" },
-  { id: "gratis", nombre: "Sólo avísenme", detalle: "Gratis: te escribimos cuando abramos" },
-];
