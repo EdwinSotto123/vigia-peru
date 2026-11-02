@@ -370,10 +370,17 @@ export async function enviarAlertas(opciones: { soloAlerta?: number; tope?: numb
       resumen.conNovedades++;
       const items = encontrados.slice(0, 20);
       const hay = encontrados.length > 20 ? "más de 20" : String(encontrados.length);
-      const que = a.producto === "empleo" ? (encontrados.length === 1 ? "plaza nueva" : "plazas nuevas") : encontrados.length === 1 ? "oportunidad nueva" : "oportunidades nuevas";
+      const uno = encontrados.length === 1;
+      const que = {
+        empleo: uno ? "plaza nueva" : "plazas nuevas",
+        licitaciones: uno ? "oportunidad nueva" : "oportunidades nuevas",
+        obras: uno ? "proyecto con novedades" : "proyectos con novedades",
+      }[a.producto];
       const asunto = `${hay} ${que}: ${a.nombre}`;
-      const lista = a.producto === "empleo" ? "/plazas" : "/oportunidades";
-      const qs = new URLSearchParams(Object.entries(a.filtros ?? {}).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)])).toString();
+      const lista = { empleo: "/plazas", licitaciones: "/oportunidades", obras: "/proyectos" }[a.producto];
+      // En Obras, sin pestaña la lista abre «Se vienen»: el enlace lleva a todas para que se vea lo avisado.
+      const filtrosLista = a.producto === "obras" && !a.filtros?.pestana ? { pestana: "todos", ...a.filtros } : (a.filtros ?? {});
+      const qs = new URLSearchParams(Object.entries(filtrosLista).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)])).toString();
       const pausa = enlacePausaWeb(a.producto, a.token_pausa);
       const { html, texto } = armarCorreo({
         producto: a.producto,
