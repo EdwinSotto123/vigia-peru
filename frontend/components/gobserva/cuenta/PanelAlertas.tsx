@@ -12,6 +12,7 @@ import {
 } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, COSAS, ETIQUETA, FILTROS, chipsFiltros, nombreSugerido } from "./comun";
+import { Notificaciones } from "./Notificaciones";
 
 export function PanelAlertas({ producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
   const { data, mutate, isLoading } = useSWR(["gobserva-alertas", producto], () => cargarAlertas(producto));
@@ -43,7 +44,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
                 ? me.cuenta.emailVerificado
                   ? `Te escribimos a ${me.cuenta.email} con lo nuevo, a las 7:00 de la mañana.`
                   : "Verifica tu correo para recibirlas por correo. Mientras tanto quedan en tu bandeja, aquí abajo."
-                : "Lo nuevo de cada alerta queda en tu bandeja, aquí abajo. Muy pronto también llega a tu correo."}
+                : "Lo nuevo de cada alerta queda en tu bandeja, aquí abajo, y en tus notificaciones si las activas."}
             </p>
           </div>
           <button
@@ -107,6 +108,8 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
           </ul>
         )}
       </section>
+
+      <Notificaciones producto={producto} />
 
       <section aria-labelledby="bandeja2-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
         <h2 id="bandeja2-t" className="font-display text-bloque font-bold text-ink">Bandeja</h2>

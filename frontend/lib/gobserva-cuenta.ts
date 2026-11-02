@@ -241,6 +241,20 @@ export const guardar = (b: { producto: Producto; tipo: TipoGuardado; ref: string
 export const quitarGuardado = (producto: Producto, tipo: TipoGuardado, ref: string) =>
   api<{ ok: true }>(`/guardados?${new URLSearchParams({ producto, tipo, ref })}`, { method: "DELETE" });
 
+export interface DispositivoPush {
+  id: number;
+  producto: Producto;
+  dispositivo: string | null;
+  creado: string;
+  ultimoOk: string | null;
+}
+/** La llave para suscribirse (null: la API no tiene notificaciones) y los dispositivos activados en ese producto. */
+export const cargarPush = (producto: Producto) => api<{ clave: string | null; dispositivos: DispositivoPush[] }>(`/push?producto=${producto}`);
+export const activarPush = (producto: Producto, suscripcion: PushSubscriptionJSON, dispositivo: string) =>
+  api<{ ok: true }>("/push", { method: "POST", ...cuerpo({ producto, suscripcion, dispositivo }) });
+export const desactivarPush = (b: { endpoint?: string; id?: number }) => api<{ ok: true }>("/push", { method: "DELETE", ...cuerpo(b) });
+export const probarPush = (producto: Producto) => api<{ ok: true; enviados: number }>("/push/probar", { method: "POST", ...cuerpo({ producto }) });
+
 /** Descarga la búsqueda en CSV (planes de pago): pide el archivo con la sesión y lo guarda en el equipo. */
 export async function descargarCsv(producto: Producto, filtros: Record<string, string>): Promise<number> {
   const qs = new URLSearchParams({ producto, ...Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)) });

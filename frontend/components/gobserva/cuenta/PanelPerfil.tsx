@@ -93,14 +93,8 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
             <input id="p-empresa" {...campo("empresa")} maxLength={160} autoComplete="organization" className={CAMPO} />
           </div>
           <div>
-            <label htmlFor="p-tel" className={ETIQUETA}>Celular (WhatsApp)</label>
+            <label htmlFor="p-tel" className={ETIQUETA}>Celular</label>
             <input id="p-tel" {...campo("telefono")} inputMode="tel" autoComplete="tel" placeholder="+51 999 999 999" className={CAMPO} />
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-start gap-2.5 text-dato text-ink">
-              <input type="checkbox" checked={f.whatsapp} onChange={(e) => setF((x) => ({ ...x, whatsapp: e.target.checked }))} className="mt-1 h-4 w-4 accent-[rgb(var(--granate))]" />
-              Quiero mis alertas también por WhatsApp cuando estén listas
-            </label>
           </div>
         </div>
 

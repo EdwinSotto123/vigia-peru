@@ -69,7 +69,7 @@ export default async function PlanesLicitaciones() {
 
       <Faq
         preguntas={[
-          { p: "¿Cómo llegan las alertas?", r: "Por correo: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una. WhatsApp llega pronto." },
+          { p: "¿Cómo llegan las alertas?", r: "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una." },
           { p: "¿Cómo pago?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez." },
           { p: "¿Qué es el precio de fundador?", r: "Un precio rebajado para las primeras empresas que contratan Pro. Lo conservas mientras mantengas tu plan, aunque después el precio suba." },
           { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE. Gobserva te avisa a tiempo y te da contexto; cada ficha enlaza al proceso oficial y a sus bases." },

@@ -73,7 +73,7 @@ export default async function PlanesObras() {
         preguntas={[
           {
             p: "¿Cómo llegan las alertas?",
-            r: "Por correo: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con los proyectos nuevos de tu búsqueda y los que cambiaron de fase (aprobaron su expediente, pasaron a licitación, empezaron la obra o se paralizaron). WhatsApp llega pronto.",
+            r: "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con los proyectos nuevos de tu búsqueda y los que cambiaron de fase (aprobaron su expediente, pasaron a licitación, empezaron la obra o se paralizaron).",
           },
           { p: "¿Qué es seguir un proyecto?", r: "Guardas los proyectos que te interesan desde su ficha y los tienes juntos en tu cuenta, con una nota y su estado: preparando, presentada, ganada o perdida." },
           { p: "¿Cómo pago?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez." },

@@ -21,7 +21,7 @@ export function planesObras(base: string, cat: PlanesServidor): Plan[] {
         "Los proyectos que se vienen, los que están en marcha y los paralizados, con filtros",
         "La ficha de cada proyecto: montos, fase, avance de la obra y procesos del SEACE",
         "El mercado de obras de cada región y sector, y quién las gana",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} por correo cada semana`,
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, por correo y en tu celular`,
         `Guarda hasta ${entero(g.guardados)} proyectos para seguirlos`,
       ],
       accion: { href: rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/proyectos")}`), etiqueta: "Crear mi cuenta gratis" },
@@ -40,7 +40,7 @@ export function planesObras(base: string, cat: PlanesServidor): Plan[] {
         `Guarda hasta ${entero(pro.limites.guardados)} proyectos y sigue cuándo se licitan o se paralizan`,
         `Descarga en Excel (CSV) de cualquier búsqueda, hasta ${entero(pro.limites.filasCsv)} filas`,
       ],
-      pronto: ["Alertas por WhatsApp", "Histórico de avance de cada obra"],
+      pronto: ["Histórico de avance de cada obra"],
       accion: { href: rutaEn(base, "/checkout?plan=pro"), etiqueta: `Empezar por ${precioHoy(pro)}` },
     });
   }

@@ -6,7 +6,7 @@ import { useDialog } from "@/components/admin/Dialog";
 import { adminFetch } from "@/lib/admin";
 import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 import { Aviso, Badge, DataTable, EmptyState, ErrorBanner, FilterChips, claseBoton, mensajeError, type Columna } from "@/components/admin/ui";
-import { ESTADO_ENVIO, PRODUCTO, TIPO_ENVIO, type EnvioAdmin, type ResumenTareas } from "./tipos";
+import { ESTADO_ENVIO, PRODUCTO, TIPO_ENVIO, type EnvioAdmin, type EstadoCorreo, type ResumenTareas } from "./tipos";
 
 type FiltroEstado = "" | "enviado" | "en_la_web" | "fallido";
 
@@ -26,7 +26,7 @@ function resumir(r: ResumenTareas): string {
  * (sin correo verificado o sin llaves de SES) o falló. Las alertas corren solas cada mañana a las 7:00 (Lima); aquí se
  * pueden correr ahora.
  */
-export function EnviosGobserva({ correoActivo }: { correoActivo: boolean | undefined }) {
+export function EnviosGobserva({ correo }: { correo: EstadoCorreo | undefined }) {
   const { data, error, isLoading, mutate } = useAdmin<{ data: EnvioAdmin[] }>("/gobserva/envios");
   const [estado, setEstado] = useState<FiltroEstado>("");
   const [corriendo, setCorriendo] = useState<"" | "alertas" | "todo">("");
@@ -101,10 +101,16 @@ export function EnviosGobserva({ correoActivo }: { correoActivo: boolean | undef
 
   return (
     <div className="space-y-3">
-      {correoActivo === false && (
-        <Aviso tono="warn" icono={<Mail size={16} aria-hidden />} titulo="Los correos todavía no salen">
-          Faltan las llaves de Amazon SES en la API: corre infrastructure/aws/crear_envio_ses.sh con un perfil administrador de AWS (y pide el acceso de producción de
-          SES). Mientras tanto, cada aviso queda en la cuenta de la persona, en «Lo último que te avisamos».
+      {correo && !correo.configurado && (
+        <Aviso tono="warn" icono={<Mail size={16} aria-hidden />} titulo="Los correos no salen">
+          Faltan CORREO_URL y CORREO_TOKEN en la API: corre infrastructure/aws/correo_gobserva/desplegar.py. Mientras tanto, cada aviso queda en la cuenta de la
+          persona, en «Lo último que te avisamos».
+        </Aviso>
+      )}
+      {correo?.configurado && !correo.produccion && (
+        <Aviso tono="warn" icono={<Mail size={16} aria-hidden />} titulo="Amazon SES todavía en sandbox">
+          La solicitud de producción {correo.revision === "DENIED" ? "fue rechazada" : correo.revision === "PENDING" ? "está en revisión" : "no está aprobada"}: por ahora sólo
+          llegan correos a direcciones @gobserva.cloud. Los demás avisos quedan en la cuenta de cada persona y en sus notificaciones.
         </Aviso>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">

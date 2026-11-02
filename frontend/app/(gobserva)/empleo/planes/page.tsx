@@ -38,7 +38,7 @@ export default async function PlanesEmpleo() {
         "Todas las plazas CAS abiertas del país, con filtros",
         "Fichas con requisitos y «¿Cumples?»",
         "Lo que pagan otras entidades por el mismo puesto",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} por correo cada semana`,
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, por correo y en tu celular`,
         `Guarda hasta ${entero(g.guardados)} plazas y sigue tus postulaciones`,
         "Recordatorio 2 días antes de que cierre una plaza guardada",
         "Consultas por MCP desde tu asistente de IA (beta)",
@@ -59,7 +59,7 @@ export default async function PlanesEmpleo() {
         `Guarda hasta ${entero(alertas.limites.guardados)} plazas`,
         `Descarga tus búsquedas en Excel, hasta ${entero(alertas.limites.filasCsv)} filas`,
       ],
-      pronto: ["Alerta por WhatsApp", "Historial de lo que pagaba cada puesto"],
+      pronto: ["Historial de lo que pagaba cada puesto"],
       accion: { href: pagar("alertas"), etiqueta: `Empezar por ${precioHoy(alertas)}` },
     });
   }

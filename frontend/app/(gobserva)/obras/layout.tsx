@@ -4,12 +4,14 @@ import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
 import { PRODUCTOS } from "@/lib/gobserva";
 import { CONTRATACIONES_ABIERTAS, INFOBRAS, SEGUIMIENTO_INVERSIONES } from "@/lib/fuentes";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { metadatosApp } from "@/lib/gobserva-pwa";
 
 export const metadata: Metadata = {
   metadataBase: new URL(`https://${PRODUCTOS.obras.host}`),
   title: { default: "Gobserva Obras: las obras públicas que se vienen y las que están en marcha", template: "%s | Gobserva Obras" },
   description: PRODUCTOS.obras.lema,
   openGraph: { siteName: "Gobserva Obras", locale: "es_PE", type: "website" },
+  ...metadatosApp("obras"),
 };
 
 /** Gobserva Obras (obras.gobserva.cloud): el marco de marca Gobserva, sin la cabecera ni el menú de Vigía. */

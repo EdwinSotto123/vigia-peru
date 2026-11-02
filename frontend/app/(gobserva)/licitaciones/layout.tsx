@@ -3,12 +3,14 @@ import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
 import { PRODUCTOS } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { metadatosApp } from "@/lib/gobserva-pwa";
 
 export const metadata: Metadata = {
   metadataBase: new URL(`https://${PRODUCTOS.licitaciones.host}`),
   title: { default: "Gobserva Licitaciones: oportunidades para venderle al Estado peruano", template: "%s | Gobserva Licitaciones" },
   description: PRODUCTOS.licitaciones.lema,
   openGraph: { siteName: "Gobserva Licitaciones", locale: "es_PE", type: "website" },
+  ...metadatosApp("licitaciones"),
 };
 
 /** Gobserva Licitaciones (licitaciones.gobserva.cloud): el marco de marca Gobserva, sin la cabecera ni el menú de Vigía. */

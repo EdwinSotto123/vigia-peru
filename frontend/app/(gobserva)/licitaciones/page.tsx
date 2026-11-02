@@ -164,7 +164,7 @@ export default async function InicioLicitaciones() {
           <Cabecera id="como-t" titulo="Cómo funciona" bajada="Tres pasos, sin entrar al SEACE cada mañana." />
           <ol className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <Paso n={1} Icono={Target} titulo="Dinos qué vendes" texto="Tus rubros en tus palabras (combustible, señalización, consultoría de obras) y las regiones donde puedes atender." />
-            <Paso n={2} Icono={BellRing} titulo="Cada mañana, tus oportunidades" texto="Las convocatorias nuevas que calzan contigo, en tu correo o tu WhatsApp, antes de que se venza el plazo de consultas." />
+            <Paso n={2} Icono={BellRing} titulo="Cada mañana, tus oportunidades" texto="Las convocatorias nuevas que calzan contigo, en tu correo y como notificación en tu celular, antes de que se venza el plazo de consultas." />
             <Paso n={3} Icono={Swords} titulo="Compite con datos" texto="Quién le vende a esa entidad, a qué precio se adjudica lo mismo en otras y cuántos postores suele haber." />
           </ol>
         </section>

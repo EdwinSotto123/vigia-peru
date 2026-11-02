@@ -51,7 +51,15 @@ export interface Resumen {
   alertas: { activas: number; total: number };
   envios: { enviados: number; enLaWeb: number; fallidos: number };
   correoActivo: boolean;
+  /** El correo: si la Lambda está configurada y si SES ya salió del sandbox (y en qué va la solicitud). */
+  correo?: EstadoCorreo;
   tarjetaActiva: boolean;
+}
+
+export interface EstadoCorreo {
+  configurado: boolean;
+  produccion: boolean;
+  revision: string | null;
 }
 
 export interface ClienteAdmin {

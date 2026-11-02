@@ -50,7 +50,7 @@ function Contenido() {
   const panel: Record<Pestana, React.ReactNode> = {
     cobros: <CobrosGobserva />,
     clientes: <ClientesGobserva />,
-    envios: <EnviosGobserva correoActivo={r?.correoActivo} />,
+    envios: <EnviosGobserva correo={r?.correo} />,
     config: <ConfiguracionGobserva />,
     inscritos: <InscritosGobserva />,
   };
