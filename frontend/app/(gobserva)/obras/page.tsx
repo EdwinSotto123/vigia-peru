@@ -11,7 +11,7 @@ import { Faq } from "@/components/licitaciones/Faq";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { PRODUCTOS, rutaEn, urlCanonica } from "@/lib/gobserva";
-import { BUSQUEDAS_EJEMPLO, FASES, getResumenObras, haceTiempo, lugarProyecto, nombreEmpresa, nombreEntidad, nombreProyecto, nombreSector, TIPO_PROCESO } from "@/lib/gobserva-obras";
+import { BUSQUEDAS_EJEMPLO, FASES, getResumenObras, haceTiempo, lugarProyecto, nombreEmpresa, nombreEntidad, nombreProyecto, nombreSector, procesoConvocado } from "@/lib/gobserva-obras";
 import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { nombreRegion } from "@/lib/licitaciones";
@@ -83,7 +83,7 @@ export default async function InicioObras() {
                 <li key={x}>
                   <Link
                     href={lista(`?q=${encodeURIComponent(x)}`)}
-                    className="inline-flex min-h-9 items-center rounded-full border border-paper/20 px-3.5 text-meta font-medium text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:bg-paper/10 hover:text-paper"
+                    className="inline-flex min-h-11 items-center rounded-full border border-paper/20 px-3.5 text-meta font-medium text-paper/85 sm:min-h-9 transition-colors duration-rapido hover:border-maiz/60 hover:bg-paper/10 hover:text-paper"
                   >
                     {x}
                   </Link>
@@ -93,7 +93,7 @@ export default async function InicioObras() {
           </div>
 
           {/* Invierte.pe e INFOBRAS hoy: cifras vivas. */}
-          <div className="min-w-0 rounded-3xl border border-paper/15 bg-paper/[0.06] p-5 backdrop-blur-sm sm:p-6">
+          <div className="min-w-0 rounded-3xl border border-paper/15 bg-paper/[0.06] p-5 sm:p-6">
             <p className="flex items-center gap-2 text-meta font-semibold text-maiz">
               <span aria-hidden className="relative inline-flex h-2.5 w-2.5">
                 <span className="absolute inset-0 rounded-full bg-maiz opacity-60 motion-safe:animate-ping" />
@@ -121,7 +121,7 @@ export default async function InicioObras() {
             ) : (
               <p className="mt-4 text-dato text-paper/70">Las cifras no cargaron ahora. Vuelve en un momento.</p>
             )}
-            <Link href={ruta("/proyectos")} className="mt-5 inline-flex items-center gap-1 text-dato font-semibold text-maiz underline-offset-4 hover:underline">
+            <Link href={ruta("/proyectos")} className="mt-3 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-maiz underline-offset-4 hover:underline">
               Ver los que se vienen <ArrowRight size={15} aria-hidden />
             </Link>
           </div>
@@ -156,13 +156,18 @@ export default async function InicioObras() {
               bajada="Los más grandes que se declararon viables en los últimos dos años y ya tienen expediente técnico. Lo siguiente es licitar la obra."
               accion={{ href: lista("?fase=expediente"), etiqueta: `Ver los ${numero(r.expediente)}` }}
             />
-            <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {/* En el celular, una fila que se desliza (seis tarjetas una sobre otra eran 2,000 px); desde md, la rejilla. */}
+            <ul
+              aria-label="Proyectos con expediente técnico que se vienen"
+              className="-mx-4 mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
+            >
               {r.seVienenTop.map((p) => (
-                <li key={p.cui} className="min-w-0">
+                <li key={p.cui} className="w-[85%] min-w-0 shrink-0 snap-start scroll-ml-4 sm:w-[60%] sm:scroll-ml-6 md:w-auto">
                   <TarjetaProyecto p={p} base={base} compacta />
                 </li>
               ))}
             </ul>
+            {r.seVienenTop.length > 1 && <p className="mt-2 text-meta text-mute md:hidden">Desliza para ver los {numero(r.seVienenTop.length)}.</p>}
           </section>
         )}
 
@@ -191,13 +196,13 @@ export default async function InicioObras() {
                         <span className="font-semibold text-ink">{p.costo ? solesCompacto(p.costo) : "Costo sin dato"}</span>
                         {p.convocatoriaFecha && (
                           <span className="text-amberTexto">
-                            {TIPO_PROCESO[p.convocatoriaTipo ?? ""] ?? "Proceso"} convocado {haceTiempo(p.convocatoriaFecha)}
+                            {procesoConvocado(p.convocatoriaTipo)} {haceTiempo(p.convocatoriaFecha)}
                           </span>
                         )}
                         {p.convocatoriaOcid && (
                           <a
                             href={`${licitaciones}/oportunidad/${encodeURIComponent(p.convocatoriaOcid)}`}
-                            className="inline-flex items-center gap-0.5 font-semibold text-granate underline-offset-2 hover:underline"
+                            className="inline-flex min-h-11 items-center gap-0.5 font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0"
                           >
                             Ver la convocatoria <ArrowUpRight size={13} aria-hidden />
                           </a>
@@ -206,7 +211,7 @@ export default async function InicioObras() {
                     </li>
                   ))}
                 </ol>
-                <Link href={lista("?fase=licitacion")} className="mt-2 inline-flex items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+                <Link href={lista("?fase=licitacion")} className="mt-1 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
                   Ver los {numero(r.licitando)} que se están licitando <ArrowRight size={15} aria-hidden />
                 </Link>
               </section>
@@ -239,7 +244,7 @@ export default async function InicioObras() {
                     );
                   })}
                 </ol>
-                <Link href={lista("?orden=reciente")} className="mt-2 inline-flex items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+                <Link href={lista("?orden=reciente")} className="mt-1 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
                   Ver los más recientes <ArrowRight size={15} aria-hidden />
                 </Link>
               </section>
@@ -258,7 +263,8 @@ export default async function InicioObras() {
             />
             <ol className="mt-6 divide-y divide-line rounded-3xl border border-line bg-paper">
               {r.enMarchaTop.map((p) => (
-                <li key={p.cui} className="grid gap-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] md:items-center md:gap-6">
+                // En el celular el costo va arriba a la derecha y la barra debajo, a lo ancho; desde md, tres columnas.
+                <li key={p.cui} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] md:items-center md:gap-x-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <FaseInsignia fase={p.fase} />
@@ -279,11 +285,24 @@ export default async function InicioObras() {
                     </p>
                   </div>
                   {p.obraRepresenta && p.obraFisico != null ? (
-                    <BarraAvance real={p.obraFisico} programado={p.obraProgramado} pie={p.obraAvanceAl ? `Registrado en INFOBRAS el ${fechaCorta(p.obraAvanceAl)}` : undefined} />
+                    <BarraAvance
+                      className="col-span-2 md:col-span-1"
+                      real={p.obraFisico}
+                      programado={p.obraProgramado}
+                      pie={p.obraAvanceAl ? `Registrado en INFOBRAS el ${fechaCorta(p.obraAvanceAl)}` : undefined}
+                    />
                   ) : (
-                    <BarraAvance real={p.avanceMef} etiqueta="Avance físico (MEF)" pie={p.obras > 1 ? `INFOBRAS registra ${numero(p.obras)} obras con su CUI` : undefined} />
+                    <BarraAvance
+                      className="col-span-2 md:col-span-1"
+                      real={p.avanceMef}
+                      etiqueta="Avance físico (MEF)"
+                      pie={p.obras > 1 ? `INFOBRAS registra ${numero(p.obras)} obras con su CUI` : undefined}
+                    />
                   )}
-                  <p className="font-display text-bloque font-bold tabular-nums text-ink md:text-right">{p.costo ? solesCompacto(p.costo) : "Sin dato"}</p>
+                  <p className="col-start-2 row-start-1 self-start text-right font-display text-bloque font-bold tabular-nums text-ink md:col-start-3 md:self-center">
+                    <span className="sr-only">Costo: </span>
+                    {p.costo ? solesCompacto(p.costo) : "Sin dato"}
+                  </p>
                 </li>
               ))}
             </ol>
@@ -305,6 +324,8 @@ export default async function InicioObras() {
                 serieA="Se vienen"
                 serieB="En ejecución"
                 columnas={2}
+                visibles={10}
+                mas="Ver las otras {n} regiones"
                 filas={r.porRegion.map((x) => ({
                   clave: x.clave,
                   etiqueta: nombreRegion(x.clave),
@@ -331,6 +352,8 @@ export default async function InicioObras() {
                 etiqueta="Monto por sector"
                 serieA="Se vienen"
                 serieB="En ejecución"
+                visibles={8}
+                mas="Ver los otros {n} sectores"
                 filas={r.porSector
                   .filter((x) => x.clave !== "otros" && (x.seVienen > 0 || x.enMarcha > 0))
                   .map((x) => ({
@@ -379,19 +402,20 @@ export default async function InicioObras() {
         {/* ── Cómo funciona ───────────────────────────────────────────────────── */}
         <section aria-labelledby="como-t">
           <Cabecera id="como-t" titulo="Cómo funciona" bajada="Tres pasos, sin revisar Invierte.pe, INFOBRAS y el SEACE cada semana." />
-          <ol className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <ol className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
             <Paso n={1} Icono={Landmark} titulo="Dinos qué construyes y dónde" texto="Tus sectores (agua, pistas, colegios, riego), tus regiones y el tamaño de obra que puedes asumir." />
             <Paso
               n={2}
               Icono={BellRing}
-              titulo="Cada mañana, lo nuevo"
-              texto="Los proyectos que se declaran viables, los que aprueban su expediente técnico y los que pasan a licitación, en tu correo."
+              titulo="Te llega lo nuevo"
+              texto={`Los proyectos que se declaran viables, los que aprueban su expediente técnico y los que pasan a licitación, ${cat.correoActivo ? "en tu correo" : "en tu cuenta"}: cada semana con la cuenta gratis, cada mañana con Pro.`}
             />
             <Paso
               n={3}
               Icono={Building2}
               titulo="Llega antes y con datos"
               texto="Cuánta plata tiene el proyecto este año, cuánto falta ejecutar, quién ganó obras parecidas en la región y a cuánto."
+              ultimo
             />
           </ol>
         </section>
@@ -404,7 +428,13 @@ export default async function InicioObras() {
             bajada="Buscar y leer las fichas es gratis, y con tu cuenta te avisamos cada semana. Pro te avisa cada mañana de los proyectos nuevos y de los que cambian de fase, y baja tus búsquedas en Excel."
             accion={{ href: ruta("/planes"), etiqueta: "Comparar planes" }}
           />
-          <Planes className="mt-6" planes={planesObras(base, cat)} />
+          {/* En el celular, los planes se deslizan a los lados (uno sobre otro eran 2,400 px de portada); la comparación
+              entera, en /planes. Desde md, la rejilla de siempre. */}
+          <Planes
+            className="-mx-4 mt-6 px-4 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:pb-2 max-md:pt-4 max-md:[scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:px-0 max-md:[&::-webkit-scrollbar]:hidden max-md:[&>li]:w-[86%] max-md:[&>li]:shrink-0 max-md:[&>li]:snap-start max-md:[&>li]:scroll-ml-4 sm:max-md:[&>li]:w-[60%] sm:max-md:[&>li]:scroll-ml-6"
+            planes={planesObras(base, cat)}
+          />
+          <p className="mt-2 text-meta text-mute md:hidden">Desliza para ver los planes, o compáralos en la página de planes.</p>
         </section>
 
         {/* ── MCP ─────────────────────────────────────────────────────────────── */}
@@ -466,7 +496,7 @@ function Atajo({ href, Icono, texto }: { href: string; Icono: typeof Ruler; text
     <li>
       <Link
         href={href}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-paper px-4 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-meta font-semibold text-ink sm:min-h-10 transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
       >
         <Icono size={15} aria-hidden className="text-granate" /> {texto}
       </Link>

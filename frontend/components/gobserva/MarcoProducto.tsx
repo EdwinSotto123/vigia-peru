@@ -7,12 +7,9 @@ import { CORREO_GOBSERVA, PRODUCTOS, otrosProductos, rutaEn, type Producto } fro
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
 import { MenuCuenta } from "./cuenta/MenuCuenta";
+import { MenuProducto, RielProducto, type EnlaceProducto } from "./NavProducto";
 
-export interface EnlaceProducto {
-  /** Ruta dentro del producto ("/plazas"): se le pone la base. */
-  ruta: string;
-  etiqueta: string;
-}
+export type { EnlaceProducto };
 
 /**
  * El marco de un producto de Gobserva (empleo, licitaciones): cabecera pegada arriba con la marca «gobserva_ <producto>»,
@@ -54,21 +51,12 @@ export function MarcoProducto({
             <MarcaGobserva producto={producto} tamano="sm" className="sm:hidden" />
             <MarcaGobserva producto={producto} className="hidden sm:inline-flex" />
           </Link>
-          <nav aria-label={`Secciones de ${p.titulo}`} className="hidden min-w-0 flex-1 items-center justify-center gap-1 md:flex">
-            {menu.map((m) => (
-              <Link
-                key={m.ruta}
-                href={rutaEn(base, m.ruta)}
-                className="whitespace-nowrap rounded-full px-3 py-2 text-dato font-medium text-inkSoft transition-colors duration-rapido hover:bg-granate-50 hover:text-ink"
-              >
-                {m.etiqueta}
-              </Link>
-            ))}
-          </nav>
+          <MenuProducto base={base} menu={menu} titulo={p.titulo} />
           <div className="flex shrink-0 items-center gap-2">
             <BotonModo />
             <span className="sm:hidden">
-              <MenuCuenta base={base} compacto />
+              {/* «Entrar» con su palabra cuando la marca es corta (empleo, obras); con «licitaciones» no entra a 390 px. */}
+              <MenuCuenta base={base} compacto entrarConTexto={p.nombre.length <= 6} />
             </span>
             <span className="hidden sm:inline-flex">
               <MenuCuenta base={base} />
@@ -79,20 +67,10 @@ export function MarcoProducto({
             </Link>
           </div>
         </div>
-        {/* En el celular, el menú en una fila que se desliza (son pocas secciones). */}
-        <nav aria-label={`Secciones de ${p.titulo}`} className="border-t border-line md:hidden">
-          <div className="container-page flex gap-1 overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Link href={rutaEn(base, accion.ruta)} className="whitespace-nowrap rounded-full bg-granate px-3 py-1.5 text-meta font-semibold text-paper hover:bg-granate-deep">
-              {accion.etiqueta}
-            </Link>
-            {menu.map((m) => (
-              <Link key={m.ruta} href={rutaEn(base, m.ruta)} className="whitespace-nowrap rounded-full px-3 py-1.5 text-meta font-medium text-inkSoft hover:bg-granate-50 hover:text-ink">
-                {m.etiqueta}
-              </Link>
-            ))}
-          </div>
-        </nav>
+        {/* En el celular, el menú en una fila que se desliza (son pocas secciones) y se esconde al bajar. */}
+        <RielProducto base={base} menu={menu} accion={accion} titulo={p.titulo} />
       </header>
+      <div aria-hidden className="h-11 md:hidden" />
 
       <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}
@@ -107,7 +85,7 @@ export function MarcoProducto({
             </p>
           </div>
           <div>
-            <p className="text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">Productos</p>
+            <p className="text-dato font-semibold text-paper">Productos</p>
             <ul className="mt-3 space-y-2 text-dato">
               {otros.map((o) => (
                 <li key={o.clave}>
@@ -129,13 +107,14 @@ export function MarcoProducto({
             </ul>
           </div>
           <div>
-            <p className="text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">De dónde salen los datos</p>
+            <p className="text-dato font-semibold text-paper">De dónde salen los datos</p>
             <ul className="mt-3 space-y-2 text-dato">
               {fuentes.map((f) => (
                 <li key={f.url}>
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-paper/85 underline-offset-2 hover:text-paper hover:underline">
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-paper/85 underline-offset-2 hover:text-paper hover:underline">
+                    {/* La flecha sigue al texto (en un nombre de dos líneas va al final, no suelta a la derecha). */}
                     {f.nombre}
-                    <ArrowUpRight size={13} aria-hidden />
+                    <ArrowUpRight size={13} aria-hidden className="ml-1 inline align-middle" />
                     <span className="sr-only"> (se abre en otra pestaña)</span>
                   </a>
                 </li>
@@ -143,8 +122,10 @@ export function MarcoProducto({
             </ul>
           </div>
           <div>
-            <p className="text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">Contacto</p>
-            <p className="mt-3 select-all font-mono text-dato text-paper/85">{CORREO_GOBSERVA}</p>
+            <p className="text-dato font-semibold text-paper">Contacto</p>
+            <a href={`mailto:${CORREO_GOBSERVA}`} className="mt-3 inline-flex min-h-11 items-center font-mono text-dato text-paper/85 underline-offset-2 hover:text-paper hover:underline">
+              {CORREO_GOBSERVA}
+            </a>
             <p className="mt-3 text-meta leading-relaxed text-paper/60">
               Gobserva no es una entidad del Estado ni intermedia postulaciones ni contrataciones: ordena datos públicos y
               enlaza siempre a la fuente oficial.

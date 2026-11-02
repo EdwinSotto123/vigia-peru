@@ -31,7 +31,7 @@ export function Copiar({ texto, etiqueta = "Copiar", bloque = false, className }
     <button
       type="button"
       onClick={copiar}
-      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+      className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-paper px-3.5 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
     >
       {copiado ? <Check size={14} aria-hidden className="text-mossTexto" /> : <Copy size={14} aria-hidden />}
       <span aria-live="polite">{copiado ? "Copiado" : etiqueta}</span>

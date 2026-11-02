@@ -19,7 +19,7 @@ const GANAS: Record<Producto, { titulo: string; puntos: { Icono: typeof BellRing
   empleo: {
     titulo: "Con tu cuenta no se te pasa ninguna plaza",
     puntos: [
-      { Icono: BellRing, texto: "Alertas con las plazas nuevas que buscas, en tu correo y en tu celular." },
+      { Icono: BellRing, texto: "Alertas con las plazas nuevas que buscas, cada semana o cada mañana." },
       { Icono: Bookmark, texto: "Guarda plazas y lleva tus postulaciones: postulé, entrevista, descartada." },
       { Icono: Mail, texto: "Te recordamos 2 días antes de que cierre una plaza guardada." },
       { Icono: Download, texto: "Con un plan de pago, descargas tus búsquedas en Excel (CSV)." },

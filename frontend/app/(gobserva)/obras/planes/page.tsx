@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { BadgeCheck, CalendarX2, Handshake, Sparkles } from "lucide-react";
+import { BadgeCheck, CalendarPlus, CalendarX2, Handshake, HardHat, Megaphone, Sparkles } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
 import { Planes } from "@/components/gobserva/Planes";
+import { TiraCifras } from "@/components/gobserva-obras/Piezas";
 import { planesObras } from "@/components/gobserva-obras/planes";
 import { Faq } from "@/components/licitaciones/Faq";
+import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { urlCanonica } from "@/lib/gobserva";
+import { getResumenObras } from "@/lib/gobserva-obras";
 import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
@@ -16,21 +19,51 @@ export const metadata: Metadata = {
   alternates: { canonical: urlCanonica("obras", "/planes") },
 };
 
-/** Los planes de Gobserva Obras (precios del catálogo de la API), cómo se paga, el MCP y las preguntas frecuentes. */
+/**
+ * Los planes de Gobserva Obras (precios del catálogo de la API): arriba, lo que hay hoy para vigilar (las cifras vivas de
+ * Invierte.pe e INFOBRAS, GET /proyectos/resumen, la misma caché de la portada), los planes, las garantías, cómo se paga,
+ * el MCP y las preguntas frecuentes.
+ */
 export default async function PlanesObras() {
   const base = baseProducto("obras");
-  const cat = await planesServidor("obras");
+  const [cat, r] = await Promise.all([planesServidor("obras"), getResumenObras()]);
   const cupo = cat.planes.find((p) => p.id === "pro")?.fundador?.cupo;
 
   return (
     <div className="container-page space-y-16 py-10 sm:py-14">
-      <header className="max-w-3xl">
-        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Llega a las obras antes que tu competencia</h1>
-        <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
-          Buscar proyectos, leer sus fichas y medir tu mercado es gratis. Los planes de pago te traen cada mañana los proyectos nuevos y los que
-          cambian de fase, siguen los que guardaste y bajan cualquier búsqueda en Excel.
-        </p>
-        <AvisoPlanes texto={cat.aviso} className="mt-5" />
+      <header className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-end">
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Llega a las obras antes que tu competencia</h1>
+          <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
+            Buscar proyectos, leer sus fichas y medir tu mercado es gratis. Los planes de pago te traen cada mañana los proyectos nuevos y los que
+            cambian de fase, siguen los que guardaste y bajan cualquier búsqueda en Excel.
+          </p>
+          <AvisoPlanes texto={cat.aviso} className="mt-5" />
+        </div>
+        {r && (
+          <section aria-labelledby="hoy-t" className="min-w-0">
+            <h2 id="hoy-t" className="font-display text-bloque font-bold leading-tight text-ink">
+              Lo que vigilas con Gobserva Obras, hoy
+            </h2>
+            <TiraCifras
+              className="mt-3"
+              enDos
+              etiqueta="Cifras de hoy"
+              items={[
+                { Icono: Sparkles, etiqueta: "Proyectos que se vienen", valor: numero(r.seVienen), detalle: `Por ${solesCompacto(r.seVienenMonto)}`, destacado: true },
+                { Icono: Megaphone, etiqueta: "Se licitan ahora", valor: numero(r.licitando), detalle: `Por ${solesCompacto(r.licitandoMonto)}` },
+                { Icono: CalendarPlus, etiqueta: "Viables en 30 días", valor: numero(r.nuevos30), detalle: "Proyectos recién declarados" },
+                { Icono: HardHat, etiqueta: "Obras en marcha", valor: numero(r.enMarcha), detalle: `Por ${solesCompacto(r.enMarchaMonto)}` },
+              ]}
+            />
+            {r.estado?.inversionesAl && (
+              <p className="mt-2 text-rotulo text-mute">
+                Invierte.pe al {fechaCorta(r.estado.inversionesAl)}
+                {r.estado.infobrasAl ? `, INFOBRAS al ${fechaCorta(r.estado.infobrasAl)}` : ""}; las convocatorias del SEACE, a diario.
+              </p>
+            )}
+          </section>
+        )}
       </header>
 
       <Planes planes={planesObras(base, cat)} />
@@ -75,7 +108,11 @@ export default async function PlanesObras() {
             p: "¿Cómo llegan las alertas?",
             r: "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con los proyectos nuevos de tu búsqueda y los que cambiaron de fase (aprobaron su expediente, pasaron a licitación, empezaron la obra o se paralizaron).",
           },
-          { p: "¿Qué es seguir un proyecto?", r: "Guardas los proyectos que te interesan desde su ficha y los tienes juntos en tu cuenta, con una nota y su estado: preparando, presentada, ganada o perdida." },
+          {
+            p: "¿Puedo seguir un solo proyecto?",
+            r: "Sí. En su ficha, «Avísame cuando cambie de fase» crea una alerta con su CUI: te avisamos cuando apruebe su expediente técnico, se licite, empiece la obra o se paralice. También puedes guardarlo en tu cuenta con una nota y su estado.",
+          },
+          { p: "¿Qué es guardar un proyecto?", r: "Guardas los proyectos que te interesan desde su ficha y los tienes juntos en tu cuenta, con una nota y su estado: preparando, presentada, ganada o perdida." },
           { p: "¿Cómo pago?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez." },
           { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE. Gobserva Obras te avisa antes y te da contexto; cada ficha enlaza al MEF, a INFOBRAS y a los procesos oficiales." },
           { p: "¿Es legal?", r: "Sí: son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva no vende datos personales ni nombra a personas naturales." },

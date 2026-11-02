@@ -8,7 +8,8 @@ import { cargarMe, type Me } from "@/lib/gobserva-cuenta";
 import type { Producto } from "@/lib/gobserva";
 import { NIVEL, NIVELES_ORDEN, REGIONES_EMPLEO, nombreRegion as nombreRegionEmpleo, slugRegion } from "@/lib/empleo";
 import { REGIONES_UBIGEO, TIPOS, nombreRegion as nombreRegionLic, nombreTipo } from "@/lib/licitaciones";
-import { FASES, NIVELES, ORDEN_FASES, SECTORES, TIPOS_PROYECTO, nombreNivel, nombreSector } from "@/lib/gobserva-obras";
+import { FASES, MODALIDADES, NIVELES, ORDEN_FASES, PESTANAS, SECTORES, TIPOS_PROYECTO, nombreNivel, nombreSector } from "@/lib/gobserva-obras";
+import { SENAL_PLAZA, TIPOS_PLAZA, type TipoPlaza } from "@/lib/planilla";
 import { cn } from "@/lib/utils";
 
 /** Los campos de los formularios de la cuenta (los mismos de la lista de espera). */
@@ -68,7 +69,15 @@ export interface CampoFiltro {
   opciones?: { valor: string; etiqueta: string }[];
   /** Cómo se muestra el valor en un chip: «Cusco», «Desde S/ 3,000». */
   mostrar?: (v: string) => string;
+  /** No va en el formulario de la alerta, pero se conserva: la entidad, que se elige desde su página o su lista. */
+  oculto?: boolean;
 }
+
+/** La entidad de una alerta, por su RUC (el de una institución pública, no un dato personal). */
+const ENTIDAD: CampoFiltro = { clave: "entidad", etiqueta: "Entidad", tipo: "texto", oculto: true, mostrar: (v) => `Entidad con RUC ${v}` };
+const CIERRE: Record<string, string> = { hoy: "Cierran hoy", "2dias": "Cierran en 2 días", semana: "Cierran esta semana" };
+/** Un CUI (el código único de inversión del MEF): una búsqueda que sigue a un solo proyecto. */
+const esCui = (v: string | undefined) => !!v && /^\d{6,8}$/.test(v.trim());
 
 const MILES = new Intl.NumberFormat("es-PE");
 
@@ -87,6 +96,17 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
     },
     { clave: "sueldo", etiqueta: "Sueldo mínimo (S/)", tipo: "numero", placeholder: "2500", mostrar: (v) => `Desde S/ ${MILES.format(Number(v))}` },
     { clave: "exp", etiqueta: "Años de experiencia que tienes", tipo: "numero", placeholder: "2", mostrar: (v) => `Hasta ${v} ${v === "1" ? "año" : "años"} de experiencia` },
+    {
+      clave: "cierra", etiqueta: "Cierran", tipo: "opcion",
+      opciones: [{ valor: "hoy", etiqueta: "Hoy" }, { valor: "2dias", etiqueta: "En los próximos 2 días" }, { valor: "semana", etiqueta: "Esta semana" }],
+      mostrar: (v) => CIERRE[v] ?? v,
+    },
+    {
+      clave: "senal", etiqueta: "Señal de Vigía", tipo: "opcion",
+      opciones: TIPOS_PLAZA.map((t) => ({ valor: t, etiqueta: SENAL_PLAZA[t].corto })),
+      mostrar: (v) => SENAL_PLAZA[v as TipoPlaza]?.corto ?? v,
+    },
+    ENTIDAD,
   ],
   licitaciones: [
     { clave: "q", etiqueta: "Qué vendes", tipo: "texto", placeholder: "Combustible, uniformes, obras viales", mostrar: (v) => `«${v}»` },
@@ -98,9 +118,10 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
     { clave: "tipo", etiqueta: "Tipo", tipo: "opcion", opciones: TIPOS.map((t) => ({ valor: t.clave, etiqueta: t.nombre })), mostrar: (v) => nombreTipo(v) },
     { clave: "min", etiqueta: "Valor desde (S/)", tipo: "numero", placeholder: "50000", mostrar: (v) => `Desde S/ ${MILES.format(Number(v))}` },
     { clave: "max", etiqueta: "Valor hasta (S/)", tipo: "numero", placeholder: "2000000", mostrar: (v) => `Hasta S/ ${MILES.format(Number(v))}` },
+    ENTIDAD,
   ],
   obras: [
-    { clave: "q", etiqueta: "Qué obras", tipo: "texto", placeholder: "Agua potable, colegio, carretera", mostrar: (v) => `«${v}»` },
+    { clave: "q", etiqueta: "Qué obras (o un CUI)", tipo: "texto", placeholder: "Agua potable, colegio, 2470018", mostrar: (v) => (esCui(v) ? `CUI ${v.trim()}` : `«${v}»`) },
     {
       clave: "region", etiqueta: "Región", tipo: "opcion",
       opciones: REGIONES_UBIGEO.map((r) => ({ valor: r.ubigeo, etiqueta: r.nombre })),
@@ -116,6 +137,18 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
     { clave: "tipo", etiqueta: "Tipo", tipo: "opcion", opciones: TIPOS_PROYECTO.map((x) => ({ valor: x.clave, etiqueta: x.nombre })), mostrar: (v) => (v === "equipamiento" ? "Compra de equipos" : "Obras") },
     { clave: "min", etiqueta: "Costo desde (S/)", tipo: "numero", placeholder: "1000000", mostrar: (v) => `Desde S/ ${MILES.format(Number(v))}` },
     { clave: "max", etiqueta: "Costo hasta (S/)", tipo: "numero", placeholder: "50000000", mostrar: (v) => `Hasta S/ ${MILES.format(Number(v))}` },
+    {
+      clave: "modalidad", etiqueta: "Modalidad", tipo: "opcion",
+      opciones: MODALIDADES.map((m) => ({ valor: m.clave, etiqueta: m.nombre })),
+      mostrar: (v) => MODALIDADES.find((m) => m.clave === v)?.nombre ?? v,
+    },
+    // «Cualquiera» en el formulario = todos los proyectos (lo que hace la API sin pestaña).
+    {
+      clave: "pestana", etiqueta: "Qué proyectos", tipo: "opcion",
+      opciones: PESTANAS.filter((x) => x.clave !== "todos").map((x) => ({ valor: x.clave, etiqueta: x.nombre })),
+      mostrar: (v) => PESTANAS.find((x) => x.clave === v)?.nombre ?? v,
+    },
+    ENTIDAD,
   ],
 };
 
@@ -126,10 +159,19 @@ export function chipsFiltros(producto: Producto, filtros: Record<string, unknown
     .map((c) => (c.mostrar ? c.mostrar(String(filtros[c.clave])) : `${c.etiqueta}: ${String(filtros[c.clave])}`));
 }
 
-/** De los parámetros de una búsqueda (la URL de la lista), sólo los que sirven para una alerta. */
+/**
+ * De los parámetros de una búsqueda (la URL de la lista), sólo los que sirven para una alerta. En Obras la lista sin
+ * pestaña muestra «Se vienen»: la alerta se queda con esa, salvo que se siga un CUI (avisa cuando cambia de fase, en
+ * cualquier pestaña); «todos» es lo mismo que no tener pestaña.
+ */
 export function filtrosDeBusqueda(producto: Producto, params: Record<string, string | undefined>): Record<string, string> {
   const validas = new Set(FILTROS[producto].map((c) => c.clave));
-  return Object.fromEntries(Object.entries(params).filter(([k, v]) => validas.has(k) && v != null && v !== "")) as Record<string, string>;
+  const f = Object.fromEntries(Object.entries(params).filter(([k, v]) => validas.has(k) && v != null && v !== "")) as Record<string, string>;
+  if (producto === "obras") {
+    if (f.pestana === "todos" || esCui(f.q)) delete f.pestana;
+    else if (!f.pestana) f.pestana = "se_vienen";
+  }
+  return f;
 }
 
 /** El nombre de la alerta que se propone para una búsqueda: «combustible en Cusco». */

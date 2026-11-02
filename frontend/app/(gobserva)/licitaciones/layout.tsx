@@ -20,10 +20,11 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
     <MarcoProducto
       producto="licitaciones"
       base={base}
+      // «Planes» no va en el menú: es la acción de la cabecera («Ver planes»), y repetida no dejaba entrar la fila del
+      // menú en el celular (a 390 px se cortaba «Inteligencia de mercado»).
       menu={[
         { ruta: "/oportunidades", etiqueta: "Oportunidades" },
-        { ruta: "/mercado", etiqueta: "Inteligencia de mercado" },
-        { ruta: "/planes", etiqueta: "Planes" },
+        { ruta: "/mercado", etiqueta: "Mercado" },
         { ruta: "/#mcp", etiqueta: "API y MCP" },
       ]}
       accion={{ ruta: "/planes", etiqueta: "Ver planes" }}

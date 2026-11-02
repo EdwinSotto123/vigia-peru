@@ -127,22 +127,59 @@ export const REGIONES_EMPLEO = Object.keys(REGION_NOMBRE);
 
 const titulo = (t: string) => t.toLowerCase().replace(/(^|\s)\p{L}/gu, (m) => m.toUpperCase());
 
-/** El puesto, en tipo oración con sus tildes (SERVIR lo publica en mayúsculas). */
-export const puesto = (t: string | null | undefined) => (t ? oracion(t) : "Puesto sin nombre");
-/** La entidad, con mayúscula inicial en cada palabra y las siglas intactas. */
-export const entidadNombre = (t: string | null | undefined) => (t ? tituloNatural(t) : "Entidad sin nombre");
-export const nombreRegion = (clave: string | null | undefined) => (clave ? REGION_NOMBRE[clave] ?? titulo(clave) : "Sin región");
+/** Casi todo en mayúsculas (como publica SERVIR): el 80 % de las letras, la misma regla de `oracion`. */
+function casiMayusculas(t: string): boolean {
+  const letras = t.match(/\p{L}/gu) ?? [];
+  return letras.length > 0 && letras.filter((c) => c !== c.toLocaleLowerCase("es")).length / letras.length >= 0.8;
+}
+
+/**
+ * Las siglas y los números romanos que el tipo oración dejaba en minúsculas («Enfermera/o - samu», «Especialista iii»,
+ * «procesos cas por suplencia»). Sólo palabras enteras; sólo en lo que llegó en mayúsculas.
+ */
+const SIGLAS_PUESTO =
+  /(?<!\p{L})(cas|samu|ugel|sis|essalud|minsa|ipress|cetpro|rrhh|siaf|siga|seace|osce|oece|oci|pnp|mef|diresa|geresa|diris|cites|tic|ti|sst|pad|uit|sunat|reniec|sunarp|onp|afp|ruc|pcm|ins|inen|insn|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)(?!\p{L})/giu;
+
+/** El puesto, en tipo oración con sus tildes (SERVIR lo publica en mayúsculas) y sus siglas en mayúsculas. */
+export function puesto(t: string | null | undefined): string {
+  if (!t) return "Puesto sin nombre";
+  const o = oracion(t);
+  return casiMayusculas(t) ? o.replace(SIGLAS_PUESTO, (s) => s.toLocaleUpperCase("es")) : o;
+}
+
+/**
+ * La entidad, con mayúscula inicial en cada palabra y las siglas intactas. Arregla lo que el título natural deja a
+ * medias en SERVIR: la inicial después de un punto o un guion pegados («Daniel A.carrión» → «Daniel A. Carrión»,
+ * «Público-gerencia» → «Público-Gerencia») o de unas comillas («"red de Salud…» → «"Red de Salud…»), y la región
+ * «La Libertad», que el conector «la» dejaba en minúscula.
+ */
+export function entidadNombre(t: string | null | undefined): string {
+  if (!t) return "Entidad sin nombre";
+  return tituloNatural(t)
+    .replace(/(\p{L})\.(\p{Ll})/gu, (_m, a: string, b: string) => `${a}. ${b.toLocaleUpperCase("es")}`)
+    .replace(/(\p{L})-(\p{Ll})/gu, (_m, a: string, b: string) => `${a}-${b.toLocaleUpperCase("es")}`)
+    .replace(/(["«“(])(\p{Ll})/gu, (_m, q: string, b: string) => `${q}${b.toLocaleUpperCase("es")}`)
+    .replace(/(?<!\p{L})la Libertad(?!\p{L})/gu, "La Libertad");
+}
+/** La clave de la región como la tabla, aunque la fuente la mande con tilde, en minúsculas o con espacios («Junín »). */
+const claveRegion = (c: string) => c.normalize("NFD").replace(/\p{M}/gu, "").trim().toUpperCase();
+export const nombreRegion = (clave: string | null | undefined) => (clave ? REGION_NOMBRE[claveRegion(clave)] ?? titulo(clave) : "Sin región");
 export const slugRegion = (clave: string) => clave.toLowerCase().replace(/\s+/g, "-");
 export const claveDeSlug = (slug: string | undefined) => (slug ? slug.replace(/-/g, " ").toUpperCase() : undefined);
 
-/** «Lima - San Isidro»: la ubicación del aviso, bien escrita. */
+/**
+ * «Lima, Jesús María»: la ubicación del aviso («LIMA - JESUS MARIA»), bien escrita. La región sale de su tabla; la
+ * provincia o el distrito, en título natural con sus tildes («Carmen de la Legua Reynoso», «Magdalena del Mar»).
+ */
 export function lugar(ubicacion: string | null | undefined): string {
   if (!ubicacion) return "Sin lugar";
   return ubicacion
     .split(" - ")
+    .map((p) => p.trim())
+    .filter(Boolean)
     .map((p) => {
-      const k = p.trim().normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
-      return REGION_NOMBRE[k] ?? titulo(p.trim());
+      const k = p.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
+      return REGION_NOMBRE[k] ?? tituloNatural(p).replace(/(?<!\p{L})el Salvador(?!\p{L})/gu, "El Salvador");
     })
     .join(", ");
 }
@@ -175,13 +212,82 @@ export function fechaDia(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short", timeZone: "UTC" }).format(d).toLowerCase();
 }
 
-/** «Hasta 1 año», «3 años», «Sin experiencia»: lo que pide la plaza en años de experiencia general. */
-export function textoExperiencia(anios: number | null | undefined): string | null {
+/** «1 año», «3 años», «6 meses», «No pide»: los años de experiencia general que pide la plaza, cortos. */
+export function aniosCorto(anios: number | null | undefined): string | null {
   if (anios == null) return null;
-  if (anios === 0) return "Sin experiencia";
-  if (anios < 1) return `${Math.round(anios * 12)} meses de experiencia`;
+  if (anios === 0) return "No pide";
+  if (anios < 1) {
+    const m = Math.max(1, Math.round(anios * 12));
+    return m === 1 ? "1 mes" : `${m} meses`;
+  }
   const n = Number.isInteger(anios) ? anios : Math.round(anios * 10) / 10;
-  return n === 1 ? "1 año de experiencia" : `${n} años de experiencia`;
+  return n === 1 ? "1 año" : `${n} años`;
+}
+
+/** «1 año de experiencia», «3 años de experiencia», «Sin experiencia»: lo que pide la plaza en años de experiencia general. */
+export function textoExperiencia(anios: number | null | undefined): string | null {
+  const c = aniosCorto(anios);
+  if (c == null) return null;
+  return c === "No pide" ? "Sin experiencia" : `${c} de experiencia`;
+}
+
+/** «Hoy, 2 nov.», «Mañana, 3 nov.», «7 nov., en 5 días», «Cerró el 1 nov.»: el cierre con su fecha, sin repetir «cierra». */
+export function cierreConFecha(dias: number | null, fechaFin: string | null | undefined): string {
+  if (dias == null || !fechaFin) return "Sin fecha de cierre";
+  const f = fechaDia(fechaFin);
+  if (dias < 0) return `Cerró el ${f}`;
+  if (dias === 0) return `Hoy, ${f}`;
+  if (dias === 1) return `Mañana, ${f}`;
+  return `${f}, en ${dias} días`;
+}
+
+/**
+ * El tipo de contrato CAS según lo que dice la convocatoria (su número o su título: «D.LEG 1057 - DETERMINADO (NECESIDAD
+ * TRANSITORIA)-004», «… por suplencia»). `temporal` en null cuando el aviso no lo dice: entonces sólo «CAS», sin inventar
+ * el plazo (desde la Ley 31131 un CAS también puede ser a plazo indeterminado).
+ */
+export function tipoContrato(...textos: (string | null | undefined)[]): { texto: string; temporal: boolean | null } {
+  const t = textos.filter(Boolean).join(" ").normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
+  if (/INDETERMINADO/.test(t)) return { texto: "CAS a plazo indeterminado", temporal: false };
+  if (/SUPLENCIA/.test(t)) return { texto: "CAS por suplencia (temporal)", temporal: true };
+  if (/TRANSITORI/.test(t)) return { texto: "CAS por necesidad transitoria (temporal)", temporal: true };
+  if (/DETERMINADO|TEMPORAL/.test(t)) return { texto: "CAS a plazo determinado", temporal: true };
+  return { texto: "CAS", temporal: null };
+}
+
+/**
+ * Por dónde llegan hoy las alertas (lib/gobserva-planes: `correoActivo`). Mientras el correo no sale, lo nuevo llega al
+ * celular (avisos del navegador) y a la cuenta: no se promete un correo que todavía no se manda.
+ */
+export const canalAlertas = (correoActivo: boolean) => (correoActivo ? "por correo y en tu celular" : "en tu celular y en tu cuenta");
+
+/** Un requisito que el aviso deja sin contenido y manda a las bases: «Según el perfil del puesto», «Ver bases». */
+const REQUISITO_EN_BASES = /^(?:seg[uú]n|ver|de acuerdo (?:a|al|con)|conforme (?:a|al)|indicad[oa]s? en)\b.{0,40}(?:perfil|bases|t[eé]rminos|tdr)/i;
+/** Un requisito que dice que no se pide nada: «No aplica», «No requiere», «Ninguno». */
+const REQUISITO_NO_PIDE = /^(?:no (?:aplica|requiere|se requiere|indispensable|es (?:necesario|indispensable|requisito)|corresponde)|ning[uú]n[oa]?|n\/a|sin requisitos?)(?![\p{L}])/iu;
+
+/** Qué dice de verdad un requisito del aviso: algo que se puede cumplir, «está en las bases» o «no pide nada». */
+export function claseRequisito(t: string): "requisito" | "en_bases" | "no_pide" {
+  const s = t.replace(/^[\s•▪●\-–.:;]+/, "").trim();
+  if (REQUISITO_EN_BASES.test(s)) return "en_bases";
+  if (REQUISITO_NO_PIDE.test(s)) return "no_pide";
+  return "requisito";
+}
+
+/** «a», «a y b», «a, b y c» (o «a ni b» después de un «no»): una lista corta en una frase. */
+export function enumerar(lista: string[], conector: "y" | "ni" = "y"): string {
+  if (lista.length <= 1) return lista[0] ?? "";
+  return `${lista.slice(0, -1).join(", ")} ${conector} ${lista[lista.length - 1]}`;
+}
+
+/** Cuántos filtros de la lista están puestos, sin contar el texto (que se ve en su campo) ni el orden ni la página. */
+export function filtrosPuestos(f: FiltrosEmpleo): number {
+  return [f.region, f.nivel, f.sueldo, f.exp, f.cierra, f.senal].filter((v) => v != null && v !== "").length;
+}
+
+/** Si la búsqueda se puede guardar como alerta: tiene al menos uno de los filtros que una alerta entiende (comun.tsx). */
+export function esAlertable(f: FiltrosEmpleo): boolean {
+  return !!(f.q || f.region || f.nivel || f.sueldo || f.exp != null);
 }
 
 /** La consulta de /plazas (sin vacíos), para la URL y para la API. */

@@ -1,7 +1,8 @@
 import { API_BASE } from "@/lib/api-client";
-import { oracion } from "@/lib/formato";
+import { oracion, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { nombreRegion } from "@/lib/licitaciones";
+import { tildesEnTitulo } from "@/lib/tildes";
 
 /**
  * Gobserva Obras (obras.gobserva.cloud): los tipos de GET /proyectos/* (backend/api/src/routes/proyectos.ts), cómo se
@@ -372,6 +373,13 @@ export const TIPO_PROCESO: Record<string, string> = {
   servicios: "Servicios",
   convenio: "Convenio",
 };
+/**
+ * «Proceso de obra convocado»: con el tipo delante («Obra convocado», «Consultoría convocado») el participio no concordaba
+ * con ninguno.
+ */
+export const procesoConvocado = (tipo: string | null | undefined) =>
+  `Proceso de ${(TIPO_PROCESO[tipo ?? ""] ?? "obra").toLocaleLowerCase("es-PE")} convocado`;
+
 export const ETAPA_PROCESO: Record<string, string> = {
   convocada: "En convocatoria",
   adjudicada: "Adjudicado",
@@ -539,7 +547,7 @@ function lugaresConMayuscula(texto: string, propios: string[]): string {
     .replace(/(?<![\p{L}])i\.\s?e\.?(?:\s?p\.)?(?=\s)/giu, (m) => m.toUpperCase().replace(/\s/g, ""))
     .replace(/(?<![\p{L}])ii\.\s?ee\.?/giu, "II.EE.")
     .replace(/(?<![\p{L}\d])([a-z]{2})-(\d{1,4}[a-z]?)(?![\p{L}\d])/gu, (_m, a: string, b: string) => `${a.toUpperCase()}-${b.toUpperCase()}`)
-    .replace(/(?<![\p{L}])(etapa|nivel|fase)\s+(i{1,3}|iv|vi{0,3})(?![\p{L}])/giu, (_m, a: string, b: string) => `${a} ${b.toUpperCase()}`)
+    .replace(/(?<![\p{L}])(etapa|nivel|fase|tramo|subtramo)\s+(i{1,3}|iv|vi{0,3})(?![\p{L}])/giu, (_m, a: string, b: string) => `${a} ${b.toUpperCase()}`)
     .replace(/(?<![\p{L}])(ii|iii|iv)\s+(etapa|fase)/giu, (_m, a: string, b: string) => `${a.toUpperCase()} ${b}`);
 }
 
@@ -587,22 +595,47 @@ export const nombreEntidad = (t: string | null | undefined) =>
 export function nombreLugar(t: string | null | undefined): string | null {
   const s = (t ?? "").replace(/^-+\s*|\s*-+$/g, "").trim();
   if (!s || /^todos$/i.test(s) || /^-?mul\.?dep-?$/i.test(s)) return null;
-  return tituloNatural(s.replace(/^PROVINCIA CONSTITUCIONAL DEL\s+/i, ""));
+  // La fuente a veces ya viene en título y sin tildes («Apurimac»): tituloNatural no la toca y aquí se reponen.
+  return tildesEnTitulo(tituloNatural(s.replace(/^PROVINCIA CONSTITUCIONAL DEL\s+/i, "")));
 }
 
 /** «Distrito, Provincia, Región»: lo que se sabe, sin repetir (en Lima el distrito y la provincia suelen llamarse igual). */
 export function lugarProyecto(p: { region?: string | null; provincia?: string | null; distrito?: string | null }): string {
-  const partes = [nombreLugar(p.distrito), nombreLugar(p.provincia), p.region ? nombreRegion(p.region) : null].filter((x): x is string => !!x);
+  const partes = [nombreLugar(p.distrito), nombreLugar(p.provincia), p.region ? tildesEnTitulo(nombreRegion(p.region)) : null].filter((x): x is string => !!x);
   const unicas = partes.filter((x, i) => partes.findIndex((y) => y.toLocaleLowerCase("es") === x.toLocaleLowerCase("es")) === i);
   return unicas.length ? unicas.join(", ") : "Varias regiones";
 }
 
-/** «2026-03» → «marzo de 2026». */
+/**
+ * «2026-03» → «marzo de 2026». En minúscula: es-PE escribe el mes suelto con mayúscula («Octubre»), que en medio de una
+ * frase («el último, en Octubre de 2026») se leía mal.
+ */
 export function mesAnio(ym: string | null | undefined): string {
   const m = /^(\d{4})-(\d{2})/.exec(ym ?? "");
   if (!m) return "Sin fecha";
   const nombre = new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: "UTC" }).format(new Date(`${m[1]}-${m[2]}-01T12:00:00Z`));
-  return `${nombre} de ${m[1]}`;
+  return `${nombre.toLocaleLowerCase("es-PE")} de ${m[1]}`;
+}
+
+/** El estado de una obra como lo escribe INFOBRAS («En Ejecución», «Finalizado») como oración: «En ejecución», «Terminada». */
+export function estadoObra(estado: string | null | undefined): string {
+  const e = (estado ?? "").trim();
+  if (!e) return "Sin estado";
+  if (/^finalizad/i.test(e)) return "Terminada";
+  return e.charAt(0).toLocaleUpperCase("es-PE") + e.slice(1).toLocaleLowerCase("es-PE");
+}
+
+/**
+ * Cuánto se gastó de una inversión y cuánto falta, en una línea: «43 % gastado; faltan S/ 2.5 mil M», «Sin gasto
+ * todavía». Null si no hay costo con qué comparar.
+ */
+export function textoGasto(costo: number | null | undefined, devengado: number | null | undefined, porEjecutar: number | null | undefined): string | null {
+  if (!costo || costo <= 0) return null;
+  const gastado = devengado ?? 0;
+  if (gastado <= 0) return "Sin gasto todavía";
+  const pct = Math.min((gastado / costo) * 100, 100);
+  const parte = pct < 1 ? `Menos del ${porcentaje(1)} gastado` : `${porcentaje(pct)} gastado`;
+  return porEjecutar && porEjecutar > 0 ? `${parte}; faltan ${solesCompacto(porEjecutar)}` : parte;
 }
 
 /** Días desde una fecha (por el día de Lima). */

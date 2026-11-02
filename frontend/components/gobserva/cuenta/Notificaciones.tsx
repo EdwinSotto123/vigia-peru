@@ -107,7 +107,7 @@ export function Notificaciones({ producto, className }: { producto: Producto; cl
         await sub.unsubscribe();
       }
       setEstado("apagado");
-      setMensaje({ tono: "nota", texto: "Desactivamos las notificaciones en este dispositivo. Tus alertas siguen llegando a tu correo y a tu cuenta." });
+      setMensaje({ tono: "nota", texto: "Desactivamos las notificaciones en este dispositivo. Tus alertas siguen llegando a tu cuenta." });
       await mutate();
     } catch {
       setMensaje({ tono: "error", texto: "No pudimos desactivarlas. Vuelve a intentarlo." });

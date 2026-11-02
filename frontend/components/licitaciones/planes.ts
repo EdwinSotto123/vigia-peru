@@ -22,7 +22,8 @@ export function planesLicitaciones(base: string, cat: PlanesServidor): Plan[] {
         "La ficha de cada una: ítems con su CUBSO y las bases para descargar",
         "La entidad en 12 meses y procesos parecidos con sus precios",
         "El tamaño del mercado de cualquier rubro",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, por correo y en tu celular`,
+        // Mientras los correos no salen (catálogo: correoActivo), lo nuevo queda en la cuenta: no se promete el correo.
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, ${cat.correoActivo ? "por correo" : "en tu cuenta"} y en tu celular`,
         `Guarda hasta ${entero(g.guardados)} procesos, con recordatorio antes de que cierren las consultas`,
       ],
       accion: { href: rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/oportunidades")}`), etiqueta: "Crear mi cuenta gratis" },

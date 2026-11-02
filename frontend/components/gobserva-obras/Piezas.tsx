@@ -28,32 +28,45 @@ import { cn } from "@/lib/utils";
 
 /**
  * Piezas de Gobserva Obras, todas server-safe: la insignia de la fase, el ícono de cada sector, la cabecera de una
- * sección, una cifra con ícono, los pasos, la barra de avance de una obra (lo real contra lo programado) y el paginador.
+ * sección, una cifra con ícono, la tira de cifras de una búsqueda, los pasos, la barra de avance de una obra (lo real
+ * contra lo programado) y el paginador.
  */
 
-/** El tono de cada fase: la oportunidad (licitándose) resalta; lo detenido, en rojo; lo terminado, apagado. */
-const TONO_FASE: Record<Fase, string> = {
-  viable: "bg-paperDeep text-inkSoft",
-  expediente: "bg-granate-50 text-granate ring-1 ring-inset ring-granate/25",
-  licitacion: "bg-amber-soft text-amberTexto ring-1 ring-inset ring-amber/30",
-  ejecucion: "bg-anil/10 text-anilTexto ring-1 ring-inset ring-anil/25",
-  paralizada: "bg-crimson-soft text-crimsonTexto ring-1 ring-inset ring-crimson/30",
-  terminada: "bg-paperDeep text-mute",
-  sin_movimiento: "bg-paperDeep text-mute",
-  cerrada: "bg-paperDeep text-mute",
+/**
+ * El tono de cada fase, con su punto: la oportunidad (licitándose) resalta y late; lo detenido, en rojo; lo terminado,
+ * apagado. «Viable» va con borde y sin relleno: con el gris de los chips de sector no se distinguía la fase.
+ */
+const TONO_FASE: Record<Fase, { chip: string; punto: string }> = {
+  viable: { chip: "bg-paper text-ink ring-1 ring-inset ring-paperEdge", punto: "bg-inkSoft" },
+  expediente: { chip: "bg-granate-50 text-granate ring-1 ring-inset ring-granate/30", punto: "bg-granate" },
+  licitacion: { chip: "bg-amber-soft text-amberTexto ring-1 ring-inset ring-amber/40", punto: "bg-amber" },
+  ejecucion: { chip: "bg-anil/10 text-anilTexto ring-1 ring-inset ring-anil/30", punto: "bg-anil" },
+  paralizada: { chip: "bg-crimson-soft text-crimsonTexto ring-1 ring-inset ring-crimson/35", punto: "bg-crimson" },
+  terminada: { chip: "bg-paperDeep text-inkSoft ring-1 ring-inset ring-line", punto: "bg-mute" },
+  sin_movimiento: { chip: "bg-paperDeep text-mute ring-1 ring-inset ring-line", punto: "bg-mute" },
+  cerrada: { chip: "bg-paperDeep text-mute ring-1 ring-inset ring-line", punto: "bg-mute" },
 };
 
-export function FaseInsignia({ fase, className }: { fase: Fase | null | undefined; className?: string }) {
+/** La fase de un proyecto: lo primero que se lee de cada fila y de cada ficha. `md`, para la cabecera de la ficha. */
+export function FaseInsignia({ fase, tamano = "sm", className }: { fase: Fase | null | undefined; tamano?: "sm" | "md"; className?: string }) {
   if (!fase) return null;
+  const t = TONO_FASE[fase];
+  const md = tamano === "md";
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-rotulo font-semibold", TONO_FASE[fase], className)} title={FASES[fase].detalle}>
-      {fase === "licitacion" && (
-        <span aria-hidden className="relative inline-flex h-2 w-2">
-          <span className="absolute inset-0 rounded-full bg-amber opacity-60 motion-safe:animate-ping" />
-          <span className="relative h-2 w-2 rounded-full bg-amber" />
-        </span>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-semibold",
+        md ? "px-3 py-1 text-meta" : "px-2.5 py-0.5 text-rotulo",
+        t.chip,
+        className,
       )}
-      {FASES[fase].corto}
+      title={FASES[fase].detalle}
+    >
+      <span aria-hidden className={cn("relative inline-flex shrink-0", md ? "h-2 w-2" : "h-1.5 w-1.5")}>
+        {fase === "licitacion" && <span className={cn("absolute inset-0 rounded-full opacity-60 motion-safe:animate-ping", t.punto)} />}
+        <span className={cn("relative h-full w-full rounded-full", t.punto)} />
+      </span>
+      {md ? FASES[fase].nombre : FASES[fase].corto}
     </span>
   );
 }
@@ -82,7 +95,7 @@ export const iconoSector = (s: string | null | undefined): LucideIcon => (s && I
 /** El título de una sección, su bajada y, si hay, la acción a la derecha. */
 export function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: string; bajada?: ReactNode; accion?: { href: string; etiqueta: string } }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
       <div className="min-w-0 max-w-3xl">
         <h2 id={id} className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
           {titulo}
@@ -90,7 +103,7 @@ export function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: s
         {bajada && <p className="mt-2 text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
       </div>
       {accion && (
-        <Link href={accion.href} className="inline-flex shrink-0 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+        <Link href={accion.href} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
           {accion.etiqueta} <ArrowRight size={15} aria-hidden />
         </Link>
       )}
@@ -132,21 +145,76 @@ export function Dato({
   );
 }
 
-/** Un paso de «Cómo funciona». */
-export function Paso({ n, Icono, titulo, texto }: { n: number; Icono: LucideIcon; titulo: string; texto: string }) {
+export interface CifraTira {
+  Icono: LucideIcon;
+  etiqueta: string;
+  valor: string;
+  /** Una línea debajo del valor: el contexto («de 2,335 entidades», «Gastado este año: S/ 84 M»). */
+  detalle?: ReactNode;
+  destacado?: boolean;
+}
+
+/**
+ * Cifras en una sola caja con divisiones (no cuatro tarjetas sueltas): el resumen de una búsqueda o de un proyecto. Dos
+ * columnas en el celular y todas en fila desde `sm` (con `enDos`, dos columnas siempre: para una columna angosta). Cada
+ * una: qué es (con su ícono) arriba y el valor debajo.
+ */
+export function TiraCifras({ items, etiqueta, enDos = false, className }: { items: CifraTira[]; etiqueta?: string; enDos?: boolean; className?: string }) {
+  const n = items.length;
   return (
-    <li className="relative min-w-0 rounded-2xl border border-line bg-paper p-5">
-      <span aria-hidden className="absolute right-5 top-4 font-mono text-cifra font-bold text-granate/15">
+    <dl
+      aria-label={etiqueta}
+      className={cn(
+        "grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-paper",
+        !enDos && (n >= 4 ? "sm:grid-cols-4" : n === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"),
+        className,
+      )}
+    >
+      {items.map((x, i) => (
+        <div
+          key={x.etiqueta}
+          className={cn(
+            "min-w-0 border-line px-3.5 py-3 sm:px-4",
+            i % 2 === 1 && "border-l",
+            i >= 2 && (enDos ? "border-t" : "border-t sm:border-t-0"),
+            i > 0 && !enDos && "sm:border-l",
+            // Impar en dos columnas: la última va a lo ancho, sin hueco al lado.
+            n % 2 === 1 && i === n - 1 && (enDos ? "col-span-2" : "col-span-2 sm:col-span-1"),
+            x.destacado && "bg-granate-50",
+          )}
+        >
+          <dt className="flex items-center gap-1.5 text-meta leading-snug text-inkSoft">
+            <x.Icono size={15} aria-hidden className="shrink-0 text-granate" />
+            <span className="min-w-0">{x.etiqueta}</span>
+          </dt>
+          <dd className="mt-1 font-display text-bloque font-bold leading-tight tabular-nums text-ink sm:text-seccion">{x.valor}</dd>
+          {x.detalle && <dd className="mt-0.5 text-rotulo leading-snug text-mute">{x.detalle}</dd>}
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * Un paso de «Cómo funciona»: el número en su círculo, el título con su ícono y una frase. Sin tarjeta: en escritorio los
+ * pasos van en fila unidos por una línea (cada uno dibuja la que lo lleva al siguiente, salvo el `ultimo`; el `<ol>` va
+ * con `gap-8`), en el celular uno bajo otro.
+ */
+export function Paso({ n, Icono, titulo, texto, ultimo = false }: { n: number; Icono: LucideIcon; titulo: string; texto: string; ultimo?: boolean }) {
+  return (
+    <li className="relative flex min-w-0 gap-4 md:flex-col md:gap-0">
+      {!ultimo && <span aria-hidden className="absolute left-14 top-[22px] hidden h-px bg-line md:-right-5 md:block" />}
+      <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-granate font-display text-bloque font-bold text-paper">
         {n}
       </span>
-      <span aria-hidden className="flex h-11 w-11 items-center justify-center rounded-xl bg-granate-50 text-granate">
-        <Icono size={20} />
-      </span>
-      <h3 className="mt-4 font-display text-bloque font-bold leading-tight text-ink">
-        <span className="sr-only">Paso {n}: </span>
-        {titulo}
-      </h3>
-      <p className="mt-2 text-dato leading-relaxed text-inkSoft">{texto}</p>
+      <div className="min-w-0 md:mt-4">
+        <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
+          <span className="sr-only">Paso {n}: </span>
+          <Icono size={18} aria-hidden className="shrink-0 text-granate" />
+          {titulo}
+        </h3>
+        <p className="mt-1.5 max-w-[42ch] text-dato leading-relaxed text-inkSoft">{texto}</p>
+      </div>
     </li>
   );
 }
@@ -176,16 +244,19 @@ export function BarraAvance({
   const atrasada = p != null && p - r >= 20;
   return (
     <div className={cn("min-w-0", className)}>
-      <p className={cn("flex items-baseline justify-between gap-2 text-meta", oscuro ? "text-paper/75" : "text-inkSoft")}>
+      <p className={cn("flex flex-wrap items-baseline justify-between gap-x-2 text-meta", oscuro ? "text-paper/75" : "text-inkSoft")}>
         <span>{etiqueta}</span>
-        <span className={cn("font-mono font-semibold tabular-nums", oscuro ? "text-paper" : "text-ink")}>
-          {numero(r)}
-          {" "}%{p != null && <span className={cn("font-normal", oscuro ? "text-paper/60" : "text-mute")}> de {numero(p)}{" "}% programado</span>}
+        <span className="tabular-nums">
+          <b className={cn("font-semibold", oscuro ? "text-paper" : atrasada ? "text-crimsonTexto" : "text-ink")}>
+            {numero(r)}
+            {" "}%
+          </b>
+          {p != null && <span className={oscuro ? "text-paper/60" : "text-mute"}> de {numero(p)}{" "}% programado</span>}
         </span>
       </p>
       <span
         role="img"
-        aria-label={`${etiqueta}: ${numero(r)} %${p != null ? ` de ${numero(p)} % programado` : ""}`}
+        aria-label={`${etiqueta}: ${numero(r)} %${p != null ? ` de ${numero(p)} % programado` : ""}${atrasada ? ", atrasada" : ""}`}
         className={cn("relative mt-1.5 block h-2 overflow-visible rounded-full", oscuro ? "bg-paper/15" : "bg-paperDeep")}
       >
         <span className={cn("block h-full rounded-full", atrasada ? "bg-crimson" : oscuro ? "bg-maiz" : "bg-granate")} style={{ width: `${Math.max(r, 1.5)}%` }} />

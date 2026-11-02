@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Check, CheckCircle2, CreditCard, Loader2, Lock, QrCode, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, CheckCircle2, Loader2, Lock, QrCode, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { MarcaMercadoPago, MarcaPlin, MarcaYape, TarjetasAceptadas } from "@/components/financiar/MarcasPago";
 import { PagoTarjeta, type DatosTarjeta } from "@/components/financiar/PagoTarjeta";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import {
   ErrorCuenta, cargarCatalogo, enviarOperacion, pagarConQr, pagarConTarjeta, precioCorto, soles2, type MedioManual, type MedioQr, type PlanCatalogo,
 } from "@/lib/gobserva-cuenta";
+import { precioDe as precioTarjeta } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, COSAS, ETIQUETA, Esqueleto, useMe, useSesion } from "./comun";
 
@@ -21,6 +23,8 @@ function precioDe(p: PlanCatalogo) {
   const fundador = !!p.fundador && (p.fundador.libres == null || p.fundador.libres > 0);
   return { hoy: fundador ? p.fundador!.precio : p.precio, regular: p.precio, fundador, meses: fundador ? p.fundador!.meses ?? null : null };
 }
+/** «el primer mes» o «los 3 primeros meses»: cuánto dura el precio de fundador por meses. */
+const losPrimeros = (meses: number) => (meses === 1 ? "el primer mes" : `los ${meses} primeros meses`);
 /** Lo mismo que la API (lib/gobservaPlanes.ts → montoPorMeses): meses por adelantado con Yape o Plin. */
 function totalMeses(p: PlanCatalogo, meses: number): number {
   const x = precioDe(p);
@@ -119,9 +123,9 @@ export function Checkout({ producto, base, plan: planPedido }: { producto: Produ
           </h1>
           <p className="mt-2 text-cuerpo leading-relaxed text-inkSoft">
             {listo.estado === "activa"
-              ? "Ya puedes crear tus alertas de cada mañana, guardar más y descargar tus búsquedas. Te enviamos el recibo de cada cobro."
+              ? `Ya puedes crear tus alertas de cada mañana, guardar más y descargar tus búsquedas. ${cat.correoActivo ? "Te enviamos el recibo de cada cobro." : "El recibo de cada cobro queda en tu cuenta, en Pagos."}`
               : listo.tipo === "qr"
-                ? "Lo confirmamos en menos de 24 horas hábiles con tu número de operación. Tu plan se activa solo y te enviamos el recibo."
+                ? `Lo confirmamos en menos de 24 horas hábiles con tu número de operación. Tu plan se activa solo y ${cat.correoActivo ? "te enviamos el recibo" : "el recibo queda en tu cuenta"}.`
                 : "Puede tardar unos minutos. Te avisamos apenas se confirme; tu plan se activa solo."}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -165,15 +169,11 @@ export function Checkout({ producto, base, plan: planPedido }: { producto: Produ
                       <input type="radio" name="plan" checked={plan.id === p.id} onChange={() => { setElegido(p.id); setQr(null); }} className="accent-[rgb(var(--granate))]" />
                     </span>
                     <span className="mt-2 flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-display text-cifra font-bold leading-none text-ink">{precioCorto(x.hoy)}</span>
+                      <span className="font-display text-cifra font-bold leading-none tabular-nums text-ink">{precioCorto(x.hoy)}</span>
                       <span className="text-meta text-inkSoft">al mes</span>
-                      {x.fundador && <span className="text-meta text-mute line-through">{precioCorto(x.regular)}</span>}
+                      {x.fundador && <span className="text-meta tabular-nums text-mute line-through">{precioCorto(x.regular)}</span>}
                     </span>
-                    {x.fundador && (
-                      <span className="mt-1 text-meta font-semibold text-granate">
-                        {p.fundador?.cupo ? `Precio de fundador: quedan ${p.fundador.libres ?? p.fundador.cupo} lugares` : `Los primeros ${x.meses} meses`}
-                      </span>
-                    )}
+                    {x.fundador && <span className="mt-1 text-meta font-semibold text-granate">{precioTarjeta(p).nota}</span>}
                   </label>
                 );
               })}
@@ -202,35 +202,40 @@ export function Checkout({ producto, base, plan: planPedido }: { producto: Produ
               <Aviso className="mt-4">Los pagos están en mantenimiento. Escríbenos a {cat.vendedor.correo} y te ayudamos.</Aviso>
             ) : (
               <>
-                <div role="tablist" aria-label="Medio de pago" className="mt-4 flex flex-wrap gap-2">
-                  {medios.map((m) => (
-                    <button
-                      key={m}
-                      role="tab"
-                      type="button"
-                      aria-selected={medioActivo === m}
-                      onClick={() => { setMedio(m); setError(null); setQr(null); }}
-                      className={cn(
-                        "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-dato font-semibold",
-                        medioActivo === m ? "border-granate bg-granate text-paper" : "border-line text-ink hover:border-granate/40",
-                      )}
-                    >
-                      {m === "tarjeta" ? <CreditCard size={16} aria-hidden /> : <QrCode size={16} aria-hidden />}
-                      {m === "tarjeta" ? "Tarjeta" : m === "yape" ? "Yape" : "Plin"}
-                    </button>
-                  ))}
-                </div>
+                <fieldset className="mt-4">
+                  <legend className={ETIQUETA}>¿Cómo pagas?</legend>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {medios.map((m) => (
+                      <OpcionMedio
+                        key={m}
+                        checked={medioActivo === m}
+                        onChange={() => { setMedio(m); setError(null); setQr(null); }}
+                        // La tarjeta va a lo ancho; Yape y Plin, lado a lado (o a lo ancho si hay uno solo).
+                        ancha={m === "tarjeta" || medios.filter((x) => x !== "tarjeta").length === 1}
+                        marca={m === "tarjeta" ? <MarcaMercadoPago /> : m === "yape" ? <MarcaYape /> : <MarcaPlin />}
+                        titulo={m === "tarjeta" ? "Tarjeta de crédito o débito" : undefined}
+                        detalle={m === "tarjeta" ? <TarjetasAceptadas /> : null}
+                        nota={
+                          m === "tarjeta"
+                            ? <><RefreshCcw size={13} aria-hidden className="shrink-0" /> Se renueva sola cada mes</>
+                            : <><QrCode size={13} aria-hidden className="shrink-0" /> Meses por adelantado</>
+                        }
+                      />
+                    ))}
+                  </div>
+                </fieldset>
 
                 {medioActivo === "tarjeta" && cat.medios.tarjeta && (
                   <div className="mt-5">
                     <p className="flex items-start gap-2 text-dato text-inkSoft">
                       <RefreshCcw size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                      Se cobra {precioCorto(precio.hoy)} cada mes en tu tarjeta{precio.meses ? ` (los primeros ${precio.meses}; luego ${precioCorto(precio.regular)})` : ""}. Cancelas cuando quieras desde tu
+                      Se cobra {precioCorto(precio.hoy)} cada mes en tu tarjeta{precio.meses ? ` (${losPrimeros(precio.meses)}; luego ${precioCorto(precio.regular)})` : ""}. Cancelas cuando quieras desde tu
                       cuenta y no se vuelve a cobrar.
                     </p>
                     <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-line px-3.5 py-3 text-dato text-ink">
                       <input type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} className="mt-1 h-4 w-4 accent-[rgb(var(--granate))]" />
-                      Autorizo el cobro de {precioCorto(precio.hoy)} al mes en mi tarjeta por {PRODUCTOS[producto].titulo}, plan {plan.nombre}, hasta que lo cancele.
+                      Autorizo el cobro de {precioCorto(precio.hoy)} al mes{precio.meses ? ` (${losPrimeros(precio.meses)}; luego ${precioCorto(precio.regular)} al mes)` : ""} en mi tarjeta por{" "}
+                      {PRODUCTOS[producto].titulo}, plan {plan.nombre}, hasta que lo cancele.
                     </label>
                     <div className="mt-4">
                       <PagoTarjeta key={`${plan.id}-${precio.hoy}`} clavePublica={cat.medios.tarjeta.publicKey} monto={precio.hoy} email={me?.cuenta.email} onPagar={conTarjeta} />
@@ -287,7 +292,7 @@ export function Checkout({ producto, base, plan: planPedido }: { producto: Produ
             </p>
             {precio.fundador && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-paper/10 px-3 py-1 text-meta font-semibold text-maiz">
-                <Sparkles size={13} aria-hidden /> {plan.fundador?.cupo ? "Precio de fundador: lo conservas mientras sigas" : `Precio de fundador por ${precio.meses} meses`}
+                <Sparkles size={13} aria-hidden /> {plan.fundador?.cupo ? "Precio de fundador: lo conservas mientras sigas" : `Precio de fundador ${losPrimeros(precio.meses ?? 1)}`}
               </p>
             )}
             <ul className="mt-5 space-y-2.5 border-t border-paper/15 pt-4">
@@ -335,15 +340,20 @@ function PagoQr({ qr, onListo, base }: { qr: { numero: string; monto: number; me
   }
   return (
     <div className="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
-      <div className="flex flex-col items-center rounded-2xl border border-line bg-paperSoft p-4">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-paperSoft p-4">
+        {qr.medio === "yape" ? <MarcaYape grande /> : <MarcaPlin grande />}
         {d?.qrUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={d.qrUrl} alt={`Código QR de ${qr.medio === "yape" ? "Yape" : "Plin"}`} width={176} height={176} className="h-44 w-44 rounded-xl bg-paper object-contain" />
         ) : (
           <QrCode size={64} aria-hidden className="text-mute" />
         )}
-        {d && <p className="mt-2 text-center text-dato font-bold text-ink">{d.numero}</p>}
-        {d?.titular && <p className="text-center text-meta text-inkSoft">{d.titular}</p>}
+        {d && (
+          <div className="text-center">
+            <p className="text-dato font-bold tabular-nums text-ink">{d.numero}</p>
+            {d.titular && <p className="text-meta text-inkSoft">{d.titular}</p>}
+          </div>
+        )}
       </div>
       <div className="min-w-0">
         <ol className="space-y-3 text-dato text-ink">
@@ -375,5 +385,41 @@ function PagoQr({ qr, onListo, base }: { qr: { numero: string; monto: number; me
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Un medio de pago para elegir, con la marca de quien lo cobra (como en /app/apoyar → OpcionMetodo): el radio nativo va
+ * escondido en su etiqueta, así funcionan el teclado, el lector de pantalla y el foco sin código extra.
+ */
+function OpcionMedio({ checked, onChange, ancha, marca, titulo, detalle, nota }: {
+  checked: boolean;
+  onChange: () => void;
+  ancha: boolean;
+  marca: ReactNode;
+  titulo?: string;
+  detalle: ReactNode;
+  nota: ReactNode;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex min-w-0 cursor-pointer gap-3 rounded-2xl border p-3.5 transition-colors duration-rapido",
+        "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-granate has-[:focus-visible]:ring-offset-2",
+        checked ? "border-granate bg-granate-50" : "border-line bg-paper hover:border-granate/40",
+        ancha && "col-span-2",
+      )}
+    >
+      <input type="radio" name="medio" checked={checked} onChange={onChange} className="sr-only" />
+      <span aria-hidden className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2", checked ? "border-granate" : "border-paperEdge")}>
+        {checked && <span className="h-2.5 w-2.5 rounded-full bg-granate" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">{marca}</span>
+        {titulo && <span className="mt-1.5 block text-dato font-semibold leading-5 text-ink">{titulo}</span>}
+        {detalle && <span className="mt-2 block">{detalle}</span>}
+        <span className="mt-2 flex items-center gap-1.5 text-rotulo text-inkSoft">{nota}</span>
+      </span>
+    </label>
   );
 }

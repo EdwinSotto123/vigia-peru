@@ -67,7 +67,7 @@ hemodiálisis hemoglobinómetro hemostática hemostático hernán hernández hid
 hidroeléctrica hidroeléctricas hidrofílica hidrogeológico hidrografía hidrográfica hidrográficas hidrología
 hidrológica hidrológico hidrometeorológica hidrometeorológico hidrometereológicos hidropónicos hidrostática
 hidráulica hidráulicas hidráulico hidráulicos hidróxido higiénico higiénicos hiperbárica hipoalergénico hipólito
-histórica histórico históricos hormigón hotelería huachón huamalíes huamán huasmín huánuco hélice hélices héroes
+histórica histórico históricos hormigón hotelería huachón huamalíes huamán huarochirí huasmín huánuco hélice hélices héroes
 hídrica hídrico hídricos hígado húmedo húmedos ilícito imagenología imágenes inalámbrica inalámbricas inalámbrico
 inalámbricos indígena indígenas infantería informática informáticas informático informáticos ingeniería ingenierías
 inglés inmunohematología inmunohematológicas inmunología inmunoquímica inmunoserología inorgánico inorgánicos
@@ -134,6 +134,21 @@ function sinTilde(p: string): string {
 
 const RE_PALABRA = /\p{L}+/gu;
 const RE_ION = /[^aeiouáéíóú]ion$/;
+
+/**
+ * Las tildes de un texto que ya viene en título («Regimen Especial» → «Régimen Especial»), sin tocar su caja: cada palabra
+ * se busca en minúsculas y, si cambia, vuelve con la misma inicial (o toda en mayúsculas, como vino).
+ */
+export function tildesEnTitulo(t: string): string {
+  return t.replace(RE_PALABRA, (p) => {
+    const baja = p.toLocaleLowerCase("es");
+    // Si el diccionario conoce la palabra, manda él: también arregla la tilde mal puesta de la fuente («Regímen»).
+    const con = TILDES.get(sinTilde(baja)) ?? conTildes(baja);
+    if (con === baja) return p;
+    if (p === p.toLocaleUpperCase("es") && p.length > 1) return con.toLocaleUpperCase("es");
+    return p.charAt(0) === p.charAt(0).toLocaleUpperCase("es") ? con.charAt(0).toLocaleUpperCase("es") + con.slice(1) : con;
+  });
+}
 
 /** Devuelve el texto (en minúsculas) con sus tildes repuestas, palabra por palabra. */
 export function conTildes(t: string): string {

@@ -25,7 +25,7 @@ FUERA = {"codi", "omicas", "hualcara", "cahuac", "participara", "atendera", "piz
 # Lugares, apellidos y palabras frecuentes que en los datos van con tilde menos de 6 de cada 10 veces.
 MANUAL = """junín apurímac huánuco martín áncash marañón morropón celendín bolívar virú camaná belén rímac contumazá bongará purús
 huamalíes iparía chepén mórrope túcume huasmín aguaytía sayán paiján oyotún tumbadén pacarán lunahuaná pucalá tumán cospán
-porcón awajún huachón canaán jerusalén gabán asís josé maría sánchez andrés víctor román cáceres jesús cristóbal jerónimo ramón
+porcón awajún huachón huarochirí canaán jerusalén gabán asís josé maría sánchez andrés víctor román cáceres jesús cristóbal jerónimo ramón
 sebastián ángeles rodríguez huamán mariátegui chávez raúl simón bermúdez gálvez guzmán hipólito fátima garcía bárbara frías elías
 núñez barrón bartolomé valcárcel piérola leguía león butrón antón vásquez sáenz joaquín márquez gutiérrez soberón fernández
 valentín inés néstor martínez gómez díaz jiménez álvarez domínguez pérez gonzález ramírez hernández

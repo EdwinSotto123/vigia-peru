@@ -9,8 +9,11 @@ import { useSesion } from "./comun";
 /**
  * La cuenta en la cabecera de un producto: «Entrar» sin sesión y la inicial con «Mi cuenta» con ella. No carga Firebase
  * (AuthProvider lo trae sólo si hay una sesión guardada) ni pide nada a la API: es parte de todas las páginas.
+ *
+ * `compacto` (el celular): la inicial sola, y «Entrar» sólo con su ícono salvo con `entrarConTexto`, cuando la marca del
+ * producto es corta y la palabra entra (desde 360 px).
  */
-export function MenuCuenta({ base, compacto = false }: { base: string; compacto?: boolean }) {
+export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: { base: string; compacto?: boolean; entrarConTexto?: boolean }) {
   const { user, loading, conCuenta } = useSesion();
   if (loading) return <span aria-hidden className={cn("inline-block h-10 animate-pulse rounded-full bg-paperDeep", compacto ? "w-10" : "w-24")} />;
   if (!conCuenta || !user) {
@@ -19,11 +22,11 @@ export function MenuCuenta({ base, compacto = false }: { base: string; compacto?
         href={rutaEn(base, "/entrar")}
         className={cn(
           "inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50",
-          compacto && "px-3",
+          compacto && !entrarConTexto && "px-3",
         )}
       >
         <LogIn size={16} aria-hidden />
-        <span className={cn(compacto && "sr-only")}>Entrar</span>
+        <span className={cn(compacto && (entrarConTexto ? "max-[359px]:sr-only" : "sr-only"))}>Entrar</span>
       </Link>
     );
   }

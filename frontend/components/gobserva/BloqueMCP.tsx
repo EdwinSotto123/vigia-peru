@@ -28,24 +28,39 @@ export function BloqueMCP({
 }) {
   const configuracion = JSON.stringify({ mcpServers: { gobserva: { type: "http", url: URL_MCP } } }, null, 2);
   return (
-    <section id={id} aria-labelledby={`${id}-t`} className={cn("sobre-oscuro scroll-mt-20 overflow-hidden rounded-3xl bg-ink text-paper", className)}>
+    // El borde claro y tenue separa la banda del fondo de noche, que es casi del mismo carbón.
+    <section id={id} aria-labelledby={`${id}-t`} className={cn("sobre-oscuro scroll-mt-20 overflow-hidden rounded-3xl border border-paper/10 bg-ink text-paper", className)}>
       <div className="grid gap-10 p-6 sm:p-10 lg:grid-cols-[1.05fr_1fr]">
         <div className="min-w-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-maiz/40 bg-maiz/10 px-3 py-1 text-meta font-semibold text-maiz">
-            <Cable size={14} aria-hidden /> MCP, gratis durante la beta
-          </span>
-          <h2 id={`${id}-t`} className="mt-4 text-balance font-display text-titulo font-bold leading-tight sm:text-vitrina">
+          <h2 id={`${id}-t`} className="text-balance font-display text-titulo font-bold leading-tight sm:text-vitrina">
             {titulo}
           </h2>
           <p className="mt-4 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-paper/75">{bajada}</p>
+          {/* Lo que cuesta, después del título y de lo que es (encima del título sería una etiqueta de adorno). */}
+          <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-maiz/40 bg-maiz/10 px-3 py-1 text-meta font-semibold text-maiz">
+            <Cable size={14} aria-hidden /> MCP, gratis durante la beta
+          </p>
           <ol className="mt-6 space-y-4">
             <Paso n={1} titulo="Copia la dirección del servidor">
               <Copiar texto={URL_MCP} className="mt-2 border-paper/15 bg-paper/5 [&_code]:text-paper" />
             </Paso>
             <Paso n={2} titulo="Agrégala a tu asistente">
-              En Claude: Configuración, Conectores, «Agregar conector personalizado» y pega la dirección. En ChatGPT, Cursor o
-              cualquier cliente que lea un archivo de configuración:
-              <Copiar texto={configuracion} bloque className="mt-2 border-paper/15 bg-paper/5 [&_pre]:text-paper" />
+              <ol className="mt-2 space-y-3">
+                <li className="flex gap-2.5">
+                  <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-maiz/50 font-mono text-rotulo font-bold text-maiz">a</span>
+                  <span className="min-w-0">
+                    <b className="font-semibold text-paper">En Claude:</b> abre Configuración, entra a Conectores, elige «Agregar conector
+                    personalizado» y pega la dirección.
+                  </span>
+                </li>
+                <li className="flex gap-2.5">
+                  <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-maiz/50 font-mono text-rotulo font-bold text-maiz">b</span>
+                  <span className="min-w-0 flex-1">
+                    <b className="font-semibold text-paper">En ChatGPT, Cursor u otro cliente</b> que lea un archivo de configuración, pega esto:
+                    <Copiar texto={configuracion} bloque className="mt-2 border-paper/15 bg-paper/5 [&_pre]:text-paper" />
+                  </span>
+                </li>
+              </ol>
             </Paso>
             <Paso n={3} titulo="Pregunta en tus palabras">
               Tu asistente consulta los datos de Gobserva y te responde con la fuente oficial de cada dato.
@@ -54,9 +69,9 @@ export function BloqueMCP({
         </div>
         <div className="min-w-0 space-y-6">
           <div>
-            <p className="inline-flex items-center gap-2 text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">
-              <MessageSquareText size={14} aria-hidden /> Pregúntale, por ejemplo
-            </p>
+            <h3 className="flex items-center gap-2 text-cuerpo font-semibold text-paper">
+              <MessageSquareText size={16} aria-hidden className="text-maiz" /> Pregúntale, por ejemplo
+            </h3>
             <ul className="mt-3 space-y-2.5">
               {ejemplos.map((e) => (
                 <li key={e} className="flex gap-2.5">
@@ -67,9 +82,9 @@ export function BloqueMCP({
             </ul>
           </div>
           <div>
-            <p className="inline-flex items-center gap-2 text-meta font-semibold uppercase tracking-[0.12em] text-paper/60">
-              <Wrench size={14} aria-hidden /> Lo que responde
-            </p>
+            <h3 className="flex items-center gap-2 text-cuerpo font-semibold text-paper">
+              <Wrench size={16} aria-hidden className="text-maiz" /> Lo que responde
+            </h3>
             <ul className="mt-3 divide-y divide-paper/10 rounded-2xl border border-paper/10">
               {herramientas.map((h) => (
                 <li key={h.nombre} className="px-4 py-3">

@@ -1,23 +1,30 @@
+import type { ReactNode } from "react";
 import { CreditCard, Inbox, Mail, Megaphone, QrCode, Receipt, ShieldCheck } from "lucide-react";
+import { MarcaMercadoPago, MarcaPlin, MarcaYape, TarjetasAceptadas } from "@/components/financiar/MarcasPago";
 import { Nota } from "@/components/patrones/Estructura";
 import type { PlanesServidor } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 
 /**
  * Debajo de los planes de un producto (2026-11-01): cómo se empieza, en pasos numerados, y cómo se paga, con los medios
- * abiertos en el panel (tarjeta por Mercado Pago, Yape o Plin por meses) y el comprobante que corresponde: recibo con RUC
- * o constancia de pago, según la configuración del vendedor. Mientras los correos no salen, lo dice. Server-safe.
+ * abiertos en el panel (tarjeta por Mercado Pago, Yape o Plin por meses, con sus marcas) y el comprobante que corresponde:
+ * recibo con RUC o constancia de pago, según la configuración del vendedor. Mientras los correos no salen, lo dice.
+ * Server-safe.
  */
+type MedioPago = { Icono: typeof CreditCard; titulo: string; marcas?: ReactNode; texto: string };
+
 export function ComoFunciona({ pasos, cat, className }: { pasos: { titulo: string; texto: string }[]; cat: PlanesServidor; className?: string }) {
-  const medios = [
+  const medios = ([
     cat.medios.tarjeta && {
       Icono: CreditCard,
       titulo: "Tarjeta de crédito o débito",
+      marcas: <><MarcaMercadoPago /><TarjetasAceptadas /></>,
       texto: "Con Mercado Pago. Se cobra cada mes y lo cancelas desde tu cuenta cuando quieras.",
     },
     cat.medios.qr && {
       Icono: QrCode,
-      titulo: "Yape o Plin",
+      titulo: cat.medios.yape && !cat.medios.plin ? "Yape" : !cat.medios.yape && cat.medios.plin ? "Plin" : "Yape o Plin",
+      marcas: cat.medios.yape || cat.medios.plin ? <>{cat.medios.yape && <MarcaYape />}{cat.medios.plin && <MarcaPlin />}</> : null,
       texto: "Pagas 1, 3, 6 o 12 meses de una vez. Activamos tu plan apenas validamos la operación.",
     },
     {
@@ -30,7 +37,7 @@ export function ComoFunciona({ pasos, cat, className }: { pasos: { titulo: strin
       titulo: "Pago seguro",
       texto: "Los datos de tu tarjeta los recibe Mercado Pago. Gobserva nunca los ve ni los guarda.",
     },
-  ].filter((m): m is { Icono: typeof CreditCard; titulo: string; texto: string } => !!m);
+  ] as (MedioPago | false)[]).filter((m): m is MedioPago => !!m);
 
   return (
     <section aria-labelledby="como-t" id="como-funciona" className={cn("grid scroll-mt-24 grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]", className)}>
@@ -60,13 +67,14 @@ export function ComoFunciona({ pasos, cat, className }: { pasos: { titulo: strin
       <div className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-7">
         <h2 className="font-display text-bloque font-bold leading-tight text-ink">Cómo pagas</h2>
         <ul className="mt-5 space-y-4">
-          {medios.map(({ Icono, titulo, texto }) => (
+          {medios.map(({ Icono, titulo, marcas, texto }) => (
             <li key={titulo} className="flex gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">
                 <Icono size={18} aria-hidden />
               </span>
               <span className="min-w-0">
                 <span className="block text-dato font-semibold text-ink">{titulo}</span>
+                {marcas && <span className="my-1.5 flex flex-wrap items-center gap-1.5">{marcas}</span>}
                 <span className="block text-meta leading-relaxed text-inkSoft">{texto}</span>
               </span>
             </li>

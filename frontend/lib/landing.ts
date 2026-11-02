@@ -73,6 +73,19 @@ function palabra(p: string, enMayuscula: boolean): string {
 }
 
 /**
+ * Lo que la regla de los conectores deja mal: el lugar que empieza con artículo («Salud la Libertad») y la forma de la
+ * empresa escrita con espacios al final del nombre («Olc Ingenieros e I R L», «Constructora S a C»).
+ */
+const conLugares = (t: string) =>
+  t
+    .replace(/(^|\s)la Libertad(?=$|[\s,.;:)\-])/g, "$1La Libertad")
+    .replace(/\s(?:e|E) I R L$/, " E.I.R.L.")
+    .replace(/\sS a C$/, " S.A.C.")
+    .replace(/\sS a a$/, " S.A.A.")
+    .replace(/\sS R L$/, " S.R.L.")
+    .replace(/\sS a$/, " S.A.");
+
+/**
  * "PROGRAMA NACIONAL DE CENTROS JUVENILES" → "Programa Nacional de Centros Juveniles". Un nombre casi todo en
  * mayúsculas con un pedazo ya escrito ("GOBIERNO REGIONAL DE AREQUIPA Sede Central") se arregla palabra por palabra:
  * las que vienen en mayúsculas se pasan a título y las demás quedan como vienen.
@@ -82,15 +95,19 @@ export function tituloNatural(t: string): string {
     const letras = t.match(/\p{L}/gu) ?? [];
     const mayus = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
     if (letras.length === 0 || mayus / letras.length < 0.6) return t; // ya viene legible
-    return t
-      .split(/\s+/)
-      .map((p, i) => (p === p.toLocaleUpperCase("es") ? palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))) : p))
-      .join(" ");
+    return conLugares(
+      t
+        .split(/\s+/)
+        .map((p, i) => (p === p.toLocaleUpperCase("es") ? palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))) : p))
+        .join(" "),
+    );
   }
-  return t
-    .split(/\s+/)
-    .map((p, i) => palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))))
-    .join(" ");
+  return conLugares(
+    t
+      .split(/\s+/)
+      .map((p, i) => palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))))
+      .join(" "),
+  );
 }
 
 export interface CasoPortada {

@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { BellRing, Building2, ChevronLeft, ChevronRight, CircleDollarSign, Inbox, MessageSquareWarning, RotateCcw, SearchX, X } from "lucide-react";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
-import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { ChevronLeft, ChevronRight, SearchX } from "lucide-react";
 import { FiltrosOportunidades, type ValoresFiltro } from "@/components/licitaciones/Filtros";
-import { TarjetaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { FilaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
+import { Nota } from "@/components/patrones/Estructura";
+import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
+import { paginasVisibles } from "@/components/ui/PaginacionNumerada";
+import { numero, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { tituloNatural } from "@/lib/landing";
 import { TIPOS, getOportunidades, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
 
@@ -21,10 +25,17 @@ export const metadata: Metadata = {
 type Params = Record<string, string | string[] | undefined>;
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
 const CLAVES = ["q", "region", "tipo", "dias", "orden", "min", "max", "entidad", "page"] as const;
+/** La API sirve hasta la página 50 (de 20 en 20): las primeras 1,000 de una búsqueda. */
+const PAGINAS_MAX = 50;
+
+const PAGINA_BASE =
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border text-meta font-semibold tabular-nums transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:min-h-9 sm:min-w-9";
 
 /**
- * Las oportunidades: los filtros en la URL (un formulario GET), las cifras de lo filtrado, los conteos por tipo y región
- * (enlaces que suman ese filtro), las tarjetas y la paginación. GET /licitaciones/oportunidades.
+ * Las oportunidades (modo operar, 2026-11-02): los filtros en la URL (un formulario GET que en el celular se pliega), los
+ * filtros puestos como chips que se quitan, los conteos por tipo y región (enlaces que suman ese filtro), la cabecera de
+ * resultados con su orden y las acciones de la búsqueda (alerta, Excel), y la lista en filas con el valor y el plazo de
+ * consultas alineados. Paginación numerada que vuelve al inicio de la lista. GET /licitaciones/oportunidades.
  */
 export default async function Oportunidades({ searchParams }: { searchParams?: Params }) {
   const base = baseProducto("licitaciones");
@@ -41,10 +52,12 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
   if (Number.isFinite(cifra(v.min)) && cifra(v.min) > 0) api.set("min", String(cifra(v.min)));
   if (Number.isFinite(cifra(v.max)) && cifra(v.max) > 0) api.set("max", String(cifra(v.max)));
   if (v.entidad && /^\d{11}$/.test(v.entidad)) api.set("entidad", v.entidad);
-  const pagina = Math.min(50, Math.max(1, Number(v.page) || 1));
+  const pagina = Math.min(PAGINAS_MAX, Math.max(1, Number(v.page) || 1));
   if (pagina > 1) api.set("page", String(pagina));
-  const d = await getOportunidades(api);
+  const [d, cat] = await Promise.all([getOportunidades(api), planesServidor("licitaciones")]);
 
+  const lista = rutaEn(base, "/oportunidades");
+  /** La búsqueda de ahora con algunos cambios (null quita ese filtro); vuelve siempre a la página 1. */
   const enlace = (cambios: Record<string, string | null>) => {
     const p = new URLSearchParams(api);
     p.delete("page");
@@ -53,151 +66,360 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
       else p.set(k, x);
     }
     const s = p.toString();
-    return `${rutaEn(base, "/oportunidades")}${s ? `?${s}` : ""}`;
+    return `${lista}${s ? `?${s}` : ""}`;
   };
+  /** Otra página de la misma búsqueda, con el ancla que lleva al inicio de la lista (no al pie, donde está el paginador). */
+  const enlacePagina = (n: number) => {
+    const p = new URLSearchParams(api);
+    if (n > 1) p.set("page", String(n));
+    else p.delete("page");
+    const s = p.toString();
+    return `${lista}${s ? `?${s}` : ""}#resultados`;
+  };
+
   const dias = Number(api.get("dias") ?? 15);
-  const paginas = d ? Math.max(1, Math.ceil(d.total / d.size)) : 1;
-  const entidadNombre = v.entidad && d?.data.find((o) => o.entidadRuc === v.entidad)?.entidad;
+  const tipo = api.get("tipo");
+  const region = api.get("region");
+  const orden = api.get("orden") === "valor" ? "valor" : "reciente";
+  const ultima = d ? Math.min(PAGINAS_MAX, Math.max(1, Math.ceil(d.total / d.size))) : 1;
+  const entidadNombre = v.entidad ? d?.data.find((o) => o.entidadRuc === v.entidad)?.entidad : undefined;
+  const conRango = !!(api.get("min") || api.get("max"));
+
+  // Los filtros puestos, cada uno con el enlace que lo quita.
+  const activos = [
+    api.get("q") ? { clave: "q", texto: `«${api.get("q")}»`, href: enlace({ q: null }) } : null,
+    region ? { clave: "region", texto: nombreRegion(region), href: enlace({ region: null }) } : null,
+    tipo ? { clave: "tipo", texto: nombreTipo(tipo), href: enlace({ tipo: null }) } : null,
+    dias !== 15 ? { clave: "dias", texto: `Últimos ${numero(dias)} días`, href: enlace({ dias: null }) } : null,
+    api.get("min") ? { clave: "min", texto: `Desde ${soles(Number(api.get("min")))}`, href: enlace({ min: null }) } : null,
+    api.get("max") ? { clave: "max", texto: `Hasta ${soles(Number(api.get("max")))}`, href: enlace({ max: null }) } : null,
+    api.get("entidad") ? { clave: "entidad", texto: entidadNombre ? tituloNatural(entidadNombre) : "Una entidad", href: enlace({ entidad: null }) } : null,
+  ].filter((x): x is { clave: string; texto: string; href: string } => !!x);
+
+  // Lo que se puede probar cuando no hay ninguna.
+  const sugerencias = [
+    api.get("q") ? { texto: `Sin «${api.get("q")}»`, href: enlace({ q: null }) } : null,
+    region ? { texto: "En todo el Perú", href: enlace({ region: null }) } : null,
+    tipo ? { texto: "De todos los tipos", href: enlace({ tipo: null }) } : null,
+    conRango ? { texto: "Sin rango de valor", href: enlace({ min: null, max: null }) } : null,
+    dias < 60 ? { texto: "Los últimos 60 días", href: enlace({ dias: "60" }) } : null,
+    api.get("entidad") ? { texto: "De todas las entidades", href: enlace({ entidad: null }) } : null,
+  ].filter((x): x is { texto: string; href: string } => !!x);
+
+  const conteos = d
+    ? {
+        region: Object.fromEntries(d.porRegion.map((x) => [x.clave, x.n])),
+        tipo: Object.fromEntries(d.porTipo.map((x) => [x.clave, x.n])),
+      }
+    : undefined;
+  const desde = d && d.total ? (pagina - 1) * d.size + 1 : 0;
+  const hasta = d ? Math.min(d.total, pagina * d.size) : 0;
 
   return (
-    <div className="container-page py-10 sm:py-14">
-      <h1 className="font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Oportunidades</h1>
-      <p className="mt-2 max-w-[70ch] text-cuerpo leading-relaxed text-inkSoft">
-        Las convocatorias del SEACE de los últimos {numero(dias)} días que siguen en etapa de convocatoria
-        {api.get("tipo") ? `, de ${nombreTipo(api.get("tipo")).toLocaleLowerCase("es-PE")}` : ""}
-        {api.get("region") ? ` en ${nombreRegion(api.get("region"))}` : ""}
-        {entidadNombre ? `, de ${entidadNombre}` : v.entidad ? ", de la entidad elegida" : ""}. El cronograma de cada una (presentación de ofertas) está en el SEACE.
-      </p>
+    <div className="container-page py-8 sm:py-12">
+      <header className="max-w-3xl">
+        <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Oportunidades</h1>
+        <p className="mt-1.5 text-pretty text-cuerpo leading-relaxed text-inkSoft">
+          Las convocatorias del SEACE de los últimos {numero(dias)} días que siguen en convocatoria
+          {tipo ? `, de ${nombreTipo(tipo).toLocaleLowerCase("es-PE")}` : ""}
+          {region ? ` en ${nombreRegion(region)}` : ""}
+          {entidadNombre ? `, de ${tituloNatural(entidadNombre)}` : v.entidad ? ", de la entidad elegida" : ""}, con su valor referencial y su plazo de
+          consultas.
+        </p>
+      </header>
 
-      <FiltrosOportunidades base={base} v={v} className="mt-6" />
+      <FiltrosOportunidades base={base} v={v} conteos={conteos} className="mt-5" />
+
+      {activos.length > 0 && (
+        <div role="group" aria-label="Filtros puestos" className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="mr-0.5 text-meta font-semibold text-mute">Filtros:</span>
+          {activos.map((a) => (
+            <Link
+              key={a.clave}
+              href={a.href}
+              aria-label={`Quitar el filtro ${a.texto}`}
+              className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 pl-3 pr-2 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate sm:min-h-9"
+            >
+              <span className="min-w-0 truncate">{a.texto}</span>
+              <X size={14} aria-hidden className="shrink-0 text-granate" />
+            </Link>
+          ))}
+          {activos.length > 1 && (
+            <Link href={lista} className="inline-flex min-h-11 items-center px-2 text-meta font-semibold text-granate underline-offset-2 hover:underline sm:min-h-9">
+              Quitar todos
+            </Link>
+          )}
+        </div>
+      )}
+
+      {d && (
+        <div className="mt-4 space-y-2">
+          <Facetas
+            etiqueta="Por tipo"
+            items={d.porTipo
+              .filter((t) => TIPOS.some((x) => x.clave === t.clave))
+              .map((t) => ({ clave: t.clave, texto: nombreTipo(t.clave), n: t.n, href: enlace({ tipo: tipo === t.clave ? null : t.clave }), activo: tipo === t.clave }))}
+          />
+          <Facetas
+            etiqueta="Por región"
+            items={d.porRegion.map((x) => ({
+              clave: x.clave,
+              texto: nombreRegion(x.clave),
+              n: x.n,
+              href: enlace({ region: region === x.clave ? null : x.clave }),
+              activo: region === x.clave,
+            }))}
+          />
+        </div>
+      )}
+
+      {/* Lo que se hace con esta búsqueda: guardarla como alerta y bajarla en Excel (también si la lista no cargó). */}
       <div id="crear-alerta" className="mt-4 scroll-mt-24">
-        <Suspense>
-          <AccionesBusqueda producto="licitaciones" base={base} />
+        <Suspense fallback={null}>
+          <AccionesBusqueda producto="licitaciones" base={base} variante="barra" resumen={false} />
         </Suspense>
       </div>
 
       {!d ? (
-        <p className="mt-8 rounded-2xl border border-line bg-paperSoft p-6 text-dato text-inkSoft">No pudimos leer las convocatorias ahora. Vuelve a intentarlo en un momento.</p>
+        <div role="alert" className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5 sm:flex-row sm:items-center sm:p-6">
+          <SearchX size={22} aria-hidden className="shrink-0 text-mute" />
+          <p className="min-w-0 flex-1 text-dato text-inkSoft">No pudimos leer las convocatorias ahora. Suele ser momentáneo.</p>
+          <Link href={enlace({})} className={cn(CLASE_ACCION_LISTA, "min-h-11")}>
+            <RotateCcw size={15} aria-hidden className="mr-1.5" /> Volver a intentar
+          </Link>
+        </div>
       ) : (
-        <>
-          {/* Cifras de lo filtrado. */}
-          <dl className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Cifra valor={numero(d.total)} etiqueta={d.total === 1 ? "oportunidad" : "oportunidades"} />
-            <Cifra valor={solesCompacto(d.resumen.valorTotal)} etiqueta={`de valor referencial publicado (${numero(d.resumen.conValor)} de ${numero(d.total)})`} />
-            <Cifra valor={numero(d.resumen.entidades)} etiqueta={d.resumen.entidades === 1 ? "entidad comprando" : "entidades comprando"} />
-            <Cifra valor={`${numero(dias)} días`} etiqueta="hacia atrás desde hoy" />
-          </dl>
-
-          {/* Conteos por tipo y por región: cada uno suma ese filtro. */}
-          <div className="mt-5 space-y-2">
-            <Chips
-              etiqueta="Por tipo"
-              items={d.porTipo
-                .filter((t) => TIPOS.some((x) => x.clave === t.clave))
-                .map((t) => ({ clave: t.clave, texto: `${nombreTipo(t.clave)} ${numero(t.n)}`, href: enlace({ tipo: api.get("tipo") === t.clave ? null : t.clave }), activo: api.get("tipo") === t.clave }))}
-            />
-            <Chips
-              etiqueta="Por región"
-              // recorte: las 10 regiones con más convocatorias; las 25 están en el filtro de arriba (más regiones en el desplegable).
-              items={d.porRegion.slice(0, 10).map((x) => ({
-                clave: x.clave,
-                texto: `${nombreRegion(x.clave)} ${numero(x.n)}`,
-                href: enlace({ region: api.get("region") === x.clave ? null : x.clave }),
-                activo: api.get("region") === x.clave,
-              }))}
-            />
+        <section id="resultados" aria-labelledby="resultados-t" className="mt-6 scroll-mt-24 border-t border-line pt-6">
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div className="min-w-0">
+              <h2 id="resultados-t" className="font-display text-seccion font-bold leading-tight text-ink">
+                {numero(d.total)} {d.total === 1 ? "oportunidad" : "oportunidades"}
+              </h2>
+              <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-meta text-inkSoft">
+                <div>
+                  <dt className="sr-only">Entidades que compran</dt>
+                  <dd className="inline-flex items-center gap-1.5">
+                    <Building2 size={14} aria-hidden className="shrink-0 text-mute" />
+                    {numero(d.resumen.entidades)} {d.resumen.entidades === 1 ? "entidad compra" : "entidades compran"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="sr-only">Valor referencial publicado</dt>
+                  <dd className="inline-flex items-center gap-1.5">
+                    <CircleDollarSign size={14} aria-hidden className="shrink-0 text-mute" />
+                    {d.resumen.conValor > 0
+                      ? `${solesCompacto(d.resumen.valorTotal)} en valor referencial (${numero(d.resumen.conValor)} lo publicaron)`
+                      : "Ninguna publicó su valor referencial"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <nav aria-label="Ordenar las oportunidades" className="flex items-center gap-2">
+              <span className="text-meta text-mute">Ordenar</span>
+              <span className="inline-flex rounded-full border border-line bg-paper p-0.5">
+                {(
+                  [
+                    { clave: "reciente", texto: "Más recientes", href: `${enlace({ orden: null })}#resultados` },
+                    { clave: "valor", texto: "Mayor valor", href: `${enlace({ orden: "valor" })}#resultados` },
+                  ] as const
+                ).map((o) => (
+                  <Link
+                    key={o.clave}
+                    href={o.href}
+                    aria-current={orden === o.clave ? "true" : undefined}
+                    className={cn(
+                      "inline-flex min-h-11 items-center rounded-full px-3.5 text-meta font-semibold transition-colors duration-rapido sm:min-h-8",
+                      orden === o.clave ? "bg-granate text-paper" : "text-inkSoft hover:bg-paperDeep hover:text-ink",
+                    )}
+                  >
+                    {o.texto}
+                  </Link>
+                ))}
+              </span>
+            </nav>
           </div>
 
-          {d.data.length === 0 ? (
-            <div className="mt-8 flex flex-col items-start gap-3 rounded-3xl border border-line bg-paperSoft p-6 sm:p-8">
-              <SearchX size={28} aria-hidden className="text-mute" />
-              <p className="font-display text-bloque font-bold text-ink">Ninguna convocatoria con esos filtros</p>
-              <p className="max-w-[60ch] text-dato text-inkSoft">
-                Prueba con menos palabras, otra región o más días hacia atrás. Y si quieres que te avisemos apenas salga una, déjanos tu rubro
-                abajo.
-              </p>
-              <Link href={enlace({ q: null, region: null, tipo: null, min: null, max: null, dias: "60" })} className="text-dato font-semibold text-granate underline-offset-2 hover:underline">
-                Ver las de los últimos 60 días, sin filtros
-              </Link>
-            </div>
-          ) : (
-            <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {d.data.map((o) => (
-                <li key={o.ocid} className="min-w-0">
-                  <TarjetaOportunidad o={o} base={base} />
-                </li>
-              ))}
-            </ul>
+          {conRango && (
+            <Nota className="mt-4">Con un rango de valor sólo salen las convocatorias que publicaron su valor referencial: casi ninguna de bienes lo hace.</Nota>
           )}
 
-          {paginas > 1 && (
-            <nav aria-label="Páginas" className="mt-8 flex items-center justify-between gap-3">
-              {pagina > 1 ? (
-                <Link href={`${enlace({})}${enlace({}).includes("?") ? "&" : "?"}page=${pagina - 1}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/40">
-                  <ChevronLeft size={16} aria-hidden /> Anterior
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span className="text-meta text-mute">
-                Página {numero(pagina)} de {numero(Math.min(paginas, 50))} ({plural(d.total, "oportunidad", "oportunidades")})
-              </span>
-              {pagina < Math.min(paginas, 50) ? (
-                <Link href={`${enlace({})}${enlace({}).includes("?") ? "&" : "?"}page=${pagina + 1}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/40">
-                  Siguiente <ChevronRight size={16} aria-hidden />
-                </Link>
-              ) : (
-                <span />
+          {d.data.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-line bg-paperSoft p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-mute">
+                  <SearchX size={20} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display text-bloque font-bold leading-tight text-ink">Ninguna convocatoria con estos filtros</p>
+                  {sugerencias.length > 0 && (
+                    <>
+                      <p className="mt-1 text-dato text-inkSoft">Prueba con alguno de estos cambios:</p>
+                      <ul className="mt-3 flex flex-wrap gap-2">
+                        {sugerencias.map((s) => (
+                          <li key={s.texto}>
+                            <Link href={s.href} className={cn(CLASE_ACCION_LISTA, "min-h-11")}>
+                              {s.texto}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  <p className="mt-4 flex items-start gap-2 text-dato text-inkSoft">
+                    <BellRing size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+                    <span>
+                      O deja esta búsqueda como alerta y te avisamos cuando salga una:{" "}
+                      <a href="#crear-alerta" className="font-semibold text-granate underline-offset-2 hover:underline">
+                        crear la alerta
+                      </a>
+                      .
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+              {d.data.map((o) => (
+                <li key={o.ocid} className="min-w-0">
+                  <FilaOportunidad o={o} base={base} />
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {d.total > 0 && (
+            <nav aria-label="Páginas de oportunidades" className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <p className="text-meta text-inkSoft">
+                Mostrando{" "}
+                <span className="font-semibold tabular-nums text-ink">
+                  {numero(desde)} a {numero(hasta)}
+                </span>{" "}
+                de <span className="font-semibold tabular-nums text-ink">{numero(d.total)}</span>
+              </p>
+              {ultima > 1 && (
+                <ul className="flex flex-wrap items-center gap-1.5">
+                  <li>
+                    {pagina > 1 ? (
+                      <Link href={enlacePagina(pagina - 1)} aria-label="Página anterior" className={cn(PAGINA_BASE, "border-line bg-paper text-ink hover:bg-paperDeep")}>
+                        <ChevronLeft size={15} aria-hidden />
+                      </Link>
+                    ) : (
+                      <span aria-hidden className={cn(PAGINA_BASE, "border-line bg-paper text-mute opacity-40")}>
+                        <ChevronLeft size={15} />
+                      </span>
+                    )}
+                  </li>
+                  {paginasVisibles(pagina, ultima).map((n, i) =>
+                    n === null ? (
+                      <li key={`salto-${i}`} aria-hidden className="px-1 text-mute">
+                        …
+                      </li>
+                    ) : (
+                      <li key={n}>
+                        <Link
+                          href={enlacePagina(n)}
+                          aria-label={`Página ${n}`}
+                          aria-current={n === pagina ? "page" : undefined}
+                          className={cn(PAGINA_BASE, n === pagina ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:bg-paperDeep")}
+                        >
+                          {numero(n)}
+                        </Link>
+                      </li>
+                    ),
+                  )}
+                  <li>
+                    {pagina < ultima ? (
+                      <Link href={enlacePagina(pagina + 1)} aria-label="Página siguiente" className={cn(PAGINA_BASE, "border-line bg-paper text-ink hover:bg-paperDeep")}>
+                        <ChevronRight size={15} aria-hidden />
+                      </Link>
+                    ) : (
+                      <span aria-hidden className={cn(PAGINA_BASE, "border-line bg-paper text-mute opacity-40")}>
+                        <ChevronRight size={15} />
+                      </span>
+                    )}
+                  </li>
+                </ul>
               )}
             </nav>
           )}
-        </>
+          {d.total > PAGINAS_MAX * d.size && (
+            <Nota className="mt-4">
+              Se pueden recorrer las primeras {numero(PAGINAS_MAX * d.size)} de {numero(d.total)}. Para llegar a las demás, afina la búsqueda: una región, un
+              tipo o las palabras de lo que vendes.
+            </Nota>
+          )}
+          <Nota className="mt-4">
+            El plazo de consultas sale de los datos abiertos del OECE cuando la entidad lo publica; la fecha para presentar ofertas está en el cronograma de cada
+            proceso en el SEACE (cada ficha enlaza al portal oficial).
+          </Nota>
+        </section>
       )}
 
-      <div className="mt-16 grid gap-8 rounded-3xl border border-line bg-paperSoft p-5 sm:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <section aria-labelledby="alerta-t" className="mt-12 grid gap-6 rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">
-          <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Que estas oportunidades te lleguen solas</h2>
-          <p className="mt-3 text-cuerpo leading-relaxed text-inkSoft">
-            Guarda esta búsqueda como alerta: te mandamos las convocatorias nuevas que calzan contigo, con el plazo de consultas y lo que
-            sabemos de la entidad. Con el plan gratis llegan cada semana; con Pro, cada mañana.
-          </p>
+          <h2 id="alerta-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink">
+            Que estas oportunidades te lleguen solas
+          </h2>
+          <ul className="mt-3 space-y-2 text-dato leading-snug text-inkSoft">
+            <li className="flex gap-2.5">
+              <BellRing size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+              <span>Lo nuevo de esta búsqueda: gratis cada semana; con Pro, cada mañana.</span>
+            </li>
+            <li className="flex gap-2.5">
+              <MessageSquareWarning size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+              <span>Cada convocatoria con su plazo de consultas y lo que sabemos de la entidad que compra.</span>
+            </li>
+            <li className="flex gap-2.5">
+              <Inbox size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+              <span>
+                {cat.correoActivo
+                  ? "Por correo y, si lo activas, como notificación en tu celular."
+                  : "En tu cuenta y, si lo activas, como notificación en tu celular. Los correos salen en los próximos días."}
+              </span>
+            </li>
+          </ul>
         </div>
-        <div className="flex flex-col justify-center gap-3 sm:flex-row sm:items-center lg:justify-end">
-          <a href="#crear-alerta" className={claseAccion("primario", "", "md")}>Crear alerta con esta búsqueda</a>
-          <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "", "md")}>Ver los planes</Link>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <a href="#crear-alerta" className={claseAccion("primario", "", "md")}>
+            <BellRing size={16} aria-hidden /> Crear alerta con esta búsqueda
+          </a>
+          <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "", "md")}>
+            Ver los planes
+          </Link>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function Cifra({ valor, etiqueta }: { valor: string; etiqueta: string }) {
-  return (
-    <div className="flex min-w-0 flex-col-reverse rounded-2xl border border-line bg-paper px-4 py-3.5">
-      <dt className="mt-1.5 text-meta leading-snug text-inkSoft">{etiqueta}</dt>
-      <dd className="font-display text-cifra font-bold leading-none tabular-nums text-ink">{valor}</dd>
-    </div>
-  );
-}
-
-function Chips({ etiqueta, items }: { etiqueta: string; items: { clave: string; texto: string; href: string; activo: boolean }[] }) {
+/**
+ * Los conteos de una dimensión como chips que suman (o quitan) ese filtro, todos (nada recortado): en el celular, en una
+ * sola fila que se desliza; desde sm, en varias filas.
+ */
+function Facetas({ etiqueta, items }: { etiqueta: string; items: { clave: string; texto: string; n: number; href: string; activo: boolean }[] }) {
   if (!items.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-meta font-semibold text-mute">{etiqueta}</span>
-      {items.map((i) => (
-        <Link
-          key={i.clave}
-          href={i.href}
-          aria-current={i.activo ? "true" : undefined}
-          className={cn(
-            "inline-flex min-h-8 items-center rounded-full border px-3 text-meta font-medium transition-colors duration-rapido",
-            i.activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
-          )}
-        >
-          {i.texto}
-        </Link>
-      ))}
+    <div className="flex min-w-0 items-center gap-2 sm:items-start">
+      <span className="w-20 shrink-0 text-meta font-semibold text-mute sm:pt-1.5">{etiqueta}</span>
+      <ul className="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,black_88%,transparent)] [scrollbar-width:none] sm:my-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:[mask-image:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((i) => (
+          <li key={i.clave} className="shrink-0">
+            <Link
+              href={i.href}
+              aria-current={i.activo ? "true" : undefined}
+              aria-label={`${i.texto}: ${numero(i.n)} ${i.n === 1 ? "oportunidad" : "oportunidades"}${i.activo ? " (filtro puesto: toca para quitarlo)" : ""}`}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-meta font-medium transition-colors duration-rapido sm:min-h-8",
+                i.activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
+              )}
+            >
+              {i.texto}
+              <span className={cn("tabular-nums", i.activo ? "text-paper/80" : "text-mute")}>{numero(i.n)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

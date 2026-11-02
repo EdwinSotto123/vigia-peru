@@ -21,7 +21,8 @@ export function planesObras(base: string, cat: PlanesServidor): Plan[] {
         "Los proyectos que se vienen, los que están en marcha y los paralizados, con filtros",
         "La ficha de cada proyecto: montos, fase, avance de la obra y procesos del SEACE",
         "El mercado de obras de cada región y sector, y quién las gana",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, por correo y en tu celular`,
+        // Mientras los correos no salen (el panel lo dice en `correoActivo`), lo nuevo llega a la cuenta: no se promete el correo.
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, ${cat.correoActivo ? "por correo y en tu celular" : "en tu cuenta y en tu celular"}`,
         `Guarda hasta ${entero(g.guardados)} proyectos para seguirlos`,
       ],
       accion: { href: rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/proyectos")}`), etiqueta: "Crear mi cuenta gratis" },

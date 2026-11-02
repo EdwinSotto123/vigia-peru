@@ -112,20 +112,23 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
 
       {!me.cuenta.emailVerificado && <VerificarCorreo email={me.cuenta.email} onListo={() => void mutate()} />}
 
-      <nav aria-label="Secciones de tu cuenta" className="mt-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <ul className="flex min-w-max gap-1.5 border-b border-line pb-px">
+      {/* En el celular, las cinco a la vista (el ícono sobre el nombre, nada escondido al costado); desde sm, en fila. */}
+      <nav aria-label="Secciones de tu cuenta" className="mt-6">
+        <ul className="grid grid-cols-5 border-b border-line sm:flex sm:gap-1.5">
           {PESTANAS.map(({ clave, etiqueta, Icono }) => (
-            <li key={clave}>
+            <li key={clave} className="min-w-0">
               <button
                 type="button"
                 onClick={() => ir(clave)}
                 aria-current={tab === clave ? "page" : undefined}
                 className={cn(
-                  "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3.5 text-dato font-semibold transition-colors duration-rapido",
+                  "-mb-px flex min-h-14 w-full flex-col items-center justify-center gap-1 border-b-2 px-0.5 text-micro font-semibold transition-colors duration-rapido min-[380px]:text-rotulo",
+                  "sm:min-h-11 sm:w-auto sm:flex-row sm:gap-2 sm:px-3.5 sm:text-dato",
                   tab === clave ? "border-granate text-ink" : "border-transparent text-inkSoft hover:text-ink",
                 )}
               >
-                <Icono size={16} aria-hidden /> {etiqueta}
+                <Icono size={16} aria-hidden className="shrink-0" />
+                <span className="max-w-full truncate">{etiqueta}</span>
               </button>
             </li>
           ))}

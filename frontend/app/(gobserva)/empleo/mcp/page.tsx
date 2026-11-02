@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Building, Search } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
+import { Franja } from "@/components/patrones/Franja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -11,16 +13,19 @@ export const metadata: Metadata = {
   alternates: { canonical: urlCanonica("empleo", "/mcp") },
 };
 
-/** Gobserva Empleo con tu asistente de IA: el servidor MCP explicado, con sus pasos, ejemplos y herramientas. */
+/**
+ * Gobserva Empleo con tu asistente de IA: el servidor MCP explicado, con sus pasos, ejemplos y herramientas. Al final, las
+ * dos salidas: buscar en la web sin asistente y el plan para instituciones.
+ */
 export default function McpEmpleo() {
   const base = baseProducto("empleo");
   return (
     <div className="container-page space-y-10 py-10 sm:py-14">
       <header className="max-w-3xl">
-        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Tu asistente de IA, ahora sabe de plazas del Estado.</h1>
-        <p className="mt-4 text-bloque leading-relaxed text-inkSoft">
-          Con el MCP de Gobserva, Claude, ChatGPT o Cursor consultan las plazas CAS abiertas en vivo: le preguntas como a una
-          persona y te responde con plazas reales, su sueldo, sus requisitos y el enlace oficial para postular.
+        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Tu asistente de IA ahora sabe de plazas del Estado.</h1>
+        <p className="mt-4 text-pretty text-cuerpo leading-relaxed text-inkSoft sm:text-bloque">
+          Con el MCP de Gobserva, Claude, ChatGPT o Cursor consultan las plazas CAS abiertas en vivo: le preguntas como a una persona y te responde con plazas
+          reales, su sueldo, sus requisitos y el enlace oficial para postular.
         </p>
       </header>
       <BloqueMCP
@@ -38,14 +43,33 @@ export default function McpEmpleo() {
           { nombre: "ficha_plaza_cas", descripcion: "Una plaza completa: requisitos, sueldo frente a otras entidades, señales y enlace oficial." },
         ]}
       />
-      <div className="flex flex-col items-start gap-4 rounded-3xl border border-line bg-paper p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-display text-bloque font-bold text-ink">¿Lo quieres para tu bolsa de trabajo o instituto?</p>
-          <p className="mt-1 text-dato text-inkSoft">Más consultas, API y un widget de plazas con tu marca, en el plan para instituciones.</p>
-        </div>
-        <Link href={rutaEn(base, "/planes#plan-institucional")} className={claseAccion("primario", "shrink-0")}>
-          Ver el plan para instituciones
-        </Link>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Franja
+          apilada
+          icono={<Search size={18} aria-hidden />}
+          titulo="¿Prefieres buscar tú?"
+          className="sm:w-full"
+          accion={
+            <Link href={rutaEn(base, "/plazas")} className={claseAccion("secundario", "min-h-11")}>
+              Ver las plazas abiertas
+            </Link>
+          }
+        >
+          Lo mismo que responde el asistente está en la web, con filtros por región, sueldo, estudios y experiencia.
+        </Franja>
+        <Franja
+          apilada
+          icono={<Building size={18} aria-hidden />}
+          titulo="¿Es para tu bolsa de trabajo o instituto?"
+          className="sm:w-full"
+          accion={
+            <Link href={rutaEn(base, "/planes#plan-institucional")} className={claseAccion("primario", "min-h-11")}>
+              Ver el plan para instituciones
+            </Link>
+          }
+        >
+          Más alertas y descargas en el plan para instituciones; la API, más consultas por MCP y un widget con tu marca llegan pronto.
+        </Franja>
       </div>
     </div>
   );

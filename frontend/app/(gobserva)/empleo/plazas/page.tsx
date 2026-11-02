@@ -1,23 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
-import { BellRing, SearchX, X } from "lucide-react";
-import { FiltrosPlazas } from "@/components/empleo/FiltrosPlazas";
-import { Paginador } from "@/components/empleo/Piezas";
+import { BellRing, RotateCcw, SearchX, X } from "lucide-react";
+import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
+import { Paginador, Ruta } from "@/components/empleo/Piezas";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
+import { Briefcase, Coins, Eye, Users } from "@/components/empleo/iconos";
+import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
+import { Nota } from "@/components/patrones/Estructura";
+import { Franja } from "@/components/patrones/Franja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { NIVEL, claveDeSlug, filtrosDeUrl, getPlazasEmpleo, nombreRegion, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
+import { NIVEL, canalAlertas, claveDeSlug, esAlertable, filtrosDeUrl, getPlazasEmpleo, nombreRegion, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { SENAL_PLAZA } from "@/lib/planilla";
 
-const POR_PAGINA = 12;
+/** 20 por página (la API da hasta 30): con una columna se escanea rápido y se pagina menos. */
+const POR_PAGINA = 20;
+/** La invitación a la alerta va después de las primeras plazas: no tapa lo que se vino a ver. */
+const PROMO_DESPUES_DE = 4;
+/** La API no pasa de la página 300. */
+const MAX_PAGINAS = 300;
 
 type Props = { searchParams?: Record<string, string | string[] | undefined> };
 
-/** El título de la lista según los filtros: «Plazas CAS de abogado en Cusco». */
+/** El título de la lista según los filtros: «Plazas CAS abiertas de «abogado» en Cusco». */
 function tituloLista(f: FiltrosEmpleo): string {
   const partes = ["Plazas CAS abiertas"];
   if (f.q) partes.push(`de «${f.q}»`);
@@ -38,17 +47,24 @@ export function generateMetadata({ searchParams }: Props): Metadata {
 }
 
 /**
- * /plazas de Gobserva Empleo: la lista de plazas CAS abiertas con sus filtros en la URL (texto, región, estudios, sueldo
- * mínimo, experiencia, cierre, señal y orden), las cifras de lo filtrado, los filtros puestos como chips para quitar, las
- * tarjetas y el paginador. Sin resultados: qué quitar y la alerta para cuando aparezca. GET /empleo/plazas.
+ * /plazas de Gobserva Empleo, en modo «operar»: escanear, filtrar y abrir. Arriba el título según la búsqueda y lo que
+ * hay (plazas, vacantes, sueldo mediano) como datos con ícono. En la computadora, los filtros en una columna a la
+ * izquierda, pegada al bajar; en el celular, la búsqueda y un botón «Filtros» que abre el panel, para que la primera
+ * plaza se vea en la primera pantalla. Sobre la lista, los filtros puestos (para quitarlos) y el orden. Las plazas en una
+ * columna, 20 por página, con una invitación a la alerta después de las primeras cuatro y la alerta entera al final
+ * (AccionesBusqueda; antes iba entre los filtros y la lista, empujándola). Sin resultados: qué quitar y la alerta para
+ * cuando aparezca. GET /empleo/plazas.
  */
 export default async function PlazasEmpleo({ searchParams }: Props) {
   const base = baseProducto("empleo");
   const f = filtrosDeUrl(searchParams);
-  const d = await getPlazasEmpleo(f, POR_PAGINA);
+  const [d, cat] = await Promise.all([getPlazasEmpleo(f, POR_PAGINA), planesServidor("empleo")]);
   const lista = rutaEn(base, "/plazas");
   const sin = (k: keyof FiltrosEmpleo) => `${lista}${qsEmpleo({ ...f, [k]: undefined, page: undefined })}`;
-  const paginas = d ? Math.max(1, Math.ceil(d.total / POR_PAGINA)) : 1;
+  const paginas = d ? Math.max(1, Math.min(MAX_PAGINAS, Math.ceil(d.total / POR_PAGINA))) : 1;
+  const pagina = f.page ?? 1;
+  const canal = canalAlertas(cat.correoActivo);
+  const alertable = esAlertable(f);
 
   const puestos: { texto: string; href: string }[] = [
     f.q ? { texto: `«${f.q}»`, href: sin("q") } : null,
@@ -60,102 +76,193 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
     f.senal ? { texto: SENAL_PLAZA[f.senal].corto, href: sin("senal") } : null,
   ].filter((x): x is { texto: string; href: string } => x != null);
 
+  const plazas = d?.data ?? [];
+  const primeras = plazas.slice(0, PROMO_DESPUES_DE);
+  const resto = plazas.slice(PROMO_DESPUES_DE);
+  const desde = (pagina - 1) * POR_PAGINA;
+
   return (
-    <div className="container-page py-8 sm:py-12">
-      <nav aria-label="Ruta" className="text-meta text-mute">
-        <Link href={rutaEn(base, "/")} className="hover:text-granate hover:underline">
-          Inicio
-        </Link>
-        <span aria-hidden className="mx-1.5">/</span>
-        <span className="text-inkSoft">Plazas</span>
-      </nav>
-      <h1 className="mt-3 text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">{tituloLista(f)}</h1>
-      {d && (
-        <p className="mt-3 max-w-[70ch] text-cuerpo leading-relaxed text-inkSoft">
-          <b className="text-ink">{numero(d.total)}</b> {d.total === 1 ? "plaza" : "plazas"} con <b className="text-ink">{numero(d.vacantes)}</b>{" "}
-          {d.vacantes === 1 ? "vacante" : "vacantes"}
-          {d.medianaSueldo ? (
-            <>
-              ; la mitad paga más de <b className="text-ink">{soles(d.medianaSueldo)}</b> al mes
-            </>
-          ) : null}
-          . Todas se pueden postular hoy.
-        </p>
-      )}
-
-      <div className="mt-6">
-        <FiltrosPlazas base={base} filtros={f} facetas={d?.facetas ?? { region: [], nivel: [] }} />
-      </div>
-      <div id="crear-alerta" className="mt-4 scroll-mt-24">
-        <Suspense>
-          <AccionesBusqueda producto="empleo" base={base} />
-        </Suspense>
-      </div>
-
-      {puestos.length > 0 && (
-        <ul className="mt-4 flex flex-wrap items-center gap-2" aria-label="Filtros puestos">
-          {puestos.map((p) => (
-            <li key={p.texto}>
-              <Link
-                href={p.href}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-3 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate"
-              >
-                {p.texto}
-                <X size={13} aria-hidden />
-                <span className="sr-only"> (quitar)</span>
-              </Link>
+    <div className="container-page py-6 sm:py-10">
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Plazas" }]} />
+      <header className="mt-2">
+        <h1 className="text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">{tituloLista(f)}</h1>
+        {d && d.total > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-dato text-inkSoft" aria-label="Lo que hay en esta búsqueda">
+            <li className="inline-flex items-center gap-1.5">
+              <Briefcase size={15} aria-hidden className="shrink-0 text-mute" />
+              <span>
+                <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "plaza abierta" : "plazas abiertas"}
+              </span>
             </li>
-          ))}
-          <li>
-            <Link href={lista} className="inline-flex min-h-9 items-center px-2 text-meta font-semibold text-granate underline-offset-2 hover:underline">
-              Quitar todos
-            </Link>
-          </li>
-        </ul>
-      )}
-
-      {!d ? (
-        <p className="mt-8 rounded-2xl border border-line bg-paper p-6 text-cuerpo text-inkSoft">No pudimos leer las plazas ahora. Vuelve a intentarlo en un momento.</p>
-      ) : d.data.length === 0 ? (
-        <div className="mt-8 rounded-3xl border border-line bg-paper p-8 text-center sm:p-12">
-          <SearchX size={36} aria-hidden className="mx-auto text-mute" />
-          <p className="mt-4 font-display text-seccion font-bold text-ink">No hay plazas abiertas con estos filtros</p>
-          <p className="mx-auto mt-2 max-w-[52ch] text-dato leading-relaxed text-inkSoft">
-            Prueba quitando un filtro o buscando con otra palabra (por ejemplo, la profesión en vez del cargo). Cada día se
-            publican plazas nuevas: con las alertas, te avisamos cuando aparezca una como la que buscas.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href={lista} className={claseAccion("secundario")}>
-              Ver todas las plazas
-            </Link>
-            <a href="#crear-alerta" className={claseAccion("primario")}>
-              <BellRing size={16} aria-hidden /> Avísame cuando aparezca
-            </a>
-          </div>
-        </div>
-      ) : (
-        <>
-          <ol className="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Plazas">
-            {d.data.map((p) => (
-              <li key={p.aviso} className="min-w-0">
-                <TarjetaPlaza p={p} base={base} />
+            <li className="inline-flex items-center gap-1.5">
+              <Users size={15} aria-hidden className="shrink-0 text-mute" />
+              <span>
+                <b className="font-semibold tabular-nums text-ink">{numero(d.vacantes)}</b> {d.vacantes === 1 ? "vacante" : "vacantes"}
+              </span>
+            </li>
+            {d.medianaSueldo ? (
+              <li className="inline-flex items-center gap-1.5">
+                <Coins size={15} aria-hidden className="shrink-0 text-mute" />
+                <span>
+                  Sueldo mediano <b className="font-semibold tabular-nums text-ink">{soles(d.medianaSueldo)}</b>
+                </span>
               </li>
-            ))}
-          </ol>
-          <div className="mt-8">
-            <Paginador pagina={f.page ?? 1} paginas={paginas} href={(pg) => `${lista}${qsEmpleo({ ...f, page: pg })}`} />
+            ) : null}
+          </ul>
+        )}
+        {f.senal && (
+          <Nota icono={<Eye size={15} aria-hidden />} className="mt-4 max-w-3xl">
+            <b className="font-semibold text-ink">{SENAL_PLAZA[f.senal].titulo}.</b> {SENAL_PLAZA[f.senal].explica}
+          </Nota>
+        )}
+      </header>
+
+      <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 sm:mt-6 lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:items-start">
+        {/* Con otra búsqueda se arma de nuevo: sus campos muestran siempre lo que dice la URL. */}
+        <FiltrosPlazas key={qsEmpleo({ ...f, page: undefined, orden: undefined })} base={base} filtros={f} facetas={d?.facetas ?? { region: [], nivel: [] }} />
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {puestos.length > 0 ? (
+              <ul className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Filtros puestos">
+                {puestos.map((p) => (
+                  <li key={p.texto} className="min-w-0 max-w-full">
+                    <Link
+                      href={p.href}
+                      className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-3.5 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate"
+                    >
+                      <span className="truncate">{p.texto}</span>
+                      <X size={14} aria-hidden className="shrink-0" />
+                      <span className="sr-only"> (quitar)</span>
+                    </Link>
+                  </li>
+                ))}
+                {puestos.length > 1 && (
+                  <li>
+                    <Link href={lista} className="inline-flex min-h-11 items-center px-2 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+                      Quitar todos
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <p className="text-meta text-mute">{d && d.total > 0 ? `Página ${numero(pagina)} de ${numero(paginas)}` : ""}</p>
+            )}
+            <OrdenPlazas key={f.orden ?? "cierre"} base={base} filtros={f} />
           </div>
-          <aside className="mt-10 flex flex-col items-start gap-4 rounded-3xl border border-granate/30 bg-granate-50 p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-display text-bloque font-bold text-ink">¿No quieres revisar esto todos los días?</p>
-              <p className="mt-1 text-dato text-inkSoft">Guarda esta búsqueda como alerta y te llega lo nuevo a tu correo, sin volver a buscar.</p>
+
+          {!d ? (
+            <div role="alert" className="mt-4 rounded-2xl border border-line bg-paper p-6">
+              <p className="font-display text-bloque font-bold text-ink">No pudimos leer las plazas ahora</p>
+              <p className="mt-1 text-dato text-inkSoft">Suele pasar un momento. Vuelve a intentarlo: tu búsqueda se mantiene.</p>
+              <Link href={`${lista}${qsEmpleo(f)}`} className={claseAccion("secundario", "mt-4 min-h-11")}>
+                <RotateCcw size={16} aria-hidden /> Volver a intentar
+              </Link>
             </div>
-            <a href="#crear-alerta" className={claseAccion("primario", "shrink-0")}>
-              <BellRing size={16} aria-hidden /> Crear mi alerta
-            </a>
-          </aside>
-        </>
-      )}
+          ) : plazas.length === 0 && d.total > 0 ? (
+            <div className="mt-4 rounded-2xl border border-line bg-paper p-6">
+              <p className="font-display text-bloque font-bold text-ink">Esta página ya no tiene plazas</p>
+              <p className="mt-1 text-dato text-inkSoft">
+                La búsqueda tiene {numero(d.total)} {d.total === 1 ? "plaza" : "plazas"}: entran en {numero(paginas)} {paginas === 1 ? "página" : "páginas"}.
+              </p>
+              <Link href={`${lista}${qsEmpleo({ ...f, page: undefined })}`} className={claseAccion("secundario", "mt-4 min-h-11")}>
+                Ir a la primera página
+              </Link>
+            </div>
+          ) : plazas.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-line bg-paper p-6 sm:p-8">
+              <SearchX size={32} aria-hidden className="text-mute" />
+              <h2 className="mt-3 font-display text-seccion font-bold leading-tight text-ink">No hay plazas abiertas con estos filtros</h2>
+              <p className="mt-2 max-w-[62ch] text-dato leading-relaxed text-inkSoft">
+                Quita alguno de los filtros de arriba o busca con otra palabra: la profesión en vez del cargo («enfermera» en vez de «licenciada en
+                enfermería»). Cada día se publican plazas nuevas{alertable ? `: con una alerta te avisamos ${canal} cuando aparezca una así` : ""}.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {alertable && (
+                  <a href="#crear-alerta" className={claseAccion("primario", "min-h-11")}>
+                    <BellRing size={16} aria-hidden /> Avísame cuando aparezca
+                  </a>
+                )}
+                <Link href={lista} className={claseAccion("secundario", "min-h-11")}>
+                  Ver todas las plazas
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <ol className="mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={desde + 1}>
+                {primeras.map((p) => (
+                  <li key={p.aviso} className="min-w-0">
+                    <TarjetaPlaza p={p} base={base} />
+                  </li>
+                ))}
+              </ol>
+              {alertable && resto.length > 0 && (
+                <Franja
+                  icono={<BellRing size={18} aria-hidden />}
+                  titulo="¿Te sirven plazas como estas?"
+                  className="my-3 border-granate/30 bg-granate-50 sm:w-full"
+                  accion={
+                    <a href="#crear-alerta" className={claseAccion("primario", "min-h-11")}>
+                      Crear alerta
+                    </a>
+                  }
+                >
+                  Guarda esta búsqueda y te avisamos {canal} de las nuevas, sin volver a buscar.
+                </Franja>
+              )}
+              {resto.length > 0 && (
+                <ol className="mt-3 grid grid-cols-1 gap-3" aria-label="Más plazas" start={desde + primeras.length + 1}>
+                  {resto.map((p) => (
+                    <li key={p.aviso} className="min-w-0">
+                      <TarjetaPlaza p={p} base={base} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <div className="mt-8">
+                <Paginador pagina={pagina} paginas={paginas} href={(pg) => `${lista}${qsEmpleo({ ...f, page: pg })}`} />
+              </div>
+            </>
+          )}
+
+          {d &&
+            (alertable ? (
+              <section id="crear-alerta" aria-labelledby="crear-alerta-t" className="mt-10 scroll-mt-28 rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-6">
+                <h2 id="crear-alerta-t" className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
+                  <BellRing size={18} aria-hidden className="shrink-0 text-granate" />
+                  Que te avisen de las nuevas
+                </h2>
+                <p className="mt-1.5 max-w-[65ch] text-dato leading-relaxed text-inkSoft">
+                  Guarda esta búsqueda como alerta y te avisamos {canal} cuando se publique una plaza que calce. Gratis una vez por semana; cada mañana con el{" "}
+                  <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate underline-offset-4 hover:underline">
+                    plan Alertas
+                  </Link>
+                  .
+                </p>
+                {/* Sin su caja (`barra`): ya va dentro de este bloque. Con su «Con: …», que dice qué guarda la alerta. */}
+                <Suspense fallback={<div aria-hidden className="mt-4 h-11 w-72 max-w-full animate-pulse rounded-full bg-paperDeep" />}>
+                  <AccionesBusqueda producto="empleo" base={base} variante="barra" resumen={false} className="mt-4" />
+                </Suspense>
+              </section>
+            ) : (
+              <div id="crear-alerta" className="mt-10 scroll-mt-28">
+                <Franja
+                  icono={<BellRing size={18} aria-hidden />}
+                  titulo="¿Buscas algo en especial?"
+                  className="sm:w-full"
+                  accion={
+                    <a href="#filtros-plazas" className={claseAccion("secundario", "min-h-11")}>
+                      Elegir qué busco
+                    </a>
+                  }
+                >
+                  Busca un puesto o elige tu región y guárdalo como alerta: te avisamos {canal} de las plazas nuevas.
+                </Franja>
+              </div>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

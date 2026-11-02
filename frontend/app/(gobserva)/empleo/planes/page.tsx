@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { BellRing, Building, GraduationCap } from "lucide-react";
+import { BellRing, Briefcase, GraduationCap, HandCoins, Sparkles, Timer } from "lucide-react";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
 import { Planes, type Plan } from "@/components/gobserva/Planes";
 import { Preguntas } from "@/components/empleo/Piezas";
+import { Beneficios } from "@/components/patrones/Franja";
+import { canalAlertas, getResumenEmpleo } from "@/lib/empleo";
+import { numero } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { entero, planesServidor, precioCorto, precioDe, precioHoy } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -14,13 +17,16 @@ export const metadata: Metadata = {
 };
 
 /**
- * Los planes de Gobserva Empleo (2026-11-01): buscar es gratis y trae una alerta semanal; Alertas, con precio de fundador,
- * las manda cada mañana y baja las búsquedas en Excel; y el plan para bolsas de trabajo e institutos. Los precios y los
- * límites salen del catálogo de la API (los cambia el panel); lo que todavía no funciona va marcado «Pronto».
+ * Los planes de Gobserva Empleo, en modo «persuadir»: buscar es gratis y trae una alerta semanal; Alertas, con precio de
+ * fundador, las manda cada mañana y baja las búsquedas en Excel; y el plan para bolsas de trabajo e institutos. Arriba, lo
+ * que se publica de verdad en SERVIR (abiertas hoy, nuevas en tres días, las que cierran en dos): la razón para que te
+ * avisen. En el celular, Alertas va primero (quien llega aquí tocó «Recibir alertas»). Los precios y los límites salen
+ * del catálogo de la API (los cambia el panel); lo que todavía no funciona va marcado «Pronto»; el correo, sólo si ya
+ * sale (`correoActivo`).
  */
 export default async function PlanesEmpleo() {
   const base = baseProducto("empleo");
-  const cat = await planesServidor("empleo");
+  const [cat, r] = await Promise.all([planesServidor("empleo"), getResumenEmpleo()]);
   const alertas = cat.planes.find((p) => p.id === "alertas");
   const inst = cat.planes.find((p) => p.id === "institucional");
   const crear = rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/plazas")}`);
@@ -38,7 +44,7 @@ export default async function PlanesEmpleo() {
         "Todas las plazas CAS abiertas del país, con filtros",
         "Fichas con requisitos y «¿Cumples?»",
         "Lo que pagan otras entidades por el mismo puesto",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, por correo y en tu celular`,
+        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, ${canalAlertas(cat.correoActivo)}`,
         `Guarda hasta ${entero(g.guardados)} plazas y sigue tus postulaciones`,
         "Recordatorio 2 días antes de que cierre una plaza guardada",
         "Consultas por MCP desde tu asistente de IA (beta)",
@@ -86,17 +92,39 @@ export default async function PlanesEmpleo() {
   }
 
   return (
-    <div className="container-page space-y-16 py-10 sm:py-14">
+    <div className="container-page space-y-14 py-10 sm:space-y-16 sm:py-14">
       <header className="max-w-3xl">
         <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Buscar es gratis. Que te avisen, casi.</h1>
-        <p className="mt-4 text-pretty text-bloque leading-relaxed text-inkSoft">
-          Todas las plazas CAS del Perú, con sus requisitos y lo que nadie te dice, son gratis y lo seguirán siendo. Con tu cuenta gratis te avisamos
-          una vez por semana; con Alertas, cada mañana, para que postules antes que nadie.
+        <p className="mt-4 text-pretty text-cuerpo leading-relaxed text-inkSoft sm:text-bloque">
+          Todas las plazas CAS del Perú, con sus requisitos y lo que nadie te dice, son gratis y lo seguirán siendo. Con tu cuenta gratis te avisamos una vez por
+          semana; con Alertas, cada mañana, para que postules antes que nadie.
         </p>
-        <AvisoPlanes texto={cat.aviso} className="mt-5" />
+        {r && (
+          <ul className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-7" aria-label="Lo que se publica en SERVIR">
+            <Hoy icono={<Briefcase size={16} aria-hidden />} n={r.abiertas} texto="plazas abiertas hoy" />
+            {r.nuevas > 0 && <Hoy icono={<Sparkles size={16} aria-hidden />} n={r.nuevas} texto="publicadas en los últimos 3 días" />}
+            {r.cierran2dias > 0 && <Hoy icono={<Timer size={16} aria-hidden />} n={r.cierran2dias} texto="cierran en los próximos 2 días" urgente />}
+          </ul>
+        )}
+        <AvisoPlanes texto={cat.aviso} className="mt-6" />
       </header>
 
-      <Planes planes={planes} />
+      {/* En el celular, el plan destacado primero: el orden de la página (gratis primero) queda igual en la computadora. */}
+      <Planes planes={planes} className="max-md:[&>#plan-alertas]:order-first" />
+
+      <section aria-labelledby="por-que-t">
+        <h2 id="por-que-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
+          Lo que te ahorran las alertas
+        </h2>
+        <Beneficios
+          className="mt-6"
+          items={[
+            { icono: <BellRing size={16} aria-hidden />, titulo: "Revisar todos los días", texto: "Las entidades publican a cualquier hora y algunas plazas cierran en una semana. La alerta mira por ti." },
+            { icono: <GraduationCap size={16} aria-hidden />, titulo: "Leer bases que no son para ti", texto: "Te llega con lo que piden (estudios, experiencia y cursos) para que sepas al toque si postulas." },
+            { icono: <HandCoins size={16} aria-hidden />, titulo: "Pagarle a un intermediario", texto: "Postulas siempre en la entidad, gratis. Gobserva no cobra por plazas ni elige a nadie." },
+          ]}
+        />
+      </section>
 
       <ComoFunciona
         cat={cat}
@@ -106,27 +134,6 @@ export default async function PlanesEmpleo() {
           { titulo: "Te llega lo nuevo", texto: "Sólo las plazas que calzan contigo, con su cierre, para que postules a tiempo en la entidad." },
         ]}
       />
-
-      <section aria-labelledby="por-que-t">
-        <h2 id="por-que-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">Lo que te ahorran las alertas</h2>
-        <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[
-            { icono: BellRing, t: "Revisar todos los días", d: "Las entidades publican a cualquier hora y algunas plazas cierran en una semana. La alerta mira por ti." },
-            { icono: GraduationCap, t: "Leer bases que no son para ti", d: "Te llega con lo que piden: estudios, experiencia y cursos, para que sepas al toque si postulas." },
-            { icono: Building, t: "Intermediarios", d: "Postulas siempre en la entidad. Gobserva no cobra por plazas ni elige a nadie." },
-          ].map(({ icono: Icono, t, d }) => (
-            <li key={t} className="flex gap-3 rounded-2xl border border-line bg-paper p-5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">
-                <Icono size={18} aria-hidden />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-cuerpo font-semibold text-ink">{t}</span>
-                <span className="mt-0.5 block text-dato leading-relaxed text-inkSoft">{d}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <Preguntas
         items={[
@@ -161,5 +168,17 @@ export default async function PlanesEmpleo() {
         ]}
       />
     </div>
+  );
+}
+
+/** Una cifra de hoy en SERVIR, como dato con ícono: el número grande y qué es. */
+function Hoy({ icono, n, texto, urgente = false }: { icono: React.ReactNode; n: number; texto: string; urgente?: boolean }) {
+  return (
+    <li className="flex items-center gap-2.5 text-dato text-inkSoft">
+      <span className={urgente ? "shrink-0 text-rust" : "shrink-0 text-granate"}>{icono}</span>
+      <span>
+        <b className={urgente ? "font-display text-bloque font-bold tabular-nums text-rust" : "font-display text-bloque font-bold tabular-nums text-ink"}>{numero(n)}</b> {texto}
+      </span>
+    </li>
   );
 }

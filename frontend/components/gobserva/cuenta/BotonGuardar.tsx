@@ -36,14 +36,17 @@ export function BotonGuardar({
   const [error, setError] = useState<string | null>(null);
   const guardado = data?.data.find((g) => g.tipo === tipo && g.ref === codigo) ?? null;
 
-  if (loading) return <span aria-hidden className={cn("inline-block h-10 w-32 animate-pulse rounded-full bg-paperDeep", className)} />;
+  if (loading) return <span aria-hidden className={cn("inline-block h-11 w-32 animate-pulse rounded-full bg-paperDeep", className)} />;
   if (!conCuenta) {
     // La ruta de la ficha sin la base del producto (en su subdominio ya va sin ella).
     const aqui = `${base && ruta.startsWith(base) ? ruta.slice(base.length) || "/" : ruta}${sp.size ? `?${sp}` : ""}`;
+    // La misma caja que con sesión, para que el botón mida igual con o sin cuenta.
     return (
-      <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent(aqui)}`)} className={claseAccion("secundario", className)}>
-        <Bookmark size={16} aria-hidden /> Guardar
-      </Link>
+      <div className={cn("flex flex-col gap-2", className)}>
+        <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent(aqui)}`)} className={claseAccion("secundario", "min-h-11 w-full")}>
+          <Bookmark size={16} aria-hidden /> Guardar
+        </Link>
+      </div>
     );
   }
 
@@ -63,7 +66,7 @@ export function BotonGuardar({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <button type="button" onClick={() => void alternar()} disabled={ocupado} aria-pressed={!!guardado} className={claseAccion(guardado ? "primario" : "secundario", "w-full")}>
+      <button type="button" onClick={() => void alternar()} disabled={ocupado} aria-pressed={!!guardado} className={claseAccion(guardado ? "primario" : "secundario", "min-h-11 w-full")}>
         {ocupado ? <Loader2 size={16} aria-hidden className="animate-spin" /> : guardado ? <BookmarkCheck size={16} aria-hidden /> : <Bookmark size={16} aria-hidden />}
         {guardado ? "Guardado" : "Guardar"}
       </button>

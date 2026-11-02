@@ -301,7 +301,7 @@ export function FormAlerta({
           <label htmlFor={`al-nombre-${alerta?.id ?? "n"}`} className={ETIQUETA}>Nombre</label>
           <input id={`al-nombre-${alerta?.id ?? "n"}`} value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className={CAMPO} placeholder="Para reconocerla en tu correo" />
         </div>
-        {campos.map((c) => (
+        {campos.filter((c) => !c.oculto).map((c) => (
           <div key={c.clave}>
             <label htmlFor={`al-${c.clave}-${alerta?.id ?? "n"}`} className={ETIQUETA}>{c.etiqueta}</label>
             {c.tipo === "opcion" ? (

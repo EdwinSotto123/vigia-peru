@@ -73,10 +73,10 @@ export function PanelResumen({ producto, base, me, onCambio, irA }: { producto: 
           {plan ? (
             <>
               <h2 id="plan-t" className="mt-2 font-display text-titulo font-bold leading-tight text-ink">{plan.nombrePlan}</h2>
-              <dl className="mt-3 grid gap-x-6 gap-y-2 text-dato sm:grid-cols-3">
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-dato sm:grid-cols-3 sm:gap-x-6">
                 <div>
                   <dt className="text-meta text-mute">Pagas</dt>
-                  <dd className="font-semibold text-ink">{plan.medio === "cortesia" ? "Cortesía" : `${precioCorto(plan.monto)} al mes`}</dd>
+                  <dd className="font-semibold tabular-nums text-ink">{plan.medio === "cortesia" ? "Cortesía" : `${precioCorto(plan.monto)} al mes`}</dd>
                 </div>
                 <div>
                   <dt className="text-meta text-mute">{plan.renovar && plan.medio === "tarjeta" ? "Próximo cobro" : "Activo hasta"}</dt>

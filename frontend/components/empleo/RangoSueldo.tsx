@@ -1,5 +1,14 @@
 import { numero, soles } from "@/lib/formato";
 
+/** Dónde cae lo que paga la plaza entre las plazas iguales, en una frase (la usan la figura y el resumen de la ficha). */
+export function fraseSueldo(sueldo: number | null, p25: number, mediana: number, p75: number): string {
+  if (sueldo == null) return "Esta plaza no dice cuánto paga.";
+  if (sueldo > p75) return "Paga más que la mayoría de plazas iguales.";
+  if (sueldo >= mediana) return "Paga por encima de la mediana de plazas iguales.";
+  if (sueldo >= p25) return "Paga por debajo de la mediana de plazas iguales.";
+  return "Paga menos que la mayoría de plazas iguales.";
+}
+
 /**
  * Lo que paga esta plaza frente a lo que pagan otras entidades por el mismo puesto: una pista con la franja del medio
  * (del 25 % al 75 % de las plazas iguales), la mediana marcada y el sueldo de esta plaza como un punto. Debajo, en una
@@ -25,16 +34,7 @@ export function RangoSueldo({
   const min = Math.min(...valores) * 0.85;
   const max = Math.max(...valores) * 1.1;
   const pos = (v: number) => `${((v - min) / (max - min)) * 100}%`;
-  const frase =
-    sueldo == null
-      ? "Esta plaza no dice cuánto paga."
-      : sueldo > p75
-        ? "Paga más que la mayoría de plazas iguales."
-        : sueldo >= mediana
-          ? "Paga por encima de la mediana de plazas iguales."
-          : sueldo >= p25
-            ? "Paga por debajo de la mediana de plazas iguales."
-            : "Paga menos que la mayoría de plazas iguales.";
+  const frase = fraseSueldo(sueldo, p25, mediana, p75);
   return (
     <figure className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <figcaption className="text-dato leading-relaxed text-inkSoft">

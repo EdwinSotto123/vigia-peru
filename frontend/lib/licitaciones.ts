@@ -186,9 +186,56 @@ export const nombreRegion = (ubigeo: string | null | undefined) => (ubigeo ? reg
 export function limpiar(t: string | null | undefined): string {
   if (!t) return "";
   // Un objeto que el SEACE manda entero entre comillas («"SERVICIO DE…"») va sin ellas: si no, la oración empieza en la
-  // comilla y la primera palabra queda en minúscula.
-  const s = t.replace(/¿/g, "“").replace(/\s+/g, " ").trim().replace(/^["“”'«»\s]+|["“”'«»\s]+$/g, "");
+  // comilla y la primera palabra queda en minúscula. Los saltos de línea que llegan escritos («obra:\nmejoramiento»,
+  // con la barra y la n como texto) son un espacio.
+  const s = t.replace(/\\[nrt]/g, " ").replace(/¿/g, "“").replace(/\s+/g, " ").trim().replace(/^["“”'«»\s]+|["“”'«»\s]+$/g, "");
   return oracion(s);
+}
+
+const sinTildes = (w: string) => w.normalize("NFD").replace(/\p{M}/gu, "");
+
+/** Las palabras del molde de un objeto del SEACE: no dicen qué se compra («contratación del suministro de…»). */
+const GENERICAS = new Set([
+  "contratacion", "adquisicion", "suministro", "servicio", "servicios", "ejecucion", "obra", "obras", "para", "del", "las", "los",
+  "una", "unos", "unas", "con", "por", "que", "como", "entre", "sobre", "segun", "desde", "hasta", "mediante", "mejoramiento",
+  "creacion", "ampliacion", "recuperacion", "rehabilitacion", "renovacion", "remodelacion", "construccion", "contruccion", "instalacion",
+  "reparacion", "elaboracion", "expediente", "tecnico", "tecnica", "tecnicos", "bienes", "compra", "diversos", "diversas", "varios",
+  "varias", "otros", "otras", "proyecto", "abastecimiento", "distribucion", "especialidad", "general", "institucional", "nivel",
+  "item", "items", "atencion", "programa", "meta", "diseno", "contratar", "adquirir", "dirigido", "dirigida", "destinado",
+  "destinada", "este", "esta", "cada", "todo", "toda", "todos", "todas", "sede", "central", "region", "regional", "distrito",
+  "distrital", "provincia", "provincial", "departamento",
+]);
+const util = (w: string) => w.length > 3 && !/^\d+$/.test(w) && !GENERICAS.has(sinTildes(w));
+
+/**
+ * El rubro de una convocatoria en una o dos palabras, para proponer su mercado: «material médico», «agua potable»,
+ * «combustible». Se salta el molde del SEACE («contratación del suministro de…», «ejecución de la obra…»); una palabra
+ * larga y precisa («combustible», «consultoría») va sola si lo que sigue es otra cosa («combustible para el equipo…»).
+ */
+export function rubroDe(objeto: string | null | undefined): string {
+  const t = limpiar(objeto).toLocaleLowerCase("es-PE").split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const i = t.findIndex(util);
+  if (i < 0) return "";
+  const primera = t[i];
+  const salida = [primera];
+  let cruzo = false;
+  for (let j = i + 1; j < t.length; j++) {
+    if (util(t[j])) {
+      if (!cruzo || primera.length < 8) salida.push(t[j]);
+      break;
+    }
+    cruzo = true;
+    if (primera.length >= 8) break;
+  }
+  return salida.join(" ");
+}
+
+/** Los procedimientos que casi nunca publican el valor referencial en los datos abiertos. */
+export const sinValorHabitual = (procedimiento: string | null | undefined) => /subasta|comparaci/i.test(procedimiento ?? "");
+
+/** Las bases primero; lo demás, en el orden en que lo publicó la entidad. */
+export function ordenarDocumentos<T extends { tipo: string | null }>(docs: T[]): T[] {
+  return docs.map((d, i) => ({ d, i })).sort((a, b) => Number(b.d.tipo === "biddingDocuments") - Number(a.d.tipo === "biddingDocuments") || a.i - b.i).map((x) => x.d);
 }
 
 /** «hoy», «ayer», «hace 3 días» (por el día del calendario de Lima). */

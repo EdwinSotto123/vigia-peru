@@ -13,8 +13,23 @@ import { Aviso, CAMPO, ETIQUETA, chipsFiltros, filtrosDeBusqueda, nombreSugerido
 /**
  * Lo que se hace con una búsqueda de la lista de un producto: guardarla como alerta (lo nuevo llega cada mañana o cada
  * semana) y bajarla en Excel (CSV, planes de pago). Sin cuenta, los dos llevan a crearla y vuelven aquí.
+ *
+ * `variante="barra"` deja sólo los botones, sin la caja (para la cabecera de los resultados); `resumen={false}` quita el
+ * «Con: …» cuando la página ya muestra los filtros puestos en chips.
  */
-export function AccionesBusqueda({ producto, base, className }: { producto: Producto; base: string; className?: string }) {
+export function AccionesBusqueda({
+  producto,
+  base,
+  variante = "caja",
+  resumen = true,
+  className,
+}: {
+  producto: Producto;
+  base: string;
+  variante?: "caja" | "barra";
+  resumen?: boolean;
+  className?: string;
+}) {
   const { loading, conCuenta } = useSesion();
   const { me } = useMe(producto);
   const ruta = usePathname();
@@ -33,8 +48,9 @@ export function AccionesBusqueda({ producto, base, className }: { producto: Prod
   const diaria = !!lim?.frecuencias.includes("diaria");
   const frec: Frecuencia = frecuencia ?? (diaria ? "diaria" : "semanal");
   const chips = chipsFiltros(producto, filtros);
+  const textoCrear = chips.length ? "Crear alerta con esta búsqueda" : "Crear alerta de todo lo nuevo";
 
-  if (loading) return <div aria-hidden className={cn("h-11 w-72 animate-pulse rounded-full bg-paperDeep", className)} />;
+  if (loading) return <div aria-hidden className={cn("h-11 w-72 max-w-full animate-pulse rounded-full bg-paperDeep", className)} />;
 
   async function guardarAlerta() {
     setMensaje(null);
@@ -63,32 +79,40 @@ export function AccionesBusqueda({ producto, base, className }: { producto: Prod
   }
 
   return (
-    <div className={cn("rounded-2xl border border-line bg-paper p-3 sm:p-4", className)}>
+    <div className={cn(variante === "caja" && "rounded-2xl border border-line bg-paper p-3 sm:p-4", className)}>
       <div className="flex flex-wrap items-center gap-2">
         {estado === "listo" ? (
-          <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-granate-50 px-4 text-dato font-semibold text-granate">
+          <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate-50 px-4 text-dato font-semibold text-granate">
             <CheckCircle2 size={16} aria-hidden /> Alerta creada.
             <Link href={rutaEn(base, "/cuenta?tab=alertas")} className="underline">Verla</Link>
           </span>
         ) : conCuenta ? (
-          <button type="button" onClick={() => setAbierto((v) => !v)} aria-expanded={abierto} className={claseAccion("primario")}>
-            <BellPlus size={16} aria-hidden /> Crear alerta con esta búsqueda
+          <button type="button" onClick={() => setAbierto((v) => !v)} aria-expanded={abierto} className={claseAccion("primario", "min-h-11")}>
+            <BellPlus size={16} aria-hidden />
+            <span className="sm:hidden">Crear alerta</span>
+            <span className="hidden sm:inline">{textoCrear}</span>
           </button>
         ) : (
-          <Link href={entrar} className={claseAccion("primario")}>
-            <BellPlus size={16} aria-hidden /> Crear alerta con esta búsqueda
+          <Link href={entrar} className={claseAccion("primario", "min-h-11")}>
+            <BellPlus size={16} aria-hidden />
+            <span className="sm:hidden">Crear alerta</span>
+            <span className="hidden sm:inline">{textoCrear}</span>
           </Link>
         )}
         {conCuenta && lim?.csv ? (
-          <button type="button" onClick={() => void bajar()} disabled={estado === "bajando"} className={claseAccion("secundario")}>
-            {estado === "bajando" ? <Loader2 size={16} aria-hidden className="animate-spin" /> : <Download size={16} aria-hidden />} Descargar en Excel (CSV)
+          <button type="button" onClick={() => void bajar()} disabled={estado === "bajando"} className={claseAccion("secundario", "min-h-11")}>
+            {estado === "bajando" ? <Loader2 size={16} aria-hidden className="animate-spin" /> : <Download size={16} aria-hidden />}
+            <span className="sm:hidden">Excel (CSV)</span>
+            <span className="hidden sm:inline">Descargar en Excel (CSV)</span>
           </button>
         ) : (
-          <Link href={conCuenta ? rutaEn(base, "/planes") : entrar} className={claseAccion("fantasma")} title="La descarga es de los planes de pago">
-            <Lock size={15} aria-hidden /> Descargar en Excel
+          <Link href={conCuenta ? rutaEn(base, "/planes") : entrar} className={claseAccion("fantasma", "min-h-11")} title="La descarga es de los planes de pago">
+            <Lock size={15} aria-hidden />
+            <span className="sm:hidden">Excel</span>
+            <span className="hidden sm:inline">Descargar en Excel</span>
           </Link>
         )}
-        {chips.length > 0 && <span className="text-meta text-mute">Con: {chips.join(", ")}</span>}
+        {resumen && chips.length > 0 && <span className="text-meta text-mute">Con: {chips.join(", ")}</span>}
       </div>
 
       {abierto && conCuenta && (
@@ -113,6 +137,7 @@ export function AccionesBusqueda({ producto, base, className }: { producto: Prod
             <button type="button" onClick={() => setAbierto(false)} className={claseAccion("fantasma")}>Cancelar</button>
             {!diaria && <span className="text-meta text-mute">Cada mañana es de los planes de pago.</span>}
           </div>
+
         </div>
       )}
       {mensaje && (
