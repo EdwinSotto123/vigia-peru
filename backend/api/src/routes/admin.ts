@@ -53,6 +53,7 @@ import { adminProcesarRouter } from "./admin_procesar.js";
 import { adminFuentesRouter } from "./admin_fuentes.js";
 import { adminEquipoRouter } from "./admin_equipo.js";
 import { adminPrivacidadRouter } from "./admin_privacidad.js";
+import { adminGobservaRouter } from "./admin_gobserva.js";
 
 export const adminRouter = new Hono();
 
@@ -86,6 +87,8 @@ adminRouter.route("/", adminFuentesRouter);
 adminRouter.route("/", adminEquipoRouter);
 // Pedidos de privacidad de las personas que aparecen en Vigía (admin_privacidad.ts, migración 45).
 adminRouter.route("/", adminPrivacidadRouter);
+// Gobserva: clientes, cobros, configuración de los planes y tareas de las alertas (admin_gobserva.ts, migración 230).
+adminRouter.route("/", adminGobservaRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {
@@ -155,7 +158,7 @@ adminRouter.get("/gobserva/suscripciones", async (c) => {
   const plan = url.searchParams.get("plan");
   const vals: unknown[] = [];
   const conds: string[] = ["baja_at IS NULL"];
-  if (producto && /^(empleo|licitaciones|mcp)$/.test(producto)) { vals.push(producto); conds.push(`producto = $${vals.length}`); }
+  if (producto && /^(empleo|licitaciones|obras|mcp)$/.test(producto)) { vals.push(producto); conds.push(`producto = $${vals.length}`); }
   if (plan && /^[a-z]{3,15}$/.test(plan)) { vals.push(plan); conds.push(`plan = $${vals.length}`); }
   const [filas, cuentas] = await Promise.all([
     pool.query(

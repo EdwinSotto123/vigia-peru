@@ -114,26 +114,57 @@ const ORDEN = {
   vacantes: `vacantes DESC NULLS LAST, "fechaFin", aviso DESC`,
 } as const;
 
+type FiltrosPlazas = z.infer<typeof Lista>;
+
+/**
+ * Las condiciones de una búsqueda de plazas (las usan la lista, las alertas y el CSV de lib/gobservaAlertas.ts). La
+ * región y el nivel se calculan en la consulta: van aparte (`rc`, `nc`) para filtrar sobre la base ya armada. Con
+ * `nuevasDesde`, sólo las plazas que aparecieron (o abrieron) después de ese momento: lo nuevo para una alerta.
+ */
+function condicionesPlazas(q: FiltrosPlazas, nuevasDesde?: Date) {
+  const conds = [ABIERTA];
+  const vals: unknown[] = [];
+  for (const w of palabrasBusqueda(q.q)) {
+    vals.push(`%${w}%`);
+    conds.push(`mef_norm(concat_ws(' ', s.titulo, s.entidad, s.ubicacion, s.servicio, s.formacion)) LIKE $${vals.length}`);
+  }
+  if (q.sueldo) { vals.push(q.sueldo); conds.push(`s.remuneracion >= $${vals.length}`); }
+  if (q.exp != null) { vals.push(q.exp); conds.push(`s.exp_general <= $${vals.length}`); }
+  if (q.cierra) conds.push(q.cierra === "hoy" ? `s.fecha_fin = ${HOY}` : q.cierra === "2dias" ? `s.fecha_fin <= ${HOY} + 2` : `s.fecha_fin <= ${HOY} + 7`);
+  if (q.senal) { vals.push([q.senal]); conds.push(`s.tipos @> $${vals.length}::text[]`); }
+  if (q.entidad) { vals.push(q.entidad); conds.push(`s.entidad_ruc = $${vals.length}`); }
+  if (nuevasDesde) { vals.push(nuevasDesde.toISOString()); conds.push(`GREATEST(s.primera_vez, s.fecha_inicio::timestamptz) > $${vals.length}::timestamptz`); }
+  vals.push(q.region ? q.region.replace(/-/g, " ").toUpperCase() : null);
+  const rc = `($${vals.length}::text IS NULL OR region = $${vals.length})`;
+  vals.push(q.nivel ?? null);
+  const nc = `($${vals.length}::text IS NULL OR nivel = $${vals.length})`;
+  return { conds, vals, rc, nc };
+}
+
+/** Los filtros de una alerta o de una descarga, validados como los de la lista (lo que no sirve, se descarta). */
+export function filtrosPlazas(f: Record<string, unknown>): FiltrosPlazas | null {
+  const p = Lista.safeParse(Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== "" && v != null && k !== "page" && k !== "size")));
+  return p.success ? p.data : null;
+}
+
+/** Las plazas de una búsqueda, hasta `limite` (para alertas y CSV): las columnas de la lista, ya publicables. */
+export async function filasPlazas(q: FiltrosPlazas, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
+  const { conds, vals, rc, nc } = condicionesPlazas(q, nuevasDesde);
+  const orden = nuevasDesde ? ORDEN.reciente : ORDEN[q.orden];
+  const r = await pool.query(
+    `WITH base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})
+     SELECT * FROM base WHERE ${rc} AND ${nc} ORDER BY ${orden} LIMIT ${Math.max(1, Math.min(5000, Math.floor(limite)))}`,
+    vals,
+  );
+  return publicar(r.rows) as Record<string, unknown>[];
+}
+
 empleoRouter.get("/plazas", async (c) => {
   const p = Lista.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`plazas:${JSON.stringify(q)}`, async () => {
-    const conds = [ABIERTA];
-    const vals: unknown[] = [];
-    for (const w of palabrasBusqueda(q.q)) {
-      vals.push(`%${w}%`);
-      conds.push(`mef_norm(concat_ws(' ', s.titulo, s.entidad, s.ubicacion, s.servicio, s.formacion)) LIKE $${vals.length}`);
-    }
-    if (q.sueldo) { vals.push(q.sueldo); conds.push(`s.remuneracion >= $${vals.length}`); }
-    if (q.exp != null) { vals.push(q.exp); conds.push(`s.exp_general <= $${vals.length}`); }
-    if (q.cierra) conds.push(q.cierra === "hoy" ? `s.fecha_fin = ${HOY}` : q.cierra === "2dias" ? `s.fecha_fin <= ${HOY} + 2` : `s.fecha_fin <= ${HOY} + 7`);
-    if (q.senal) { vals.push([q.senal]); conds.push(`s.tipos @> $${vals.length}::text[]`); }
-    if (q.entidad) { vals.push(q.entidad); conds.push(`s.entidad_ruc = $${vals.length}`); }
-    vals.push(q.region ? q.region.replace(/-/g, " ").toUpperCase() : null);
-    const rc = `($${vals.length}::text IS NULL OR region = $${vals.length})`;
-    vals.push(q.nivel ?? null);
-    const nc = `($${vals.length}::text IS NULL OR nivel = $${vals.length})`;
+    const { conds, vals, rc, nc } = condicionesPlazas(q);
     const r = await pool.query(
       `WITH base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})
        SELECT (SELECT count(*) FROM base WHERE ${rc} AND ${nc})::int AS total,

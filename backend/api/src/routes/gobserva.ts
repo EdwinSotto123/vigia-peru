@@ -2,7 +2,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
-import { SIN_CACHE } from "../lib/http.js";
+import { SIN_CACHE, cachePublico } from "../lib/http.js";
+import { mpPublicKey } from "../lib/mercadopago.js";
+import { correoConfigurado } from "../lib/correo.js";
+import { LIMITES_GRATIS, cupoFundadorLibre, esProductoPago, leerConfig, planesDe } from "../lib/gobservaPlanes.js";
+import { pausarPorToken } from "../lib/gobservaAlertas.js";
+import { getPagosConfig } from "./contribuciones.js";
 
 /**
  * POST /gobserva/suscripciones — anotarse en un producto de Gobserva (empleo.gobserva.cloud, licitaciones.gobserva.cloud o
@@ -19,7 +24,7 @@ const PLANES = ["gratis", "alertas", "pro", "empresa", "institucional", "mcp"] a
 const opcional = (max: number) => z.string().trim().max(max).optional().transform((v) => (v ? v : undefined));
 
 const Suscripcion = z.object({
-  producto: z.enum(["empleo", "licitaciones", "mcp"]),
+  producto: z.enum(["empleo", "licitaciones", "obras", "mcp"]),
   email: z.string().trim().toLowerCase().max(254).email(),
   nombre: opcional(120),
   empresa: opcional(160),
@@ -60,4 +65,51 @@ gobservaRouter.post("/suscripciones", limiteEscritura, exigirCaptcha, async (c) 
   );
   c.header("Cache-Control", SIN_CACHE);
   return c.json({ ok: true, nueva: r.rows[0]?.nueva ?? true, producto: s.producto, plan: s.plan }, 201);
+});
+
+// ─── GET /gobserva/planes?producto= ──────────────────────────────────────────────────────────────────────────────────
+/**
+ * Los planes que se venden en un producto, con su precio de hoy (el de fundador y cuántos lugares quedan), los medios de
+ * pago abiertos y los datos del vendedor para el recibo (el RUC es una variable del panel: mientras no esté, el recibo es
+ * una constancia de pago). Lo que la página de planes y el pago necesitan; el precio que se cobra lo vuelve a calcular la
+ * API al contratar.
+ */
+gobservaRouter.get("/planes", async (c) => {
+  const producto = c.req.query("producto");
+  if (!esProductoPago(producto)) return c.json({ error: "invalid_query" }, 400);
+  const [config, pagos, planes] = await Promise.all([leerConfig(), getPagosConfig(), planesDe(producto)]);
+  const conCupo = await Promise.all(
+    planes.filter((p) => p.activo).map(async (p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      precio: p.precio,
+      fundador: p.fundador ? { ...p.fundador, libres: await cupoFundadorLibre(p) } : null,
+      limites: p.limites,
+    })));
+  c.header("Cache-Control", cachePublico(60, { maxAge: 30, swr: 300 }));
+  return c.json({
+    producto,
+    planes: conCupo,
+    gratis: LIMITES_GRATIS,
+    medios: {
+      tarjeta: config.medios.tarjeta && mpPublicKey() ? { publicKey: mpPublicKey() } : null,
+      yape: config.medios.yape && pagos.yape ? { numero: pagos.yape.numero, titular: pagos.yape.titular, qrUrl: pagos.yape.qrUrl } : null,
+      plin: config.medios.plin && pagos.plin ? { numero: pagos.plin.numero, titular: pagos.plin.titular, qrUrl: pagos.plin.qrUrl } : null,
+      transferencia: config.medios.transferencia && pagos.cuentas.length ? { cuentas: pagos.cuentas } : null,
+    },
+    vendedor: { nombreComercial: config.vendedor.nombreComercial, ruc: config.vendedor.ruc || null, razonSocial: config.vendedor.razonSocial || null, correo: config.vendedor.correo },
+    aviso: config.aviso || null,
+    correoActivo: correoConfigurado(),
+  });
+});
+
+// ─── POST /gobserva/alertas/pausar?t= ────────────────────────────────────────────────────────────────────────────────
+/**
+ * Pausa una alerta con el enlace de su correo: la página /pausar (con un botón) y la cabecera List-Unsubscribe (el POST de
+ * un clic de Gmail y compañía, RFC 8058). Un GET no pausa nada: los filtros de correo abren los enlaces solos.
+ */
+gobservaRouter.post("/alertas/pausar", limiteEscritura, async (c) => {
+  c.header("Cache-Control", SIN_CACHE);
+  const r = await pausarPorToken(c.req.query("t") ?? "");
+  return r ? c.json({ ok: true, ...r }) : c.json({ error: "no_encontrado", detail: "Ese enlace ya no sirve. Entra a tu cuenta para ver tus alertas." }, 404);
 });

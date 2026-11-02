@@ -109,13 +109,16 @@ export function crearPago(t: Tarjeta, monto: number, codigo: string, ip?: string
   });
 }
 
-/** Suscripción sin plan, ya autorizada con la tarjeta: Mercado Pago cobra `monto` cada mes hasta que se cancele. */
-export function crearSuscripcion(t: Tarjeta, monto: number, codigo: string, volver: string): Promise<SuscripcionMp> {
+/**
+ * Suscripción sin plan, ya autorizada con la tarjeta: Mercado Pago cobra `monto` cada mes hasta que se cancele.
+ * `motivo` es lo que ve quien paga en Mercado Pago (los planes de Gobserva dicen el suyo).
+ */
+export function crearSuscripcion(t: Tarjeta, monto: number, codigo: string, volver: string, motivo = "Aporte mensual a Vigía Perú"): Promise<SuscripcionMp> {
   return mp<SuscripcionMp>("/preapproval", {
     metodo: "POST",
     idempotencia: `suscripcion-${codigo}`,
     cuerpo: {
-      reason: "Aporte mensual a Vigía Perú",
+      reason: motivo,
       external_reference: codigo,
       payer_email: t.email,
       card_token_id: t.token,
@@ -130,6 +133,12 @@ export const leerPago = (id: string) => mp<PagoMp>(`/v1/payments/${encodeURIComp
 export const leerSuscripcion = (id: string) => mp<SuscripcionMp>(`/preapproval/${encodeURIComponent(id)}`);
 export const leerCobro = (id: string) => mp<CobroMp>(`/authorized_payments/${encodeURIComponent(id)}`);
 export const leerContracargo = (id: string) => mp<{ id: string; payments?: (number | string)[] }>(`/v1/chargebacks/${encodeURIComponent(id)}`);
+/** Cambia lo que se cobra cada mes (Gobserva: termina el precio de fundador por meses). */
+export const cambiarMontoSuscripcion = (id: string, monto: number) =>
+  mp<SuscripcionMp>(`/preapproval/${encodeURIComponent(id)}`, {
+    metodo: "PUT",
+    cuerpo: { auto_recurring: { transaction_amount: monto, currency_id: "PEN" } },
+  });
 /** Detiene el cobro mensual (lo pide quien aporta desde su comprobante, routes/pagos.ts). */
 export const cancelarSuscripcion = (id: string) =>
   mp<SuscripcionMp>(`/preapproval/${encodeURIComponent(id)}`, { metodo: "PUT", cuerpo: { status: "cancelled" } });

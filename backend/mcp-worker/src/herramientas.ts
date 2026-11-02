@@ -5,6 +5,7 @@ import type { Client } from "pg";
 import { conConexion, type Env } from "./db";
 import { aJsonPython, ErrorValidacion, textoError, validarArgumentos, type Campo } from "./python";
 import { DEFINICIONES_GOBSERVA, ejecutarGobserva } from "./gobserva";
+import { DEFINICIONES_OBRAS, ejecutarObras } from "./obras";
 
 const DISCLAIMER =
   "Señal de riesgo, no acusación. La denuncia formal corresponde a " +
@@ -100,9 +101,11 @@ const DEFINICIONES: Record<string, Definicion> = {
   },
 };
 
-// Las 3 de Vigía y, desde el 2026-11-01, las de los productos de Gobserva (src/gobserva.ts): plazas CAS, licitaciones y
-// mercado de un rubro.
-export const HERRAMIENTAS: Tool[] = [...Object.values(DEFINICIONES), ...Object.values(DEFINICIONES_GOBSERVA)].map((d) => d.tool);
+// Las 3 de Vigía y, desde el 2026-11-01, las de los productos de Gobserva: plazas CAS, licitaciones y mercado de un rubro
+// (src/gobserva.ts), y proyectos de inversión y obras (src/obras.ts).
+export const HERRAMIENTAS: Tool[] = [...Object.values(DEFINICIONES), ...Object.values(DEFINICIONES_GOBSERVA), ...Object.values(DEFINICIONES_OBRAS)].map(
+  (d) => d.tool,
+);
 
 // Filas como arreglos (rowMode "array"): el SQL queda igual al de Python y se lee por posición.
 type Fila = unknown[];
@@ -221,10 +224,11 @@ const resultadoError = (t: string): CallToolResult => ({ content: [texto(t)], is
 export async function ejecutarHerramienta(
   nombre: string, args: Record<string, unknown>, env: Env, ctx: ExecutionContext,
 ): Promise<CallToolResult> {
-  if (Object.hasOwn(DEFINICIONES_GOBSERVA, nombre)) {
+  const deGobserva = Object.hasOwn(DEFINICIONES_GOBSERVA, nombre);
+  if (deGobserva || Object.hasOwn(DEFINICIONES_OBRAS, nombre)) {
     try {
-      const v = validarArgumentos(`${nombre}Arguments`, DEFINICIONES_GOBSERVA[nombre].campos, args);
-      const salida = await ejecutarGobserva(nombre, v, env, ctx);
+      const v = validarArgumentos(`${nombre}Arguments`, (deGobserva ? DEFINICIONES_GOBSERVA : DEFINICIONES_OBRAS)[nombre].campos, args);
+      const salida = deGobserva ? await ejecutarGobserva(nombre, v, env, ctx) : await ejecutarObras(nombre, v, env, ctx);
       return { content: [texto(JSON.stringify(salida, null, 2))], isError: false };
     } catch (e) {
       const detalle = e instanceof ErrorValidacion ? e.message : textoError(e);

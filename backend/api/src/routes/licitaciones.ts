@@ -125,9 +125,11 @@ const QOportunidades = z.object({
 type QOp = z.infer<typeof QOportunidades>;
 
 /** Las condiciones de una búsqueda, sin la dimensión `sin` (para contar sus opciones con los demás filtros). */
-function condiciones(q: QOp, sin?: "tipo" | "region") {
+function condiciones(q: QOp, sin?: "tipo" | "region", nuevasDesde?: Date) {
   const conds = [`c.etapa = 'convocada'`, `c.fecha_convocatoria >= current_date - $1::int`, `c.fecha_convocatoria <= current_date`];
   const vals: unknown[] = [q.dias];
+  // Lo nuevo para una alerta: lo que entró a la base después del último aviso.
+  if (nuevasDesde) { vals.push(nuevasDesde.toISOString()); conds.push(`c.created_at > $${vals.length}::timestamptz`); }
   if (q.tipo && sin !== "tipo") { vals.push(q.tipo); conds.push(`c.tipo_contratacion = $${vals.length}`); }
   if (q.region && sin !== "region") { vals.push(q.region); conds.push(`left(c.ubigeo_zona, 2) = $${vals.length}`); }
   if (q.min != null) { vals.push(q.min); conds.push(`c.cuantia_referencial >= $${vals.length}`); }
@@ -135,6 +137,29 @@ function condiciones(q: QOp, sin?: "tipo" | "region") {
   if (q.entidad) { vals.push(q.entidad); conds.push(`c.entidad_ruc = $${vals.length}::char(11)`); }
   for (const w of palabrasBusqueda(q.q)) { vals.push(`%${w}%`); conds.push(`${TEXTO_CONVOCATORIA} LIKE $${vals.length}`); }
   return { conds, vals };
+}
+
+/** Los filtros de una alerta o de una descarga, validados como los de la lista (lo que no sirve, se descarta). */
+export function filtrosOportunidades(f: Record<string, unknown>): QOp | null {
+  const p = QOportunidades.safeParse(Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== "" && v != null && k !== "page" && k !== "size")));
+  return p.success ? p.data : null;
+}
+
+/**
+ * Las oportunidades de una búsqueda, hasta `limite` (alertas y CSV de lib/gobservaAlertas.ts), con las columnas de la
+ * lista. Con `nuevasDesde`, sólo las que entraron después de ese momento (en los últimos 60 días de convocatoria).
+ */
+export async function filasOportunidades(q: QOp, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
+  const { conds, vals } = condiciones(nuevasDesde ? { ...q, dias: 60 } : q, undefined, nuevasDesde);
+  const orden = q.orden === "valor" && !nuevasDesde
+    ? `c.cuantia_referencial DESC NULLS LAST, c.fecha_convocatoria DESC, c.ocid DESC`
+    : `c.fecha_convocatoria DESC, c.cuantia_referencial DESC NULLS LAST, c.ocid DESC`;
+  const r = await pool.query(
+    `SELECT ${COLS_OPORTUNIDAD} FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+      WHERE ${conds.join(" AND ")} ORDER BY ${orden} LIMIT ${Math.max(1, Math.min(5000, Math.floor(limite)))}`,
+    vals,
+  );
+  return publicar(r.rows) as Record<string, unknown>[];
 }
 
 licitacionesRouter.get("/oportunidades", async (c) => {

@@ -22,6 +22,7 @@ import {
   mpConfigurado,
 } from "../lib/mercadopago.js";
 import { TOPE_APORTE, resolverFinanciador } from "./contribuciones.js";
+import { alCobroGobserva, alPagoGobserva, alSuscripcionGobserva, esCodigoGobserva, esSuscripcionGobserva, reembolsoGobserva } from "../lib/gobservaCobros.js";
 
 /**
  * Aportes con tarjeta por Mercado Pago (migración 216; lib/mercadopago.ts):
@@ -276,6 +277,8 @@ pagosRouter.post("/mercadopago/webhook", async (c) => {
 /** Un pago: el de un aporte único (por su código) o un cobro de una suscripción (va a registrarCobro). */
 async function alPago(id: string) {
   const p = await leerPago(id);
+  // Los planes de Gobserva (referencia GOB-…) tienen su propio registro: lib/gobservaCobros.ts.
+  if (esCodigoGobserva(p.external_reference)) return alPagoGobserva(p);
   // Devuelto o desconocido con el banco: por la referencia del pago, traiga o no el código del aporte.
   const devuelto = Number(p.transaction_amount_refunded ?? 0);
   if (p.status === "refunded" || p.status === "charged_back" || (devuelto > 0 && devuelto >= Number(p.transaction_amount) - 0.005)) {
@@ -305,11 +308,13 @@ async function alPago(id: string) {
 
 async function alSuscripcion(id: string) {
   const s = await leerSuscripcion(id);
+  if (esCodigoGobserva(s.external_reference)) return alSuscripcionGobserva(s);
   await poolAdmin.query(`UPDATE suscripciones_mp SET estado = $2, updated_at = now() WHERE preapproval_id = $1`, [id, s.status]);
 }
 
 async function alCobro(id: string) {
   const k = await leerCobro(id);
+  if (k.preapproval_id && (await esSuscripcionGobserva(k.preapproval_id))) return alCobroGobserva(k);
   if (k.preapproval_id && k.payment?.status === "approved") {
     await asegurarSuscripcion(k.preapproval_id);
     await registrarCobro(k.preapproval_id, String(k.payment.id), k.transaction_amount, k.currency_id);
@@ -318,7 +323,10 @@ async function alCobro(id: string) {
 
 async function alContracargo(id: string) {
   const k = await leerContracargo(id);
-  for (const pago of k.payments ?? []) await reembolsar(String(pago));
+  for (const pago of k.payments ?? []) {
+    await reembolsar(String(pago));
+    await reembolsoGobserva(String(pago));
+  }
 }
 
 /**

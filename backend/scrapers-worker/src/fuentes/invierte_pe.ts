@@ -423,7 +423,7 @@ export async function correrInviertePe(env: Env, p: ParamsCorrida, step: Workflo
   }
   const carga = await step.do("cargar inversion_mef", CARGA_GRANDE, () =>
     conDb(env.HYPERDRIVE, (db) => cargarInversiones(env, db, bajados, p, id)));
-  const resumen: { carga: ResultadoCarga; refrescar_obras?: Record<string, number> | null } = { carga };
+  const resumen: { carga: ResultadoCarga; refrescar_obras?: Record<string, number> | null; refrescar_proyectos?: unknown } = { carga };
   if ("ya_cargado" in carga || carga.seco) return resumen;
   if (!hayCambios(carga)) {
     registrar("INFO", "   inversion_mef sin cambios: no se corre refrescar_obras()", log);
@@ -433,5 +433,16 @@ export async function correrInviertePe(env: Env, p: ParamsCorrida, step: Workflo
   resumen.refrescar_obras = await step.do("refrescar_obras", CARGA, () => conDb(env.HYPERDRIVE, async (db) =>
     (await db.filas<{ r: Record<string, number> | null }>("SELECT refrescar_obras(true) AS r"))[0]?.r ?? null));
   registrar("INFO", `   refrescar_obras → ${JSON.stringify(resumen.refrescar_obras)}`, log);
+  // La tabla de Gobserva Obras (migración 232): rehace sólo los proyectos que cambiaron (~18 s). Si falla, la carga ya quedó:
+  // la API la vuelve a pedir sola cuando la tabla pasa las 20 h.
+  resumen.refrescar_proyectos = await step.do("refrescar_proyectos", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+    try {
+      return (await db.filas<{ r: unknown }>("SELECT gobserva_refrescar_proyectos() AS r"))[0]?.r ?? null;
+    } catch (e) {
+      registrar("WARNING", `   gobserva_refrescar_proyectos falló: ${(e as Error).message}`, log);
+      return null;
+    }
+  }));
+  registrar("INFO", `   gobserva_refrescar_proyectos → ${JSON.stringify(resumen.refrescar_proyectos)}`, log);
   return resumen;
 }

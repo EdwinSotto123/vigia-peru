@@ -17,6 +17,9 @@ import type { Env } from "./workers/env.js";
 // Límite por IP (lib/antibots.ts): la clase del Durable Object se exporta desde la entrada (wrangler.jsonc → durable_objects).
 export { Limitador } from "./workers/limitador.js";
 
+/** El cron diario de Gobserva (wrangler.jsonc). */
+const CRON_GOBSERVA = "0 12 * * *";
+
 export default {
   fetch(request, env, ctx) {
     // Sólo nuestros Workers: lo de internet entra por la web (lib/antibots.ts). Antes que la caché, que si no lo serviría.
@@ -29,12 +32,14 @@ export default {
   // Cada 10 min (wrangler.jsonc): re-asigna aportes abiertos y refresca las vistas de financiamiento.
   // Reemplaza al Cloud Scheduler `vigia-financiamiento-asignar` (pausado desde 2026-09-27): mismo
   // POST /admin/asignar, por dentro, con el mismo token de servicio.
-  async scheduled(_evento, env, ctx) {
-    const pedido = new Request("https://vigia-api.interno/admin/asignar", {
+  // Todos los días a las 12:00 UTC (7:00 en Lima): las tareas de Gobserva (alertas, recordatorios y vencimientos).
+  async scheduled(evento, env, ctx) {
+    const gobserva = evento.cron === CRON_GOBSERVA;
+    const pedido = new Request(`https://vigia-api.interno/admin/${gobserva ? "gobserva/tareas" : "asignar"}`, {
       method: "POST",
       headers: { "x-admin-token": env.ADMIN_TOKEN ?? "", "x-admin-actor": "cron-cloudflare" },
     });
     const r = await atenderConAmbito(env, ctx, () => app.fetch(pedido, env, ctx));
-    console.log(JSON.stringify({ severity: r.ok ? "INFO" : "ERROR", message: `[cron] asignar → HTTP ${r.status}`, cuerpo: (await r.text()).slice(0, 300) }));
+    console.log(JSON.stringify({ severity: r.ok ? "INFO" : "ERROR", message: `[cron] ${gobserva ? "gobserva" : "asignar"} → HTTP ${r.status}`, cuerpo: (await r.text()).slice(0, 300) }));
   },
 } satisfies ExportedHandler<Env>;

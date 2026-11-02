@@ -45,8 +45,10 @@ import { estructuraRouter } from "./routes/estructura.js";
 import { cadenaRouter } from "./routes/cadena.js";
 import { obrasRouter } from "./routes/obras.js";
 import { gobservaRouter } from "./routes/gobserva.js";
+import { gobservaCuentaRouter } from "./routes/gobservaCuenta.js";
 import { empleoRouter } from "./routes/empleo.js";
 import { licitacionesRouter } from "./routes/licitaciones.js";
+import { proyectosRouter } from "./routes/proyectos.js";
 
 export const app = new Hono();
 
@@ -148,9 +150,12 @@ api.route("/menores", menoresRouter);
 api.route("/obras", obrasRouter);
 // Gobserva (2026-11-01): los productos de pago con marca propia (empleo.gobserva.cloud y licitaciones.gobserva.cloud) y
 // la lista de espera de sus planes (migración 226).
+api.route("/gobserva/cuenta", gobservaCuentaRouter);
 api.route("/gobserva", gobservaRouter);
 api.route("/empleo", empleoRouter);
 api.route("/licitaciones", licitacionesRouter);
+// Gobserva Obras (obras.gobserva.cloud): /obras ya es de Vigía.
+api.route("/proyectos", proyectosRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);
