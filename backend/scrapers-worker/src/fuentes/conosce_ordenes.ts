@@ -252,6 +252,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales($1::date) AS n", [desde]);
   // Nepotismo (migración 137): la señal se rehace entera (es barata) tras las señales de persona, y parcha persona_entidad.
   await siExiste("refrescar_nepotismo_senal", "refrescar_nepotismo_senal()", "SELECT refrescar_nepotismo_senal() AS n");
+  // Los pares del indicio que leen las listas de entidades y de planilla (migración 235): antes se calculaban en cada
+  // Worker nuevo de la API (8 s); ahora una vez por carga.
+  await siExiste("refrescar_dji_nepotismo_pares", "refrescar_dji_nepotismo_pares()", "SELECT refrescar_dji_nepotismo_pares() AS n");
   // Financió la campaña del que gobierna, y lo nacional (el partido del Presidente en el Ejecutivo) para locadores y
   // planilla (migración 177): también tras las señales de persona, y antes del resumen, que las cuenta.
   resumen.senales_politicas = await siExiste("refrescar_senales_politicas", "refrescar_senales_politicas()", "SELECT refrescar_senales_politicas() AS n");

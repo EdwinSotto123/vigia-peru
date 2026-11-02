@@ -212,8 +212,9 @@ class Procesando:
 # familia en otras entidades (180) y el pariente en la planilla de su entidad (182); luego el resumen de personas que las
 # cuenta. Las que aún no existen se saltan.
 # Las visitas de familiares de funcionarios (migración 188) también crecen con cada ronda: se rehacen tras las demás.
-PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_planilla_extra",
-               "refrescar_personas_resumen", "refrescar_visita_pariente")
+# Los pares del indicio que leen las listas de la API (migración 235), tras la señal de nepotismo.
+PASOS_SENAL = ("refrescar_nepotismo_senal", "refrescar_dji_nepotismo_pares", "refrescar_senales_extra", "refrescar_familia_estado",
+               "refrescar_planilla_extra", "refrescar_personas_resumen", "refrescar_visita_pariente")
 
 
 def refrescar_senal() -> int:
