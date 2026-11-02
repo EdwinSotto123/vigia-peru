@@ -4,7 +4,7 @@ import { pool } from "../lib/db.js";
 import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE, cachePublico } from "../lib/http.js";
 import { mpPublicKey } from "../lib/mercadopago.js";
-import { correoConfigurado } from "../lib/correo.js";
+import { correoAbierto } from "../lib/correo.js";
 import { LIMITES_GRATIS, cupoFundadorLibre, esProductoPago, leerConfig, planesDe } from "../lib/gobservaPlanes.js";
 import { pausarPorToken } from "../lib/gobservaAlertas.js";
 import { getPagosConfig } from "./contribuciones.js";
@@ -99,7 +99,7 @@ gobservaRouter.get("/planes", async (c) => {
     },
     vendedor: { nombreComercial: config.vendedor.nombreComercial, ruc: config.vendedor.ruc || null, razonSocial: config.vendedor.razonSocial || null, correo: config.vendedor.correo },
     aviso: config.aviso || null,
-    correoActivo: correoConfigurado(),
+    correoActivo: await correoAbierto(),
   });
 });
 

@@ -1,20 +1,19 @@
 /**
- * Correo de Gobserva por Amazon SES (2026-11-01): alertas, recordatorios y recibos, desde alertas@gobserva.cloud.
+ * Correo de Gobserva (2026-11-01): alertas, recordatorios y recibos, desde alertas@gobserva.cloud por Amazon SES.
  *
- * El dominio gobserva.cloud está verificado en SES (us-east-2) con DKIM y MAIL FROM propio (mail.gobserva.cloud), y la
- * cuenta tiene la lista de supresión de rebotes y quejas. Se llama a la API v2 de SES (SendEmail) firmando con SigV4 en
- * WebCrypto: sin SDK ni dependencias, corre igual en Workers y en Node.
+ * La API no tiene llaves de AWS: le pide cada envío a la Lambda `vigia-gobserva-correo` (infrastructure/aws/
+ * correo_gobserva), cuyo rol sólo puede mandar desde @gobserva.cloud. El dominio está verificado en SES (us-east-2) con
+ * DKIM y MAIL FROM propio (mail.gobserva.cloud), y la cuenta tiene la lista de supresión de rebotes y quejas.
  *
- * Secretos del Worker: SES_ACCESS_KEY_ID y SES_SECRET_ACCESS_KEY (un usuario IAM que sólo puede enviar desde
- * @gobserva.cloud: infrastructure/aws/crear_envio_ses.sh). Sin ellos `correoConfigurado()` es false y nada se envía: lo
- * avisado queda en la bandeja de la cuenta, en la web. Variables: SES_REGION (us-east-2), CORREO_REMITENTE.
+ * Secretos del Worker: CORREO_URL (la URL de la función) y CORREO_TOKEN. Sin ellos no se envía nada y lo avisado queda en
+ * la bandeja de la cuenta, en la web. Mientras SES tenga la cuenta en sandbox sólo llega a direcciones @gobserva.cloud:
+ * la Lambda lo dice (GET) y `estadoCorreo()` lo guarda diez minutos, para no prometer correos que no salen.
  */
+import { Memo } from "./cache.js";
 
-const REGION = () => process.env.SES_REGION || "us-east-2";
-const REMITENTE = () => process.env.CORREO_REMITENTE || "Gobserva <alertas@gobserva.cloud>";
 export const RESPONDER_A = "hello@gobserva.cloud";
 
-export const correoConfigurado = () => Boolean(process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY);
+export const correoConfigurado = () => Boolean(process.env.CORREO_URL && process.env.CORREO_TOKEN);
 
 export interface Correo {
   para: string;
@@ -31,64 +30,53 @@ export class ErrorCorreo extends Error {
   }
 }
 
-const enc = new TextEncoder();
-const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
-const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", enc.encode(s)));
-
-async function hmac(clave: ArrayBuffer | Uint8Array, dato: string): Promise<ArrayBuffer> {
-  const k = await crypto.subtle.importKey("raw", clave as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return crypto.subtle.sign("HMAC", k, enc.encode(dato));
+export interface EstadoCorreo {
+  configurado: boolean;
+  /** SES fuera del sandbox: llega a cualquier dirección. */
+  produccion: boolean;
+  /** La solicitud de producción en SES: PENDING, DENIED, GRANTED… (null si no se sabe). */
+  revision: string | null;
 }
 
-/** Firma SigV4 de un POST JSON a SES: devuelve las cabeceras que lo autorizan. */
-async function firmar(host: string, ruta: string, cuerpo: string, ahora = new Date()): Promise<Record<string, string>> {
-  const fecha = ahora.toISOString().replace(/[:-]|\.\d{3}/g, "");   // 20261101T120000Z
-  const dia = fecha.slice(0, 8);
-  const hashCuerpo = await sha256(cuerpo);
-  const cabeceras: Record<string, string> = {
-    "content-type": "application/json",
-    host,
-    "x-amz-content-sha256": hashCuerpo,
-    "x-amz-date": fecha,
-  };
-  const nombres = Object.keys(cabeceras).sort();
-  const canonica = ["POST", ruta, "", ...nombres.map((n) => `${n}:${cabeceras[n]}`), "", nombres.join(";"), hashCuerpo].join("\n");
-  const alcance = `${dia}/${REGION()}/ses/aws4_request`;
-  const aFirmar = ["AWS4-HMAC-SHA256", fecha, alcance, await sha256(canonica)].join("\n");
-  let clave: ArrayBuffer = await hmac(enc.encode(`AWS4${process.env.SES_SECRET_ACCESS_KEY}`), dia);
-  for (const parte of [REGION(), "ses", "aws4_request"]) clave = await hmac(clave, parte);
-  const firma = hex(await hmac(clave, aFirmar));
-  return {
-    ...cabeceras,
-    authorization: `AWS4-HMAC-SHA256 Credential=${process.env.SES_ACCESS_KEY_ID}/${alcance}, SignedHeaders=${nombres.join(";")}, Signature=${firma}`,
-  };
+const memoEstado = new Memo<EstadoCorreo>({ nombre: "correo-estado", ttlMs: 600_000, staleMs: 3_600_000, max: 1 });
+
+const llamar = (metodo: "GET" | "POST", cuerpo?: string) =>
+  fetch(process.env.CORREO_URL as string, {
+    method: metodo,
+    headers: { authorization: `Bearer ${process.env.CORREO_TOKEN}`, "content-type": "application/json" },
+    body: cuerpo,
+  });
+
+/** Si el correo está configurado y si SES ya salió del sandbox (diez minutos en memoria). */
+export function estadoCorreo(): Promise<EstadoCorreo> {
+  if (!correoConfigurado()) return Promise.resolve({ configurado: false, produccion: false, revision: null });
+  return memoEstado.obtener("estado", async () => {
+    try {
+      const r = await llamar("GET");
+      const j = (await r.json().catch(() => null)) as { produccion?: boolean; revision?: string | null } | null;
+      return { configurado: true, produccion: r.ok && !!j?.produccion, revision: j?.revision ?? null };
+    } catch {
+      return { configurado: true, produccion: false, revision: null };
+    }
+  });
 }
 
-/** Envía un correo. Devuelve el id del mensaje de SES; lanza ErrorCorreo si SES lo rechaza o no está configurado. */
+/** Si los avisos salen por correo a cualquiera (para decirlo en las páginas y en el panel). */
+export const correoAbierto = async () => (await estadoCorreo()).produccion;
+
+/** Si a esta dirección le llega un correo hoy: en sandbox, sólo a @gobserva.cloud. */
+export async function llegaCorreo(email: string): Promise<boolean> {
+  const e = await estadoCorreo();
+  return e.configurado && (e.produccion || email.toLowerCase().endsWith("@gobserva.cloud"));
+}
+
+/** Envía un correo. Devuelve el id del mensaje de SES; lanza ErrorCorreo si no se pudo. */
 export async function enviarCorreo(c: Correo): Promise<string> {
   if (!correoConfigurado()) throw new ErrorCorreo(503, "correo_sin_configurar");
-  const host = `email.${REGION()}.amazonaws.com`;
-  const ruta = "/v2/email/outbound-emails";
-  const cuerpo = JSON.stringify({
-    FromEmailAddress: REMITENTE(),
-    Destination: { ToAddresses: [c.para] },
-    ReplyToAddresses: [RESPONDER_A],
-    Content: {
-      Simple: {
-        Subject: { Data: c.asunto, Charset: "UTF-8" },
-        Body: { Html: { Data: c.html, Charset: "UTF-8" }, Text: { Data: c.texto, Charset: "UTF-8" } },
-        ...(c.baja
-          ? { Headers: [{ Name: "List-Unsubscribe", Value: `<${c.baja}>` }, { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" }] }
-          : {}),
-      },
-    },
-  });
-  // `host` se firma pero no se manda: fetch lo pone de la URL (y algunos entornos rechazan que se fije a mano).
-  const { host: _host, ...cabeceras } = await firmar(host, ruta, cuerpo);
-  const r = await fetch(`https://${host}${ruta}`, { method: "POST", headers: cabeceras, body: cuerpo });
-  const j = (await r.json().catch(() => null)) as { MessageId?: string; message?: string } | null;
-  if (!r.ok) throw new ErrorCorreo(r.status, (j?.message ?? `SES respondió ${r.status}`).slice(0, 300));
-  return j?.MessageId ?? "";
+  const r = await llamar("POST", JSON.stringify({ para: c.para, asunto: c.asunto, html: c.html, texto: c.texto, baja: c.baja }));
+  const j = (await r.json().catch(() => null)) as { ok?: boolean; id?: string; error?: string; detail?: string } | null;
+  if (!r.ok || !j?.ok) throw new ErrorCorreo(r.status, (j?.detail || j?.error || `El envío respondió ${r.status}`).slice(0, 300));
+  return j.id ?? "";
 }
 
 // ─── Plantilla ────────────────────────────────────────────────────────────────────────────────────────────────────────

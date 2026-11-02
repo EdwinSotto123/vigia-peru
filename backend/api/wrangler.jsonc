@@ -54,7 +54,11 @@
     // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app
     "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app",
     // "Correr el dispatcher ahora" (lib/dispatcher.ts): POST /ejecutar del Worker, con el secreto DISPATCHER_TOKEN.
-    "DISPATCHER_URL": "https://vigia-dispatcher.vigiaperu.workers.dev"
+    "DISPATCHER_URL": "https://vigia-dispatcher.vigiaperu.workers.dev",
+    // Notificaciones de Gobserva (lib/webpush.ts): la llave pública VAPID; la privada es el secreto VAPID_PRIVATE_KEY
+    // (copia en SSM /vigia/gobserva/vapid-privada). El correo va por la Lambda vigia-gobserva-correo (secretos
+    // CORREO_URL y CORREO_TOKEN, infrastructure/aws/correo_gobserva).
+    "VAPID_PUBLIC_KEY": "BLyYkP_h9_YFRVMIEoBpSAebunN_-kPsaqwQvZ5VnebZ_5sF80jlKd_q6vjhNStTYyKq1uqRWWK9azHqNPJtWHY"
   },
 
   // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh api` → vigia-api-dev, contra la base vigia-db-dev
@@ -78,7 +82,8 @@
         // La web de DEV también entra por empleo-dev y licitaciones-dev.gobserva.cloud: sus subpedidos llegan con esa zona.
         "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
         "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
-        "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
+        "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app",
+        "VAPID_PUBLIC_KEY": "BLyYkP_h9_YFRVMIEoBpSAebunN_-kPsaqwQvZ5VnebZ_5sF80jlKd_q6vjhNStTYyKq1uqRWWK9azHqNPJtWHY"
       }
     }
   }

@@ -4,7 +4,7 @@ import { poolAdmin as pool } from "../lib/db.js";
 import { actor, esRevisor, log } from "../lib/adminlog.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { mpConfigurado } from "../lib/mercadopago.js";
-import { correoConfigurado } from "../lib/correo.js";
+import { estadoCorreo } from "../lib/correo.js";
 import { NOMBRE_PRODUCTO, PRODUCTOS_PAGO, catalogoBase, leerConfig, type ProductoPago } from "../lib/gobservaPlanes.js";
 import { ErrorCobro, cancelarPlan, confirmarCobroManual, darCortesia, rechazarCobroManual } from "../lib/gobservaCobros.js";
 import { enviarAlertas, enviarRecordatorios, tareasDiarias, vencerPlanes } from "../lib/gobservaAlertas.js";
@@ -61,7 +61,8 @@ adminGobservaRouter.get("/gobserva/resumen", async (c) => {
     pendientes: pendientes.rows[0],
     alertas: alertas.rows[0],
     envios: envios.rows[0],
-    correoActivo: correoConfigurado(),
+    correoActivo: (await estadoCorreo()).produccion,
+    correo: await estadoCorreo(),
     tarjetaActiva: mpConfigurado(),
   });
 });
@@ -183,7 +184,8 @@ adminGobservaRouter.get("/gobserva/config", async (c) => {
     base: catalogoBase(),
     guardado: guardado.rows[0] ?? null,
     disponibles: { tarjeta: mpConfigurado(), yape: !!pagos.yape, plin: !!pagos.plin, transferencia: pagos.cuentas.length > 0 },
-    correoActivo: correoConfigurado(),
+    correoActivo: (await estadoCorreo()).produccion,
+    correo: await estadoCorreo(),
   });
 });
 

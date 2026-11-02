@@ -15,7 +15,9 @@
  */
 import { poolAdmin as db } from "./db.js";
 import { registrar } from "./registro.js";
-import { armarCorreo, correoConfigurado, enviarCorreo, type FilaCorreo } from "./correo.js";
+import { armarCorreo, correoAbierto, enviarCorreo, llegaCorreo, type FilaCorreo } from "./correo.js";
+import { avisarPush } from "./gobservaPush.js";
+import type { Notificacion } from "./webpush.js";
 import { HOST_PRODUCTO, NOMBRE_PRODUCTO, limitesDe, planVigente, type Frecuencia, type ProductoPago } from "./gobservaPlanes.js";
 import { filasPlazas, filtrosPlazas } from "../routes/empleo.js";
 import { filasOportunidades, filtrosOportunidades } from "../routes/licitaciones.js";
@@ -288,15 +290,19 @@ const pie = (producto: ProductoPago, extra: string[] = []) => [
   `Gobserva no es una entidad del Estado. Escríbenos a hello@gobserva.cloud.`,
 ];
 
-/** Guarda lo avisado y, si se puede, lo manda por correo. Devuelve el estado del envío. */
+/**
+ * Guarda lo avisado y, si se puede, lo manda por correo y como notificación a los dispositivos que la persona activó.
+ * Devuelve el estado del correo (la notificación es aparte: `push` en gobserva_envios).
+ */
 async function avisar(a: {
   uid: string; producto: ProductoPago; alertaId: number | null; tipo: "alerta" | "recordatorio" | "recibo" | "aviso";
   email: string; verificado: boolean; asunto: string; html: string; texto: string; items: ItemAlerta[]; baja?: string;
+  notificacion?: Partial<Notificacion>;
 }): Promise<"enviado" | "en_la_web" | "fallido"> {
   let estado: "enviado" | "en_la_web" | "fallido" = "en_la_web";
   let mensajeId: string | null = null;
   let error: string | null = null;
-  if (correoConfigurado() && a.verificado && a.email && !a.email.endsWith(".invalid") && !a.email.endsWith("@vigia.local")) {
+  if (a.verificado && a.email && !a.email.endsWith(".invalid") && !a.email.endsWith("@vigia.local") && (await llegaCorreo(a.email))) {
     try {
       mensajeId = await enviarCorreo({ para: a.email, asunto: a.asunto, html: a.html, texto: a.texto, baja: a.baja });
       estado = "enviado";
@@ -305,10 +311,18 @@ async function avisar(a: {
       error = (e as Error).message.slice(0, 480);
     }
   }
+  const primero = a.items[0];
+  const mas = a.items.length > 3 ? `\ny ${a.items.length - 3} más` : "";
+  const push = await avisarPush(a.uid, a.producto, {
+    titulo: a.notificacion?.titulo ?? a.asunto,
+    cuerpo: a.notificacion?.cuerpo ?? (a.items.length ? a.items.slice(0, 3).map((i) => i.titulo).join("\n") + mas : "Ya está en tu cuenta."),
+    url: a.notificacion?.url ?? (a.items.length === 1 && primero?.enlace ? primero.enlace : urlDe(a.producto, "/cuenta?tab=alertas")),
+    tag: a.notificacion?.tag ?? (a.alertaId ? `alerta-${a.alertaId}` : a.tipo),
+  }).catch(() => 0);
   await db.query(
-    `INSERT INTO gobserva_envios (alerta_id, firebase_uid, producto, tipo, asunto, items, n_items, estado, error, mensaje_id)
-     VALUES ($1, $2, $3, $4, left($5, 200), $6, $7, $8, $9, $10)`,
-    [a.alertaId, a.uid, a.producto, a.tipo, a.asunto, JSON.stringify(a.items.slice(0, 30).map(({ cierre: _c, ...i }) => i)), a.items.length, estado, error, mensajeId]);
+    `INSERT INTO gobserva_envios (alerta_id, firebase_uid, producto, tipo, asunto, items, n_items, estado, error, mensaje_id, push)
+     VALUES ($1, $2, $3, $4, left($5, 200), $6, $7, $8, $9, $10, $11)`,
+    [a.alertaId, a.uid, a.producto, a.tipo, a.asunto, JSON.stringify(a.items.slice(0, 30).map(({ cierre: _c, ...i }) => i)), a.items.length, estado, error, mensajeId, push]);
   return estado;
 }
 
@@ -335,7 +349,7 @@ export async function enviarAlertas(opciones: { soloAlerta?: number; tope?: numb
       ORDER BY a.ultimo_envio_at NULLS FIRST, a.id
       LIMIT ${Math.max(1, Math.min(500, opciones.tope ?? 300))}`,
     opciones.soloAlerta ? [opciones.soloAlerta] : []);
-  const resumen = { alertas: 0, conNovedades: 0, correos: 0, enLaWeb: 0, fallidas: 0, correoActivo: correoConfigurado() };
+  const resumen = { alertas: 0, conNovedades: 0, correos: 0, enLaWeb: 0, fallidas: 0, correoActivo: await correoAbierto() };
   for (const a of r.rows) {
     resumen.alertas++;
     try {
@@ -491,5 +505,12 @@ export async function avisarRecibo(cobroId: number): Promise<void> {
     boton: { texto: "Ver mi recibo", enlace: urlDe(k.producto, `/cuenta/recibo/${k.numero}`) },
     pie: pie(k.producto, ["Puedes cancelar tu plan cuando quieras desde tu cuenta: no se vuelve a cobrar."]),
   });
-  await avisar({ uid: k.uid, producto: k.producto, alertaId: null, tipo: "recibo", email: k.email, verificado: true, asunto, html, texto, items: [] });
+  await avisar({
+    uid: k.uid, producto: k.producto, alertaId: null, tipo: "recibo", email: k.email, verificado: true, asunto, html, texto, items: [],
+    notificacion: {
+      titulo: "Recibimos tu pago",
+      cuerpo: `Tu plan de ${NOMBRE_PRODUCTO[k.producto]} está activo${k.vigente ? ` hasta el ${fechaCorta(k.vigente)}` : ""}.`,
+      url: urlDe(k.producto, `/cuenta/recibo/${k.numero}`),
+    },
+  });
 }

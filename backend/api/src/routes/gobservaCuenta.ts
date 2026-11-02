@@ -6,13 +6,15 @@ import { limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { registrar } from "../lib/registro.js";
 import { mpConfigurado } from "../lib/mercadopago.js";
-import { correoConfigurado } from "../lib/correo.js";
+import { correoAbierto } from "../lib/correo.js";
 import { getPagosConfig } from "./contribuciones.js";
 import {
-  LIMITES_GRATIS, NOMBRE_PRODUCTO, PRODUCTOS_PAGO, esProductoPago, leerConfig, limitesDe, planDe, planVigente, type ProductoPago,
+  HOST_PRODUCTO, LIMITES_GRATIS, NOMBRE_PRODUCTO, PRODUCTOS_PAGO, esProductoPago, leerConfig, limitesDe, planDe, planVigente, type ProductoPago,
 } from "../lib/gobservaPlanes.js";
 import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOperacion } from "../lib/gobservaCobros.js";
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
+import { avisarPush } from "../lib/gobservaPush.js";
+import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
 
 /**
  * La cuenta de Gobserva (2026-11-01): una persona de Firebase con su correo real, para los tres productos. Todo lo de
@@ -30,6 +32,7 @@ import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFi
  *   GET    /gobserva/cuenta/bandeja?producto=   lo avisado (correo o, mientras no haya, sólo aquí)
  *   GET|PUT|DELETE /gobserva/cuenta/guardados   plazas, oportunidades y proyectos guardados
  *   GET    /gobserva/cuenta/exportar?producto=&…filtros   la búsqueda en CSV (planes de pago)
+ *   GET|POST|DELETE /gobserva/cuenta/push, POST /push/probar   notificaciones en el celular o la computadora (migr. 233)
  */
 export const gobservaCuentaRouter = new Hono();
 
@@ -117,7 +120,7 @@ gobservaCuentaRouter.get("/me", async (c) => {
     planes: planes.rows.map((p) => ({ ...p, nombrePlan: nombres[`${p.producto}:${p.plan}`], nombreProducto: NOMBRE_PRODUCTO[p.producto as ProductoPago] })),
     pendientes: pendientes.rows,
     producto: delProducto,
-    correoActivo: correoConfigurado(),
+    correoActivo: await correoAbierto(),
   });
 });
 
@@ -160,6 +163,7 @@ gobservaCuentaRouter.delete("/me", limiteEscritura, async (c) => {
   for (const p of planes.rows) await cancelarPlan(p.codigo, u.uid, "Borró su cuenta");
   await pool.query(`DELETE FROM gobserva_alertas WHERE firebase_uid = $1`, [u.uid]);
   await pool.query(`DELETE FROM gobserva_guardados WHERE firebase_uid = $1`, [u.uid]);
+  await pool.query(`DELETE FROM gobserva_push WHERE firebase_uid = $1`, [u.uid]);
   await poolAdmin.query(`DELETE FROM gobserva_envios WHERE firebase_uid = $1`, [u.uid]);
   await poolAdmin.query(
     `UPDATE gobserva_cuentas SET email = 'baja-' || md5(firebase_uid) || '@gobserva.invalid', email_verificado = false, nombre = NULL,
@@ -387,6 +391,74 @@ gobservaCuentaRouter.get("/bandeja", async (c) => {
        FROM gobserva_envios WHERE firebase_uid = $1 AND ($2::text IS NULL OR producto = $2) ORDER BY creado_at DESC LIMIT 30`,
     [u.uid, producto]);
   return c.json({ data: r.rows });
+});
+
+// ─── Notificaciones ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+const PushBody = z.object({
+  producto: Producto,
+  suscripcion: z.object({
+    endpoint: z.string().url().max(1000).regex(ENDPOINT_PUSH, "Ese servicio de notificaciones no es de un navegador conocido."),
+    keys: z.object({ p256dh: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/), auth: z.string().regex(/^[A-Za-z0-9_-]{16,30}$/) }),
+  }),
+  dispositivo: z.string().trim().max(120).optional(),
+});
+
+/** La llave pública para suscribirse y los dispositivos que la persona activó (en un producto o en todos). */
+gobservaCuentaRouter.get("/push", async (c) => {
+  const u = c.get("user");
+  const r = await pool.query(
+    `SELECT id, producto, dispositivo, to_char(creado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS creado,
+            to_char(ultimo_ok_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI') AS "ultimoOk"
+       FROM gobserva_push WHERE firebase_uid = $1 AND ($2::text IS NULL OR producto = $2) ORDER BY creado_at DESC`,
+    [u.uid, productoDe(c)]);
+  return c.json({ clave: pushConfigurado() ? process.env.VAPID_PUBLIC_KEY : null, dispositivos: r.rows });
+});
+
+/** Activa las notificaciones de este navegador (si ya estaba, lo pasa a esta cuenta y este producto). */
+gobservaCuentaRouter.post("/push", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const malo = sinCorreoReal(c, u);
+  if (malo) return malo;
+  const b = PushBody.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body", detail: b.error.issues[0]?.message ?? "Datos inválidos" }, 400);
+  if (!pushConfigurado()) return c.json({ error: "push_cerrado", detail: "Las notificaciones no están disponibles todavía." }, 503);
+  await asegurarCuenta(u, b.data.producto);
+  const { endpoint, keys } = b.data.suscripcion;
+  await pool.query(
+    `INSERT INTO gobserva_push (firebase_uid, producto, endpoint, p256dh, auth, dispositivo)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (endpoint) DO UPDATE SET firebase_uid = EXCLUDED.firebase_uid, producto = EXCLUDED.producto, p256dh = EXCLUDED.p256dh,
+       auth = EXCLUDED.auth, dispositivo = EXCLUDED.dispositivo, fallos = 0`,
+    [u.uid, b.data.producto, endpoint, keys.p256dh, keys.auth, b.data.dispositivo ?? null]);
+  // Hasta 10 dispositivos por persona: el más viejo sale.
+  await pool.query(
+    `DELETE FROM gobserva_push WHERE firebase_uid = $1 AND id NOT IN (SELECT id FROM gobserva_push WHERE firebase_uid = $1 ORDER BY creado_at DESC LIMIT 10)`,
+    [u.uid]);
+  return c.json({ ok: true }, 201);
+});
+
+gobservaCuentaRouter.delete("/push", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const b = z.object({ endpoint: z.string().max(1000).optional(), id: z.number().int().positive().optional() })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!b.success || (!b.data.endpoint && !b.data.id)) return c.json({ error: "invalid_body" }, 400);
+  await pool.query(`DELETE FROM gobserva_push WHERE firebase_uid = $1 AND (endpoint = $2 OR id = $3)`, [u.uid, b.data.endpoint ?? "", b.data.id ?? 0]);
+  return c.json({ ok: true });
+});
+
+/** Una notificación de prueba a los dispositivos de la persona en ese producto. */
+gobservaCuentaRouter.post("/push/probar", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const b = z.object({ producto: Producto }).safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body" }, 400);
+  const enviados = await avisarPush(u.uid, b.data.producto, {
+    titulo: "Así te llegarán tus alertas",
+    cuerpo: "Cuando una alerta traiga algo nuevo, te avisamos aquí. Toca para ver tus alertas.",
+    url: `https://${HOST_PRODUCTO[b.data.producto]}/cuenta?tab=alertas`,
+    tag: "prueba",
+  });
+  return c.json({ ok: true, enviados });
 });
 
 // ─── Guardados ───────────────────────────────────────────────────────────────────────────────────────────────────────
