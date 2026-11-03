@@ -431,6 +431,15 @@ def cmd_cargar(a) -> int:
                 cur.execute("SET LOCAL statement_timeout = 0")
                 cur.execute("SELECT refrescar_perucompras_precios()")
                 print(f"  precios de referencia: {cur.fetchone()[0]:,} líneas al doble de la mediana o más", flush=True)
+            # Cada compra con su orden del SEACE (migración 240), el año en curso y el anterior: las órdenes de antes ya
+            # quedaron juntas en su carga.
+            cur.execute("SELECT to_regprocedure('refrescar_compras(date,date)') IS NOT NULL")
+            if cargados and cur.fetchone()[0]:
+                cur.execute("SET LOCAL statement_timeout = 0")
+                hoy = date.today()
+                for anio in (hoy.year - 1, hoy.year):
+                    cur.execute("SELECT refrescar_compras(%s, %s)", (date(anio, 1, 1), date(anio, 12, 31)))
+                    print(f"  compras {anio}: {cur.fetchone()[0]}", flush=True)
             cur.execute("""INSERT INTO datasets_cargas (fuente, clave, tabla, archivo, sha256, bytes, filas, fuente_url,
                                                         descargado_at, cargado_at, estado)
                            SELECT 'perucompras', 'ordenes', 'perucompras_orden', 'consultaOrdenesDetallado',

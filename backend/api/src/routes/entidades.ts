@@ -10,6 +10,7 @@ import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 import { hayObras } from "./obras.js";
 import { hayCatalogo } from "./catalogo.js";
+import { hayCompras } from "./compras.js";
 
 export const entidadesRouter = new Hono();
 
@@ -816,7 +817,7 @@ const ORDEN_LISTADA = `o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM '
  * /ordenes: con un parámetro, Hyperdrive prepara la sentencia y el plan genérico puede dejar el índice de lado; el literal
  * sirve igual para las columnas text y char(11).
  */
-export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = false, conCatalogo = false): string {
+export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = false, conCatalogo = false, conCompras = false): string {
   if (!/^\d{11}$/.test(ruc)) throw new Error("RUC inválido");
   const r = `'${ruc}'`;
   const resumen = (tabla: string) => `COALESCE((SELECT (x.resumen->>'personas')::int FROM ${tabla} x WHERE x.alcance = 'ent:${ruc}'), 0)`;
@@ -844,6 +845,10 @@ export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = f
          // Sus compras por los Catálogos de Perú Compras (migración 236), por el índice de la entidad.
          ? `,
        (SELECT count(*) FROM perucompras_orden pc WHERE pc.entidad_ruc = ${r})::int AS catalogo`
+         : ""}${conCompras
+         // Sus compras, cada una una vez (migración 240): el número de la pestaña Compras.
+         ? `,
+       (SELECT sum(cr.compras) FROM compra_resumen cr WHERE cr.entidad_ruc = ${r})::int AS compras`
          : ""}`;
 }
 
@@ -866,13 +871,14 @@ entidadesRouter.get("/:ruc/conteos", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await conteosMemo.obtener(ruc, async () => {
-    const [conResumen, conObras, conCatalogo] = await Promise.all([hayResumenOrdenes(), hayObras(), hayCatalogo()]);
-    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen, conObras, conCatalogo))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
+    const [conResumen, conObras, conCatalogo, conCompras] = await Promise.all([hayResumenOrdenes(), hayObras(), hayCatalogo(), hayCompras()]);
+    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen, conObras, conCatalogo, conCompras))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
     const { hayOrdenes, ordenes, ordenesMonto, ...resto } = f;
     // Sin la migración 160, null: no se sabe (la pestaña Obras va sin número, nunca con un 0 que no es).
     if (!conObras) Object.assign(resto, { obras: null, inversiones: null });
     // Lo mismo sin la 236: la vista Catálogo va sin número.
     if (!conCatalogo) Object.assign(resto, { catalogo: null });
+    if (!conCompras) Object.assign(resto, { compras: null });
     // Sin ninguna orden, 0. Con alguna, su número si el resumen ya la contó; si no (sin la migración, o antes de su primer
     // refresco), null: tiene órdenes, pero no se sabe cuántas (nunca un 0 que no es).
     const contadas = hayOrdenes && typeof ordenes === "number" && ordenes > 0;

@@ -29,10 +29,10 @@ import { AvisoDato } from "@/components/ui/BanderaDato";
 import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
-import { Cargando } from "@/components/patrones";
+import { Cargando, EstadoVacio } from "@/components/patrones";
 import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
-import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraContratos, BarraContratosConConteos, BarraOrdenes, BarraOrdenesConConteos, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, ContratosEmpresa, OrdenesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
+import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { absoluta, canonica, descripcion } from "@/lib/seo";
@@ -45,14 +45,12 @@ import {
   P_VISTA,
   SECCIONES_VIEJAS,
   VISTAS_GENTE,
-  VISTAS_VENTAS,
   destinoEmpresa,
   esRucEmpresa,
   getAntecedentesEmpresa,
   getClientesEmpresa,
   getContratosEmpresa,
   getFichaEmpresa,
-  getOrdenesEmpresa,
   getPostulacionesEmpresa,
   getSociosEmpresa,
   getVisitasEmpresa,
@@ -65,8 +63,9 @@ import {
 } from "@/lib/empresas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
 import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
-import { getCatalogo, parseCatalogoQuery, P_CAT, type CatalogoPagina } from "@/lib/catalogo";
-import { BarraCatalogo, ListaCatalogo } from "@/components/catalogo/ListaCatalogo";
+import { parseCatalogoQuery, P_CAT } from "@/lib/catalogo";
+import { P_COMPRAS, getCompras, parametrosCompras, parseCompras } from "@/lib/compras";
+import { BarraCompras, ListaCompras, ListaComprasCargando } from "@/components/compras/ListaCompras";
 import { ObrasEmpresa, obrasDeEmpresa } from "@/components/obras/ObrasEmpresa";
 import { uno } from "@/lib/utils";
 
@@ -103,6 +102,13 @@ const anio = (v: string | string[] | undefined) => {
 const pagina = (v: string | string[] | undefined) => Math.max(1, Number(uno(v)) || 1);
 /** Las listas llevan su pestaña y su vista en `parametros`: no hace falta leerlas de la URL viva al filtrar. */
 const SIN_CONSERVAR: string[] = [];
+
+/** Sin ninguna venta al Estado (y sin filtros): lo dice la ficha. */
+const SIN_VENTAS = (
+  <EstadoVacio compacto conLlamita={false} titulo="No registra ventas al Estado">
+    Ni procesos ganados, ni órdenes del SEACE, ni ventas por catálogo o contratos menores con este RUC.
+  </EstadoVacio>
+);
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
 const ETIQUETAS_PESTANA: Record<string, string> = { historia: "Historia", ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente", obras: "Obras" };
 /** Los parámetros de la URL menos la pestaña y la vista (para llevar un enlace viejo a la pestaña nueva sin perder filtros). */
@@ -169,10 +175,12 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
     page: pagina(sp?.[P_POSTULACIONES.page]),
   };
   const fa = { tipo: uno(sp?.[P_ANTECEDENTES.tipo])?.match(/^[a-z_]{2,40}$/)?.[0], gravedad: de(sp?.[P_ANTECEDENTES.gravedad], ["alta", "media", "baja"] as const) };
-  // Contratos menores (≤8 UIT) que ganó: se filtran por su RUC de proveedor (no por URL), con los filtros «m» propios.
+  // Contratos menores (≤8 UIT) que ganó y lo que vendió por los Catálogos (sólo para saber qué pestaña abre un enlace viejo).
   const fm = { ...parseMenoresQuery(sp), entidad: undefined, proveedor: undefined };
-  // Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237), con sus filtros «c».
   const fcat = parseCatalogoQuery(sp);
+  // Sus ventas en una lista (procesos, catálogo, menores y órdenes, cada venta una vez), con los filtros de las cuatro
+  // vistas de antes traducidos (lib/compras.ts).
+  const fv = parseCompras(sp, "proveedor");
   // Los filtros puestos de cada lista, con los nombres de P_* (sin la página).
   const filtros = <K extends string>(P: Record<K, string>, v: Partial<Record<K, string | number | undefined>>): Parametros => {
     const out: Parametros = {};
@@ -187,34 +195,25 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const fK = filtros(P_CAT, fcat as Partial<Record<keyof typeof P_CAT, string | number | undefined>>);
   // Lo que conserva cada lista en sus enlaces (filtrar, paginar): su pestaña y su vista, sus filtros y de dónde vino.
   const lista = (s: SeccionEmpresa, propios: Parametros): Parametros => ({ ...(desde ? { desde } : {}), ...parametrosSeccion(s), ...propios });
-  const pc = lista("contratos", fC);
-  const po = lista("ordenes", fO);
   const pp = lista("postulaciones", fP);
   const pa = lista("antecedentes", fA);
-  const pm = lista("menores", fM);
-  const pk = lista("catalogo", fK);
+  const fV = parametrosCompras(fv);
+  const pv = lista("contratos", fV);
 
   // La pestaña y la vista abiertas: las de la URL; sin `seccion`, la lista que traiga filtros (un enlace armado a mano).
   const hay = (p: Parametros, pag: number) => Object.keys(p).length > 0 || pag > 1;
   const inferida: SeccionEmpresa | undefined =
     hay(fC, fc.page) ? "contratos" : hay(fO, fo.page) ? "ordenes" : hay(fP, fp.page) ? "postulaciones"
-      : hay(fM, fm.page ?? 1) ? "menores" : hay(fK, fcat.page ?? 1) ? "catalogo" : hay(fA, 1) ? "antecedentes" : undefined;
+      : hay(fM, fm.page ?? 1) ? "menores" : hay(fK, fcat.page ?? 1) ? "catalogo" : hay(fV, fv.page ?? 1) ? "contratos" : hay(fA, 1) ? "antecedentes" : undefined;
   const valida = PESTANAS_EMPRESA.find((s) => s === pedida);
   const destino: { seccion: PestanaEmpresa; vista?: string } = valida
     ? { seccion: valida, vista: uno(sp?.[P_VISTA]) }
     : inferida ? destinoEmpresa(inferida) : { seccion: "inicio" };
   const seccion = destino.seccion;
-  const vistaVentas = (seccion === "ventas" && VISTAS_VENTAS.find((v) => v === destino.vista)) || "contratos";
   const vistaGente = (seccion === "gente" && VISTAS_GENTE.find((v) => v === destino.vista)) || "socios";
 
   const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
-  const ordenesP = getOrdenesEmpresa(e.ruc, { ...fo, size: TAM });
-  const menoresP = getMenores({ ...fm, proveedor: e.ruc, size: TAM });
-  // Sin ventas por catálogo (o sin las tablas) no se pide: la vista dice que no tiene.
-  const nCatalogo = e.catalogo ? e.catalogo.ordenes : null;
-  const catalogoP: Promise<CatalogoPagina | null> = nCatalogo === 0
-    ? Promise.resolve({ page: 1, size: TAM, hayMas: false, disponible: true, facetas: null, data: [] })
-    : getCatalogo({ ...fcat, proveedor: e.ruc, size: TAM });
+  const ventasP = getCompras({ proveedor: e.ruc }, fv, TAM);
   const postulacionesP = getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM });
   const clientesP = getClientesEmpresa(e.ruc);
   const antecedentesP = getAntecedentesEmpresa(e.ruc);
@@ -255,7 +254,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
       ? [{
           tipo: "sobreprecio_catalogo", severidad: "media" as const, nombre: "Cobró el doble en el catálogo", n: e.catalogo!.sobreprecio,
           explica: `En ${plural(e.catalogo!.sobreprecio, "orden", "órdenes")} de los Catálogos de Perú Compras cobró el doble o más de lo que pagaron las demás entidades por el mismo producto ese año: ${soles(e.catalogo!.exceso)} por encima de la mediana. El precio incluye la entrega en el lugar: es un dato para revisar`,
-          href: `${ruta}?seccion=ventas&${P_VISTA}=catalogo&${P_CAT.sobreprecio}=si&${P_CAT.orden}=sobreprecio`,
+          href: `${ruta}?seccion=ventas&${P_COMPRAS.como}=catalogo&${P_COMPRAS.bandera}=sobreprecio`,
         }]
       : []),
     ...(e.visitasClientes > 0
@@ -332,100 +331,27 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             ),
           },
           {
-            // Contratos, órdenes y contratos menores: tres listas de lo mismo (lo que le pagó el Estado), en vistas.
+            // Lo que le vendió al Estado en UNA lista, cada venta una vez (GET /compras?proveedor=, migración 240).
             clave: "ventas",
             etiqueta: "Ventas al Estado",
             icono: <HandCoins size={15} aria-hidden />,
             contenido: (
               <div>
                 <CabeceraPestana>
-                  Lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />, sus órdenes de compra y de servicio, sus
-                  contratos menores <AyudaTermino clave="contrato-menor" /> y lo que vendió por catálogo <AyudaTermino clave="catalogo-electronico" />.
+                  Lo que le vendió al Estado, una fila por venta: lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />,
+                  lo que vendió por catálogo <AyudaTermino clave="catalogo-electronico" />, sus contratos menores <AyudaTermino clave="contrato-menor" /> y
+                  sus órdenes sin concurso. Una venta por catálogo o un contrato menor también tiene su orden en el SEACE: va dentro de esa venta, no aparte.
                 </CabeceraPestana>
-                <Pestanas
-                  variante="segunda"
-                  key={vistaVentas}
-                  param={P_VISTA}
-                  activa={vistaVentas}
-                  etiqueta={`Ventas de ${nombre} al Estado`}
-                  pestanas={[
-                    {
-                      clave: "contratos",
-                      etiqueta: "Contratos",
-                      conteo: contratos,
-                      contenido: (
-                        <div className="space-y-4">
-                          <Listado ruta={ruta} parametros={pc} paramPagina={P_CONTRATOS.page} conservar={SIN_CONSERVAR}>
-                            <Suspense fallback={<BarraContratos facetas={null} />}>
-                              <BarraContratosConConteos pagina={contratosP} />
-                            </Suspense>
-                            <ZonaResultados>
-                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Proceso", ancho: "1fr" }]} filas={8} />}>
-                                <ContratosEmpresa pagina={contratosP} ruta={ruta} parametros={pc} actual={fc.page} />
-                              </Suspense>
-                            </ZonaResultados>
-                          </Listado>
-                        </div>
-                      ),
-                    },
-                    {
-                      clave: "ordenes",
-                      etiqueta: "Órdenes",
-                      conteo: e.ordN,
-                      contenido: (
-                        <div className="space-y-4">
-                          <Listado ruta={ruta} parametros={po} paramPagina={P_ORDENES.page} conservar={SIN_CONSERVAR}>
-                            <Suspense fallback={<BarraOrdenes facetas={null} />}>
-                              <BarraOrdenesConConteos pagina={ordenesP} />
-                            </Suspense>
-                            <ZonaResultados>
-                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Orden", ancho: "1fr" }]} filas={8} />}>
-                                <OrdenesEmpresa pagina={ordenesP} ruta={ruta} parametros={po} actual={fo.page} />
-                              </Suspense>
-                            </ZonaResultados>
-                          </Listado>
-                        </div>
-                      ),
-                    },
-                    {
-                      clave: "menores",
-                      etiqueta: "Contratos menores",
-                      contenido: (
-                        <div className="space-y-4">
-                          <Listado ruta={ruta} parametros={pm} paramPagina={P_MEN.page} conservar={SIN_CONSERVAR}>
-                            <Suspense fallback={<div className="min-h-[52px]" />}>
-                              <BarraMenoresGeneral pagina={menoresP} />
-                            </Suspense>
-                            <ZonaResultados>
-                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
-                                <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
-                              </Suspense>
-                            </ZonaResultados>
-                          </Listado>
-                        </div>
-                      ),
-                    },
-                    {
-                      clave: "catalogo",
-                      etiqueta: "Catálogo",
-                      conteo: nCatalogo ?? undefined,
-                      contenido: (
-                        <div className="space-y-4">
-                          <Listado ruta={ruta} parametros={pk} paramPagina={P_CAT.page} conservar={SIN_CONSERVAR}>
-                            <Suspense fallback={<div className="min-h-[52px]" />}>
-                              <BarraCatalogo pagina={catalogoP} />
-                            </Suspense>
-                            <ZonaResultados>
-                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Lo que vendió", ancho: "1fr" }]} filas={8} />}>
-                                <ListaCatalogo pagina={catalogoP} ruta={ruta} parametros={pk} actual={fcat.page ?? 1} />
-                              </Suspense>
-                            </ZonaResultados>
-                          </Listado>
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
+                <Listado ruta={ruta} parametros={pv} paramPagina={P_COMPRAS.page} conservar={SIN_CONSERVAR}>
+                  <Suspense fallback={<div className="min-h-[52px]" />}>
+                    <BarraCompras pagina={ventasP} ancla="proveedor" con={fv.con} />
+                  </Suspense>
+                  <ZonaResultados>
+                    <Suspense fallback={<ListaComprasCargando />}>
+                      <ListaCompras pagina={ventasP} ruta={ruta} parametros={pv} actual={fv.page ?? 1} ancla="proveedor" vacia={SIN_VENTAS} />
+                    </Suspense>
+                  </ZonaResultados>
+                </Listado>
               </div>
             ),
           },

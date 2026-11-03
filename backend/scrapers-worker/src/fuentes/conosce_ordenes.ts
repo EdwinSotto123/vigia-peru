@@ -283,6 +283,12 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     `SELECT refrescar_entidad_ordenes(${anterior}) AS n`);
   resumen.ordenes_mes_anterior = await siExiste("refrescar_ordenes_mes_anterior", "refrescar_ordenes_mes(date,date)",
     `SELECT refrescar_ordenes_mes(${anterior}) AS n`);
+  // Las compras sin repetidas (migración 240): cada orden junta con su catálogo, su contrato menor o el proceso que paga,
+  // y el resumen de cada entidad. El año en curso y, en su paso, el anterior. Los menores del martes quedan juntos acá.
+  resumen.compras = await siExiste("refrescar_compras", "refrescar_compras(date,date)",
+    "SELECT (refrescar_compras(current_date, current_date)->>'resumen')::int AS n");
+  resumen.compras_anterior = await siExiste("refrescar_compras_anterior", "refrescar_compras(date,date)",
+    `SELECT (refrescar_compras(${anterior})->>'resumen')::int AS n`);
   // La ola de órdenes a personas tras cada cambio de gestión, sobre lo recién contado (migración 188).
   resumen.ola_gestion = await siExiste("refrescar_ola_gestion", "refrescar_ola_gestion()", "SELECT refrescar_ola_gestion() AS n");
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>

@@ -577,6 +577,42 @@ async function pagina(q: ListaQ, o: Orden, dir: "adelante" | "atras", claves: (s
   return (await pool.query(sql, vals)).rows as Record<string, unknown>[];
 }
 
+/** Las filas de la lista de unos OCID, con los ganadores de cada una (la lista de compras: routes/compras.ts). */
+export async function filasContratos(ocids: string[]): Promise<Record<string, unknown>[]> {
+  if (!ocids.length) return [];
+  const r = await pool.query(`WITH pag AS (SELECT unnest($1::text[]) AS ocid) SELECT ${COLS_FILA} FROM pag ${JOIN_FILA}`, [ocids]);
+  const filas = r.rows as Record<string, unknown>[];
+  await conGanadores(filas);
+  return filas;
+}
+
+/**
+ * Los OCID de una página de la lista de contratos de una entidad con sus filtros, sin las columnas: la rama de procesos de
+ * la lista de compras. La fecha es la de la convocatoria (como la lista) y el monto, el adjudicado vigente (migración 60) o,
+ * sin adjudicación, el referencial. `proveedor` deja sólo los que ganó esa empresa.
+ */
+export async function clavesContratos(q: Partial<Filtros>, n: number, dir: "DESC" | "ASC", proveedor?: string, entidad?: string)
+  : Promise<{ ocid: string; fecha: string | null; monto: number | null; adjudicado: number | null }[]> {
+  const vals: unknown[] = [];
+  const d = driverDe(q);
+  const { conds } = filtros(q, vals, d.m);
+  if (proveedor) conds.push(`EXISTS (SELECT 1 FROM convocatorias c9 WHERE c9.ocid = ${d.ocid} AND c9.proveedor_ruc = '${proveedor}')`);
+  // La entidad (11 dígitos validados) como literal: con parámetro, Hyperdrive prepara la sentencia y el plan genérico
+  // recorría el índice de fecha de todas las convocatorias (1,9 s en EsSalud con un año elegido).
+  if (entidad) {
+    if (!/^\d{11}$/.test(entidad)) throw new Error("RUC inválido");
+    conds.push(`${d.m.entidad} = '${entidad}'`);
+  }
+  // Con contrato_estado siempre: la fila de la lista sale de los dos (JOIN_FILA).
+  const r = await pool.query(
+    `SELECT ${d.ocid} AS ocid, to_char(${d.fecha}, 'YYYY-MM-DD') AS fecha, COALESCE(av.monto, ${d.monto})::float AS monto,
+            av.monto::float AS adjudicado
+       FROM ${d.from(true)} LEFT JOIN adjudicado_vigente av ON av.ocid = ${d.ocid}
+      WHERE ${conds.join(" AND ")}
+      ORDER BY COALESCE(${d.fecha}, '-infinity'::date) ${dir}, ${d.alta} ${dir}, ${d.ocid} ${dir} LIMIT ${n}`, vals);
+  return r.rows as { ocid: string; fecha: string | null; monto: number | null; adjudicado: number | null }[];
+}
+
 async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boolean }> {
   const vals: unknown[] = [];
   if (agregable(q)) {

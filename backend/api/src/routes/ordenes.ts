@@ -270,6 +270,46 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   return { sql, vals, acotada, acotable: !acotada && columnas.length > 0, ventana: acotada ? ventana : null };
 }
 
+/** La llave efectiva de una orden de CONOSCE (no tiene id): entidad, texto de la orden y fecha de emisión. */
+export interface ClaveOrden { entidad: string; orden: string; fecha: string; proveedor: string | null }
+
+/** Las condiciones de una orden que se lista (las de sqlListaOrdenes y entidad_orden_anual), sobre `o`. */
+export const ORDEN_LISTADA = `o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM 'Anulada' AND (o.monto > 0 OR o.monto_dudoso IS NOT NULL)
+  AND o.fecha_emision >= DATE '2018-01-01' AND o.fecha_emision <= current_date + 31 AND o.entidad_ruc ~ '^[0-9]{11}$'`;
+
+/**
+ * Las filas de unas órdenes por su llave, con las mismas columnas y antecedentes que la lista (la lista de compras de
+ * routes/compras.ts arma su página así: primero las llaves, después sólo esas filas). Cada una en su versión más nueva.
+ * Con el proveedor en la llave, por el índice (entidad, proveedor, fecha) de la migración 201: por (entidad, fecha) leía
+ * todas las órdenes de ese día de una entidad grande (1,4 s para 20 filas de un proveedor de EsSalud).
+ */
+export async function filasOrdenes(claves: ClaveOrden[]): Promise<Record<string, unknown>[]> {
+  if (!claves.length) return [];
+  const r = await consultaConPlazo(
+    `WITH k AS (SELECT * FROM unnest($1::text[], $2::text[], $3::date[], $4::text[]) AS k(e, n, f, p)),
+          d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
+                  FROM k JOIN conosce_ordenes o ON o.entidad_ruc = k.e AND o.ruc_contratista = k.p AND o.fecha_emision = k.f AND o.orden = k.n
+                 ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+     SELECT ${COLS} FROM d o`,
+    [claves.map((k) => k.entidad), claves.map((k) => k.orden), claves.map((k) => k.fecha), claves.map((k) => k.proveedor)]);
+  return r.rows as Record<string, unknown>[];
+}
+
+/** Lo justo de unas órdenes para listarlas como pagos de un proceso (sin los antecedentes de cada una). */
+export async function ordenesLigeras(claves: ClaveOrden[]): Promise<Record<string, unknown>[]> {
+  if (!claves.length) return [];
+  const r = await consultaConPlazo(
+    `WITH k AS (SELECT * FROM unnest($1::text[], $2::text[], $3::date[], $4::text[]) AS k(e, n, f, p))
+     SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)
+            to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero, o.orden,
+            o.tipo_orden AS "tipoOrden", COALESCE(o.monto, o.monto_dudoso)::float AS monto, o.estado,
+            to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso"
+       FROM k JOIN conosce_ordenes o ON o.entidad_ruc = k.e AND o.ruc_contratista = k.p AND o.fecha_emision = k.f AND o.orden = k.n
+      ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`,
+    [claves.map((k) => k.entidad), claves.map((k) => k.orden), claves.map((k) => k.fecha), claves.map((k) => k.proveedor)]);
+  return r.rows as Record<string, unknown>[];
+}
+
 /**
  * Cuánto se le da a la consulta completa (los filtros dentro del índice) antes de pasar a la acotada: casi todas tardan
  * menos de 300 ms; las que no, recorren cientos de miles de órdenes de una entidad grande buscando un valor raro.

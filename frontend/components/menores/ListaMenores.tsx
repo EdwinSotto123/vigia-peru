@@ -22,6 +22,7 @@ import {
   hrefPagina,
   opcionesDe,
   type Antecedente,
+  type ExtraFila,
 } from "@/components/ordenes/ListaOrdenes";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
@@ -171,7 +172,7 @@ type AntecedenteSunat = Antecedente & { titulo: string };
  * habido o no hallado (condición) y firmar a menos de 180 días de iniciar actividades. Antes era un «⚠ proveedor» que no
  * decía cuál.
  */
-function antecedentesSunat(m: ContratoMenor): AntecedenteSunat[] {
+export function antecedentesSunat(m: ContratoMenor): AntecedenteSunat[] {
   const out: AntecedenteSunat[] = [];
   const estado = (m.provEstado ?? "").trim().toUpperCase();
   if (estado && estado !== "ACTIVO") {
@@ -219,6 +220,159 @@ const SIN_MENORES = (
   </EstadoVacio>
 );
 
+/** La fila de un contrato menor con su panel: la de esta lista y la de la lista de compras (que le suma lo suyo). */
+export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { ruta: string; parametros: Parametros }, extra?: ExtraFila): Fila {
+  // «Ver sólo los de esta entidad / de este proveedor»: sólo en la lista general (en una ficha la lista ya está anclada)
+  // y para una empresa (el RUC 10 de una persona lleva su DNI: no va en un enlace).
+  const enGeneral = ruta === "/app/contratos";
+  const entidad = m.entidad ? tituloNatural(m.entidad) : null;
+  const proveedor = m.proveedor ? tituloNatural(m.proveedor) : null;
+  const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
+  const objeto = objetoTxt(m.objeto);
+  // Las fechas del panel, siempre con el año (un rango «28 dic. – 3 ene.» cruza de un año a otro).
+  const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaConAnio(m.cotizaDesde)} – ${fechaConAnio(m.cotizaHasta)}` : null;
+  const sunat = antecedentesSunat(m);
+  // Las banderas de la fila: lo de la SUNAT y, si el Tribunal lo tenía inhabilitado al firmar, eso (lo más grave).
+  const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []), ...sunat,
+                                     ...(extra?.antecedentes ?? [])];
+  const estado = <EstadoCompra estado={m.estado} />;
+  // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
+  // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
+  const fichas = fichasCompra(ruta, m.entidadRuc, m.proveedorRuc);
+  const fichaProveedor = fichas.proveedor;
+  const soloEntidad = enGeneral && m.entidadRuc && parametros[P_MEN.entidad] !== m.entidadRuc
+    ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.entidad]: m.entidadRuc }) : null;
+  const soloProveedor = enGeneral && /^20\d{9}$/.test(m.proveedorRuc ?? "") && parametros[P_MEN.proveedor] !== m.proveedorRuc
+    ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.proveedor]: m.proveedorRuc! }) : null;
+  const items: (DatoClave | null)[] = [
+    { etiqueta: "Qué se contrató", valor: descripcion },
+    objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
+    { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
+    { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
+    m.provTipo ? { etiqueta: "Tipo de proveedor", valor: oracion(m.provTipo) } : null,
+    m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
+    m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaConAnio(m.provDesde), mono: true } : null,
+    datoFecha("Suscrito", m.fecha, FUENTE),
+    {
+      etiqueta: "Monto",
+      valor: m.monto != null ? (m.sobreTope && m.tope ? `${soles(m.monto)}, más que el tope de 8 UIT de ese año (${soles(m.tope)})` : soles(m.monto)) : null,
+      mono: true,
+    },
+    m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
+    m.estadoProceso ? { etiqueta: "Estado del proceso", valor: m.estadoProceso } : null,
+    cotiza ? { etiqueta: "Pudo cotizarse", valor: cotiza, mono: true, ayuda: <AyudaTermino clave="cotizacion" /> } : null,
+  ];
+  return {
+    id: `${m.id}`,
+    celdas: {
+      estado,
+      contrato: (
+        <CeldaPrincipal
+          titulo={descripcion}
+          dosLineas
+          meta={[
+            ...(extra?.meta ?? []),
+            extra?.ocultar !== "entidad" && entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
+            extra?.ocultar !== "proveedor" && proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
+            objeto && <Dato key="objeto" tipo="tipo" nombre="Bien o servicio">{objeto}</Dato>,
+            m.codigo && <Dato key="cod" tipo="codigo" nombre="Código del proceso" mono>{m.codigo}</Dato>,
+          ]}
+        />
+      ),
+      // Un proveedor que no está en el padrón cargado de la SUNAT no se pudo revisar: «Sin dato», no «Ninguno».
+      antecedentes: antecedentes.length ? (
+        <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />
+      ) : (
+        <SinAntecedentes sinDato={m.provEstado == null && m.provCondicion == null && m.provDesde == null} />
+      ),
+      // Más que el tope de 8 UIT de su año: no debería existir un contrato menor así (o el monto está mal cargado).
+      monto: <CeldaNumero sub={m.sobreTope ? "más de 8 UIT" : undefined}>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
+      fecha: <CeldaFechaCompra fecha={m.fecha} fuente={FUENTE} />,
+    },
+    detalle: {
+      titulo: m.codigo ? `Contrato menor ${m.codigo}` : "Contrato menor",
+      etiqueta: `Ver el detalle del contrato ${m.codigo ?? i}`,
+      descripcion: entidad ?? undefined,
+      contenido: (
+        <CuerpoDetalle>
+          <ChipsDetalle>
+            {estado}
+            {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" todas />}
+          </ChipsDetalle>
+          <DatosClave items={items.filter(Boolean) as DatoClave[]} />
+          {m.inhabilitacion && (
+            <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />
+          )}
+          {sunat.length > 0 && (
+            <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">
+              <ul className="space-y-1.5">
+                {sunat.map((a) => (
+                  <li key={a.tipo}>
+                    <span className="font-semibold text-ink">{a.titulo}.</span> <span className="text-inkSoft">{a.explica}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-rotulo text-mute">
+                Fuente: <EnlaceFuente href={CONSULTA_RUC_SUNAT}>SUNAT, padrón de contribuyentes</EnlaceFuente>. Son datos para revisar, no una
+                acusación.
+              </p>
+              {fichaProveedor && (
+                <EnlaceAccion href={fichaProveedor} prefetch={false} variante="secundario" flecha className="mt-3">
+                  Ver la ficha de la empresa
+                </EnlaceAccion>
+              )}
+            </BloqueDetalle>
+          )}
+          {extra?.bloques}
+          {(m.tieneRequerimiento || m.tieneContrato) && (
+            <BloqueDetalle titulo="Documentos">
+              <div className="flex flex-wrap gap-2">
+                {m.tieneRequerimiento && (
+                  <a href={urlRequerimiento(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                    <FileText className="size-4" aria-hidden /> Requerimiento (TDR)
+                    <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
+                  </a>
+                )}
+                {m.tieneContrato && (
+                  <a href={urlContratoMenor(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                    <FileSignature className="size-4" aria-hidden /> Contrato u orden
+                    <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
+                  </a>
+                )}
+              </div>
+            </BloqueDetalle>
+          )}
+          {(soloEntidad || soloProveedor) && (
+            <div className="flex flex-wrap gap-2">
+              {soloEntidad && (
+                <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+                  <ListFilter size={15} aria-hidden />
+                  Ver sólo los de esta entidad
+                </EnlaceAccion>
+              )}
+              {soloProveedor && (
+                <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
+                  <ListFilter size={15} aria-hidden />
+                  Ver sólo los de este proveedor
+                </EnlaceAccion>
+              )}
+            </div>
+          )}
+        </CuerpoDetalle>
+      ),
+      pie: (
+        <FuenteDato
+          fuente={`SEACE, contrato menor${m.codigo ? ` ${m.codigo}` : ""}`}
+          enlaces={[
+            { texto: "Buscador de Contratos del Estado (SEACE): el contrato", href: SEACE_CONTRATOS },
+            { texto: "Buscador de contratos menores (SEACE): el requerimiento", href: SEACE_MENORES },
+          ]}
+        />
+      ),
+    },
+  };
+}
+
 export async function ListaMenores({
   pagina: p,
   ruta,
@@ -261,154 +415,7 @@ export async function ListaMenores({
     const filtrada = Object.entries(P_MEN).some(([k, param]) => k !== "orden" && k !== "page" && !!parametros[param]);
     return filtrada ? <EstadoVacio compacto titulo="Ningún contrato menor con estos filtros">Cambia el año o la búsqueda, o quita un filtro.</EstadoVacio> : <>{vacia}</>;
   }
-  // «Ver sólo los de esta entidad / de este proveedor»: sólo en la lista general (en una ficha la lista ya está anclada)
-  // y para una empresa (el RUC 10 de una persona lleva su DNI: no va en un enlace).
-  const enGeneral = ruta === "/app/contratos";
-  const filas: Fila[] = pagina.data.map((m, i) => {
-    const entidad = m.entidad ? tituloNatural(m.entidad) : null;
-    const proveedor = m.proveedor ? tituloNatural(m.proveedor) : null;
-    const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
-    const objeto = objetoTxt(m.objeto);
-    // Las fechas del panel, siempre con el año (un rango «28 dic. – 3 ene.» cruza de un año a otro).
-    const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaConAnio(m.cotizaDesde)} – ${fechaConAnio(m.cotizaHasta)}` : null;
-    const sunat = antecedentesSunat(m);
-    // Las banderas de la fila: lo de la SUNAT y, si el Tribunal lo tenía inhabilitado al firmar, eso (lo más grave).
-    const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []), ...sunat];
-    const estado = <EstadoCompra estado={m.estado} />;
-    // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
-    // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
-    const fichas = fichasCompra(ruta, m.entidadRuc, m.proveedorRuc);
-    const fichaProveedor = fichas.proveedor;
-    const soloEntidad = enGeneral && m.entidadRuc && parametros[P_MEN.entidad] !== m.entidadRuc
-      ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.entidad]: m.entidadRuc }) : null;
-    const soloProveedor = enGeneral && /^20\d{9}$/.test(m.proveedorRuc ?? "") && parametros[P_MEN.proveedor] !== m.proveedorRuc
-      ? hrefConFiltro(ruta, parametros, P_MEN.page, { [P_MEN.proveedor]: m.proveedorRuc! }) : null;
-    const items: (DatoClave | null)[] = [
-      { etiqueta: "Qué se contrató", valor: descripcion },
-      objeto ? { etiqueta: "Bien o servicio", valor: objeto } : null,
-      { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
-      { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
-      m.provTipo ? { etiqueta: "Tipo de proveedor", valor: oracion(m.provTipo) } : null,
-      m.provActividad ? { etiqueta: "Giro del proveedor", valor: oracion(m.provActividad) } : null,
-      m.provDesde ? { etiqueta: "Proveedor desde", valor: fechaConAnio(m.provDesde), mono: true } : null,
-      datoFecha("Suscrito", m.fecha, FUENTE),
-      {
-        etiqueta: "Monto",
-        valor: m.monto != null ? (m.sobreTope && m.tope ? `${soles(m.monto)}, más que el tope de 8 UIT de ese año (${soles(m.tope)})` : soles(m.monto)) : null,
-        mono: true,
-      },
-      m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
-      m.estadoProceso ? { etiqueta: "Estado del proceso", valor: m.estadoProceso } : null,
-      cotiza ? { etiqueta: "Pudo cotizarse", valor: cotiza, mono: true, ayuda: <AyudaTermino clave="cotizacion" /> } : null,
-    ];
-    return {
-      id: `${m.id}`,
-      celdas: {
-        estado,
-        contrato: (
-          <CeldaPrincipal
-            titulo={descripcion}
-            dosLineas
-            meta={[
-              entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
-              proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
-              objeto && <Dato key="objeto" tipo="tipo" nombre="Bien o servicio">{objeto}</Dato>,
-              m.codigo && <Dato key="cod" tipo="codigo" nombre="Código del proceso" mono>{m.codigo}</Dato>,
-            ]}
-          />
-        ),
-        // Un proveedor que no está en el padrón cargado de la SUNAT no se pudo revisar: «Sin dato», no «Ninguno».
-        antecedentes: antecedentes.length ? (
-          <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />
-        ) : (
-          <SinAntecedentes sinDato={m.provEstado == null && m.provCondicion == null && m.provDesde == null} />
-        ),
-        // Más que el tope de 8 UIT de su año: no debería existir un contrato menor así (o el monto está mal cargado).
-        monto: <CeldaNumero sub={m.sobreTope ? "más de 8 UIT" : undefined}>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
-        fecha: <CeldaFechaCompra fecha={m.fecha} fuente={FUENTE} />,
-      },
-      detalle: {
-        titulo: m.codigo ? `Contrato menor ${m.codigo}` : "Contrato menor",
-        etiqueta: `Ver el detalle del contrato ${m.codigo ?? i}`,
-        descripcion: entidad ?? undefined,
-        contenido: (
-          <CuerpoDetalle>
-            <ChipsDetalle>
-              {estado}
-              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" todas />}
-            </ChipsDetalle>
-            <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            {m.inhabilitacion && (
-              <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />
-            )}
-            {sunat.length > 0 && (
-              <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">
-                <ul className="space-y-1.5">
-                  {sunat.map((a) => (
-                    <li key={a.tipo}>
-                      <span className="font-semibold text-ink">{a.titulo}.</span> <span className="text-inkSoft">{a.explica}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1.5 text-rotulo text-mute">
-                  Fuente: <EnlaceFuente href={CONSULTA_RUC_SUNAT}>SUNAT, padrón de contribuyentes</EnlaceFuente>. Son datos para revisar, no una
-                  acusación.
-                </p>
-                {fichaProveedor && (
-                  <EnlaceAccion href={fichaProveedor} prefetch={false} variante="secundario" flecha className="mt-3">
-                    Ver la ficha de la empresa
-                  </EnlaceAccion>
-                )}
-              </BloqueDetalle>
-            )}
-            {(m.tieneRequerimiento || m.tieneContrato) && (
-              <BloqueDetalle titulo="Documentos">
-                <div className="flex flex-wrap gap-2">
-                  {m.tieneRequerimiento && (
-                    <a href={urlRequerimiento(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
-                      <FileText className="size-4" aria-hidden /> Requerimiento (TDR)
-                      <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
-                    </a>
-                  )}
-                  {m.tieneContrato && (
-                    <a href={urlContratoMenor(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
-                      <FileSignature className="size-4" aria-hidden /> Contrato u orden
-                      <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
-                    </a>
-                  )}
-                </div>
-              </BloqueDetalle>
-            )}
-            {(soloEntidad || soloProveedor) && (
-              <div className="flex flex-wrap gap-2">
-                {soloEntidad && (
-                  <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
-                    <ListFilter size={15} aria-hidden />
-                    Ver sólo los de esta entidad
-                  </EnlaceAccion>
-                )}
-                {soloProveedor && (
-                  <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
-                    <ListFilter size={15} aria-hidden />
-                    Ver sólo los de este proveedor
-                  </EnlaceAccion>
-                )}
-              </div>
-            )}
-          </CuerpoDetalle>
-        ),
-        pie: (
-          <FuenteDato
-            fuente={`SEACE, contrato menor${m.codigo ? ` ${m.codigo}` : ""}`}
-            enlaces={[
-              { texto: "Buscador de Contratos del Estado (SEACE): el contrato", href: SEACE_CONTRATOS },
-              { texto: "Buscador de contratos menores (SEACE): el requerimiento", href: SEACE_MENORES },
-            ]}
-          />
-        ),
-      },
-    };
-  });
+  const filas: Fila[] = pagina.data.map((m, i) => filaMenor(m, i, { ruta, parametros }));
   const tam = pagina.size || filas.length;
   const pag = (subir: boolean) => (
     <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={P_MEN.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas} subir={subir} />

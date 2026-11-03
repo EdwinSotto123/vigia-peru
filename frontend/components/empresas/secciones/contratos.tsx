@@ -54,7 +54,7 @@ const COLUMNAS_CONTRATOS: Columna[] = [
 ];
 
 /** Las banderas de sanción de un proceso, como antecedentes más de la celda (las etiquetas, en `ETIQUETAS_SANCION`). */
-const ETIQUETAS_SANCION: Record<string, string> = {
+export const ETIQUETAS_SANCION: Record<string, string> = {
   sancion_vigente: "Inhabilitada al ganar",
   sancionada_antes: "Sancionada antes",
   sancionada_despues: "Sancionada después",
@@ -69,7 +69,7 @@ const SANCIONES_CON_TIPO = new Set(["sancion_definitiva", "sancion_temporal", "s
  * antecedente ya dice qué sanción tuvo antes («Multa del Tribunal antes»), no va además «Sancionada antes» (era la misma
  * multa dos veces en la fila, 2026-10-27). `CrucesCelda` los ordena por severidad y deja los dos primeros a la vista.
  */
-function banderasDe(c: ContratoEmpresa): { tipo: string; severidad: "alta" | "media" | "baja" }[] {
+export function banderasDe(c: ContratoEmpresa): { tipo: string; severidad: "alta" | "media" | "baja" }[] {
   const s = c.sancion;
   const conTipo = c.antecedentes.some((a) => SANCIONES_CON_TIPO.has(a.tipo));
   return [
@@ -83,7 +83,7 @@ function banderasDe(c: ContratoEmpresa): { tipo: string; severidad: "alta" | "me
  * La sanción en palabras, con sus fechas (pedido del usuario, 2026-10-22: «Sancionado» no decía si lo estaba cuando
  * contrató o antes). Va en el `title` de la celda: la ficha del proceso la trae completa con su resolución.
  */
-function fraseSancion(s: ContratoEmpresa["sancion"]): string | undefined {
+export function fraseSancion(s: ContratoEmpresa["sancion"]): string | undefined {
   if (!s) return undefined;
   const partes: string[] = [];
   if (s.alGanar) {

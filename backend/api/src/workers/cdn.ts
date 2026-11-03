@@ -91,8 +91,9 @@ const GUARDADO = "X-Vigia-Guardado";
  *       ficha de la persona (marca `electo`, lib/electos.ts; decisión del 2026-10-30).
  * "75": Gobserva (2026-11-02): la lista de Obras trae cuántos hay en cada pestaña (`pestanas`), Licitaciones ordena por
  *       el plazo de consultas y Empleo filtra por los estudios de quien busca (`tengo`); vacantes de SERVIR corregidas.
+ * "76": las compras sin repetidas (2026-11-03, migración 240): los conteos de la entidad traen `compras` (GET /compras).
  */
-const VERSION_CACHE = "75";
+const VERSION_CACHE = "76";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

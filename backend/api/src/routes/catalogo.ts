@@ -110,27 +110,8 @@ const sinVacios = (c: Parameters<typeof parametros>[0]) =>
 /** Las líneas de lo pedido que van en la fila (las demás, en el PDF de la orden). */
 const LINEAS_FILA = 15;
 
-catalogoRouter.get("/", async (c) => {
-  const parsed = ListaCatalogoQuery.safeParse(sinVacios(c));
-  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
-  const q = parsed.data;
-  if (!(await hayCatalogo())) {
-    c.header("Cache-Control", cachePublico(60));
-    return c.json({ page: q.page, size: q.size, hayMas: false, disponible: false, facetas: null, data: [] });
-  }
-  const cuerpo = await memo.obtener(JSON.stringify(q), async () => {
-    const vals: unknown[] = [];
-    const { filas, filtros } = condiciones(q, vals);
-    const where = filtros.length ? `WHERE ${filtros.map((f) => f.sql).join(" AND ")}` : "";
-    const orden = q.orden === "monto"
-      ? `x.total DESC NULLS LAST, x.orden DESC`
-      : q.orden === "sobreprecio"
-        ? `(SELECT sum(s.exceso) FROM perucompras_sobreprecio s WHERE s.orden = x.orden) DESC NULLS LAST, x.fecha_publicacion DESC, x.orden DESC`
-        : `x.fecha_publicacion DESC NULLS LAST, x.orden DESC`;
-    const ordenY = orden.replace(/\bx\./g, "y.");
-    const sql = `WITH x AS (${filas}),
-                      y AS (SELECT x.* FROM x ${where} ORDER BY ${orden} LIMIT ${q.size + 1} OFFSET ${(q.page - 1) * q.size})
-      SELECT y.orden, y.acuerdo_codigo AS "acuerdoCodigo", y.acuerdo, y.tipo, y.entidad_ruc AS "entidadRuc", y.entidad,
+/** Las columnas de una fila de la lista, sobre `y` (una perucompras_orden con su `anio`). */
+const COLS_CATALOGO = `y.orden, y.acuerdo_codigo AS "acuerdoCodigo", y.acuerdo, y.tipo, y.entidad_ruc AS "entidadRuc", y.entidad,
              y.proveedor_ruc AS "proveedorRuc", y.proveedor, y.procedimiento, y.tipo_compra AS "tipoCompra", y.estado,
              ${GRUPO_ESTADO.replace(/\bx\./g, "y.")} AS "estadoGrupo",
              y.nro_orden_fisica AS "ordenFisica", to_char(y.fecha_publicacion, 'YYYY-MM-DD') AS fecha,
@@ -157,8 +138,56 @@ catalogoRouter.get("/", async (c) => {
              -- Las entregas (la versión 1 en adelante): cuántas y hasta cuándo debían llegar.
              (SELECT jsonb_build_object('entregas', count(DISTINCT i.nro_entrega), 'hasta', to_char(max(i.fecha_fin_entrega), 'YYYY-MM-DD'),
                                         'plazo', max(i.plazo_entrega))
-                FROM perucompras_item i WHERE i.orden = y.orden AND i.version > 0 HAVING count(*) > 0) AS entregas
-        FROM y ORDER BY ${ordenY}`;
+                FROM perucompras_item i WHERE i.orden = y.orden AND i.version > 0 HAVING count(*) > 0) AS entregas`;
+
+/** Las filas de unas órdenes del catálogo por su código, con las columnas de la lista (routes/compras.ts). */
+export async function filasCatalogo(ordenes: string[]): Promise<Record<string, unknown>[]> {
+  if (!ordenes.length) return [];
+  const r = await consultaConPlazo(
+    `WITH y AS (SELECT o.*, extract(year FROM o.fecha_publicacion)::int AS anio FROM perucompras_orden o WHERE o.orden = ANY($1::text[]))
+     SELECT ${COLS_CATALOGO} FROM y`, [ordenes]);
+  return r.rows as Record<string, unknown>[];
+}
+
+/**
+ * Las llaves de una página de la lista con sus filtros (sin las columnas): código, fecha y total, en el orden pedido. La
+ * rama del catálogo de la lista de compras. `con` es la contraparte (el proveedor en una entidad, la entidad en una empresa).
+ */
+export async function clavesCatalogo(q: Omit<FiltrosCatalogo, "page" | "size" | "orden">, n: number, dir: "DESC" | "ASC", con?: string)
+  : Promise<{ orden: string; fecha: string | null; monto: number | null }[]> {
+  const vals: unknown[] = [];
+  const { filas, filtros } = condiciones({ ...q, orden: "reciente", page: 1, size: 1 }, vals);
+  if (con) filtros.push({ faceta: null, sql: q.entidad ? `x.proveedor_ruc = '${con}'` : `x.entidad_ruc = '${con}'` });
+  const where = filtros.length ? `WHERE ${filtros.map((f) => f.sql).join(" AND ")}` : "";
+  const r = await consultaConPlazo(
+    `WITH x AS (${filas})
+     SELECT x.orden, to_char(x.fecha_publicacion, 'YYYY-MM-DD') AS fecha, x.total::float AS monto FROM x ${where}
+      -- Sin NULLS LAST: el índice (entidad o proveedor, fecha DESC) ya da ese orden (con él, EsSalud ordenaba sus miles en 2 s).
+      ORDER BY x.fecha_publicacion ${dir}, x.orden ${dir} LIMIT ${n}`, vals);
+  return r.rows as { orden: string; fecha: string | null; monto: number | null }[];
+}
+
+catalogoRouter.get("/", async (c) => {
+  const parsed = ListaCatalogoQuery.safeParse(sinVacios(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const q = parsed.data;
+  if (!(await hayCatalogo())) {
+    c.header("Cache-Control", cachePublico(60));
+    return c.json({ page: q.page, size: q.size, hayMas: false, disponible: false, facetas: null, data: [] });
+  }
+  const cuerpo = await memo.obtener(JSON.stringify(q), async () => {
+    const vals: unknown[] = [];
+    const { filas, filtros } = condiciones(q, vals);
+    const where = filtros.length ? `WHERE ${filtros.map((f) => f.sql).join(" AND ")}` : "";
+    const orden = q.orden === "monto"
+      ? `x.total DESC NULLS LAST, x.orden DESC`
+      : q.orden === "sobreprecio"
+        ? `(SELECT sum(s.exceso) FROM perucompras_sobreprecio s WHERE s.orden = x.orden) DESC NULLS LAST, x.fecha_publicacion DESC, x.orden DESC`
+        : `x.fecha_publicacion DESC NULLS LAST, x.orden DESC`;
+    const ordenY = orden.replace(/\bx\./g, "y.");
+    const sql = `WITH x AS (${filas}),
+                      y AS (SELECT x.* FROM x ${where} ORDER BY ${orden} LIMIT ${q.size + 1} OFFSET ${(q.page - 1) * q.size})
+      SELECT ${COLS_CATALOGO} FROM y ORDER BY ${ordenY}`;
     const f = sqlFacetas(q);
     const [r, fa] = await Promise.all([
       consultaConPlazo(sql, vals),

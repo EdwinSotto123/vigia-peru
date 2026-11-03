@@ -470,7 +470,7 @@ const senalPersona = (tipo: string) => (SENAL as Record<string, { corto: string;
 const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) / tope, { decimales: 1 });
 
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
-function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
+export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
   const out: Antecedente[] = [];
   if (o.conNepotismo) out.push({ tipo: "nepotismo", severidad: "alta", chip: SENAL.nepotismo.corto, explica: SENAL.nepotismo.titulo });
   if (o.inhabilitacion) out.push(antecedenteInhabilitado(o.inhabilitacion, "Inhabilitado al emitirse"));
@@ -613,6 +613,186 @@ function textoRevisadas(revisadas: number, anio: number | null): string {
     (anio ? "Quita un filtro o acorta la búsqueda para ver más." : "Elige un año para buscar en todo ese año.");
 }
 
+/** Lo que la lista de compras (components/compras) le suma a la fila de una lista: banderas, datos y bloques del panel. */
+export interface ExtraFila {
+  antecedentes?: Antecedente[];
+  /** Datos que van primero en la fila (cómo se compró). */
+  meta?: ReactNode[];
+  bloques?: ReactNode;
+  /** El nombre que ya dice la ficha (la entidad en la suya, el proveedor en la de una empresa): no se repite en la fila. */
+  ocultar?: "entidad" | "proveedor";
+}
+
+/**
+ * La fila de una orden con su panel: la de esta lista y la de la lista de compras de una ficha (que le suma lo suyo en
+ * `extra`). «Ver sólo las de esta entidad / de este proveedor», sólo en la lista general (/app/contratos).
+ */
+export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ruta: string; parametros: Parametros }, extra?: ExtraFila): Fila {
+  const enGeneral = ruta === "/app/contratos";
+  const motivo = o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
+  const tipo = tipoContratacion(o.tipoContratacion);
+  const entidad = o.entidad ? tituloNatural(o.entidad) : null;
+  const proveedor = o.contratista ? tituloNatural(o.contratista) : null;
+  const descripcion = o.descripcion ? oracion(o.descripcion) : "Sin descripción";
+  const clase = o.tipoOrden && /compra/i.test(o.tipoOrden) ? "Orden de compra" : "Orden de servicio";
+  const explicaEstado = o.estado ? ESTADO_ORDEN[o.estado.toLowerCase()] : undefined;
+  const estado = <EstadoCompra estado={o.estado} explica={explicaEstado} />;
+  const antecedentes = [...antecedentesOrden(o), ...(extra?.antecedentes ?? [])];
+  const soloEntidad = enGeneral && o.entidadRuc && parametros[P_ORD.entidad] !== o.entidadRuc
+    ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.entidad]: o.entidadRuc }) : null;
+  const soloProveedor = enGeneral && /^20\d{9}$/.test(o.rucContratista ?? "") && parametros[P_ORD.proveedor] !== o.rucContratista
+    ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.proveedor]: o.rucContratista! }) : null;
+  const fichas = fichasCompra(ruta, o.entidadRuc, o.rucContratista, o.personaCodigo);
+  return {
+    id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
+    celdas: {
+      estado: (
+        <span className="flex flex-col items-start gap-1">
+          {estado}
+          {motivo && <BanderaDato motivo={motivo} fuente="conosce_ordenes" />}
+        </span>
+      ),
+      orden: (
+        <CeldaPrincipal
+          titulo={descripcion}
+          dosLineas
+          meta={[
+            ...(extra?.meta ?? []),
+            extra?.ocultar !== "entidad" && entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
+            extra?.ocultar !== "proveedor" && proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
+            // Cómo se contrató («Hasta 8 UIT, sin concurso»): antes, en tres renglones bajo cada monto.
+            tipo && <Dato key="como" icono={Scale} nombre="Cómo se contrató">{tipo.corto}</Dato>,
+            <Dato key="tipo" tipo="tipo">{clase}</Dato>,
+            o.numero && <Dato key="numero" tipo="codigo" nombre="Número de orden" mono>{`N.° ${o.numero}`}</Dato>,
+          ]}
+        />
+      ),
+      // Sin el campo (una API anterior), no se sabe: «Sin dato», no «Ninguno».
+      antecedentes: antecedentes.length ? <BanderasAntecedentes antecedentes={antecedentes} /> : <SinAntecedentes sinDato={o.conNepotismo == null} />,
+      monto: <CeldaNumero sub={motivo ? "posible error de CONOSCE" : undefined}>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>,
+      fecha: <CeldaFechaCompra fecha={o.fecha} fuente={FUENTE_ORDEN} />,
+    },
+    detalle: {
+      titulo: o.numero ? `${clase} N.° ${o.numero}` : clase,
+      etiqueta: `Ver el detalle de la orden ${o.numero ?? ""}`.trim(),
+      descripcion: entidad ?? undefined,
+      contenido: (
+        <CuerpoDetalle>
+          <ChipsDetalle>
+            {estado}
+            {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} todas />}
+          </ChipsDetalle>
+          {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}</AvisoDato>}
+          <DatosClave
+            items={[
+              { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
+              o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
+              { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
+              { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
+              datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
+              o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
+              o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
+              { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
+              { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
+              { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
+              tipo?.convocatoria ? { etiqueta: "¿Tuvo convocatoria?", valor: tipo.convocatoria } : null,
+            ].filter(Boolean) as DatoClave[]}
+          />
+          {o.conNepotismo && (
+            <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
+              <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
+              {/* Las declaraciones juradas presentadas en la entidad de la orden, en la consulta de la Contraloría. */}
+              <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
+              {/* La evidencia: las personas de esta entidad con la señal, cada una con su declaración en su ficha. */}
+              {o.entidadRuc && (
+                <EnlaceAccion href={`/entidad/${o.entidadRuc}?seccion=personas&psenal=nepotismo`} prefetch={false} variante="secundario" flecha className="mt-3">
+                  Ver los casos en la ficha de la entidad
+                </EnlaceAccion>
+              )}
+            </BloqueDetalle>
+          )}
+          {o.entidadRuc && o.fecha && o.numero && (
+            <BloqueDetalle titulo="Expediente SIAF" ayuda={<AyudaTermino clave="expediente-siaf" />}>
+              <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />
+            </BloqueDetalle>
+          )}
+          <BloqueSenalesPersona o={o} />
+          {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
+          {o.inhabilitacion && (
+            <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
+          )}
+          {extra?.bloques}
+          {(soloEntidad || soloProveedor) && (
+            <div className="flex flex-wrap gap-2">
+              {soloEntidad && (
+                <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+                  <ListFilter size={15} aria-hidden />
+                  Ver sólo las órdenes de esta entidad
+                </EnlaceAccion>
+              )}
+              {soloProveedor && (
+                <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
+                  <ListFilter size={15} aria-hidden />
+                  Ver sólo las órdenes de este proveedor
+                </EnlaceAccion>
+              )}
+            </div>
+          )}
+        </CuerpoDetalle>
+      ),
+      // Una orden no tiene página propia en el OECE: el buscador de CONOSCE la encuentra por entidad y número.
+      pie: (
+        <FuenteDato
+          fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
+          enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
+        />
+      ),
+    },
+  };
+}
+
+/**
+ * La orden del SEACE de una compra que vino de otra fuente (un catálogo de Perú Compras, un contrato menor): su número, su
+ * estado y su compromiso, el botón de su expediente SIAF y sus antecedentes con la evidencia. En el panel de la lista de
+ * compras: la misma compra, vista desde el registro de órdenes del Estado.
+ */
+export function BloqueOrdenSeace({ o, titulo = "La orden en el SEACE" }: { o: OrdenGeneral; titulo?: string }) {
+  const clase = o.tipoOrden && /compra/i.test(o.tipoOrden) ? "Orden de compra" : "Orden de servicio";
+  const tipo = tipoContratacion(o.tipoContratacion);
+  return (
+    <>
+      <BloqueDetalle titulo={titulo} ayuda={<AyudaTermino clave="orden-servicio" />}>
+        <DatosClave
+          items={[
+            { etiqueta: "Número", valor: o.numero ? `${clase} N.° ${o.numero}` : clase, mono: true },
+            datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
+            o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
+            { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
+            { etiqueta: "Monto", valor: o.monto != null ? soles(o.monto) : null, mono: true },
+            tipo ? { etiqueta: "Cómo la registró la entidad", valor: tipo.corto } : null,
+          ].filter(Boolean) as DatoClave[]}
+        />
+        {o.entidadRuc && o.fecha && o.numero && (
+          <div className="mt-3">
+            <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />
+          </div>
+        )}
+      </BloqueDetalle>
+      {o.conNepotismo && (
+        <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
+          <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
+          <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
+        </BloqueDetalle>
+      )}
+      <BloqueSenalesPersona o={o} />
+      {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
+      {o.inhabilitacion && (
+        <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
+      )}
+    </>
+  );
+}
+
 export async function ListaOrdenes({
   pagina: p,
   ruta,
@@ -661,129 +841,7 @@ export async function ListaOrdenes({
       <EstadoVacio compacto titulo="Ninguna orden con estos filtros">Cambia el año, el tipo o la búsqueda, o quita un filtro.</EstadoVacio>
     );
   }
-  // «Ver sólo las órdenes de esta entidad / de este proveedor»: sólo en la lista general (la de una ficha ya está anclada)
-  // y para una empresa (el RUC 10 de una persona lleva su DNI: no va en un enlace).
-  const enGeneral = ruta === "/app/contratos";
-  const filas: Fila[] = pagina.data.map((o, i) => {
-    const motivo = o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
-    const tipo = tipoContratacion(o.tipoContratacion);
-    const entidad = o.entidad ? tituloNatural(o.entidad) : null;
-    const proveedor = o.contratista ? tituloNatural(o.contratista) : null;
-    const descripcion = o.descripcion ? oracion(o.descripcion) : "Sin descripción";
-    const clase = o.tipoOrden && /compra/i.test(o.tipoOrden) ? "Orden de compra" : "Orden de servicio";
-    const explicaEstado = o.estado ? ESTADO_ORDEN[o.estado.toLowerCase()] : undefined;
-    const estado = <EstadoCompra estado={o.estado} explica={explicaEstado} />;
-    const antecedentes = antecedentesOrden(o);
-    const soloEntidad = enGeneral && o.entidadRuc && parametros[P_ORD.entidad] !== o.entidadRuc
-      ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.entidad]: o.entidadRuc }) : null;
-    const soloProveedor = enGeneral && /^20\d{9}$/.test(o.rucContratista ?? "") && parametros[P_ORD.proveedor] !== o.rucContratista
-      ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.proveedor]: o.rucContratista! }) : null;
-    const fichas = fichasCompra(ruta, o.entidadRuc, o.rucContratista, o.personaCodigo);
-    return {
-      id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
-      celdas: {
-        estado: (
-          <span className="flex flex-col items-start gap-1">
-            {estado}
-            {motivo && <BanderaDato motivo={motivo} fuente="conosce_ordenes" />}
-          </span>
-        ),
-        orden: (
-          <CeldaPrincipal
-            titulo={descripcion}
-            dosLineas
-            meta={[
-              entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
-              proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
-              // Cómo se contrató («Hasta 8 UIT, sin concurso»): antes, en tres renglones bajo cada monto.
-              tipo && <Dato key="como" icono={Scale} nombre="Cómo se contrató">{tipo.corto}</Dato>,
-              <Dato key="tipo" tipo="tipo">{clase}</Dato>,
-              o.numero && <Dato key="numero" tipo="codigo" nombre="Número de orden" mono>{`N.° ${o.numero}`}</Dato>,
-            ]}
-          />
-        ),
-        // Sin el campo (una API anterior), no se sabe: «Sin dato», no «Ninguno».
-        antecedentes: antecedentes.length ? <BanderasAntecedentes antecedentes={antecedentes} /> : <SinAntecedentes sinDato={o.conNepotismo == null} />,
-        monto: <CeldaNumero sub={motivo ? "posible error de CONOSCE" : undefined}>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>,
-        fecha: <CeldaFechaCompra fecha={o.fecha} fuente={FUENTE_ORDEN} />,
-      },
-      detalle: {
-        titulo: o.numero ? `${clase} N.° ${o.numero}` : clase,
-        etiqueta: `Ver el detalle de la orden ${o.numero ?? ""}`.trim(),
-        descripcion: entidad ?? undefined,
-        contenido: (
-          <CuerpoDetalle>
-            <ChipsDetalle>
-              {estado}
-              {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} todas />}
-            </ChipsDetalle>
-            {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}</AvisoDato>}
-            <DatosClave
-              items={[
-                { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
-                o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
-                { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
-                { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
-                datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
-                o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
-                o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
-                { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
-                { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
-                { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
-                tipo?.convocatoria ? { etiqueta: "¿Tuvo convocatoria?", valor: tipo.convocatoria } : null,
-              ].filter(Boolean) as DatoClave[]}
-            />
-            {o.conNepotismo && (
-              <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
-                <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
-                {/* Las declaraciones juradas presentadas en la entidad de la orden, en la consulta de la Contraloría. */}
-                <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
-                {/* La evidencia: las personas de esta entidad con la señal, cada una con su declaración en su ficha. */}
-                {o.entidadRuc && (
-                  <EnlaceAccion href={`/entidad/${o.entidadRuc}?seccion=personas&psenal=nepotismo`} prefetch={false} variante="secundario" flecha className="mt-3">
-                    Ver los casos en la ficha de la entidad
-                  </EnlaceAccion>
-                )}
-              </BloqueDetalle>
-            )}
-            {o.entidadRuc && o.fecha && o.numero && (
-              <BloqueDetalle titulo="Expediente SIAF" ayuda={<AyudaTermino clave="expediente-siaf" />}>
-                <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />
-              </BloqueDetalle>
-            )}
-            <BloqueSenalesPersona o={o} />
-            {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
-            {o.inhabilitacion && (
-              <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
-            )}
-            {(soloEntidad || soloProveedor) && (
-              <div className="flex flex-wrap gap-2">
-                {soloEntidad && (
-                  <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
-                    <ListFilter size={15} aria-hidden />
-                    Ver sólo las órdenes de esta entidad
-                  </EnlaceAccion>
-                )}
-                {soloProveedor && (
-                  <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
-                    <ListFilter size={15} aria-hidden />
-                    Ver sólo las órdenes de este proveedor
-                  </EnlaceAccion>
-                )}
-              </div>
-            )}
-          </CuerpoDetalle>
-        ),
-        // Una orden no tiene página propia en el OECE: el buscador de CONOSCE la encuentra por entidad y número.
-        pie: (
-          <FuenteDato
-            fuente={`OECE, CONOSCE, órdenes de compra y de servicio${o.orden ? ` (${o.orden})` : ""}`}
-            enlaces={[{ texto: "Buscador de CONOSCE (OECE): búscala por entidad y número", href: CONOSCE_BUSCADOR }]}
-          />
-        ),
-      },
-    };
-  });
+  const filas: Fila[] = pagina.data.map((o, i) => filaOrden(o, i, { ruta, parametros }));
   const tam = pagina.size || filas.length;
   const pag = (subir: boolean) => (
     <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={P_ORD.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas} subir={subir} sinTotal={!!acotada} />

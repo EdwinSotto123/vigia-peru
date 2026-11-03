@@ -16,6 +16,7 @@ import {
   hrefPagina,
   opcionesDe,
   type Antecedente,
+  type ExtraFila,
 } from "@/components/ordenes/ListaOrdenes";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
@@ -158,6 +159,116 @@ const SIN_CATALOGO = (
   </EstadoVacio>
 );
 
+/** La fila de una orden del catálogo con su panel: la de esta lista y la de la lista de compras (que le suma lo suyo). */
+export function filaCatalogo(o: OrdenCatalogo, { ruta }: { ruta: string }, extra?: ExtraFila): Fila {
+  const entidad = o.entidad ? tituloNatural(o.entidad) : null;
+  const proveedor = o.proveedor ? tituloNatural(o.proveedor) : null;
+  const top = principal(o);
+  const otros = o.lineas - 1;
+  const anio = o.fecha ? Number(o.fecha.slice(0, 4)) : null;
+  const acuerdo = o.acuerdo ? oracion(o.acuerdo.replace(/\s*\*\s*No Vigente\s*$/i, "")) : null;
+  // Una orden de servicios (boletos aéreos, datos abiertos) no trae productos: su título es el acuerdo.
+  const titulo = top ? nombreProducto(top) : acuerdo ?? "Orden sin detalle";
+  const estado = <EstadoCompra estado={o.estado} />;
+  const bandera = [...(o.sobreprecio ? [banderaSobreprecio(o.sobreprecio)] : []), ...(extra?.antecedentes ?? [])];
+  const fichas = fichasCompra(ruta, o.entidadRuc, o.proveedorRuc);
+  const items: (DatoClave | null)[] = [
+    { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
+    { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
+    acuerdo ? { etiqueta: "Acuerdo marco", valor: o.acuerdoCodigo ? `${acuerdo} (${o.acuerdoCodigo})` : acuerdo } : null,
+    o.procedimiento ? { etiqueta: "Procedimiento", valor: oracion(o.procedimiento) } : null,
+    o.ordenFisica ? { etiqueta: "N.º de la orden en la entidad", valor: o.ordenFisica, mono: true } : null,
+    { etiqueta: "Orden electrónica", valor: o.orden, mono: true },
+    datoFecha("Publicada", o.fecha, FUENTE),
+    o.aceptada ? datoFecha("Aceptada por el proveedor", o.aceptada, FUENTE) : null,
+    { etiqueta: "Total", valor: o.total != null ? `${soles(o.total)}${o.igv ? ` (con ${soles(o.igv)} de IGV)` : ""}` : null, mono: true },
+    o.entregas ? { etiqueta: "Entregas", valor: `${plural(o.entregas.entregas, "entrega", "entregas")}${o.entregas.hasta ? `, la última hasta el ${fechaConAnio(o.entregas.hasta)}` : ""}` } : null,
+  ];
+  return {
+    id: o.orden,
+    celdas: {
+      estado,
+      orden: (
+        <CeldaPrincipal
+          titulo={otros > 0 ? `${titulo} y ${plural(otros, "producto más", "productos más")}` : titulo}
+          dosLineas
+          meta={[
+            ...(extra?.meta ?? []),
+            extra?.ocultar !== "entidad" && entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
+            extra?.ocultar !== "proveedor" && proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
+            o.acuerdoCodigo && <Dato key="acuerdo" tipo="codigo" nombre="Acuerdo marco" mono>{o.acuerdoCodigo}</Dato>,
+          ]}
+        />
+      ),
+      precio: bandera.length ? <BanderasAntecedentes antecedentes={bandera} etiqueta="Precio frente a la mediana" /> : <SinAntecedentes />,
+      monto: <CeldaNumero>{o.total != null ? soles(o.total) : "Sin dato"}</CeldaNumero>,
+      fecha: <CeldaFechaCompra fecha={o.fecha} fuente={FUENTE} />,
+    },
+    detalle: {
+      // «ORDEN DE COMPRA N° 201800193» u «OC 199-2026» ya dicen que es una orden: no se repite.
+      titulo: o.ordenFisica ? (/^(orden|o\.?\s?c)(\s|\.|$)/i.test(o.ordenFisica) ? oracion(o.ordenFisica) : `Orden ${o.ordenFisica}`) : `Orden ${o.orden}`,
+      etiqueta: `Ver lo que compró la orden ${o.orden}`,
+      descripcion: entidad ?? undefined,
+      contenido: (
+        <CuerpoDetalle>
+          <ChipsDetalle>
+            {estado}
+            {bandera.length > 0 && <BanderasAntecedentes antecedentes={bandera} etiqueta="Precio frente a la mediana" todas />}
+          </ChipsDetalle>
+          <DatosClave items={items.filter(Boolean) as DatoClave[]} />
+          {o.lineas > 0 ? (
+            <BloqueDetalle
+              titulo={`Lo que compró (${plural(o.lineas, "producto", "productos")})`}
+              ayuda={<AyudaTermino clave="precio-referencia" />}
+            >
+              <ul className="space-y-3">
+                {o.items.map((i) => <Producto key={i.linea} i={i} anio={anio} />)}
+              </ul>
+              {o.lineas > o.items.length && (
+                <p className="mt-3 text-meta text-mute">
+                  Y {plural(o.lineas - o.items.length, "producto más", "productos más")}: están en el PDF de la orden.
+                </p>
+              )}
+            </BloqueDetalle>
+          ) : (
+            <BloqueDetalle titulo="Lo que compró">
+              <p className="text-meta text-inkSoft">
+                Perú Compras publica de las órdenes de servicios sólo su total, sin el detalle. En los boletos aéreos, el
+                detalle nombra a quien viaja: Vigía no lo muestra.
+              </p>
+            </BloqueDetalle>
+          )}
+          {extra?.bloques}
+          {(o.pdfOrden || o.pdfSustento) && (
+            <BloqueDetalle titulo="Documentos">
+              <div className="flex flex-wrap gap-2">
+                {o.pdfOrden && (
+                  <a href={o.pdfOrden} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                    <FileText className="size-4" aria-hidden /> La orden firmada
+                    <span className="sr-only"> (PDF de Perú Compras, se abre en otra pestaña)</span>
+                  </a>
+                )}
+                {o.pdfSustento && (
+                  <a href={o.pdfSustento} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
+                    <FileSearch className="size-4" aria-hidden /> El sustento (las cotizaciones)
+                    <span className="sr-only"> (PDF de Perú Compras, se abre en otra pestaña)</span>
+                  </a>
+                )}
+              </div>
+            </BloqueDetalle>
+          )}
+        </CuerpoDetalle>
+      ),
+      pie: (
+        <FuenteDato
+          fuente={`Perú Compras, orden ${o.orden}`}
+          enlaces={[{ texto: "Consulta de órdenes de los Catálogos Electrónicos (Perú Compras)", href: CONSULTA_PERU_COMPRAS }]}
+        />
+      ),
+    },
+  };
+}
+
 export async function ListaCatalogo({
   pagina: p,
   ruta,
@@ -202,112 +313,7 @@ export async function ListaCatalogo({
     const filtrada = Object.entries(P_CAT).some(([k, param]) => k !== "orden" && k !== "page" && !!parametros[param]);
     return filtrada ? <EstadoVacio compacto titulo="Ninguna orden con estos filtros">Cambia el año o la búsqueda, o quita un filtro.</EstadoVacio> : <>{vacia}</>;
   }
-  const filas: Fila[] = pagina.data.map((o) => {
-    const entidad = o.entidad ? tituloNatural(o.entidad) : null;
-    const proveedor = o.proveedor ? tituloNatural(o.proveedor) : null;
-    const top = principal(o);
-    const otros = o.lineas - 1;
-    const anio = o.fecha ? Number(o.fecha.slice(0, 4)) : null;
-    const acuerdo = o.acuerdo ? oracion(o.acuerdo.replace(/\s*\*\s*No Vigente\s*$/i, "")) : null;
-    // Una orden de servicios (boletos aéreos, datos abiertos) no trae productos: su título es el acuerdo.
-    const titulo = top ? nombreProducto(top) : acuerdo ?? "Orden sin detalle";
-    const estado = <EstadoCompra estado={o.estado} />;
-    const bandera = o.sobreprecio ? [banderaSobreprecio(o.sobreprecio)] : [];
-    const fichas = fichasCompra(ruta, o.entidadRuc, o.proveedorRuc);
-    const items: (DatoClave | null)[] = [
-      { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
-      { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
-      acuerdo ? { etiqueta: "Acuerdo marco", valor: o.acuerdoCodigo ? `${acuerdo} (${o.acuerdoCodigo})` : acuerdo } : null,
-      o.procedimiento ? { etiqueta: "Procedimiento", valor: oracion(o.procedimiento) } : null,
-      o.ordenFisica ? { etiqueta: "N.º de la orden en la entidad", valor: o.ordenFisica, mono: true } : null,
-      { etiqueta: "Orden electrónica", valor: o.orden, mono: true },
-      datoFecha("Publicada", o.fecha, FUENTE),
-      o.aceptada ? datoFecha("Aceptada por el proveedor", o.aceptada, FUENTE) : null,
-      { etiqueta: "Total", valor: o.total != null ? `${soles(o.total)}${o.igv ? ` (con ${soles(o.igv)} de IGV)` : ""}` : null, mono: true },
-      o.entregas ? { etiqueta: "Entregas", valor: `${plural(o.entregas.entregas, "entrega", "entregas")}${o.entregas.hasta ? `, la última hasta el ${fechaConAnio(o.entregas.hasta)}` : ""}` } : null,
-    ];
-    return {
-      id: o.orden,
-      celdas: {
-        estado,
-        orden: (
-          <CeldaPrincipal
-            titulo={otros > 0 ? `${titulo} y ${plural(otros, "producto más", "productos más")}` : titulo}
-            dosLineas
-            meta={[
-              entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
-              proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
-              o.acuerdoCodigo && <Dato key="acuerdo" tipo="codigo" nombre="Acuerdo marco" mono>{o.acuerdoCodigo}</Dato>,
-            ]}
-          />
-        ),
-        precio: bandera.length ? <BanderasAntecedentes antecedentes={bandera} etiqueta="Precio frente a la mediana" /> : <SinAntecedentes />,
-        monto: <CeldaNumero>{o.total != null ? soles(o.total) : "Sin dato"}</CeldaNumero>,
-        fecha: <CeldaFechaCompra fecha={o.fecha} fuente={FUENTE} />,
-      },
-      detalle: {
-        // «ORDEN DE COMPRA N° 201800193» u «OC 199-2026» ya dicen que es una orden: no se repite.
-        titulo: o.ordenFisica ? (/^(orden|o\.?\s?c)(\s|\.|$)/i.test(o.ordenFisica) ? oracion(o.ordenFisica) : `Orden ${o.ordenFisica}`) : `Orden ${o.orden}`,
-        etiqueta: `Ver lo que compró la orden ${o.orden}`,
-        descripcion: entidad ?? undefined,
-        contenido: (
-          <CuerpoDetalle>
-            <ChipsDetalle>
-              {estado}
-              {bandera.length > 0 && <BanderasAntecedentes antecedentes={bandera} etiqueta="Precio frente a la mediana" todas />}
-            </ChipsDetalle>
-            <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            {o.lineas > 0 ? (
-              <BloqueDetalle
-                titulo={`Lo que compró (${plural(o.lineas, "producto", "productos")})`}
-                ayuda={<AyudaTermino clave="precio-referencia" />}
-              >
-                <ul className="space-y-3">
-                  {o.items.map((i) => <Producto key={i.linea} i={i} anio={anio} />)}
-                </ul>
-                {o.lineas > o.items.length && (
-                  <p className="mt-3 text-meta text-mute">
-                    Y {plural(o.lineas - o.items.length, "producto más", "productos más")}: están en el PDF de la orden.
-                  </p>
-                )}
-              </BloqueDetalle>
-            ) : (
-              <BloqueDetalle titulo="Lo que compró">
-                <p className="text-meta text-inkSoft">
-                  Perú Compras publica de las órdenes de servicios sólo su total, sin el detalle. En los boletos aéreos, el
-                  detalle nombra a quien viaja: Vigía no lo muestra.
-                </p>
-              </BloqueDetalle>
-            )}
-            {(o.pdfOrden || o.pdfSustento) && (
-              <BloqueDetalle titulo="Documentos">
-                <div className="flex flex-wrap gap-2">
-                  {o.pdfOrden && (
-                    <a href={o.pdfOrden} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
-                      <FileText className="size-4" aria-hidden /> La orden firmada
-                      <span className="sr-only"> (PDF de Perú Compras, se abre en otra pestaña)</span>
-                    </a>
-                  )}
-                  {o.pdfSustento && (
-                    <a href={o.pdfSustento} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario")}>
-                      <FileSearch className="size-4" aria-hidden /> El sustento (las cotizaciones)
-                      <span className="sr-only"> (PDF de Perú Compras, se abre en otra pestaña)</span>
-                    </a>
-                  )}
-                </div>
-              </BloqueDetalle>
-            )}
-          </CuerpoDetalle>
-        ),
-        pie: (
-          <FuenteDato
-            fuente={`Perú Compras, orden ${o.orden}`}
-            enlaces={[{ texto: "Consulta de órdenes de los Catálogos Electrónicos (Perú Compras)", href: CONSULTA_PERU_COMPRAS }]}
-          />
-        ),
-      },
-    };
-  });
+  const filas: Fila[] = pagina.data.map((o) => filaCatalogo(o, { ruta }));
   const tam = pagina.size || filas.length;
   const pag = (subir: boolean) => (
     <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={P_CAT.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas} subir={subir} />

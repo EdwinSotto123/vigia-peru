@@ -322,6 +322,8 @@ export interface ConteosEntidad {
   inversiones?: number | null;
   /** Sus compras por los Catálogos de Perú Compras (migración 236); null/ausente = sin dato. */
   catalogo?: number | null;
+  /** Sus compras, cada una una vez: procesos, catálogo, menores y órdenes sin concurso (migración 240); null = sin dato. */
+  compras?: number | null;
 }
 
 export async function getConteosEntidad(ruc: string): Promise<ConteosEntidad | null> {

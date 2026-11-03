@@ -140,6 +140,48 @@ export function condicionesMenores(q: FiltrosListaMenores, vals: unknown[]): { a
   return { ancla, filtros };
 }
 
+/** Las columnas de una fila de la lista, sobre `x` (las FILAS de arriba). */
+const COLS_MENOR = `x.id_contrato AS id, x.codigo, x.numero_contrato AS numero, x.objeto, x.descripcion,
+                  x.entidad, x.entidad_ruc AS "entidadRuc", x.proveedor, x.proveedor_ruc AS "proveedorRuc",
+                  x.monto::float AS monto, x.moneda, x.estado, to_char(x.fecha_suscripcion,'YYYY-MM-DD') AS fecha, x.anio,
+                  (x.id_documento_contrato IS NOT NULL) AS "tieneContrato",
+                  x.req_r2 AS "tieneRequerimiento", x.requerimiento_nombre AS "requerimientoNombre",
+                  x.estado_prod6 AS "estadoProceso", to_char(x.fec_publica,'YYYY-MM-DD') AS "fecPublica",
+                  to_char(x.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(x.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta",
+                  x.actividad_ciiu AS "provActividad", x.sp_estado_sunat AS "provEstado", x.sp_condicion_sunat AS "provCondicion",
+                  to_char(x.fecha_inicio_actividades,'YYYY-MM-DD') AS "provDesde", x.tipo_contribuyente AS "provTipo",
+                  CASE WHEN x.fecha_inicio_actividades IS NOT NULL THEN x.dias END AS "provDiasAlGanar",
+                  -- El tope de 8 UIT del año y si el monto lo pasa (en soles): un contrato menor no debería.
+                  x.tope::float AS tope, (x.moneda = 'PEN' AND x.monto > x.tope) AS "sobreTope",
+                  -- La inhabilitación del Tribunal vigente el día de la firma, con su resolución: la evidencia de la bandera.
+                  CASE WHEN x.inhabilitado THEN (
+                    SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
+                                              'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'))
+                      FROM osce_sancionados s WHERE s.ruc = x.proveedor_ruc AND s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
+                       AND x.fecha_suscripcion BETWEEN s.fecha_desde AND COALESCE(s.fecha_hasta, CASE WHEN s.tipo = 'definitivo' THEN DATE '9999-12-31' END)
+                     ORDER BY s.fecha_desde DESC LIMIT 1) END AS inhabilitacion`;
+
+/** Las filas de unos contratos menores por su id, con las columnas de la lista (routes/compras.ts). */
+export async function filasMenores(ids: number[]): Promise<Record<string, unknown>[]> {
+  if (!ids.length) return [];
+  const r = await consultaConPlazo(`WITH x AS (${FILAS} WHERE m.id_contrato = ANY($1::int[])) SELECT ${COLS_MENOR} FROM x`, [ids]);
+  return r.rows as Record<string, unknown>[];
+}
+
+/** Las llaves de una página con sus filtros: id, fecha y monto (la rama de los menores de la lista de compras). */
+export async function clavesMenores(q: Omit<FiltrosListaMenores, "page" | "size" | "orden">, n: number, dir: "DESC" | "ASC", con?: string)
+  : Promise<{ id: number; fecha: string | null; monto: number | null }[]> {
+  const vals: unknown[] = [];
+  const { ancla, filtros } = condicionesMenores({ ...q, orden: "reciente", page: 1, size: 1 }, vals);
+  if (con) ancla.push(q.entidad ? `m.proveedor_ruc = '${con}'` : `m.entidad_ruc = '${con}'`);
+  const where = filtros.length ? `WHERE ${filtros.map((f) => f.sql).join(" AND ")}` : "";
+  const r = await consultaConPlazo(
+    `WITH x AS (${FILAS} WHERE ${ancla.join(" AND ")})
+     SELECT x.id_contrato AS id, to_char(x.fecha_suscripcion, 'YYYY-MM-DD') AS fecha, x.monto::float AS monto FROM x ${where}
+      ORDER BY x.fecha_suscripcion ${dir}, x.id_contrato ${dir} LIMIT ${n}`, vals);
+  return r.rows as { id: number; fecha: string | null; monto: number | null }[];
+}
+
 /** Las opciones con conteo de cada faceta (la región se cuenta aparte, agrupada). */
 const OPCIONES: Record<Exclude<Faceta, "region">, Record<string, string>> = {
   antecedente: ANTECEDENTE_MENOR,
@@ -188,28 +230,9 @@ menoresRouter.get("/", async (c) => {
     const dir = q.orden === "antiguo" ? "ASC" : "DESC";
     const offset = (q.page - 1) * q.size;
     const lim = q.size + 1; // una de más para saber si hay página siguiente
-    const COLS = `x.id_contrato AS id, x.codigo, x.numero_contrato AS numero, x.objeto, x.descripcion,
-                  x.entidad, x.entidad_ruc AS "entidadRuc", x.proveedor, x.proveedor_ruc AS "proveedorRuc",
-                  x.monto::float AS monto, x.moneda, x.estado, to_char(x.fecha_suscripcion,'YYYY-MM-DD') AS fecha, x.anio,
-                  (x.id_documento_contrato IS NOT NULL) AS "tieneContrato",
-                  x.req_r2 AS "tieneRequerimiento", x.requerimiento_nombre AS "requerimientoNombre",
-                  x.estado_prod6 AS "estadoProceso", to_char(x.fec_publica,'YYYY-MM-DD') AS "fecPublica",
-                  to_char(x.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(x.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta",
-                  x.actividad_ciiu AS "provActividad", x.sp_estado_sunat AS "provEstado", x.sp_condicion_sunat AS "provCondicion",
-                  to_char(x.fecha_inicio_actividades,'YYYY-MM-DD') AS "provDesde", x.tipo_contribuyente AS "provTipo",
-                  CASE WHEN x.fecha_inicio_actividades IS NOT NULL THEN x.dias END AS "provDiasAlGanar",
-                  -- El tope de 8 UIT del año y si el monto lo pasa (en soles): un contrato menor no debería.
-                  x.tope::float AS tope, (x.moneda = 'PEN' AND x.monto > x.tope) AS "sobreTope",
-                  -- La inhabilitación del Tribunal vigente el día de la firma, con su resolución: la evidencia de la bandera.
-                  CASE WHEN x.inhabilitado THEN (
-                    SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
-                                              'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'))
-                      FROM osce_sancionados s WHERE s.ruc = x.proveedor_ruc AND s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
-                       AND x.fecha_suscripcion BETWEEN s.fecha_desde AND COALESCE(s.fecha_hasta, CASE WHEN s.tipo = 'definitivo' THEN DATE '9999-12-31' END)
-                     ORDER BY s.fecha_desde DESC LIMIT 1) END AS inhabilitacion`;
     const where = filtros.length ? `WHERE ${filtros.map((f) => f.sql).join(" AND ")}` : "";
     const sql = `WITH x AS (${FILAS} WHERE ${ancla.join(" AND ")})
-                 SELECT ${COLS} FROM x ${where}
+                 SELECT ${COLS_MENOR} FROM x ${where}
                  ORDER BY x.fecha_suscripcion ${dir} NULLS LAST, x.id_contrato ${dir} LIMIT ${lim} OFFSET ${offset}`;
     const anios = listaAnios();
     const f = sqlFacetasMenores(q, anios);

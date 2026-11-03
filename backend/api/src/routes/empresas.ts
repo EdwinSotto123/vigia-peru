@@ -443,6 +443,21 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
   const q = parsed.data;
   const cuerpo = await fichaMemo.obtener(`contratos:${ruc}:${JSON.stringify(q)}`, async () => {
     if (!(await existe(ruc))) return null;
+    const r = await contratosDeEmpresa(ruc, q);
+    return publicar({ total: r.total, page: q.page, size: q.size, facetas: r.facetas, data: r.data });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+export type FiltrosContratosEmpresa = z.infer<typeof Contratos>;
+
+/**
+ * Los procesos que ganó una empresa (sola o en consorcio), cada uno una vez, con sus antecedentes y sanciones, la página
+ * pedida y los conteos de cada filtro. La usan esta ruta y la lista de compras (routes/compras.ts). Sin publicar().
+ */
+export async function contratosDeEmpresa(ruc: string, q: FiltrosContratosEmpresa): Promise<{ total: number; facetas: unknown; data: Record<string, unknown>[] }> {
     const vals: unknown[] = [ruc];
     const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     const conds: string[] = [];
@@ -555,8 +570,8 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
          FROM fac LEFT JOIN f ON true
         ORDER BY ${ORDEN_CONTRATOS[q.orden].replace(/x\./g, "f.")}`, vals);
     const filas = r.rows.filter((x) => x.codigo != null);
-    return publicar({
-      total: filas[0]?.total ?? 0, page: q.page, size: q.size,
+    return {
+      total: filas[0]?.total ?? 0,
       facetas: r.rows[0]?.facetas ?? null,
       data: filas.map(({ total: _t, facetas: _f, antecedentes, sancion, ...f }) => ({
         ...f,
@@ -568,12 +583,8 @@ empresasRouter.get("/:ruc/contratos", async (c) => {
           .map((t) => ({ tipo: t.tipo, severidad: t.severidad, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
           .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),
       })),
-    });
-  });
-  if (!cuerpo) return c.json({ error: "not_found" }, 404);
-  c.header("Cache-Control", CACHE);
-  return c.json(cuerpo);
-});
+    };
+}
 
 // ─── GET /empresas/:ruc/ordenes ─────────────────────────────────────────────────────────────────
 const Ordenes = z.object({

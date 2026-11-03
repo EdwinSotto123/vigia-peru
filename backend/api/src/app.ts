@@ -37,6 +37,7 @@ import { contratosRouter } from "./routes/contratos.js";
 import { ordenesRouter } from "./routes/ordenes.js";
 import { menoresRouter } from "./routes/menores.js";
 import { catalogoRouter } from "./routes/catalogo.js";
+import { comprasRouter } from "./routes/compras.js";
 import { cuentasRouter } from "./routes/cuentas.js";
 import { buscarRouter } from "./routes/buscar.js";
 import { senalesRouter } from "./routes/senales.js";
@@ -149,6 +150,7 @@ api.route("/contratos", contratosRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
 api.route("/catalogo", catalogoRouter);
+api.route("/compras", comprasRouter);
 api.route("/obras", obrasRouter);
 // Gobserva (2026-11-01): los productos de pago con marca propia (empleo.gobserva.cloud y licitaciones.gobserva.cloud) y
 // la lista de espera de sus planes (migración 226).
