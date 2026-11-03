@@ -126,6 +126,9 @@ export interface FichaEmpresa {
     /** Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (migración 207). */
     bordeEntidades?: number;
     bordeOrdenes?: number;
+    /** Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237): órdenes, monto, en cuántas cobró el doble o
+     *  más de la mediana de la misma ficha ese año y cuánto por encima. null = sin las tablas. */
+    catalogo?: { ordenes: number; monto: number; sobreprecio: number; exceso: number } | null;
     // Ficha reducida: empresa jurídica que SOLO aparece en contratos menores (no está en empresa_resumen).
     soloMenores?: boolean;
     condicionSunat?: string | null;
@@ -593,7 +596,7 @@ export const CORTO_EMPRESA: Record<string, string> = {
 export const PESTANAS_EMPRESA = ["inicio", "historia", "ventas", "clientes", "postulaciones", "antecedentes", "gente", "obras"] as const;
 export type PestanaEmpresa = (typeof PESTANAS_EMPRESA)[number];
 /** Las listas de «Ventas al Estado» y de «Su gente»; la primera de cada una va sin parámetro. */
-export const VISTAS_VENTAS = ["contratos", "ordenes", "menores"] as const;
+export const VISTAS_VENTAS = ["contratos", "ordenes", "menores", "catalogo"] as const;
 export const VISTAS_GENTE = ["socios", "visitas"] as const;
 export type VistaEmpresa = (typeof VISTAS_VENTAS)[number] | (typeof VISTAS_GENTE)[number];
 /** Adónde puede llevar un enlace: una pestaña o una de sus listas. */
@@ -608,6 +611,7 @@ const DESTINO: Record<SeccionEmpresa, { seccion: PestanaEmpresa; vista?: VistaEm
   contratos: { seccion: "ventas" },
   ordenes: { seccion: "ventas", vista: "ordenes" },
   menores: { seccion: "ventas", vista: "menores" },
+  catalogo: { seccion: "ventas", vista: "catalogo" },
   clientes: { seccion: "clientes" },
   postulaciones: { seccion: "postulaciones" },
   antecedentes: { seccion: "antecedentes" },

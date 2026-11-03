@@ -127,6 +127,10 @@ export interface ApiEntidad {
     /** Olas de órdenes a personas tras un cambio de gestión (migración 188) y la más reciente. */
     olaGestion?: number;
     ola?: { severidad: "alta" | "media" | null; quien: string | null; antes: number | null; despues: number | null } | null;
+    /** Órdenes de catálogo con algún producto al doble o más de la mediana de las demás entidades, y cuánto por encima
+     *  (migración 237). */
+    sobreprecioCatalogo?: number;
+    sobreprecioCatalogoExceso?: number;
   };
 }
 
@@ -316,6 +320,8 @@ export interface ConteosEntidad {
   /** Sus obras públicas en INFOBRAS y sus inversiones en Invierte.pe (migración 160); null/ausente = sin dato. */
   obras?: number | null;
   inversiones?: number | null;
+  /** Sus compras por los Catálogos de Perú Compras (migración 236); null/ausente = sin dato. */
+  catalogo?: number | null;
 }
 
 export async function getConteosEntidad(ruc: string): Promise<ConteosEntidad | null> {

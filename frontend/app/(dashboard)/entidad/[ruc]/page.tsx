@@ -17,6 +17,7 @@ import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
 import { contratosParametros, getContratos, getResumenContratos, parseContratosQuery, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
 import { getConteosEntidad, getEntidad } from "@/lib/api-client";
 import { parseMenoresQuery, P_MEN } from "@/lib/menores";
+import { parseCatalogoQuery, P_CAT } from "@/lib/catalogo";
 import { parseOrdenesQuery, P_ORD } from "@/lib/ordenes";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { rutaRegion } from "@/lib/regiones";
@@ -133,6 +134,8 @@ export default async function EntidadProfile({
   // Sus órdenes y sus contratos menores, también por la ruta: con sus filtros «o» y «m», sin la entidad ni la región.
   const fo = { ...parseOrdenesQuery(searchParams), entidad: undefined, region: undefined };
   const fm = { ...parseMenoresQuery(searchParams), entidad: undefined, proveedor: undefined };
+  // Y sus compras por los Catálogos de Perú Compras, con sus filtros «c».
+  const fcat = parseCatalogoQuery(searchParams);
 
   // Lo que esperan la cabecera y la barra de pestañas, todo a la vez: la entidad, el resumen de sus contratos (las cifras
   // y el Inicio) y cuántas filas tiene cada pestaña (su número y su orden). Lo demás lo pide cada pestaña.
@@ -195,6 +198,7 @@ export default async function EntidadProfile({
     contratos: resumenEntidad ? resumenEntidad.total : e.contratos != null ? Number(e.contratos) : null,
     ordenes: conteos ? conteos.ordenes : null,
     menores: conteos?.menores ?? null,
+    catalogo: conteos?.catalogo ?? null,
     personas: conteos?.personas ?? null,
     planilla: conteos?.planilla ?? null,
     plazas: conteos?.plazas ?? null,
@@ -220,7 +224,9 @@ export default async function EntidadProfile({
     ? "ordenes"
     : con(Object.values(P_MEN))
       ? "menores"
-      : filtrada || con(["page", "cursor", "antes"])
+      : con(Object.values(P_CAT))
+        ? "catalogo"
+        : filtrada || con(["page", "cursor", "antes"])
         ? "contratos"
         : undefined;
   const ordenVistas = alFinal(VISTAS, (v) => n[v] === 0);
@@ -292,8 +298,8 @@ export default async function EntidadProfile({
       conteo: sinCompras ? 0 : null,
       contenido: sinCompras ? (
         <PestanaVacia titulo="No registra compras" ayuda={<AyudaCompras />} accion={!sinMef ? accion(enlace("presupuesto"), "Ver cuánto gasta") : undefined}>
-          Ni el OECE ni el SEACE tienen compras con su RUC: ni convocatorias desde 2015, ni órdenes de compra o de servicio desde
-          2018, ni contratos menores.
+          Ni el OECE, ni el SEACE ni Perú Compras tienen compras con su RUC: ni convocatorias desde 2015, ni órdenes de compra o de
+          servicio desde 2018, ni contratos menores, ni compras por catálogo.
         </PestanaVacia>
       ) : (
         <ComprasEntidad
@@ -301,11 +307,12 @@ export default async function EntidadProfile({
           ruta={ruta}
           orden={ordenVistas}
           activa={vista}
-          conteo={{ contratos: n.contratos, ordenes: n.ordenes, menores: n.menores }}
+          conteo={{ contratos: n.contratos, ordenes: n.ordenes, menores: n.menores, catalogo: n.catalogo }}
           menoresDesde={conteos?.menoresDesde ?? null}
           contratos={{ query, parametros, resumen: resumenFiltrado }}
           ordenes={fo}
           menores={fm}
+          catalogo={fcat}
         />
       ),
     },

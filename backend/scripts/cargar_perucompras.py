@@ -425,6 +425,12 @@ def cmd_cargar(a) -> int:
         with con, con.cursor() as cur:
             cur.execute("ANALYZE perucompras_orden")
             cur.execute("ANALYZE perucompras_item")
+            # El precio de referencia de cada ficha y las compras al doble o más (migración 237), si ya está.
+            cur.execute("SELECT to_regprocedure('refrescar_perucompras_precios()') IS NOT NULL")
+            if cargados and cur.fetchone()[0]:
+                cur.execute("SET LOCAL statement_timeout = 0")
+                cur.execute("SELECT refrescar_perucompras_precios()")
+                print(f"  precios de referencia: {cur.fetchone()[0]:,} líneas al doble de la mediana o más", flush=True)
             cur.execute("""INSERT INTO datasets_cargas (fuente, clave, tabla, archivo, sha256, bytes, filas, fuente_url,
                                                         descargado_at, cargado_at, estado)
                            SELECT 'perucompras', 'ordenes', 'perucompras_orden', 'consultaOrdenesDetallado',

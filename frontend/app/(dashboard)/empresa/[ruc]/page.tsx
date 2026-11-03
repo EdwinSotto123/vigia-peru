@@ -65,6 +65,8 @@ import {
 } from "@/lib/empresas";
 import { getMenores, parseMenoresQuery, P_MEN } from "@/lib/menores";
 import { ListaMenores, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
+import { getCatalogo, parseCatalogoQuery, P_CAT, type CatalogoPagina } from "@/lib/catalogo";
+import { BarraCatalogo, ListaCatalogo } from "@/components/catalogo/ListaCatalogo";
 import { ObrasEmpresa, obrasDeEmpresa } from "@/components/obras/ObrasEmpresa";
 import { uno } from "@/lib/utils";
 
@@ -169,6 +171,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const fa = { tipo: uno(sp?.[P_ANTECEDENTES.tipo])?.match(/^[a-z_]{2,40}$/)?.[0], gravedad: de(sp?.[P_ANTECEDENTES.gravedad], ["alta", "media", "baja"] as const) };
   // Contratos menores (≤8 UIT) que ganó: se filtran por su RUC de proveedor (no por URL), con los filtros «m» propios.
   const fm = { ...parseMenoresQuery(sp), entidad: undefined, proveedor: undefined };
+  // Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237), con sus filtros «c».
+  const fcat = parseCatalogoQuery(sp);
   // Los filtros puestos de cada lista, con los nombres de P_* (sin la página).
   const filtros = <K extends string>(P: Record<K, string>, v: Partial<Record<K, string | number | undefined>>): Parametros => {
     const out: Parametros = {};
@@ -180,6 +184,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const fP = filtros(P_POSTULACIONES, fp);
   const fA = filtros(P_ANTECEDENTES, fa);
   const fM = filtros(P_MEN, fm as Partial<Record<keyof typeof P_MEN, string | number | undefined>>);
+  const fK = filtros(P_CAT, fcat as Partial<Record<keyof typeof P_CAT, string | number | undefined>>);
   // Lo que conserva cada lista en sus enlaces (filtrar, paginar): su pestaña y su vista, sus filtros y de dónde vino.
   const lista = (s: SeccionEmpresa, propios: Parametros): Parametros => ({ ...(desde ? { desde } : {}), ...parametrosSeccion(s), ...propios });
   const pc = lista("contratos", fC);
@@ -187,12 +192,13 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const pp = lista("postulaciones", fP);
   const pa = lista("antecedentes", fA);
   const pm = lista("menores", fM);
+  const pk = lista("catalogo", fK);
 
   // La pestaña y la vista abiertas: las de la URL; sin `seccion`, la lista que traiga filtros (un enlace armado a mano).
   const hay = (p: Parametros, pag: number) => Object.keys(p).length > 0 || pag > 1;
   const inferida: SeccionEmpresa | undefined =
     hay(fC, fc.page) ? "contratos" : hay(fO, fo.page) ? "ordenes" : hay(fP, fp.page) ? "postulaciones"
-      : hay(fM, fm.page ?? 1) ? "menores" : hay(fA, 1) ? "antecedentes" : undefined;
+      : hay(fM, fm.page ?? 1) ? "menores" : hay(fK, fcat.page ?? 1) ? "catalogo" : hay(fA, 1) ? "antecedentes" : undefined;
   const valida = PESTANAS_EMPRESA.find((s) => s === pedida);
   const destino: { seccion: PestanaEmpresa; vista?: string } = valida
     ? { seccion: valida, vista: uno(sp?.[P_VISTA]) }
@@ -204,6 +210,11 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
   const ordenesP = getOrdenesEmpresa(e.ruc, { ...fo, size: TAM });
   const menoresP = getMenores({ ...fm, proveedor: e.ruc, size: TAM });
+  // Sin ventas por catálogo (o sin las tablas) no se pide: la vista dice que no tiene.
+  const nCatalogo = e.catalogo ? e.catalogo.ordenes : null;
+  const catalogoP: Promise<CatalogoPagina | null> = nCatalogo === 0
+    ? Promise.resolve({ page: 1, size: TAM, hayMas: false, disponible: true, facetas: null, data: [] })
+    : getCatalogo({ ...fcat, proveedor: e.ruc, size: TAM });
   const postulacionesP = getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM });
   const clientesP = getClientesEmpresa(e.ruc);
   const antecedentesP = getAntecedentesEmpresa(e.ruc);
@@ -237,6 +248,14 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           explica: `Con ${plural(e.bordeEntidades!, "entidad", "entidades")}, la mitad o más de sus órdenes quedaron entre el 95 % y el 100 % del tope de 8 UIT, el monto desde el cual se debe hacer un proceso de selección`,
           // La lista general de órdenes (la de la ficha no tiene ese filtro), de esta empresa y con la bandera en cada fila.
           href: `/app/contratos?vista=ordenes&oprov=${e.ruc}&oant=al_borde_del_tope`,
+        }]
+      : []),
+    // Cobró por catálogo el doble o más de la mediana de la misma ficha ese año (migración 237).
+    ...((e.catalogo?.sobreprecio ?? 0) > 0
+      ? [{
+          tipo: "sobreprecio_catalogo", severidad: "media" as const, nombre: "Cobró el doble en el catálogo", n: e.catalogo!.sobreprecio,
+          explica: `En ${plural(e.catalogo!.sobreprecio, "orden", "órdenes")} de los Catálogos de Perú Compras cobró el doble o más de lo que pagaron las demás entidades por el mismo producto ese año: ${soles(e.catalogo!.exceso)} por encima de la mediana. El precio incluye la entrega en el lugar: es un dato para revisar`,
+          href: `${ruta}?seccion=ventas&${P_VISTA}=catalogo&${P_CAT.sobreprecio}=si&${P_CAT.orden}=sobreprecio`,
         }]
       : []),
     ...(e.visitasClientes > 0
@@ -320,8 +339,8 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             contenido: (
               <div>
                 <CabeceraPestana>
-                  Lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />, sus órdenes de compra y de servicio y sus
-                  contratos menores <AyudaTermino clave="contrato-menor" />.
+                  Lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />, sus órdenes de compra y de servicio, sus
+                  contratos menores <AyudaTermino clave="contrato-menor" /> y lo que vendió por catálogo <AyudaTermino clave="catalogo-electronico" />.
                 </CabeceraPestana>
                 <Pestanas
                   variante="segunda"
@@ -380,6 +399,25 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                             <ZonaResultados>
                               <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
                                 <ListaMenores pagina={menoresP} ruta={ruta} parametros={pm} actual={fm.page ?? 1} />
+                              </Suspense>
+                            </ZonaResultados>
+                          </Listado>
+                        </div>
+                      ),
+                    },
+                    {
+                      clave: "catalogo",
+                      etiqueta: "Catálogo",
+                      conteo: nCatalogo ?? undefined,
+                      contenido: (
+                        <div className="space-y-4">
+                          <Listado ruta={ruta} parametros={pk} paramPagina={P_CAT.page} conservar={SIN_CONSERVAR}>
+                            <Suspense fallback={<div className="min-h-[52px]" />}>
+                              <BarraCatalogo pagina={catalogoP} />
+                            </Suspense>
+                            <ZonaResultados>
+                              <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Lo que vendió", ancho: "1fr" }]} filas={8} />}>
+                                <ListaCatalogo pagina={catalogoP} ruta={ruta} parametros={pk} actual={fcat.page ?? 1} />
                               </Suspense>
                             </ZonaResultados>
                           </Listado>

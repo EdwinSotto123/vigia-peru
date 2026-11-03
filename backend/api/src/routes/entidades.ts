@@ -9,6 +9,7 @@ import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
 import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 import { hayObras } from "./obras.js";
+import { hayCatalogo } from "./catalogo.js";
 
 export const entidadesRouter = new Hono();
 
@@ -815,7 +816,7 @@ const ORDEN_LISTADA = `o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM '
  * /ordenes: con un parámetro, Hyperdrive prepara la sentencia y el plan genérico puede dejar el índice de lado; el literal
  * sirve igual para las columnas text y char(11).
  */
-export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = false): string {
+export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = false, conCatalogo = false): string {
   if (!/^\d{11}$/.test(ruc)) throw new Error("RUC inválido");
   const r = `'${ruc}'`;
   const resumen = (tabla: string) => `COALESCE((SELECT (x.resumen->>'personas')::int FROM ${tabla} x WHERE x.alcance = 'ent:${ruc}'), 0)`;
@@ -839,6 +840,10 @@ export function sqlConteosEntidad(ruc: string, conResumen: boolean, conObras = f
          ? `,
        (SELECT count(*) FROM obra_infobras ob WHERE ob.entidad_ruc = ${r} AND NOT ob.retirada)::int AS obras,
        (SELECT count(*) FROM inversion_mef iv WHERE iv.entidad_ruc = ${r} AND NOT iv.retirada)::int AS inversiones`
+         : ""}${conCatalogo
+         // Sus compras por los Catálogos de Perú Compras (migración 236), por el índice de la entidad.
+         ? `,
+       (SELECT count(*) FROM perucompras_orden pc WHERE pc.entidad_ruc = ${r})::int AS catalogo`
          : ""}`;
 }
 
@@ -861,11 +866,13 @@ entidadesRouter.get("/:ruc/conteos", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await conteosMemo.obtener(ruc, async () => {
-    const [conResumen, conObras] = await Promise.all([hayResumenOrdenes(), hayObras()]);
-    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen, conObras))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
+    const [conResumen, conObras, conCatalogo] = await Promise.all([hayResumenOrdenes(), hayObras(), hayCatalogo()]);
+    const f = (await pool.query(sqlConteosEntidad(ruc, conResumen, conObras, conCatalogo))).rows[0] as Record<string, unknown> & { hayOrdenes: boolean; ordenes?: number | null };
     const { hayOrdenes, ordenes, ordenesMonto, ...resto } = f;
     // Sin la migración 160, null: no se sabe (la pestaña Obras va sin número, nunca con un 0 que no es).
     if (!conObras) Object.assign(resto, { obras: null, inversiones: null });
+    // Lo mismo sin la 236: la vista Catálogo va sin número.
+    if (!conCatalogo) Object.assign(resto, { catalogo: null });
     // Sin ninguna orden, 0. Con alguna, su número si el resumen ya la contó; si no (sin la migración, o antes de su primer
     // refresco), null: tiene órdenes, pero no se sabe cuántas (nunca un 0 que no es).
     const contadas = hayOrdenes && typeof ordenes === "number" && ordenes > 0;
@@ -888,7 +895,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas, nep, ban, gente, visitasYOlas] = await Promise.all([
+  const [ent, mef, alertas, nep, ban, gente, visitasYOlas, catalogo] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (EN_COLA).
       ? `SELECT e.*,
@@ -1014,6 +1021,15 @@ entidadesRouter.get("/:ruc", async (c) => {
          LEFT JOIN LATERAL (SELECT * FROM entidad_ola_gestion o WHERE o.entidad_ruc = $1 ORDER BY o.desde DESC LIMIT 1) o ON true`,
       [ruc],
     ).catch(() => null),
+    // Lo que compró por los Catálogos de Perú Compras al doble o más de la mediana de la misma ficha ese año (migración
+    // 237): cuántas órdenes y cuánto por encima. Sin las tablas, nada (la bandera no sale).
+    hayCatalogo()
+      .then((ok) => ok
+        ? pool.query<{ ordenes: number; exceso: number }>(
+            `SELECT count(DISTINCT s.orden)::int AS ordenes, COALESCE(sum(s.exceso), 0)::float AS exceso
+               FROM perucompras_sobreprecio s WHERE s.entidad_ruc = $1`, [ruc])
+        : null)
+      .catch((e) => { console.warn(`[entidades] catálogo de ${ruc}: ${(e as Error).message}`); return null; }),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -1062,6 +1078,7 @@ entidadesRouter.get("/:ruc", async (c) => {
             socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
             empresaEspejo: g.empresaEspejo,
           } : {}),
+          ...(catalogo?.rows[0] ? { sobreprecioCatalogo: catalogo.rows[0].ordenes, sobreprecioCatalogoExceso: catalogo.rows[0].exceso } : {}),
           ...(visitasYOlas?.rows[0] ? {
             visitaPariente: visitasYOlas.rows[0].visitaPariente,
             olaGestion: visitasYOlas.rows[0].olaGestion,

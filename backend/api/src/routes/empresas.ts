@@ -10,6 +10,7 @@ import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { claveCruce, referenciasDe } from "../lib/referencias.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { conEnie, palabrasBusqueda } from "./personas.js";
+import { hayCatalogo } from "./catalogo.js";
 
 /**
  * Empresas (migraciones 109 y 112): cada RUC 20 que ganó, postuló o recibió órdenes del Estado, y lo que otros registros
@@ -279,7 +280,7 @@ empresasRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!RUC_EMPRESA.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await fichaMemo.obtener(`ficha:${ruc}`, async () => {
-    const [e, anual] = await Promise.all([
+    const [e, anual, catalogo] = await Promise.all([
       pool.query(
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
@@ -324,13 +325,24 @@ empresasRouter.get("/:ruc", async (c) => {
                 COALESCE(o.ordenes, 0) AS ordenes, COALESCE(o.ordenado, 0) AS ordenado, COALESCE(o.dudosas, 0) AS dudosas,
                 COALESCE(o."ordenadoDudoso", 0) AS "ordenadoDudoso"
            FROM ad FULL JOIN o ON o.anio = ad.anio ORDER BY 1`, [ruc]),
+      // Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237): cuántas órdenes, por cuánto, y en cuántas
+      // cobró el doble o más de la mediana de la misma ficha ese año. Sin las tablas, null (la vista va sin número).
+      hayCatalogo()
+        .then((ok) => ok
+          ? pool.query<{ ordenes: number; monto: number; sobreprecio: number; exceso: number }>(
+              `SELECT (SELECT count(*) FROM perucompras_orden o WHERE o.proveedor_ruc = $1)::int AS ordenes,
+                      (SELECT COALESCE(sum(o.total), 0) FROM perucompras_orden o WHERE o.proveedor_ruc = $1)::float AS monto,
+                      (SELECT count(DISTINCT s.orden) FROM perucompras_sobreprecio s WHERE s.proveedor_ruc = $1)::int AS sobreprecio,
+                      (SELECT COALESCE(sum(s.exceso), 0) FROM perucompras_sobreprecio s WHERE s.proveedor_ruc = $1)::float AS exceso`, [ruc])
+          : null)
+        .catch((err) => { console.warn(`[empresas] catálogo de ${ruc}: ${(err as Error).message}`); return null; }),
     ]);
     const fila = e.rows[0];
     if (!fila) return fichaMenoresOnly(ruc);
     // Sus antecedentes por tipo: qué registro la nombra, cuántas veces y con qué gravedad (sin puntos ni puntaje).
     const antecedentes = ((fila.cruces as { tipo: string; severidad: string; n: number }[] | null) ?? [])
       .map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo }));
-    return publicar({ empresa: conNombre(fila), antecedentes, anual: anual.rows });
+    return publicar({ empresa: { ...conNombre(fila), catalogo: catalogo?.rows[0] ?? null }, antecedentes, anual: anual.rows });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);

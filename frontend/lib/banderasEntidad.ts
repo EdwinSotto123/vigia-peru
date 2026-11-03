@@ -1,5 +1,5 @@
 import type { ApiEntidad } from "@/lib/api-client";
-import { numero, plural } from "@/lib/formato";
+import { numero, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 
 /**
@@ -104,6 +104,16 @@ export function banderasEntidad(
       titulo: `${plural(n, "empresa recibe", "empresas reciben")} casi siempre órdenes justo debajo del tope`,
       explica: "La mitad o más de las órdenes que la entidad le dio a cada una (al menos cinco) quedaron entre el 95 % y el 100 % del tope de su año, el monto desde el cual se debe hacer un proceso de selección. Puede ser el precio de lo que se compró o una compra partida en órdenes.",
       href: `${ficha}?seccion=contratos&vista=ordenes&oant=al_borde_del_tope&oper=empresa`,
+    });
+  }
+  // Compras por catálogo al doble de la mediana o más (migración 237): cada orden con el producto y su precio de referencia.
+  if ((s.sobreprecioCatalogo ?? 0) > 0) {
+    const n = s.sobreprecioCatalogo!;
+    out.push({
+      tipo: "sobreprecio_catalogo", severidad: "media", chip: "Pagó el doble en el catálogo", n,
+      titulo: `${plural(n, "compra por catálogo pagó", "compras por catálogo pagaron")} el doble o más de lo que pagaron las demás entidades por el mismo producto`,
+      explica: `En los Catálogos Electrónicos de Perú Compras, la misma ficha-producto el mismo año: ${soles(s.sobreprecioCatalogoExceso ?? 0)} por encima de la mediana, por la cantidad comprada. El precio incluye la entrega en el lugar y una compra chica cuesta más: es un dato para revisar.`,
+      href: `${ficha}?seccion=contratos&vista=catalogo&csob=si&cord=sobreprecio`,
     });
   }
   if ((s.nepotismoGobierno ?? 0) > 0) {

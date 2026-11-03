@@ -13,13 +13,17 @@ import { TIPO_CRUCE } from "@/lib/cruces";
 import { ORDENES, getContratos, type ContratosPagina, type ContratosQuery, type ResumenContratos } from "@/lib/contratos";
 import { getMenores, P_MEN, type FiltrosMenores } from "@/lib/menores";
 import { getOrdenes, P_ORD, type FiltrosOrdenes } from "@/lib/ordenes";
+import { getCatalogo, P_CAT, type FiltrosCatalogo } from "@/lib/catalogo";
+import { BarraCatalogo, ListaCatalogo } from "@/components/catalogo/ListaCatalogo";
 
 /**
- * La pestaña Contratos de la ficha de una entidad: lo que compró, en tres vistas (`?vista=`, pestañas de segundo nivel,
+ * La pestaña Contratos de la ficha de una entidad: lo que compró, en cuatro vistas (`?vista=`, pestañas de segundo nivel,
  * como «Ventas al Estado» en la ficha de una empresa), cada una con su número:
  *   · Contratos: sus convocatorias desde 2015 (con su ganador), con los filtros de /app/contratos y la misma tabla.
  *   · Órdenes: sus órdenes de compra y de servicio desde 2018 (CONOSCE), la lista de /app/contratos?vista=ordenes.
  *   · Menores: sus contratos de hasta 8 UIT del SEACE, con el requerimiento descargable.
+ *   · Catálogo: sus compras por los Catálogos Electrónicos de Perú Compras (migraciones 236-237), producto por producto y
+ *     con el precio frente a lo que pagaron las demás entidades (components/catalogo/ListaCatalogo.tsx).
  * Antes las órdenes no estaban en la ficha (UNA Chupaca: «1 contrato desde 2015» y 124 órdenes en 2026 por S/ 940 mil) y
  * los contratos menores eran una pestaña aparte, vacía en casi todas las entidades. Las vistas vacías van al final y dicen
  * por qué no hay y dónde mirar; la abierta se arma primero y las otras después (`Diferida`).
@@ -30,14 +34,14 @@ import { getOrdenes, P_ORD, type FiltrosOrdenes } from "@/lib/ordenes";
 
 /** Filas por página en las tres vistas. */
 export const TAM = 20;
-export const VISTAS = ["contratos", "ordenes", "menores"] as const;
+export const VISTAS = ["contratos", "ordenes", "menores", "catalogo"] as const;
 export type VistaCompras = (typeof VISTAS)[number];
-const ETIQUETA: Record<VistaCompras, string> = { contratos: "Contratos", ordenes: "Órdenes", menores: "Menores" };
+const ETIQUETA: Record<VistaCompras, string> = { contratos: "Contratos", ordenes: "Órdenes", menores: "Menores", catalogo: "Catálogo" };
 
 interface Props {
   ruc: string;
   ruta: string;
-  /** Las tres vistas en su orden (las vacías al final) y la abierta. */
+  /** Las cuatro vistas en su orden (las vacías al final) y la abierta. */
   orden: VistaCompras[];
   activa: VistaCompras;
   /** Cuántas filas tiene cada una; null = sin dato (la vista va sin número y muestra su lista). */
@@ -48,6 +52,7 @@ interface Props {
   contratos: { query: ContratosQuery; parametros: Parametros; resumen: Promise<ResumenContratos | null> };
   ordenes: FiltrosOrdenes;
   menores: FiltrosMenores;
+  catalogo: FiltrosCatalogo;
 }
 
 export function ComprasEntidad(props: Props) {
@@ -69,7 +74,7 @@ export function ComprasEntidad(props: Props) {
     <div>
       {/* Sólo el título y su ⓘ: en el celular, con la barra de filtros, el primer contrato quedaba a 1.6 pantallas. */}
       <CabeceraPestana ayuda={<AyudaCompras />} />
-      <Pestanas variante="segunda" key={activa} param="vista" activa={activa} etiqueta="Contratos, órdenes y contratos menores de la entidad" pestanas={pestanas} />
+      <Pestanas variante="segunda" key={activa} param="vista" activa={activa} etiqueta="Contratos, órdenes, contratos menores y compras por catálogo de la entidad" pestanas={pestanas} />
     </div>
   );
 }
@@ -89,8 +94,13 @@ export function AyudaCompras() {
         no están todos.
       </span>
       <span className="mt-2 block">
-        No se suman: una compra chica puede estar en Órdenes (el pago) y en Menores (el expediente). Los antecedentes salen del
-        cruce automático de datos públicos: son motivos para revisar, no pruebas.
+        Catálogo: lo que compró en la tienda en línea del Estado (Catálogos Electrónicos de Perú Compras), producto por producto,
+        con su precio frente a lo que pagaron las demás entidades por el mismo producto ese año.
+      </span>
+      <span className="mt-2 block">
+        No se suman: una compra chica puede estar en Órdenes (el pago) y en Menores (el expediente), y una compra por catálogo
+        también figura como orden. Los antecedentes salen del cruce automático de datos públicos: son motivos para revisar, no
+        pruebas.
       </span>
     </Ayuda>
   );
@@ -143,6 +153,18 @@ function Vista({ v, ...p }: Props & { v: VistaCompras }) {
         </EstadoVacio>
       );
     }
+    if (v === "catalogo") {
+      return (
+        <EstadoVacio
+          compacto
+          conLlamita={false}
+          titulo="No registra compras por catálogo"
+          accion={hayOrdenes ? <Link href={aVista(p.ruta, "ordenes")} prefetch={false} className={CLASE_ACCION_LISTA}>Ver sus órdenes</Link> : undefined}
+        >
+          Perú Compras no tiene órdenes de los Catálogos Electrónicos con su RUC desde 2017.
+        </EstadoVacio>
+      );
+    }
     return (
       <EstadoVacio
         compacto
@@ -163,6 +185,7 @@ function Vista({ v, ...p }: Props & { v: VistaCompras }) {
   }
   if (v === "contratos") return <VistaContratos {...p} />;
   if (v === "ordenes") return <VistaOrdenes {...p} />;
+  if (v === "catalogo") return <VistaCatalogo {...p} />;
   return <VistaMenores {...p} />;
 }
 
@@ -293,6 +316,23 @@ function VistaMenores({ ruc, ruta, orden, menores: f }: Props) {
       <ZonaResultados>
         <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Contrato menor", ancho: "1fr" }]} filas={8} />}>
           <ListaMenores pagina={pagina} ruta={ruta} parametros={parametros} actual={f.page ?? 1} />
+        </Suspense>
+      </ZonaResultados>
+    </Listado>
+  );
+}
+
+function VistaCatalogo({ ruc, ruta, orden, catalogo: f }: Props) {
+  const parametros: Parametros = { ...deFiltros(P_CAT, f), ...base("catalogo", orden) };
+  const pagina = getCatalogo({ ...f, entidad: ruc, size: TAM });
+  return (
+    <Listado ruta={ruta} parametros={parametros} paramPagina={P_CAT.page}>
+      <Suspense fallback={<div className="min-h-[52px]" />}>
+        <BarraCatalogo pagina={pagina} />
+      </Suspense>
+      <ZonaResultados>
+        <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Lo que compró", ancho: "1fr" }]} filas={8} />}>
+          <ListaCatalogo pagina={pagina} ruta={ruta} parametros={parametros} actual={f.page ?? 1} />
         </Suspense>
       </ZonaResultados>
     </Listado>

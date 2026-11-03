@@ -54,6 +54,22 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "un contrato menor",
     definicion: "Una compra del Estado por un monto pequeño (hasta 8 UIT: S/ 44,000 en 2026). Por ley no necesita concurso ni proceso de selección: la entidad contrata de forma directa.",
   },
+  "catalogo-electronico": {
+    tema: "Compras del Estado",
+    termino: "una compra por catálogo",
+    definicion: "Una compra en la tienda en línea del Estado (los Catálogos Electrónicos de Perú Compras): la entidad elige productos ya aprobados, con el precio que publica cada proveedor, y emite la orden sin un proceso de selección.",
+    fuente: "Perú Compras, reporte de órdenes de los Catálogos Electrónicos",
+  },
+  "ficha-producto": {
+    tema: "Compras del Estado",
+    termino: "una ficha-producto",
+    definicion: "La hoja de un producto en el catálogo (marca, modelo y características): la misma ficha es el mismo producto, lo compre la entidad que lo compre. Por eso se pueden comparar sus precios.",
+  },
+  "precio-referencia": {
+    tema: "Compras del Estado",
+    termino: "el precio de referencia",
+    definicion: "Lo que pagaron por unidad, sin IGV, las demás entidades que compraron la misma ficha-producto ese año: la mediana y el tramo del medio (entre el cuartil 1 y el 3). Sólo se usa si la compraron al menos 5 entidades.",
+  },
   "cotizacion": {
     tema: "Compras del Estado",
     termino: "una cotización",
