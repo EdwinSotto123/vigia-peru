@@ -1,0 +1,10 @@
+{
+  // Los reportes «ongei» del SEACE (penalidades y órdenes con su expediente SIAF), pedidos desde Zúrich: el SEACE filtra
+  // por la IP de salida y Zúrich pasa (backend/relay-worker). Aparte del relay: éste lleva la sesión JSF adentro.
+  "name": "vigia-seace-zrh",
+  "placement": { "mode": "targeted", "region": "gcp:europe-west6" },
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "workers_dev": true
+}

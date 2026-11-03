@@ -4,6 +4,8 @@
  *
  *   oece_ocds          diario 06:00                    → cron "0 11 * * *"
  *   pnda_sancionados   domingos 08:00                  ┐
+ *   osce_penalidades   domingos 08:00 (los adjuntos de │
+ *                      la wiki del OSCE, migr. 238)    │
  *   pnda_visitas       días 1 y 15, 08:00              │
  *   pnda_dji           día 5, 08:00                    ├ cron "0 13 * * *" (el día se decide acá)
  *   jne_infogob        día 5, 08:00                    │
@@ -72,7 +74,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const lima = new Date(ms - 5 * 3600 * 1000);
   const dia = lima.getUTCDate();
   const out: string[] = [];
-  if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "conosce_ordenes");
+  if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "osce_penalidades", "conosce_ordenes");
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");

@@ -207,9 +207,10 @@ export async function ListaCatalogo({
     const proveedor = o.proveedor ? tituloNatural(o.proveedor) : null;
     const top = principal(o);
     const otros = o.lineas - 1;
-    const titulo = top ? nombreProducto(top) : "Orden sin productos";
     const anio = o.fecha ? Number(o.fecha.slice(0, 4)) : null;
     const acuerdo = o.acuerdo ? oracion(o.acuerdo.replace(/\s*\*\s*No Vigente\s*$/i, "")) : null;
+    // Una orden de servicios (boletos aéreos, datos abiertos) no trae productos: su título es el acuerdo.
+    const titulo = top ? nombreProducto(top) : acuerdo ?? "Orden sin detalle";
     const estado = <EstadoCompra estado={o.estado} />;
     const bandera = o.sobreprecio ? [banderaSobreprecio(o.sobreprecio)] : [];
     const fichas = fichasCompra(ruta, o.entidadRuc, o.proveedorRuc);
@@ -256,19 +257,28 @@ export async function ListaCatalogo({
               {bandera.length > 0 && <BanderasAntecedentes antecedentes={bandera} etiqueta="Precio frente a la mediana" todas />}
             </ChipsDetalle>
             <DatosClave items={items.filter(Boolean) as DatoClave[]} />
-            <BloqueDetalle
-              titulo={`Lo que compró (${plural(o.lineas, "producto", "productos")})`}
-              ayuda={<AyudaTermino clave="precio-referencia" />}
-            >
-              <ul className="space-y-3">
-                {o.items.map((i) => <Producto key={i.linea} i={i} anio={anio} />)}
-              </ul>
-              {o.lineas > o.items.length && (
-                <p className="mt-3 text-meta text-mute">
-                  Y {plural(o.lineas - o.items.length, "producto más", "productos más")}: están en el PDF de la orden.
+            {o.lineas > 0 ? (
+              <BloqueDetalle
+                titulo={`Lo que compró (${plural(o.lineas, "producto", "productos")})`}
+                ayuda={<AyudaTermino clave="precio-referencia" />}
+              >
+                <ul className="space-y-3">
+                  {o.items.map((i) => <Producto key={i.linea} i={i} anio={anio} />)}
+                </ul>
+                {o.lineas > o.items.length && (
+                  <p className="mt-3 text-meta text-mute">
+                    Y {plural(o.lineas - o.items.length, "producto más", "productos más")}: están en el PDF de la orden.
+                  </p>
+                )}
+              </BloqueDetalle>
+            ) : (
+              <BloqueDetalle titulo="Lo que compró">
+                <p className="text-meta text-inkSoft">
+                  Perú Compras publica de las órdenes de servicios sólo su total, sin el detalle. En los boletos aéreos, el
+                  detalle nombra a quien viaja: Vigía no lo muestra.
                 </p>
-              )}
-            </BloqueDetalle>
+              </BloqueDetalle>
+            )}
             {(o.pdfOrden || o.pdfSustento) && (
               <BloqueDetalle titulo="Documentos">
                 <div className="flex flex-wrap gap-2">

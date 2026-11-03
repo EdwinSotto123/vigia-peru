@@ -39,6 +39,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Contratos menores del SEACE nuevo y el PDF de su requerimiento (prod6 sólo pasa por Zúrich)." },
   { fuente: "pnda_sancionados", nombre: "Proveedores sancionados (Tribunal)", donde: "cloudflare", agenda: "Domingos, 08:00", cadaDias: 7,
     que: "Inhabilitaciones y multas del Tribunal de Contrataciones: bandera crítica al ganador sancionado." },
+  { fuente: "osce_penalidades", nombre: "Penalidades de contratistas (OSCE)", donde: "cloudflare", agenda: "Domingos, 08:00", cadaDias: 7,
+    que: "Las penalidades que las entidades aplicaron por incumplir un contrato (adjuntos de la wiki del OSCE): antecedente de la empresa." },
   { fuente: "conosce_ordenes", nombre: "Órdenes de compra y servicio (CONOSCE)", donde: "cloudflare", agenda: "Domingos, 08:00 (unas 6 h)", cadaDias: 7,
     que: "El año en curso entero; después fraccionamiento, personas contratadas, señales y cruces." },
   { fuente: "mef_presupuesto", nombre: "Presupuesto público (MEF)", donde: "cloudflare", agenda: "Lunes, 08:00", cadaDias: 7,
