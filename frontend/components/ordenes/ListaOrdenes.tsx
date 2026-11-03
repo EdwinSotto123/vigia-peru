@@ -43,6 +43,7 @@ import { fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, porcentaje
 import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { FUENTE_TEXTO, SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
+import { ExpedienteSiaf } from "./ExpedienteSiaf";
 import {
   ANTECEDENTES_ORDEN,
   COMO_ORDEN,
@@ -743,6 +744,11 @@ export async function ListaOrdenes({
                     Ver los casos en la ficha de la entidad
                   </EnlaceAccion>
                 )}
+              </BloqueDetalle>
+            )}
+            {o.entidadRuc && o.fecha && o.numero && (
+              <BloqueDetalle titulo="Expediente SIAF" ayuda={<AyudaTermino clave="expediente-siaf" />}>
+                <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />
               </BloqueDetalle>
             )}
             <BloqueSenalesPersona o={o} />

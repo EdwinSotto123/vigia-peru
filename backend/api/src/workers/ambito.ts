@@ -48,8 +48,8 @@ class Ambito implements AmbitoPedido {
     return p;
   }
 
-  servicio(nombre: "dispatcher") {
-    return nombre === "dispatcher" ? this.env.DISPATCHER : undefined;
+  servicio(nombre: "dispatcher" | "seace_zrh") {
+    return nombre === "dispatcher" ? this.env.DISPATCHER : nombre === "seace_zrh" ? this.env.SEACE_ZRH : undefined;
   }
 
   limitador() {

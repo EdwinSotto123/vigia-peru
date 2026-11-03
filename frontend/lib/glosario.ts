@@ -194,6 +194,12 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "el PIA",
     definicion: "El presupuesto que se aprobó al empezar el año, antes de cualquier cambio (Presupuesto Institucional de Apertura).",
   },
+  "expediente-siaf": {
+    tema: "Presupuesto",
+    termino: "el expediente SIAF",
+    definicion: "El número con que la entidad registra el gasto de una compra en el sistema de presupuesto del Estado (SIAF): con él se sigue el compromiso, el devengado y el pago. CONOSCE no lo publica; el SEACE sí, en su reporte de órdenes.",
+    fuente: "SEACE, reporte público de órdenes de compra y de servicio",
+  },
   "compromiso-presupuestal": {
     tema: "Presupuesto",
     termino: "el compromiso presupuestal",

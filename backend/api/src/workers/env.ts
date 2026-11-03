@@ -23,6 +23,8 @@ export interface Env {
 
   /** Service binding al Worker vigia-dispatcher (lib/dispatcher.ts: "correr el dispatcher ahora"). */
   DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
+  /** Service binding al Worker vigia-seace-zrh (routes/ordenes.ts: el expediente SIAF de una orden, a pedido). */
+  SEACE_ZRH?: { fetch(input: string, init?: RequestInit): Promise<Response> };
   /** Límite por IP de lecturas, búsquedas y escrituras (lib/antibots.ts): un Durable Object por clave (workers/limitador.ts). */
   LIMITADOR?: DurableObjectNamespace<import("./limitador.js").Limitador>;
 
@@ -39,6 +41,8 @@ export interface Env {
   PRIVACIDAD_CLAVE?: string;
   /** El build de la web en el CI lo manda en `x-vigia-build` para leer con la API cerrada (lib/antibots.ts). */
   BUILD_TOKEN?: string;
+  /** El token de vigia-seace-zrh (el mismo del relay, SSM /vigia/relay/token). */
+  SEACE_ZRH_TOKEN?: string;
   /** "si" vuelve a abrir la API al público (lib/antibots.ts → cerradaAlPublico). */
   API_PUBLICA?: string;
 }

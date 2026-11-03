@@ -26,7 +26,8 @@
 
   // "Correr el dispatcher ahora" (lib/dispatcher.ts): un Worker no puede llamar por URL pública a otro
   // workers.dev de la misma cuenta (error 1042), así que va por service binding.
-  "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }],
+  // SEACE_ZRH: los reportes «ongei» del SEACE por Zúrich (backend/seace-zrh-worker), para el expediente SIAF a pedido.
+  "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }, { "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }],
 
   // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
   // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
@@ -72,7 +73,7 @@
         { "binding": "HYPERDRIVE_ADMIN", "id": "b89caaf04e304186b27f9cf4e43ffa2b" }
       ],
       "r2_buckets": [{ "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }],
-      "services": [],
+      "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }],
       "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
       "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
       "vars": {

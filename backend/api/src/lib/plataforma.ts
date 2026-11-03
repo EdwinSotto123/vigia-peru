@@ -73,7 +73,7 @@ export interface AmbitoPedido {
    * Otro Worker por service binding (solo en Workers). Un Worker no puede llamar por su URL pública a
    * otro *.workers.dev de la misma cuenta (error 1042): el dispatcher se llama por acá.
    */
-  servicio?(nombre: "dispatcher"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
+  servicio?(nombre: "dispatcher" | "seace_zrh"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
   /** Límite por clave exacto entre todas las instancias (Durable Object, workers/limitador.ts); sin él, en memoria. */
   limitador?(): {
     contar(clave: string, tope: number, ventanaS: number, persistente?: boolean): Promise<boolean>;

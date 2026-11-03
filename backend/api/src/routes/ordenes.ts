@@ -5,6 +5,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
+import { ambitoPedido } from "../lib/plataforma.js";
 
 /**
  * Órdenes de compra y de servicio de TODO el Estado (CONOSCE), como subsección de Contratos. A diferencia de
@@ -301,4 +302,59 @@ ordenesRouter.get("/", async (c) => {
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
+});
+
+// ─── GET /ordenes/siaf — el expediente SIAF de sus órdenes de un mes, a pedido ─────────────────────────────────────────
+
+/**
+ * Las órdenes de compra y de servicio de una entidad en un mes con su N.º de expediente SIAF, que CONOSCE no trae, del
+ * reporte «ongei» del SEACE (buscadorPublicoOCOS). Sólo a pedido: lo llama el botón del panel de una orden, no la lista,
+ * así que un robot que recorre las fichas no dispara nada. Va por el Worker de Zúrich (backend/seace-zrh-worker, service
+ * binding SEACE_ZRH): el SEACE filtra por la IP de salida y por ahí pasa; el mes de una entidad son dos pedidos al SEACE y
+ * queda un día en caché. Del proveedor no se devuelve nada: la orden se reconoce por su tipo y su número.
+ */
+const memoSiaf = new Memo<Record<string, unknown>>({ nombre: "ordenes:siaf", ttlMs: 3_600_000, staleMs: 86_400_000, max: 300 });
+
+/** «S/. 6251.64» → 6251.64. */
+const montoSeace = (v: string | undefined) => {
+  const t = (v ?? "").replace(/^\s*S\/\.?\s*/i, "").replace(/,/g, "").trim();
+  const n = Number(t);
+  return t !== "" && Number.isFinite(n) ? n : null;
+};
+
+ordenesRouter.get("/siaf", async (c) => {
+  const entidad = c.req.query("entidad") ?? "";
+  const anio = Number(c.req.query("anio"));
+  const mes = Number(c.req.query("mes"));
+  if (!/^\d{11}$/.test(entidad) || !(anio >= 2018 && anio <= 2100) || !(mes >= 1 && mes <= 12)) return c.json({ error: "invalid_query" }, 400);
+  const binding = ambitoPedido.getStore()?.servicio?.("seace_zrh");
+  const token = process.env.SEACE_ZRH_TOKEN;
+  if (!binding || !token) return c.json({ error: "sin_seace" }, 503);
+  try {
+    const cuerpo = await memoSiaf.obtener(`${entidad}:${anio}:${mes}`, async () => {
+      const r = await binding.fetch("https://vigia-seace-zrh/ongei", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reporte: "ocos", ruc: entidad, anio, mes }),
+      });
+      const d = (await r.json().catch(() => null)) as { ok?: boolean; error?: string; total?: number; columnas?: string[]; filas?: string[][] } | null;
+      if (!d?.ok || !d.columnas || !d.filas) throw new Error(`seace: ${d?.error ?? r.status}`);
+      const col = (n: string) => d.columnas!.indexOf(n);
+      const k = { tipo: col("Tipo de Orden"), numero: col("Número de orden"), siaf: col("Nro. Exp. SIAF"), emision: col("Fecha de Emisión"),
+                  compromiso: col("Fecha de Compromiso"), estado: col("Estado"), monto: col("Monto") };
+      if (Object.values(k).some((i) => i < 0)) throw new Error(`seace: columnas ${d.columnas.join(", ")}`);
+      const ordenes = d.filas.map((f) => ({
+        tipo: f[k.tipo] || null, numero: f[k.numero] || null, siaf: f[k.siaf] || null,
+        emision: f[k.emision]?.slice(0, 10) || null, compromiso: f[k.compromiso]?.slice(0, 10) || null,
+        estado: f[k.estado] || null, monto: montoSeace(f[k.monto]),
+      }));
+      return { entidad, anio, mes, total: d.total ?? ordenes.length, ordenes, consultado: new Date().toISOString() };
+    });
+    c.header("Cache-Control", cachePublico(86_400, { maxAge: 3600, swr: 604_800 }));
+    return c.json(cuerpo);
+  } catch (e) {
+    console.warn(`[ordenes] siaf ${entidad} ${anio}-${mes}: ${(e as Error).message}`);
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "seace_no_respondio" }, 502);
+  }
 });
