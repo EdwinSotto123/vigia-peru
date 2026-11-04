@@ -380,3 +380,13 @@ test("el expediente del proveedor: el RNP ya tapado no se vuelve a tapar; uno en
   assert.equal(exp.expediente_proveedor.rnp[1].nombre, `QUISPE ${TAPA_NOMBRE} ROSA ELENA`);
   assert.equal(exp.expediente_proveedor.ruc, "20109161609");
 });
+
+test("el expediente de un consorcio: el RNP de cada integrante pasa tapado", () => {
+  const exp = publicar({
+    expediente_proveedor: {
+      ruc: "1816604", consorcio: true,
+      integrantes: [{ ruc: "20568595948", rnp: [{ rol: "SOCIO_ACCIONISTA_TITULAR", nombre: "QUISPE MAMANI ROSA ELENA" }] }],
+    },
+  });
+  assert.equal(exp.expediente_proveedor.integrantes[0].rnp[0].nombre, `QUISPE ${TAPA_NOMBRE} ROSA ELENA`);
+});

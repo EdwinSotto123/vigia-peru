@@ -37,6 +37,23 @@ function Fila({ icono: Icono, titulo, children }: { icono: typeof Building2; tit
 }
 
 export function FichaProveedor({ exp, nombre, sugeridas = [] }: { exp: any; nombre?: string | null; sugeridas?: any[] }) {
+  // Un consorcio (en el OCDS figura con su código del SEACE, sin RUC): una ficha por integrante.
+  if (exp?.consorcio && Array.isArray(exp.integrantes)) {
+    return (
+      <section className="space-y-3">
+        <header className="rounded-2xl border border-line bg-paper px-5 py-4">
+          <h2 className="font-display text-seccion font-bold text-ink">{exp.nombre || nombre || "Consorcio"}</h2>
+          <p className="mt-0.5 text-rotulo text-mute">
+            Consorcio que ganó el contrato, con {exp.integrantes.length} {exp.integrantes.length === 1 ? "integrante" : "integrantes"}.
+            Abajo, lo que dicen los registros de cada uno.
+          </p>
+        </header>
+        {exp.integrantes.map((e: any, i: number) => (
+          <FichaProveedor key={e?.ruc ?? i} exp={e} nombre={e?.nombre} sugeridas={i === 0 ? sugeridas : []} />
+        ))}
+      </section>
+    );
+  }
   const ruc: string = exp?.ruc ?? "";
   const natural = esPersonaNatural(ruc);
   const s = exp?.sunat ?? null;
@@ -76,7 +93,7 @@ export function FichaProveedor({ exp, nombre, sugeridas = [] }: { exp: any; nomb
     <section className="rounded-2xl border border-line bg-paper">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
         <div className="min-w-0">
-          <h2 className="font-display text-xl font-bold text-ink">
+          <h2 className="font-display text-seccion font-bold text-ink">
             {natural ? <PersonName name={razon} orden="sunat" /> : razon}
           </h2>
           <p className="mt-0.5 text-rotulo text-mute">

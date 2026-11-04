@@ -157,3 +157,29 @@ def test_senales_de_supervision():
     sana = {"codigo": 1, "nombre": "x", "contrato_monto": 1_000_000, "supervision_monto": 50_000, "fisico_prog": 50,
             "fisico_real": 48, "financiero_pct": 50, "paralizada": False, "adicionales_monto": 0}
     assert senales_obra(sana, {"mismo_ruc": False, "personas_comunes": [], "consorcios_comunes": [], "mismo_domicilio": False}) == []
+
+
+def test_apellido_compuesto_cuenta_como_uno():
+    assert tapar_nombre("DE LA CRUZ UNSIHUAY HECTOR ANGEL") == "DE LA CRUZ ••• HECTOR ANGEL"
+    assert tapar_nombre("QUISPE DEL CASTILLO ANA") == "QUISPE ••• ANA"
+    n = ["DE LA CRUZ UNSIHUAY HECTOR ANGEL"]
+    assert tapar_en_texto("Héctor De La Cruz Unsihuay firmó.", n) == "Héctor De La Cruz ••• firmó."
+
+
+def test_consorcio_junta_a_sus_integrantes(monkeypatch):
+    miembros = [{"ruc": "20568595948", "consorcio": "CONSORCIO MATIBAMBA", "nombre": "CONSTRUCTORA AH & D S.A.C."},
+                {"ruc": "10123456789", "consorcio": "CONSORCIO MATIBAMBA", "nombre": "PEREZ QUISPE JUAN"}]
+    monkeypatch.setattr(E, "integrantes_consorcio", lambda codigo, conn=None: miembros)
+    sanc = {"tipo": "temporal", "fecha_desde": "2025-01-01", "fecha_hasta": "2027-01-01", "estado": "VIGENTE"}
+    monkeypatch.setattr(E, "expediente_proveedor_bd", lambda ruc, *a, **k: {
+        **EXP, "ruc": ruc, "sanciones": [sanc] if ruc.startswith("10") else [], "banderas": [],
+        "_nombres_crudos": ["PEREZ QUISPE JUAN"] if ruc.startswith("10") else []})
+    ctx = SimpleNamespace(state={"ocds": {"awards": [{"date": "2026-05-01"}]}})
+    r = E.query_expediente_proveedor("1816604", ctx)
+    exp = ctx.state["expediente_proveedor"]
+    assert r["consorcio"] and r["integrantes"] == 2 and exp["nombre"] == "CONSORCIO MATIBAMBA"
+    assert exp["integrantes"][1]["nombre"] == "PEREZ ••• JUAN"
+    assert any("Integrante PEREZ ••• JUAN" in s["evidencia"] for s in r["senales"])
+    assert "PEREZ QUISPE JUAN" in ctx.state["_nombres_tapar"]
+    md = E.ficha_md(exp)
+    assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN** (RUC 10123456789)" in md

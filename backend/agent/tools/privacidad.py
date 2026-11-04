@@ -19,11 +19,30 @@ _PARENTESIS = re.compile(r"\(([^()]*)\)")
 _PREFIJO_SUCESION = re.compile(r"^\s*(SUCESI[OÓ]N|SUC\.?|SUCESION\s+INDIVISA)\s+", re.IGNORECASE)
 
 
+# Partículas que forman un solo apellido con la palabra que sigue: «DE LA CRUZ», «DEL CASTILLO», «SAN MARTIN», «VDA. DE».
+_PARTICULAS = {"DE", "DEL", "LA", "LAS", "LOS", "SAN", "SANTA", "VDA", "VDA.", "VIUDA", "Y"}
+
+
+def _grupos(nombre: str) -> list[str]:
+    """Las palabras de un nombre, con cada partícula pegada a la que sigue: «DE LA CRUZ UNSIHUAY HECTOR» →
+    ["DE LA CRUZ", "UNSIHUAY", "HECTOR"]."""
+    out: list[str] = []
+    pend: list[str] = []
+    for w in nombre.split():
+        pend.append(w)
+        if _sin_tildes(w) not in _PARTICULAS:
+            out.append(" ".join(pend))
+            pend = []
+    if pend:
+        out.append(" ".join(pend))
+    return out
+
+
 def _tapar_simple(nombre: str) -> str:
-    p = nombre.split()
-    if len(p) < 3:
+    g = _grupos(nombre)
+    if len(g) < 3:
         return nombre
-    return " ".join([p[0], TAPA_NOMBRE, *p[2:]])
+    return " ".join([g[0], TAPA_NOMBRE, *g[2:]])
 
 
 def tapar_nombre(nombre: str | None) -> str | None:
@@ -48,34 +67,31 @@ def _sin_tildes(s: str) -> str:
     return "".join(unicodedata.normalize("NFD", c)[0] for c in s).upper()
 
 
-def _patron(palabras: list[str]) -> re.Pattern:
-    cuerpo = r"\s+".join(re.escape(_sin_tildes(w)) for w in palabras)
+def _patron(grupos: list[str]) -> re.Pattern:
+    """Cada grupo (un apellido compuesto, un nombre) en su propio grupo de captura, palabras separadas por espacios."""
+    cuerpo = r"\s+".join("(" + r"\s+".join(re.escape(_sin_tildes(w)) for w in g.split()) + ")" for g in grupos)
     return re.compile(rf"(?<!{_LETRA}){cuerpo}(?!{_LETRA})", re.UNICODE)
 
 
 def tapar_en_texto(texto: str | None, nombres) -> str | None:
     """Tapa en `texto` cada nombre de `nombres` («APELLIDO1 APELLIDO2 NOMBRES»), sin importar tildes ni mayúsculas, en el
     orden SUNAT, en el hablado («NOMBRES APELLIDO1 APELLIDO2») y en el hablado con un solo nombre de pila. Se tapa el
-    segundo apellido, el mismo que en `tapar_nombre`."""
+    segundo apellido (entero, aunque sea compuesto), el mismo que en `tapar_nombre`."""
     if not texto:
         return texto
     for nombre in sorted({n.strip() for n in (nombres or []) if n and n.strip()}, key=len, reverse=True):
-        p = _PARENTESIS.sub("", nombre).split()
-        if len(p) < 3:
+        g = _grupos(_PARENTESIS.sub("", nombre))
+        if len(g) < 3:
             continue
-        ap1, ap2, nombres_pila = p[0], p[1], p[2:]
-        variantes = [[ap1, ap2, *nombres_pila], [*nombres_pila, ap1, ap2]]
+        ap1, ap2, nombres_pila = g[0], g[1], g[2:]
+        variantes = [([ap1, ap2, *nombres_pila], 2), ([*nombres_pila, ap1, ap2], len(nombres_pila) + 2)]
         if len(nombres_pila) > 1:
-            variantes.append([nombres_pila[0], ap1, ap2])
-        for v in variantes:
-            i2 = v.index(ap2) if ap2 in v else None
+            variantes.append(([nombres_pila[0], ap1, ap2], 3))
+        for v, k in variantes:
             plano = _sin_tildes(texto)
-            spans = [m.span() for m in _patron(v).finditer(plano)]
-            for ini, fin in reversed(spans):
-                trozo = texto[ini:fin].split()
-                if i2 is not None and i2 < len(trozo):
-                    trozo[i2] = TAPA_NOMBRE
-                texto = texto[:ini] + " ".join(trozo) + texto[fin:]
+            spans = [m.span(k) for m in _patron(v).finditer(plano)]
+            for a, b in reversed(spans):
+                texto = texto[:a] + TAPA_NOMBRE + texto[b:]
     return texto
 
 

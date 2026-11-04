@@ -228,8 +228,10 @@ def query_expediente_proveedor(ruc: str, tool_context: ToolContext, entidad_ruc:
     """
     state = tool_context.state
     ruc = (ruc or "").strip().replace("PE-RUC-", "")
-    if len(ruc) != 11 or not ruc.isdigit():
-        return {"found": False, "ruc": ruc, "razon": "RUC sin formato peruano"}
+    if not (len(ruc) == 11 and ruc.isdigit()):
+        # Un consorcio figura en el OCDS con su código del SEACE (p. ej. 1816604), no con un RUC: sus integrantes
+        # están en conosce_consorcios.
+        return _expediente_consorcio(ruc, tool_context, entidad_ruc, ocid)
     from tools.sunat import _fecha_buena_pro_state
     try:
         exp = expediente_proveedor_bd(ruc, entidad_ruc, ocid, _fecha_buena_pro_state(state))
@@ -256,6 +258,58 @@ def query_expediente_proveedor(ruc: str, tool_context: ToolContext, entidad_ruc:
             "con_esta_entidad": h["con_esta_entidad"], "banderas": len(exp["banderas"]), "senales": oece["senales"]}
 
 
+_MAX_INTEGRANTES = 5
+
+
+def integrantes_consorcio(codigo: str, conn=None) -> list[dict]:
+    propia = conn is None
+    conn = conn or _pg()
+    try:
+        return _filas(conn.cursor(), """SELECT DISTINCT ruc_miembro AS ruc, max(consorcio) OVER () AS consorcio, miembro AS nombre
+                                          FROM conosce_consorcios WHERE ruc_consorcio = %s""", (codigo,))
+    finally:
+        if propia:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _expediente_consorcio(codigo: str, tool_context: ToolContext, entidad_ruc: str | None, ocid: str | None) -> dict:
+    """El expediente de un consorcio: el de cada integrante (hasta 5), y sus señales juntas (una sanción de un
+    consorciado pesa sobre el consorcio)."""
+    state = tool_context.state
+    if not codigo:
+        return {"found": False, "ruc": codigo, "razon": "sin ganador"}
+    from tools.sunat import _fecha_buena_pro_state
+    try:
+        miembros = integrantes_consorcio(codigo)
+        miembros = [m for m in miembros if m.get("ruc") and len(m["ruc"]) == 11 and m["ruc"].isdigit()][:_MAX_INTEGRANTES]
+        if not miembros:
+            return {"found": False, "ruc": codigo, "razon": "RUC sin formato peruano y sin integrantes conocidos"}
+        ref = _fecha_buena_pro_state(state)
+        integrantes = [expediente_proveedor_bd(m["ruc"], entidad_ruc, ocid, ref) for m in miembros]
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"base no disponible: {str(e)[:160]}", "ruc": codigo}
+    crudos: list[str] = []
+    senales: list[dict] = []
+    for m, e in zip(miembros, integrantes):
+        crudos += e.pop("_nombres_crudos", [])
+        if es_persona_natural(m["ruc"]):
+            crudos.append(m.get("nombre") or "")
+        e["nombre"] = tapar_nombre(m.get("nombre")) if es_persona_natural(m["ruc"]) else m.get("nombre")
+        for sn in _perfil_oece(m["ruc"], e, state)["senales"]:
+            senales.append({**sn, "evidencia": f"Integrante {e['nombre']} (RUC {m['ruc']}): {sn.get('evidencia', '')}"[:600]})
+    exp = {"ruc": codigo, "consorcio": True, "nombre": miembros[0].get("consorcio"), "persona_natural": False,
+           "fuente": "base de Vigía", "integrantes": integrantes}
+    state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *[c for c in crudos if c]})
+    state["expediente_proveedor"] = exp
+    state.setdefault("oece_perfiles", {})[codigo] = {"ruc": codigo, "senales": senales, "_source": "osce_sancionados_vigia",
+                                                     "n_sanciones": sum(len(e.get("sanciones") or []) for e in integrantes)}
+    return {"ruc": codigo, "consorcio": True, "integrantes": len(integrantes), "sunat_en_base": False,
+            "procesos": [e["historial"]["procesos"] for e in integrantes], "senales": senales}
+
+
 def _soles(x) -> str:
     x = float(x or 0)
     return f"S/ {x / 1e6:,.2f} millones" if x >= 1e6 else f"S/ {x:,.2f}"
@@ -270,6 +324,14 @@ def ficha_md(exp: dict | None) -> str:
     código, no el modelo (las cifras salen de la base tal cual)."""
     if not exp:
         return ""
+    if exp.get("consorcio"):
+        partes = [f"**Lo que dicen los registros** (base de Vigía: padrón SUNAT, RNP, OECE y CONOSCE) del "
+                  f"{exp.get('nombre') or 'consorcio'}, con {len(exp.get('integrantes') or [])} integrante(s):", ""]
+        for e in exp.get("integrantes") or []:
+            cuerpo = ficha_md({**e, "consorcio": False}).split("\n")[2:]  # sin su propio título
+            partes.append(f"**{e.get('nombre') or 'Integrante'}** (RUC {e.get('ruc')})")
+            partes += [ln for ln in cuerpo if ln.strip()] + [""]
+        return "\n".join(partes)
     lineas = ["**Lo que dicen los registros** (base de Vigía: padrón SUNAT, RNP, OECE y CONOSCE)", ""]
     s = exp.get("sunat")
     if s:
