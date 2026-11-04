@@ -22,10 +22,12 @@ def obra_bd(ocid: str, ruc: str | None, conn=None) -> dict:
     conn = conn or _pg()
     try:
         cur = conn.cursor()
-        obras = _filas(cur, f"""SELECT {_COLS} FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
+        obras = _filas(cur, f"""SELECT {_COLS}, oc.ruc AS ruc_contrato FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
                                   WHERE oc.ocid = %s AND oc.rol = 'ejecucion' ORDER BY o.contrato_monto DESC NULLS LAST""",
                        (corto,))
         out: dict = {"enlazada": bool(obras), "obras": [], "senales": []}
+        ruc = ruc or next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None)
+        out["ruc_contrato"] = ruc
         for o in obras[:3]:
             v = vinculo_supervisor_ejecutor(cur, o.get("supervisor_ruc") or "", o.get("ejecutor_ruc") or ruc or "")
             # De las reglas de la obra, sólo la del vínculo: las demás ya son banderas obra_* de Vigía.
@@ -80,7 +82,7 @@ def query_obra_ejecucion(ocid: str, tool_context: ToolContext, ruc: str | None =
     except Exception as e:  # noqa: BLE001
         return {"error": f"base no disponible: {str(e)[:160]}"}
     tool_context.state["obra_ejecucion"] = ob
-    return {"enlazada": ob["enlazada"], "obras": len(ob["obras"]), "banderas_obra": ob["banderas_obra"],
+    return {"enlazada": ob["enlazada"], "ruc_contrato": ob.get("ruc_contrato"), "obras": len(ob["obras"]), "banderas_obra": ob["banderas_obra"],
             "senales": ob["senales"], "historial": ob.get("historial_contratista")}
 
 

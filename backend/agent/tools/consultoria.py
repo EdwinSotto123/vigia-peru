@@ -131,10 +131,13 @@ def supervision_bd(ocid: str, ruc_ganador: str | None, conn=None) -> dict:
     conn = conn or _pg()
     try:
         cur = conn.cursor()
-        obras = _filas(cur, f"""SELECT {_COLS} FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
+        obras = _filas(cur, f"""SELECT {_COLS}, oc.ruc AS ruc_contrato FROM obra_contrato oc JOIN obra_infobras o ON o.codigo = oc.codigo
                                   WHERE oc.ocid = %s AND oc.rol = 'supervision' ORDER BY o.contrato_monto DESC NULLS LAST""",
                        (corto,))
         out: dict = {"enlazada": bool(obras), "obras": [], "senales": []}
+        # Sin ganador en el OCDS (procesos viejos): el RUC del enlace con la obra.
+        ruc_ganador = ruc_ganador or next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None)
+        out["ruc_contrato"] = ruc_ganador
         for o in obras[:5]:
             v = vinculo_supervisor_ejecutor(cur, o.get("supervisor_ruc") or ruc_ganador or "", o.get("ejecutor_ruc") or "")
             sen = senales_obra(o, v)
@@ -176,7 +179,7 @@ def query_supervision_obra(ocid: str, tool_context: ToolContext, ruc: str | None
     except Exception as e:  # noqa: BLE001
         return {"error": f"base no disponible: {str(e)[:160]}"}
     tool_context.state["supervision_obra"] = sup
-    return {"enlazada": sup["enlazada"], "obras": len(sup["obras"]), "senales": sup["senales"],
+    return {"enlazada": sup["enlazada"], "ruc_contrato": sup.get("ruc_contrato"), "obras": len(sup["obras"]), "senales": sup["senales"],
             "historial": sup.get("historial_supervisor")}
 
 

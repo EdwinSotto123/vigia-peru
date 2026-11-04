@@ -385,63 +385,66 @@ async def fase_proveedor(pc: PipelineCtx):
     pc.ctx.update(ganador=ganador, ruc=ruc, razon=ganador.get("razon_social") or "",
                entidad=(gan or {}).get("entidad") or {}, postores=(gan or {}).get("todos_postores") or [])
     fuente_oece = f"https://contratacionesabiertas.oece.gob.pe/proceso/{pc.ocid}"
-    # El perfil OECE/SUNAT alimenta a web_research, person_network y compliance_extended:
-    # si la matriz no incluye ninguno, no se consulta (get_ganador sí, para el dictamen).
+    # Lo que sale de la base de Vigía (expediente, obra, supervisión) corre siempre que haya ganador u obra: son
+    # consultas, no agentes, y alimentan el dictamen y las banderas aunque la matriz tipo × etapa no incluya a los
+    # agentes que investigan al proveedor. Las consultas en vivo (OECE, decolecta) sólo si alguno de ésos corre.
     _investiga_proveedor = any(pc.perm(a) for a in ("web_research", "person_network", "compliance_extended"))
-    if ruc and _investiga_proveedor:
-        # 1. El expediente de la base de Vigía (tools/expediente.py): SUNAT (RUC 20), RNP, sanciones, penalidades,
-        #    historial del CONOSCE y banderas. Deja sunat_profiles/sunat_decolecta/oece_perfiles con las claves de siempre.
-        solo_bd = os.getenv("EXPEDIENTE_SOLO_BD", "0") == "1"
-        exp = None
-        if hasattr(pc.T, "query_expediente_proveedor"):
-            evs, exp = await t_call(pc, pc.T.query_expediente_proveedor, "query_expediente_proveedor", ruc=ruc,
-                                    entidad_ruc=(pc.ctx["entidad"] or {}).get("ruc"), ocid=pc.ocid)
-            for e in evs:
-                yield e
-        en_base = isinstance(exp, dict) and not exp.get("error")
-        sunat_en_base = en_base and bool(exp.get("sunat_en_base"))
-        # 2. El perfil del OECE en vivo (apto para contratar) sólo si se puede llegar: desde AWS el OECE responde 403 sin
-        #    el downloader (OECE_EN_VIVO=0 en la Lambda). Si falla, quedan las sanciones de la base.
-        senales = (exp or {}).get("senales") if en_base else None
-        if not solo_bd and os.getenv("OECE_EN_VIVO", "1") == "1":
-            evs, perfil = await t_call(pc, pc.T.query_oece_perfil, "query_oece_perfil", ruc=ruc)
-            for e in evs:
-                yield e
-            if isinstance(perfil, dict) and not perfil.get("error"):
-                senales = perfil.get("senales")
-        for e in flags_from_senales(pc, senales, fuente_oece):
+    solo_bd = os.getenv("EXPEDIENTE_SOLO_BD", "0") == "1"
+    perfil_n = getattr(pc.profile, "nombre", "")
+    exp = None
+    # 1. El expediente (tools/expediente.py): SUNAT (RUC 20), RNP, sanciones, penalidades, historial del CONOSCE y
+    #    banderas. Deja sunat_profiles/sunat_decolecta/oece_perfiles con las claves de siempre.
+    if ruc and hasattr(pc.T, "query_expediente_proveedor"):
+        evs, exp = await t_call(pc, pc.T.query_expediente_proveedor, "query_expediente_proveedor", ruc=ruc,
+                                entidad_ruc=(pc.ctx["entidad"] or {}).get("ruc"), ocid=pc.ocid)
+        for e in evs:
             yield e
-        # 3. SUNAT por decolecta sólo para lo que no está en el padrón (un RUC 10, un RUC nuevo).
-        if not sunat_en_base and not solo_bd:
-            evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
+    en_base = isinstance(exp, dict) and not exp.get("error")
+    sunat_en_base = en_base and bool(exp.get("sunat_en_base"))
+    senales = (exp or {}).get("senales") if en_base else None
+    # 2. El perfil del OECE en vivo (apto para contratar) sólo si se puede llegar: desde AWS el OECE responde 403 sin
+    #    el downloader (OECE_EN_VIVO=0 en la Lambda). Si falla, quedan las sanciones de la base.
+    if ruc and _investiga_proveedor and not solo_bd and os.getenv("OECE_EN_VIVO", "1") == "1":
+        evs, perfil = await t_call(pc, pc.T.query_oece_perfil, "query_oece_perfil", ruc=ruc)
+        for e in evs:
+            yield e
+        if isinstance(perfil, dict) and not perfil.get("error"):
+            senales = perfil.get("senales")
+    for e in flags_from_senales(pc, senales, fuente_oece):
+        yield e
+    # 3. SUNAT por decolecta sólo para lo que no está en el padrón (un RUC 10, un RUC nuevo) y si algún agente lo lee.
+    if ruc and _investiga_proveedor and not sunat_en_base and not solo_bd:
+        evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
+        for e in evs:
+            yield e
+        if isinstance(sunat, dict) and (sunat.get("error") or sunat.get("found") is False):
+            evs, _ = await t_call(pc, pc.T.query_edad_ciiu_web, "query_edad_ciiu_web", ruc=ruc, razon_social=pc.ctx["razon"])
             for e in evs:
                 yield e
-            if isinstance(sunat, dict) and (sunat.get("error") or sunat.get("found") is False):
-                evs, _ = await t_call(pc, pc.T.query_edad_ciiu_web, "query_edad_ciiu_web", ruc=ruc, razon_social=pc.ctx["razon"])
+        elif isinstance(sunat, dict):
+            pc.state["sunat_decolecta"] = sunat  # read_sunat_profile ya no vuelve a llamar a decolecta
+    # 4. Obras: la obra que ejecuta (INFOBRAS, Invierte.pe) y su supervisor (tools/obras.py). Consultoría: la obra que
+    #    supervisa y su vínculo con el ejecutor (tools/consultoria.py). Por el proceso: no hace falta el RUC.
+    for perfil_obra, herramienta in (("obras", "query_obra_ejecucion"), ("consultoria", "query_supervision_obra")):
+        if perfil_n == perfil_obra and hasattr(pc.T, herramienta):
+            evs, res = await t_call(pc, getattr(pc.T, herramienta), herramienta, ocid=pc.ocid, ruc=ruc or None)
+            for e in evs:
+                yield e
+            for s_ in (res or {}).get("senales") or []:
+                for e in flags_from_senales(pc, [s_], s_.get("fuente_url") or fuente_oece):
+                    yield e
+            # Sin ganador en el OCDS: el expediente con el RUC del enlace con la obra.
+            if not ruc and (res or {}).get("ruc_contrato") and hasattr(pc.T, "query_expediente_proveedor"):
+                ruc = res["ruc_contrato"]
+                pc.ctx["ruc"] = ruc
+                evs, _ = await t_call(pc, pc.T.query_expediente_proveedor, "query_expediente_proveedor", ruc=ruc,
+                                      entidad_ruc=(pc.ctx["entidad"] or {}).get("ruc"), ocid=pc.ocid)
                 for e in evs:
                     yield e
-            elif isinstance(sunat, dict):
-                pc.state["sunat_decolecta"] = sunat  # read_sunat_profile ya no vuelve a llamar a decolecta
-        # 4. Obras: la obra que ejecuta (INFOBRAS, Invierte.pe) y su supervisor (tools/obras.py).
-        if getattr(pc.profile, "nombre", "") == "obras" and hasattr(pc.T, "query_obra_ejecucion"):
-            evs, ob = await t_call(pc, pc.T.query_obra_ejecucion, "query_obra_ejecucion", ocid=pc.ocid, ruc=ruc)
-            for e in evs:
-                yield e
-            for s_ in (ob or {}).get("senales") or []:
-                for e in flags_from_senales(pc, [s_], s_.get("fuente_url") or fuente_oece):
-                    yield e
-        # 4. Consultoría: la obra que supervisa (INFOBRAS) y su vínculo con el ejecutor (tools/consultoria.py).
-        if getattr(pc.profile, "nombre", "") == "consultoria" and hasattr(pc.T, "query_supervision_obra"):
-            evs, sup = await t_call(pc, pc.T.query_supervision_obra, "query_supervision_obra", ocid=pc.ocid, ruc=ruc)
-            for e in evs:
-                yield e
-            for s_ in (sup or {}).get("senales") or []:
-                for e in flags_from_senales(pc, [s_], s_.get("fuente_url") or fuente_oece):
-                    yield e
-        if sunat_en_base or not solo_bd:  # sin padrón y sólo la base: no hay perfil SUNAT que leer
-            evs, _ = await t_call(pc, pc.T.read_sunat_profile, "read_sunat_profile")
-            for e in evs:
-                yield e
+    if ruc and _investiga_proveedor and (sunat_en_base or not solo_bd):
+        evs, _ = await t_call(pc, pc.T.read_sunat_profile, "read_sunat_profile")
+        for e in evs:
+            yield e
 
 
 # ── 6-8. Investigación: empresa ∥ prensa ∥ funcionarios ──
