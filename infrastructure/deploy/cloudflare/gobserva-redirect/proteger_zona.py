@@ -99,6 +99,15 @@ UA_BUSCADORES = ["googlebot", "google-inspectiontool", "bingbot", "duckduckbot",
 CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565"
 SIN_CLAVE = f'(http.request.uri.path ne "/{CLAVE_INDEXNOW}.txt")'
 
+# Vistas previas de enlaces: la tarjeta de un post (título, imagen) la arma un bot de la red social, que no resuelve un
+# desafío, y Cloudflare no siempre lo verifica por su IP. El 2026-11-02 y el 11-03 LinkedInBot (su UA dice
+# «Apache-HttpClient», que está en UA_SCRIPTS) recibió 403 desde Google Cloud y desde la red de LinkedIn: los posts salían
+# sin imagen. Pasan las dos reglas de desafío por nombre: quien copie el nombre recibe páginas públicas, con el límite por
+# IP de la zona y el de la web (worker-comun.js).
+UA_VISTAS_PREVIAS = ["linkedinbot", "facebookexternalhit", "whatsapp/", "twitterbot", "telegrambot", "slackbot",
+                     "discordbot"]
+DESAFIABLE = f'{SIN_CLAVE} and not ({_alguno("http.user_agent", UA_VISTAS_PREVIAS)})'
+
 
 def waf():
     reglas = [
@@ -110,10 +119,10 @@ def waf():
         {"description": "Escaneres de vulnerabilidades (rutas que Vigia no tiene)", "action": "block",
          "expression": _alguno("http.request.uri.path", RUTAS_ESCANER), "enabled": True},
         {"description": "Clientes de scripts sin navegador (los bots verificados pasan)", "action": "managed_challenge",
-         "expression": f'(not cf.client.bot) and {SIN_CLAVE} and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)})',
+         "expression": f'(not cf.client.bot) and {DESAFIABLE} and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)})',
          "enabled": True},
         {"description": "Redes de nubes y hosting: desafio (los bots verificados pasan)", "action": "managed_challenge",
-         "expression": f'(not cf.client.bot) and {SIN_CLAVE} and (ip.geoip.asnum in {{{" ".join(str(a) for a in ASN_NUBES)}}})',
+         "expression": f'(not cf.client.bot) and {DESAFIABLE} and (ip.geoip.asnum in {{{" ".join(str(a) for a in ASN_NUBES)}}})',
          "enabled": True},
     ]
     informar("waf", llamar("PUT", f"/zones/{ZONA}/rulesets/phases/http_request_firewall_custom/entrypoint",
