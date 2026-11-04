@@ -234,8 +234,8 @@ export function RedProveedor({ person, web, proveedor, ctx }: { person: any; web
                             apagado && "opacity-40",
                           )}
                         >
-                          <span className="line-clamp-2 block text-rotulo font-semibold leading-4 text-ink">{redactDnis(n.label)}</span>
-                          {n.sublabel && <span className="mt-0.5 line-clamp-1 block text-micro text-mute">{redactDnis(n.sublabel)}</span>}
+                          <span className="line-clamp-2 text-rotulo font-semibold leading-4 text-ink">{redactDnis(n.label)}</span>
+                          {n.sublabel && <span className="mt-0.5 line-clamp-2 text-micro text-mute">{redactDnis(n.sublabel)}</span>}
                           {!ancho && suyos.length > 0 && (
                             <span className="mt-1 block space-y-0.5">
                               {suyos.slice(0, 4).map((v, k) => (

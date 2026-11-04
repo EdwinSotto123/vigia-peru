@@ -11,6 +11,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, FileWarning, Gavel, Users } from "lucide-react";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { chipCruce } from "@/lib/cruces";
+import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
 import { fechaDossier, montoDossier } from "../dossier";
@@ -60,11 +61,11 @@ export function FichaProveedor({ exp, nombre, sugeridas = [] }: { exp: any; nomb
   const web = sugeridas.filter((b) => !(s && /sunat/i.test(`${b?.titulo ?? ""} ${b?.descripcion ?? ""}`)));
 
   const cifras = [
-    { valor: h.procesos != null ? String(h.procesos) : null, etiqueta: "buenas pro en el Estado",
+    { valor: h.procesos != null ? numero(h.procesos) : null, etiqueta: "buenas pro en el Estado",
       contexto: h.primera ? `desde ${fechaDossier(h.primera, true)}${h.en_consorcio ? `, ${h.en_consorcio} en consorcio` : ""}` : undefined },
     { valor: h.monto != null ? montoDossier(h.monto) : null, etiqueta: "adjudicado en total",
       contexto: h.entidades != null ? `en ${h.entidades} ${h.entidades === 1 ? "entidad" : "entidades"}` : undefined },
-    { valor: misma?.procesos != null ? String(misma.procesos) : null, etiqueta: "con esta entidad",
+    { valor: misma?.procesos != null ? numero(misma.procesos) : null, etiqueta: "con esta entidad",
       contexto: misma?.procesos ? montoDossier(misma.monto) : "ninguna antes", tono: misma?.procesos >= 5 ? ("media" as const) : ("neutro" as const) },
     { valor: banderas.length ? String(banderas.length) : "0", etiqueta: "tipos de bandera de Vigía",
       contexto: banderas.some(([, v]) => v.alta) ? "con alguna alta" : "ninguna alta",
