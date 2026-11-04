@@ -20,6 +20,15 @@ from tunel_rds import conexion  # noqa: E402
 PASOS = ["refrescar_cruce_acta", "dedup_cruces_proveedor", "refrescar_casos_cruce_base", "refrescar_entidad_antecedentes"]
 
 
+def _con_248(cur) -> bool:
+    """La 247 no filtra la versión del acta: con lecturas v2-2 en la base, sólo se publica con la 248 aplicada."""
+    cur.execute("SELECT prosrc LIKE '%%l.version = ''v2''%%' FROM pg_proc WHERE proname = 'refrescar_cruce_acta'")
+    if cur.fetchone()[0]:
+        return True
+    cur.execute("SELECT NOT EXISTS (SELECT 1 FROM documento_lectura WHERE clase = 'buena_pro' AND version = 'v2-2')")
+    return cur.fetchone()[0]
+
+
 def main() -> None:
     entorno = sys.argv[1] if len(sys.argv) > 1 else "prod"
     for f in PASOS:
@@ -31,6 +40,10 @@ def main() -> None:
                     cur.execute("SELECT to_regprocedure(%s) IS NOT NULL", (f"{f}()",))
                     if not cur.fetchone()[0]:
                         print(f"{entorno}: {f}() no existe: se salta", flush=True)
+                        break
+                    if f == "refrescar_cruce_acta" and not _con_248(cur):
+                        print(f"{entorno}: {f} se salta: falta la migración 248 y ya hay actas leídas dos veces "
+                              "(la 247 publicaría también la versión v2-2, duplicada)", flush=True)
                         break
                     t0 = time.time()
                     cur.execute(f"SELECT {f}()")
