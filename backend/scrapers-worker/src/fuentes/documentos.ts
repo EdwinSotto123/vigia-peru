@@ -7,6 +7,9 @@
  * el batch (`--politica todo`), con un tope por corrida. Nada más: de la base (los contratos desde 2015, con su
  * ganador y su monto) se guarda sólo el registro; el expediente se baja recién cuando el contrato se financia.
  * Decisión del usuario (2026-10-19): ni la historia ni la cola sin financiar se descargan.
+ * Desde el 2026-11-04 (el usuario: «sí, abre»), también los pedidos `lectura`: procesos de 2026 con buena pro, del de mayor
+ * monto al de menor, para que los lea Claude (backend/lector). De ésos se bajan sólo los PDF y ZIP de los tipos que se
+ * leen (TIPOS_LECTURA), hasta 100 MB cada uno; los financiados siempre van primero.
  *
  * Por contrato: el record OCDS completo por el relay (actualiza `ocds_payload` y la clasificación, como la ingesta),
  * cada documento por el relay a R2 `vigia-peru-batch` con la misma ruta que el batch
@@ -31,11 +34,14 @@ import { BASE, OCID_PREFIJO, obtenerJson, ocidCorto, partyComprador, rucComprado
 
 const FUENTE = "documentos";
 /** Contratos por corrida (cada uno es un paso con ~3-15 descargas; 12 tardan ~50 s). */
-const MAX_CONTRATOS = 30;
+const MAX_CONTRATOS = 100;
 /** Bytes por corrida: con el cron cada hora, ~24 GB al día como mucho. */
-const MAX_BYTES = 1_000_000_000;
+const MAX_BYTES = 3_000_000_000;
 /** Un archivo más grande no se baja (los hay de cientos de MB: planos escaneados). */
 const MAX_ARCHIVO = 300_000_000;
+/** Los pedidos `lectura` (backend/lector): sólo lo que se lee, y sin los planos escaneados de cientos de MB. */
+const TIPOS_LECTURA = new Set(["biddingDocuments", "awardNotice", "clarifications", "evaluationReports", "contractSigned", "contractAnnexe"]);
+const MAX_ARCHIVO_LECTURA = 100_000_000;
 const RETENCION_DIAS = 90;
 const ESPERAS_403_S = [20, 60];
 const MAX_403_SEGUIDOS = 8;
@@ -100,7 +106,7 @@ async function sha1Corto(s: string): Promise<string> {
 class Corte403 extends Error {}
 
 /** Baja un documento por el relay a R2 mientras calcula su sha256. Devuelve null si no se pudo (y por qué). */
-async function bajar(env: Env, d: Doc, clave: string, estado: { seguidos403: number }): Promise<{ sha256: string; bytes: number } | { error: string }> {
+async function bajar(env: Env, d: Doc, clave: string, estado: { seguidos403: number }, tope = MAX_ARCHIVO): Promise<{ sha256: string; bytes: number } | { error: string }> {
   for (let i = 0; ; i++) {
     const r = await obtener(env, d.url, { relay: true, timeoutMs: null, sinReintentos: false });
     if (r.status === 403) {
@@ -118,7 +124,7 @@ async function bajar(env: Env, d: Doc, clave: string, estado: { seguidos403: num
     }
     estado.seguidos403 = 0;
     const largo = Number(r.headers.get("content-length") ?? "");
-    if (largo > MAX_ARCHIVO) {
+    if (largo > tope) {
       await r.body.cancel();
       return { error: `muy grande (${Math.round(largo / 1e6)} MB)` };
     }
@@ -138,7 +144,7 @@ async function bajar(env: Env, d: Doc, clave: string, estado: { seguidos403: num
       let n = 0;
       for await (const p of b as unknown as AsyncIterable<Uint8Array>) {
         n += p.byteLength;
-        if (n > MAX_ARCHIVO) return { error: "muy grande (sin content-length)" };
+        if (n > tope) return { error: "muy grande (sin content-length)" };
         partes.push(p);
       }
       const todo = new Uint8Array(n);
@@ -159,7 +165,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
       if (p.seco) {
         return db.filas<Pedido>(
           `SELECT id::int, ocid, NULL AS completo, motivo FROM pedidos_descarga
-            WHERE estado = 'pendiente' AND motivo <> 'cola' ORDER BY solicitado_at LIMIT $1`, [MAX_CONTRATOS]);
+            WHERE estado = 'pendiente' AND motivo <> 'cola' ORDER BY (motivo = 'lectura'), solicitado_at LIMIT $1`, [MAX_CONTRATOS]);
       }
       // La corrida es un lote, como los del batch (documentos_gcs.lote_id → lotes_ingesta).
       await db.ejecutar(
@@ -179,7 +185,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
            FROM (SELECT id FROM pedidos_descarga
                   WHERE motivo <> 'cola'
                     AND (estado = 'pendiente' OR (estado = 'descargando' AND tomado_at < now() - interval '2 hours'))
-                  ORDER BY solicitado_at LIMIT $1 FOR UPDATE SKIP LOCKED) t
+                  ORDER BY (motivo = 'lectura'), solicitado_at LIMIT $1 FOR UPDATE SKIP LOCKED) t
           WHERE p.id = t.id
           RETURNING p.id::int, p.ocid, p.motivo,
             (SELECT c.ocds_payload->>'ocid' FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto(p.ocid) LIMIT 1) AS completo`,
@@ -203,7 +209,10 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
       const rel = dictDe(get(rec, "compiledRelease"));
       if (!Object.keys(rel).length) return { documentos: 0, bajados: 0, errores: 0, bytes: 0, error: "sin record", corte: null as string | null };
       const todos = documentosDe(rel);
-      const docs = todos;
+      const lectura = ped.motivo === "lectura";
+      const docs = lectura
+        ? todos.filter((d) => TIPOS_LECTURA.has(d.tipo ?? "") && ["pdf", "zip"].includes(extension(d.formato)))
+        : todos;
       const aa = corto.slice(-2).padStart(2, "0");
       const estado = { seguidos403: 0 };
       const filas: unknown[][] = [];
@@ -214,7 +223,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
         const nombre = (d.id && /^[\w-]{1,40}$/.test(d.id) ? d.id : await sha1Corto(d.url)) + "." + extension(d.formato);
         const clave = `${PREFIJO}/${aa}/${corto}/${nombre}`;
         try {
-          const b = await bajar(env, d, clave, estado);
+          const b = await bajar(env, d, clave, estado, lectura ? MAX_ARCHIVO_LECTURA : MAX_ARCHIVO);
           if ("error" in b) {
             errores++;
             registrar("WARNING", `   ${corto} ${d.tipo ?? "?"} → ${b.error}`, { fuente: FUENTE, instancia: id });

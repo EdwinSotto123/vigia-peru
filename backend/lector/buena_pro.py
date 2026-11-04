@@ -100,6 +100,10 @@ ESQUEMA = {
 BANDERAS = ["postor_unico", "solo_queda_el_ganador", "descalificados_por_formalidad", "oferta_mas_baja_descartada",
             *TIPOS_OBSERVACION]
 
+# Las que se publican (refrescar_cruce_acta): la segunda lectura (leer.py --segunda --solo-con-banderas) sólo
+# vuelve a leer las actas que tienen alguna de éstas.
+BANDERAS_A_CONFIRMAR = ["solo_queda_el_ganador", "descalificados_por_formalidad", "oferta_mas_baja_descartada"]
+
 
 def fuera(p: dict) -> bool:
     return not p.get("ganador") and (p.get("admitida") is False or p.get("calificada") is False)

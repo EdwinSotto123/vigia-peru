@@ -78,3 +78,18 @@ def banderas_de(salida: dict) -> list[str]:
     if salida.get("denuncias"):
         out.add("denuncia_de_direccionamiento")
     return sorted(out)
+
+
+def juntar(salidas: list[dict]) -> dict:
+    """Las lecturas de un pliego largo, leído por tramos de páginas (leer.py), como una sola."""
+    orden = {"alta": 0, "media": 1, "baja": 2}
+    return {
+        "es_pliego": any(s.get("es_pliego") for s in salidas),
+        "n_consultas": sum(int(s.get("n_consultas") or 0) for s in salidas),
+        # Sin nombres no se pueden contar distintos entre tramos: el mayor es un piso.
+        "n_participantes": max((s["n_participantes"] for s in salidas if s.get("n_participantes") is not None), default=None),
+        "observaciones": [o for s in salidas for o in (s.get("observaciones") or [])],
+        "denuncias": [d for s in salidas for d in (s.get("denuncias") or [])],
+        "confianza": max((s.get("confianza") or "baja" for s in salidas), key=lambda c: orden.get(c, 2)),
+        "tramos": len(salidas),
+    }

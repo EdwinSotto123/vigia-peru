@@ -34,6 +34,7 @@ from tunel_rds import conexion  # noqa: E402
 MODELO = "claude-haiku-5-5"
 TOPE_PAGINAS = 60
 TOPE_TOKENS = 100_000
+TOPE_TRAMOS = 8
 
 PENDIENTES = """
 SELECT d.ocid,
@@ -167,28 +168,65 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
     if not pdfs:
         return fila
     while True:
-        mensajes = bloques_pdf(pdfs, lector.PEDIDO)
-        n_in = claude.messages.count_tokens(model=MODELO, system=lector.SISTEMA, messages=mensajes).input_tokens
+        n_in = _tokens(claude, lector, pdfs)
         if n_in <= TOPE_TOKENS or len(pdfs) == 1:
             break
         pdfs.pop()
-    if n_in > TOPE_TOKENS * 1.5:
-        return {**fila, "estado": "grande", "detalle": f"{n_in} tokens en un solo PDF"}
-    r = claude.messages.create(model=MODELO, max_tokens=16000, system=lector.SISTEMA, messages=mensajes,
+    tramos = [pdfs]
+    if n_in > TOPE_TOKENS:
+        # Un solo PDF que no cabe: por encima de 100 k tokens Haiku cobra 5 veces más. Con `juntar` (consultas) se lee
+        # en tramos de páginas que caben y se juntan las salidas; sin él, sólo las primeras páginas que caben.
+        nombre, b = pdfs[0]
+        n_pag = paginas_de(b)
+        por = max(1, int(n_pag * TOPE_TOKENS * 0.85 / n_in))
+        if hasattr(lector, "juntar"):
+            tramos = [[(f"{nombre}, páginas {i + 1} a {min(i + por, n_pag)}", paginas(b, list(range(i, min(i + por, n_pag)))))]
+                      for i in range(0, n_pag, por)]
+        else:
+            tramos = [[(nombre, paginas(b, list(range(por))))]]
+            fila["paginas"] = por
+        if len(tramos) > TOPE_TRAMOS:
+            return {**fila, "estado": "grande", "detalle": f"{n_in} tokens: serían {len(tramos)} tramos"}
+        for t in tramos:  # una página puede pesar más que el promedio
+            if (nt := _tokens(claude, lector, t)) > TOPE_TOKENS:
+                return {**fila, "estado": "grande", "detalle": f"un tramo de {nt} tokens"}
+        fila["detalle"] = (f"{n_in} tokens: leído en {len(tramos)} tramos" if len(tramos) > 1
+                           else f"{n_in} tokens: sólo las primeras {por} páginas")
+    resultados = [_llamar(claude, lector, t) for t in tramos]
+    fila.update(modelo=resultados[0]["modelo"], tokens_in=sum(r["tokens_in"] for r in resultados),
+                tokens_out=sum(r["tokens_out"] for r in resultados),
+                costo_usd=round(sum(r["costo_usd"] for r in resultados), 6))
+    malo = next((r for r in resultados if r["estado"] != "ok"), None)
+    if malo:
+        return {**fila, "estado": malo["estado"], "detalle": malo.get("detalle")}
+    salidas = [r["salida"] for r in resultados]
+    salida = salidas[0] if len(salidas) == 1 else lector.juntar(salidas)
+    return {**fila, "estado": "ok", "salida": salida, "banderas": lector.banderas_de(salida)}
+
+
+def _tokens(claude, lector, pdfs: list[tuple[str, bytes]]) -> int:
+    """Los tokens de entrada del pedido (contarlos no cuesta)."""
+    return claude.messages.count_tokens(model=MODELO, system=lector.SISTEMA,
+                                        messages=bloques_pdf(pdfs, lector.PEDIDO)).input_tokens
+
+
+def _llamar(claude, lector, pdfs: list[tuple[str, bytes]]) -> dict:
+    """Una lectura: estado, salida (el JSON del esquema), modelo, tokens y costo."""
+    r = claude.messages.create(model=MODELO, max_tokens=16000, system=lector.SISTEMA,
+                               messages=bloques_pdf(pdfs, lector.PEDIDO),
                                output_config={"effort": "low", "format": {"type": "json_schema", "schema": lector.ESQUEMA}})
     u = r.usage
-    fila.update(modelo=r.model, tokens_in=u.input_tokens, tokens_out=u.output_tokens,
-                costo_usd=round(costo_usd(r.model, u.input_tokens, u.output_tokens), 6))
+    res = {"modelo": r.model, "tokens_in": u.input_tokens, "tokens_out": u.output_tokens,
+           "costo_usd": costo_usd(r.model, u.input_tokens, u.output_tokens), "salida": None, "detalle": None}
     if r.stop_reason == "refusal":
-        return {**fila, "estado": "rechazo", "detalle": str(getattr(r, "stop_details", ""))[:300]}
+        return {**res, "estado": "rechazo", "detalle": str(getattr(r, "stop_details", ""))[:300]}
     if r.stop_reason == "max_tokens":
-        return {**fila, "estado": "truncada"}
+        return {**res, "estado": "truncada"}
     texto = next((b.text for b in r.content if b.type == "text"), "")
     try:
-        salida = json.loads(texto)
+        return {**res, "estado": "ok", "salida": json.loads(texto)}
     except json.JSONDecodeError:
-        return {**fila, "estado": "json_invalido", "detalle": texto[:300]}
-    return {**fila, "estado": "ok", "salida": salida, "banderas": lector.banderas_de(salida)}
+        return {**res, "estado": "json_invalido", "detalle": texto[:300]}
 
 
 def main() -> None:
@@ -204,6 +242,8 @@ def main() -> None:
     ap.add_argument("--solo-con-banderas", action="store_true",
                     help="con --segunda: sólo los contratos cuya primera lectura encontró alguna bandera (lo único que la "
                          "segunda confirma)")
+    ap.add_argument("--rehacer-grandes", action="store_true",
+                    help="vuelve a leer los que quedaron como «grande» (ahora por tramos o recortados)")
     a = ap.parse_args()
     lector = importlib.import_module(f"lector.{a.clase}")
     version_base = lector.VERSION
@@ -214,10 +254,17 @@ def main() -> None:
         consulta = PENDIENTES.replace(
             " GROUP BY d.ocid",
             "   AND EXISTS (SELECT 1 FROM documento_lectura f WHERE f.ocid = d.ocid AND f.clase = %(clase)s"
-            " AND f.version = %(version_base)s AND f.estado = 'ok' AND f.banderas <> '{}')\n GROUP BY d.ocid", 1)
+            " AND f.version = %(version_base)s AND f.estado = 'ok' AND f.banderas && %(confirmar)s::text[])\n GROUP BY d.ocid", 1)
+    if a.rehacer_grandes:
+        consulta = consulta.replace("AND l.estado <> 'error')", "AND l.estado NOT IN ('error', 'grande'))", 1)
+        assert "'grande'" in consulta
     base = Base(a.entorno)
     pendientes = base.hacer(lambda cur: (cur.execute(consulta, {"tipos": lector.TIPOS_DOC, "clase": lector.CLASE,
-                                                                "version": lector.VERSION, "version_base": version_base}),
+                                                                "version": lector.VERSION, "version_base": version_base,
+                                                                # Las banderas que la segunda lectura confirma (las que
+                                                                # se publican); sin la lista, cualquiera.
+                                                                "confirmar": list(getattr(lector, "BANDERAS_A_CONFIRMAR",
+                                                                                          lector.BANDERAS))}),
                                          cur.fetchall())[1])
     if a.limite:
         pendientes = pendientes[: a.limite]
