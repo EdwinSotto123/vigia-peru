@@ -447,6 +447,15 @@ async def _pipeline(input_str: str, runner, user_id: str, state: dict, metrics: 
         yield {"kind": "phase", "name": "clasificacion",
                "msg": f"matriz tipo × etapa {_tipo_etapa}: agentes {', '.join(state['agentes_permitidos'])}"}
 
+    # Lo que ya leyeron los lectores de Vigía (acta, contrato, consultas, bases) ANTES de las reglas: unico_postor_alto
+    # corre en la rama de compliance, en paralelo con el parser, y necesita las ofertas del acta, no los inscritos del
+    # OCDS (prueba de oro 2026-11-04). Una consulta a la base; fase_parser ya no la repite.
+    if hasattr(T, "query_lecturas_documentos") and not state.get("lecturas_documentos"):
+        evs, _ = await t_call(pc, T.query_lecturas_documentos, "query_lecturas_documentos", agent="document_parser_agent",
+                              ocid=ocid)
+        for e in evs:
+            yield e
+
     # ── Ejecución: DAG paralelo o secuencia histórica ──
     if dag:
         async for e in _correr_dag(

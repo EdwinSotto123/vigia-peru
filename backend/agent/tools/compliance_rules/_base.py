@@ -211,8 +211,58 @@ def _sin_oferta(estado) -> bool:
     return any(k in e for k in ("sin oferta", "no presento", "no oferto", "sin propuesta", "solo registro", "registrado sin"))
 
 
+def postores_acta(state: dict) -> list[dict] | None:
+    """Los postores del acta de buena pro según el lector de Vigía (`lecturas_documentos.acta`, Haiku 5.5 leyendo el
+    PDF; tools/lecturas.py), con las claves de `_postores_parser`. None si no hay acta leída.
+
+    El lector lista SÓLO a quienes presentaron oferta (no a los registrados), con admitida/calificada y el motivo. Es
+    más fiable que el parser genérico: en la prueba de oro de las 4 redes (2026-11-04) el parser sumaba postores que no
+    existían (una «oferta» de S/ 30 000 tomada de otro documento, 1232065) y perdía los montos de los perdedores
+    (1228861: un rival ofertó el 100 % de la cuantía), y el OCDS cuenta participantes, no ofertas (1227458: 6
+    registrados, una sola oferta)."""
+    acta = (((state or {}).get("lecturas_documentos") or {}).get("acta") or {}).get("salida") or {}
+    if not isinstance(acta, dict) or acta.get("es_buena_pro") is False:
+        return None
+    post = [p for p in (acta.get("postores") or []) if isinstance(p, dict)]
+    if not post:
+        return None
+    out = []
+    for p in post:
+        ruc = "".join(ch for ch in str(p.get("ruc") or "") if ch.isdigit())
+        if p.get("admitida") is False:
+            estado = "no admitido"
+        elif p.get("calificada") is False:
+            estado = "descalificado"
+        elif not p.get("ganador") and str(p.get("motivo_fuera") or "").strip():
+            # Admitida y calificada, pero quedó fuera después: oferta económica rechazada o bajo el puntaje técnico
+            # mínimo (1228202: «el 90 % y 10 % del monto no coinciden»; 1230915: 60 puntos de 70). El lector deja
+            # calificada=true y lo dice en motivo_fuera.
+            estado = "descalificado"
+        elif p.get("ganador"):
+            estado = "adjudicado"
+        else:
+            estado = "valido"
+        out.append({"ruc": ruc if len(ruc) == 11 else None, "razon_social": str(p.get("nombre") or "").strip(),
+                    "monto": _f(p.get("monto_ofertado")), "es_ganador": bool(p.get("ganador")),
+                    "puntaje": p.get("puntaje"), "estado": estado, "orden": None,
+                    "motivo": (str(p.get("motivo_fuera"))[:300] if p.get("motivo_fuera") else None),
+                    "integrantes_ruc": [r for r in (p.get("integrantes_ruc") or []) if isinstance(r, str)],
+                    "fuente": "acta"})
+    return out
+
+
 def n_participantes_parser(state: dict) -> tuple[int, int] | None:
-    """(participantes registrados, ofertas presentadas) según el parser, si distingue a los que no ofertaron."""
+    """(participantes registrados, ofertas presentadas) según el acta leída o el parser, si distingue a los que no
+    ofertaron."""
+    acta = postores_acta(state)
+    if acta:
+        ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
+        n = (ocds.get("tender") or {}).get("numberOfTenderers") if isinstance(ocds, dict) else None
+        try:
+            n = int(n) if n is not None else None
+        except (TypeError, ValueError):
+            n = None
+        return (max(n or 0, len(acta)), len(acta))
     raw = (state or {}).get("parser_raw_consolidated") or {}
     da = _safe_parse_json((state or {}).get("document_analysis")) or {}
     base = next((f for f in (raw.get("postores"), raw.get("postores_consolidados"), da.get("postores_extraidos"),
@@ -225,10 +275,13 @@ def n_participantes_parser(state: dict) -> tuple[int, int] | None:
 
 
 def _postores_parser(state: dict) -> list[dict]:
-    """Postores con montos desde el parser (tolerante a las claves nuevas de R4):
+    """Postores con montos: los del acta leída (`postores_acta`) si la hay; si no, desde el parser (tolerante a las claves nuevas de R4):
     `parser_raw_consolidated.postores[]` > `postores_consolidados[]` > `document_analysis.
     postores_extraidos[]`, completados con `ofertas[]` (postor, monto, orden) si existen.
     Cada entrada: {ruc, razon_social, monto, es_ganador, puntaje, estado, orden}."""
+    acta = postores_acta(state)
+    if acta:
+        return acta
     raw = (state or {}).get("parser_raw_consolidated") or {}
     da = _safe_parse_json((state or {}).get("document_analysis")) or {}
     fuentes = [raw.get("postores"), raw.get("postores_consolidados"), da.get("postores_extraidos")]
@@ -325,3 +378,125 @@ def _ganador_ruc(ocid: str, state: dict, cur=None) -> tuple[str | None, str | No
                 if len(digits) == 11:
                     return digits, sup.get("name")
     return ruc, nombre
+
+
+# ─── Prueba de oro de las redes (2026-11-04): IGV exonerado, honorario fijo y consorciados ───
+
+_RE_EXONERADO_IGV = re.compile(
+    r"ley\s*(n[°º.o]*\s*)?27037|amazon[ií]a.{0,80}\bigv\b|exonera\w*\s+(del\s+)?(pago\s+del\s+)?igv|"
+    r"no\s+incluye\s+(el\s+)?igv|excluido\s+(el\s+)?igv|inafect\w*\s+(al|del)\s+igv", re.I)
+
+
+def exonerado_igv(state: dict) -> bool:
+    """True si los documentos dicen que la oferta va sin IGV (Ley 27037 de la Amazonía, «no incluye IGV»)."""
+    textos = []
+    lect = (state or {}).get("lecturas_documentos") or {}
+    for k in ("acta", "contrato", "bases"):
+        textos.append(json.dumps((lect.get(k) or {}).get("salida") or {}, ensure_ascii=False)[:20000])
+    dt = (state or {}).get("documentos_texto") or {}
+    if isinstance(dt, dict):
+        for v in dt.values():
+            if isinstance(v, dict) and isinstance(v.get("texto"), str):
+                textos.append(v["texto"][:60000])
+    return any(_RE_EXONERADO_IGV.search(t) for t in textos if t)
+
+
+def ratio_vs_referencial(monto, vr, state: dict | None = None) -> tuple[float | None, bool]:
+    """(monto / valor referencial, en la misma base tributaria) y si se comparó sin IGV.
+
+    Un postor exonerado del IGV (Ley 27037) oferta sin IGV contra una cuantía publicada con IGV: 67 796,61 frente a
+    80 000 es el 84,7 % literal, pero es 80 000 / 1,18 al céntimo (1226359, 1226546). Se compara sin IGV cuando la
+    oferta por 1,18 cae a 0,1 % de la cuantía, o cuando los documentos dicen que la oferta va sin IGV y así queda entre
+    el 90 % y el 110 %."""
+    m, v = _f(monto), _f(vr)
+    if not m or not v:
+        return None, False
+    r = m / v
+    r_sin = m * 1.18 / v
+    if abs(r - 1) > 0.001 and abs(r_sin - 1) <= 0.001:
+        return r_sin, True
+    if r < 0.9 and 0.9 <= r_sin <= 1.1 and state is not None and exonerado_igv(state):
+        return r_sin, True
+    return r, False
+
+
+_RE_SIN_COMPETENCIA_PRECIO = re.compile(r"convenio|r[eé]g[ií]men\s+especial", re.I)
+
+
+def honorario_fijo(state: dict) -> bool:
+    """True si el monto lo fijaron las bases y no hubo oferta económica: un convenio o un régimen especial donde el
+    acta trae varios candidatos evaluados por calificaciones o entrevista y sólo el adjudicatario tiene monto, igual a
+    la cuantía (1228800, 1231429, 1232540: honorario de los TDR, terna de candidatos). Ahí el único «postor» del OCDS y
+    la oferta igual al referencial son por construcción, no señales."""
+    tipo = _procurement_method(state)
+    if not _RE_SIN_COMPETENCIA_PRECIO.search(tipo or ""):
+        return False
+    acta = postores_acta(state) or []
+    if len(acta) < 2:
+        return False
+    gan = [p for p in acta if p.get("es_ganador")]
+    otros = [p for p in acta if not p.get("es_ganador")]
+    if len(gan) != 1 or any(p.get("monto") for p in otros):
+        return False
+    ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
+    vr = _montos_ocds(ocds).get("referencial")
+    m = gan[0].get("monto") or _monto_adjudicado_ocds(ocds)
+    return bool(vr and m and abs(float(m) - float(vr)) / float(vr) <= 0.001)
+
+
+def ganadores_evaluables(ocid: str, state: dict, cur=None) -> list[dict]:
+    """Quién ganó y, si es un consorcio, cada integrante (hasta 5): [{ruc, nombre, consorcio, monto, fecha_buena_pro}].
+
+    Fuente: la buena pro del CONOSCE (conosce_adjudicaciones por código y entidad) con conosce_consorcios; sin ella, los
+    suppliers del OCDS con RUC. Antes las reglas de proveedor partían de `postores`/`ofertas`/`empresas` de la base
+    propia, donde un consorcio figura con su código del SEACE y no tiene fila en `empresas`: con un consorcio ganador no
+    se evaluaba a nadie (prueba de oro 2026-11-04: RUC nuevo, giro SUNAT, concentración y visitas de un consorciado,
+    9 omisiones). Se guarda en state["_ganadores_eval"]."""
+    st = state if isinstance(state, dict) else {}
+    ya = st.get("_ganadores_eval")
+    if isinstance(ya, dict) and ya.get("ocid") == str(ocid):
+        return ya["lista"]
+    out: list[dict] = []
+    conn = None
+    try:
+        if cur is None:
+            conn = _pg()
+            cur = conn.cursor()
+        cur.execute("SELECT codigo, entidad_ruc::text FROM convocatorias WHERE ocid = %s", (str(ocid),))
+        fila = cur.fetchone()
+        if fila and fila[0]:
+            cur.execute("""SELECT ruc_proveedor, max(proveedor), sum(monto_adjudicado)::float, min(fecha_buenapro)
+                             FROM conosce_adjudicaciones
+                            WHERE codigo_convocatoria = %s AND (%s::text IS NULL OR entidad_ruc::text = %s::text)
+                            GROUP BY 1 ORDER BY 3 DESC NULLS LAST LIMIT 5""", (fila[0], fila[1], fila[1]))
+            for ruc, nombre, monto, fbp in cur.fetchall():
+                ruc = str(ruc or "").strip()
+                if re.fullmatch(r"(10|15|17|20)\d{9}", ruc):
+                    out.append({"ruc": ruc, "nombre": nombre, "consorcio": None, "monto": monto, "fecha_buena_pro": fbp})
+                    continue
+                cur.execute("""SELECT DISTINCT ruc_miembro, miembro FROM conosce_consorcios
+                                WHERE ruc_consorcio = %s AND ruc_miembro ~ '^(10|15|17|20)[0-9]{9}$'
+                                ORDER BY 1 LIMIT 5""", (ruc,))
+                for mr, mn in cur.fetchall():
+                    out.append({"ruc": mr, "nombre": mn, "consorcio": nombre or ruc, "monto": monto, "fecha_buena_pro": fbp})
+    except Exception:  # noqa: BLE001 — sin base, el OCDS
+        out = []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    if not out:
+        ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
+        monto = _monto_adjudicado_ocds(ocds) if isinstance(ocds, dict) else None
+        fbp = _to_date(((ocds.get("awards") or [{}])[0] or {}).get("date")) if isinstance(ocds, dict) else None
+        for a in (ocds.get("awards") or []) if isinstance(ocds, dict) else []:
+            for sup in (a.get("suppliers") or []) if isinstance(a, dict) else []:
+                d = "".join(ch for ch in str((sup or {}).get("id") or "") if ch.isdigit())
+                if len(d) == 11 and not any(x["ruc"] == d for x in out):
+                    out.append({"ruc": d, "nombre": (sup or {}).get("name"), "consorcio": None, "monto": monto,
+                                "fecha_buena_pro": fbp})
+    if isinstance(state, dict):
+        state["_ganadores_eval"] = {"ocid": str(ocid), "lista": out}
+    return out

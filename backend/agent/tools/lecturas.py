@@ -74,6 +74,48 @@ def lecturas_bd(ocid: str, conn=None) -> tuple[dict, set[str]]:
     return out, nombres
 
 
+def lecturas_para_legal(lect: dict) -> dict:
+    """Lo que el analista legal necesita de las lecturas, compacto: las bases (personal clave, experiencia exigida,
+    factores de evaluación con su puntaje, marcas con su cita, equipamiento, plazo), el pliego (observaciones no
+    acogidas y denuncias de direccionamiento con su cita) y el acta (por qué quedó fuera cada postor y las
+    observaciones con su cita). Es la fuente cuando las bases están escaneadas y el parser no trae el bloque (prueba de
+    oro 2026-11-04: 14 omisiones de red_flag_documental con las bases ya leídas, p. ej. «Gestión de calidad: 85 de 100
+    puntos», 1232093)."""
+    out: dict = {}
+    b = ((lect.get("bases") or {}).get("salida")) or {}
+    if b.get("es_bases") is not False and b:
+        out["bases"] = {k: b.get(k) for k in ("objeto", "valor_referencial", "plazo_dias", "experiencia_postor",
+                                              "personal_clave", "equipamiento", "factores_evaluacion", "marcas")
+                        if b.get(k) not in (None, [], {}, "")}
+        out["bases"]["banderas_del_lector"] = (lect.get("bases") or {}).get("banderas") or []
+    c = ((lect.get("consultas") or {}).get("salida")) or {}
+    if c.get("es_pliego") is not False and c:
+        obs = [o for o in (c.get("observaciones") or []) if isinstance(o, dict)]
+        out["consultas"] = {
+            "n_consultas": c.get("n_consultas"), "n_participantes": c.get("n_participantes"),
+            "no_acogidas": [{"tema": o.get("tema"), "resumen": o.get("resumen")} for o in obs
+                            if o.get("respuesta") == "no_acogida"][:25],
+            "n_acogidas": sum(1 for o in obs if o.get("respuesta") in ("acogida", "acogida_parcial")),
+            "denuncias": (c.get("denuncias") or [])[:8],
+            "banderas_del_lector": (lect.get("consultas") or {}).get("banderas_confirmadas")
+            if (lect.get("consultas") or {}).get("banderas_confirmadas") is not None else (lect.get("consultas") or {}).get("banderas") or [],
+        }
+    a = ((lect.get("acta") or {}).get("salida")) or {}
+    if a:
+        out["acta"] = {
+            "postores": [{k: p.get(k) for k in ("nombre", "ganador", "admitida", "calificada", "puntaje", "monto_ofertado",
+                                                "motivo_fuera", "motivo_tipo") if p.get(k) is not None}
+                         for p in (a.get("postores") or []) if isinstance(p, dict)][:15],
+            "observaciones": (a.get("observaciones") or [])[:8],
+        }
+    k = ((lect.get("contrato") or {}).get("salida")) or {}
+    if k:
+        out["contrato"] = {x: k.get(x) for x in ("numero_contrato", "fecha_suscripcion", "monto_contratado", "plazo_dias",
+                                                 "fecha_inicio", "fecha_fin", "forma_de_pago", "observaciones")
+                           if k.get(x) not in (None, [], "")}
+    return out
+
+
 def query_lecturas_documentos(ocid: str, tool_context: ToolContext) -> dict:
     """Lo que los lectores de Vigía ya leyeron de los documentos de este proceso (acta, contrato, consultas, bases).
 
@@ -87,6 +129,7 @@ def query_lecturas_documentos(ocid: str, tool_context: ToolContext) -> dict:
     state = tool_context.state
     if lect:
         state["lecturas_documentos"] = lect
+        state["lecturas_legal"] = lecturas_para_legal(lect)
         state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *nombres})
     return {"documentos": sorted(k for k in lect if k != "fuente"),
             "banderas": {k: v["banderas_confirmadas"] if v["banderas_confirmadas"] is not None else v["banderas"]

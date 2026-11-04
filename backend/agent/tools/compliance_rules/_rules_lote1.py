@@ -1,7 +1,7 @@
 """compliance_rules._rules_lote1 — reglas deterministas del lote 1 (plan 2026-09-15 · T12 + extras)."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _es_subasta, _f, _fecha_convocatoria_state, _ganador_ocds, _montos_ocds, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _procurement_method, _regla_omitida, _sin_tildes, _to_date  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _es_subasta, _f, _fecha_convocatoria_state, _ganador_ocds, _montos_ocds, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _procurement_method, _regla_omitida, _sin_tildes, _to_date, honorario_fijo, postores_acta, ratio_vs_referencial  # noqa: F401
 from tools.compliance_rules._object_matching import coincide_objeto  # noqa: F401
 
 
@@ -86,7 +86,18 @@ def check_oferta_igual_valor_referencial_rule(ocid: str, tool_context: ToolConte
     if not vr or not postores:
         result.update({"estado": "sin_dato", "motivo": "sin valor referencial o sin montos de oferta en el expediente"})
         return result
-    hits = [p for p in postores if abs(p["monto"] - vr) / vr <= 0.001]
+    if honorario_fijo(state):
+        result.update({"estado": "hallado", "motivo": "monto fijado por las bases (convenio o régimen especial, sin "
+                                                      "oferta económica): la igualdad con la cuantía es por construcción"})
+        return result
+    # Misma base tributaria: una oferta exonerada del IGV (Ley 27037) igual a la cuantía sin IGV también coincide.
+    hits, sin_igv = [], set()
+    for p in postores:
+        r, sin = ratio_vs_referencial(p["monto"], vr, state)
+        if r is not None and abs(r - 1) <= 0.001:
+            hits.append(p)
+            if sin:
+                sin_igv.add(id(p))
     result["coincidencias"] = [{"postor": _nombre_postor(p), "monto": p["monto"], "es_ganador": bool(p.get("es_ganador"))}
                                for p in hits]
     if not hits:
@@ -97,7 +108,9 @@ def check_oferta_igual_valor_referencial_rule(ocid: str, tool_context: ToolConte
     p = sorted(hits, key=lambda x: (bool(x.get("es_ganador")),))[0]
     rol = "adjudicatario" if p.get("es_ganador") else "postor no ganador"
     ev = (f"La oferta de {_nombre_postor(p)} ({rol}) fue S/ {p['monto']:,.2f}, igual al valor referencial "
-          f"(S/ {vr:,.2f}) con una diferencia ≤ 0.1 %. ")
+          f"(S/ {vr:,.2f}) con una diferencia ≤ 0.1 %. " if id(p) not in sin_igv else
+          f"La oferta de {_nombre_postor(p)} ({rol}) fue S/ {p['monto']:,.2f} sin IGV, igual al valor referencial sin "
+          f"IGV (S/ {vr:,.2f} / 1.18 = S/ {vr / 1.18:,.2f}) con una diferencia ≤ 0.1 %. ")
     if reservada:
         ev += ("Las bases declaran que la cuantía NO se dio a conocer: coincidir al céntimo con un valor "
                "reservado es una señal de riesgo de filtración del estudio de mercado u oferta de "
@@ -396,6 +409,17 @@ _RE_AMPL = re.compile(r"ampliaci[oó]n\s+de\s+plazo|ampliaci[oó]n\s+del\s+plazo
 _RE_PENAL = re.compile(r"penalidad(es)?\s+(por\s+mora|aplicad|impuest)|aplic\w+\s+(la\s+)?penalidad|resoluci[oó]n\s+(total|parcial)?\s*del\s+contrato|resuelve\s+el\s+contrato", re.I)
 
 
+_RE_DOC_NO_EJECUCION = re.compile(
+    r"\bbases\b|t[eé]rminos\s+de\s+referencia|\btdr\b|especificaci|resumen\s+ejecutivo|pliego|absoluci|consultas|"
+    r"archivos?\s+del\s+contrato|^\s*contrato\b|proforma|requerimiento|expediente\s+t[eé]cnico|acta\s+de\s+(otorgamiento|buena)",
+    re.I)
+_RE_HECHO_CONSUMADO = re.compile(
+    r"(se\s+)?(aplic[óo]|impus[oa]|descont[óo]|aplicaron|impusieron|descontaron)\b|penalidad(es)?\s+(aplicada|impuesta)|"
+    r"declar[óo]\s+improcedente|declara\s+improcedente|improcedente\s+la\s+(solicitud|ampliaci)|"
+    r"resolvi[óo]\s+(parcial|total)?\w*\s*el\s+contrato|resuelve\s+el\s+contrato|resoluci[óo]n\s+del\s+contrato\s+n",
+    re.I)
+
+
 def check_ampliacion_denegada_penalidad_rule(ocid: str, tool_context: ToolContext,
                                              reglas_activas: frozenset[str] | None = None,
                                              topes_uit: dict | None = None) -> dict:
@@ -432,6 +456,12 @@ def check_ampliacion_denegada_penalidad_rule(ocid: str, tool_context: ToolContex
             if not isinstance(r, dict):
                 continue
             txt = str(r.get("resumen") or "")
+            # Las bases, el TDR, el pliego de consultas y el contrato traen la cláusula de penalidad por mora y la de
+            # resolución: describen lo que PODRÍA pasar, no una incidencia. Sólo cuentan los documentos de ejecución
+            # y los hechos consumados (prueba de oro 2026-11-04: 8 falsas alarmas en las 4 redes, todas por bases,
+            # «Resumen ejecutivo», pliego o «Archivos del contrato»).
+            if _RE_DOC_NO_EJECUCION.search(str(r.get("documento") or "")) or not _RE_HECHO_CONSUMADO.search(txt):
+                continue
             if _RE_AMPL.search(txt) and _RE_AMPL_IMPROC.search(txt):
                 hechos.append("ampliación de plazo declarada improcedente según el documento "
                               f"'{str(r.get('documento') or '')[:60]}'")
@@ -499,7 +529,17 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
         return om
     state = tool_context.state
     postores = _socios_por_postor(state)
-    result = {"regla": "postores_vinculados_rnp", "triggered": False, "n_postores_con_socios": len(postores)}
+    # Sólo entre quienes presentaron oferta (acta leída o parser): los «rivales» del RNP salen de los participantes
+    # registrados, y con una sola oferta no hay rivales (prueba de oro 2026-11-04: 1231217, 2026-2525-34 y 2026-2000-37,
+    # tres falsas alarmas por socios comunes entre inscritos que nunca ofertaron).
+    ofertas = [o for o in _postores_parser(state) if o.get("ruc") or o.get("razon_social")]
+    if ofertas:
+        rucs = {o["ruc"] for o in ofertas if o.get("ruc")} | {r for o in ofertas for r in (o.get("integrantes_ruc") or [])}
+        noms = {_norm_razon_cr(o.get("razon_social") or "") for o in ofertas} - {""}
+        postores = [x for x in postores if x.get("es_ganador") or (x.get("ruc") and x["ruc"] in rucs)
+                    or _norm_razon_cr(x.get("razon_social") or "") in noms]
+    result = {"regla": "postores_vinculados_rnp", "triggered": False, "n_postores_con_socios": len(postores),
+              "solo_quienes_ofertaron": bool(ofertas)}
     if len(postores) < 2:
         result.update({"estado": "sin_dato", "motivo": "se requieren socios RNP de ≥ 2 postores"})
         return result
@@ -559,6 +599,11 @@ def check_oferta_mas_barata_no_gana_rule(ocid: str, tool_context: ToolContext,
     ganador = next((p for p in postores if p.get("es_ganador")), None)
     if len(postores) < 2 or ganador is None:
         result.update({"estado": "sin_dato", "motivo": "se requieren ≥ 2 ofertas válidas con monto y ganador identificado"})
+        return result
+    if sum(1 for p in postores if p.get("es_ganador")) > 1:
+        # Adjudicación por ítems o lotes: cada ganador compite en su ítem; comparar montos de ítems distintos no dice
+        # nada (1230366: arroz contra frijoles).
+        result.update({"estado": "no_aplica", "motivo": "varios adjudicatarios (por ítem o lote): no se comparan montos de ítems distintos"})
         return result
     barata = min(postores, key=lambda p: p["monto"])
     result["estado"] = "hallado"
@@ -635,6 +680,23 @@ def check_fecha_buena_pro_incoherente_rule(ocid: str, tool_context: ToolContext,
         if fbp_doc < fconv:
             hechos.append(f"el contrato cita la buena pro el {fbp_doc:%d/%m/%Y}, antes de la convocatoria "
                           f"({fconv:%d/%m/%Y})" + (f"; el OCDS registra la buena pro el {fbp_ocds:%d/%m/%Y}" if fbp_ocds else ""))
+    # El contrato firmado (OCDS contracts[].dateSigned) o su vigencia antes de la convocatoria (1228800: firmado el
+    # 19-06 y convocado el 24-06). Con 1 día de gracia por zonas horarias del registro.
+    if fconv:
+        for c in (ocds.get("contracts") or []) if isinstance(ocds, dict) else []:
+            if not isinstance(c, dict):
+                continue
+            firma = _to_date(c.get("dateSigned"))
+            inicio = _to_date((c.get("period") or {}).get("startDate"))
+            for etiqueta, d in (("se firmó", firma), ("empezó a regir", inicio)):
+                if d and (fconv - d).days >= 2:
+                    result["estado"] = "hallado"
+                    result.setdefault("contrato_antes_de_convocatoria", []).append({"fecha": str(d), "que": etiqueta})
+                    hechos.append(f"el contrato {etiqueta} el {d:%d/%m/%Y}, antes de la convocatoria registrada en el "
+                                  f"SEACE ({fconv:%d/%m/%Y})")
+                    break
+            if result.get("contrato_antes_de_convocatoria"):
+                break
     # Garantía: número en el contrato vs número en la carta fianza (documento aparte).
     num_contrato = None
     for src in (contrato, cf):

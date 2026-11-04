@@ -189,7 +189,7 @@ async def fase_parser(pc: PipelineCtx):
         return
     yield {"kind": "phase", "name": "document_parser", "msg": "procesando documentos SEACE"}
     # Lo que ya leyeron los lectores de Vigía (tools/lecturas.py): acta, contrato, consultas y bases, para el dictamen.
-    if hasattr(pc.T, "query_lecturas_documentos"):
+    if hasattr(pc.T, "query_lecturas_documentos") and not pc.state.get("lecturas_documentos"):
         evs, _ = await t_call(pc, pc.T.query_lecturas_documentos, "query_lecturas_documentos", agent="document_parser_agent",
                               ocid=pc.ocid)
         for e in evs:

@@ -1,7 +1,7 @@
 """compliance_rules._rules_bidder — reglas de postor único / proceso no competitivo."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida, _sin_tildes, n_participantes_parser  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _monto_adjudicado_ocds, _montos_ocds, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida, _sin_tildes, honorario_fijo, n_participantes_parser, postores_acta, ratio_vs_referencial  # noqa: F401
 
 
 def _n_postores_ocds(ocds: dict) -> int | None:
@@ -54,10 +54,24 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
     fuente_n = "ocds" if n_postores is not None else None
     # numberOfTenderers cuenta PARTICIPANTES registrados, no ofertas (1225299 y 1226228: 4 registrados, 1 oferta).
     # Si el acta (vía parser) distingue a los que no ofertaron, manda el número de ofertas presentadas.
+    _acta = postores_acta(state)
     _pp = n_participantes_parser(state)
     n_participantes = None
-    if _pp and _pp[1] >= 1 and (n_postores is None or _pp[1] < n_postores):
+    if _acta:
+        # El acta leída (lector de Vigía) manda en los dos sentidos: 1 oferta entre 6 registrados (1227458) y también
+        # 4 o 11 candidatos donde el OCDS sólo lista al adjudicatario (1231429, 1232540: régimen especial).
+        n_participantes = _pp[0] if (_pp and _pp[0] > len(_acta)) else None
+        n_postores, fuente_n = len(_acta), "acta (ofertas presentadas)"
+        if len(_acta) >= 2 and all(p.get("es_ganador") for p in _acta):
+            # Adjudicación por ítems donde cada postor ganó el suyo: una sola oferta por ítem (1230366: arroz y
+            # frijoles, un postor cada uno, al 100 % de su valor referencial).
+            n_postores, fuente_n = 1, "acta (una oferta por ítem)"
+    elif _pp and _pp[1] >= 1 and (n_postores is None or _pp[1] < n_postores):
         n_participantes, n_postores, fuente_n = _pp[0], _pp[1], "acta (ofertas presentadas)"
+    if honorario_fijo(state):
+        return {"regla": "unico_postor_alto", "triggered": False, "estado": "hallado", "n_postores": n_postores,
+                "fuente_n_postores": fuente_n,
+                "motivo": "monto fijado por las bases (convenio o régimen especial, sin oferta económica)"}
 
     pct = None
     conn = _pg()
@@ -92,6 +106,17 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
         except (TypeError, ValueError, ZeroDivisionError):
             pct = None
 
+    # Oferta sin IGV (exonerada, Ley 27037) contra una cuantía con IGV: se compara en la misma base (1226359, 1226546).
+    nota_igv = ""
+    if pct is not None and pct < 95:
+        _ref = _montos_ocds(ocds).get("referencial")
+        _gm = next((p.get("monto") for p in (_acta or []) if p.get("es_ganador") and p.get("monto")), None) \
+            or _monto_adjudicado_ocds(ocds)
+        _r, _sin = ratio_vs_referencial(_gm, _ref, state)
+        if _sin and _r is not None:
+            nota_igv = (f" La oferta va sin IGV (S/ {float(_gm):,.2f}) y la cuantía con IGV (S/ {float(_ref):,.2f}): "
+                        f"en la misma base tributaria es el {_r * 100:.2f} %, no el {pct}%.")
+            pct = round(_r * 100, 2)
     result = {
         "regla": "unico_postor_alto",
         "n_postores": n_postores,
@@ -108,7 +133,7 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
             "triggered": True, "severidad": "alta",
             "evidencia": ((f"Una sola oferta presentada según el acta ({n_participantes} participantes registrados) y "
                            if n_participantes else f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y ")
-                          + f"oferta ganadora al {pct}% del valor referencial."),
+                          + f"oferta ganadora al {pct}% del valor referencial." + nota_igv),
             "norma": _norma_state(state)["competencia"],
             "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
         })

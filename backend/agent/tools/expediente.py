@@ -315,6 +315,11 @@ def _expediente_consorcio(codigo: str, tool_context: ToolContext, entidad_ruc: s
         if es_persona_natural(m["ruc"]):
             crudos.append(m.get("nombre") or "")
         e["nombre"] = tapar_nombre(m.get("nombre")) if es_persona_natural(m["ruc"]) else m.get("nombre")
+        # El perfil SUNAT de cada consorciado, con la fecha de inicio efectiva: lo leen las reglas de RUC nuevo y de
+        # giro (ganadores_evaluables), que evalúan a cada integrante.
+        s_ = e.get("sunat") or {}
+        if s_.get("estado") or s_.get("fecha_inicio_actividades"):
+            state.setdefault("sunat_profiles", {})[m["ruc"]] = _perfil_sunat(m["ruc"], e)
         for sn in _perfil_oece(m["ruc"], e, state)["senales"]:
             senales.append({**sn, "evidencia": f"Integrante {e['nombre']} (RUC {m['ruc']}): {sn.get('evidencia', '')}"[:600]})
     exp = {"ruc": codigo, "consorcio": True, "nombre": miembros[0].get("consorcio"), "persona_natural": False,

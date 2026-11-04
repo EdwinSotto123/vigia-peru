@@ -370,7 +370,11 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
     if cuantia_doc > 0 and coincide_con is None and candidatos:
         base_nombre, base = ("awards/contracts", montos["suma_contracts"] or montos["suma_awards"]) \
             if (montos["suma_contracts"] or montos["suma_awards"]) else ("tender.value", cuantia_ocds)
-        if base:
+        # Un monto del documento que es la cuota o el honorario mensual (S/ 15 000 al mes por 3 meses = S/ 45 000,
+        # 1228800) no es una discrepancia: el total es un múltiplo entero exacto (2 a 36).
+        _k = (base / cuantia_doc) if (base and cuantia_doc) else 0
+        _cuota = 2 <= round(_k) <= 36 and abs(_k - round(_k)) <= 0.005 * round(_k)
+        if base and not _cuota:
             diff_pct = abs(base - cuantia_doc) / max(base, 1) * 100
             if diff_pct > 5:
                 inconsistencias.append({

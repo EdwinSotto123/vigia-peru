@@ -1,24 +1,26 @@
 """compliance_rules._rules_network — reglas de red/relaciones: concentración, firmantes, testaferros."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _regla_omitida, _sin_tildes  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _fecha_convocatoria_state, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date, ganadores_evaluables  # noqa: F401
+from tools.privacidad import tapar_nombre
 
 
 def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
                                      reglas_activas: frozenset[str] | None = None,
                                      topes_uit: dict | None = None) -> dict:
-    """Detecta si el proveedor adjudicado concentra contratos con la entidad
-    contratante actual. Cuenta en `convocatorias` (BD propia: procesos ingestados
-    del SEACE), NO en lo que `web_research` (LLM con grounding) "dijo haber visto"
-    (hallazgo #8). Dispara con ≥3 contratos previos con la misma entidad Y ≥40 % de
-    su historial en la BD; el alcance (solo procesos en la base de Vigía) queda
-    explícito en la evidencia.
+    """Concentración con la entidad: el ganador (o un integrante del consorcio ganador) tiene ≥ 3 buenas pro con la
+    entidad contratante y son ≥ 40 % de su historial, sin contar este proceso.
+
+    Cuenta en el CONOSCE (conosce_adjudicaciones: todas las buenas pro del SEACE, también como consorciado vía
+    conosce_consorcios), no en `convocatorias` (sólo los procesos que Vigía ingirió) ni en lo que dijo web_research.
+    Prueba de oro 2026-11-04: con la base propia se omitían 4 de 6 (7 de 7 procesos con el Ejército, 1229450; un
+    consorciado con 4 de 5 con el Gobierno Regional de Piura, 1230947).
 
     Args:
         ocid: OCID de la convocatoria.
 
     Returns:
-        Diccionario con triggered, severidad, evidencia, ocids_misma_entidad.
+        Diccionario con triggered, severidad, evidencia y el conteo por ganador o consorciado.
     """
     reglas = _perfil_reglas(tool_context, reglas_activas)
     om = _regla_omitida("concentracion_entidad", reglas)
@@ -28,51 +30,59 @@ def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
     conn = _pg()
     try:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT c.entidad_ruc, (SELECT nombre FROM entidades e WHERE e.ruc=c.entidad_ruc) "
-            "FROM convocatorias c WHERE c.ocid=%s", (ocid,))
-        row = cur.fetchone()
-        entidad_ruc = (row and row[0]) or None
-        entidad_nombre = (row and row[1]) or ""
-        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
-        if not prov_ruc:
+        cur.execute("SELECT c.codigo, c.entidad_ruc::text, (SELECT nombre FROM entidades e WHERE e.ruc = c.entidad_ruc) "
+                    "FROM convocatorias c WHERE c.ocid = %s", (ocid,))
+        row = cur.fetchone() or (None, None, None)
+        codigo, entidad_ruc, entidad_nombre = row[0], (row[1] or "").strip() or None, row[2] or ""
+        ganadores = ganadores_evaluables(ocid, state, cur)
+        if not ganadores or not entidad_ruc:
             return {"regla": "concentracion_entidad", "triggered": False, "estado": "sin_dato",
-                    "motivo": "sin proveedor adjudicado identificable"}
-        cur.execute(
-            """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
-                 FROM convocatorias c
-                 LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
-                 LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)""",
-            (prov_ruc, ocid, prov_ruc))
-        rows = cur.fetchall()
+                    "motivo": "sin proveedor adjudicado identificable o sin entidad"}
+        conteos = []
+        for g in ganadores:
+            cur.execute(
+                """WITH h AS (
+                       SELECT a.codigo_convocatoria AS cod, a.entidad_ruc AS ent FROM conosce_adjudicaciones a
+                        WHERE a.ruc_proveedor = %s
+                       UNION
+                       SELECT a.codigo_convocatoria, a.entidad_ruc FROM conosce_consorcios m
+                         JOIN conosce_adjudicaciones a ON a.ruc_proveedor = m.ruc_consorcio
+                        WHERE m.ruc_miembro = %s)
+                   SELECT count(DISTINCT (cod, ent)), count(DISTINCT cod) FILTER (WHERE ent = %s)
+                     FROM h WHERE NOT (cod = %s AND ent = %s)""",
+                (g["ruc"], g["ruc"], entidad_ruc, codigo or "", entidad_ruc))
+            n_total, n_misma = cur.fetchone() or (0, 0)
+            n_total, n_misma = int(n_total or 0), int(n_misma or 0)
+            conteos.append({**g, "n_total": n_total, "n_misma": n_misma,
+                            "pct": round(n_misma / n_total * 100, 1) if n_total else 0.0})
     finally:
         conn.close()
 
-    n_total = len(rows)
-    misma = [r for r in rows if entidad_ruc and r[1] == entidad_ruc]
-    n_misma = len(misma)
-    pct = (n_misma / n_total * 100) if n_total else 0.0
+    disparan = [c for c in conteos if c["n_misma"] >= 3 and c["pct"] >= 40]
+    principal = max(conteos, key=lambda c: (c["n_misma"] >= 3 and c["pct"] >= 40, c["pct"], c["n_misma"]))
     result = {
         "regla": "concentracion_entidad",
-        "proveedor_ruc": prov_ruc,
-        "n_contratos_misma_entidad": n_misma,
-        "n_total_contratos_en_base": n_total,
-        "pct_concentracion": round(pct, 1),
-        "ocids_misma_entidad": [r[0] for r in misma][:10],
-        "estado": "hallado" if n_total else "sin_dato",
-        "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía, no el universo SEACE.",
+        "proveedor_ruc": principal["ruc"],
+        "n_contratos_misma_entidad": principal["n_misma"],
+        "n_total_contratos_en_base": principal["n_total"],
+        "pct_concentracion": principal["pct"],
+        "por_ganador": [{k: c[k] for k in ("ruc", "consorcio", "n_misma", "n_total", "pct")} for c in conteos],
+        "estado": "hallado" if any(c["n_total"] for c in conteos) else "sin_dato",
+        "_nota_alcance": "Buenas pro del CONOSCE (todo el SEACE), también como integrante de consorcios; sin este proceso.",
         "triggered": False,
     }
-    if n_misma >= 3 and pct >= 40:
+    if disparan:
+        c = max(disparan, key=lambda x: (x["pct"], x["n_misma"]))
+        quien = (f"{c['nombre'] or 'El proveedor'} (RUC {c['ruc']})" if not c.get("consorcio") else
+                 f"{c['nombre'] or 'Un integrante'} (RUC {c['ruc']}), integrante de {c['consorcio']},")
+        nombre = tapar_nombre(quien) if str(c["ruc"]).startswith("10") else quien
         result.update({
             "triggered": True,
             "severidad": "media",
             "evidencia": (
-                f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) registra {n_misma} procesos previos "
-                f"con {entidad_nombre or 'esta entidad'} sobre {n_total} procesos suyos en la base de "
-                f"Vigía ({pct:.0f}%). Procesos: {', '.join(result['ocids_misma_entidad'][:5])}. "
-                f"Patrón de concentración con un solo comprador (alcance: base propia, no universo SEACE)."
+                f"{nombre} tiene {c['n_misma']} buenas pro con {entidad_nombre or 'esta entidad'} de {c['n_total']} "
+                f"en su historial del CONOSCE ({c['pct']:.0f} %), sin contar este proceso. Patrón de concentración con un "
+                f"solo comprador público (umbral: 3 o más y 40 % o más)."
             ),
             "norma": "Heurística — concentración cliente público debilita la competencia natural",
             "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
@@ -408,12 +418,15 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
 def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
                             reglas_activas: frozenset[str] | None = None,
                             topes_uit: dict | None = None) -> dict:
-    """Evalúa lobby pre-convocatoria — socios/representantes del ganador o
-    de cualquier postor que visitaron a la ENTIDAD CONTRATANTE en los 180 días
-    previos a la fecha de convocatoria.
+    """Evalúa lobby pre-convocatoria — socios, representantes o el titular (RUC 10) del ganador, de cada integrante
+    del consorcio ganador o de otro postor que visitaron a la ENTIDAD CONTRATANTE en los 180 días previos a la
+    convocatoria. Ganador → alta (bandera); sólo otros postores → media (sin bandera).
 
-    Cruza `visitas_entidades` × `rnp_conformacion_juridica` × `convocatorias`.
-    Fuente: Registro Único de Visitas (Ley 28024 — Gestión de Intereses).
+    Cruza `visitas_entidades` × `rnp_conformacion_juridica` con el mapeo `visita_entidad_ruc` (todos los nombres con que
+    el registro de visitas llama a la entidad: el mismo de la pestaña Visitas, migraciones 186/197). Antes exigía el
+    nombre exacto de la entidad y que el ganador estuviera en `postores`/`empresas` de la base propia: no veía a los
+    consorciados, a los RUC 10 ni a las variantes del nombre (prueba de oro 2026-11-04: 8 omisiones en 3 redes).
+    Fuente: Registro de Visitas en Línea (Ley 28024 — Gestión de Intereses).
 
     Args:
         ocid: OCID de la convocatoria.
@@ -425,6 +438,7 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
     om = _regla_omitida("lobby_visits_pre_convocatoria", reglas)
     if om:
         return om
+    state = tool_context.state
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -432,78 +446,93 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
             return {"regla": "lobby_visits_pre_convocatoria", "triggered": False,
                     "dataset_no_disponible": True,
                     "hint": "Cargar dataset visitas con backend/scripts/load_visitas_entidades.py"}
-
+        cur.execute("SELECT c.entidad_ruc::text, c.fecha_convocatoria, (SELECT nombre FROM entidades e WHERE e.ruc = c.entidad_ruc) "
+                    "FROM convocatorias c WHERE c.ocid = %s", (ocid,))
+        row = cur.fetchone() or (None, None, None)
+        entidad_ruc, entidad_nombre = (row[0] or "").strip() or None, row[2] or "la entidad"
+        fconv = _fecha_convocatoria_state(state) or _to_date(row[1])
+        if not entidad_ruc or not fconv:
+            return {"regla": "lobby_visits_pre_convocatoria", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin entidad o sin fecha de convocatoria"}
+        ganadores = ganadores_evaluables(ocid, state, cur)
+        rucs_g = sorted({g["ruc"] for g in ganadores})
+        rucs_o = sorted({r for p in _postores_parser(state) if not p.get("es_ganador")
+                         for r in [p.get("ruc"), *(p.get("integrantes_ruc") or [])] if r and len(r) == 11} - set(rucs_g))
+        if not rucs_g and not rucs_o:
+            return {"regla": "lobby_visits_pre_convocatoria", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin RUC del ganador ni de otros postores"}
         cur.execute(
-            """SELECT v.visitante, v.numero_documento, r.tipo_rol,
-                      emp.razon_social, emp.ruc,
-                      v.funcionario_nombre, v.funcionario_cargo,
-                      v.fecha_visita, v.motivo, v.duracion_min,
-                      c.fecha_convocatoria, e.nombre AS entidad_nombre,
-                      o.ganadora
-                 FROM convocatorias c
-                 JOIN entidades  e   ON e.ruc = c.entidad_ruc
-                 JOIN postores   p   ON p.ocid = c.ocid
-                 JOIN ofertas    o   ON o.postor_id = p.id
-                 JOIN empresas   emp ON emp.ruc = p.empresa_ruc
-                 JOIN rnp_conformacion_juridica r ON r.ruc_empresa = emp.ruc
-                 JOIN visitas_entidades v
-                      ON v.numero_documento = r.numero_documento
-                     AND v.entidad_visitada_norm = UPPER(unaccent(e.nombre))
-                     AND c.fecha_convocatoria IS NOT NULL
-                     AND v.fecha_visita BETWEEN
-                           (c.fecha_convocatoria - INTERVAL '180 days')
-                       AND  c.fecha_convocatoria
-                WHERE c.ocid = %s
-                ORDER BY o.ganadora DESC, v.fecha_visita""",
-            (ocid,),
-        )
-        rows = cur.fetchall()
-        visitas = [
-            {
-                "visitante": r[0], "dni": r[1], "rol_en_empresa": r[2],
-                "empresa_postora": r[3], "ruc_empresa": r[4],
-                "funcionario_visitado": r[5], "cargo_funcionario": r[6],
-                "fecha_visita": r[7].isoformat() if r[7] else None,
-                "motivo": r[8], "duracion_min": r[9],
-                "fecha_convocatoria": r[10].isoformat() if r[10] else None,
-                "entidad_contratante": r[11],
-                "empresa_ganadora": bool(r[12]),
-            }
-            for r in rows
-        ]
-        ganadoras = [v for v in visitas if v["empresa_ganadora"]]
-        result = {
-            "regla": "lobby_visits_pre_convocatoria",
-            "triggered": bool(visitas),
-            "n_visitas_total": len(visitas),
-            "n_visitas_de_ganador": len(ganadoras),
-            "visitas": visitas[:25],
-            "fuente_url": "https://www.gob.pe/registro-visitas",
-        }
-        if ganadoras:
-            v0 = ganadoras[0]
-            result.update({
-                "severidad": "alta",
-                "evidencia": (
-                    f"{v0['empresa_postora']} (RUC {v0['ruc_empresa']}) — su "
-                    f"{v0['rol_en_empresa']} {v0['visitante']} visitó al funcionario "
-                    f"{v0['funcionario_visitado']} ({v0['cargo_funcionario']}) "
-                    f"el {v0['fecha_visita']} en {v0['entidad_contratante']}, antes de "
-                    f"la convocatoria del {v0['fecha_convocatoria']}. Esta empresa fue "
-                    f"declarada ganadora."
-                ),
-                "norma": "Ley 28024 (Gestión de Intereses) — registro de visitas obligatorio para detectar lobby.",
-            })
-            tool_context.state.setdefault("pending_flags", []).append(result)
-        elif visitas:
-            result["severidad"] = "media"
-            result["evidencia"] = (
-                f"{len(visitas)} visitas de socios/representantes de POSTORES (no ganador) "
-                f"a la entidad contratante en los 180 días previos a la convocatoria."
-            )
-        return result
+            """WITH g AS (SELECT unnest(%s::text[]) AS ruc, true AS ganador
+                          UNION SELECT unnest(%s::text[]), false),
+                    p AS (SELECT g.ruc, g.ganador, r.numero_documento AS dni, r.nombre, r.tipo_rol AS rol
+                            FROM g JOIN rnp_conformacion_juridica r ON r.ruc_empresa = g.ruc::char(11)
+                           WHERE r.numero_documento ~ '^[0-9]{8}$'
+                          UNION
+                          SELECT g.ruc, g.ganador, substr(g.ruc, 3, 8), NULL, 'TITULAR' FROM g WHERE g.ruc LIKE '10%%')
+               SELECT DISTINCT ON (v.id, p.ruc) p.ruc, p.ganador, COALESCE(p.nombre, v.visitante), p.rol,
+                      v.funcionario_cargo, v.funcionario_area, v.fecha_visita, v.motivo,
+                      visita_decisor(v.funcionario_cargo, v.funcionario_area)
+                 FROM p
+                 JOIN visitas_entidades v ON v.numero_documento = p.dni
+                                         AND v.fecha_visita BETWEEN %s::date - 180 AND %s::date
+                 JOIN visita_entidad_ruc m ON m.entidad_visitada = v.entidad_visitada AND m.ruc = %s
+                ORDER BY v.id, p.ruc
+                LIMIT 80""",
+            (rucs_g, rucs_o, fconv, fconv, entidad_ruc))
+        filas = cur.fetchall()
     finally:
         conn.close()
+    por_ruc = {g["ruc"]: g for g in ganadores}
+    visitas = []
+    for ruc, gan, nombre, rol, cargo, area, fecha, motivo, decisor in sorted(filas, key=lambda f: (not f[1], f[6])):
+        g = por_ruc.get(ruc) or {}
+        visitas.append({
+            "visitante": tapar_nombre(nombre) if nombre else "persona del postor",
+            "rol_en_empresa": (rol or "").replace("_", " ").lower() or None,
+            "ruc_empresa": ruc, "empresa": (tapar_nombre(g.get("nombre")) if ruc.startswith("10") else g.get("nombre")) or f"RUC {ruc}",
+            "consorcio": g.get("consorcio"), "empresa_ganadora": bool(gan),
+            "cargo_funcionario": cargo, "area_funcionario": area, "decisor": bool(decisor),
+            "fecha_visita": fecha.isoformat() if hasattr(fecha, "isoformat") else str(fecha),
+            "dias_antes_convocatoria": (fconv - fecha).days if hasattr(fecha, "year") else None,
+            "motivo": (motivo or "")[:120],
+        })
+    ganadoras = [v for v in visitas if v["empresa_ganadora"]]
+    result = {
+        "regla": "lobby_visits_pre_convocatoria",
+        "triggered": bool(ganadoras),
+        "estado": "hallado",
+        "fecha_convocatoria": str(fconv),
+        "n_visitas_total": len(visitas),
+        "n_visitas_de_ganador": len(ganadoras),
+        "visitas": visitas[:25],
+        "fuente_url": "https://visitas.servicios.gob.pe/consultas",
+    }
+    if ganadoras:
+        v0 = sorted(ganadoras, key=lambda v: (not v["decisor"], v["fecha_visita"]))[0]
+        quien = (f"{v0['empresa']}, integrante del consorcio ganador {v0['consorcio']}" if v0.get("consorcio")
+                 else f"{v0['empresa']} (ganador)")
+        otras = len(ganadoras) - 1
+        result.update({
+            "severidad": "alta",
+            "evidencia": (
+                f"{v0['visitante']} ({v0['rol_en_empresa'] or 'persona vinculada'} de {quien}) visitó {entidad_nombre} el "
+                f"{v0['fecha_visita']}, {v0['dias_antes_convocatoria']} días antes de la convocatoria del {fconv}"
+                + (f", para reunirse con {v0['cargo_funcionario']}" if v0.get("cargo_funcionario") else "")
+                + (f" ({v0['area_funcionario']})" if v0.get("area_funcionario") else "")
+                + (f"; motivo: «{v0['motivo']}»" if v0.get("motivo") else "") + "."
+                + (f" Otras {otras} visitas de la gente del ganador en los 180 días previos." if otras > 0 else "")
+                + " Una visita no prueba un acuerdo: es un hecho registrado que el dictamen debe consignar."
+            ),
+            "norma": "Ley 28024 (Gestión de Intereses) — registro de visitas obligatorio para detectar lobby.",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    elif visitas:
+        result["severidad"] = "media"
+        result["evidencia"] = (f"{len(visitas)} visitas de socios o representantes de otros postores (no el ganador) a la "
+                               f"entidad en los 180 días previos a la convocatoria.")
+    return result
+
+
 check_concentracion_entidad_rule_tool = _as_tool(check_concentracion_entidad_rule)
 check_recurrencia_firmante_rule_tool = _as_tool(check_recurrencia_firmante_rule)
 check_testaferro_multi_ruc_rule_tool = _as_tool(check_testaferro_multi_ruc_rule)

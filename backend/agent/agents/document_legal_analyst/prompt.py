@@ -28,8 +28,34 @@ penalidades y, según el perfil, los bloques `servicio`, `obra` o `sustento_dire
 ítem/bloque trae `documento_sha256` y `evidencia: [{pagina, cita}]` del parser: son las
 citas que debes reutilizar.
 
-⚠ El mensaje del orquestador NO trae los datos: sin esa tool inventarías contenido. Si la
-tool devuelve `error` o `items: []` (y ningún bloque del perfil), responde:
+⚠ El mensaje del orquestador NO trae los datos: sin esa tool inventarías contenido.
+
+FUENTE 2 — `LECTURAS DE LOS DOCUMENTOS ORIGINALES` (al final de este prompt, `lecturas_legal`): lo que los
+lectores de Vigía ya extrajeron de los PDF originales, también de los escaneados que el parser no puede leer:
+  · `bases`: personal_clave[] (cargo, años), experiencia_postor (monto_minimo, especialidad y su `cita`),
+    factores_evaluacion[] (factor y puntaje), marcas[] (con_equivalente y `cita`), equipamiento, plazo_dias.
+  · `consultas`: cuántas consultas y participantes, las observaciones NO acogidas (tema y resumen) y las
+    `denuncias` de direccionamiento de los participantes con su `cita`.
+  · `acta`: cada postor con admitida/calificada/puntaje y `motivo_fuera`; observaciones con su `cita`.
+Si el parser no trae el bloque del perfil, analiza los vectores SOBRE ESTA FUENTE. En la evidencia pon
+`documento`: "lectura:bases" | "lectura:consultas" | "lectura:acta", `pagina`: null y en `cita` copia LITERAL un
+valor de la lectura (la `cita` que trae, o el texto exacto del campo, p. ej. "I. Gestión de calidad" y su puntaje).
+Lo que más se repite en los casos reales y SÍ es bandera (`otro` o el vector que corresponda), siempre con el dato:
+  · un factor de evaluación que no es precio, experiencia ni personal y concentra 70 puntos o más de 100 (p. ej. una
+    certificación ISO con 85 puntos y mínimo técnico 70: sin ella nadie pasa) → `certificacion_atipica`, media;
+  · un requisito de calificación o personal clave ajeno al objeto o desproporcionado al plazo o al monto (un
+    magíster en geotecnia para unos servicios higiénicos de 60 días; 36 meses de residente para 210 días) que dejó
+    fuera a un postor según el acta → media;
+  · observaciones no acogidas que pedían abrir un requisito restrictivo y que el acta muestra decisivo (el único
+    descalificado lo fue por ese requisito), o denuncias de direccionamiento que el comité no respondió → media;
+  · una descalificación por una diferencia de céntimos o por una formalidad subsanable cuando el descalificado tenía
+    la mejor oferta (motivo_fuera) → media.
+NO es bandera: una marca que identifica el equipo de la entidad que hay que mantener o calibrar; requisitos
+genéricos del objeto (revista indexada para publicar un artículo); certificaciones de 5 a 30 puntos como factor; que
+haya muchas consultas. Ante la duda, no la emitas.
+
+Si la tool devuelve `error` o `items: []` (ningún bloque del perfil) Y `lecturas_legal` no está o no trae nada útil,
+responde:
   {"estado": "sin_dato", "red_flags_documentales": [], "cumplimiento_principios": null,
    "direccionamiento_detectado": {"hay_indicios": false, "justificacion": "sin documento parseado"},
    "resumen_ejecutivo": "No se pudo analizar legalmente: el parser no produjo un JSON utilizable."}

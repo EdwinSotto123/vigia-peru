@@ -17,7 +17,10 @@ OUTPUT_SCHEMA = 'LegalOutput'   # nombre en agents/_shared/schemas.py (WS M); na
 OUTPUT_KEY = 'legal_analysis'
 USES_TODAY_HEADER = False
 # Cotejos numéricos calculados en código (tools/cotejos_legales.py, fase_legal): experiencia vs valor ESTIMADO.
-STATE_INJECTIONS = [('cotejos_legales', 'COTEJOS CALCULADOS EN CÓDIGO — úsalos tal cual, no recalcules')]
+STATE_INJECTIONS = [('cotejos_legales', 'COTEJOS CALCULADOS EN CÓDIGO — úsalos tal cual, no recalcules'),
+                    # Lo que ya leyeron los lectores de Vigía en los PDF originales (también los escaneados, que el
+                    # parser no lee sin OCR): bases, pliego de consultas, acta y contrato (tools/lecturas.py).
+                    ('lecturas_legal', 'LECTURAS DE LOS DOCUMENTOS ORIGINALES (lectores de Vigía) — fuente válida para banderas')]
 
 TOOLS = [
     query_legal_rag_tool,

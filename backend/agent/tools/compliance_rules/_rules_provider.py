@@ -1,7 +1,7 @@
 """compliance_rules._rules_provider — reglas de proveedor: sancionado, RUC/CIIU, antigüedad."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _ganador_ocds, _monto_adjudicado_ocds, _montos_ocds, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _ganador_ocds, _monto_adjudicado_ocds, _montos_ocds, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date, ganadores_evaluables  # noqa: F401
 
 
 def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext,
@@ -105,12 +105,43 @@ def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext,
     finally:
         conn.close()
 
+def _perfil_sunat_de(ruc: str, state: dict, conn, fecha_ref=None) -> dict:
+    """El perfil SUNAT de un RUC: el del state (expediente de fase_proveedor) o, si no está (un consorciado en una
+    corrida vieja), el del expediente armado aquí desde la base: actividad y fecha de inicio EFECTIVA (la más antigua
+    entre SUNAT, la primera buena pro y el RNP; la «fecha de alta» del padrón puede ser una reactivación). Lo guarda en
+    state["sunat_profiles"] para la siguiente regla."""
+    perf = (state.get("sunat_profiles") or {}).get(ruc)
+    if perf:
+        return perf
+    try:
+        from tools.expediente import _perfil_sunat, expediente_proveedor_bd
+
+        class _Prestada:  # la conexión de la regla: el expediente no debe cerrarla
+            def cursor(self):
+                return conn.cursor()
+
+            def close(self):
+                pass
+        exp = expediente_proveedor_bd(ruc, None, None, _to_date(fecha_ref), conn=_Prestada())
+        s_ = exp.get("sunat") or {}
+        if not (s_.get("estado") or s_.get("fecha_inicio_actividades") or s_.get("actividad")):
+            return {}
+        perf = _perfil_sunat(ruc, exp)
+    except Exception:  # noqa: BLE001
+        return {}
+    state.setdefault("sunat_profiles", {})[ruc] = perf
+    return perf
+
+
 def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
                                 reglas_activas: frozenset[str] | None = None,
                                 topes_uit: dict | None = None) -> dict:
-    """Evalúa si el proveedor adjudicado tiene un RUC muy reciente (<2 años)
-    para un contrato de monto considerable (>S/. 100K). Lee del state los
-    perfiles SUNAT cargados por query_sunat_decolecta.
+    """Evalúa si el proveedor adjudicado, o un integrante del consorcio ganador, tenía un RUC de menos de 2 años a la
+    buena pro en un contrato de más de S/ 100 000. La fecha de inicio es la del expediente (la más antigua entre SUNAT,
+    la primera buena pro y el RNP: la «fecha de alta» del padrón puede ser una reactivación).
+
+    Prueba de oro 2026-11-04: partía de `postores`/`empresas` de la base propia y con un consorcio no evaluaba a nadie
+    (3 omisiones: integrantes con 517, 538 y 659 días).
 
     Args:
         ocid: OCID de la convocatoria.
@@ -122,77 +153,66 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
     om = _regla_omitida("ruc_ganador_muy_nuevo", reglas)
     if om:
         return om
+    state = tool_context.state
+    _ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    _fbp_fallback = _to_date(((_ocds.get("awards") or [{}])[0] or {}).get("date"))
+    _monto_ocds = _monto_adjudicado_ocds(_ocds)
     conn = _pg()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """SELECT e.ruc, e.razon_social, SUM(o.monto_ofertado) as monto_total, MAX(c.fecha_buena_pro) AS fbp
-                 FROM postores p
-                 JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                 JOIN empresas e ON e.ruc=p.empresa_ruc
-                 LEFT JOIN convocatorias c ON c.ocid=p.ocid
-                WHERE p.ocid=%s GROUP BY e.ruc, e.razon_social""",
-            (ocid,),
-        )
-        ganadores = cur.fetchall()
+        ganadores = ganadores_evaluables(ocid, state, cur)
         if not ganadores:
-            return {"regla": "ruc_ganador_muy_nuevo", "triggered": False, "motivo": "sin ganadores en BD"}
-
-        sunat_profiles = tool_context.state.get("sunat_profiles") or {}
-        # Auditoría 2026-10-23: la edad del RUC se mide a la BUENA PRO, no a hoy. Antes usaba date.today(): un RUC que
-        # hoy ya tiene 2 años pero tenía 3 meses al contratar no disparaba (falso negativo), y un contrato viejo con un
-        # RUC hoy joven daba falso positivo. `edad_dias` del perfil SUNAT también es relativo a hoy: ya no se usa.
-        _ocds = tool_context.state.get("ocds") or tool_context.state.get("ocds_preloaded") or {}
-        _fbp_fallback = _to_date(((_ocds.get("awards") or [{}])[0] or {}).get("date"))
+            return {"regla": "ruc_ganador_muy_nuevo", "triggered": False, "motivo": "sin ganadores identificables"}
         triggered_list = []
-        for ruc, razon, monto, fbp in ganadores:
-            monto_f = float(monto or 0)
+        for g in ganadores:
+            monto_f = float(g.get("monto") or _monto_ocds or 0)
             if monto_f < 100000:
                 continue
-            profile = sunat_profiles.get(ruc) or {}
+            profile = _perfil_sunat_de(g["ruc"], state, conn, g.get("fecha_buena_pro") or _fbp_fallback)
             fecha_inicio = profile.get("fecha_inicio_actividades")
-            ref = _to_date(fbp) or _fbp_fallback
+            ref = _to_date(g.get("fecha_buena_pro")) or _fbp_fallback
             d_inicio = _to_date(fecha_inicio) if fecha_inicio else None
             edad_dias = (ref - d_inicio).days if (ref and d_inicio) else None
             if edad_dias is not None and 0 <= edad_dias < 730:  # < 2 años al ganar
-                triggered_list.append({
-                    "ruc": ruc,
-                    "razon_social": razon,
-                    "monto": monto_f,
-                    "edad_dias": edad_dias,
-                    "edad_meses": round(edad_dias / 30, 1),
-                    "fecha_inicio": fecha_inicio,
-                })
-        result = {
-            "regla": "ruc_ganador_muy_nuevo",
-            "n_ganadores_evaluados": len(ganadores),
-            "n_triggered": len(triggered_list),
-            "detalle": triggered_list,
-            "triggered": len(triggered_list) > 0,
-        }
-        if triggered_list:
-            principal = triggered_list[0]
-            result.update({
-                "severidad": "alta",
-                "evidencia": (
-                    f"{principal['razon_social']} (RUC {principal['ruc']}) tiene "
-                    f"{principal['edad_meses']} meses de antigüedad y recibe contrato por "
-                    f"S/. {(principal.get('monto') or 0):,.2f}. Patrón típico de empresa creada para ganar contrato."
-                ),
-                "norma": "Heurística — " + _norma_state(tool_context.state)["impedimentos"],
-                "fuente_url": f"https://sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc={principal['ruc']}",
-            })
-            tool_context.state.setdefault("pending_flags", []).append(result)
-        return result
+                triggered_list.append({"ruc": g["ruc"], "razon_social": g.get("nombre"), "consorcio": g.get("consorcio"),
+                                       "monto": monto_f, "edad_dias": edad_dias, "edad_meses": round(edad_dias / 30, 1),
+                                       "fecha_inicio": fecha_inicio, "fecha_inicio_dudosa": profile.get("fecha_inicio_dudosa")})
     finally:
         conn.close()
+    result = {
+        "regla": "ruc_ganador_muy_nuevo",
+        "n_ganadores_evaluados": len(ganadores),
+        "n_triggered": len(triggered_list),
+        "detalle": triggered_list,
+        "triggered": len(triggered_list) > 0,
+    }
+    if triggered_list:
+        principal = min(triggered_list, key=lambda x: x["edad_dias"])
+        quien = (principal["razon_social"] or f"RUC {principal['ruc']}")
+        if str(principal["ruc"]).startswith("10"):
+            from tools.privacidad import tapar_nombre
+            quien = tapar_nombre(quien)
+        quien += f" (RUC {principal['ruc']})" + (f", integrante de {principal['consorcio']}," if principal.get("consorcio") else "")
+        result.update({
+            "severidad": "alta",
+            "evidencia": (
+                f"{quien} inició actividades el {principal['fecha_inicio']}: tenía {principal['edad_dias']} días "
+                f"({principal['edad_meses']} meses) a la buena pro de un contrato de S/ {principal['monto']:,.2f}. "
+                f"Patrón de empresa nueva con un contrato grande; requiere verificar su capacidad real."
+            ),
+            "norma": "Heurística — " + _norma_state(state)["impedimentos"],
+            "fuente_url": f"https://sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc={principal['ruc']}",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    return result
 
 def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
                               reglas_activas: frozenset[str] | None = None,
                               topes_uit: dict | None = None) -> dict:
-    """Verifica que el CIIU principal del proveedor sea coherente con el objeto
-    del contrato. Si el CIIU es 'venta de textiles' y el contrato es 'compra de
-    equipos médicos', es señal de proveedor improvisado o testaferro.
+    """Verifica que el CIIU principal del proveedor, o de cada integrante del consorcio ganador, sea coherente con el
+    objeto del contrato. Si el CIIU es 'venta de textiles' y el contrato es 'compra de equipos médicos', es señal de
+    proveedor improvisado o testaferro. En consultoría el objeto es un servicio profesional: un CIIU de alquiler,
+    transporte o comercio de bienes no lo acredita.
 
     Args:
         ocid: OCID de la convocatoria.
@@ -204,34 +224,23 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
     om = _regla_omitida("ciiu_vs_objeto", reglas)
     if om:
         return om
+    state = tool_context.state
     conn = _pg()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """SELECT c.objeto, e.ruc, e.razon_social
-                 FROM convocatorias c
-                 JOIN postores p ON p.ocid=c.ocid
-                 JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                 JOIN empresas e ON e.ruc=p.empresa_ruc
-                WHERE c.ocid=%s LIMIT 1""", (ocid,),
-        )
-        row = cur.fetchone()
-        if not row:
-            return {"regla": "ciiu_vs_objeto", "triggered": False, "motivo": "sin datos"}
-        objeto, ruc, razon = row
+        cur.execute("SELECT objeto, tipo_contratacion FROM convocatorias WHERE ocid = %s", (ocid,))
+        row = cur.fetchone() or (None, None)
+        objeto, tipo_contratacion = row
         # Ítems del OCDS (descripción del producto real; el `objeto` suele ser el nombre
         # del proyecto: "…CARRETERA PAUCARTAMBO…" no dice "estación total").
         cur.execute("SELECT descripcion FROM convocatoria_items WHERE ocid=%s", (ocid,))
         descs_ocds = [r[0] for r in cur.fetchall() if r and r[0]]
+        ganadores = ganadores_evaluables(ocid, state, cur)
+        perfiles = [(g, _perfil_sunat_de(g["ruc"], state, conn, g.get("fecha_buena_pro"))) for g in ganadores]
     finally:
         conn.close()
-    state = tool_context.state
-    sunat = (state.get("sunat_profiles") or {}).get(ruc) or {}
-    ciiu = (sunat.get("ciiu_principal") or "").lower()
-    activs = sunat.get("actividades_economicas") or []
-    if not ciiu and not activs:
-        return {"regla": "ciiu_vs_objeto", "triggered": False, "estado": "sin_dato", "motivo": "sin CIIU disponible"}
-
+    if not ganadores:
+        return {"regla": "ciiu_vs_objeto", "triggered": False, "motivo": "sin datos"}
     raw = state.get("parser_raw_consolidated") or {}
     descs_parser = [str(it.get("descripcion_corta") or "") for it in (raw.get("items_consolidados") or [])
                     if isinstance(it, dict)]
@@ -239,30 +248,75 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
     tender = ocds.get("tender") or {}
     descs_tender = [str(it.get("description") or "") for it in (tender.get("items") or []) if isinstance(it, dict)]
     texto_objeto = " ".join([objeto or "", tender.get("description") or ""] + descs_ocds + descs_tender + descs_parser)
-    cat_objeto = _categoria_objeto(texto_objeto)
-    ciiu_full = (ciiu + " " + " ".join(str(a) for a in activs)).lower()
-    cat_ciiu = _categoria_ciiu(ciiu_full)
+    perfil_nombre = str(((state.get("perfil") or {}) if isinstance(state.get("perfil"), dict) else {}).get("nombre") or "")
+    _tipo = _sin_tildes(f"{tipo_contratacion or ''} {perfil_nombre}").lower()
+    es_consultoria = "consultor" in _tipo
+    es_obra = "obra" in _tipo and not es_consultoria
+    es_servicio = es_consultoria or "servicio" in _tipo
+    # El rubro del objeto: una obra es construcción (aunque sea «un establecimiento de salud») y una consultoría es un
+    # servicio profesional; sólo en bienes y servicios generales se infiere por palabras clave.
+    cat_objeto = "servicios" if es_consultoria else "construccion" if es_obra else _categoria_objeto(texto_objeto)
+    if es_servicio and not es_consultoria:
+        # «Servicio de impresión de historias clínicas para el hospital»: el rubro es lo que se hace (impresión), no
+        # el destino (salud). Se mira primero lo que sigue a «servicio de».
+        m = re.search(r"servicios?\s+(?:de|del|para)\s+(.{0,50})", _sin_tildes(str(objeto or tender.get("description") or "")).lower())
+        cat_objeto = (_categoria_objeto(m.group(1)) if m else None) or cat_objeto
 
+    evaluados, choques = [], []
+    for g, sunat in perfiles:
+        ciiu = (sunat.get("ciiu_principal") or "").lower()
+        activs = sunat.get("actividades_economicas") or []
+        if not ciiu and not activs:
+            continue
+        ciiu_full = (ciiu + " " + " ".join(str(a) for a in activs)).lower()
+        cat_ciiu = _categoria_ciiu(ciiu_full)
+        e = {"ruc": g["ruc"], "nombre": g.get("nombre"), "consorcio": g.get("consorcio"),
+             "ciiu_principal": sunat.get("ciiu_principal"), "ciiu_categoria": cat_ciiu}
+        evaluados.append(e)
+        # En un servicio, un giro de servicios profesionales (asesoría, ingeniería, investigación) es coherente.
+        compatible = _categorias_compatibles(cat_objeto, cat_ciiu) if (cat_objeto and cat_ciiu) else True
+        if es_servicio and cat_ciiu == "servicios":
+            compatible = True
+        e["compatible"] = compatible
+        if not compatible:
+            choques.append(e)
+    if not evaluados:
+        return {"regla": "ciiu_vs_objeto", "triggered": False, "estado": "sin_dato", "motivo": "sin CIIU disponible"}
+    # Un consorcio es coherente si al menos un integrante tiene el giro del objeto (prueba de oro 2026-11-04: un
+    # constructor con un socio que alquila maquinaria no es un proveedor improvisado). Dispara sólo si todos los
+    # integrantes con giro conocido son ajenos al objeto.
+    con_categoria = [e for e in evaluados if e["ciiu_categoria"]]
+    if choques and any(e.get("compatible") for e in con_categoria):
+        choques = []
+    p0 = evaluados[0]
     result = {
         "regla": "ciiu_vs_objeto",
         "objeto_categoria": cat_objeto,
-        "ciiu_categoria": cat_ciiu,
-        "ciiu_principal": sunat.get("ciiu_principal"),
-        "actividades": activs,
-        "estado": "hallado" if (cat_objeto and cat_ciiu) else "sin_dato",
+        "ciiu_categoria": p0["ciiu_categoria"],
+        "ciiu_principal": p0["ciiu_principal"],
+        "evaluados": evaluados,
+        "estado": "hallado" if (cat_objeto and any(e["ciiu_categoria"] for e in evaluados)) else "sin_dato",
         "triggered": False,
     }
-    if cat_objeto and cat_ciiu and not _categorias_compatibles(cat_objeto, cat_ciiu):
+    if choques:
+        c = choques[0]
+        quien = c["nombre"] or f"RUC {c['ruc']}"
+        if str(c["ruc"]).startswith("10"):
+            from tools.privacidad import tapar_nombre
+            quien = tapar_nombre(quien)
+        quien += f" (RUC {c['ruc']})" + (f", integrante de {c['consorcio']}," if c.get("consorcio") else "")
+        rubro = "un servicio de consultoría" if es_consultoria else f"'{cat_objeto}'"
         result.update({
             "triggered": True,
             "severidad": "media",
             "evidencia": (
-                f"{razon} (RUC {ruc}) declara ante SUNAT la actividad '{(sunat.get('ciiu_principal') or ciiu_full)[:80]}' "
-                f"(rubro '{cat_ciiu}') mientras el objeto contratado es de '{cat_objeto}'. Señal de riesgo: "
+                f"{quien} declara ante SUNAT la actividad '{str(c['ciiu_principal'] or '')[:80]}' "
+                f"(rubro '{c['ciiu_categoria']}') y el objeto contratado es {rubro}. Señal de riesgo: "
                 f"verificar la capacidad técnica y operativa real del proveedor para este rubro."
+                + (f" Otros integrantes con giro distinto: {len(choques) - 1}." if len(choques) > 1 else "")
             ),
             "norma": "Heurística — coherencia rubro empresa vs objeto del contrato",
-            "fuente_url": f"https://sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc={ruc}",
+            "fuente_url": f"https://sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc={c['ruc']}",
         })
         state.setdefault("pending_flags", []).append(result)
     return result
@@ -271,7 +325,7 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
 # Categorías de objeto/CIIU (lote 1 · T11). Keywords específicas; se evita "mayor/menor/obra".
 _CATEGORIAS_OBJETO: dict[str, tuple[str, ...]] = {
     "combustible": ("combustible", "diesel", "gasohol", "gasolina", "petroleo", "hidrocarburo", "glp", "gnv", "lubricante"),
-    "alimentos": ("alimento", "comestible", "bebida", "viveres", "carne", "lacteo", "abarrote", "arroz", "azucar",
+    "alimentos": ("alimento", "alimentacion", "comedor", "catering", "comestible", "bebida", "viveres", "carne", "lacteo", "abarrote", "arroz", "azucar",
                   "aceite", "leche", "menestra", "harina", "quinua", "avena", "pollo", "huevo", "conserva", "racion",
                   "desayuno", "almuerzo", "canasta", "panaderia", "fideo"),
     "construccion": ("construccion", "ferreteria", "cemento", "agregado", "edificacion", "asfalto", "ladrillo",
@@ -317,13 +371,16 @@ _CATEGORIAS_CIIU: dict[str, tuple[str, ...]] = {
     "seguridad": ("seguridad", "vigilancia", "investigacion y seguridad"),
     "alquiler": ("alquiler", "arrendamiento", "arriendo", "leasing"),
     "servicios": ("consultor", "asesor", "contabil", "juridic", "arquitectura", "ingenieria", "publicidad",
-                  "actividades de oficina", "servicios administrativos", "enseñanza", "educacion", "inmobiliari"),
+                  "actividades de oficina", "servicios administrativos", "enseñanza", "educacion", "inmobiliari",
+                  "investigacion", "estudios de mercado", "actividades profesionales", "cientific", "tecnic"),
     "comercio_general": ("otros productos", "productos diversos", "no especializ", "diversos", "otros tipos",
-                         "n.c.p", "ncp", "otras actividades de venta", "bazar"),
+                         "n.c.p", "ncp", "otras actividades de venta", "bazar", "otras actividades empresariales",
+                         "otras actividades de servicios"),
 }
 # Pares compatibles (además de la igualdad): el CIIU "equipos" cubre instrumentos de salud
 # y computo; "construccion" cubre "equipos" de obra; el comercio general cubre todo.
 _CATEGORIAS_COMPATIBLES = {
+    ("construccion", "servicios"),  # ingeniería y construcción: el constructor supervisa y la consultora ejecuta
     ("equipos", "informatica"), ("equipos", "salud"), ("equipos", "construccion"), ("equipos", "vehiculos"),
     ("equipos", "seguridad"), ("construccion", "seguridad"), ("construccion", "mobiliario"),
     ("salud", "limpieza"), ("oficina", "informatica"), ("oficina", "mobiliario"), ("alimentos", "agropecuario"),
@@ -331,9 +388,21 @@ _CATEGORIAS_COMPATIBLES = {
 }
 
 
+def _hay(kw: str, t: str) -> bool:
+    """La palabra clave al COMIENZO de una palabra («racion» casa con «raciones», no con «elaboracion»; «madera» no
+    con «maderables» porque «madera» sola es la clave: los prefijos como «aliment» siguen sirviendo)."""
+    k = kw.strip()
+    fin = r"\b" if kw.endswith(" ") or kw in _CLAVES_PALABRA_ENTERA else ""
+    return re.search(r"(?<![a-z0-9])" + re.escape(k) + fin, t) is not None
+
+
+# Claves que deben ser la palabra entera (si no, «madera» casa con «maderables» y «gps» con «gpsx»).
+_CLAVES_PALABRA_ENTERA = {"madera", "epp", "gps", "glp", "gnv", "perfil", "riel", "acero", "arena", "piedra", "poste"}
+
+
 def _categoria_objeto(texto: str) -> str | None:
     t = _sin_tildes(texto or "").lower()
-    puntajes = {cat: sum(1 for kw in kws if kw in t) for cat, kws in _CATEGORIAS_OBJETO.items()}
+    puntajes = {cat: sum(1 for kw in kws if _hay(kw, t)) for cat, kws in _CATEGORIAS_OBJETO.items()}
     best = max(puntajes.items(), key=lambda kv: kv[1]) if puntajes else (None, 0)
     return best[0] if best[1] > 0 else None
 
@@ -341,9 +410,9 @@ def _categoria_objeto(texto: str) -> str | None:
 def _categoria_ciiu(texto: str) -> str | None:
     t = _sin_tildes(texto or "").lower()
     # "alquiler de …" domina: un CIIU de alquiler no acredita venta del bien (1225392).
-    if any(kw in t for kw in _CATEGORIAS_CIIU["alquiler"]) and not any(kw in t for kw in ("venta", "comercio")):
+    if any(_hay(kw, t) for kw in _CATEGORIAS_CIIU["alquiler"]) and not any(_hay(kw, t) for kw in ("venta", "comercio")):
         return "alquiler"
-    puntajes = {cat: sum(1 for kw in kws if kw in t) for cat, kws in _CATEGORIAS_CIIU.items() if cat != "alquiler"}
+    puntajes = {cat: sum(1 for kw in kws if _hay(kw, t)) for cat, kws in _CATEGORIAS_CIIU.items() if cat != "alquiler"}
     best = max(puntajes.items(), key=lambda kv: kv[1]) if puntajes else (None, 0)
     return best[0] if best[1] > 0 else None
 
@@ -353,8 +422,11 @@ def _categorias_compatibles(cat_objeto: str, cat_ciiu: str) -> bool:
         return True
     if cat_ciiu == "comercio_general":
         return True
-    if cat_ciiu in ("alquiler", "servicios"):
+    if cat_ciiu == "alquiler":
         return False
+    if cat_ciiu == "servicios":
+        # Arquitectura e ingeniería ejecuta obras y una consultora también; asesoría no vende bienes.
+        return cat_objeto in ("construccion", "servicios")
     return (cat_objeto, cat_ciiu) in _CATEGORIAS_COMPATIBLES or (cat_ciiu, cat_objeto) in _CATEGORIAS_COMPATIBLES
 
 def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext,
