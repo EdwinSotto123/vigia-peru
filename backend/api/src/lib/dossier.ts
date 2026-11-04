@@ -217,6 +217,9 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     expediente_proveedor: an.expediente_proveedor ?? (await fichaProveedorBase(row.proveedor_ruc, row.entidad_ruc)),
     lecturas_documentos: an.lecturas_documentos ?? null,
     precios_internos: an.precios_internos ?? null,
+    // Redes de obras y consultoría: la obra en INFOBRAS e Invierte.pe y el vínculo del supervisor con el contratista.
+    obra_ejecucion: an.obra_ejecucion ?? null,
+    supervision_obra: an.supervision_obra ?? null,
     dictamen_markdown: row.dictamen_markdown ?? "",
     ocds_payload: row.ocds_payload ?? null,
   };

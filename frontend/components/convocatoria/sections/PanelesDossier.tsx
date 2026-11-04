@@ -25,7 +25,7 @@ import { SeccionSegura } from "./SeccionSegura";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { setRedactNames, type NombreConocido } from "../../Redact";
 
-export type TabKey = "resumen" | "dictamen" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
+export type TabKey = "resumen" | "dictamen" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
 
 export interface PanelDossierProps {
   tab: TabKey;
@@ -69,6 +69,7 @@ const PanelProveedor = dynamic(() => import("./PanelProveedor").then((m) => m.Pa
 const PanelDocumentos = dynamic(() => import("./PanelDocumentos").then((m) => m.PanelDocumentos), { ssr: false, loading: () => <PanelCargando /> });
 const PanelPrensa = dynamic(() => import("./PanelPrensa").then((m) => m.PanelPrensa), { ssr: false, loading: () => <PanelCargando /> });
 const PanelTraza = dynamic(() => import("./PanelTraza").then((m) => m.PanelTraza), { ssr: false, loading: () => <PanelCargando /> });
+const PanelObra = dynamic(() => import("./PanelObra").then((m) => m.PanelObra), { ssr: false, loading: () => <PanelCargando /> });
 
 export function PanelDossier(p: PanelDossierProps) {
   switch (p.tab) {
@@ -86,6 +87,8 @@ export function PanelDossier(p: PanelDossierProps) {
       return <PanelPrensa {...p} />;
     case "trace":
       return <PanelTraza {...p} />;
+    case "obra":
+      return <PanelObra {...p} />;
     default:
       return null;
   }

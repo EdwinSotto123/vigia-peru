@@ -10,6 +10,7 @@ import { AvisoSeccion } from "./AvisoSeccion";
 import { ItemsConMarketPrice } from "./ItemsConMarketPrice";
 import { MarketVerdictCard } from "./MarketVerdictCard";
 import { PostoresSection } from "./PostoresSection";
+import { PreciosDelEstado } from "./PreciosDelEstado";
 import { SeccionSegura } from "./SeccionSegura";
 
 export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDossierProps) {
@@ -20,7 +21,9 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
   const hayItems = items.length > 0 || findings.length > 0;
   const hayVeredicto = !!result.market_analysis?.veredicto_global;
   const hayPostores = (result.postores || []).length > 0;
-  if (!hayItems && !hayVeredicto && !hayPostores) {
+  const precios = (result as any).precios_internos;
+  const hayPrecios = (precios?.items || []).length > 0;
+  if (!hayItems && !hayVeredicto && !hayPostores && !hayPrecios) {
     return (
       <AvisoSeccion titulo="No hay ítems ni comparación de mercado para este contrato" icono={<Package size={16} aria-hidden />}>
         {result.market_analysis_raw && !result.market_analysis
@@ -34,6 +37,11 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
   }
   return (
     <div className="space-y-4">
+      {hayPrecios && (
+        <SeccionSegura nombre="los precios del Estado">
+          <PreciosDelEstado datos={precios} />
+        </SeccionSegura>
+      )}
       {hayItems && (
         <SeccionSegura nombre="los ítems">
           <section className="overflow-hidden rounded-2xl border border-line bg-paper">

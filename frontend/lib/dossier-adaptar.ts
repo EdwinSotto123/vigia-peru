@@ -146,6 +146,8 @@ export function adaptLoadedToUi(loaded: any) {
     expediente_proveedor: loaded.expediente_proveedor ?? null,
     lecturas_documentos:  loaded.lecturas_documentos ?? null,
     precios_internos:     loaded.precios_internos ?? null,
+    obra_ejecucion:       loaded.obra_ejecucion ?? null,
+    supervision_obra:     loaded.supervision_obra ?? null,
     doc_parser_raw: "",
     market_analysis_raw: "",
     web_research_raw: "",

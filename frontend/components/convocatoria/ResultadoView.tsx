@@ -187,9 +187,14 @@ export function ResultadoView({
 
   // Conteos de las pestañas, en tinta neutra (los pinta `Pestanas`). Un cero no se muestra: aquí
   // suele querer decir "esa parte no corrió", no "no hay nada" (§10.2: sin dato no es cero).
+  // La obra en INFOBRAS (redes de obras y consultoría): su pestaña sólo si el proceso está enlazado a una obra.
+  const _sup = (result as any).supervision_obra;
+  const _obra = (result as any).obra_ejecucion;
+  const nObras = ((_sup?.enlazada && _sup.obras) || (_obra?.enlazada && _obra.obras) || []).length;
   const TABS: { key: TabKey; label: string; badge: number | null }[] = [
     { key: "resumen", label: "Señales", badge: banderasArr.length || null },
     { key: "dictamen", label: "Dictamen", badge: null },
+    ...(nObras ? [{ key: "obra" as TabKey, label: _sup?.enlazada ? "La obra supervisada" : "La obra", badge: null }] : []),
     { key: "items", label: "Ítems y mercado", badge: nItems || null },
     { key: "proveedor", label: "Proveedor y red", badge: nRed || null },
     { key: "documentos", label: "Documentos", badge: nDocs || null },

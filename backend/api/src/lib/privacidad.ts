@@ -283,6 +283,8 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   contratista: { campos: [["nombre", "sunat"]] },
   // El expediente del proveedor (agente, plan 2026-11-04): socios y representantes del RNP, ya con un apellido tapado.
   rnp: { campos: [["nombre", "sunat"]] },
+  // Las personas en común entre el supervisor y el contratista (tools/consultoria.py), ya con un apellido tapado.
+  personas_comunes: { campos: [["nombre", "sunat"]] },
 };
 
 /**
