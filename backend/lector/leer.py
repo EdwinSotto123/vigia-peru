@@ -130,8 +130,9 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
             "paginas": 0, "estado": "sin_pdf", "salida": None, "banderas": [], "tokens_in": None, "tokens_out": None,
             "costo_usd": 0, "detalle": None}
     pdfs: list[tuple[str, bytes]] = []
+    tope_paginas = getattr(lector, "TOPE_PAGINAS", TOPE_PAGINAS)
     for doc_id, url, formato in zip(ids, urls, formatos):
-        if fila["paginas"] >= TOPE_PAGINAS:
+        if fila["paginas"] >= tope_paginas:
             break
         try:
             partes = pdfs_de(bajar_r2(url), formato)
@@ -144,7 +145,7 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
         usados = False
         for nombre, b in partes:
             n = paginas_de(b)
-            queda = TOPE_PAGINAS - fila["paginas"]
+            queda = tope_paginas - fila["paginas"]
             if queda <= 0:
                 break
             # Un lector puede elegir qué páginas leer (las bases: la sección con los requisitos); si no, las primeras.

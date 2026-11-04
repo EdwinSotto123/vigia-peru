@@ -12,6 +12,8 @@ import re
 CLASE = "bases"
 TIPOS_DOC = ["biddingDocuments"]
 VERSION = "v1"
+# Páginas por contrato: 60 de bases escaneadas pasan de 150 mil tokens (Haiku cobra 5 veces más sobre 100 mil).
+TOPE_PAGINAS = 35
 
 # Títulos de la sección que importa (en mayúsculas y sin tildes, como queda el texto normalizado).
 CLAVES = [r"REQUISITOS DE CALIFICACION", r"EXPERIENCIA DEL POSTOR", r"FACTORES DE EVALUACION", r"PERSONAL CLAVE",
