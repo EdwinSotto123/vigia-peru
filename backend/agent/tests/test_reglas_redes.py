@@ -38,13 +38,15 @@ def _ocds(vr, metodo="Concurso Público Abreviado", n=None, contratos=None, fech
 
 
 def test_postores_del_acta_mandan_sobre_el_parser():
-    st = _acta(_p("A", ganador=True, monto=100), _p("B", monto=90, motivo="oferta económica rechazada"))
+    st = _acta(_p("A", ganador=True, monto=100), _p("B", monto=90, motivo="oferta económica rechazada"),
+               _p("C", monto=95, motivo="Bonificación MYPE no otorgada; no fue descalificado"))
     st["parser_raw_consolidated"] = {"postores": [{"razon_social": "X", "monto": 30000, "es_ganador": True}]}
     pp = _postores_parser(st)
-    assert [p["razon_social"] for p in pp] == ["A", "B"]
-    # Calificada pero con motivo de rechazo: queda fuera (1228202, 1230915).
+    assert [p["razon_social"] for p in pp] == ["A", "B", "C"]
+    # Calificada pero con motivo de rechazo: queda fuera (1228202, 1230915); perder la bonificación no (1226255).
     assert pp[1]["estado"] == "descalificado"
-    assert n_participantes_parser({**st, "ocds": _ocds(100, n=8)}) == (8, 2)
+    assert pp[2]["estado"] == "valido"
+    assert n_participantes_parser({**st, "ocds": _ocds(100, n=8)}) == (8, 3)
 
 
 def test_sin_acta_vuelve_al_parser():
@@ -77,7 +79,7 @@ def test_honorario_fijo_no_es_oferta_igual_ni_postor_unico():
 
 
 def test_unica_oferta_valida_con_rechazo_economico():
-    st = {**_acta(_p("A", ganador=True, monto=58149), _p("B", monto=46810, motivo="dos versiones del Anexo 6")),
+    st = {**_acta(_p("A", ganador=True, monto=58149), _p("B", monto=46810, motivo="Oferta económica rechazada: dos versiones del Anexo 6")),
           "ocds": _ocds(58152.24)}
     res = check_unica_oferta_valida_rule("1", _Ctx(st))
     assert res["triggered"] and res["severidad"] == "alta"
@@ -126,3 +128,16 @@ def test_lecturas_para_legal_compacta():
     assert out["consultas"]["no_acogidas"] == [{"tema": "requisito_calificacion", "resumen": "Admitir ingeniero electricista"}]
     assert out["consultas"]["n_acogidas"] == 1
     assert out["consultas"]["banderas_del_lector"] == []   # sólo las confirmadas por la segunda lectura
+
+
+def test_depuracion_de_banderas_legales():
+    from tools.cotejos_legales import depurar_banderas_legales
+    st = {"legal_analysis": {"red_flags_documentales": [
+        {"vector": "procedimiento", "descripcion": "Único postor admitido con oferta igual al valor referencial."},
+        {"vector": "otro", "descripcion": "El acta registra un puntaje de 105 por encima de 100 sin explicar la bonificación."},
+        {"vector": "otro", "descripcion": "Incoherencia de fechas en el acta: la buena pro se otorgó el mismo día."},
+        {"vector": "certificacion_atipica", "descripcion": "El factor Gestión de calidad concentra 85 de 100 puntos."},
+        {"vector": "otro", "descripcion": "El único postor no cumple los certificados de 60 horas que exigen las bases."}]}}
+    fuera = depurar_banderas_legales(st)
+    assert len(fuera) == 3
+    assert [r["vector"] for r in st["legal_analysis"]["red_flags_documentales"]] == ["certificacion_atipica", "otro"]

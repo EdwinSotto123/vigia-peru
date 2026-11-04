@@ -211,6 +211,18 @@ def _sin_oferta(estado) -> bool:
     return any(k in e for k in ("sin oferta", "no presento", "no oferto", "sin propuesta", "solo registro", "registrado sin"))
 
 
+_RE_FUERA = re.compile(r"descalific|rechaz|no\s+admit|inadmit|no\s+cumpl|no\s+alcanz|puntaje\s+t[eé]cnico\s+m[ií]nimo|"
+                       r"puntaje\s+m[ií]nimo|excluid|desestim|no\s+coincid|inconsistenc|no\s+v[aá]lid", re.I)
+_RE_NO_FUERA = re.compile(r"no\s+(fue|qued[oó]|resulta)\s+(descalific|rechaz|excluid)|sin\s+ser\s+descalific", re.I)
+
+
+def _quedo_fuera(motivo) -> bool:
+    """El motivo dice que la oferta quedó fuera (rechazo económico, bajo el mínimo técnico), no sólo que perdió puntos
+    («Bonificación MYPE no otorgada…; no fue descalificado», 1226255)."""
+    t = str(motivo or "").strip()
+    return bool(t) and bool(_RE_FUERA.search(t)) and not _RE_NO_FUERA.search(t)
+
+
 def postores_acta(state: dict) -> list[dict] | None:
     """Los postores del acta de buena pro según el lector de Vigía (`lecturas_documentos.acta`, Haiku 5.5 leyendo el
     PDF; tools/lecturas.py), con las claves de `_postores_parser`. None si no hay acta leída.
@@ -233,7 +245,7 @@ def postores_acta(state: dict) -> list[dict] | None:
             estado = "no admitido"
         elif p.get("calificada") is False:
             estado = "descalificado"
-        elif not p.get("ganador") and str(p.get("motivo_fuera") or "").strip():
+        elif not p.get("ganador") and _quedo_fuera(p.get("motivo_fuera")):
             # Admitida y calificada, pero quedó fuera después: oferta económica rechazada o bajo el puntaje técnico
             # mínimo (1228202: «el 90 % y 10 % del monto no coinciden»; 1230915: 60 puntos de 70). El lector deja
             # calificada=true y lo dice en motivo_fuera.
@@ -440,7 +452,7 @@ def honorario_fijo(state: dict) -> bool:
         return False
     ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
     vr = _montos_ocds(ocds).get("referencial")
-    m = gan[0].get("monto") or _monto_adjudicado_ocds(ocds)
+    m = gan[0].get("monto") or _monto_adjudicado_ocds(ocds)[0]
     return bool(vr and m and abs(float(m) - float(vr)) / float(vr) <= 0.001)
 
 
@@ -489,7 +501,7 @@ def ganadores_evaluables(ocid: str, state: dict, cur=None) -> list[dict]:
                 pass
     if not out:
         ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
-        monto = _monto_adjudicado_ocds(ocds) if isinstance(ocds, dict) else None
+        monto = _monto_adjudicado_ocds(ocds)[0] if isinstance(ocds, dict) else None
         fbp = _to_date(((ocds.get("awards") or [{}])[0] or {}).get("date")) if isinstance(ocds, dict) else None
         for a in (ocds.get("awards") or []) if isinstance(ocds, dict) else []:
             for sup in (a.get("suppliers") or []) if isinstance(a, dict) else []:

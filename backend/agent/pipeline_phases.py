@@ -321,6 +321,14 @@ async def fase_legal(pc: PipelineCtx):
         yield e
     for _vev in await asyncio.to_thread(pc.validar, "legal_analysis", "LegalOutput"):
         yield _vev
+    try:
+        from tools.cotejos_legales import depurar_banderas_legales
+        _fuera = depurar_banderas_legales(pc.state)
+        if _fuera:
+            yield {"kind": "info", "agent": "pipeline",
+                   "detail": f"depuración legal: {len(_fuera)} bandera(s) quitadas ({'; '.join(x['motivo'] for x in _fuera)[:200]})"}
+    except Exception as _e:  # noqa: BLE001
+        yield {"kind": "warn", "agent": "pipeline", "detail": f"depurar_banderas_legales: {str(_e)[:160]}"}
     evs, _ = await t_call(pc, pc.T.persist_doc_flags_as_banderas, "persist_doc_flags_as_banderas", alerta_codigo=pc.alerta_codigo)
     for e in evs:
         yield e

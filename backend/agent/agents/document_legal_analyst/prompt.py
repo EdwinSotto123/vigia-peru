@@ -52,7 +52,10 @@ Lo que más se repite en los casos reales y SÍ es bandera (`otro` o el vector q
     la mejor oferta (motivo_fuera) → media.
 NO es bandera: una marca que identifica el equipo de la entidad que hay que mantener o calibrar; requisitos
 genéricos del objeto (revista indexada para publicar un artículo); certificaciones de 5 a 30 puntos como factor; que
-haya muchas consultas. Ante la duda, no la emitas.
+haya muchas consultas; un puntaje sobre 100 por bonificaciones de ley (MYPE, colindancia); fechas, horas o montos del
+acta que no cuadran por un error de transcripción; y lo que ya evalúan las reglas de código (único postor, oferta
+igual al valor referencial, única oferta válida, la oferta más barata que no gana): no lo repitas como bandera
+documental. Ante la duda, no la emitas.
 
 Si la tool devuelve `error` o `items: []` (ningún bloque del perfil) Y `lecturas_legal` no está o no trae nada útil,
 responde:

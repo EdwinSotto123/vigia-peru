@@ -532,12 +532,15 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
     # Sólo entre quienes presentaron oferta (acta leída o parser): los «rivales» del RNP salen de los participantes
     # registrados, y con una sola oferta no hay rivales (prueba de oro 2026-11-04: 1231217, 2026-2525-34 y 2026-2000-37,
     # tres falsas alarmas por socios comunes entre inscritos que nunca ofertaron).
+    # La excepción: el GANADOR y otro inscrito con la MISMA persona (mismo DNI), aunque ese inscrito no ofertara (prueba
+    # de oro de bienes: 1226228, 1226611, la empresa vinculada observó las bases o fue invitada y no se presentó).
     ofertas = [o for o in _postores_parser(state) if o.get("ruc") or o.get("razon_social")]
-    if ofertas:
-        rucs = {o["ruc"] for o in ofertas if o.get("ruc")} | {r for o in ofertas for r in (o.get("integrantes_ruc") or [])}
-        noms = {_norm_razon_cr(o.get("razon_social") or "") for o in ofertas} - {""}
-        postores = [x for x in postores if x.get("es_ganador") or (x.get("ruc") and x["ruc"] in rucs)
-                    or _norm_razon_cr(x.get("razon_social") or "") in noms]
+    rucs = {o["ruc"] for o in ofertas if o.get("ruc")} | {r for o in ofertas for r in (o.get("integrantes_ruc") or [])}
+    noms = {_norm_razon_cr(o.get("razon_social") or "") for o in ofertas} - {""}
+
+    def _oferto(x: dict) -> bool:
+        return (not ofertas or x.get("es_ganador") or bool(x.get("ruc") and x["ruc"] in rucs)
+                or _norm_razon_cr(x.get("razon_social") or "") in noms)
     result = {"regla": "postores_vinculados_rnp", "triggered": False, "n_postores_con_socios": len(postores),
               "solo_quienes_ofertaron": bool(ofertas)}
     if len(postores) < 2:
@@ -548,6 +551,10 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
         for b in postores[i + 1:]:
             if a.get("ruc") and a.get("ruc") == b.get("ruc"):
                 continue
+            ambos_ofertaron = _oferto(a) and _oferto(b)
+            con_ganador = bool(a.get("es_ganador") or b.get("es_ganador"))
+            if not ambos_ofertaron and not con_ganador:
+                continue
             for sa in a["socios"]:
                 for sb in b["socios"]:
                     da_, db_ = str(sa.get("dni") or "").strip(), str(sb.get("dni") or "").strip()
@@ -556,7 +563,7 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
                                       "persona": sa.get("nombre") or sb.get("nombre")})
                         continue
                     apa, apb = _apellidos(sa.get("nombre")), _apellidos(sb.get("nombre"))
-                    if apa and apb and apa == apb:
+                    if apa and apb and apa == apb and ambos_ofertaron:
                         pares.append({"tipo": "dos_apellidos", "postor_a": a["razon_social"], "postor_b": b["razon_social"],
                                       "apellidos": " ".join(apa), "persona_a": sa.get("nombre"), "persona_b": sb.get("nombre")})
     result.update({"estado": "hallado", "n_pares": len(pares), "detalle": pares[:6]})

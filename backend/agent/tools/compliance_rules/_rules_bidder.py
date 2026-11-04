@@ -111,7 +111,7 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
     if pct is not None and pct < 95:
         _ref = _montos_ocds(ocds).get("referencial")
         _gm = next((p.get("monto") for p in (_acta or []) if p.get("es_ganador") and p.get("monto")), None) \
-            or _monto_adjudicado_ocds(ocds)
+            or _monto_adjudicado_ocds(ocds)[0]
         _r, _sin = ratio_vs_referencial(_gm, _ref, state)
         if _sin and _r is not None:
             nota_igv = (f" La oferta va sin IGV (S/ {float(_gm):,.2f}) y la cuantía con IGV (S/ {float(_ref):,.2f}): "

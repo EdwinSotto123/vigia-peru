@@ -156,7 +156,7 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
     state = tool_context.state
     _ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
     _fbp_fallback = _to_date(((_ocds.get("awards") or [{}])[0] or {}).get("date"))
-    _monto_ocds = _monto_adjudicado_ocds(_ocds)
+    _monto_ocds = _monto_adjudicado_ocds(_ocds)[0]
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -256,10 +256,11 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
     # El rubro del objeto: una obra es construcción (aunque sea «un establecimiento de salud») y una consultoría es un
     # servicio profesional; sólo en bienes y servicios generales se infiere por palabras clave.
     cat_objeto = "servicios" if es_consultoria else "construccion" if es_obra else _categoria_objeto(texto_objeto)
-    if es_servicio and not es_consultoria:
-        # «Servicio de impresión de historias clínicas para el hospital»: el rubro es lo que se hace (impresión), no
-        # el destino (salud). Se mira primero lo que sigue a «servicio de».
-        m = re.search(r"servicios?\s+(?:de|del|para)\s+(.{0,50})", _sin_tildes(str(objeto or tender.get("description") or "")).lower())
+    if not es_consultoria and not es_obra:
+        # «Servicio de impresión de historias clínicas para el hospital», «Adquisición de uniformes para el personal de
+        # salud»: el rubro es lo que se hace o se compra, no el destino. Se mira primero lo que sigue al verbo.
+        m = re.search(r"(?:servicios?|adquisici[oó]n|compra|suministro)\s+(?:de|del|para)\s+(.{0,50})",
+                      _sin_tildes(str(objeto or tender.get("description") or "")).lower())
         cat_objeto = (_categoria_objeto(m.group(1)) if m else None) or cat_objeto
 
     evaluados, choques = [], []
