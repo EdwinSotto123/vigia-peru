@@ -61,6 +61,17 @@ ON CONFLICT (ocid, clase, version) DO UPDATE SET
 """
 
 
+class _Segunda:
+    """El mismo lector, guardado como <versión>-2: otra lectura del mismo documento, para confirmar banderas."""
+
+    def __init__(self, lector):
+        self._l = lector
+        self.VERSION = f"{lector.VERSION}-2"
+
+    def __getattr__(self, nombre):
+        return getattr(self._l, nombre)
+
+
 class Base:
     """Una conexión por el túnel, compartida entre hilos con un candado; si se cae, se reabre."""
 
@@ -170,8 +181,13 @@ def main() -> None:
     ap.add_argument("--tope-usd", type=float, default=10.0)
     ap.add_argument("--hilos", type=int, default=8)
     ap.add_argument("--limite", type=int, default=0)
+    ap.add_argument("--segunda", action="store_true",
+                    help="una segunda lectura independiente (versión <v>-2): las banderas que dependen del juicio del "
+                         "modelo se publican sólo si las dos coinciden (migración 246)")
     a = ap.parse_args()
     lector = importlib.import_module(f"lector.{a.clase}")
+    if a.segunda:
+        lector = _Segunda(lector)
     base = Base(a.entorno)
     pendientes = base.hacer(lambda cur: (cur.execute(PENDIENTES, {"tipos": lector.TIPOS_DOC, "clase": lector.CLASE,
                                                                    "version": lector.VERSION}), cur.fetchall())[1])
