@@ -129,7 +129,8 @@ scrape:dji:
     AWS_DEFAULT_REGION: us-east-2
     AWS_ROLE_ARN: arn:aws:iam::416689419419:role/vigia-gitlab-agentes
     REPO: 416689419419.dkr.ecr.us-east-2.amazonaws.com/vigia-agente
-    AGENTE_BASE: 909b906-sdk
+    # Base protegida en ECR (prefijo base-: la regla de ciclo de vida guarda las 2 últimas; las demás imágenes, 10).
+    AGENTE_BASE: base-a774ed8
     # Una Lambda por red (PIPELINE_PROFILE en su configuración): bienes, consultoría, obras, servicios, directas.
     FUNCIONES: "vigia-agente-sdk-v2 vigia-agente-consultoria vigia-agente-obras vigia-agente-servicios vigia-agente-directas"
   before_script:
