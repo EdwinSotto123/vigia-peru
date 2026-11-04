@@ -76,6 +76,12 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   no_habida: "No habida en la SUNAT",
   // La obra del contrato en INFOBRAS y su inversión en Invierte.pe (migración 160).
   ...ETIQUETA_OBRA,
+  // Lo que dicen el acta de buena pro y el pliego de consultas, leídos con Claude (migración 246).
+  acta_solo_queda_el_ganador: "Todos los demás postores quedaron fuera",
+  acta_descalificados_por_formalidad: "Sacaron a un postor por una formalidad",
+  acta_oferta_mas_baja_descartada: "La oferta más baja quedó fuera",
+  consultas_denuncia_direccionamiento: "Un participante denunció bases dirigidas",
+  consultas_observaciones_rechazadas: "No acogió ninguna observación a los requisitos",
 };
 
 /** La etiqueta de un cruce posterior a la convocatoria, donde la de siempre diría "anteriores". */

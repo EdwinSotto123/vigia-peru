@@ -188,6 +188,23 @@ export interface PostorContrato {
   citas: CitaDocumento[];
 }
 
+/** De dónde salió una lectura con IA: el modelo, cuándo, cuántas páginas y el documento en el SEACE. */
+export interface MetaLectura { modelo: string; version: string; leidoAt: string; url: string | null; paginas: number | null }
+
+/** Lo que Claude leyó en los documentos del proceso (sus banderas van en `cruces`). */
+export interface LecturaIA {
+  buenaPro: (MetaLectura & { enPostores: boolean }) | null;
+  contrato: (MetaLectura & {
+    numero: string | null; fechaSuscripcion: string | null; moneda: string | null; monto: number | null;
+    contratista: { nombre: string | null; ruc: string | null; es_consorcio: boolean; integrantes_ruc: string[] } | null;
+    plazoDias: number | null; inicio: string | null; fin: string | null; formaDePago: string | null;
+    garantia: { tipo: string | null; porcentaje: number | null } | null;
+    adelantoDirectoPct: number | null; adelantoMaterialesPct: number | null; penalidadMoraTopePct: number | null;
+    otrasPenalidades: boolean | null; controversias: string | null; cargoFirmante: string | null;
+  }) | null;
+  consultas: (MetaLectura & { consultas: number | null; participantes: number | null; observaciones: number; acogidas: number; sobreRequisitos: number }) | null;
+}
+
 /** Ítem tal como lo leyeron los agentes: precio ofertado/contratado vs. referencia OCDS. */
 export interface ItemAnalizado {
   numero: string;
@@ -329,6 +346,8 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   /** U5: postores con ofertas e ítems con precio contratado, leídos del expediente por los agentes. */
   postoresDetalle?: PostorContrato[];
   itemsAnalizados?: ItemAnalizado[];
+  /** Lo que Claude leyó en el acta, el contrato firmado y el pliego de consultas (backend/lector, migración 245). */
+  lecturaIA?: LecturaIA | null;
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
   /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */

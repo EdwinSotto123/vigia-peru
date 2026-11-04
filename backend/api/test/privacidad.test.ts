@@ -352,3 +352,16 @@ test("autoridad electa marcada por la ruta (electo: true): su nombre completo en
   const s = publicar({ socios: [{ nombre: "ROJAS PAZ ELENA", electo: "si" }] });
   assert.equal(s.socios[0].nombre, "ROJAS ••• ELENA");
 });
+
+test("lo que Claude leyó del acta y el contrato: postores, descartados y contratista persona natural, con un apellido tapado", () => {
+  const out = publicar({
+    postoresDetalle: [{ razonSocial: "QUISPE MAMANI JUAN CARLOS", ruc: null }, { razonSocial: "CONSORCIO VIAL SUR", ruc: null }],
+    cruces: [{ detalle: { fuera: [{ nombre: "ROJAS PAZ MARIA ELENA", ruc: null, motivo: "No presentó la carta de ROJAS PAZ MARIA ELENA" }] } }],
+    lecturaIA: { contrato: { contratista: { nombre: "HUAMAN TORRES PEDRO", ruc: "10456789012" } } },
+  });
+  const texto = JSON.stringify(out);
+  assert.ok(!texto.includes("MAMANI"), texto);
+  assert.ok(texto.includes("CONSORCIO VIAL SUR"));
+  assert.ok(!texto.includes("PAZ MARIA") && !texto.includes("ROJAS PAZ MARIA ELENA"), texto);
+  assert.ok(!texto.includes("TORRES") && !texto.includes("10456789012"), texto);
+});

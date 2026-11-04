@@ -153,6 +153,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // La obra de INFOBRAS que ejecuta o supervisa este contrato y la inversión de su CUI en Invierte.pe (migración 160).
     obraDelContrato(row.ocid).catch(() => ({ obras: [], inversiones: [] })),
   ]);
+  // Lo que Claude leyó en el acta, el contrato y las consultas (migración 245; backend/lector). Sin la tabla, nada.
+  const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
   // agentes leyeron del expediente — el análisis entero está sin publicar (lib/publicacion.ts §2).
@@ -247,7 +249,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   // Segunda pasada: filas sin RUC cuya razón social empieza igual que una con RUC ("CONSORCIO X integrado por…").
   const normRazon = (t: unknown) => String(t ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const conRuc = [...porClave.values()].filter((p) => p.ruc);
-  const postores = [...porClave.values()].filter((p) => {
+  const postoresAgentes = [...porClave.values()].filter((p) => {
     if (p.ruc) return true;
     const r = normRazon(p.razonSocial);
     const dueno = conRuc.find((q) => { const qr = normRazon(q.razonSocial); return qr.length >= 8 && r.startsWith(qr); });
@@ -256,6 +258,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     dueno.esGanador = dueno.esGanador || p.esGanador;
     return false;
   });
+  // Sin expediente de los agentes: los postores del acta leída con Claude (mismos campos; sin citas por página).
+  const actaLeida = lecturas.find((l) => l.clase === "buena_pro");
+  const postores = postoresAgentes.length || !actaLeida ? postoresAgentes : postoresDeLectura(actaLeida.salida);
   const itemsAnalizados = ((expediente?.items ?? []) as any[]).map((it, i) => {
     const num = String(it?.numero ?? i + 1);
     const ocds = items.find((x) => x.id === num || String(x.posicion) === num);
@@ -303,6 +308,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     obras: obra.obras,
     inversiones: obra.inversiones,
     alerta: alertaRow,
+    // Lo que Claude leyó en los documentos (backend/lector): de dónde salió cada cosa y, del contrato y las consultas,
+    // los hechos. Sus banderas van en `cruces` (migración 246), con su evidencia.
+    lecturaIA: lecturaIA(lecturas, postoresAgentes.length > 0),
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,
     pedidoDescarga: pedido,
@@ -318,6 +326,67 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     },
   }));
 });
+
+// ─── Lo que Claude leyó en los documentos (migración 245) ───────────────────
+
+export interface FilaLectura {
+  clase: string; version: string; modelo: string; salida: Record<string, any>; banderas: string[]; leidoAt: string;
+  url: string | null; paginas: number | null;
+}
+
+/** La lectura más nueva de cada clase (sin las segundas lecturas `-2`, que sólo confirman banderas). */
+async function lecturasDe(ocid: string): Promise<FilaLectura[]> {
+  const r = await pool.query(
+    `SELECT DISTINCT ON (l.clase) l.clase, l.version, l.modelo, l.salida, l.banderas, l.paginas,
+            to_char(l.leido_at, 'YYYY-MM-DD') AS "leidoAt", d.url_origen AS url
+       FROM documento_lectura l LEFT JOIN documentos_gcs d ON d.id = l.documentos[1]
+      WHERE l.ocid = $1 AND l.estado = 'ok' AND l.version NOT LIKE '%-2'
+      ORDER BY l.clase, l.leido_at DESC`, [ocid]);
+  return r.rows as FilaLectura[];
+}
+
+/** Los postores del acta leída, con los campos de `postoresDetalle` (los de los agentes). */
+function postoresDeLectura(salida: Record<string, any>) {
+  return ((salida?.postores ?? []) as any[]).map((p) => ({
+    ruc: typeof p?.ruc === "string" && /^\d{11}$/.test(p.ruc.replace(/\D/g, "")) ? p.ruc.replace(/\D/g, "") : null,
+    razonSocial: typeof p?.nombre === "string" ? p.nombre : null,
+    estado: p?.ganador ? "ganador" : p?.admitida === false ? "no_admitido" : p?.calificada === false ? "descalificado" : "admitido",
+    motivoEstado: typeof p?.motivo_fuera === "string" ? p.motivo_fuera.slice(0, 400) : null,
+    montoOferta: typeof p?.monto_ofertado === "number" ? p.monto_ofertado : null,
+    puntaje: typeof p?.puntaje === "number" ? p.puntaje : null,
+    esGanador: p?.ganador === true, ordenPrelacion: null, item: null, citas: [] as never[],
+  }));
+}
+
+/** Qué se leyó y de dónde; del contrato y las consultas, los hechos (lo del acta ya va en postoresDetalle). */
+function lecturaIA(lecturas: FilaLectura[], hayAgentes: boolean) {
+  if (!lecturas.length) return null;
+  const de = (clase: string) => lecturas.find((l) => l.clase === clase);
+  const meta = (l: FilaLectura | undefined) => l ? { modelo: l.modelo, version: l.version, leidoAt: l.leidoAt, url: l.url, paginas: l.paginas } : null;
+  const k = de("contrato")?.salida;
+  const q = de("consultas")?.salida;
+  return {
+    buenaPro: de("buena_pro") ? { ...meta(de("buena_pro")), enPostores: !hayAgentes } : null,
+    contrato: k ? {
+      ...meta(de("contrato")),
+      numero: k.numero_contrato || null, fechaSuscripcion: k.fecha_suscripcion ?? null, moneda: k.moneda || null,
+      monto: typeof k.monto_contratado === "number" ? k.monto_contratado : null, contratista: k.contratista ?? null,
+      plazoDias: k.plazo_dias ?? null, inicio: k.fecha_inicio || null, fin: k.fecha_fin || null, formaDePago: k.forma_de_pago || null,
+      garantia: k.garantia_fiel_cumplimiento ?? null, adelantoDirectoPct: k.adelanto_directo_pct ?? null,
+      adelantoMaterialesPct: k.adelanto_materiales_pct ?? null, penalidadMoraTopePct: k.penalidad_mora_tope_pct ?? null,
+      otrasPenalidades: k.otras_penalidades ?? null, controversias: k.solucion_controversias ?? null,
+      cargoFirmante: k.cargo_firmante_entidad || null,
+    } : null,
+    consultas: q ? {
+      ...meta(de("consultas")),
+      consultas: q.n_consultas ?? null, participantes: q.n_participantes ?? null,
+      observaciones: Array.isArray(q.observaciones) ? q.observaciones.length : 0,
+      acogidas: Array.isArray(q.observaciones) ? q.observaciones.filter((o: any) => o?.respuesta === "acogida" || o?.respuesta === "acogida_parcial").length : 0,
+      sobreRequisitos: Array.isArray(q.observaciones)
+        ? q.observaciones.filter((o: any) => ["requisito_calificacion", "especificacion_tecnica", "marca_o_proveedor"].includes(o?.tema)).length : 0,
+    } : null,
+  };
+}
 
 // ─── Adjudicaciones vigentes ─────────────────────────────────────────────────
 

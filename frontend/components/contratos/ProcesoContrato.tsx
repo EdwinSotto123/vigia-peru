@@ -158,6 +158,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
             ) : null}
           </div>
           {k.firmados.length > 1 && <TablaContratos firmados={k.firmados} c={c} />}
+          <CondicionesLeidas c={c} />
           <FuenteDato fuente="CONOSCE (OECE) y el registro OCDS" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="border-t border-line px-4 py-2 sm:px-5" />
         </section>
         {c.presupuesto && <BloquePresupuesto c={c} />}
@@ -165,6 +166,38 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
         <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
       </div>
     </>
+  );
+}
+
+/** Las condiciones del contrato firmado, leídas del PDF con Claude (backend/lector/contrato.py): lo que CONOSCE no trae. */
+function CondicionesLeidas({ c }: { c: Detalle }) {
+  const k = c.lecturaIA?.contrato;
+  if (!k) return null;
+  const pctTxt = (v: number | null) => (v == null ? null : `${v.toLocaleString("es-PE", { maximumFractionDigits: 2 })} %`);
+  const garantia = k.garantia?.tipo === "no_se_exige"
+    ? "No se exige"
+    : k.garantia?.tipo || k.garantia?.porcentaje != null
+      ? [k.garantia?.tipo ? humanizarCodigo(k.garantia.tipo) : null, pctTxt(k.garantia?.porcentaje ?? null)].filter(Boolean).join(", ")
+      : null;
+  const items: DatoClave[] = [
+    { etiqueta: "Plazo de ejecución", valor: k.plazoDias != null ? plural(k.plazoDias, "día", "días") : null },
+    { etiqueta: "Forma de pago", valor: k.formaDePago ? oracion(k.formaDePago) : null },
+    { etiqueta: "Garantía de fiel cumplimiento", valor: garantia },
+    { etiqueta: "Adelanto directo", valor: pctTxt(k.adelantoDirectoPct) },
+    { etiqueta: "Adelanto de materiales", valor: pctTxt(k.adelantoMaterialesPct) },
+    { etiqueta: "Tope de la penalidad por mora", valor: pctTxt(k.penalidadMoraTopePct) },
+    { etiqueta: "Otras penalidades", valor: k.otrasPenalidades == null ? null : k.otrasPenalidades ? "Sí" : "No" },
+    { etiqueta: "Controversias", valor: k.controversias ? humanizarCodigo(k.controversias) : null },
+    { etiqueta: "Firma por la entidad", valor: k.cargoFirmante ? oracion(k.cargoFirmante) : null },
+  ].filter((d) => d.valor != null && d.valor !== "");
+  if (!items.length) return null;
+  return (
+    <div className="border-t border-line px-4 py-4 sm:px-5">
+      <h3 className="font-display text-bloque font-bold text-ink">Lo que dice el contrato</h3>
+      <p className="mt-1 text-meta text-inkSoft">Condiciones leídas del contrato firmado con IA ({k.modelo.replace(/^claude-/, "Claude ").replace(/-/g, " ")}). Revisa el documento antes de citarlas.</p>
+      <DatosClave items={items} className="mt-2" />
+      <FuenteDato fuente="Contrato firmado (SEACE), leído con IA" fecha={k.leidoAt} href={k.url ?? undefined} className="mt-2" />
+    </div>
   );
 }
 

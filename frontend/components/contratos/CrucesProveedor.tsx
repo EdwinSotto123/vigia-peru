@@ -31,7 +31,8 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
-import { esTipoObra } from "@/lib/cruces";
+import { esTipoLeido, esTipoObra } from "@/lib/cruces";
+import { pareceEmpresa } from "@/components/Redact";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -295,6 +296,13 @@ POR_QUE.obra_controversia = POR_QUE_OBRA.obra_controversia;
 POR_QUE.obra_informe_control = POR_QUE_OBRA.obra_informe_control;
 POR_QUE.inversion_sobrecosto = POR_QUE.inversion_sobrecosto_extremo = POR_QUE_OBRA.inversion_sobrecosto;
 POR_QUE.inversion_laudo = POR_QUE_OBRA.inversion_laudo;
+
+// El acta y las consultas, leídos con Claude (migración 246): por qué mirar cada una.
+POR_QUE.acta_solo_queda_el_ganador = "Que todos los demás postores queden fuera puede ser legítimo (no cumplían), pero si pasa seguido en una entidad o por requisitos muy específicos, la competencia fue sólo de nombre. Vale leer los motivos en el acta.";
+POR_QUE.acta_descalificados_por_formalidad = "La norma pide subsanar los errores formales en vez de descalificar por ellos. Sacar a un postor por una firma, el foliado o un formato, sobre todo si su oferta era mejor, merece revisarse.";
+POR_QUE.acta_oferta_mas_baja_descartada = "Cuando la oferta más baja queda fuera, el Estado paga más. Puede ser correcto si no cumplía lo pedido; el motivo está en el acta y vale leerlo.";
+POR_QUE.consultas_denuncia_direccionamiento = "En las consultas y observaciones los participantes pueden reclamar que un requisito favorece a alguien. Que alguien lo diga por escrito no prueba nada, pero es una pista para revisar las bases y quién ganó.";
+POR_QUE.consultas_observaciones_rechazadas = "Si varios participantes piden flexibilizar los requisitos y la entidad no acoge ninguno, los requisitos pueden estar dejando fuera a la competencia.";
 
 // Las bandas de un cruce comparten el "por qué" de su tipo padre (migración 121).
 POR_QUE.recurrente_dominante = POR_QUE.recurrente_frecuente = POR_QUE.recurrente;
@@ -797,8 +805,53 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
     default:
       // La obra de este contrato (INFOBRAS) y su inversión (Invierte.pe), migración 160: la frase sale de su evidencia.
       if (esTipoObra(c.tipo)) return <TextoObra c={c} />;
+      // El acta de buena pro y el pliego de consultas, leídos con Claude (migración 246).
+      if (esTipoLeido(c.tipo)) return <TextoLeido c={c} />;
       return <>{c.etiqueta}.</>;
   }
+}
+
+/** Quien quedó fuera, como lo nombra el acta: una persona natural no se nombra (su RUC lleva el DNI). */
+function nombreFuera(f: { nombre?: unknown; ruc?: unknown }): string {
+  const nombre = typeof f.nombre === "string" ? f.nombre.trim() : "";
+  const ruc = typeof f.ruc === "string" ? f.ruc : null;
+  return nombre && pareceEmpresa(nombre, ruc) ? tituloNatural(nombre) : "un postor (persona natural)";
+}
+
+/** Una bandera del acta de buena pro o del pliego de consultas: lo que dice el documento y el enlace al SEACE. */
+function TextoLeido({ c }: { c: CruceProveedor }) {
+  const d = c.detalle;
+  const fuera = (Array.isArray(d.fuera) ? d.fuera : []) as { nombre?: unknown; ruc?: unknown; motivo?: unknown }[];
+  const fuente = c.fuenteUrl ? (
+    <> <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>Ver el documento en el SEACE</a>.</>
+  ) : null;
+  const leido = <span className="text-mute"> Leído del documento con IA (Claude).</span>;
+  if (c.tipo.startsWith("consultas_")) {
+    const denuncias = (Array.isArray(d.denuncias) ? d.denuncias : []) as { cita?: unknown }[];
+    const cita = txt(String(denuncias[0]?.cita ?? ""));
+    return c.tipo === "consultas_denuncia_direccionamiento" ? (
+      <>En el pliego de consultas, un participante escribió{cita ? <>: <i>«{recortar(cita, 260)}»</i></> : " que las bases favorecen a alguien"}. Es su denuncia, no una prueba.{fuente}{leido}</>
+    ) : (
+      <>Los participantes observaron {numero(n(d.observaciones) ?? 0)} veces las bases y la entidad no acogió ninguna observación a los requisitos.{fuente}{leido}</>
+    );
+  }
+  const lista = fuera.slice(0, 3).map((f, i) => (
+    <span key={i}>{i ? "; " : ""}<b>{nombreFuera(f)}</b>{txt(String(f.motivo ?? "")) ? <> ({recortar(oracion(String(f.motivo)), 180)})</> : ""}</span>
+  ));
+  const mas = fuera.length > 3 ? <> y {numero(fuera.length - 3)} más</> : null;
+  if (c.tipo === "acta_oferta_mas_baja_descartada") {
+    return (
+      <>Según el acta de buena pro, la oferta más baja{n(d.menor_monto) != null ? <> (<b>{soles(n(d.menor_monto)!)}</b>)</> : ""} quedó fuera
+        {n(d.ganador_monto) != null ? <> y <Emp c={c} /> ganó con <b>{soles(n(d.ganador_monto)!)}</b>{c.montoSoles != null ? <>: <b>{solesCompacto(c.montoSoles)}</b> más</> : ""}</> : ""}.
+        {lista.length ? <> Quedaron fuera: {lista}{mas}.</> : null}{fuente}{leido}</>
+    );
+  }
+  return (
+    <>{c.tipo === "acta_solo_queda_el_ganador"
+      ? <>Según el acta de buena pro, de {numero(n(d.postores) ?? 0)} postores quedaron fuera todos menos <Emp c={c} />: </>
+      : <>Según el acta de buena pro, quedó fuera por una formalidad: </>}
+      {lista}{mas}.{fuente}{leido}</>
+  );
 }
 
 /** Una bandera de la obra o de la inversión de este contrato: de qué obra se habla y lo que registra la fuente. */

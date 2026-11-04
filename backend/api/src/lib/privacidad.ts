@@ -276,6 +276,11 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   visitas_inter_municipales: { campos: [["persona", "nombres-primero"], ["funcionario_anfitrion", "sunat"]], tipo: "consulta" },
   aportes: { campos: [["nombre", "sunat"]], tipo: "consulta" },
   candidaturas: { campos: [["nombre", "sunat"]], tipo: "consulta" },
+  // Lo que Claude leyó en el acta y el contrato (migraciones 245-246): un postor o contratista persona natural, aunque
+  // el documento no traiga su RUC al lado.
+  postoresDetalle: { campos: [["razonSocial", "sunat"]] },
+  fuera: { campos: [["nombre", "sunat"]] },
+  contratista: { campos: [["nombre", "sunat"]] },
 };
 
 /**

@@ -152,6 +152,9 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   // vinculados (una persona o el domicilio) que compiten juntos y se reparten las buenas pro.
   await siExiste("refrescar_cruce_pariente_funcionario");
   await siExiste("refrescar_cruce_turno_postores");
+  // Lo que dicen el acta de buena pro y el pliego de consultas, leídos con Claude (migraciones 245-246): sólo las
+  // banderas que salen de reglas sobre los hechos extraídos. Lee documento_lectura (backend/lector/leer.py, desde la PC).
+  await siExiste("refrescar_cruce_acta");
   // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
   // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
   await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");
