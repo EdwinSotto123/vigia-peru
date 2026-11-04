@@ -69,6 +69,9 @@ const FUENTE: Record<string, string> = {
   // La obra del contrato y su inversión (migración 160).
   infobras: "INFOBRAS (Contraloría)",
   invierte_pe: "Invierte.pe (MEF)",
+  // Los documentos del SEACE leídos con Claude (migración 246).
+  acta_buena_pro: "Acta de buena pro del SEACE, leída con IA",
+  consultas_bases: "Pliego de consultas del SEACE, leído con IA",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;

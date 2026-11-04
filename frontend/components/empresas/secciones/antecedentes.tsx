@@ -55,6 +55,9 @@ const FUENTE: Record<string, string> = {
   // La obra del contrato (INFOBRAS) y su inversión (Invierte.pe), migración 160.
   infobras: "INFOBRAS (Contraloría)",
   invierte_pe: "Invierte.pe (MEF)",
+  // Los documentos del SEACE leídos con Claude (migración 246).
+  acta_buena_pro: "Acta de buena pro del SEACE, leída con IA",
+  consultas_bases: "Pliego de consultas del SEACE, leído con IA",
   // Las fuentes de los cruces más nuevos (antes salía su clave: «sunat», «dji_vinculos»).
   sunat: "Consulta RUC de la SUNAT",
   oece_ocds: "Contrataciones Abiertas del OECE",
