@@ -70,7 +70,10 @@ GUIA_SECCION: dict[str, str] = {
         "los agentes que NO fueron persistidas se citan como 'observación del agente', nunca como bandera)."
     ),
     "Precios unitarios vs mercado": (
-        "### De `market_analysis` (estrategia goods_retail): tabla | Ítem | Ofertado | Referencial | Mediana mercado "
+        "### Si hay `precios_internos` (base de Vigía: lo que pagó el Estado por el mismo CUBSO y unidad, percentiles 25-50-75), "
+        "empieza por esa tabla | Ítem | Precio unitario | Mediana del Estado (precios, entidades, año) | Δ % | Veredicto |: es "
+        "la comparación más fuerte porque es el mismo bien. Después, "
+        "### de `market_analysis` (estrategia goods_retail): tabla | Ítem | Ofertado | Referencial | Mediana mercado "
         "(n precios) | Δ % | Veredicto |; por ítem con veredicto respaldado, 3-5 referencias con su URL de grounding y "
         "el comentario de comparabilidad; sobreprecio del lote solo si `sobreprecio_pct` no es null. Los ítems "
         "`sin_dato` se listan con su `motivo_estimacion`; los `no_verificable` con su `motivo_no_verificable` y sin Δ %. "
@@ -122,7 +125,13 @@ GUIA_SECCION: dict[str, str] = {
         "OECE pertinente'."
     ),
     "Antecedentes del proveedor": (
-        "### De `web_research` y `oece_perfil`: razón social, RUC, inicio de actividades, CIIU, condición/estado, "
+        "### PRIMERO `expediente_proveedor` (base de Vigía: padrón SUNAT, RNP, sanciones y penalidades del OECE, buenas pro "
+        "del CONOSCE y banderas de Vigía): es el dato verificado y manda sobre `web_research`. El código antepone a esta "
+        "sección un bloque «Lo que dicen los registros» con esas cifras: NO lo repitas; interprétalo (qué significa la "
+        "edad del RUC frente al monto, la dependencia de esta entidad, las banderas previas). Si `expediente_proveedor.sunat` "
+        "tiene datos, NUNCA escribas que SUNAT no estuvo disponible ni sugieras una señal por falta de datos SUNAT. "
+        "Los nombres de personas ya vienen con un apellido tapado («•••»): cópialos así, nunca los completes. "
+        "### Además, de `web_research` y `oece_perfil`: razón social, RUC, inicio de actividades, CIIU, condición/estado, "
         "sanciones e inhabilitaciones según `oece_perfil` (dato oficial: `n_sanciones: 0` se escribe 'sin sanciones "
         "registradas en OECE'; una sanción con `vigente: false` o multa pagada es antecedente histórico, no sanción "
         "vigente), otros contratos con el Estado (solo los que traen evidencia con URL de página concreta), relación "

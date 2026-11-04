@@ -208,6 +208,11 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         # causal (Resumen Ejecutivo/Informe) y condiciones finales (Orden de Compra).
         "estudio_mercado":      _try_parse(state.get("estudio_mercado"), "estudio_mercado"),
         "contrato_final":       _try_parse(state.get("contrato_final"), "contrato_final"),
+        # Plan 2026-11-04: el expediente del proveedor desde la base (tools/expediente.py; nombres con un apellido
+        # tapado) y lo que ya leyeron los lectores de documentos (tools/lecturas.py).
+        "expediente_proveedor": state.get("expediente_proveedor"),
+        "lecturas_documentos":  state.get("lecturas_documentos"),
+        "precios_internos":     state.get("precios_internos"),
     }
     for w in warns:
         try:

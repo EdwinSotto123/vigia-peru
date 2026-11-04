@@ -188,6 +188,12 @@ async def fase_parser(pc: PipelineCtx):
         yield omitido(pc, "document_parser")
         return
     yield {"kind": "phase", "name": "document_parser", "msg": "procesando documentos SEACE"}
+    # Lo que ya leyeron los lectores de Vigía (tools/lecturas.py): acta, contrato, consultas y bases, para el dictamen.
+    if hasattr(pc.T, "query_lecturas_documentos"):
+        evs, _ = await t_call(pc, pc.T.query_lecturas_documentos, "query_lecturas_documentos", agent="document_parser_agent",
+                              ocid=pc.ocid)
+        for e in evs:
+            yield e
     _lote_ok = False
     if pc.seleccionar_documentos is not None and pc.parse_documentos_lote is not None:
         # WS D · selección DETERMINISTA por prioridad del perfil (sin LLM) + OCR una sola
@@ -332,6 +338,12 @@ async def fase_market(pc: PipelineCtx):
     # iluminar el nodo "market" del grafo → transfer explícito orquestador→market.
     yield {"kind": "transfer", "from": "orch", "to": "market_price_agent", "agent": "orch",
            "msg": "orquestador delega a market_price_agent"}
+    # Primero lo que pagó el Estado por el mismo CUBSO y unidad (tools/precios_internos.py, base de Vigía, sin costo).
+    if hasattr(pc.T, "query_precios_internos"):
+        evs, _ = await t_call(pc, pc.T.query_precios_internos, "query_precios_internos", agent="market_price_agent",
+                              ocid=pc.ocid)
+        for e in evs:
+            yield e
     _mercado_ok = False
     if pc.analizar_mercado is not None:
         # WS M · una sola entrada por estrategia; URLs solo desde grounding_metadata;
@@ -377,21 +389,43 @@ async def fase_proveedor(pc: PipelineCtx):
     # si la matriz no incluye ninguno, no se consulta (get_ganador sí, para el dictamen).
     _investiga_proveedor = any(pc.perm(a) for a in ("web_research", "person_network", "compliance_extended"))
     if ruc and _investiga_proveedor:
-        evs, perfil = await t_call(pc, pc.T.query_oece_perfil, "query_oece_perfil", ruc=ruc)
-        for e in evs:
-            yield e
-        for e in flags_from_senales(pc, (perfil or {}).get("senales"), fuente_oece):
-            yield e
-        evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
-        for e in evs:
-            yield e
-        if isinstance(sunat, dict) and (sunat.get("error") or sunat.get("found") is False):
-            evs, _ = await t_call(pc, pc.T.query_edad_ciiu_web, "query_edad_ciiu_web", ruc=ruc, razon_social=pc.ctx["razon"])
+        # 1. El expediente de la base de Vigía (tools/expediente.py): SUNAT (RUC 20), RNP, sanciones, penalidades,
+        #    historial del CONOSCE y banderas. Deja sunat_profiles/sunat_decolecta/oece_perfiles con las claves de siempre.
+        solo_bd = os.getenv("EXPEDIENTE_SOLO_BD", "0") == "1"
+        exp = None
+        if hasattr(pc.T, "query_expediente_proveedor"):
+            evs, exp = await t_call(pc, pc.T.query_expediente_proveedor, "query_expediente_proveedor", ruc=ruc,
+                                    entidad_ruc=(pc.ctx["entidad"] or {}).get("ruc"), ocid=pc.ocid)
             for e in evs:
                 yield e
-        evs, _ = await t_call(pc, pc.T.read_sunat_profile, "read_sunat_profile")
-        for e in evs:
+        en_base = isinstance(exp, dict) and not exp.get("error")
+        sunat_en_base = en_base and bool(exp.get("sunat_en_base"))
+        # 2. El perfil del OECE en vivo (apto para contratar) sólo si se puede llegar: desde AWS el OECE responde 403 sin
+        #    el downloader (OECE_EN_VIVO=0 en la Lambda). Si falla, quedan las sanciones de la base.
+        senales = (exp or {}).get("senales") if en_base else None
+        if not solo_bd and os.getenv("OECE_EN_VIVO", "1") == "1":
+            evs, perfil = await t_call(pc, pc.T.query_oece_perfil, "query_oece_perfil", ruc=ruc)
+            for e in evs:
+                yield e
+            if isinstance(perfil, dict) and not perfil.get("error"):
+                senales = perfil.get("senales")
+        for e in flags_from_senales(pc, senales, fuente_oece):
             yield e
+        # 3. SUNAT por decolecta sólo para lo que no está en el padrón (un RUC 10, un RUC nuevo).
+        if not sunat_en_base and not solo_bd:
+            evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
+            for e in evs:
+                yield e
+            if isinstance(sunat, dict) and (sunat.get("error") or sunat.get("found") is False):
+                evs, _ = await t_call(pc, pc.T.query_edad_ciiu_web, "query_edad_ciiu_web", ruc=ruc, razon_social=pc.ctx["razon"])
+                for e in evs:
+                    yield e
+            elif isinstance(sunat, dict):
+                pc.state["sunat_decolecta"] = sunat  # read_sunat_profile ya no vuelve a llamar a decolecta
+        if sunat_en_base or not solo_bd:  # sin padrón y sólo la base: no hay perfil SUNAT que leer
+            evs, _ = await t_call(pc, pc.T.read_sunat_profile, "read_sunat_profile")
+            for e in evs:
+                yield e
 
 
 # ── 6-8. Investigación: empresa ∥ prensa ∥ funcionarios ──
@@ -416,9 +450,18 @@ async def fase_research(pc: PipelineCtx):
         except Exception as _e:  # noqa: BLE001
             yield {"kind": "warn", "agent": "pipeline", "detail": f"prensa precargada: {str(_e)[:160]}"}
     # Mensajes de los 3 agentes de investigación INDEPENDIENTES (empresa · prensa · funcionarios).
-    _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
-                f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
-                f"directivos, aportes ONPE e historial de contratos.")
+    if pc.state.get("expediente_proveedor"):
+        # El expediente de la base ya trae SUNAT, RNP, sanciones, penalidades, historial del CONOSCE y banderas: la web
+        # sólo para lo que no está en un registro.
+        _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. Su perfil SUNAT, sus socios y "
+                    f"representantes (RNP), sus sanciones y su historial de contratos YA vienen de la base de Vigía "
+                    f"(perfil pre-cargado en tu instrucción): no los busques ni los contradigas. Busca sólo en prensa y "
+                    f"fuentes abiertas lo que no está en un registro: investigaciones, denuncias, vínculos con "
+                    f"funcionarios o con la entidad, y hechos recientes.")
+    else:
+        _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
+                    f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
+                    f"directivos, aportes ONPE e historial de contratos.")
     _news_msg = (f"Investiga en prensa peruana: proveedor '{razon}' (RUC {ruc}); entidad "
                  f"'{entidad.get('nombre','')}' (RUC {entidad.get('ruc','')}, región {entidad.get('region','')}); "
                  f"objeto: {objeto[:160]}.")
@@ -790,6 +833,20 @@ async def fase_dictamen(pc: PipelineCtx):
                            "msg": "dictamen sanitizado: " + ", ".join(_res)}
         except Exception as e:
             yield {"kind": "warn", "name": "report_writer", "msg": f"verificar_dictamen falló: {str(e)[:160]}"}
+
+    # ── 12.6 Los hechos del expediente (tools/expediente.py) al comienzo de «Antecedentes del proveedor», escritos por el
+    #      código, y un apellido tapado en los nombres de personas naturales (RNP y el ganador con RUC 10), como la web.
+    if pc.state.get("final_dictamen"):
+        try:
+            from tools.expediente import insertar_ficha
+            from tools.privacidad import es_persona_natural, tapar_en_texto
+            _nombres = list(pc.state.get("_nombres_tapar") or [])
+            if es_persona_natural(pc.ctx.get("ruc")) and pc.ctx.get("razon"):
+                _nombres.append(pc.ctx["razon"])
+            _md = insertar_ficha(pc.state["final_dictamen"], pc.state.get("expediente_proveedor"))
+            pc.state["final_dictamen"] = tapar_en_texto(_md, _nombres)
+        except Exception as e:  # noqa: BLE001
+            yield {"kind": "warn", "name": "report_writer", "msg": f"ficha del proveedor: {str(e)[:160]}"}
 
     # ── 13. Persist final (con dictamen) ──
     evs, _ = await t_call(pc, pc.T.persist_analysis_outputs, "persist_analysis_outputs", alerta_codigo=pc.alerta_codigo)

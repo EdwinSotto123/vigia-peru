@@ -20,5 +20,8 @@ from tools.market import *            # noqa: F401,F403
 from tools.legal import *             # noqa: F401,F403
 from tools.sunat import *             # noqa: F401,F403
 from tools.registros import query_registros_proceso, query_registros_proceso_tool  # noqa: F401
+from tools.expediente import query_expediente_proveedor, query_expediente_proveedor_tool  # noqa: F401
+from tools.lecturas import query_lecturas_documentos, query_lecturas_documentos_tool  # noqa: F401
+from tools.precios_internos import query_precios_internos, query_precios_internos_tool  # noqa: F401
 from tools.persistence import *       # noqa: F401,F403
 from tools.state_loaders import *     # noqa: F401,F403
