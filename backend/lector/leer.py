@@ -200,13 +200,24 @@ def main() -> None:
     ap.add_argument("--segunda", action="store_true",
                     help="una segunda lectura independiente (versión <v>-2): las banderas que dependen del juicio del "
                          "modelo se publican sólo si las dos coinciden (migración 246)")
+    ap.add_argument("--solo-con-banderas", action="store_true",
+                    help="con --segunda: sólo los contratos cuya primera lectura encontró alguna bandera (lo único que la "
+                         "segunda confirma)")
     a = ap.parse_args()
     lector = importlib.import_module(f"lector.{a.clase}")
+    version_base = lector.VERSION
     if a.segunda:
         lector = _Segunda(lector)
+    consulta = PENDIENTES
+    if a.segunda and a.solo_con_banderas:
+        consulta = PENDIENTES.replace(
+            " GROUP BY d.ocid",
+            "   AND EXISTS (SELECT 1 FROM documento_lectura f WHERE f.ocid = d.ocid AND f.clase = %(clase)s"
+            " AND f.version = %(version_base)s AND f.estado = 'ok' AND f.banderas <> '{}')\n GROUP BY d.ocid", 1)
     base = Base(a.entorno)
-    pendientes = base.hacer(lambda cur: (cur.execute(PENDIENTES, {"tipos": lector.TIPOS_DOC, "clase": lector.CLASE,
-                                                                   "version": lector.VERSION}), cur.fetchall())[1])
+    pendientes = base.hacer(lambda cur: (cur.execute(consulta, {"tipos": lector.TIPOS_DOC, "clase": lector.CLASE,
+                                                                "version": lector.VERSION, "version_base": version_base}),
+                                         cur.fetchall())[1])
     if a.limite:
         pendientes = pendientes[: a.limite]
     print(f"{a.entorno}: {len(pendientes)} contratos por leer ({lector.CLASE} {lector.VERSION}, tope USD {a.tope_usd})", flush=True)

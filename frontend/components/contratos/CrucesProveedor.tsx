@@ -72,6 +72,7 @@ const FUENTE: Record<string, string> = {
   // Los documentos del SEACE leídos con Claude (migración 246).
   acta_buena_pro: "Acta de buena pro del SEACE, leída con IA",
   consultas_bases: "Pliego de consultas del SEACE, leído con IA",
+  bases_seace: "Bases del procedimiento en el SEACE, leídas con IA",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -304,6 +305,8 @@ POR_QUE.acta_solo_queda_el_ganador = "Que todos los demás postores queden fuera
 POR_QUE.acta_descalificados_por_formalidad = "La norma pide subsanar los errores formales en vez de descalificar por ellos. Sacar a un postor por una firma, el foliado o un formato, sobre todo si su oferta era mejor, merece revisarse.";
 POR_QUE.acta_oferta_mas_baja_descartada = "Cuando la oferta más baja queda fuera, el Estado paga más. Puede ser correcto si no cumplía lo pedido; el motivo está en el acta y vale leerlo.";
 POR_QUE.consultas_denuncia_direccionamiento = "En las consultas y observaciones los participantes pueden reclamar que un requisito favorece a alguien. Que alguien lo diga por escrito no prueba nada, pero es una pista para revisar las bases y quién ganó.";
+POR_QUE.bases_marca_sin_equivalente = "Exigir una marca deja fuera a quien ofrece lo mismo de otro fabricante: la norma pide describir lo que se necesita y, si se nombra una marca, admitir «o equivalente». Puede justificarse (repuestos, compatibilidad), pero merece revisarse.";
+POR_QUE.bases_experiencia_alta = "Pedir mucha experiencia previa reduce la competencia a las empresas más grandes o a una sola. Que lo exigido triplique el valor de la compra merece ver si se justificó.";
 POR_QUE.consultas_observaciones_rechazadas = "Si varios participantes piden flexibilizar los requisitos y la entidad no acoge ninguno, los requisitos pueden estar dejando fuera a la competencia.";
 
 // Las bandas de un cruce comparten el "por qué" de su tipo padre (migración 121).
@@ -832,6 +835,25 @@ function TextoLeido({ c }: { c: CruceProveedor }) {
     <> <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>Ver el documento en el SEACE</a>.</>
   ) : null;
   const leido = <span className="text-mute"> Leído del documento con IA (Claude).</span>;
+  if (c.tipo.startsWith("bases_")) {
+    if (c.tipo === "bases_marca_sin_equivalente") {
+      const marcas = (Array.isArray(d.marcas) ? d.marcas : []) as { marca?: unknown; cita?: unknown }[];
+      const m = marcas[0];
+      return (
+        <>Las bases exigen {txt(String(m?.marca ?? "")) ? <>la marca <b>{String(m!.marca)}</b></> : "una marca"} sin admitir «o equivalente»
+          {txt(String(m?.cita ?? "")) ? <>: <i>«{recortar(String(m!.cita), 240)}»</i></> : ""}
+          {marcas.length > 1 ? <> (y {numero(marcas.length - 1)} {marcas.length === 2 ? "marca más" : "marcas más"})</> : null}.{fuente}{leido}</>
+      );
+    }
+    const e = (d.experiencia ?? {}) as { monto_minimo?: unknown; cita?: unknown };
+    const vr = n(d.valor_referencial);
+    const exige = n(e.monto_minimo);
+    return (
+      <>Las bases exigen al postor experiencia por <b>{exige != null ? soles(exige) : "un monto"}</b>
+        {exige != null && vr ? <>, <b>{(exige / vr).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces</b> el valor referencial ({soles(vr)})</> : ""}
+        {txt(String(e.cita ?? "")) ? <>: <i>«{recortar(String(e.cita), 240)}»</i></> : ""}.{fuente}{leido}</>
+    );
+  }
   if (c.tipo.startsWith("consultas_")) {
     const denuncias = (Array.isArray(d.denuncias) ? d.denuncias : []) as { cita?: unknown }[];
     const cita = txt(String(denuncias[0]?.cita ?? ""));

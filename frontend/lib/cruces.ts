@@ -110,19 +110,21 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
   {
     // El acta de buena pro y el pliego de consultas del SEACE, leídos con Claude (migraciones 245-246). Sólo banderas que
     // salen de reglas sobre los hechos del documento, probadas en backend/evals (estables entre lecturas).
-    titulo: "En el acta y las consultas",
+    titulo: "En el acta, las bases y las consultas",
     tipos: [
       { tipo: "acta_oferta_mas_baja_descartada", chip: "Oferta más baja fuera", corto: "La oferta más baja quedó fuera", explica: "Según el acta de buena pro, la oferta más baja no fue admitida o fue descalificada, y el ganador cobra 5 % o más que ella: el monto es la diferencia. Puede ser legal (la oferta no cumplía): vale leer el motivo." },
       { tipo: "acta_solo_queda_el_ganador", chip: "Solo quedó el ganador", corto: "Todos los demás postores quedaron fuera", explica: "Según el acta, se presentaron dos o más postores y todos menos el ganador quedaron fuera (no admitidos o descalificados): en la práctica, compitió solo." },
       { tipo: "acta_descalificados_por_formalidad", chip: "Fuera por formalidad", corto: "Sacaron a un postor por una formalidad", explica: "Según el acta, al menos un postor quedó fuera por un documento o una formalidad (una firma, el foliado, un formato, una declaración jurada) y no por lo que ofrecía." },
       { tipo: "consultas_denuncia_direccionamiento", chip: "Bases dirigidas", corto: "Un participante denunció bases dirigidas", explica: "En el pliego de consultas y observaciones, un participante escribió que las bases favorecen a una marca, un fabricante o un proveedor. Es su denuncia, no una prueba: lo encontraron dos lecturas independientes." },
+      { tipo: "bases_marca_sin_equivalente", chip: "Marca sin equivalente", corto: "Las bases exigen una marca sin «o equivalente»", explica: "Las bases nombran o exigen una marca, un fabricante o un modelo sin admitir «o equivalente»: sólo puede ganar quien venda esa marca. La norma pide describir lo que se necesita, no la marca, salvo que se justifique. Lo encontraron dos lecturas independientes." },
+      { tipo: "bases_experiencia_alta", chip: "Experiencia 3× o más", corto: "Las bases exigen experiencia de 3 veces el valor o más", explica: "La experiencia que se exige al postor (lo que facturó antes en el rubro) es 3 veces o más el valor referencial de esta compra: deja fuera a empresas que sí podrían hacerla. Vale revisar si se justificó. Lo encontraron dos lecturas independientes." },
       { tipo: "consultas_observaciones_rechazadas", chip: "Observaciones rechazadas", corto: "No acogió ninguna observación a los requisitos", explica: "Los participantes observaron dos o más veces los requisitos o las especificaciones y la entidad no acogió ninguna (pliego de consultas y observaciones, dos lecturas)." },
     ],
   },
 ];
 
-/** ¿Es una bandera leída de un documento con Claude (acta o consultas)? */
-export const esTipoLeido = (tipo: string) => tipo.startsWith("acta_") || tipo.startsWith("consultas_");
+/** ¿Es una bandera leída de un documento con Claude (acta, bases o consultas)? */
+export const esTipoLeido = (tipo: string) => tipo.startsWith("acta_") || tipo.startsWith("consultas_") || tipo.startsWith("bases_");
 
 /** ¿Es una bandera de «En la obra» (INFOBRAS e Invierte.pe)? Hechos de la ejecución del contrato, no antecedentes de quien ganó. */
 export const esTipoObra = (tipo: string) => tipo.startsWith("obra_") || tipo.startsWith("inversion_");
