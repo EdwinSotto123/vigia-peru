@@ -60,8 +60,11 @@ export async function refrescarVisitasDe(db: Db, nombres: string[]): Promise<num
   return f.todas ? Number((await db.filas<{ n: number }>("SELECT refrescar_visitas_entidad() AS n"))[0]?.n ?? 0) : null;
 }
 
-/** Ids de visita por paso al atribuirlas a empresas: ~1 min en producción, lejos del corte de la conexión. */
+/** Ids de visita por paso al atribuirlas a empresas: ~45 s en producción, lejos del corte de la conexión. */
 const TRAMO_VISITAS = 1_000_000;
+
+/** Partes (por empresa) de refrescar_visita_empresa: ~90 s cada una en producción (migración 243). */
+const PARTES_VISITA_EMPRESA = 6;
 
 /**
  * Qué empresa está detrás de cada visita (migración 241): la de su gente por el DNI o la de quien dijo venir de ella.
@@ -172,8 +175,20 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
   // Las empresas cuya gente (socio, representante, directivo o quien dijo venir de ella) visitó cada entidad y lo que la
   // entidad les dio después (migración 203): lee las visitas ya atribuidas (empresa_visita) y las órdenes y contratos
-  // del día. ~4 min en producción.
-  await siExiste("refrescar_visita_empresa");
+  // del día. Con las visitas nacionales, todo junto tarda ~9 min: va en partes por empresa (migración 243), una por paso.
+  for (let parte = 0; parte < PARTES_VISITA_EMPRESA; parte++) {
+    await step.do(`refrescar_visita_empresa ${parte + 1}/${PARTES_VISITA_EMPRESA}`, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+      const [f] = await db.filas<{ partes: boolean; todo: boolean }>(
+        `SELECT to_regprocedure('refrescar_visita_empresa_parte(integer,integer)') IS NOT NULL AS partes,
+                to_regprocedure('refrescar_visita_empresa()') IS NOT NULL AS todo`);
+      if (f.partes) {
+        return Number((await db.filas<{ n: number }>("SELECT refrescar_visita_empresa_parte($1, $2) AS n",
+          [parte, PARTES_VISITA_EMPRESA]))[0]?.n ?? 0);
+      }
+      // Sin la 243: la función entera, una sola vez.
+      return parte === 0 && f.todo ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_empresa() AS n"))[0]?.n ?? 0) : 0;
+    }));
+  }
   // Mapa de poder (migración 125): captura por partido/entidad. Lee casos_cruce + entidad_gobierno_amplia + jne, ya listos.
   await uno("refrescar_poder", "SELECT refrescar_poder() AS n");
   return n;

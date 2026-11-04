@@ -20,7 +20,25 @@ sys.path.insert(0, str(ROOT / "infrastructure" / "aws"))
 from tunel_rds import conexion  # noqa: E402
 
 SQL = (ROOT / "backend/db/migrations/241_visitas_empresas_aparte.sql").read_text(encoding="utf-8")
-PASOS = ["refrescar_empresas", "visitas", "refrescar_visita_empresa", "refrescar_poder"]
+PASOS = ["refrescar_empresas", "visitas", "visita_empresa", "refrescar_poder"]
+PARTES_VISITA_EMPRESA = 6          # como el Worker (migración 243)
+
+
+def visita_empresa(env: str) -> None:
+    """refrescar_visita_empresa por partes, cada una en su transacción (migraciones 243-244)."""
+    for parte in range(PARTES_VISITA_EMPRESA):
+        with conexion(env) as c:
+            cur = c.cursor()
+            cur.execute("SET statement_timeout = 0")
+            cur.execute("SELECT to_regprocedure('refrescar_visita_empresa_parte(integer,integer)') IS NOT NULL")
+            if not cur.fetchone()[0]:
+                c.rollback()
+                return correr(env, "refrescar_visita_empresa")
+            t0 = time.time()
+            cur.execute("SELECT refrescar_visita_empresa_parte(%s, %s)", (parte, PARTES_VISITA_EMPRESA))
+            n = cur.fetchone()[0]
+            c.commit()
+        print(f"{env}: visita_empresa parte {parte + 1}/{PARTES_VISITA_EMPRESA} → {n} ({time.time() - t0:.0f} s)", flush=True)
 # Ids de visita por transacción. Todo de una vez (refrescar_empresa_visitas) tardó más de 30 min en producción y el túnel
 # SSM se cortó a mitad (2026-11-03): por tramos, cada uno se guarda y un corte sólo repite el suyo.
 TRAMO = 1_000_000
@@ -100,7 +118,7 @@ def main() -> None:
             c.commit()
         print(f"{a.entorno}: migración 241 aplicada", flush=True)
     for funcion in PASOS[PASOS.index(a.desde_paso):]:
-        visitas(a.entorno) if funcion == "visitas" else correr(a.entorno, funcion)
+        {"visitas": visitas, "visita_empresa": visita_empresa}.get(funcion, lambda e, f=funcion: correr(e, f))(a.entorno)
     with conexion(a.entorno) as c:
         cur = c.cursor()
         cur.execute("""SELECT via, count(*), count(entidad_ruc) FROM empresa_visita GROUP BY via ORDER BY 1""")

@@ -58,11 +58,11 @@ COPIA = COLS + ["periodo"]
 # Lo que rehace aplicar_188.py (más el RUC de cada entidad visitada, primero: sin él las visitas nuevas no cuelgan de nadie).
 REFRESCOS = ["refrescar_visita_entidad_ruc", "refrescar_cruce_visita_previa", "refrescar_visita_pariente",
              "refrescar_ola_gestion", "dedup_cruces_proveedor", "refrescar_casos_cruce_base",
-             "refrescar_entidad_antecedentes", "refrescar_empresas",
-             # Qué empresa está detrás de cada visita (migración 241): ya no va dentro de refrescar_empresas. Antes de
-             # refrescar_poder y refrescar_visita_empresa, que leen empresa_visita.
+             "refrescar_entidad_antecedentes", "refrescar_empresas", "refrescar_poder", "refrescar_visitas_entidad",
+             # Qué empresa está detrás de cada visita (migración 241): ya no va dentro de refrescar_empresas. Tras
+             # refrescar_visitas_entidad, que marca quién decide (la 244 lo copia a empresa_visita), y antes de
+             # refrescar_visita_empresa, que lee empresa_visita.
              "refrescar_empresa_visitas",
-             "refrescar_poder", "refrescar_visitas_entidad",
              # La visita antes de la primera orden de un locador (migración 195): tras refrescar_visitas_entidad, que marca
              # en cada visita si quien la recibió decide las compras.
              "refrescar_persona_visita_previa",
