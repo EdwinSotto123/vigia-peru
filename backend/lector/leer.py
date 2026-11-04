@@ -107,15 +107,22 @@ def paginas_de(b: bytes) -> int:
         return 10
 
 
-def recortar(b: bytes, n: int) -> bytes:
-    """Las primeras n páginas de un PDF (el resto del acta suele ser anexos)."""
+def paginas(b: bytes, indices: list[int]) -> bytes:
+    """Un PDF con sólo esas páginas (en su orden)."""
     from pypdf import PdfReader, PdfWriter
+    lector_pdf = PdfReader(io.BytesIO(b))
     w = PdfWriter()
-    for p in PdfReader(io.BytesIO(b)).pages[:n]:
-        w.add_page(p)
+    for i in indices:
+        if 0 <= i < len(lector_pdf.pages):
+            w.add_page(lector_pdf.pages[i])
     out = io.BytesIO()
     w.write(out)
     return out.getvalue()
+
+
+def recortar(b: bytes, n: int) -> bytes:
+    """Las primeras n páginas de un PDF (el resto del acta suele ser anexos)."""
+    return paginas(b, list(range(n)))
 
 
 def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], formatos: list[str]) -> dict:
@@ -131,16 +138,25 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
         except Exception as e:  # noqa: BLE001
             fila["detalle"] = f"no se pudo bajar {doc_id}: {str(e)[:120]}"
             continue
+        # Un lector puede ordenar los PDF de un ZIP (las bases: primero el que se llama «bases»).
+        if hasattr(lector, "ordenar_pdfs"):
+            partes = lector.ordenar_pdfs(partes)
         usados = False
         for nombre, b in partes:
             n = paginas_de(b)
             queda = TOPE_PAGINAS - fila["paginas"]
             if queda <= 0:
                 break
-            if n > queda:
+            # Un lector puede elegir qué páginas leer (las bases: la sección con los requisitos); si no, las primeras.
+            elegir = getattr(lector, "elegir_paginas", None)
+            if n > queda or elegir:
                 try:
-                    b, n = recortar(b, queda), queda
+                    indices = elegir(b, queda) if elegir else list(range(queda))
+                    if len(indices) < n:
+                        b, n = paginas(b, indices), len(indices)
                 except Exception:  # noqa: BLE001 — no se puede cortar: se salta ese PDF
+                    continue
+                if not n:
                     continue
             pdfs.append((nombre, b))
             fila["paginas"] += n
