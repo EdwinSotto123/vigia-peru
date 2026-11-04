@@ -17,6 +17,7 @@ SECCIONES_POR_PERFIL: dict[str, tuple[str, ...]] = {
     "bienes": ("Precios unitarios vs mercado",),
     "servicios": ("Términos de referencia y proporcionalidad",),
     "obras": ("Expediente técnico, presupuesto y adicionales",),
+    "consultoria": ("Supervisión y vínculo con el contratista", "Términos de referencia y plantel exigido"),
     "otros": ("Causal y expediente de sustento",),
 }
 
@@ -81,6 +82,24 @@ GUIA_SECCION: dict[str, str] = {
         "compra, 'Ofertado' si de la oferta, 'Referencial' solo si es el valor referencial de las bases/OCDS. Si "
         "`sobreprecio_pct` se calculó sobre la cuantía referencial y no sobre lo contratado, dilo (es sobre el "
         "estimado de la entidad, no sobre el precio pagado). Nunca calcules ni reinterpretes cifras: copia las del código."
+    ),
+    "Supervisión y vínculo con el contratista": (
+        "### De `supervision_obra` (base de Vigía: INFOBRAS de la Contraloría y RNP). Si `enlazada` es true, por cada obra: "
+        "nombre, monto del contrato de obra, ejecutor, cuánto cuesta la supervisión frente a la obra "
+        "(`supervision_pct_obra`), avance físico real contra programado y contra lo pagado (`financiero_pct`), "
+        "paralización, ampliaciones, adicionales (`adicionales_pct`) e informes de control, con su enlace "
+        "`fuente_url`; y el `vinculo` del supervisor con el ejecutor (personas en común en el RNP, consorcios en "
+        "común, mismo domicilio). Las señales de `supervision_obra.senales` ya son banderas: interprétalas, no las "
+        "repitas. Si no está enlazada a una obra, di que no se pudo cruzar y usa `historial_supervisor` (cuántas obras "
+        "supervisó, cuántas se paralizaron, cuántas con adicionales altos o pagadas sin avance). Sin `supervision_obra`: "
+        "'no aplica (no es supervisión de obra)'."
+    ),
+    "Términos de referencia y plantel exigido": (
+        "### Del bloque `servicio` del parser, de `lecturas_documentos.bases` (personal clave, experiencia exigida al "
+        "postor, factores de evaluación) y de `legal_analysis`: alcance y entregables, el plantel profesional exigido y "
+        "sus años de experiencia frente al tamaño y plazo de la consultoría, la experiencia del postor frente al valor "
+        "referencial, y si las bases o las consultas sugieren un requisito a la medida. De `market_analysis` "
+        "(historico_seace): la posición del monto frente a consultorías similares, como referencia de escala."
     ),
     "Términos de referencia y proporcionalidad": (
         "### Del bloque `servicio` del parser y de `legal_analysis`: alcance, entregables y plazos, personal clave "

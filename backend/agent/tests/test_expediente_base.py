@@ -136,3 +136,24 @@ def test_fila_de_empresa_vacia_no_reemplaza_a_decolecta(monkeypatch):
     ctx = SimpleNamespace(state={})
     r = E.query_expediente_proveedor("20109161609", ctx)
     assert r["sunat_en_base"] is False and "sunat_decolecta" not in ctx.state
+
+
+# ── Consultoría: la supervisión contra la obra ───────────────────────────────────────────────────────────────────────
+def test_senales_de_supervision():
+    from tools.consultoria import senales_obra
+    o = {"codigo": 81514, "nombre": "Riego Tsimpa", "contrato_monto": 4_000_000, "supervision_monto": 700_000,
+         "fisico_prog": 90, "fisico_real": 40, "financiero_pct": 75, "paralizada": True, "dias_paralizada": 120,
+         "causal_paralizacion": "falta de expediente", "adicionales_n": 3, "adicionales_monto": 1_000_000}
+    v = {"mismo_ruc": False, "personas_comunes": [{"nombre": "PEREZ ••• JUAN", "rol_en_supervisor": "SOCIO_ACCIONISTA_TITULAR",
+                                                   "rol_en_ejecutor": "REPRESENTANTE_LEGAL"}],
+         "consorcios_comunes": ["20600000001"], "mismo_domicilio": False}
+    reglas = {x["regla"]: x for x in senales_obra(o, v)}
+    assert set(reglas) == {"supervisor_vinculado_ejecutor", "supervision_obra_paralizada", "supervision_pagado_sin_avance",
+                           "supervision_avance_rezagado", "supervision_adicionales_altos", "supervision_costo_atipico"}
+    assert reglas["supervisor_vinculado_ejecutor"]["severidad"] == "alta"
+    assert "PEREZ ••• JUAN" in reglas["supervisor_vinculado_ejecutor"]["evidencia"]
+    assert "ObraId=81514" in reglas["supervision_obra_paralizada"]["fuente_url"]
+    # Una obra sana no dispara nada.
+    sana = {"codigo": 1, "nombre": "x", "contrato_monto": 1_000_000, "supervision_monto": 50_000, "fisico_prog": 50,
+            "fisico_real": 48, "financiero_pct": 50, "paralizada": False, "adicionales_monto": 0}
+    assert senales_obra(sana, {"mismo_ruc": False, "personas_comunes": [], "consorcios_comunes": [], "mismo_domicilio": False}) == []

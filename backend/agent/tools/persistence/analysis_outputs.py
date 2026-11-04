@@ -213,6 +213,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "expediente_proveedor": state.get("expediente_proveedor"),
         "lecturas_documentos":  state.get("lecturas_documentos"),
         "precios_internos":     state.get("precios_internos"),
+        "supervision_obra":     state.get("supervision_obra"),
     }
     for w in warns:
         try:

@@ -32,7 +32,9 @@ AGENTES_CANONICOS: tuple[str, ...] = (
 TIPOS_BIENES = frozenset({"bienes"})
 TIPOS_SERVICIOS = frozenset({"servicios"})
 TIPOS_OBRAS = frozenset({"obras"})
-TIPOS_OTROS = frozenset({"consultoria", "convenio", "directa", "otro"})
+TIPOS_CONSULTORIA = frozenset({"consultoria"})
+# «otros» = directas y convenios (desde 2026-11-04 la consultoría tiene su red: plan red de agentes, parte 3).
+TIPOS_OTROS = frozenset({"convenio", "directa", "otro"})
 
 # Topes en UIT por tipo de procedimiento (Ley 32069 / TUO Ley 30225 y Ley de
 # Presupuesto). Los usa `tipo_proceso_vs_monto` (WS V) para saber si el
@@ -180,7 +182,31 @@ _OTROS = Profile(
     parse_max_docs=12,
 )
 
-PROFILES: dict[str, Profile] = {p.nombre: p for p in (_BIENES, _SERVICIOS, _OBRAS, _OTROS)}
+_CONSULTORIA = Profile(
+    nombre="consultoria",
+    tipos_aceptados=TIPOS_CONSULTORIA,
+    # La red de consultoría: el TDR y el plantel exigido (bloque `servicio` del parser y vectores legales de
+    # «SERVICIOS / CONSULTORÍA»), el costo contra el histórico del SEACE y, en una supervisión de obra, la obra en
+    # INFOBRAS y el vínculo del supervisor con el ejecutor (tools/consultoria.py).
+    agentes=AGENTES_CANONICOS,
+    parser_bloque="servicio",
+    market_estrategia="historico_seace",
+    legal_vectores="servicios",
+    reglas_activas=_REGLAS_BASE | {"personal_clave_vinculado", "fraccionamiento"},
+    topes_uit=_TOPES_CONSULTORIA,
+    dictamen_secciones=(
+        "Resumen ejecutivo", "Hechos clave", "Supervisión y vínculo con el contratista",
+        "Términos de referencia y plantel exigido", "Antecedentes del proveedor",
+        "Red de personas", "Cumplimiento normativo", "Recortes y datos no verificables",
+    ),
+    doc_prioridad=(
+        "terminos de referencia", "bases integradas", "bases", "acta", "cuadro comparativo",
+        "contrato", "adenda", "absolucion", "informe",
+    ),
+    parse_max_docs=12,
+)
+
+PROFILES: dict[str, Profile] = {p.nombre: p for p in (_BIENES, _SERVICIOS, _OBRAS, _CONSULTORIA, _OTROS)}
 
 # Alias del tipo de clasificación → perfil que lo atiende.
 TIPO_A_PERFIL: dict[str, str] = {}
@@ -191,10 +217,15 @@ for _p in PROFILES.values():
 PROFILE: str = (os.getenv("PIPELINE_PROFILE") or "bienes").strip().lower()
 
 
+# Nombres que también se aceptan: «directas» es la red de directas y convenios (el perfil se sigue llamando «otros»).
+_ALIAS_PERFIL = {"directas": "otros"}
+
+
 def get_profile(nombre: str | None = None) -> Profile:
     """Perfil activo (env `PIPELINE_PROFILE`, default bienes). Un valor desconocido cae en
     bienes para no romper el servicio histórico; se loggea una vez."""
     n = (nombre or PROFILE or "bienes").strip().lower()
+    n = _ALIAS_PERFIL.get(n, n)
     p = PROFILES.get(n)
     if p is None:
         print(f'[profiles] PIPELINE_PROFILE="{n}" desconocido → bienes', flush=True)

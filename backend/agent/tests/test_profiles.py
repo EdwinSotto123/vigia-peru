@@ -12,7 +12,8 @@ TODOS_LOS_TIPOS = {"bienes", "servicios", "obras", "consultoria", "convenio", "d
     ("bienes", {"bienes"}),
     ("servicios", {"servicios"}),
     ("obras", {"obras"}),
-    ("otros", {"consultoria", "convenio", "directa", "otro"}),
+    ("consultoria", {"consultoria"}),
+    ("otros", {"convenio", "directa", "otro"}),
 ])
 def test_cada_perfil_acepta_su_tipo_y_rechaza_los_demas(nombre, tipos):
     p = P.get_profile(nombre)
@@ -37,6 +38,8 @@ def test_tipos_cubren_todo_y_sin_solapes():
         cubiertos |= p.tipos_aceptados
     assert cubiertos == TODOS_LOS_TIPOS
     assert P.perfil_para_tipo("directa") == "otros"
+    assert P.perfil_para_tipo("consultoria") == "consultoria"
+    assert P.get_profile("directas").nombre == "otros"
     assert P.perfil_para_tipo("obras") == "obras"
     assert P.perfil_para_tipo("desconocido") is None
 

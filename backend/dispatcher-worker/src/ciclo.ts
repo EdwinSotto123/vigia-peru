@@ -42,7 +42,7 @@ function sinServicios(env: Env): boolean {
 export async function ejecutarCiclo(env: Env, origen: string): Promise<ResultadoCiclo> {
   const cfg = leerConfig(env);
   if (sinServicios(env)) {
-    registrar("ERROR", "falta AGENT_URL (o AGENT_URL_BIENES/SERVICIOS/OBRAS/OTROS)");
+    registrar("ERROR", "falta AGENT_URL (o AGENT_URL_BIENES/SERVICIOS/OBRAS/CONSULTORIA/OTROS)");
     return { ok: false, error: "sin_servicios_de_agentes" };
   }
   const inicio = Date.now();

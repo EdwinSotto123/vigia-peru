@@ -14,7 +14,7 @@ orquestador corre solo los agentes que aplican. Sin clasificación (NULL) → to
 
 Enrutado por tipo de contratación: hay un servicio de agentes por perfil (mismo código,
 `PIPELINE_PROFILE` distinto): AGENT_URL_BIENES, AGENT_URL_SERVICIOS, AGENT_URL_OBRAS y
-AGENT_URL_OTROS (consultoría, convenio, directa, otro). `AGENT_URL` (histórico) es el fallback
+AGENT_URL_CONSULTORIA y AGENT_URL_OTROS (convenio, directa, otro). `AGENT_URL` (histórico) es el fallback
 SOLO para bienes y para contratos sin clasificación. Si el servicio del tipo no está configurado,
 el contrato queda `pendiente_de_procesamiento` (no se manda servicios/obras al de bienes).
 
@@ -56,9 +56,9 @@ AGENT_URL = os.environ.get("AGENT_URL", "").rstrip("/")
 # Tipo de clasificación (backend/core/clasificacion.py) → perfil del servicio de agentes.
 PERFIL_DE_TIPO: dict[str, str] = {
     "bienes": "bienes", "servicios": "servicios", "obras": "obras",
-    "consultoria": "otros", "convenio": "otros", "directa": "otros", "otro": "otros",
+    "consultoria": "consultoria", "convenio": "otros", "directa": "otros", "otro": "otros",
 }
-PERFILES = ("bienes", "servicios", "obras", "otros")
+PERFILES = ("bienes", "servicios", "obras", "consultoria", "otros")
 PARALLEL = int(os.getenv("DISPATCHER_PARALLEL", "2"))
 MAX_MIN = int(os.getenv("DISPATCHER_MAX_MINUTES", "25"))
 STREAM_TIMEOUT = int(os.getenv("DISPATCHER_STREAM_TIMEOUT", "1200"))

@@ -87,6 +87,9 @@ RULE_SLUGS: frozenset[str] = frozenset({
     "oferta_igual_valor_referencial", "ofertas_agrupadas", "unica_oferta_valida", "ganador_no_invitado",
     "oferta_mas_barata_no_gana", "fecha_buena_pro_incoherente", "firmante_con_empresa_rnp", "postores_vinculados_rnp",
     "ampliacion_denegada_penalidad", "sancion_historica_oece", "penalidades_oece_historicas", "cuantia_al_limite_del_tope",
+    # Red de consultoría (tools/consultoria.py): la supervisión contra la obra en INFOBRAS.
+    "supervisor_vinculado_ejecutor", "supervision_obra_paralizada", "supervision_pagado_sin_avance",
+    "supervision_avance_rezagado", "supervision_adicionales_altos", "supervision_costo_atipico",
 })
 
 # Claves del state que son fuente FUERTE (obtenidas de forma determinista: OCDS, SUNAT,

@@ -8,13 +8,14 @@ const ENV_COMPLETO = {
   AGENT_URL_BIENES: "https://bienes.run.app",
   AGENT_URL_SERVICIOS: "https://servicios.run.app/",
   AGENT_URL_OBRAS: "https://obras.run.app",
+  AGENT_URL_CONSULTORIA: "https://consultoria.lambda-url.aws/",
   AGENT_URL_OTROS: "https://otros.run.app",
 };
 
 test("perfil de tipo", () => {
   const casos: [string, string][] = [
     ["bienes", "bienes"], ["servicios", "servicios"], ["obras", "obras"],
-    ["consultoria", "otros"], ["convenio", "otros"], ["directa", "otros"], ["otro", "otros"],
+    ["consultoria", "consultoria"], ["convenio", "otros"], ["directa", "otros"], ["otro", "otros"],
     ["OBRAS", "obras"], [" directa ", "otros"],
   ];
   for (const [tipo, perfil] of casos) assert.equal(perfilDe(tipo), perfil, tipo);
@@ -24,14 +25,15 @@ test("perfil desconocido o vacío", () => {
   assert.equal(perfilDe(null), null);
   assert.equal(perfilDe(""), null);
   assert.equal(perfilDe("x"), null);
-  assert.deepEqual(new Set(Object.values(PERFIL_DE_TIPO)), new Set(["bienes", "servicios", "obras", "otros"]));
+  assert.deepEqual(new Set(Object.values(PERFIL_DE_TIPO)), new Set(["bienes", "servicios", "obras", "consultoria", "otros"]));
 });
 
 test("url por tipo con todas configuradas", () => {
   assert.deepEqual(urlPara("bienes", ENV_COMPLETO), ["https://bienes.run.app", "bienes"]);
   assert.deepEqual(urlPara("servicios", ENV_COMPLETO), ["https://servicios.run.app", "servicios"]); // sin barra final
   assert.deepEqual(urlPara("obras", ENV_COMPLETO), ["https://obras.run.app", "obras"]);
-  for (const t of ["consultoria", "convenio", "directa", "otro"]) assert.deepEqual(urlPara(t, ENV_COMPLETO), ["https://otros.run.app", "otros"]);
+  assert.deepEqual(urlPara("consultoria", ENV_COMPLETO), ["https://consultoria.lambda-url.aws", "consultoria"]);
+  for (const t of ["convenio", "directa", "otro"]) assert.deepEqual(urlPara(t, ENV_COMPLETO), ["https://otros.run.app", "otros"]);
 });
 
 test("fallback AGENT_URL solo para bienes y sin clasificación", () => {
@@ -42,6 +44,7 @@ test("fallback AGENT_URL solo para bienes y sin clasificación", () => {
   assert.deepEqual(urlPara("servicios", env), [null, "servicios"]);
   assert.deepEqual(urlPara("obras", env), [null, "obras"]);
   assert.deepEqual(urlPara("directa", env), [null, "otros"]);
+  assert.deepEqual(urlPara("consultoria", env), [null, "consultoria"]);
 });
 
 test("tipo desconocido no enruta", () => {

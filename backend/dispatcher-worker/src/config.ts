@@ -27,6 +27,7 @@ export interface Env {
   AGENT_URL_BIENES?: string;
   AGENT_URL_SERVICIOS?: string;
   AGENT_URL_OBRAS?: string;
+  AGENT_URL_CONSULTORIA?: string;
   AGENT_URL_OTROS?: string;
   DISPATCHER_PARALLEL?: string;
   DISPATCHER_MAX_MINUTES?: string;

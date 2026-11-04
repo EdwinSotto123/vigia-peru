@@ -8,13 +8,14 @@ ENV_COMPLETO = {
     "AGENT_URL_BIENES": "https://bienes.run.app",
     "AGENT_URL_SERVICIOS": "https://servicios.run.app/",
     "AGENT_URL_OBRAS": "https://obras.run.app",
+    "AGENT_URL_CONSULTORIA": "https://consultoria.lambda-url.aws/",
     "AGENT_URL_OTROS": "https://otros.run.app",
 }
 
 
 @pytest.mark.parametrize("tipo,perfil", [
     ("bienes", "bienes"), ("servicios", "servicios"), ("obras", "obras"),
-    ("consultoria", "otros"), ("convenio", "otros"), ("directa", "otros"), ("otro", "otros"),
+    ("consultoria", "consultoria"), ("convenio", "otros"), ("directa", "otros"), ("otro", "otros"),
     ("OBRAS", "obras"), (" directa ", "otros"),
 ])
 def test_perfil_de_tipo(tipo, perfil):
@@ -23,14 +24,15 @@ def test_perfil_de_tipo(tipo, perfil):
 
 def test_perfil_desconocido_o_vacio():
     assert perfil_de(None) is None and perfil_de("") is None and perfil_de("x") is None
-    assert set(PERFIL_DE_TIPO.values()) == {"bienes", "servicios", "obras", "otros"}
+    assert set(PERFIL_DE_TIPO.values()) == {"bienes", "servicios", "obras", "consultoria", "otros"}
 
 
 def test_url_por_tipo_con_todas_configuradas():
     assert url_para("bienes", ENV_COMPLETO) == ("https://bienes.run.app", "bienes")
     assert url_para("servicios", ENV_COMPLETO) == ("https://servicios.run.app", "servicios")  # sin barra final
     assert url_para("obras", ENV_COMPLETO) == ("https://obras.run.app", "obras")
-    for t in ("consultoria", "convenio", "directa", "otro"):
+    assert url_para("consultoria", ENV_COMPLETO) == ("https://consultoria.lambda-url.aws", "consultoria")
+    for t in ("convenio", "directa", "otro"):
         assert url_para(t, ENV_COMPLETO) == ("https://otros.run.app", "otros")
 
 

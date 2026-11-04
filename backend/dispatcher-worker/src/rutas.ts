@@ -1,7 +1,8 @@
 /**
  * Enrutado por tipo de contratación → servicio de agentes (`url_para` de backend/dispatcher/main.py).
  * Un servicio por perfil (mismo código, `PIPELINE_PROFILE` distinto): AGENT_URL_BIENES,
- * AGENT_URL_SERVICIOS, AGENT_URL_OBRAS y AGENT_URL_OTROS. `AGENT_URL` (histórico) es el fallback SOLO
+ * AGENT_URL_SERVICIOS, AGENT_URL_OBRAS, AGENT_URL_CONSULTORIA (desde 2026-11-04 su propia red) y AGENT_URL_OTROS
+ * (directas y convenios). `AGENT_URL` (histórico) es el fallback SOLO
  * para bienes y para contratos sin clasificación. Nunca se manda servicios/obras/otros al de bienes.
  */
 
@@ -10,9 +11,9 @@ import { strip } from "./py.ts";
 // Tipo de clasificación (backend/core/clasificacion.py) → perfil del servicio de agentes.
 export const PERFIL_DE_TIPO: Readonly<Record<string, string>> = {
   bienes: "bienes", servicios: "servicios", obras: "obras",
-  consultoria: "otros", convenio: "otros", directa: "otros", otro: "otros",
+  consultoria: "consultoria", convenio: "otros", directa: "otros", otro: "otros",
 };
-export const PERFILES = ["bienes", "servicios", "obras", "otros"] as const;
+export const PERFILES = ["bienes", "servicios", "obras", "consultoria", "otros"] as const;
 
 export type Variables = Readonly<Record<string, unknown>>;
 
