@@ -97,10 +97,15 @@ RULE_SLUGS: frozenset[str] = frozenset({
 # respaldo secundario porque son el input literal que vieron los agentes downstream).
 _STRONG_KEYS = ("ocds", "ocds_preloaded", "sunat_decolecta", "sunat_profiles",
                 "person_network_context", "convocatoria_items", "estado_real",
-                "analisis_postores")
+                "analisis_postores",
+                # La base de Vigía (plan 2026-11-04): el expediente del proveedor, el perfil OECE armado con
+                # osce_sancionados/penalidades, la obra (INFOBRAS, Invierte.pe) y los precios del Estado.
+                "expediente_proveedor", "oece_perfiles", "obra_ejecucion", "supervision_obra", "precios_internos")
 _STRONG_PREFIXES = ("rnp_", "batch_person_lookup")
 _PARSER_KEYS = ("parser_raw_consolidated", "document_analysis", "estudio_mercado",
-                "contrato_final", "legal_analysis")
+                "contrato_final", "legal_analysis",
+                # Lo que leyeron los lectores de Vigía (Haiku sobre los PDF): extraído por un modelo, como el parser.
+                "lecturas_documentos")
 _MARKET_KEYS = ("market_analysis", "market_input")
 _RESEARCH_KEYS = ("entity_personnel", "web_research", "news_research", "person_network")
 
