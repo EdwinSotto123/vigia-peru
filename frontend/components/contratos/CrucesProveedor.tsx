@@ -32,7 +32,6 @@ import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
 import { esTipoLeido, esTipoObra } from "@/lib/cruces";
-import { pareceEmpresa } from "@/components/Redact";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -812,10 +811,14 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
 }
 
 /** Quien quedó fuera, como lo nombra el acta: una persona natural no se nombra (su RUC lleva el DNI). */
+// Componente de servidor: no puede usar pareceEmpresa de components/Redact.tsx (es de cliente: llega como referencia, no
+// como función). El RUC decide; sin RUC, una forma societaria o «consorcio» en el nombre.
+const MARCA_EMPRESA = /\b(consorcio|s\.?\s?a\.?\s?c|s\.?\s?r\.?\s?l|e\.?\s?i\.?\s?r\.?\s?l|s\.?\s?a\.?\s?a|sociedad|empresa|corporaci[oó]n|inversiones|constructora|servicios|ingenier[ií]a|contratistas|asociaci[oó]n)\b/i;
 function nombreFuera(f: { nombre?: unknown; ruc?: unknown }): string {
   const nombre = typeof f.nombre === "string" ? f.nombre.trim() : "";
-  const ruc = typeof f.ruc === "string" ? f.ruc : null;
-  return nombre && pareceEmpresa(nombre, ruc) ? tituloNatural(nombre) : "un postor (persona natural)";
+  const ruc = typeof f.ruc === "string" ? f.ruc.replace(/\D/g, "") : "";
+  const empresa = ruc.startsWith("20") || (!ruc.startsWith("10") && MARCA_EMPRESA.test(nombre));
+  return nombre && empresa ? tituloNatural(nombre) : "un postor (persona natural)";
 }
 
 /** Una bandera del acta de buena pro o del pliego de consultas: lo que dice el documento y el enlace al SEACE. */
