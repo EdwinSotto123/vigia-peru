@@ -26,7 +26,8 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CARRILES } from "@/lib/auditoria";
 import { PASOS } from "@/components/agentes/catalogo";
-import { AGENT_IDS, G_COLOR, G_DONE, G_FLOW, VERB_HEX } from "../constants";
+import { AGENT_IDS, paletaGrafo, type PaletaGrafo } from "../constants";
+import { useModo } from "@/lib/modo";
 import { buildTrace, extractFindings } from "../utils";
 import { maskApellido, maskDnis, pareceEmpresa } from "@/components/Redact";
 
@@ -120,7 +121,8 @@ const G_EDGES: Array<{ from: string; to: string }> = [];
 for (const n of G_NODES) for (const s of n.sources) G_EDGES.push({ from: s, to: n.id });
 for (const r of RAICES) G_EDGES.push({ from: "orch", to: r });
 
-const colorDe = (t: TipoNodo | undefined) => G_COLOR[t === "paso" ? "src" : t ?? "src"] ?? G_COLOR.src;
+/** El color del tipo de nodo en la paleta del modo actual (constants.paletaGrafo). */
+const colorDe = (pal: PaletaGrafo, t: TipoNodo | undefined) => pal.nodo[t === "paso" ? "src" : t ?? "src"] ?? pal.nodo.src;
 const TIPO_LABEL: Record<TipoNodo, string> = { orch: "Coordinador (no es IA)", agent: "Agente de IA", paso: "Paso de datos o control (no es IA)" };
 
 /**
@@ -173,6 +175,9 @@ export function FlowGraph({ liveEvents = [], override }: {
   const findRef = useRef(findings); findRef.current = findings;
   const activeRef = useRef(activeId); activeRef.current = activeId;
   const doneRef = useRef(doneSet); doneRef.current = doneSet;
+  // Colores del canvas según el modo de la página (día/noche): el loop los lee del ref en cada cuadro.
+  const pal = paletaGrafo(useModo());
+  const palRef = useRef(pal); palRef.current = pal;
 
   useEffect(() => {
     const wrap = wrapRef.current, canvas = canvasRef.current;
@@ -241,8 +246,8 @@ export function FlowGraph({ liveEvents = [], override }: {
     }
     function emitForActive() {
       const id = activeRef.current; const n = gn(id); if (!n) return;
-      n.sources.forEach((s) => spawn(s, id, colorDe(n.type).stroke));
-      if (RAICES.has(id)) spawn("orch", id, G_COLOR.orch.stroke);
+      n.sources.forEach((s) => spawn(s, id, colorDe(palRef.current, n.type).stroke));
+      if (RAICES.has(id)) spawn("orch", id, palRef.current.nodo.orch.stroke);
     }
 
     function draw() {
@@ -269,14 +274,14 @@ export function FlowGraph({ liveEvents = [], override }: {
         const isSel = selEdges && selEdges.has(e.from + ">" + e.to);
         const live = liveEdge(e);
         const dimmed = sel && !isSel;
-        const ca = colorDe(a.type).stroke, cb = colorDe(b.type).stroke;
+        const ca = colorDe(palRef.current, a.type).stroke, cb = colorDe(palRef.current, b.type).stroke;
         const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.08, my = (a.y + b.y) / 2 - (b.x - a.x) * 0.08;
         ctx!.save();
         if (live) {
           ctx!.globalAlpha = 0.5 + 0.45 * flowPulse;
           ctx!.lineWidth = 2.6;
-          ctx!.strokeStyle = G_FLOW;
-          if (!quieto) { ctx!.shadowColor = G_FLOW; ctx!.shadowBlur = 11; }
+          ctx!.strokeStyle = palRef.current.flujo;
+          if (!quieto) { ctx!.shadowColor = palRef.current.flujo; ctx!.shadowBlur = 11; }
           ctx!.setLineDash([7, 8]); ctx!.lineDashOffset = dashPhase;
         } else if (isSel) {
           ctx!.globalAlpha = 0.85; ctx!.lineWidth = 1.8;
@@ -293,7 +298,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         const qx = (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * mx + t * t * b.x, qy = (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * my + t * t * b.y;
         const ang = Math.atan2(b.y - qy, b.x - qx);
         const ax = b.x - Math.cos(ang) * (b.r + 2), ay = b.y - Math.sin(ang) * (b.r + 2);
-        ctx!.strokeStyle = live ? G_FLOW : cb; ctx!.lineWidth = isSel || live ? 1.8 : 1.1;
+        ctx!.strokeStyle = live ? palRef.current.flujo : cb; ctx!.lineWidth = isSel || live ? 1.8 : 1.1;
         ctx!.beginPath();
         ctx!.moveTo(ax - Math.cos(ang - 0.42) * 7, ay - Math.sin(ang - 0.42) * 7); ctx!.lineTo(ax, ay); ctx!.lineTo(ax - Math.cos(ang + 0.42) * 7, ay - Math.sin(ang + 0.42) * 7);
         ctx!.stroke();
@@ -311,7 +316,7 @@ export function FlowGraph({ liveEvents = [], override }: {
 
       // nodos
       sn.forEach((n) => {
-        const c = colorDe(n.type);
+        const c = colorDe(palRef.current, n.type);
         const isActive = active === n.id, isDone = !isActive && done.has(n.id);
         const isSel = sel === n.id, isHov = hoverRef.current === n.id;
         const dimmed = sel && selConns && !selConns.has(n.id);
@@ -319,9 +324,9 @@ export function FlowGraph({ liveEvents = [], override }: {
         ctx!.save(); ctx!.globalAlpha = dimmed ? 0.18 : 1;
         if (isActive || isSel) { ctx!.shadowColor = c.stroke; ctx!.shadowBlur = isSel ? 26 : 18; }
         ctx!.beginPath(); ctx!.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx!.fillStyle = isDone ? G_DONE.fill : "#111717";
+        ctx!.fillStyle = isDone ? palRef.current.hecho.fill : palRef.current.fondoNodo;
         ctx!.fill(); ctx!.shadowBlur = 0;
-        ctx!.strokeStyle = isDone ? G_DONE.stroke : (isActive || isSel) ? c.stroke : c.stroke + "66";
+        ctx!.strokeStyle = isDone ? palRef.current.hecho.stroke : (isActive || isSel) ? c.stroke : c.stroke + "66";
         ctx!.lineWidth = (isActive || isSel) ? 2.4 : 1.2;
         if (n.type === "paso") ctx!.setLineDash([4, 3]);
         ctx!.stroke(); ctx!.setLineDash([]);
@@ -337,10 +342,10 @@ export function FlowGraph({ liveEvents = [], override }: {
         const lines = [n.label]; if (sub) lines.push(sub);
         const fs = n.type === "orch" ? 12 : 11;
         ctx!.textAlign = "center"; ctx!.textBaseline = "middle";
-        ctx!.fillStyle = dimmed ? "#4A5959" : isDone ? G_DONE.text : (isActive || isSel) ? c.stroke : "#E7F0EE"; // ink
+        ctx!.fillStyle = dimmed ? palRef.current.apagado : isDone ? palRef.current.hecho.text : (isActive || isSel) ? c.stroke : palRef.current.tinta; // ink
         ctx!.font = `${n.type === "orch" ? "800" : "700"} ${fs}px ${FONT}`;
         lines.forEach((line, i) => { const lh = fs + 2; const yOff = (i - (lines.length - 1) / 2) * lh; ctx!.fillText(line, n.x, n.y + yOff); });
-        if (isDone) { ctx!.fillStyle = G_DONE.stroke; ctx!.font = `${Math.max(r * 0.5, 10)}px sans-serif`; ctx!.fillText("✓", n.x + r * 0.62, n.y - r * 0.62); }
+        if (isDone) { ctx!.fillStyle = palRef.current.hecho.stroke; ctx!.font = `${Math.max(r * 0.5, 10)}px sans-serif`; ctx!.fillText("✓", n.x + r * 0.62, n.y - r * 0.62); }
         ctx!.restore();
       });
     }
@@ -375,7 +380,7 @@ export function FlowGraph({ liveEvents = [], override }: {
   }, []);
 
   const nm = (id: string) => G_NODES.find((n) => n.id === id)?.name || id;
-  const stroke = (id: string) => colorDe(G_NODES.find((n) => n.id === id)?.type).stroke;
+  const stroke = (id: string) => colorDe(pal, G_NODES.find((n) => n.id === id)?.type).stroke;
   const selNode = selected ? G_NODES.find((n) => n.id === selected) : null;
   const recent = trace.slice(-6).reverse();
 
@@ -473,7 +478,7 @@ export function FlowGraph({ liveEvents = [], override }: {
             <div className="flex flex-col gap-1">
               {recent.slice(-6).map((s, i) => (
                 <div key={i} className="flex items-baseline gap-1.5 text-micro leading-snug text-mute">
-                  <span className="shrink-0 font-mono font-bold" style={{ color: VERB_HEX[s.v] }}>{s.v}</span>
+                  <span className="shrink-0 font-mono font-bold" style={{ color: pal.verbo[s.v] }}>{s.v}</span>
                   <span className="truncate">{s.m}</span>
                 </div>
               ))}
@@ -486,9 +491,9 @@ export function FlowGraph({ liveEvents = [], override }: {
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
           <div className="mb-2 text-rotulo font-semibold text-ink">Leyenda</div>
           <ul className="flex flex-col gap-1.5 text-rotulo text-mute">
-            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: G_COLOR.agent.stroke }} aria-hidden />Agente de IA</li>
-            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: G_COLOR.src.stroke, background: G_COLOR.src.stroke + "40" }} aria-hidden />Paso de datos o control (no es IA)</li>
-            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: G_COLOR.orch.stroke }} aria-hidden />Coordinador (código fijo)</li>
+            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: pal.nodo.agent.stroke }} aria-hidden />Agente de IA</li>
+            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: pal.nodo.src.stroke, background: pal.nodo.src.stroke + "40" }} aria-hidden />Paso de datos o control (no es IA)</li>
+            <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: pal.nodo.orch.stroke }} aria-hidden />Coordinador (código fijo)</li>
           </ul>
           <p className="mt-2 text-micro leading-snug text-mute">Las flechas siguen el orden real: expediente y proveedor a la vez, la síntesis al final.</p>
         </div>
@@ -497,8 +502,8 @@ export function FlowGraph({ liveEvents = [], override }: {
       {/* BARRA DE NARRACIÓN (paso actual) */}
       <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-line bg-paperSoft/95 px-5 py-2.5 shadow-lg backdrop-blur sm:max-w-[calc(100%-320px)]">
         <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: curStep ? pal.verbo[curStep.v] : stroke(activeId) }} />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? pal.verbo[curStep.v] : stroke(activeId) }} />
         </span>
         {override?.narracion ? (
           <span className="truncate font-display text-dato font-semibold text-ink">
@@ -506,7 +511,7 @@ export function FlowGraph({ liveEvents = [], override }: {
           </span>
         ) : curStep ? (
           <span className="truncate font-display text-dato font-semibold text-ink">
-            <span className="font-mono text-micro uppercase tracking-wider" style={{ color: VERB_HEX[curStep.v] }}>{curStep.v}</span>
+            <span className="font-mono text-micro uppercase tracking-wider" style={{ color: pal.verbo[curStep.v] }}>{curStep.v}</span>
             {" "}<span style={{ color: stroke(curStep.f) }}>{nm(curStep.f)}</span> {curStep.m}
           </span>
         ) : (

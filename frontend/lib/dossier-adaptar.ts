@@ -142,6 +142,10 @@ export function adaptLoadedToUi(loaded: any) {
     normative_compliance: loaded.normative_compliance,
     estado_real:          loaded.estado_real,
     analisis_postores:    loaded.analisis_postores,
+    // Plan 2026-11-04: el expediente del proveedor desde la base, los documentos ya leídos y los precios del Estado.
+    expediente_proveedor: loaded.expediente_proveedor ?? null,
+    lecturas_documentos:  loaded.lecturas_documentos ?? null,
+    precios_internos:     loaded.precios_internos ?? null,
     doc_parser_raw: "",
     market_analysis_raw: "",
     web_research_raw: "",

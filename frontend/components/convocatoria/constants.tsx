@@ -41,6 +41,40 @@ export const TRACE_ROLE: Record<string, string> = {
 
 export const VERB_HEX: Record<string, string> = { delega: "#D4FF3F", invoca: "#6C8CFF", consulta: "#E88C5C", persiste: "#8FA3A0" };
 
+/**
+ * Los mismos colores del grafo en <canvas> para cada modo de la página (lib/modo.ts: `useModo`), como `paletaMapa`: el
+ * canvas no lee las variables de globals.css. Noche = los de arriba; día = los tokens de `html[data-modo="dia"]`
+ * (verde profundo #2F6B10, añil #3B5CCC, arcilla #B05826, moss #168C5A, tinta #111817 sobre papel #F7F9F8).
+ */
+export interface PaletaGrafo {
+  nodo: typeof G_COLOR;
+  hecho: typeof G_DONE;
+  flujo: string;
+  verbo: typeof VERB_HEX;
+  fondoNodo: string;
+  apagado: string;
+  tinta: string;
+}
+
+const PALETA_NOCHE: PaletaGrafo = {
+  nodo: G_COLOR, hecho: G_DONE, flujo: G_FLOW, verbo: VERB_HEX, fondoNodo: "#111717", apagado: "#4A5959", tinta: "#E7F0EE",
+};
+
+const PALETA_DIA: PaletaGrafo = {
+  nodo: {
+    orch:  { fill: "#FFFFFF", stroke: "#2F6B10", text: "#2F6B10" },
+    agent: { fill: "#FFFFFF", stroke: "#3B5CCC", text: "#2C48AA" },
+    src:   { fill: "#FFFFFF", stroke: "#B05826", text: "#964B19" },
+    store: { fill: "#FFFFFF", stroke: "#586764", text: "#374442" },
+  },
+  hecho: { fill: "#E2F0E8", stroke: "#168C5A", text: "#156E46" },
+  flujo: "#168C5A",
+  verbo: { delega: "#2F6B10", invoca: "#3B5CCC", consulta: "#B05826", persiste: "#586764" },
+  fondoNodo: "#FFFFFF", apagado: "#BECAC7", tinta: "#111817",
+};
+
+export const paletaGrafo = (modo: "dia" | "noche"): PaletaGrafo => (modo === "dia" ? PALETA_DIA : PALETA_NOCHE);
+
 // Mapeo visual de cada agente. Rótulos en castellano (los de FASES en lib/auditoria), no el
 // nombre interno en inglés. Todos en tinta neutra: los tokens de severidad (rust, amber, moss)
 // y el granate de la marca no identifican agentes; el agente se reconoce por su nombre.

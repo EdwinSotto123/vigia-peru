@@ -281,6 +281,8 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   postoresDetalle: { campos: [["razonSocial", "sunat"]] },
   fuera: { campos: [["nombre", "sunat"]] },
   contratista: { campos: [["nombre", "sunat"]] },
+  // El expediente del proveedor (agente, plan 2026-11-04): socios y representantes del RNP, ya con un apellido tapado.
+  rnp: { campos: [["nombre", "sunat"]] },
 };
 
 /**

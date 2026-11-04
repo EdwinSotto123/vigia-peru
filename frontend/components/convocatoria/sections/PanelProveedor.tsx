@@ -11,6 +11,7 @@ import { montoDossier } from "../dossier";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { EmpresaAdjudicaCard } from "./EmpresaAdjudicaCard";
+import { FichaProveedor } from "./FichaProveedor";
 import { FuentesConsultadasSection } from "./FuentesConsultadasSection";
 import { OtrosContratosSection } from "./OtrosContratosSection";
 import { AportesPoliticosSection } from "./AportesPoliticosSection";
@@ -30,13 +31,18 @@ export function PanelProveedor({ result, conv, ganador, ganadores, nombresPrivad
   const fuentes = result.web_research?.hallazgos_por_fuente || [];
   return (
     <div className="space-y-4">
-      {!result.web_research && !result.person_network && (
+      {!result.web_research && !result.person_network && !(result as any).expediente_proveedor && (
         <AvisoSeccion titulo="La investigación del proveedor no corrió en este análisis" icono={<Building2 size={16} aria-hidden />}>
           {result.web_research_raw || result.person_network_raw ? "Respondió, pero su resultado no se pudo leer. " : ""}
           Lo que aparece abajo sale de los registros públicos que sí se consultaron.
         </AvisoSeccion>
       )}
-      {result.web_research?.empresa && (
+      {(result as any).expediente_proveedor ? (
+        <SeccionSegura nombre="la ficha del proveedor">
+          <FichaProveedor exp={(result as any).expediente_proveedor} nombre={ganador?.nombre ?? result.web_research?.empresa?.razon_social}
+                          sugeridas={result.web_research?.banderas_sugeridas || []} />
+        </SeccionSegura>
+      ) : result.web_research?.empresa && (
         <SeccionSegura nombre="la ficha del proveedor">
           <EmpresaAdjudicaCard empresa={result.web_research.empresa} banderasSugeridas={result.web_research.banderas_sugeridas || []} />
         </SeccionSegura>

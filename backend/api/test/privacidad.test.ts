@@ -365,3 +365,18 @@ test("lo que Claude leyó del acta y el contrato: postores, descartados y contra
   assert.ok(!texto.includes("PAZ MARIA") && !texto.includes("ROJAS PAZ MARIA ELENA"), texto);
   assert.ok(!texto.includes("TORRES") && !texto.includes("10456789012"), texto);
 });
+
+test("el expediente del proveedor: el RNP ya tapado no se vuelve a tapar; uno en claro se tapa", () => {
+  const exp = publicar({
+    expediente_proveedor: {
+      ruc: "20109161609",
+      rnp: [
+        { rol: "REPRESENTANTE_LEGAL", nombre: `TRUJILLO ${TAPA_NOMBRE} RUBEN MARCOS` },
+        { rol: "SOCIO_ACCIONISTA_TITULAR", nombre: "QUISPE MAMANI ROSA ELENA" },
+      ],
+    },
+  });
+  assert.equal(exp.expediente_proveedor.rnp[0].nombre, `TRUJILLO ${TAPA_NOMBRE} RUBEN MARCOS`);
+  assert.equal(exp.expediente_proveedor.rnp[1].nombre, `QUISPE ${TAPA_NOMBRE} ROSA ELENA`);
+  assert.equal(exp.expediente_proveedor.ruc, "20109161609");
+});

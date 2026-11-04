@@ -6,6 +6,7 @@
 #   bash infrastructure/deploy/aws/agentes.sh <tag>               # rol de BD vigia_ab: SOLO LECTURA, para evaluar
 #   ROL=agentes bash infrastructure/deploy/aws/agentes.sh <tag>   # vigia_agentes: escribe alertas y banderas (producción)
 #   FUNCION=otra-lambda bash …                                     # otra función con la misma imagen
+#   FUNCION=vigia-agente-obras PERFIL=obras bash …                 # otra red (PIPELINE_PROFILE): servicios, obras, consultoria…
 #   EXTRA_ENV_JSON=/ruta/local.json bash …                         # variables extra (p. ej. otro motor de agentes)
 #
 # EXTRA_ENV_JSON es un archivo LOCAL ({"VARIABLE": "valor", …}) que no se versiona: lo que no tiene que estar en el
@@ -36,7 +37,9 @@ e = {
     "PGHOST": "vigia-db.c58yci0sglx8.us-east-2.rds.amazonaws.com", "PGDATABASE": "vigia",
     "PGUSER": os.environ["PGUSER_V"], "PGPASSWORD": os.environ["PGPASSWORD_V"],
     "PGSSLMODE": "verify-full", "PGSSLROOTCERT": "/app/certs/rds-global-bundle.pem",
-    "PIPELINE_PROFILE": "bienes", "DETERMINISTIC_PIPELINE": "1",
+    "PIPELINE_PROFILE": os.environ.get("PERFIL", "bienes"), "DETERMINISTIC_PIPELINE": "1",
+    # El OECE en vivo responde 403 desde AWS: el perfil del proveedor sale de la base (tools/expediente.py).
+    "OECE_EN_VIVO": "0",
     # El modelo, por el Worker vigia-llm (su alias "respaldo"); GOOGLE_CLOUD_PROJECT=no-gcp: nada de Vertex.
     "USAR_WORKERS_AI": "1", "WORKERS_AI_URL": "https://vigia-llm.vigiaperu.workers.dev/v1", "WORKERS_AI_TOKEN": os.environ["LLM_T"],
     "WORKERS_AI_MODEL": os.environ.get("MODELO", "respaldo"), "WORKERS_AI_REASONING": "low", "WORKERS_AI_TIMEOUT_S": "150",
@@ -72,5 +75,8 @@ if ! aws "${P[@]}" lambda get-function-url-config --function-name "$FUNCION" >/d
   aws "${P[@]}" lambda create-function-url-config --function-name "$FUNCION" --auth-type NONE --invoke-mode RESPONSE_STREAM --query FunctionUrl --output text
   aws "${P[@]}" lambda add-permission --function-name "$FUNCION" --statement-id url-publica --action lambda:InvokeFunctionUrl \
     --principal '*' --function-url-auth-type NONE --output text >/dev/null
+  # Desde fines de 2025 una Function URL también pide lambda:InvokeFunction (sin éste responde 403 a todo).
+  aws "${P[@]}" lambda add-permission --function-name "$FUNCION" --statement-id url-publica-invoke --action lambda:InvokeFunction \
+    --principal '*' --invoked-via-function-url --output text >/dev/null
 fi
 aws "${P[@]}" lambda get-function-url-config --function-name "$FUNCION" --query FunctionUrl --output text

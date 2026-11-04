@@ -124,6 +124,47 @@ export async function filaTraza(id: string): Promise<{ codigo: string; estado: s
  * `publico` (por defecto): datos personales tapados (lib/privacidad.ts) y la traza sin entradas ni
  * salidas de las herramientas. El panel admin pide `publico: false`: los datos completos.
  */
+/**
+ * La ficha del proveedor para un dictamen anterior al expediente del agente: la misma de /empresa/<RUC> (empresa_resumen)
+ * más cuánto le vendió a esta entidad (conosce_adjudicaciones). Sólo RUC 20: de una persona natural no se arma nada aquí.
+ */
+async function fichaProveedorBase(ruc: string | null, entidadRuc: string | null) {
+  if (!ruc || !/^20\d{9}$/.test(ruc)) return null;
+  try {
+    const [f, m] = await Promise.all([
+      pool.query(
+        `SELECT nombre, estado_sunat, fecha_alta, actividad, departamento, adj_procesos, adj_monto::float AS adj_monto,
+                cons_procesos, entidades, primera, ultima, socios, representantes, directivos, inhabilitada,
+                inhabilitada_hasta, cruces
+           FROM empresa_resumen WHERE ruc = $1`, [ruc]),
+      entidadRuc
+        ? pool.query(
+            `SELECT count(DISTINCT codigo_convocatoria)::int AS procesos, COALESCE(sum(monto_adjudicado), 0)::float AS monto
+               FROM conosce_adjudicaciones WHERE ruc_proveedor = $1 AND entidad_ruc = $2`, [ruc, entidadRuc])
+        : Promise.resolve({ rows: [] as { procesos: number; monto: number }[] }),
+    ]);
+    const e = f.rows[0];
+    if (!e) return null;
+    const iso = (d: unknown) => (d instanceof Date ? d.toISOString().slice(0, 10) : (d as string | null) ?? null);
+    return {
+      ruc, persona_natural: false, fuente: "base de Vigía (ficha de empresa)", desde_ficha: true,
+      sunat: {
+        razon_social: e.nombre, estado: e.estado_sunat, condicion: null, fecha_inicio_actividades: iso(e.fecha_alta),
+        actividad: e.actividad, departamento: e.departamento, inhabilitada: e.inhabilitada, inhabilitada_hasta: iso(e.inhabilitada_hasta),
+      },
+      rnp_resumen: { socios: e.socios, representantes: e.representantes, directivos: e.directivos },
+      historial: {
+        procesos: (e.adj_procesos ?? 0) + (e.cons_procesos ?? 0), monto: e.adj_monto, entidades: e.entidades,
+        en_consorcio: e.cons_procesos ?? 0, primera: iso(e.primera), ultima: iso(e.ultima),
+        con_esta_entidad: m.rows[0] ?? null,
+      },
+      banderas: Array.isArray(e.cruces) ? e.cruces : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boolean; publico?: boolean } = {}) {
   const b = await pool.query(
     // agente_origen: la web ya no tiene que adivinarlo por el id de la regla. puntua=false son hechos de contexto
@@ -171,6 +212,11 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     acto_resolutivo_directa: an.acto_resolutivo_directa ?? null,
     estado_real: an.estado_real ?? null,
     analisis_postores: an.analisis_postores ?? null,
+    // Plan 2026-11-04: el expediente del proveedor desde la base (lo arma el agente desde 4996cc4; para los análisis
+    // anteriores, la misma ficha de /empresa/<RUC> en vivo), lo que leyeron los lectores y los precios del Estado.
+    expediente_proveedor: an.expediente_proveedor ?? (await fichaProveedorBase(row.proveedor_ruc, row.entidad_ruc)),
+    lecturas_documentos: an.lecturas_documentos ?? null,
+    precios_internos: an.precios_internos ?? null,
     dictamen_markdown: row.dictamen_markdown ?? "",
     ocds_payload: row.ocds_payload ?? null,
   };

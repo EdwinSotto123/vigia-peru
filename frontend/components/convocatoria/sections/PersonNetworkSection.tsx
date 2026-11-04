@@ -5,7 +5,7 @@ import { Severidad } from "@/components/ui/Severidad";
 import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
 import { fechaDossier, montoDossier, severidadDe } from "../dossier";
 import { Evidencia } from "./Evidencia";
-import { RelationshipGraph } from "./RelationshipGraph";
+import { RedProveedor } from "./RedProveedor";
 
 /** "rep_legal_y_socio" → "rep legal y socio". */
 const legible = (v: unknown) => String(v ?? "").replace(/_/g, " ").trim();
@@ -52,7 +52,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
         )}
       </div>
 
-      <RelationshipGraph person={person} web={web} proveedor={proveedor} ctx={ctx} />
+      <RedProveedor person={person} web={web} proveedor={proveedor} ctx={ctx} />
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* PERSONA PRINCIPAL */}
