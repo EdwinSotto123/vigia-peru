@@ -132,8 +132,22 @@ GUIA_SECCION: dict[str, str] = {
         "es lo ofertado, no lo exigido."
     ),
     "Costo mensual y por entregable vs histórico SEACE": "### De `market_analysis` (estrategia historico_seace): `indicadores_servicio` (costo mensual implícito, por persona, por entregable; `sin_dato` si el TDR no trae plazo/entregables o el monto es reservado) y la posición del monto frente a convocatorias similares (p25/p50/p75, `posicion_historica`, comparables de la misma entidad) como referencia de escala, no como veredicto de sobreprecio salvo que `veredicto` lo diga.",
-    "Ejecución y ampliaciones": "### Del bloque `obra` (adicionales, ampliaciones de plazo, valorizaciones) y de los documentos `contractAmendment` del OCDS: % acumulado de adicionales y sus resoluciones, ampliaciones y sus causas. INFOBRAS es validación pendiente: no describas avance físico.",
-    "Antecedentes del contratista y consorciados": "### De `web_research` y `person_network`: contratista o consorcio adjudicatario (cada consorciado con RUC), capacidad/experiencia declarada, sanciones por fuente, otros contratos de obra con el Estado (solo con evidencia).",
+    "Ejecución y ampliaciones": (
+        "### PRIMERO `obra_ejecucion` (base de Vigía: INFOBRAS de la Contraloría e Invierte.pe), si `enlazada` es true: por "
+        "cada obra, estado, avance físico real contra programado y contra lo pagado (`financiero_pct`), paralización y su "
+        "causa, ampliaciones (`dias_ampliacion`), adicionales (`adicionales_pct`), controversias e informes de control, "
+        "con su `fuente_url`; de `inversion`, el costo actualizado contra el viable (`sobrecosto_pct`) y los laudos; y "
+        "`banderas_obra` (ya son banderas: interprétalas). Después, del bloque `obra` del parser y de los documentos "
+        "`contractAmendment`: % acumulado de adicionales y sus resoluciones, ampliaciones y sus causas. Sin "
+        "`obra_ejecucion` enlazada, INFOBRAS no se pudo cruzar: dilo y no describas avance físico."
+    ),
+    "Antecedentes del contratista y consorciados": (
+        "### PRIMERO `expediente_proveedor` (padrón SUNAT, RNP, sanciones, buenas pro del CONOSCE, banderas) y "
+        "`obra_ejecucion.historial_contratista` (cuántas obras ejecutó según INFOBRAS, cuántas paralizadas, con "
+        "adicionales altos o pagadas sin avance); del supervisor, `obra_ejecucion.obras[].vinculo_supervisor` (personas "
+        "o consorcios en común con el contratista). Después, de `web_research` y `person_network`: cada consorciado con "
+        "RUC, capacidad/experiencia declarada y lo que no está en un registro (solo con evidencia)."
+    ),
     "Cotizaciones vs monto adjudicado": "### De `market_analysis` (estrategia cotizaciones): cotizaciones del expediente (proveedor, monto, página), mediana de terceros, Δ % del monto adjudicado vs mediana y vs la más barata, si el cotizante ganador fue el más barato, cotizantes vinculados según `person_network` (`no_verificable` si no corrió). Sin bloque `sustento_directa` → decláralo.",
     "Red de personas": _GUIA_RED,
     "Cumplimiento normativo": (

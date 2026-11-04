@@ -214,6 +214,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "lecturas_documentos":  state.get("lecturas_documentos"),
         "precios_internos":     state.get("precios_internos"),
         "supervision_obra":     state.get("supervision_obra"),
+        "obra_ejecucion":       state.get("obra_ejecucion"),
     }
     for w in warns:
         try:

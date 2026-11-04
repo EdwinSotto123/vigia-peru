@@ -381,7 +381,7 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         "web_research", "news_research", "person_network", "entity_personnel",
         "compliance_result", "normative_compliance", "alerta_codigo",
         "estado_real", "analisis_postores", "causal_directa_invocada",
-        "acto_resolutivo_directa", "sunat_decolecta", "expediente_proveedor", "lecturas_documentos", "precios_internos", "supervision_obra",
+        "acto_resolutivo_directa", "sunat_decolecta", "expediente_proveedor", "lecturas_documentos", "precios_internos", "supervision_obra", "obra_ejecucion",
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra).
         "estudio_mercado", "contrato_final",

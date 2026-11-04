@@ -422,6 +422,14 @@ async def fase_proveedor(pc: PipelineCtx):
                     yield e
             elif isinstance(sunat, dict):
                 pc.state["sunat_decolecta"] = sunat  # read_sunat_profile ya no vuelve a llamar a decolecta
+        # 4. Obras: la obra que ejecuta (INFOBRAS, Invierte.pe) y su supervisor (tools/obras.py).
+        if getattr(pc.profile, "nombre", "") == "obras" and hasattr(pc.T, "query_obra_ejecucion"):
+            evs, ob = await t_call(pc, pc.T.query_obra_ejecucion, "query_obra_ejecucion", ocid=pc.ocid, ruc=ruc)
+            for e in evs:
+                yield e
+            for s_ in (ob or {}).get("senales") or []:
+                for e in flags_from_senales(pc, [s_], s_.get("fuente_url") or fuente_oece):
+                    yield e
         # 4. Consultoría: la obra que supervisa (INFOBRAS) y su vínculo con el ejecutor (tools/consultoria.py).
         if getattr(pc.profile, "nombre", "") == "consultoria" and hasattr(pc.T, "query_supervision_obra"):
             evs, sup = await t_call(pc, pc.T.query_supervision_obra, "query_supervision_obra", ocid=pc.ocid, ruc=ruc)
