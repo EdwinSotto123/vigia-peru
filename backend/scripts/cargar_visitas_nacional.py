@@ -76,6 +76,43 @@ REFRESCOS = ["refrescar_visita_entidad_ruc", "refrescar_cruce_visita_previa", "r
              "refrescar_visita_mes"]
 
 
+def visitas_por_tramos(base, tramo: int = 1_000_000) -> None:
+    """Qué empresa está detrás de cada visita (migración 241), un millón de ids por transacción: todo de una vez pasó de
+    30 min y el túnel SSM se cortó a mitad (2026-11-03). Sin la 241, no hace nada (lo hace refrescar_empresas)."""
+    def preparar(c):
+        cur = c.cursor()
+        cur.execute("SET statement_timeout = 0")
+        cur.execute("SELECT to_regprocedure('refrescar_empresa_visitas_preparar()') IS NOT NULL")
+        if not cur.fetchone()[0]:
+            return None
+        cur.execute("SELECT refrescar_empresa_visitas_preparar()")
+        return cur.fetchone()[0]
+
+    plan = base.hacer(preparar)
+    if not plan:
+        return
+    desde, hasta, total, t0 = int(plan["desde"]), int(plan["hasta"]), 0, time.time()
+    while desde < hasta:
+        h = min(desde + tramo, hasta)
+
+        def uno(c, d=desde, h=h):
+            cur = c.cursor()
+            cur.execute("SET statement_timeout = 0")
+            cur.execute("SELECT refrescar_empresa_visitas_tramo(%s, %s)", (d, h))
+            return cur.fetchone()[0]
+
+        total += base.hacer(uno)
+        desde = h
+
+    def cerrar(c):
+        cur = c.cursor()
+        cur.execute("SELECT refrescar_empresa_visitas_cerrar(%s, %s)", (int(plan["desde"]), hasta))
+        return cur.fetchone()[0]
+
+    base.hacer(cerrar)
+    print(f"  refrescar_empresa_visitas → {total} ({time.time() - t0:.0f} s, por tramos)", flush=True)
+
+
 def parser():
     """parse_row de la exportación manual (el mismo formato de columnas)."""
     ruta = ROOT / "backend" / "scripts" / "load_visitas_entidades.py"
@@ -247,6 +284,10 @@ def main() -> None:
 
     if not a.sin_refrescos and (total or a.solo_refrescos):
         for fn in REFRESCOS:
+            if fn == "refrescar_empresa_visitas":
+                visitas_por_tramos(base)
+                continue
+
             def correr(c, fn=fn):
                 cur = c.cursor()
                 cur.execute("SET statement_timeout = 0")
