@@ -107,3 +107,14 @@ test("endpoints manuales: Bearer DISPATCHER_TOKEN en tiempo constante", async ()
   assert.equal(await autorizado(pedido("Bearer "), ""), false);
   assert.equal(await autorizado(pedido("Bearer x"), undefined), false);
 });
+
+
+test("una Lambda de agentes recibe AGENTE_TOKEN, no un ID token de Google", async () => {
+  const { cabeceras, esLambda } = await import("../src/google.ts");
+  const url = "https://ntasl5bxctnf6l46pqnf2zsfrq0pbajw.lambda-url.us-east-2.on.aws/";
+  assert.equal(esLambda(url), true);
+  assert.equal(esLambda("https://agente-obras-abc.run.app"), false);
+  const sinFetch = (() => { throw new Error("no debe pedir un ID token"); }) as unknown as typeof fetch;
+  assert.deepEqual(await cabeceras({ AGENTE_TOKEN: "t0k" }, url, sinFetch), { Authorization: "Bearer t0k" });
+  assert.deepEqual(await cabeceras({}, url, sinFetch), {});
+});

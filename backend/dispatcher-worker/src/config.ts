@@ -46,6 +46,8 @@ export interface Env {
   DISPATCHER_TOKEN?: string;
   /** Solo desarrollo: ID token fijo (`gcloud auth print-identity-token`), como en main.py. */
   AGENT_ID_TOKEN?: string;
+  /** Bearer de las Lambdas de agentes (vigia-agente-*): se manda en vez del ID token cuando la URL es de Lambda. */
+  AGENTE_TOKEN?: string;
 }
 
 export const OECE_BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";

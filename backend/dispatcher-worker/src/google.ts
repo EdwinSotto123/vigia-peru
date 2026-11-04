@@ -92,7 +92,12 @@ export async function idTokenCuenta(llaveJson: string | undefined, audiencia: st
 export interface FuenteToken {
   GCP_SA_KEY?: string;
   AGENT_ID_TOKEN?: string;
+  /** Bearer fijo de las Lambdas de agentes (Function URL sin IAM; lo valida el agente): SSM /vigia/agente/token. */
+  AGENTE_TOKEN?: string;
 }
+
+/** Una Function URL de AWS Lambda (`https://<id>.lambda-url.<región>.on.aws/`): no lleva ID token de Google. */
+export const esLambda = (url: string) => /^https:\/\/[a-z0-9]+\.lambda-url\.[a-z0-9-]+\.on\.aws(\/|$)/i.test(url);
 
 /** ID token para invocar `url`, o null si no se pudo obtener. */
 export async function idToken(env: FuenteToken, url: string, buscar: Buscar = fetch): Promise<string | null> {
@@ -122,6 +127,10 @@ export async function idToken(env: FuenteToken, url: string, buscar: Buscar = fe
 
 /** `{Authorization: "Bearer <ID token>"}` para invocar `url`, o `{}` si no hay token. */
 export async function cabeceras(env: FuenteToken, url: string, buscar: Buscar = fetch): Promise<Record<string, string>> {
+  if (esLambda(url)) {
+    const t = (env.AGENTE_TOKEN ?? "").trim();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
   const token = await idToken(env, url, buscar);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }

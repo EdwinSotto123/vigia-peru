@@ -26,19 +26,20 @@
   "triggers": { "crons": ["*/5 * * * *"] },
 
   // Las de infrastructure/deploy/gcp/dispatcher.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
-  // Secretos (wrangler secret put): GCP_SA_KEY (cuenta con roles/run.invoker en los 4 servicios de
-  // agentes) y DISPATCHER_TOKEN (endpoints manuales).
+  // Secretos (wrangler secret put): AGENTE_TOKEN (Bearer de las Lambdas, SSM /vigia/agente/token),
+  // DISPATCHER_TOKEN (endpoints manuales) y GCP_SA_KEY (sólo si se vuelve a Cloud Run).
   "vars": {
-    // APAGADO desde 2026-10-14: la facturación del proyecto de los agentes (project-a974c6e5) fue
-    // rechazada; se pausa hasta que se activen los créditos de Google for Startups. Para volver: "1"
-    // acá + `npx wrangler deploy`, y reanudar el Scheduler `vigia-batch` de ese proyecto (los `scraper-*`
-    // NO: los scrapers pasaron a Cloudflare, backend/scrapers-worker).
-    "DISPATCHER_ACTIVO": "0",
-    "AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
-    "AGENT_URL_BIENES": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
-    "AGENT_URL_SERVICIOS": "https://agente-servicios-753067078557.us-central1.run.app",
-    "AGENT_URL_OBRAS": "https://agente-obras-753067078557.us-central1.run.app",
-    "AGENT_URL_OTROS": "https://agente-otros-753067078557.us-central1.run.app",
+    // Apagado del 2026-10-14 al 11-04 (sin Cloud Run). ENCENDIDO el 2026-11-04 con las Lambdas de agentes de AWS
+    // (una por red, imagen de backend/agent; infrastructure/deploy/aws/agentes.sh y el job deploy:agentes:prod):
+    // el dispatcher les manda el Bearer AGENTE_TOKEN (secreto) en vez de un ID token de Google. Sólo analiza lo
+    // que entra a `procesamientos` (contratos financiados y reanálisis del panel). Para apagar: "0" y deploy.
+    "DISPATCHER_ACTIVO": "1",
+    "AGENT_URL": "https://ntasl5bxctnf6l46pqnf2zsfrq0pbajw.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_BIENES": "https://ntasl5bxctnf6l46pqnf2zsfrq0pbajw.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_SERVICIOS": "https://rek7rzzvza7q7j6fn3cxxveqgm0dumuw.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_OBRAS": "https://uyp5wgfvicnfbzobcin6knx3340iujdc.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_CONSULTORIA": "https://v436ckrco2yia5r6jd63chpcge0vohif.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_OTROS": "https://4dbb4zoipvyjsq64noauxtufqq0pekyj.lambda-url.us-east-2.on.aws",
     "DISPATCHER_PARALLEL": "1",
     // Carriles a la vez ≈ DISPATCHER_MAX_MINUTES / 5 (cron cada 5 min). Con db-f1-micro (0,6 GB, 40 conexiones)
     // la base se quedó sin memoria con 5-7 carriles (29/09: memoria 100 %, análisis de 4 a 28 min).
