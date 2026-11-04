@@ -139,6 +139,22 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
             "fuente": "CONOSCE (OECE), buenas pro por proceso",
         }
 
+        # 4b. La antigüedad con la fecha más antigua que hay: la «fecha de alta» del padrón a veces es una reactivación
+        #     (4,4 % de las empresas la tienen DESPUÉS de su primera buena pro; THOR CONTRATISTAS figura de 2025 y gana
+        #     desde 2018). Si el CONOSCE o el RNP la contradicen, manda la más antigua y queda anotado.
+        s = out.get("sunat")
+        if s:
+            fechas = {"SUNAT": s.get("fecha_inicio_actividades"), "primera buena pro": out["historial"].get("primera"),
+                      "RNP": min((r["desde"] for r in out["rnp"] if r.get("desde")), default=None)}
+            validas = {k: date.fromisoformat(str(v)[:10]) for k, v in fechas.items() if v}
+            if validas:
+                fuente, mas_antigua = min(validas.items(), key=lambda kv: kv[1])
+                if fuente != "SUNAT" and fechas["SUNAT"]:
+                    s["fecha_inicio_dudosa"] = (f"La fecha de inicio del padrón ({fechas['SUNAT']}) es posterior a su "
+                                                f"{fuente} ({mas_antigua.isoformat()}): la antigüedad se cuenta desde ésta.")
+                s["fecha_inicio_efectiva"] = mas_antigua.isoformat()
+                s["edad_dias_al_contratar"] = ((fecha_ref or date.today()) - mas_antigua).days
+
         # 5. Banderas de Vigía: las del proveedor (por tipo) y las de este proceso.
         out["banderas"] = [_limpio(b) for b in _filas(cur, """
             SELECT tipo, severidad, count(*)::int AS n, count(DISTINCT ocid)::int AS procesos, max(fecha) AS ultima
@@ -163,7 +179,8 @@ def _perfil_sunat(ruc: str, exp: dict) -> dict:
     return {"ruc": ruc, "razon_social": s.get("razon_social"), "tipo": None, "estado": s.get("estado"),
             "condicion": s.get("condicion"), "departamento": s.get("departamento"), "ubigeo": s.get("ubigeo"),
             "ciiu_principal": s.get("actividad"), "actividades_economicas": [s["actividad"]] if s.get("actividad") else [],
-            "fecha_inicio_actividades": s.get("fecha_inicio_actividades"), "edad_dias": s.get("edad_dias_al_contratar"),
+            "fecha_inicio_actividades": s.get("fecha_inicio_efectiva") or s.get("fecha_inicio_actividades"),
+            "edad_dias": s.get("edad_dias_al_contratar"), "fecha_inicio_dudosa": s.get("fecha_inicio_dudosa"),
             "_source": "padron_sunat_vigia"}
 
 
@@ -342,6 +359,8 @@ def ficha_md(exp: dict | None) -> str:
         lineas.append(f"- **SUNAT:** {', '.join(partes) or 'el padrón de Vigía no trae su estado'}"
                       + (f"; inicio de actividades {s['fecha_inicio_actividades']}{anos}" if s.get("fecha_inicio_actividades") else "")
                       + (f"; actividad: {s['actividad'].strip().rstrip('.')}." if s.get("actividad") else "."))
+        if s.get("fecha_inicio_dudosa"):
+            lineas.append(f"- **Antigüedad:** {s['fecha_inicio_dudosa']}")
     elif exp.get("persona_natural"):
         lineas.append("- **SUNAT:** persona natural con negocio; no está en el padrón de empresas de Vigía.")
     rnp = exp.get("rnp") or []

@@ -183,3 +183,46 @@ def test_consorcio_junta_a_sus_integrantes(monkeypatch):
     assert "PEREZ QUISPE JUAN" in ctx.state["_nombres_tapar"]
     md = E.ficha_md(exp)
     assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN** (RUC 10123456789)" in md
+
+
+
+class _CurFilas:
+    """Cursor falso que contesta cada consulta del expediente con filas fijas (por la tabla que nombra)."""
+    def __init__(self, por_tabla):
+        self.por_tabla, self.description, self._f = por_tabla, [], []
+
+    def execute(self, sql, params=None):
+        tabla = next((t for t in self.por_tabla if t in sql), None)
+        cols, filas = self.por_tabla.get(tabla, ([], []))
+        self.description = [(c,) for c in cols]
+        self._f = filas
+
+    def fetchall(self):
+        return self._f
+
+
+class _ConnFilas:
+    def __init__(self, por_tabla):
+        self.cur = _CurFilas(por_tabla)
+
+    def cursor(self):
+        return self.cur
+
+
+def test_fecha_de_alta_posterior_a_la_primera_buena_pro_no_hace_nueva_a_la_empresa():
+    por_tabla = {
+        "empresa_resumen": (["razon_social", "estado_sunat", "fecha_alta", "actividad", "departamento", "socios",
+                             "representantes", "directivos", "inhabilitada", "inhabilitada_hasta"],
+                            [("THOR CONTRATISTAS S.A.C", "ACTIVO", dt.date(2025, 7, 1), "CONSTRUCCION", "PUNO", 1, 1, 0, None, None)]),
+        "rnp_conformacion_juridica": (["tipo_rol", "nombre", "fecha_inicio_vigencia", "forma_societaria"],
+                                      [("REPRESENTANTE_LEGAL", "QUISPE MAMANI JUAN", dt.date(2017, 4, 2), "SAC")]),
+        "conosce_adjudicaciones": (["codigo_convocatoria", "entidad", "entidad_ruc", "objeto", "descripcion", "monto",
+                                    "fecha_buena_pro", "en_consorcio"],
+                                   [("X-1", "GR PUNO", "20000000001", "Obra", "obra", 100.0, dt.date(2018, 10, 31), False)]),
+        "penalidades": (["n", "monto", "entidades", "desde", "hasta"], [(0, None, 0, None, None)]),
+    }
+    exp = E.expediente_proveedor_bd("20493191269", None, None, dt.date(2026, 5, 1), conn=_ConnFilas(por_tabla))
+    s = exp["sunat"]
+    assert s["fecha_inicio_efectiva"] == "2017-04-02"
+    assert s["edad_dias_al_contratar"] > 3000 and "posterior a su RNP" in s["fecha_inicio_dudosa"]
+    assert "**Antigüedad:**" in E.ficha_md(exp)
