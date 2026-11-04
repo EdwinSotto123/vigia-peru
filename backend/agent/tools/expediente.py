@@ -241,13 +241,17 @@ def query_expediente_proveedor(ruc: str, tool_context: ToolContext, entidad_ruc:
         crudos.append(exp["sunat"]["razon_social"])
     state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *crudos})
     state["expediente_proveedor"] = exp
-    if exp.get("sunat"):
+    # Sólo cuenta como «en el padrón» si trae el estado o la fecha de inicio: una fila de `empresas` vacía (sólo el RNP)
+    # no reemplaza a decolecta.
+    s_ = exp.get("sunat") or {}
+    sunat_ok = bool(s_.get("estado") or s_.get("fecha_inicio_actividades"))
+    if sunat_ok:
         perfil = _perfil_sunat(ruc, exp)
         state.setdefault("sunat_profiles", {})[ruc] = perfil
         state["sunat_decolecta"] = perfil
     state.setdefault("oece_perfiles", {})[ruc] = oece = _perfil_oece(ruc, exp, state)
     h = exp["historial"]
-    return {"ruc": ruc, "sunat_en_base": bool(exp.get("sunat")), "rnp": len(exp["rnp"]), "sanciones": len(exp["sanciones"]),
+    return {"ruc": ruc, "sunat_en_base": sunat_ok, "rnp": len(exp["rnp"]), "sanciones": len(exp["sanciones"]),
             "penalidades": exp["penalidades"].get("n"), "procesos": h["procesos"], "monto": h["monto"],
             "con_esta_entidad": h["con_esta_entidad"], "banderas": len(exp["banderas"]), "senales": oece["senales"]}
 
@@ -273,7 +277,7 @@ def ficha_md(exp: dict | None) -> str:
         anos = f" ({edad // 365} años al contratar)" if isinstance(edad, int) and edad >= 365 else (
             f" ({edad} días al contratar)" if isinstance(edad, int) else "")
         partes = [x for x in (s.get("estado"), s.get("condicion")) if x]
-        lineas.append(f"- **SUNAT:** {', '.join(partes) or 'sin estado'}"
+        lineas.append(f"- **SUNAT:** {', '.join(partes) or 'el padrón de Vigía no trae su estado'}"
                       + (f"; inicio de actividades {s['fecha_inicio_actividades']}{anos}" if s.get("fecha_inicio_actividades") else "")
                       + (f"; actividad: {s['actividad'].strip().rstrip('.')}." if s.get("actividad") else "."))
     elif exp.get("persona_natural"):

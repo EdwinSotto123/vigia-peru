@@ -127,3 +127,12 @@ def test_veredicto_de_precio_contra_los_percentiles():
     assert P._veredicto(7000, 4025, 7363, 8450) == "en_rango"
     assert P._veredicto(3000, 4025, 7363, 8450) == "por_debajo"
     assert P._veredicto(None, 1, 2, 3) == "sin_dato"
+
+
+def test_fila_de_empresa_vacia_no_reemplaza_a_decolecta(monkeypatch):
+    exp = {**EXP, "sunat": {"razon_social": "X SAC", "estado": None, "fecha_inicio_actividades": None, "rnp_vigente": True},
+           "sanciones": [], "banderas": []}
+    monkeypatch.setattr(E, "expediente_proveedor_bd", lambda *a, **k: dict(exp))
+    ctx = SimpleNamespace(state={})
+    r = E.query_expediente_proveedor("20109161609", ctx)
+    assert r["sunat_en_base"] is False and "sunat_decolecta" not in ctx.state
