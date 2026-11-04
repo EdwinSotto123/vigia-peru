@@ -16,7 +16,7 @@ import type { WorkflowStep } from "cloudflare:workers";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima, refrescarVisitasDe } from "./comun.ts";
+import { CARGA, fechaLima, refrescarVisitasDe, refrescarVisitasEmpresas } from "./comun.ts";
 
 const FUENTE = "congreso_visitas";
 const URL = "https://wb2server.congreso.gob.pe/regvisitastransparencia/filtrar";
@@ -154,6 +154,8 @@ export async function correrCongresoVisitas(env: Env, p: ParamsCorrida, step: Wo
       return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_pariente() AS n"))[0]?.n ?? 0) : null;
     }));
     await step.do("refrescar_visitas_entidad", CARGA, () => conDb(env.HYPERDRIVE, (db) => refrescarVisitasDe(db, [ENTIDAD])));
+    // Y qué empresa está detrás de cada visita (migración 241): ya no lo hace refrescar_empresas cada día.
+    await refrescarVisitasEmpresas(env, step);
   }
   return { desde, hasta, visitas: total, dias: resumen };
 }

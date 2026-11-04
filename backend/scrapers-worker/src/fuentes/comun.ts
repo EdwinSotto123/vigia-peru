@@ -60,6 +60,37 @@ export async function refrescarVisitasDe(db: Db, nombres: string[]): Promise<num
   return f.todas ? Number((await db.filas<{ n: number }>("SELECT refrescar_visitas_entidad() AS n"))[0]?.n ?? 0) : null;
 }
 
+/** Ids de visita por paso al atribuirlas a empresas: ~1 min en producción, lejos del corte de la conexión. */
+const TRAMO_VISITAS = 1_000_000;
+
+/**
+ * Qué empresa está detrás de cada visita (migración 241): la de su gente por el DNI o la de quien dijo venir de ella.
+ * Antes lo rehacía refrescar_empresas cada día, y con los 12 M de visitas nacionales pasó de ~5 a 10-26 min: la conexión
+ * lo cortaba y oece_ocds falló todos los días del 28-10 al 03-11. Ahora va después de cada carga de visitas, en un paso
+ * para preparar, uno por cada tramo de ids y uno para cerrar. En una base sin la 241, no hace nada (lo sigue haciendo
+ * refrescar_empresas).
+ */
+export async function refrescarVisitasEmpresas(env: Env, step: WorkflowStep): Promise<number | null> {
+  const plan = await step.do("visitas de empresas: preparar", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+    const [{ existe }] = await db.filas<{ existe: boolean }>(
+      "SELECT to_regprocedure('refrescar_empresa_visitas_preparar()') IS NOT NULL AS existe");
+    if (!existe) return null;
+    const [{ r }] = await db.filas<{ r: { desde: number; hasta: number } }>("SELECT refrescar_empresa_visitas_preparar() AS r");
+    return { desde: Number(r.desde), hasta: Number(r.hasta) };
+  }));
+  if (!plan) return null;
+  let total = 0;
+  for (let desde = plan.desde, i = 1; desde < plan.hasta; desde += TRAMO_VISITAS, i++) {
+    const hasta = Math.min(desde + TRAMO_VISITAS, plan.hasta);
+    total += await step.do(`visitas de empresas: tramo ${i}`, CARGA, () => conDb(env.HYPERDRIVE, async (db) =>
+      Number((await db.filas<{ n: number }>("SELECT refrescar_empresa_visitas_tramo($1, $2) AS n", [desde, hasta]))[0]?.n ?? 0)));
+  }
+  await step.do("visitas de empresas: cerrar", CARGA, () => conDb(env.HYPERDRIVE, async (db) =>
+    Number((await db.filas<{ n: number }>("SELECT refrescar_empresa_visitas_cerrar($1, $2) AS n", [plan.desde, plan.hasta]))[0]?.n ?? 0)));
+  registrar("INFO", `   visitas de empresas: ${total} atribuidas`, { fuente: "visitas" });
+  return total;
+}
+
 export function sumarDias(fecha: string, n: number): string {
   const d = new Date(`${fecha}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -136,11 +167,12 @@ export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise
   await siExiste("refrescar_borde_empresas");
   // refrescar_empresas reconstruye empresa_resumen y, al final (migración 117), vuelve a calcular las señales SUNAT de
   // estado (dada de baja, suspendida, no habida); así nunca quedan sin ellas. "Recién fundada" ya llega como cruce del
-  // contrato (migración 118), por cruces_proveedor.
+  // contrato (migración 118), por cruces_proveedor. Las visitas ya no las atribuye aquí (migración 241: se rehacen tras
+  // cada carga de visitas, refrescarVisitasEmpresas); sólo las cuenta. ~3 min (antes 10-26 y la conexión lo cortaba).
   await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
   // Las empresas cuya gente (socio, representante, directivo o quien dijo venir de ella) visitó cada entidad y lo que la
-  // entidad les dio después (migración 203): lee las visitas que refrescar_empresas acaba de atribuir y las órdenes y
-  // contratos del día. ~4 min en producción.
+  // entidad les dio después (migración 203): lee las visitas ya atribuidas (empresa_visita) y las órdenes y contratos
+  // del día. ~4 min en producción.
   await siExiste("refrescar_visita_empresa");
   // Mapa de poder (migración 125): captura por partido/entidad. Lee casos_cruce + entidad_gobierno_amplia + jne, ya listos.
   await uno("refrescar_poder", "SELECT refrescar_poder() AS n");

@@ -17,7 +17,7 @@ import { fechaDmy, fechaYmd, partir, reprFlotante, sinMarcasNfd, strip } from ".
 import { registrar } from "../registro.ts";
 import { leerXlsx } from "../xlsx.ts";
 import type { ValorXlsx } from "../xlsx.ts";
-import { CARGA, DESCARGA, fechaLima, refrescarVisitasDe } from "./comun.ts";
+import { CARGA, DESCARGA, fechaLima, refrescarVisitasDe, refrescarVisitasEmpresas } from "./comun.ts";
 
 const FUENTE = "pnda_visitas";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
@@ -302,6 +302,8 @@ export async function correrVisitas(env: Env, p: ParamsCorrida, step: WorkflowSt
         [FUENTE, [...new Set(archivos.map((f) => f.periodo))]])).map((r) => r.e);
       return refrescarVisitasDe(db, nombres);
     }));
+    // Y qué empresa está detrás de cada visita (migración 241): ya no lo hace refrescar_empresas cada día.
+    await refrescarVisitasEmpresas(env, step);
   }
   return { meses: meses.map(([a, m]) => `${a}-${String(m).padStart(2, "0")}`), archivos: resumen, visita_entidad_ruc: entidades };
 }

@@ -56,7 +56,7 @@ export function BanderasFicha({
   const resto = orden.length - vista.length;
   return (
     <ul className={cn("flex flex-wrap items-center gap-2", className)} aria-label={etiqueta}>
-      {vista.map((b) => <Chip key={b.tipo} b={b} />)}
+      {vista.map((b) => <Chip key={`${b.tipo}|${b.nombre}`} b={b} />)}
       {resto > 0 && (
         // Abiertas, las demás ocupan su propio renglón (no estiran el de las cuatro primeras).
         <li className="has-[details[open]]:basis-full">
@@ -67,7 +67,7 @@ export function BanderasFicha({
               <ChevronDown size={14} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             <ul className="mt-2 flex flex-wrap items-center gap-2" aria-label={`${etiqueta}: las otras ${resto}`}>
-              {orden.slice(max).map((b) => <Chip key={b.tipo} b={b} />)}
+              {orden.slice(max).map((b) => <Chip key={`${b.tipo}|${b.nombre}`} b={b} />)}
             </ul>
           </details>
         </li>
