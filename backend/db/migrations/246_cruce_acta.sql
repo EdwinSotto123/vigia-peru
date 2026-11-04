@@ -6,7 +6,7 @@
 --   acta_descalificados_por_formalidad  a alguien lo sacaron por un documento o una formalidad (firma, foliado, formato)
 --   acta_oferta_mas_baja_descartada     la oferta más baja quedó fuera y el ganador cobra 5 % o más (monto: la diferencia)
 --   consultas_denuncia_direccionamiento un participante dijo por escrito que las bases favorecen a alguien
---   consultas_observaciones_rechazadas  dos o más observaciones a los requisitos y la entidad no acogió ninguna
+--   consultas_observaciones_a_requisitos_rechazadas  dos o más observaciones a los requisitos y la entidad no acogió ninguna
 -- Las de consultas, sólo si DOS lecturas independientes (versiones v1 y v1-2) las encuentran: una sola coincide 0,5-0,67.
 -- Las «observaciones» que el modelo elige por su cuenta no pasan: coinciden 0,29-0,47 entre lecturas.
 -- Cada bandera va a cada ganador del proceso en CONOSCE (los integrantes de un consorcio, cada uno), con la evidencia:

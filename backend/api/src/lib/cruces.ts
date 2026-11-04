@@ -81,7 +81,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   acta_descalificados_por_formalidad: "Sacaron a un postor por una formalidad",
   acta_oferta_mas_baja_descartada: "La oferta más baja quedó fuera",
   consultas_denuncia_direccionamiento: "Un participante denunció bases dirigidas",
-  consultas_observaciones_rechazadas: "No acogió ninguna observación a los requisitos",
+  consultas_observaciones_a_requisitos_rechazadas: "No acogió ninguna observación a los requisitos",
   bases_marca_sin_equivalente: "Las bases exigen una marca sin «o equivalente»",
   bases_experiencia_alta: "Las bases exigen experiencia de 3 veces el valor o más",
 };

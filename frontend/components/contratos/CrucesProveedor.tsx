@@ -307,7 +307,7 @@ POR_QUE.acta_oferta_mas_baja_descartada = "Cuando la oferta más baja queda fuer
 POR_QUE.consultas_denuncia_direccionamiento = "En las consultas y observaciones los participantes pueden reclamar que un requisito favorece a alguien. Que alguien lo diga por escrito no prueba nada, pero es una pista para revisar las bases y quién ganó.";
 POR_QUE.bases_marca_sin_equivalente = "Exigir una marca deja fuera a quien ofrece lo mismo de otro fabricante: la norma pide describir lo que se necesita y, si se nombra una marca, admitir «o equivalente». Puede justificarse (repuestos, compatibilidad), pero merece revisarse.";
 POR_QUE.bases_experiencia_alta = "Pedir mucha experiencia previa reduce la competencia a las empresas más grandes o a una sola. Que lo exigido triplique el valor de la compra merece ver si se justificó.";
-POR_QUE.consultas_observaciones_rechazadas = "Si varios participantes piden flexibilizar los requisitos y la entidad no acoge ninguno, los requisitos pueden estar dejando fuera a la competencia.";
+POR_QUE.consultas_observaciones_a_requisitos_rechazadas = "Si varios participantes piden flexibilizar los requisitos y la entidad no acoge ninguno, los requisitos pueden estar dejando fuera a la competencia.";
 
 // Las bandas de un cruce comparten el "por qué" de su tipo padre (migración 121).
 POR_QUE.recurrente_dominante = POR_QUE.recurrente_frecuente = POR_QUE.recurrente;
