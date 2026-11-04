@@ -136,7 +136,9 @@ def supervision_bd(ocid: str, ruc_ganador: str | None, conn=None) -> dict:
                        (corto,))
         out: dict = {"enlazada": bool(obras), "obras": [], "senales": []}
         # Sin ganador en el OCDS (procesos viejos): el RUC del enlace con la obra.
-        ruc_ganador = ruc_ganador or next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None)
+        # Sin ganador en el OCDS, o con el código de un consorcio (no es un RUC): el RUC del enlace con la obra.
+        if not (ruc_ganador and len(str(ruc_ganador)) == 11 and str(ruc_ganador).isdigit()):
+            ruc_ganador = next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None) or ruc_ganador
         out["ruc_contrato"] = ruc_ganador
         for o in obras[:5]:
             v = vinculo_supervisor_ejecutor(cur, o.get("supervisor_ruc") or ruc_ganador or "", o.get("ejecutor_ruc") or "")

@@ -26,7 +26,9 @@ def obra_bd(ocid: str, ruc: str | None, conn=None) -> dict:
                                   WHERE oc.ocid = %s AND oc.rol = 'ejecucion' ORDER BY o.contrato_monto DESC NULLS LAST""",
                        (corto,))
         out: dict = {"enlazada": bool(obras), "obras": [], "senales": []}
-        ruc = ruc or next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None)
+        # Sin ganador en el OCDS, o con el código de un consorcio (no es un RUC): el RUC del enlace con la obra.
+        if not (ruc and len(str(ruc)) == 11 and str(ruc).isdigit()):
+            ruc = next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None) or ruc
         out["ruc_contrato"] = ruc
         for o in obras[:3]:
             v = vinculo_supervisor_ejecutor(cur, o.get("supervisor_ruc") or "", o.get("ejecutor_ruc") or ruc or "")
