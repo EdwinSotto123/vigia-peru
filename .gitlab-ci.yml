@@ -113,6 +113,62 @@ scrape:dji:
       when: manual
       allow_failure: true
 
+# ─── Agentes (AWS Lambda) ────────────────────────────────────────────────────────────────────────
+# Sin llaves: el job pide un token OIDC de GitLab y asume el rol vigia-gitlab-agentes (infrastructure/deploy/aws/
+# gitlab_oidc.sh, sólo desde main). La imagen es la base de ECR ($AGENTE_BASE, con las dependencias ya instaladas)
+# más una capa con backend/agent (crane append: sin Docker y sin emular arm64). Si cambia backend/agent/requirements.txt
+# hay que rehacer la base (Dockerfile.lambda) y subir AGENTE_BASE.
+.aws_agentes: &aws_agentes
+  stage: deploy
+  image: { name: "public.ecr.aws/aws-cli/aws-cli:2.17.43", entrypoint: [""] }
+  id_tokens:
+    AWS_ID_TOKEN:
+      aud: https://gitlab.com
+  variables:
+    AWS_REGION: us-east-2
+    AWS_DEFAULT_REGION: us-east-2
+    AWS_ROLE_ARN: arn:aws:iam::416689419419:role/vigia-gitlab-agentes
+    REPO: 416689419419.dkr.ecr.us-east-2.amazonaws.com/vigia-agente
+    AGENTE_BASE: 909b906-sdk
+    # Una Lambda por red (PIPELINE_PROFILE en su configuración): bienes, consultoría, obras, servicios, directas.
+    FUNCIONES: "vigia-agente-sdk-v2 vigia-agente-consultoria vigia-agente-obras vigia-agente-servicios vigia-agente-directas"
+  before_script:
+    - echo "$AWS_ID_TOKEN" > /tmp/oidc && export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/oidc
+    - aws sts get-caller-identity --query Arn --output text
+
+build:agente:
+  <<: *aws_agentes
+  script:
+    - yum install -y -q tar gzip >/dev/null
+    - curl -sSL https://github.com/google/go-containerregistry/releases/download/v0.20.2/go-containerregistry_Linux_x86_64.tar.gz | tar xz crane
+    - aws ecr get-login-password | ./crane auth login "${REPO%%/*}" -u AWS --password-stdin
+    - tar -C backend/agent --exclude='__pycache__' --exclude='./tests' --transform 's,^\.,app,' -cf /tmp/app.tar .
+    - ./crane append --platform linux/arm64 --base "$REPO:$AGENTE_BASE" --new_layer /tmp/app.tar --new_tag "$REPO:$CI_COMMIT_SHORT_SHA-sdk"
+    - echo "imagen $REPO:$CI_COMMIT_SHORT_SHA-sdk"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [backend/agent/**/*]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+
+deploy:agentes:prod:
+  <<: *aws_agentes
+  needs:
+    - job: build:agente
+      optional: true
+  script:
+    - |
+      for f in $FUNCIONES; do
+        aws lambda update-function-code --function-name "$f" --image-uri "$REPO:$CI_COMMIT_SHORT_SHA-sdk" --query LastUpdateStatus --output text
+      done
+      for f in $FUNCIONES; do aws lambda wait function-updated-v2 --function-name "$f" && echo "$f listo"; done
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+
 # ─── Anclas reutilizables ────────────────────────────────────────────────────────────────────────
 .web: &web
   stage: deploy
