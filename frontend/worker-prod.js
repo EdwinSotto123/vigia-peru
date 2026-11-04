@@ -18,11 +18,13 @@
  *     pide es un programa que ignora las reglas, y su IP queda vetada una hora (veto en el Durable Object, en disco).
  *   · Lo interno pasa tal cual: la revalidación ISR (WORKER_SELF_REFERENCE) llega sin CF-Connecting-IP, que Cloudflare
  *     pone (y no deja falsificar) en todo pedido que entra de internet.
+ *   · El índice de Meta AI no respeta robots.txt (worker-comun.js → fueraDeRobots): lo que le prohíbe, 403 sin armar la
+ *     página.
  *   · `/cdn-cgi/…` nunca llega al build de OpenNext (worker-comun.js → RUTA_CDN_CGI): su manejador de imágenes de
  *     desarrollo sería un proxy abierto.
  */
 import abierto from "./.open-next/worker.js";
-import { aLaApi, frenoDePaginas, RUTA_API, RUTA_CDN_CGI } from "./worker-comun.js";
+import { aLaApi, frenoDePaginas, fueraDeRobots, RUTA_API, RUTA_CDN_CGI } from "./worker-comun.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -39,6 +41,8 @@ export default {
         const metodoSeguro = req.method === "GET" || req.method === "HEAD";
         return Response.redirect(`${DOMINIO}${url.pathname}${url.search}`, metodoSeguro ? 301 : 308);
       }
+      const fuera = fueraDeRobots(req, url);
+      if (fuera) return fuera;
       const freno = await frenoDePaginas(req, env, url, ip);
       if (freno) return freno;
       if (RUTA_API.test(url.pathname)) return aLaApi(req, env, url, ip);

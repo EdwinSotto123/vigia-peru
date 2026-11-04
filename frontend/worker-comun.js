@@ -68,6 +68,27 @@ export async function aLaApi(req, env, url, ip) {
   return new Response(r.body, { status: r.status, headers: out });
 }
 
+// ─── Rastreadores que no respetan robots.txt ────────────────────────────────────────────────────────────────────────
+/**
+ * El índice de Meta AI (`meta-webindexer`) recorre el sitio a 2 páginas por segundo sin pausa (12 mil pedidos el
+ * 2026-11-01, 20 mil el 11-03) y entra en lo que robots.txt prohíbe a todos: la mitad eran fichas de personas (llevan
+ * noindex) y el resto, enlaces con consulta de cada ficha (`/app/apoyar?para=…`, `/privacidad?enlace=…`). Cada una son
+ * ~0,7 s de CPU y ~3 consultas a la base; ese 11-03 llevó al tope las conexiones de la API. Lo que app/robots.ts le
+ * prohíbe se le corta acá, antes de armar la página; el resto del sitio lo sigue leyendo.
+ */
+const INDICE_META = /meta-webindexer/i;
+const FUERA_PARA_META = /^\/(?:app\/personas\/|login(?:\/|$)|reporte\/nuevo(?:\/|$))/;
+
+/** 403 si es el índice de Meta pidiendo algo que app/robots.ts le prohíbe; null si pasa. */
+export function fueraDeRobots(req, url) {
+  if (!INDICE_META.test(req.headers.get("user-agent") || "")) return null;
+  if (!url.search && !FUERA_PARA_META.test(url.pathname)) return null;
+  return new Response("Excluido en /robots.txt", {
+    status: 403,
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
 // ─── Páginas: límite por IP y trampa (worker-prod.js; en DEV, worker-dev.js con un veto corto para probarla) ──────────
 const TOPE_PAGINAS = 300;
 const VENTANA_S = 60;

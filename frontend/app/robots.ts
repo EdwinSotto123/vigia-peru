@@ -10,7 +10,13 @@ import { absoluta } from "@/lib/seo";
  * vistas de un contrato. Son combinaciones sin fin de lo mismo (el 2026-10-30 un rastreador recorría /app/personas con un
  * filtro distinto en cada pedido) y cada ficha ya está en el sitemap (lib/sitemap.ts) por su ruta, que es su canónica
  * (lib/seo.ts). Las fichas de personas no se prohíben aquí: llevan `noindex`, y un buscador sólo lo ve si puede entrar.
+ * Tampoco interesan el ingreso, el formulario de reporte ni los enlaces de privacidad con la ficha de origen.
+ *
+ * El índice de Meta AI (meta-webindexer) tiene grupo propio: recorre las fichas de personas a 2 por segundo y no respeta
+ * las reglas de `*` (el 2026-11-03 pedía `/app/apoyar?para=…`). Lo que se le prohíbe aquí, la web se lo corta también
+ * en worker-comun.js → fueraDeRobots. Un grupo propio reemplaza al de `*`: por eso repite FUERA.
  */
+const INDICE_META = ["meta-webindexer"];
 const ENTRENAMIENTO_IA = [
   "GPTBot", "ClaudeBot", "anthropic-ai", "CCBot", "Google-Extended", "Applebot-Extended", "Bytespider", "Meta-ExternalAgent",
   "FacebookBot", "Amazonbot", "cohere-ai", "cohere-training-data-crawler", "Diffbot", "omgili", "Timpibot", "ImagesiftBot",
@@ -29,6 +35,9 @@ const FUERA = [
   "/entidad/*?",
   "/empresa/*?",
   "/region/*?",
+  "/login",
+  "/reporte/nuevo",
+  "/privacidad?",
   // La trampa para rastreadores (worker-prod.js): quien la pide queda vetado una hora.
   "/app/indice-completo",
 ];
@@ -38,6 +47,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       { userAgent: ENTRENAMIENTO_IA, disallow: "/" },
       { userAgent: SEO_COMERCIAL, allow: "/", disallow: FUERA, crawlDelay: 10 },
+      { userAgent: INDICE_META, allow: "/", disallow: [...FUERA, "/*?", "/app/personas/"], crawlDelay: 2 },
       { userAgent: "*", allow: "/", disallow: FUERA },
     ],
     sitemap: absoluta("/sitemap.xml"),
