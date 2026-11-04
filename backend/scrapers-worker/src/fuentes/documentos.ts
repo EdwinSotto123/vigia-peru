@@ -35,8 +35,8 @@ import { BASE, OCID_PREFIJO, obtenerJson, ocidCorto, partyComprador, rucComprado
 const FUENTE = "documentos";
 /** Contratos por corrida (cada uno es un paso con ~3-15 descargas; 12 tardan ~50 s). */
 const MAX_CONTRATOS = 100;
-/** Bytes por corrida: con el cron cada hora, ~24 GB al día como mucho. */
-const MAX_BYTES = 3_000_000_000;
+/** Bytes por corrida (~33 min a 3 MB/s por el relay): con el cron cada hora, ~144 GB al día como mucho. */
+const MAX_BYTES = 6_000_000_000;
 /** Un archivo más grande no se baja (los hay de cientos de MB: planos escaneados). */
 const MAX_ARCHIVO = 300_000_000;
 /** Los pedidos `lectura` (backend/lector): sólo lo que se lee, y sin los planos escaneados de cientos de MB. */
