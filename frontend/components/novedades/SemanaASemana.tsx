@@ -103,7 +103,7 @@ export function SemanaASemana({ semanas, elegida, href }: { semanas: SemanaNueva
 
   return (
     <figure className="min-w-0 space-y-3" data-lista="grafico">
-      <ol aria-label="Contratos con un antecedente grave del ganador, semana a semana" className="flex h-52 items-end gap-1 border-b border-line sm:gap-2">
+      <ol data-lista="grafico" aria-label="Contratos con un antecedente grave del ganador, semana a semana" className="flex h-52 items-end gap-1 border-b border-line sm:gap-2">
         {semanas.map((s, i) => {
           if (!conCifras(s)) {
             return (
@@ -276,7 +276,7 @@ export function SemanasMini({
   return (
     <figure className={cn("min-w-0", className)}>
       <figcaption className="text-rotulo text-mute">Contratos graves, semana a semana</figcaption>
-      <ol aria-label="Contratos con un antecedente grave del ganador, semana a semana" className="mt-1.5 flex h-12 items-end gap-[3px] border-b border-line">
+      <ol data-lista="grafico" aria-label="Contratos con un antecedente grave del ganador, semana a semana" className="mt-1.5 flex h-12 items-end gap-[3px] border-b border-line">
         {datos.map((s, i) => {
           const sel = s.desde === elegida;
           const curso = !s.completa;

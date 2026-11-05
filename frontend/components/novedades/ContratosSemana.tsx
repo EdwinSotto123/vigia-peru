@@ -221,6 +221,7 @@ function BarrasFaceta({
                 <button
                   type="button"
                   aria-pressed={activo}
+                  title={i.detalle ?? undefined}
                   onClick={() => alElegir(activo ? null : i.clave)}
                   className={cn(
                     "-mx-2 block w-[calc(100%+1rem)] rounded-xl px-2 py-1.5 text-left transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
@@ -229,7 +230,7 @@ function BarrasFaceta({
                 >
                   <span className="flex items-center gap-2">
                     {icono(i.clave)}
-                    <span className={cn("min-w-0 flex-1 truncate text-dato", activo ? "font-semibold text-ink" : "font-medium text-ink")} title={i.etiqueta}>
+                    <span className={cn("line-clamp-2 min-w-0 flex-1 text-dato leading-snug", activo ? "font-semibold text-ink" : "font-medium text-ink")}>
                       {i.etiqueta}
                     </span>
                     <span className="shrink-0 font-mono text-dato font-semibold tabular-nums text-ink">{numero(i.n)}</span>
@@ -240,7 +241,9 @@ function BarrasFaceta({
                       style={{ width: `${Math.max(3, (i.n / mayor) * 100)}%`, background: relleno === "serie" ? colorSerie(0) : undefined }}
                     />
                   </span>
-                  {i.detalle && <span className="mt-1 line-clamp-2 block text-rotulo leading-snug text-mute">{i.detalle}</span>}
+                  {/* Qué es, sólo en el elegido (y en el `title` de todos): con la explicación de cada uno a la vista, la
+                      columna medía tres pantallas y en el celular empujaba la lista hacia abajo (auditoría 2026-11-05). */}
+                  {activo && i.detalle && <span className="mt-1 block text-rotulo leading-snug text-mute">{i.detalle}</span>}
                 </button>
               </li>
             );
