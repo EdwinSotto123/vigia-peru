@@ -65,6 +65,25 @@ export const MONTO_MENOR = {
 
 export const OBJETO_MENOR = { bien: "BIEN", servicio: "SERVICIO", consultoria: "CONSULTORIA", obra: "OBRA" } as const;
 
+/** Los tipos de señal que salen de lo que Claude leyó en el requerimiento o el contrato (dos lecturas que coinciden). */
+const SENALES_DOCUMENTO = ["tdr_proveedor_nombrado", "tdr_marca_sin_equivalente", "tdr_monto_distinto", "tdr_experiencia_alta",
+                           "contrato_monto_distinto", "contrato_ruc_distinto"];
+const conTipo = (...t: string[]) => `x.senal_tipos && ARRAY[${t.map((x) => `'${x}'`).join(", ")}]::text[]`;
+
+/** Las señales de cada contrato menor (menor_senal, migración 252), como filtro: alguna, las graves o por familia. */
+export const SENAL_MENOR = {
+  con: `x.senal_tipos IS NOT NULL`,
+  alta: `x.senal_alta`,
+  partido_dia: conTipo("menor_partido_mismo_dia"),
+  partido_anio: conTipo("menor_partido_en_el_anio"),
+  tope: conTipo("menor_sobre_tope", "menor_borde_tope"),
+  ventana: conTipo("menor_ventana_corta"),
+  cerrada: conTipo("menor_invitacion_cerrada"),
+  precio: conTipo("menor_precio_alto"),
+  documento: conTipo(...SENALES_DOCUMENTO),
+  fin_semana: conTipo("menor_fin_de_semana"),
+} as const;
+
 const enumDe = <T extends Record<string, unknown>>(o: T) => z.enum(Object.keys(o) as [Extract<keyof T, string>, ...Extract<keyof T, string>[]]);
 
 export const ListaMenoresQuery = z.object({
@@ -77,6 +96,7 @@ export const ListaMenoresQuery = z.object({
   estado: z.string().trim().min(3).max(30).optional(),
   conReq: z.enum(["si"]).optional(), // solo las que tienen el requerimiento (TDR) para descargar
   antecedente: enumDe(ANTECEDENTE_MENOR).optional(),
+  senal: enumDe(SENAL_MENOR).optional(),
   persona: z.enum(["natural", "empresa"]).optional(), // quién ganó: una persona natural (RUC 10) o una empresa (RUC 20)
   monto: enumDe(MONTO_MENOR).optional(),
   orden: z.enum(["reciente", "antiguo"]).default("reciente"),
@@ -86,7 +106,7 @@ export const ListaMenoresQuery = z.object({
 export type FiltrosListaMenores = z.infer<typeof ListaMenoresQuery>;
 
 /** Los filtros que llevan conteo por opción (cada uno contado con los DEMÁS filtros, no con el suyo). */
-type Faceta = "antecedente" | "persona" | "objeto" | "monto" | "conReq" | "anio" | "region";
+type Faceta = "antecedente" | "senal" | "persona" | "objeto" | "monto" | "conReq" | "anio" | "region";
 
 /**
  * Las filas de la tabla, una por contrato menor, con lo que filtra la lista ya calculado: el estado SUNAT del proveedor,
@@ -98,7 +118,7 @@ type Faceta = "antecedente" | "persona" | "objeto" | "monto" | "conReq" | "anio"
  * regiones, palabras, así que da lo mismo que `mef_norm` y cuesta un décimo (su par de regexp por fila hacía 1,2 s los
  * conteos con texto).
  */
-const FILAS = `SELECT m.*, sp.actividad_ciiu, sp.estado AS sp_estado_sunat, sp.condicion AS sp_condicion_sunat,
+const FILAS = `SELECT m.*, ms.tipos AS senal_tipos, COALESCE(ms.alta, false) AS senal_alta, sp.actividad_ciiu, sp.estado AS sp_estado_sunat, sp.condicion AS sp_condicion_sunat,
          sp.fecha_inicio_actividades, sp.tipo_contribuyente,
          upper(btrim(sp.estado)) AS sp_estado, upper(btrim(sp.condicion)) AS sp_condicion,
          (m.fecha_suscripcion - sp.fecha_inicio_actividades) AS dias,
@@ -112,7 +132,10 @@ const FILAS = `SELECT m.*, sp.actividad_ciiu, sp.estado AS sp_estado_sunat, sp.c
                              WHERE s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL)) AS inhabilitado
     FROM seace_menores m
     LEFT JOIN seace_proveedor_sunat sp ON sp.ruc = m.proveedor_ruc
-    LEFT JOIN entidades e ON e.ruc = m.entidad_ruc::bpchar`;
+    LEFT JOIN entidades e ON e.ruc = m.entidad_ruc::bpchar
+    -- Las señales de cada contrato (menor_senal, migración 252): sus tipos y si alguna es de severidad alta.
+    LEFT JOIN (SELECT id_contrato, array_agg(tipo ORDER BY tipo) AS tipos, bool_or(severidad = 'alta') AS alta
+                 FROM menor_senal GROUP BY id_contrato) ms ON ms.id_contrato = m.id_contrato`;
 
 /**
  * Las condiciones de la consulta: `ancla` (entidad o proveedor, por su índice) va dentro de las filas; el resto, cada una
@@ -134,6 +157,7 @@ export function condicionesMenores(q: FiltrosListaMenores, vals: unknown[]): { a
   // id_requerimiento y dejaba pasar ~1 000 contratos sin PDF.
   if (q.conReq) filtros.push({ faceta: "conReq", sql: `x.req_r2` });
   if (q.antecedente) filtros.push({ faceta: "antecedente", sql: ANTECEDENTE_MENOR[q.antecedente] });
+  if (q.senal) filtros.push({ faceta: "senal", sql: SENAL_MENOR[q.senal] });
   if (q.persona) filtros.push({ faceta: "persona", sql: `x.proveedor_ruc LIKE '${q.persona === "natural" ? "10" : "20"}%'` });
   if (q.monto) filtros.push({ faceta: "monto", sql: MONTO_MENOR[q.monto] });
   for (const w of palabrasBusqueda(q.q)) filtros.push({ faceta: null, sql: `x.texto LIKE ${p(`%${w}%`)}` });
@@ -148,6 +172,17 @@ const COLS_MENOR = `x.id_contrato AS id, x.codigo, x.numero_contrato AS numero, 
                   x.req_r2 AS "tieneRequerimiento", x.requerimiento_nombre AS "requerimientoNombre",
                   x.estado_prod6 AS "estadoProceso", to_char(x.fec_publica,'YYYY-MM-DD') AS "fecPublica",
                   to_char(x.fec_ini_cotizacion,'YYYY-MM-DD') AS "cotizaDesde", to_char(x.fec_fin_cotizacion,'YYYY-MM-DD') AS "cotizaHasta",
+                  -- La ventana de cotización con su hora (migración 251) y cuántas horas duró.
+                  to_char(x.fec_ini_cotizacion,'YYYY-MM-DD"T"HH24:MI') AS "cotizaInicio", to_char(x.fec_fin_cotizacion,'YYYY-MM-DD"T"HH24:MI') AS "cotizaCierre",
+                  round((extract(epoch FROM x.fec_fin_cotizacion - x.fec_ini_cotizacion) / 3600)::numeric, 1)::float AS "cotizaHoras",
+                  x.area_usuaria AS "areaUsuaria", x.tipo_invitacion AS "tipoInvitacion",
+                  -- Las señales del contrato (menor_senal), de la más grave a la más leve, con lo que cabe en la fila.
+                  (SELECT COALESCE(jsonb_agg(jsonb_build_object('tipo', s.tipo, 'severidad', s.severidad, 'monto', s.monto,
+                                                                'contratos', s.detalle->'contratos', 'horas', s.detalle->'horas',
+                                                                'pct', s.detalle->'pct')
+                                             ORDER BY CASE s.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, s.tipo), '[]'::jsonb)
+                     FROM menor_senal s WHERE s.id_contrato = x.id_contrato) AS senales,
+                  EXISTS (SELECT 1 FROM menor_lectura l WHERE l.id_contrato = x.id_contrato AND l.version = 'v1' AND l.estado = 'ok') AS leido,
                   x.actividad_ciiu AS "provActividad", x.sp_estado_sunat AS "provEstado", x.sp_condicion_sunat AS "provCondicion",
                   to_char(x.fecha_inicio_actividades,'YYYY-MM-DD') AS "provDesde", x.tipo_contribuyente AS "provTipo",
                   CASE WHEN x.fecha_inicio_actividades IS NOT NULL THEN x.dias END AS "provDiasAlGanar",
@@ -185,6 +220,7 @@ export async function clavesMenores(q: Omit<FiltrosListaMenores, "page" | "size"
 /** Las opciones con conteo de cada faceta (la región se cuenta aparte, agrupada). */
 const OPCIONES: Record<Exclude<Faceta, "region">, Record<string, string>> = {
   antecedente: ANTECEDENTE_MENOR,
+  senal: SENAL_MENOR,
   persona: { natural: `x.proveedor_ruc LIKE '10%'`, empresa: `x.proveedor_ruc LIKE '20%'` },
   objeto: Object.fromEntries(Object.entries(OBJETO_MENOR).map(([k, v]) => [k, `x.objeto = '${v}'`])),
   monto: MONTO_MENOR,
@@ -301,4 +337,119 @@ menoresRouter.get("/:id/contrato", async (c) => {
   if (!row?.id_documento_contrato) return c.json({ error: "sin_contrato" }, 404);
   return proxyPdf(`${PROD4_DOC}/${row.id_documento_contrato}`,
                   "https://prod4.seace.gob.pe/contratos/publico/", `contrato-${row.codigo ?? id}.pdf`, c);
+});
+
+// ─── Resumen y ficha de un contrato menor ────────────────────────────────────
+
+const ResumenQuery = z.object({
+  entidad: z.string().regex(/^\d{11}$/).optional(),
+  proveedor: z.string().regex(/^\d{11}$/).optional(),
+  anio: z.coerce.number().int().min(2024).max(2100).optional(),
+});
+const memoResumen = new Memo<Record<string, unknown>>({ nombre: "menores:resumen", ttlMs: 3_600_000, staleMs: 3_600_000, max: 200 });
+
+/**
+ * Las cifras de la cabecera de la vista (o de la pestaña de una entidad o empresa): cuántos contratos menores, cuánto
+ * suman, cuántos tienen sus PDF y cuántos leyó la IA, y cuántos tienen cada señal (con los grupos de los partidos: un
+ * grupo es la compra entera que se partió).
+ */
+menoresRouter.get("/resumen", async (c) => {
+  const parsed = ResumenQuery.safeParse(sinVacios(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const q = parsed.data;
+  const cuerpo = await memoResumen.obtener(JSON.stringify(q), async () => {
+    const donde = ["m.monto > 0"];
+    if (q.entidad) donde.push(`m.entidad_ruc = '${q.entidad}'`);
+    if (q.proveedor) donde.push(`m.proveedor_ruc = '${q.proveedor}'`);
+    if (q.anio) donde.push(`m.anio = ${Number(q.anio)}`);
+    const w = donde.join(" AND ");
+    const [t, s] = await Promise.all([
+      consultaConPlazo(
+        `SELECT count(*)::int AS contratos, COALESCE(sum(m.monto) FILTER (WHERE m.moneda = 'PEN'), 0)::float AS monto,
+                count(DISTINCT m.entidad_ruc)::int AS entidades, count(DISTINCT m.proveedor_ruc)::int AS proveedores,
+                count(*) FILTER (WHERE m.req_r2)::int AS "conRequerimiento",
+                count(*) FILTER (WHERE m.id_documento_contrato IS NOT NULL)::int AS "conContrato",
+                count(*) FILTER (WHERE EXISTS (SELECT 1 FROM seace_menor_item i WHERE i.id_contrato = m.id_contrato))::int AS "conItems",
+                count(*) FILTER (WHERE EXISTS (SELECT 1 FROM menor_lectura l WHERE l.id_contrato = m.id_contrato
+                                                AND l.version = 'v1' AND l.estado = 'ok'))::int AS leidos,
+                count(*) FILTER (WHERE EXISTS (SELECT 1 FROM menor_senal s WHERE s.id_contrato = m.id_contrato))::int AS "conSenal",
+                COALESCE(sum(m.monto) FILTER (WHERE m.moneda = 'PEN' AND EXISTS (SELECT 1 FROM menor_senal s WHERE s.id_contrato = m.id_contrato)), 0)::float AS "montoConSenal",
+                min(m.fecha_suscripcion)::text AS desde, max(m.fecha_suscripcion)::text AS hasta
+           FROM seace_menores m WHERE ${w}`, []),
+      consultaConPlazo(
+        `SELECT s.tipo, s.severidad, count(*)::int AS contratos, COALESCE(sum(m.monto), 0)::float AS monto,
+                count(DISTINCT s.grupo) FILTER (WHERE s.grupo IS NOT NULL)::int AS grupos
+           FROM menor_senal s JOIN seace_menores m ON m.id_contrato = s.id_contrato
+          WHERE ${w} GROUP BY 1, 2 ORDER BY 3 DESC`, []),
+    ]);
+    return { ...(t.rows[0] as Record<string, unknown>), senales: s.rows };
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/**
+ * La ficha de un contrato menor: la fila de la lista con lo de prod6 (área usuaria, invitación, etapas), sus ítems con
+ * el precio que pagan las demás entidades por el mismo ítem del catálogo (precio_referencia, 84), lo que Claude leyó en
+ * el requerimiento y en el contrato, sus señales con la evidencia (los contratos del grupo), los demás contratos menores
+ * de la entidad con ese proveedor (donde un contrato partido se ve solo) y las órdenes de pago que le corresponden.
+ */
+menoresRouter.get("/:id{[0-9]+}", async (c) => {
+  const id = Number(c.req.param("id"));
+  const [fila] = await filasMenores([id]);
+  if (!fila) return c.json({ error: "no_encontrado" }, 404);
+  const entidadRuc = (fila.entidadRuc as string | null) ?? null;
+  const proveedorRuc = (fila.proveedorRuc as string | null) ?? null;
+  const [extra, items, lecturas, senales, historial, ordenes] = await Promise.all([
+    consultaConPlazo(
+      `SELECT x.justif_invitacion AS "justifInvitacion", x.ccmn, x.ccmn_nombre AS "ccmnNombre",
+              to_char(x.fec_publica, 'YYYY-MM-DD"T"HH24:MI') AS "publicado",
+              to_char(x.consultas_desde, 'YYYY-MM-DD"T"HH24:MI') AS "consultasDesde",
+              to_char(x.consultas_hasta, 'YYYY-MM-DD"T"HH24:MI') AS "consultasHasta",
+              to_char(x.fecha_inicio, 'YYYY-MM-DD') AS "ejecucionDesde", to_char(x.fecha_fin, 'YYYY-MM-DD') AS "ejecucionHasta"
+         FROM seace_menores x WHERE x.id_contrato = $1`, [id]),
+    consultaConPlazo(
+      // El precio por ítem sólo si vale (menor_item_con_precio, migración 252): con varios ítems, prod6 suele repetir en
+      // cada uno el total del contrato.
+      `SELECT i.n, i.cubso, i.cubso_nombre AS "cubsoNombre", i.descripcion, i.unidad, i.cantidad::float,
+              CASE WHEN ok.id_contrato IS NOT NULL THEN i.precio_total::float END AS "precioTotal",
+              CASE WHEN ok.id_contrato IS NOT NULL THEN i.precio_unitario::float END AS "precioUnitario",
+              i.estado_cotiza AS "estadoCotiza", i.distrito,
+              r.mediana::float AS "refMediana", r.p25::float AS "refP25", r.p75::float AS "refP75", r.n AS "refN",
+              r.entidades AS "refEntidades", r.anio AS "refAnio"
+         FROM seace_menor_item i JOIN seace_menores m ON m.id_contrato = i.id_contrato
+         LEFT JOIN menor_item_con_precio ok ON ok.id_contrato = i.id_contrato
+         LEFT JOIN LATERAL (SELECT * FROM precio_referencia r
+                             WHERE r.cubso = i.cubso AND r.base = 'adjudicado' AND r.anio <= COALESCE(m.anio::int, 2100)
+                               AND upper(immutable_unaccent(r.unidad)) = upper(immutable_unaccent(i.unidad))
+                             ORDER BY r.anio DESC LIMIT 1) r ON true
+        WHERE i.id_contrato = $1 ORDER BY i.n`, [id]),
+    consultaConPlazo(
+      `SELECT clase, version, salida, paginas, modelo, to_char(leido_at, 'YYYY-MM-DD') AS leido
+         FROM menor_lectura WHERE id_contrato = $1 AND estado = 'ok' AND version = 'v1' ORDER BY clase`, [id]),
+    consultaConPlazo(
+      `SELECT tipo, severidad, monto::float, grupo, detalle FROM menor_senal WHERE id_contrato = $1
+        ORDER BY CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, tipo`, [id]),
+    entidadRuc && proveedorRuc
+      ? consultaConPlazo(
+        `SELECT h.id_contrato AS id, h.codigo, h.objeto, left(h.descripcion, 200) AS descripcion, h.monto::float, h.moneda,
+                to_char(h.fecha_suscripcion, 'YYYY-MM-DD') AS fecha, h.anio,
+                (SELECT array_agg(s.tipo ORDER BY s.tipo) FROM menor_senal s WHERE s.id_contrato = h.id_contrato) AS senales
+           FROM seace_menores h WHERE h.entidad_ruc = $1 AND h.proveedor_ruc = $2 AND h.monto > 0
+          ORDER BY h.fecha_suscripcion DESC NULLS LAST, h.id_contrato DESC LIMIT 80`, [entidadRuc, proveedorRuc])
+      : Promise.resolve({ rows: [] }),
+    consultaConPlazo(
+      `SELECT v.orden, to_char(v.fecha_emision, 'YYYY-MM-DD') AS fecha, v.regla
+         FROM compra_vinculo v WHERE v.clase = 'menor' AND v.ref = $1 ORDER BY v.fecha_emision`, [String(id)]).catch(() => ({ rows: [] })),
+  ]);
+  const lectura = (clase: string) => (lecturas.rows as { clase: string }[]).find((l) => l.clase === clase) ?? null;
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({
+    menor: { ...fila, ...(extra.rows[0] as Record<string, unknown>) },
+    items: items.rows,
+    senales: senales.rows,
+    lecturas: { tdr: lectura("menor_tdr"), contrato: lectura("menor_contrato") },
+    historial: historial.rows,
+    ordenes: ordenes.rows,
+  }));
 });

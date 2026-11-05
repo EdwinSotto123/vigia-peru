@@ -93,7 +93,7 @@ const GUARDADO = "X-Vigia-Guardado";
  *       el plazo de consultas y Empleo filtra por los estudios de quien busca (`tengo`); vacantes de SERVIR corregidas.
  * "76": las compras sin repetidas (2026-11-03, migración 240): los conteos de la entidad traen `compras` (GET /compras).
  */
-const VERSION_CACHE = "79";
+const VERSION_CACHE = "80";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

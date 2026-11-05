@@ -55,9 +55,18 @@ function fechaDmy(s: unknown): string | null {
   const m = txt(s) ? /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s)) : null;
   return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : null;
 }
-function fechaIso(s: unknown): string | null {
-  const m = txt(s) ? /^\s*(\d{4}-\d{2}-\d{2})/.exec(String(s)) : null;
-  return m ? m[1] : null;
+/**
+ * Fecha y hora de prod6: llegan como «06/11/2026 10:20:00» (día/mes/año). Antes se esperaba ISO y TODAS se perdían
+ * (la ventana de cotización quedó vacía en los 11 mil contratos hasta la migración 251). También acepta ISO.
+ */
+export function fechaHora(s: unknown): string | null {
+  const t = txt(s);
+  if (!t) return null;
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(t);
+  const dos = (x: string | undefined) => String(Number(x ?? 0)).padStart(2, "0");
+  if (m) return `${m[3]}-${dos(m[2])}-${dos(m[1])} ${dos(m[4])}:${dos(m[5])}:${dos(m[6])}`;
+  const iso = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/.exec(t);
+  return iso ? `${iso[1]} ${iso[2] ?? "00:00:00"}` : null;
 }
 function monedaNorm(s: unknown): string | null {
   const t = txt(s); if (!t) return null;
@@ -108,6 +117,57 @@ async function cargarMenores(db: Db, filas: FilaMenor[]): Promise<void> {
   });
 }
 
+type Json = Record<string, unknown>;
+
+/**
+ * El detalle del proceso en prod6 (`listar-completo`): el área usuaria, el tipo de invitación, las etapas de consultas y
+ * cotización y los ÍTEMS (CUBSO, cantidad, unidad, precio adjudicado) → seace_menores + seace_menor_item (migración 251).
+ * La respuesta trae el DNI y el nombre de quien aprobó cada etapa: no se guardan.
+ */
+async function guardarDetalle(env: Env, idc: number, idc6: number): Promise<boolean> {
+  const r = await obtener(env, `${PROD6}/buscadorpublico/contrataciones/listar-completo?id_contrato=${idc6}`, { relay: true, sinReintentos: true });
+  if (r.status !== 200) { await r.body?.cancel(); return false; }
+  const d = (await r.json()) as Json;
+  const cab = (d.uitContratoCompletoProjection ?? null) as Json | null;
+  if (!cab) return false;
+  const etapas = ((d.uitContratoEtapaProjectionList ?? []) as Json[]);
+  const etapa = (re: RegExp) => etapas.find((e) => re.test(String(e.nomEtapaContrato ?? "").toUpperCase())) ?? {};
+  const consultas = etapa(/CONSULTA/), cotiza = etapa(/COTIZA/);
+  const items = ((d.uitContratoItemProjectionList ?? []) as Json[]).map((it, i) => {
+    const cantidad = num(it.cantidad), total = num(it.precioTotal);
+    const ruc = txt(it.codRuc);
+    return {
+      n: i + 1, cubso: txt(it.codCubso), cubso_nombre: txt(it.nomCubso), descripcion: txt(it.descripcionItem)?.slice(0, 4000) ?? null,
+      unidad: txt(it.nomUnidadMedida), cantidad, precio_total: total,
+      precio_unitario: total != null && cantidad ? Math.round((total / cantidad) * 10000) / 10000 : null,
+      ganador_ruc: ruc && /^\d{11}$/.test(ruc) ? ruc : null, estado_cotiza: txt(it.nomEstadoCotiza),
+      distrito: txt(it.nomDistritoExt ?? it.nomDistrito),
+    };
+  });
+  await conDb(env.HYPERDRIVE, (db) => db.transaccion(async () => {
+    await db.ejecutar(
+      `UPDATE seace_menores SET area_usuaria=$1, tipo_invitacion=$2, justif_invitacion=$3, ccmn=$4, ccmn_nombre=$5,
+         consultas_desde=$6, consultas_hasta=$7, fec_publica=COALESCE($8, fec_publica),
+         fec_ini_cotizacion=COALESCE($9, fec_ini_cotizacion), fec_fin_cotizacion=COALESCE($10, fec_fin_cotizacion),
+         estado_prod6=COALESCE($11, estado_prod6), detalle_at=now() WHERE id_contrato=$12`,
+      [txt(cab.nomAreaUsuaria), txt(cab.nomTipoInvitacion), txt(cab.desJustifTipInvit), txt(cab.nroCcmn), txt(cab.desCcmn),
+       fechaHora(consultas.fecIni), fechaHora(consultas.fecFin), fechaHora(cab.fecPublica), fechaHora(cotiza.fecIni),
+       fechaHora(cotiza.fecFin), txt(cab.nomEstadoContrato), idc]);
+    await db.ejecutar("DELETE FROM seace_menor_item WHERE id_contrato=$1", [idc]);
+    if (items.length) {
+      await db.ejecutar(
+        `INSERT INTO seace_menor_item (id_contrato, n, cubso, cubso_nombre, descripcion, unidad, cantidad, precio_total,
+                                       precio_unitario, ganador_ruc, estado_cotiza, distrito)
+         SELECT $1, n, cubso, cubso_nombre, descripcion, unidad, cantidad, precio_total, precio_unitario, ganador_ruc,
+                estado_cotiza, distrito
+           FROM jsonb_to_recordset($2::jsonb) AS x (n SMALLINT, cubso TEXT, cubso_nombre TEXT, descripcion TEXT, unidad TEXT,
+                cantidad NUMERIC, precio_total NUMERIC, precio_unitario NUMERIC, ganador_ruc TEXT, estado_cotiza TEXT, distrito TEXT)`,
+        [idc, JSON.stringify(items)]);
+    }
+  }));
+  return true;
+}
+
 /** prod6: por el relay, enriquece y espeja a R2 el requerimiento de un contrato menor. Devuelve el estado logrado. */
 async function procesarReq(env: Env, idc: number, codigo: string): Promise<"ok" | "sin_req" | "bloqueado"> {
   const buscar = await obtener(env, `${PROD6}/buscadorpublico/contrataciones/buscador?anio=2026&palabra_clave=${encodeURIComponent(codigo)}&page=1&page_size=5`, { relay: true, sinReintentos: true });
@@ -126,8 +186,9 @@ async function procesarReq(env: Env, idc: number, codigo: string): Promise<"ok" 
   const enriquecer = async (db: Db) => db.ejecutar(
     `UPDATE seace_menores SET id_contrato_prod6=$1, estado_prod6=$2, fec_publica=$3, fec_ini_cotizacion=$4,
        fec_fin_cotizacion=$5, id_requerimiento=$6, requerimiento_nombre=$7, match_prod6='exacto' WHERE id_contrato=$8`,
-    [idc6, txt(row.nomEstadoContrato), fechaIso(row.fecPublica), fechaIso(row.fecIniCotizacion), fechaIso(row.fecFinCotizacion),
+    [idc6, txt(row.nomEstadoContrato), fechaHora(row.fecPublica), fechaHora(row.fecIniCotizacion), fechaHora(row.fecFinCotizacion),
      rid != null ? String(rid) : null, txt(req?.nombre), idc]);
+  await guardarDetalle(env, idc, idc6).catch(() => false);
   if (rid == null) { await conDb(env.HYPERDRIVE, enriquecer); return "sin_req"; }
   const pdf = await obtener(env, `${PROD6}/archivo/archivos-publico/descargar-archivo-contrato/${rid}`, { relay: true, timeoutMs: null, sinReintentos: true });
   if (pdf.status !== 200) { await pdf.body?.cancel(); await conDb(env.HYPERDRIVE, enriquecer); return "bloqueado"; }
@@ -194,7 +255,33 @@ export async function correrSeaceMenores(env: Env, p: ParamsCorrida, step: Workf
       tot.ok += r.ok; tot.sin_req += r.sin_req; tot.bloqueado += r.bloqueado;
     }
     resumen[`req_${anio}`] = { pendientes: pendientes.length, ...tot };
+
+    // 3) El detalle (área usuaria, etapas, ítems) de los que ya cruzaron con prod6 pero no lo tienen (migración 251).
+    const sinDetalle = await step.do(`sin detalle ${anio}`, CARGA, () => conDb(env.HYPERDRIVE, (db) =>
+      db.filas<{ id_contrato: number; id_contrato_prod6: number }>(
+        `SELECT id_contrato, id_contrato_prod6 FROM seace_menores
+          WHERE anio=$1 AND id_contrato_prod6 IS NOT NULL AND detalle_at IS NULL
+          ORDER BY fecha_suscripcion DESC NULLS LAST LIMIT $2`, [anio, MAX_POR_CORRIDA])));
+    let conDetalle = 0;
+    for (let i = 0; i < sinDetalle.length; i += LOTE_REQ) {
+      const lote = sinDetalle.slice(i, i + LOTE_REQ);
+      conDetalle += await step.do(`detalle ${anio} ${i + 1}-${i + lote.length}`, PASO_REQ, async () => {
+        let n = 0;
+        for (let j = 0; j < lote.length; j += CONCURRENCIA) {
+          const res = await Promise.all(lote.slice(j, j + CONCURRENCIA).map((m) =>
+            guardarDetalle(env, m.id_contrato, m.id_contrato_prod6).catch(() => false)));
+          n += res.filter(Boolean).length;
+        }
+        return n;
+      });
+    }
+    resumen[`detalle_${anio}`] = { pendientes: sinDetalle.length, con_detalle: conDetalle };
     registrar("INFO", `   prod6 ${anio}: ${tot.ok} requerimientos a R2, ${tot.sin_req} sin, ${tot.bloqueado} bloqueados`, { fuente: FUENTE, instancia: id });
+  }
+  // Las señales de cada contrato menor (fraccionamiento, tope, fechas, precios; migración 252), con lo recién cargado.
+  if (!p.seco) {
+    resumen.senales = await step.do("señales de los menores", CARGA, () => conDb(env.HYPERDRIVE, async (db) =>
+      (await db.filas<{ n: number }>("SELECT refrescar_menor_senales() AS n"))[0]?.n ?? null));
   }
   return resumen;
 }

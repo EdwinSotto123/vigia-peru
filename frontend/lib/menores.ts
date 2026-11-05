@@ -39,10 +39,71 @@ export interface ContratoMenor {
   sobreTope?: boolean | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día de la firma. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
+  /** La ventana de cotización con su hora (hora de Lima, «2026-10-14T13:00») y cuántas horas duró (migración 251). */
+  cotizaInicio?: string | null;
+  cotizaCierre?: string | null;
+  cotizaHoras?: number | null;
+  areaUsuaria?: string | null;
+  tipoInvitacion?: string | null;
+  /** Las señales del contrato (menor_senal, migración 252), de la más grave a la más leve. */
+  senales?: SenalMenorFila[];
+  /** Si la IA ya leyó su requerimiento o su contrato. */
+  leido?: boolean;
+}
+
+export type Severidad = "alta" | "media" | "baja";
+
+/** Una señal en la fila: lo que cabe sin la evidencia completa. */
+export interface SenalMenorFila {
+  tipo: string;
+  severidad: Severidad;
+  monto: number | null;
+  contratos?: number | null;
+  horas?: number | null;
+  pct?: number | null;
+}
+
+/** Un contrato del grupo de una señal de compra partida. */
+export interface ContratoDelGrupo { id: number; codigo: string | null; fecha: string | null; monto: number; descripcion: string | null }
+
+/** La señal con su evidencia (la ficha del contrato menor). */
+export interface SenalMenor extends SenalMenorFila {
+  grupo: ContratoDelGrupo[] | null;
+  detalle: Record<string, unknown>;
+}
+
+/** Un ítem del contrato menor, con lo que pagan las demás entidades por el mismo ítem del catálogo (CUBSO). */
+export interface ItemMenor {
+  n: number; cubso: string | null; cubsoNombre: string | null; descripcion: string | null; unidad: string | null;
+  cantidad: number | null; precioTotal: number | null; precioUnitario: number | null; estadoCotiza: string | null;
+  distrito: string | null; refMediana: number | null; refP25: number | null; refP75: number | null; refN: number | null;
+  refEntidades: number | null; refAnio: number | null;
+}
+
+/** Lo que Claude leyó en un PDF (menor_lectura): la salida del esquema de su lector. */
+export interface LecturaMenor { clase: string; version: string; salida: Record<string, any>; paginas: number | null; modelo: string; leido: string }
+
+export interface FichaMenor {
+  menor: ContratoMenor & {
+    justifInvitacion: string | null; ccmn: string | null; ccmnNombre: string | null; publicado: string | null;
+    consultasDesde: string | null; consultasHasta: string | null; ejecucionDesde: string | null; ejecucionHasta: string | null;
+  };
+  items: ItemMenor[];
+  senales: SenalMenor[];
+  lecturas: { tdr: LecturaMenor | null; contrato: LecturaMenor | null };
+  historial: { id: number; codigo: string | null; objeto: string | null; descripcion: string | null; monto: number; moneda: string | null;
+               fecha: string | null; anio: number | null; senales: string[] | null }[];
+  ordenes: { orden: string; fecha: string; regla: string }[];
+}
+
+export interface ResumenMenores {
+  contratos: number; monto: number; entidades: number; proveedores: number; conRequerimiento: number; conContrato: number;
+  conItems: number; leidos: number; conSenal: number; montoConSenal: number; desde: string | null; hasta: string | null;
+  senales: { tipo: string; severidad: Severidad; contratos: number; monto: number; grupos: number }[];
 }
 
 /** Los conteos de cada opción de los filtros, con los demás filtros puestos (la región, por su nombre normalizado). */
-export type FacetasMenores = Partial<Record<"antecedente" | "persona" | "objeto" | "monto" | "conReq" | "anio" | "region", Record<string, number>>>;
+export type FacetasMenores = Partial<Record<"antecedente" | "senal" | "persona" | "objeto" | "monto" | "conReq" | "anio" | "region", Record<string, number>>>;
 
 export interface MenoresPagina {
   page: number;
@@ -60,7 +121,7 @@ export interface MenoresPagina {
 
 export type FiltrosMenores = {
   q?: string; anio?: number; entidad?: string; proveedor?: string; region?: string;
-  objeto?: string; estado?: string; conReq?: string; antecedente?: string; persona?: string; monto?: string;
+  objeto?: string; estado?: string; conReq?: string; antecedente?: string; senal?: string; persona?: string; monto?: string;
   orden?: string; page?: number; size?: number;
 };
 
@@ -84,6 +145,20 @@ export const ANTECEDENTES_MENOR = [
   { valor: "no_hallado", etiqueta: "No hallado en su domicilio fiscal", grupo: "En la SUNAT, hoy" },
   { valor: "reciente", etiqueta: "Menos de 6 meses de actividad al firmar", grupo: "En la SUNAT, hoy" },
   { valor: "inhabilitado", etiqueta: "Inhabilitado por el Tribunal al firmar", grupo: "Tribunal de Contrataciones" },
+] as const;
+
+/** Las señales que filtran la lista (la API las calcula en menor_senal, migración 252). */
+export const SENALES_FILTRO = [
+  { valor: "con", etiqueta: "Con alguna señal", grupo: undefined },
+  { valor: "alta", etiqueta: "Con alguna grave", grupo: undefined },
+  { valor: "partido_dia", etiqueta: "Compra partida el mismo día", grupo: "Compra partida" },
+  { valor: "partido_anio", etiqueta: "Compra partida en el año", grupo: "Compra partida" },
+  { valor: "tope", etiqueta: "Sobre el tope o al borde", grupo: "Monto" },
+  { valor: "precio", etiqueta: "Precio alto frente a otras entidades", grupo: "Monto" },
+  { valor: "ventana", etiqueta: "Menos de 4 horas para cotizar", grupo: "Cotización" },
+  { valor: "cerrada", etiqueta: "Invitación cerrada", grupo: "Cotización" },
+  { valor: "documento", etiqueta: "En el requerimiento o el contrato (IA)", grupo: "Documentos" },
+  { valor: "fin_semana", etiqueta: "Firmado en fin de semana", grupo: "Fechas" },
 ] as const;
 
 /** El monto en tramos; el tope es el de 8 UIT del año de la firma. */
@@ -113,6 +188,12 @@ const consulta = (f: Record<string, unknown>) => {
 };
 
 export const getMenores = (f: FiltrosMenores) => leer<MenoresPagina>(`/menores?${consulta(f)}`);
+export const getFichaMenor = (id: number) => leer<FichaMenor>(`/menores/${id}`);
+export const getResumenMenores = (f: { entidad?: string; proveedor?: string; anio?: number } = {}) =>
+  leer<ResumenMenores>(`/menores/resumen?${consulta(f)}`, 3600);
+
+/** La ficha de un contrato menor en la web. */
+export const rutaMenor = (id: number) => `/app/contratos/menor/${id}`;
 
 /** URL del PDF (proxy por nuestra API, que añade las cabeceras que el WAF del SEACE exige). */
 // Enlaces: la ruta pública (`/v1`), la misma en el servidor y en el navegador (lib/api-client.ts).
@@ -122,7 +203,7 @@ export const urlContratoMenor = (id: number) => `${API_PUBLICA}/menores/${id}/co
 /** Claves en la URL (prefijo «m»), para no pisar los filtros de Contratos/Órdenes. */
 export const P_MEN = {
   q: "mq", anio: "manio", entidad: "ment", proveedor: "mprov", region: "mreg",
-  objeto: "mobj", estado: "mest", conReq: "mreq", antecedente: "mant", persona: "mper", monto: "mmonto",
+  objeto: "mobj", estado: "mest", conReq: "mreq", antecedente: "mant", senal: "msen", persona: "mper", monto: "mmonto",
   orden: "mord", page: "mpag",
 } as const;
 
@@ -141,6 +222,7 @@ export function parseMenoresQuery(sp?: Record<string, string | string[] | undefi
     estado: g(P_MEN.estado) || undefined,
     conReq: g(P_MEN.conReq) === "si" ? "si" : undefined,
     antecedente: valida(ANTECEDENTES_MENOR, g(P_MEN.antecedente)),
+    senal: valida(SENALES_FILTRO, g(P_MEN.senal)),
     persona: g(P_MEN.persona) === "natural" || g(P_MEN.persona) === "empresa" ? g(P_MEN.persona) : undefined,
     monto: valida(MONTOS_MENOR, g(P_MEN.monto)),
     orden: g(P_MEN.orden) || undefined,
@@ -155,7 +237,7 @@ export function menoresParametros(q: FiltrosMenores): Record<string, string> {
   set(P_MEN.q, q.q); set(P_MEN.anio, q.anio); set(P_MEN.entidad, q.entidad); set(P_MEN.proveedor, q.proveedor);
   set(P_MEN.region, q.region);
   set(P_MEN.objeto, q.objeto); set(P_MEN.estado, q.estado); set(P_MEN.conReq, q.conReq);
-  set(P_MEN.antecedente, q.antecedente); set(P_MEN.persona, q.persona); set(P_MEN.monto, q.monto);
+  set(P_MEN.antecedente, q.antecedente); set(P_MEN.senal, q.senal); set(P_MEN.persona, q.persona); set(P_MEN.monto, q.monto);
   set(P_MEN.orden, q.orden);
   return out;
 }

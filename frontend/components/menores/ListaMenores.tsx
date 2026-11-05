@@ -34,12 +34,15 @@ import {
   MONTOS_MENOR,
   OBJETOS_MENOR,
   P_MEN,
+  SENALES_FILTRO,
   claveRegion,
+  rutaMenor,
   urlContratoMenor,
   urlRequerimiento,
   type ContratoMenor,
   type MenoresPagina,
 } from "@/lib/menores";
+import { textoSenal } from "@/lib/senalesMenor";
 
 /**
  * Lista de CONTRATOS MENORES (≤8 UIT) del SEACE (sección propia y, con filtro, ficha de empresa/entidad). Cada contrato
@@ -61,11 +64,16 @@ const COLUMNAS: Columna[] = [
   { clave: "estado", titulo: "Estado", ancho: "112px", desde: "md", apilar: true },
   { clave: "contrato", titulo: "Contrato menor", ancho: "minmax(0,1.8fr)" },
   {
-    clave: "antecedentes", titulo: "Antecedentes del proveedor", corto: "Antecedentes", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: true,
+    clave: "antecedentes", titulo: "Señales y antecedentes", corto: "Señales", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: true,
     ayuda: (
-      <Ayuda titulo="¿Qué antecedentes se revisan aquí?">
+      <Ayuda titulo="¿Qué señales y antecedentes se revisan aquí?">
         <span className="block">
-          Lo que dice la SUNAT del proveedor: si hoy figura de baja o en suspensión, si es «no habido» (la SUNAT no lo ubica)
+          Del contrato: si la compra se partió (varios contratos menores al mismo proveedor que juntos pasan las 8 UIT), si
+          el monto pasa el tope o queda al borde, si se dio muy poco tiempo para cotizar, si la invitación fue cerrada, si un
+          bien se pagó muy por encima de lo que pagan otras entidades y lo que la IA encontró en el requerimiento y el contrato.
+        </span>
+        <span className="mt-2 block">
+          Del proveedor, lo que dice la SUNAT: si hoy figura de baja o en suspensión, si es «no habido» (la SUNAT no lo ubica)
           o «no hallado» (no lo encontró al notificarlo), o si firmó con menos de 6 meses de haber empezado sus actividades.
         </span>
         <span className="mt-2 block">Y si el Tribunal de Contrataciones lo tenía inhabilitado el día en que firmó.</span>
@@ -84,6 +92,19 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "fecha", titulo: "Suscrito", ancho: "104px", desde: "md", apilar: "con-rotulo" },
 ];
+
+/** «2026-10-14T13:00» (hora de Lima, como la publica el SEACE) → «14 oct. 2026, 13:00». */
+export function fechaHoraLima(s: string): string {
+  const [d, h] = s.split("T");
+  return h ? `${fechaConAnio(d)}, ${h.slice(0, 5)}` : fechaConAnio(d);
+}
+
+/** Cuánto duró una ventana: «35 minutos», «6 horas», «3 días». */
+export function duracion(horas: number): string {
+  if (horas < 1) return `${Math.max(1, Math.round(horas * 60))} minutos`;
+  if (horas < 48) { const h = Math.round(horas * 10) / 10; return `${String(h).replace(".", ",")} ${h === 1 ? "hora" : "horas"}`; }
+  return `${Math.round(horas / 24)} días`;
+}
 
 const objetoTxt = (o: string | null) => (o && /bien/i.test(o) ? "Bien" : o && /servicio/i.test(o) ? "Servicio" : o ? tituloNatural(o) : null);
 
@@ -135,6 +156,7 @@ export async function BarraMenoresGeneral({
         ...(regiones.length
           ? [{ param: P_MEN.region, etiqueta: "Región", corta: "Región", todas: "Todo el país", opciones: regiones.map((r) => ({ valor: r, etiqueta: tituloNatural(r), conteo: conteoRegion(r) })) }]
           : []),
+        { param: P_MEN.senal, etiqueta: "Señales del contrato", corta: "Señales", todas: "Todos", opciones: opcionesDe(SENALES_FILTRO, f?.senal) },
         ...(deUnProveedor
           ? []
           : [{ param: P_MEN.antecedente, etiqueta: "Antecedentes del proveedor", corta: "Antecedentes", todas: "Todos", opciones: opcionesDe(ANTECEDENTES_MENOR, f?.antecedente) }]),
@@ -230,11 +252,17 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
   const descripcion = m.descripcion ? oracion(m.descripcion) : "Sin descripción";
   const objeto = objetoTxt(m.objeto);
   // Las fechas del panel, siempre con el año (un rango «28 dic. – 3 ene.» cruza de un año a otro).
-  const cotiza = m.cotizaDesde && m.cotizaHasta ? `${fechaConAnio(m.cotizaDesde)} – ${fechaConAnio(m.cotizaHasta)}` : null;
+  const cotiza = m.cotizaInicio && m.cotizaCierre
+    ? `${fechaHoraLima(m.cotizaInicio)} a ${fechaHoraLima(m.cotizaCierre)}${m.cotizaHoras != null ? ` (${duracion(m.cotizaHoras)})` : ""}`
+    : m.cotizaDesde && m.cotizaHasta ? `${fechaConAnio(m.cotizaDesde)} – ${fechaConAnio(m.cotizaHasta)}` : null;
   const sunat = antecedentesSunat(m);
-  // Las banderas de la fila: lo de la SUNAT y, si el Tribunal lo tenía inhabilitado al firmar, eso (lo más grave).
-  const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []), ...sunat,
-                                     ...(extra?.antecedentes ?? [])];
+  // Las señales del contrato (menor_senal: compra partida, tope, cotización, precio, lo leído), con su texto.
+  const senales = (m.senales ?? []).map((x) => ({ ...x, ...textoSenal(x) }));
+  // Las banderas de la fila: si el Tribunal lo tenía inhabilitado al firmar (lo más grave), las señales del contrato y lo
+  // de la SUNAT.
+  const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []),
+                                     ...senales.map((x) => ({ tipo: x.tipo, severidad: x.severidad, chip: x.chip, explica: x.explica })),
+                                     ...sunat, ...(extra?.antecedentes ?? [])];
   const estado = <EstadoCompra estado={m.estado} />;
   // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
   // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
@@ -260,6 +288,8 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
     },
     m.codigo ? { etiqueta: "Código", valor: m.codigo, mono: true } : null,
     m.estadoProceso ? { etiqueta: "Estado del proceso", valor: m.estadoProceso } : null,
+    m.areaUsuaria ? { etiqueta: "Quién lo pidió", valor: oracion(m.areaUsuaria) } : null,
+    m.tipoInvitacion ? { etiqueta: "Invitación", valor: oracion(m.tipoInvitacion.replace(/^INVITACI[OÓ]N\s+/i, "")) } : null,
     cotiza ? { etiqueta: "Pudo cotizarse", valor: cotiza, mono: true, ayuda: <AyudaTermino clave="cotizacion" /> } : null,
   ];
   return {
@@ -300,6 +330,21 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
             {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" todas />}
           </ChipsDetalle>
           <DatosClave items={items.filter(Boolean) as DatoClave[]} />
+          {senales.length > 0 && (
+            <BloqueDetalle titulo="Señales de este contrato">
+              <ul className="space-y-1.5">
+                {senales.map((x) => (
+                  <li key={x.tipo}>
+                    <span className="font-semibold text-ink">{x.nombre}.</span> <span className="text-inkSoft">{x.explica}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-rotulo text-mute">Son indicios para revisar, no una acusación. La ficha del contrato trae la evidencia.</p>
+            </BloqueDetalle>
+          )}
+          <EnlaceAccion href={rutaMenor(m.id)} prefetch={false} variante="primario" flecha>
+            Ver la ficha del contrato menor
+          </EnlaceAccion>
           {m.inhabilitacion && (
             <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />
           )}

@@ -32,7 +32,9 @@ import {
 } from "@/lib/contratos";
 import { getOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD } from "@/lib/ordenes";
 import { ListaOrdenes, ListaOrdenesCargando, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
-import { getMenores, parseMenoresQuery, menoresParametros, P_MEN } from "@/lib/menores";
+import { getMenores, getResumenMenores, parseMenoresQuery, menoresParametros, P_MEN, type ResumenMenores } from "@/lib/menores";
+import { CifrasEnFila as CifrasMenoresFila, CifrasEnFilaSkeleton as CifrasMenoresCargando } from "@/components/ui/CifrasEnFila";
+import { numero as numeroMen, solesCompacto as solesMen } from "@/lib/formato";
 import { ListaMenores, ListaMenoresCargando, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
@@ -464,7 +466,7 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
       <EncabezadoPagina
         titulo="Contratos menores (≤8 UIT)"
-        bajada="Las compras chicas del Estado (hasta 8 UIT) con su requerimiento y ventana de cotización (SEACE)."
+        bajada="Las compras chicas del Estado (hasta 8 UIT): qué se pidió, a quién, a qué precio y las señales de cada una (SEACE)."
         ayuda={
           <Ayuda titulo="¿Qué son los contratos menores?">
             Compras del Estado por montos pequeños (hasta 8 UIT: S/ 44,000 en 2026, S/ 42,800 en 2025). Por ley se
@@ -474,6 +476,9 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
         }
       />
       <VistaConConteo vista="menores" universo={universo} />
+      <Suspense fallback={<CifrasMenoresCargando n={4} />}>
+        <CifrasMenores resumen={getResumenMenores()} />
+      </Suspense>
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
           <BarraMenoresGeneral pagina={pagina} regiones={regiones} parametros={parametros} entidadNombre={entidad?.entidad?.nombre ?? null} />
@@ -485,5 +490,59 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
         </ZonaResultados>
       </Listado>
     </Pagina>
+  );
+}
+
+/**
+ * Las cifras de la cabecera de los contratos menores: cuántos y por cuánto, cuántos tienen alguna señal, cuántos están
+ * en una compra partida y cuántos leyó la IA. Cada una lleva a la lista filtrada. Son de toda la base: no cambian con los
+ * filtros.
+ */
+async function CifrasMenores({ resumen }: { resumen: Promise<ResumenMenores | null> }) {
+  const r = await resumen;
+  if (!r) return null;
+  const tipo = (t: string) => r.senales.filter((s) => s.tipo === t).reduce((a, s) => ({ contratos: a.contratos + s.contratos, grupos: a.grupos + s.grupos }), { contratos: 0, grupos: 0 });
+  const anio = tipo("menor_partido_en_el_anio");
+  const dia = tipo("menor_partido_mismo_dia");
+  const pct = r.contratos ? Math.round((100 * r.conSenal) / r.contratos) : 0;
+  return (
+    <CifrasMenoresFila
+      items={[
+        {
+          valor: numeroMen(r.contratos),
+          etiqueta: "contratos menores",
+          contexto: `por ${solesMen(r.monto)}, de ${numeroMen(r.entidades)} entidades`,
+          ayuda: (
+            <Ayuda titulo="¿Qué cuentan estas cifras?">
+              <span className="block">
+                Los contratos menores (hasta 8 UIT) que las entidades registraron en el SEACE desde 2025. El módulo es
+                facultativo: no están todas las compras chicas del país.
+              </span>
+              <span className="mt-2 block text-mute">Son cifras de toda la base: no cambian con la búsqueda ni con los filtros.</span>
+            </Ayuda>
+          ),
+        },
+        {
+          valor: numeroMen(r.conSenal),
+          etiqueta: "con alguna señal",
+          contexto: `${pct} % del total, por ${solesMen(r.montoConSenal)}`,
+          tono: "media",
+          href: `${RUTA}?vista=menores&${P_MEN.senal}=con`,
+        },
+        {
+          valor: numeroMen(anio.grupos),
+          etiqueta: "compras partidas en el año",
+          contexto: `${numeroMen(anio.contratos)} contratos al mismo proveedor que juntos pasan las 8 UIT; ${numeroMen(dia.grupos)} el mismo día`,
+          tono: "alta",
+          href: `${RUTA}?vista=menores&${P_MEN.senal}=partido_anio`,
+        },
+        {
+          valor: numeroMen(r.leidos),
+          etiqueta: "leídos por la IA",
+          contexto: `de ${numeroMen(r.conRequerimiento)} requerimientos y ${numeroMen(r.conContrato)} contratos en PDF`,
+          tono: "positivo",
+        },
+      ]}
+    />
   );
 }

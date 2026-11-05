@@ -78,11 +78,10 @@ def fecha_dmy(s: str | None) -> str | None:
 
 
 def fecha_iso(s: str | None) -> str | None:
-    """prod6 devuelve fechas ISO (a veces con hora); nos quedamos con la parte de la fecha."""
-    if not s:
-        return None
-    m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})", s)
-    return m.group(1) if m else None
+    """prod6 manda «06/11/2026 10:20:00» (día/mes/año, con hora): antes se esperaba ISO y se perdían todas (migración
+    251). Devuelve «2026-11-06 10:20:00»; también acepta ISO."""
+    from menores_detalle import fecha_hora
+    return fecha_hora(s)
 
 
 def moneda_norm(s: str | None) -> str | None:

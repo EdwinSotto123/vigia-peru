@@ -126,7 +126,9 @@ def recortar(b: bytes, n: int) -> bytes:
     return paginas(b, list(range(n)))
 
 
-def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], formatos: list[str]) -> dict:
+def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], formatos: list[str], bajar=None) -> dict:
+    """`bajar(url) -> bytes`: de dónde sale cada documento (por defecto el R2 de documentos_gcs; los contratos menores
+    traen el suyo, lector/menores.py)."""
     fila = {"ocid": ocid, "clase": lector.CLASE, "version": lector.VERSION, "modelo": MODELO, "documentos": [],
             "paginas": 0, "estado": "sin_pdf", "salida": None, "banderas": [], "tokens_in": None, "tokens_out": None,
             "costo_usd": 0, "detalle": None}
@@ -136,7 +138,7 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
         if fila["paginas"] >= tope_paginas:
             break
         try:
-            partes = pdfs_de(bajar_r2(url), formato)
+            partes = pdfs_de((bajar or bajar_r2)(url), formato)
         except Exception as e:  # noqa: BLE001
             fila["detalle"] = f"no se pudo bajar {doc_id}: {str(e)[:120]}"
             continue
