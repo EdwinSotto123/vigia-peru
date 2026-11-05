@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { DatoClave } from "@/components/patrones/Detalle";
 import { Indicadores } from "@/components/listado";
-import { BarrasGasto, Fichas } from "@/components/inicio/BloquesInicio";
-import { TIPOS, type ResumenContratos } from "@/lib/contratos";
+import { BarraPartes, type ParteBarra } from "@/components/inicio/BarraPartes";
+import { BarrasGasto, hayLectura, partesPorLectura, partesPorTipo } from "@/components/inicio/BloquesInicio";
+import type { ResumenContratos } from "@/lib/contratos";
 import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import type { RegionBudgetSummary } from "@/lib/mef";
 
@@ -39,9 +40,15 @@ export function GastoRegion({ mef }: { mef: RegionBudgetSummary }) {
 /**
  * Sus contratos: cuántos, por tipo y si Vigía los leyó. Cada número abre la lista que lo cuenta: antes «Leídos 219»
  * sumaba los publicados y los que están en revisión, y abría sólo los publicados (la lista decía otro número).
+ *
+ * Por tipo y la lectura, cada uno en una barra con su leyenda, con las mismas partes y colores que la ficha de una
+ * entidad (BloquesInicio: partesPorTipo, partesPorLectura): antes eran píldoras sueltas y el reparto no se veía
+ * (auditoría del 2026-11-05).
  */
 export function datosContratosRegion(resumen: ResumenContratos, contratos: (f?: Record<string, string>) => string): DatoClave[] {
   const l = resumen.porLectura;
+  const reparto = (partes: ParteBarra[], etiqueta: string) =>
+    partes.some((p) => p.n > 0) ? <BarraPartes leyenda="en-linea" etiqueta={etiqueta} partes={partes} className="pt-1" /> : <span className="text-mute">Ninguno</span>;
   return [
     {
       etiqueta: "Desde 2015",
@@ -51,19 +58,12 @@ export function datosContratosRegion(resumen: ResumenContratos, contratos: (f?: 
         </Link>
       ),
     },
-    { etiqueta: "Por tipo", valor: <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} /> },
+    { etiqueta: "Por tipo", valor: reparto(partesPorTipo(resumen.porTipo, contratos), "Sus contratos por tipo") },
     {
       etiqueta: "¿Lo leyó Vigía?",
-      valor: l ? (
-        <Fichas
-          items={[
-            { etiqueta: "Con dictamen", n: l.publicado ?? 0, href: contratos({ lectura: "publicado" }), destacada: true },
-            { etiqueta: "En revisión humana", n: l.revision ?? 0, href: contratos({ lectura: "revision" }) },
-            { etiqueta: "Leyéndose", n: l.leyendo ?? 0, href: contratos({ lectura: "leyendo" }) },
-            { etiqueta: "Aún no", n: l.sin_leer ?? 0, href: contratos({ lectura: "sin_leer" }) },
-          ]}
-        />
-      ) : null,
+      // Sin ninguno leído, una barra entera de «Aún no» no dice nada: la frase. (La ficha de la región no tiene la cifra
+      // de leídos en su cabecera, como la de una entidad: aquí se dice.)
+      valor: l ? hayLectura(l) ? reparto(partesPorLectura(l, contratos), "Sus contratos según si Vigía los leyó") : <span className="text-mute">Ninguno todavía</span> : null,
     },
   ];
 }

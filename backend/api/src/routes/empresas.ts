@@ -1102,7 +1102,9 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
                    WHERE o.entidad_ruc = d.ent AND o.ruc_contratista = $1 AND o.fecha_emision >= d.fecha_visita
                      AND o.estado IS DISTINCT FROM 'Anulada') o1 ON true
                 LEFT JOIN LATERAL (
-                  SELECT o.nro_orden AS numero, o.tipo_orden AS tipo, left(btrim(o.descripcion), 220) AS descripcion, o.monto::float AS monto
+                  -- Sin monto si no es en soles (la OPS cobra en dólares canadienses): antes salía «S/ 7,445».
+                  SELECT o.nro_orden AS numero, o.tipo_orden AS tipo, left(btrim(o.descripcion), 220) AS descripcion,
+                         CASE WHEN o.moneda IN ('Soles', 'Nuevos Soles') THEN o.monto END::float AS monto
                     FROM conosce_ordenes o
                    WHERE o1.f IS NOT NULL AND o.entidad_ruc = d.ent AND o.ruc_contratista = $1 AND o.fecha_emision = o1.f
                      AND o.estado IS DISTINCT FROM 'Anulada'
@@ -1122,7 +1124,8 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
                    ORDER BY sum(a.monto_adjudicado) DESC NULLS LAST
                    LIMIT 1) ad ON true
                 LEFT JOIN LATERAL (
-                  SELECT count(*)::int AS ordenes, sum(o.monto) FILTER (WHERE o.monto_dudoso IS NULL)::float AS monto
+                  SELECT count(*)::int AS ordenes,
+                         sum(o.monto) FILTER (WHERE o.monto_dudoso IS NULL AND o.moneda IN ('Soles', 'Nuevos Soles'))::float AS monto
                     FROM conosce_ordenes o
                    WHERE o1.f IS NOT NULL AND o1.f < d.fecha_visita + 90 AND o.entidad_ruc = d.ent AND o.ruc_contratista = $1
                      AND o.fecha_emision >= d.fecha_visita AND o.fecha_emision < d.fecha_visita + 90

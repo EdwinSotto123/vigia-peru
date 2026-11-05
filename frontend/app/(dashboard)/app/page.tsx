@@ -77,18 +77,22 @@ export default async function InicioApp() {
   const cifras: CifrasInicio = { anio: cifrasAnio, enCola: estado?.colaGlobal ?? null };
 
   // ── Rankings: cada pestaña sólo existe si su lectura respondió con algo; cada fila abre su ficha ──
+  // Cada fila con DOS números lleva una barra de dos tonos (pedido del usuario del 2026-11-05: eran cinco barras verdes
+  // iguales, «424 en cola», y el segundo número sólo en texto): en color pleno la parte que ya avanzó y, atenuado, el resto.
+  // La métrica de la pestaña dice qué es cada tono.
   const pestanas: PestanaRank[] = [];
   if (entidades && entidades.items.length > 0) {
     pestanas.push({
       id: "entidades",
       etiqueta: "Entidades",
-      metrica: "Entidades con más contratos en la cola de lectura.",
+      metrica: "Entidades con más contratos en la cola de lectura. En color pleno, los que ya tienen sus documentos listos para leer.",
       filas: entidades.items.slice(0, TOPE).map((e) => ({
         id: e.ruc,
         nombre: tituloNatural(e.nombre),
         sub: `${numero(e.conDocumentos)} con documentos listos${e.region ? `, ${e.region}` : ""}`,
         valor: e.enCola,
         texto: `${numero(e.enCola)} en cola`,
+        parte: e.enCola > 0 ? Math.min(1, e.conDocumentos / e.enCola) : 0,
         href: `/entidad/${e.ruc}`,
       })),
       verTodos: { href: "/app/entidades", texto: "Ver todas las entidades" },
@@ -135,11 +139,15 @@ export default async function InicioApp() {
   }
   const geoPorUbigeo = new Map((regiones ?? []).map((z) => [z.ubigeo, z]));
   const filasRegiones = [...(zonas ?? [])].filter((z) => z.pendientes > 0).sort((a, b) => b.pendientes - a.pendientes).slice(0, TOPE);
+  // Los dos tonos sólo si llegó lo leído de cada región (el mapa): sin eso, la barra entera en color pleno, como antes.
+  const conLeidos = geoPorUbigeo.size > 0;
   if (filasRegiones.length > 0) {
     pestanas.push({
       id: "regiones",
       etiqueta: "Regiones",
-      metrica: "Regiones con más contratos en cola, esperando su lectura: los más graves van primero. La región es la sede de la entidad que contrata.",
+      metrica: `Regiones con más contratos en cola, esperando su lectura: los más graves van primero. La región es la sede de la entidad que contrata.${
+        conLeidos ? ` En color pleno, la parte de sus contratos de ${anioLectura()} que ya se leyó.` : ""
+      }`,
       filas: filasRegiones.map((z) => {
         const g = geoPorUbigeo.get(z.ubigeo);
         return {
@@ -148,6 +156,7 @@ export default async function InicioApp() {
           sub: g ? `${numero(g.procesados)} leídos de ${numero(g.total)} publicados en ${anioLectura()}` : undefined,
           valor: z.pendientes,
           texto: `${numero(z.pendientes)} en cola`,
+          parte: conLeidos ? (g && g.total > 0 ? Math.min(1, g.procesados / g.total) : 0) : undefined,
           href: rutaRegion(z.ubigeo),
         };
       }),

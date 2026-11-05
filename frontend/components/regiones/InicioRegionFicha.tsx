@@ -1,7 +1,7 @@
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave } from "@/components/patrones/Detalle";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Banderas, BloqueInicio, LineasSinDato, SubseccionInicio } from "@/components/inicio/BloquesInicio";
+import { Banderas, BloqueInicio, LineasSinDato, RejillaInicio, SubseccionInicio } from "@/components/inicio/BloquesInicio";
 import { CasosCorrupcion } from "@/components/inicio/CasosCorrupcion";
 import { ContenidoPersonas } from "@/components/inicio/ContenidoPersonas";
 import { getResumenContratos } from "@/lib/contratos";
@@ -41,11 +41,12 @@ export async function InicioRegionFicha({ r, ruta }: { r: Region; ruta: string }
   if (!p) sinDato.push({ titulo: "Personas contratadas", motivo: "Sin dato: el servicio de personas no respondió." });
   else if (!p.filas) sinDato.push({ titulo: "Personas contratadas", motivo: "Sus entidades no registran órdenes de servicio a personas." });
 
-  // Qué se encontró: las banderas de sus contratos y las de las personas que contratan sus entidades.
+  // Qué se encontró: las banderas de sus contratos y las de las personas que contratan sus entidades. Cada una con su total
+  // (de cuántos contratos, de cuántos leídos): antes «Leídos con riesgo alto 25» llenaba su barra siendo 25 de 219.
   const hallazgos = [
     resumen && (
       <BloqueInicio key="contratos" nivel={3} titulo="En sus contratos" enlace={{ href: contratos({ cruces: "con" }), texto: "Ver los que tienen antecedentes" }}>
-        <Banderas porRiesgo={resumen.porRiesgo} porCruces={resumen.porCruces} href={contratos} conRiesgo={leidos > 0} />
+        <Banderas porRiesgo={resumen.porRiesgo} porCruces={resumen.porCruces} porLectura={l} total={resumen.total} href={contratos} conRiesgo={leidos > 0} />
       </BloqueInicio>
     ),
     p && p.filas > 0 && (
@@ -106,7 +107,9 @@ export async function InicioRegionFicha({ r, ruta }: { r: Region; ruta: string }
             </Ayuda>
           }
         >
-          {hallazgos}
+          {/* Lado a lado desde lg, cada uno de su alto: uno debajo del otro a todo el ancho, la etiqueta quedaba a 900 px de
+              su número (auditoría del 2026-11-05). */}
+          <RejillaInicio className="items-start">{hallazgos}</RejillaInicio>
         </SubseccionInicio>
       )}
 

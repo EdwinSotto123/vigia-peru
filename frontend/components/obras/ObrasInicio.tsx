@@ -1,6 +1,7 @@
+import { Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueInicio, ListaConteos, type FilaConteo } from "@/components/inicio/BloquesInicio";
-import { fecha, numero } from "@/lib/formato";
+import { fecha, listaY, numero } from "@/lib/formato";
 import { P_INV, P_OBRA, getResumenObras } from "@/lib/obras";
 
 /**
@@ -25,9 +26,12 @@ export async function ObrasInicio({ ruc, ruta }: { ruc: string; ruta: string }) 
   const deInversiones = nInversiones === 1 ? "De su inversión en Invierte.pe" : `De sus ${numero(nInversiones)} inversiones en Invierte.pe`;
   const b = o?.porBandera ?? {};
   const v = i?.porBandera ?? {};
-  // `tipo`: el de la bandera en el contrato (lib/cruces), para el ícono de su familia.
-  const obra = (etiqueta: string, bandera: string, tipo: string, grave = false): FilaConteo => ({
+  // `tipo`: el de la bandera en el contrato (lib/cruces), para el ícono de su familia. `corto`: cómo se nombra en la
+  // línea de las que no tienen ningún caso.
+  type FilaObra = FilaConteo & { corto: string };
+  const obra = (etiqueta: string, corto: string, bandera: string, tipo: string, grave = false): FilaObra => ({
     etiqueta,
+    corto,
     n: b[bandera] ?? 0,
     href: obras({ [P_OBRA.bandera]: bandera }),
     grupo: deObras,
@@ -35,8 +39,9 @@ export async function ObrasInicio({ ruc, ruta }: { ruc: string; ruta: string }) 
     tipo,
     grave,
   });
-  const inversion = (etiqueta: string, bandera: string, tipo: string, grave = false): FilaConteo => ({
+  const inversion = (etiqueta: string, corto: string, bandera: string, tipo: string, grave = false): FilaObra => ({
     etiqueta,
+    corto,
     n: v[bandera] ?? 0,
     href: inversiones({ [P_INV.bandera]: bandera }),
     grupo: deInversiones,
@@ -44,25 +49,29 @@ export async function ObrasInicio({ ruc, ruta }: { ruc: string; ruta: string }) 
     tipo,
     grave,
   });
-  const filas: FilaConteo[] = [
+  const todas: FilaObra[] = [
     ...(nObras
       ? [
-          obra("Obras paralizadas hoy", "paralizada", "obra_paralizada", true),
-          obra("Obras atrasadas 20 puntos o más frente a lo programado", "atraso", "obra_atraso", true),
-          obra("Obras pagadas por encima de lo construido", "pago", "obra_pagado_sin_avance", true),
-          obra("Obras por contrata con adicionales por más del 15 % del contrato", "adicionales_tope", "obra_adicionales_sobre_tope", true),
-          obra("Obras con el plazo ampliado a la mitad o más", "plazo", "obra_plazo_ampliado"),
-          obra("Obras con controversias o arbitraje", "controversia", "obra_controversia"),
-          obra("Obras con informes de la Contraloría", "control", "obra_informe_control"),
+          obra("Obras paralizadas hoy", "obras paralizadas", "paralizada", "obra_paralizada", true),
+          obra("Obras atrasadas 20 puntos o más frente a lo programado", "obras atrasadas", "atraso", "obra_atraso", true),
+          obra("Obras pagadas por encima de lo construido", "obras pagadas por encima de lo construido", "pago", "obra_pagado_sin_avance", true),
+          obra("Obras por contrata con adicionales por más del 15 % del contrato", "adicionales por más del 15 %", "adicionales_tope", "obra_adicionales_sobre_tope", true),
+          obra("Obras con el plazo ampliado a la mitad o más", "plazos ampliados a la mitad o más", "plazo", "obra_plazo_ampliado"),
+          obra("Obras con controversias o arbitraje", "controversias o arbitraje", "controversia", "obra_controversia"),
+          obra("Obras con informes de la Contraloría", "informes de la Contraloría", "control", "obra_informe_control"),
         ]
       : []),
     ...(nInversiones
       ? [
-          inversion("Inversiones que cuestan 1.5 veces o más lo aprobado", "sobrecosto", "inversion_sobrecosto", true),
-          inversion("Inversiones con laudos arbitrales", "laudo", "inversion_laudo"),
+          inversion("Inversiones que cuestan 1.5 veces o más lo aprobado", "inversiones con sobrecosto", "sobrecosto", "inversion_sobrecosto", true),
+          inversion("Inversiones con laudos arbitrales", "laudos arbitrales", "laudo", "inversion_laudo"),
         ]
       : []),
   ];
+  // Las que no tienen ningún caso, en UNA línea al final («Sin casos de …»), no una fila gris «… 0» cada una: eran tres o
+  // cuatro renglones que no decían nada (auditoría del 2026-11-05).
+  const filas: FilaConteo[] = todas.filter((f) => f.n > 0);
+  const sinCasos = todas.filter((f) => f.n === 0).map((f) => f.corto);
   return (
     <BloqueInicio
       nivel={3}
@@ -85,7 +94,13 @@ export async function ObrasInicio({ ruc, ruta }: { ruc: string; ruta: string }) 
         texto: o?.total ? (o.total === 1 ? "Ver su obra" : `Ver sus ${numero(o.total)} obras`) : "Ver sus inversiones",
       }}
     >
-      <ListaConteos filas={filas} />
+      {filas.length > 0 && <ListaConteos filas={filas} />}
+      {sinCasos.length > 0 && (
+        <p className={`flex items-start gap-2 px-3.5 text-meta leading-snug text-mute${filas.length ? " mt-3 border-t border-line/70 pt-3" : ""}`}>
+          <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
+          <span className="min-w-0">Sin casos de {listaY(sinCasos)}.</span>
+        </p>
+      )}
     </BloqueInicio>
   );
 }

@@ -11,13 +11,25 @@ import { EmpresasLigadas, QuienGobierna, TIPOS_CAPTURA, filaCaptura } from "@/co
 import { QuienDecide } from "@/components/entidad/QuienDecide";
 import { getEstructuraEntidad, getGastoEntidad, type ConteosEntidad, type NepotismoEntidad } from "@/lib/api-client";
 import { getCorrupcionEntidad } from "@/lib/corrupcion";
-import { TIPOS, type ResumenContratos } from "@/lib/contratos";
+import type { ResumenContratos } from "@/lib/contratos";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { getPersonas, PARAMS_EN_FICHA, SENAL, type ResumenPersonas } from "@/lib/personas";
 import { getPoderEntidad, getPoderGrafoEntidad } from "@/lib/poder";
 import { rutaRegion } from "@/lib/regiones";
-import { Banderas, BarrasGasto, BloqueInicio, LineasSinDato, ListaConteos, SubseccionInicio, TarjetaInicio, type FilaConteo } from "./BloquesInicio";
-import { BarraPartes, PISTA, type ParteBarra } from "./BarraPartes";
+import {
+  Banderas,
+  BarrasGasto,
+  BloqueInicio,
+  LineasSinDato,
+  SubseccionInicio,
+  TarjetaInicio,
+  hayLectura,
+  partesPorLectura,
+  partesPorTipo,
+  type FilaConteo,
+} from "./BloquesInicio";
+import { BarraPartes, type ParteBarra } from "./BarraPartes";
+import { ContenidoPersonas } from "./ContenidoPersonas";
 import { ResumenContraloria } from "./CasosCorrupcion";
 import { NepotismoInicio } from "./NepotismoInicio";
 import { ObrasInicio } from "@/components/obras/ObrasInicio";
@@ -187,28 +199,15 @@ async function Principal({
   if (!corrupcion) sinDato.push({ titulo: "Contraloría", motivo: "Sin dato: el servicio no respondió." });
 
   // Sus contratos por tipo y si Vigía los leyó, cada uno en una barra con su leyenda (antes, fichas sueltas: el reparto no
-  // se veía), cada parte con su lista ya filtrada. Por tipo, el color sigue al tipo; la lectura, una rampa de lo leído a
-  // lo que aún no (la pista).
-  const porTipo: ParteBarra[] = resumen
-    ? [
-        ...TIPOS.map((t) => ({ clave: t.value, etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) })),
-        // Los que el OECE no clasifica también suman el total de la cabecera; no tienen filtro.
-        { clave: "sin_clasificar", etiqueta: "Sin tipo", n: resumen.porTipo.sin_clasificar ?? 0, clase: PISTA },
-      ]
-    : [];
-  const porLectura: ParteBarra[] = l
-    ? [
-        { clave: "publicado", etiqueta: "Con dictamen", n: l.publicado ?? 0, href: contratos({ lectura: "publicado" }), clase: "bg-granate", destacada: true },
-        { clave: "revision", etiqueta: "En revisión humana", n: l.revision ?? 0, href: contratos({ lectura: "revision" }), clase: "bg-granate/50" },
-        { clave: "leyendo", etiqueta: "Leyéndose", n: l.leyendo ?? 0, href: contratos({ lectura: "leyendo" }), clase: "bg-granate/25" },
-        { clave: "sin_leer", etiqueta: "Aún no", n: l.sin_leer ?? 0, href: contratos({ lectura: "sin_leer" }), clase: PISTA },
-      ]
-    : [];
+  // se veía), cada parte con su lista ya filtrada. Las mismas partes que la ficha de una región (BloquesInicio): por tipo,
+  // las series de los gráficos; la lectura, una rampa de lo leído a lo que aún no (la pista).
   const reparto = (partes: ParteBarra[], etiqueta: string) =>
     partes.some((p) => p.n > 0) ? <BarraPartes leyenda="en-linea" etiqueta={etiqueta} partes={partes} className="pt-1" /> : <span className="text-mute">Ninguno</span>;
   const datosContratos: DatoClave[] = [
-    { etiqueta: "Por tipo", valor: resumen ? reparto(porTipo, "Sus contratos por tipo") : null },
-    { etiqueta: "¿Lo leyó Vigía?", valor: l ? reparto(porLectura, "Sus contratos según si Vigía los leyó") : null },
+    { etiqueta: "Por tipo", valor: resumen ? reparto(partesPorTipo(resumen.porTipo, contratos), "Sus contratos por tipo") : null },
+    // Sin ninguno leído, la barra era entera «Aún no 1,120» y la cifra de la cabecera ya dice «ninguno leído»: no va
+    // (auditoría del 2026-11-05).
+    ...(l && hayLectura(l) ? [{ etiqueta: "¿Lo leyó Vigía?", valor: reparto(partesPorLectura(l, contratos), "Sus contratos según si Vigía los leyó") }] : []),
     {
       etiqueta: "Esperan lectura",
       valor:
@@ -273,20 +272,24 @@ async function Principal({
           <Banderas
             porRiesgo={resumen?.porRiesgo}
             porCruces={resumen?.porCruces}
+            porLectura={l}
+            // De cuántos contratos son los antecedentes: el total del reparto y de la barra de cada fila.
+            total={resumen?.total}
             href={contratos}
             // Con su ícono (el imán de la captura) cuando está en 0; con casos, el de una bandera grave.
             extra={poder ? [{ ...filaCaptura(poder, contratos), tipo: "captura" }] : []}
             // Las banderas de la obra de cada contrato (INFOBRAS, Invierte.pe) van en «En sus obras e inversiones», abajo.
             sinTipos={[...(poder ? TIPOS_CAPTURA : []), ...TIPOS_OBRA]}
             conRiesgo={leidos > 0}
-            // "Con algún antecedente" ya es la segunda cifra de la cabecera de la ficha: aquí, el enlace de arriba.
+            // Sin el reparto (la API no trajo el total): "Con algún antecedente" ya es la segunda cifra de la cabecera.
             conAlguno={false}
           />
         </BloqueInicio>
         {poder && <EmpresasLigadas poder={poder} grafo={grafo} entidadRuc={ruc} href={contratos} />}
         {r && r.filas > 0 && (
           <BloqueInicio nivel={3} titulo="En las personas que contrató" enlace={{ href: enPersonas(), texto: "Ver a las personas" }}>
-            <ListaConteos filas={filasPersonas(r, nepotismo, enPersonas)} />
+            {/* Sin la franja de cuántas y cuánto: ya está en «Sus contratos» (Órdenes a personas), con su enlace. */}
+            <ContenidoPersonas r={r} href={enPersonas} extra={filaNepotismo(r, nepotismo, enPersonas)} conCifras={false} />
           </BloqueInicio>
         )}
         <NepotismoInicio nepotismo={nepotismo} href={enPersonas} />
@@ -366,26 +369,15 @@ async function Principal({
 }
 
 /**
- * Las banderas de las personas a las que pagó por órdenes de servicio: la de nepotismo primero (si la hay), las graves,
- * las que tienen alguna y, bajo su subtítulo, las tres señales más frecuentes (cada una con su ícono), cada fila con su
- * lista ya filtrada en la pestaña Personas. La barra de cada una: de cuántas personas contrató.
+ * La bandera de nepotismo de las personas a las que pagó por órdenes de servicio, primero y aparte de las señales más
+ * frecuentes (`ContenidoPersonas` no la repite abajo): grave, con su lista ya filtrada en la pestaña Personas y su barra
+ * contra cuántas personas contrató (`filas`, lo mismo que cuentan las señales). Lo grave, lo medio y lo leve de todas
+ * ellas va en el reparto de arriba del bloque.
  */
-function filasPersonas(r: ResumenPersonas, nepotismo: NepotismoEntidad | null, href: (f: Record<string, string>) => string): FilaConteo[] {
-  const P = PARAMS_EN_FICHA;
-  // De cuántas es cada cifra: `filas` (una por persona contratada aquí), lo mismo que cuentan las señales.
-  const de = r.filas;
+function filaNepotismo(r: ResumenPersonas, nepotismo: NepotismoEntidad | null, href: (f: Record<string, string>) => string): FilaConteo[] {
   // La cuenta de la lista filtrada (personas con la señal); si el resumen no la trae, la de la DJI.
-  const nNepotismo = r.porSenal.find((s) => s.tipo === "nepotismo")?.n ?? nepotismo?.total ?? 0;
-  return [
-    ...(nNepotismo > 0 ? [{ etiqueta: SENAL.nepotismo.titulo, n: nNepotismo, href: href({ [P.senal]: "nepotismo" }), grave: true, tipo: "nepotismo", de }] : []),
-    { etiqueta: "Con una señal grave", n: r.alta, href: href({ [P.severidad]: "alta" }), grave: true, de },
-    { etiqueta: "Con alguna señal", n: r.conSenales, href: href({ [P.severidad]: "con" }), de },
-    // recorte: las 3 más frecuentes; todas, en la lista filtrable de la pestaña ("Ver a las personas")
-    ...r.porSenal
-      .filter((s) => s.tipo !== "nepotismo")
-      .slice(0, 3)
-      .map((s) => ({ etiqueta: SENAL[s.tipo]?.titulo ?? s.tipo, n: s.n, href: href({ [P.senal]: s.tipo }), grupo: "Las señales más frecuentes", tipo: s.tipo, de })),
-  ];
+  const n = r.porSenal.find((s) => s.tipo === "nepotismo")?.n ?? nepotismo?.total ?? 0;
+  return n > 0 ? [{ etiqueta: SENAL.nepotismo.titulo, n, href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), grave: true, tipo: "nepotismo", de: r.filas }] : [];
 }
 
 // ─── Columna lateral ─────────────────────────────────────────────────────────

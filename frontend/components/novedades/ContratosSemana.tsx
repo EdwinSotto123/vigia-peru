@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { MapPin, X } from "lucide-react";
 import { TablaFiltrable, type Columna, type FilaFiltrable, type FiltroLocal } from "@/components/listado";
 import { BotonCsv, ConCsv } from "@/components/listado/Paginado";
+import { colorSerie } from "@/components/charts/BarraSegmentada";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -16,11 +17,16 @@ export interface Faceta {
 }
 
 /**
- * Los contratos graves de la semana en «Lo nuevo» (2026-11-01): arriba, dos gráficas de barras, «qué antecedente grave
- * tienen» y «dónde» (la región de la entidad), y debajo la lista. Cada barra es un botón que filtra la lista (y se vuelve
- * a tocar para quitarlo); las cuentas de una gráfica se recalculan con el filtro de la otra, así cada número dice cuántas
- * filas va a mostrar. Antes la página era una lista de 150 filas sin forma, con el mismo contrato una vez por empresa del
- * consorcio, y el filtro de antecedente escondido en un desplegable.
+ * Los contratos graves de la semana en «Lo nuevo» (2026-11-01): dos gráficas de barras, «qué antecedente grave tienen» y
+ * «dónde» (la región de la entidad), y la lista. Cada barra es un botón que filtra la lista (y se vuelve a tocar para
+ * quitarlo); las cuentas de una gráfica se recalculan con el filtro de la otra, así cada número dice cuántas filas va a
+ * mostrar. Antes la página era una lista de 150 filas sin forma, con el mismo contrato una vez por empresa del consorcio,
+ * y el filtro de antecedente escondido en un desplegable.
+ *
+ * Pedido del usuario del 2026-11-05: las dos gráficas eran dos cajas de ~280 px de alto ENCIMA de la lista con dos y tres
+ * barras, y de día las barras eran un rosado desvaído (`bg-rust/70`). Ahora van en una columna de 17 rem al costado de la
+ * lista, fija al bajar (en el celular, encima y de a dos en la tableta), sin una caja por gráfica, y con rellenos llenos:
+ * rojo los antecedentes graves (es su gravedad) y el color de la primera serie las regiones (una cuenta, no una gravedad).
  *
  * Las filas llegan armadas del servidor (`valores.grave`: los tipos de antecedente GRAVE de la fila; `valores.region`: el
  * ubigeo de 2 dígitos). Un contrato con dos antecedentes graves cuenta en las dos barras.
@@ -71,29 +77,37 @@ export function ContratosSemana({
   const nombreRegion = regiones.find((r) => r.clave === region)?.etiqueta;
 
   return (
-    <div className="space-y-5">
-      {/* `grid-cols-1` (minmax(0, 1fr)) y no la columna automática: con ella, «La inversión cuesta 2 veces o más lo
-          aprobado» ensanchaba la tarjeta y la página pasaba el ancho del celular. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    // `minmax(0, 1fr)` y no la columna automática: con ella, «La inversión cuesta 2 veces o más lo aprobado» ensanchaba la
+    // columna y la página pasaba el ancho del celular.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+      {/* Las dos gráficas al costado de la lista, fijas al bajar (con su propio scroll si «Ver las N» las alarga más que la
+          pantalla); en la tableta, una al lado de la otra encima de la lista. */}
+      <aside
+        aria-label="Filtrar los contratos de la semana"
+        className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-4 rounded-2xl border border-line bg-paper p-4 sm:grid-cols-2 lg:sticky lg:top-[calc(var(--alto-barra-fija,0px)_+_1rem)] lg:block lg:max-h-[calc(100vh_-_var(--alto-barra-fija,0px)_-_2rem)] lg:space-y-5 lg:overflow-y-auto"
+      >
         <BarrasFaceta
           id="nuevo-por-tipo"
           titulo="Qué antecedente grave tienen"
-          bajada="Un contrato con dos antecedentes cuenta en los dos. Toca uno para ver sólo esos contratos."
+          bajada="Un contrato con dos cuenta en los dos. Toca uno para filtrar."
           items={conN(tipos, porTipo, tipo)}
           elegido={tipo}
           alElegir={setTipo}
           icono={(clave) => <IconoBandera tipo={clave} size={15} className="text-rust" />}
+          relleno="grave"
         />
         <BarrasFaceta
           id="nuevo-por-region"
           titulo="Dónde"
-          bajada="La región de la entidad que contrató. Toca una para filtrar."
+          bajada="La región de la entidad que contrató."
           items={conN(regiones, porRegion, region)}
           elegido={region}
           alElegir={setRegion}
           icono={() => <MapPin size={15} className="text-mute" aria-hidden />}
+          relleno="serie"
+          className="lg:border-t lg:border-line lg:pt-4"
         />
-      </div>
+      </aside>
 
       <ConCsv>
         <div className="space-y-3">
@@ -160,7 +174,10 @@ const VISIBLES = 6;
 
 /**
  * Una gráfica de barras horizontales que filtra: una fila por valor (ícono, nombre, número, barra contra la mayor y, si
- * hay, qué significa), de más a menos. Muestra seis y el resto con «Ver las N». La elegida va marcada (aria-pressed).
+ * hay, qué significa), de más a menos. Muestra seis y el resto con «Ver las N». La elegida va marcada (aria-pressed) y,
+ * con una elegida, las demás barras se atenúan. Sin caja propia: las dos van juntas en la columna de al lado de la lista.
+ * `relleno`: «grave» (el rojo de la gravedad, para los antecedentes graves) o «serie» (el color de la primera serie, para
+ * una cuenta sin gravedad como la región).
  */
 function BarrasFaceta({
   id,
@@ -170,6 +187,8 @@ function BarrasFaceta({
   elegido,
   alElegir,
   icono,
+  relleno,
+  className,
 }: {
   id: string;
   titulo: string;
@@ -178,17 +197,19 @@ function BarrasFaceta({
   elegido: string | null;
   alElegir: (clave: string | null) => void;
   icono: (clave: string) => ReactNode;
+  relleno: "grave" | "serie";
+  className?: string;
 }) {
   const [todas, setTodas] = useState(false);
   const mayor = Math.max(1, ...items.map((i) => i.n));
   // recorte: seis a la vista y el resto con «Ver las N» (el botón de abajo); la elegida siempre se ve.
   const visibles = todas ? items : items.filter((i, k) => k < VISIBLES || i.clave === elegido);
   return (
-    <section aria-labelledby={`${id}-t`} className="min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <h3 id={`${id}-t`} className="font-display text-bloque font-bold leading-tight text-ink">
+    <section aria-labelledby={`${id}-t`} className={cn("min-w-0", className)}>
+      <h3 id={`${id}-t`} className="font-display text-cuerpo font-bold leading-tight text-ink">
         {titulo}
       </h3>
-      <p className="mt-0.5 text-meta leading-snug text-mute">{bajada}</p>
+      <p className="mt-0.5 text-rotulo leading-snug text-mute">{bajada}</p>
       {items.length === 0 ? (
         <p className="mt-3 text-dato text-mute">Ninguno con el filtro de al lado.</p>
       ) : (
@@ -214,7 +235,10 @@ function BarrasFaceta({
                     <span className="shrink-0 font-mono text-dato font-semibold tabular-nums text-ink">{numero(i.n)}</span>
                   </span>
                   <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                    <span className={cn("block h-full rounded-full", activo ? "bg-rust" : "bg-rust/70")} style={{ width: `${Math.max(3, (i.n / mayor) * 100)}%` }} />
+                    <span
+                      className={cn("block h-full rounded-full transition-opacity duration-rapido", relleno === "grave" && "bg-rust", elegido && !activo && "opacity-40")}
+                      style={{ width: `${Math.max(3, (i.n / mayor) * 100)}%`, background: relleno === "serie" ? colorSerie(0) : undefined }}
+                    />
                   </span>
                   {i.detalle && <span className="mt-1 line-clamp-2 block text-rotulo leading-snug text-mute">{i.detalle}</span>}
                 </button>

@@ -17,20 +17,20 @@ import {
   LayoutDashboard,
   MapPin,
   Package,
+  TriangleAlert,
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Pagina, PestanaAPedido, Pestanas, Seccion, TarjetaDatos, type BanderaFicha, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, FichaNoLeida, Migas, Nota, Pagina, PestanaAPedido, Pestanas, Seccion, TarjetaDatos, type BanderaFicha, type DatoClave } from "@/components/patrones";
 import { EsqueletoPestana } from "@/components/entidad/PestanasEntidad";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { Listado, TablaSkeleton, ZonaResultados, type Parametros } from "@/components/listado";
-import { AvisoDato } from "@/components/ui/BanderaDato";
+import { FUENTE_DUDOSO, MOTIVO_DUDOSO, QUIEN_CARGA } from "@/lib/datoDudoso";
 import { PanelVentas } from "@/components/empresas/PanelVentas";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import { Cargando, EstadoVacio } from "@/components/patrones";
-import { ResumenAntecedentes } from "@/components/empresas/ResumenAntecedentes";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
 import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
@@ -118,13 +118,15 @@ const sinSeccion = (sp: Busqueda): Record<string, string | undefined> =>
 /**
  * /empresa/[RUC] — una empresa que le vende al Estado (migración 109). Seis pestañas (?seccion=), las listas largas
  * agrupadas en vistas (?vista=) desde 2026-10-26 (eran nueve pestañas y a 1366 px «Visitas» quedaba fuera):
- *   · Inicio: sus cifras, lo que dicen de ella otros registros (por tipo), sus ventas al Estado año por año, cómo y
- *     dónde gana, sus clientes y quién le gana; en la columna lateral, sus datos (SUNAT y RNP).
+ *   · Inicio: sus ventas al Estado año por año, cómo y dónde gana, sus clientes y quién le gana; en la columna lateral,
+ *     sus datos (SUNAT y RNP). Lo que dicen de ella otros registros va en las banderas de la cabecera (en todas las
+ *     pestañas), no repetido aquí.
  *   · Ventas al Estado: Contratos (los procesos que ganó, sola o en consorcio, con banderas por fila), Órdenes (de compra
  *     y de servicio) y Contratos menores (≤8 UIT).
  *   · Clientes: las entidades que le adjudicaron o le compraron.
  *   · Postulaciones: los procesos en que fue postor y quién ganó.
- *   · Antecedentes: cada cruce con su fuente (sanciones, penalidades, campañas, autoridades, visitas…), numerados.
+ *   · Antecedentes: cada cruce con su fuente (sanciones, penalidades, campañas, autoridades, visitas…), en lista y
+ *     detalle: el índice de tipos a un lado y los casos del elegido (`?atipo=`) al otro.
  *   · Su gente: Socios y vínculos (su gente en el RNP y las empresas vinculadas) y Visitas (de su gente a entidades
  *     públicas, y si después la entidad le dio algo).
  * Los enlaces de antes (`?seccion=contratos`, `ordenes`, `menores`, `socios`, `visitas`) se redirigen a su pestaña y vista.
@@ -196,7 +198,6 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   // Lo que conserva cada lista en sus enlaces (filtrar, paginar): su pestaña y su vista, sus filtros y de dónde vino.
   const lista = (s: SeccionEmpresa, propios: Parametros): Parametros => ({ ...(desde ? { desde } : {}), ...parametrosSeccion(s), ...propios });
   const pp = lista("postulaciones", fP);
-  const pa = lista("antecedentes", fA);
   const fV = parametrosCompras(fv);
   const pv = lista("contratos", fV);
 
@@ -337,10 +338,29 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             icono: <HandCoins size={15} aria-hidden />,
             contenido: (
               <div>
-                <CabeceraPestana>
-                  Lo que le vendió al Estado, una fila por venta: lo que ganó en procesos de selección <AyudaTermino clave="proceso-seleccion" />,
-                  lo que vendió por catálogo <AyudaTermino clave="catalogo-electronico" />, sus contratos menores <AyudaTermino clave="contrato-menor" /> y
-                  sus órdenes sin concurso. Una venta por catálogo o un contrato menor también tiene su orden en el SEACE: va dentro de esa venta, no aparte.
+                {/* Una línea y una sola ⓘ (pedido del usuario del 2026-11-05): antes, un párrafo suelto con tres ⓘ de glosario
+                    que contaba qué entra en la lista; eso va ahora en la ⓘ, con el enlace al glosario. */}
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Qué entra en esta lista?">
+                      <span className="block">
+                        Lo que ganó en procesos de selección, lo que vendió por los Catálogos Electrónicos de Perú Compras, sus
+                        contratos menores (hasta 8 UIT) y sus órdenes de compra o de servicio sin concurso.
+                      </span>
+                      <span className="mt-2 block">
+                        Una venta por catálogo o un contrato menor también tiene su orden en el SEACE: va dentro de esa venta, no aparte.
+                      </span>
+                      {/* Los términos del tema «Compras del Estado» (proceso de selección, catálogo, contrato menor…). */}
+                      <Link
+                        href="/glosario?q=compras%20del%20estado"
+                        className="mt-2 block text-rotulo font-medium text-ink underline underline-offset-2 hover:text-granate"
+                      >
+                        Ver el glosario
+                      </Link>
+                    </Ayuda>
+                  }
+                >
+                  Todo lo que le vendió al Estado, una fila por venta.
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={pv} paramPagina={P_COMPRAS.page} conservar={SIN_CONSERVAR}>
                   <Suspense fallback={<div className="min-h-[52px]" />}>
@@ -397,12 +417,12 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             conteo: nAntecedentes,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Lo que dicen de la empresa otros registros públicos, de la señal más alta a la más baja, cada uno con su fuente.</CabeceraPestana>
-                <Listado ruta={ruta} parametros={pa} paramPagina="apag" conservar={SIN_CONSERVAR}>
-                  <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
-                    <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} tipo={fa.tipo} gravedad={fa.gravedad} />
-                  </Suspense>
-                </Listado>
+                <CabeceraPestana>Lo que dicen de la empresa otros registros públicos: elige un tipo para ver cada caso con su fuente.</CabeceraPestana>
+                {/* Lista y detalle (pedido del usuario del 2026-11-05): el índice de tipos elige en el navegador y lo deja en
+                    `?atipo=` (lo lee de la URL, como las banderas de la cabecera); ya no hay barra de filtros ni `Listado`. */}
+                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
+                  <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} />
+                </Suspense>
               </div>
             ),
           },
@@ -578,11 +598,13 @@ function EnlaceSeccion({ href, children }: { href: string; children: string }) {
 }
 
 /**
- * La pestaña Inicio (§14.2 y §14.3): las cifras arriba y, debajo, subsecciones en el orden en que se lee una empresa:
- * lo que dicen de ella otros registros → sus ventas al Estado (año por año, cómo y dónde gana, sus clientes, quién le
- * gana); sus datos (SUNAT y RNP) van en la columna lateral desde xl y, más angosto, justo después de los antecedentes.
- * Antes «Sus datos» era una tarjeta con su caja adentro en el centro de la primera pantalla, y las cifras repetían en la
- * cabecera los conteos de las pestañas.
+ * La pestaña Inicio (§14.2 y §14.3): lo que vendió (cifras y año por año) arriba y, debajo, sus ventas al Estado (cómo y
+ * dónde gana, sus clientes, quién le gana) con sus datos (SUNAT y RNP) en la columna lateral desde xl.
+ *
+ * Sin «Lo que dicen otros registros» (pedido del usuario del 2026-11-05: «ocupan mucho espacio para la información que
+ * dan»): repetía, con los mismos tipos y números, las banderas de la cabecera, que ya están en todas las pestañas y
+ * llevan a cada antecedente. Antes, además, «Sus datos» era una tarjeta con su caja adentro en el centro de la primera
+ * pantalla, y las cifras repetían en la cabecera los conteos de las pestañas.
  */
 async function Inicio({
   f,
@@ -596,72 +618,57 @@ async function Inicio({
   postulaciones: ReturnType<typeof getPostulacionesEmpresa>;
 }) {
   const e = f.empresa;
-  const registros = f.antecedentes.reduce((t, a) => t + a.n, 0);
+  const dudosos = [
+    e.adjDudosos > 0 ? `${plural(e.adjDudosos, "proceso trae", "procesos traen")} ${soles(e.adjMontoDudoso)} adjudicados` : null,
+    e.ordDudosas > 0 ? `${plural(e.ordDudosas, "orden trae", "órdenes traen")} ${soles(e.ordMontoDudoso)}` : null,
+  ].filter((x): x is string => !!x);
   return (
     <div className="space-y-6">
       <PanelVentas f={f} />
-      {(e.adjDudosos > 0 || e.ordDudosas > 0) && (
-        <AvisoDato motivo={e.adjDudosos > 0 ? "adjudicado_20x" : "mayor_100m"} fuente="conosce_ordenes">
-          {[
-            e.adjDudosos > 0 ? `${plural(e.adjDudosos, "proceso trae", "procesos traen")} ${soles(e.adjMontoDudoso)} adjudicados` : null,
-            e.ordDudosas > 0 ? `${plural(e.ordDudosas, "orden trae", "órdenes traen")} ${soles(e.ordMontoDudoso)}` : null,
-          ].filter(Boolean).join(", y ")}
-          {". No entran en las sumas: están en sus listas, con su bandera."}
-        </AvisoDato>
+      {dudosos.length > 0 && (
+        // Una línea y no la caja amarilla de antes (pedido del usuario del 2026-11-05): repetía el ▲ de la leyenda del
+        // gráfico. Aquí sólo lo que la leyenda no dice: cuánto queda fuera y dónde está; el porqué, en su ⓘ.
+        <Nota icono={<TriangleAlert size={15} className="text-amberTexto" aria-hidden />}>
+          {`Puede ser un error ${QUIEN_CARGA.conosce_ordenes}: ${dudosos.join(" y ")}. No entran en las sumas ni en el gráfico (▲); están en sus listas, con su bandera.`}{" "}
+          <Ayuda titulo="¿Por qué quedan fuera?">
+            {e.adjDudosos > 0 && <span className="block">{MOTIVO_DUDOSO.adjudicado_20x.explica}</span>}
+            {e.ordDudosas > 0 && <span className="mt-1 block">{MOTIVO_DUDOSO.mayor_100m.explica}</span>}
+            <span className="mt-2 block">
+              Vigía no borra ni cambia el dato: lo muestra tal como lo publicó {FUENTE_DUDOSO.conosce_ordenes}, aparte de los
+              totales y de las comparaciones, para que un posible error no infle las cifras.
+            </span>
+          </Ayuda>
+        </Nota>
       )}
 
-      {/* Dos columnas desde xl (con la barra lateral del sitio, antes no hay ancho para las dos). En una, el orden del DOM:
-          antecedentes → sus datos → sus ventas. */}
+      {/* Dos columnas desde xl (con la barra lateral del sitio, antes no hay ancho para las dos): sus ventas y, al lado, sus
+          datos. En una, el orden del DOM: sus ventas (siguen al panel de arriba) → sus datos. */}
       <div className="grid items-start gap-x-6 gap-y-8 xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <Seccion
-          id="registros"
-          titulo="Lo que dicen otros registros"
-          descripcion={
-            f.antecedentes.length
-              ? `${plural(f.antecedentes.length, "tipo de registro la nombra", "tipos de registros la nombran")}, ${plural(registros, "vez", "veces")} en total.`
-              : undefined
-          }
-          ayuda={
-            <Ayuda titulo="¿Qué es un antecedente?">
-              <span className="block">
-                Un registro público donde aparece la empresa o su gente: el Tribunal de Contrataciones, las penalidades, la ONPE,
-                el JNE, la SUNAT, CONOSCE. No es una acusación ni prueba una falta: dice qué revisar.
-              </span>
-              <span className="mt-2 block">La severidad (señal alta, media o baja) dice qué tan urgente es mirarlo.</span>
-            </Ayuda>
-          }
-          className="min-w-0 xl:col-start-1 xl:row-start-1"
-        >
-          <ResumenAntecedentes antecedentes={f.antecedentes} ruc={e.ruc} />
-        </Seccion>
-
-        <Seccion id="datos" titulo="Sus datos" className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1">
-          <SusDatos e={e} />
-        </Seccion>
-
         <Seccion
           id="ventas-resumen"
           titulo="Sus ventas al Estado"
           acciones={<EnlaceSeccion href={rutaEmpresa(e.ruc, "ventas")}>Ver contratos y órdenes</EnlaceSeccion>}
-          className="min-w-0 xl:col-start-1 xl:row-start-2"
+          className="min-w-0 xl:col-start-1 xl:row-start-1"
         >
-          <div className="space-y-4">
-            {/* Dos columnas que miden lo suyo (cómo y dónde gana; quién le paga y quién le gana): en una rejilla 2×2 de
-                alturas iguales, «Dónde gana» con dos filas dejaba 150-200 px vacíos. Por el ancho de la columna, no de la
-                pantalla: al lado de «Sus datos» es más angosta. */}
-            <div className="[container-type:inline-size]">
-              <div className="grid items-start gap-4 [@container(min-width:36rem)]:grid-cols-2">
-                <div className="grid min-w-0 gap-4">
-                  <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruc={e.ruc} /></Suspense>
-                  <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruc={e.ruc} /></Suspense>
-                </div>
-                <div className="grid min-w-0 gap-4">
-                  <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruc={e.ruc} /></Suspense>
-                  <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruc={e.ruc} /></Suspense>
-                </div>
+          {/* Dos columnas que miden lo suyo (cómo y dónde gana; quién le paga y quién le gana): en una rejilla 2×2 de
+              alturas iguales, «Dónde gana» con dos filas dejaba 150-200 px vacíos. Por el ancho de la columna, no de la
+              pantalla: al lado de «Sus datos» es más angosta. */}
+          <div className="[container-type:inline-size]">
+            <div className="grid items-start gap-4 [@container(min-width:36rem)]:grid-cols-2">
+              <div className="grid min-w-0 gap-4">
+                <Suspense fallback={<BloqueCargando titulo="Cómo gana" />}><ComoGana pagina={contratos} ruc={e.ruc} /></Suspense>
+                <Suspense fallback={<BloqueCargando titulo="Dónde gana" />}><DondeVende pagina={contratos} ruc={e.ruc} /></Suspense>
+              </div>
+              <div className="grid min-w-0 gap-4">
+                <Suspense fallback={<BloqueCargando titulo="Sus principales clientes" />}><ClientesPrincipales datos={clientes} ruc={e.ruc} /></Suspense>
+                <Suspense fallback={<BloqueCargando titulo="Quién le gana" />}><QuienLeGana pagina={postulaciones} ruc={e.ruc} /></Suspense>
               </div>
             </div>
           </div>
+        </Seccion>
+
+        <Seccion id="datos" titulo="Sus datos" className="min-w-0 xl:col-start-2 xl:row-start-1">
+          <SusDatos e={e} />
         </Seccion>
       </div>
     </div>

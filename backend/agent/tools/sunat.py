@@ -454,7 +454,7 @@ def clasificar_sanciones_oece(ruc: str, sanciones: list, inh_jud: list, inh_adm:
             partes.append(f"S/ {d['monto']}")
         if d.get("fecha_fin"):
             partes.append(f"hasta {d['fecha_fin']}")
-        return " · ".join(partes)
+        return "; ".join(partes)
 
     if vigentes:
         ref_txt = f" a la fecha de la buena pro ({fecha_ref})" if fecha_ref else ""

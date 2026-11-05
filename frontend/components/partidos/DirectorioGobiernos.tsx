@@ -10,6 +10,7 @@ import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
 import { BarraFiltros, type FiltroSecundario } from "@/components/listado/BarraFiltros";
 import { Listado, ZonaResultados, useListado, type Parametros } from "@/components/listado/Listado";
 import { Vistas, type Vista as OpcionVista } from "@/components/listado/Vistas";
+import { Medidor } from "@/components/charts/BarraSegmentada";
 import { Dato } from "@/components/ui/Dato";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { EnlaceFuente, Nota } from "@/components/patrones";
@@ -93,16 +94,51 @@ function coloresDelPeriodo(d: AutoridadesDatos, modo: Modo) {
 /**
  * El nombre de la organización con su color. En el celular va en DOS líneas: recortado en una, ocho «Movimiento
  * Regional…» distintos se veían iguales; desde md, una línea (el nombre entero en el `title`).
+ *
+ * Con `href` es el enlace a la ficha del partido (pedido del usuario del 2026-11-05: el chip parecía un enlace y no lo
+ * era). `relative z-[1]`: queda por encima del enlace del lugar, que se estira sobre toda la fila.
  */
-function ChipPartido({ nombre, tipo, color }: { nombre: string; tipo: TipoOrg; color: string }) {
-  return (
-    <span
-      className="inline-flex max-w-full items-start gap-1.5 rounded-2xl border px-2.5 py-0.5 text-meta font-medium leading-snug text-ink"
-      style={{ backgroundColor: `${color}22`, borderColor: `${color}66` }}
-      title={`${nombre}, ${TIPO_ORG_LABEL[tipo].toLowerCase()}`}
-    >
+function ChipPartido({ nombre, tipo, color, href }: { nombre: string; tipo: TipoOrg; color: string; href?: string }) {
+  const clase = "inline-flex max-w-full items-start gap-1.5 rounded-2xl border px-2.5 py-0.5 text-meta font-medium leading-snug text-ink";
+  const estilo = { backgroundColor: `${color}22`, borderColor: `${color}66` };
+  const titulo = `${nombre}, ${TIPO_ORG_LABEL[tipo].toLowerCase()}`;
+  const cuerpo = (
+    <>
       <span aria-hidden className="mt-[0.35rem] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <span className="min-w-0 line-clamp-2 md:line-clamp-1">{nombre}</span>
+    </>
+  );
+  if (!href) {
+    return (
+      <span className={clase} style={estilo} title={titulo}>
+        {cuerpo}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      title={`${titulo}: ver su ficha`}
+      className={cn(
+        clase,
+        "relative z-[1] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+      )}
+      style={estilo}
+    >
+      {cuerpo}
+    </Link>
+  );
+}
+
+/** La parte de los votos: «51 %» y, al lado, un medidor chico contra el total (una proporción contra su tope). */
+function Votos({ p }: { p: number | null }) {
+  const texto = pct(p);
+  if (p == null || texto == null) return <span className="font-mono text-meta tabular-nums text-inkSoft">Sin dato</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="font-mono text-meta tabular-nums text-inkSoft">{texto}</span>
+      <Medidor parte={p} etiqueta={`${texto} de los votos`} className="h-1.5 w-12 shrink-0" />
     </span>
   );
 }
@@ -449,19 +485,28 @@ function ListaGobiernos({
     { clave: "lugar", titulo: nivel === "regional" ? "Región" : nivel === "provincial" ? "Provincia" : "Distrito", ancho: "minmax(0,1.1fr)" },
     { clave: "autoridad", titulo: nivel === "regional" ? "Gobernador o gobernadora" : "Alcalde o alcaldesa", ancho: "minmax(0,1.1fr)", desde: "md" },
     { clave: "partido", titulo: "Partido u organización", ancho: "minmax(0,1.3fr)" },
-    { clave: "votos", titulo: "Votos", ancho: "72px", alinear: "der", desde: "lg" },
+    { clave: "votos", titulo: "Votos", ancho: "8rem", alinear: "der", desde: "lg" },
   ];
   const filas: Fila[] = visibles.map((f) => {
     const o = orgDe(datos, f.o);
     const color = colores.get(f.o) ?? otras;
+    // La región abre su ficha; una provincia o un distrito, la de su región con su nombre ya buscado.
+    const hrefLugar = nivel === "regional" ? rutaRegion(f.region) : rutaRegion(f.region, "territorio", f.lugar);
     return {
       id: f.id,
-      // La región abre su ficha; una provincia o un distrito, la de su región con su nombre ya buscado.
-      href: nivel === "regional" ? rutaRegion(f.region) : rutaRegion(f.region, "territorio", f.lugar),
+      // Sin `href` de fila (una fila-enlace no puede llevar otro enlace adentro): el nombre del lugar es el enlace y se
+      // estira sobre la fila entera (cada `li` es `relative`, por la clase de la tabla), y el chip del partido, el suyo,
+      // por encima. Así toda la fila sigue abriendo el lugar y el partido abre su ficha.
       celdas: {
         lugar: (
           <span className="block min-w-0">
-            <span className="block truncate text-dato font-semibold text-ink">{f.lugar}</span>
+            <Link
+              href={hrefLugar}
+              prefetch={false}
+              className="block truncate text-dato font-semibold text-ink after:absolute after:inset-0 group-hover:text-granate focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-granate"
+            >
+              {f.lugar}
+            </Link>
             {f.sub && (
               <span className="block truncate text-rotulo text-mute">
                 <Dato tipo="lugar">{f.sub}</Dato>
@@ -472,8 +517,8 @@ function ListaGobiernos({
           </span>
         ),
         autoridad: <span className="block min-w-0 truncate text-dato text-ink" title={f.autoridad}>{f.autoridad}</span>,
-        partido: <ChipPartido nombre={o.n} tipo={o.t} color={color} />,
-        votos: <span className="font-mono text-meta tabular-nums text-inkSoft">{pct(f.p) ?? "Sin dato"}</span>,
+        partido: <ChipPartido nombre={o.n} tipo={o.t} color={color} href={`/app/partidos/${encodeURIComponent(claveOrg(o.n))}?anio=${anio}`} />,
+        votos: <Votos p={f.p} />,
       },
     };
   });
@@ -519,7 +564,8 @@ function ListaGobiernos({
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">{pag(false)}</div>
-            <Tabla columnas={columnas} filas={filas} etiqueta={`Gobiernos ${plural} ${anio}`} densidad="compacta" />
+            {/* `[&_li]:relative`: cada fila es el borde del enlace estirado de su lugar (ver `filas`). */}
+            <Tabla columnas={columnas} filas={filas} etiqueta={`Gobiernos ${plural} ${anio}`} densidad="compacta" className="[&_li]:relative" />
             {ultima > 1 && <div className="flex justify-end">{pag(true)}</div>}
           </div>
         )}

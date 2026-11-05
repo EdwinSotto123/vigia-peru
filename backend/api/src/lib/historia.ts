@@ -440,7 +440,7 @@ export function secuenciasDeCruces(
       if (v) {
         s = {
           id: clave, tipo: "visita_buena_pro", severidad: sev, href, fuente: "Registro de Visitas en Línea y OECE",
-          titulo: `Visitó ${ent} y ganó ${diasEntre(v, bp)} días después`,
+          titulo: `Visitó ${ent} y ganó ${diasEntre(v, bp) === 0 ? "el mismo día" : diasEntre(v, bp) === 1 ? "1 día después" : `${diasEntre(v, bp)} días después`}`,
           explica: `Alguien de la empresa visitó la entidad${cargo ? ` (lo recibió: ${cargo})` : ""} antes de que le dieran la buena pro. Una visita no prueba un favor: es para revisar.`,
           pasos: [
             { fecha: v, texto: `Visitó ${ent}${cargo ? `; lo recibió: ${cargo}` : ""}`, href: visitas && f.entidad_ruc ? visitas(f.entidad_ruc) : null },

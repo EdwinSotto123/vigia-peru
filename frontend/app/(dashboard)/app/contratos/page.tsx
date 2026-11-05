@@ -421,7 +421,9 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
   ]);
   return (
     <Pagina className="space-y-5">
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
+      {/* Su propio paso (pedido del usuario del 2026-11-05: decía «Inicio › Contratos» como la vista de convocatorias);
+          «Contratos» vuelve a ellas. */}
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: RUTA }, { etiqueta: "Órdenes" }]} />
       <EncabezadoPagina
         titulo="Órdenes de compra y de servicio"
         bajada="Las compras directas del Estado (CONOSCE), por lo general sin concurso ni otros postores."
@@ -463,7 +465,8 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
   ]);
   return (
     <Pagina className="space-y-5">
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }]} />
+      {/* Su propio paso, como Órdenes: «Contratos» vuelve a las convocatorias. */}
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: RUTA }, { etiqueta: "Menores" }]} />
       <EncabezadoPagina
         titulo="Contratos menores (≤8 UIT)"
         bajada="Las compras chicas del Estado (hasta 8 UIT): qué se pidió, a quién, a qué precio y las señales de cada una (SEACE)."

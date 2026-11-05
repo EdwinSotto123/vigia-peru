@@ -1,9 +1,10 @@
 /**
  * Ficha de un contrato (DESIGN_SYSTEM.md §14.2), en el orden de la plantilla:
  *   volver → identidad (el objeto; código, entidad y zona en una línea; chips de estado)
- *   → Indicadores (cuánto y cuándo; sólo las cifras que hay, las que faltan en una línea) → pestañas (§14.3): Resumen
- *   (el estado de su lectura en una franja con qué hacer, los antecedentes del ganador en un renglón por tipo y, sin leer,
- *   qué se leerá) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
+ *   → Indicadores (cuánto y cuándo; sólo las cifras que hay, las que faltan en una línea; adjudicado igual al
+ *   referencial, una sola cifra) → pestañas (§14.3): Resumen (el estado de su lectura en una franja con qué hacer y, sin
+ *   leer, qué se leerá en una fila de pasos dentro de la misma franja; los antecedentes del ganador en un renglón por
+ *   tipo) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
  *   ofertas (las actas leídas) | Adjudicación y contrato | Precio contratado | Dónde dice cada señal | Cronograma |
  *   Documentos oficiales, cada una con su conteo y su fuente al pie. Participantes, adjudicación y cronograma salen
  *   del registro del proceso (OCDS, CONOSCE, SUNAT, MEF: ProcesoContrato.tsx), así una ficha sin leer también dice
@@ -122,7 +123,8 @@ export function ContratoDetalle({
 
   // Lo de la entidad y la provincia llega después (streaming): no frena la ficha. «Mira más contratos de esta entidad»
   // es secundario y va a la pestaña Contratos de su ficha (antes un botón verde a todo el ancho en el Resumen que
-  // llevaba a /app/contratos?entidad=, mientras «Ver su ficha», justo al lado, iba a la entidad).
+  // llevaba a /app/contratos?entidad=, mientras «Ver su ficha», justo al lado, iba a la entidad). Desde el 2026-11-05
+  // sólo se dibuja si «Esta entidad en Vigía» no llega: esa placa ya lleva el mismo enlace, con cuántos son.
   const otros =
     relacionados && c.entidadRuc ? (
       <Esperar p={relacionados}>
@@ -139,15 +141,14 @@ export function ContratoDetalle({
   const leido = c.estadoProcesamiento === "procesado" && !!c.alerta;
   const cifras = indicadoresDe(c, adjudicado);
 
-  // El Resumen: en qué va su lectura (una franja con qué hacer), los antecedentes de quien ganó en un renglón por tipo
-  // (cada uno abre su grupo en la pestaña Antecedentes) y, sin leer, qué partes se leerán. Los antecedentes van antes que
-  // «Qué se leerá»: son datos del ganador y la lista de partes es cómo se hará la lectura. Antes, en un contrato sin
-  // leer, era un título y una frase gris junto a un filete, y debajo ~350 px de columna vacía.
+  // El Resumen: en qué va su lectura (una franja con qué hacer y, sin leer, qué partes se leerán en una fila de pasos
+  // dentro de la misma franja) y los antecedentes de quien ganó en un renglón por tipo (cada uno abre su grupo en la
+  // pestaña Antecedentes). Antes, en un contrato sin leer, «Qué se leerá» era una tarjeta aparte con ocho pasos en
+  // vertical (~340 px) debajo del estado; antes aún, un título y una frase gris junto a un filete.
   const resumen = (
     <div className="space-y-6">
       <AnalisisCard c={c} alcance={alcance} conCronograma={!!proceso.cronograma} />
       {cruces.length > 0 && <ResumenAntecedentes cruces={cruces} varios={varios} />}
-      {!c.procesamiento && !leido && <QueSeLeera c={c} />}
     </div>
   );
 
@@ -256,10 +257,14 @@ export function ContratoDetalle({
             <DatosProceso c={c} idTitulo="datos-proceso" />
             <LineaTiempoProceso c={c} />
           </div>
-          {entidadEnVigia && c.entidadRuc && (
-            <Esperar p={entidadEnVigia}>{(e) => (e ? <EntidadEnVigia ruc={c.entidadRuc!} {...e} /> : null)}</Esperar>
+          {/* «Esta entidad en Vigía» ya lleva el enlace a sus contratos: «Mira más contratos de esta entidad» va sólo si
+              esa placa no llega. Antes iban las dos, una debajo de la otra, con dos enlaces a la misma entidad (pedido
+              del usuario del 2026-11-05). */}
+          {entidadEnVigia && c.entidadRuc ? (
+            <Esperar p={entidadEnVigia}>{(e) => (e ? <EntidadEnVigia ruc={c.entidadRuc!} {...e} /> : otros)}</Esperar>
+          ) : (
+            otros
           )}
-          {otros}
           {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. Sin leer, las partes
               van en el Resumen («Qué se leerá»); aquí quedan sólo las de un contrato ya leído. */}
           {!c.procesamiento && leido && <ClasificacionCard c={c} />}
@@ -300,6 +305,10 @@ function TituloContrato({ texto }: { texto: string }) {
 /** Código, entidad y zona en una línea: la bajada del encabezado. */
 function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
   const enlace = "inline-flex min-h-6 items-center gap-1.5 text-ink underline-offset-2 hover:text-granate hover:underline";
+  // La entidad es un identificador que lleva a su ficha: en verde y subrayada como los demás de la ficha (pedido del
+  // usuario del 2026-11-05: «Jurado Nacional de Elecciones» era un enlace pintado de negro y no se notaba).
+  const enlaceEntidad =
+    "inline-flex min-h-6 items-center gap-1.5 font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
   return (
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
       <span className="inline-flex items-center gap-1.5">
@@ -310,7 +319,7 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
         </EnlaceFuente>
       </span>
       {c.entidadRuc ? (
-        <Link href={`/entidad/${c.entidadRuc}`} className={enlace}>
+        <Link href={`/entidad/${c.entidadRuc}`} className={enlaceEntidad}>
           <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ? tituloNatural(c.entidad) : c.entidadRuc}
         </Link>
       ) : (
@@ -358,13 +367,24 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
   const nAdjudicaciones = adjudicacionesVigentes(c).length;
   const reemplazadas = (c.adjudicaciones ?? []).length - nAdjudicaciones;
   const conOferta = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null).length;
-  const registrados = c.postores ?? ((c.participantes ?? []).filter((p) => p.registrado).length || null);
+  // Los participantes, con la MISMA cuenta que la pestaña «Participantes» (todos los del registro del proceso,
+  // ProcesoContrato.tsx), cuando esa pestaña existe (sin las actas leídas). Antes la cifra contaba sólo los «registrados»
+  // del OCDS y, con un participante que ofertó sin figurar ahí, decía «1 postor, participantes: sin dato» al lado de la
+  // pestaña «Participantes 1» (pedido del usuario del 2026-11-05).
+  const ps = c.participantes ?? [];
+  const conPestana = (c.postoresDetalle ?? []).length === 0 && ps.length > 0;
+  const registrados = conPestana ? ps.length : c.postores ?? (ps.filter((p) => p.registrado).length || null);
   const unir = (xs: (string | null | false)[]) => xs.filter(Boolean).join(" ") || undefined;
   const gano = fechaGano(c);
   const tarjetas: Indicador[] = [];
   const faltan: string[] = [];
 
-  if (c.montoPen) {
+  // Lo adjudicado igual al valor referencial (a menos de 0,5 %): una sola cifra que lo dice. Pedido del usuario del
+  // 2026-11-05: «S/ 70,151 valor referencial» y al lado «S/ 70,151 monto adjudicado, 100 % del valor referencial» era el
+  // mismo monto dos veces.
+  const igual = !!c.montoPen && !!adjudicado && Math.abs(adjudicado - c.montoPen) < 0.005 * c.montoPen;
+
+  if (c.montoPen && !igual) {
     tarjetas.push({
       // En la franja, el monto exacto es la cifra (antes «S/ 337 mil» grande y «S/ 336,890» debajo: lo mismo dos veces).
       valor: monto(c.montoPen, c.moneda),
@@ -372,7 +392,7 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
       ayuda: <AyudaTermino clave="valor-referencial" />,
       contexto: unir([nItems > 1 && `en ${numero(nItems)} ítems`]),
     });
-  } else faltan.push("valor referencial");
+  } else if (!c.montoPen) faltan.push("valor referencial");
 
   if (adjudicado) {
     tarjetas.push({
@@ -380,7 +400,11 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
       etiqueta: "monto adjudicado",
       ayuda: <AyudaTermino clave="adjudicacion" />,
       contexto: unir([
-        c.montoPen && c.moneda === "PEN" && adjudicado <= c.montoPen * 5 ? `${Math.round((100 * adjudicado) / c.montoPen)} % del valor referencial` : false,
+        igual
+          ? "igual al valor referencial"
+          : c.montoPen && c.moneda === "PEN" && adjudicado <= c.montoPen * 5 ? `${Math.round((100 * adjudicado) / c.montoPen)} % del valor referencial` : false,
+        // Con la cifra del referencial fuera, sus ítems van aquí.
+        igual && nItems > 1 && `en ${numero(nItems)} ítems`,
         nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
         reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
       ]),
@@ -410,8 +434,8 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
 
   if (registrados != null) {
     tarjetas.push({
-      // Los que se REGISTRARON (el OCDS los llama «tenderers»); los que ofertaron van debajo. Antes decía «17 postores»
-      // de un proceso en que ofertaron 3.
+      // Los que participaron (los registrados del OCDS, «tenderers», o los de la pestaña «Participantes»); los que
+      // ofertaron van debajo. Antes decía «17 postores» de un proceso en que ofertaron 3.
       valor: numero(registrados),
       etiqueta: registrados === 1 ? "participante" : "participantes",
       ayuda: <AyudaTermino clave="participante" />,
@@ -469,8 +493,21 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
         <Dato k="Quién ganó">
           {proveedor ? (
             <>
-              {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
-              <span className="font-semibold">{natural ? <PersonName name={proveedor} orden="sunat" /> : proveedor}</span>
+              {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). Una empresa (RUC 20): su nombre es el
+                  enlace a su ficha, en verde como los integrantes de un consorcio (pedido del usuario del 2026-11-05;
+                  antes el nombre iba en negro y «Ver la ficha de la empresa» aparte, debajo). Una persona natural,
+                  tapada y sin enlace. */}
+              <span className="font-semibold">
+                {natural ? (
+                  <PersonName name={proveedor} orden="sunat" />
+                ) : enlaceProveedor(proveedorRuc) ? (
+                  <Link href={enlaceProveedor(proveedorRuc)!} prefetch={false} className="text-granate underline-offset-2 hover:underline">
+                    {proveedor}
+                  </Link>
+                ) : (
+                  proveedor
+                )}
+              </span>
               {codigoConsorcio ? (
                 <span className="flex items-center gap-1 font-mono text-rotulo text-mute">
                   Código del consorcio {codigoConsorcio}
@@ -487,11 +524,6 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
                 )
               )}
               {queda && <span className="block text-rotulo text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
-              {enlaceProveedor(proveedorRuc) && (
-                <Link href={enlaceProveedor(proveedorRuc)!} className="mt-1 inline-block text-meta font-semibold text-granate underline-offset-2 hover:underline">
-                  Ver la ficha de la empresa
-                </Link>
-              )}
             </>
           ) : (
             <span className="text-mute">Sin adjudicar todavía</span>
@@ -581,6 +613,7 @@ function FranjaEstado({
   titulo,
   ayuda,
   nota,
+  pasos,
   acciones = [],
   children,
 }: {
@@ -589,6 +622,8 @@ function FranjaEstado({
   ayuda?: ReactNode;
   /** Una línea más chica debajo de la frase: lo que le falta al registro, el pedido de descarga. */
   nota?: ReactNode;
+  /** Qué se leerá (`PasosLectura`), debajo de la nota: sólo `<span>`, porque va dentro del párrafo de la franja. */
+  pasos?: ReactNode;
   /** Botones ya armados (con `key`); los vacíos se descartan. */
   acciones?: ReactNode[];
   children: ReactNode;
@@ -604,7 +639,8 @@ function FranjaEstado({
         apilada
         // Ícono y texto en una fila y los botones debajo, a todo el ancho: la columna de la ficha es angosta (316 px a
         // 1024) y en una sola fila los botones apretaban el texto; `apilada` sola ponía el ícono en un renglón propio.
-        className="sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
+        // Con los pasos de la lectura el texto mide 3 o 4 renglones: el ícono va arriba, junto al título, no al medio.
+        className={cn("sm:flex-row sm:flex-wrap sm:gap-x-4", pasos ? "sm:items-start" : "sm:items-center")}
         icono={icono}
         titulo={titulo}
         accion={
@@ -621,6 +657,7 @@ function FranjaEstado({
         {children}
         {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
         {nota && <span className="mt-1 block text-meta">{nota}</span>}
+        {pasos}
       </Franja>
     </section>
   );
@@ -654,6 +691,10 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
   const estado = c.estadoProcesamiento;
   const registro = accionesRegistro(c, conCronograma);
   const falta = faltaParaLeer(c.clasificacion.validacionesPendientes);
+  // Qué se leerá, dentro de la franja de cada estado sin leer. Con procesamiento en vivo, los carriles de ContratoEnVivo ya
+  // muestran qué parte aplica y cuál se omitió.
+  const conPasos = !c.procesamiento && FASES.some((f) => (c.clasificacion.agentesAplicables ?? []).includes(f.key));
+  const pasos = conPasos ? <PasosLectura c={c} /> : null;
 
   if (estado === "procesado" && c.alerta) {
     // Con procesamiento financiado, ContratoEnVivo (compacto) trae resultado + cómo se ejecutó (carriles + bitácora).
@@ -684,6 +725,7 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
             ? `Pedido ${c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el ${fechaCorta(dia(c.pedidoDescarga.solicitadoAt))}.`
             : null
         }
+        pasos={pasos}
         acciones={registro}
       >
         Ya financiado; sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}.
@@ -708,6 +750,7 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
           </Ayuda>
         }
         nota={falta}
+        pasos={pasos}
         acciones={registro}
       >
         {/* Sin motivo, `motivoLabel` devolvía el mismo «Pendiente de procesamiento» del título. */}
@@ -727,6 +770,7 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
         icono={listo ? <FileCheck size={18} className="text-mossTexto" aria-hidden /> : <Clock size={18} aria-hidden />}
         titulo={listo ? "Documentos listos para leerse" : "Lectura en preparación"}
         nota={falta}
+        pasos={pasos}
         acciones={registro}
         ayuda={
           <Ayuda titulo="¿Qué se analiza hoy?">
@@ -759,6 +803,7 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
         </Ayuda>
       }
       nota={falta}
+      pasos={pasos}
       acciones={[
         // El aporte va al fondo común (migración 206): la entidad es su destino sugerido, no elige qué se lee.
         <EnlaceAccion
@@ -777,50 +822,56 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
 }
 
 /**
- * Qué se leerá: las partes del análisis que aplican a este contrato, en el orden en que corren, con el dictamen al final
- * (lo que publica la lectura). Antes iban en la columna lateral como píldoras sueltas («Qué partes del análisis
- * aplican»); ahora van en el Resumen, bajo el estado, como una secuencia numerada unida por una línea (la misma forma de
- * la línea de tiempo del proceso). Sin ninguna no se dibuja: el estado ya dice por qué no se lee.
+ * Qué se leerá: las partes del análisis que aplican a este contrato, en el orden en que corren y con el dictamen al
+ * final (lo que publica la lectura), como fichas numeradas en UNA fila unidas por una raya, dentro de la franja del
+ * estado; en el celular (o con muchas partes) bajan de renglón, y la raya queda al final del renglón, apuntando al
+ * siguiente. Pedido del usuario del 2026-11-05: era una tarjeta aparte con ocho pasos en vertical (~340 px) debajo de
+ * «Lectura en preparación»; antes aún, píldoras sueltas en la columna lateral. Todo en `<span>` (con sus roles de lista):
+ * va dentro del párrafo de la franja. Sin ninguna parte no se dibuja: el estado ya dice por qué no se lee.
  */
-function QueSeLeera({ c }: { c: Detalle }) {
+function PasosLectura({ c }: { c: Detalle }) {
   const aplican = c.clasificacion.agentesAplicables ?? [];
   // FASES ya viene en el orden del pipeline, con el dictamen (report_writer) al final.
   const fases = FASES.filter((f) => aplican.includes(f.key));
   if (!fases.length) return null;
   return (
-    <section aria-labelledby="que-se-leera" className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex items-center gap-1.5">
-        <h2 id="que-se-leera" className="font-display text-bloque font-bold text-ink">
-          Qué se leerá
-        </h2>
+    <span className="mt-2.5 block">
+      <span className="flex items-center gap-1 text-meta font-semibold text-ink">
+        Qué se leerá
         <Ayuda titulo="¿Por qué estas partes?">
           Dependen del tipo de contrato y de su etapa. Las que no aparecen no aplican a este contrato.
         </Ayuda>
-      </div>
-      <ol className="mt-3">
+      </span>
+      <span role="list" aria-label="Las partes de la lectura, en orden" className="mt-1 flex flex-wrap items-center gap-y-1.5">
         {fases.map((f, i) => {
           const ultimo = i === fases.length - 1;
           const dictamen = f.key === "report_writer";
           return (
-            <li key={f.key} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3">
-              {/* El número del paso y, hasta el siguiente, la línea que los une; el dictamen, con su ícono y en granate. */}
-              <span aria-hidden className="relative flex justify-center">
+            <span role="listitem" key={f.key} className="inline-flex items-center">
+              {/* El número del paso en su círculo y el nombre; el dictamen, lleno y con su ícono. */}
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-rotulo leading-5",
+                  dictamen ? "border-granate bg-granate font-semibold text-paper" : "border-line bg-paper text-ink",
+                )}
+              >
                 <span
+                  aria-hidden
                   className={cn(
-                    "relative z-10 flex h-6 w-6 items-center justify-center rounded-full font-mono text-rotulo font-semibold tabular-nums",
-                    dictamen ? "bg-granate text-paper" : "border border-line bg-paperSoft text-inkSoft",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-micro font-semibold tabular-nums",
+                    dictamen ? "text-paper" : "bg-paperDeep text-inkSoft",
                   )}
                 >
-                  {dictamen ? <FileText size={13} /> : i + 1}
+                  {dictamen ? <FileText size={12} /> : i + 1}
                 </span>
-                {!ultimo && <span className="absolute bottom-0 top-6 w-px bg-line" />}
+                {f.label}
               </span>
-              <span className={cn("min-w-0 pt-0.5 text-dato leading-5 text-ink", dictamen && "font-semibold", !ultimo && "pb-3")}>{f.label}</span>
-            </li>
+              {!ultimo && <span aria-hidden className="mx-1 h-px w-3 shrink-0 bg-line" />}
+            </span>
           );
         })}
-      </ol>
-    </section>
+      </span>
+    </span>
   );
 }
 

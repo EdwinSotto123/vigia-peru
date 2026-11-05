@@ -123,12 +123,14 @@ export function NepotismoInicio({
           {`Los ${numero(detalle.length)} de mayor monto, de ${numero(nepotismo.total)} casos: todos están en «Ver en personas».`}
         </p>
       )}
+      {/* 10 por página, como las demás listas (con 6, un paginador arriba y otro abajo para 7 casos; auditoría del
+          2026-11-05): hasta 10 casos, ninguno. */}
       <TablaPaginada
         columnas={COLUMNAS}
         filas={filas}
         etiqueta="Parientes de funcionarios que le venden"
         nombre="casos"
-        tam={6}
+        tam={10}
         densidad="compacta"
         medida="contenedor"
         buscar={{ placeholder: "Buscar un cargo o un parentesco…", etiqueta: "Buscar entre los casos de parientes" }}

@@ -117,7 +117,7 @@ export function InicioRegion({
         }
         enlace={{ href: contratos({ cruces: "con" }), texto: "Contratos con antecedentes" }}
       >
-        {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} conRiesgo={leidos > 0} />}
+        {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} porLectura={l} total={resumen?.total} href={contratos} conRiesgo={leidos > 0} />}
       </BloqueInicio>
 
       {dep && (

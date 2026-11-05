@@ -1,6 +1,7 @@
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
+import { fechaCorta, numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
 import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
@@ -73,8 +74,8 @@ export function ListaPersonas({
   return (
     <div className="space-y-4">
       {conIndicadores && (
-        <Suspense fallback={<IndicadoresSkeleton n={4} />}>
-          <CifrasPersonas pagina={paginaP} ruta={ruta} base={base} P={P} deEntidad={deEntidad} />
+        <Suspense fallback={<IndicadoresSkeleton n={2} />}>
+          <CifrasPersonas pagina={paginaP} deEntidad={deEntidad} />
         </Suspense>
       )}
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
@@ -273,23 +274,76 @@ function Barra({
   );
 }
 
-async function CifrasPersonas({ pagina, ruta, base, P, deEntidad }: { pagina: Promise<PaginaPersonas | null>; ruta: string; base: Parametros; P: ParamsPersonas; deEntidad: boolean }) {
+async function CifrasPersonas({ pagina, deEntidad }: { pagina: Promise<PaginaPersonas | null>; deEntidad: boolean }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores items={cifras(r, ruta, base, P, deEntidad)} />;
+  return <Indicadores items={cifras(r, deEntidad)} pie={<RepartoSenales r={r} porPersona={deEntidad || r.filas === r.personas} />} />;
 }
 
 /**
- * Personas, monto, con señales y con una señal alta; las dos últimas abren la lista filtrada. Cada una dice su unidad:
- * las personas son personas distintas y las señales se cuentan por contratación (como la lista y la faceta). En una
- * entidad las dos unidades son la misma.
+ * El color de cada gravedad, como canales de un token (los de `rgb(var(--…))`). Aquí la gravedad ES lo que se reparte: alta
+ * en rojo, media en ámbar, baja en gris medio y «sin señales» en el gris claro de «Otros», el mismo idioma que los íconos
+ * de los chips de abajo.
  */
-export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: ParamsPersonas, deEntidad = false): Indicador[] {
-  const href = (extra: Record<string, string>) => {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...base, ...extra })) if (v) q.set(k, v);
-    return `${ruta}?${q.toString()}`;
-  };
+const TOKEN_GRAVEDAD: Record<string, string> = { alta: "var(--crimson)", media: "var(--amber)", baja: "var(--mute)" };
+
+/**
+ * La paleta de series apuntada a la gravedad, sólo dentro del reparto: `BarraSegmentada` y `MuestraSerie` pintan por el
+ * LUGAR de cada parte (--serie-1, --serie-2…), así que cada lugar recibe el token de la gravedad que de verdad está ahí.
+ * Las partes en cero no se pasan (la barra les daría una astilla de 3 px), y sin esta cuenta la media de una entidad sin
+ * altas saldría en rojo. Fuera de este bloque, las series siguen siendo las de siempre.
+ */
+const paletaGravedad = (visibles: ParteBarra[]) =>
+  Object.fromEntries(visibles.map((p, i) => [`--serie-${i + 1}`, TOKEN_GRAVEDAD[p.clave] ?? "var(--mute)"])) as CSSProperties;
+
+/** «menos de 1 %» y no «0 %»: una parte que existe nunca se lee como nada. */
+const cuotaDe = (n: number, total: number) => {
+  const p = total ? (n / total) * 100 : 0;
+  return p > 0 && p < 1 ? `menos de ${porcentaje(1)}` : porcentaje(p);
+};
+
+/**
+ * Cómo se reparten las contrataciones por su señal más grave: una barra partida y su leyenda con la PARTE de cada una
+ * (pedido del usuario del 2026-11-05: alta 25,183, media 182,552, baja 321,115 y sin 2,661,498 iban sólo como chips de
+ * texto, y las mismas cifras se repetían en la franja, en los chips, en la pestaña y en el paginador). Los números van en
+ * los chips de la barra de filtros, que también filtran; aquí, qué parte del todo es cada uno.
+ */
+function RepartoSenales({ r, porPersona }: { r: ResumenPersonas; porPersona: boolean }) {
+  const unidad = (n: number) => (porPersona ? plural(n, "persona", "personas") : plural(n, "contratación", "contrataciones"));
+  // Las mismas cuentas que los chips: la baja es lo que queda de «con señales» sin las altas ni las medias.
+  const baja = Math.max(0, r.conSenales - (r.alta ?? 0) - (r.media ?? 0));
+  const sin = Math.max(0, r.filas - r.conSenales);
+  const partes: ParteBarra[] = [
+    { clave: "alta", nombre: "Con señal alta", valor: r.alta ?? 0, texto: unidad(r.alta ?? 0) },
+    { clave: "media", nombre: "Con señal media", valor: r.media ?? 0, texto: unidad(r.media ?? 0) },
+    { clave: "baja", nombre: "Con señal baja", valor: baja, texto: unidad(baja) },
+  ].filter((p) => p.valor > 0);
+  const otros: ParteBarra = { clave: "sin", nombre: "Sin señales", valor: sin, texto: unidad(sin) };
+  if (!r.filas) return null;
+  return (
+    <div style={paletaGravedad(partes)}>
+      <BarraSegmentada partes={partes} otros={otros} etiqueta={porPersona ? "Personas por su señal más grave" : "Contrataciones por su señal más grave"} />
+      {/* La leyenda (el nombre accesible de la barra ya dice lo mismo), en el orden y con el color de la barra. */}
+      <ul aria-hidden className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-rotulo text-inkSoft">
+        {[...partes.map((p, i) => ({ p, i: i as number | "otros" })), ...(sin > 0 ? [{ p: otros, i: "otros" as const }] : [])].map(({ p, i }) => (
+          <li key={p.clave} className="inline-flex items-center gap-1.5">
+            <MuestraSerie i={i} />
+            {p.nombre}
+            <span className="font-mono font-semibold tabular-nums text-ink">{cuotaDe(p.valor, r.filas)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Personas y monto. Con señales y con una señal alta ya no van aquí (pedido del usuario del 2026-11-05): son los chips de
+ * la barra de filtros, con su número, y el reparto por gravedad va debajo de la franja (`RepartoSenales`). Cada cifra dice
+ * su unidad: las personas son personas distintas y las señales se cuentan por contratación (como la lista y la faceta).
+ * En una entidad las dos unidades son la misma.
+ */
+export function cifras(r: ResumenPersonas, deEntidad = false): Indicador[] {
   const porPersona = deEntidad || r.filas === r.personas;
   const anios = r.porAnio.map((a) => a.anio).sort((a, b) => a - b);
   const periodo = anios.length ? (anios[0] === anios[anios.length - 1] ? `en ${anios[0]}` : `de ${anios[0]} a ${anios[anios.length - 1]}`) : null;
@@ -316,19 +370,6 @@ export function cifras(r: ResumenPersonas, ruta: string, base: Parametros, P: Pa
       ) : (
         pagos || undefined
       ),
-    },
-    {
-      valor: numero(r.conSenales),
-      etiqueta: porPersona ? "con alguna señal" : "contrataciones con alguna señal",
-      contexto: `de ${porPersona ? plural(r.filas, "persona", "personas") : numero(r.filas)}; lo que dicen otros registros`,
-      href: href({ [P.severidad]: "con" }),
-    },
-    {
-      valor: numero(r.alta),
-      etiqueta: porPersona ? "con una señal alta" : "contrataciones con una señal alta",
-      contexto: `de ${numero(r.filas)}; candidatos del que gobierna, autoridades, inhabilitados`,
-      tono: r.alta > 0 ? "alta" : "neutro",
-      href: href({ [P.severidad]: "alta" }),
     },
   ];
 }

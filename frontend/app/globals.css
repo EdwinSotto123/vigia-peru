@@ -134,6 +134,12 @@
   border-radius: 1rem;
   background-image: linear-gradient(90deg, rgb(var(--acento) / 0.14), rgb(var(--acento) / 0.05) 55%, transparent);
 }
+/* En el celular, menos aire: la caja del título se llevaba del 20 al 25 % de la primera pantalla (auditoría 2026-11-05). */
+@media (max-width: 639px) {
+  [data-intencion] .encabezado-color {
+    padding: 0.75rem 0.9rem 0.75rem 1.3rem;
+  }
+}
 [data-intencion] .encabezado-color::before {
   content: "";
   position: absolute;
@@ -202,7 +208,7 @@ html[data-modo="dia"] {
 
   --ink: 17 24 23;            /* #111817  principal  · 17:1 */
   --ink-soft: 55 68 66;       /* #374442  secundario · 10:1 */
-  --mute: 88 103 100;         /* #586764  terciario: 5,9:1 sobre una tarjeta, 4,8:1 sobre el fondo con el tinte de la sección */
+  --mute: 80 95 92;           /* #505F5C  terciario: 6,7:1 sobre una tarjeta, 4,9:1 sobre el tinte más fuerte de una sección (antes #586764: 4,3:1, auditoría 2026-11-05) */
 
   --granate: 47 107 16;       /* #2F6B10  verde profundo: botón con texto blanco 6,5:1 */
   --granate-50: 242 248 234;
@@ -301,6 +307,9 @@ html[data-modo="dia"] [data-intencion]:not([data-intencion="admin"]) :is(div, se
 html[data-modo="dia"] [data-intencion] .encabezado-color {
   background-image: linear-gradient(90deg, rgb(var(--acento) / 0.17), rgb(var(--acento) / 0.06) 55%, rgb(var(--paper) / 0.6));
   box-shadow: 0 12px 32px -18px rgb(var(--acento) / 0.45);
+  /* Sobre ese tinte, el verde de los enlaces («Vende sobre todo en Lima») quedaba en 4:1: dentro de la cabecera, el verde
+     más oscuro de la escala (6,5:1 sobre el tinte). */
+  --granate: 36 86 10;
 }
 
 /* Los colores de los gráficos (skill dataviz, paleta validada: CVD adyacente ≥ 8,4 en los dos modos). Por ROL y en orden

@@ -1,6 +1,7 @@
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
-import { hoyLima, listaY, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
+import { hoyLima, listaY, numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { QUIEN_CARGA } from "@/lib/datoDudoso";
 import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
@@ -44,7 +45,7 @@ export function ListaEmpresas({ sp, ruta }: { sp: Busqueda; ruta: string }) {
   const filtrada = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
   return (
     <div className="space-y-4">
-      <Suspense fallback={<IndicadoresSkeleton n={4} franja />}>
+      <Suspense fallback={<IndicadoresSkeleton n={3} franja />}>
         <Cifras pagina={paginaP} ruta={ruta} f={f} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina="page">
@@ -159,7 +160,66 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
 async function Cifras({ pagina, ruta, f }: { pagina: Promise<PaginaEmpresas | null>; ruta: string; f: FiltrosEmpresas }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores franja items={cifras(r, ruta, f)} />;
+  return <Indicadores franja items={cifras(r, ruta, f)} pie={<RepartoAntecedentes r={r} />} />;
+}
+
+/**
+ * El color de cada gravedad, como canales de un token (los de `rgb(var(--…))`). Aquí la gravedad ES lo que se reparte: grave
+ * en rojo, medio en ámbar, leve en gris medio y «sin antecedentes» en el gris claro de «Otros», el mismo idioma que los
+ * íconos de los chips de abajo.
+ */
+const TOKEN_GRAVEDAD: Record<string, string> = { grave: "var(--crimson)", media: "var(--amber)", leve: "var(--mute)" };
+
+/**
+ * La paleta de series apuntada a la gravedad, sólo dentro del reparto: `BarraSegmentada` y `MuestraSerie` pintan por el
+ * LUGAR de cada parte (--serie-1, --serie-2…), así que cada lugar recibe el token de la gravedad que de verdad está ahí.
+ * Las partes en cero no se pasan (la barra les daría una astilla de 3 px). Fuera de este bloque, las series siguen siendo
+ * las de siempre.
+ */
+const paletaGravedad = (visibles: ParteBarra[]) =>
+  Object.fromEntries(visibles.map((p, i) => [`--serie-${i + 1}`, TOKEN_GRAVEDAD[p.clave] ?? "var(--mute)"])) as CSSProperties;
+
+/** «menos de 1 %» y no «0 %»: una parte que existe nunca se lee como nada. */
+const cuotaDe = (n: number, total: number) => {
+  const p = total ? (n / total) * 100 : 0;
+  return p > 0 && p < 1 ? `menos de ${porcentaje(1)}` : porcentaje(p);
+};
+
+/**
+ * Cómo se reparten las empresas por su antecedente más grave: una barra partida y su leyenda con la PARTE de cada una
+ * (pedido del usuario del 2026-11-05: «con alguno grave», «con alguno medio» y «sin antecedentes» iban sólo como chips de
+ * texto y «con antecedentes» se repetía en la franja). Los números van en los chips de la barra de filtros, que también
+ * filtran; aquí, qué parte del todo es cada uno. Sin `conMedia` (una respuesta guardada de antes), grave y «otros».
+ */
+function RepartoAntecedentes({ r }: { r: ResumenEmpresas }) {
+  if (!r.empresas) return null;
+  const empresas = (n: number) => plural(n, "empresa", "empresas");
+  const media = r.conMedia;
+  // Lo que queda de «con antecedentes» sin los graves (ni los medios, si llegan): los que sólo tienen alguno leve.
+  const leve = Math.max(0, r.conAntecedentes - r.conGrave - (media ?? 0));
+  const sin = Math.max(0, r.empresas - r.conAntecedentes);
+  // Sin `conMedia`, la parte «otros antecedentes» va en el gris medio de lo leve, no en el ámbar de la media.
+  const partes: ParteBarra[] = [
+    { clave: "grave", nombre: "Con alguno grave", valor: r.conGrave, texto: empresas(r.conGrave) },
+    ...(media != null ? [{ clave: "media", nombre: "Con alguno medio", valor: media, texto: empresas(media) }] : []),
+    { clave: "leve", nombre: media != null ? "Sólo leves" : "Con otros antecedentes", valor: leve, texto: empresas(leve) },
+  ].filter((p) => p.valor > 0);
+  const otros: ParteBarra = { clave: "sin", nombre: "Sin antecedentes", valor: sin, texto: empresas(sin) };
+  return (
+    <div style={paletaGravedad(partes)}>
+      <BarraSegmentada partes={partes} otros={otros} etiqueta="Empresas por su antecedente más grave" />
+      {/* La leyenda (el nombre accesible de la barra ya dice lo mismo), en el orden y con el color de la barra. */}
+      <ul aria-hidden className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-rotulo text-inkSoft">
+        {[...partes.map((p, i) => ({ p, i: i as number | "otros" })), ...(sin > 0 ? [{ p: otros, i: "otros" as const }] : [])].map(({ p, i }) => (
+          <li key={p.clave} className="inline-flex items-center gap-1.5">
+            <MuestraSerie i={i} />
+            {p.nombre}
+            <span className="font-mono font-semibold tabular-nums text-ink">{cuotaDe(p.valor, r.empresas)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador[] {
@@ -195,12 +255,8 @@ function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador
         "en contratos y órdenes"
       ),
     },
-    {
-      valor: numero(r.conAntecedentes),
-      etiqueta: "con antecedentes",
-      contexto: `en otros registros públicos; ${numero(r.conGrave)} con alguno grave`,
-      href: href({ antecedentes: "con" }),
-    },
+    // «Con antecedentes» ya no va aquí (pedido del usuario del 2026-11-05): es el chip de la barra de filtros, con su
+    // número, y el reparto por gravedad va debajo de la franja (`RepartoAntecedentes`).
     {
       valor: numero(r.inhabilitadas),
       etiqueta: "inhabilitadas hoy",

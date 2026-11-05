@@ -346,9 +346,11 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
                 }}
               >
                 <defs>
+                  {/* Lo que no tenemos, en rayado gris neutro (antes en el rojo de «grave»: en una entidad con planilla y plazas CAS
+                      desde 2025, media línea se leía como alarma; auditoría del 2026-11-05). */}
                   <pattern id={rayado} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                    <rect width={6} height={6} className="fill-crimson/[0.06]" />
-                    <line x1={0} y1={0} x2={0} y2={6} className="stroke-crimson/40" strokeWidth={2} />
+                    <rect width={6} height={6} className="fill-ink/[0.03]" />
+                    <line x1={0} y1={0} x2={0} y2={6} className="stroke-mute/30" strokeWidth={2} />
                   </pattern>
                 </defs>
                 {/* El eje: los años (y las iniciales de los meses si hay sitio). */}
@@ -358,7 +360,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
                   return (
                     <g key={`eje-${m}`}>
                       {enero && <line x1={xMes(m)} x2={xMes(m)} y1={EJE - 8} y2={H} className="stroke-line" strokeWidth={1} />}
-                      <text x={xMes(m) + (enero ? 4 : mw / 2)} y={enero ? 13 : EJE - 6} textAnchor={enero ? "start" : "middle"} className={enero ? "fill-ink font-semibold" : "fill-mute"} style={{ fontSize: enero ? "11.5px" : "9.5px" }}>
+                      <text x={xMes(m) + (enero ? 4 : mw / 2)} y={enero ? 13 : EJE - 6} textAnchor={enero ? "start" : "middle"} className={enero ? "fill-ink font-semibold" : "fill-mute"} style={{ fontSize: enero ? "11.5px" : "11px" }}>
                         {enero ? m.slice(0, 4) : INICIAL_MES[Number(m.slice(5, 7)) - 1]}
                       </text>
                     </g>
@@ -545,9 +547,9 @@ function SinDatos({
         if (x1 <= x0) return null;
         return (
           <g key={`${x.desde}-${x.hasta}`}>
-            <rect x={x0} y={y + 3} width={x1 - x0} height={f.alto - 6} rx={3} fill={`url(#${rayado})`} className="stroke-crimson/30" strokeWidth={1} />
+            <rect x={x0} y={y + 3} width={x1 - x0} height={f.alto - 6} rx={3} fill={`url(#${rayado})`} className="stroke-line" strokeWidth={1} />
             {x1 - x0 >= 64 && (
-              <text x={x0 + (x1 - x0) / 2} y={y + f.alto / 2 + 4} textAnchor="middle" className="fill-crimsonTexto font-semibold" style={{ fontSize: "10.5px" }}>
+              <text x={x0 + (x1 - x0) / 2} y={y + f.alto / 2 + 4} textAnchor="middle" className="fill-mute font-semibold" style={{ fontSize: "11px" }}>
                 {x1 - x0 >= 150 ? (l.sinDatos ? x.texto : "Sin datos de este periodo") : x.texto}
               </text>
             )}
@@ -736,7 +738,7 @@ function Globo({
         {lineas.filter((l) => l.fila.carril !== "gobierno").slice(0, 8).map((l) => (
           <li key={l.fila.clave} className="text-micro leading-snug text-inkSoft">
             <span className="font-semibold text-ink">{l.fila.titulo}:</span>{" "}
-            {l.sinDatos ? <span className="font-semibold text-crimsonTexto">{l.sinDatos}</span> : l.texto}
+            {l.sinDatos ? <span className="font-semibold text-mute">{l.sinDatos}</span> : l.texto}
             <Normal n={l.normal} min={l.fila.carril ? MINIMO_PICO[l.fila.carril] : undefined} />
             {l.ev.length > 0 && l.punto && (
               <span className="block pl-2 text-mute">{l.ev.length === 1 ? l.ev[0].titulo : `${plural(l.ev.length, "hecho", "hechos")}: ${l.ev[0].titulo}…`}</span>
@@ -799,7 +801,7 @@ function DetalleMes({
           <li key={l.fila.clave} className="space-y-1.5 py-2.5">
             <p className="text-meta text-ink">
               <span className="font-semibold">{l.fila.titulo}.</span> {l.punto && l.fila.serie ? capital(decir(l.fila.serie, l.punto)) : null}
-              {l.sinDatos && <span className="font-semibold text-crimsonTexto">{l.sinDatos}</span>}
+              {l.sinDatos && <span className="font-semibold text-mute">{l.sinDatos}</span>}
               <Normal n={l.normal} min={l.fila.carril ? MINIMO_PICO[l.fila.carril] : undefined} />
             </p>
             {l.fila.serie && !l.sinDatos && (
@@ -923,8 +925,8 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
         <Muestra texto="Elección"><line x1={9} x2={9} y1={1} y2={13} className="stroke-ink/35" strokeDasharray="3 3" /></Muestra>
         <Muestra texto="Patrón que llama la atención (arriba del eje)"><circle cx={9} cy={7} r={4} className="fill-amber" /></Muestra>
         <Muestra texto="Sin datos de ese periodo">
-          <rect x={1} y={1} width={16} height={12} rx={2} className="fill-crimson/[0.06] stroke-crimson/30" strokeWidth={1} />
-          {[3, 7, 11, 15].map((x) => <line key={x} x1={x - 3} y1={13} x2={x + 1} y2={1} className="stroke-crimson/50" strokeWidth={1.5} />)}
+          <rect x={1} y={1} width={16} height={12} rx={2} className="fill-ink/[0.03] stroke-line" strokeWidth={1} />
+          {[3, 7, 11, 15].map((x) => <line key={x} x1={x - 3} y1={13} x2={x + 1} y2={1} className="stroke-mute/40" strokeWidth={1.5} />)}
         </Muestra>
       </div>
       <details className="group shrink-0 open:basis-full">
@@ -934,7 +936,7 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
           <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2.5 veces lo normal; roja, de 4 veces o más.</li>
           <li>Las líneas verticales cruzan todos los renglones: la continua es un cambio de gobierno y la punteada, una elección. Mira qué cambia justo después.</li>
           <li>Pasa el mouse por un mes para ver lo de todos los renglones juntos, en qué gestión cae y cuánto se aleja de lo normal. Tócalo para ver cada hecho con su fuente.</li>
-          <li>Lo rayado en rojo es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde 2025), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>
+          <li>Lo rayado en gris es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde 2025), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>
           <li>Un pico o una coincidencia no prueba nada: dice dónde mirar. Las razones pueden ser legítimas (una emergencia, un programa, el cierre del año).</li>
         </ul>
       </details>

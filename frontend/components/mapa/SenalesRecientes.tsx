@@ -13,7 +13,8 @@ import { formatMonto, type ContratoResumen } from "@/lib/contratos";
 import { oracion, plural } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
-import { CORTE_MEDIA } from "@/lib/severidad";
+import { CORTE_MEDIA, severidadDeContrato } from "@/lib/severidad";
+import { motivoDudoso } from "@/lib/datoDudoso";
 
 /**
  * Lo ya hecho, debajo de la pieza viva (plantilla Tablero, DESIGN_SYSTEM.md §14): los contratos leídos de mayor peso
@@ -27,10 +28,21 @@ import { CORTE_MEDIA } from "@/lib/severidad";
  * Cuenta sólo los de peso del riesgo medio o alto (puntaje ≥ 40 con señales publicadas, DESIGN_SYSTEM.md §10.1).
  */
 
+// Los cinco de mayor peso suelen ser todos «Riesgo alto»: la columna se quita y lo dice una vez sobre la tabla
+// (`colapsarIguales`, pedido del usuario del 2026-11-05), y su ancho pasa al objeto.
 const COLUMNAS: Columna[] = [
-  { clave: "riesgo", titulo: "Peso del riesgo", ancho: "132px", desde: "md", apilar: true },
+  {
+    clave: "riesgo", titulo: "Peso del riesgo", ancho: "132px", desde: "md", apilar: true,
+    igual: {
+      texto: "Peso del riesgo de todos: {}",
+      frases: { "Riesgo alto": "Todos con peso del riesgo alto", "Riesgo medio": "Todos con peso del riesgo medio" },
+    },
+  },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
-  { clave: "monto", titulo: "Valor referencial", ancho: "140px", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Valor" },
+  {
+    clave: "monto", titulo: "Valor referencial", ancho: "140px", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Valor",
+    igual: { texto: "Valor referencial de todos: {}", vacia: "Ninguno trae valor referencial publicado" },
+  },
 ];
 
 const TOP = 5;
@@ -74,6 +86,12 @@ export function SenalesRecientes({
     return {
       id: c.ocid,
       href: rutaContrato(c.ocid, "dictamen"),
+      // Lo que dice el chip, para quitar la columna si dice lo mismo en las cinco; con la bandera de «posible error de
+      // carga», sin texto: esa fila la necesita y la columna se queda.
+      textos: {
+        riesgo: motivoDudoso(c.datoDudoso?.motivo) ? undefined : severidadDeContrato({ score: c.score, banderas: c.banderas, enRevision: c.enRevision }).etiqueta,
+        monto: c.montoPen ? formatMonto(c.montoPen, c.moneda) : null,
+      },
       celdas: {
         riesgo: (
           <ConBanderaDato dato={c.datoDudoso}>
@@ -121,7 +139,7 @@ export function SenalesRecientes({
           <span className="sr-only">Cargando los contratos de mayor peso del riesgo…</span>
         </div>
       ) : (
-        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
+        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" colapsarIguales />
       )}
     </Seccion>
   );

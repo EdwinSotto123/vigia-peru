@@ -222,8 +222,11 @@ export default async function EntidadProfile({
   const con = (nombres: readonly string[]) => nombres.some((k) => typeof searchParams?.[k] === "string");
   const vistaPorFiltros = con([...Object.values(P_ORD), ...Object.values(P_MEN), ...Object.values(P_CAT), ...Object.values(P_COMPRAS), "vista"])
     || filtrada || con(["page", "cursor", "antes"]);
+  // «compras» es el nombre que la gente le da a la pestaña de contratos (y el que usaban enlaces de la historia del
+  // 2026-11-05): abre esa pestaña, no el Inicio.
+  const pedida = uno(searchParams?.seccion);
   const seccion =
-    uno(searchParams?.seccion) ??
+    (pedida === "compras" ? "contratos" : pedida) ??
     (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_PLANILLA)) ? "planilla" : con(Object.values(P_PLAZAS)) ? "plazas" : vistaPorFiltros ? "contratos" : "inicio");
 
   const enlace = (s: string, extra: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: s, ...extra })}`;

@@ -110,8 +110,8 @@ function Cuerpo({ escala, medida, ambito, conPines, cargando, plegada = false }:
             >
               <span className="inline-block h-3 w-5 shrink-0 rounded-sm" style={{ background: t.color }} />
               <span className="font-mono tabular-nums">
-                {i === 0 ? "" : "≥ "}
-                {medida.formato(t.desde)}
+                {/* El primer escalón es «hasta»: sin prefijo, «S/ 81.4 M» se leía como un valor y no como un rango. */}
+                {i === 0 ? `< ${medida.formato(t.hasta)}` : `≥ ${medida.formato(t.desde)}`}
               </span>
             </span>
           ))}

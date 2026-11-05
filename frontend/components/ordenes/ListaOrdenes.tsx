@@ -27,6 +27,7 @@ import {
   type Fila,
   type Parametros,
 } from "@/components/listado";
+import { CodigoFila } from "@/components/listado/Tabla";
 import { enSeccion } from "@/components/contratos/filtros";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { BarraTope } from "@/components/charts/BarraTope";
@@ -62,7 +63,8 @@ import {
  * orden abre su panel lateral; una orden es una compra directa (ver el ⓘ junto al título de la vista).
  *
  * Anatomía de fila, la de todo listado (§14.1): estado (chip; y la bandera de «posible error» si el monto no se puede
- * creer) · qué se compró, con entidad, proveedor, cómo se contrató y número · antecedentes · monto · emitida. Los
+ * creer) · qué se compró, con su número primero, entidad, proveedor y cómo se contrató · antecedentes · monto · emitida
+ * (las columnas que dicen lo mismo en toda la página se quitan: `colapsarIguales`). Los
  * antecedentes son banderas de esa columna, cada una con su evidencia en el panel: el parentesco con un funcionario de la
  * entidad (nepotismo), las órdenes del mismo día que juntas pasan 8 UIT (fraccionamiento, con las órdenes de ese día) y
  * la inhabilitación del Tribunal vigente al emitirse (con su resolución).
@@ -259,9 +261,16 @@ const ESTADO_ORDEN: Record<string, string> = {
 
 const FUENTE_ORDEN = "CONOSCE";
 
+// Las columnas que en una página dicen lo mismo en todas las filas («Emitida», «Ninguno») se quitan y lo dicen una vez
+// sobre la tabla (`colapsarIguales`, pedido del usuario del 2026-11-05): `igual` es esa frase.
 const COLUMNAS: Columna[] = [
   {
     clave: "estado", titulo: "Estado", ancho: "120px", desde: "md", apilar: true,
+    igual: {
+      texto: "Estado de todas: {}",
+      frases: { Emitida: "Todas emitidas", Comprometida: "Todas comprometidas", Devengada: "Todas devengadas" },
+      vacia: "Ninguna trae su estado",
+    },
     ayuda: (
       <Ayuda titulo="¿Qué dice el estado de una orden?">
         <span className="block">Emitida: la entidad emitió la orden.</span>
@@ -289,6 +298,7 @@ const COLUMNAS: Columna[] = [
   },
   {
     clave: "antecedentes", titulo: "Antecedentes", ancho: "minmax(0,0.8fr)", desde: "lg", apilar: true,
+    igual: { frases: { Ninguno: "Ninguna con antecedentes" }, vacia: "Antecedentes: sin dato en todas" },
     ayuda: (
       <Ayuda titulo="¿Qué antecedentes se revisan aquí?">
         <span className="block">
@@ -306,8 +316,14 @@ const COLUMNAS: Columna[] = [
       </Ayuda>
     ),
   },
-  { clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo", ayuda: <AyudaTermino clave="uit" /> },
-  { clave: "fecha", titulo: "Emitida", ancho: "104px", desde: "md", apilar: "con-rotulo" },
+  {
+    clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo", ayuda: <AyudaTermino clave="uit" />,
+    igual: { texto: "Monto de todas: {}", vacia: "Ninguna trae monto" },
+  },
+  {
+    clave: "fecha", titulo: "Emitida", ancho: "104px", desde: "md", apilar: "con-rotulo",
+    igual: { texto: "Todas emitidas el {}", vacia: "Ninguna trae fecha de emisión" },
+  },
 ];
 
 /** Las opciones de un filtro desde su lista (lib/ordenes.ts, lib/menores.ts), con su conteo si lo hay. */
@@ -645,6 +661,14 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
   const fichas = fichasCompra(ruta, o.entidadRuc, o.rucContratista, o.personaCodigo);
   return {
     id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
+    // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
+    // (la columna se queda): la que lleva una bandera (posible error, fecha futura) o banderas de antecedentes.
+    textos: {
+      estado: motivo ? undefined : o.estado ? oracion(o.estado) : null,
+      antecedentes: antecedentes.length ? undefined : o.conNepotismo == null ? null : "Ninguno",
+      monto: motivo ? undefined : o.monto != null ? soles(o.monto) : null,
+      fecha: esFutura(o.fecha) ? undefined : o.fecha ? fechaConAnio(o.fecha) : null,
+    },
     celdas: {
       estado: (
         <span className="flex flex-col items-start gap-1">
@@ -657,13 +681,15 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
           titulo={descripcion}
           dosLineas
           meta={[
+            // El número PRIMERO: al final de la línea se recortaba («N.° 4504…», pedido del usuario del 2026-11-05). Sin
+            // enlace: una orden no tiene ficha propia en Vigía (su panel es esta fila).
+            o.numero && <CodigoFila key="numero" codigo={`N.° ${o.numero}`} nombre="Número de orden" />,
             ...(extra?.meta ?? []),
             extra?.ocultar !== "entidad" && entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
             extra?.ocultar !== "proveedor" && proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
             // Cómo se contrató («Hasta 8 UIT, sin concurso»): antes, en tres renglones bajo cada monto.
             tipo && <Dato key="como" icono={Scale} nombre="Cómo se contrató">{tipo.corto}</Dato>,
             <Dato key="tipo" tipo="tipo">{clase}</Dato>,
-            o.numero && <Dato key="numero" tipo="codigo" nombre="Número de orden" mono>{`N.° ${o.numero}`}</Dato>,
           ]}
         />
       ),
@@ -849,7 +875,7 @@ export async function ListaOrdenes({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Órdenes de compra y de servicio" />
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Órdenes de compra y de servicio" colapsarIguales />
       {acotada && <Nota>{acotada}</Nota>}
       <div className="flex justify-end">{pag(true)}</div>
     </div>

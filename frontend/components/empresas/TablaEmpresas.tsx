@@ -15,8 +15,9 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 /**
  * Empresas en la `Tabla` del kit, una fila por empresa: quién es (RUC, dónde vende, qué vende), sus antecedentes en
  * otros registros (banderas en UNA línea, los graves primero: `CrucesCelda`), lo que ganó en contratos y lo que le
- * compraron por órdenes. Cada fila abre su VISTA PREVIA en el panel lateral (`detalle.ficha`), armada sólo con lo que
- * la fila ya trae, y «Abrir la ficha» al pie. Paginado por URL. Server-safe.
+ * compraron por órdenes (en el celular, el total de los dos con cuánto de cada uno: «Recibido»). Cada fila abre su
+ * VISTA PREVIA en el panel lateral (`detalle.ficha`), armada sólo con lo que la fila ya trae, y «Abrir la ficha» al pie.
+ * Paginado por URL. Server-safe.
  *
  * El nombre va como lo publica la SUNAT (en mayúsculas): `tituloNatural` daña siglas de razones sociales («S.A.A.» →
  * «S.a.a.», «IBM» → «Ibm», «J.R.» → «J.r.»), y un nombre propio mal escrito es peor que uno en mayúsculas.
@@ -35,7 +36,19 @@ const COLUMNAS: Columna[] = [
     ),
   },
   { clave: "contratos", titulo: "Contratos", ancho: "112px", alinear: "der", desde: "lg" },
-  { clave: "ordenes", titulo: "Órdenes", ancho: "112px", alinear: "der" },
+  { clave: "ordenes", titulo: "Órdenes", ancho: "112px", alinear: "der", desde: "lg" },
+  // Hasta lg, una sola cifra: el total recibido (contratos + órdenes, el mismo por el que ordena «Más dinero recibido»),
+  // con cuánto de cada uno debajo. Antes el celular mostraba sólo «Órdenes» y las empresas que más ganaron por contratos
+  // decían «Ninguna» arriba de todo (auditoría del 2026-11-05).
+  {
+    clave: "recibido", titulo: "Recibido", ancho: "120px", alinear: "der", hasta: "lg",
+    ayuda: (
+      <Ayuda titulo="¿Qué suma «Recibido»?">
+        Lo que ganó sola en contratos más lo que le pagaron por órdenes de compra y de servicio: la cifra por la que se ordena
+        «Más dinero recibido». Debajo, cuánto fue de cada uno. Lo ganado en consorcio es de todo el consorcio: no se suma.
+      </Ayuda>
+    ),
+  },
   { clave: "ultima", titulo: "Última", ancho: "92px", desde: "xl" },
 ];
 
@@ -147,6 +160,7 @@ export function filaDe(e: EmpresaFila, desde?: string): Fila {
           {e.ordN ? solesCompacto(e.ordMonto) : <span className="font-sans text-mute">Ninguna</span>}
         </CeldaNumero>
       ),
+      recibido: <CeldaRecibido e={e} />,
       ultima: <CeldaFecha fecha={e.ultima} />,
     },
     detalle: {
@@ -158,6 +172,34 @@ export function filaDe(e: EmpresaFila, desde?: string): Fila {
     },
     buscable: `${e.nombre} ${e.ruc}`,
   };
+}
+
+/**
+ * El total recibido en la fila del celular: contratos ganados sola más órdenes, y debajo cuánto de cada uno (una sola
+ * fuente: sólo dice cuál). Sin nada de eso, «En consorcio» si ganó en uno, o «Ninguno».
+ */
+function CeldaRecibido({ e }: { e: EmpresaFila }) {
+  const contratos = e.adjProcesos ? e.adjMonto : 0;
+  const ordenes = e.ordN ? e.ordMonto : 0;
+  if (contratos + ordenes <= 0) {
+    return (
+      <CeldaNumero sub={e.consProcesos ? plural(e.consProcesos, "proceso", "procesos") : undefined}>
+        {e.consProcesos ? <span className="font-sans text-inkSoft">En consorcio</span> : <span className="font-sans text-mute">Ninguno</span>}
+      </CeldaNumero>
+    );
+  }
+  const sub =
+    contratos > 0 && ordenes > 0 ? (
+      <>
+        <span className="block">{solesCompacto(contratos)} contratos</span>
+        <span className="block">{solesCompacto(ordenes)} órdenes</span>
+      </>
+    ) : contratos > 0 ? (
+      "en contratos"
+    ) : (
+      "en órdenes"
+    );
+  return <CeldaNumero sub={sub}>{solesCompacto(contratos + ordenes)}</CeldaNumero>;
 }
 
 const RANGO = { alta: 0, media: 1, baja: 2 } as const;

@@ -126,7 +126,7 @@ async function senales(q: Q, claves: (string | number | null)[] | null) {
   vals.push(q.limit + 1);
   const pagina = pool.query(
     `SELECT s.bandera_id::text AS id, s.alerta_id::text AS "_alerta", s.severidad_orden AS "_k0",
-            s.regla, s.severidad, left(s.evidencia, 320) AS evidencia, s.norma, s.opinion_oece AS "opinionOece",
+            s.regla, s.severidad, left(replace(s.evidencia, ' · ', '; '), 320) AS evidencia, s.norma, s.opinion_oece AS "opinionOece",
             s.fuente_url AS "fuenteUrl", s.agente, s.verificada,
             s.alerta_codigo AS "alertaCodigo", COALESCE(ocid_corto(s.ocid), NULLIF(s.codigo_convocatoria, '')) AS convocatoria,
             s.objeto, s.entidad, s.entidad_ruc AS "rucEntidad", s.proveedor, s.proveedor_ruc AS "rucProveedor",

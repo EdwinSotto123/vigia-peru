@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronRight, Info } from "lucide-react";
+import { ChevronRight, ExternalLink, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
-import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { limpiarObjeto } from "@/components/contratos/recortar";
@@ -183,37 +183,74 @@ const VARIANTE: Record<string, "crimson" | "amber" | "neutral"> = { penal: "crim
 
 /**
  * Las columnas de la tabla de informes. Con `conEntidad` (región, partido) la entidad de cada informe va en su columna
- * desde lg y, antes, debajo del asunto: en el celular se perdía de qué entidad era cada informe.
+ * desde lg y, antes, debajo del asunto: en el celular se perdía de qué entidad era cada informe. El número del informe,
+ * que ahí es el enlace al PDF, también baja bajo el asunto antes de lg (si no, en el celular no habría cómo abrirlo).
  */
 function columnasInformes(conEntidad: boolean): Columna[] {
   return [
     { clave: "fecha", titulo: "Fecha", ancho: "92px", desde: "md", apilar: true },
-    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg" },
+    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg", ...(conEntidad ? { apilar: true } : {}) },
     { clave: "asunto", titulo: "Asunto", ancho: "minmax(0,1.5fr)" },
     ...(conEntidad ? [{ clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg" as const, apilar: true }] : []),
     { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
   ];
 }
 
-/** Una fila por informe: abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia). */
-function filaInforme(i: InformeControl): Fila {
+/** El RUC de una entidad pública se enlaza a su ficha; nunca uno que empiece con 10 (una persona) ni uno mal formado. */
+const rucEntidad = (ruc: string | null) => (ruc && /^\d{11}$/.test(ruc) && !ruc.startsWith("10") ? ruc : null);
+
+/**
+ * Una fila por informe. Sin la entidad (la ficha de una entidad), la fila entera abre el informe oficial (el PDF nombra
+ * a los funcionarios: se enlaza, no se copia). Con la entidad (región, partido), la fila tiene DOS destinos y no puede
+ * ser un solo enlace (un enlace dentro de otro no es HTML válido y el navegador lo rompe): el número del informe abre el
+ * PDF y la entidad, su ficha en Vigía, los dos en verde (lo que se toca, pedido del usuario del 2026-11-05). Antes la
+ * entidad iba en gris, sin enlace, aunque la API trae su RUC.
+ */
+function filaInforme(i: InformeControl, conEntidad = false): Fila {
+  const ruc = rucEntidad(i.entidadRuc);
+  const nombreEntidad = i.entidad ? tituloNatural(i.entidad) : null;
   return {
     id: i.numero,
-    href: i.urlPdf ?? undefined,
-    externo: true,
+    ...(conEntidad ? {} : { href: i.urlPdf ?? undefined, externo: true }),
     celdas: {
       fecha: <CeldaFecha fecha={i.fecha} />,
-      numero: <span className="font-mono text-meta text-inkSoft">{i.numero}</span>,
+      numero:
+        conEntidad && i.urlPdf ? (
+          <a
+            href={i.urlPdf}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-8 min-w-0 items-center gap-1 font-mono text-meta font-medium text-granate underline-offset-2 hover:underline"
+          >
+            <span className="min-w-0 break-all">{i.numero}</span>
+            <ExternalLink size={12} className="shrink-0" aria-hidden />
+            <span className="sr-only"> (informe en PDF, se abre en otra pestaña)</span>
+          </a>
+        ) : (
+          <span className="font-mono text-meta text-inkSoft">{i.numero}</span>
+        ),
       asunto: (
         <CeldaPrincipal
           titulo={i.titulo ? tituloNatural(limpiarObjeto(i.titulo)) : "Sin asunto registrado"}
           dosLineas
-          meta={[i.funcionarios ? <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">{numero(i.funcionarios)} funcionarios comprendidos</Dato> : null]}
+          meta={[
+            i.funcionarios ? (
+              <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">
+                {plural(i.funcionarios, "funcionario comprendido", "funcionarios comprendidos")}
+              </Dato>
+            ) : null,
+          ]}
         />
       ),
       entidad: (
         <Dato tipo="entidad" className="line-clamp-2 text-meta text-inkSoft">
-          {i.entidad ? tituloNatural(i.entidad) : "Sin dato"}
+          {nombreEntidad && ruc && conEntidad ? (
+            <Link href={`/entidad/${ruc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+              {nombreEntidad}
+            </Link>
+          ) : (
+            nombreEntidad ?? "Sin dato"
+          )}
         </Dato>
       ),
       tipo: (
@@ -233,7 +270,11 @@ function cifrasInformes(inf: InformesControl, conEntidad: boolean): Indicador[] 
     { valor: numero(inf.total), etiqueta: "informes de control", contexto: inf.desde ? `de ${inf.desde.slice(0, 4)} a ${inf.hasta?.slice(0, 4)}` : undefined },
     { valor: numero(inf.penal), etiqueta: "con presunta responsabilidad penal", tono: "alta" },
     { valor: numero(inf.civil), etiqueta: "con presunta responsabilidad civil", tono: "media" },
-    { valor: numero(inf.funcionarios), etiqueta: "funcionarios comprendidos", contexto: conEntidad ? `en ${numero(inf.entidades)} entidades` : undefined },
+    {
+      valor: numero(inf.funcionarios),
+      etiqueta: inf.funcionarios === 1 ? "funcionario comprendido" : "funcionarios comprendidos",
+      contexto: conEntidad ? `en ${plural(inf.entidades, "entidad", "entidades")}` : undefined,
+    },
   ];
 }
 
@@ -247,7 +288,7 @@ export function ResumenContraloria({ informes, href }: { informes: InformesContr
   return (
     <div className="space-y-4">
       <Indicadores items={cifrasInformes(informes, false)} apilado />
-      <Tabla columnas={columnasInformes(false)} filas={recientes.map(filaInforme)} etiqueta="Los informes más recientes de la Contraloría" medida="contenedor" />
+      <Tabla columnas={columnasInformes(false)} filas={recientes.map((i) => filaInforme(i))} etiqueta="Los informes más recientes de la Contraloría" medida="contenedor" />
       {informes.total > recientes.length && (
         <Link href={href} prefetch={false} className="inline-flex min-h-9 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
           Ver los {numero(informes.total)} informes <ChevronRight size={14} aria-hidden />
@@ -293,7 +334,7 @@ function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: C
 
   const conEntidad = ambito !== "entidad";
   const columnas = columnasInformes(conEntidad);
-  const filas: Fila[] = pagina.filas.map(filaInforme);
+  const filas: Fila[] = pagina.filas.map((i) => filaInforme(i, conEntidad));
   const opciones: { t: TipoInforme | null; etiqueta: string; n: number }[] = [
     { t: null, etiqueta: "Todos", n: inf.total },
     { t: "penal", etiqueta: "Penal", n: inf.penal },
@@ -366,8 +407,10 @@ function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: C
             </div>
           )}
           <p className="text-rotulo text-mute">
-            Cada fila abre el informe oficial en la Contraloría. Todos están también en su{" "}
-            <EnlaceFuente href={BUSCADOR_CONTRALORIA}>buscador de informes</EnlaceFuente>.
+            {conEntidad
+              ? "El número de cada informe abre el informe oficial en la Contraloría, y la entidad, su ficha en Vigía. "
+              : "Cada fila abre el informe oficial en la Contraloría. "}
+            Todos están también en su <EnlaceFuente href={BUSCADOR_CONTRALORIA}>buscador de informes</EnlaceFuente>.
           </p>
         </div>
       )}

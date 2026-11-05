@@ -504,7 +504,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   // ese número.
   const hrefDespues = (v: VisitaHilo) =>
     v.despues_ocid ? rutaContrato(v.despues_ocid)
-    : v.despues_tipo === "orden" && v.despues_numero && enSoles(v) ? `${base}?seccion=compras&ccon=${v.ruc}&cq=${encodeURIComponent(v.despues_numero)}`
+    : v.despues_tipo === "orden" && v.despues_numero && enSoles(v) ? `${base}?seccion=contratos&ccon=${v.ruc}&cq=${encodeURIComponent(v.despues_numero)}`
     : null;
   // Las que van como secuencia («Lo que llama la atención») no se repiten como punto en el renglón de visitas.
   const enSecuencia = new Set(

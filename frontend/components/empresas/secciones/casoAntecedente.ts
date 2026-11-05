@@ -1,4 +1,5 @@
-import { esTipoObra } from "@/lib/cruces";
+import { recortar } from "@/components/contratos/recortar";
+import { esTipoLeido, esTipoObra } from "@/lib/cruces";
 import { rutaEmpresa, type AntecedenteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
 import { hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
 import { inversionSsi, obraInfobras } from "@/lib/fuentes";
@@ -140,6 +141,26 @@ function empresas(xs: { ruc: string | null; nombre: string | null }[]): { texto:
       : { texto: "Una persona natural", href: null },
   );
 }
+
+/**
+ * Quien quedó fuera según el acta de buena pro: el nombre sólo si es una empresa (su RUC empieza en 20; sin RUC, una forma
+ * societaria o «consorcio» en el nombre). Una persona natural no se nombra: su RUC lleva su DNI. La misma regla que
+ * `nombreFuera` de components/contratos/CrucesProveedor.tsx (que no se exporta: es un componente de servidor grande).
+ */
+const FORMA_EMPRESA = /\b(consorcio|s\.?\s?a\.?\s?c|s\.?\s?r\.?\s?l|e\.?\s?i\.?\s?r\.?\s?l|s\.?\s?a\.?\s?a|sociedad|empresa|corporaci[oó]n|inversiones|constructora|servicios|ingenier[ií]a|contratistas|asociaci[oó]n)\b/i;
+function quienQuedoFuera(f: Record<string, unknown>): { texto: string; href: string | null } {
+  const nombre = txt(f.nombre) ?? "";
+  const ruc = (txt(f.ruc) ?? "").replace(/\D/g, "");
+  const empresa = ruc.startsWith("20") || (!ruc.startsWith("10") && FORMA_EMPRESA.test(nombre));
+  if (!nombre || !empresa) return { texto: "Un postor (persona natural)", href: null };
+  return { texto: tituloNatural(nombre), href: ruc.startsWith("20") && ruc.length === 11 ? `/empresa/${ruc}` : null };
+}
+
+/** Una cita del documento leído, entre comillas y recortada (la entera queda en el SEACE, a un clic desde el panel). */
+const cita = (v: unknown, max = 220): string | null => {
+  const s = txt(v);
+  return s ? `«${recortar(s, max)}»` : null;
+};
 
 /**
  * Los datos de un antecedente, por tipo, con sus referencias. Los primeros cuatro van en la fila de la tabla (lo que
@@ -520,6 +541,105 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       obra && { etiqueta: d.rol === "supervision" ? "Obra que supervisa" : "Obra", valor: `${oracion(obra)}${codObra ? ` (INFOBRAS ${codObra})` : ""}`, href: codObra ? obraInfobras(codObra) : null, fuera: true },
       txt(d.estado_obra) && { etiqueta: "Estado de la obra", valor: oracion(txt(d.estado_obra)!) },
       inversion && { etiqueta: "Inversión", valor: `${oracion(inversion)}${cui ? ` (CUI ${cui})` : ""}`, href: cui ? inversionSsi(cui) : null, fuera: true },
+      delProceso(),
+    );
+  }
+  // ── El acta de buena pro, las bases y el pliego de consultas, leídos con IA (migraciones 246-248) ──
+  // Pedido del usuario del 2026-11-05: en «Sacaron a un postor por una formalidad» y «Las bases exigen una marca sin «o
+  // equivalente»» la fila sólo decía «Y 3 datos más en su detalle» y no mostraba ninguno: caían en la rama genérica de
+  // abajo (partido, cargo, monto), que en estos tipos no trae nada. Ahora, lo que dice el documento: quién quedó fuera y
+  // por qué, la marca y la cita de las bases, la denuncia del participante (los mismos campos que lee CrucesProveedor).
+  else if (esTipoLeido(t)) {
+    if (t.startsWith("acta_")) {
+      const todos = (Array.isArray(d.fuera) ? d.fuera : []) as Record<string, unknown>[];
+      // En la de la formalidad, los que quedaron fuera por eso (el lector marca `motivo_tipo: "formal"`); si ninguno lo
+      // trae, todos los que quedaron fuera.
+      const formales = t === "acta_descalificados_por_formalidad" ? todos.filter((f) => f.motivo_tipo === "formal") : [];
+      const fuera = formales.length ? formales : todos;
+      const nombres = fuera.map(quienQuedoFuera);
+      const menor = num(d.menor_monto);
+      const ganador = num(d.ganador_monto);
+      const postores = num(d.postores);
+      // La oferta más baja: la de quien ofreció ese monto, si el acta lo dice.
+      const elMasBajo = menor != null ? fuera.find((f) => num(f.monto_ofertado) === menor) : undefined;
+      const principal = t === "acta_oferta_mas_baja_descartada" && elMasBajo ? elMasBajo : fuera[0];
+      add(
+        t === "acta_solo_queda_el_ganador" && postores != null && {
+          etiqueta: "Postores",
+          valor: `${plural(postores, "postor", "postores")}: quedaron fuera todos menos esta empresa`,
+        },
+        t === "acta_oferta_mas_baja_descartada" && menor != null && {
+          etiqueta: "La oferta más baja",
+          valor: `${soles(menor)}${elMasBajo ? `, de ${quienQuedoFuera(elMasBajo).texto.replace(/^Un postor/, "un postor")}` : ""}`,
+        },
+        t === "acta_oferta_mas_baja_descartada" && ganador != null && {
+          etiqueta: "Esta empresa ganó con",
+          valor: `${soles(ganador)}${a.montoSoles != null ? ` (${soles(a.montoSoles)} más)` : ""}`,
+        },
+        nombres.length > 0 && t !== "acta_oferta_mas_baja_descartada" && {
+          etiqueta: nombres.length === 1 ? "Quedó fuera" : "Quedaron fuera",
+          // En la fila, el primero y cuántos más; en el panel, todos con el enlace a su ficha si son empresa.
+          valor: nombres.length === 1 ? nombres[0].texto : `${nombres[0].texto} y ${plural(nombres.length - 1, "postor más", "postores más")}`,
+          lista: nombres,
+        },
+        cita(principal?.motivo) && { etiqueta: "Por qué, según el acta", valor: cita(principal!.motivo) },
+        fuera.length > 1 && {
+          etiqueta: "Cada uno, según el acta",
+          valor: fuera.map((f, i) => `${nombres[i].texto}${cita(f.motivo, 160) ? `: ${cita(f.motivo, 160)}` : ""}`).join("; "),
+          soloPanel: true,
+        },
+      );
+    } else if (t === "bases_marca_sin_equivalente") {
+      const marcas = (Array.isArray(d.marcas) ? d.marcas : []) as Record<string, unknown>[];
+      const nombresMarca = marcas.map((m) => txt(m.marca)).filter((x): x is string => !!x);
+      add(
+        nombresMarca.length > 0 && {
+          etiqueta: "Marca exigida",
+          valor: `${nombresMarca[0]}${nombresMarca.length > 1 ? ` y ${plural(nombresMarca.length - 1, "marca más", "marcas más")}` : ""}`,
+        },
+        cita(marcas[0]?.cita, 240) && { etiqueta: "Lo que dicen las bases", valor: cita(marcas[0].cita, 240) },
+        nombresMarca.length > 1 && { etiqueta: "Las marcas sin «o equivalente»", valor: listaY(nombresMarca), soloPanel: true },
+      );
+    } else if (t === "bases_experiencia_alta") {
+      const e = (d.experiencia ?? {}) as Record<string, unknown>;
+      const exige = num(e.monto_minimo) ?? a.montoSoles;
+      const vr = num(d.valor_referencial);
+      add(
+        exige != null && {
+          etiqueta: "Experiencia exigida",
+          valor: `${soles(exige)}${vr ? ` (${(exige / vr).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces el valor referencial)` : ""}`,
+        },
+        vr != null && { etiqueta: "Valor referencial", valor: soles(vr), mono: true },
+        cita(e.cita, 240) && { etiqueta: "Lo que dicen las bases", valor: cita(e.cita, 240) },
+      );
+    } else if (t === "consultas_denuncia_direccionamiento") {
+      const denuncias = (Array.isArray(d.denuncias) ? d.denuncias : []) as Record<string, unknown>[];
+      add(
+        {
+          etiqueta: "Lo que escribió un participante",
+          valor: cita(denuncias[0]?.cita, 240) ?? "Que las bases favorecen a una marca, un fabricante o un proveedor",
+        },
+        denuncias.length > 1 && { etiqueta: "Denuncias en el pliego", valor: numero(denuncias.length) },
+        { etiqueta: "Qué es", valor: "La denuncia de un participante, no una prueba", soloPanel: true },
+      );
+    } else if (t === "consultas_observaciones_a_requisitos_rechazadas") {
+      const obs = num(d.observaciones);
+      const consultas = num(d.n_consultas);
+      add(
+        {
+          etiqueta: "Observaciones a las bases",
+          valor: `${obs != null ? `${plural(obs, "observación", "observaciones")}; ` : ""}la entidad no acogió ninguna a los requisitos`,
+        },
+        consultas != null && consultas > 0 && { etiqueta: "Consultas en el pliego", valor: numero(consultas) },
+      );
+    }
+    const documento = txt(d.documento);
+    add(
+      {
+        etiqueta: "Cómo se leyó",
+        valor: `${documento ? `${mayus(documento)} del SEACE` : "El documento del SEACE"}, leído con IA (Claude)${t.startsWith("acta_") ? "" : "; lo encontraron dos lecturas independientes"}`,
+        soloPanel: true,
+      },
       delProceso(),
     );
   } else {

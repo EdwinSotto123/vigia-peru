@@ -1,7 +1,8 @@
 import { Fragment, isValidElement, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Equal } from "lucide-react";
 import { Partes, hayDato } from "@/components/ui/Partes";
+import { Dato } from "@/components/ui/Dato";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { fechaConAnio } from "@/lib/formato";
@@ -14,11 +15,15 @@ import { BotonFila, ProveedorDetalle } from "./DetalleFilas";
  * cabecera y su propio chip de estado.
  *
  * Anatomía de una fila, siempre igual:
- *   estado (chip) · qué es (título 1 línea + meta) · datos (números a la derecha) · fecha · ›
+ *   estado (chip) | qué es (título 1 línea + meta) | datos (números a la derecha) | fecha | ›
  *
- * Una fila es UNA acción: `href` (va a su página) o `detalle` (abre el panel lateral).
- * Por eso sus celdas no llevan enlaces ni botones propios (serían un control dentro
- * de otro). Semántica de lista (`ul`): cada fila se lee entera por su contenido.
+ * Una fila es UNA acción: `href` (va a su página) o `detalle` (abre el panel lateral). Por defecto la fila entera ES
+ * ese enlace o botón, y sus celdas no llevan enlaces propios (serían un control dentro de otro). Con `enlaces` (pedido
+ * del usuario del 2026-11-05: el código del proceso, verde, a su ficha) la acción pasa a una capa que cubre la fila y
+ * las celdas van encima sin tomar el clic, salvo sus `<a>`: ver `FilaTabla`. Semántica de lista (`ul`).
+ *
+ * `colapsarIguales`: una columna que en la página dice lo mismo en todas las filas («Sin leer» en los 50 contratos) se
+ * quita y lo dice UNA vez sobre la tabla; su ancho pasa a las columnas flexibles (el título). Ver `columnasQueDicenAlgo`.
  *
  * Los `detalle` de una tabla comparten UN panel (`ProveedorDetalle`): en escritorio queda
  * anclado al costado sin tapar la lista, con anterior/siguiente; en el celular, la hoja.
@@ -49,6 +54,18 @@ export interface Columna {
   apilar?: boolean | "con-rotulo";
   /** El nombre corto para el rótulo apilado ("Antecedentes" en vez de "Antecedentes del ganador"). */
   corto?: string;
+  /**
+   * Hasta qué ancho se muestra (sin incluirlo): una columna sólo del celular, que dice junto lo que desde ese ancho va
+   * en varias columnas (el total que recibió una empresa, en vez de contratos y órdenes por separado). No se apila.
+   */
+  hasta?: Desde;
+  /**
+   * Con `colapsarIguales` en la tabla: qué se dice UNA vez sobre la tabla cuando esta columna se quita por decir lo mismo
+   * en todas las filas de la página. `frases`: la frase para un texto común dado («Sin leer» → «Todos sin leer»);
+   * `texto`: la de cualquier otro, con «{}» donde va ese texto («Estado de todos: {}»); `vacia`: la de todas sin dato.
+   * Sin ellas, el nombre de la columna y lo común. `false`: esta columna nunca se quita. Sólo texto (cruza al cliente).
+   */
+  igual?: false | { frases?: Record<string, string>; texto?: string; vacia?: string };
 }
 
 export interface Fila {
@@ -72,10 +89,27 @@ export interface Fila {
    * se puede buscar (qué es, entidad, lugar, código…). Nunca el nombre de una persona natural (docs/PRIVACIDAD.md).
    */
   buscable?: string;
+  /**
+   * Lo que dice cada celda en texto, por la clave de su columna, para que `colapsarIguales` sepa si una columna dice lo
+   * mismo en toda la página sin comparar nodos de React (frágil). `null`: sin dato. Sin su texto, una celda vacía o de
+   * texto suelto se reconoce sola; cualquier otra deja su columna siempre a la vista (ante la duda, no se quita nada).
+   * Una celda con algo más que su texto (la bandera de «posible error de carga») va sin texto: así su columna se queda.
+   */
+  textos?: Record<string, string | null | undefined>;
+  /**
+   * Sus celdas llevan enlaces propios (el código del proceso a su ficha): la acción de la fila va en una capa debajo de
+   * las celdas y cada `<a>` de una celda se puede tocar solo. Ver `FilaTabla`.
+   */
+  enlaces?: boolean;
+  /** Qué anuncia la acción de una fila con `enlaces` al lector de pantalla (ya no se nombra por su contenido). */
+  etiqueta?: string;
 }
 
 const ORDEN: (Desde | undefined)[] = [undefined, "md", "lg", "xl"];
-const visibleEn = (c: Columna, bp: Desde | undefined) => ORDEN.indexOf(c.desde) <= ORDEN.indexOf(bp);
+const visibleEn = (c: Columna, bp: Desde | undefined) =>
+  ORDEN.indexOf(c.desde) <= ORDEN.indexOf(bp) && (!c.hasta || ORDEN.indexOf(bp) < ORDEN.indexOf(c.hasta));
+/** La columna del título: la primera que se ve en todo ancho. Nunca se quita ni se apila. */
+const indicePrincipal = (columnas: Columna[]) => columnas.findIndex((c) => !c.desde && !c.hasta);
 
 // Clases literales (Tailwind sólo genera lo que ve escrito entero en el código).
 const OCULTA: Record<Desde, string> = { md: "hidden md:flex", lg: "hidden lg:flex", xl: "hidden xl:flex" };
@@ -123,6 +157,68 @@ const clases = (m: Medida) =>
     ? { grid: GRID_C, oculta: OCULTA_C, bloque: OCULTA_BLOQUE_C, hasta: MOSTRAR_HASTA_C }
     : { grid: GRID, oculta: OCULTA, bloque: OCULTA_BLOQUE, hasta: MOSTRAR_HASTA };
 
+/** En qué anchos se ve una celda (o su cabecera): desde `desde` y, si la columna es sólo del celular, hasta `hasta`. */
+const claseVisible = (c: Columna, k: ReturnType<typeof clases>) => cn(c.desde ? k.oculta[c.desde] : "flex", c.hasta && k.hasta[c.hasta]);
+
+// ─── Columnas que dicen lo mismo en toda la página ───────────────────────────────
+
+/**
+ * Con menos filas, que digan lo mismo no dice nada (dos filas «Emitida» pueden ser casualidad) y quitar la columna
+ * dejaría una tabla de una fila sin sus datos.
+ */
+const MIN_FILAS_IGUALES = 3;
+
+/** La nota de una columna quitada: «Todos sin leer» (pedido del usuario del 2026-11-05). */
+interface NotaIgual {
+  clave: string;
+  texto: string;
+}
+
+/**
+ * El texto de una celda para compararla con las demás de su columna: el que declara la fila (`textos`), o el que se
+ * reconoce solo (vacía → null, texto suelto → ese texto). `undefined`: no se sabe, y la columna se queda.
+ */
+function textoDeCelda(f: Fila, clave: string): string | null | undefined {
+  const declarado = f.textos?.[clave];
+  if (declarado !== undefined) return declarado === null ? null : declarado.trim() || null;
+  const n = f.celdas[clave];
+  if (celdaVacia(n)) return null;
+  if (typeof n === "string" || typeof n === "number") return String(n).trim();
+  return undefined;
+}
+
+/** «Sin leer» → «sin leer» dentro de una frase; una sigla («OECE») o una cifra quedan como están. */
+const enMinuscula = (t: string) => (/^\p{Lu}\p{Ll}/u.test(t) ? t.charAt(0).toLocaleLowerCase("es") + t.slice(1) : t);
+const conMayuscula = (t: string) => t.charAt(0).toLocaleUpperCase("es") + t.slice(1);
+
+function fraseIgual(c: Columna, comun: string | null): string {
+  const cfg: Exclude<Columna["igual"], false | undefined> = c.igual || {};
+  if (comun == null) return cfg.vacia ?? `${c.titulo}: sin dato en todas las filas`;
+  const frase = cfg.frases?.[comun];
+  if (frase) return frase;
+  return conMayuscula(cfg.texto ? cfg.texto.replace("{}", enMinuscula(comun)) : `${c.titulo}: ${enMinuscula(comun)}, en todas las filas`);
+}
+
+/**
+ * Las columnas que en ESTA página dicen algo distinto de una fila a otra, y la nota de las que no: en /app/contratos
+ * «Sin leer», «Sin ganador aún» y «Sin dato» se repetían en 50 filas y se comían el 40 % del ancho, con el objeto
+ * recortado en dos palabras y filas de 85 px (auditoría del 2026-11-05). La del título nunca se quita; una columna se
+ * quita sólo si se sabe el texto de todas sus celdas (`textoDeCelda`) y es el mismo. El orden de las demás no cambia.
+ */
+function columnasQueDicenAlgo(columnas: Columna[], filas: Fila[]): { columnas: Columna[]; notas: NotaIgual[] } {
+  if (filas.length < MIN_FILAS_IGUALES) return { columnas, notas: [] };
+  const principal = indicePrincipal(columnas);
+  const notas: NotaIgual[] = [];
+  const quedan = columnas.filter((c, i) => {
+    if (i === principal || c.igual === false) return true;
+    const textos = filas.map((f) => textoDeCelda(f, c.clave));
+    if (textos.some((t) => t === undefined) || !textos.every((t) => t === textos[0])) return true;
+    notas.push({ clave: c.clave, texto: fraseIgual(c, textos[0] ?? null) });
+    return false;
+  });
+  return { columnas: quedan, notas };
+}
+
 export interface GrupoFilas {
   clave: string;
   /** Rótulo del grupo con su conteo en pastilla: "En espera" + `<CuentaGrupo>47</CuentaGrupo>`. */
@@ -131,12 +227,13 @@ export interface GrupoFilas {
 }
 
 export function Tabla({
-  columnas,
+  columnas: todasLasColumnas,
   filas,
   grupos,
   etiqueta,
   medida = "pantalla",
   densidad = "normal",
+  colapsarIguales = false,
   className,
 }: {
   columnas: Columna[];
@@ -152,10 +249,16 @@ export function Tabla({
    * columnas: zonas, entidades, partidos). Por defecto, las filas de 60 px de siempre.
    */
   densidad?: Densidad;
+  /**
+   * Quita la columna que en estas filas dice lo mismo en todas (o nada en ninguna) y lo dice una vez sobre la tabla
+   * («Todos sin leer»); su ancho pasa al título. Cabecera y celdas se van juntas. Ver `Columna.igual` y `Fila.textos`.
+   */
+  colapsarIguales?: boolean;
   className?: string;
 }) {
   const k = clases(medida);
   const todas = grupos ? grupos.flatMap((g) => g.filas) : filas ?? [];
+  const { columnas, notas } = colapsarIguales ? columnasQueDicenAlgo(todasLasColumnas, todas) : { columnas: todasLasColumnas, notas: [] as NotaIgual[] };
   const conAccion = todas.some((f) => f.href || f.detalle);
   const estilo = rejilla(columnas, conAccion);
   const detalles = todas.flatMap((f) => (f.detalle ? [{ id: f.id, ...f.detalle }] : []));
@@ -172,9 +275,22 @@ export function Tabla({
       )}
       style={estilo}
     >
+      {/* Lo que las columnas quitadas decían en todas las filas, una vez y sobre la cabecera: es de esta página (la
+          siguiente puede traer filas distintas y ahí la columna vuelve). */}
+      {notas.length > 0 && (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-2 text-meta text-inkSoft">
+          <span className="text-rotulo font-medium text-mute">En esta página</span>
+          {/* El ícono «=» sin nombre: el rótulo de delante ya dice que vale para toda la página. */}
+          {notas.map((n) => (
+            <Dato key={n.clave} icono={Equal}>
+              {n.texto}
+            </Dato>
+          ))}
+        </p>
+      )}
       <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
         {columnas.map((c) => (
-          <span key={c.clave} className={cn("min-w-0 items-center gap-1", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end")}>
+          <span key={c.clave} className={cn("min-w-0 items-center gap-1", claseVisible(c, k), c.alinear === "der" && "justify-end")}>
             <span className="truncate">{c.titulo}</span>
             {c.ayuda}
           </span>
@@ -286,13 +402,17 @@ function FilaTabla({
   const ultima = apiladas.reduce<Desde | undefined>((m, c) => (ORDEN.indexOf(c.desde) > ORDEN.indexOf(m) ? c.desde : m), undefined);
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
   // escritorio la columna apilada vaya antes (el chip de estado a la izquierda).
-  const principal = columnas.findIndex((c) => !c.desde);
+  const principal = indicePrincipal(columnas);
+  // Con enlaces adentro, la acción de la fila es una capa por debajo (ver abajo): las celdas van encima (`z-[1]`) sin
+  // tomar el clic, que cae en la capa; sus `<a>` sí lo toman.
+  const capa = !!fila.enlaces && !!(fila.href || fila.detalle);
+  const encima = capa && "relative z-[1] pointer-events-none [&_a]:pointer-events-auto";
   const celdas = (
     <>
       {columnas.map((c, i) => (
         <span
           key={c.clave}
-          className={cn("min-w-0 items-center", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end text-right")}
+          className={cn("min-w-0 items-center", claseVisible(c, k), c.alinear === "der" && "justify-end text-right", encima)}
         >
           {i === principal && apiladas.length > 0 ? (
             <span className="block w-full min-w-0">
@@ -314,13 +434,42 @@ function FilaTabla({
       {/* La columna existe si alguna fila se abre; la flecha, sólo en las que sí. */}
       {conAccion &&
         (fila.href || fila.detalle ? (
-          <ChevronRight size={16} className="text-mute transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
+          <ChevronRight size={16} className={cn("text-mute transition-transform duration-rapido group-hover:translate-x-0.5", encima)} aria-hidden />
         ) : (
           <span aria-hidden />
         ))}
     </>
   );
   const clase = cn(k.grid, densidad === "compacta" ? FILA_COMPACTA : FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
+  if (capa) {
+    // La fila es un `div` y su acción (enlace o botón) una capa vacía que la cubre entera, DEBAJO de las celdas: así su
+    // fondo de elegida (el del panel abierto) se ve a través de ellas y el clic en cualquier texto le llega igual. No el
+    // «enlace estirado» por encima: taparía las celdas con el fondo de elegida. Su nombre lo dice `etiqueta` (las celdas
+    // se leen aparte, como texto de la fila).
+    const nombre = fila.etiqueta ?? fila.detalle?.etiqueta ?? (fila.detalle ? `Ver el detalle de ${fila.detalle.titulo}` : "Abrir");
+    const accion = "absolute inset-0 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
+    return (
+      // `isolate`: el `z-[1]` de las celdas queda dentro de la fila; si no, pasaba por encima del rótulo fijo de un grupo.
+      <div className={cn(clase, "relative isolate")}>
+        {fila.href ? (
+          fila.externo ? (
+            <a href={fila.href} target="_blank" rel="noopener noreferrer" className={accion}>
+              <span className="sr-only">{nombre} (se abre en otra pestaña)</span>
+            </a>
+          ) : (
+            <Link href={fila.href} className={accion}>
+              <span className="sr-only">{nombre}</span>
+            </Link>
+          )
+        ) : (
+          <BotonFila id={fila.id} className={accion}>
+            <span className="sr-only">{nombre}</span>
+          </BotonFila>
+        )}
+        {celdas}
+      </div>
+    );
+  }
   if (fila.href && fila.externo) {
     return (
       <a href={fila.href} target="_blank" rel="noopener noreferrer" className={clase}>
@@ -403,6 +552,28 @@ export function CeldaPrincipal({
   );
 }
 
+/** Un enlace en medio del texto de una celda (fila con `enlaces`): verde y subrayado suave, como todo identificador. */
+export const CLASE_ENLACE_CELDA = "text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
+
+/**
+ * El identificador de una fila (el código del proceso, el N.° de la orden) al COMIENZO de su línea de contexto, en mono:
+ * al final se recortaba («N.° 4504…») o ni se mostraba (pedido del usuario del 2026-11-05). Con `href` (su ficha en
+ * Vigía) va verde y enlazado, y la fila necesita `enlaces`; sin página propia, texto. Nunca un RUC 10 (lleva el DNI).
+ */
+export function CodigoFila({ codigo, nombre, href }: { codigo: string; nombre: string; href?: string | null }) {
+  return (
+    <Dato tipo="codigo" nombre={nombre} mono className="whitespace-nowrap">
+      {href ? (
+        <Link href={href} prefetch={false} className={CLASE_ENLACE_CELDA}>
+          {codigo}
+        </Link>
+      ) : (
+        codigo
+      )}
+    </Dato>
+  );
+}
+
 /**
  * Una barra proporcional pequeña dentro de una fila: cuánto pesa este valor frente al mayor de la lista.
  * Es dato (no adorno): llena el hueco entre el nombre y las cifras y deja comparar de un vistazo.
@@ -459,7 +630,7 @@ export function TablaSkeleton({ columnas, filas = 8 }: { columnas: Columna[]; fi
     <div className="overflow-hidden rounded-2xl border border-line bg-paper" style={estilo} aria-hidden>
       <div className={cn(GRID, "border-b border-line bg-paperSoft px-4 py-3")}>
         {columnas.map((c) => (
-          <span key={c.clave} className={cn(c.desde && OCULTA_BLOQUE[c.desde])}>
+          <span key={c.clave} className={cn(c.desde && OCULTA_BLOQUE[c.desde], c.hasta && MOSTRAR_HASTA[c.hasta])}>
             <Skeleton className="h-3 w-16" />
           </span>
         ))}
@@ -468,7 +639,7 @@ export function TablaSkeleton({ columnas, filas = 8 }: { columnas: Columna[]; fi
       {Array.from({ length: filas }).map((_, i) => (
         <div key={i} className={cn(GRID, "min-h-[60px] border-b border-line/70 px-4 py-3 last:border-b-0")}>
           {columnas.map((c, j) => (
-            <span key={c.clave} className={cn("min-w-0", c.desde && OCULTA_BLOQUE[c.desde])}>
+            <span key={c.clave} className={cn("min-w-0", c.desde && OCULTA_BLOQUE[c.desde], c.hasta && MOSTRAR_HASTA[c.hasta])}>
               {j === 1 ? (
                 <span className="block space-y-1.5">
                   <Skeleton className="h-3.5 w-4/5" />

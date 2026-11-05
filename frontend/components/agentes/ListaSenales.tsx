@@ -13,7 +13,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Severidad } from "@/components/ui/Severidad";
 import { maskDnis, pareceEmpresa, redactDnis, type NombreConocido } from "@/components/Redact";
-import { plural } from "@/lib/formato";
+import { fechaConAnio, plural } from "@/lib/formato";
 import { nombreDeAgente, pasoDeClave } from "./catalogo";
 import { SelloVerificada } from "./SelloVerificada";
 import type { SenalAgente } from "./senales";
@@ -44,13 +44,68 @@ function apellidosPrivados(nombres: NombreConocido[]): Set<string> {
 
 const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+// ─── La evidencia sin formas de máquina ─────────────────────────────────────────
+
 /**
- * La evidencia de la fila, en texto plano y corta: DNI/RUC 10 enmascarados y el apellido de
- * cada persona privada del dossier tapado donde aparezca (de más, nunca de menos). El texto
- * completo, con el vidrio revelable, está en el panel.
+ * El campo del registro de donde salió un dato, entre paréntesis: «(ocds: numberOfTenderers/tenderers)», «(ofertas_bd:
+ * …)», «(acta (ofertas presentadas): …)», sólo si lo que sigue a los dos puntos son nombres de campo (sin cifras: un
+ * «(ocds: 3 postores)» es un dato y se queda). De otra fuente, si son nombres de campo de verdad (camelCase, guion bajo
+ * o «a/b»): una nota común («(nota: importante)») no se toca.
+ */
+const CAMPO_ORIGEN = /\s*\((?:ocds|ofertas_bd|bd|acta(?:\s*\([^()]*\))?)\s*:[A-Za-z_/\s]*\)/gi;
+const CAMPO_GENERICO = /\s*\([a-z_]+\s*:\s*(?=[A-Za-z_/]*(?:[a-z][A-Z]|_|\/))[A-Za-z_]+(?:\/[A-Za-z_]+)*\)/g;
+/** Una palabra con su plural a medias: «sanción(es)», «vigente(s)», «VIGENTE(S)». */
+const PLURAL_A_MEDIAS = /(\p{L}+)\(([eE]?[sS])\)/gu;
+/** Un número seguido de una o más palabras con su plural a medias: «2 sanción(es) vigente(s)». */
+const CUENTA_A_MEDIAS = /(\d[\d,.]*)((?:\s+\p{L}+\([eE]?[sS]\))+)/gu;
+/** Una fecha ISO, con su hora si la trae: «2026-07-31», «2026-07-31T00:00:00Z». */
+const FECHA_ISO = /\b(\d{4}-\d{2}-\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g;
+const SIN_TILDE: Record<string, string> = { á: "a", é: "e", í: "i", ó: "o", ú: "u" };
+
+/** «sanción» + «es» → «sanciones» (la tilde de la última sílaba se va); «vigente» + «s» → «vigentes». */
+function enPlural(palabra: string, sufijo: string): string {
+  const mayus = palabra === palabra.toUpperCase();
+  if (sufijo.toLowerCase() === "s") return palabra + (mayus ? "S" : "s");
+  return palabra.replace(/([áéíóú])([ns])$/, (_, v: string, c: string) => SIN_TILDE[v] + c) + (mayus ? "ES" : "es");
+}
+
+/**
+ * La evidencia como la escribe el análisis, sin sus formas de máquina (pedido del usuario del 2026-11-05: «Un solo postor
+ * registrado (ocds: numberOfTenderers/tenderers)», «2 sanción(es) VIGENTE(S) … (2026-07-31)»): sin el campo de origen,
+ * con el plural según el número («1 sanción vigente», «2 sanciones vigentes»; sin número, en plural), las mayúsculas de
+ * énfasis en minúsculas, las fechas como «31 jul. 2026» y sin el «·» de separador. Cambia la forma, nunca el dato.
+ */
+export function limpiarEvidencia(texto: string): string {
+  return (
+    texto
+      .replace(CAMPO_ORIGEN, "")
+      .replace(CAMPO_GENERICO, "")
+      // «VIGENTE(S)» → «vigente(s)»: una palabra entera en mayúsculas con su plural a medias es énfasis, no una sigla.
+      .replace(/(?<!\p{L})(\p{Lu}{2,})\(([eE]?[sS])\)/gu, (_, w: string, s: string) => `${w.toLocaleLowerCase("es")}(${s.toLowerCase()})`)
+      // «2 sanción(es) vigente(s)» → «2 sanciones vigentes»; «1 sanción(es)» → «1 sanción».
+      .replace(CUENTA_A_MEDIAS, (_, n: string, palabras: string) =>
+        n + palabras.replace(PLURAL_A_MEDIAS, (__: string, w: string, s: string) => (Number(n.replace(/[,.]/g, "")) === 1 ? w : enPlural(w, s))),
+      )
+      // Sin número delante: en plural («sanción(es)» → «sanciones»).
+      .replace(PLURAL_A_MEDIAS, (_, w: string, s: string) => enPlural(w, s))
+      .replace(FECHA_ISO, (m: string, d: string) => {
+        const f = fechaConAnio(d);
+        return f === "Sin fecha" ? m : f;
+      })
+      .replace(/\s+·\s+/g, "; ")
+      .replace(/\s+([.,;:])/g, "$1")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
+}
+
+/**
+ * La evidencia de la fila, en texto plano y corta: sin formas de máquina (`limpiarEvidencia`), DNI/RUC 10 enmascarados
+ * y el apellido de cada persona privada del dossier tapado donde aparezca (de más, nunca de menos). El texto completo,
+ * con el vidrio revelable, está en el panel.
  */
 export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido[] = []): string {
-  const t = maskDnis(texto.normalize("NFC"));
+  const t = maskDnis(limpiarEvidencia(texto.normalize("NFC")));
   const tapar = apellidosPrivados(nombres);
   const limpio = tapar.size ? t.replace(/\p{L}+/gu, (w) => (tapar.has(sinTildes(w)) ? "•".repeat(Math.min(Math.max(w.length, 3), 8)) : w)) : t;
   if (limpio.length <= MAX_RESUMEN) return limpio;
@@ -114,7 +169,8 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
       )}
 
       <BloqueDetalle titulo="Qué se encontró">
-        {senal.evidencia ? <p>{redactDnis(senal.evidencia)}</p> : <p className="text-mute">El análisis no guardó el texto de esta señal.</p>}
+        {/* Sin las formas de máquina de la regla (el campo de origen, «sanción(es)», fechas ISO), como en la fila. */}
+        {senal.evidencia ? <p>{redactDnis(limpiarEvidencia(senal.evidencia))}</p> : <p className="text-mute">El análisis no guardó el texto de esta señal.</p>}
         {senal.evidenciaTextual && (
           <div className="mt-2">
             <CitaDetalle fuente="Texto del documento">{redactDnis(senal.evidenciaTextual)}</CitaDetalle>

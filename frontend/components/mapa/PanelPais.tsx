@@ -80,7 +80,19 @@ export function PanelPais({
       <h3 id={`${id}-r`} className="mt-5 font-display text-bloque font-bold leading-tight text-ink">
         {medidaTitulo ? `Departamentos por ${medidaTitulo.toLowerCase()}` : "Departamentos"}
       </h3>
-      <p className="mt-0.5 text-meta leading-snug text-mute">Toca uno aquí o en el mapa.</p>
+      {/* Cómo se lee la barra de dos tonos (pedido del usuario del 2026-11-05): su largo es la medida del mapa; en color
+          pleno, la parte de sus contratos que Vigía ya leyó. */}
+      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-meta leading-snug text-mute">
+        <span>Toca uno aquí o en el mapa.</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-granate" />
+          Leídos
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-granate/30" />
+          Por leer
+        </span>
+      </p>
       {ranking === null ? (
         <div className="mt-3 space-y-2" aria-hidden>
           {Array.from({ length: 8 }, (_, i) => (
@@ -107,8 +119,15 @@ export function PanelPais({
                       <span className="truncate text-dato font-semibold text-ink group-hover:text-granate">{f.nombre}</span>
                       <span className="shrink-0 font-mono text-meta font-semibold tabular-nums text-ink">{f.texto}</span>
                     </span>
+                    {/* Dos tonos, como los rankings del Inicio: el largo es la medida del mapa y, dentro, en color pleno la
+                        parte leída de sus contratos (antes una sola barra llena: «leídos de» quedaba sólo en el texto). */}
                     <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
-                      <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, (f.valor / max) * 100)}%` }} />
+                      <span className="relative block h-full rounded-full bg-granate/30" style={{ width: `${Math.max(2, (f.valor / max) * 100)}%` }}>
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-full bg-granate"
+                          style={{ width: `${f.total > 0 ? Math.min(100, (f.leidos / f.total) * 100) : 0}%` }}
+                        />
+                      </span>
                     </span>
                     <span className="mt-0.5 block text-rotulo text-mute">
                       {numero(f.leidos)} leídos de {numero(f.total)}

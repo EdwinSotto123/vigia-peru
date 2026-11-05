@@ -7,12 +7,14 @@ import { Dato } from "@/components/ui/Dato";
 import { Partes, Separador } from "@/components/ui/Partes";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { Tabla, TablaSkeleton, CeldaPrincipal, type Columna, type Fila, type GrupoFilas } from "@/components/listado";
+import { CLASE_ENLACE_CELDA, CodigoFila } from "@/components/listado/Tabla";
 import { Llamita } from "@/components/marca/Llamita";
 import { SelloCotejo } from "@/components/alertas/SelloCotejo";
 import { SenalDetalle } from "@/components/alertas/SenalDetalle";
 import { ResumenEvidencia } from "@/components/agentes/ListaSenales";
 import { limpiarObjeto } from "@/components/contratos/recortar";
 import { TOTAL_FASES } from "@/lib/auditoria";
+import { severidadDeBandera } from "@/lib/severidad";
 import { fechaCorta, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { hayFiltrosSenales, type Senal, type SenalesQuery } from "@/lib/revision";
@@ -22,10 +24,12 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
  * El índice de señales sobre la plantilla Listado (§14.1): la `Tabla` compartida y el detalle en el panel lateral, sin
  * perder la tabla filtrada de atrás.
  *
- * Las señales van agrupadas por su contrato (`Tabla grupos`): el rótulo del grupo dice qué se compró, la entidad, la
- * región, cuántas señales tiene el contrato y el valor del contrato; cada fila, una señal —severidad (chip) · la señal y
- * su evidencia · el cotejo · ›—. Antes cada fila repetía el mismo contrato, identificado sólo por su código (699 señales
- * en 252 contratos), y en el celular la señal quedaba sin su contrato. Se agrupan las señales SEGUIDAS del mismo contrato
+ * Las señales van agrupadas por su contrato (`Tabla grupos`): el rótulo del grupo dice qué se compró (enlace a la ficha),
+ * el código, la entidad (enlace a la suya), la región, cuántas señales tiene el contrato y el valor del contrato; cada
+ * fila, una señal —severidad (chip) · la señal y su evidencia · el cotejo · ›—. Dos reglas con el mismo hecho (la misma
+ * sanción) van en una fila (`sinRepetidas`), y la severidad y el cotejo se quitan si dicen lo mismo en toda la página.
+ * Antes cada fila repetía el mismo contrato, identificado sólo por su código (699 señales en 252 contratos), y en el
+ * celular la señal quedaba sin su contrato. Se agrupan las señales SEGUIDAS del mismo contrato
  * dentro de la página: el orden y la paginación siguen siendo los del API (por señal), así que un contrato cuyas señales
  * caen en dos tramos (las altas al principio, las medias después) sale en dos grupos.
  *
@@ -36,12 +40,29 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
  * número de página con el respaldo de la API vieja.
  */
 
+// Severidad y cotejo suelen decir lo mismo en toda la página («Señal alta», «Cotejada» en 437 de 441): se quitan y lo
+// dicen una vez sobre la tabla (`colapsarIguales`, pedido del usuario del 2026-11-05), y su ancho pasa a la señal.
 export const COLUMNAS_SENALES: Columna[] = [
-  { clave: "severidad", desde: "md", apilar: true, titulo: "Severidad", ancho: "124px" },
+  {
+    clave: "severidad", desde: "md", apilar: true, titulo: "Severidad", ancho: "124px",
+    igual: { frases: { "Señal alta": "Todas de severidad alta", "Señal media": "Todas de severidad media", "Señal baja": "Todas de severidad baja" } },
+  },
   { clave: "senal", titulo: "Señal y evidencia", ancho: "minmax(0,1fr)" },
   // «No se pudo cotejar» entra entero; en el celular el sello va bajo la señal, junto a la severidad.
-  { clave: "cotejo", titulo: "Cotejo", ancho: "152px", desde: "md", apilar: true },
+  {
+    clave: "cotejo", titulo: "Cotejo", ancho: "152px", desde: "md", apilar: true,
+    igual: {
+      frases: {
+        Cotejada: "Todas cotejadas con fuentes oficiales",
+        "No se pudo cotejar": "Ninguna se pudo cotejar",
+        "Sin cotejo": "Ninguna cotejada todavía",
+      },
+    },
+  },
 ];
+
+/** Lo que dice el sello de cotejo (`SelloCotejo`), en texto: para saber si la columna dice lo mismo en toda la página. */
+const textoCotejo = (v: boolean | null) => (v === true ? "Cotejada" : v === false ? "No se pudo cotejar" : "Sin cotejo");
 
 interface Props {
   /** Las señales de ESTA página. */
@@ -102,13 +123,13 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
     // El mismo contrato puede salir en dos tramos de la página: la clave lleva su lugar.
     clave: `${g.clave}-${i}`,
     titulo: <ContratoDelGrupo s={g.senales[0]} enGrupo={g.senales.length} />,
-    filas: g.senales.map(filaDe),
+    filas: sinRepetidas(g.senales).map(({ s, tambien }) => filaDe(s, tambien)),
   }));
 
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{paginador}</div>
-      <Tabla columnas={COLUMNAS_SENALES} grupos={grupos} etiqueta="Señales publicadas" />
+      <Tabla columnas={COLUMNAS_SENALES} grupos={grupos} etiqueta="Señales publicadas" colapsarIguales />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {contratosSinDetalle > 0 ? (
           <p className="inline-flex items-center gap-1 text-meta text-mute">
@@ -139,6 +160,35 @@ function agrupar(senales: Senal[]): { clave: string; senales: Senal[] }[] {
   return grupos;
 }
 
+/**
+ * Reglas que, sobre el mismo contrato y el mismo proveedor, dicen el mismo hecho: «Sanción vigente en el OECE» (la del
+ * análisis, a la fecha de la buena pro) y «Proveedor con sanción OSCE/OECE» (la del cruce con el registro de sancionados).
+ * La primera de cada par es la más precisa: gana a igual severidad.
+ */
+const MISMO_HECHO: readonly (readonly [string, string])[] = [["sancion_vigente_oece", "proveedor_sancionado_osce"]];
+const RANGO_SEVERIDAD = { alta: 0, media: 1, baja: 2 } as const;
+/** El RUC del que habla la evidencia («… para el RUC 20…»): dos reglas sobre RUC distintos no son el mismo hecho. */
+const rucDe = (s: Senal) => s.evidencia?.match(/RUC\s*(\d{11})/)?.[1] ?? null;
+
+/**
+ * Las señales de un contrato sin la que repite el hecho de otra (pedido del usuario del 2026-11-05: la misma sanción
+ * salía dos veces seguidas con dos nombres): queda la más grave, y su fila dice que otra regla marca lo mismo.
+ */
+function sinRepetidas(senales: Senal[]): { s: Senal; tambien: Senal | null }[] {
+  const fuera = new Set<Senal>();
+  const tambien = new Map<Senal, Senal>();
+  for (const [precisa, otra] of MISMO_HECHO) {
+    for (const a of senales.filter((x) => x.regla === precisa)) {
+      const b = senales.find((x) => x.regla === otra && !fuera.has(x) && (!rucDe(a) || !rucDe(x) || rucDe(a) === rucDe(x)));
+      if (!b) continue;
+      const [queda, sale] = RANGO_SEVERIDAD[b.severidad] < RANGO_SEVERIDAD[a.severidad] ? [b, a] : [a, b];
+      fuera.add(sale);
+      tambien.set(queda, sale);
+    }
+  }
+  return senales.filter((s) => !fuera.has(s)).map((s) => ({ s, tambien: tambien.get(s) ?? null }));
+}
+
 const conDato = (t: string | null | undefined) => (t && t !== "Sin dato" ? t : null);
 
 /**
@@ -153,12 +203,22 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
   const region = conDato(s.region);
   const n = s.senalesDelContrato;
   const valor = s.montoSoles > 0 ? s.montoSoles : null;
+  // El objeto y el código llevan a la ficha del contrato, y la entidad a la suya (pedido del usuario del 2026-11-05: eran
+  // texto gris). El rótulo no es un botón: los enlaces van sueltos. Una entidad tiene RUC 20; uno de persona, nunca.
+  const ficha = s.ocid ? rutaContrato(s.ocid) : null;
+  const rucEntidad = /^20\d{9}$/.test(s.rucEntidad ?? "") ? s.rucEntidad : null;
   return (
     <span className="flex min-w-0 items-baseline justify-between gap-x-4">
       <span className="min-w-0 flex-1">
         {/* El tamaño y el peso, los del rótulo de grupo del kit (h3): sobre las señales, que van en `text-dato`. */}
         <span className="block truncate text-ink" title={objeto}>
-          {objeto}
+          {ficha ? (
+            <Link href={ficha} prefetch={false} className="underline-offset-2 transition-colors duration-rapido hover:text-granate hover:underline">
+              {objeto}
+            </Link>
+          ) : (
+            objeto
+          )}
         </span>
         <span className="mt-0.5 block truncate text-meta font-normal text-mute">
           <span className="sm:hidden">
@@ -167,7 +227,19 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
           </span>
           <Partes
             partes={[
-              entidad && <Dato key="e" tipo="entidad">{tituloNatural(entidad)}</Dato>,
+              // El código primero, como en toda lista: al final de la línea se recortaba.
+              s.ocid && <CodigoFila key="o" codigo={s.ocid} nombre="Contrato" href={ficha} />,
+              entidad && (
+                <Dato key="e" tipo="entidad">
+                  {rucEntidad ? (
+                    <Link href={`/entidad/${rucEntidad}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                      {tituloNatural(entidad)}
+                    </Link>
+                  ) : (
+                    tituloNatural(entidad)
+                  )}
+                </Dato>
+              ),
               region && <Dato key="r" tipo="lugar">{tituloNatural(region)}</Dato>,
               n != null && n > enGrupo && (
                 <Dato key="n" icono={Flag} nombre="Señales del contrato">
@@ -177,11 +249,6 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
               s.fechaBuenaPro && (
                 <Dato key="f" tipo="fecha" nombre="Buena pro">
                   Buena pro {fechaCorta(s.fechaBuenaPro.slice(0, 10))}
-                </Dato>
-              ),
-              s.ocid && (
-                <Dato key="o" tipo="codigo" nombre="Contrato" mono>
-                  {s.ocid}
                 </Dato>
               ),
             ]}
@@ -195,15 +262,28 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
   );
 }
 
-function filaDe(s: Senal): Fila {
+/** Una señal; `tambien`: la de otra regla con el mismo hecho, que no va en su propia fila (`sinRepetidas`). */
+function filaDe(s: Senal, tambien: Senal | null = null): Fila {
   const entidad = conDato(s.entidad);
+  const otraRegla = tambien ? `También la marca la regla «${tambien.etiqueta}», con el mismo hecho` : null;
   return {
     id: s.id,
+    // Lo que dicen la severidad y el sello, para quitar su columna si dicen lo mismo en toda la página.
+    textos: { severidad: severidadDeBandera(s.severidad).etiqueta, cotejo: textoCotejo(s.verificada) },
     celdas: {
       severidad: <Severidad bandera={s.severidad} />,
       senal: (
         <CeldaPrincipal
-          titulo={s.etiqueta}
+          titulo={
+            tambien ? (
+              <>
+                {s.etiqueta} <span className="font-normal text-mute">(y otra regla con lo mismo)</span>
+              </>
+            ) : (
+              s.etiqueta
+            )
+          }
+          textoCompleto={otraRegla ? `${s.etiqueta}. ${otraRegla}.` : s.etiqueta}
           meta={s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={s.personasPrivadas} /> : "Sin evidencia registrada"}
         />
       ),
@@ -217,6 +297,7 @@ function filaDe(s: Senal): Fila {
           partes={[
             entidad && <Dato key="e" tipo="entidad">{tituloNatural(entidad)}</Dato>,
             <Dato key="o" tipo="codigo" nombre="Contrato" mono>{s.ocid}</Dato>,
+            otraRegla && <span key="t">{otraRegla}</span>,
           ]}
         />
       ),

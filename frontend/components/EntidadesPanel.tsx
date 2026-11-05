@@ -11,6 +11,7 @@ import type { ApiEntidad, EntidadesPagina } from "@/lib/api-client";
 import { banderasEntidad, type BanderaEntidad as Bandera } from "@/lib/banderasEntidad";
 import { numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { cn } from "@/lib/utils";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
@@ -44,11 +45,13 @@ const COL_ENTIDAD: Columna = { clave: "entidad", titulo: "Entidad", ancho: "minm
 const COL_BANDERAS = (desde: Columna["desde"]): Columna => ({
   clave: "banderas", titulo: "Banderas", ancho: "minmax(0,1fr)", desde, apilar: true, ayuda: AYUDA_BANDERAS,
 });
-const COL_CONTRATOS = (desde?: Columna["desde"]): Columna => ({
-  clave: "contratos", titulo: "Contratos", ancho: "88px", alinear: "der", desde,
+// En el celular, los contratos se apilan bajo el nombre con su rótulo, junto a «Con antecedentes»: antes eran una
+// columna a la derecha con «24,691» suelto, lejos de los antecedentes y sin decir qué contaba (auditoría del 2026-11-05).
+const COL_CONTRATOS = (desde: Columna["desde"]): Columna => ({
+  clave: "contratos", titulo: "Contratos", ancho: "88px", alinear: "der", desde, apilar: "con-rotulo",
   ayuda: <Ayuda titulo="¿Qué contratos cuenta?">Sus convocatorias en el SEACE desde 2015, las mismas de la pestaña Contratos de su ficha.</Ayuda>,
 });
-const COL_ANTECEDENTES = (desde: Columna["desde"]): Columna => ({
+const COL_ANTECEDENTES = (desde: DesdeAntecedentes): Columna => ({
   clave: "antecedentes", titulo: "Con antecedentes", corto: "Con antecedentes", ancho: "120px", alinear: "der", desde, apilar: "con-rotulo",
   ayuda: (
     <Ayuda titulo="¿Qué son los antecedentes del ganador?">
@@ -73,7 +76,7 @@ const COL_INFORMES: Columna = {
 };
 
 /** Las columnas de siempre: banderas, contratos, antecedentes, presupuesto e informes. */
-const COLUMNAS: Columna[] = [COL_ENTIDAD, COL_BANDERAS("md"), COL_CONTRATOS(), COL_ANTECEDENTES("lg"), COL_PRESUPUESTO, COL_INFORMES];
+const COLUMNAS: Columna[] = [COL_ENTIDAD, COL_BANDERAS("md"), COL_CONTRATOS("md"), COL_ANTECEDENTES("lg"), COL_PRESUPUESTO, COL_INFORMES];
 /** Ordenada por dictamen: el puesto y los contratos con dictamen, y lo demás donde entra. */
 const COLUMNAS_DICTAMEN: Columna[] = [
   { clave: "puesto", titulo: "Puesto", ancho: "56px", desde: "md" },
@@ -174,7 +177,7 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui, orden = "c
 
   // De dónde vino (esta lista con sus filtros), para las migas de la ficha y para que "volver" la restaure.
   const desde = urlDesde("/app/entidades", parametros);
-  const filas: Fila[] = pagina.data.map((e, k) => filaEntidad(e, porDictamen ? (actual - 1) * tam + k + 1 : null, desde));
+  const filas: Fila[] = pagina.data.map((e, k) => filaEntidad(e, porDictamen ? (actual - 1) * tam + k + 1 : null, porDictamen ? "xl" : "lg", desde));
 
   const pag = (subir: boolean) => (
     <Paginacion
@@ -205,10 +208,14 @@ export function EntidadesPanel({ pagina, actual, parametros, q, aqui, orden = "c
 /** Las de la fila: las mismas que la cabecera de su ficha (lib/banderasEntidad.ts). */
 const banderasDe = (e: ApiEntidad): Bandera[] | null => banderasEntidad(e.ruc, e.senales, e.informes, e.conNepotismo);
 
-/** Las banderas en UNA línea (`CrucesCelda`): las graves primero, hasta dos y «+n»; sin ninguna, «Ninguna». */
+/**
+ * Las banderas en UNA línea (`CrucesCelda`): las graves primero, hasta dos y «+n»; sin ninguna, «Ninguna». Esa
+ * «Ninguna» sólo en su columna (`data-solo-columna`): apilada bajo el nombre en el celular iba suelta, sin decir de qué,
+ * y separaba los contratos del nombre.
+ */
 function CeldaBanderas({ banderas }: { banderas: Bandera[] | null }) {
   if (!banderas) return <span className="text-meta text-mute">Sin dato</span>;
-  if (!banderas.length) return <span className="text-meta text-mute">Ninguna</span>;
+  if (!banderas.length) return <span data-solo-columna className="text-meta text-mute">Ninguna</span>;
   return (
     <CrucesCelda
       cruces={banderas.map((b) => ({ tipo: b.tipo, severidad: b.severidad }))}
@@ -227,12 +234,34 @@ function CeldaPresupuesto({ p }: { p: ApiEntidad["presupuesto"] }) {
   return <CeldaNumero sub={p.deTodoElGobierno ? `${p.anio}, todo el GORE` : `PIM ${p.anio}`}>{solesCompacto(p.pim)}</CeldaNumero>;
 }
 
-function CeldaAntecedentes({ a }: { a: ApiEntidad["antecedentes"] }) {
+/** Desde qué ancho va la columna «Con antecedentes»: lg en la lista de siempre, xl en la ordenada por dictamen. */
+type DesdeAntecedentes = "lg" | "xl";
+// Clases literales (Tailwind sólo genera lo que ve escrito entero).
+const SOLO_APILADA: Record<DesdeAntecedentes, string> = { lg: "lg:hidden", xl: "xl:hidden" };
+const SOLO_COLUMNA: Record<DesdeAntecedentes, string> = { lg: "hidden lg:block", xl: "hidden xl:block" };
+
+/**
+ * Los contratos con antecedentes y cuántos graves. En su columna, la cifra y los graves debajo; apilada bajo el nombre
+ * (hasta `desde`), en UNA línea junto a «Contratos» («Con antecedentes 7,660 (5,409 graves)»): debajo, partía la línea
+ * de cifras en dos renglones.
+ */
+function CeldaAntecedentes({ a, desde }: { a: ApiEntidad["antecedentes"]; desde: DesdeAntecedentes }) {
   if (a === undefined || a === null) return <CeldaNumero><span className="font-sans text-mute">Sin dato</span></CeldaNumero>;
-  return <CeldaNumero sub={a.alta > 0 ? plural(a.alta, "grave", "graves") : undefined}>{numero(a.con)}</CeldaNumero>;
+  const graves = a.alta > 0 ? plural(a.alta, "grave", "graves") : null;
+  return (
+    <>
+      <span className={cn("inline-flex items-baseline gap-1 whitespace-nowrap", SOLO_APILADA[desde])}>
+        <span className="font-mono text-meta tabular-nums text-ink">{numero(a.con)}</span>
+        {graves && <span className="text-rotulo tabular-nums text-mute">({graves})</span>}
+      </span>
+      <span className={cn("w-full", SOLO_COLUMNA[desde])}>
+        <CeldaNumero sub={graves ?? undefined}>{numero(a.con)}</CeldaNumero>
+      </span>
+    </>
+  );
 }
 
-function filaEntidad(e: ApiEntidad, puesto: number | null, desde?: string): Fila {
+function filaEntidad(e: ApiEntidad, puesto: number | null, desdeAntecedentes: DesdeAntecedentes, desde?: string): Fila {
   // El tipo no es un nivel de riesgo: se infiere del nombre oficial y, si no se puede, no se dice.
   const tipo = etiquetaTipoVisible(e.tipo, e.nombre, "corto");
   const tipoLargo = etiquetaTipoVisible(e.tipo, e.nombre, "largo");
@@ -247,17 +276,19 @@ function filaEntidad(e: ApiEntidad, puesto: number | null, desde?: string): Fila
           // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
           titulo={nombre}
           meta={[
-            tipo && <Dato key="tipo" tipo="tipo" nombre="Tipo de entidad">{tipo}</Dato>,
-            e.region && <Dato key="region" tipo="lugar">{e.region}</Dato>,
-            <Dato key="ruc" tipo="ruc">
+            // El RUC PRIMERO y entero: al final de la línea se recortaba («RUC 2013136…», auditoría del 2026-11-05). Lo
+            // que se recorta, si no entra, es el lugar.
+            <Dato key="ruc" tipo="ruc" className="whitespace-nowrap">
               RUC <span className="font-mono tabular-nums" translate="no">{e.ruc}</span>
             </Dato>,
+            tipo && <Dato key="tipo" tipo="tipo" nombre="Tipo de entidad">{tipo}</Dato>,
+            e.region && <Dato key="region" tipo="lugar">{e.region}</Dato>,
           ]}
         />
       ),
       banderas: <CeldaBanderas banderas={banderas} />,
       contratos: <CeldaNumero>{e.contratos != null ? numero(e.contratos) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
-      antecedentes: <CeldaAntecedentes a={e.antecedentes} />,
+      antecedentes: <CeldaAntecedentes a={e.antecedentes} desde={desdeAntecedentes} />,
       presupuesto: <CeldaPresupuesto p={e.presupuesto} />,
       informes: <CeldaNumero>{e.informes ? numero(e.informes.total) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       dictamen: <CeldaNumero sub={e.contratos != null ? `de ${numero(e.contratos)}` : undefined}>{numero(e.alertas)}</CeldaNumero>,

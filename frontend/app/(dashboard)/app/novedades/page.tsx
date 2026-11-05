@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CalendarClock, ExternalLink, FileWarning, Gavel, ShieldAlert } from "lucide-react";
+import { Clock, ExternalLink, FileWarning, Gavel, ShieldAlert } from "lucide-react";
 import { CeldaNumero, CeldaPrincipal, Indicadores, TablaFiltrable, type Columna, type FilaFiltrable, type Indicador } from "@/components/listado";
 import { BotonCsv, ConCsv } from "@/components/listado/Paginado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
@@ -35,12 +35,18 @@ export const metadata: Metadata = {
  * /app/novedades — lo nuevo, por semana (rehecha el 2026-11-01; el dueño: «súper desordenado, ni siquiera se entiende, no
  * hay gráficas»). GET /novedades/semana. En este orden:
  *
- *   1. Qué tan al día está: la semana que se ve es la última que el Estado ya publicó completa, y se dice por qué no es
- *      la de hoy (antes decía «hasta el 16 oct.» sin explicar nada).
- *   2. Las cifras de esa semana: cuántos contratos graves DE CUÁNTAS buenas pro, cuánto suman, dónde, y los informes.
- *   3. Semana a semana: la gráfica de las 12 últimas, con las que están en camino punteadas; cada barra abre su semana.
- *   4. Pestañas: Contratos (gráficas por antecedente y por región que filtran la lista, un contrato por proceso: antes se
- *      repetía una vez por empresa del consorcio), Informes de control (por tipo de responsabilidad) y Sanciones.
+ *   1. Qué tan al día está, en la cabecera: la semana que se ve es la última que el Estado ya publicó completa, y la
+ *      fecha de la última buena pro (antes decía «hasta el 16 oct.» sin explicar nada).
+ *   2. Semana a semana: la gráfica de las 12 últimas (2/3 del ancho), con las que siguen en curso y las que están en
+ *      camino punteadas; cada columna abre su semana. Al lado (1/3), las cifras de la semana elegida: cuántos contratos
+ *      graves DE CUÁNTAS buenas pro, cuánto suman, dónde, y los informes.
+ *   3. Pestañas: Contratos (barras por antecedente y por región al costado de la lista, que la filtran; un contrato por
+ *      proceso: antes se repetía una vez por empresa del consorcio), Informes de control (por tipo de responsabilidad) y
+ *      Sanciones.
+ *
+ * Pedido del usuario del 2026-11-05: la página abría con un encabezado rojo y DEBAJO otra caja («Lo más reciente que
+ * publicó…») con tres líneas sueltas y un cuarto vacío a la derecha: ~350 px antes del primer dato. La frescura va ahora
+ * en la cabecera como un dato con su calendario, y las cifras al lado de la gráfica.
  *
  * La semana va en `?semana=` (su lunes) y la pestaña en `?ver=`.
  */
@@ -91,7 +97,8 @@ interface Informe {
 }
 
 interface Semana {
-  semana: { desde: string; hasta: string };
+  /** `completa`: false si se eligió una semana que todavía llega a medias (desde el 2026-11-05; antes no venía). */
+  semana: { desde: string; hasta: string; completa?: boolean };
   ultimaCompleta: string;
   horizonte: string;
   semanas: SemanaNueva[];
@@ -158,33 +165,59 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
     return `/app/novedades${s ? `?${s}` : ""}${cambios.ver ? "#listas" : ""}`;
   };
 
+  const enCurso = d?.semana.completa === false;
+
   return (
     <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo nuevo", href: "/app/novedades" }]} />
       <EncabezadoPagina
         titulo="Lo nuevo"
-        bajada="Lo último que publicó el Estado, semana a semana, y lo que Vigía encontró ahí: contratos que ganó alguien con un antecedente grave, informes de la Contraloría y sanciones del Tribunal."
+        bajada={
+          <>
+            Lo último que publicó el Estado, semana a semana, y lo que Vigía encontró ahí: contratos que ganó alguien con un
+            antecedente grave, informes de la Contraloría y sanciones del Tribunal.
+            {d && <Frescura d={d} />}
+          </>
+        }
+        // Si se eligió otra semana en la gráfica, la vuelta a la más reciente va con la cabecera (antes, en una caja aparte).
+        acciones={
+          d && d.semana.desde !== d.ultimaCompleta ? (
+            <Link href={enlace({ semana: null })} scroll={false} className={claseAccion("secundario")}>
+              Ver la más reciente
+            </Link>
+          ) : undefined
+        }
       />
       {!d ? (
         <EstadoVacio variante="compacta" tono="error">No pudimos leer lo nuevo ahora. Vuelve a intentarlo en un momento.</EstadoVacio>
       ) : (
         <>
-          <Frescura d={d} masReciente={enlace({ semana: null })} />
-          <Indicadores items={cifras(d, enlace)} />
           <Seccion
             id="semana-a-semana"
             titulo="Semana a semana"
-            descripcion={`Cuántas buenas pro de cada semana las ganó alguien con un antecedente grave. Toca una barra para ver esa semana.`}
+            descripcion="Cuántas buenas pro de cada semana las ganó alguien con un antecedente grave. Toca una columna para ver esa semana."
             ayuda={
               <Ayuda titulo="¿Cómo se cuenta?">
-                Cada barra es una semana, de lunes a domingo (la fecha de abajo es su lunes). Un contrato cuenta en la semana de su
-                buena pro, una sola vez aunque lo haya ganado un consorcio de varias empresas, y es grave si alguno de sus ganadores
-                tiene un antecedente grave. Las semanas punteadas todavía no llegan completas: el Estado publica las buenas pro con
-                atraso, y las últimas semanas pueden crecer cuando el SEACE publique el detalle de esos procesos.
+                Cada columna es una semana, de lunes a domingo (la fecha de abajo es su lunes): en gris, todas sus buenas pro; en
+                rojo, las que ganó alguien con un antecedente grave. Un contrato cuenta en la semana de su buena pro, una sola vez
+                aunque lo haya ganado un consorcio de varias empresas, y es grave si alguno de sus ganadores tiene un antecedente
+                grave. El Estado publica las buenas pro con atraso: una de las últimas semanas sigue «en curso» (más clara y
+                punteada) mientras sus contratos graves no lleguen a la mitad de lo habitual, la mediana de las 8 semanas
+                anteriores. Las que todavía no traen nada van sólo con su contorno. El promedio cuenta sólo las completas.
               </Ayuda>
             }
           >
-            <SemanaASemana semanas={d.semanas} elegida={d.semana.desde} href={(s) => enlace({ semana: s === d.ultimaCompleta ? null : s })} />
+            {/* La gráfica en dos tercios y, al lado, las cifras de la semana elegida (en el celular, primero las cifras). */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
+              <SemanaASemana semanas={d.semanas} elegida={d.semana.desde} href={(s) => enlace({ semana: s === d.ultimaCompleta ? null : s })} />
+              <aside aria-labelledby="semana-elegida-t" className="order-first min-w-0 lg:order-none">
+                <h3 id="semana-elegida-t" className="font-display text-bloque font-bold leading-tight text-ink">
+                  Semana {rangoSemana(d.semana.desde)}
+                  {enCurso && <span className="ml-1.5 text-meta font-semibold text-mute">(en curso)</span>}
+                </h3>
+                <Indicadores items={cifras(d, enlace)} className="mt-2" />
+              </aside>
+            </div>
           </Seccion>
           {/* El ancla de las cifras de arriba: abren su pestaña y bajan hasta aquí. */}
           <div id="listas" className="scroll-mt-4" />
@@ -233,28 +266,32 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
 }
 
 /**
- * Qué tan al día está: la semana que se ve es la última que llegó completa, y se dice por qué no es la de hoy. Si se
- * eligió otra semana en la gráfica, lo dice y lleva de vuelta a la más reciente.
+ * Qué tan al día está, como una línea de datos en la cabecera (pedido del usuario del 2026-11-05: antes era otra caja bajo
+ * la cabecera, con tres líneas sueltas): la semana que se ve, con su calendario, y la fecha de la última buena pro. Por
+ * qué no es la semana de hoy, en su ⓘ. Va dentro de la bajada (un <p>): todo en spans.
  */
-function Frescura({ d, masReciente }: { d: Semana; masReciente: string }) {
+function Frescura({ d }: { d: Semana }) {
   const ultima = d.semana.desde === d.ultimaCompleta;
+  const enCurso = d.semana.completa === false;
   const dias = diasDesde(d.horizonte);
   return (
-    <Franja
-      icono={<CalendarClock size={18} />}
-      titulo={ultima ? `Lo más reciente que publicó el Estado: la semana ${rangoSemana(d.semana.desde)}` : `Estás viendo la semana ${rangoSemana(d.semana.desde)}`}
-      accion={
-        ultima ? undefined : (
-          <Link href={masReciente} scroll={false} className={claseAccion("secundario")}>
-            Ver la más reciente
-          </Link>
-        )
-      }
-    >
-      El Estado publica las buenas pro con atraso: la última que llegó es {diaLargo(d.horizonte)}
-      {dias > 1 ? ` (hace ${numero(dias)} días)` : ""}. Vigía cruza cada una con los registros públicos apenas llega, y las semanas
-      siguientes aparecen aquí solas.
-    </Franja>
+    <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
+      <Dato tipo="fecha" nombre="Semana" className="font-semibold text-ink">
+        {ultima
+          ? `Lo más reciente completo: la semana ${rangoSemana(d.semana.desde)}`
+          : `Estás viendo la semana ${rangoSemana(d.semana.desde)}${enCurso ? ", todavía en curso" : ""}`}
+      </Dato>
+      <Dato icono={Clock} nombre="Última buena pro">
+        La última buena pro cargada es del {diaLargo(d.horizonte).replace(/^el /, "")}
+        {dias > 1 ? ` (hace ${numero(dias)} días)` : ""}
+      </Dato>
+      <Ayuda titulo="¿Por qué no es la semana de hoy?">
+        El Estado publica las buenas pro con atraso, y Vigía cruza cada una con los registros públicos apenas llega. Una semana
+        cuenta como completa cuando sus contratos graves llegan por lo menos a la mitad de lo habitual (la mediana de las 8
+        semanas anteriores). Hasta entonces se ve en la gráfica, punteada y «en curso», con lo que llegó hasta hoy, y las
+        semanas siguientes aparecen aquí solas.
+      </Ayuda>
+    </span>
   );
 }
 
@@ -264,11 +301,15 @@ function cifras(d: Semana, enlace: (c: { ver?: string | null }) => string): Indi
   const regiones = r.porRegion.filter((x) => x.clave !== "sin_dato").length;
   const parte = r.buenasPro ? (r.graves / r.buenasPro) * 100 : null;
   const obras = r.porContratacion.find((x) => x.clave === "obras");
+  // Una semana en curso: sus cifras son lo que llegó hasta hoy, y se dice.
+  const hastaHoy = d.semana.completa === false ? " hasta hoy" : "";
   return [
     {
       valor: r.graves ? numero(r.graves) : "Ninguno",
       etiqueta: r.graves === 1 ? "contrato con un antecedente grave" : "contratos con un antecedente grave",
-      contexto: r.buenasPro ? `de ${numero(r.buenasPro)} buenas pro de la semana (${porcentaje(parte)})` : "buena pro en la semana",
+      contexto: r.buenasPro
+        ? `de ${numero(r.buenasPro)} buenas pro de la semana${hastaHoy} (${porcentaje(parte)})`
+        : `buena pro en la semana${hastaHoy}`,
       tono: r.graves ? "alta" : "neutro",
       href: enlace({ ver: "contratos" }),
     },
@@ -363,7 +404,9 @@ function Contratos({ d }: { d: Semana }) {
           </Ayuda>
         }
       >
-        Buena pro {rangoSemana(d.semana.desde, d.semana.hasta)}. Un contrato por proceso: si lo ganó un consorcio, va una vez.
+        Buena pro {rangoSemana(d.semana.desde, d.semana.hasta)}
+        {d.semana.completa === false ? ", una semana todavía en curso: la lista crece mientras llegan sus buenas pro y sus cruces" : ""}. Un
+        contrato por proceso: si lo ganó un consorcio, va una vez.
       </CabeceraPestana>
       {filas.length === 0 ? (
         <Franja icono={<ShieldAlert size={18} />} titulo={`Ningún contrato con un antecedente grave del ganador en la semana ${rangoSemana(d.semana.desde)}`} />

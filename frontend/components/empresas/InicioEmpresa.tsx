@@ -16,6 +16,7 @@ import {
 } from "@/lib/empresas";
 import { P_CONTRATOS, P_POSTULACIONES } from "./SeccionesEmpresa";
 import { BarraSegmentada, Medidor, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
+import { cn } from "@/lib/utils";
 
 /**
  * Los bloques del Inicio de una empresa que resumen sus listas (pedido del usuario, 2026-10-22: «faltan más cosas»):
@@ -32,6 +33,11 @@ interface Item {
   /** De 0 a 1: el largo de la barra. */
   parte: number;
   href?: string;
+  /**
+   * El título nombra algo con ficha propia (una entidad, una empresa) y lleva a ella: en verde, como todo identificador
+   * enlazado (pedido del usuario del 2026-11-05: los clientes y los competidores eran enlaces pintados de negro).
+   */
+  identificador?: boolean;
 }
 
 /** Un bloque que es un todo partido (cómo gana, dónde, a quién le vende): la barra de reparto arriba y, en cada fila, el
@@ -56,7 +62,15 @@ function Bloque({ titulo, explica, items, verTodo, vacio, reparto, extra }: { ti
                 <span className="flex items-baseline justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-1.5">
                     {reparto && <MuestraSerie i={i} />}
-                    <span className="min-w-0 truncate text-dato text-ink" title={it.titulo}>{it.titulo}</span>
+                    <span
+                      className={cn(
+                        "min-w-0 truncate text-dato",
+                        it.href && it.identificador ? "text-granate underline-offset-2 group-hover:underline" : "text-ink",
+                      )}
+                      title={it.titulo}
+                    >
+                      {it.titulo}
+                    </span>
                   </span>
                   <span className="shrink-0 font-mono text-meta tabular-nums text-ink">{it.valor}</span>
                 </span>
@@ -71,7 +85,7 @@ function Bloque({ titulo, explica, items, verTodo, vacio, reparto, extra }: { ti
             return (
               <li key={it.clave}>
                 {it.href ? (
-                  <Link href={it.href} prefetch={false} className="block rounded-lg px-1 py-0.5 -mx-1 transition-colors duration-rapido hover:bg-paperSoft">
+                  <Link href={it.href} prefetch={false} className="group block rounded-lg px-1 py-0.5 -mx-1 transition-colors duration-rapido hover:bg-paperSoft">
                     {cuerpo}
                   </Link>
                 ) : (
@@ -93,7 +107,11 @@ function Bloque({ titulo, explica, items, verTodo, vacio, reparto, extra }: { ti
   );
 }
 
-const pct = (x: number) => `${Math.round(x * 100)} %`;
+/**
+ * Una parte del total en porcentaje entero. Bajo el 1 % dice «menos de 1 %» (pedido del usuario del 2026-11-05: un
+ * cliente que pagó el 0.3 % decía «0 % de lo que recibió», como si no le hubiera pagado nada).
+ */
+const pct = (x: number) => (x > 0 && x < 0.01 ? "menos de 1 %" : `${Math.round(x * 100)} %`);
 
 /** Las primeras `n` partes con su color y el resto junto en «Otros» (nunca un color generado más allá del sexto). */
 function repartoDe(todas: ParteBarra[], n: number, etiqueta: string): Reparto {
@@ -145,7 +163,7 @@ export async function DondeVende({ pagina, ruc }: { pagina: Promise<(Pagina<Cont
         clave: String(x.valor),
         titulo: tituloNatural(String(x.valor)),
         valor: plural(x.n, "proceso", "procesos"),
-        sub: pct(x.n / Math.max(1, total)),
+        sub: `${pct(x.n / Math.max(1, total))} de sus procesos`,
         parte: x.n / Math.max(1, dep[0]?.n ?? 1),
         href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.departamento]: String(x.valor) }),
       }))}
@@ -172,6 +190,7 @@ export async function ClientesPrincipales({ datos, ruc }: { datos: Promise<{ tot
         sub: `${pct(c.pagado / Math.max(1, total))} de lo que recibió${c.visitas ? `; ${plural(c.visitas, "visita", "visitas")} de su gente` : ""}`,
         parte: c.pagado / Math.max(1, lista[0]?.pagado ?? 1),
         href: `/entidad/${c.entidadRuc}`,
+        identificador: true,
       }))}
       verTodo={lista.length > 5 ? { href: rutaEmpresa(ruc, "clientes"), texto: `Ver sus ${numero(lista.length)} clientes` } : undefined}
     />
@@ -190,6 +209,7 @@ export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<Pos
       explica={r ? `Postuló a ${numero(postulo)} procesos: ganó ${numero(r.gano)} y perdió ${numero(r.perdio)}.` : undefined}
       extra={r && postulo >= 5 ? <Medidor parte={r.gano / postulo} etiqueta={`Ganó ${numero(r.gano)} de ${numero(postulo)} procesos a los que postuló`} className="mb-1" /> : undefined}
       vacio="No perdió ningún proceso contra otra empresa con RUC."
+      // recorte: los cinco que más le ganan; la lista entera va en «Ver sus postulaciones», al pie del bloque.
       items={g.slice(0, 5).map((x) => ({
         clave: String(x.valor),
         // El nombre como se escribe (la API lo da en mayúsculas); sin nombre, su RUC (sólo empresas: RUC 20).
@@ -197,6 +217,7 @@ export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<Pos
         valor: plural(x.n, "vez", "veces"),
         parte: x.n / Math.max(1, g[0]?.n ?? 1),
         href: rutaEmpresa(ruc, "postulaciones", { [P_POSTULACIONES.ganador]: String(x.valor) }),
+        identificador: true,
       }))}
       // Su lista de postulaciones entera (antes abría la ficha del primer competidor, que no es lo que dice el bloque).
       verTodo={postulo > 0 || g.length ? { href: rutaEmpresa(ruc, "postulaciones"), texto: postulo > 0 ? `Ver sus ${numero(postulo)} postulaciones` : "Ver sus postulaciones" } : undefined}

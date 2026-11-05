@@ -68,7 +68,7 @@ export function EncabezadoPagina({
   const texto = bajada ? (
     <>
       <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">{titulo}</h1>
-      <p className="mt-1.5 text-cuerpo leading-snug text-inkSoft text-pretty">
+      <p className="mt-1.5 text-dato leading-snug text-inkSoft text-pretty sm:text-cuerpo">
         {bajada}
         {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
       </p>

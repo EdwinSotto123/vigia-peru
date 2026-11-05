@@ -5,13 +5,15 @@
  * paginación arriba a la derecha y abajo, la `Tabla` del kit y los estados vacío y
  * error. Anatomía de fila, la de todos los listados:
  *
- *   estado (chip y, si lo hay, «posible error de carga») | objeto + entidad, zona y partido con su ícono | tipo y
- *   etapa | valor referencial | convocada | ›
+ *   estado (chip y, si lo hay, «posible error de carga») | objeto + código del proceso, entidad, zona y partido con su
+ *   ícono | tipo y etapa | valor referencial | convocada | ›
  *
  * La fila abre el resumen del contrato en el panel lateral (`detalle`) y no navega: el
  * panel dice su estado de lectura, qué falta y cómo financiarlo con los datos que la
  * fila ya trae, sin pedir el dossier (pesado) de un contrato que casi siempre está sin
- * leer. El dossier queda en el pie del panel. Una sola acción por fila.
+ * leer. El dossier queda en el pie del panel; el código del proceso, verde al comienzo de la línea de contexto, lleva
+ * directo a la ficha (la fila va con `enlaces`). Las columnas que dicen lo mismo en toda la página se quitan
+ * (`colapsarIguales`).
  *
  * El panel es también donde se elige una entidad («Ver sólo los contratos de esta entidad», con los demás filtros): son
  * miles y la barra sólo tiene desplegables nativos; elegida, queda en «Filtros» con su nombre y su ×.
@@ -37,6 +39,9 @@ import { Ayuda, EstadoError, EstadoVacio, FuenteDato } from "@/components/patron
 import { enlacesProceso } from "@/lib/fuentes";
 import { Llamita } from "@/components/marca/Llamita";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { CodigoFila } from "@/components/listado/Tabla";
+import { rutaContrato } from "@/lib/rutas";
+import { motivoDudoso } from "@/lib/datoDudoso";
 import { fechaConAnio, numero, oracion, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
@@ -55,12 +60,27 @@ import { urlDesde, conDesde } from "@/lib/desde";
 
 const RUTA = "/app/contratos";
 
+// Las columnas que en una página dicen lo mismo en las 50 filas («Sin leer», «Sin ganador aún», «Sin dato») se quitan y
+// lo dicen una vez sobre la tabla (`colapsarIguales`, pedido del usuario del 2026-11-05): `igual` es esa frase.
 const COLUMNAS: Columna[] = [
   {
     clave: "estado", desde: "md", apilar: true,
     titulo: "Estado",
     // Lo justo para «Riesgo medio», la pastilla más ancha que no se recorta: el resto del ancho es del objeto.
     ancho: "120px",
+    igual: {
+      texto: "Estado de todos: {}",
+      frases: {
+        "Sin leer": "Todos sin leer",
+        "En cola": "Todos en cola",
+        "Docs listos": "Todos con los documentos listos",
+        "En revisión": "Todos en revisión",
+        "Sin señales": "Todos leídos, sin señales",
+        "Riesgo alto": "Todos con riesgo alto",
+        "Riesgo medio": "Todos con riesgo medio",
+        "Riesgo bajo": "Todos con riesgo bajo",
+      },
+    },
     // Reemplaza a las dos leyendas que iban al pie de la tabla vieja: el vocabulario, a un clic.
     ayuda: (
       <Ayuda titulo="¿Qué dice el estado?">
@@ -78,6 +98,7 @@ const COLUMNAS: Columna[] = [
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   {
     clave: "cruces", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo",
+    igual: { frases: { "Sin ganador aún": "Ninguno tiene ganador todavía", "Sin antecedentes": "Ningún ganador con antecedentes" } },
     ayuda: (
       <Ayuda titulo="¿Qué son estos antecedentes?">
         <span className="block">
@@ -93,10 +114,16 @@ const COLUMNAS: Columna[] = [
       </Ayuda>
     ),
   },
-  { clave: "tipo", titulo: "Tipo y etapa", ancho: "minmax(0,0.6fr)", desde: "xl" },
+  { clave: "tipo", titulo: "Tipo y etapa", ancho: "minmax(0,0.6fr)", desde: "xl", igual: { texto: "Tipo y etapa de todos: {}" } },
   // En el celular, el valor y la fecha se apilan con su rótulo: son lo que pregunta el vecino (antes desaparecían).
-  { clave: "valor", titulo: "Valor referencial", corto: "Valor", ancho: "128px", alinear: "der", desde: "md", apilar: "con-rotulo" },
-  { clave: "convocada", titulo: "Convocada", ancho: "96px", desde: "lg", apilar: "con-rotulo" },
+  {
+    clave: "valor", titulo: "Valor referencial", corto: "Valor", ancho: "128px", alinear: "der", desde: "md", apilar: "con-rotulo",
+    igual: { texto: "Valor referencial de todos: {}", vacia: "Ninguno trae valor referencial publicado" },
+  },
+  {
+    clave: "convocada", titulo: "Convocada", ancho: "96px", desde: "lg", apilar: "con-rotulo",
+    igual: { texto: "Todos convocados el {}", vacia: "Ninguno trae fecha de convocatoria" },
+  },
 ];
 
 export function TablaContratos({
@@ -225,7 +252,12 @@ export function TablaContratos({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))} etiqueta="Contratos" />
+      <Tabla
+        columnas={COLUMNAS}
+        filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))}
+        etiqueta="Contratos"
+        colapsarIguales
+      />
       <div className="flex justify-end">{pag(true)}</div>
     </div>
   );
@@ -259,12 +291,28 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
   // El partido que gobernaba la entidad cuando se convocó, con su ícono (sin él, las entidades nacionales).
   const partido = c.gobierno ? <PartidoQueGobierna key="partido" g={c.gobierno} /> : null;
   const senales = nSenales > 0 ? <Dato key="senales" icono={Flag} nombre="Señales">{plural(nSenales, "señal", "señales")}</Dato> : null;
+  // El código del proceso PRIMERO y enlazado a su ficha (pedido del usuario del 2026-11-05): antes la fila no lo decía en
+  // ningún lado y había que abrir el panel para saber cuál era. La fila sigue abriendo el panel; el código va directo.
+  const codigo = c.codigo ? <CodigoFila key="codigo" codigo={c.codigo} nombre="Código del proceso" href={conDesde(rutaContrato(c.ocid), desde)} /> : null;
   // Cada dato con su ícono: la entidad, el lugar y el partido no se confunden entre sí.
   const meta = deEntidad
-    ? [senales, partido, ganador]
-    : [senales, <Dato key="entidad" tipo="entidad">{entidad}</Dato>, c.zona ? <Dato key="zona" tipo="lugar">{c.zona}</Dato> : null, partido];
+    ? [codigo, senales, partido, ganador]
+    : [codigo, senales, <Dato key="entidad" tipo="entidad">{entidad}</Dato>, c.zona ? <Dato key="zona" tipo="lugar">{c.zona}</Dato> : null, partido];
+  const cruces = crucesDeFila(c, datoGanadora);
+  const tipo = tipoLabel(c.tipo) ?? "Sin clasificar";
+  const etapa = etapaLabel(c.etapa);
   return {
     id: c.ocid,
+    enlaces: !!codigo,
+    // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
+    // (columna que se queda): el estado con la bandera de «posible error de carga» y las banderas de antecedentes.
+    textos: {
+      estado: motivoDudoso(c.datoDudoso?.motivo) ? undefined : estado,
+      cruces: cruces?.length ? undefined : c.proveedor ? "Sin antecedentes" : "Sin ganador aún",
+      tipo: etapa ? `${tipo}, ${etapa.toLowerCase()}` : tipo,
+      valor: c.montoPen ? monto : null,
+      convocada: c.fecha ? fechaConAnio(c.fecha.slice(0, 10)) : null,
+    },
     celdas: {
       estado: (
         <ConBanderaDato dato={c.datoDudoso}>
@@ -274,8 +322,8 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM). Dos líneas en
       // escritorio (tres en el celular): «qué se compra» es el dato de la fila, y en una línea se cortaba a ~30 letras.
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas />,
-      cruces: <CrucesCelda cruces={crucesDeFila(c, datoGanadora)} sinGanador={!c.proveedor} />,
-      tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
+      cruces: <CrucesCelda cruces={cruces} sinGanador={!c.proveedor} />,
+      tipo: <CeldaTexto sub={etapa ?? undefined}>{tipo}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
     },

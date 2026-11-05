@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { FileSignature, FileText, ListFilter, Store } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
+import { CodigoFila } from "@/components/listado/Tabla";
 import { enSeccion } from "@/components/contratos/filtros";
 import {
   BanderasAntecedentes,
@@ -16,6 +17,7 @@ import {
   antecedenteInhabilitado,
   conFicha,
   datoFecha,
+  esFutura,
   fichasCompra,
   filtroRuc,
   hrefConFiltro,
@@ -48,10 +50,11 @@ import { textoSenal } from "@/lib/senalesMenor";
  * Lista de CONTRATOS MENORES (≤8 UIT) del SEACE (sección propia y, con filtro, ficha de empresa/entidad). Cada contrato
  * abre su panel con el requerimiento/TDR y el contrato en PDF (servidos por proxy de nuestra API).
  *
- * Fila de todo listado (§14.1): estado (chip) · qué se contrató, con entidad, proveedor, bien o servicio y código ·
- * antecedentes del proveedor (SUNAT y Tribunal de Contrataciones) · monto · suscrito. «Hasta 8 UIT, sin concurso» no
- * va en cada fila: lo son todos, por definición (lo dicen el título y su ⓘ); sí el monto que pasa ese tope. Las piezas
- * compartidas con Órdenes viven en components/ordenes.
+ * Fila de todo listado (§14.1): estado (chip) · qué se contrató, con su código (a su ficha) primero, entidad, proveedor y
+ * bien o servicio · antecedentes del proveedor (SUNAT y Tribunal de Contrataciones) · monto · suscrito. «Hasta 8 UIT,
+ * sin concurso» no va en cada fila: lo son todos, por definición (lo dicen el título y su ⓘ); sí el monto que pasa ese
+ * tope. Las columnas que dicen lo mismo en toda la página se quitan (`colapsarIguales`). Las piezas compartidas con
+ * Órdenes viven en components/ordenes.
  */
 
 const FUENTE = "el SEACE";
@@ -60,11 +63,21 @@ const FUENTE = "el SEACE";
 // el de contrataciones de hasta 8 UIT (el requerimiento). Ninguno abre un registro por un enlace que Vigía pueda armar: se
 // busca por el código.
 
+// Las columnas que en una página dicen lo mismo en todas las filas («Culminado» en casi todos) se quitan y lo dicen una
+// vez sobre la tabla (`colapsarIguales`, pedido del usuario del 2026-11-05): `igual` es esa frase.
 const COLUMNAS: Columna[] = [
-  { clave: "estado", titulo: "Estado", ancho: "112px", desde: "md", apilar: true },
+  {
+    clave: "estado", titulo: "Estado", ancho: "112px", desde: "md", apilar: true,
+    igual: {
+      texto: "Estado de todos: {}",
+      frases: { Culminado: "Todos culminados", Vigente: "Todos vigentes", "En evaluación": "Todos en evaluación", Publicado: "Todos publicados" },
+      vacia: "Ninguno trae su estado",
+    },
+  },
   { clave: "contrato", titulo: "Contrato menor", ancho: "minmax(0,1.8fr)" },
   {
     clave: "antecedentes", titulo: "Señales y antecedentes", corto: "Señales", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: true,
+    igual: { frases: { Ninguno: "Ninguno con señales ni antecedentes" }, vacia: "Ninguno con su proveedor en el padrón de la SUNAT" },
     ayuda: (
       <Ayuda titulo="¿Qué señales y antecedentes se revisan aquí?">
         <span className="block">
@@ -83,6 +96,7 @@ const COLUMNAS: Columna[] = [
   },
   {
     clave: "monto", titulo: "Monto", ancho: "116px", alinear: "der", desde: "md", apilar: "con-rotulo",
+    igual: { texto: "Monto de todos: {}", vacia: "Ninguno trae monto" },
     ayuda: (
       <Ayuda titulo="¿Hasta cuánto es un contrato menor?">
         Hasta 8 UIT: S/ 44,000 en 2026 y S/ 42,800 en 2025 (la UIT de cada año). «Cerca del tope» es el 90 % o más de ese
@@ -90,7 +104,10 @@ const COLUMNAS: Columna[] = [
       </Ayuda>
     ),
   },
-  { clave: "fecha", titulo: "Suscrito", ancho: "104px", desde: "md", apilar: "con-rotulo" },
+  {
+    clave: "fecha", titulo: "Suscrito", ancho: "104px", desde: "md", apilar: "con-rotulo",
+    igual: { texto: "Todos suscritos el {}", vacia: "Ninguno trae fecha de suscripción" },
+  },
 ];
 
 /** «2026-10-14T13:00» (hora de Lima, como la publica el SEACE) → «14 oct. 2026, 13:00». */
@@ -265,7 +282,10 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
                                      ...sunat, ...(extra?.antecedentes ?? [])];
   // El estado del proceso en el buscador de menores (Culminado, Vigente, En evaluación): el del contrato en prod4 dice
   // «Publicado» en todos y no distinguía nada.
-  const estado = <EstadoCompra estado={m.estadoProceso ?? m.estado} explica={m.estadoProceso ? "Estado del proceso en el SEACE" : undefined} />;
+  const estadoTexto = m.estadoProceso ?? m.estado;
+  const estado = <EstadoCompra estado={estadoTexto} explica={m.estadoProceso ? "Estado del proceso en el SEACE" : undefined} />;
+  // Sin el padrón de la SUNAT para este proveedor no se pudo revisar: «Sin dato», no «Ninguno».
+  const sinDatoProveedor = m.provEstado == null && m.provCondicion == null && m.provDesde == null;
   // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
   // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
   const fichas = fichasCompra(ruta, m.entidadRuc, m.proveedorRuc);
@@ -296,6 +316,15 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
   ];
   return {
     id: `${m.id}`,
+    enlaces: !!m.codigo,
+    // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
+    // (la columna se queda): las banderas y la fecha posterior a hoy, con su bandera.
+    textos: {
+      estado: estadoTexto ? oracion(estadoTexto) : null,
+      antecedentes: antecedentes.length ? undefined : sinDatoProveedor ? null : "Ninguno",
+      monto: m.monto != null ? `${soles(m.monto)}${m.sobreTope ? ", más de 8 UIT" : ""}` : null,
+      fecha: esFutura(m.fecha) ? undefined : m.fecha ? fechaConAnio(m.fecha) : null,
+    },
     celdas: {
       estado,
       contrato: (
@@ -303,11 +332,13 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
           titulo={descripcion}
           dosLineas
           meta={[
+            // El código PRIMERO y enlazado a la ficha del contrato menor: al final de la línea se recortaba (pedido del
+            // usuario del 2026-11-05). La fila sigue abriendo su panel; el código va directo a la ficha.
+            m.codigo && <CodigoFila key="cod" codigo={m.codigo} nombre="Código del proceso" href={rutaMenor(m.id)} />,
             ...(extra?.meta ?? []),
             extra?.ocultar !== "entidad" && entidad && <Dato key="entidad" tipo="entidad">{entidad}</Dato>,
             extra?.ocultar !== "proveedor" && proveedor && <Dato key="prov" icono={Store} nombre="Proveedor">{proveedor}</Dato>,
             objeto && <Dato key="objeto" tipo="tipo" nombre="Bien o servicio">{objeto}</Dato>,
-            m.codigo && <Dato key="cod" tipo="codigo" nombre="Código del proceso" mono>{m.codigo}</Dato>,
           ]}
         />
       ),
@@ -315,7 +346,7 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
       antecedentes: antecedentes.length ? (
         <BanderasAntecedentes antecedentes={antecedentes} etiqueta="Antecedentes del proveedor" />
       ) : (
-        <SinAntecedentes sinDato={m.provEstado == null && m.provCondicion == null && m.provDesde == null} />
+        <SinAntecedentes sinDato={sinDatoProveedor} />
       ),
       // Más que el tope de 8 UIT de su año: no debería existir un contrato menor así (o el monto está mal cargado).
       monto: <CeldaNumero sub={m.sobreTope ? "más de 8 UIT" : undefined}>{m.monto != null ? soles(m.monto) : "Sin dato"}</CeldaNumero>,
@@ -470,7 +501,7 @@ export async function ListaMenores({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos menores ≤ 8 UIT" />
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos menores ≤ 8 UIT" colapsarIguales />
       <div className="flex justify-end">{pag(true)}</div>
     </div>
   );
