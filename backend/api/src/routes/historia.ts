@@ -485,11 +485,14 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
     (conOrden.length
       ? await filas<{ ruc: string; numero: string; moneda: string | null }>(
           "moneda de lo que le dieron",
-          `SELECT DISTINCT ON (ruc_contratista, nro_orden) ruc_contratista AS ruc, nro_orden AS numero, moneda
-             FROM conosce_ordenes
-            WHERE entidad_ruc = $1 AND ruc_contratista = ANY($2::text[]) AND nro_orden = ANY($3::text[])
-            ORDER BY ruc_contratista, nro_orden, fecha_emision`,
-          [ruc, [...new Set(conOrden.map((v) => v.ruc))], [...new Set(conOrden.map((v) => v.despues_numero!))]])
+          // Cada orden por su llave entera (entidad, proveedor y fecha: el índice de la migración 201) y su número: con
+          // sólo los proveedores, un proveedor grande de EsSalud recorría miles de órdenes y la consulta no llegaba.
+          `SELECT DISTINCT ON (x.ruc, x.numero) x.ruc, x.numero, o.moneda
+             FROM unnest($2::text[], $3::text[], $4::date[]) AS x(ruc, numero, fecha)
+             JOIN conosce_ordenes o ON o.entidad_ruc = $1 AND o.ruc_contratista = x.ruc AND o.fecha_emision = x.fecha
+                                   AND o.nro_orden = x.numero
+            ORDER BY x.ruc, x.numero`,
+          [ruc, conOrden.map((v) => v.ruc), conOrden.map((v) => v.despues_numero!), conOrden.map((v) => v.despues!)])
       : []
     ).map((m) => [`${m.ruc}|${m.numero}`, m.moneda] as const),
   );
