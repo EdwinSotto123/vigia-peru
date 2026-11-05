@@ -113,6 +113,70 @@ scrape:dji:
       when: manual
       allow_failure: true
 
+# ─── Tareas pesadas en GitLab, no en la PC (pedido del usuario del 2026-11-05) ───────────────────────
+# En la PC las corta la falta de memoria y dependen de que esté prendida. Aquí entran a la base privada por el MISMO
+# túnel de Session Manager que usa la PC (infrastructure/aws/tunel_rds.py), con el token OIDC del rol
+# vigia-gitlab-agentes (sólo desde main) y su política vigia-ci-base: abrir el túnel al proxy vigia-db-proxy y leer 4
+# claves de SSM. A la base entran como `vigia_ci`, miembro de vigia_jobs (los permisos del Worker de scrapers), nunca
+# como postgres. Manuales (▶) o por horario: cada horario lleva la variable TAREA con el nombre de su job.
+.tarea_con_base: &tarea_con_base
+  stage: test
+  needs: []
+  image: python:3.12-bookworm
+  interruptible: false
+  timeout: 3h
+  id_tokens:
+    AWS_ID_TOKEN:
+      aud: https://gitlab.com
+  variables:
+    AWS_REGION: us-east-2
+    AWS_DEFAULT_REGION: us-east-2
+    AWS_ROLE_ARN: arn:aws:iam::416689419419:role/vigia-gitlab-agentes
+    VIGIA_DB_USUARIO: vigia_ci
+    PYTHONUNBUFFERED: "1"
+  before_script:
+    - echo "$AWS_ID_TOKEN" > /tmp/oidc && export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/oidc
+    - pip install --quiet awscli psycopg2-binary requests anthropic pypdf
+    - curl -sSfL https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb -o /tmp/smp.deb && dpkg -i /tmp/smp.deb > /dev/null
+    - aws sts get-caller-identity --query Arn --output text
+    - echo "IP del runner:" $(curl -s --max-time 10 https://ifconfig.me || echo "sin dato")
+
+# El detalle de los contratos menores (área usuaria, invitación, ítems) directo desde el runner, despacio (el WAF de
+# prod6 del SEACE bloqueó al relay y a la PC con ráfagas). Para a los 160 min; el siguiente retoma lo que falta.
+tarea:menores-detalle:
+  <<: *tarea_con_base
+  script:
+    - timeout 160m python -X utf8 backend/scripts/menores_detalle.py prod --detalle --directo --hilos 1 --pausa 2 || echo "cortado por tiempo o por el WAF; el siguiente retoma"
+    - python -X utf8 backend/scripts/tareas_ci.py prod refrescar-menores
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "menores-detalle"'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
+# Las órdenes de cada entidad por año (migración 148): en el Worker el año entero tarda ~150 s y no termina.
+tarea:ordenes-anual:
+  <<: *tarea_con_base
+  timeout: 1h
+  script:
+    - python -X utf8 backend/scripts/tareas_ci.py prod ordenes-anual
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "ordenes-anual"'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
+# La lectura con IA de los contratos menores nuevos (requerimiento, contrato y sus segundas lecturas), con tope de gasto.
+tarea:lector-menores:
+  <<: *tarea_con_base
+  script:
+    - bash backend/lector/cadena_menores.sh prod 15 8
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "lector-menores"'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
 # ─── Agentes (AWS Lambda) ────────────────────────────────────────────────────────────────────────
 # Sin llaves: el job pide un token OIDC de GitLab y asume el rol vigia-gitlab-agentes (infrastructure/deploy/aws/
 # gitlab_oidc.sh, sólo desde main). La imagen es la base de ECR ($AGENTE_BASE, con las dependencias ya instaladas)

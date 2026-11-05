@@ -37,16 +37,23 @@ import sys
 import time
 
 REGION = "us-east-2"
+# En GitLab CI no hay perfil: las credenciales vienen del token OIDC (AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN).
+EN_CI = bool(os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE"))
 PERFIL = os.environ.get("AWS_PROFILE", "founder.edwin")
+_PERFIL = [] if EN_CI else ["--profile", PERFIL]
 PROXY = "vigia-db-proxy"
 BASES = {"prod": "vigia-db", "dev": "vigia-db-dev"}
 # Clave maestra (usuario postgres) de cada base en SSM Parameter Store.
 CLAVES = {"vigia-db": "/vigia/vigia-db/password", "vigia-db-dev": "/vigia/dev/db-admin"}
+# Los jobs de GitLab entran como `vigia_ci` (miembro de vigia_jobs, como el Worker de scrapers), nunca como postgres: su
+# rol de AWS sólo puede leer estas claves (política vigia-ci-base, 2026-11-05). VIGIA_DB_USUARIO=vigia_ci lo pide.
+CLAVES_CI = {"vigia-db": "/vigia/vigia-db/password-ci", "vigia-db-dev": "/vigia/dev/db-ci"}
+USUARIO = os.environ.get("VIGIA_DB_USUARIO", "vigia_ci" if EN_CI else "postgres")
 ENTORNO = {**os.environ, "MSYS_NO_PATHCONV": "1"}
 
 
 def _aws(*args: str) -> dict:
-    r = subprocess.run(["aws", *args, "--profile", PERFIL, "--region", REGION, "--output", "json"],
+    r = subprocess.run(["aws", *args, *_PERFIL, "--region", REGION, "--output", "json"],
                        capture_output=True, text=True, env=ENTORNO)
     if r.returncode != 0:
         raise RuntimeError(f"aws {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
@@ -100,7 +107,7 @@ def tunel(base: str = "vigia-db", puerto: int | None = None, espera_s: int = 40)
     parametros = json.dumps({"host": [endpoint(base)], "portNumber": ["5432"], "localPortNumber": [str(puerto)]})
     proc = subprocess.Popen(
         ["aws", "ssm", "start-session", "--target", proxy_id(), "--document-name", "AWS-StartPortForwardingSessionToRemoteHost",
-         "--parameters", parametros, "--profile", PERFIL, "--region", REGION],
+         "--parameters", parametros, *_PERFIL, "--region", REGION],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=ENTORNO)
     try:
         limite = time.time() + espera_s
@@ -117,12 +124,14 @@ def tunel(base: str = "vigia-db", puerto: int | None = None, espera_s: int = 40)
 
 @contextlib.contextmanager
 def conexion(entorno: str):
-    """psycopg2 como `postgres` a la base del entorno ('prod' o 'dev') por el túnel, con la clave maestra de SSM."""
+    """psycopg2 a la base del entorno ('prod' o 'dev') por el túnel: como `postgres` con la clave maestra de SSM, o como
+    `vigia_ci` en GitLab CI (o con VIGIA_DB_USUARIO=vigia_ci)."""
     import psycopg2
     base = BASES[entorno]
-    clave = _aws("ssm", "get-parameter", "--name", CLAVES[base], "--with-decryption", "--query", "Parameter.Value")
+    parametro = CLAVES_CI[base] if USUARIO == "vigia_ci" else CLAVES[base]
+    clave = _aws("ssm", "get-parameter", "--name", parametro, "--with-decryption", "--query", "Parameter.Value")
     with tunel(base) as (host, puerto):
-        c = psycopg2.connect(host=host, port=puerto, dbname="vigia", user="postgres", password=clave, sslmode="require",
+        c = psycopg2.connect(host=host, port=puerto, dbname="vigia", user=USUARIO, password=clave, sslmode="require",
                              connect_timeout=15, keepalives=1, keepalives_idle=30)
         try:
             yield c

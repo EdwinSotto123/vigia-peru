@@ -37,7 +37,8 @@ def costo_usd(modelo: str, tokens_in: int, tokens_out: int, lote: bool = False) 
 
 @lru_cache(maxsize=None)
 def ssm(nombre: str) -> str:
-    env = dict(os.environ, AWS_PROFILE="founder.edwin", MSYS_NO_PATHCONV="1")
+    # En GitLab CI las credenciales vienen del token OIDC: sin perfil (forzarlo rompería la cadena de credenciales).
+    env = dict(os.environ, MSYS_NO_PATHCONV="1") if os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE")         else dict(os.environ, AWS_PROFILE="founder.edwin", MSYS_NO_PATHCONV="1")
     return subprocess.run(["aws", "ssm", "get-parameter", "--region", "us-east-2", "--name", nombre, "--with-decryption",
                            "--query", "Parameter.Value", "--output", "text"], capture_output=True, text=True, env=env,
                           check=True).stdout.strip()
