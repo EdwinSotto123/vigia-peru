@@ -271,27 +271,22 @@ async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
 
 /**
  * Sobreprecio (migración 84): los ítems de este proceso que pasan la mediana de lo que pagaron otras entidades por el
- * mismo CUBSO y unidad, y, del peor, esas otras compras una por una (cada una abre su contrato en Vigía).
+ * mismo CUBSO y unidad y, de CADA uno (antes sólo del peor: con dos ítems caros, el segundo no tenía con qué compararse),
+ * las compras de otras entidades que forman esa referencia, una por una, cada una con su proceso (la ficha en Vigía). Sin
+ * los lotes (cantidad 1 donde el ítem se compra por cientos), que la referencia tampoco cuenta: «1 unidad a S/ 254,800»
+ * no es un precio por unidad.
  */
+const ITEMS_CON_COMPARABLES = 6;
 async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> {
   const ocid = f.ocid ?? p.ocid;
   const items = await filas(
-    `SELECT i.posicion, i.descripcion, i.cantidad, i.unidad, i.unit_adj, r.mediana, r.p25, r.p75, r.entidades,
-            (i.unit_adj - r.p75) * i.cantidad AS exceso
+    `SELECT i.posicion, i.descripcion, i.cantidad, i.unidad, i.unit_adj, i.cubso, i.anio, r.mediana, r.p25, r.p75, r.entidades,
+            r.cant_mediana, (i.unit_adj - r.p75) * i.cantidad AS exceso
        FROM precio_item i
        JOIN precio_referencia r ON r.cubso = i.cubso AND r.unidad = i.unidad AND r.anio = i.anio AND r.base = 'adjudicado'
       WHERE i.ocid = $1 AND i.unit_adj >= 1.5 * r.mediana
       ORDER BY exceso DESC NULLS LAST LIMIT ${TOPE}`, [ocid]);
-  const peor = (f.detalle?.peor ?? {}) as Record<string, unknown>;
-  const otras = peor.cubso
-    ? await filas(
-      `SELECT i.ocid, i.fecha, i.cantidad, i.unit_adj, e.nombre AS entidad, i.departamento
-         FROM precio_item i LEFT JOIN entidades e ON e.ruc = i.entidad_ruc
-        WHERE i.cubso = $1 AND i.unidad = $2 AND i.anio IN ($3::int, $3::int - 1) AND i.unit_adj > 0
-          AND i.entidad_ruc IS DISTINCT FROM $4
-        ORDER BY abs(ln(i.unit_adj / NULLIF($5::numeric, 0))) LIMIT 15`,
-      [peor.cubso, peor.unidad, Number(peor.anio), p.entidadRuc, Number(peor.mediana)])
-    : [];
+  const decimales = (v: unknown) => Number(v).toLocaleString("es-PE", { maximumFractionDigits: 2 });
   const ev: Evidencia[] = [{
     titulo: "Los ítems que pagaron más que otras entidades",
     columnas: [
@@ -305,26 +300,46 @@ async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> 
     filas: items.map((x) => ({
       item: x.descripcion, cantidad: x.cantidad != null ? `${Number(x.cantidad).toLocaleString("es-PE")} ${x.unidad ?? ""}`.trim() : null,
       unitario: num(x.unit_adj), mediana: num(x.mediana),
-      rango: `S/ ${Number(x.p25).toLocaleString("es-PE", { maximumFractionDigits: 2 })} – ${Number(x.p75).toLocaleString("es-PE", { maximumFractionDigits: 2 })} en ${x.entidades} entidades`,
+      rango: `S/ ${decimales(x.p25)} – ${decimales(x.p75)} en ${x.entidades} entidades`,
       exceso: x.exceso != null && Number(x.exceso) > 0 ? num(x.exceso) : null,
     })),
     verificar: "El precio por unidad es lo adjudicado del ítem (CONOSCE) entre su cantidad (OCDS). La referencia son las compras de otras entidades con el mismo código CUBSO y la misma unidad, ese año y el anterior.",
     enlace: { texto: "El proceso en Contrataciones Abiertas (OECE)", url: PROCESO_OECE(ocid) },
   }];
-  if (otras.length) ev.push({
-    titulo: `Lo que pagaron otras entidades por ${String(peor.descripcion ?? "el mismo ítem").toLowerCase().slice(0, 80)}`,
-    columnas: [
-      { clave: "fecha", titulo: "Convocado", tipo: "fecha" },
-      { clave: "entidad", titulo: "Entidad", tipo: "enlace" },
-      { clave: "cantidad", titulo: "Cantidad" },
-      { clave: "unitario", titulo: "Pagó por unidad", tipo: "soles" },
-    ],
-    filas: otras.map((x) => ({
-      fecha: fecha(x.fecha), cantidad: x.cantidad != null ? `${Number(x.cantidad).toLocaleString("es-PE")} ${String(peor.unidad ?? "")}`.trim() : null,
-      unitario: num(x.unit_adj), entidad: { texto: x.entidad ?? "Entidad", url: `/app/contratos/${x.ocid}` },
-    })),
-    verificar: "Las 15 compras con el precio más cercano a la mediana. Cada una abre su contrato en Vigía.",
-    enlace: null,
+  // Las compras de otras entidades que forman la referencia de cada ítem caro, del precio más bajo al más alto.
+  const comparables = await Promise.all(items.slice(0, ITEMS_CON_COMPARABLES).map((x) => filas(
+    `SELECT i.ocid, i.fecha, i.cantidad, i.unit_adj, e.nombre AS entidad, c.codigo, c.objeto, count(*) OVER () AS n
+       FROM precio_item i
+       LEFT JOIN entidades e ON e.ruc = i.entidad_ruc
+       LEFT JOIN convocatorias c ON c.ocid = i.ocid
+      WHERE i.cubso = $1 AND i.unidad = $2 AND i.anio IN ($3::int, $3::int - 1) AND i.unit_adj > 0
+        AND i.entidad_ruc IS DISTINCT FROM $4 AND i.ocid IS DISTINCT FROM $5
+        AND NOT (i.cantidad <= 1 AND COALESCE($6::numeric, 1) > 1)
+      ORDER BY i.unit_adj, i.fecha DESC LIMIT 60`,
+    [x.cubso, x.unidad, Number(x.anio), p.entidadRuc, ocid, x.cant_mediana])));
+  items.slice(0, ITEMS_CON_COMPARABLES).forEach((x, k) => {
+    const otras = comparables[k];
+    if (!otras.length) return;
+    const unidad = String(x.unidad ?? "");
+    ev.push({
+      titulo: `Lo que pagaron otras entidades por ${String(x.descripcion ?? "el mismo ítem").toLowerCase().slice(0, 80)} (este proceso: S/ ${decimales(x.unit_adj)} por ${unidad.toLowerCase() || "unidad"})`,
+      columnas: [
+        { clave: "fecha", titulo: "Convocado", tipo: "fecha" },
+        { clave: "proceso", titulo: "Proceso", tipo: "enlace" },
+        { clave: "entidad", titulo: "Entidad" },
+        { clave: "cantidad", titulo: "Cantidad" },
+        { clave: "unitario", titulo: "Pagó por unidad", tipo: "soles" },
+      ],
+      filas: otras.map((o) => ({
+        fecha: fecha(o.fecha), entidad: o.entidad ?? "Entidad",
+        proceso: { texto: o.codigo ? `${o.codigo}${o.objeto ? `: ${String(o.objeto).slice(0, 70)}` : ""}` : "Ver el proceso", url: `/app/contratos/${o.ocid}` },
+        cantidad: o.cantidad != null ? `${Number(o.cantidad).toLocaleString("es-PE")} ${unidad}`.trim() : null,
+        unitario: num(o.unit_adj),
+      })),
+      total: Number(otras[0].n),
+      verificar: `Las compras de otras entidades que forman la referencia (mediana S/ ${decimales(x.mediana)}), del precio más bajo al más alto, sin los lotes de 1 unidad. Cada proceso abre su ficha en Vigía.`,
+      enlace: null,
+    });
   });
   return ev;
 }

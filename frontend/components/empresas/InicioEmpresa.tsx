@@ -1,3 +1,4 @@
+import type React from "react";
 import Link from "next/link";
 import { AyudaTermino, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
 import { fecha, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
@@ -14,6 +15,7 @@ import {
   type PostulacionEmpresa,
 } from "@/lib/empresas";
 import { P_CONTRATOS, P_POSTULACIONES } from "./SeccionesEmpresa";
+import { BarraSegmentada, Medidor, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
 
 /**
  * Los bloques del Inicio de una empresa que resumen sus listas (pedido del usuario, 2026-10-22: «faltan más cosas»):
@@ -32,7 +34,11 @@ interface Item {
   href?: string;
 }
 
-function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; explica?: string; items: Item[]; verTodo?: { href: string; texto: string }; vacio: string }) {
+/** Un bloque que es un todo partido (cómo gana, dónde, a quién le vende): la barra de reparto arriba y, en cada fila, el
+ *  cuadrito de su color en vez de una barra por fila (skill dataviz: «barra segmentada fina» junto a la lista). */
+interface Reparto { partes: ParteBarra[]; otros?: ParteBarra | null; etiqueta: string }
+
+function Bloque({ titulo, explica, items, verTodo, vacio, reparto, extra }: { titulo: string; explica?: string; items: Item[]; verTodo?: { href: string; texto: string }; vacio: string; reparto?: Reparto; extra?: React.ReactNode }) {
   return (
     // Mide lo que mide su lista: en la rejilla de dos columnas ya no se estira al alto del vecino (dejaba 150-200 px vacíos).
     <section className="tarjeta min-w-0 space-y-2.5 rounded-2xl border border-line bg-paper p-4">
@@ -40,18 +46,25 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
         <h3 className="font-display text-bloque font-bold text-ink">{titulo}</h3>
         {explica && <p className="text-meta text-mute">{explica}</p>}
       </div>
+      {extra}
+      {reparto && items.length > 0 && <BarraSegmentada partes={reparto.partes} otros={reparto.otros} etiqueta={reparto.etiqueta} className="mb-1" />}
       {items.length ? (
         <ol className="space-y-2">
-          {items.map((it) => {
+          {items.map((it, i) => {
             const cuerpo = (
               <>
                 <span className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 truncate text-dato text-ink" title={it.titulo}>{it.titulo}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {reparto && <MuestraSerie i={i} />}
+                    <span className="min-w-0 truncate text-dato text-ink" title={it.titulo}>{it.titulo}</span>
+                  </span>
                   <span className="shrink-0 font-mono text-meta tabular-nums text-ink">{it.valor}</span>
                 </span>
-                <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                  <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, Math.round(it.parte * 100))}%` }} />
-                </span>
+                {!reparto && (
+                  <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+                    <span className="block h-full rounded-full" style={{ width: `${Math.max(2, Math.round(it.parte * 100))}%`, background: "rgb(var(--serie-1))" }} />
+                  </span>
+                )}
                 {it.sub && <span className="mt-0.5 block text-rotulo text-mute">{it.sub}</span>}
               </>
             );
@@ -82,6 +95,17 @@ function Bloque({ titulo, explica, items, verTodo, vacio }: { titulo: string; ex
 
 const pct = (x: number) => `${Math.round(x * 100)} %`;
 
+/** Las primeras `n` partes con su color y el resto junto en «Otros» (nunca un color generado más allá del sexto). */
+function repartoDe(todas: ParteBarra[], n: number, etiqueta: string): Reparto {
+  const resto = todas.slice(n);
+  const valor = resto.reduce((t, x) => t + x.valor, 0);
+  return {
+    partes: todas.slice(0, n),
+    otros: valor > 0 ? { clave: "otros", nombre: `Otros (${resto.length})`, valor, texto: `${numero(resto.length)} más` } : null,
+    etiqueta,
+  };
+}
+
 /** Cómo gana: cuántos procesos y cuánto por cada tipo de proceso (la contratación directa no tiene competencia). */
 export async function ComoGana({ pagina, ruc }: { pagina: Promise<(Pagina<ContratoEmpresa> & { facetas: FacetasContratos | null }) | null>; ruc: string }) {
   const f = (await pagina)?.facetas;
@@ -92,7 +116,8 @@ export async function ComoGana({ pagina, ruc }: { pagina: Promise<(Pagina<Contra
       titulo="Cómo gana"
       explica="Por tipo de proceso. En la contratación directa no compite con nadie."
       vacio="No ganó procesos con buena pro desde 2018."
-      items={fam.slice(0, 6).map((x) => ({
+      reparto={repartoDe(fam.map((x) => ({ clave: String(x.valor), nombre: String(x.valor), valor: x.n, texto: plural(x.n, "proceso", "procesos") })), 5, "Sus procesos por tipo")}
+      items={fam.slice(0, 5).map((x) => ({
         clave: String(x.valor),
         titulo: String(x.valor),
         valor: plural(x.n, "proceso", "procesos"),
@@ -100,7 +125,7 @@ export async function ComoGana({ pagina, ruc }: { pagina: Promise<(Pagina<Contra
         parte: x.n / Math.max(1, fam[0]?.n ?? 1),
         href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.familia]: String(x.valor) }),
       }))}
-      verTodo={fam.length > 6 ? { href: rutaEmpresa(ruc, "contratos"), texto: `Ver los ${numero(fam.length)} tipos en Contratos` } : undefined}
+      verTodo={fam.length > 5 ? { href: rutaEmpresa(ruc, "contratos"), texto: `Ver los ${numero(fam.length)} tipos en Contratos` } : undefined}
     />
   );
 }
@@ -115,7 +140,8 @@ export async function DondeVende({ pagina, ruc }: { pagina: Promise<(Pagina<Cont
       titulo="Dónde gana"
       explica="La región de las entidades que le adjudicaron, por cuántos procesos."
       vacio="Sin procesos ganados con región."
-      items={dep.slice(0, 6).map((x) => ({
+      reparto={repartoDe(dep.map((x) => ({ clave: String(x.valor), nombre: tituloNatural(String(x.valor)), valor: x.n, texto: plural(x.n, "proceso", "procesos") })), 5, "Sus procesos por región")}
+      items={dep.slice(0, 5).map((x) => ({
         clave: String(x.valor),
         titulo: tituloNatural(String(x.valor)),
         valor: plural(x.n, "proceso", "procesos"),
@@ -123,7 +149,7 @@ export async function DondeVende({ pagina, ruc }: { pagina: Promise<(Pagina<Cont
         parte: x.n / Math.max(1, dep[0]?.n ?? 1),
         href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.departamento]: String(x.valor) }),
       }))}
-      verTodo={dep.length > 6 ? { href: rutaEmpresa(ruc, "contratos"), texto: `Ver las ${numero(dep.length)} regiones en Contratos` } : undefined}
+      verTodo={dep.length > 5 ? { href: rutaEmpresa(ruc, "contratos"), texto: `Ver las ${numero(dep.length)} regiones en Contratos` } : undefined}
     />
   );
 }
@@ -138,6 +164,7 @@ export async function ClientesPrincipales({ datos, ruc }: { datos: Promise<{ tot
       titulo="Sus principales clientes"
       explica="Las entidades que más le pagaron por contratos y órdenes."
       vacio="Ninguna entidad le adjudicó ni le compró."
+      reparto={repartoDe(lista.map((c) => ({ clave: c.entidadRuc, nombre: c.entidad ? tituloNatural(c.entidad) : c.entidadRuc, valor: c.pagado, texto: solesCompacto(c.pagado) })), 5, "Lo que recibió, por entidad")}
       items={lista.slice(0, 5).map((c) => ({
         clave: c.entidadRuc,
         titulo: c.entidad ? tituloNatural(c.entidad) : c.entidadRuc,
@@ -161,6 +188,7 @@ export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<Pos
     <Bloque
       titulo="Quién le gana"
       explica={r ? `Postuló a ${numero(postulo)} procesos: ganó ${numero(r.gano)} y perdió ${numero(r.perdio)}.` : undefined}
+      extra={r && postulo >= 5 ? <Medidor parte={r.gano / postulo} etiqueta={`Ganó ${numero(r.gano)} de ${numero(postulo)} procesos a los que postuló`} className="mb-1" /> : undefined}
       vacio="No perdió ningún proceso contra otra empresa con RUC."
       items={g.slice(0, 5).map((x) => ({
         clave: String(x.valor),

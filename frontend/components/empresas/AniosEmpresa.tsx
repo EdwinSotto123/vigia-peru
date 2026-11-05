@@ -49,43 +49,52 @@ export function AniosEmpresa({ anual, nombre }: { anual: AnioEmpresa[]; nombre: 
           sus listas con su bandera y no entran en estas barras.
         </p>
       )}
-      <details className="group rounded-xl border border-line/80 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
-        <summary className="cursor-pointer select-none px-3 py-2 text-meta font-semibold text-granate">Ver la tabla año por año</summary>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-meta">
-            <thead className="bg-paperSoft text-left text-rotulo text-mute">
-              <tr>
-                <th className="px-3 py-2 font-medium">Año</th>
-                <th className="px-3 py-2 text-right font-medium">Contratos sola</th>
-                {conConsorcio && <th className="px-3 py-2 text-right font-medium">En consorcio (de todo el consorcio)</th>}
-                <th className="px-3 py-2 text-right font-medium">Órdenes</th>
-                <th className="px-3 py-2 text-right font-medium">Aparte, posible error</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line/70">
-              {filas.map((a) => (
-                <tr key={a.anio}>
-                  <td className="px-3 py-2 font-mono tabular-nums">{a.anio}</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">
-                    {soles(a.adjudicado)} <span className="font-sans text-mute">({plural(a.contratos, "proceso", "procesos")})</span>
-                  </td>
-                  {conConsorcio && (
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
-                      {a.enConsorcio ? <>{soles(a.adjudicadoConsorcio)} <span className="font-sans text-mute">({numero(a.enConsorcio)})</span></> : <span className="font-sans text-mute">Ninguno</span>}
-                    </td>
-                  )}
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">
-                    {soles(a.ordenado)} <span className="font-sans text-mute">({plural(a.ordenes, "orden", "órdenes")})</span>
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">
-                    {a.contratosDudosos || a.dudosas ? soles(a.adjudicadoDudoso + a.ordenadoDudoso) : <span className="font-sans text-mute">Nada</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+      <TablaAnios anual={anual} />
     </section>
+  );
+}
+
+/** La tabla año por año, plegada: lo que el gráfico resume, con los procesos, el consorcio y lo que va aparte. */
+export function TablaAnios({ anual }: { anual: AnioEmpresa[] }) {
+  const filas = [...anual].sort((a, b) => b.anio - a.anio);
+  const conConsorcio = anual.some((a) => a.enConsorcio > 0);
+  return (
+  <details className="group rounded-xl border border-line/80 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0">
+    <summary className="cursor-pointer select-none px-3 py-2 text-meta font-semibold text-granate">Ver la tabla año por año</summary>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[34rem] text-meta">
+        <thead className="bg-paperSoft text-left text-rotulo text-mute">
+          <tr>
+            <th className="px-3 py-2 font-medium">Año</th>
+            <th className="px-3 py-2 text-right font-medium">Contratos sola</th>
+            {conConsorcio && <th className="px-3 py-2 text-right font-medium">En consorcio (de todo el consorcio)</th>}
+            <th className="px-3 py-2 text-right font-medium">Órdenes</th>
+            <th className="px-3 py-2 text-right font-medium">Aparte, posible error</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line/70">
+          {filas.map((a) => (
+            <tr key={a.anio}>
+              <td className="px-3 py-2 font-mono tabular-nums">{a.anio}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">
+                {soles(a.adjudicado)} <span className="font-sans text-mute">({plural(a.contratos, "proceso", "procesos")})</span>
+              </td>
+              {conConsorcio && (
+                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                  {a.enConsorcio ? <>{soles(a.adjudicadoConsorcio)} <span className="font-sans text-mute">({numero(a.enConsorcio)})</span></> : <span className="font-sans text-mute">Ninguno</span>}
+                </td>
+              )}
+              <td className="px-3 py-2 text-right font-mono tabular-nums">
+                {soles(a.ordenado)} <span className="font-sans text-mute">({plural(a.ordenes, "orden", "órdenes")})</span>
+              </td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">
+                {a.contratosDudosos || a.dudosas ? soles(a.adjudicadoDudoso + a.ordenadoDudoso) : <span className="font-sans text-mute">Nada</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </details>
   );
 }

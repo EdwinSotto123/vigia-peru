@@ -24,9 +24,9 @@ import { Ayuda, AyudaTermino, BanderasFicha, CabeceraPestana, EncabezadoPagina, 
 import { EsqueletoPestana } from "@/components/entidad/PestanasEntidad";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { Aviso } from "@/components/partidos/AvisoPartido";
-import { Indicadores, Listado, TablaSkeleton, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
+import { Listado, TablaSkeleton, ZonaResultados, type Parametros } from "@/components/listado";
 import { AvisoDato } from "@/components/ui/BanderaDato";
-import { AniosEmpresa } from "@/components/empresas/AniosEmpresa";
+import { PanelVentas } from "@/components/empresas/PanelVentas";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import { Cargando, EstadoVacio } from "@/components/patrones";
@@ -567,33 +567,6 @@ function ChipInhabilitada({ f }: { f: FichaEmpresa }) {
   );
 }
 
-function indicadores(f: FichaEmpresa): Indicador[] {
-  const e = f.empresa;
-  const tasa = e.postulaciones >= 5 ? Math.round((e.ganadas / e.postulaciones) * 100) : null;
-  return [
-    {
-      valor: solesCompacto(e.adjMonto),
-      etiqueta: "en contratos que ganó sola",
-      contexto: e.consProcesos
-        ? `${plural(e.adjProcesos, "proceso", "procesos")}; y ${plural(e.consProcesos, "proceso", "procesos")} en consorcio por ${solesCompacto(e.consMonto)}`
-        : plural(e.adjProcesos, "proceso", "procesos"),
-      href: rutaEmpresa(e.ruc, "contratos"),
-    },
-    {
-      valor: solesCompacto(e.ordMonto),
-      etiqueta: "en órdenes de compra y servicio",
-      contexto: plural(e.ordN, "orden", "órdenes"),
-      href: rutaEmpresa(e.ruc, "ordenes"),
-    },
-    { valor: numero(e.entidades), etiqueta: e.entidades === 1 ? "entidad le pagó" : "entidades le pagaron", contexto: "por contratos u órdenes", href: rutaEmpresa(e.ruc, "clientes") },
-    {
-      valor: e.postulaciones ? numero(e.postulaciones) : "Ninguna",
-      etiqueta: "postulaciones",
-      contexto: e.postulaciones ? `ganó ${numero(e.ganadas)}${tasa != null ? `, el ${tasa} %` : ""}` : "como postor desde 2018",
-      href: rutaEmpresa(e.ruc, "postulaciones"),
-    },
-  ];
-}
 
 /** El "Ver …  ›" de la cabecera de una subsección del Inicio: lleva a la pestaña con el detalle. */
 function EnlaceSeccion({ href, children }: { href: string; children: string }) {
@@ -626,7 +599,7 @@ async function Inicio({
   const registros = f.antecedentes.reduce((t, a) => t + a.n, 0);
   return (
     <div className="space-y-6">
-      <Indicadores items={indicadores(f)} />
+      <PanelVentas f={f} />
       {(e.adjDudosos > 0 || e.ordDudosas > 0) && (
         <AvisoDato motivo={e.adjDudosos > 0 ? "adjudicado_20x" : "mayor_100m"} fuente="conosce_ordenes">
           {[
@@ -673,7 +646,6 @@ async function Inicio({
           className="min-w-0 xl:col-start-1 xl:row-start-2"
         >
           <div className="space-y-4">
-            <AniosEmpresa anual={f.anual} nombre={e.nombre} />
             {/* Dos columnas que miden lo suyo (cómo y dónde gana; quién le paga y quién le gana): en una rejilla 2×2 de
                 alturas iguales, «Dónde gana» con dos filas dejaba 150-200 px vacíos. Por el ancho de la columna, no de la
                 pantalla: al lado de «Sus datos» es más angosta. */}

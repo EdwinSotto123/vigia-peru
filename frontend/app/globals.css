@@ -290,6 +290,41 @@ html[data-modo="dia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
   --marca-nota: 190 210 196;
   --sobre-maiz: 22 58 30;
 }
+/* Modo día con relieve (2026-11-05: «muy sosa en el día»): las cajas de primer nivel despegan del fondo con una sombra
+   suave y llevan el tinte de su sección un poco más marcado; el lavado de la pantalla y el encabezado, también. Sólo en
+   el día: de noche el contraste ya lo da el fondo oscuro. */
+html[data-modo="dia"] [data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper):not(.border .border) {
+  background-image: linear-gradient(180deg, rgb(var(--acento) / 0.075), transparent 58%);
+  border-top-color: rgb(var(--acento) / 0.5);
+  box-shadow: 0 1px 2px rgb(17 24 23 / 0.05), 0 10px 28px -14px rgb(17 24 23 / 0.18);
+}
+html[data-modo="dia"] [data-intencion] .encabezado-color {
+  background-image: linear-gradient(90deg, rgb(var(--acento) / 0.17), rgb(var(--acento) / 0.06) 55%, rgb(var(--paper) / 0.6));
+  box-shadow: 0 12px 32px -18px rgb(var(--acento) / 0.45);
+}
+
+/* Los colores de los gráficos (skill dataviz, paleta validada: CVD adyacente ≥ 8,4 en los dos modos). Por ROL y en orden
+   fijo: la serie 1 es siempre la primera (contratos), la 2 la segunda (órdenes)… «Otros» va en --serie-otros. En el día
+   las series 3 a 5 quedan bajo 3:1 sobre blanco: siempre van con su número escrito al lado o con la tabla. */
+:root {
+  --serie-1: 57 135 229;   /* #3987E5 */
+  --serie-2: 217 89 38;    /* #D95926 */
+  --serie-3: 25 158 112;   /* #199E70 */
+  --serie-4: 201 133 0;    /* #C98500 */
+  --serie-5: 213 81 129;   /* #D55181 */
+  --serie-6: 0 131 0;      /* #008300 */
+  --serie-otros: 74 90 88;
+}
+html[data-modo="dia"] {
+  --serie-1: 42 120 214;   /* #2A78D6 */
+  --serie-2: 235 104 52;   /* #EB6834 */
+  --serie-3: 27 175 122;   /* #1BAF7A */
+  --serie-4: 237 161 0;    /* #EDA100 */
+  --serie-5: 232 123 164;  /* #E87BA4 */
+  --serie-6: 0 131 0;      /* #008300 */
+  --serie-otros: 190 202 199;
+}
+
 /* La franja de puntos de la cabecera y el pie (components/marca/FranjaTextil): una baldosa por modo. */
 .franja-textil { background-image: var(--franja-noche); }
 html[data-modo="dia"] .franja-textil { background-image: var(--franja-dia); }
@@ -297,8 +332,9 @@ html[data-modo="dia"] .franja-textil { background-image: var(--franja-dia); }
 /* En modo día el lavado de color de cada pantalla es más tenue: sobre blanco el 14 % ya pesa. */
 html[data-modo="dia"] .fondo-intencion {
   background-image:
-    radial-gradient(ellipse 60% 340px at 12% 0%, rgb(var(--acento) / 0.07), transparent 72%),
-    linear-gradient(180deg, rgb(var(--acento) / 0.025), transparent 520px);
+    radial-gradient(ellipse 60% 340px at 12% 0%, rgb(var(--acento) / 0.12), transparent 72%),
+    radial-gradient(ellipse 45% 280px at 92% 0%, rgb(var(--serie-3) / 0.07), transparent 70%),
+    linear-gradient(180deg, rgb(var(--acento) / 0.04), transparent 560px);
 }
 
 /* Una placa clara dentro de una banda oscura (.sobre-claro): el rojo y el ámbar de estado pasan a tonos
