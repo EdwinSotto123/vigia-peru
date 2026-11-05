@@ -75,7 +75,7 @@ export function BanderasFicha({
           </li>
         )}
       </ul>
-      <Panel orden={orden} etiqueta={etiqueta} max={Math.max(max, 5)} />
+      <Panel orden={orden} etiqueta={etiqueta} max={max} />
     </>
   );
 }
@@ -83,7 +83,7 @@ export function BanderasFicha({
 /**
  * Desde lg, las banderas en un panel a la derecha del título (EncabezadoPagina le da esa columna): cuántas hay y su
  * reparto por gravedad en una barra fina (con su palabra al lado: el color nunca va solo), y una fila por bandera con
- * su nombre entero, cuántos casos y la flecha a su evidencia. Cinco a la vista; las demás, plegadas debajo.
+ * su nombre entero, cuántos casos y la flecha a su evidencia. Cuatro a la vista (lo que mide el título a su lado); las demás, plegadas debajo.
  */
 function Panel({ orden, etiqueta, max }: { orden: BanderaFicha[]; etiqueta: string; max: number }) {
   const cuenta = { alta: 0, media: 0, baja: 0 };
@@ -139,7 +139,7 @@ function Fila({ b }: { b: BanderaFicha }) {
       {b.href && <ChevronRight size={14} className="shrink-0 text-mute transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />}
     </>
   );
-  const clase = "flex min-h-9 items-center gap-2 rounded-lg px-1.5 py-1.5 text-meta";
+  const clase = "flex min-h-8 items-center gap-2 rounded-lg px-1.5 py-1 text-meta";
   return (
     <li title={b.explica}>
       {b.href ? (

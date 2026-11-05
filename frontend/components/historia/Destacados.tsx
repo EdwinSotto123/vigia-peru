@@ -99,7 +99,7 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
         Lo que encadenan sus datos y los meses fuera de lo normal, lo más grave primero. No prueba una falta: dice dónde mirar.
       </p>
       <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <ul className="-mx-1 max-h-[28rem] space-y-0.5 overflow-y-auto overscroll-contain px-1 md:pr-2" aria-label="Hallazgos">
+        <ul className="-mx-1 space-y-0.5 px-1 md:max-h-[28rem] md:overflow-y-auto md:overscroll-contain md:pr-2" aria-label="Hallazgos">
           {items.map((x) => {
             const id = idDe(x);
             const on = idDe(actual) === id;
@@ -131,7 +131,7 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
                 </button>
                 {on && (
                   <div className="px-1 pb-3 pt-2 md:hidden">
-                    <Detalle x={x} marcado={elegido === id} ver={() => ver(x)} />
+                    <Detalle x={x} marcado={elegido === id} ver={() => ver(x)} bajoSuFila />
                   </div>
                 )}
               </li>
@@ -168,19 +168,22 @@ function dias(a: string, b: string): number | null {
 }
 
 /** El hallazgo elegido entero: qué es, cuándo, sus pasos (o la explicación del pico) y a dónde ir. */
-function Detalle({ x, marcado, ver }: { x: Item; marcado: boolean; ver: () => void }) {
+function Detalle({ x, marcado, ver, bajoSuFila = false }: { x: Item; marcado: boolean; ver: () => void; bajoSuFila?: boolean }) {
   const sev = sevDe(x);
+  // Bajo su fila (en el celular), la fila ya dice qué es, cuándo y su título: no se repiten.
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div className={cn("space-y-3", bajoSuFila && "border-l-2 border-granate/30 pl-3")}>
+      {!bajoSuFila && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Severidad bandera={sev} formato="linea" />
         <span className="inline-flex items-center gap-1 text-rotulo font-semibold text-inkSoft">
           {x.tipo === "secuencia" ? <Link2 size={13} aria-hidden /> : <TrendingUp size={13} aria-hidden />}
           {x.tipo === "secuencia" ? "Una cosa llevó a otra" : "Fuera de lo normal"}
         </span>
         <span className="text-rotulo text-mute">{cuandoDe(x)}</span>
-      </div>
-      <p className="font-display text-destacado font-bold leading-snug text-ink text-pretty">{tituloDe(x)}</p>
+        </div>
+      )}
+      {!bajoSuFila && <p className="font-display text-destacado font-bold leading-snug text-ink text-pretty">{tituloDe(x)}</p>}
       {x.tipo === "secuencia" ? (
         // Los pasos en una línea vertical: la fecha, lo que pasó y, entre uno y otro, cuántos días pasaron.
         <ol className="relative space-y-3 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-paperEdge">
