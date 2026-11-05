@@ -538,6 +538,15 @@ def _mercado_goods_retail(state: dict) -> dict:
                           "comentario": (f"Sin precios retail con fuente; {ancla['n']} referencia(s) interna(s) "
                                          f"({ancla['ambito']}) en la BD SEACE propia: rango S/ {ancla['rango_min']:,.2f}-{ancla['rango_max']:,.2f} "
                                          f"por {it.get('unidad') or 'unidad'}; el precio {base} queda {ancla['posicion'].replace('_', ' ')}.")})
+                # Mismo guardarraíl que con retail (abajo): las referencias ya vienen sin outliers (×5), así que un Δ
+                # implausible es el ítem el que no es comparable: el lote entero cargado como una unidad (1225718).
+                _d = ancla.get("diff_vs_mediana_pct")
+                if isinstance(_d, (int, float)) and _d > MARKET_DELTA_IMPLAUSIBLE:
+                    f.update({"veredicto": "no_verificable", "estado": "no_verificable", "es_estimacion": True,
+                              "motivo_estimacion": "delta_implausible_contra_compras_del_estado_posible_lote"})
+                    _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible",
+                                        f"Δ {_d:+.0f} % contra {ancla['n']} compra(s) del Estado: ¿el ítem es el lote "
+                                        f"entero con cantidad {it.get('cantidad')}?")
             # Ítem fuera del presupuesto de búsqueda (lote grande): estimación IA desde
             # conocimiento previo, SIN grounding. Va en campos `*_estimacion_ia` propios —
             # nunca toca precio_mediana_mercado/diff_pct/veredicto, así que jamás puede
@@ -620,10 +629,14 @@ def _mercado_goods_retail(state: dict) -> dict:
                 motivo = None
             else:
                 ancla["concuerda_con_retail"] = (vr == veredicto_retail)
-        # Guardarraíl: Δ implausible sin precios con unidad confirmada → no_verificable.
+        # Guardarraíl: Δ implausible sin precios con unidad confirmada → no_verificable. También contra el ancla
+        # regional: sus referencias ya vienen sin outliers (×5), así que un Δ así es el ítem el que no es comparable
+        # (1225718: «set instrumental» de cantidad 1 a S/ 484 000 contra S/ 9 547 por set = +4 970 %; 1226255:
+        # uniformes a S/ 108 000 «por unidad» = +9 026 %): es el lote entero cargado como una unidad.
         if (isinstance(diff, (int, float)) and diff > MARKET_DELTA_IMPLAUSIBLE
-                and n_norm < MARKET_MIN_PRECIOS and diff_fuente == "retail"):
-            veredicto, motivo = "no_verificable", "delta_implausible_sin_unidad_confirmada"
+                and n_norm < MARKET_MIN_PRECIOS and diff_fuente in ("retail", "ancla_regional")):
+            veredicto, motivo = "no_verificable", ("delta_implausible_sin_unidad_confirmada" if diff_fuente == "retail"
+                                                   else "delta_implausible_contra_compras_del_estado_posible_lote")
             _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible",
                                 f"Δ {diff:+.0f} % con {n_norm} precio(s) de unidad confirmada (< {MARKET_MIN_PRECIOS})")
         proveedores = []

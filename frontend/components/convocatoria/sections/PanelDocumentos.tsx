@@ -3,6 +3,7 @@
 /** Pestaña "Documentos" del informe, cargada con `next/dynamic` al abrirla (PanelesDossier). */
 
 import { FileText } from "lucide-react";
+import { mercadoMedido } from "@/components/charts/mercado";
 import { setRedactNames } from "../../Redact";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
@@ -56,7 +57,7 @@ export function PanelDocumentos({ result, conv, banderasArr, nombresSunat, nombr
       </SeccionSegura>
       {result.normative_compliance && (
         <SeccionSegura nombre="el cumplimiento normativo">
-          <CumplimientoNormativoSection nc={result.normative_compliance} sobreprecioMedido={result.market_analysis?.sobreprecio_pct != null} />
+          <CumplimientoNormativoSection nc={result.normative_compliance} sobreprecioMedido={mercadoMedido(result.market_analysis)} />
         </SeccionSegura>
       )}
     </div>

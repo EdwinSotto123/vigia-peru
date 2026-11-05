@@ -7,6 +7,7 @@ contratación» (aviso de 2026-11-04: el dictamen de 1229308 mandaba a /proceso/
 from __future__ import annotations
 
 import re
+from urllib.parse import quote
 
 PREFIJO_OCID = "ocds-dgv273-seacev3-"
 _BASE_PROCESO = "https://contratacionesabiertas.oece.gob.pe/proceso/"
@@ -23,6 +24,12 @@ def ocid_completo(ocid) -> str:
 def proceso_oece(ocid) -> str:
     """El proceso en Contrataciones Abiertas: acepta el OCID completo, el de Vigía o «OECE-<ocid>»."""
     return _BASE_PROCESO + ocid_completo(ocid)
+
+
+def busqueda_oece(codigo) -> str:
+    """La búsqueda de Contrataciones Abiertas por el código del proceso (el de CONOSCE, que no siempre es el final del
+    OCID: 442241 es …-2018-1534-1). Lleva a la compra exacta en vez de a la portada del buscador de CONOSCE."""
+    return "https://contratacionesabiertas.oece.gob.pe/busqueda?search=" + quote(str(codigo or "").strip())
 
 
 def arreglar_urls_oece(texto: str) -> str:

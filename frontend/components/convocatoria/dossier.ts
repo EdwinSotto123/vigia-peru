@@ -11,6 +11,8 @@ import { claveDePaso, pasoDeClave, TOTAL_AGENTES } from "@/components/agentes/ca
 import { faseLabelCorto } from "@/lib/auditoria";
 import { nivelDeScore, SEVERIDAD, SIN_SENALES, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
 import { fecha, fechaCorta, soles } from "@/lib/formato";
+import { sobreprecioSostenido } from "@/components/charts/mercado";
+import { evidenciaComoTexto } from "./sections/Evidencia";
 import type { ApiResult, Bandera } from "./types";
 
 // ─── Qué corrió ───────────────────────────────────────────────────────────
@@ -267,10 +269,11 @@ export const esReglaSobreprecio = (b: Pick<Bandera, "regla"> | null | undefined)
   String(b?.regla || "").toLowerCase().startsWith("sobreprecio");
 
 /**
- * Si el backend dejó `market_analysis.sobreprecio_pct` en null, su juez de
- * plausibilidad decidió que el lote no es comparable. Una señal de sobreprecio
- * en ese mismo dossier ("+102.5 %" junto a "0 de 95 ítems con precio medido")
- * no se puede sostener: se aparta como no verificable, fuera de los conteos.
+ * Una señal de sobreprecio que el mercado no sostiene ("+102.5 %" junto a "0 de
+ * 95 ítems con precio medido") se aparta como no verificable, fuera de los
+ * conteos. Se decide por bandera (charts/mercado.ts → sobreprecioSostenido): la
+ * del lote vale si el backend publicó su %, la de un ítem si ese ítem está
+ * respaldado (≥ 3 precios o ancla regional).
  */
 export function separarBanderas(result: ApiResult): {
   visibles: Bandera[];
@@ -282,11 +285,13 @@ export function separarBanderas(result: ApiResult): {
   const todas = (result.compliance?.banderas || []) as Bandera[];
   const contexto = todas.filter((b) => b.puntua === false);
   const puntuan = todas.filter((b) => b.puntua !== false);
-  const medido = result.market_analysis?.sobreprecio_pct != null;
-  if (medido) return { visibles: puntuan, noVerificables: [], contexto };
+  // Por bandera: la de un ítem respaldado se sostiene aunque el lote no tenga % (contrato de un solo ítem,
+  // cobertura parcial del lote). Antes bastaba `sobreprecio_pct` null para apartarlas todas.
+  const sostenida = (b: Bandera) =>
+    !esReglaSobreprecio(b) || sobreprecioSostenido(evidenciaComoTexto(b.evidencia), result.market_analysis);
   return {
-    visibles: puntuan.filter((b) => !esReglaSobreprecio(b)),
-    noVerificables: puntuan.filter(esReglaSobreprecio),
+    visibles: puntuan.filter(sostenida),
+    noVerificables: puntuan.filter((b) => !sostenida(b)),
     contexto,
   };
 }

@@ -14,6 +14,8 @@ import re
 import statistics
 import unicodedata
 
+from tools.fuentes import busqueda_oece
+
 MAX_FILAS = 40
 FUENTE_URL = "https://conosce.osce.gob.pe/buscador/"
 
@@ -41,7 +43,8 @@ def _buscar(palabras: list[str], hasta: str = "", anios: int = 3, departamento: 
         conds.append("tipo_proceso ILIKE 'Subasta Inversa%%'")
     orden = "ORDER BY (upper(departamento_item) = upper(%s)) DESC, COALESCE(fecha_buenapro, fecha_convocatoria) DESC" if departamento         else "ORDER BY COALESCE(fecha_buenapro, fecha_convocatoria) DESC"
     sql = f"""SELECT COALESCE(fecha_buenapro, fecha_convocatoria)::date, tipo_proceso, departamento_item, entidad,
-                     descripcion_item, cantidad, unidad_medida, monto_adjudicado, moneda, nomenclatura, proveedor
+                     descripcion_item, cantidad, unidad_medida, monto_adjudicado, moneda, nomenclatura, proveedor,
+                     codigo_convocatoria
                 FROM conosce_adjudicaciones
                WHERE {' AND '.join(conds)} AND cantidad > 0 AND monto_adjudicado > 0
                {orden} LIMIT {MAX_FILAS}"""
@@ -55,12 +58,13 @@ def _buscar(palabras: list[str], hasta: str = "", anios: int = 3, departamento: 
     finally:
         conn.close()
     compras = []
-    for f, tipo, dpto, ent, desc, cant, um, monto, mon, nomen, prov in filas:
+    for f, tipo, dpto, ent, desc, cant, um, monto, mon, nomen, prov, codigo in filas:
         cant, monto = float(cant), float(monto)
         compras.append({
             "fecha": f.isoformat() if f else None, "tipo_proceso": tipo, "departamento": dpto, "entidad": ent,
             "descripcion": (desc or "")[:220], "cantidad": cant, "unidad": um, "moneda": mon,
             "precio_unitario": round(monto / cant, 4), "monto_adjudicado": monto, "proceso": nomen, "proveedor": prov,
+            "url": busqueda_oece(codigo) if codigo else FUENTE_URL,
             "posible_lote": cant <= 1,      # cantidad 1 suele ser un lote: el "precio unitario" no es de una pieza
         })
     return compras
@@ -141,7 +145,7 @@ def candidatos_compras_estado(it: dict, hasta: str | None = None, departamento: 
             "producto": (f"{c['descripcion'][:160]} · compra de {c['entidad'] or 'entidad pública'} ({c['departamento'] or 's/d'}, "
                          f"{c['fecha']}, {c['cantidad']:g} {c['unidad']}, {c['proceso'] or ''})")[:300],
             "marca": None, "precio": c["precio_unitario"], "unidad_medida": c["unidad"], "multiplicador": None,
-            "tienda": "Compras del Estado (OECE)", "url": FUENTE_URL, "origen": "conosce",
+            "tienda": "Compras del Estado (OECE)", "url": c.get("url") or FUENTE_URL, "origen": "conosce",
         })
         if len(out) >= maximo:
             break

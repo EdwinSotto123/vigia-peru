@@ -150,9 +150,9 @@ def test_compras_estado_arma_la_consulta_y_marca_lotes(monkeypatch):
 
         def fetchall(self):
             return [(date(2026, 9, 1), "Subasta Inversa Electrónica", "LIMA", "MUNI X", "CEMENTO PORTLAND TIPO I 42.5 KG",
-                     800, "BOLSA", 24000, "PEN", "SIE-1", "PROVEEDOR SAC"),
+                     800, "BOLSA", 24000, "PEN", "SIE-1", "PROVEEDOR SAC", "1027792"),
                     (date(2026, 8, 1), "Adjudicación Simplificada", "CUSCO", "MUNI Y", "CEMENTO Y AGREGADOS",
-                     1, "GLOBAL", 90000, "PEN", "AS-2", "OTRA SAC")]
+                     1, "GLOBAL", 90000, "PEN", "AS-2", "OTRA SAC", None)]
 
     class _Conn:
         def cursor(self):
@@ -166,6 +166,9 @@ def test_compras_estado_arma_la_consulta_y_marca_lotes(monkeypatch):
     r = ce.consultar_compras_estado("Cemento Portland tipo I", hasta="2026-10-01", solo_subasta_inversa=True)
     assert [c["precio_unitario"] for c in r["compras"]] == [30.0, 90000.0]
     assert [c["posible_lote"] for c in r["compras"]] == [False, True]
+    # Cada compra enlaza a su proceso (búsqueda por código), no a la portada del buscador de CONOSCE.
+    assert [c["url"] for c in r["compras"]] == ["https://contratacionesabiertas.oece.gob.pe/busqueda?search=1027792",
+                                                ce.FUENTE_URL]
     assert r["resumen_orientativo"] == {"bolsa": {"n": 1, "mediana": 30.0}}   # el lote no entra al resumen
     assert vistos["params"][:3] == ["%cemento%", "%portland%", "%tipo%"]
     assert vistos["params"][3] == "2026-10-01" and "Subasta Inversa" in vistos["sql"]

@@ -659,3 +659,31 @@ def test_live_1225450_ya_no_sale_7162_pct():
     assert ma["veredicto_global"] in ("alineado", "alineado_regional", "cobertura_parcial", "sin_dato")
     diesel = next(f for f in ma["findings"] if str(f["item_numero"]) == "1")
     assert diesel["ancla_regional"]["estado"] == "hallado" and diesel["ancla_regional"]["ambito"] == "departamento"
+
+
+def test_guardarrail_ancla_regional_lote_como_unidad(monkeypatch):
+    """1225718 (2026-11-05): un «set instrumental» de cantidad 1 a S/ 484 000 contra compras del Estado de ~S/ 9 500
+    por set daba +4 970 % «muy elevado» por el ancla regional. Es el lote cargado como una unidad: no verificable."""
+    it = _mi_un_item("SET INSTRUMENTAL QUIRURGICO PARA CIRUGIA GENERAL", 1, "UND", ofertado=484000.0)
+    refs = [_ref("1200001", "SET INSTRUMENTAL QUIRURGICO PARA CIRUGIA", 9500.0, 9400.0, unidad="UND", mismo_cubso=True),
+            _ref("1200002", "SET INSTRUMENTAL QUIRURGICO CIRUGIA GENERAL", 9800.0, None, unidad="UND", mismo_cubso=True),
+            _ref("1200003", "SET DE INSTRUMENTAL QUIRURGICO", 9100.0, None, unidad="UND", mismo_cubso=True)]
+    res, st = _run_retail(monkeypatch, [it], [], total_ofertado=484000.0, base="contrato", refs=refs)
+    f = res["findings"][0]
+    assert f["diff_fuente"] == "ancla_regional" and f["diff_pct"] > 300
+    assert f["veredicto"] == "no_verificable" and f["estado"] == "no_verificable"
+    assert f["motivo_estimacion"] == "delta_implausible_contra_compras_del_estado_posible_lote"
+    assert res["n_respaldados"] == 0
+
+
+def test_ancla_regional_sobreprecio_plausible_sigue_marcando(monkeypatch):
+    """1245947: cormos de plátano a S/ 10 contra compras del Estado de S/ 2–6,5 (+150 %) sigue siendo «muy elevado»."""
+    it = _mi_un_item("CORMOS DE PLATANO PARA PRODUCCION DE HIJUELOS", 15000, "UND", ofertado=10.0)
+    refs = [_ref("1170944", "SEMILLA HIJUELO DE PLATANO VAR BELLACO", 2.5, None, unidad="UND", mismo_cubso=True),
+            _ref("1223674", "CORMOS DE PLATANOS PARA EL PROYECTO", 4.8, None, unidad="UND", mismo_cubso=True),
+            _ref("1172801", "HIJUELO DE PLATANO CORMOS", 4.5, None, unidad="UND", mismo_cubso=True),
+            _ref("1157342", "SEMILLA VEGETATIVA DE PLATANO HIJUELOS", 6.5, None, unidad="UND", mismo_cubso=True)]
+    res, _ = _run_retail(monkeypatch, [it], [], total_ofertado=150000.0, base="contrato", refs=refs)
+    f = res["findings"][0]
+    assert f["diff_fuente"] == "ancla_regional" and f["veredicto"] == "muy_elevado"
+    assert res["n_respaldados"] == 1

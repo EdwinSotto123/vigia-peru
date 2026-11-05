@@ -11,7 +11,10 @@
  *     que el lote no es comparable. Recalcularlo en el cliente sobre un
  *     subconjunto de ítems es el bug histórico de este repo: resucitaba un
  *     "+105 % LOTE MUY ELEVADO" que el backend ya había descartado por
- *     falso. Acá `pct` sale del backend o es null, y punto.
+ *     falso. Acá `pct` sale del backend o es null, y punto. La única
+ *     excepción también sale del backend: en un contrato de UN ítem el % es
+ *     el Δ de ese ítem respaldado (`pctItemUnico`), porque el backend no
+ *     publica un % de lote que repetiría la misma evidencia.
  *  2. **La estimación del modelo nunca mueve el sobreprecio.** Los ítems
  *     con `precio_estimado_ia` traen `medido: false`; el gráfico los dibuja
  *     con textura y jamás les pinta el segmento de sobreprecio.
@@ -394,9 +397,57 @@ export type ResumenLote = {
   veredicto: VeredictoMercado;
 };
 
+/**
+ * Ítem que el backend da por respaldado (tools/market/goods_retail.py): mediana con ≥ 3 precios o ancla
+ * regional en la base propia, y sin guardarraíl disparado (`no_verificable`).
+ */
+export function itemRespaldado(f: any): boolean {
+  if (!f || String(f.veredicto || "").toLowerCase() === "no_verificable") return false;
+  if ((num(f.precio_mediana_comparacion) ?? num(f.precio_mediana_mercado)) === null) return false;
+  // El guardarraíl del backend (Δ > 300 % sin 3 precios de unidad confirmada), que hasta el 2026-11-05 no cubría el
+  // ancla regional: 1225718 (+4 970 %) y 1226255 (+9 026 %) eran el lote entero cargado como una unidad.
+  if ((num(f.diff_pct) ?? 0) > 300 && (num(f.n_precios_normalizados) ?? 0) < 3) return false;
+  return (num(f.n_precios) ?? 0) >= 3 || f?.ancla_regional?.estado === "hallado";
+}
+
+/**
+ * Contrato de un solo ítem: el backend no publica un % de lote porque sería la misma evidencia que la bandera
+ * del ítem (`un_solo_item_sin_bandera_de_lote`). Si ese ítem está respaldado y se comparó contra lo ofertado,
+ * su Δ ES el del contrato: se toma tal cual del backend, sin recalcular nada (1245947: cormos de plátano a
+ * S/ 10 contra una mediana de S/ 3,90 con 6 precios y 7 compras del Estado salía «no verificable»).
+ */
+function pctItemUnico(market: any): number | null {
+  const findings: any[] = market?.findings || [];
+  if (findings.length !== 1 || market?.lote?.motivo !== "un_solo_item_sin_bandera_de_lote") return null;
+  const f = findings[0];
+  return itemRespaldado(f) && f?.diff_base === "ofertado" ? num(f?.diff_pct) : null;
+}
+
+/**
+ * ¿Una bandera de sobreprecio está medida? La del lote, si el backend publicó el % del lote; la de un ítem
+ * («Ítem '<descripción>': …», persistence/market_flags.py), si ese ítem está respaldado.
+ */
+export function sobreprecioSostenido(evidencia: string, market: any): boolean {
+  if (resumenLote(market).comparable) return true;
+  const ev = String(evidencia || "");
+  const f = (market?.findings || []).find((x: any) => {
+    const d = String(x?.item_descripcion || "").slice(0, 80);
+    return d && ev.startsWith(`Ítem '${d}'`);
+  });
+  return f ? itemRespaldado(f) : false;
+}
+
+/** El mercado midió algo que sostiene una señal de sobreprecio: el lote, o al menos un ítem respaldado y elevado. */
+export function mercadoMedido(market: any): boolean {
+  if (resumenLote(market).comparable) return true;
+  return (market?.findings || []).some(
+    (f: any) => itemRespaldado(f) && ["elevado", "muy_elevado"].includes(String(f?.veredicto || "").toLowerCase()),
+  );
+}
+
 export function resumenLote(market: any): ResumenLote {
   const findings: any[] = market?.findings || [];
-  const pct = num(market?.sobreprecio_pct);
+  const pct = num(market?.sobreprecio_pct) ?? pctItemUnico(market);
   const comparable = pct !== null;
 
   const totalOfertado = positivo(market?.total_ofertado) ?? positivo(market?.padre_lote?.cuantia_total);
