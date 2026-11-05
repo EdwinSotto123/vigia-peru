@@ -7,6 +7,7 @@ import { Popover } from "@/components/ui/Flotante";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
 import { useListado } from "./Listado";
+import { colorMuestra, type MuestraColor } from "./paletaSeveridad";
 
 /**
  * La barra de filtros de todo listado (§14.1). Una sola forma, en este orden:
@@ -40,6 +41,14 @@ export interface OpcionFaceta {
   conteo?: number | null;
   icono?: IconoFaceta;
   tono?: TonoFaceta;
+  /**
+   * El cuadrito de color de la parte que esta opción es en una barra partida (`BarraSegmentada`): así los chips le hacen
+   * de leyenda (auditoría del 2026-11-05: la gravedad iba en rojo y ámbar en la barra y en chips sin color debajo). Una
+   * serie por su lugar en la barra, «otros», o una gravedad (`colorMuestra`: el mismo color que `paletaGravedad` le da a
+   * su parte). Va en lugar del ícono: el ícono en `text-rust` junto al cuadrito en `crimson` se leían como dos marcas
+   * distintas, y el nombre de la opción ya dice la gravedad sin depender del color.
+   */
+  muestra?: MuestraColor;
 }
 
 export interface FiltroSecundario {
@@ -211,7 +220,17 @@ export function BarraFiltros({
               const Icono = o.icono ? ICONOS_FACETA[o.icono] : null;
               return (
                 <Chip key={o.valor} activo={activo} onClick={() => navegar({ [faceta.param]: activo ? undefined : o.valor })}>
-                  {Icono && <Icono size={13} className={activo ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"]} aria-hidden />}
+                  {o.muestra != null ? (
+                    // Del tamaño y la forma de `MuestraSerie` (la leyenda de la barra); sobre el chip elegido, con un filete
+                    // claro para que el color no se pierda en el fondo.
+                    <span
+                      className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-sm", activo && "ring-1 ring-paper/80")}
+                      style={{ background: colorMuestra(o.muestra) }}
+                      aria-hidden
+                    />
+                  ) : (
+                    Icono && <Icono size={13} className={activo ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"]} aria-hidden />
+                  )}
                   {o.etiqueta}
                   {o.conteo != null && <Conteo n={o.conteo} />}
                 </Chip>

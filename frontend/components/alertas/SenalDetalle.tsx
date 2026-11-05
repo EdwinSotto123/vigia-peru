@@ -11,6 +11,9 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones/Detalle";
 import { Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
+// La limpieza de la evidencia del informe (/app/convocatoria): el índice de señales ya trae ese módulo para el resumen de
+// cada fila (`ResumenEvidencia`), así que el panel no suma peso al navegador.
+import { limpiarEvidencia } from "@/components/agentes/ListaSenales";
 import { plural, soles } from "@/lib/formato";
 import type { Senal } from "@/lib/revision";
 
@@ -117,8 +120,11 @@ export function SenalDetalle({ s }: { s: Senal }) {
 
       <BloqueDetalle titulo="Qué se encontró">
         {s.evidencia ? (
+          // Sin las formas de máquina del análisis («(ocds: numberOfTenderers/tenderers)», «sanción(es) VIGENTE(S)», fechas
+          // ISO, « · »), como en la fila y en el panel del informe (auditoría del 2026-11-05). Línea por línea: la limpieza
+          // junta los espacios y aquí los saltos de línea separan hechos (`whitespace-pre-line`).
           <p className="whitespace-pre-line">
-            <TextoProtegido texto={s.evidencia} nombres={s.personasPrivadas} />
+            <TextoProtegido texto={s.evidencia.split("\n").map(limpiarEvidencia).join("\n")} nombres={s.personasPrivadas} />
           </p>
         ) : (
           <p className="text-mute">

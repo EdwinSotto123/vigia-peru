@@ -204,7 +204,10 @@ async function ramaMenores(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
 /**
  * Las órdenes del SEACE que no se juntaron con nada (ni gemela de un catálogo o un menor, ni pago de un proceso posible):
  * la misma ventana por el índice de entidad (o proveedor) y fecha que la lista de órdenes, con el dedup de sus versiones.
- * Con texto, como esa lista, en las más recientes.
+ * Con texto, como esa lista, en las más recientes. En cualquier moneda, como esa lista (pedido del usuario del 2026-11-05:
+ * las de EsSalud a la OPS en dólares canadienses no salían): el monto de la llave es sólo en soles (NULL en otra moneda;
+ * la fila lo trae en la suya). compra_vinculo (240) sólo junta órdenes en soles, así que una en otra moneda sale sola,
+ * por cómo se contrató.
  */
 async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): Promise<Clave[]> {
   const vals: unknown[] = [];
@@ -223,13 +226,14 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
     `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.contratista, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
   const ventana = texto.length ? Math.max(1500, n * 6) : Math.ceil(n * 1.02) + 20;
   const r = await consultaConPlazo(
-    `WITH c AS (SELECT o.entidad_ruc, o.orden, o.fecha_emision, o.anio, o.mes, o.monto, o.monto_dudoso, o.tipo_contratacion, o.ruc_contratista,
-                       o.descripcion, o.entidad, o.contratista, o.nro_orden
+    `WITH c AS (SELECT o.entidad_ruc, o.orden, o.fecha_emision, o.anio, o.mes, o.monto, o.monto_dudoso, o.moneda, o.tipo_contratacion,
+                       o.ruc_contratista, o.descripcion, o.entidad, o.contratista, o.nro_orden
                   FROM conosce_ordenes o WHERE ${conds.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}),
           d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o
                  ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
      SELECT o.entidad_ruc AS e, o.orden AS n, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.ruc_contratista AS p,
-            COALESCE(o.monto, o.monto_dudoso)::float AS monto, clase_orden(o.tipo_contratacion) AS clase
+            CASE WHEN o.moneda = 'Nuevos Soles' THEN COALESCE(o.monto, o.monto_dudoso)::float END AS monto,
+            clase_orden(o.tipo_contratacion) AS clase
        FROM d o ${texto.length ? `WHERE ${texto.join(" AND ")}` : ""}
       ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${n}`, vals);
   return (r.rows as { e: string; n: string; fecha: string; p: string | null; monto: number | null; clase: ClaseCompra }[]).map((x) => ({
@@ -376,11 +380,12 @@ async function pagosDe(filas: Record<string, unknown>[], ancla: "entidad" | "pro
               count(*) OVER (PARTITION BY v.ref)::int AS total
          FROM compra_vinculo v WHERE v.clase = 'proceso' AND v.ref = ANY($1::text[])
         ORDER BY v.ref, v.fecha_emision DESC`, [codigos]),
-    // Cuánto suman todas sus órdenes (cada una en su versión más nueva, sin las de monto dudoso).
+    // Cuánto suman todas sus órdenes (cada una en su versión más nueva, sin las de monto dudoso). Sólo las en soles: hoy
+    // compra_vinculo no junta otras, pero si un día lo hace, un dólar no se suma como un sol.
     consultaConPlazo(
-      `SELECT v.ref, sum(o.monto)::float AS pagado
+      `SELECT v.ref, sum(o.monto) FILTER (WHERE o.moneda = 'Nuevos Soles')::float AS pagado
          FROM compra_vinculo v
-         CROSS JOIN LATERAL (SELECT x.monto FROM conosce_ordenes x
+         CROSS JOIN LATERAL (SELECT x.monto, x.moneda FROM conosce_ordenes x
                               WHERE x.entidad_ruc = v.entidad_ruc AND x.ruc_contratista = v.proveedor_ruc AND x.fecha_emision = v.fecha_emision
                                 AND x.orden = v.orden
                               ORDER BY x.anio DESC, x.mes DESC LIMIT 1) o
@@ -503,11 +508,15 @@ async function resumenDe(ancla: "entidad" | "proveedor", ruc: string, q: Filtros
   return { resumen: { compras, monto }, facetas: { como, anio } };
 }
 
-/** El resumen de una empresa con las mismas reglas que compra_resumen: cada compra una vez, por clase y año. */
+/**
+ * El resumen de una empresa con las mismas reglas que compra_resumen: cada compra una vez, por clase y año. Las órdenes en
+ * otra moneda cuentan (la lista las muestra: una empresa que sólo vende en dólares, como la OPS a EsSalud, decía «0
+ * compras») pero no se suman a los soles. compra_resumen (240), el de una entidad, todavía no las cuenta.
+ */
 function sqlResumenProveedor(ruc: string): string {
   return `SELECT clase, anio, count(*)::int AS compras, COALESCE(sum(monto), 0)::float AS monto FROM (
       SELECT clase_orden(o.tipo_contratacion) AS clase, extract(year FROM o.fecha_emision)::int AS anio,
-             CASE WHEN o.monto_dudoso IS NULL THEN o.monto END AS monto
+             CASE WHEN o.monto_dudoso IS NULL AND o.moneda = 'Nuevos Soles' THEN o.monto END AS monto
         FROM (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
                 FROM conosce_ordenes o WHERE o.ruc_contratista = '${ruc}' AND ${ORDEN_LISTADA}
                ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC) o

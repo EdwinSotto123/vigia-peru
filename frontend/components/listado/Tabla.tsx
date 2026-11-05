@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { fechaConAnio } from "@/lib/formato";
 import { BotonFila, ProveedorDetalle } from "./DetalleFilas";
+import { FilaConEnlaces } from "./FilaConEnlaces";
 
 /**
  * La tabla de todo listado (§14.1). Las columnas se declaran una vez y la cabecera
@@ -19,8 +20,9 @@ import { BotonFila, ProveedorDetalle } from "./DetalleFilas";
  *
  * Una fila es UNA acción: `href` (va a su página) o `detalle` (abre el panel lateral). Por defecto la fila entera ES
  * ese enlace o botón, y sus celdas no llevan enlaces propios (serían un control dentro de otro). Con `enlaces` (pedido
- * del usuario del 2026-11-05: el código del proceso, verde, a su ficha) la acción pasa a una capa que cubre la fila y
- * las celdas van encima sin tomar el clic, salvo sus `<a>`: ver `FilaTabla`. Semántica de lista (`ul`).
+ * del usuario del 2026-11-05: el código del proceso, verde, a su ficha) la acción pasa a una capa que cubre la fila, las
+ * celdas van encima con su `title` a la vista y el clic en ellas se le pasa a la capa, salvo en sus `<a>`: ver
+ * `FilaTabla` y `FilaConEnlaces`. Semántica de lista (`ul`).
  *
  * `colapsarIguales`: una columna que en la página dice lo mismo en todas las filas («Sin leer» en los 50 contratos) se
  * quita y lo dice UNA vez sobre la tabla; su ancho pasa a las columnas flexibles (el título). Ver `columnasQueDicenAlgo`.
@@ -98,7 +100,7 @@ export interface Fila {
   textos?: Record<string, string | null | undefined>;
   /**
    * Sus celdas llevan enlaces propios (el código del proceso a su ficha): la acción de la fila va en una capa debajo de
-   * las celdas y cada `<a>` de una celda se puede tocar solo. Ver `FilaTabla`.
+   * las celdas y cada `<a>` de una celda se puede tocar solo; el resto de la celda abre la fila. Ver `FilaConEnlaces`.
    */
   enlaces?: boolean;
   /** Qué anuncia la acción de una fila con `enlaces` al lector de pantalla (ya no se nombra por su contenido). */
@@ -403,10 +405,11 @@ function FilaTabla({
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
   // escritorio la columna apilada vaya antes (el chip de estado a la izquierda).
   const principal = indicePrincipal(columnas);
-  // Con enlaces adentro, la acción de la fila es una capa por debajo (ver abajo): las celdas van encima (`z-[1]`) sin
-  // tomar el clic, que cae en la capa; sus `<a>` sí lo toman.
+  // Con enlaces adentro, la acción de la fila es una capa por debajo (ver abajo): las celdas van encima (`z-[1]`) y SÍ
+  // toman el puntero, para que su `title` se vea al pasar (con `pointer-events-none` se perdían el detalle del chip de
+  // estado y la lista de antecedentes; auditoría del 2026-11-05). Su clic se lo pasa a la capa `FilaConEnlaces`.
   const capa = !!fila.enlaces && !!(fila.href || fila.detalle);
-  const encima = capa && "relative z-[1] pointer-events-none [&_a]:pointer-events-auto";
+  const encima = capa && "relative z-[1]";
   const celdas = (
     <>
       {columnas.map((c, i) => (
@@ -434,7 +437,8 @@ function FilaTabla({
       {/* La columna existe si alguna fila se abre; la flecha, sólo en las que sí. */}
       {conAccion &&
         (fila.href || fila.detalle ? (
-          <ChevronRight size={16} className={cn("text-mute transition-transform duration-rapido group-hover:translate-x-0.5", encima)} aria-hidden />
+          // La flecha no tiene `title` que mostrar: sin puntero, su clic cae directo en la capa (como el aire entre celdas).
+          <ChevronRight size={16} className={cn("text-mute transition-transform duration-rapido group-hover:translate-x-0.5", encima, encima && "pointer-events-none")} aria-hidden />
         ) : (
           <span aria-hidden />
         ))}
@@ -443,31 +447,33 @@ function FilaTabla({
   const clase = cn(k.grid, densidad === "compacta" ? FILA_COMPACTA : FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
   if (capa) {
     // La fila es un `div` y su acción (enlace o botón) una capa vacía que la cubre entera, DEBAJO de las celdas: así su
-    // fondo de elegida (el del panel abierto) se ve a través de ellas y el clic en cualquier texto le llega igual. No el
-    // «enlace estirado» por encima: taparía las celdas con el fondo de elegida. Su nombre lo dice `etiqueta` (las celdas
-    // se leen aparte, como texto de la fila).
+    // fondo de elegida (el del panel abierto) se ve a través de ellas. No el «enlace estirado» por encima: taparía las
+    // celdas con el fondo de elegida y se comería el `title` de todo lo que llevan. El clic en una celda le llega por
+    // `FilaConEnlaces`; el del aire entre celdas, directo. La capa va primera: el tabulador pasa por la fila y después
+    // por sus enlaces. Su nombre lo dice `etiqueta` (las celdas se leen aparte, como texto de la fila).
     const nombre = fila.etiqueta ?? fila.detalle?.etiqueta ?? (fila.detalle ? `Ver el detalle de ${fila.detalle.titulo}` : "Abrir");
     const accion = "absolute inset-0 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
+    const capaAccion = fila.href ? (
+      fila.externo ? (
+        <a href={fila.href} target="_blank" rel="noopener noreferrer" className={accion}>
+          <span className="sr-only">{nombre} (se abre en otra pestaña)</span>
+        </a>
+      ) : (
+        <Link href={fila.href} className={accion}>
+          <span className="sr-only">{nombre}</span>
+        </Link>
+      )
+    ) : (
+      <BotonFila id={fila.id} className={accion}>
+        <span className="sr-only">{nombre}</span>
+      </BotonFila>
+    );
     return (
       // `isolate`: el `z-[1]` de las celdas queda dentro de la fila; si no, pasaba por encima del rótulo fijo de un grupo.
-      <div className={cn(clase, "relative isolate")}>
-        {fila.href ? (
-          fila.externo ? (
-            <a href={fila.href} target="_blank" rel="noopener noreferrer" className={accion}>
-              <span className="sr-only">{nombre} (se abre en otra pestaña)</span>
-            </a>
-          ) : (
-            <Link href={fila.href} className={accion}>
-              <span className="sr-only">{nombre}</span>
-            </Link>
-          )
-        ) : (
-          <BotonFila id={fila.id} className={accion}>
-            <span className="sr-only">{nombre}</span>
-          </BotonFila>
-        )}
+      // `cursor-pointer`: toda la fila se toca, también encima del texto de una celda.
+      <FilaConEnlaces accion={capaAccion} className={cn(clase, "relative isolate cursor-pointer")}>
         {celdas}
-      </div>
+      </FilaConEnlaces>
     );
   }
   if (fila.href && fila.externo) {

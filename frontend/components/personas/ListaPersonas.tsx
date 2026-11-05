@@ -1,7 +1,18 @@
-import { Suspense, type CSSProperties } from "react";
-import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
+import { Suspense } from "react";
+import {
+  BarraFiltros,
+  Indicadores,
+  IndicadoresSkeleton,
+  Listado,
+  ZonaResultados,
+  cuotaDe,
+  paletaGravedad,
+  type FiltroSecundario,
+  type Indicador,
+  type Parametros,
+} from "@/components/listado";
 import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
-import { fechaCorta, numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
 import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
@@ -257,14 +268,16 @@ function Barra({
         todas: "Todas",
         conteoTodas: r?.filas ?? null,
         nombreEnChip: false,
-        // El mismo vocabulario de severidad que todo el producto (`Severidad`: «Señal alta», «Señal media»).
+        // El mismo vocabulario de severidad que todo el producto (`Severidad`: «Señal alta», «Señal media»). Cada gravedad
+        // con el cuadrito de su parte en el reparto de arriba (`RepartoSenales`), del mismo color: los chips le hacen de
+        // leyenda. «Con señales» es la suma de tres partes: sin cuadrito.
         opciones: [
           { valor: "con", etiqueta: "Con señales", conteo: r?.conSenales ?? null },
-          { valor: "alta", etiqueta: "Con señal alta", conteo: r?.alta ?? null, tono: "alta", icono: "alerta" },
-          { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion" },
+          { valor: "alta", etiqueta: "Con señal alta", conteo: r?.alta ?? null, tono: "alta", icono: "alerta", muestra: "alta" },
+          { valor: "media", etiqueta: "Con señal media", conteo: r?.media ?? null, tono: "media", icono: "atencion", muestra: "media" },
           // La API ya filtraba «baja»; faltaba ofrecerla. Su conteo: con señales, menos las altas y las medias.
-          { valor: "baja", etiqueta: "Con señal baja", conteo: r ? Math.max(0, r.conSenales - (r.alta ?? 0) - (r.media ?? 0)) : null, icono: "info" },
-          { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.filas - r.conSenales : null },
+          { valor: "baja", etiqueta: "Con señal baja", conteo: r ? Math.max(0, r.conSenales - (r.alta ?? 0) - (r.media ?? 0)) : null, icono: "info", muestra: "baja" },
+          { valor: "sin", etiqueta: "Sin señales", conteo: r ? r.filas - r.conSenales : null, muestra: "otros" },
         ],
       }}
       visibles={visibles}
@@ -281,32 +294,13 @@ async function CifrasPersonas({ pagina, deEntidad }: { pagina: Promise<PaginaPer
 }
 
 /**
- * El color de cada gravedad, como canales de un token (los de `rgb(var(--…))`). Aquí la gravedad ES lo que se reparte: alta
- * en rojo, media en ámbar, baja en gris medio y «sin señales» en el gris claro de «Otros», el mismo idioma que los íconos
- * de los chips de abajo.
- */
-const TOKEN_GRAVEDAD: Record<string, string> = { alta: "var(--crimson)", media: "var(--amber)", baja: "var(--mute)" };
-
-/**
- * La paleta de series apuntada a la gravedad, sólo dentro del reparto: `BarraSegmentada` y `MuestraSerie` pintan por el
- * LUGAR de cada parte (--serie-1, --serie-2…), así que cada lugar recibe el token de la gravedad que de verdad está ahí.
- * Las partes en cero no se pasan (la barra les daría una astilla de 3 px), y sin esta cuenta la media de una entidad sin
- * altas saldría en rojo. Fuera de este bloque, las series siguen siendo las de siempre.
- */
-const paletaGravedad = (visibles: ParteBarra[]) =>
-  Object.fromEntries(visibles.map((p, i) => [`--serie-${i + 1}`, TOKEN_GRAVEDAD[p.clave] ?? "var(--mute)"])) as CSSProperties;
-
-/** «menos de 1 %» y no «0 %»: una parte que existe nunca se lee como nada. */
-const cuotaDe = (n: number, total: number) => {
-  const p = total ? (n / total) * 100 : 0;
-  return p > 0 && p < 1 ? `menos de ${porcentaje(1)}` : porcentaje(p);
-};
-
-/**
  * Cómo se reparten las contrataciones por su señal más grave: una barra partida y su leyenda con la PARTE de cada una
  * (pedido del usuario del 2026-11-05: alta 25,183, media 182,552, baja 321,115 y sin 2,661,498 iban sólo como chips de
  * texto, y las mismas cifras se repetían en la franja, en los chips, en la pestaña y en el paginador). Los números van en
- * los chips de la barra de filtros, que también filtran; aquí, qué parte del todo es cada uno.
+ * los chips de la barra de filtros, que también filtran y llevan el cuadrito de su parte; aquí, qué parte del todo es
+ * cada uno. La leyenda se queda aunque los chips tengan su color: van en otro bloque (la barra de filtros, después del
+ * buscador), en el celular se deslizan de costado y «Sin señales» queda fuera de la pantalla, y sólo aquí va la parte.
+ * La paleta y la cuota, de `paletaSeveridad` (las mismas que los chips).
  */
 function RepartoSenales({ r, porPersona }: { r: ResumenPersonas; porPersona: boolean }) {
   const unidad = (n: number) => (porPersona ? plural(n, "persona", "personas") : plural(n, "contratación", "contrataciones"));

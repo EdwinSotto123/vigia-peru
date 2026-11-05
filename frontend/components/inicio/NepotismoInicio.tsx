@@ -124,13 +124,14 @@ export function NepotismoInicio({
         </p>
       )}
       {/* 10 por página, como las demás listas (con 6, un paginador arriba y otro abajo para 7 casos; auditoría del
-          2026-11-05): hasta 10 casos, ninguno. */}
+          2026-11-05): hasta 10 casos, ninguno. Con más, sólo abajo: arriba, sobre 10 filas cortas, repetía el de abajo. */}
       <TablaPaginada
         columnas={COLUMNAS}
         filas={filas}
         etiqueta="Parientes de funcionarios que le venden"
         nombre="casos"
         tam={10}
+        controles="abajo"
         densidad="compacta"
         medida="contenedor"
         buscar={{ placeholder: "Buscar un cargo o un parentesco…", etiqueta: "Buscar entre los casos de parientes" }}

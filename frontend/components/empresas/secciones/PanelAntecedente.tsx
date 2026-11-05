@@ -16,7 +16,13 @@ import { EvidenciaDelAntecedente } from "./EvidenciaAntecedente";
 
 const txt = txtONumero;
 
-export const ENLACE = "font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink";
+/**
+ * Los enlaces del panel van a una ficha o a un registro (la entidad, el proceso, la empresa): verdes y con el subrayado
+ * suave de todo identificador, como `CLASE_ENLACE_CELDA` de las tablas. Antes iban en tinta, con el subrayado gris, y no
+ * se distinguían de un dato sin enlace (auditoría del 2026-11-05). Escrita aquí y no importada de la tabla: este panel
+ * también lo usa la Historia del contrato y no tiene por qué cargar el módulo de la tabla.
+ */
+export const ENLACE = "text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
 
 /** El valor de un dato en el panel, con su referencia: la ficha en Vigía o, con `fuera`, el registro oficial. */
 export function ValorCaso({ x }: { x: DatoCaso }) {

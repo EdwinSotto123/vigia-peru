@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { PASOS, nombreDeAgente, pasoDeClave, pasosDelPerfil, TOTAL_PASOS, type PasoPipeline } from "./catalogo";
 import { CarrilesAgentes } from "./CarrilesAgentes";
 import { EjeAgentes, rangoDelAnalisis, ventanaDe } from "./EjeAgentes";
-import { DetalleSenal, ResumenEvidencia } from "./ListaSenales";
+import { DetalleSenal, ResumenEvidencia, sinRepetidas } from "./ListaSenales";
 import { MatrizReglas } from "./MatrizReglas";
 import { LeyendaCotejo } from "./SelloVerificada";
 import { agruparPorAgente, contar, ORDEN_SEVERIDAD, SIN_AGENTE, type SenalAgente } from "./senales";
@@ -109,15 +109,29 @@ export function AuditoriaDeAgentes({
 
   // Cuando ninguna señal trae cotejo, veinte sellos "sin cotejo" no informan: lo dice la leyenda.
   const columnas = conteo.conCotejo > 0 ? [COLUMNA_SEVERIDAD, COLUMNA_SENAL, COLUMNA_COTEJO] : [COLUMNA_SEVERIDAD, COLUMNA_SENAL];
-  const filas: Fila[] = filtradas.map((s, i) => {
+  // La misma sanción por dos reglas («Sanción vigente en el OECE» y «Proveedor con sanción OSCE/OECE») va en UNA fila, la
+  // más grave, que dice que otra regla marca lo mismo: como en el índice de señales (auditoría del 2026-11-05). Después
+  // del filtro por agente: si cada regla la encontró un agente distinto, el de la que se quita sigue viendo la suya.
+  // Los conteos (la leyenda del cotejo, «n de N») siguen siendo de señales: las dos están en el análisis.
+  const filas: Fila[] = sinRepetidas(filtradas).map(({ s, tambien }, i) => {
     const etiqueta = etiquetaDeRegla(s.regla, reglas);
+    const otraRegla = tambien ? `También la marca la regla «${etiquetaDeRegla(tambien.regla, reglas)}», con el mismo hecho` : null;
     return {
       id: `${s.regla}-${s.agenteBruto ?? ""}-${i}`,
       celdas: {
         severidad: <Severidad bandera={s.severidad} />,
         senal: (
           <CeldaPrincipal
-            titulo={etiqueta}
+            titulo={
+              tambien ? (
+                <>
+                  {etiqueta} <span className="font-normal text-mute">(y otra regla con lo mismo)</span>
+                </>
+              ) : (
+                etiqueta
+              )
+            }
+            textoCompleto={otraRegla ? `${etiqueta}. ${otraRegla}.` : etiqueta}
             meta={[
               s.item && <span className="font-mono">ítem {s.item}</span>,
               s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={nombresPrivados} /> : "Sin evidencia registrada",
@@ -136,6 +150,7 @@ export function AuditoriaDeAgentes({
             <span>
               la encontró <strong className="font-semibold text-ink">{nombreDeAgente(s.agenteBruto ?? s.agente)}</strong>
             </span>
+            {otraRegla && <span>{otraRegla}.</span>}
           </span>
         ),
         contenido: <DetalleSenal senal={s} etiqueta={etiqueta} descripcion={descripcionDeRegla(s.regla, reglas)} />,

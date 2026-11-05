@@ -1,7 +1,18 @@
-import { Suspense, type CSSProperties } from "react";
-import { BarraFiltros, Indicadores, IndicadoresSkeleton, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
+import { Suspense } from "react";
+import {
+  BarraFiltros,
+  Indicadores,
+  IndicadoresSkeleton,
+  Listado,
+  ZonaResultados,
+  cuotaDe,
+  paletaGravedad,
+  type FiltroSecundario,
+  type Indicador,
+  type Parametros,
+} from "@/components/listado";
 import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
-import { hoyLima, listaY, numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { hoyLima, listaY, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { QUIEN_CARGA } from "@/lib/datoDudoso";
 import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
@@ -142,12 +153,14 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
         todas: "Todas",
         conteoTodas: r?.empresas ?? null,
         nombreEnChip: false,
+        // Cada gravedad con el cuadrito de su parte en el reparto de arriba (`RepartoAntecedentes`), del mismo color: los
+        // chips le hacen de leyenda. «Con antecedentes» es la suma de varias partes: sin cuadrito.
         opciones: [
           { valor: "con", etiqueta: "Con antecedentes", conteo: r?.conAntecedentes ?? null },
-          { valor: "grave", etiqueta: "Con alguno grave", conteo: r?.conGrave ?? null, tono: "alta", icono: "alerta" },
+          { valor: "grave", etiqueta: "Con alguno grave", conteo: r?.conGrave ?? null, tono: "alta", icono: "alerta", muestra: "alta" },
           // El más grave que tiene es de gravedad media (ninguno grave).
-          { valor: "media", etiqueta: "Con alguno medio", conteo: r?.conMedia ?? null, tono: "media", icono: "atencion" },
-          { valor: "sin", etiqueta: "Sin antecedentes", conteo: r ? r.empresas - r.conAntecedentes : null },
+          { valor: "media", etiqueta: "Con alguno medio", conteo: r?.conMedia ?? null, tono: "media", icono: "atencion", muestra: "media" },
+          { valor: "sin", etiqueta: "Sin antecedentes", conteo: r ? r.empresas - r.conAntecedentes : null, muestra: "otros" },
         ],
       }}
       visibles={visibles}
@@ -164,32 +177,13 @@ async function Cifras({ pagina, ruta, f }: { pagina: Promise<PaginaEmpresas | nu
 }
 
 /**
- * El color de cada gravedad, como canales de un token (los de `rgb(var(--…))`). Aquí la gravedad ES lo que se reparte: grave
- * en rojo, medio en ámbar, leve en gris medio y «sin antecedentes» en el gris claro de «Otros», el mismo idioma que los
- * íconos de los chips de abajo.
- */
-const TOKEN_GRAVEDAD: Record<string, string> = { grave: "var(--crimson)", media: "var(--amber)", leve: "var(--mute)" };
-
-/**
- * La paleta de series apuntada a la gravedad, sólo dentro del reparto: `BarraSegmentada` y `MuestraSerie` pintan por el
- * LUGAR de cada parte (--serie-1, --serie-2…), así que cada lugar recibe el token de la gravedad que de verdad está ahí.
- * Las partes en cero no se pasan (la barra les daría una astilla de 3 px). Fuera de este bloque, las series siguen siendo
- * las de siempre.
- */
-const paletaGravedad = (visibles: ParteBarra[]) =>
-  Object.fromEntries(visibles.map((p, i) => [`--serie-${i + 1}`, TOKEN_GRAVEDAD[p.clave] ?? "var(--mute)"])) as CSSProperties;
-
-/** «menos de 1 %» y no «0 %»: una parte que existe nunca se lee como nada. */
-const cuotaDe = (n: number, total: number) => {
-  const p = total ? (n / total) * 100 : 0;
-  return p > 0 && p < 1 ? `menos de ${porcentaje(1)}` : porcentaje(p);
-};
-
-/**
  * Cómo se reparten las empresas por su antecedente más grave: una barra partida y su leyenda con la PARTE de cada una
  * (pedido del usuario del 2026-11-05: «con alguno grave», «con alguno medio» y «sin antecedentes» iban sólo como chips de
  * texto y «con antecedentes» se repetía en la franja). Los números van en los chips de la barra de filtros, que también
- * filtran; aquí, qué parte del todo es cada uno. Sin `conMedia` (una respuesta guardada de antes), grave y «otros».
+ * filtran y llevan el cuadrito de su parte; aquí, qué parte del todo es cada uno. La leyenda se queda aunque los chips
+ * tengan su color: van en otro bloque, en el celular se deslizan de costado, «sólo leves» no tiene chip y sólo aquí va
+ * la parte. Sin `conMedia` (una respuesta guardada de antes), grave y «otros». Las claves de las partes son las de
+ * `paletaSeveridad` (alta, media, baja): la paleta y la cuota son las mismas que las de los chips.
  */
 function RepartoAntecedentes({ r }: { r: ResumenEmpresas }) {
   if (!r.empresas) return null;
@@ -200,9 +194,9 @@ function RepartoAntecedentes({ r }: { r: ResumenEmpresas }) {
   const sin = Math.max(0, r.empresas - r.conAntecedentes);
   // Sin `conMedia`, la parte «otros antecedentes» va en el gris medio de lo leve, no en el ámbar de la media.
   const partes: ParteBarra[] = [
-    { clave: "grave", nombre: "Con alguno grave", valor: r.conGrave, texto: empresas(r.conGrave) },
+    { clave: "alta", nombre: "Con alguno grave", valor: r.conGrave, texto: empresas(r.conGrave) },
     ...(media != null ? [{ clave: "media", nombre: "Con alguno medio", valor: media, texto: empresas(media) }] : []),
-    { clave: "leve", nombre: media != null ? "Sólo leves" : "Con otros antecedentes", valor: leve, texto: empresas(leve) },
+    { clave: "baja", nombre: media != null ? "Sólo leves" : "Con otros antecedentes", valor: leve, texto: empresas(leve) },
   ].filter((p) => p.valor > 0);
   const otros: ParteBarra = { clave: "sin", nombre: "Sin antecedentes", valor: sin, texto: empresas(sin) };
   return (

@@ -3,8 +3,9 @@
 /**
  * Las piezas de una señal que comparten el informe (/app/convocatoria/[id]) y el índice de
  * señales (/app/hallazgos): la evidencia de la fila en texto plano y sin datos personales
- * (`resumenSinDatosPersonales` / `ResumenEvidencia`) y la ficha completa del panel lateral
- * (`DetalleSenal`). La lista en sí es la `Tabla` del kit (components/listado): la arma
+ * (`resumenSinDatosPersonales` / `ResumenEvidencia`), la ficha completa del panel lateral
+ * (`DetalleSenal`) y las dos reglas que dicen el mismo hecho en una fila (`sinRepetidas`, sólo
+ * desde el cliente). La lista en sí es la `Tabla` del kit (components/listado): la arma
  * AuditoriaDeAgentes en el informe y components/alertas/ListaSenales en el índice.
  */
 
@@ -16,7 +17,7 @@ import { maskDnis, pareceEmpresa, redactDnis, type NombreConocido } from "@/comp
 import { fechaConAnio, plural } from "@/lib/formato";
 import { nombreDeAgente, pasoDeClave } from "./catalogo";
 import { SelloVerificada } from "./SelloVerificada";
-import type { SenalAgente } from "./senales";
+import { ORDEN_SEVERIDAD, type SenalAgente } from "./senales";
 
 /** Lo que cabe en una línea de la fila: el resto de la evidencia está en el panel. */
 const MAX_RESUMEN = 160;
@@ -120,6 +121,44 @@ export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido
  */
 export function ResumenEvidencia({ texto, nombres }: { texto: string; nombres?: NombreConocido[] }) {
   return <>{resumenSinDatosPersonales(texto, nombres)}</>;
+}
+
+// ─── Dos reglas, un mismo hecho ─────────────────────────────────────────────────
+
+/**
+ * Reglas que, sobre el mismo contrato y el mismo proveedor, dicen el mismo hecho: «Sanción vigente en el OECE» (la del
+ * análisis, a la fecha de la buena pro) y «Proveedor con sanción OSCE/OECE» (la del cruce con el registro de sancionados).
+ * La primera de cada par es la más precisa: gana a igual severidad. Las mismas que `sinRepetidas` del índice de señales
+ * (components/alertas/ListaSenales.tsx, un componente de servidor: no puede llamar a una función de este módulo cliente).
+ */
+const MISMO_HECHO: readonly (readonly [string, string])[] = [["sancion_vigente_oece", "proveedor_sancionado_osce"]];
+/** El RUC del que habla la evidencia («… para el RUC 20…»): dos reglas sobre RUC distintos no son el mismo hecho. */
+const rucDeEvidencia = (evidencia: string | null | undefined) => evidencia?.match(/RUC\s*(\d{11})/)?.[1] ?? null;
+
+/**
+ * Las señales de un contrato sin la que repite el hecho de otra (pedido del usuario del 2026-11-05: la misma sanción salía
+ * dos veces seguidas con dos nombres, en el índice y en el informe): queda la más grave, y `tambien` es la otra, para que
+ * su fila diga que otra regla marca lo mismo. El orden de las que quedan no cambia.
+ */
+export function sinRepetidas<T extends { regla: string; severidad: SenalAgente["severidad"]; evidencia?: string | null }>(
+  senales: T[],
+): { s: T; tambien: T | null }[] {
+  const fuera = new Set<T>();
+  const tambien = new Map<T, T>();
+  for (const [precisa, otra] of MISMO_HECHO) {
+    for (const a of senales.filter((x) => x.regla === precisa)) {
+      const ra = rucDeEvidencia(a.evidencia);
+      const b = senales.find((x) => {
+        const rx = rucDeEvidencia(x.evidencia);
+        return x.regla === otra && !fuera.has(x) && (!ra || !rx || ra === rx);
+      });
+      if (!b) continue;
+      const [queda, sale] = ORDEN_SEVERIDAD[b.severidad] < ORDEN_SEVERIDAD[a.severidad] ? [b, a] : [a, b];
+      fuera.add(sale);
+      tambien.set(queda, sale);
+    }
+  }
+  return senales.filter((s) => !fuera.has(s)).map((s) => ({ s, tambien: tambien.get(s) ?? null }));
 }
 
 /**

@@ -40,7 +40,7 @@ import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { enlaceProveedor } from "@/lib/empresas";
-import { fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
+import { decimal, fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
 import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { FUENTE_TEXTO, SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
@@ -51,6 +51,7 @@ import {
   ESTADOS_ORDEN,
   MONTOS_ORDEN,
   P_ORD,
+  montoOrden,
   type InhabilitacionProveedor,
   type OrdenFraccionada,
   type OrdenGeneral,
@@ -59,8 +60,9 @@ import {
 
 /**
  * Lista GENERAL de órdenes (subsección de Contratos). Clona la pestaña Órdenes de la ficha de empresa, pero sin RUC
- * fijo: añade el PROVEEDOR como dato de la fila, y pagina por `hayMas` (la API no cuenta el total del universo). Cada
- * orden abre su panel lateral; una orden es una compra directa (ver el ⓘ junto al título de la vista).
+ * fijo: añade el PROVEEDOR como dato de la fila, y pagina por `hayMas` (la API no cuenta el total en vivo; con sólo el año
+ * o la entidad, el paginador lo toma de las cifras precalculadas). Cada orden abre su panel lateral; una orden es una
+ * compra directa (ver el ⓘ junto al título de la vista). Una orden en otra moneda va en la suya («CAD 7,445»).
  *
  * Anatomía de fila, la de todo listado (§14.1): estado (chip; y la bandera de «posible error» si el monto no se puede
  * creer) · qué se compró, con su número primero, entidad, proveedor y cómo se contrató · antecedentes · monto · emitida
@@ -195,10 +197,26 @@ export const hrefConFiltro = (ruta: string, parametros: Parametros, paramPagina:
   hrefPagina(ruta, { ...parametros, ...cambio }, paramPagina, 1);
 
 /**
+ * «de N» con un total que no sale de la página sino de cifras precalculadas (las de la vista Órdenes cuentan sólo las
+ * órdenes en soles y se refrescan con cada carga semanal): exacto hasta 10 mil y redondeado más arriba, donde la
+ * diferencia con lo que se lista (las pocas en otra moneda, lo que llegó después) no se ve.
+ */
+function deTotal(n: number): string {
+  // Desde 999,500 ya es «un millón» (redondeado a miles diría «unas 1,000 mil»).
+  if (n >= 999_500) {
+    const m = decimal(n / 1_000_000, 1);
+    return m === "1" ? "de alrededor de un millón" : `de unos ${m} millones`;
+  }
+  if (n >= 10_000) return `de unas ${numero(Math.round(n / 1000))} mil`;
+  return `de ${numero(n)}`;
+}
+
+/**
  * El paginador de una lista que sabe si «hay más» pero no cuántas son (la API no cuenta millones de filas): el kit de
  * cursor, con el tramo que se ve ("26–50") y, en la última página, el total que ya se sabe ("51–60 de 60"). Nunca
  * un «Página N» sin contexto ni un total inventado: `sinTotal` cuando la lista se acotó a las más recientes y la última
- * página no es el final de verdad.
+ * página no es el final de verdad. `total`: el que se sabe sin contar la lista (cifras precalculadas), para decirlo desde
+ * la primera página («1–25 de unos 27.7 millones»; pedido del usuario del 2026-11-05: Órdenes decía sólo «1–25»).
  */
 export function PaginadorHayMas({
   ruta,
@@ -210,6 +228,7 @@ export function PaginadorHayMas({
   hayMas,
   subir = false,
   sinTotal = false,
+  total = null,
 }: {
   ruta: string;
   parametros: Parametros;
@@ -220,10 +239,15 @@ export function PaginadorHayMas({
   hayMas: boolean;
   subir?: boolean;
   sinTotal?: boolean;
+  total?: number | null;
 }) {
   const desde = (actual - 1) * tam + 1;
   const hasta = desde + enPagina - 1;
-  const texto = hayMas || sinTotal ? `${numero(desde)}–${numero(hasta)}` : `${numero(desde)}–${numero(hasta)} de ${numero(hasta)}`;
+  const rango = `${numero(desde)}–${numero(hasta)}`;
+  // El total precalculado, sólo si es más que lo ya visto (uno que se quedó atrás de la lista no va: diría «26–50 de 40»).
+  const texto = !hayMas && !sinTotal ? `${rango} de ${numero(hasta)}`
+    : hayMas && !sinTotal && total != null && total > hasta ? `${rango} ${deTotal(total)}`
+    : rango;
   return (
     <PaginacionCursor
       texto={texto}
@@ -629,6 +653,26 @@ function textoRevisadas(revisadas: number, anio: number | null): string {
     (anio ? "Quita un filtro o acorta la búsqueda para ver más." : "Elige un año para buscar en todo ese año.");
 }
 
+/** Por qué una orden va en otra moneda y no se suma: junto a su monto, en el panel. */
+function AyudaOtraMoneda({ nombre }: { nombre: string }) {
+  return (
+    <Ayuda titulo="¿Por qué en otra moneda?">
+      CONOSCE publica esta orden en {nombre}: por lo general, una compra en el extranjero. Vigía la muestra en su moneda, sin
+      convertirla a soles, y no la suma a ningún total en soles.
+    </Ayuda>
+  );
+}
+
+/**
+ * El monto de una orden en el panel, en soles o en su moneda («CAD 7,445, en dólares canadienses»), con el porqué de
+ * la otra moneda a un clic. `tal como lo publicó CONOSCE`: el de una orden con posible error de carga.
+ */
+function datoMonto(o: OrdenGeneral, etiqueta: string, posibleError = false): DatoClave {
+  const { texto, moneda } = montoOrden(o);
+  const valor = !texto ? null : posibleError ? `${texto}, tal como lo publicó CONOSCE` : moneda ? `${texto}, en ${moneda.nombre}` : texto;
+  return { etiqueta, valor, mono: true, ayuda: moneda ? <AyudaOtraMoneda nombre={moneda.nombre} /> : undefined };
+}
+
 /** Lo que la lista de compras (components/compras) le suma a la fila de una lista: banderas, datos y bloques del panel. */
 export interface ExtraFila {
   antecedentes?: Antecedente[];
@@ -646,6 +690,9 @@ export interface ExtraFila {
 export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ruta: string; parametros: Parametros }, extra?: ExtraFila): Fila {
   const enGeneral = ruta === "/app/contratos";
   const motivo = o.montoDudoso != null ? motivoDudoso(o.dudosoMotivo) ?? "mayor_100m" : null;
+  // En soles o, si CONOSCE la publica en otra moneda, en la suya («CAD 7,445», con el nombre debajo): nunca convertida
+  // ni sumada a los soles (pedido del usuario del 2026-11-05: esas órdenes no salían en ninguna lista).
+  const { texto: montoTexto, moneda } = montoOrden(o);
   const tipo = tipoContratacion(o.tipoContratacion);
   const entidad = o.entidad ? tituloNatural(o.entidad) : null;
   const proveedor = o.contratista ? tituloNatural(o.contratista) : null;
@@ -666,7 +713,8 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
     textos: {
       estado: motivo ? undefined : o.estado ? oracion(o.estado) : null,
       antecedentes: antecedentes.length ? undefined : o.conNepotismo == null ? null : "Ninguno",
-      monto: motivo ? undefined : o.monto != null ? soles(o.monto) : null,
+      // Con otra moneda, sin texto: la celda lleva el nombre de la moneda debajo y «Monto de todas: CAD 155» lo perdería.
+      monto: motivo || moneda ? undefined : montoTexto,
       fecha: esFutura(o.fecha) ? undefined : o.fecha ? fechaConAnio(o.fecha) : null,
     },
     celdas: {
@@ -695,7 +743,7 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
       ),
       // Sin el campo (una API anterior), no se sabe: «Sin dato», no «Ninguno».
       antecedentes: antecedentes.length ? <BanderasAntecedentes antecedentes={antecedentes} /> : <SinAntecedentes sinDato={o.conNepotismo == null} />,
-      monto: <CeldaNumero sub={motivo ? "posible error de CONOSCE" : undefined}>{o.monto != null ? soles(o.monto) : "Sin dato"}</CeldaNumero>,
+      monto: <CeldaNumero sub={motivo ? "posible error de CONOSCE" : moneda?.nombre}>{montoTexto ?? "Sin dato"}</CeldaNumero>,
       fecha: <CeldaFechaCompra fecha={o.fecha} fuente={FUENTE_ORDEN} />,
     },
     detalle: {
@@ -708,7 +756,7 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
             {estado}
             {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} todas />}
           </ChipsDetalle>
-          {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${soles(o.monto)} en el archivo oficial de CONOSCE.`}</AvisoDato>}
+          {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}</AvisoDato>}
           <DatosClave
             items={[
               { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
@@ -719,7 +767,7 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
               o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
               o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
               { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
-              { etiqueta: "Monto", valor: o.monto != null ? (motivo ? `${soles(o.monto)}, tal como lo publicó CONOSCE` : soles(o.monto)) : null, mono: true },
+              datoMonto(o, "Monto", !!motivo),
               { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
               tipo?.convocatoria ? { etiqueta: "¿Tuvo convocatoria?", valor: tipo.convocatoria } : null,
             ].filter(Boolean) as DatoClave[]}
@@ -794,7 +842,7 @@ export function BloqueOrdenSeace({ o, titulo = "La orden en el SEACE" }: { o: Or
             datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
             o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
             { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
-            { etiqueta: "Monto", valor: o.monto != null ? soles(o.monto) : null, mono: true },
+            datoMonto(o, "Monto"),
             tipo ? { etiqueta: "Cómo la registró la entidad", valor: tipo.corto } : null,
           ].filter(Boolean) as DatoClave[]}
         />
@@ -825,6 +873,7 @@ export async function ListaOrdenes({
   parametros,
   actual,
   vacia,
+  total = null,
 }: {
   pagina: Promise<OrdenesPagina | null>;
   ruta: string;
@@ -835,8 +884,13 @@ export async function ListaOrdenes({
    * mismo que «ninguna con estos filtros». En la lista general siempre hay órdenes.
    */
   vacia?: ReactNode;
+  /**
+   * Cuántas órdenes tiene la lista sin contarla (las cifras precalculadas, GET /ordenes/resumen), para el paginador:
+   * sólo cuando nada fuera de esas cifras la recorta (el año y la entidad). Si no llega, el paginador va sin total.
+   */
+  total?: Promise<number | null> | null;
 }) {
-  const pagina = await p;
+  const [pagina, cuantas] = await Promise.all([p, (total ?? Promise.resolve(null)).catch(() => null)]);
   if (!pagina) {
     return (
       <EstadoError
@@ -870,7 +924,10 @@ export async function ListaOrdenes({
   const filas: Fila[] = pagina.data.map((o, i) => filaOrden(o, i, { ruta, parametros }));
   const tam = pagina.size || filas.length;
   const pag = (subir: boolean) => (
-    <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={P_ORD.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas} subir={subir} sinTotal={!!acotada} />
+    <PaginadorHayMas
+      ruta={ruta} parametros={parametros} paramPagina={P_ORD.page} actual={actual} tam={tam} enPagina={filas.length} hayMas={pagina.hayMas}
+      subir={subir} sinTotal={!!acotada} total={cuantas}
+    />
   );
   return (
     <div className="space-y-3">

@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
 import { Buscador } from "./BarraFiltros";
 import { CuentaGrupo, Tabla, type Columna, type Fila, type GrupoFilas } from "./Tabla";
 
-type PropsTabla = Pick<Parameters<typeof Tabla>[0], "densidad" | "medida" | "className">;
+type PropsTabla = Pick<Parameters<typeof Tabla>[0], "densidad" | "medida" | "colapsarIguales" | "className">;
+
+/**
+ * Dónde va el paginador: arriba y abajo (por defecto, para listas largas: se cambia de página sin bajar) o sólo abajo
+ * (`"abajo"`, para una lista corta dentro de un bloque: «Parientes de funcionarios» llevaba uno arriba y otro abajo para
+ * 10 filas; auditoría del 2026-11-05). El de abajo lleva `subir`: al cambiar de página vuelve al inicio de la lista.
+ */
+export type ControlesPaginado = "ambos" | "abajo";
 
 /**
  * Listas que ya llegaron enteras del servidor (las órdenes de una entidad, sus proyectos de inversión) paginadas en el
@@ -54,8 +61,10 @@ export function TablaPaginada({
   tam = 10,
   nombre,
   buscar,
+  controles = "ambos",
   densidad,
   medida,
+  colapsarIguales,
   className,
 }: {
   columnas: Columna[];
@@ -64,6 +73,7 @@ export function TablaPaginada({
   tam?: number;
   nombre: string;
   buscar?: BuscarEnLista;
+  controles?: ControlesPaginado;
 } & PropsTabla) {
   const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
   const indice = useMemo(() => (buscar ? filas.map((f) => paraBuscar(f.buscable)) : []), [filas, buscar]);
@@ -98,8 +108,16 @@ export function TablaPaginada({
         <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
       ) : (
         <>
-          {control}
-          <Tabla columnas={columnas} filas={vistas.slice(p.desde, p.hasta)} etiqueta={etiqueta} densidad={densidad} medida={medida} className={className} />
+          {controles === "ambos" && control}
+          <Tabla
+            columnas={columnas}
+            filas={vistas.slice(p.desde, p.hasta)}
+            etiqueta={etiqueta}
+            densidad={densidad}
+            medida={medida}
+            colapsarIguales={colapsarIguales}
+            className={className}
+          />
           {controlAbajo}
         </>
       )}
@@ -113,12 +131,14 @@ export function ListaPaginada({
   nombre,
   className,
   buscar,
+  controles = "ambos",
 }: {
   items: { id: string; contenido: ReactNode; buscable?: string }[];
   tam?: number;
   nombre: string;
   className?: string;
   buscar?: BuscarEnLista;
+  controles?: ControlesPaginado;
 }) {
   const [consulta, setConsulta] = useState("");
   const indice = useMemo(() => (buscar ? items.map((x) => paraBuscar(x.buscable)) : []), [items, buscar]);
@@ -151,7 +171,7 @@ export function ListaPaginada({
         <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
       ) : (
         <>
-          {control}
+          {controles === "ambos" && control}
           <ul className={className}>
             {vistos.slice(p.desde, p.hasta).map((x) => (
               <li key={x.id}>{x.contenido}</li>
@@ -332,8 +352,10 @@ export function TablaFiltrable({
   agrupar,
   descargar,
   alBuscar,
+  controles = "ambos",
   densidad,
   medida,
+  colapsarIguales,
   className,
 }: {
   columnas: Columna[];
@@ -360,6 +382,7 @@ export function TablaFiltrable({
    * aquí lo muestra. Debe ser estable (useCallback).
    */
   alBuscar?: (q: string) => void;
+  controles?: ControlesPaginado;
 } & PropsTabla) {
   const [consulta, setConsulta] = useState(buscar?.inicial ?? "");
   useEffect(() => {
@@ -507,7 +530,7 @@ export function TablaFiltrable({
       ) : (
         <>
           {agrupada && agrupada.saltos.length >= 3 && <SaltosGrupo saltos={agrupada.saltos} nombre={nombre} />}
-          {control}
+          {controles === "ambos" && control}
           <Tabla
             columnas={columnas}
             filas={agrupada ? undefined : enPagina}
@@ -515,6 +538,7 @@ export function TablaFiltrable({
             etiqueta={etiqueta}
             densidad={densidad}
             medida={medida}
+            colapsarIguales={colapsarIguales}
             className={className}
           />
           {controlAbajo}

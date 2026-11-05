@@ -16,6 +16,11 @@ import { ambitoPedido } from "../lib/plataforma.js";
  * DESC LIMIT`, las deduplica (un archivo mensual puede repetir una orden) y pagina. Así nunca ordena ni dedup-ea las
  * ~28 M filas enteras. Cada orden se muestra en un panel; no tiene página propia.
  *   GET /ordenes
+ *   GET /ordenes/resumen   las cifras de la cabecera de la vista (tablas precalculadas), de todo o de un año o una entidad
+ *
+ * Moneda: se listan en cualquier moneda (las ~13 mil en dólares, euros… no salían en ninguna lista, pedido del usuario
+ * del 2026-11-05), cada una con la suya (`montoOtraMoneda` y `otraMoneda`; `monto` es sólo en soles). Nada en otra moneda
+ * se suma ni entra en un tramo de soles: los resúmenes y las tablas precalculadas cuentan sólo las órdenes en soles.
  */
 export const ordenesRouter = new Hono();
 
@@ -101,6 +106,18 @@ const sinVacios = (c: Parameters<typeof parametros>[0]) =>
 /** El departamento como lo compara el filtro: CONOSCE escribe «PROV.CONSTITUC.DEL CALLAO» y las entidades, «Callao». */
 const DEPARTAMENTO = `mef_norm(replace(COALESCE(o.departamento, ''), 'PROV.CONSTITUC.DEL ', ''))`;
 
+/**
+ * La orden es en soles: la única moneda que se suma o se compara con un monto en soles (un tramo, un tope). CONOSCE
+ * publica unas pocas en otra (unas 13 mil desde 2018, 1 de cada 2 mil: casi todas en dólares estadounidenses o
+ * canadienses, algún euro, libra o franco suizo; muestra del 2026-11-05): se listan con la suya y nunca se convierten.
+ */
+const EN_SOLES = `o.moneda = 'Nuevos Soles'`;
+
+/** El monto en soles (NULL en otra moneda) y, aparte, el de otra moneda con su nombre en CONOSCE («Dólar Canadiense»). */
+const MONTOS = `CASE WHEN ${EN_SOLES} THEN COALESCE(o.monto, o.monto_dudoso)::float END AS monto,
+              CASE WHEN NOT ${EN_SOLES} THEN COALESCE(o.monto, o.monto_dudoso)::float END AS "montoOtraMoneda",
+              CASE WHEN NOT ${EN_SOLES} THEN o.moneda END AS "otraMoneda"`;
+
 /** La orden es parte de un grupo de órdenes del mismo día que juntas pasan 8 UIT (ordenes_fraccionadas, migración 51). */
 const FRACCIONADA = `FROM ordenes_fraccionadas f WHERE f.entidad_ruc = o.entidad_ruc AND f.fecha = o.fecha_emision
                       AND f.ruc_contratista = o.ruc_contratista AND f.detalle @> jsonb_build_array(jsonb_build_object('orden', o.orden))`;
@@ -138,16 +155,17 @@ const TOPE_ORDEN = `(CASE WHEN o.tipo_contratacion ~ 'hasta [0-9]+ UIT'
                           WHEN extract(year FROM o.fecha_emision) <> 2022 THEN 8 * uit_soles(extract(year FROM o.fecha_emision)::int) END)`;
 /**
  * La orden quedó entre el 95 % y el 100 % de su tope: una de las que sostienen «al borde del tope». De una persona, sus
- * órdenes de servicio (179); de una empresa, de compra o de servicio (migración 207).
+ * órdenes de servicio (179); de una empresa, de compra o de servicio (migración 207). Sólo en soles: el tope es en soles
+ * y una orden de 42 mil dólares no está «al borde» de 44 mil soles.
  */
-const EN_EL_BORDE = `(o.ruc_contratista LIKE '20%' OR o.tipo_orden = 'Orden de Servicio') AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
+const EN_EL_BORDE = `${EN_SOLES} AND (o.ruc_contratista LIKE '20%' OR o.tipo_orden = 'Orden de Servicio') AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
 /** Los pares entidad-proveedor al borde del tope: las personas (persona_senal, 179) y las empresas (empresa_borde_tope, 207). */
 const PARES_BORDE = `(SELECT entidad_ruc, ruc, tipo FROM persona_senal WHERE tipo = 'al_borde_del_tope'
                        UNION ALL SELECT entidad_ruc, ruc, 'al_borde_del_tope' FROM empresa_borde_tope)`;
 
 const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
               o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
-              o.ruc_contratista AS "rucContratista", COALESCE(o.monto, o.monto_dudoso)::float AS monto,
+              o.ruc_contratista AS "rucContratista", ${MONTOS},
               o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo",
               o.tipo_contratacion AS "tipoContratacion", o.estado,
               o.objeto, to_char(o.fecha_notificacion, 'YYYY-MM-DD') AS "fechaNotificacion",
@@ -197,7 +215,10 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   const anclado = !!(q.entidad || q.proveedor);
   const vals: unknown[] = [];
   const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-  const base = [`o.moneda = 'Nuevos Soles'`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`,
+  // En cualquier moneda conocida (antes sólo en soles: las órdenes de EsSalud a la OPS en dólares canadienses no salían
+  // en ninguna lista; pedido del usuario del 2026-11-05). Ningún índice dependía de la moneda (pg_indexes, 2026-11-05):
+  // el plan es el mismo (EsSalud, página 1: 3 ms; página 200: 0,4 s en caliente, antes y después).
+  const base = [`o.moneda IS NOT NULL`, `o.estado IS DISTINCT FROM 'Anulada'`, `(o.monto > 0 OR o.monto_dudoso IS NOT NULL)`,
                 `o.fecha_emision >= DATE '2018-01-01'`, `o.fecha_emision <= current_date + 31`, `o.entidad_ruc ~ '^[0-9]{11}$'`];
   // entidad/proveedor son 11 dígitos (validados por zod) → se inyectan como LITERAL, no como $param: con un parámetro,
   // Hyperdrive prepara la sentencia y el planner, sin conocer el valor, elige un plan genérico que ignora el índice de
@@ -212,7 +233,9 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   if (q.estado) columnas.push(`o.estado = '${ESTADOS_ORDEN[q.estado]}'`);
   if (q.persona) columnas.push(`o.ruc_contratista LIKE '${q.persona === "natural" ? "10" : "20"}%'`);
   if (q.como) columnas.push(`o.tipo_contratacion ~* '${COMO_ORDEN[q.como]}'`);
-  if (q.monto) columnas.push(MONTO_ORDEN[q.monto]);
+  // Los tramos son en soles: una orden de 155 dólares canadienses no es de «hasta S/ 1 mil». La condición de soles va
+  // aparte del literal del tramo, que sigue igual para el índice parcial de las grandes (migración 143).
+  if (q.monto) columnas.push(`${MONTO_ORDEN[q.monto]} AND ${EN_SOLES}`);
   // Región (departamento): no hay índice por departamento; normaliza tildes, mayúsculas y el Callao de CONOSCE.
   if (q.region) columnas.push(`${DEPARTAMENTO} = mef_norm(${p(q.region)})`);
   // Subconsulta con LIMIT (no un EXISTS): así se evalúa fila por fila mientras recorre el índice por fecha (1 de cada
@@ -273,8 +296,11 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
 /** La llave efectiva de una orden de CONOSCE (no tiene id): entidad, texto de la orden y fecha de emisión. */
 export interface ClaveOrden { entidad: string; orden: string; fecha: string; proveedor: string | null }
 
-/** Las condiciones de una orden que se lista (las de sqlListaOrdenes y entidad_orden_anual), sobre `o`. */
-export const ORDEN_LISTADA = `o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM 'Anulada' AND (o.monto > 0 OR o.monto_dudoso IS NOT NULL)
+/**
+ * Las condiciones de una orden que se lista (las de sqlListaOrdenes), sobre `o`: en cualquier moneda conocida. Lo que se
+ * suma, sólo en soles (`o.moneda = 'Nuevos Soles'`, como entidad_orden_anual y _mes, 148 y 187, y compra_resumen, 240).
+ */
+export const ORDEN_LISTADA = `o.moneda IS NOT NULL AND o.estado IS DISTINCT FROM 'Anulada' AND (o.monto > 0 OR o.monto_dudoso IS NOT NULL)
   AND o.fecha_emision >= DATE '2018-01-01' AND o.fecha_emision <= current_date + 31 AND o.entidad_ruc ~ '^[0-9]{11}$'`;
 
 /**
@@ -295,14 +321,17 @@ export async function filasOrdenes(claves: ClaveOrden[]): Promise<Record<string,
   return r.rows as Record<string, unknown>[];
 }
 
-/** Lo justo de unas órdenes para listarlas como pagos de un proceso (sin los antecedentes de cada una). */
+/**
+ * Lo justo de unas órdenes para listarlas como pagos de un proceso (sin los antecedentes de cada una). Con el monto en
+ * soles y el de otra moneda aparte, como la lista (hoy compra_vinculo sólo junta órdenes en soles).
+ */
 export async function ordenesLigeras(claves: ClaveOrden[]): Promise<Record<string, unknown>[]> {
   if (!claves.length) return [];
   const r = await consultaConPlazo(
     `WITH k AS (SELECT * FROM unnest($1::text[], $2::text[], $3::date[], $4::text[]) AS k(e, n, f, p))
      SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)
             to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero, o.orden,
-            o.tipo_orden AS "tipoOrden", COALESCE(o.monto, o.monto_dudoso)::float AS monto, o.estado,
+            o.tipo_orden AS "tipoOrden", ${MONTOS}, o.estado,
             to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso"
        FROM k JOIN conosce_ordenes o ON o.entidad_ruc = k.e AND o.ruc_contratista = k.p AND o.fecha_emision = k.f AND o.orden = k.n
       ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`,
@@ -341,6 +370,69 @@ ordenesRouter.get("/", async (c) => {
                       revisadas: consulta.ventana, data: r.rows.slice(0, q.size) });
   });
   c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /ordenes/resumen — las cifras de la cabecera de la vista ──────────────────────────────────────────────────────
+
+/**
+ * La vista Órdenes era la única lista sin cifras, sin total en el paginador y sin número en su pestaña (pedido del usuario
+ * del 2026-11-05). Contarlas en vivo no se puede (~29 M filas; una entidad de 5 mil órdenes tarda 3 s en frío, una de 20
+ * mil, 12 s: medido ese día), así que todo sale de tablas precalculadas que se refrescan con cada carga de CONOSCE:
+ *   · entidad_orden_mes (187): cuántas y por cuánto, a personas naturales, de cuántas entidades. Las mismas condiciones y
+ *     el mismo dedup que la lista, pero sólo en soles: las de otra moneda (~1 de cada 2 mil) se listan y no se cuentan. Es
+ *     la tabla al día: entidad_orden_anual (148) se quedó atrás en 2026 (1,98 M contra 2,19 M, medido 2026-11-05).
+ *   · ordenes_fraccionadas (51): las compras partidas el mismo día (grupos que juntos pasan 8 UIT), desde 2018.
+ *   · persona_senal (179) y empresa_borde_tope (207): los proveedores al borde del tope (de toda su historia, sin año).
+ * Con un año o una entidad, las del alcance (la llave de entidad_orden_mes es (entidad_ruc, mes)); los demás filtros de la
+ * lista no están en esas tablas. Toda la base: ~0,2 s; una entidad: unos ms. Unas horas en caché: cambian una vez por semana.
+ */
+const ResumenOrdenesQuery = z.object({
+  anio: z.coerce.number().int().min(2018).max(2100).optional(),
+  entidad: z.string().regex(/^\d{11}$/).optional(),
+});
+const memoResumen = new Memo<Record<string, unknown>>({ nombre: "ordenes:resumen", ttlMs: 21_600_000, staleMs: 86_400_000, max: 300 });
+
+async function resumenOrdenes(q: z.infer<typeof ResumenOrdenesQuery>, noGuardar: () => void): Promise<Record<string, unknown>> {
+  // El año y la entidad están validados (un entero, 11 dígitos): como literales, para que el planificador use la llave.
+  const desde = `DATE '${q.anio ?? 2018}-01-01'`;
+  const meses = [`mes >= ${desde}`, q.anio ? `mes < DATE '${q.anio + 1}-01-01'` : `mes <= current_date + 31`];
+  const dias = [`f.fecha >= ${desde}`, q.anio ? `f.fecha < DATE '${q.anio + 1}-01-01'` : `f.fecha <= current_date + 31`];
+  const deEntidad = (col: string) => (q.entidad ? ` AND ${col} = '${q.entidad}'` : "");
+  // Las cifras de apoyo, si fallan, no tumban las principales: la cabecera sale sin esa cifra, y esa respuesta no se
+  // guarda (la próxima vuelve a intentarlo). ordenes_fraccionadas pesa 218 MB por su detalle: 70 ms en caliente, hasta 8 s
+  // en frío (medido 2026-11-05).
+  const apoyo = <T>(nombre: string, p: Promise<{ rows: unknown[] }>) =>
+    p.then((r) => (r.rows[0] as T) ?? null).catch((e) => {
+      console.warn(`[ordenes] resumen ${nombre}: ${(e as Error).message}`);
+      noGuardar();
+      return null;
+    });
+  const [t, partidas, alBorde] = await Promise.all([
+    consultaConPlazo(
+      `SELECT COALESCE(sum(ordenes), 0)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
+              COALESCE(sum(dudosas), 0)::int AS dudosas, COALESCE(sum(a_personas), 0)::int AS "aPersonas",
+              COALESCE(sum(monto_personas), 0)::float AS "montoPersonas",
+              count(DISTINCT entidad_ruc) FILTER (WHERE ordenes > 0)::int AS entidades,
+              to_char(min(mes), 'YYYY-MM') AS desde, to_char(max(mes), 'YYYY-MM') AS hasta
+         FROM entidad_orden_mes WHERE ${meses.join(" AND ")}${deEntidad("entidad_ruc")}`, []),
+    apoyo<{ grupos: number; ordenes: number; graves: number }>("partidas", consultaConPlazo(
+      `SELECT count(*)::int AS grupos, COALESCE(sum(f.ordenes), 0)::int AS ordenes, count(*) FILTER (WHERE f.severidad = 'alta')::int AS graves
+         FROM ordenes_fraccionadas f WHERE ${dias.join(" AND ")}${deEntidad("f.entidad_ruc")}`, [], 15_000)),
+    apoyo<{ personas: number; empresas: number }>("al borde", consultaConPlazo(
+      `SELECT (SELECT count(DISTINCT ruc) FROM persona_senal WHERE tipo = 'al_borde_del_tope'${deEntidad("entidad_ruc")})::int AS personas,
+              (SELECT count(DISTINCT ruc) FROM empresa_borde_tope WHERE true${deEntidad("entidad_ruc")})::int AS empresas`, [], 15_000)),
+  ]);
+  return { anio: q.anio ?? null, entidad: q.entidad ?? null, ...(t.rows[0] as Record<string, unknown>), partidas, alBorde };
+}
+
+ordenesRouter.get("/resumen", async (c) => {
+  const parsed = ResumenOrdenesQuery.safeParse(sinVacios(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const cuerpo = await memoResumen.obtener(JSON.stringify(parsed.data), (ctl) => resumenOrdenes(parsed.data, ctl.noGuardar));
+  // Sin alguna cifra de apoyo (no respondió a tiempo), un minuto: que la próxima la traiga entera.
+  const entera = cuerpo.partidas != null && cuerpo.alBorde != null;
+  c.header("Cache-Control", entera ? cachePublico(3600, { maxAge: 600, swr: 86_400 }) : cachePublico(60));
   return c.json(cuerpo);
 });
 

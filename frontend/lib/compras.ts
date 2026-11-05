@@ -136,7 +136,10 @@ export interface PagoProceso {
   numero: string | null;
   orden: string;
   tipoOrden: string | null;
+  /** En soles; en otra moneda, null y el monto en `montoOtraMoneda` (como OrdenGeneral: nunca se suma a los soles). */
   monto: number | null;
+  montoOtraMoneda?: number | null;
+  otraMoneda?: string | null;
   estado: string | null;
   fechaCompromiso: string | null;
   /** De cuántos procesos puede ser (en `posibles`). */
@@ -166,6 +169,7 @@ export interface Compra {
   clase: ClaseCompra;
   id: string;
   fecha: string | null;
+  /** En soles. Una orden en otra moneda trae null aquí y su monto, con su moneda, en `orden`. */
   monto: number | null;
   /** Lo adjudicado de un proceso (sin adjudicación, null: `monto` es entonces el valor referencial). */
   adjudicado?: number | null;
@@ -185,7 +189,10 @@ export interface ComprasPagina {
   hayMas: boolean;
   disponible: boolean;
   ancla: "entidad" | "proveedor";
-  /** Cuántas compras y por cuánto, con el año y la forma de compra elegidos (sin texto, bandera ni contraparte). */
+  /**
+   * Cuántas compras y por cuánto, con el año y la forma de compra elegidos (sin texto, bandera ni contraparte). El monto,
+   * sólo en soles; de una empresa, las órdenes en otra moneda cuentan sin sumarse (de una entidad, todavía no cuentan).
+   */
   resumen: { compras: number; monto: number } | null;
   facetas: { como: Partial<Record<ClaseCompra, number>>; anio: Record<string, number> } | null;
   data: Compra[];

@@ -34,6 +34,7 @@ import { OBJETO_TEXTO, type ContratoEmpresa } from "@/lib/empresas";
 import { fechaConAnio, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, enlacesProceso } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
+import { montoOrden, monedaOrden } from "@/lib/ordenes";
 import { FUENTE_TEXTO } from "@/lib/personas";
 import { rutaContrato } from "@/lib/rutas";
 import {
@@ -112,9 +113,10 @@ function aColumnas(f: Fila, principal: string, banderas: string, monto = "monto"
   return { ...f, celdas: { estado: f.celdas.estado, compra: f.celdas[principal], banderas: f.celdas[banderas], monto: f.celdas[monto], fecha: f.celdas[fecha] } };
 }
 
-/** Una orden de pago en una línea: «O/C N.° 350, 3 mar. 2025, S/ 40,625, comprometida». */
+/** Una orden de pago en una línea: «O/C N.° 350, 3 mar. 2025, S/ 40,625, comprometida» (en otra moneda, en la suya). */
 function LineaPago({ p }: { p: PagoProceso }) {
   const clase = p.tipoOrden && /compra/i.test(p.tipoOrden) ? "O/C" : "O/S";
+  const monto = montoOrden(p).texto;
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
       <span className="min-w-0">
@@ -125,7 +127,7 @@ function LineaPago({ p }: { p: PagoProceso }) {
           {p.candidatos && p.candidatos > 1 ? `, puede ser de ${p.candidatos} procesos` : ""}
         </span>
       </span>
-      <span className="shrink-0 font-mono tabular-nums text-ink">{p.monto != null ? soles(p.monto) : "Sin dato"}</span>
+      <span className="shrink-0 font-mono tabular-nums text-ink">{monto ?? "Sin dato"}</span>
     </li>
   );
 }
@@ -327,13 +329,23 @@ function filaProcesoEmpresa(c: ContratoEmpresa, compra: Compra, ruta: string): F
   };
 }
 
-/** De qué proceso es un pago (sólo con una bandera de la orden: la lista sin filtros los muestra dentro del proceso). */
+/**
+ * De qué proceso es un pago (con una bandera de la orden, o un pago sin proceso posible). Una orden en otra moneda no se
+ * juntó con ningún proceso (compra_vinculo, migración 240, junta sólo órdenes en soles): decir que su proveedor «no figura
+ * ganando ninguno» sería falso (la OPS, en dólares canadienses con EsSalud), así que dice por qué no se buscó.
+ */
 function BloquePagoDe({ c }: { c: Compra }) {
   const p = c.pagoDe;
   if (c.clase !== "pago") return null;
+  const otraMoneda = !p && c.orden?.otraMoneda ? monedaOrden(c.orden.otraMoneda).nombre : null;
   return (
     <BloqueDetalle titulo="Qué proceso paga">
-      {p?.codigo ? (
+      {otraMoneda ? (
+        <p className="text-inkSoft">
+          La orden dice que paga un proceso de selección. Vigía junta cada pago con su proceso sólo en las órdenes en soles, y
+          ésta es en {otraMoneda}: por eso no buscó cuál de los procesos que su proveedor ganó en la entidad es el que paga.
+        </p>
+      ) : p?.codigo ? (
         <p className="text-inkSoft">
           Paga el proceso {p.titulo ? `«${oracion(p.titulo)}»` : p.codigo}
           {p.ocid && (

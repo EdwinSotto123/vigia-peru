@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { redactDnis } from "@/components/Redact";
 import { nombreDeAgente } from "./catalogo";
 import { ORDEN_SEVERIDAD, type SenalAgente } from "./senales";
+import { limpiarEvidencia } from "./ListaSenales";
 
 interface Props {
   /** Catálogo del perfil, ya cargado por el contenedor (useReglasPerfil). */
@@ -143,7 +144,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                     </span>
                   )}
                 </span>
-                {on && s?.evidencia && <span className="mt-1 block text-rotulo text-inkSoft">{redactDnis(s.evidencia)}</span>}
+                {on && s?.evidencia && <span className="mt-1 block text-rotulo text-inkSoft">{redactDnis(limpiarEvidencia(s.evidencia))}</span>}
               </Popover>
             </li>
           );

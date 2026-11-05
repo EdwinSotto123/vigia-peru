@@ -30,7 +30,7 @@ import {
   type ContratosQuery,
   type ResumenContratos,
 } from "@/lib/contratos";
-import { getOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD } from "@/lib/ordenes";
+import { getOrdenes, getResumenOrdenes, parseOrdenesQuery, ordenesParametros, P_ORD, type FiltrosOrdenes, type ResumenOrdenes } from "@/lib/ordenes";
 import { ListaOrdenes, ListaOrdenesCargando, BarraOrdenesGeneral } from "@/components/ordenes/ListaOrdenes";
 import { getMenores, getResumenMenores, parseMenoresQuery, menoresParametros, P_MEN, type ResumenMenores } from "@/lib/menores";
 import { CifrasEnFila as CifrasMenoresFila, CifrasEnFilaSkeleton as CifrasMenoresCargando } from "@/components/ui/CifrasEnFila";
@@ -38,7 +38,7 @@ import { numero as numeroMen, solesCompacto as solesMen } from "@/lib/formato";
 import { ListaMenores, ListaMenoresCargando, BarraMenoresGeneral } from "@/components/menores/ListaMenores";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
-import { numero } from "@/lib/formato";
+import { numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 
 export const metadata = {
@@ -365,18 +365,19 @@ type VistaIndice = "contratos" | "ordenes" | "menores";
  * Tres ángulos del mismo universo: «Contratos» (con concurso) y, como compra directa, «Órdenes» (el pago) y «Menores»
  * (el expediente ≤8 UIT). Órdenes y Menores se solapan (misma compra, dos registros) pero no se suman; el ⓘ lo explica.
  *
- * Sólo «Contratos» lleva conteo: sale del resumen sin filtros, que ya está (o es la consulta más cacheada del API). Órdenes
- * y Menores no se cuentan: su API pagina por «hay más» para no contar millones de filas, y un número inventado no va.
- * `conteo: null` = contando (hueco, nunca un 0); `undefined` = sin número.
+ * «Contratos» lleva su conteo del resumen sin filtros, que ya está (o es la consulta más cacheada del API); «Órdenes», el
+ * de sus cifras precalculadas (GET /ordenes/resumen: las en soles desde 2018; pedido del usuario del 2026-11-05: era la
+ * única pestaña sin número). Menores todavía no se cuenta aquí. `conteo: null` = contando (hueco, nunca un 0);
+ * `undefined` = sin número.
  */
-function VistaToggle({ vista, conteo }: { vista: VistaIndice; conteo?: number | null }) {
+function VistaToggle({ vista, conteo, conteoOrdenes }: { vista: VistaIndice; conteo?: number | null; conteoOrdenes?: number | null }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Vistas
         etiqueta="Vista del índice"
         vistas={[
           { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos", conteo },
-          { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes" },
+          { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes", conteo: conteoOrdenes },
           { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
         ]}
       />
@@ -391,29 +392,44 @@ function VistaToggle({ vista, conteo }: { vista: VistaIndice; conteo?: number | 
   );
 }
 
-/** Las vistas con el conteo de «Contratos» en cuanto llega; mientras, las mismas vistas con el hueco del número. */
-function VistaConConteo({ vista, universo }: { vista: VistaIndice; universo: Promise<number | null> }) {
+/**
+ * Las vistas con los conteos de «Contratos» y «Órdenes» en cuanto llegan; mientras, las mismas vistas con el hueco del
+ * número. `ordenes`: el total de órdenes, si la página ya lo pidió (Órdenes); si no, se pide aquí (una respuesta en caché).
+ */
+function VistaConConteo({ vista, universo, ordenes }: { vista: VistaIndice; universo: Promise<number | null>; ordenes?: Promise<number | null> }) {
   return (
-    <Suspense fallback={<VistaToggle vista={vista} conteo={null} />}>
-      <VistaContada vista={vista} universo={universo} />
+    <Suspense fallback={<VistaToggle vista={vista} conteo={null} conteoOrdenes={null} />}>
+      <VistaContada vista={vista} universo={universo} ordenes={ordenes ?? totalOrdenes()} />
     </Suspense>
   );
 }
 
-async function VistaContada({ vista, universo }: { vista: VistaIndice; universo: Promise<number | null> }) {
+async function VistaContada({ vista, universo, ordenes }: { vista: VistaIndice; universo: Promise<number | null>; ordenes: Promise<number | null> }) {
   // Si el resumen no respondió, la vista va sin número (no con el hueco de "contando" para siempre).
-  const n = await universo.catch(() => null);
-  return <VistaToggle vista={vista} conteo={n ?? undefined} />;
+  const [n, o] = await Promise.all([universo.catch(() => null), ordenes.catch(() => null)]);
+  return <VistaToggle vista={vista} conteo={n ?? undefined} conteoOrdenes={o ?? undefined} />;
 }
 
 /** El total de contratos de la base, para la vista «Contratos» desde Órdenes y Menores. */
 const totalContratos = () => getResumenContratos({}).then((r) => r?.total ?? null);
+
+/** El total de órdenes de la base (en soles, desde 2018), para la vista «Órdenes» desde las tres vistas. */
+const totalOrdenes = () => getResumenOrdenes().then((r) => r?.ordenes ?? null);
 
 async function OrdenesVista({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const oq = parseOrdenesQuery(searchParams);
   const parametros = ordenesParametros(oq);
   const pagina = getOrdenes({ ...oq, size: SIZE_ORD });
   const universo = totalContratos();
+  // Las cifras de la cabecera, el número de la pestaña y el total del paginador (pedido del usuario del 2026-11-05: era
+  // la única lista sin ninguno de los tres). Salen de tablas precalculadas, que tienen el año y la entidad pero no los
+  // demás filtros: las cifras son las de ese alcance; la pestaña, siempre las de toda la base.
+  const alcance: FiltrosOrdenes = { anio: oq.anio, entidad: oq.entidad };
+  const resumen = getResumenOrdenes(alcance);
+  const deTodo = oq.anio || oq.entidad ? getResumenOrdenes() : resumen;
+  // El total de la lista, sólo si nada más la recorta (una búsqueda, el tipo, un antecedente… no están en esas tablas).
+  const soloAlcance = !Object.entries(oq).some(([k, v]) => v != null && v !== "" && !["anio", "entidad", "orden", "page", "size"].includes(k));
+  const total = soloAlcance ? resumen.then((r) => r?.ordenes ?? null) : null;
   // El nombre de la entidad elegida (desde el panel de una orden), para su chip aunque ninguna orden cumpla los filtros.
   const [regiones, entidad] = await Promise.all([
     getRegionesEntidades().catch(() => []),
@@ -434,19 +450,88 @@ async function OrdenesVista({ searchParams }: { searchParams?: Record<string, st
           </Ayuda>
         }
       />
-      <VistaConConteo vista="ordenes" universo={universo} />
+      <VistaConConteo vista="ordenes" universo={universo} ordenes={deTodo.then((r) => r?.ordenes ?? null)} />
+      <Suspense fallback={<IndicadoresSkeleton n={4} franja />}>
+        <CifrasOrdenes resumen={resumen} alcance={alcance} />
+      </Suspense>
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_ORD.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
           <BarraOrdenesGeneral pagina={pagina} regiones={regiones} parametros={parametros} entidadNombre={entidad?.entidad?.nombre ?? null} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<ListaOrdenesCargando />}>
-            <ListaOrdenes pagina={pagina} ruta={RUTA} parametros={parametros} actual={oq.page ?? 1} />
+            <ListaOrdenes pagina={pagina} ruta={RUTA} parametros={parametros} actual={oq.page ?? 1} total={total} />
           </Suspense>
         </ZonaResultados>
       </Listado>
     </Pagina>
   );
+}
+
+/** La vista Órdenes con unos filtros (desde la página 1): el enlace de cada cifra de su cabecera. */
+const hrefOrdenes = (f: FiltrosOrdenes) => `${RUTA}?${new URLSearchParams(ordenesParametros(f)).toString()}`;
+
+/**
+ * Las cifras de la cabecera de las órdenes: cuántas y por cuánto, qué parte fue a personas naturales (los locadores),
+ * cuántas compras se partieron el mismo día para no pasar las 8 UIT y cuántos proveedores cobran casi siempre al borde del
+ * tope. Cada una lleva a la lista filtrada. Son del año y la entidad elegidos (las tablas precalculadas no tienen los
+ * demás filtros) y sólo de las órdenes en soles: las de otra moneda se listan con la suya, pero no se cuentan ni se suman.
+ */
+async function CifrasOrdenes({ resumen, alcance }: { resumen: Promise<ResumenOrdenes | null>; alcance: FiltrosOrdenes }) {
+  const r = await resumen.catch(() => null);
+  if (!r || !r.ordenes) return null;
+  const con = (cambio: FiltrosOrdenes) => hrefOrdenes({ ...alcance, ...cambio });
+  const cuando = r.anio ? `en ${r.anio}` : "desde 2018";
+  const partidas = r.partidas;
+  const borde = r.alBorde;
+  const items: Indicador[] = [
+    {
+      valor: numero(r.ordenes),
+      etiqueta: r.entidad ? `órdenes de esta entidad ${cuando}` : `órdenes ${cuando}`,
+      contexto: r.entidad ? `por ${solesCompacto(r.monto)}` : `por ${solesCompacto(r.monto)}, de ${numero(r.entidades)} entidades`,
+      ayuda: (
+        <Ayuda titulo="¿Qué cuentan estas cifras?">
+          <span className="block">
+            Las órdenes de compra y de servicio que las entidades registraron en el SEACE (CONOSCE) desde 2018, cada una una
+            vez y sin las anuladas.
+          </span>
+          <span className="mt-2 block">
+            Sólo las en soles: las pocas en otra moneda (dólares, euros) están en la lista, con su moneda, pero no se cuentan
+            aquí ni se suman a los soles.{r.dudosas > 0 ? ` Las ${numero(r.dudosas)} con un monto que no se puede creer (posible error de carga) se cuentan, pero no se suman.` : ""}
+          </span>
+          <span className="mt-2 block text-mute">
+            Cambian con el año y la entidad elegidos, no con la búsqueda ni con los demás filtros. Se actualizan con cada carga
+            semanal de CONOSCE.
+          </span>
+        </Ayuda>
+      ),
+    },
+    {
+      valor: porcentaje((100 * r.aPersonas) / r.ordenes),
+      etiqueta: "a personas naturales",
+      contexto: `${numero(r.aPersonas)} órdenes por ${solesCompacto(r.montoPersonas)}, casi siempre a locadores (RUC 10)`,
+      href: con({ persona: "natural" }),
+    },
+  ];
+  if (partidas) {
+    items.push({
+      valor: numero(partidas.grupos),
+      etiqueta: "compras partidas el mismo día",
+      contexto: `${numero(partidas.ordenes)} órdenes al mismo proveedor que juntas pasan las 8 UIT`,
+      tono: partidas.grupos > 0 ? "alta" : undefined,
+      href: con({ antecedente: "fraccionamiento" }),
+    });
+  }
+  if (borde) {
+    items.push({
+      valor: numero(borde.personas + borde.empresas),
+      etiqueta: "proveedores al borde del tope",
+      contexto: `${numero(borde.personas)} personas y ${numero(borde.empresas)} empresas cobran casi siempre del 95 % al 100 % del tope${r.anio ? ", en todos los años" : ""}`,
+      tono: borde.personas + borde.empresas > 0 ? "media" : undefined,
+      href: con({ antecedente: "al_borde_del_tope" }),
+    });
+  }
+  return <Indicadores franja items={items} />;
 }
 
 // ─── Vista Contratos Menores (≤8 UIT) ──────────────────────────────────────────

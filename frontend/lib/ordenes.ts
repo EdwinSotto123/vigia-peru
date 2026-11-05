@@ -1,13 +1,22 @@
 import { API_BASE } from "./api-client";
 import type { OrdenEmpresa } from "./empresas";
+import { soles } from "./formato";
 import { SENAL } from "./personas";
 
 /**
  * Lista GENERAL de órdenes de compra y de servicio (subsección de Contratos). Fuente: GET /ordenes (no atada a un RUC).
  * Params prefijados con «o» para no chocar con los de la lista de contratos en la misma URL (es un toggle `?vista=ordenes`).
- * La API acota por año (defecto: el último) y pagina por fecha con `hayMas` (sin total exacto, para no contar millones).
+ * La API pagina por fecha con `hayMas` (sin contar millones de filas en vivo); las cifras de la cabecera, el número de la
+ * pestaña y el total del paginador salen de tablas precalculadas (GET /ordenes/resumen, de todo o de un año o una entidad).
  */
 export type OrdenGeneral = OrdenEmpresa & {
+  /**
+   * Una orden en otra moneda (CONOSCE publica unas pocas en dólares, euros…): `monto` es null (es sólo en soles) y el
+   * monto va aquí, con el nombre de la moneda como lo escribe CONOSCE («Dólar Canadiense»). Nunca se convierte ni se suma
+   * a los soles. Faltan en la API vieja (que no listaba estas órdenes).
+   */
+  montoOtraMoneda?: number | null;
+  otraMoneda?: string | null;
   contratista: string | null;
   rucContratista: string | null;
   /** Campos que CONOSCE trae en el reporte de órdenes y que el panel muestra cuando vienen (suelen faltar en órdenes viejas). */
@@ -128,6 +137,68 @@ const consulta = (f: Record<string, unknown>) => {
 };
 
 export const getOrdenes = (f: FiltrosOrdenes) => leer<OrdenesPagina>(`/ordenes?${consulta(f)}`);
+
+/**
+ * Las cifras de la cabecera de la vista Órdenes (GET /ordenes/resumen), de toda la base o de un año o una entidad: las
+ * tablas precalculadas no tienen los demás filtros. Sólo las órdenes en soles (las de otra moneda se listan, no se suman).
+ */
+export interface ResumenOrdenes {
+  anio: number | null;
+  entidad: string | null;
+  /** Cada orden una vez, sin anuladas; las de monto dudoso cuentan aquí, pero no en `monto`. */
+  ordenes: number;
+  monto: number;
+  dudosas: number;
+  /** A personas naturales (RUC 10): por lo general, locadores. */
+  aPersonas: number;
+  montoPersonas: number;
+  entidades: number;
+  /** El primer y el último mes con órdenes («2018-01», «2026-10»). */
+  desde: string | null;
+  hasta: string | null;
+  /** Las compras partidas el mismo día: grupos de órdenes al mismo proveedor que juntas pasan 8 UIT. null: no se pudo contar. */
+  partidas: { grupos: number; ordenes: number; graves: number } | null;
+  /** Los proveedores al borde del tope con alguna entidad (de toda su historia, sin año). null: no se pudo contar. */
+  alBorde: { personas: number; empresas: number } | null;
+}
+
+export const getResumenOrdenes = (f: { anio?: number; entidad?: string } = {}) =>
+  leer<ResumenOrdenes>(`/ordenes/resumen?${consulta(f)}`, 3600);
+
+/**
+ * Las monedas en que CONOSCE publica algunas órdenes (además de los soles), por su nombre allá: el código con que va el
+ * monto («CAD 7,445», como los contratos en otra moneda, lib/contratos.ts `formatMonto`) y el nombre que lo explica. El
+ * mismo juego de monedas que MONEDA_TEXTO de la API (routes/historia.ts).
+ */
+export const MONEDAS_ORDEN: Record<string, { codigo: string; nombre: string }> = {
+  "Dólar Norteamericano": { codigo: "USD", nombre: "dólares estadounidenses" },
+  "Dólar Canadiense": { codigo: "CAD", nombre: "dólares canadienses" },
+  Euro: { codigo: "EUR", nombre: "euros" },
+  "Libra Esterlina": { codigo: "GBP", nombre: "libras esterlinas" },
+  "Real Brasileño": { codigo: "BRL", nombre: "reales brasileños" },
+  "Yen Japonés": { codigo: "JPY", nombre: "yenes japoneses" },
+  "Franco Suizo": { codigo: "CHF", nombre: "francos suizos" },
+  Yuan: { codigo: "CNY", nombre: "yuanes chinos" },
+};
+
+/** La moneda de una orden en otra moneda; una que no está en la lista, con su nombre tal cual (en minúsculas). */
+export const monedaOrden = (m: string) => MONEDAS_ORDEN[m] ?? { codigo: m, nombre: m.toLocaleLowerCase("es") };
+
+/**
+ * El monto de una orden como se muestra: en soles («S/ 7,445») o en su moneda («CAD 7,445», con el mismo redondeo), nunca
+ * convertido. `moneda`: la de una orden en otra moneda (para decir cuál es); null en soles. Sin monto: `texto` null.
+ */
+export function montoOrden(o: { monto: number | null; montoOtraMoneda?: number | null; otraMoneda?: string | null }): {
+  texto: string | null;
+  moneda: { codigo: string; nombre: string } | null;
+} {
+  if (o.monto != null) return { texto: soles(o.monto), moneda: null };
+  if (o.montoOtraMoneda != null && o.otraMoneda) {
+    const moneda = monedaOrden(o.otraMoneda);
+    return { texto: soles(o.montoOtraMoneda).replace(/^S\/\s/, `${moneda.codigo} `), moneda };
+  }
+  return { texto: null, moneda: null };
+}
 
 /** Claves en la URL (prefijo «o»), para no pisar los filtros de la vista Contratos. */
 export const P_ORD = {

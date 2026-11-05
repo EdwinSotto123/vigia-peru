@@ -479,7 +479,8 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   // visita antes de lo que le dieron (lo más grave y lo más grande primero; acotar deja los que caben).
   const ganaron = vemp.filter((v) => v.despues && v.dias != null && v.dias <= 180);
   // La moneda de la orden que le dieron: hay órdenes en dólares (canadienses, de la OPS) y se escribían «S/» (el usuario,
-  // 2026-11-05). Las listas de compras sólo tienen las de soles: una orden en otra moneda no se enlaza a ellas.
+  // 2026-11-05). Desde ese día las listas de compras también traen las órdenes en otra moneda (con su moneda, fuera de
+  // las sumas en soles): todas se enlazan.
   const conOrden = ganaron.filter((v) => v.despues_tipo === "orden" && v.despues_numero);
   const monedas = new Map(
     (conOrden.length
@@ -504,7 +505,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
   // ese número.
   const hrefDespues = (v: VisitaHilo) =>
     v.despues_ocid ? rutaContrato(v.despues_ocid)
-    : v.despues_tipo === "orden" && v.despues_numero && enSoles(v) ? `${base}?seccion=contratos&ccon=${v.ruc}&cq=${encodeURIComponent(v.despues_numero)}`
+    : v.despues_tipo === "orden" && v.despues_numero ? `${base}?seccion=contratos&ccon=${v.ruc}&cq=${encodeURIComponent(v.despues_numero)}`
     : null;
   // Las que van como secuencia («Lo que llama la atención») no se repiten como punto en el renglón de visitas.
   const enSecuencia = new Set(
