@@ -263,7 +263,9 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
   const antecedentes: Antecedente[] = [...(m.inhabilitacion ? [antecedenteInhabilitado(m.inhabilitacion, "Inhabilitado al firmar")] : []),
                                      ...senales.map((x) => ({ tipo: x.tipo, severidad: x.severidad, chip: x.chip, explica: x.explica })),
                                      ...sunat, ...(extra?.antecedentes ?? [])];
-  const estado = <EstadoCompra estado={m.estado} />;
+  // El estado del proceso en el buscador de menores (Culminado, Vigente, En evaluación): el del contrato en prod4 dice
+  // «Publicado» en todos y no distinguía nada.
+  const estado = <EstadoCompra estado={m.estadoProceso ?? m.estado} explica={m.estadoProceso ? "Estado del proceso en el SEACE" : undefined} />;
   // La ficha de la entidad y la del proveedor (empresas, RUC 20: donde está lo que dice la SUNAT), no desde esa misma
   // ficha. Una persona natural no tiene enlace: su RUC 10 lleva el DNI.
   const fichas = fichasCompra(ruta, m.entidadRuc, m.proveedorRuc);

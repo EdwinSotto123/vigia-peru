@@ -16,6 +16,8 @@
 --                                     sólo cotiza quien ya sabía
 --   menor_invitacion_cerrada   media  la invitación a cotizar no fue abierta (con la justificación que registró la entidad)
 --   menor_fin_de_semana        baja   firmado un sábado o un domingo
+--   menor_orden_antes_de_cotizar alta la orden de compra o servicio (juntada por su número, 253) se emitió antes de que se
+--                                     publicara el pedido de cotizaciones
 --   menor_precio_alto          media  un bien pagado 2 veces o más la mediana de lo que pagan las demás entidades por el mismo
 --                                     ítem del catálogo, unidad y año (precio_referencia, 84); alta con 3 veces y S/ 5 mil
 --                                     de exceso. Las mismas guardas que el sobreprecio de los procesos
@@ -122,6 +124,17 @@ BEGIN
   SELECT id_contrato, 'menor_fin_de_semana', 'baja',
          jsonb_build_object('fecha', fecha_suscripcion, 'dia', CASE extract(isodow FROM fecha_suscripcion) WHEN 6 THEN 'sábado' ELSE 'domingo' END)
     FROM _xm WHERE extract(isodow FROM fecha_suscripcion) IN (6, 7);
+
+  -- La orden (juntada por su número y su monto, 240 y 253) se emitió antes de que se publicara el pedido de cotizaciones:
+  -- la compra ya estaba decidida y la cotización fue un trámite.
+  INSERT INTO menor_senal (id_contrato, tipo, severidad, detalle)
+  SELECT x.id_contrato, 'menor_orden_antes_de_cotizar', 'alta',
+         jsonb_build_object('orden', left(sin_dni(v.orden), 120), 'emitida', v.fecha_emision, 'publicado', m.fec_publica,
+                            'dias', m.fec_publica::date - v.fecha_emision)
+    FROM _xm x
+    JOIN seace_menores m ON m.id_contrato = x.id_contrato
+    JOIN compra_vinculo v ON v.clase = 'menor' AND v.ref = x.id_contrato::text AND v.regla = 'numero'
+   WHERE m.fec_publica IS NOT NULL AND v.fecha_emision < m.fec_publica::date;
 
   -- El precio de los bienes frente a lo que pagan las demás entidades (84), con las guardas del sobreprecio de los procesos.
   INSERT INTO menor_senal (id_contrato, tipo, severidad, monto, detalle)

@@ -155,6 +155,7 @@ export const SENALES_FILTRO = [
   { valor: "partido_anio", etiqueta: "Compra partida en el año", grupo: "Compra partida" },
   { valor: "tope", etiqueta: "Sobre el tope o al borde", grupo: "Monto" },
   { valor: "precio", etiqueta: "Precio alto frente a otras entidades", grupo: "Monto" },
+  { valor: "orden_antes", etiqueta: "Orden emitida antes de cotizar", grupo: "Cotización" },
   { valor: "ventana", etiqueta: "Menos de 4 horas para cotizar", grupo: "Cotización" },
   { valor: "cerrada", etiqueta: "Invitación cerrada", grupo: "Cotización" },
   { valor: "documento", etiqueta: "En el requerimiento o el contrato (IA)", grupo: "Documentos" },

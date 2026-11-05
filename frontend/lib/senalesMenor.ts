@@ -16,6 +16,9 @@ const n = (v: unknown): number | null => (typeof v === "number" && Number.isFini
 const horasTxt = (h: number | null) =>
   h == null ? "pocas horas" : h < 1 ? `${Math.max(1, Math.round(h * 60))} minutos` : `${numero(Math.round(h * 10) / 10)} ${h === 1 ? "hora" : "horas"}`;
 
+/** «99,7 %»: con una decimal, para que un monto pegado al tope no se lea «100 %». */
+export const pctTxt = (p: number | null) => (p == null ? "95 % o más" : `${String(Math.round(p * 10) / 10).replace(".", ",")} %`);
+
 /** El texto de una señal; con `detalle` (la ficha) la explicación usa toda la evidencia. */
 export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle">>): TextoSenal {
   const d = (s.detalle ?? {}) as Record<string, unknown>;
@@ -46,7 +49,7 @@ export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle
       return {
         chip: "Al borde del tope",
         nombre: "Al borde del tope de 8 UIT",
-        explica: `Queda en el ${numero(n(s.pct) ?? n(d.pct))} % del tope de 8 UIT de su año. Un monto pegado al tope es la marca de una compra que se ajustó para no pasar a un procedimiento.`,
+        explica: `Queda en el ${pctTxt(n(s.pct) ?? n(d.pct))} del tope de 8 UIT de su año. Un monto pegado al tope es la marca de una compra que se ajustó para no pasar a un procedimiento.`,
       };
     case "menor_ventana_corta": {
       const h = n(s.horas) ?? n(d.horas);
@@ -54,6 +57,14 @@ export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle
         chip: `${horasTxt(h)} para cotizar`,
         nombre: "Ventana de cotización corta",
         explica: `La entidad dejó cotizar ${horasTxt(h)}. Con tan poco tiempo, casi sólo puede cotizar quien ya sabía de la compra.`,
+      };
+    }
+    case "menor_orden_antes_de_cotizar": {
+      const dias = n(d.dias);
+      return {
+        chip: "Orden antes de cotizar",
+        nombre: "La orden se emitió antes de pedir cotizaciones",
+        explica: `La orden de pago${typeof d.orden === "string" ? ` (${d.orden})` : ""} se emitió${typeof d.emitida === "string" ? ` el ${fechaConAnio(d.emitida)}` : ""}${dias ? `, ${numero(dias)} ${dias === 1 ? "día" : "días"} antes` : " antes"} de que se publicara el pedido de cotizaciones: la compra ya estaba decidida y la cotización fue un trámite.`,
       };
     }
     case "menor_invitacion_cerrada":

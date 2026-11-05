@@ -10,7 +10,7 @@ import { fechaConAnio, numero, oracion, soles } from "@/lib/formato";
 import { SEACE_CONTRATOS, SEACE_MENORES } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaMenor, urlContratoMenor, urlRequerimiento, type FichaMenor, type ItemMenor, type SenalMenor } from "@/lib/menores";
-import { textoSenal } from "@/lib/senalesMenor";
+import { pctTxt, textoSenal } from "@/lib/senalesMenor";
 import { antecedentesSunat, duracion, fechaHoraLima } from "./ListaMenores";
 
 /**
@@ -44,7 +44,7 @@ export function CifrasMenor({ f }: { f: FichaMenor }) {
     {
       valor: m.monto != null ? soles(m.monto) : null,
       etiqueta: "monto del contrato",
-      contexto: m.tope ? `${numero(Math.round((100 * (m.monto ?? 0)) / m.tope))} % del tope de 8 UIT (${soles(m.tope)})` : "hasta 8 UIT",
+      contexto: m.tope ? `${pctTxt((100 * (m.monto ?? 0)) / m.tope)} del tope de 8 UIT (${soles(m.tope)})` : "hasta 8 UIT",
       tono: m.sobreTope ? "alta" : undefined,
     },
     {
@@ -60,9 +60,10 @@ export function CifrasMenor({ f }: { f: FichaMenor }) {
       tono: m.tope && sumaAnual > m.tope && anual.length > 1 ? "alta" : undefined,
     },
     {
-      valor: numero(f.items.length),
+      valor: f.items.length ? numero(f.items.length) : null,
       etiqueta: f.items.length === 1 ? "ítem" : "ítems",
-      contexto: f.items.some((i) => i.refMediana != null) ? "con precio de otras entidades para comparar" : "del catálogo del Estado",
+      contexto: !f.items.length ? "el SEACE todavía no publica sus ítems"
+        : f.items.some((i) => i.refMediana != null) ? "con precio de otras entidades para comparar" : "del catálogo del Estado",
     },
   ];
   return <CifrasEnFila items={items} />;

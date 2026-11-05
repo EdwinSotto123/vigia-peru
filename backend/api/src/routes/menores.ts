@@ -78,6 +78,7 @@ export const SENAL_MENOR = {
   partido_anio: conTipo("menor_partido_en_el_anio"),
   tope: conTipo("menor_sobre_tope", "menor_borde_tope"),
   ventana: conTipo("menor_ventana_corta"),
+  orden_antes: conTipo("menor_orden_antes_de_cotizar"),
   cerrada: conTipo("menor_invitacion_cerrada"),
   precio: conTipo("menor_precio_alto"),
   documento: conTipo(...SENALES_DOCUMENTO),
