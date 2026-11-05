@@ -135,8 +135,10 @@ export function ColumnasAnio({
         <span aria-hidden />
         <ol className="mt-1.5 flex justify-around gap-1" aria-hidden>
           {orden.map((x) => (
-            <li key={x.anio} className={cn("flex-1 text-center font-mono text-rotulo tabular-nums", activo === x.anio ? "font-semibold text-ink" : "text-mute")}>
-              {orden.length > 10 ? `’${String(x.anio).slice(2)}` : x.anio}
+            <li key={x.anio} className={cn("min-w-0 flex-1 whitespace-nowrap text-center font-mono text-rotulo tabular-nums", activo === x.anio ? "font-semibold text-ink" : "text-mute")}>
+              {/* En el celular (o con muchos años), «’18»: nueve «2018» no caben en 390 px. */}
+              <span className={orden.length > 10 ? "" : "sm:hidden"}>{`’${String(x.anio).slice(2)}`}</span>
+              {orden.length <= 10 && <span className="max-sm:hidden">{x.anio}</span>}
               {x.aparte && <span className="ml-0.5 text-amberTexto" title="Ese año hay montos con un posible error de carga, fuera de la columna">▲</span>}
             </li>
           ))}
