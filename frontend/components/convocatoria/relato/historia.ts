@@ -398,7 +398,8 @@ export function resumenDelDictamen(md: string): { titulo: string | null; parrafo
       .replace(/^>\s?/gm, "")
       .replace(/\s+/g, " ")
       .trim();
-  const todos = cuerpo.split(/\n\s*\n/).map(limpiar).filter(Boolean);
+  // Sin las rayas horizontales del markdown («---», «***»): quedaban como un párrafo suelto al final del resumen.
+  const todos = cuerpo.split(/\n\s*\n/).map(limpiar).filter((p) => p && !/^[-*_\s]{3,}$/.test(p));
   const parrafos: string[] = [];
   let largo = 0;
   let cortado = false;
