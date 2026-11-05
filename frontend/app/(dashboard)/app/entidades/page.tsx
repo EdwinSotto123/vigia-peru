@@ -136,6 +136,7 @@ export default async function EntidadesPage({
 
       {resumen ? (
         <CifrasEnFila
+          franja
           items={[
             {
               valor: numero(resumen.totalEntidades),

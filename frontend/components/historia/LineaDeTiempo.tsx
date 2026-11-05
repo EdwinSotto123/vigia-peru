@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, Rows3 } from "lucide-react";
 import { LineaHitos } from "@/components/charts/LineaHitos";
 import { BotonCerrar, GrafoMarco } from "@/components/grafo/primitivos";
 import { irAPestana } from "@/components/patrones/Pestanas";
@@ -267,30 +267,33 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
 
   return (
     <div id={idLinea(clave)} className="space-y-3">
-      {/* Controles: el periodo, la medida y los renglones. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* En el celular, cada grupo en una fila que se desliza (antes, cinco filas de chips antes de la línea). */}
-        <div role="group" aria-label="Periodo" className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible">
-          {tramos.map((x) => (
-            <button
-              key={x.clave}
-              type="button"
-              aria-pressed={tramo === x.clave}
-              onClick={() => {
-                setTramo(x.clave);
-                setEncima(null);
-              }}
-              className={cn(
-                "min-h-[32px] shrink-0 whitespace-nowrap rounded-full border px-3 text-rotulo font-semibold transition-colors duration-rapido",
-                tramo === x.clave ? "border-ink bg-ink text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
-              )}
-            >
-              {x.etiqueta}
-            </button>
-          ))}
+      {/* Controles en UNA barra (pedido del usuario del 2026-11-05: «crear un layout adecuado»): el periodo, la medida
+          y qué renglones mostrar, en un menú (antes, otra fila de chips repetía los nombres de los renglones). En el
+          celular, el periodo se desliza. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Periodo" className="-mx-1 flex max-w-full overflow-x-auto px-1 pb-0.5">
+          <div className="flex shrink-0 rounded-full border border-line bg-paper p-0.5">
+            {tramos.map((x) => (
+              <button
+                key={x.clave}
+                type="button"
+                aria-pressed={tramo === x.clave}
+                onClick={() => {
+                  setTramo(x.clave);
+                  setEncima(null);
+                }}
+                className={cn(
+                  "min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-3 text-rotulo font-semibold transition-colors duration-rapido",
+                  tramo === x.clave ? "bg-ink text-paper" : "text-inkSoft hover:text-ink",
+                )}
+              >
+                {x.etiqueta}
+              </button>
+            ))}
+          </div>
         </div>
         {haySoles && (
-          <div role="group" aria-label="Medir en" className="flex rounded-full border border-line p-0.5">
+          <div role="group" aria-label="Medir en" className="flex shrink-0 rounded-full border border-line bg-paper p-0.5">
             {(["n", "monto"] as const).map((m) => (
               <button
                 key={m}
@@ -304,23 +307,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
             ))}
           </div>
         )}
-      </div>
-      <div role="group" aria-label="Renglones a mostrar" className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible">
-        {h.carriles.map((c) => (
-          <button
-            key={c.clave}
-            type="button"
-            aria-pressed={!ocultos.has(c.clave)}
-            onClick={() => alternar(c.clave)}
-            title={c.explica}
-            className={cn(
-              "inline-flex min-h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-rotulo transition-colors duration-rapido",
-              ocultos.has(c.clave) ? "border-dashed border-line text-mute line-through" : "border-line bg-paper text-ink hover:border-paperEdge",
-            )}
-          >
-            {c.titulo}
-          </button>
-        ))}
+        <MenuRenglones carriles={h.carriles} ocultos={ocultos} alternar={alternar} />
       </div>
 
       {/* Al pedir «Verlo en la línea», ésta queda arriba (debajo de la barra fija de la ficha). */}
@@ -874,9 +861,49 @@ function Muestra({ children, texto }: { children: ReactNode; texto: string }) {
   );
 }
 
+/**
+ * Qué renglones mostrar, en un menú con casillas (antes, una fila entera de chips con los mismos nombres que la
+ * columna de la izquierda). Se cierra al tocar afuera o con Escape.
+ */
+function MenuRenglones({ carriles, ocultos, alternar }: { carriles: Historia["carriles"]; ocultos: Set<Carril>; alternar: (c: Carril) => void }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const cerrar = (e: Event) => {
+      const d = ref.current;
+      if (!d?.open) return;
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !d.contains(e.target as Node)) d.open = false;
+    };
+    document.addEventListener("pointerdown", cerrar);
+    document.addEventListener("keydown", cerrar);
+    return () => {
+      document.removeEventListener("pointerdown", cerrar);
+      document.removeEventListener("keydown", cerrar);
+    };
+  }, []);
+  const visibles = carriles.length - carriles.filter((c) => ocultos.has(c.clave)).length;
+  return (
+    <details ref={ref} className="relative">
+      <summary className="inline-flex min-h-[32px] cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:text-ink [&::-webkit-details-marker]:hidden">
+        <Rows3 size={14} aria-hidden />
+        Renglones
+        {visibles < carriles.length && <span className="font-mono tabular-nums text-ink">{visibles} de {carriles.length}</span>}
+        <ChevronDown size={14} aria-hidden />
+      </summary>
+      <div className="absolute left-0 z-20 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-paper p-1.5 shadow-lg sm:left-auto sm:right-0" role="group" aria-label="Renglones a mostrar">
+        {carriles.map((c) => (
+          <label key={c.clave} title={c.explica} className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-meta text-ink hover:bg-paperSoft">
+            <input type="checkbox" checked={!ocultos.has(c.clave)} onChange={() => alternar(c.clave)} className="size-4 accent-granate" />
+            {c.titulo}
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function Leyenda({ hayPicos }: { hayPicos: boolean }) {
   return (
-    <div className="space-y-2 rounded-xl border border-line bg-paper px-3.5 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0">
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1.5 px-0.5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-rotulo text-inkSoft">
         <Muestra texto="Cuánto hubo ese mes"><rect x={3} y={4} width={4} height={10} rx={1} className="fill-ink/30" /><rect x={9} y={7} width={4} height={7} rx={1} className="fill-ink/30" /></Muestra>
         {hayPicos && <Muestra texto="Pico: 2.5 veces lo normal"><rect x={6} y={2} width={6} height={12} rx={1} className="fill-amber/85" /></Muestra>}
@@ -892,9 +919,9 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
           {[3, 7, 11, 15].map((x) => <line key={x} x1={x - 3} y1={13} x2={x + 1} y2={1} className="stroke-crimson/50" strokeWidth={1.5} />)}
         </Muestra>
       </div>
-      <details className="group">
+      <details className="group shrink-0 open:basis-full">
         <summary className="cursor-pointer text-rotulo font-semibold text-granate">Cómo leer esta línea</summary>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-rotulo leading-relaxed text-inkSoft">
+        <ul className="mt-2 max-w-prose list-disc space-y-1 pl-5 text-rotulo leading-relaxed text-inkSoft">
           <li>Cada renglón es una fuente: las barras dicen cuánto hubo cada mes. Cada renglón tiene su propia escala: compara sus barras entre sí, no con las de otro renglón.</li>
           <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2.5 veces lo normal; roja, de 4 veces o más.</li>
           <li>Las líneas verticales cruzan todos los renglones: la continua es un cambio de gobierno y la punteada, una elección. Mira qué cambia justo después.</li>

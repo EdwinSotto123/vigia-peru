@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Link2, LocateFixed, TrendingUp } from "lucide-react";
 import { irAPestana } from "@/components/patrones/Pestanas";
-import { Severidad } from "@/components/ui/Severidad";
+import { ICONO_NIVEL, Severidad } from "@/components/ui/Severidad";
 import { fechaConAnio } from "@/lib/formato";
 import { mesLargo, type PatronHistoria, type SecuenciaHistoria, type SeveridadHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
@@ -23,25 +23,31 @@ type Item = { tipo: "secuencia"; s: SecuenciaHistoria } | { tipo: "patron"; p: P
 const PESO: Record<SeveridadHistoria, number> = { alta: 0, media: 1, baja: 2 };
 const sevDe = (x: Item) => (x.tipo === "secuencia" ? x.s.severidad : x.p.severidad);
 const idDe = (x: Item) => (x.tipo === "secuencia" ? x.s.id : x.p.id);
+const COLOR: Record<SeveridadHistoria, string> = { alta: "text-crimsonTexto", media: "text-amberTexto", baja: "text-mute" };
+const PALABRA: Record<SeveridadHistoria, string> = { alta: "Señal alta", media: "Señal media", baja: "Señal baja" };
 
 /**
  * «Lo que llama la atención»: en un solo lugar y en orden de gravedad, las secuencias que prueban sus datos (una cosa
- * llevó a otra) y los meses fuera de lo normal de sus series. Antes eran dos grillas de tarjetas seguidas («Lo que
- * encadenan sus datos» y «Lo que llama la atención en sus datos») que se leían como lo mismo repetido (pedido del usuario
- * del 2026-10-28: «ordénalo más adecuadamente, parece que se repite información»).
+ * llevó a otra) y los meses fuera de lo normal de sus series (pedido del usuario del 2026-10-28: «parece que se repite
+ * información»).
  *
- * Cada tarjeta dice qué clase de hallazgo es, cuándo, qué pasó (los pasos de la secuencia o la explicación del pico) y
- * lleva a la línea de tiempo con eso marcado; la secuencia, además, a su evidencia. Cuatro a la vista; el resto, a un toque.
+ * Lista y detalle (pedido del usuario del 2026-11-05: «solo lo colocamos debajo de todo y ya, cuando podemos crear un
+ * layout adecuado»): antes eran tarjetas de dos en dos, cuatro a la vista y «Ver los 15». Ahora, a la izquierda, TODOS en
+ * filas compactas (gravedad, qué es, cuándo) y, a la derecha, el elegido entero: sus pasos en una línea vertical con los
+ * días entre uno y otro, o la explicación del pico, y los botones a la línea de tiempo y a la evidencia. En el celular el
+ * detalle se abre bajo su fila. Lo que se elige en la línea de tiempo también se elige aquí.
  */
 export function Destacados({ clave, secuencias, patrones }: { clave: string; secuencias: SecuenciaHistoria[]; patrones: PatronHistoria[] }) {
-  const [todos, setTodos] = useState(false);
+  const [activo, setActivo] = useState<string | null>(null);
   const [elegido, setElegido] = useState<string | null>(null);
 
-  // La línea avisa qué quedó elegido (o que se cerró): la tarjeta se marca igual.
+  // La línea avisa qué quedó elegido (o que se cerró): la fila se marca y su detalle se abre.
   useEffect(() => {
     const alElegir = (e: Event) => {
       const d = (e as CustomEvent<ElegidoLinea>).detail;
-      if (d?.clave === clave) setElegido(d.id);
+      if (d?.clave !== clave) return;
+      setElegido(d.id);
+      if (d.id) setActivo(d.id);
     };
     window.addEventListener(ELEGIDO_EN_LINEA, alElegir);
     return () => window.removeEventListener(ELEGIDO_EN_LINEA, alElegir);
@@ -57,7 +63,7 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
     .sort((a, b) => PESO[sevDe(a.x)] - PESO[sevDe(b.x)] || (a.x.tipo === b.x.tipo ? a.i - b.i : a.x.tipo === "secuencia" ? -1 : 1))
     .map(({ x }) => x);
   if (!items.length) return null;
-  const vistos = todos ? items : items.slice(0, 4);
+  const actual = items.find((x) => idDe(x) === activo) ?? items[0];
 
   const ver = (x: Item) => {
     const linea = typeof document !== "undefined" ? document.getElementById(idLinea(clave)) : null;
@@ -68,94 +74,159 @@ export function Destacados({ clave, secuencias, patrones }: { clave: string; sec
     requestAnimationFrame(() => window.dispatchEvent(new CustomEvent(VER_EN_LINEA, { detail: pedido })));
   };
 
+  const cuenta: Record<SeveridadHistoria, number> = { alta: 0, media: 0, baja: 0 };
+  for (const x of items) cuenta[sevDe(x)] += 1;
+  const resumen = [
+    cuenta.alta ? `${cuenta.alta} de señal alta` : null,
+    cuenta.media ? `${cuenta.media} media` : null,
+    cuenta.baja ? `${cuenta.baja} baja` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const idTitulo = `${idLinea(clave)}-destacados`;
+
   return (
-    <section aria-labelledby={`${idLinea(clave)}-destacados`} className="space-y-2.5">
-      <div className="space-y-0.5">
-        <h3 id={`${idLinea(clave)}-destacados`} className="font-display text-bloque font-bold text-ink">
+    <section aria-labelledby={idTitulo} className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 id={idTitulo} className="font-display text-bloque font-bold text-ink">
           Lo que llama la atención
         </h3>
-        <p className="max-w-prose text-meta text-inkSoft">
-          Lo más grave primero: lo que encadenan sus datos (una cosa llevó a otra) y los meses fuera de lo normal. Nada de esto
-          prueba una falta: dice dónde mirar.
+        <p className="text-rotulo text-inkSoft">
+          {items.length === 1 ? "1 hallazgo" : `${items.length} hallazgos`}: {resumen}
         </p>
       </div>
-      <ul className="grid gap-2 md:grid-cols-2">
-        {vistos.map((x) => {
-          const id = idDe(x);
-          const sel = elegido === id;
-          const sev = sevDe(x);
-          const titulo = x.tipo === "secuencia" ? x.s.titulo : x.p.titulo;
-          const cuando =
-            x.tipo === "secuencia"
-              ? x.s.pasos.length > 1
-                ? `${fechaConAnio(x.s.pasos[0].fecha)} a ${fechaConAnio(x.s.pasos[x.s.pasos.length - 1].fecha)}`
-                : fechaConAnio(x.s.pasos[0]?.fecha)
-              : x.p.hasta && x.p.hasta !== x.p.mes
-                ? `${mesLargo(x.p.mes)} a ${mesLargo(x.p.hasta)}`
-                : mesLargo(x.p.mes);
-          return (
-            <li
-              key={`${x.tipo}-${id}`}
-              className={cn(
-                "flex flex-col gap-2 rounded-xl border bg-paper px-3.5 py-3 transition-colors duration-rapido",
-                sel ? "border-granate ring-1 ring-granate/30" : sev === "alta" ? "border-crimson/30" : "border-line",
-              )}
-            >
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <Severidad bandera={sev} formato="linea" />
-                <span className="inline-flex items-center gap-1 text-rotulo font-semibold text-inkSoft">
-                  {x.tipo === "secuencia" ? <Link2 size={13} aria-hidden /> : <TrendingUp size={13} aria-hidden />}
-                  {x.tipo === "secuencia" ? "Una cosa llevó a otra" : "Fuera de lo normal"}
-                </span>
-                <span className="text-rotulo text-mute">{cuando}</span>
-              </div>
-              <p className="text-meta font-semibold leading-snug text-ink text-pretty">{titulo}</p>
-              {x.tipo === "secuencia" ? (
-                <ol className="space-y-1 border-l-2 border-line pl-3">
-                  {x.s.pasos.map((p, k) => (
-                    <li key={k} className="text-rotulo leading-snug text-inkSoft">
-                      <span className="font-mono tabular-nums text-ink">{fechaConAnio(p.fecha)}</span> {p.texto}
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="line-clamp-3 text-rotulo leading-snug text-inkSoft">{x.p.explica}</p>
-              )}
-              <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
+      <p className="mt-0.5 max-w-prose text-meta text-inkSoft">
+        Lo que encadenan sus datos y los meses fuera de lo normal, lo más grave primero. No prueba una falta: dice dónde mirar.
+      </p>
+      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <ul className="-mx-1 max-h-[28rem] space-y-0.5 overflow-y-auto overscroll-contain px-1 md:pr-2" aria-label="Hallazgos">
+          {items.map((x) => {
+            const id = idDe(x);
+            const on = idDe(actual) === id;
+            const sev = sevDe(x);
+            const Icono = ICONO_NIVEL[sev];
+            return (
+              <li key={`${x.tipo}-${id}`}>
                 <button
                   type="button"
-                  onClick={() => ver(x)}
-                  aria-pressed={sel}
-                  className="inline-flex min-h-[32px] items-center gap-1.5 text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
+                  onClick={() => setActivo(id)}
+                  aria-current={on ? "true" : undefined}
+                  className={cn(
+                    "flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+                    on ? "border-granate/40 bg-paperSoft" : "border-transparent hover:bg-paperSoft",
+                  )}
                 >
-                  <LocateFixed size={13} aria-hidden />
-                  {sel ? "Marcado en la línea" : "Verlo en la línea"}
+                  <Icono size={15} className={cn("mt-0.5 shrink-0", COLOR[sev])} aria-hidden />
+                  <span className="sr-only">{PALABRA[sev]}: </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-meta font-semibold leading-snug text-ink text-pretty">{tituloDe(x)}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-rotulo text-mute">
+                      <span className="inline-flex items-center gap-1">
+                        {x.tipo === "secuencia" ? <Link2 size={12} aria-hidden /> : <TrendingUp size={12} aria-hidden />}
+                        {x.tipo === "secuencia" ? "Una cosa llevó a otra" : "Fuera de lo normal"}
+                      </span>
+                      <span>{cuandoDe(x)}</span>
+                    </span>
+                  </span>
                 </button>
-                {x.tipo === "secuencia" && x.s.href && (
-                  <Link
-                    href={x.s.href}
-                    prefetch={false}
-                    className="inline-flex min-h-[32px] items-center gap-1 text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
-                  >
-                    Ver la evidencia
-                    <ArrowRight size={13} aria-hidden />
-                  </Link>
+                {on && (
+                  <div className="px-1 pb-3 pt-2 md:hidden">
+                    <Detalle x={x} marcado={elegido === id} ver={() => ver(x)} />
+                  </div>
                 )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {items.length > 4 && (
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden min-w-0 md:block">
+          <div className="sticky top-[calc(var(--alto-barra-fija,0px)+0.75rem)] rounded-xl border border-line bg-paperSoft/60 p-4">
+            <Detalle x={actual} marcado={elegido === idDe(actual)} ver={() => ver(actual)} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const tituloDe = (x: Item) => (x.tipo === "secuencia" ? x.s.titulo : x.p.titulo);
+
+function cuandoDe(x: Item): string {
+  if (x.tipo === "secuencia") {
+    const ps = x.s.pasos;
+    return ps.length > 1 && ps[0].fecha !== ps[ps.length - 1].fecha
+      ? `${fechaConAnio(ps[0].fecha)} a ${fechaConAnio(ps[ps.length - 1].fecha)}`
+      : fechaConAnio(ps[0]?.fecha);
+  }
+  return x.p.hasta && x.p.hasta !== x.p.mes ? `${mesLargo(x.p.mes)} a ${mesLargo(x.p.hasta)}` : mesLargo(x.p.mes);
+}
+
+/** Los días entre dos fechas «aaaa-mm-dd» (para «170 días después» entre dos pasos). */
+function dias(a: string, b: string): number | null {
+  const x = Date.parse(a.slice(0, 10));
+  const y = Date.parse(b.slice(0, 10));
+  return Number.isFinite(x) && Number.isFinite(y) ? Math.round((y - x) / 86_400_000) : null;
+}
+
+/** El hallazgo elegido entero: qué es, cuándo, sus pasos (o la explicación del pico) y a dónde ir. */
+function Detalle({ x, marcado, ver }: { x: Item; marcado: boolean; ver: () => void }) {
+  const sev = sevDe(x);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Severidad bandera={sev} formato="linea" />
+        <span className="inline-flex items-center gap-1 text-rotulo font-semibold text-inkSoft">
+          {x.tipo === "secuencia" ? <Link2 size={13} aria-hidden /> : <TrendingUp size={13} aria-hidden />}
+          {x.tipo === "secuencia" ? "Una cosa llevó a otra" : "Fuera de lo normal"}
+        </span>
+        <span className="text-rotulo text-mute">{cuandoDe(x)}</span>
+      </div>
+      <p className="font-display text-destacado font-bold leading-snug text-ink text-pretty">{tituloDe(x)}</p>
+      {x.tipo === "secuencia" ? (
+        // Los pasos en una línea vertical: la fecha, lo que pasó y, entre uno y otro, cuántos días pasaron.
+        <ol className="relative space-y-3 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-paperEdge">
+          {x.s.pasos.map((p, k) => {
+            const d = k > 0 ? dias(x.s.pasos[k - 1].fecha, p.fecha) : null;
+            return (
+              <li key={k} className="relative pl-6">
+                <span
+                  className={cn("absolute left-0 top-1 size-[11px] rounded-full border-2 border-paper", k === x.s.pasos.length - 1 ? "bg-granate" : "bg-inkSoft")}
+                  aria-hidden
+                />
+                <p className="flex flex-wrap items-baseline gap-x-2 font-mono text-rotulo tabular-nums text-inkSoft">
+                  {fechaConAnio(p.fecha)}
+                  {d != null && d >= 0 && (
+                    <span className="font-sans font-semibold text-ink">{d === 0 ? "el mismo día" : d === 1 ? "1 día después" : `${d} días después`}</span>
+                  )}
+                </p>
+                <p className="text-meta leading-snug text-ink text-pretty">{p.texto}</p>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="text-meta leading-relaxed text-inkSoft text-pretty">{x.p.explica}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2.5">
         <button
           type="button"
-          onClick={() => setTodos((v) => !v)}
-          aria-expanded={todos}
-          className="min-h-[32px] text-rotulo font-semibold text-granate underline decoration-granate/40 underline-offset-2"
+          onClick={ver}
+          aria-pressed={marcado}
+          className="inline-flex min-h-[32px] items-center gap-1.5 text-meta font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
         >
-          {todos ? "Ver menos" : `Ver los ${items.length}`}
+          <LocateFixed size={14} aria-hidden />
+          {marcado ? "Marcado en la línea" : "Verlo en la línea"}
         </button>
-      )}
-    </section>
+        {x.tipo === "secuencia" && x.s.href && (
+          <Link
+            href={x.s.href}
+            prefetch={false}
+            className="inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
+          >
+            Ver la evidencia
+            <ArrowRight size={14} aria-hidden />
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }

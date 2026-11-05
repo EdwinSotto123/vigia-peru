@@ -27,7 +27,7 @@ export default function ContratosLoading() {
           <Skeleton className="h-4 w-[30rem] max-w-full" />
         </div>
         <Skeleton className="h-12 w-80 max-w-full rounded-full" />
-        <IndicadoresSkeleton n={4} />
+        <IndicadoresSkeleton n={4} franja />
         <Skeleton className="h-11 w-full rounded-xl" />
       </div>
       <TablaContratosCargando />

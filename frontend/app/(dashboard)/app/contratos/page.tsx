@@ -114,7 +114,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
       />
       <VistaConConteo vista="contratos" universo={universo} />
 
-      <Suspense fallback={<IndicadoresSkeleton n={4} />}>
+      <Suspense fallback={<IndicadoresSkeleton n={4} franja />}>
         <IndicadoresContratos resumen={resumen} global={resumenGlobal ?? Promise.resolve(null)} recortada={recortada} parametros={parametros} />
       </Suspense>
 
@@ -160,7 +160,7 @@ async function IndicadoresContratos({
       </p>
     );
   }
-  return <Indicadores items={indicadores(r, recortada, g?.total ?? null, parametros)} />;
+  return <Indicadores franja items={indicadores(r, recortada, g?.total ?? null, parametros)} />;
 }
 
 interface Region {
@@ -476,7 +476,7 @@ async function MenoresVista({ searchParams }: { searchParams?: Record<string, st
         }
       />
       <VistaConConteo vista="menores" universo={universo} />
-      <Suspense fallback={<CifrasMenoresCargando n={4} />}>
+      <Suspense fallback={<CifrasMenoresCargando n={4} franja />}>
         <CifrasMenores resumen={getResumenMenores()} />
       </Suspense>
       <Listado ruta={RUTA} parametros={parametros} paramPagina={P_MEN.page}>
@@ -507,6 +507,7 @@ async function CifrasMenores({ resumen }: { resumen: Promise<ResumenMenores | nu
   const pct = r.contratos ? Math.round((100 * r.conSenal) / r.contratos) : 0;
   return (
     <CifrasMenoresFila
+      franja
       items={[
         {
           valor: numeroMen(r.contratos),

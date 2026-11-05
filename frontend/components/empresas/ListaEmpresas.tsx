@@ -44,7 +44,7 @@ export function ListaEmpresas({ sp, ruta }: { sp: Busqueda; ruta: string }) {
   const filtrada = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
   return (
     <div className="space-y-4">
-      <Suspense fallback={<IndicadoresSkeleton n={4} />}>
+      <Suspense fallback={<IndicadoresSkeleton n={4} franja />}>
         <Cifras pagina={paginaP} ruta={ruta} f={f} />
       </Suspense>
       <Listado ruta={ruta} parametros={parametros} paramPagina="page">
@@ -159,7 +159,7 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
 async function Cifras({ pagina, ruta, f }: { pagina: Promise<PaginaEmpresas | null>; ruta: string; f: FiltrosEmpresas }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores items={cifras(r, ruta, f)} />;
+  return <Indicadores franja items={cifras(r, ruta, f)} />;
 }
 
 function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador[] {
@@ -187,7 +187,7 @@ function cifras(r: ResumenEmpresas, ruta: string, f: FiltrosEmpresas): Indicador
       contexto: aparte ? (
         <>
           en contratos y órdenes
-          <BanderaAparte monto={solesCompacto(d.monto + d.montoOrdenes)} titulo="Posible error de carga" className="mt-1.5">
+          <BanderaAparte monto={solesCompacto(d.monto + d.montoOrdenes)} titulo="Posible error de carga" className="ml-1.5">
             {`${registros} ${aparte === 1 ? "trae" : "traen"} ${soles(d.monto + d.montoOrdenes)}${aparte === 1 ? "" : " en total"}. Puede ser un error ${quien} al subir el dato: Vigía no lo borra, pero lo deja fuera de este total para que no infle la cifra.`}
           </BanderaAparte>
         </>

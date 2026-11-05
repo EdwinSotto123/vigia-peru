@@ -47,8 +47,24 @@ const TONO: Record<NonNullable<Cifra["tono"]>, string> = {
 /** Un valor con letras ("12 mar. 2025", "hace 3 h") va más chico: a 26 px partía en dos líneas. */
 const tieneLetras = (v: ReactNode | null) => typeof v === "string" && /[a-zá-ú]/i.test(v.replace(/^S\//, ""));
 
-export function CifrasEnFila({ items, pie, className, apilado = false, chico = false }: { items: Cifra[]; pie?: ReactNode; className?: string; apilado?: boolean; chico?: boolean }) {
+export function CifrasEnFila({
+  items,
+  pie,
+  className,
+  apilado = false,
+  chico = false,
+  franja = false,
+}: {
+  items: Cifra[];
+  pie?: ReactNode;
+  className?: string;
+  apilado?: boolean;
+  chico?: boolean;
+  /** Una sola franja baja (las cifras de cabecera de una LISTA): ver `Franja`. */
+  franja?: boolean;
+}) {
   const visibles = items.slice(0, 4);
+  if (franja) return <Franja items={visibles} pie={pie} className={className} />;
   const fila = (
     // En el celular van de a 2 por fila: con un total impar, la última a todo el ancho (no media fila con un hueco al lado).
     // `apilado` (de a 2 en todo ancho), lo mismo en todos los anchos: la tercera del panel del mapa quedaba sola en media fila.
@@ -116,8 +132,61 @@ const COLUMNAS: Record<number, string> = {
   4: "sm:gap-3 lg:grid-cols-4",
 };
 
+/**
+ * Las cifras de cabecera de una LISTA (entidades, empresas, contratos) en una franja baja: el número y lo que es en la
+ * misma línea, con su contexto a continuación y en tercer nivel, y las cifras una tras otra con aire entre ellas (sin
+ * separadores: al partirse en dos renglones, una raya quedaba al inicio del segundo). Pedido del usuario del
+ * 2026-11-05: las cuatro tarjetas de 110 px «ocupan tanto espacio» para cifras de toda la base que no cambian con los
+ * filtros. Mide ~50 px en escritorio (dos renglones a lo sumo) contra ~120; en el celular, una cifra por renglón.
+ * Cada cifra con `href` es un enlace (número y etiqueta), y el ⓘ queda al final de la suya.
+ */
+function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; className?: string }) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      <dl className="flex flex-wrap items-baseline gap-x-8 gap-y-2 rounded-2xl border border-line bg-paper px-4 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft">
+        {items.map((it) => {
+          const numero = (
+            <span className={cn("font-display text-destacado font-bold leading-none tracking-tight tabular-nums", TONO[it.tono ?? "neutro"])}>
+              {it.valor == null ? <span className="text-meta font-semibold text-mute">Sin dato</span> : it.valor}
+            </span>
+          );
+          return (
+            <div key={it.etiqueta} className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+              <dt className="order-2 text-meta font-semibold text-ink">
+                {it.href ? (
+                  <Link href={it.href} prefetch={false} className="underline decoration-line underline-offset-4 hover:decoration-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">
+                    {it.etiqueta}
+                  </Link>
+                ) : (
+                  it.etiqueta
+                )}
+              </dt>
+              <dd className="order-1">{numero}</dd>
+              {it.contexto != null && <dd className="order-3 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
+              {it.ayuda && <dd className="order-4 self-center">{it.ayuda}</dd>}
+            </div>
+          );
+        })}
+      </dl>
+      {pie && <div>{pie}</div>}
+    </div>
+  );
+}
+
 /** Las mismas tarjetas mientras llegan los datos: números en esqueleto, nunca un 0 provisional. */
-export function CifrasEnFilaSkeleton({ n = 4, className }: { n?: number; className?: string }) {
+export function CifrasEnFilaSkeleton({ n = 4, className, franja = false }: { n?: number; className?: string; franja?: boolean }) {
+  if (franja) {
+    return (
+      <div className={cn("flex flex-wrap items-center gap-x-8 gap-y-2 rounded-2xl border border-line bg-paper px-4 py-3.5", className)} aria-hidden>
+        {Array.from({ length: Math.min(4, Math.max(1, n)) }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        ))}
+      </div>
+    );
+  }
   const k = Math.min(4, Math.max(1, n));
   return (
     <div className={cn("grid grid-cols-2 gap-2.5", COLUMNAS[k], className)} aria-hidden>
