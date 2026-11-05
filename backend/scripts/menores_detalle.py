@@ -40,8 +40,10 @@ CLIENTE = "vigia-menores/1.0"
 
 def token_relay() -> str:
     env = dict(os.environ, MSYS_NO_PATHCONV="1")
+    # En GitLab CI las credenciales vienen del token OIDC: sin el perfil de la PC.
+    perfil = [] if os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE") else ["--profile", "founder.edwin"]
     return subprocess.run(["aws", "ssm", "get-parameter", "--name", "/vigia/relay/token", "--with-decryption",
-                           "--query", "Parameter.Value", "--output", "text", "--profile", "founder.edwin",
+                           "--query", "Parameter.Value", "--output", "text", *perfil,
                            "--region", "us-east-2"], capture_output=True, text=True, check=True, env=env).stdout.strip()
 
 
@@ -238,7 +240,8 @@ def main() -> None:
     a = ap.parse_args()
     global PAUSA, DIRECTO
     PAUSA, DIRECTO = a.pausa, a.directo
-    tok = token_relay()
+    # Directo (desde la PC o desde un runner de CI) no usa el relay: ni su token hace falta.
+    tok = "" if a.directo else token_relay()
     if a.listado:
         listado(a.entorno, tok, a.tam)
     if a.detalle:
