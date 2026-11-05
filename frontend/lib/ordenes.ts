@@ -35,7 +35,34 @@ export type OrdenGeneral = OrdenEmpresa & {
   alBorde?: { tope: number } | null;
   /** La ficha de la persona (RUC 10), donde está la evidencia de sus señales: un código al azar, no su RUC. */
   personaCodigo?: string | null;
+  /**
+   * Una orden que dice pagar un proceso de selección («Deviene de…»): los procesos que su proveedor ganó en la entidad en
+   * los 3 años anteriores (la regla de compra_vinculo, migración 240), del más cercano a la orden al más lejano. null: la
+   * orden no es pago de un proceso. Falta en la API vieja.
+   */
+  procesosPago?: ProcesosPago | null;
 };
+
+/** Un proceso que una orden puede estar pagando: el que su proveedor ganó en la entidad (CONOSCE, adjudicaciones). */
+export interface ProcesoCandidato {
+  codigo: string;
+  nomenclatura: string | null;
+  descripcion: string | null;
+  /** Su ficha en Vigía; sin él, la búsqueda por código en Contrataciones Abiertas. */
+  ocid: string | null;
+  /** La primera buena pro de ese proveedor en el proceso (AAAA-MM-DD). */
+  buenaPro: string | null;
+  /** Lo adjudicado a ese proveedor, en soles (null si fue en otra moneda). */
+  adjudicado: number | null;
+  /** Lo adjudicado es el monto de la orden (±S/ 1): el más probable. */
+  mismoMonto: boolean;
+}
+
+/** Los procesos que una orden de pago puede estar pagando: cuántos son y los más cercanos (hasta 8). */
+export interface ProcesosPago {
+  total: number;
+  lista: ProcesoCandidato[];
+}
 
 /** El grupo de órdenes del mismo día al que pertenece una orden partida: la evidencia de su bandera. */
 export interface OrdenFraccionada {
@@ -54,6 +81,11 @@ export interface InhabilitacionProveedor {
   resolucion: string | null;
   desde: string | null;
   hasta: string | null;
+  /**
+   * Por qué lo inhabilitó, como lo escribe el Tribunal («- j) Presentar documentos falsos…», una infracción por renglón).
+   * Lo traen las órdenes desde el 2026-11-05; los contratos menores, todavía no.
+   */
+  infraccion?: string | null;
 }
 
 export interface OrdenesPagina {
@@ -206,6 +238,19 @@ export const P_ORD = {
   tipo: "otipo", estado: "oest", dudosa: "odud", persona: "oper", como: "ocomo", monto: "omonto", antecedente: "oant",
   orden: "oord", page: "opag",
 } as const;
+
+/**
+ * La vista Órdenes de /app/contratos con una entidad, un proveedor y un antecedente: la lista de las órdenes que sostienen
+ * una bandera (la evidencia de su tarjeta en el panel). El proveedor, sólo si es una empresa (RUC 20): el RUC 10 lleva el
+ * DNI y nunca va en un enlace.
+ */
+export function rutaOrdenes(f: { entidad?: string | null; proveedor?: string | null; antecedente?: (typeof ANTECEDENTES_ORDEN)[number]["valor"] }): string {
+  const q = new URLSearchParams({ vista: "ordenes" });
+  if (f.entidad && /^\d{11}$/.test(f.entidad)) q.set(P_ORD.entidad, f.entidad);
+  if (f.proveedor && /^20\d{9}$/.test(f.proveedor)) q.set(P_ORD.proveedor, f.proveedor);
+  if (f.antecedente) q.set(P_ORD.antecedente, f.antecedente);
+  return `/app/contratos?${q}`;
+}
 
 export function parseOrdenesQuery(sp?: Record<string, string | string[] | undefined>): FiltrosOrdenes {
   const g = (k: string) => { const v = sp?.[k]; return Array.isArray(v) ? v[0] : v; };

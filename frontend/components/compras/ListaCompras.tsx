@@ -34,7 +34,7 @@ import { OBJETO_TEXTO, type ContratoEmpresa } from "@/lib/empresas";
 import { fechaConAnio, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, enlacesProceso } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
-import { montoOrden, monedaOrden } from "@/lib/ordenes";
+import { montoOrden } from "@/lib/ordenes";
 import { FUENTE_TEXTO } from "@/lib/personas";
 import { rutaContrato } from "@/lib/rutas";
 import {
@@ -329,49 +329,6 @@ function filaProcesoEmpresa(c: ContratoEmpresa, compra: Compra, ruta: string): F
   };
 }
 
-/**
- * De qué proceso es un pago (con una bandera de la orden, o un pago sin proceso posible). Una orden en otra moneda no se
- * juntó con ningún proceso (compra_vinculo, migración 240, junta sólo órdenes en soles): decir que su proveedor «no figura
- * ganando ninguno» sería falso (la OPS, en dólares canadienses con EsSalud), así que dice por qué no se buscó.
- */
-function BloquePagoDe({ c }: { c: Compra }) {
-  const p = c.pagoDe;
-  if (c.clase !== "pago") return null;
-  const otraMoneda = !p && c.orden?.otraMoneda ? monedaOrden(c.orden.otraMoneda).nombre : null;
-  return (
-    <BloqueDetalle titulo="Qué proceso paga">
-      {otraMoneda ? (
-        <p className="text-inkSoft">
-          La orden dice que paga un proceso de selección. Vigía junta cada pago con su proceso sólo en las órdenes en soles, y
-          ésta es en {otraMoneda}: por eso no buscó cuál de los procesos que su proveedor ganó en la entidad es el que paga.
-        </p>
-      ) : p?.codigo ? (
-        <p className="text-inkSoft">
-          Paga el proceso {p.titulo ? `«${oracion(p.titulo)}»` : p.codigo}
-          {p.ocid && (
-            <>
-              {" "}
-              <Link href={rutaContrato(p.ocid)} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
-                (ver el proceso)
-              </Link>
-            </>
-          )}
-          .
-        </p>
-      ) : p && p.candidatos > 1 ? (
-        <p className="text-inkSoft">
-          Paga uno de los {p.candidatos} procesos que esta empresa ganó en la entidad en los 3 años anteriores: el SEACE no dice cuál.
-        </p>
-      ) : (
-        <p className="text-inkSoft">
-          La orden dice que paga un proceso de selección, pero esta empresa no figura ganando ninguno en la entidad en los 3
-          años anteriores: puede ser de antes de 2018, de un consorcio o un error de registro.
-        </p>
-      )}
-    </BloqueDetalle>
-  );
-}
-
 /** La fila de una compra, con la de la lista de su fuente y lo que suman las demás. */
 function filaDe(c: Compra, i: number, ctx: { ruta: string; parametros: Parametros; ancla: "entidad" | "proveedor" }): Fila | null {
   if (c.proceso) {
@@ -400,7 +357,6 @@ function filaDe(c: Compra, i: number, ctx: { ruta: string; parametros: Parametro
       ocultar: ctx.ancla === "entidad" ? "entidad" : "proveedor",
       bloques: (
         <>
-          <BloquePagoDe c={c} />
           {c.clase === "catalogo" && (
             <BloqueDetalle titulo="Lo que compró">
               <p className="text-inkSoft">

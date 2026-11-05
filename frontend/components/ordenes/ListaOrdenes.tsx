@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { ListFilter, Scale, Store, TriangleAlert } from "lucide-react";
+import { Banknote, ChevronDown, Gauge, Gavel, ListFilter, ReceiptText, Scale, Store, TriangleAlert } from "lucide-react";
 import {
   Ayuda,
   AyudaTermino,
@@ -32,6 +32,7 @@ import { enSeccion } from "@/components/contratos/filtros";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { BarraTope } from "@/components/charts/BarraTope";
 import { IconoBandera } from "@/components/ui/IconoBandera";
+import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { Llamita } from "@/components/marca/Llamita";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { Dato } from "@/components/ui/Dato";
@@ -39,11 +40,15 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { enlaceProveedor } from "@/lib/empresas";
-import { decimal, fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, porcentaje, soles } from "@/lib/formato";
-import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp } from "@/lib/fuentes";
+import { P_COMPRAS } from "@/lib/compras";
+import { enlaceProveedor, rutaEmpresa } from "@/lib/empresas";
+import { decimal, fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
+import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, busquedaOece, djiEntidad, fichaRnp } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
-import { FUENTE_TEXTO, SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
+import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
+import { SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
+import { rutaContrato } from "@/lib/rutas";
+import { cn } from "@/lib/utils";
 import { ExpedienteSiaf } from "./ExpedienteSiaf";
 import {
   ANTECEDENTES_ORDEN,
@@ -52,10 +57,13 @@ import {
   MONTOS_ORDEN,
   P_ORD,
   montoOrden,
+  rutaOrdenes,
   type InhabilitacionProveedor,
   type OrdenFraccionada,
   type OrdenGeneral,
   type OrdenesPagina,
+  type ProcesoCandidato,
+  type ProcesosPago,
 } from "@/lib/ordenes";
 
 /**
@@ -67,9 +75,10 @@ import {
  * Anatomía de fila, la de todo listado (§14.1): estado (chip; y la bandera de «posible error» si el monto no se puede
  * creer) · qué se compró, con su número primero, entidad, proveedor y cómo se contrató · antecedentes · monto · emitida
  * (las columnas que dicen lo mismo en toda la página se quitan: `colapsarIguales`). Los
- * antecedentes son banderas de esa columna, cada una con su evidencia en el panel: el parentesco con un funcionario de la
- * entidad (nepotismo), las órdenes del mismo día que juntas pasan 8 UIT (fraccionamiento, con las órdenes de ese día) y
- * la inhabilitación del Tribunal vigente al emitirse (con su resolución).
+ * antecedentes son banderas de esa columna y, en el panel, una tarjeta cada una con su evidencia (`TarjetaBandera`): el
+ * parentesco con un funcionario de la entidad (nepotismo), las señales de la persona con la entidad, las órdenes al borde
+ * del tope, las del mismo día que juntas pasan 8 UIT (fraccionamiento, con las órdenes de ese día) y la inhabilitación del
+ * Tribunal vigente al emitirse (con su resolución y su periodo). Una orden que paga un proceso dice cuál puede ser.
  *
  * También exporta las piezas que comparte con la lista de contratos menores (components/menores): el chip de estado, la
  * fecha posterior a hoy, la celda sin antecedentes, el paginador por «hay más», la espera, la inhabilitación y los
@@ -162,12 +171,13 @@ export function fichasCompra(
 /**
  * Un nombre del panel con el enlace a su ficha, si tiene (`fichasCompra`); si no, el nombre solo (y sin nombre, null:
  * `DatosClave` dice «Sin dato»). Sólo en el panel: la fila entera ya es un botón y un enlace adentro sería un control
- * dentro de otro.
+ * dentro de otro. Verde y subrayado, como todo identificador (antes sin subrayar hasta pasar el puntero: no se notaba que
+ * llevaba a algún lado; pedido del usuario del 2026-11-05).
  */
 export function conFicha(nombre: string | null, href: string | null): ReactNode {
   if (!nombre || !href) return nombre;
   return (
-    <Link href={href} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+    <Link href={href} prefetch={false} className="font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate">
       {nombre}
     </Link>
   );
@@ -484,23 +494,24 @@ export const antecedenteInhabilitado = (i: InhabilitacionProveedor, chip: string
 });
 
 /**
- * La evidencia de la inhabilitación en el panel: el periodo y la resolución, y cuándo se emitió o firmó. La fuente abre
- * la ficha del proveedor en el RNP, con sus sanciones (sólo un RUC 20: el 10 lleva el DNI); si no, el registro de
- * sancionados.
+ * La inhabilitación en el panel de una compra (los contratos menores: su lista y su ficha), como la tarjeta de bandera de
+ * las órdenes (`TarjetaInhabilitacion`). Antes era un bloque de texto con la fuente enlazada a una portada. Con `fecha` (la
+ * de la compra), también cuánto antes lo inhabilitó y el periodo dibujado con la compra adentro.
  */
-export function BloqueInhabilitacion({ i, cuando, ruc }: { i: InhabilitacionProveedor; cuando: string; ruc?: string | null }) {
-  const fuente = /^20\d{9}$/.test(ruc ?? "") ? fichaRnp(ruc) : DATASET_SANCIONADOS;
-  return (
-    <BloqueDetalle titulo="El proveedor estaba inhabilitado" ayuda={<AyudaTermino clave="inhabilitacion" />}>
-      <p className="text-inkSoft">
-        El Tribunal de Contrataciones del Estado lo inhabilitó {periodoInhabilitacion(i)}
-        {i.resolucion ? ` (resolución ${i.resolucion})` : ""}. {cuando}, dentro de ese periodo.
-      </p>
-      <p className="mt-1.5 text-rotulo text-mute">
-        Fuente: <EnlaceFuente href={fuente}>{FUENTE_TEXTO.osce_sancionados}</EnlaceFuente>. Es un dato para revisar, no una acusación.
-      </p>
-    </BloqueDetalle>
-  );
+export function BloqueInhabilitacion({
+  i,
+  cuando,
+  ruc,
+  fecha,
+  marca,
+}: {
+  i: InhabilitacionProveedor;
+  cuando: string;
+  ruc?: string | null;
+  fecha?: string | null;
+  marca?: string;
+}) {
+  return <TarjetaInhabilitacion i={i} cuando={cuando} ruc={ruc} fecha={fecha} marca={marca} />;
 }
 
 /** Una señal de la persona por su tipo (las que llegan de la API y la web aún no conoce, no se muestran). */
@@ -509,11 +520,15 @@ const senalPersona = (tipo: string) => (SENAL as Record<string, { corto: string;
 /** A qué porcentaje de su tope quedó la orden («96.8 %»). */
 const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) / tope, { decimales: 1 });
 
+/** El nombre de dos banderas en la fila y en el panel: el mismo en el chip de la celda y en el índice de las tarjetas. */
+const CHIP_INHABILITADO = "Inhabilitado al emitirse";
+const CHIP_FRACCIONAMIENTO = TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT";
+
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
 export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
   const out: Antecedente[] = [];
   if (o.conNepotismo) out.push({ tipo: "nepotismo", severidad: "alta", chip: SENAL.nepotismo.corto, explica: SENAL.nepotismo.titulo });
-  if (o.inhabilitacion) out.push(antecedenteInhabilitado(o.inhabilitacion, "Inhabilitado al emitirse"));
+  if (o.inhabilitacion) out.push(antecedenteInhabilitado(o.inhabilitacion, CHIP_INHABILITADO));
   // Las demás señales de la persona con esta entidad, con el mismo nombre que en su ficha.
   for (const s of o.senalesPersona ?? []) {
     const def = senalPersona(s.tipo);
@@ -532,7 +547,7 @@ export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
     out.push({
       tipo: "fraccionamiento",
       severidad: f.severidad === "alta" ? "alta" : "media",
-      chip: TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT",
+      chip: CHIP_FRACCIONAMIENTO,
       explica: `Una de ${f.ordenes} órdenes que la entidad le emitió ese día: suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`,
     });
   }
@@ -555,92 +570,615 @@ function fuentesSenales(tipos: string[], entidadRuc: string | null | undefined):
   return [...f].map(([texto, href]) => ({ texto, href }));
 }
 
-/** Varias fuentes en una frase («A, B y C»), cada una con su enlace. */
-function FuentesEnFrase({ fuentes }: { fuentes: { texto: string; href: string }[] }) {
+// ─── Las banderas en el panel: una tarjeta por bandera, con su evidencia ─────────
+
+/*
+ * Pedido del usuario del 2026-11-05, del panel de una orden con «Inhabilitado al emitirse»: «aca no hay nada de
+ * información… el enlace no te lleva a nada, no tiene buen diseño ni nada que DIGA esa es la bandera». Arriba iba el chip
+ * y, muy abajo, un bloque de texto suelto con la fuente enlazada a una portada. Ahora cada bandera es una tarjeta arriba
+ * del panel, debajo del estado: su severidad con su ícono y su palabra («Bandera grave»), su nombre como título, lo que
+ * se encontró en una oración con los datos clave (fechas, resolución, montos), un gráfico chico donde lo hay (el periodo
+ * de la sanción con la orden adentro, el monto contra su tope, las órdenes del día contra 8 UIT) y la evidencia: dónde
+ * está el caso en Vigía y dónde comprobarlo en la fuente oficial, con qué buscar si la fuente no abre el registro.
+ */
+
+/** Un identificador en una frase del panel (un proceso, una ficha): verde y subrayado, como todo identificador. */
+const CLASE_ENLACE = "font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
+
+/** ¿Es una empresa (RUC 20)? Sólo ésas llevan enlace por su RUC: el RUC 10 lleva el DNI. */
+const esEmpresa = (ruc: string | null | undefined): ruc is string => !!ruc && /^20\d{9}$/.test(ruc);
+
+/** Los tres canales de la severidad de una bandera (color, forma y palabra), los mismos de BanderasFicha. */
+const NIVEL = {
+  alta: {
+    palabra: "Bandera grave", Icono: ICONO_NIVEL.alta, borde: "border-crimson/35", cabeza: "bg-crimson-soft", texto: "text-crimsonTexto",
+    chip: "border-crimson/30 bg-crimson-soft text-crimsonTexto hover:border-crimson/70",
+  },
+  media: {
+    palabra: "Bandera media", Icono: ICONO_NIVEL.media, borde: "border-amber/35", cabeza: "bg-amber-soft", texto: "text-amberTexto",
+    chip: "border-amber/30 bg-amber-soft text-amberTexto hover:border-amber/70",
+  },
+  baja: {
+    palabra: "Bandera leve", Icono: ICONO_NIVEL.baja, borde: "border-line", cabeza: "bg-paperDeep", texto: "text-inkSoft",
+    chip: "border-mute/20 bg-line text-inkSoft hover:border-mute/50",
+  },
+} as const;
+
+type Nivel = keyof typeof NIVEL;
+
+/**
+ * Una bandera como tarjeta: la cabecera teñida con su severidad (ícono y palabra) y su nombre; debajo, lo que se encontró;
+ * al pie, la evidencia. `id`: el ancla a la que lleva su chip del índice (`IndiceBanderas`). Server-safe.
+ */
+export function TarjetaBandera({
+  id,
+  tipo,
+  severidad,
+  nombre,
+  ayuda,
+  pie,
+  children,
+}: {
+  id: string;
+  tipo: string;
+  severidad: Nivel;
+  nombre: string;
+  ayuda?: ReactNode;
+  pie?: ReactNode;
+  children: ReactNode;
+}) {
+  const n = NIVEL[severidad];
   return (
-    <>
-      {fuentes.map((f, i) => (
-        <Fragment key={f.texto}>
-          {i > 0 && (i === fuentes.length - 1 ? " y " : ", ")}
-          <EnlaceFuente href={f.href}>{f.texto}</EnlaceFuente>
-        </Fragment>
+    <article id={id} aria-labelledby={`${id}-nombre`} className={cn("scroll-mt-4 overflow-hidden rounded-2xl border bg-paper", n.borde)}>
+      <header className={cn("flex items-start gap-3 px-4 py-3", n.cabeza)}>
+        <n.Icono size={20} className={cn("mt-0.5 shrink-0", n.texto)} aria-hidden />
+        <div className="min-w-0">
+          <p className={cn("text-rotulo font-semibold", n.texto)}>{n.palabra}</p>
+          <h3 id={`${id}-nombre`} className="flex items-center gap-1.5 font-display text-bloque font-bold leading-snug text-ink">
+            <IconoBandera tipo={tipo} size={16} className="text-inkSoft" />
+            <span className="min-w-0">{nombre}</span>
+            {ayuda}
+          </h3>
+        </div>
+      </header>
+      <div className="space-y-3 px-4 py-3.5 text-dato leading-relaxed text-inkSoft">{children}</div>
+      {pie && <footer className="space-y-2.5 border-t border-line/70 px-4 py-3">{pie}</footer>}
+    </article>
+  );
+}
+
+/** Los datos clave de una bandera, cada uno con su ícono (`Dato`), en una línea que se parte si no entra. */
+function HechosBandera({ children }: { children: ReactNode }) {
+  return <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-meta leading-snug text-ink">{children}</p>;
+}
+
+/** Un monto dentro de un dato: en mono tabular, como todo monto. */
+const Monto = ({ n }: { n: number }) => <span className="font-mono tabular-nums">{soles(n)}</span>;
+
+/**
+ * Dónde comprobar una bandera en la fuente oficial: cada enlace con qué buscar ahí (`pista`) cuando la fuente no abre el
+ * registro (un buscador, un archivo de datos abiertos), para no dejar a nadie frente a una búsqueda vacía.
+ */
+function DondeComprobarlo({ enlaces }: { enlaces: { texto: string; href: string; pista?: string | null }[] }) {
+  return (
+    <div className="text-rotulo leading-relaxed text-mute">
+      <p className="font-semibold text-inkSoft">Dónde comprobarlo</p>
+      <ul className="mt-0.5 space-y-0.5">
+        {enlaces.map((e) => (
+          <li key={e.href}>
+            <EnlaceFuente href={e.href}>{e.texto}</EnlaceFuente>
+            {e.pista ? `: ${e.pista}.` : ""}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1">Es un dato para revisar, no una acusación.</p>
+    </div>
+  );
+}
+
+/** Las acciones que llevan a la evidencia en Vigía (la ficha con el caso, la lista con las órdenes que la sostienen). */
+function AccionesBandera({ acciones }: { acciones: ({ href: string; texto: string } | null | false | undefined)[] }) {
+  const lista = acciones.filter((a): a is { href: string; texto: string } => !!a);
+  if (!lista.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {lista.map((a) => (
+        <EnlaceAccion key={a.href} href={a.href} prefetch={false} variante="secundario" flecha>
+          {a.texto}
+        </EnlaceAccion>
       ))}
-    </>
+    </div>
+  );
+}
+
+const DIA_MS = 86_400_000;
+const diaUtc = (f: string) => Date.parse(`${f.slice(0, 10)}T12:00:00Z`);
+const diasEntre = (a: string, b: string) => Math.round((diaUtc(b) - diaUtc(a)) / DIA_MS);
+
+/** Un lapso como se dice, igual que LineaHitos: días hasta dos meses, meses hasta dos años, después años y meses. */
+function lapso(dias: number): string {
+  if (dias < 60) return plural(dias, "día", "días");
+  const meses = Math.round(dias / 30.44);
+  if (meses < 24) return plural(meses, "mes", "meses");
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  return resto ? `${plural(anios, "año", "años")} y ${plural(resto, "mes", "meses")}` : plural(anios, "año", "años");
+}
+
+/** Las infracciones de la resolución, sin la viñeta ni la letra del inciso («- j) Presentar…» → «Presentar…»). */
+const infracciones = (t: string | null | undefined): string[] =>
+  (t ?? "")
+    .split(/\n+/)
+    .map((x) => x.replace(/^\s*-\s*/, "").replace(/^[a-z]\)\s*/i, "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+/**
+ * El periodo de la inhabilitación como una barra, con una raya en el día de la compra (que cae adentro: por eso es
+ * bandera). La escala va del comienzo de la sanción a su fin con un margen a cada lado; una definitiva no termina: llega
+ * al borde. El rótulo de la compra va sobre su raya, hacia el lado con más lugar. Server-safe.
+ */
+function PeriodoSancion({ i, fecha, marca }: { i: InhabilitacionProveedor; fecha: string; marca: string }) {
+  if (!i.desde) return null;
+  const definitiva = i.tipo === "definitivo" || !i.hasta;
+  const desde = diaUtc(i.desde);
+  const fin = definitiva ? Math.max(diaUtc(fecha), diaUtc(hoyLima())) : diaUtc(i.hasta!);
+  const margen = Math.max((fin - desde) * 0.08, 20 * DIA_MS);
+  const ini = desde - margen;
+  const ancho = fin + margen - ini;
+  const pos = (t: number) => Math.min(100, Math.max(0, (100 * (t - ini)) / ancho));
+  const izq = pos(desde);
+  const der = definitiva ? 100 : pos(fin);
+  const enCompra = pos(diaUtc(fecha));
+  return (
+    <figure className="space-y-1">
+      <div
+        role="img"
+        aria-label={`La inhabilitación va ${periodoInhabilitacion(i)}. ${marca} es del ${fechaLarga(fecha)}: cae dentro de ese periodo.`}
+        className="relative h-11"
+      >
+        <span
+          aria-hidden
+          className="absolute top-0 whitespace-nowrap text-micro font-semibold text-ink"
+          style={enCompra > 55 ? { right: `${100 - enCompra}%` } : { left: `${enCompra}%` }}
+        >
+          {marca}, {fechaConAnio(fecha)}
+        </span>
+        <span aria-hidden className="absolute inset-x-0 top-[26px] h-2 rounded-full bg-paperDeep" />
+        <span
+          aria-hidden
+          className={cn("absolute top-[26px] h-2 bg-crimson/45 ring-1 ring-inset ring-crimson/60", definitiva ? "rounded-l-full" : "rounded-full")}
+          style={{ left: `${izq}%`, width: `${Math.max(der - izq, 1)}%` }}
+        />
+        <span aria-hidden className="absolute top-4 h-[22px] w-0.5 -translate-x-1/2 rounded-full bg-ink" style={{ left: `${enCompra}%` }} />
+      </div>
+      <figcaption className="flex items-baseline justify-between gap-3 text-rotulo text-mute">
+        <span>
+          Inhabilitado desde el <span className="font-mono tabular-nums text-inkSoft">{fechaConAnio(i.desde)}</span>
+        </span>
+        <span className="text-right">
+          {definitiva ? (
+            "de forma definitiva"
+          ) : (
+            <>
+              hasta el <span className="font-mono tabular-nums text-inkSoft">{fechaConAnio(i.hasta)}</span>
+            </>
+          )}
+        </span>
+      </figcaption>
+    </figure>
   );
 }
 
 /**
- * Las señales de la persona (RUC 10) con la entidad que le dio la orden: qué se encontró, y, si la orden es una de las
- * que quedaron al borde del tope, a qué porcentaje. La evidencia de cada una (el aporte, la candidatura, las órdenes)
- * está en su ficha.
+ * La inhabilitación del Tribunal vigente al emitirse la orden (o al firmarse un contrato menor), como tarjeta: cuánto antes
+ * lo inhabilitó y por cuánto tiempo, la resolución y el periodo como datos, el periodo dibujado con la compra adentro, por
+ * qué lo inhabilitó (la infracción) y la evidencia. En Vigía, la sanción en la pestaña Antecedentes de la empresa (la
+ * misma que abre la cabecera de su ficha, `atipo=sancion_temporal` o `sancion_definitiva`); afuera, su ficha en el RNP
+ * del OECE (abre por RUC, sólo una empresa) y los datos abiertos del Tribunal, que no abren por registro: ahí, qué buscar
+ * (la resolución; nunca el RUC 10, que lleva el DNI). Antes el único enlace era la ficha del RNP, sin decir qué mirar.
  */
-function BloqueSenalesPersona({ o }: { o: OrdenGeneral }) {
-  const senales = (o.senalesPersona ?? []).filter((s) => senalPersona(s.tipo));
-  const borde = o.alBorde && o.monto != null ? o.alBorde : null;
-  if (!senales.length && !borde) return null;
+export function TarjetaInhabilitacion({
+  i,
+  cuando,
+  ruc,
+  fecha = null,
+  marca = "Esta compra",
+  id = "bandera-inhabilitado",
+  nombre = "Proveedor inhabilitado por el Tribunal",
+}: {
+  i: InhabilitacionProveedor;
+  /** La compra en una frase: «La orden se emitió el 2 de marzo de 2026». */
+  cuando: string;
+  ruc?: string | null;
+  /** La fecha de la compra (AAAA-MM-DD): con ella, cuánto antes lo inhabilitó y el periodo dibujado con la compra adentro. */
+  fecha?: string | null;
+  /** El rótulo de la compra en el dibujo («Esta orden»). */
+  marca?: string;
+  id?: string;
+  nombre?: string;
+}) {
+  // El RUC sólo de una empresa: el de una persona natural lleva su DNI y no va en un enlace ni en una pista.
+  const empresa = esEmpresa(ruc) ? ruc : null;
+  const definitiva = i.tipo === "definitivo";
+  const dia = fecha && /^\d{4}-\d{2}-\d{2}/.test(fecha) ? fecha.slice(0, 10) : null;
+  const antes = dia && i.desde ? diasEntre(i.desde, dia) : null;
+  const duracion = !definitiva && i.desde && i.hasta ? lapso(diasEntre(i.desde, i.hasta)) : null;
+  const vigente = definitiva || (!!i.hasta && i.hasta.slice(0, 10) >= hoyLima());
+  const motivos = infracciones(i.infraccion);
+  const resolucion = i.resolucion ? `la resolución ${i.resolucion}` : null;
+  const periodo = !i.desde
+    ? null
+    : definitiva
+      ? `Desde el ${fechaConAnio(i.desde)}, definitiva`
+      : i.hasta
+        ? `Del ${fechaConAnio(i.desde)} al ${fechaConAnio(i.hasta)}`
+        : `Desde el ${fechaConAnio(i.desde)}`;
   return (
-    <BloqueDetalle titulo="Lo que se sabe de esta persona con la entidad">
-      <ul className="space-y-2.5">
-        {senales.map((s) => {
-          const def = senalPersona(s.tipo)!;
-          return (
-            <li key={s.tipo} className="flex gap-2">
-              <IconoBandera tipo={s.tipo} size={15} className="mt-0.5 text-inkSoft" />
-              <span className="min-w-0">
-                <span className="block font-semibold text-ink">{def.titulo}</span>
-                <span className="block text-inkSoft">{def.explica}</span>
-              </span>
-            </li>
-          );
-        })}
-        {borde && (
-          <li className="flex gap-2">
-            <IconoBandera tipo="al_borde_del_tope" size={15} className="mt-0.5 text-inkSoft" />
-            <span className="min-w-0 flex-1 space-y-2">
-              <span className="block font-semibold text-ink">{SENAL.al_borde_del_tope.titulo}</span>
-              <span className="block text-inkSoft">
-                Esta orden quedó en el {parteDelTope(o.monto!, borde.tope)} del tope de su año, como la mayoría de las que la entidad
-                le dio. Puede ser casualidad o la forma de no hacer un proceso de selección.
-              </span>
-              <BarraTope monto={o.monto!} tope={borde.tope} />
-            </span>
-          </li>
-        )}
-      </ul>
-      <p className="mt-2 text-rotulo text-mute">
-        Fuente: <FuentesEnFrase fuentes={fuentesSenales(senales.map((s) => s.tipo), o.entidadRuc)} />. Es un dato para revisar, no una acusación.
+    <TarjetaBandera
+      id={id}
+      tipo="inhabilitado"
+      severidad="alta"
+      nombre={nombre}
+      ayuda={<AyudaTermino clave="inhabilitacion" />}
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              empresa
+                ? {
+                    href: rutaEmpresa(empresa, "antecedentes", { [P_ANTECEDENTES.tipo]: definitiva ? "sancion_definitiva" : "sancion_temporal" }),
+                    texto: "Ver la sanción en la ficha de la empresa",
+                  }
+                : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={[
+              ...(empresa ? [{ texto: "Su ficha en el RNP del OECE", href: fichaRnp(empresa), pista: resolucion ? `entre sus sanciones, ${resolucion}` : "entre sus sanciones" }] : []),
+              {
+                texto: "Sancionados del Tribunal (datos abiertos)",
+                href: DATASET_SANCIONADOS,
+                pista: resolucion ? `en sus archivos, busca ${resolucion}` : empresa ? `en sus archivos, busca el RUC ${empresa}` : "en sus archivos, busca al proveedor por su nombre",
+              },
+            ]}
+          />
+        </>
+      }
+    >
+      <p>
+        {antes != null && antes >= 0
+          ? `${cuando}: el Tribunal de Contrataciones del Estado había inhabilitado al proveedor para contratar con el Estado ${antes === 0 ? "ese mismo día" : `${lapso(antes)} antes`}${definitiva ? ", de forma definitiva" : duracion ? `, por ${duracion}` : ""}.`
+          : `El Tribunal de Contrataciones del Estado inhabilitó al proveedor ${periodoInhabilitacion(i)}. ${cuando}, dentro de ese periodo.`}
       </p>
-      {o.personaCodigo && (
-        <EnlaceAccion href={`/app/personas/${o.personaCodigo}?seccion=senales`} prefetch={false} variante="secundario" flecha className="mt-3">
-          Ver la evidencia en su ficha
-        </EnlaceAccion>
+      <HechosBandera>
+        {i.resolucion && (
+          <Dato icono={Gavel} nombre="Resolución del Tribunal">
+            Resolución <span className="font-mono tabular-nums">{i.resolucion}</span>
+          </Dato>
+        )}
+        {periodo && <Dato tipo="fecha" nombre="Periodo de la inhabilitación">{periodo}</Dato>}
+        {vigente && <span className="pill border-crimson/30 bg-crimson-soft text-crimsonTexto">Sigue vigente hoy</span>}
+      </HechosBandera>
+      {dia && <PeriodoSancion i={i} fecha={dia} marca={marca} />}
+      {motivos.length > 0 && (
+        <div>
+          <p className="text-rotulo text-mute">{motivos.length === 1 ? "Por qué lo inhabilitó" : "Por qué lo inhabilitó (las infracciones de la resolución)"}</p>
+          <ul className="mt-1 space-y-1">
+            {motivos.map((m, k) => (
+              <li key={k} className="border-l-2 border-crimson/40 pl-2.5 text-meta text-ink">
+                {m}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
-    </BloqueDetalle>
+    </TarjetaBandera>
   );
 }
 
-/** Las órdenes del mismo día que juntas pasan 8 UIT, en el panel: cuántas, cuánto suman frente al tope y cada una. */
-function BloqueFraccionamiento({ f, fecha }: { f: OrdenFraccionada; fecha: string | null }) {
+/** La ficha de la persona (RUC 10) con la evidencia de sus señales: por su código al azar, nunca por su RUC. */
+const evidenciaPersona = (o: OrdenGeneral) =>
+  o.personaCodigo ? { href: `/app/personas/${o.personaCodigo}?seccion=senales`, texto: "Ver la evidencia en su ficha" } : null;
+
+/** El parentesco declarado con un funcionario de la entidad que le dio la orden. */
+function TarjetaNepotismo({ o, id }: { o: OrdenGeneral; id: string }) {
   return (
-    <BloqueDetalle titulo="Órdenes del mismo día que juntas pasan 8 UIT" ayuda={<AyudaTermino clave="fraccionamiento" />}>
-      <p className="text-inkSoft">
-        {fecha ? `El ${fechaLarga(fecha)}` : "Ese día"} la entidad le emitió {f.ordenes} órdenes que suman {soles(f.total)}: más que el tope de
-        8 UIT de ese año ({soles(f.tope)}), el monto hasta el que se puede comprar sin concurso.
-        {f.mismaDescripcion ? " Todas dicen lo mismo." : ""} Puede ser una compra partida para no hacer un proceso; no lo prueba.
+    <TarjetaBandera
+      id={id}
+      tipo="nepotismo"
+      severidad="alta"
+      nombre={SENAL.nepotismo.corto}
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              evidenciaPersona(o),
+              o.entidadRuc ? { href: `/entidad/${o.entidadRuc}?seccion=personas&psenal=nepotismo`, texto: "Ver los casos de la entidad" } : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={[{ texto: "Declaraciones juradas de intereses de la entidad (Contraloría)", href: djiEntidad(o.entidadRuc), pista: "el funcionario lo declaró ahí entre sus parientes" }]}
+          />
+        </>
+      }
+    >
+      <p>{SENAL.nepotismo.explica}</p>
+    </TarjetaBandera>
+  );
+}
+
+/** Una señal de la persona con la entidad (financió la campaña, candidato del que gobierna…): la evidencia, en su ficha. */
+function TarjetaSenalPersona({ o, tipo, severidad, id }: { o: OrdenGeneral; tipo: string; severidad: Nivel; id: string }) {
+  const def = senalPersona(tipo);
+  if (!def) return null;
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo={tipo}
+      severidad={severidad}
+      nombre={def.corto}
+      pie={
+        <>
+          <AccionesBandera acciones={[evidenciaPersona(o)]} />
+          <DondeComprobarlo enlaces={fuentesSenales([tipo], o.entidadRuc)} />
+        </>
+      }
+    >
+      <p>
+        <span className="font-semibold text-ink">{def.titulo}.</span> {def.explica}
       </p>
-      <ul className="mt-2 space-y-1.5" aria-label="Las órdenes de ese día">
-        {f.detalle.map((d) => (
-          <li key={d.orden} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+    </TarjetaBandera>
+  );
+}
+
+/**
+ * La orden quedó entre el 95 % y el 100 % de su tope, y la mayoría de las que la entidad le dio también: el monto y el
+ * tope como datos y la barra contra el tope. La evidencia: la ficha de la persona o, de una empresa, sus órdenes al borde
+ * del tope con esta entidad (la lista de órdenes con ese filtro).
+ */
+function TarjetaAlBorde({ o, monto, tope, id }: { o: OrdenGeneral; monto: number; tope: number; id: string }) {
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="al_borde_del_tope"
+      severidad="media"
+      nombre={SENAL.al_borde_del_tope.corto}
+      ayuda={<AyudaTermino clave="uit" />}
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              evidenciaPersona(o) ??
+                (esEmpresa(o.rucContratista) && o.entidadRuc
+                  ? { href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "al_borde_del_tope" }), texto: "Ver sus órdenes al borde del tope en la entidad" }
+                  : null),
+            ]}
+          />
+          <DondeComprobarlo enlaces={[{ texto: "Buscador de CONOSCE (OECE)", href: CONOSCE_BUSCADOR, pista: "busca las órdenes de la entidad a este proveedor" }]} />
+        </>
+      }
+    >
+      <p>
+        Esta orden quedó justo debajo del tope de su año, el monto desde el cual se debe hacer un proceso de selección, como la
+        mayoría de las que la entidad le dio. Puede ser casualidad o la forma de no hacer un proceso.
+      </p>
+      <HechosBandera>
+        <Dato icono={Banknote} nombre="Monto de la orden">
+          Orden: <Monto n={monto} />
+        </Dato>
+        <Dato icono={Gauge} nombre="Tope de su año">
+          Tope: <Monto n={tope} />
+        </Dato>
+        <span className="pill border-amber/30 bg-amber-soft text-amberTexto">El {parteDelTope(monto, tope)} del tope</span>
+      </HechosBandera>
+      <BarraTope monto={monto} tope={tope} />
+    </TarjetaBandera>
+  );
+}
+
+/** El color de la serie de una barra (el mismo de la compra partida de un contrato menor, FichaMenor). */
+const SERIE = "rgb(var(--serie-1))";
+const SERIE_CLARA = "rgb(var(--serie-1) / 0.4)";
+
+/**
+ * Las órdenes del mismo día una al lado de la otra, contra el tope de 8 UIT: esta orden en el color lleno y las demás en
+ * el claro; la raya marca el tope. La escala empieza en cero. Server-safe.
+ */
+function BarraDelDia({ f, orden }: { f: OrdenFraccionada; orden: string | null }) {
+  const escala = Math.max(f.total, f.tope) * 1.04;
+  const enTope = (100 * f.tope) / escala;
+  return (
+    <figure className="space-y-1.5">
+      <div className="relative pt-4">
+        <span
+          aria-hidden
+          className="absolute top-0 whitespace-nowrap text-micro font-semibold text-ink"
+          style={enTope > 55 ? { right: `${100 - enTope}%` } : { left: `${enTope}%` }}
+        >
+          Tope de 8 UIT
+        </span>
+        <div
+          role="img"
+          aria-label={`Las ${f.ordenes} órdenes de ese día suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`}
+          className="flex h-3 w-full gap-[2px] overflow-hidden rounded-full bg-paperDeep"
+        >
+          {f.detalle.map((d, k) => (
+            <span
+              key={`${d.orden}-${k}`}
+              title={`${d.orden}: ${soles(d.monto)}${d.orden === orden ? " (esta orden)" : ""}`}
+              className="h-full min-w-[3px]"
+              style={{ width: `${(100 * d.monto) / escala}%`, background: d.orden === orden ? SERIE : SERIE_CLARA }}
+            />
+          ))}
+        </div>
+        <span aria-hidden className="absolute bottom-[-2px] top-3.5 w-0.5 -translate-x-1/2 rounded-full bg-ink" style={{ left: `${enTope}%` }} />
+      </div>
+      <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: SERIE }} aria-hidden />
+          Esta orden
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: SERIE_CLARA }} aria-hidden />
+          Las demás de ese día
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Las órdenes del mismo día que juntas pasan 8 UIT: cuántas, cuánto suman frente al tope, la barra y cada una. */
+function TarjetaFraccionamiento({ o, f, id }: { o: OrdenGeneral; f: OrdenFraccionada; id: string }) {
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="fraccionamiento"
+      severidad={f.severidad === "alta" ? "alta" : "media"}
+      nombre="Órdenes del mismo día que pasan 8 UIT"
+      ayuda={<AyudaTermino clave="fraccionamiento" />}
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              esEmpresa(o.rucContratista) && o.entidadRuc
+                ? {
+                    href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "fraccionamiento" }),
+                    texto: "Ver sus órdenes partidas en la entidad",
+                  }
+                : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={[{
+              texto: "Buscador de CONOSCE (OECE)",
+              href: CONOSCE_BUSCADOR,
+              pista: o.fecha ? `busca las órdenes de la entidad del ${fechaLarga(o.fecha)}` : "busca las órdenes de la entidad de ese día",
+            }]}
+          />
+        </>
+      }
+    >
+      <p>
+        {o.fecha ? `El ${fechaLarga(o.fecha)}` : "Ese día"} la entidad le emitió varias órdenes que juntas pasan el tope de 8 UIT de ese
+        año, el monto hasta el que se puede comprar sin concurso.{f.mismaDescripcion ? " Todas dicen lo mismo." : ""} Puede ser una
+        compra partida para no hacer un proceso; no lo prueba.
+      </p>
+      <HechosBandera>
+        <Dato icono={ReceiptText} nombre="Órdenes de ese día">{plural(f.ordenes, "orden", "órdenes")} ese día</Dato>
+        <Dato icono={Banknote} nombre="Lo que suman">
+          Suman <Monto n={f.total} />
+        </Dato>
+        <Dato icono={Gauge} nombre="Tope de 8 UIT de ese año">
+          Tope: <Monto n={f.tope} />
+        </Dato>
+      </HechosBandera>
+      <BarraDelDia f={f} orden={o.orden} />
+      <ul className="divide-y divide-line/70 rounded-xl border border-line" aria-label="Las órdenes de ese día">
+        {f.detalle.map((d, k) => (
+          <li key={`${d.orden}-${k}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2">
             <span className="min-w-0">
               <span className="font-mono text-rotulo text-ink">{d.orden}</span>
+              {d.orden === o.orden && <span className="pill ml-2 border-line bg-paperSoft text-inkSoft">Esta orden</span>}
               {d.descripcion && <span className="block text-meta text-inkSoft">{oracion(d.descripcion)}</span>}
             </span>
-            <span className="shrink-0 font-mono tabular-nums text-ink">{soles(d.monto)}</span>
+            <span className="shrink-0 font-mono text-meta tabular-nums text-ink">{soles(d.monto)}</span>
           </li>
         ))}
       </ul>
-      <FuenteDato fuente={FUENTE_TEXTO.conosce_ordenes} href={CONOSCE_BUSCADOR} className="mt-1.5" />
-    </BloqueDetalle>
+    </TarjetaBandera>
+  );
+}
+
+/** Una bandera de la orden en el panel: su chip del índice (el mismo nombre que en la fila) y su tarjeta. */
+interface BanderaOrden {
+  id: string;
+  tipo: string;
+  severidad: Nivel;
+  chip: string;
+  tarjeta: ReactNode;
+}
+
+/**
+ * Las banderas de una orden como tarjetas, en el orden de `antecedentesOrden` (de la más grave a la más leve; a igual
+ * severidad, el de siempre): cada una con el mismo nombre de su chip en la fila.
+ */
+function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
+  const out: BanderaOrden[] = [];
+  const poner = (tipo: string, severidad: Nivel, chip: string, tarjeta: (id: string) => ReactNode) => {
+    const id = `bandera-orden-${tipo}`;
+    out.push({ id, tipo, severidad, chip, tarjeta: tarjeta(id) });
+  };
+  if (o.conNepotismo) poner("nepotismo", "alta", SENAL.nepotismo.corto, (id) => <TarjetaNepotismo o={o} id={id} />);
+  const inh = o.inhabilitacion;
+  if (inh) {
+    poner("inhabilitado", "alta", CHIP_INHABILITADO, (id) => (
+      <TarjetaInhabilitacion
+        id={id}
+        i={inh}
+        ruc={o.rucContratista}
+        fecha={o.fecha}
+        marca="Esta orden"
+        nombre="Inhabilitado al emitirse la orden"
+        cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"}
+      />
+    ));
+  }
+  for (const s of o.senalesPersona ?? []) {
+    const def = senalPersona(s.tipo);
+    if (def) poner(s.tipo, s.severidad, def.corto, (id) => <TarjetaSenalPersona o={o} tipo={s.tipo} severidad={s.severidad} id={id} />);
+  }
+  const borde = o.alBorde;
+  const monto = o.monto;
+  if (borde && monto != null) {
+    poner("al_borde_del_tope", "media", SENAL.al_borde_del_tope.corto, (id) => <TarjetaAlBorde o={o} monto={monto} tope={borde.tope} id={id} />);
+  }
+  const f = o.fraccionamiento;
+  if (f) poner("fraccionamiento", f.severidad === "alta" ? "alta" : "media", CHIP_FRACCIONAMIENTO, (id) => <TarjetaFraccionamiento o={o} f={f} id={id} />);
+  const rango = { alta: 0, media: 1, baja: 2 } as const;
+  return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);
+}
+
+/** Las tarjetas de las banderas, una debajo de otra (nada si no hay ninguna). */
+function TarjetasBanderas({ banderas }: { banderas: BanderaOrden[] }) {
+  if (!banderas.length) return null;
+  return (
+    <div className="space-y-3">
+      {banderas.map((b) => (
+        <Fragment key={b.id}>{b.tarjeta}</Fragment>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Con dos banderas o más, sus chips arriba del panel como índice: cada uno lleva a su tarjeta (un ancla, sin salir del
+ * panel). Con una sola, su tarjeta va justo debajo del estado y un chip con el mismo nombre la repetiría.
+ */
+function IndiceBanderas({ banderas }: { banderas: BanderaOrden[] }) {
+  return (
+    <ul className="flex flex-wrap items-center gap-1.5" aria-label="Las banderas de esta orden">
+      {banderas.map((b) => {
+        const n = NIVEL[b.severidad];
+        return (
+          <li key={b.id}>
+            <a
+              href={`#${b.id}`}
+              className={cn(
+                "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-meta font-semibold leading-tight transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+                n.chip,
+              )}
+            >
+              <n.Icono size={14} className="shrink-0" aria-hidden />
+              <span className="sr-only">{n.palabra}: </span>
+              <IconoBandera tipo={b.tipo} size={13} className="opacity-70" />
+              {b.chip}
+              <ChevronDown size={14} className="-mr-1 shrink-0 opacity-70" aria-hidden />
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -683,9 +1221,142 @@ export interface ExtraFila {
   ocultar?: "entidad" | "proveedor";
 }
 
+/** Un dato del panel en la rejilla de dos columnas: `ancho` lo pone a lo ancho de las dos (si no se dice, un texto largo). */
+type Par = DatoClave & { ancho?: boolean };
+
+/**
+ * Los datos de la orden en pares etiqueta → valor, en dos columnas cuando el panel tiene el ancho (container query): la
+ * etiqueta arriba y chica, como «Datos del contrato» de un contrato menor. Pedido del usuario del 2026-11-05: el panel
+ * era una lista de once renglones de etiqueta y valor (con el estado repetido del chip de arriba) y las banderas quedaban
+ * debajo de todo. Un valor largo (qué se pagó, la entidad, el proveedor, el botón del expediente) va a lo ancho y los
+ * cortos llenan los huecos (`grid-flow-row-dense`). Sin valor, «Sin dato».
+ */
+function DatosCompactos({ items }: { items: (Par | null | false | undefined)[] }) {
+  const lista = items.filter((d): d is Par => !!d);
+  return (
+    <div className="rounded-xl border border-line px-3.5 py-3 [container-type:inline-size]">
+      <dl className="grid gap-x-5 gap-y-3 [@container(min-width:22rem)]:grid-flow-row-dense [@container(min-width:22rem)]:grid-cols-2">
+        {lista.map((d) => {
+          const ancho = d.ancho ?? (typeof d.valor === "string" && d.valor.length > 48);
+          return (
+            <div key={d.etiqueta} className={cn("min-w-0", ancho && "[@container(min-width:22rem)]:col-span-2")}>
+              <dt className="flex items-center gap-1 text-rotulo text-mute">
+                {d.etiqueta}
+                {d.ayuda}
+              </dt>
+              <dd className={cn("mt-0.5 break-words text-dato leading-snug text-ink", d.mono && "font-mono text-meta tabular-nums")}>
+                {d.valor == null || d.valor === "" ? <span className="text-mute">Sin dato</span> : d.valor}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
+  );
+}
+
+/** Un proceso que la orden puede estar pagando: su nomenclatura (a su ficha), de qué trata, su buena pro y lo adjudicado. */
+function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
+  const nombre = c.nomenclatura?.trim() || `Proceso ${c.codigo}`;
+  return (
+    <li className="space-y-1 px-3 py-2.5">
+      <p className="text-meta">
+        {c.ocid ? (
+          <Link href={rutaContrato(c.ocid)} prefetch={false} className={cn(CLASE_ENLACE, "break-all font-mono")}>
+            {nombre}
+          </Link>
+        ) : (
+          // Sin su OCID en Vigía, su búsqueda por código en Contrataciones Abiertas (lib/fuentes.ts: con el código solo, el
+          // proceso no abre).
+          <EnlaceFuente href={busquedaOece(c.codigo)} className="break-all font-mono">
+            {nombre}
+          </EnlaceFuente>
+        )}
+      </p>
+      {c.descripcion && <p className="line-clamp-2 text-meta leading-snug text-inkSoft">{oracion(c.descripcion)}</p>}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-inkSoft">
+        {c.buenaPro && <Dato tipo="fecha" nombre="Buena pro">Buena pro el {fechaConAnio(c.buenaPro)}</Dato>}
+        <Dato icono={Banknote} nombre="Adjudicado">
+          {c.adjudicado != null ? (
+            <>
+              Adjudicado: <Monto n={c.adjudicado} />
+            </>
+          ) : (
+            "Adjudicado: sin monto en soles"
+          )}
+        </Dato>
+        {c.mismoMonto && <span className="pill border-line bg-paperSoft font-semibold text-ink">Mismo monto que la orden</span>}
+      </p>
+    </li>
+  );
+}
+
+/**
+ * Qué proceso paga una orden «Deviene de procesos de selección…» (GET /ordenes y las filas de /compras, `procesosPago`).
+ * Pedido del usuario del 2026-11-05: decía «Paga uno de los 5 procesos que esta empresa ganó en la entidad en los 3 años
+ * anteriores: el SEACE no dice cuál» sin nombrar ninguno. Ahora los nombra, del más cercano a la orden al más lejano (el de
+ * lo adjudicado igual al monto, los que alcanzan para pagarla, la buena pro más reciente), cada uno a su ficha; con más de
+ * ocho, a todos los procesos que ganó en la entidad (sólo una empresa: el RUC 10 no va en un enlace).
+ */
+function BloqueProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
+  const empresa = esEmpresa(o.rucContratista) ? o.rucContratista : null;
+  const quien = empresa ? "esta empresa" : "este proveedor";
+  const todos = empresa && o.entidadRuc && p.total > p.lista.length
+    ? `/entidad/${o.entidadRuc}?${new URLSearchParams({ seccion: "contratos", [P_COMPRAS.con]: empresa, [P_COMPRAS.como]: "proceso" })}`
+    : null;
+  return (
+    <BloqueDetalle
+      titulo="Qué proceso paga"
+      ayuda={
+        <Ayuda titulo="¿Cómo se sabe qué proceso paga?">
+          El SEACE no dice a qué proceso pertenece una orden de pago. Vigía busca los procesos que el proveedor ganó en la entidad
+          en los 3 años anteriores a la orden (CONOSCE, adjudicaciones): con uno solo, es ése; con varios, puede ser cualquiera.
+          Van primero el de lo adjudicado igual al monto de la orden y los que alcanzan para pagarla; después, de la buena pro más
+          reciente a la más antigua.
+        </Ayuda>
+      }
+    >
+      {p.total === 0 ? (
+        <p className="text-inkSoft">
+          La orden dice que paga un proceso de selección, pero {quien} no figura ganando ninguno en la entidad en los 3 años
+          anteriores: puede ser de antes de 2018, de un consorcio o un error de registro.
+        </p>
+      ) : (
+        <>
+          <p className="text-inkSoft">
+            {p.total === 1
+              ? `Paga este proceso: es el único que ${quien} ganó en la entidad en los 3 años anteriores a la orden.`
+              : `Paga uno de los ${numero(p.total)} procesos que ${quien} ganó en la entidad en los 3 años anteriores: el SEACE no dice cuál. ${
+                  p.total > p.lista.length ? `Estos son los ${numero(p.lista.length)} más cercanos a la orden` : "Van del más cercano a la orden al más lejano"
+                }, por monto y por fecha de la buena pro.`}
+          </p>
+          <ol className="mt-2 divide-y divide-line/70 rounded-xl border border-line" aria-label="Los procesos que puede pagar">
+            {p.lista.map((c) => (
+              <FilaProcesoCandidato key={c.codigo} c={c} />
+            ))}
+          </ol>
+          {p.total > p.lista.length &&
+            (todos ? (
+              <Link href={todos} prefetch={false} className={cn(CLASE_ENLACE, "mt-2 inline-flex min-h-8 items-center text-meta")}>
+                Ver todos los procesos que ganó en la entidad
+              </Link>
+            ) : (
+              <p className="mt-1.5 text-meta text-mute">Y {plural(p.total - p.lista.length, "proceso más", "procesos más")}.</p>
+            ))}
+        </>
+      )}
+      <FuenteDato fuente="OECE, CONOSCE: adjudicaciones" href={CONOSCE_BUSCADOR} className="mt-2" />
+    </BloqueDetalle>
+  );
+}
+
 /**
  * La fila de una orden con su panel: la de esta lista y la de la lista de compras de una ficha (que le suma lo suyo en
  * `extra`). «Ver sólo las de esta entidad / de este proveedor», sólo en la lista general (/app/contratos).
+ *
+ * El panel, de arriba abajo (pedido del usuario del 2026-11-05): el estado y, con dos banderas o más, sus chips como
+ * índice; las banderas como tarjetas con su evidencia (`banderasDeOrden`); los datos en dos columnas (`DatosCompactos`,
+ * con el botón del expediente SIAF como un dato más); qué proceso paga, si es pago de uno; lo que suma la otra fuente.
  */
 export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ruta: string; parametros: Parametros }, extra?: ExtraFila): Fila {
   const enGeneral = ruta === "/app/contratos";
@@ -700,7 +1371,11 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
   const clase = o.tipoOrden && /compra/i.test(o.tipoOrden) ? "Orden de compra" : "Orden de servicio";
   const explicaEstado = o.estado ? ESTADO_ORDEN[o.estado.toLowerCase()] : undefined;
   const estado = <EstadoCompra estado={o.estado} explica={explicaEstado} />;
-  const antecedentes = [...antecedentesOrden(o), ...(extra?.antecedentes ?? [])];
+  const extraAntecedentes = extra?.antecedentes ?? [];
+  const antecedentes = [...antecedentesOrden(o), ...extraAntecedentes];
+  // Las mismas banderas como tarjetas del panel, con su evidencia (las de `extra`, sólo como chip).
+  const banderas = banderasDeOrden(o);
+  const rucEmpresa = esEmpresa(o.rucContratista) ? o.rucContratista : null;
   const soloEntidad = enGeneral && o.entidadRuc && parametros[P_ORD.entidad] !== o.entidadRuc
     ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.entidad]: o.entidadRuc }) : null;
   const soloProveedor = enGeneral && /^20\d{9}$/.test(o.rucContratista ?? "") && parametros[P_ORD.proveedor] !== o.rucContratista
@@ -754,47 +1429,52 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
         <CuerpoDetalle>
           <ChipsDetalle>
             {estado}
-            {antecedentes.length > 0 && <BanderasAntecedentes antecedentes={antecedentes} todas />}
+            {banderas.length > 1 && <IndiceBanderas banderas={banderas} />}
+            {/* Las que suma la otra fuente (components/compras) no tienen tarjeta aquí: van como chip. */}
+            {extraAntecedentes.length > 0 && <BanderasAntecedentes antecedentes={extraAntecedentes} todas />}
           </ChipsDetalle>
           {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}</AvisoDato>}
-          <DatosClave
+          <TarjetasBanderas banderas={banderas} />
+          <DatosCompactos
             items={[
-              { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion },
-              o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
-              { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad) },
-              { etiqueta: "Proveedor", valor: conFicha(proveedor, fichas.proveedor) },
+              { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion, ancho: true },
+              { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad), ancho: true },
+              {
+                etiqueta: "Proveedor",
+                valor: proveedor ? (
+                  <>
+                    {conFicha(proveedor, fichas.proveedor)}
+                    {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
+                    {rucEmpresa && <span className="ml-2 whitespace-nowrap font-mono text-rotulo tabular-nums text-mute">RUC {rucEmpresa}</span>}
+                  </>
+                ) : null,
+                ancho: true,
+              },
+              datoMonto(o, "Monto", !!motivo),
+              // Si tuvo convocatoria, en su ⓘ: antes era un renglón aparte de una oración entera.
+              {
+                etiqueta: "Cómo se contrató",
+                valor: tipo?.corto ?? null,
+                ayuda: tipo?.convocatoria ? <Ayuda titulo="¿Tuvo convocatoria?">{tipo.convocatoria}</Ayuda> : undefined,
+              },
               datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
               o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
-              o.fechaCompromiso ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> } : null,
-              { etiqueta: "Estado", valor: o.estado ? oracion(o.estado) : null },
-              datoMonto(o, "Monto", !!motivo),
-              { etiqueta: "Cómo se contrató", valor: tipo?.corto ?? null },
-              tipo?.convocatoria ? { etiqueta: "¿Tuvo convocatoria?", valor: tipo.convocatoria } : null,
-            ].filter(Boolean) as DatoClave[]}
+              o.fechaCompromiso
+                ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> }
+                : null,
+              o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
+              // El botón del expediente, como un dato más (antes, un bloque con título para un solo botón).
+              o.entidadRuc && o.fecha && o.numero
+                ? {
+                    etiqueta: "Expediente SIAF",
+                    valor: <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />,
+                    ayuda: <AyudaTermino clave="expediente-siaf" />,
+                    ancho: true,
+                  }
+                : null,
+            ]}
           />
-          {o.conNepotismo && (
-            <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
-              <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
-              {/* Las declaraciones juradas presentadas en la entidad de la orden, en la consulta de la Contraloría. */}
-              <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
-              {/* La evidencia: las personas de esta entidad con la señal, cada una con su declaración en su ficha. */}
-              {o.entidadRuc && (
-                <EnlaceAccion href={`/entidad/${o.entidadRuc}?seccion=personas&psenal=nepotismo`} prefetch={false} variante="secundario" flecha className="mt-3">
-                  Ver los casos en la ficha de la entidad
-                </EnlaceAccion>
-              )}
-            </BloqueDetalle>
-          )}
-          {o.entidadRuc && o.fecha && o.numero && (
-            <BloqueDetalle titulo="Expediente SIAF" ayuda={<AyudaTermino clave="expediente-siaf" />}>
-              <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />
-            </BloqueDetalle>
-          )}
-          <BloqueSenalesPersona o={o} />
-          {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
-          {o.inhabilitacion && (
-            <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
-          )}
+          {o.procesosPago && <BloqueProcesoPagado o={o} p={o.procesosPago} />}
           {extra?.bloques}
           {(soloEntidad || soloProveedor) && (
             <div className="flex flex-wrap gap-2">
@@ -852,17 +1532,8 @@ export function BloqueOrdenSeace({ o, titulo = "La orden en el SEACE" }: { o: Or
           </div>
         )}
       </BloqueDetalle>
-      {o.conNepotismo && (
-        <BloqueDetalle titulo={SENAL.nepotismo.titulo}>
-          <p className="text-inkSoft">{SENAL.nepotismo.explica}</p>
-          <FuenteDato fuente={FUENTE_TEXTO.dji_contraloria} href={djiEntidad(o.entidadRuc)} className="mt-1.5" />
-        </BloqueDetalle>
-      )}
-      <BloqueSenalesPersona o={o} />
-      {o.fraccionamiento && <BloqueFraccionamiento f={o.fraccionamiento} fecha={o.fecha} />}
-      {o.inhabilitacion && (
-        <BloqueInhabilitacion i={o.inhabilitacion} ruc={o.rucContratista} cuando={o.fecha ? `La orden se emitió el ${fechaLarga(o.fecha)}` : "La orden se emitió"} />
-      )}
+      {/* Sus banderas, como las del panel de una orden: una tarjeta cada una, con su evidencia. */}
+      <TarjetasBanderas banderas={banderasDeOrden(o)} />
     </>
   );
 }

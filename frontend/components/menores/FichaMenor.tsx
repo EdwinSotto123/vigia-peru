@@ -783,6 +783,8 @@ export function DatosMenor({ f }: { f: FichaMenor }) {
             i={m.inhabilitacion}
             ruc={empresa ? m.proveedorRuc : null}
             cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"}
+            fecha={m.fecha}
+            marca="Este contrato"
           />
         </div>
       )}

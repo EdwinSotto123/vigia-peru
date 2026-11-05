@@ -379,7 +379,7 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
             Ver la ficha del contrato menor
           </EnlaceAccion>
           {m.inhabilitacion && (
-            <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} />
+            <BloqueInhabilitacion i={m.inhabilitacion} ruc={m.proveedorRuc} cuando={m.fecha ? `Firmó este contrato el ${fechaLarga(m.fecha)}` : "Firmó este contrato"} fecha={m.fecha} marca="Este contrato" />
           )}
           {sunat.length > 0 && (
             <BloqueDetalle titulo="Lo que dice la SUNAT del proveedor">

@@ -14,7 +14,8 @@ import { ambitoPedido } from "../lib/plataforma.js";
  * Rendimiento: se apoya en el índice btree conosce_ordenes(fecha_emision) (migración 127). La consulta toma una VENTANA
  * de candidatas por ese índice —las más recientes, o las del año/entidad/proveedor elegidos— con `ORDER BY fecha_emision
  * DESC LIMIT`, las deduplica (un archivo mensual puede repetir una orden) y pagina. Así nunca ordena ni dedup-ea las
- * ~28 M filas enteras. Cada orden se muestra en un panel; no tiene página propia.
+ * ~28 M filas enteras. Cada orden se muestra en un panel; no tiene página propia. Cada fila trae la evidencia de sus
+ * banderas (COLS) y, si es pago de un proceso, los procesos que puede estar pagando (`procesosPago`, 2026-11-05).
  *   GET /ordenes
  *   GET /ordenes/resumen   las cifras de la cabecera de la vista (tablas precalculadas), de todo o de un año o una entidad
  *
@@ -163,6 +164,46 @@ const EN_EL_BORDE = `${EN_SOLES} AND (o.ruc_contratista LIKE '20%' OR o.tipo_ord
 const PARES_BORDE = `(SELECT entidad_ruc, ruc, tipo FROM persona_senal WHERE tipo = 'al_borde_del_tope'
                        UNION ALL SELECT entidad_ruc, ruc, 'al_borde_del_tope' FROM empresa_borde_tope)`;
 
+/** Lo adjudicado en soles de un grupo de ítems de conosce_adjudicaciones (CONOSCE escribe «Soles» o «Nuevos Soles»). */
+const ADJUDICADO_SOLES = `sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))`;
+
+/**
+ * Qué proceso paga una orden «Deviene de procesos de selección / exoneraciones…» (pedido del usuario del 2026-11-05: el
+ * panel decía «paga uno de los 5 procesos que esta empresa ganó en la entidad: el SEACE no dice cuál» y no nombraba
+ * ninguno). Son los procesos que su proveedor ganó en la entidad en los 3 años anteriores a la orden, con la misma regla
+ * que compra_vinculo (migración 240: la primera buena pro de cada proceso, contada desde el 1 de enero del año de la orden
+ * menos 1 095 días, entre la orden y 1 095 días antes), así que `total` es su `candidatos`. Del más cercano al más lejano:
+ * el de lo adjudicado igual al monto de la orden (±S/ 1), los que alcanzan para pagarla y, dentro de cada grupo, la buena
+ * pro más reciente. Los 8 primeros, con su OCID para la ficha. Una orden que se juntó con un catálogo o un contrato menor
+ * (compra_vinculo) no es pago de un proceso: null. Va por el índice (ruc_proveedor, entidad_ruc) de las adjudicaciones y
+ * sólo en las órdenes de pago (~6 %): una página de 20 órdenes de pago de EsSalud, 64 ms en caliente (medido 2026-11-05).
+ */
+const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de'
+           AND NOT EXISTS (SELECT 1 FROM compra_vinculo v WHERE v.entidad_ruc = o.entidad_ruc AND v.orden = o.orden
+                             AND v.fecha_emision = o.fecha_emision AND v.clase <> 'proceso')
+          THEN (SELECT jsonb_build_object('total', COALESCE(max(t.total), 0), 'lista', COALESCE(jsonb_agg(jsonb_build_object(
+                         'codigo', t.codigo, 'nomenclatura', t.nomenclatura, 'descripcion', t.descripcion,
+                         'buenaPro', to_char(t.f, 'YYYY-MM-DD'), 'adjudicado', t.adjudicado::float, 'mismoMonto', t.mismo,
+                         'ocid', (SELECT c.ocid FROM convocatorias c WHERE c.codigo = t.codigo ORDER BY c.ocid LIMIT 1)) ORDER BY t.rn), '[]'::jsonb))
+                  FROM (SELECT p.*, count(*) OVER () AS total,
+                               row_number() OVER (ORDER BY p.mismo DESC, p.alcanza DESC, p.f DESC, p.codigo) AS rn
+                          FROM (SELECT a.codigo_convocatoria AS codigo, max(a.nomenclatura) AS nomenclatura,
+                                       max(a.descripcion_proceso) AS descripcion, min(a.fecha_buenapro) AS f,
+                                       ${ADJUDICADO_SOLES} AS adjudicado,
+                                       COALESCE(${EN_SOLES} AND abs(${ADJUDICADO_SOLES} - o.monto) <= 1, false) AS mismo,
+                                       COALESCE(${EN_SOLES} AND ${ADJUDICADO_SOLES} >= o.monto, false) AS alcanza
+                                  FROM (SELECT DISTINCT ON (a.codigo_convocatoria, a.n_item) a.codigo_convocatoria, a.nomenclatura,
+                                               a.descripcion_proceso, a.fecha_buenapro, a.monto_adjudicado, a.moneda
+                                          FROM conosce_adjudicaciones a
+                                         WHERE a.ruc_proveedor = o.ruc_contratista AND a.entidad_ruc = o.entidad_ruc
+                                           AND a.codigo_convocatoria IS NOT NULL
+                                           AND a.fecha_buenapro >= make_date(extract(year FROM o.fecha_emision)::int, 1, 1) - 1095
+                                           AND a.fecha_buenapro <= o.fecha_emision
+                                         ORDER BY a.codigo_convocatoria, a.n_item, a.anio DESC) a
+                                 GROUP BY a.codigo_convocatoria
+                                HAVING min(a.fecha_buenapro) >= o.fecha_emision - 1095) p
+                         ORDER BY rn LIMIT 8) t) END`;
+
 const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
               o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
               o.ruc_contratista AS "rucContratista", ${MONTOS},
@@ -190,9 +231,11 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
               (SELECT jsonb_build_object('ordenes', f.ordenes, 'total', f.total::float, 'tope', f.tope::float,
                                          'mismaDescripcion', f.misma_descripcion, 'severidad', f.severidad, 'detalle', f.detalle)
                  ${FRACCIONADA} LIMIT 1) AS fraccionamiento,
+              -- Con la infracción por la que lo inhabilitó (pedido del usuario del 2026-11-05: el panel no decía por qué).
               (SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
-                                         'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'))
-                 ${INHABILITADO} ORDER BY s.fecha_desde DESC LIMIT 1) AS inhabilitacion`;
+                                         'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'), 'infraccion', left(s.infraccion, 900))
+                 ${INHABILITADO} ORDER BY s.fecha_desde DESC LIMIT 1) AS inhabilitacion,
+              ${PROCESOS_PAGO} AS "procesosPago"`;
 
 /**
  * La consulta de una página. Filtros en dos lugares:
