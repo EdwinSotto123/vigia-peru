@@ -107,7 +107,10 @@ export function ColumnasAnio({
                       {x.b > 0 && <span className="w-full rounded-t-[4px]" style={{ height: `${100 - partA}%`, minHeight: 2, background: "rgb(var(--serie-2))" }} />}
                     </span>
                     {rotular && total > 0 && (
-                      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-rotulo font-semibold tabular-nums text-ink" style={{ bottom: `calc(${alto}% + 4px)` }}>
+                      <span className={cn("pointer-events-none absolute whitespace-nowrap font-mono text-rotulo font-semibold tabular-nums text-ink",
+                                         // La primera y la última, ancladas a su lado: centradas se salían del gráfico en el celular.
+                                         i === orden.length - 1 ? "right-0" : i === 0 ? "left-0" : "left-1/2 -translate-x-1/2")}
+                          style={{ bottom: `calc(${alto}% + 4px)` }}>
                         {formato(total)}
                       </span>
                     )}
