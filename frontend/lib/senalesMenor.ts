@@ -29,7 +29,7 @@ export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle
       return {
         chip: "Compra partida el mismo día",
         nombre: "Compra partida el mismo día",
-        explica: `${contratos ? `${contratos} contratos menores` : "Varios contratos menores"} de la misma entidad al mismo proveedor, firmados el mismo día, suman ${soles(s.monto)}${tope ? `: más que el tope de 8 UIT (${soles(tope)})` : ", más que el tope de 8 UIT"}. La ley prohíbe partir una compra para no hacer un procedimiento de selección.`,
+        explica: `${contratos ? `${contratos} contratos menores` : "Varios contratos menores"} de la misma entidad al mismo proveedor, cotizados el mismo día, suman ${soles(s.monto)}${tope ? `: más que el tope de 8 UIT (${soles(tope)})` : ", más que el tope de 8 UIT"}. La ley prohíbe partir una compra para no hacer un procedimiento de selección.`,
       };
     case "menor_partido_en_el_anio": {
       const mismo = n(d.mismo_item);

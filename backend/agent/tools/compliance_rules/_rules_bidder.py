@@ -133,7 +133,7 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
         result.update({
             "triggered": True, "severidad": "alta",
             "evidencia": ((f"Una sola oferta presentada según el acta ({n_participantes} participantes registrados) y "
-                           if n_participantes else f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y ")
+                           if n_participantes else f"Un solo postor registrado ({'según el registro OCDS' if fuente_n == 'ocds' else 'según el acta' if str(fuente_n).startswith('acta') else 'según la base de ofertas'}) y ")
                           + f"oferta ganadora al {pct}% del valor referencial." + nota_igv),
             "norma": _norma_state(state)["competencia"],
             "fuente_url": proceso_oece(ocid),

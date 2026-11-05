@@ -322,6 +322,11 @@ def query_oece_perfil(ruc: str, tool_context: ToolContext) -> dict:
     return out
 
 
+
+def _cuantas(n: int, una: str, varias: str) -> str:
+    """«1 sanción», «2 sanciones»: la evidencia la lee una persona, no «sanción(es)»."""
+    return f"{n} {una if n == 1 else varias}"
+
 # ─── Clasificación de antecedentes OECE (lote 1 · T10 + penalidades) ────────────
 #
 # Antes: cualquier elemento de `sanciones` → `sancion_vigente_oece` ALTA, aunque fuera una
@@ -429,9 +434,9 @@ def clasificar_sanciones_oece(ruc: str, sanciones: list, inh_jud: list, inh_adm:
     _impedimentos = bool(vigentes or inh_jud or inh_adm or med_caut)
     if es_apto is False and _impedimentos:
         _det = []
-        if vigentes:           _det.append(f"{len(vigentes)} sanción(es) vigente(s)")
-        if inh_jud or inh_adm: _det.append(f"{len(inh_jud) + len(inh_adm)} inhabilitación(es)")
-        if med_caut:           _det.append(f"{len(med_caut)} medida(s) cautelar(es)")
+        if vigentes:           _det.append(_cuantas(len(vigentes), "sanción vigente", "sanciones vigentes"))
+        if inh_jud or inh_adm: _det.append(_cuantas(len(inh_jud) + len(inh_adm), "inhabilitación", "inhabilitaciones"))
+        if med_caut:           _det.append(_cuantas(len(med_caut), "medida cautelar", "medidas cautelares"))
         senales.append({"regla": "proveedor_no_apto_contratar", "severidad": "alta", "norma": norma,
                         "evidencia": f"OECE marca al proveedor RUC {ruc} como NO apto para contratar, corroborado por: {', '.join(_det)}."})
     if es_hab is False and _impedimentos:
@@ -459,11 +464,11 @@ def clasificar_sanciones_oece(ruc: str, sanciones: list, inh_jud: list, inh_adm:
     if vigentes:
         ref_txt = f" a la fecha de la buena pro ({fecha_ref})" if fecha_ref else ""
         senales.append({"regla": "sancion_vigente_oece", "severidad": "alta", "norma": norma,
-                        "evidencia": (f"OECE reporta {len(vigentes)} sanción(es) VIGENTE(S){ref_txt} para el RUC {ruc}: "
+                        "evidencia": (f"OECE reporta {_cuantas(len(vigentes), 'sanción vigente', 'sanciones vigentes')}{ref_txt} para el RUC {ruc}: "
                                       f"{_desc(vigentes[0])}.")[:500]})
     if historicas:
         senales.append({"regla": "sancion_historica_oece", "severidad": "baja", "norma": norma,
-                        "evidencia": (f"Antecedente (no vigente): OECE registra {len(historicas)} sanción(es) histórica(s) "
+                        "evidencia": (f"Antecedente (no vigente): OECE registra {_cuantas(len(historicas), 'sanción histórica', 'sanciones históricas')} "
                                       f"para el RUC {ruc}: {_desc(historicas[0])} ({historicas[0].get('motivo_vigencia')}). "
                                       f"No es impedimento para contratar; es un antecedente de cumplimiento a considerar.")[:500]})
     n_pen = len(penalidades or [])

@@ -3,7 +3,7 @@
 -- Hasta aquí un contrato menor sólo mostraba lo que dice la SUNAT del proveedor y si el Tribunal lo tenía inhabilitado.
 -- Ahora, con las fechas de cotización, los ítems y lo que Claude leyó en sus PDF (migración 251):
 --
---   menor_partido_mismo_dia    alta   dos o más contratos menores de la misma entidad al mismo proveedor el MISMO día
+--   menor_partido_mismo_dia    alta   dos o más contratos menores de la misma entidad al mismo proveedor cotizados el MISMO día
 --                                     que juntos pasan el tope de 8 UIT de su año: la marca de partir una compra para no
 --                                     hacer un procedimiento de selección (la ley prohíbe fraccionar)
 --   menor_partido_en_el_anio   media  dos o más del mismo tipo (bien o servicio), misma entidad y mismo proveedor, en el
@@ -27,7 +27,7 @@
 --                                     (no la del equipo que ya tiene: lo juzga menor_marcas.py, «v1-m»)
 --   tdr_monto_distinto         media  el monto registrado es 5 veces mayor o menor que el que estima el requerimiento
 --   tdr_experiencia_alta       baja   la experiencia exigida al proveedor es 3 veces o más el monto del contrato
---   contrato_monto_distinto    media  el contrato u orden dice otro monto que el registrado (más del 5 % y S/ 100)
+--   contrato_monto_distinto (alta si el documento pasa el tope de 8 UIT y el registro no; sin los múltiplos exactos, que son cuotas)    media  el contrato u orden dice otro monto que el registrado (más del 5 % y S/ 100)
 --   contrato_ruc_distinto      alta   el contrato u orden es con otro RUC que el del proveedor registrado
 --
 -- Las citas que vienen de los PDF pasan sin DNI (8 dígitos) ni RUC 10 (lleva el DNI). La API tapa los nombres al publicar.
@@ -62,7 +62,10 @@ BEGIN
     SELECT m.id_contrato, m.codigo, m.objeto, left(m.descripcion, 200) AS descripcion, m.entidad_ruc, m.proveedor_ruc,
            m.monto, m.fecha_suscripcion, COALESCE(m.anio::int, extract(year FROM m.fecha_suscripcion)::int) AS anio,
            8 * uit_soles(COALESCE(m.anio::int, extract(year FROM m.fecha_suscripcion)::int)) AS tope,
-           m.fec_ini_cotizacion, m.fec_fin_cotizacion, m.tipo_invitacion, m.justif_invitacion
+           m.fec_ini_cotizacion, m.fec_fin_cotizacion, m.tipo_invitacion, m.justif_invitacion,
+           -- El día de la compra: cuando se pidió la cotización. La firma no sirve: hay entidades que registran tarde y en
+           -- lote, y contratos cotizados en meses distintos aparecían «partidos el mismo día» (auditoría 2026-11-05).
+           COALESCE(m.fec_ini_cotizacion::date, m.fecha_suscripcion) AS dia
       FROM seace_menores m
      WHERE m.moneda = 'PEN' AND m.monto > 0;
   CREATE INDEX ON _xm (entidad_ruc, proveedor_ruc);
@@ -82,13 +85,13 @@ BEGIN
   -- Partido el mismo día: misma entidad, mismo proveedor, misma fecha; juntos pasan el tope.
   INSERT INTO menor_senal (id_contrato, tipo, severidad, monto, grupo, detalle)
   SELECT x.id_contrato, 'menor_partido_mismo_dia', 'alta', g.suma, g.grupo,
-         jsonb_build_object('contratos', g.n, 'tope', g.tope, 'fecha', g.fecha_suscripcion)
-    FROM (SELECT entidad_ruc, proveedor_ruc, fecha_suscripcion, count(*)::int AS n, sum(monto) AS suma, max(tope) AS tope,
+         jsonb_build_object('contratos', g.n, 'tope', g.tope, 'fecha', g.dia, 'base', 'cotizacion')
+    FROM (SELECT entidad_ruc, proveedor_ruc, dia, count(*)::int AS n, sum(monto) AS suma, max(tope) AS tope,
                  jsonb_agg(jsonb_build_object('id', id_contrato, 'codigo', codigo, 'fecha', fecha_suscripcion, 'monto', monto,
                                               'descripcion', descripcion) ORDER BY monto DESC, id_contrato) AS grupo
-            FROM _xm WHERE entidad_ruc IS NOT NULL AND proveedor_ruc IS NOT NULL AND fecha_suscripcion IS NOT NULL
+            FROM _xm WHERE entidad_ruc IS NOT NULL AND proveedor_ruc IS NOT NULL AND dia IS NOT NULL
            GROUP BY 1, 2, 3 HAVING count(*) >= 2 AND sum(monto) > max(tope)) g
-    JOIN _xm x ON x.entidad_ruc = g.entidad_ruc AND x.proveedor_ruc = g.proveedor_ruc AND x.fecha_suscripcion = g.fecha_suscripcion;
+    JOIN _xm x ON x.entidad_ruc = g.entidad_ruc AND x.proveedor_ruc = g.proveedor_ruc AND x.dia = g.dia;
 
   -- Partido en el año: mismo tipo, misma entidad, mismo proveedor, mismo año; juntos pasan el tope.
   INSERT INTO menor_senal (id_contrato, tipo, severidad, monto, grupo, detalle)
@@ -165,8 +168,12 @@ BEGIN
   -- Lo leído en el requerimiento y en el contrato: sólo lo que encuentran las dos lecturas.
   INSERT INTO menor_senal (id_contrato, tipo, severidad, monto, detalle)
   SELECT a.id_contrato, b,
-         CASE b WHEN 'tdr_proveedor_nombrado' THEN 'alta' WHEN 'contrato_ruc_distinto' THEN 'alta'
-                WHEN 'tdr_experiencia_alta' THEN 'baja' ELSE 'media' END,
+         CASE WHEN b IN ('tdr_proveedor_nombrado', 'contrato_ruc_distinto') THEN 'alta'
+              -- El documento dice más que el tope de 8 UIT y el registro no: una contratación de proceso registrada como
+              -- menor (una consultoría de S/ 229,366 registrada por S/ 40,800).
+              WHEN b = 'contrato_monto_distinto' AND x.tope IS NOT NULL AND m.monto <= x.tope
+                   AND NULLIF(a.salida->>'monto_total', '')::numeric > x.tope THEN 'alta'
+              WHEN b = 'tdr_experiencia_alta' THEN 'baja' ELSE 'media' END,
          CASE b WHEN 'contrato_monto_distinto' THEN abs(NULLIF(a.salida->>'monto_total', '')::numeric - m.monto)
                 WHEN 'tdr_experiencia_alta' THEN NULLIF(a.salida->'perfil_proveedor'->>'experiencia_monto', '')::numeric
                 WHEN 'tdr_monto_distinto' THEN NULLIF(a.salida->>'monto_estimado', '')::numeric END,
@@ -193,9 +200,17 @@ BEGIN
     JOIN menor_lectura z ON z.id_contrato = a.id_contrato AND z.clase = a.clase AND z.version = a.version || '-2' AND z.estado = 'ok'
     JOIN seace_menores m ON m.id_contrato = a.id_contrato
     LEFT JOIN menor_lectura mm ON mm.id_contrato = a.id_contrato AND mm.clase = 'menor_tdr' AND mm.version = 'v1-m' AND mm.estado = 'ok'
+    LEFT JOIN _xm x ON x.id_contrato = a.id_contrato
     CROSS JOIN LATERAL unnest(a.banderas) b
    WHERE a.version = 'v1' AND a.estado = 'ok' AND a.clase IN ('menor_tdr', 'menor_contrato') AND b = ANY (z.banderas)
      AND (b <> 'tdr_marca_sin_equivalente' OR b = ANY (mm.banderas))
+     -- Un múltiplo exacto (lo registrado es 2 a 24 veces el documento, o al revés) es un servicio pagado en cuotas o una
+     -- orden por mes, no un monto distinto: 173 de las 500 banderas del 2026-11-05 eran así (S/ 1,800 y una orden de S/ 3,600).
+     AND NOT (b = 'contrato_monto_distinto' AND m.monto > 0 AND NULLIF(a.salida->>'monto_total', '')::numeric > 0
+              AND round(greatest(m.monto, (a.salida->>'monto_total')::numeric) / least(m.monto, (a.salida->>'monto_total')::numeric)) BETWEEN 2 AND 24
+              AND abs(round(greatest(m.monto, (a.salida->>'monto_total')::numeric) / least(m.monto, (a.salida->>'monto_total')::numeric))
+                      * least(m.monto, (a.salida->>'monto_total')::numeric) - greatest(m.monto, (a.salida->>'monto_total')::numeric))
+                  <= 0.02 * greatest(m.monto, (a.salida->>'monto_total')::numeric))
   ON CONFLICT (id_contrato, tipo) DO NOTHING;
 
   SELECT count(*) INTO n FROM menor_senal;
