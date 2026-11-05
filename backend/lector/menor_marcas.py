@@ -47,7 +47,11 @@ copiada del documento. Para cada marca decide su papel:
   frase que no exige una marca (p. ej. «deberá indicar la marca ofertada»).
 - no_es_marca: no es una marca, un fabricante ni un modelo.
 
-Si la frase dice que lo nombrado es lo que la entidad ya usa o tiene, es equipo_existente. Ante la duda entre exigida y
+Si la frase dice que lo nombrado es lo que la entidad ya usa o tiene, es equipo_existente. Un consumible o repuesto con el
+código de su equipo (tóner HP 58X CF258X, cartucho Epson T664, tambor Kyocera DK-1150, filtro de un motor) es
+equipo_existente aunque el documento no lo diga: ese código sólo sirve en el equipo que la entidad ya tiene. Una red
+social, plataforma o servicio público donde se publica o se accede (Facebook, YouTube, el sistema de una entidad del
+Estado) es referencia, no una marca exigida. Ante la duda entre exigida y
 equipo_existente, elige equipo_existente sólo si el objeto o los ítems muestran que se compra algo PARA ese equipo.
 por_que: una frase corta, en español, sin nombres de personas."""
 
