@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { Banknote, ChevronDown, Gauge, Gavel, ListFilter, ReceiptText, Scale, Store, TriangleAlert } from "lucide-react";
+import { Banknote, Gauge, Gavel, ListFilter, ReceiptText, Scale, Store, TriangleAlert } from "lucide-react";
 import {
   Ayuda,
   AyudaTermino,
   BloqueDetalle,
-  ChipsDetalle,
+  Capitulo,
+  Cronologia,
   CuerpoDetalle,
   DatosClave,
+  EnUnaFrase,
   EnlaceFuente,
   EstadoError,
   EstadoVacio,
   FuenteDato,
   Nota,
   type DatoClave,
+  type PasoRelato,
+  type SenalPaso,
 } from "@/components/patrones";
 import {
   BarraFiltros,
@@ -78,7 +82,8 @@ import {
  * antecedentes son banderas de esa columna y, en el panel, una tarjeta cada una con su evidencia (`TarjetaBandera`): el
  * parentesco con un funcionario de la entidad (nepotismo), las señales de la persona con la entidad, las órdenes al borde
  * del tope, las del mismo día que juntas pasan 8 UIT (fraccionamiento, con las órdenes de ese día) y la inhabilitación del
- * Tribunal vigente al emitirse (con su resolución y su periodo). Una orden que paga un proceso dice cuál puede ser.
+ * Tribunal vigente al emitirse (con su resolución y su periodo). Una orden que paga un proceso dice cuál puede ser. El
+ * panel cuenta la orden como un relato (`filaOrden`): el veredicto, qué pasó, por qué llama la atención y los datos.
  *
  * También exporta las piezas que comparte con la lista de contratos menores (components/menores): el chip de estado, la
  * fecha posterior a hoy, la celda sin antecedentes, el paginador por «hay más», la espera, la inhabilitación y los
@@ -575,15 +580,19 @@ function fuentesSenales(tipos: string[], entidadRuc: string | null | undefined):
 /*
  * Pedido del usuario del 2026-11-05, del panel de una orden con «Inhabilitado al emitirse»: «aca no hay nada de
  * información… el enlace no te lleva a nada, no tiene buen diseño ni nada que DIGA esa es la bandera». Arriba iba el chip
- * y, muy abajo, un bloque de texto suelto con la fuente enlazada a una portada. Ahora cada bandera es una tarjeta arriba
- * del panel, debajo del estado: su severidad con su ícono y su palabra («Bandera grave»), su nombre como título, lo que
- * se encontró en una oración con los datos clave (fechas, resolución, montos), un gráfico chico donde lo hay (el periodo
- * de la sanción con la orden adentro, el monto contra su tope, las órdenes del día contra 8 UIT) y la evidencia: dónde
- * está el caso en Vigía y dónde comprobarlo en la fuente oficial, con qué buscar si la fuente no abre el registro.
+ * y, muy abajo, un bloque de texto suelto con la fuente enlazada a una portada. Ahora cada bandera es una tarjeta (en el
+ * capítulo «Por qué llama la atención» del panel): su severidad con su ícono y su palabra («Bandera grave»), su nombre
+ * como título, lo que se encontró en una oración con los datos clave (fechas, resolución, montos), un gráfico chico donde
+ * lo hay (el periodo de la sanción con la orden adentro, el monto contra su tope, las órdenes del día contra 8 UIT) y la
+ * evidencia: dónde está el caso en Vigía y dónde comprobarlo en la fuente oficial, con qué buscar si la fuente no abre el
+ * registro.
  */
 
+/** Un identificador dentro de una oración en negrita (el veredicto, un paso): verde y subrayado, con el peso del texto. */
+const CLASE_ENLACE_FRASE = "text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
+
 /** Un identificador en una frase del panel (un proceso, una ficha): verde y subrayado, como todo identificador. */
-const CLASE_ENLACE = "font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
+const CLASE_ENLACE = `font-medium ${CLASE_ENLACE_FRASE}`;
 
 /** ¿Es una empresa (RUC 20)? Sólo ésas llevan enlace por su RUC: el RUC 10 lleva el DNI. */
 const esEmpresa = (ruc: string | null | undefined): ruc is string => !!ruc && /^20\d{9}$/.test(ruc);
@@ -592,15 +601,12 @@ const esEmpresa = (ruc: string | null | undefined): ruc is string => !!ruc && /^
 const NIVEL = {
   alta: {
     palabra: "Bandera grave", Icono: ICONO_NIVEL.alta, borde: "border-crimson/35", cabeza: "bg-crimson-soft", texto: "text-crimsonTexto",
-    chip: "border-crimson/30 bg-crimson-soft text-crimsonTexto hover:border-crimson/70",
   },
   media: {
     palabra: "Bandera media", Icono: ICONO_NIVEL.media, borde: "border-amber/35", cabeza: "bg-amber-soft", texto: "text-amberTexto",
-    chip: "border-amber/30 bg-amber-soft text-amberTexto hover:border-amber/70",
   },
   baja: {
     palabra: "Bandera leve", Icono: ICONO_NIVEL.baja, borde: "border-line", cabeza: "bg-paperDeep", texto: "text-inkSoft",
-    chip: "border-mute/20 bg-line text-inkSoft hover:border-mute/50",
   },
 } as const;
 
@@ -608,7 +614,7 @@ type Nivel = keyof typeof NIVEL;
 
 /**
  * Una bandera como tarjeta: la cabecera teñida con su severidad (ícono y palabra) y su nombre; debajo, lo que se encontró;
- * al pie, la evidencia. `id`: el ancla a la que lleva su chip del índice (`IndiceBanderas`). Server-safe.
+ * al pie, la evidencia. `id`: el ancla a la que lleva su señal en la cronología del panel (`pasosOrden`). Server-safe.
  */
 export function TarjetaBandera({
   id,
@@ -1090,14 +1096,22 @@ function TarjetaFraccionamiento({ o, f, id }: { o: OrdenGeneral; f: OrdenFraccio
   );
 }
 
-/** Una bandera de la orden en el panel: su chip del índice (el mismo nombre que en la fila) y su tarjeta. */
+/**
+ * Una bandera de la orden en el panel: su nombre (el mismo del chip de la fila, que va como señal en la cronología), lo
+ * que se encontró en una oración (la segunda del veredicto, si es la más grave) y su tarjeta con la evidencia.
+ */
 interface BanderaOrden {
   id: string;
   tipo: string;
   severidad: Nivel;
   chip: string;
+  frase: string;
   tarjeta: ReactNode;
 }
+
+/** La inhabilitación en la frase del veredicto: «hasta el 2 de marzo de 2028» o «de forma definitiva». */
+const hastaCuando = (i: InhabilitacionProveedor) =>
+  i.tipo === "definitivo" ? " de forma definitiva" : i.hasta ? ` hasta el ${fechaLarga(i.hasta)}` : "";
 
 /**
  * Las banderas de una orden como tarjetas, en el orden de `antecedentesOrden` (de la más grave a la más leve; a igual
@@ -1105,14 +1119,19 @@ interface BanderaOrden {
  */
 function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
   const out: BanderaOrden[] = [];
-  const poner = (tipo: string, severidad: Nivel, chip: string, tarjeta: (id: string) => ReactNode) => {
+  const poner = (tipo: string, severidad: Nivel, chip: string, frase: string, tarjeta: (id: string) => ReactNode) => {
     const id = `bandera-orden-${tipo}`;
-    out.push({ id, tipo, severidad, chip, tarjeta: tarjeta(id) });
+    out.push({ id, tipo, severidad, chip, frase, tarjeta: tarjeta(id) });
   };
-  if (o.conNepotismo) poner("nepotismo", "alta", SENAL.nepotismo.corto, (id) => <TarjetaNepotismo o={o} id={id} />);
+  if (o.conNepotismo) {
+    const frase = `${SENAL.nepotismo.titulo} en su declaración jurada de intereses.`;
+    poner("nepotismo", "alta", SENAL.nepotismo.corto, frase, (id) => <TarjetaNepotismo o={o} id={id} />);
+  }
   const inh = o.inhabilitacion;
   if (inh) {
-    poner("inhabilitado", "alta", CHIP_INHABILITADO, (id) => (
+    const frase =
+      `Para entonces, el Tribunal de Contrataciones ya lo había inhabilitado para contratar con el Estado${hastaCuando(inh)}.`;
+    poner("inhabilitado", "alta", CHIP_INHABILITADO, frase, (id) => (
       <TarjetaInhabilitacion
         id={id}
         i={inh}
@@ -1126,17 +1145,33 @@ function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
   }
   for (const s of o.senalesPersona ?? []) {
     const def = senalPersona(s.tipo);
-    if (def) poner(s.tipo, s.severidad, def.corto, (id) => <TarjetaSenalPersona o={o} tipo={s.tipo} severidad={s.severidad} id={id} />);
+    if (!def) continue;
+    poner(s.tipo, s.severidad, def.corto, `${def.titulo}.`, (id) => <TarjetaSenalPersona o={o} tipo={s.tipo} severidad={s.severidad} id={id} />);
   }
   const borde = o.alBorde;
   const monto = o.monto;
   if (borde && monto != null) {
-    poner("al_borde_del_tope", "media", SENAL.al_borde_del_tope.corto, (id) => <TarjetaAlBorde o={o} monto={monto} tope={borde.tope} id={id} />);
+    const frase =
+      `La orden quedó en el ${parteDelTope(monto, borde.tope)} del tope de su año (${soles(borde.tope)}), ` +
+      "como la mayoría de las que la entidad le dio.";
+    poner("al_borde_del_tope", "media", SENAL.al_borde_del_tope.corto, frase, (id) => (
+      <TarjetaAlBorde o={o} monto={monto} tope={borde.tope} id={id} />
+    ));
   }
   const f = o.fraccionamiento;
-  if (f) poner("fraccionamiento", f.severidad === "alta" ? "alta" : "media", CHIP_FRACCIONAMIENTO, (id) => <TarjetaFraccionamiento o={o} f={f} id={id} />);
+  if (f) {
+    const frase = `Ese mismo día le emitió ${otrasDelDia(f)}: con ésta suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`;
+    const sev = f.severidad === "alta" ? "alta" : "media";
+    poner("fraccionamiento", sev, CHIP_FRACCIONAMIENTO, frase, (id) => <TarjetaFraccionamiento o={o} f={f} id={id} />);
+  }
   const rango = { alta: 0, media: 1, baja: 2 } as const;
   return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);
+}
+
+/** Las otras órdenes del día de una orden partida («otra orden», «otras 3 órdenes»): `ordenes` la cuenta a ella también. */
+function otrasDelDia(f: OrdenFraccionada): string {
+  const otras = Math.max(f.ordenes - 1, 1);
+  return otras === 1 ? "otra orden" : `otras ${numero(otras)} órdenes`;
 }
 
 /** Las tarjetas de las banderas, una debajo de otra (nada si no hay ninguna). */
@@ -1151,35 +1186,270 @@ function TarjetasBanderas({ banderas }: { banderas: BanderaOrden[] }) {
   );
 }
 
-/**
- * Con dos banderas o más, sus chips arriba del panel como índice: cada uno lleva a su tarjeta (un ancla, sin salir del
- * panel). Con una sola, su tarjeta va justo debajo del estado y un chip con el mismo nombre la repetiría.
+// ─── El panel de una orden como relato ───────────────────────────────────────────
+
+/*
+ * Pedido del usuario del 2026-11-05: «veo que solo apilamos y demás sin dar orden o contar una historia». El panel apilaba
+ * el estado y los chips de las banderas, las tarjetas, los datos y los procesos que puede pagar, sin decir qué pasó. Ahora
+ * se lee como un relato (components/patrones/Relato.tsx), de arriba abajo:
+ *
+ *   el veredicto     quién le compró qué a quién, por cuánto y cuándo, y lo más grave que se encontró (`fraseOrden`);
+ *   1. Qué pasó      las fechas de la orden con lo de antes que la explica, y cada señal en el paso donde ocurre
+ *                    (`pasosOrden`): la sanción del Tribunal antes, la orden destacada, las demás órdenes de ese día;
+ *   2. Por qué llama la atención   las tarjetas con su evidencia, de la más grave a la más leve;
+ *   3. Qué proceso paga            si la orden dice pagar uno;
+ *   4. Los datos de la orden       la referencia: las fichas de la entidad y del proveedor, el expediente SIAF.
+ *
+ * Los chips que indexaban las banderas arriba se fueron: la frase dice la más grave (y cuántas más hay) y cada señal de la
+ * cronología lleva a su tarjeta, así que eran un tercer lugar con lo mismo.
  */
-function IndiceBanderas({ banderas }: { banderas: BanderaOrden[] }) {
-  return (
-    <ul className="flex flex-wrap items-center gap-1.5" aria-label="Las banderas de esta orden">
-      {banderas.map((b) => {
-        const n = NIVEL[b.severidad];
-        return (
-          <li key={b.id}>
-            <a
-              href={`#${b.id}`}
-              className={cn(
-                "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-meta font-semibold leading-tight transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
-                n.chip,
-              )}
-            >
-              <n.Icono size={14} className="shrink-0" aria-hidden />
-              <span className="sr-only">{n.palabra}: </span>
-              <IconoBandera tipo={b.tipo} size={13} className="opacity-70" />
-              {b.chip}
-              <ChevronDown size={14} className="-mr-1 shrink-0 opacity-70" aria-hidden />
-            </a>
-          </li>
-        );
-      })}
-    </ul>
+
+/** Los ids de los capítulos del panel: las señales y la frase llevan a ellos sin salir del panel. */
+const CAP = { quePaso: "orden-que-paso", porQue: "orden-por-que", proceso: "orden-proceso", datos: "orden-datos" } as const;
+
+/**
+ * Un capítulo en el panel (~36rem): más junto que en una página y con el título del tamaño de un bloque (con el de una
+ * sección, 22 px, cada capítulo le ganaba al título del panel y al veredicto). La sangría bajo el número se queda: es lo
+ * que ata el contenido a su capítulo.
+ */
+const CLASE_CAPITULO = "space-y-2.5 [&>div:first-child_h2]:text-bloque";
+
+/** Un nombre en la frase o en un paso, con su ficha si la tiene (`fichasCompra`: nunca por un RUC 10). */
+const enFrase = (nombre: string, href: string | null): ReactNode =>
+  href ? (
+    <Link href={href} prefetch={false} className={CLASE_ENLACE_FRASE}>
+      {nombre}
+    </Link>
+  ) : (
+    nombre
   );
+
+/** Qué se compró, para la frase: hasta unas 90 letras, cortado en una palabra (entero va en «Los datos de la orden»). */
+function recortarFrase(t: string, max = 90): string {
+  if (t.length <= max) return t;
+  const c = t.slice(0, max);
+  const corte = c.lastIndexOf(" ");
+  return `${(corte > max * 0.6 ? c.slice(0, corte) : c).replace(/[\s,;:.(-]+$/, "")}…`;
+}
+
+const conMayuscula = (t: string) => t.charAt(0).toLocaleUpperCase("es") + t.slice(1);
+
+/**
+ * La primera oración del veredicto: «La Municipalidad de Ate le encargó a Juan P. «Servicio de limpieza» por S/ 30,000, el
+ * 14 de agosto de 2026.» Le «compró» (orden de compra) o le «encargó» (de servicio), nunca le «pagó»: emitida,
+ * comprometida o devengada, CONOSCE no dice si ya se pagó (eso, el girado, lo dice el expediente SIAF). Un monto con
+ * posible error de carga va con su reserva.
+ */
+function fraseOrden(
+  o: OrdenGeneral,
+  d: {
+    entidad: string | null;
+    proveedor: string | null;
+    fichas: { entidad: string | null; proveedor: string | null };
+    compra: boolean;
+    monto: string | null;
+    dudoso: boolean;
+  },
+): ReactNode {
+  const que = o.descripcion ? recortarFrase(oracion(o.descripcion)) : null;
+  return (
+    <>
+      {d.entidad ? enFrase(d.entidad, d.fichas.entidad) : "La entidad"} le {d.compra ? "compró" : "encargó"} a{" "}
+      {d.proveedor ? enFrase(d.proveedor, d.fichas.proveedor) : "su proveedor"}
+      {que && ` «${que}»`}
+      {d.monto && (
+        <>
+          {" por "}
+          <span className="tabular-nums">{d.monto}</span>
+          {d.dudoso && " (según CONOSCE: puede ser un error de carga)"}
+        </>
+      )}
+      {o.fecha && `, el ${fechaLarga(o.fecha.slice(0, 10))}`}.
+    </>
+  );
+}
+
+/** El proceso de una orden de pago con su enlace: a su ficha en Vigía o, sin su OCID, a su búsqueda por código. */
+function EnlaceProceso({ c }: { c: ProcesoCandidato }) {
+  const nombre = c.nomenclatura?.trim() || `Proceso ${c.codigo}`;
+  return c.ocid ? (
+    <Link href={rutaContrato(c.ocid)} prefetch={false} className={cn(CLASE_ENLACE, "break-all font-mono")}>
+      {nombre}
+    </Link>
+  ) : (
+    // Sin su OCID en Vigía, su búsqueda por código en Contrataciones Abiertas (lib/fuentes.ts: con el código solo, el
+    // proceso no abre).
+    <EnlaceFuente href={busquedaOece(c.codigo)} className="break-all font-mono">
+      {nombre}
+    </EnlaceFuente>
+  );
+}
+
+/** AAAA-MM-DD de una fecha que puede traer la hora; null si no es una fecha. */
+const diaDe = (f: string | null | undefined) => (f && /^\d{4}-\d{2}-\d{2}/.test(f) ? f.slice(0, 10) : null);
+
+/**
+ * El paso de la buena pro del proceso que la orden paga (o puede pagar): el único que el proveedor ganó en la entidad, el
+ * de lo adjudicado igual al monto de la orden o, si ninguno, el de la buena pro más reciente. Sin ninguno ganado, el paso
+ * que falta: la orden dice pagar un proceso que no aparece.
+ */
+function pasoProceso(p: ProcesosPago): PasoRelato | null {
+  if (p.total > 0 && !p.lista.length) return null;
+  if (p.total === 0) {
+    return {
+      cuando: "En los 3 años anteriores",
+      falta: true,
+      titulo: "No figura ganando ningún proceso en la entidad",
+      detalle: "La orden dice que paga uno: puede ser de antes de 2018, de un consorcio o un error de registro.",
+    };
+  }
+  const primero = p.lista[0];
+  const masReciente = () => p.lista.reduce((a, b) => ((b.buenaPro ?? "") > (a.buenaPro ?? "") ? b : a));
+  const c = p.total === 1 || primero.mismoMonto ? primero : masReciente();
+  const cual =
+    p.total === 1 ? "el único en la entidad en los 3 años anteriores: el que esta orden paga"
+    : c.mismoMonto ? "por el mismo monto de esta orden: el que más probablemente paga"
+    : `el más reciente de los ${numero(p.total)} que esta orden puede pagar`;
+  return {
+    fecha: diaDe(c.buenaPro),
+    cuando: "Sin fecha de buena pro",
+    titulo: (
+      <>
+        Ganó el proceso <EnlaceProceso c={c} />, {cual}
+      </>
+    ),
+    detalle: (
+      <>
+        {c.adjudicado != null ? (
+          <>
+            Le adjudicaron <span className="tabular-nums">{soles(c.adjudicado)}</span>.
+          </>
+        ) : (
+          "Sin monto adjudicado en soles."
+        )}
+        {p.total > 1 && (
+          <>
+            {" El SEACE no dice cuál paga: "}
+            <a href={`#${CAP.proceso}`} className={CLASE_ENLACE_FRASE}>
+              los candidatos, en «Qué proceso paga»
+            </a>
+            .
+          </>
+        )}
+      </>
+    ),
+  };
+}
+
+/**
+ * «Qué pasó»: los pasos de la orden en el orden en que pasaron, con lo de antes que la explica y cada señal pegada al paso
+ * donde ocurre, como chip que lleva a su tarjeta. Antes, por fecha: la sanción del Tribunal (si ya regía al emitirse) y la
+ * buena pro del proceso que paga. La orden, destacada, con las señales de la orden y del proveedor (el parentesco, la
+ * inhabilitación, el tope). El mismo día, las demás órdenes de la compra partida. Después, la notificación y el
+ * compromiso; al final, lo que CONOSCE dice sin fecha (el devengado) y el pago, que no publica: está en el expediente SIAF.
+ */
+function pasosOrden(
+  o: OrdenGeneral,
+  banderas: BanderaOrden[],
+  extra: Antecedente[],
+  d: { clase: string; monto: string | null },
+): PasoRelato[] {
+  const senal = (b: BanderaOrden): SenalPaso => ({ severidad: b.severidad, texto: b.chip, href: `#${b.id}` });
+  const emitida = diaDe(o.fecha);
+  // Lo de antes sólo si es de antes (o del mismo día): la regla de las dos fuentes ya lo asegura, esto lo cuida.
+  const deAntes = (f: string | null) => !f || !emitida || f <= emitida;
+
+  const antes: PasoRelato[] = [];
+  const i = o.inhabilitacion;
+  const desde = diaDe(i?.desde);
+  if (i && desde && deAntes(desde)) {
+    const partes = [i.resolucion ? `resolución ${i.resolucion}` : "", hastaCuando(i).trim()].filter(Boolean);
+    antes.push({
+      fecha: desde,
+      titulo: "El Tribunal de Contrataciones inhabilitó al proveedor para contratar con el Estado",
+      detalle: partes.length ? `${conMayuscula(partes.join(", "))}.` : undefined,
+    });
+  }
+  const proceso = o.procesosPago ? pasoProceso(o.procesosPago) : null;
+  if (proceso && deAntes(proceso.fecha ?? null)) antes.push(proceso);
+  // Por fecha; lo que no tiene (el proceso que no aparece), primero.
+  antes.sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
+
+  // Cómo se contrató y, si quedó al borde del tope, a cuánto: «Hasta 8 UIT, sin concurso: el 97.3 % del tope de su año».
+  const tipo = tipoContratacion(o.tipoContratacion)?.corto ?? null;
+  const tope = o.alBorde?.tope;
+  const borde = tope != null && o.monto != null ? `el ${parteDelTope(o.monto, tope)} del tope de su año (${soles(tope)})` : null;
+  const como = tipo && borde ? `${tipo}: ${borde}.` : tipo ? `${tipo}.` : borde ? `${conMayuscula(borde)}.` : null;
+  // (Una fecha de emisión futura lleva su bandera en el veredicto y en los datos: aquí sería la tercera.)
+  const orden: PasoRelato = {
+    fecha: emitida,
+    cuando: "Sin fecha de emisión",
+    destacado: true,
+    titulo: `La entidad emitió la ${d.clase.toLocaleLowerCase("es")}${d.monto ? ` por ${d.monto}` : ""}`,
+    detalle: como ?? undefined,
+    // Las de la orden y del proveedor van en la orden; la compra partida, en el paso de las demás órdenes de ese día. Las
+    // que suma otra fuente (components/compras) no tienen tarjeta: van sin enlace.
+    senales: [
+      ...banderas.filter((b) => b.tipo !== "fraccionamiento").map(senal),
+      ...extra.map((a): SenalPaso => ({ severidad: a.severidad, texto: a.chip })),
+    ],
+  };
+
+  const mismoDia: PasoRelato[] = [];
+  const f = o.fraccionamiento;
+  const bf = banderas.find((b) => b.tipo === "fraccionamiento");
+  if (f && bf) {
+    mismoDia.push({
+      fecha: emitida,
+      cuando: "Ese mismo día",
+      titulo: `La entidad le emitió ${otrasDelDia(f)}`,
+      detalle:
+        `Con ésta suman ${soles(f.total)}: más que el tope de 8 UIT de ese año (${soles(f.tope)}).` +
+        (f.mismaDescripcion ? " Todas dicen lo mismo." : ""),
+      senales: [senal(bf)],
+    });
+  }
+
+  const despues: PasoRelato[] = [];
+  const notificada = diaDe(o.fechaNotificacion);
+  if (notificada) despues.push({ fecha: notificada, titulo: "Le notificó la orden al proveedor" });
+  const compromiso = diaDe(o.fechaCompromiso);
+  const tituloCompromiso = (
+    <>
+      Separó el presupuesto para pagarla (compromiso) <AyudaTermino clave="compromiso-presupuestal" />
+    </>
+  );
+  if (compromiso) despues.push({ fecha: compromiso, titulo: tituloCompromiso });
+  despues.sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
+
+  // Lo que CONOSCE dice sin fecha: el estado de la orden y, siempre, que el pago no consta ahí.
+  const estado = o.estado?.toLowerCase();
+  const sinFecha = "Sin fecha en CONOSCE";
+  const alFinal: PasoRelato[] = [];
+  if (estado === "devengada") {
+    alFinal.push({ cuando: sinFecha, titulo: "Reconoció que el proveedor cumplió y que le debe el pago (devengado)" });
+  } else if (estado === "comprometida" && !compromiso) {
+    alFinal.push({ cuando: sinFecha, titulo: tituloCompromiso });
+  }
+  const conSiaf = !!(o.entidadRuc && o.fecha && o.numero);
+  alFinal.push({
+    cuando: sinFecha,
+    falta: true,
+    titulo: "El pago al proveedor (girado)",
+    detalle: conSiaf ? (
+      <>
+        CONOSCE no dice si ya se pagó: lo dice el{" "}
+        <a href={`#${CAP.datos}`} className={CLASE_ENLACE_FRASE}>
+          expediente SIAF, en los datos de la orden
+        </a>
+        .
+      </>
+    ) : (
+      "CONOSCE no dice si ya se pagó."
+    ),
+  });
+
+  return [...antes, orden, ...mismoDia, ...despues, ...alFinal];
 }
 
 /**
@@ -1257,21 +1527,10 @@ function DatosCompactos({ items }: { items: (Par | null | false | undefined)[] }
 
 /** Un proceso que la orden puede estar pagando: su nomenclatura (a su ficha), de qué trata, su buena pro y lo adjudicado. */
 function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
-  const nombre = c.nomenclatura?.trim() || `Proceso ${c.codigo}`;
   return (
     <li className="space-y-1 px-3 py-2.5">
       <p className="text-meta">
-        {c.ocid ? (
-          <Link href={rutaContrato(c.ocid)} prefetch={false} className={cn(CLASE_ENLACE, "break-all font-mono")}>
-            {nombre}
-          </Link>
-        ) : (
-          // Sin su OCID en Vigía, su búsqueda por código en Contrataciones Abiertas (lib/fuentes.ts: con el código solo, el
-          // proceso no abre).
-          <EnlaceFuente href={busquedaOece(c.codigo)} className="break-all font-mono">
-            {nombre}
-          </EnlaceFuente>
-        )}
+        <EnlaceProceso c={c} />
       </p>
       {c.descripcion && <p className="line-clamp-2 text-meta leading-snug text-inkSoft">{oracion(c.descripcion)}</p>}
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-inkSoft">
@@ -1296,26 +1555,17 @@ function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
  * Pedido del usuario del 2026-11-05: decía «Paga uno de los 5 procesos que esta empresa ganó en la entidad en los 3 años
  * anteriores: el SEACE no dice cuál» sin nombrar ninguno. Ahora los nombra, del más cercano a la orden al más lejano (el de
  * lo adjudicado igual al monto, los que alcanzan para pagarla, la buena pro más reciente), cada uno a su ficha; con más de
- * ocho, a todos los procesos que ganó en la entidad (sólo una empresa: el RUC 10 no va en un enlace).
+ * ocho, a todos los procesos que ganó en la entidad (sólo una empresa: el RUC 10 no va en un enlace). Es el capítulo
+ * «Qué proceso paga» del panel: el título y su ⓘ (`AyudaProcesoPagado`) los pone el capítulo; antes, un BloqueDetalle.
  */
-function BloqueProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
+function ProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
   const empresa = esEmpresa(o.rucContratista) ? o.rucContratista : null;
   const quien = empresa ? "esta empresa" : "este proveedor";
   const todos = empresa && o.entidadRuc && p.total > p.lista.length
     ? `/entidad/${o.entidadRuc}?${new URLSearchParams({ seccion: "contratos", [P_COMPRAS.con]: empresa, [P_COMPRAS.como]: "proceso" })}`
     : null;
   return (
-    <BloqueDetalle
-      titulo="Qué proceso paga"
-      ayuda={
-        <Ayuda titulo="¿Cómo se sabe qué proceso paga?">
-          El SEACE no dice a qué proceso pertenece una orden de pago. Vigía busca los procesos que el proveedor ganó en la entidad
-          en los 3 años anteriores a la orden (CONOSCE, adjudicaciones): con uno solo, es ése; con varios, puede ser cualquiera.
-          Van primero el de lo adjudicado igual al monto de la orden y los que alcanzan para pagarla; después, de la buena pro más
-          reciente a la más antigua.
-        </Ayuda>
-      }
-    >
+    <div>
       {p.total === 0 ? (
         <p className="text-inkSoft">
           La orden dice que paga un proceso de selección, pero {quien} no figura ganando ninguno en la entidad en los 3 años
@@ -1346,7 +1596,19 @@ function BloqueProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
         </>
       )}
       <FuenteDato fuente="OECE, CONOSCE: adjudicaciones" href={CONOSCE_BUSCADOR} className="mt-2" />
-    </BloqueDetalle>
+    </div>
+  );
+}
+
+/** Cómo se sabe qué proceso paga una orden: el ⓘ del título del capítulo. */
+function AyudaProcesoPagado() {
+  return (
+    <Ayuda titulo="¿Cómo se sabe qué proceso paga?">
+      El SEACE no dice a qué proceso pertenece una orden de pago. Vigía busca los procesos que el proveedor ganó en la
+      entidad en los 3 años anteriores a la orden (CONOSCE, adjudicaciones): con uno solo, es ése; con varios, puede ser
+      cualquiera. Van primero el de lo adjudicado igual al monto de la orden y los que alcanzan para pagarla; después, de la
+      buena pro más reciente a la más antigua.
+    </Ayuda>
   );
 }
 
@@ -1354,9 +1616,11 @@ function BloqueProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
  * La fila de una orden con su panel: la de esta lista y la de la lista de compras de una ficha (que le suma lo suyo en
  * `extra`). «Ver sólo las de esta entidad / de este proveedor», sólo en la lista general (/app/contratos).
  *
- * El panel, de arriba abajo (pedido del usuario del 2026-11-05): el estado y, con dos banderas o más, sus chips como
- * índice; las banderas como tarjetas con su evidencia (`banderasDeOrden`); los datos en dos columnas (`DatosCompactos`,
- * con el botón del expediente SIAF como un dato más); qué proceso paga, si es pago de uno; lo que suma la otra fuente.
+ * El panel cuenta la orden (pedido del usuario del 2026-11-05: «contar una historia», ver «El panel de una orden como
+ * relato»): el veredicto en una frase; 1. Qué pasó, la cronología con las señales en su paso; 2. Por qué llama la
+ * atención, las tarjetas de las banderas con su evidencia (o, sin ninguna, una línea que lo dice); 3. Qué proceso paga, si
+ * es pago de uno; 4. Los datos de la orden, en dos columnas (`DatosCompactos`, con el expediente SIAF como un dato más) y
+ * lo que suma la otra fuente; al pie, la fuente.
  */
 export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ruta: string; parametros: Parametros }, extra?: ExtraFila): Fila {
   const enGeneral = ruta === "/app/contratos";
@@ -1381,6 +1645,28 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
   const soloProveedor = enGeneral && /^20\d{9}$/.test(o.rucContratista ?? "") && parametros[P_ORD.proveedor] !== o.rucContratista
     ? hrefConFiltro(ruta, parametros, P_ORD.page, { [P_ORD.proveedor]: o.rucContratista! }) : null;
   const fichas = fichasCompra(ruta, o.entidadRuc, o.rucContratista, o.personaCodigo);
+  // El veredicto: lo más grave de las banderas (y de lo que suma otra fuente) le da el tono y su segunda oración; las demás
+  // se cuentan al pie. Sin ninguna, el veredicto es neutro: sólo qué pasó.
+  const rango = { alta: 0, media: 1, baja: 2 } as const;
+  const hallazgos = [
+    ...banderas.map((b) => ({ severidad: b.severidad, frase: b.frase })),
+    ...extraAntecedentes.map((a) => ({ severidad: a.severidad, frase: /[.!?]$/.test(a.explica) ? a.explica : `${a.explica}.` })),
+  ].sort((a, b) => rango[a.severidad] - rango[b.severidad]);
+  const grave = hallazgos[0] ?? null;
+  const resto = hallazgos.length - 1;
+  const masSenales = resto === 1 ? "Hay una señal más" : `Hay ${numero(resto)} señales más`;
+  const pieFrase = grave ? (
+    <>
+      {resto > 0 ? `${masSenales}; todas, con su evidencia, en «` : "La evidencia, en «"}
+      <a href={`#${CAP.porQue}`} className={CLASE_ENLACE_FRASE}>
+        Por qué llama la atención
+      </a>
+      {`». ${resto > 0 ? "Son datos para revisar, no acusaciones." : "Es un dato para revisar, no una acusación."}`}
+    </>
+  ) : undefined;
+  const pasos = pasosOrden(o, banderas, extraAntecedentes, { clase, monto: montoTexto });
+  // «Qué proceso paga» es el capítulo 3 sólo si la orden paga un proceso; si no, los datos suben al 3.
+  const capDatos = o.procesosPago ? 4 : 3;
   return {
     id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
@@ -1426,72 +1712,153 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
       etiqueta: `Ver el detalle de la orden ${o.numero ?? ""}`.trim(),
       descripcion: entidad ?? undefined,
       contenido: (
-        <CuerpoDetalle>
-          <ChipsDetalle>
-            {estado}
-            {banderas.length > 1 && <IndiceBanderas banderas={banderas} />}
-            {/* Las que suma la otra fuente (components/compras) no tienen tarjeta aquí: van como chip. */}
-            {extraAntecedentes.length > 0 && <BanderasAntecedentes antecedentes={extraAntecedentes} todas />}
-          </ChipsDetalle>
-          {motivo && <AvisoDato motivo={motivo} fuente="conosce_ordenes">{`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}</AvisoDato>}
-          <TarjetasBanderas banderas={banderas} />
-          <DatosCompactos
-            items={[
-              { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion, ancho: true },
-              { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad), ancho: true },
-              {
-                etiqueta: "Proveedor",
-                valor: proveedor ? (
-                  <>
-                    {conFicha(proveedor, fichas.proveedor)}
-                    {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
-                    {rucEmpresa && <span className="ml-2 whitespace-nowrap font-mono text-rotulo tabular-nums text-mute">RUC {rucEmpresa}</span>}
-                  </>
-                ) : null,
-                ancho: true,
-              },
-              datoMonto(o, "Monto", !!motivo),
-              // Si tuvo convocatoria, en su ⓘ: antes era un renglón aparte de una oración entera.
-              {
-                etiqueta: "Cómo se contrató",
-                valor: tipo?.corto ?? null,
-                ayuda: tipo?.convocatoria ? <Ayuda titulo="¿Tuvo convocatoria?">{tipo.convocatoria}</Ayuda> : undefined,
-              },
-              datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
-              o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
-              o.fechaCompromiso
-                ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> }
-                : null,
-              o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
-              // El botón del expediente, como un dato más (antes, un bloque con título para un solo botón).
-              o.entidadRuc && o.fecha && o.numero
-                ? {
-                    etiqueta: "Expediente SIAF",
-                    valor: <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />,
-                    ayuda: <AyudaTermino clave="expediente-siaf" />,
-                    ancho: true,
-                  }
-                : null,
-            ]}
-          />
-          {o.procesosPago && <BloqueProcesoPagado o={o} p={o.procesosPago} />}
-          {extra?.bloques}
-          {(soloEntidad || soloProveedor) && (
-            <div className="flex flex-wrap gap-2">
-              {soloEntidad && (
-                <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
-                  <ListFilter size={15} aria-hidden />
-                  Ver sólo las órdenes de esta entidad
-                </EnlaceAccion>
+        <CuerpoDetalle className="space-y-6">
+          {/* El veredicto: qué pasó en una oración y, si hay, lo más grave en la segunda («…ya lo había inhabilitado»). */}
+          <EnUnaFrase
+            tono={grave?.severidad ?? "neutro"}
+            datos={
+              <>
+                {montoTexto && (
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <Dato icono={Banknote} nombre="Monto" mono>{montoTexto}</Dato>
+                    {motivo && <BanderaDato motivo={motivo} fuente="conosce_ordenes" />}
+                  </span>
+                )}
+                {o.fecha && (
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <Dato tipo="fecha" nombre="Emitida" mono>{fechaConAnio(o.fecha)}</Dato>
+                    {esFutura(o.fecha) && <FechaFutura fuente={FUENTE_ORDEN} />}
+                  </span>
+                )}
+                <Dato tipo="tipo">{clase}</Dato>
+                {tipo && <Dato icono={Scale} nombre="Cómo se contrató">{tipo.corto}</Dato>}
+              </>
+            }
+            pie={pieFrase}
+          >
+            {fraseOrden(o, { entidad, proveedor, fichas, compra: clase === "Orden de compra", monto: montoTexto, dudoso: !!motivo })}
+            {grave && ` ${grave.frase}`}
+          </EnUnaFrase>
+
+          <Capitulo n={1} id={CAP.quePaso} titulo="Qué pasó" className={CLASE_CAPITULO}>
+            <Cronologia pasos={pasos} etiqueta="Lo que pasó con esta orden, paso a paso" />
+          </Capitulo>
+
+          {/* Sin señales, una línea (no una caja vacía): qué se revisó y que no salió nada. */}
+          <Capitulo
+            n={2}
+            id={CAP.porQue}
+            titulo={hallazgos.length ? "Por qué llama la atención" : "Qué revisamos"}
+            className={CLASE_CAPITULO}
+          >
+            {hallazgos.length ? (
+              <div className="space-y-3">
+                <TarjetasBanderas banderas={banderas} />
+                {/* Las que suma la otra fuente (components/compras) no tienen tarjeta aquí: van como chip. */}
+                {extraAntecedentes.length > 0 && (
+                  <BanderasAntecedentes antecedentes={extraAntecedentes} todas etiqueta="Otras señales de esta compra" />
+                )}
+              </div>
+            ) : o.conNepotismo == null ? (
+              <p className="text-inkSoft">Esta orden llegó sin la revisión de sus antecedentes: no sabemos si tiene señales.</p>
+            ) : (
+              // Sólo lo que de verdad se revisa para este proveedor: el parentesco declarado, sólo en una persona (RUC 10).
+              <p className="text-inkSoft">
+                <span className="font-semibold text-ink">No encontramos señales en esta orden.</span>{" "}
+                {`Revisamos ${/^10\d{9}$/.test(o.rucContratista ?? "") ? "el parentesco con funcionarios de la entidad, " : ""}`}
+                la inhabilitación del Tribunal, las órdenes del mismo día y el tope de 8 UIT.
+              </p>
+            )}
+          </Capitulo>
+
+          {o.procesosPago && (
+            <Capitulo
+              n={3}
+              id={CAP.proceso}
+              titulo={
+                <>
+                  Qué proceso paga <AyudaProcesoPagado />
+                </>
+              }
+              className={CLASE_CAPITULO}
+            >
+              <ProcesoPagado o={o} p={o.procesosPago} />
+            </Capitulo>
+          )}
+
+          <Capitulo n={capDatos} id={CAP.datos} titulo="Los datos de la orden" className={CLASE_CAPITULO}>
+            <div className="space-y-4">
+              {motivo && (
+                <AvisoDato motivo={motivo} fuente="conosce_ordenes">
+                  {`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}
+                </AvisoDato>
               )}
-              {soloProveedor && (
-                <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
-                  <ListFilter size={15} aria-hidden />
-                  Ver sólo las órdenes de este proveedor
-                </EnlaceAccion>
+              <DatosCompactos
+                items={[
+                  { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion, ancho: true },
+                  { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad), ancho: true },
+                  {
+                    etiqueta: "Proveedor",
+                    valor: proveedor ? (
+                      <>
+                        {conFicha(proveedor, fichas.proveedor)}
+                        {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
+                        {rucEmpresa && <span className="ml-2 whitespace-nowrap font-mono text-rotulo tabular-nums text-mute">RUC {rucEmpresa}</span>}
+                      </>
+                    ) : null,
+                    ancho: true,
+                  },
+                  datoMonto(o, "Monto", !!motivo),
+                  // Si tuvo convocatoria, en su ⓘ: antes era un renglón aparte de una oración entera.
+                  {
+                    etiqueta: "Cómo se contrató",
+                    valor: tipo?.corto ?? null,
+                    ayuda: tipo?.convocatoria ? <Ayuda titulo="¿Tuvo convocatoria?">{tipo.convocatoria}</Ayuda> : undefined,
+                  },
+                  datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
+                  // El estado vuelve aquí: su chip de arriba del panel se fue con el índice de las banderas.
+                  {
+                    etiqueta: "Estado",
+                    valor: o.estado ? oracion(o.estado) : null,
+                    ayuda: explicaEstado ? (
+                      <Ayuda titulo="¿Qué dice el estado?">{`${explicaEstado} Ningún estado de CONOSCE quiere decir que ya se pagó.`}</Ayuda>
+                    ) : undefined,
+                  },
+                  o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
+                  o.fechaCompromiso
+                    ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> }
+                    : null,
+                  o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
+                  // El botón del expediente, como un dato más (antes, un bloque con título para un solo botón).
+                  o.entidadRuc && o.fecha && o.numero
+                    ? {
+                        etiqueta: "Expediente SIAF",
+                        valor: <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />,
+                        ayuda: <AyudaTermino clave="expediente-siaf" />,
+                        ancho: true,
+                      }
+                    : null,
+                ]}
+              />
+              {extra?.bloques}
+              {(soloEntidad || soloProveedor) && (
+                <div className="flex flex-wrap gap-2">
+                  {soloEntidad && (
+                    <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+                      <ListFilter size={15} aria-hidden />
+                      Ver sólo las órdenes de esta entidad
+                    </EnlaceAccion>
+                  )}
+                  {soloProveedor && (
+                    <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
+                      <ListFilter size={15} aria-hidden />
+                      Ver sólo las órdenes de este proveedor
+                    </EnlaceAccion>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </Capitulo>
         </CuerpoDetalle>
       ),
       // Una orden no tiene página propia en el OECE: el buscador de CONOSCE la encuentra por entidad y número.

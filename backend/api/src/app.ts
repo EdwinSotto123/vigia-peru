@@ -51,6 +51,7 @@ import { gobservaCuentaRouter } from "./routes/gobservaCuenta.js";
 import { empleoRouter } from "./routes/empleo.js";
 import { licitacionesRouter } from "./routes/licitaciones.js";
 import { proyectosRouter } from "./routes/proyectos.js";
+import { iaRouter } from "./routes/ia.js";
 
 export const app = new Hono();
 
@@ -127,6 +128,7 @@ api.get("/livez", (c) => {
 
 api.route("/alertas", alertasRouter);
 api.route("/senales", senalesRouter);
+api.route("/ia", iaRouter); // lo que leyó la IA (página /app/ia)
 api.route("/entidades", entidadesRouter);
 api.route("/cruces", crucesRouter);
 api.route("/partidos", partidosRouter);

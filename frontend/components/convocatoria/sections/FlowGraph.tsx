@@ -26,8 +26,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CARRILES } from "@/lib/auditoria";
 import { PASOS } from "@/components/agentes/catalogo";
-import { AGENT_IDS, paletaGrafo, type PaletaGrafo } from "../constants";
-import { useModo } from "@/lib/modo";
+import { AGENT_IDS, usePaletaGrafo, type PaletaGrafo } from "../constants";
 import { buildTrace, extractFindings } from "../utils";
 import { maskApellido, maskDnis, pareceEmpresa } from "@/components/Redact";
 
@@ -121,7 +120,7 @@ const G_EDGES: Array<{ from: string; to: string }> = [];
 for (const n of G_NODES) for (const s of n.sources) G_EDGES.push({ from: s, to: n.id });
 for (const r of RAICES) G_EDGES.push({ from: "orch", to: r });
 
-/** El color del tipo de nodo en la paleta del modo actual (constants.paletaGrafo). */
+/** El color del tipo de nodo en la paleta del modo actual (constants.usePaletaGrafo). */
 const colorDe = (pal: PaletaGrafo, t: TipoNodo | undefined) => pal.nodo[t === "paso" ? "src" : t ?? "src"] ?? pal.nodo.src;
 const TIPO_LABEL: Record<TipoNodo, string> = { orch: "Coordinador (no es IA)", agent: "Agente de IA", paso: "Paso de datos o control (no es IA)" };
 
@@ -175,8 +174,9 @@ export function FlowGraph({ liveEvents = [], override }: {
   const findRef = useRef(findings); findRef.current = findings;
   const activeRef = useRef(activeId); activeRef.current = activeId;
   const doneRef = useRef(doneSet); doneRef.current = doneSet;
-  // Colores del canvas según el modo de la página (día/noche): el loop los lee del ref en cada cuadro.
-  const pal = paletaGrafo(useModo());
+  // Colores del canvas: las variables de globals.css del modo de la página (día/noche), leídas al montar y al cambiar de
+  // modo (constants.usePaletaGrafo). El loop los lee del ref en cada cuadro.
+  const pal = usePaletaGrafo();
   const palRef = useRef(pal); palRef.current = pal;
 
   useEffect(() => {
@@ -253,7 +253,7 @@ export function FlowGraph({ liveEvents = [], override }: {
     function draw() {
       ctx!.clearRect(0, 0, CW, CH);
       // grid sutil
-      ctx!.save(); ctx!.strokeStyle = "rgba(231,240,238,0.06)"; ctx!.lineWidth = 1;
+      ctx!.save(); ctx!.strokeStyle = palRef.current.tinta + "0F"; ctx!.lineWidth = 1;
       for (let x = 0; x < CW; x += 36) { ctx!.beginPath(); ctx!.moveTo(x, 0); ctx!.lineTo(x, CH); ctx!.stroke(); }
       for (let y = 0; y < CH; y += 36) { ctx!.beginPath(); ctx!.moveTo(0, y); ctx!.lineTo(CW, y); ctx!.stroke(); }
       ctx!.restore();

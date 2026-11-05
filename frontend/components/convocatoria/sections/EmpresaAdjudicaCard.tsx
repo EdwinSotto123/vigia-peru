@@ -1,110 +1,130 @@
 "use client";
 
-import { AlertTriangle, Info } from "lucide-react";
-import { numero } from "@/lib/formato";
-import { fechaDossier } from "../dossier";
-import { cn } from "@/lib/utils";
-import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
-import { Evidencia } from "./Evidencia";
+/**
+ * «Quién es» el proveedor en un análisis anterior al expediente (antes del 2026-11-04), con el perfil que el agente web
+ * copió del padrón: estado en la SUNAT, inicio de actividades, giro, dirección, gerente y socios. Las «señales
+ * sugeridas» del agente ya no van aquí: están en «Lo que escribió el agente», al final de la pestaña.
+ */
 
-export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: any; banderasSugeridas: any[] }) {
-  // RUC 10 = persona natural con negocio: su "razón social" es su nombre en
-  // orden SUNAT (APELLIDO APELLIDO NOMBRE) y el RUC lleva su DNI adentro.
-  const natural = esPersonaNatural(empresa.ruc);
-  const actividades: string[] = Array.isArray(empresa.actividades_comerciales)
-    ? empresa.actividades_comerciales.filter(Boolean)
-    : [];
+import Link from "next/link";
+import { ArrowUpRight, Briefcase, Building2, MapPin, Users } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
+import { numero, oracion } from "@/lib/formato";
+import { cn } from "@/lib/utils";
+import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
+import { fechaDossier } from "../dossier";
+import { condicionLegible, estadoLegible, rucEnRegla } from "./red/proveedor";
+
+function Fila({ icono: Icono, titulo, children }: { icono: typeof Building2; titulo: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line bg-paper p-5">
-      <h2 className="font-display text-xl font-bold text-ink">
-        {natural ? <PersonName name={empresa.razon_social} orden="sunat" /> : empresa.razon_social}
-      </h2>
-      <p className="mt-0.5 text-rotulo text-mute">
-        {natural ? "Persona natural con negocio que ganó el contrato" : "Empresa que ganó el contrato"}, según fuentes públicas
-      </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo leading-4 text-mute">
-        {empresa.ruc && <span className="font-mono">RUC <Ruc value={empresa.ruc} /></span>}
-        {empresa.tipo && <span>{empresa.tipo}</span>}
-        {empresa.condicion && (
-          // Condición en SUNAT: activo/habido es el estado normal (verde = positivo); cualquier otra
-          // (no habido, baja…) se nombra en tinta neutra con ícono: es un dato, no una señal.
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0 text-micro font-semibold",
-            ["activo", "habido"].includes(String(empresa.condicion).toLowerCase())
-              ? "bg-moss/10 text-mossTexto"
-              : "bg-paperDeep text-ink")}>
-            {!["activo", "habido"].includes(String(empresa.condicion).toLowerCase()) && <Info size={11} aria-hidden />}
-            SUNAT: {String(empresa.condicion).toLowerCase()}
-          </span>
-        )}
-        {empresa.edad_dias_al_contrato != null && (
-          <span className={cn(empresa.edad_dias_al_contrato < 90 && "font-semibold text-ink")}>
-            {numero(Number(empresa.edad_dias_al_contrato))} días de inscrita al contratar
-          </span>
-        )}
+    <div className="flex gap-3 py-3">
+      <Icono size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <dt className="text-rotulo font-semibold uppercase tracking-wide text-mute">{titulo}</dt>
+        <dd className="mt-1 text-dato leading-relaxed text-ink">{children}</dd>
       </div>
-      <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-rotulo leading-4 sm:grid-cols-2">
-        {empresa.fecha_inicio_actividades && (
-          <div><dt className="text-micro text-mute">Inicio actividades</dt><dd className="text-ink">{fechaDossier(empresa.fecha_inicio_actividades)}</dd></div>
+    </div>
+  );
+}
+
+export function EmpresaAdjudicaCard({ empresa }: { empresa: any; banderasSugeridas?: any[] }) {
+  // RUC 10 = persona natural con negocio: su "razón social" es su nombre en orden SUNAT (APELLIDO APELLIDO NOMBRE) y
+  // el RUC lleva su DNI adentro (llega tapado).
+  const natural = esPersonaNatural(empresa.ruc);
+  const ruc20 = /^20\d{9}$/.test(String(empresa.ruc ?? ""));
+  const actividades: string[] = Array.isArray(empresa.actividades_comerciales) ? empresa.actividades_comerciales.filter(Boolean) : [];
+  const estado = [estadoLegible(empresa.estado), condicionLegible(empresa.condicion)].filter(Boolean).join(" y ");
+  const enRegla = rucEnRegla(empresa.estado, empresa.condicion);
+  const socios: any[] = empresa.socios || [];
+  return (
+    <section className="rounded-2xl border border-line bg-paper">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="min-w-0">
+          <h3 className="font-display text-bloque font-bold leading-tight text-ink">
+            {natural ? <PersonName name={empresa.razon_social} orden="sunat" /> : empresa.razon_social}
+          </h3>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-meta text-inkSoft">
+            <Dato tipo="tipo">{natural ? "Persona natural con negocio" : empresa.tipo || "Empresa"}</Dato>
+            {empresa.ruc && (
+              <Dato tipo="ruc" mono>
+                <Ruc value={empresa.ruc} />
+              </Dato>
+            )}
+          </p>
+        </div>
+        {ruc20 && (
+          <Link
+            href={`/empresa/${empresa.ruc}`}
+            prefetch={false}
+            className="inline-flex min-h-8 items-center gap-1 text-meta font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
+          >
+            Ver su ficha completa <ArrowUpRight size={14} aria-hidden />
+          </Link>
         )}
-        {empresa.ciiu && (
-          <div><dt className="text-micro text-mute">CIIU</dt><dd className="font-mono text-ink">{empresa.ciiu}</dd></div>
-        )}
+      </header>
+
+      <dl className="divide-y divide-line px-5">
+        <Fila icono={Building2} titulo="SUNAT">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {estado && (
+              <span className={cn("pill font-semibold", enRegla ? "border-line bg-paperDeep text-ink" : "border-crimson/30 bg-crimson-soft text-crimsonTexto")}>
+                RUC {estado}
+              </span>
+            )}
+            {empresa.fecha_inicio_actividades && <span>inicio de actividades el {fechaDossier(empresa.fecha_inicio_actividades, true)}</span>}
+            {empresa.edad_dias_al_contrato != null && (
+              <span className={cn(Number(empresa.edad_dias_al_contrato) < 90 ? "font-semibold text-crimsonTexto" : "text-inkSoft")}>
+                ({numero(Number(empresa.edad_dias_al_contrato))} días de inscrita al contratar)
+              </span>
+            )}
+          </span>
+          {empresa.ciiu && <span className="mt-1 block font-mono text-meta text-inkSoft">CIIU {empresa.ciiu}</span>}
+        </Fila>
+
         {actividades.length > 0 && (
-          <div className="sm:col-span-2"><dt className="text-micro text-mute">Actividad comercial</dt>
-            <dd className="text-ink">
-              <ul className="space-y-0.5">
-                {actividades.map((a, i) => <li key={i}>{a}</li>)}
-              </ul>
-            </dd>
-          </div>
+          <Fila icono={Briefcase} titulo="Giro">
+            <ul className="space-y-0.5">
+              {actividades.map((a, i) => (
+                <li key={i}>{oracion(a)}</li>
+              ))}
+            </ul>
+          </Fila>
         )}
+
         {empresa.direccion_legal && (
-          <div className="sm:col-span-2"><dt className="text-micro text-mute">Dirección legal</dt>
-            <dd className="text-ink">{empresa.direccion_legal}</dd></div>
+          <Fila icono={MapPin} titulo="Dirección legal">
+            {empresa.direccion_legal}
+          </Fila>
         )}
-        {empresa.gerente_general?.nombre && (
-          <div className="sm:col-span-2"><dt className="text-micro text-mute">Gerente general</dt>
-            <dd className="flex flex-wrap items-baseline gap-x-2 text-ink">
-              {/* SUNAT publica al gerente como APELLIDO APELLIDO NOMBRE. */}
-              <strong><PersonName name={empresa.gerente_general.nombre} orden="sunat" /></strong>
-              {empresa.gerente_general.desde && <span className="text-mute">desde {fechaDossier(empresa.gerente_general.desde, true)}</span>}
-            </dd></div>
+
+        {(empresa.gerente_general?.nombre || socios.length > 0) && (
+          <Fila icono={Users} titulo="Quiénes están detrás">
+            <ul className="space-y-1">
+              {empresa.gerente_general?.nombre && (
+                <li>
+                  <span className="text-mute">Gerente general:</span>{" "}
+                  {/* SUNAT publica al gerente como APELLIDO APELLIDO NOMBRE. */}
+                  <strong className="font-semibold">
+                    <PersonName name={empresa.gerente_general.nombre} orden="sunat" />
+                  </strong>
+                  {empresa.gerente_general.desde && <span className="text-mute">, desde el {fechaDossier(empresa.gerente_general.desde, true)}</span>}
+                </li>
+              )}
+              {/* Sin el DNI de nadie: nunca se muestra (docs/PRIVACIDAD.md). */}
+              {socios.map((s: any, i: number) => (
+                <li key={i}>
+                  <span className="text-mute">{s.cargo || "Socio"}:</span>{" "}
+                  <strong className="font-semibold">
+                    <PersonName name={s.nombre} />
+                  </strong>
+                  {s.participacion && <span className="text-mute">, {s.participacion}</span>}
+                </li>
+              ))}
+            </ul>
+          </Fila>
         )}
       </dl>
-      {(empresa.socios || []).length > 0 && (
-        <div className="mt-3 border-t border-line pt-3">
-          <h3 className="text-cuerpo font-semibold text-ink">
-            Socios y representantes ({empresa.socios.length})
-          </h3>
-          <ul className="mt-1.5 space-y-1">
-            {empresa.socios.map((s: any, i: number) => (
-              <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg bg-paperSoft px-2.5 py-1.5 text-rotulo leading-4">
-                <strong className="text-ink"><PersonName name={s.nombre} /></strong>
-                {s.dni && <span className="font-mono text-mute">DNI <Dni value={s.dni} /></span>}
-                {s.participacion && <span className="text-mute">{s.participacion}</span>}
-                {s.cargo && <span className="text-inkSoft">{s.cargo}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {(banderasSugeridas || []).length > 0 && (
-        <div className="mt-3 border-t border-line pt-3">
-          <h3 className="text-cuerpo font-semibold text-amberTexto">
-            <AlertTriangle size={10} className="mr-1 inline" aria-hidden />
-            Señales sugeridas para investigar
-          </h3>
-          <ul className="mt-1.5 space-y-1">
-            {banderasSugeridas.map((b, i) => (
-              <li key={i} className="rounded-lg bg-amber-soft px-2.5 py-1.5 text-rotulo leading-4">
-                <strong className="text-ink">{b.titulo}.</strong>{" "}
-                <span className="text-inkSoft">{redactDnis(b.descripcion)}</span>
-                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1 text-micro text-inkSoft" />}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <p className="px-5 pb-4 pt-1 text-rotulo text-mute">Fuente: el perfil del padrón de la SUNAT que leyó el agente en este análisis.</p>
     </section>
   );
 }

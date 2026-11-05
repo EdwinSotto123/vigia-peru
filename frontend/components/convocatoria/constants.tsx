@@ -2,27 +2,114 @@
 
 // Constantes visuales compartidas por los componentes de convocatoria/ (extraído de
 // ConvocatoriaSearch.tsx): colores del grafo, rótulos por agente, pasos del análisis, etc.
+import { useEffect, useState } from "react";
 import {
   Sparkles, ScanSearch, FileText, Receipt, Globe2, Search, Download, AlertTriangle,
   Scale, Building2, Globe, Newspaper, Network, ListChecks, Pen,
 } from "lucide-react";
+import { useModo } from "@/lib/modo";
 
 export const AGENT_IDS = ["compliance", "parser", "legal", "market", "web", "news", "person", "entity", "extended", "writer"];
 
-// Colores del grafo en <canvas> (FlowGraph), que no puede leer clases de Tailwind: por eso son
-// hex, y son EXACTAMENTE los de tailwind.config.ts. El tipo de nodo se distingue con la paleta
-// textil (decoración, DESIGN_SYSTEM.md §3.4): núcleo granate, agente añil, fuente ocre,
-// persistencia tierra. El violeta y los verdes vivos del grafo viejo se fueron con la marca vieja.
-export const G_COLOR: Record<string, { fill: string; stroke: string; text: string }> = {
-  orch:  { fill: "#111717", stroke: "#D4FF3F", text: "#D4FF3F" }, // marca lima
-  agent: { fill: "#111717", stroke: "#6C8CFF", text: "#C8D4FF" }, // textil-anil
-  src:   { fill: "#111717", stroke: "#E88C5C", text: "#F0A476" }, // textil-ocre
-  store: { fill: "#111717", stroke: "#8FA3A0", text: "#BECDCA" }, // neutro
-};
+// Colores del grafo en <canvas> (FlowGraph). El canvas no lee clases de Tailwind ni variables CSS: se LEEN las variables
+// RGB de globals.css (`--granate`, `--anil`, `--clay`…) con getComputedStyle y se pasan a hex (#RRGGBB, porque FlowGraph
+// les suma la opacidad con dos dígitos: `stroke + "66"`). Así el día y la noche son los de globals.css, sin un hex escrito
+// aquí (antes eran dos paletas a mano que se desfasaban de los tokens), y `usePaletaGrafo` las vuelve a leer al cambiar
+// `html[data-modo]`. El tipo de nodo se distingue por token: núcleo en el verde de la marca, agente añil, paso de datos
+// en arcilla y persistencia en tinta tenue; lo terminado, en moss.
 
-export const G_DONE = { fill: "#0F2A1F", stroke: "#3DDC97", text: "#62E8AD" }; // moss · mossTexto: "completado"
+/** Qué token pinta cada parte del grafo. */
+const TOKENS = {
+  nucleo: "--granate",
+  agente: "--anil",
+  agenteTexto: "--anil-texto",
+  fuente: "--clay",
+  fuenteTexto: "--clay-texto",
+  neutro: "--mute",
+  neutroTexto: "--ink-soft",
+  hecho: "--moss",
+  hechoTexto: "--moss-texto",
+  fondo: "--paper-soft",
+  // El gris de «lo demás» de los gráficos: el mismo apagado del grafo de antes en los dos modos.
+  apagado: "--serie-otros",
+  tinta: "--ink",
+} as const;
+type Token = keyof typeof TOKENS;
+type Rgb = [number, number, number];
 
-export const G_FLOW = "#3DDC97"; // moss: arista con intercambio de info ACTIVO
+const aHex = (c: Rgb) => `#${c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+const mezcla = (a: Rgb, b: Rgb, t: number): Rgb => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+/** "212 255 63" (el formato de globals.css) → [212, 255, 63]; null si la variable falta. */
+function leerToken(estilo: CSSStyleDeclaration, variable: string): Rgb | null {
+  const p = estilo.getPropertyValue(variable).trim().split(/\s+/).map(Number);
+  return p.length >= 3 && p.slice(0, 3).every(Number.isFinite) ? [p[0], p[1], p[2]] : null;
+}
+
+export interface PaletaGrafo {
+  nodo: Record<string, { fill: string; stroke: string; text: string }>;
+  hecho: { fill: string; stroke: string; text: string };
+  flujo: string;
+  verbo: Record<string, string>;
+  fondoNodo: string;
+  apagado: string;
+  tinta: string;
+}
+
+function armar(c: (k: Token) => string, fondoHecho: string): PaletaGrafo {
+  const fondo = c("fondo");
+  return {
+    nodo: {
+      orch: { fill: fondo, stroke: c("nucleo"), text: c("nucleo") },
+      agent: { fill: fondo, stroke: c("agente"), text: c("agenteTexto") },
+      src: { fill: fondo, stroke: c("fuente"), text: c("fuenteTexto") },
+      store: { fill: fondo, stroke: c("neutro"), text: c("neutroTexto") },
+    },
+    hecho: { fill: fondoHecho, stroke: c("hecho"), text: c("hechoTexto") },
+    flujo: c("hecho"),
+    verbo: { delega: c("nucleo"), invoca: c("agente"), consulta: c("fuente"), persiste: c("neutro") },
+    fondoNodo: fondo,
+    apagado: c("apagado"),
+    tinta: c("tinta"),
+  };
+}
+
+/**
+ * La paleta como variables CSS sin leer (`rgb(var(--granate))`): vale en un `style` del DOM pero no en el canvas. Es la
+ * del servidor y la del primer render del cliente (igual en los dos: sin diferencias al hidratar).
+ */
+const PALETA_CSS: PaletaGrafo = armar((k) => `rgb(var(${TOKENS[k]}))`, `rgb(var(${TOKENS.hecho}) / 0.15)`);
+
+/**
+ * Los colores del grafo leídos de las variables de globals.css del modo actual. El modo (lib/modo.ts) se acepta por
+ * compatibilidad: el que manda es el de `<html data-modo>`, que es de donde salen las variables.
+ */
+export function paletaGrafo(_modo?: "dia" | "noche"): PaletaGrafo {
+  if (typeof document === "undefined") return PALETA_CSS;
+  const estilo = getComputedStyle(document.documentElement);
+  const rgb = {} as Record<Token, Rgb>;
+  for (const k of Object.keys(TOKENS) as Token[]) {
+    const v = leerToken(estilo, TOKENS[k]);
+    if (!v) return PALETA_CSS;
+    rgb[k] = v;
+  }
+  // Lo terminado: su verde apenas sobre el fondo del nodo, opaco (las aristas no se ven a través del nodo).
+  return armar((k) => aHex(rgb[k]), aHex(mezcla(rgb.fondo, rgb.hecho, 0.14)));
+}
+
+/** La paleta del grafo, leída después de montar y otra vez cada vez que cambia el modo de la página. */
+export function usePaletaGrafo(): PaletaGrafo {
+  const modo = useModo();
+  const [paleta, setPaleta] = useState<PaletaGrafo>(PALETA_CSS);
+  useEffect(() => setPaleta(paletaGrafo(modo)), [modo]);
+  return paleta;
+}
+
+// Compatibilidad: los nombres de antes, ahora como variables CSS (sirven en el DOM; el canvas usa `usePaletaGrafo`).
+export const G_COLOR = PALETA_CSS.nodo;
+export const G_DONE = PALETA_CSS.hecho;
+export const G_FLOW = PALETA_CSS.flujo;
+export const VERB_HEX = PALETA_CSS.verbo;
 
 export const TYPE_LABEL: Record<string, string> = { orch: "Núcleo", agent: "Agente", src: "Fuente", store: "Persistencia" };
 
@@ -38,42 +125,6 @@ export const TRACE_ROLE: Record<string, string> = {
   entity: "identificar a los funcionarios de la entidad",
   writer: "redactar el dictamen con la evidencia",
 };
-
-export const VERB_HEX: Record<string, string> = { delega: "#D4FF3F", invoca: "#6C8CFF", consulta: "#E88C5C", persiste: "#8FA3A0" };
-
-/**
- * Los mismos colores del grafo en <canvas> para cada modo de la página (lib/modo.ts: `useModo`), como `paletaMapa`: el
- * canvas no lee las variables de globals.css. Noche = los de arriba; día = los tokens de `html[data-modo="dia"]`
- * (verde profundo #2F6B10, añil #3B5CCC, arcilla #B05826, moss #168C5A, tinta #111817 sobre papel #F7F9F8).
- */
-export interface PaletaGrafo {
-  nodo: typeof G_COLOR;
-  hecho: typeof G_DONE;
-  flujo: string;
-  verbo: typeof VERB_HEX;
-  fondoNodo: string;
-  apagado: string;
-  tinta: string;
-}
-
-const PALETA_NOCHE: PaletaGrafo = {
-  nodo: G_COLOR, hecho: G_DONE, flujo: G_FLOW, verbo: VERB_HEX, fondoNodo: "#111717", apagado: "#4A5959", tinta: "#E7F0EE",
-};
-
-const PALETA_DIA: PaletaGrafo = {
-  nodo: {
-    orch:  { fill: "#FFFFFF", stroke: "#2F6B10", text: "#2F6B10" },
-    agent: { fill: "#FFFFFF", stroke: "#3B5CCC", text: "#2C48AA" },
-    src:   { fill: "#FFFFFF", stroke: "#B05826", text: "#964B19" },
-    store: { fill: "#FFFFFF", stroke: "#586764", text: "#374442" },
-  },
-  hecho: { fill: "#E2F0E8", stroke: "#168C5A", text: "#156E46" },
-  flujo: "#168C5A",
-  verbo: { delega: "#2F6B10", invoca: "#3B5CCC", consulta: "#B05826", persiste: "#586764" },
-  fondoNodo: "#FFFFFF", apagado: "#BECAC7", tinta: "#111817",
-};
-
-export const paletaGrafo = (modo: "dia" | "noche"): PaletaGrafo => (modo === "dia" ? PALETA_DIA : PALETA_NOCHE);
 
 // Mapeo visual de cada agente. Rótulos en castellano (los de FASES en lib/auditoria), no el
 // nombre interno en inglés. Todos en tinta neutra: los tokens de severidad (rust, amber, moss)

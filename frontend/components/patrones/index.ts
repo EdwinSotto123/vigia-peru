@@ -12,3 +12,4 @@ export { TarjetaDatos } from "./TarjetaDatos";
 export { BanderasFicha, type BanderaFicha } from "./BanderasFicha";
 export { BarraCompartir } from "./Compartir";
 export { Franja, Beneficios, type Beneficio } from "./Franja";
+export { EnUnaFrase, Capitulo, IndiceRelato, Cronologia, type PasoRelato, type SenalPaso } from "./Relato";

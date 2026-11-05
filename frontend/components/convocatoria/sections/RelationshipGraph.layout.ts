@@ -1,7 +1,6 @@
-// Cálculo puro del grafo de red (nodos + aristas + layout polar) desde las props de
-// RelationshipGraph — sin JSX, sin hooks, sin refs: solo depende de person/web/proveedor/ctx.
-// Separado del componente (que sigue en RelationshipGraph.tsx) para que ninguno de los dos
-// archivos pase de 800 líneas.
+// Cálculo puro de la red del proveedor (nodos y aristas) desde las props de la pestaña «Proveedor y red»: sin JSX, sin
+// hooks, sin refs; sólo depende de person/web/proveedor/ctx. Lo dibuja RedProveedor.tsx en carriles; `positions` (el
+// layout polar del grafo viejo, RelationshipGraph) queda por compatibilidad y nadie lo dibuja.
 import { soles } from "@/lib/formato";
 import type { GraphNode, GraphEdge } from "../types";
 import { esPersonaNatural, maskApellido, maskDnis } from "../../Redact";
@@ -109,7 +108,7 @@ export function buildRelationshipGraphData(
     label: !p.nombre_completo
       ? personLabel
       : personaEsProveedorNatural ? maskApellidoSunat(personLabel) : maskApellido(personLabel),
-    sublabel: p.cargo_actual || (p.dni ? `DNI ${maskDnis(String(p.dni))}` : undefined),
+    sublabel: p.cargo_actual || undefined,
     meta: { dni: p.dni, cargo: p.cargo_actual, fuente_url: p.datosperu_url || p.linkedin },
   });
 
@@ -493,10 +492,9 @@ export function buildRelationshipGraphData(
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "company_titular",
         label: socioEtiqueta,
-        sublabel: s.dni ? `DNI ${maskDnis(String(s.dni))}` : rol,
+        sublabel: rol,
         tooltip: unir(
           socioEtiqueta,
-          s.dni ? "DNI " + maskDnis(String(s.dni)) : "",
           rol,
           esFuncionarioActivo ? "⚠ FUNCIONARIO PÚBLICO ACTIVO" : "",
         ),

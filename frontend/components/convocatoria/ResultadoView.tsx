@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setRedactNames } from "../Redact";
 import { nombresPrivadosDe } from "./nombresPrivados";
@@ -9,32 +9,35 @@ import { cn } from "@/lib/utils";
 import { fechaCorta, numero } from "@/lib/formato";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { Pestanas, irAPestana } from "@/components/patrones/Pestanas";
-import { Indicadores } from "@/components/listado";
+import { EVENTO_ACTIVA, Pestanas, irAPestana } from "@/components/patrones/Pestanas";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import type { ApiResult } from "./types";
-import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas, severidadDe } from "./dossier";
-import { IdentidadDossier, indicadoresDossier } from "./sections/IdentidadDossier";
-import { ResumenHumano } from "./sections/ResumenHumano";
+import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas } from "./dossier";
+import { IdentidadDossier } from "./sections/IdentidadDossier";
 import { SeccionSegura } from "./sections/SeccionSegura";
 import { EnRevisionDossier } from "./sections/EnRevisionDossier";
 import { PanelDossier, type TabKey } from "./sections/PanelesDossier";
+import { FraseDossier } from "./relato/FraseDossier";
+import { senalesDelRelato } from "./relato/historia";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { RANGO_SEVERIDAD } from "@/lib/severidad";
 
-/** Las pestañas del informe, en orden. La primera ("resumen", la de las señales) no va a la URL. */
+/** Las pestañas del informe, en orden. La primera («historia», el relato) no va a la URL. */
 
 /** El parámetro de la pestaña en la URL: `?tab=`, el de siempre, para que los enlaces viejos sigan abriendo la suya. */
 const PARAM_TAB = "tab";
 
 /**
- * El informe de un contrato, tal como lo ve el público: la plantilla Ficha (DESIGN_SYSTEM.md §14.2).
+ * El informe de un contrato, tal como lo ve el público, contado como una historia (pedido del usuario del 2026-11-05:
+ * «veo que solo apilamos y demás sin dar orden o contar una historia»):
  *   1. identidad: volver, qué se contrató (h1), código, quién compra, quién ganó y chips de estado;
- *   2. `Indicadores`: valor referencial, adjudicado, señales por severidad y la fecha del proceso;
- *   3. el veredicto, una tarjeta en palabras;
- *   4. la evidencia, en las `Pestanas` del kit (§14.3: señales, dictamen, ítems, proveedor,
- *      documentos, prensa) y, desde xl, la columna de datos del proceso;
- *   5. "Cómo se hizo", la última pestaña: ahí sí va el vocabulario técnico.
+ *   2. el veredicto EN UNA FRASE (FraseDossier), armado con los datos: quién le compró qué a quién, por cuánto, frente
+ *      a cuántos postores y lo más grave que se encontró, con las cifras que lo sostienen debajo. Reemplaza a las
+ *      cuatro cifras sueltas (`Indicadores`) y a la tarjeta «El análisis encontró N señales», que se apilaban;
+ *   3. las `Pestanas` del kit (§14.3). La primera y la inicial es «La historia» (relato/HistoriaDossier): qué pasó en
+ *      orden con cada señal en su paso, por qué llama la atención, quién ganó, qué dice el dictamen y de dónde sale cada
+ *      dato. Las demás (señales en tabla, dictamen, ítems, proveedor, documentos, prensa) son el detalle entero y,
+ *      desde xl, la columna de datos del proceso;
+ *   4. "Cómo se hizo", la última pestaña: ahí sí va el vocabulario técnico.
  *
  * La pestaña va a la URL como `?tab=` (el parámetro de antes), así los enlaces ya compartidos
  * siguen abriendo la misma pestaña. Antes la barra era propia de esta vista; ahora es la de toda
@@ -94,41 +97,28 @@ export function ResultadoView({
     const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "start" });
   }, []);
+  // Cambia de pestaña y baja a ella; con `ancla` («Ver la evidencia completa» → `senales`), hasta ese punto de la nueva.
+  // Tras el clic el panel ya está a la vista (Pestanas lo monta en el mismo turno): el cuadro siguiente ya puede bajar.
   const abrirTab = useCallback(
-    (t: TabKey) => {
+    (t: TabKey, ancla?: string) => {
       irATab(t);
-      requestAnimationFrame(mostrarPestanas);
+      const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      requestAnimationFrame(() => {
+        const destino = ancla ? document.getElementById(ancla) : null;
+        if (destino) destino.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "start" });
+        else mostrarPestanas();
+      });
     },
     [irATab, mostrarPestanas],
   );
-
-  // "Ver las señales": va a la pestaña de las señales y baja hasta la lista. El panel ya está
-  // montado (oculto): tras el clic, el cuadro siguiente ya lo muestra y se puede bajar a él.
-  const verEvidencia = useCallback(() => {
-    irATab("resumen");
-    const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    requestAnimationFrame(() =>
-      document.getElementById("senales")?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "start" }),
-    );
-  }, [irATab]);
 
   // ─── Qué corrió, qué señales se sostienen, qué nivel tiene ───
   const corrida = useMemo(() => estadoCorrida(result), [result]);
   const { visibles: banderasArr, noVerificables, contexto } = useMemo(() => separarBanderas(result), [result]);
   // UNA lectura de severidad para la cabecera, los chips y la lista (ver ./dossier).
   const conteo = useMemo(() => contarSeveridades(banderasArr), [banderasArr]);
-  // Por regla, en el orden de la API (más grave y más nueva primero): la tarjeta del veredicto las nombra.
-  const principales = useMemo(() => {
-    const m = new Map<string, { regla: string; severidad: "alta" | "media" | "baja"; n: number }>();
-    for (const b of banderasArr) {
-      const regla = String(b.regla || "");
-      if (!regla) continue;
-      const p = m.get(regla);
-      if (p) p.n++;
-      else m.set(regla, { regla, severidad: severidadDe(b), n: 1 });
-    }
-    return [...m.values()].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad]);
-  }, [banderasArr]);
+  // De la más grave a la más leve y sin la que repite el hecho de otra: la frase del veredicto nombra las dos primeras.
+  const senales = useMemo(() => senalesDelRelato(banderasArr), [banderasArr]);
   const nivel = nivelDelDossier(compl.score, banderasArr.length, corrida);
   // El puntaje nunca aparece sin las señales que lo explican (§10.4).
   const score = typeof compl.score === "number" && banderasArr.length > 0 ? compl.score : null;
@@ -171,19 +161,8 @@ export function ResultadoView({
     [nombresPrivados],
   );
 
-  // Resumen ejecutivo del dictamen, como anticipo de dos líneas (§10.7: ≈180 caracteres); el
-  // dictamen entero está en su pestaña. Se corta en un final de oración, nunca a mitad de palabra.
-  const resumenEjecutivo = (() => {
-    const m = dict.match(/#{2,3}\s*Resumen ejecutivo\s*\n+([\s\S]*?)(?:\n#{2,3}\s|$)/i);
-    const raw = (m ? m[1] : dict) || "";
-    const limpio = raw.replace(/[#*`>\[\]]/g, "").replace(/\s+/g, " ").trim();
-    if (limpio.length <= 180) return limpio;
-    const corte = limpio.slice(0, 180);
-    const finOracion = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("? "), corte.lastIndexOf("! "));
-    if (finOracion > 90) return corte.slice(0, finOracion + 1);
-    const finPalabra = corte.lastIndexOf(" ");
-    return (finPalabra > 0 ? corte.slice(0, finPalabra) : corte) + "…";
-  })();
+  // (El anticipo del dictamen ya no va en una tarjeta arriba: su resumen ejecutivo es el capítulo «Lo que dice el
+  // análisis» de La historia, ver relato/historia.ts `resumenDelDictamen`.)
 
   // Conteos de las pestañas, en tinta neutra (los pinta `Pestanas`). Un cero no se muestra: aquí
   // suele querer decir "esa parte no corrió", no "no hay nada" (§10.2: sin dato no es cero).
@@ -192,6 +171,8 @@ export function ResultadoView({
   const _obra = (result as any).obra_ejecucion;
   const nObras = ((_sup?.enlazada && _sup.obras) || (_obra?.enlazada && _obra.obras) || []).length;
   const TABS: { key: TabKey; label: string; badge: number | null }[] = [
+    // La primera, la que abre el informe: el relato (pedido del usuario del 2026-11-05). Sin conteo: no es una lista.
+    { key: "historia", label: "La historia", badge: null },
     { key: "resumen", label: "Señales", badge: banderasArr.length || null },
     { key: "dictamen", label: "Dictamen", badge: null },
     ...(nObras ? [{ key: "obra" as TabKey, label: _sup?.enlazada ? "La obra supervisada" : "La obra", badge: null }] : []),
@@ -201,6 +182,18 @@ export function ResultadoView({
     { key: "prensa", label: "Prensa", badge: nNoticias || null },
     { key: "trace", label: "Cómo se hizo", badge: null },
   ];
+
+  // La pestaña abierta, para una sola cosa: en «La historia» la columna «Datos del proceso» no se repite al pie en el
+  // celular (su capítulo «De dónde sale cada dato» dice lo mismo). Pestanas avisa cada cambio con EVENTO_ACTIVA.
+  const [activa, setActiva] = useState<string>(() => (tabElegida && TABS.some((t) => t.key === tabElegida) ? tabElegida : TABS[0].key));
+  useEffect(() => {
+    const alCambiar = (e: Event) => {
+      const d = (e as CustomEvent<{ param: string; clave: string }>).detail;
+      if (d?.param === PARAM_TAB && typeof d.clave === "string") setActiva(d.clave);
+    };
+    window.addEventListener(EVENTO_ACTIVA, alCambiar);
+    return () => window.removeEventListener(EVENTO_ACTIVA, alCambiar);
+  }, []);
 
   // ─── Alerta frenada para revisión humana: "En revisión" y nada más (§10.4) ───
   if (enRevision) {
@@ -232,37 +225,26 @@ export function ResultadoView({
         }
       />
 
-      {/* 2. Las cifras del contrato. */}
-      <SeccionSegura nombre="las cifras del contrato">
-        <Indicadores items={indicadoresDossier({ conv, ganador, conteo, corrida })} />
+      {/* 2. El veredicto en una frase, con sus cifras (en todas las pestañas: es lo primero que se lee). */}
+      <SeccionSegura nombre="el veredicto">
+        <FraseDossier
+          conv={conv}
+          ganador={ganador}
+          nGanadores={ganadores.length}
+          senales={senales}
+          conteo={conteo}
+          score={score}
+          corrida={corrida}
+          perfil={compl.perfil ?? null}
+        />
       </SeccionSegura>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),300px]">
         {/* ─── COLUMNA PRINCIPAL ─── */}
         <div className="min-w-0 space-y-4">
-          {/* 3. Veredicto en palabras */}
-          <SeccionSegura nombre="el veredicto">
-            <ResumenHumano
-              conteo={conteo}
-              principales={principales}
-              score={score}
-              nivel={nivel}
-              corrida={corrida}
-              resumenEjecutivo={resumenEjecutivo}
-              onVerEvidencia={verEvidencia}
-              onLeerDictamen={() => abrirTab("dictamen")}
-            />
-          </SeccionSegura>
-
-          {/* Los documentos sugieren una etapa que el OCDS todavía no publica: es un dato, no una señal. */}
-          {result.estado_real?.estado_inconsistente && (
-            <SeccionSegura nombre="el aviso de estado">
-              <EstadoInconsistente er={result.estado_real} />
-            </SeccionSegura>
-          )}
-
-          {/* 4. La evidencia, en pestañas. Cada panel con su propio límite de error: si uno no se
-              puede dibujar, las demás pestañas se siguen leyendo. */}
+          {/* 3. La historia y la evidencia, en pestañas. Cada panel con su propio límite de error: si uno no se
+              puede dibujar, las demás pestañas se siguen leyendo. (El aviso de estado del expediente va ahora al pie
+              de «Qué pasó», en La historia.) */}
           <div ref={pestanas} className="scroll-mt-24">
             <Pestanas
               etiqueta="Secciones del informe"
@@ -292,6 +274,7 @@ export function ResultadoView({
                       nItems={nItems}
                       nDocs={nDocs}
                       nEvents={nEvents}
+                      abrirTab={abrirTab}
                     />
                   </SeccionSegura>
                 ),
@@ -313,8 +296,9 @@ export function ResultadoView({
           {!vistaPrevia && <NotaPrivacidad className="-mt-2" />}
         </div>
 
-        {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ─── */}
-        <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start" aria-label="Datos del proceso">
+        {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ───
+            En «La historia», debajo de xl no se repite al pie: lo dice su capítulo «De dónde sale cada dato». */}
+        <aside className={cn("space-y-3 xl:sticky xl:top-20 xl:self-start", activa === "historia" && "hidden xl:block")} aria-label="Datos del proceso">
           <div className="rounded-2xl border border-line bg-paper p-4">
             <h2 className="font-display text-bloque font-bold text-ink">Datos del proceso</h2>
             {/* Filas etiqueta · cifra, alineadas a la izquierda: antes eran tres baldosas centradas. */}
@@ -370,40 +354,6 @@ function DatoProceso({ valor, etiqueta }: { valor: unknown; etiqueta: string }) 
       <dd className={cn("font-mono tabular-nums", n === null ? "font-sans text-rotulo text-mute" : "font-semibold text-ink")}>
         {n === null ? "Sin dato" : numero(n)}
       </dd>
-    </div>
-  );
-}
-
-/**
- * Los documentos y el portal oficial no coinciden en la etapa del proceso. Es un dato sobre el
- * registro, no una señal: va en tinta neutra (antes, en el rojo de error del sistema). Aviso
- * inevitable = una línea + ⓘ (§10.7); los documentos que lo muestran van en la ⓘ.
- */
-function EstadoInconsistente({ er }: { er: any }) {
-  const legible = (s: unknown) => String(s || "").replace(/_/g, " ");
-  const docs: any[] = er.documentos_clave || [];
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-paperSoft px-4 py-2.5 text-meta">
-      <Info size={15} className="shrink-0 text-inkSoft" aria-hidden />
-      <span className="font-semibold text-ink">Los documentos y el portal oficial no coinciden</span>
-      <span className="text-inkSoft">
-        OECE: {legible(er.estado_ocds)}, expediente: {legible(er.estado_documentos)}
-      </span>
-      <Ayuda titulo="¿Por qué no coinciden?">
-        <span className="block">
-          El registro OCDS del OECE muestra el estado &ldquo;{legible(er.estado_ocds)}&rdquo;, pero el expediente ya tiene{" "}
-          {numero(docs.length)} {docs.length === 1 ? "documento clave" : "documentos clave"} de &ldquo;
-          {legible(er.estado_documentos)}&rdquo;. El portal puede estar desactualizado o la publicación de la adjudicación,
-          pendiente.
-        </span>
-        {docs.slice(0, 3).map((d: any, i: number) => (
-          <span key={i} className="mt-1.5 block text-rotulo text-inkSoft">
-            <strong className="font-semibold text-ink">{legible(d.tipo)}</strong> {d.titulo}
-            {d.fecha && <span className="text-mute">, del {fechaCorta(String(d.fecha).slice(0, 10))}</span>}
-          </span>
-        ))}
-        {docs.length > 3 && <span className="mt-1.5 block text-rotulo text-mute">{`y ${docs.length - 3} documentos más en el expediente.`}</span>}
-      </Ayuda>
     </div>
   );
 }

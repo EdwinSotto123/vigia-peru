@@ -4,12 +4,14 @@
  * El contenido de cada pestaña del dossier. Salió de ResultadoView, que rozaba las 800 líneas:
  * allá queda la estructura (identidad → veredicto → pestañas) y acá lo que se lee en cada una.
  *
- * Las `Pestanas` del kit (§14.3) montan cada pestaña la primera vez que se abre. La primera
- * (Señales) viene en el HTML del servidor; las otras seis son módulos aparte cargados con
- * `next/dynamic` y sin render en el servidor: su JS (react-markdown del dictamen, el grafo de
- * la red de personas, el recorrido de los agentes) recién baja al abrir su pestaña. Mientras
- * llega, un esqueleto con la forma del contenido; si el módulo no llega, el límite de error
- * de la pestaña (SeccionSegura, en ResultadoView) lo dice en vez de tirar la página.
+ * Las `Pestanas` del kit (§14.3) montan cada pestaña la primera vez que se abre. La primera es
+ * «La historia» (pedido del usuario del 2026-11-05: contar una historia en vez de apilar bloques;
+ * ver ../relato/HistoriaDossier) y viene en el HTML del servidor, como Señales, que es estática
+ * por la misma razón (se abre desde los enlaces viejos con `?tab=resumen`). Las otras son módulos
+ * aparte cargados con `next/dynamic` y sin render en el servidor: su JS (react-markdown del
+ * dictamen, el grafo de la red de personas, el recorrido de los agentes) recién baja al abrir su
+ * pestaña. Mientras llega, un esqueleto con la forma del contenido; si el módulo no llega, el
+ * límite de error de la pestaña (SeccionSegura, en ResultadoView) lo dice en vez de tirar la página.
  *
  * Dentro del informe los avisos de "no hay nada acá" van con <AvisoSeccion>, sin la llamita:
  * el informe es evidencia (DESIGN_SYSTEM.md §6).
@@ -24,8 +26,9 @@ import { CausalDirectaSection } from "./CausalDirectaSection";
 import { SeccionSegura } from "./SeccionSegura";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { setRedactNames, type NombreConocido } from "../../Redact";
+import { HistoriaDossier } from "../relato/HistoriaDossier";
 
-export type TabKey = "resumen" | "dictamen" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
+export type TabKey = "historia" | "resumen" | "dictamen" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
 
 export interface PanelDossierProps {
   tab: TabKey;
@@ -45,6 +48,11 @@ export interface PanelDossierProps {
   nItems: number;
   nDocs: number;
   nEvents: number;
+  /**
+   * Cambia de pestaña y baja a ella (o a `ancla`, un id dentro de la nueva). La usa «La historia», cuyos capítulos llevan
+   * cada uno a su pestaña de detalle; la arma ResultadoView.
+   */
+  abrirTab?: (t: TabKey, ancla?: string) => void;
 }
 
 /** Mientras baja el JS de una pestaña: la forma de su contenido, sin la llamita (es evidencia). */
@@ -73,6 +81,8 @@ const PanelObra = dynamic(() => import("./PanelObra").then((m) => m.PanelObra), 
 
 export function PanelDossier(p: PanelDossierProps) {
   switch (p.tab) {
+    case "historia":
+      return <HistoriaDossier {...p} />;
     case "resumen":
       return <PanelResumen {...p} />;
     case "dictamen":
@@ -95,7 +105,8 @@ export function PanelDossier(p: PanelDossierProps) {
 }
 
 // ─── Señales: TODAS las señales con su evidencia (el anticipo del dictamen va en el veredicto) ───
-// La única pestaña que se dibuja en el servidor: es lo primero que se lee del informe.
+// Estática (sin `next/dynamic`), como «La historia»: los enlaces viejos con `?tab=resumen` la abren de entrada y llega en
+// el HTML del servidor. Desde el 2026-11-05 la primera es «La historia»; ésta queda para la evidencia entera, en tabla.
 
 function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, nombresPrivados }: PanelDossierProps) {
   // Se registran otra vez las personas privadas justo antes de redactar: en el servidor el

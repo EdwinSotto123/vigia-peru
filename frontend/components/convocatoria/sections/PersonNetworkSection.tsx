@@ -1,320 +1,272 @@
 "use client";
 
-import { ExternalLink, Network, ShieldAlert, Users } from "lucide-react";
-import { Severidad } from "@/components/ui/Severidad";
-import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
-import { fechaDossier, montoDossier, severidadDe } from "../dossier";
-import { Evidencia } from "./Evidencia";
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { Building2, ExternalLink, Landmark, MapPin, Newspaper, UserRound, Users, Vote, Wallet } from "lucide-react";
+import { Dato } from "@/components/ui/Dato";
+import { Nota } from "@/components/patrones";
+import { PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
+import { fechaDossier, montoDossier } from "../dossier";
 import { RedProveedor } from "./RedProveedor";
+import { Pliegue } from "./red/Pliegue";
+import { SenalesRed } from "./red/SenalesRed";
+import { sinFaltaSunat } from "./red/proveedor";
 
 /** "rep_legal_y_socio" → "rep legal y socio". */
 const legible = (v: unknown) => String(v ?? "").replace(/_/g, " ").trim();
+const CLASE_ENLACE = "text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
 
-/** Nombre de una empresa de la red: si es persona natural (RUC 10), en orden SUNAT y con vidrio. */
+/** Nombre de una empresa de la red: si es persona natural (RUC 10), en orden SUNAT y con vidrio; si es RUC 20, a su ficha. */
 function RazonSocial({ ruc, nombre }: { ruc?: string | null; nombre?: string | null }) {
-  if (!nombre) return null;
-  return esPersonaNatural(ruc) ? <PersonName name={nombre} orden="sunat" /> : <>{nombre}</>;
+  if (!nombre) return ruc ? <span className="font-mono">RUC <Ruc value={ruc} /></span> : null;
+  if (esPersonaNatural(ruc)) return <PersonName name={nombre} orden="sunat" />;
+  if (ruc && /^20\d{9}$/.test(String(ruc))) {
+    return (
+      <Link href={`/empresa/${ruc}`} prefetch={false} className={CLASE_ENLACE}>
+        {nombre}
+      </Link>
+    );
+  }
+  return <>{nombre}</>;
 }
 
-export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; web?: any; proveedor?: any; ctx?: any }) {
+/** Un enlace a la fuente de un dato (JNE, ONPE, la nota de prensa): sólo URLs públicas. */
+function Fuente({ url, children = "Fuente" }: { url?: string | null; children?: ReactNode }) {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-rotulo ${CLASE_ENLACE}`}>
+      {children} <ExternalLink size={11} aria-hidden />
+    </a>
+  );
+}
+
+/** Un grupo de datos de la persona o de las empresas: rótulo con ícono y la lista. */
+function Grupo({ icono, titulo, children }: { icono: ReactNode; titulo: string; children: ReactNode }) {
+  return (
+    <div>
+      <h4 className="flex items-center gap-1.5 text-rotulo font-semibold uppercase tracking-wide text-mute">
+        <span aria-hidden>{icono}</span>
+        {titulo}
+      </h4>
+      <ul className="mt-1.5 space-y-1.5">{children}</ul>
+    </div>
+  );
+}
+
+/**
+ * El capítulo «Con quién está vinculado» de la pestaña del proveedor: primero lo que encontró la red (sus señales, la
+ * más grave arriba, con su evidencia), después la red dibujada (`RedProveedor`) y, a pedido, cada persona y cada
+ * empresa con su fuente. La síntesis que escribió el agente va al final de la pestaña («Lo que escribió el agente»).
+ */
+export function PersonNetworkSection({
+  person,
+  web,
+  proveedor,
+  ctx,
+  sunatEnBase = false,
+}: {
+  person: any;
+  web?: any;
+  proveedor?: any;
+  ctx?: any;
+  /** Con el padrón SUNAT en la base, la señal «falta de información SUNAT» del agente es falsa y no se muestra. */
+  sunatEnBase?: boolean;
+}) {
   const p = person?.persona_principal || {};
   const red = person?.red_empresarial || {};
-  const banderas = person?.banderas_red || [];
-  const sintesis = person?.sintesis || "";
+  const banderas = sinFaltaSunat((person?.banderas_red || []) as any[], sunatEnBase);
 
   const hasGerente = !!p.nombre_completo;
-  const empresasMismaDir = red.empresas_misma_direccion || [];
-  const empresasMismoTitular = red.empresas_mismo_titular || [];
-  const cargosPasados = p.cargos_pasados || [];
-  const otrosCargos = p.otros_cargos_actuales || [];
-  const candidaturas = p.candidaturas || [];
-  const aportes = p.aportes_campañas || p.aportes_campanas || [];
-  const menciones = p.menciones_prensa || [];
-  // Si la persona principal ES el proveedor persona natural, su nombre viene
-  // en el orden del RUC (APELLIDO APELLIDO NOMBRE): se tapa la segunda palabra.
+  const empresasMismaDir: any[] = red.empresas_misma_direccion || [];
+  const empresasMismoTitular: any[] = red.empresas_mismo_titular || [];
+  const cargosPasados: any[] = p.cargos_pasados || [];
+  const otrosCargos: any[] = p.otros_cargos_actuales || [];
+  const candidaturas: any[] = p.candidaturas || [];
+  const aportes: any[] = p.aportes_campañas || p.aportes_campanas || [];
+  const menciones: any[] = p.menciones_prensa || [];
+  // Si la persona principal ES el proveedor persona natural, su nombre viene en el orden del RUC (APELLIDO APELLIDO
+  // NOMBRE): se tapa la segunda palabra.
   const ordenPersona =
-    esPersonaNatural(proveedor?.ruc) &&
-    String(p.nombre_completo || "").trim().toUpperCase() === String(proveedor?.nombre || "").trim().toUpperCase()
+    esPersonaNatural(proveedor?.ruc) && String(p.nombre_completo || "").trim().toUpperCase() === String(proveedor?.nombre || "").trim().toUpperCase()
       ? "sunat"
       : "nombres-primero";
+  const nDetalle = (hasGerente ? 1 : 0) + empresasMismoTitular.length + empresasMismaDir.length;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">
-          Personas clave y red empresarial
-        </h2>
-        <p className="mt-0.5 text-rotulo text-mute">
-          Quién está detrás del proveedor y con qué otras empresas se conecta
-        </p>
-        {sintesis && (
-          <p className="mt-2 text-dato leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>
-        )}
-      </div>
+    <div className="space-y-4">
+      {banderas.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-cuerpo font-semibold text-ink">Lo que encontró la red ({banderas.length})</h3>
+          <SenalesRed banderas={banderas} etiqueta="Señales en la red de personas del proveedor" />
+        </div>
+      )}
 
       <RedProveedor person={person} web={web} proveedor={proveedor} ctx={ctx} />
 
-      <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
-        {/* PERSONA PRINCIPAL */}
-        <article className="space-y-3 rounded-xl border border-line bg-paperSoft p-4">
-          <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
-              <Users size={18} />
-            </div>
-            <div>
-              <div className="text-rotulo font-semibold text-ink">
-                Persona principal
-              </div>
-              <h3 className="font-display text-destacado leading-6 font-bold text-ink">
-                {hasGerente ? <PersonName name={p.nombre_completo} orden={ordenPersona} /> : "Gerente no identificado"}
-              </h3>
-              {p.cargo_actual && (
-                <p className="text-rotulo leading-4 text-inkSoft">{p.cargo_actual}</p>
-              )}
-            </div>
-          </div>
-
-          {!hasGerente && (
-            <p className="rounded-md bg-amber-soft px-3 py-2 text-micro text-amberTexto">
-              {p.sintesis_personal
-                ? redactDnis(p.sintesis_personal)
-                : "No se pudo identificar al gerente ni al representante legal en las búsquedas realizadas."}
-            </p>
-          )}
-
-          {p.sintesis_personal && hasGerente && (
-            <p className="text-rotulo leading-relaxed text-inkSoft">{redactDnis(p.sintesis_personal)}</p>
-          )}
-
-          {/* Identificadores */}
-          {(p.dni || p.linkedin || p.datosperu_url) && (
-            <div className="flex flex-wrap gap-1.5 text-micro">
-              {p.dni && (
-                <span className="rounded-md bg-paperDeep px-2 py-0.5 font-mono text-mute">DNI <Dni value={p.dni} /></span>
-              )}
-              {p.linkedin && (
-                <a href={p.linkedin} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-granate hover:underline">
-                  LinkedIn <ExternalLink size={9} />
-                </a>
-              )}
-              {p.datosperu_url && (
-                <a href={p.datosperu_url} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-granate hover:underline">
-                  DatosPerú <ExternalLink size={9} />
-                </a>
-              )}
-            </div>
-          )}
-
-          {/* Otros cargos actuales */}
-          {otrosCargos.length > 0 && (
-            <div>
-              <h4 className="text-rotulo font-semibold text-inkSoft">
-                Otros cargos actuales
-              </h4>
-              <ul className="mt-1 space-y-1">
-                {otrosCargos.map((c: any, i: number) => (
-                  <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-rotulo leading-4 text-ink">
-                    <strong>{c.cargo}</strong>
-                    {c.empresa && <span>en <RazonSocial ruc={c.ruc} nombre={c.empresa} /></span>}
-                    {c.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={c.ruc} /></span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Cargos pasados */}
-          {cargosPasados.length > 0 && (
-            <div>
-              <h4 className="text-rotulo font-semibold text-inkSoft">
-                Cargos pasados (públicos)
-              </h4>
-              <ul className="mt-1 space-y-1.5">
-                {cargosPasados.map((c: any, i: number) => (
-                  <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5 text-rotulo leading-4">
-                    <div className="font-semibold text-ink">{c.cargo}</div>
-                    <div className="flex flex-wrap gap-x-2 text-mute">
-                      {c.institucion && <span>{c.institucion}</span>}
-                      {c.periodo && <span>{c.periodo}</span>}
-                    </div>
-                    {c.fuente_url && (
-                      <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-micro text-granate hover:underline">
-                        Fuente <ExternalLink size={9} />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Candidaturas */}
-          {candidaturas.length > 0 && (
-            <div>
-              <h4 className="text-rotulo font-semibold text-rust">
-                Candidaturas políticas
-              </h4>
-              <ul className="mt-1 space-y-1.5">
-                {candidaturas.map((c: any, i: number) => (
-                  <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5 text-rotulo leading-4">
-                    <div className="font-semibold text-ink">
-                      {c.cargo}{c.año ? ` (${c.año})` : ""}
-                    </div>
-                    <div className="flex flex-wrap gap-x-2 text-mute">
-                      {c.partido && <span>{c.partido}</span>}
-                      {c.resultado && <span>{c.resultado}</span>}
-                    </div>
-                    {c.fuente_url && (
-                      <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-micro text-granate hover:underline">
-                        Fuente <ExternalLink size={9} />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Aportes ONPE */}
-          {aportes.length > 0 && (
-            <div>
-              <h4 className="text-rotulo font-semibold text-rust">
-                Aportes a campañas (ONPE)
-              </h4>
-              <ul className="mt-1 space-y-1">
-                {aportes.map((a: any, i: number) => (
-                  <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-rotulo leading-4 text-ink">
-                    {a.año && <strong>{a.año}</strong>}
-                    {a.partido && <span>{a.partido}</span>}
-                    {a.monto != null && <span className="font-mono tabular-nums">{montoDossier(a.monto)}</span>}
-                    {a.fuente_url && (
-                      <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                         className="inline-flex items-center gap-1 text-micro text-granate hover:underline">
-                        Fuente <ExternalLink size={9} />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Menciones prensa */}
-          {menciones.length > 0 && (
-            <div>
-              <h4 className="text-rotulo font-semibold text-inkSoft">
-                Menciones en prensa
-              </h4>
-              <ul className="mt-1 space-y-1">
-                {menciones.map((m: any, i: number) => (
-                  <li key={i} className="text-rotulo leading-4 text-ink">
-                    <a href={m.url} target="_blank" rel="noreferrer"
-                       className="text-granate hover:underline">
-                      {m.medio}{m.fecha ? `, ${fechaDossier(m.fecha, true)}` : ""}
-                    </a>
-                    {m.titulo && <div className="text-mute">{redactDnis(m.titulo)}</div>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </article>
-
-        {/* RED EMPRESARIAL */}
-        <article className="space-y-3 rounded-xl border border-line bg-paperSoft p-4">
-          <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
-              <Network size={18} />
-            </div>
-            <div>
-              <div className="text-rotulo font-semibold text-ink">
-                Red empresarial
-              </div>
-              <h3 className="font-display text-destacado leading-6 font-bold text-ink">
-                Empresas vinculadas
-              </h3>
-              {red.observaciones && (
-                <p className="mt-0.5 text-micro text-inkSoft">{redactDnis(red.observaciones)}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Empresas mismo titular */}
-          {empresasMismoTitular.length > 0 ? (
-            <div>
-              <h4 className="text-rotulo font-semibold text-inkSoft">
-                Mismo titular ({empresasMismoTitular.length})
-              </h4>
-              <ul className="mt-1 space-y-1.5">
-                {empresasMismoTitular.map((e: any, i: number) => (
-                  <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5">
-                    <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={e.ruc} /></span>}
-                      {e.rol_del_gerente && (
-                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-micro text-amberTexto">
-                          {legible(e.rol_del_gerente)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-rotulo leading-4 font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-micro text-mute">No se detectaron empresas con el mismo titular.</p>
-          )}
-
-          {/* Empresas misma dirección */}
-          {empresasMismaDir.length > 0 ? (
-            <div>
-              <h4 className="text-rotulo font-semibold text-rust">
-                Mismo domicilio fiscal ({empresasMismaDir.length})
-              </h4>
-              <ul className="mt-1 space-y-1.5">
-                {empresasMismaDir.map((e: any, i: number) => (
-                  <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5">
-                    <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-micro text-mute">RUC <Ruc value={e.ruc} /></span>}
-                    </div>
-                    <div className="text-rotulo leading-4 font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
-                    {e.direccion && <div className="text-micro text-mute">{e.direccion}</div>}
-                    {e.observacion && <div className="mt-0.5 text-micro italic text-rust">{redactDnis(e.observacion)}</div>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-micro text-mute">No se detectaron empresas en el mismo domicilio fiscal.</p>
-          )}
-        </article>
-      </div>
-
-      {/* BANDERAS DE RED */}
-      {banderas.length > 0 && (
-        <div className="border-t border-line bg-paperSoft px-5 py-4">
-          <h3 className="inline-flex items-center gap-1.5 text-cuerpo font-semibold text-ink">
-            <ShieldAlert size={13} className="text-mute" aria-hidden />
-            Señales en la red de personas ({banderas.length})
-          </h3>
-          <ul className="mt-2 space-y-2">
-            {banderas.map((b: any, i: number) => (
-              <li key={i} className="rounded-xl border border-line bg-paper px-3 py-2">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <Severidad bandera={severidadDe(b)} />
-                  <strong className="text-dato leading-5 text-ink">{redactDnis(b.titulo)}</strong>
+      {nDetalle > 0 && (
+        <Pliegue
+          titulo="Cada persona y cada empresa, con su fuente"
+          cuenta={nDetalle}
+          icono={<Users size={16} />}
+          detalle="Su representante con sus cargos, candidaturas, aportes y notas de prensa; las empresas con el mismo titular o el mismo domicilio fiscal."
+        >
+          <div className="grid gap-3 lg:grid-cols-2">
+            {/* LA PERSONA */}
+            <article className="space-y-3 rounded-2xl border border-line bg-paper p-4">
+              <header className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
+                  <UserRound size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">Su representante</p>
+                  <h3 className="font-display text-bloque font-bold leading-tight text-ink">
+                    {hasGerente ? <PersonName name={p.nombre_completo} orden={ordenPersona} /> : "No identificado"}
+                  </h3>
+                  {p.cargo_actual && <Dato tipo="cargo" className="mt-0.5 block text-meta text-inkSoft">{p.cargo_actual}</Dato>}
+                  {(p.linkedin || p.datosperu_url) && (
+                    <span className="mt-1 flex flex-wrap gap-x-3">
+                      <Fuente url={p.linkedin}>LinkedIn</Fuente>
+                      <Fuente url={p.datosperu_url}>DatosPerú</Fuente>
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-rotulo leading-4 text-inkSoft">{redactDnis(b.descripcion)}</p>
-                {b.evidencia && <Evidencia value={b.evidencia} className="mt-1.5 text-micro text-inkSoft" />}
-              </li>
-            ))}
-          </ul>
-        </div>
+              </header>
+
+              {!hasGerente && <Nota>No se identificó al gerente ni al representante legal en las búsquedas de este análisis.</Nota>}
+
+              {otrosCargos.length > 0 && (
+                <Grupo icono={<Building2 size={13} />} titulo="Otros cargos actuales">
+                  {otrosCargos.map((c: any, i: number) => (
+                    <li key={i} className="text-meta leading-snug text-ink">
+                      <strong className="font-semibold">{c.cargo}</strong>
+                      {c.empresa && <> en <RazonSocial ruc={c.ruc} nombre={c.empresa} /></>}
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+
+              {cargosPasados.length > 0 && (
+                <Grupo icono={<Landmark size={13} />} titulo="Cargos públicos pasados">
+                  {cargosPasados.map((c: any, i: number) => (
+                    <li key={i} className="text-meta leading-snug">
+                      <span className="font-semibold text-ink">{c.cargo}</span>
+                      <span className="flex flex-wrap gap-x-3 text-inkSoft">
+                        {c.institucion && <Dato tipo="entidad">{c.institucion}</Dato>}
+                        {c.periodo && <Dato tipo="fecha" mono>{c.periodo}</Dato>}
+                        <Fuente url={c.fuente_url} />
+                      </span>
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+
+              {candidaturas.length > 0 && (
+                <Grupo icono={<Vote size={13} />} titulo="Candidaturas (JNE)">
+                  {candidaturas.map((c: any, i: number) => (
+                    <li key={i} className="text-meta leading-snug">
+                      <span className="font-semibold text-ink">
+                        {c.cargo}
+                        {c.año ? ` (${c.año})` : ""}
+                      </span>
+                      <span className="flex flex-wrap gap-x-3 text-inkSoft">
+                        {c.partido && <Dato tipo="partido">{c.partido}</Dato>}
+                        {c.resultado && <span>{c.resultado}</span>}
+                        <Fuente url={c.fuente_url} />
+                      </span>
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+
+              {aportes.length > 0 && (
+                <Grupo icono={<Wallet size={13} />} titulo="Aportes a campañas (ONPE)">
+                  {aportes.map((a: any, i: number) => (
+                    <li key={i} className="flex flex-wrap items-baseline gap-x-3 text-meta leading-snug text-ink">
+                      {a.partido && <Dato tipo="partido">{a.partido}</Dato>}
+                      {a.año && <span className="font-mono tabular-nums text-inkSoft">{a.año}</span>}
+                      {a.monto != null && <span className="font-mono font-semibold tabular-nums">{montoDossier(a.monto)}</span>}
+                      <Fuente url={a.fuente_url} />
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+
+              {menciones.length > 0 && (
+                <Grupo icono={<Newspaper size={13} />} titulo="Menciones en prensa">
+                  {menciones.map((m: any, i: number) => (
+                    <li key={i} className="text-meta leading-snug">
+                      <Fuente url={m.url}>
+                        {m.medio || "Nota de prensa"}
+                        {m.fecha ? `, ${fechaDossier(m.fecha, true)}` : ""}
+                      </Fuente>
+                      {m.titulo && <span className="block text-inkSoft">{redactDnis(m.titulo)}</span>}
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+            </article>
+
+            {/* LAS EMPRESAS */}
+            <article className="space-y-3 rounded-2xl border border-line bg-paper p-4">
+              <header className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
+                  <Building2 size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">Sus otras empresas</p>
+                  <h3 className="font-display text-bloque font-bold leading-tight text-ink">Empresas vinculadas</h3>
+                  {red.observaciones && <p className="mt-0.5 text-meta text-inkSoft">{redactDnis(red.observaciones)}</p>}
+                </div>
+              </header>
+
+              {empresasMismoTitular.length > 0 ? (
+                <Grupo icono={<Users size={13} />} titulo={`Con el mismo titular (${empresasMismoTitular.length})`}>
+                  {empresasMismoTitular.map((e: any, i: number) => (
+                    <li key={i} className="text-meta leading-snug">
+                      <span className="font-semibold text-ink">
+                        <RazonSocial ruc={e.ruc} nombre={e.razon_social} />
+                      </span>
+                      <span className="flex flex-wrap gap-x-3 text-inkSoft">
+                        {e.ruc && e.razon_social && (
+                          <Dato tipo="ruc" mono>
+                            <Ruc value={e.ruc} />
+                          </Dato>
+                        )}
+                        {e.rol_del_gerente && <Dato tipo="cargo">{legible(e.rol_del_gerente)}</Dato>}
+                      </span>
+                    </li>
+                  ))}
+                </Grupo>
+              ) : (
+                <p className="text-meta text-mute">Sin otras empresas con el mismo titular.</p>
+              )}
+
+              {empresasMismaDir.length > 0 ? (
+                <Grupo icono={<MapPin size={13} />} titulo={`Con el mismo domicilio fiscal (${empresasMismaDir.length})`}>
+                  {empresasMismaDir.map((e: any, i: number) => (
+                    <li key={i} className="rounded-xl border border-crimson/30 bg-crimson-soft/40 px-3 py-2 text-meta leading-snug">
+                      <span className="font-semibold text-ink">
+                        <RazonSocial ruc={e.ruc} nombre={e.razon_social} />
+                      </span>
+                      <span className="flex flex-wrap gap-x-3 text-inkSoft">
+                        {e.ruc && e.razon_social && (
+                          <Dato tipo="ruc" mono>
+                            <Ruc value={e.ruc} />
+                          </Dato>
+                        )}
+                        {e.direccion && <Dato tipo="lugar">{e.direccion}</Dato>}
+                      </span>
+                      {e.observacion && <span className="mt-0.5 block text-crimsonTexto">{redactDnis(e.observacion)}</span>}
+                    </li>
+                  ))}
+                </Grupo>
+              ) : (
+                <p className="text-meta text-mute">Sin otras empresas en el mismo domicilio fiscal.</p>
+              )}
+            </article>
+          </div>
+        </Pliegue>
       )}
-    </section>
+    </div>
   );
 }

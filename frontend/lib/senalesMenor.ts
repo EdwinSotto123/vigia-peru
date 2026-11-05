@@ -19,6 +19,40 @@ const horasTxt = (h: number | null) =>
 /** «99,7 %»: con una decimal, para que un monto pegado al tope no se lea «100 %». */
 export const pctTxt = (p: number | null) => (p == null ? "95 % o más" : `${String(Math.round(p * 10) / 10).replace(".", ",")} %`);
 
+/**
+ * Dentro de una misma gravedad, qué señal pesa más en la historia de un contrato menor: la que va como segunda oración de
+ * «En una frase» y como primera tarjeta de «Por qué llama la atención» (pedido del usuario del 2026-11-05: contar una
+ * historia). La API las da por gravedad y después por el nombre del tipo, que no dice nada: «contrato_monto_distinto»
+ * quedaba antes que «tdr_proveedor_nombrado» sólo por la letra.
+ */
+const PRIORIDAD_SENAL_MENOR = [
+  "tdr_proveedor_nombrado",
+  "menor_orden_antes_de_cotizar",
+  "contrato_monto_distinto",
+  "contrato_ruc_distinto",
+  "menor_partido_mismo_dia",
+  "menor_sobre_tope",
+  "menor_precio_alto",
+  "menor_ventana_corta",
+  "menor_partido_en_el_anio",
+  "tdr_marca_sin_equivalente",
+  "tdr_monto_distinto",
+  "menor_invitacion_cerrada",
+  "tdr_experiencia_alta",
+  "menor_borde_tope",
+  "menor_fin_de_semana",
+];
+const RANGO_SEVERIDAD = { alta: 0, media: 1, baja: 2 } as const;
+
+/** Las señales de la más grave a la más leve y, a igual gravedad, por `PRIORIDAD_SENAL_MENOR` (las desconocidas, al final). */
+export function ordenarSenalesMenor<T extends SenalMenorFila>(senales: T[]): T[] {
+  const prioridad = (tipo: string) => {
+    const i = PRIORIDAD_SENAL_MENOR.indexOf(tipo);
+    return i < 0 ? PRIORIDAD_SENAL_MENOR.length : i;
+  };
+  return [...senales].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || prioridad(a.tipo) - prioridad(b.tipo));
+}
+
 /** El texto de una señal; con `detalle` (la ficha) la explicación usa toda la evidencia. */
 export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle">>): TextoSenal {
   const d = (s.detalle ?? {}) as Record<string, unknown>;
