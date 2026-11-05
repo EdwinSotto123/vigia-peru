@@ -756,8 +756,9 @@ async def fase_dictamen(pc: PipelineCtx):
     _etapa = str(pc.clas.get("etapa") or "")
     _tipo = str(pc.clas.get("tipo") or "")
     _breve = ("" if _etapa not in ("desierta", "cancelada", "nula") else
-              f" El proceso quedó {_etapa}: dictamen BREVE (causal, contexto y lo que sí se verificó); "
-              f"no especules sobre proveedores ni ejecución.")
+              f" El registro del SEACE da el proceso por {_etapa}: dictamen BREVE (causal, contexto y lo que sí "
+              f"se verificó); no especules sobre proveedores ni ejecución. Atribuí la etapa al registro del "
+              f"SEACE, nunca a «el usuario» ni a «la indicación recibida».")
     if pc.profile.nombre == "otros" and _tipo in ("directa", "convenio"):
         _breve += (f" Contratación {_tipo}: dictamen BREVE centrado en la causal invocada, el expediente de "
                    f"sustento (informes, acto resolutivo, cotizaciones) y lo verificado; sin especular.")

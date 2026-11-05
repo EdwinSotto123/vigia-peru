@@ -54,18 +54,26 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext,
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT COALESCE(tipo_proceso, modalidad), fecha_convocatoria, fecha_buena_pro, cuantia_referencial "
+            "SELECT COALESCE(tipo_proceso, modalidad), fecha_convocatoria, fecha_buena_pro, cuantia_referencial, etapa "
             "FROM convocatorias WHERE ocid=%s", (ocid,),
         )
         row = cur.fetchone()
         if not row:
             return {"regla": "plazo_convocatoria_minimo", "triggered": False, "motivo": "convocatoria no encontrada"}
-        tipo, fconv, fbp, cuantia = row
+        tipo, fconv, fbp, cuantia, etapa = row
+        # Cancelado, desierto o nulo: no hubo buena pro y la fecha guardada es la del acto que lo cerró
+        # (1248872, CPA cancelado: «0 días hábiles» por fecha_buena_pro = fecha de convocatoria).
+        if str(etapa or "").lower() in ("cancelada", "desierta", "nula"):
+            return {"regla": "plazo_convocatoria_minimo", "triggered": False, "motivo": f"etapa {etapa}: sin buena pro"}
         tipo = _procurement_method(tool_context.state, tipo)
         fconv, fbp = _to_date(fconv), _to_date(fbp)
         if not fconv or not fbp:
             return {"regla": "plazo_convocatoria_minimo", "triggered": False, "motivo": "sin fechas"}
         delta_dias = (fbp - fconv).days
+        if delta_dias <= 0:
+            # La buena pro no puede ser el mismo día ni antes de la convocatoria: es un dato mal cargado.
+            return {"regla": "plazo_convocatoria_minimo", "triggered": False,
+                    "motivo": f"fechas inconsistentes (convocatoria {fconv}, buena pro {fbp})"}
         # Los plazos legales se cuentan en DÍAS HÁBILES entre la convocatoria y la presentación de
         # ofertas; aquí solo tenemos la buena pro (posterior), así que la ventana medida es MAYOR
         # que la legal: si aun así es corta, la señal es sólida. Se cuenta lunes-viernes (sin
