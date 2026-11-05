@@ -57,7 +57,16 @@ function enlaceDespues(ruc: string, v: VisitaEmpresa): { texto: string; href: st
   return q ? { texto: "Ver el contrato", href: rutaEmpresa(ruc, "contratos", { [P_CONTRATOS.entidad]: v.entidadRuc, [P_CONTRATOS.q]: q }) } : null;
 }
 
-export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promise<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null } | null> }) {
+export async function VisitasEmpresa({
+  ruc,
+  datos,
+  buscar,
+}: {
+  ruc: string;
+  datos: Promise<{ total: number; visitas: VisitaEmpresa[]; hasta?: string | null } | null>;
+  /** Lo que ya viene buscado (`?vq=`): el RUC de una entidad, desde «Ver la evidencia» de su historia. */
+  buscar?: string;
+}) {
   const d = await datos;
   if (!d) return <NoCargo que="sus visitas" />;
   if (!d.total) {
@@ -123,7 +132,7 @@ export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promi
         }];
     return {
       id: `${v.fecha}-${i}`,
-      buscable: `${entidad} ${v.cargoFuncionario ?? ""} ${v.area ?? ""} ${v.motivo ?? ""} ${v.via}`,
+      buscable: `${entidad} ${v.entidadRuc ?? ""} ${v.cargoFuncionario ?? ""} ${v.area ?? ""} ${v.motivo ?? ""} ${v.via}`,
       valores: {
         entidad: v.entidad ? paraClave(v.entidad) : null,
         via: v.via,
@@ -230,7 +239,7 @@ export async function VisitasEmpresa({ ruc, datos }: { ruc: string; datos: Promi
         etiqueta="Visitas registradas de su gente"
         tam={20}
         nombre="visitas"
-        buscar={{ placeholder: "Buscar entidad, cargo o motivo…", etiqueta: "Buscar en sus visitas" }}
+        buscar={{ placeholder: "Buscar entidad, cargo o motivo…", etiqueta: "Buscar en sus visitas", inicial: buscar && /^\d{11}$/.test(buscar) ? buscar : undefined }}
         filtros={[
           { clave: "entidad", etiqueta: "Entidad visitada", corta: "Entidad", opciones: opcionesLocales(filas.map((f) => f.valores?.entidad as string | null), (v) => tituloNatural(v)) },
           { clave: "via", etiqueta: "Quién fue", corta: "Quién fue", opciones: opcionesLocales(filas.map((f) => f.valores?.via as string), (v) => v.charAt(0).toUpperCase() + v.slice(1)) },

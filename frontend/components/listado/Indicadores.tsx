@@ -20,6 +20,7 @@ export function Indicadores({
   className,
   apilado,
   franja,
+  tarjetas,
 }: {
   items: Indicador[];
   /** Una barra debajo de las cifras: cómo se reparten (con `marca` en cada cifra). */
@@ -29,11 +30,13 @@ export function Indicadores({
   apilado?: boolean;
   /** Una franja baja en vez de tarjetas: las cifras de cabecera de una lista (entidades, empresas, contratos). */
   franja?: boolean;
+  /** Las tarjetas de antes, sólo si una página las pide (la franja es lo de siempre desde el 2026-11-05). */
+  tarjetas?: boolean;
 }) {
-  return <CifrasEnFila items={items} pie={pie} className={className} apilado={apilado} franja={franja} />;
+  return <CifrasEnFila items={items} pie={pie} className={className} apilado={apilado} franja={franja} tarjetas={tarjetas} />;
 }
 
 /** Las mismas tarjetas mientras llegan los datos: números en esqueleto, nunca un 0 provisional. */
-export function IndicadoresSkeleton({ n = 4, className, franja }: { n?: number; className?: string; franja?: boolean }) {
-  return <CifrasEnFilaSkeleton n={n} className={className} franja={franja} />;
+export function IndicadoresSkeleton({ n = 4, className, tarjetas }: { n?: number; className?: string; franja?: boolean; tarjetas?: boolean }) {
+  return <CifrasEnFilaSkeleton n={n} className={className} tarjetas={tarjetas} />;
 }

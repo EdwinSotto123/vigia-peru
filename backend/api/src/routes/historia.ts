@@ -71,6 +71,11 @@ export const historiaRouter = new Hono();
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Historia | null>({ nombre: "historia", ttlMs: 900_000, staleMs: 3_600_000, max: 300 });
 const SOLES = `('Soles', 'Nuevos Soles')`;
+/** Cómo se dice un monto en otra moneda («7,445 dólares canadienses»), por el nombre que usa CONOSCE. */
+const MONEDA_TEXTO: Record<string, string> = {
+  "Dólar Norteamericano": "dólares estadounidenses", "Dólar Canadiense": "dólares canadienses", Euro: "euros",
+  "Libra Esterlina": "libras esterlinas", "Real Brasileño": "reales", "Yen Japonés": "yenes", "Franco Suizo": "francos suizos", Yuan: "yuanes",
+};
 /** Desde cuándo: las convocatorias del OECE empiezan en 2015. */
 const DESDE = "2015-01-01";
 const rutaContrato = (ocid: string) => `/app/contratos/${encodeURIComponent(ocid.replace(/^OECE-/i, ""))}`;
@@ -466,11 +471,38 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
         `SELECT ruc, tipo, to_char(fecha_desde, 'YYYY-MM-DD') AS desde, to_char(fecha_hasta, 'YYYY-MM-DD') AS hasta
            FROM osce_sancionados WHERE ruc = ANY($1::text[]) AND fecha_desde IS NOT NULL`, [rucsHilos])
     : [];
+  // Las visitas de la gente de una empresa A ESTA ENTIDAD (`vq` filtra la tabla de visitas de su ficha por el RUC de la
+  // entidad): antes llevaba a todas sus visitas y lo que se buscaba no estaba a la vista.
   const empresaRuta = (r: string, vista?: string) =>
-    vista === "visitas" ? `/empresa/${r}?seccion=gente&vista=visitas` : vista ? `/empresa/${r}?seccion=${vista}` : `/empresa/${r}`;
+    vista === "visitas" ? `/empresa/${r}?seccion=gente&vista=visitas&vq=${ruc}` : vista ? `/empresa/${r}?seccion=${vista}` : `/empresa/${r}`;
   // Cada visita que terminó en algo dentro de los 180 días: un hecho en el renglón de visitas, en la fecha de la última
   // visita antes de lo que le dieron (lo más grave y lo más grande primero; acotar deja los que caben).
   const ganaron = vemp.filter((v) => v.despues && v.dias != null && v.dias <= 180);
+  // La moneda de la orden que le dieron: hay órdenes en dólares (canadienses, de la OPS) y se escribían «S/» (el usuario,
+  // 2026-11-05). Las listas de compras sólo tienen las de soles: una orden en otra moneda no se enlaza a ellas.
+  const conOrden = ganaron.filter((v) => v.despues_tipo === "orden" && v.despues_numero);
+  const monedas = new Map(
+    (conOrden.length
+      ? await filas<{ ruc: string; numero: string; moneda: string | null }>(
+          "moneda de lo que le dieron",
+          `SELECT DISTINCT ON (ruc_contratista, nro_orden) ruc_contratista AS ruc, nro_orden AS numero, moneda
+             FROM conosce_ordenes
+            WHERE entidad_ruc = $1 AND ruc_contratista = ANY($2::text[]) AND nro_orden = ANY($3::text[])
+            ORDER BY ruc_contratista, nro_orden, fecha_emision`,
+          [ruc, [...new Set(conOrden.map((v) => v.ruc))], [...new Set(conOrden.map((v) => v.despues_numero!))]])
+      : []
+    ).map((m) => [`${m.ruc}|${m.numero}`, m.moneda] as const),
+  );
+  const monedaDe = (v: VisitaHilo) => (v.despues_tipo === "orden" ? monedas.get(`${v.ruc}|${v.despues_numero}`) ?? null : null);
+  const enSoles = (v: VisitaHilo) => { const m = monedaDe(v); return !m || /sol/i.test(m); };
+  const montoDespues = (v: VisitaHilo) =>
+    v.despues_monto ? (enSoles(v) ? `S/ ${Math.round(v.despues_monto).toLocaleString("es-PE")}` : `${Math.round(v.despues_monto).toLocaleString("es-PE")} ${MONEDA_TEXTO[monedaDe(v)!] ?? `en ${monedaDe(v)!.toLowerCase()}`}`) : null;
+  // Lo que le dieron, en Vigía: el proceso por su OCID; la orden en soles, en las compras de la entidad con ese proveedor y
+  // ese número.
+  const hrefDespues = (v: VisitaHilo) =>
+    v.despues_ocid ? rutaContrato(v.despues_ocid)
+    : v.despues_tipo === "orden" && v.despues_numero && enSoles(v) ? `${base}?seccion=compras&ccon=${v.ruc}&cq=${encodeURIComponent(v.despues_numero)}`
+    : null;
   // Las que van como secuencia («Lo que llama la atención») no se repiten como punto en el renglón de visitas.
   const enSecuencia = new Set(
     ganaron.filter((v) => v.antes === 0 && v.dias! <= 90 && (v.decisores > 0 || (v.despues_monto ?? 0) >= 50_000))
@@ -493,7 +525,7 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
       datos: [
         { etiqueta: "Visitas", valor: `${v.visitas} de ${v.visitantes} ${v.visitantes === 1 ? "persona" : "personas"}, del ${v.primera} al ${diasAntes(v.despues!, v.dias!)}` },
         ...(v.decisores > 0 ? [{ etiqueta: "A quien decide las compras", valor: `${v.decisores} ${v.decisores === 1 ? "visita" : "visitas"}` }] : []),
-        { etiqueta: "Lo que le dieron", valor: `${cualDespues(v.despues_tipo, v.despues_numero)} el ${v.despues}${v.despues_monto ? `, S/ ${Math.round(v.despues_monto).toLocaleString("es-PE")}` : ""}` },
+        { etiqueta: "Lo que le dieron", valor: `${cualDespues(v.despues_tipo, v.despues_numero)} el ${v.despues}${montoDespues(v) ? `, ${montoDespues(v)}` : ""}`, href: hrefDespues(v) },
         ...(v.despues_detalle ? [{ etiqueta: "Qué se compró", valor: corto(v.despues_detalle)! }] : []),
         { etiqueta: "Antes de las visitas", valor: v.antes === 0 ? "Nunca le había vendido" : "Ya le vendía" },
       ],
@@ -515,9 +547,9 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
           `Nunca le había vendido antes de esas visitas${v.decisores > 0 ? "; fueron a quien decide las compras" : ""}. ` +
           `${v.despues_detalle ? `Lo que le dieron: «${corto(v.despues_detalle)}». ` : ""}Una visita no prueba un favor: es para revisar.`,
         pasos: [
-          { fecha: v.primera, texto: `Primera visita de su gente (${v.visitas} ${v.visitas === 1 ? "visita" : "visitas"} en total)` },
-          ...(ultima > v.primera ? [{ fecha: ultima, texto: "Última visita antes de lo que le dieron" }] : []),
-          { fecha: v.despues!, texto: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${v.despues_monto ? ` por S/ ${Math.round(v.despues_monto).toLocaleString("es-PE")}` : ""}` },
+          { fecha: v.primera, texto: `Primera visita de su gente (${v.visitas} ${v.visitas === 1 ? "visita" : "visitas"} en total)`, href: empresaRuta(v.ruc, "visitas") },
+          ...(ultima > v.primera ? [{ fecha: ultima, texto: "Última visita antes de lo que le dieron", href: empresaRuta(v.ruc, "visitas") }] : []),
+          { fecha: v.despues!, texto: `Le dieron ${cualDespues(v.despues_tipo, v.despues_numero)}${montoDespues(v) ? ` por ${montoDespues(v)}` : ""}`, href: hrefDespues(v) },
         ],
         href: empresaRuta(v.ruc, "visitas"),
         fuente: "Registro de Visitas en Línea y CONOSCE (OECE)",
@@ -717,9 +749,10 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
     filas<CruceSecuencia & { id: number }>(
       "cruces",
       `SELECT p.id, p.tipo, p.severidad, p.fecha, p.monto::float AS monto, p.ocid, p.detalle,
-              cv.fecha_buena_pro AS buena_pro, cv.entidad, cv.codigo
+              cv.fecha_buena_pro AS buena_pro, cv.entidad, cv.entidad_ruc, cv.codigo
          FROM cruces_proveedor p
-         LEFT JOIN LATERAL (SELECT c.fecha_buena_pro, c.codigo, e.nombre AS entidad FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+         LEFT JOIN LATERAL (SELECT c.fecha_buena_pro, c.codigo, c.entidad_ruc::text AS entidad_ruc, e.nombre AS entidad
+                              FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
                              WHERE p.ocid IS NOT NULL AND c.ocid = p.ocid LIMIT 1) cv ON true
         WHERE p.ruc_empresa = $1
           AND p.tipo IN ('aporte', 'proveedor_campana', 'candidato', 'autoridad', 'partido_gobernante', 'vendio_gobernante', 'visita_previa',
@@ -1057,7 +1090,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
     });
   }
 
-  const secuencias = secuenciasDeCruces(cru, rutaContrato);
+  const secuencias = secuenciasDeCruces(cru, rutaContrato, { visitas: (e) => `${base}?seccion=gente&vista=visitas&vq=${e}` });
   const { eventos: quedan, omitidos } = acotar(eventos, { compras: 150, visitas: 80, control: 100, politica: 80, obras: 60, banderas: 120, empresa: 60 }, fijosDe(secuencias, eventos));
   conTotalDeBanderas(omitidos, quedan, banMes);
   // Empieza con lo primero que tiene, pero no antes de 2015 (una empresa de 2005 dejaba diez años vacíos: su fundación

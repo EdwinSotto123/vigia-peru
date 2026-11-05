@@ -53,18 +53,21 @@ export function CifrasEnFila({
   className,
   apilado = false,
   chico = false,
-  franja = false,
+  tarjetas = false,
 }: {
   items: Cifra[];
   pie?: ReactNode;
   className?: string;
   apilado?: boolean;
   chico?: boolean;
-  /** Una sola franja baja (las cifras de cabecera de una LISTA): ver `Franja`. */
+  /** Ya no hace falta: la franja es lo de siempre (se acepta para no romper llamadas). */
   franja?: boolean;
+  /** Las tarjetas de antes (una caja por cifra), sólo si una página las pide. */
+  tarjetas?: boolean;
 }) {
   const visibles = items.slice(0, 4);
-  if (franja) return <Franja items={visibles} pie={pie} className={className} />;
+  // Desde el 2026-11-05 la franja es la forma de siempre (el usuario: «sigo viendo cajas así, grandes con poca info»).
+  if (!tarjetas) return <Franja items={visibles} pie={pie} className={className} />;
   const fila = (
     // En el celular van de a 2 por fila: con un total impar, la última a todo el ancho (no media fila con un hueco al lado).
     // `apilado` (de a 2 en todo ancho), lo mismo en todos los anchos: la tercera del panel del mapa quedaba sola en media fila.
@@ -133,7 +136,7 @@ const COLUMNAS: Record<number, string> = {
 };
 
 /**
- * Las cifras de cabecera de una LISTA (entidades, empresas, contratos) en una franja baja: el número y lo que es en la
+ * Las cifras de cabecera (de una lista o de una ficha) en una franja baja: el número y lo que es en la
  * misma línea, con su contexto a continuación y en tercer nivel, y las cifras una tras otra con aire entre ellas (sin
  * separadores: al partirse en dos renglones, una raya quedaba al inicio del segundo). Pedido del usuario del
  * 2026-11-05: las cuatro tarjetas de 110 px «ocupan tanto espacio» para cifras de toda la base que no cambian con los
@@ -161,7 +164,10 @@ function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; cl
                   it.etiqueta
                 )}
               </dt>
-              <dd className="order-1">{numero}</dd>
+              <dd className="order-1 inline-flex items-baseline gap-1.5">
+                {it.marca && <span className={cn("h-2 w-2 shrink-0 self-center rounded-full", it.marca)} aria-hidden />}
+                {numero}
+              </dd>
               {it.contexto != null && <dd className="order-3 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
               {it.ayuda && <dd className="order-4 self-center">{it.ayuda}</dd>}
             </div>
@@ -174,8 +180,8 @@ function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; cl
 }
 
 /** Las mismas tarjetas mientras llegan los datos: números en esqueleto, nunca un 0 provisional. */
-export function CifrasEnFilaSkeleton({ n = 4, className, franja = false }: { n?: number; className?: string; franja?: boolean }) {
-  if (franja) {
+export function CifrasEnFilaSkeleton({ n = 4, className, tarjetas = false }: { n?: number; className?: string; franja?: boolean; tarjetas?: boolean }) {
+  if (!tarjetas) {
     return (
       <div className={cn("flex flex-wrap items-center gap-x-8 gap-y-2 rounded-2xl border border-line bg-paper px-4 py-3.5", className)} aria-hidden>
         {Array.from({ length: Math.min(4, Math.max(1, n)) }).map((_, i) => (

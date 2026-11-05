@@ -8,6 +8,7 @@ import { ICONO_NIVEL, Severidad } from "@/components/ui/Severidad";
 import { fechaConAnio } from "@/lib/formato";
 import { mesLargo, type PatronHistoria, type SecuenciaHistoria, type SeveridadHistoria } from "@/lib/historia";
 import { cn } from "@/lib/utils";
+import { TextoPaso } from "./TextoPaso";
 
 /** Lo que pide «Verlo en la línea» a la línea de tiempo de la misma historia (`clave`): un patrón o una secuencia. */
 export const VER_EN_LINEA = "vigia:historia-ver";
@@ -201,7 +202,9 @@ function Detalle({ x, marcado, ver, bajoSuFila = false }: { x: Item; marcado: bo
                     <span className="font-sans font-semibold text-ink">{d === 0 ? "el mismo día" : d === 1 ? "1 día después" : `${d} días después`}</span>
                   )}
                 </p>
-                <p className="text-meta leading-snug text-ink text-pretty">{p.texto}</p>
+                <p className="text-meta leading-snug text-ink text-pretty">
+                  <TextoPaso texto={p.texto} href={p.href} />
+                </p>
               </li>
             );
           })}

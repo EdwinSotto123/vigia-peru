@@ -88,7 +88,8 @@ export interface SecuenciaHistoria {
   severidad: SeveridadHistoria;
   titulo: string;
   explica: string;
-  pasos: { fecha: string; texto: string }[];
+  /** Cada paso con su enlace en Vigía (la visita, la orden, el proceso), si lo tiene. */
+  pasos: { fecha: string; texto: string; href?: string | null }[];
   href?: string | null;
   fuente: string;
 }

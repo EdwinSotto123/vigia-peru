@@ -94,7 +94,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
   const adicional =
     k.adicionalFirmados !== undefined ? k.adicionalFirmados : deConosce.length ? sumar(deConosce.map((f) => f.adicional)) ?? 0 : null;
   const cifras: Cifra[] = [
-    { valor: c.montoPen ? solesCompacto(c.montoPen) : null, etiqueta: "valor referencial", ayuda: <AyudaTermino clave="valor-referencial" />, contexto: c.montoPen ? monto(c.montoPen, c.moneda) : "el registro no lo publica" },
+    { valor: c.montoPen ? monto(c.montoPen, c.moneda) : null, etiqueta: "valor referencial", ayuda: <AyudaTermino clave="valor-referencial" />, contexto: c.montoPen ? undefined : "el registro no lo publica" },
     {
       valor: adjudicado ? solesCompacto(adjudicado) : null,
       etiqueta: "adjudicado",

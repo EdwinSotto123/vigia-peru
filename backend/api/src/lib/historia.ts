@@ -107,7 +107,9 @@ export interface SecuenciaHistoria {
   severidad: Severidad;
   titulo: string;
   explica: string;
-  pasos: { fecha: string; texto: string }[];
+  /** Cada paso con su enlace en Vigía (la visita, la orden, el proceso), si lo tiene: el usuario quiere tocar el número
+   *  de la orden o del proceso y verlo. */
+  pasos: { fecha: string; texto: string; href?: string | null }[];
   href?: string | null;
   fuente: string;
 }
@@ -382,6 +384,8 @@ export interface CruceSecuencia {
   /** De su proceso: la buena pro, la entidad y el código. */
   buena_pro: unknown;
   entidad: string | null;
+  /** El RUC de la entidad del proceso: para enlazar las visitas a ESA entidad. */
+  entidad_ruc?: string | null;
   codigo: string | null;
 }
 
@@ -409,7 +413,11 @@ const titulo = (s: string) =>
  * ganó; le vendió a su campaña y ganó. Una por contrato y tipo (un cruce se repite por cada persona de la empresa), las
  * graves primero, hasta `max`.
  */
-export function secuenciasDeCruces(filas: CruceSecuencia[], rutaContrato: (ocid: string) => string, max = 40): SecuenciaHistoria[] {
+export function secuenciasDeCruces(
+  filas: CruceSecuencia[],
+  rutaContrato: (ocid: string) => string,
+  { max = 40, visitas }: { max?: number; visitas?: (entidadRuc: string) => string } = {},
+): SecuenciaHistoria[] {
   const vistas = new Set<string>();
   const out: SecuenciaHistoria[] = [];
   const orden = [...filas]
@@ -434,7 +442,10 @@ export function secuenciasDeCruces(filas: CruceSecuencia[], rutaContrato: (ocid:
           id: clave, tipo: "visita_buena_pro", severidad: sev, href, fuente: "Registro de Visitas en Línea y OECE",
           titulo: `Visitó ${ent} y ganó ${diasEntre(v, bp)} días después`,
           explica: `Alguien de la empresa visitó la entidad${cargo ? ` (lo recibió: ${cargo})` : ""} antes de que le dieran la buena pro. Una visita no prueba un favor: es para revisar.`,
-          pasos: [{ fecha: v, texto: `Visitó ${ent}${cargo ? `; lo recibió: ${cargo}` : ""}` }, { fecha: bp, texto: gano }],
+          pasos: [
+            { fecha: v, texto: `Visitó ${ent}${cargo ? `; lo recibió: ${cargo}` : ""}`, href: visitas && f.entidad_ruc ? visitas(f.entidad_ruc) : null },
+            { fecha: bp, texto: gano },
+          ],
         };
       }
     } else if (f.tipo.startsWith("recien_fundada")) {
@@ -484,6 +495,9 @@ export function secuenciasDeCruces(filas: CruceSecuencia[], rutaContrato: (ocid:
       }
     }
     if (!s || s.pasos[0].fecha > s.pasos[s.pasos.length - 1].fecha) continue;
+    // El último paso es siempre la buena pro: lleva a su proceso.
+    const ultimo = s.pasos[s.pasos.length - 1];
+    if (!ultimo.href && href) ultimo.href = href;
     vistas.add(clave);
     out.push(s);
     if (out.length >= max) break;

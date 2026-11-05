@@ -1,5 +1,6 @@
 import { fechaCorta, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { TextoPaso } from "@/components/historia/TextoPaso";
 
 /**
  * Una línea de tiempo corta: hitos con fecha unidos por una línea y, en cada uno, cuántos días pasaron desde el anterior
@@ -11,6 +12,8 @@ export interface Hito {
   /** AAAA-MM-DD. */
   fecha: string;
   texto: string;
+  /** Su enlace en Vigía (la orden, el proceso, las visitas): el número que nombra va como enlace (TextoPaso). */
+  href?: string | null;
   /** El hito al que lleva la secuencia (la orden, la buena pro): con el punto lleno y en granate. */
   destacado?: boolean;
 }
@@ -29,10 +32,10 @@ function salto(d: number): string {
 
 export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiqueta: string; className?: string }) {
   const validos = hitos.filter((h) => /^\d{4}-\d{2}-\d{2}$/.test(h.fecha));
-  const porDia = new Map<string, Hito & { textos: string[] }>();
+  const porDia = new Map<string, Hito & { textos: { texto: string; href?: string | null }[] }>();
   for (const h of validos) {
     const x = porDia.get(h.fecha) ?? { ...h, textos: [] };
-    if (!x.textos.includes(h.texto)) x.textos.push(h.texto);
+    if (!x.textos.some((t) => t.texto === h.texto)) x.textos.push({ texto: h.texto, href: h.href });
     x.destacado ||= !!h.destacado;
     porDia.set(h.fecha, x);
   }
@@ -51,7 +54,14 @@ export function LineaHitos({ hitos, etiqueta, className }: { hitos: Hito[]; etiq
             </span>
             <div className={cn("min-w-0", !ultimo && "pb-3")}>
               <div className="flex items-baseline justify-between gap-3 text-meta">
-                <span className={cn("font-medium", h.destacado ? "text-granate" : "text-ink")}>{h.textos.join("; ")}</span>
+                <span className={cn("font-medium", h.destacado ? "text-granate" : "text-ink")}>
+                  {h.textos.map((t, k) => (
+                    <span key={k}>
+                      {k > 0 && "; "}
+                      <TextoPaso texto={t.texto} href={t.href} />
+                    </span>
+                  ))}
+                </span>
                 <time dateTime={h.fecha} className="shrink-0 font-mono text-rotulo tabular-nums text-inkSoft">
                   {fechaCorta(h.fecha)}
                 </time>

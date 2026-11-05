@@ -55,7 +55,7 @@ import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaConAnio, fechaCorta, listaY, numero, oracion, plural, solesCompacto } from "@/lib/formato";
+import { fecha, fechaConAnio, fechaCorta, listaY, numero, oracion, plural } from "@/lib/formato";
 import {
   adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
@@ -75,17 +75,6 @@ export interface AlcanceActivo {
 function conteoAntecedentes(cruces: Parameters<typeof clasificarCruces>[0]): number {
   const { antecedentes, delProceso } = clasificarCruces(cruces);
   return antecedentes.length + delProceso.length;
-}
-
-/** Cifra de cabecera: compacta, como en toda tarjeta (§10.3). En otra moneda, el número entero con su código. */
-function cifra(n: number, moneda: string | null): string {
-  return moneda && moneda !== "PEN" ? `${moneda} ${numero(n)}` : solesCompacto(n);
-}
-
-/** El monto exacto como contexto de la cifra compacta; nada si la compacta ya es exacta. */
-function exacto(n: number, moneda: string | null): string | null {
-  const completo = monto(n, moneda);
-  return completo === cifra(n, moneda) ? null : completo;
 }
 
 // ─── Ficha ───────────────────────────────────────────────────────────────────
@@ -377,20 +366,21 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indic
 
   if (c.montoPen) {
     tarjetas.push({
-      valor: cifra(c.montoPen, c.moneda),
+      // En la franja, el monto exacto es la cifra (antes «S/ 337 mil» grande y «S/ 336,890» debajo: lo mismo dos veces).
+      valor: monto(c.montoPen, c.moneda),
       etiqueta: "valor referencial",
       ayuda: <AyudaTermino clave="valor-referencial" />,
-      contexto: unir([exacto(c.montoPen, c.moneda), nItems > 1 && `en ${numero(nItems)} ítems`]),
+      contexto: unir([nItems > 1 && `en ${numero(nItems)} ítems`]),
     });
   } else faltan.push("valor referencial");
 
   if (adjudicado) {
     tarjetas.push({
-      valor: cifra(adjudicado, c.moneda),
+      valor: monto(adjudicado, c.moneda),
       etiqueta: "monto adjudicado",
       ayuda: <AyudaTermino clave="adjudicacion" />,
       contexto: unir([
-        exacto(adjudicado, c.moneda),
+        c.montoPen && c.moneda === "PEN" && adjudicado <= c.montoPen * 5 ? `${Math.round((100 * adjudicado) / c.montoPen)} % del valor referencial` : false,
         nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
         reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
       ]),

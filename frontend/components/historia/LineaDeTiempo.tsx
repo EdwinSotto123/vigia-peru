@@ -372,6 +372,14 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
                 {patronElegido && visible(patronElegido.mes) && (
                   <rect x={xMes(patronElegido.mes)} y={EJE} width={(mesesDe(patronElegido.mes, patronElegido.hasta ?? patronElegido.mes) + 1) * mw} height={H - EJE} className="fill-amber/15" />
                 )}
+                {secElegida && secElegida.pasos.length > 0 && (() => {
+                  const d = mesDe(secElegida.pasos[0].fecha);
+                  const hh = mesDe(secElegida.pasos[secElegida.pasos.length - 1].fecha);
+                  const desde = d < t.desde ? t.desde : d;
+                  return hh >= t.desde && d <= t.hasta ? (
+                    <rect x={xMes(desde)} y={EJE} width={(mesesDe(desde, hh > t.hasta ? t.hasta : hh) + 1) * mw} height={H - EJE} className="fill-granate/15" />
+                  ) : null;
+                })()}
                 {mesElegido && visible(mesElegido) && <rect x={xMes(mesElegido)} y={EJE} width={mw} height={H - EJE} className="fill-granate/20" />}
                 {encima && visible(encima.mes) && <rect x={xMes(encima.mes)} y={EJE} width={mw} height={H - EJE} className="fill-ink/[0.06]" />}
 
@@ -843,7 +851,7 @@ function DetalleSecuencia({ s }: { s: SecuenciaHistoria }) {
   return (
     <div className="space-y-3">
       <p className="text-meta text-inkSoft">{s.explica}</p>
-      <LineaHitos hitos={s.pasos.map((p, i) => ({ fecha: p.fecha, texto: p.texto, destacado: i === s.pasos.length - 1 }))} etiqueta={s.titulo} />
+      <LineaHitos hitos={s.pasos.map((p, i) => ({ fecha: p.fecha, texto: p.texto, href: p.href, destacado: i === s.pasos.length - 1 }))} etiqueta={s.titulo} />
       <p className="flex flex-wrap gap-x-3 gap-y-1">
         {s.href && <Abrir href={s.href}>Ver la evidencia</Abrir>}
         <span className="text-micro text-mute">Fuente: {s.fuente}</span>

@@ -11,6 +11,7 @@ import { AccionesHecho, DetalleHecho } from "./DetalleHecho";
 import { Destacados } from "./Destacados";
 import { HilosHistoria } from "./HilosHistoria";
 import { LineaDeTiempo } from "./LineaDeTiempo";
+import { TextoPaso } from "./TextoPaso";
 
 /**
  * La pestaña «Historia» de una entidad, una empresa, un partido o un contrato (fase 3 del plan del 2026-10-27), ordenada
@@ -171,7 +172,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
             <ol className="space-y-1.5">
               {s.pasos.map((p, i) => (
                 <li key={i} className="text-meta text-ink">
-                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{fechaConAnio(p.fecha)}</span> {p.texto}
+                  <span className="font-mono text-rotulo tabular-nums text-inkSoft">{fechaConAnio(p.fecha)}</span> <TextoPaso texto={p.texto} href={p.href} />
                 </li>
               ))}
             </ol>
