@@ -220,6 +220,29 @@ async function leer<T>(ruta: string, revalidate = 120): Promise<T | null> {
   }
 }
 
+/**
+ * `leer` con tiempo límite por intento y UN reintento si el servicio falló o tardó (no si dijo que no existe). Para lo que
+ * un bloque necesita y a veces no llega: los conteos del Inicio de un partido decían «el servicio de contratos no
+ * respondió» en una captura y en otra no (auditoría del 2026-11-05), y sin tiempo límite un pedido colgado dejaba el
+ * bloque esperando para siempre. El segundo intento suele llegar rápido: la API sigue armando la respuesta aunque se
+ * corte el primero y la guarda en su memoria (procesosMemo). Next no guarda en su caché una respuesta que no sea 200, así
+ * que un fallo no queda pegado. `signal` no entra en la llave de la caché de Next: sigue siendo el mismo pedido.
+ */
+async function leerConReintento<T>(ruta: string, revalidate: number, { intentos = 2, limiteMs = 10_000 } = {}): Promise<T | null> {
+  for (let i = 0; i < intentos; i++) {
+    try {
+      const r = await fetch(`${API_BASE}${ruta}`, { next: { revalidate }, signal: AbortSignal.timeout(limiteMs) } as RequestInit);
+      if (r.ok) return (await r.json()) as T;
+      // Un 404 o un 400 no cambian por insistir; un 5xx, un 408 o un 429, quizá sí.
+      if (r.status < 500 && r.status !== 408 && r.status !== 429) return null;
+    } catch {
+      // Red caída o tiempo agotado: se intenta otra vez.
+    }
+    if (i < intentos - 1) await new Promise((listo) => setTimeout(listo, 400));
+  }
+  return null;
+}
+
 export function getRankingPartidos(anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE, o: OpcionesRanking = {}) {
   const p = new URLSearchParams({ anio: String(anio) });
   if (o.region && /^\d{2}$/.test(o.region)) p.set("region", o.region);
@@ -248,6 +271,14 @@ export function getProcesosPartido(clave: string, anio: AnioGobierno, f: Filtros
   for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v));
   return leer<ProcesosPartido>(`/partidos/${encodeURIComponent(clave)}/procesos?${p.toString()}`, 300);
 }
+
+/**
+ * Los conteos de lectura, riesgo y antecedentes de TODOS sus procesos del período (`facetas`; la página es de una fila),
+ * para el Inicio: con tiempo límite y un reintento (`leerConReintento`). La misma URL que antes pedía el Inicio con
+ * `getProcesosPartido(clave, anio, { size: 1 })`: la caché de la API y la del CDN no cambian.
+ */
+export const getConteosPartido = (clave: string, anio: AnioGobierno) =>
+  leerConReintento<ProcesosPartido>(`/partidos/${encodeURIComponent(clave)}/procesos?anio=${anio}&size=1`, 300);
 
 /** "2024-03" → "mar. 2024" (para el eje de contratos por mes). */
 export function mesCorto(mes: string): string {
