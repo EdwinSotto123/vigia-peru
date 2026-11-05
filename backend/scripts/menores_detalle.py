@@ -56,9 +56,14 @@ def json_prod6(tok: str, url: str, intentos: int = 4):
     for i in range(intentos):
         estado = None
         try:
-            r = s.post(RELAY, json={"url": url}, timeout=90,
-                       headers={"Authorization": f"Bearer {tok}", "User-Agent": CLIENTE})
-            env = r.json()
+            if DIRECTO:
+                # Desde la PC (IP residencial, pasa el WAF hasta ~4 hilos): el GET con las cabeceras del navegador.
+                r = s.get(url, timeout=90, headers=CABECERAS_PROD6)
+                env = {"status": r.status_code, "body": r.text if r.status_code == 200 else None}
+            else:
+                r = s.post(RELAY, json={"url": url}, timeout=90,
+                           headers={"Authorization": f"Bearer {tok}", "User-Agent": CLIENTE})
+                env = r.json()
             estado = env.get("status")
             if estado == 200 and env.get("body"):
                 b = env["body"]
@@ -73,6 +78,12 @@ def json_prod6(tok: str, url: str, intentos: int = 4):
 
 
 PAUSA = 0.0  # segundos tras cada respuesta, por hilo (--pausa)
+DIRECTO = False  # --directo: sin el relay (cuando el WAF banea al relay de Zúrich, 2026-11-05)
+CABECERAS_PROD6 = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Referer": "https://prod6.seace.gob.pe/buscador-publico/contrataciones", "Origin": "https://prod6.seace.gob.pe",
+    "Accept": "application/json",
+}
 
 
 def fecha_hora(s) -> str | None:
@@ -223,9 +234,10 @@ def main() -> None:
     ap.add_argument("--limite", type=int, default=0)
     ap.add_argument("--tam", type=int, default=300)
     ap.add_argument("--pausa", type=float, default=0.0, help="segundos tras cada respuesta, por hilo (el WAF corta ráfagas)")
+    ap.add_argument("--directo", action="store_true", help="sin el relay, desde esta PC (≤4 hilos)")
     a = ap.parse_args()
-    global PAUSA
-    PAUSA = a.pausa
+    global PAUSA, DIRECTO
+    PAUSA, DIRECTO = a.pausa, a.directo
     tok = token_relay()
     if a.listado:
         listado(a.entorno, tok, a.tam)

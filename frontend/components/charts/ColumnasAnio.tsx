@@ -22,11 +22,12 @@ export interface AnioColumna {
   aparte?: boolean;
 }
 
-/** Un techo «redondo» para el eje: 1, 2 o 5 por una potencia de 10. */
+/** Un techo «redondo» y cercano para el eje (255 M → 300 M, no 500 M: con el techo lejos las columnas quedaban en la
+ *  mitad de abajo). Pasos pares, para que la marca del medio también sea redonda. */
 function techo(x: number): number {
   if (x <= 0) return 1;
   const p = 10 ** Math.floor(Math.log10(x));
-  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= x) return m * p;
+  for (const m of [1, 1.2, 1.6, 2, 3, 4, 5, 6, 8, 10]) if (m * p >= x) return m * p;
   return 10 * p;
 }
 
@@ -49,6 +50,8 @@ export function ColumnasAnio({
   className?: string;
 }) {
   const formato = (n: number) => (tipo === "soles" ? solesCompacto(n) : numero(n));
+  // En el eje, sin el «.0» de los montos redondos: «S/ 150 M», no «S/ 150.0 M».
+  const marca = (n: number) => formato(n).replace(/([.,]0)(?=\s|$)/, "");
   const orden = [...anios].sort((x, y) => x.anio - y.anio);
   const [activo, setActivo] = useState<number | null>(null);
   if (!orden.length) return null;
@@ -69,7 +72,7 @@ export function ColumnasAnio({
         <div className="relative h-44 w-14 sm:h-52" aria-hidden>
           {marcas.map((m) => (
             <span key={m} className="absolute right-0 -translate-y-1/2 font-mono text-rotulo tabular-nums text-mute" style={{ bottom: `${(m / tope) * 100}%` }}>
-              {m === 0 ? "0" : formato(m)}
+              {m === 0 ? "0" : marca(m)}
             </span>
           ))}
         </div>
@@ -90,7 +93,7 @@ export function ColumnasAnio({
                     type="button"
                     id={`col-${etiqueta.length}-${x.anio}`}
                     className="group relative flex h-full w-full max-w-[48px] items-end justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-                    aria-label={`${x.anio}: ${etiquetaA} ${x.detalleA}; ${etiquetaB} ${x.detalleB}; en total ${formato(total)}`}
+                    aria-label={`${x.anio}: ${etiquetaA} ${x.detalleA}; ${etiquetaB} ${x.detalleB}; en total ${formato(total)}${x.aparte ? "; con montos de un posible error de carga aparte" : ""}`}
                     onMouseEnter={() => setActivo(x.anio)}
                     onFocus={() => setActivo(x.anio)}
                     onKeyDown={(e) => {
@@ -108,7 +111,6 @@ export function ColumnasAnio({
                         {formato(total)}
                       </span>
                     )}
-                    {x.aparte && <span className="pointer-events-none absolute -top-0.5 right-0 text-micro font-semibold text-amberTexto" aria-hidden>▲</span>}
                   </button>
                 </li>
               );
@@ -135,6 +137,7 @@ export function ColumnasAnio({
           {orden.map((x) => (
             <li key={x.anio} className={cn("flex-1 text-center font-mono text-rotulo tabular-nums", activo === x.anio ? "font-semibold text-ink" : "text-mute")}>
               {orden.length > 10 ? `’${String(x.anio).slice(2)}` : x.anio}
+              {x.aparte && <span className="ml-0.5 text-amberTexto" title="Ese año hay montos con un posible error de carga, fuera de la columna">▲</span>}
             </li>
           ))}
         </ol>
