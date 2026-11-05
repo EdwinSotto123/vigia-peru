@@ -100,7 +100,7 @@ export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle
       return {
         chip: "Marca sin «o equivalente»",
         nombre: "Exige una marca sin «o equivalente»",
-        explica: "El requerimiento exige una marca, un fabricante o un modelo sin admitir uno equivalente: deja fuera a quien venda otra marca. Lo encontraron dos lecturas de la IA.",
+        explica: "Lo que se compra tiene que ser de una marca, un fabricante o un modelo, sin admitir uno equivalente: deja fuera a quien venda otra marca. No cuenta la marca del equipo que la entidad ya tiene (el tóner de su impresora, el mantenimiento de su camión). Lo encontraron dos lecturas de la IA y una tercera revisó cada marca.",
       };
     case "tdr_monto_distinto":
       return {

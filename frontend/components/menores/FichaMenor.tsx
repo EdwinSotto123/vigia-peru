@@ -119,7 +119,7 @@ function EvidenciaSenal({ s, f }: { s: SenalMenor; f: FichaMenor }) {
     return <p className="text-dato text-inkSoft">Del {fechaHoraLima(String(d.desde).replace(" ", "T"))} al {fechaHoraLima(String(d.hasta).replace(" ", "T"))}.</p>;
   }
   const cita: string | null = typeof d.cita === "string" && d.cita ? d.cita : null;
-  const marcas: { marca: string; cita: string }[] = Array.isArray(d.marcas) ? d.marcas : [];
+  const marcas: { marca: string; cita: string; por_que?: string }[] = Array.isArray(d.marcas) ? d.marcas : [];
   if (cita || marcas.length) {
     return (
       <div className="space-y-2">
@@ -127,6 +127,7 @@ function EvidenciaSenal({ s, f }: { s: SenalMenor; f: FichaMenor }) {
         {marcas.map((m, i) => (
           <blockquote key={i} className="border-l-2 border-line pl-3 text-dato text-inkSoft">
             <span className="font-semibold not-italic text-ink">{m.marca}:</span> <span className="italic">«{m.cita}»</span>
+            {m.por_que && <span className="mt-0.5 block text-meta text-mute">{m.por_que}</span>}
           </blockquote>
         ))}
         <p className="text-rotulo text-mute">Citado de {d.documento === "requerimiento" ? "el requerimiento" : "el contrato u orden"}, leído por {d.lector ?? "la IA"}.</p>

@@ -23,7 +23,8 @@
 --                                     de exceso. Las mismas guardas que el sobreprecio de los procesos
 --   Lo leído (backend/lector/menor_*.py), SÓLO si dos lecturas independientes (v1 y v1-2) coinciden:
 --   tdr_proveedor_nombrado     alta   el requerimiento dice a quién se contratará antes de las cotizaciones
---   tdr_marca_sin_equivalente  media  el requerimiento exige una marca sin admitir «o equivalente»
+--   tdr_marca_sin_equivalente  media  el requerimiento exige una marca sin admitir «o equivalente» para lo que se compra
+--                                     (no la del equipo que ya tiene: lo juzga menor_marcas.py, «v1-m»)
 --   tdr_monto_distinto         media  el monto registrado es 5 veces mayor o menor que el que estima el requerimiento
 --   tdr_experiencia_alta       baja   la experiencia exigida al proveedor es 3 veces o más el monto del contrato
 --   contrato_monto_distinto    media  el contrato u orden dice otro monto que el registrado (más del 5 % y S/ 100)
@@ -171,12 +172,15 @@ BEGIN
                 WHEN 'tdr_monto_distinto' THEN NULLIF(a.salida->>'monto_estimado', '')::numeric END,
          jsonb_strip_nulls(jsonb_build_object(
            'documento', CASE a.clase WHEN 'menor_tdr' THEN 'requerimiento' ELSE 'contrato u orden' END,
-           'lector', a.clase || ' ' || a.version || ' + ' || z.version, 'modelo', a.modelo,
+           'lector', a.clase || ' ' || a.version || ' + ' || z.version || CASE WHEN mm.version IS NOT NULL AND b = 'tdr_marca_sin_equivalente' THEN ' + ' || mm.version ELSE '' END, 'modelo', a.modelo,
            'registrado', m.monto,
+           -- Sólo las marcas que la tercera mirada (menor_marcas.py, «v1-m») juzgó exigidas para lo que se compra; las del
+           -- equipo que la entidad ya tiene (tóner para su impresora, mantenimiento de su camión) no son señal.
            'marcas', CASE WHEN b = 'tdr_marca_sin_equivalente' THEN (
-                       SELECT jsonb_agg(jsonb_build_object('marca', k->>'marca', 'cita', left(sin_dni(k->>'cita'), 300)))
-                         FROM jsonb_array_elements(COALESCE(a.salida->'marcas', '[]')) k
-                        WHERE NOT COALESCE((k->>'con_equivalente')::boolean, false)) END,
+                       SELECT jsonb_agg(jsonb_build_object('marca', k->>'marca', 'cita', left(sin_dni(k->>'cita'), 300),
+                                                           'por_que', left(sin_dni(k->>'por_que'), 240)))
+                         FROM jsonb_array_elements(COALESCE(mm.salida->'marcas', '[]')) k
+                        WHERE k->>'rol' = 'exigida') END,
            'cita', CASE b WHEN 'tdr_proveedor_nombrado' THEN left(sin_dni(a.salida->'proveedor_nombrado'->>'cita'), 300)
                           WHEN 'tdr_experiencia_alta' THEN left(sin_dni(a.salida->'perfil_proveedor'->>'cita'), 300) END,
            'estimado', CASE WHEN b = 'tdr_monto_distinto' THEN a.salida->'monto_estimado' END,
@@ -188,8 +192,10 @@ BEGIN
     FROM menor_lectura a
     JOIN menor_lectura z ON z.id_contrato = a.id_contrato AND z.clase = a.clase AND z.version = a.version || '-2' AND z.estado = 'ok'
     JOIN seace_menores m ON m.id_contrato = a.id_contrato
+    LEFT JOIN menor_lectura mm ON mm.id_contrato = a.id_contrato AND mm.clase = 'menor_tdr' AND mm.version = 'v1-m' AND mm.estado = 'ok'
     CROSS JOIN LATERAL unnest(a.banderas) b
    WHERE a.version = 'v1' AND a.estado = 'ok' AND a.clase IN ('menor_tdr', 'menor_contrato') AND b = ANY (z.banderas)
+     AND (b <> 'tdr_marca_sin_equivalente' OR b = ANY (mm.banderas))
   ON CONFLICT (id_contrato, tipo) DO NOTHING;
 
   SELECT count(*) INTO n FROM menor_senal;
