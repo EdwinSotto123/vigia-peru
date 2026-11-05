@@ -28,6 +28,7 @@ from pipeline_reglas import (fase_compliance_codigo, hay_datos_para_juicio, mens
                              reglas_en_codigo, reglas_extendidas_codigo)
 from pipeline_runtime import _tool, _truncate_result
 from pipeline_state import _aplicar_delta, _backfill_document_analysis, _is_empty_output, _kwargs_soportados, _registrar_descarte, _registrar_recorte
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 @dataclass
@@ -392,7 +393,7 @@ async def fase_proveedor(pc: PipelineCtx):
     ruc = (ganador.get("ruc") or "").strip()
     pc.ctx.update(ganador=ganador, ruc=ruc, razon=ganador.get("razon_social") or "",
                entidad=(gan or {}).get("entidad") or {}, postores=(gan or {}).get("todos_postores") or [])
-    fuente_oece = f"https://contratacionesabiertas.oece.gob.pe/proceso/{pc.ocid}"
+    fuente_oece = proceso_oece(pc.ocid)
     # Lo que sale de la base de Vigía (expediente, obra, supervisión) corre siempre que haya ganador u obra: son
     # consultas, no agentes, y alimentan el dictamen y las banderas aunque la matriz tipo × etapa no incluya a los
     # agentes que investigan al proveedor. Las consultas en vivo (OECE, decolecta) sólo si alguno de ésos corre.

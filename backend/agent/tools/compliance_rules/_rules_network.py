@@ -3,6 +3,7 @@
 from tools._core import *  # noqa: F401,F403
 from tools.compliance_rules._base import _as_tool, _fecha_convocatoria_state, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date, ganadores_evaluables  # noqa: F401
 from tools.privacidad import tapar_nombre
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
@@ -85,7 +86,7 @@ def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
                 f"solo comprador público (umbral: 3 o más y 40 % o más)."
             ),
             "norma": "Heurística — concentración cliente público debilita la competencia natural",
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         tool_context.state.setdefault("pending_flags", []).append(result)
     return result
@@ -342,7 +343,7 @@ def check_personal_clave_vinculado_rule(ocid: str, tool_context: ToolContext,
                           f"coincide con '{c0['coincide_con']}' ({c0['rol_en_entidad']}) de la entidad "
                           f"contratante según {c0['origen']}."),
             "norma": "Art. 11 TUO Ley 30225 — impedimentos; Ley 27588 — incompatibilidades de funcionarios",
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         state.setdefault("pending_flags", []).append(result)
     return result
@@ -410,7 +411,7 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
                           f"directas en los 12 meses previos ({', '.join(p['ocid'] for p in procesos[:4])}), "
                           f"además de la presente. Recurrencia en procedimientos no competitivos."),
             "norma": "Art. 27 TUO Ley 30225 / Art. 55 Ley 32069 — carácter excepcional de la contratación directa",
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         state.setdefault("pending_flags", []).append(result)
     return result

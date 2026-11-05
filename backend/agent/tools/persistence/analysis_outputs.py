@@ -10,6 +10,7 @@ from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _montos_alerta, _norma,
     _normalizar_red_flag, _recalcular_score, _verificar_o_descartar,
 )
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def _nombre_perfil(perfil):
@@ -320,7 +321,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                    RETURNING id""",
                 (raw_codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region,
                  (objeto or "")[:500], ocid.split("-")[-1],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
+                 proceso_oece(ocid)),
             )
             state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
             analisis["montos_alerta"] = state["montos_alerta"]
@@ -347,7 +348,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         pending_market = state.get("pending_market_flags") or []
         n_pending_inserted = 0
         n_pending_descartadas = 0
-        _fuente_proc = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
+        _fuente_proc = proceso_oece(ocid)
         if pending_doc or pending_market:
             cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
             r = cur.fetchone()
@@ -506,10 +507,30 @@ def _url_respaldada(url: str, state: dict) -> bool:
     return False
 
 
+# Una resolución del Tribunal de Contrataciones no es prensa: es el registro de sanciones, que ya cuentan
+# sancion_vigente_oece / sancion_historica_oece desde osce_sancionados. Aviso de 2026-11-04 (1229308): la Res.
+# 2327-2023-TCE-S5, que SANCIONÓ a Consorcio Carolina por 4 meses, salió como «prensa adversa» (media) que «abrió un
+# procedimiento», además de la sanción histórica (baja) del registro: el mismo hecho dos veces y mal contado.
+# El título de gob.pe «Procedimiento administrativo sancionador instaurado contra…» es el de la resolución que lo decide.
+_RE_TCE_TEXTO = re.compile(r"\b\d{3,5}-\d{4}-TCE\b|Tribunal\s+de\s+Contrataciones", re.I)
+_RE_TCE_URL = re.compile(r"gob\.pe/institucion/\w+/normas-legales/\d+-\d+-\d{4}-tce", re.I)
+
+
+def _es_resolucion_tce(b: dict, urls: list[str]) -> bool:
+    texto = " ".join(str(b.get(k) or "") for k in ("titulo", "regla", "nombre", "descripcion", "resumen", "fuente"))
+    return bool(_RE_TCE_TEXTO.search(texto) or any(_RE_TCE_URL.search(u or "") for u in urls))
+
+
+def _sanciones_en_registro(state: dict) -> bool:
+    return any(isinstance(p, dict) and (p.get("n_sanciones") or p.get("sanciones"))
+               for p in (state.get("oece_perfiles") or {}).values())
+
+
 def _banderas_investigacion(state: dict) -> list[dict]:
     """Candidatas a bandera desde los agentes de investigación. Exige: evidencia con cita,
     URL respaldada y confianza alta (o `estado` hallado con URL respaldada)."""
     out: list[dict] = []
+    hay_sanciones = _sanciones_en_registro(state)
     for clave, lista, agente in _AGENTES_INVESTIGACION:
         obj = _safe_parse_json(state.get(clave))
         if not isinstance(obj, dict):
@@ -541,6 +562,12 @@ def _banderas_investigacion(state: dict) -> list[dict]:
             sev = str(b.get("severidad") or "media").strip().lower()
             if sev not in ("alta", "media", "baja"):
                 sev = "media"
+            tce = _es_resolucion_tce(b, urls)
+            if tce and hay_sanciones:
+                # Ya está en el registro de sancionados (otra numeración posible: la reconsideración).
+                state.setdefault("descartes", []).append({"agente": agente, "motivo": "resolucion_tce_ya_en_registro",
+                                                          "detalle": str(b.get("titulo") or b.get("descripcion") or "")[:160]})
+                continue
             # Slug FIJO por agente (el frontend/verify enumeran reglas); el título libre queda en la evidencia.
             _SLUG_AGENTE = {"web_research": "antecedente_proveedor_web", "news_research": "cobertura_prensa_adversa",
                             "person_network": "vinculo_red_personas"}
@@ -548,6 +575,11 @@ def _banderas_investigacion(state: dict) -> list[dict]:
             regla = _SLUG_AGENTE.get(clave, f"{clave}_hallazgo")
             titulo = re.sub(r"\s+", " ", regla_libre)[:120]
             descr = str(b.get("descripcion") or b.get("detalle") or b.get("resumen") or b.get("titulo") or "")
+            if tce:
+                # Fuera del registro: puede ser una sanción o un «no ha lugar». No es prensa ni se adivina qué resolvió.
+                regla, sev = "antecedente_proveedor_web", "baja"
+                descr = ("Resolución del Tribunal de Contrataciones hallada en la web que no figura en el registro de "
+                         "sancionados del OECE; falta leer qué resolvió. " + descr)
             if titulo and titulo.lower() not in descr.lower():
                 descr = f"{titulo}: {descr}" if descr else titulo
             texto = (descr + (f" Evidencia: {citas[0][:200]}" if citas else "")).strip()

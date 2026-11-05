@@ -9,6 +9,7 @@ from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _limpiar_banderas_agente, _norma,
     _recalcular_score, _verificar_o_descartar,
 )
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def _cobertura_por_valor(findings: list[dict], mk: dict | None = None) -> float:
@@ -262,7 +263,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "mensaje": "Alerta aún no creada. banderas quedan en state['pending_market_flags'].",
             }
         alerta_id = row[0]
-        _fuente_oficial = f"https://contratacionesabiertas.oece.gob.pe/proceso/{state.get('ocid') or raw_codigo.replace('OECE-', '')}"
+        _fuente_oficial = proceso_oece(state.get('ocid') or raw_codigo.replace('OECE-', ''))
 
         # Idempotencia: borrar previas del mismo agente (solo las propias)
         cur.execute(

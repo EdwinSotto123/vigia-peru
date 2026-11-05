@@ -2,6 +2,7 @@
 
 from tools._core import *  # noqa: F401,F403
 from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _fecha_convocatoria_state, _ganador_ruc, _montos_ocds, _norma_state, _perfil_reglas, _perfil_topes, _procurement_method, _regla_omitida, _sin_tildes, _to_date, norma_aplicable  # noqa: F401
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 # Claves aceptadas en `topes_uit` (todas opcionales; default = comportamiento anterior):
@@ -109,7 +110,7 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext,
                     f"para {tipo}" + ("" if claro else " (margen de feriados: verificar el cronograma de las bases)") + "."
                 ),
                 "norma": _norma_state(tool_context.state).get("plazos", "Reglamento Ley 32069 — plazos mínimos del procedimiento de selección"),
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+                "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         return result
@@ -160,7 +161,7 @@ def check_tipo_proceso_vs_monto_rule(ocid: str, tool_context: ToolContext,
     norma = norma_aplicable(_fecha_convocatoria_state(state) or fconv_bd)
     es_obras = str(((state.get("perfil") or {}).get("nombre")) or state.get("pipeline_profile") or "").lower() == "obras" \
         or _tope(topes, 0.0, "licitacion_publica") >= 1000
-    fuente = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
+    fuente = proceso_oece(ocid)
     result = {"regla": "tipo_proceso_vs_monto", "tipo_proceso": tipo, "cuantia_soles": cuantia_f,
               "regimen": norma["regimen"], "triggered": False}
 
@@ -329,7 +330,7 @@ def check_adicional_acumulado_rule(ocid: str, tool_context: ToolContext,
                           + ("Supera el 50% máximo autorizable." if pct > 50 else
                              "Supera el 15% que la entidad puede aprobar sin autorización previa de la CGR.")),
             "norma": "Art. 34 TUO Ley 30225 / Art. 205 Reglamento — prestaciones adicionales de obra (15% / 50%)",
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         state.setdefault("pending_flags", []).append(result)
     return result
@@ -418,7 +419,7 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
                           f"({suma / UIT:.1f} UIT)"
                           + (f", por encima del tope de {tope:g} UIT de la modalidad '{tipo}'." if excede else ".")),
             "norma": "Art. 20 TUO Ley 30225 / Art. 36 Ley 32069 — prohibición de fraccionamiento",
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         state.setdefault("pending_flags", []).append(result)
     return result

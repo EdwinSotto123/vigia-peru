@@ -2,6 +2,7 @@
 
 from tools._core import *  # noqa: F401,F403
 from tools.compliance_rules._base import _as_tool, _monto_adjudicado_ocds, _montos_ocds, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida, _sin_tildes, honorario_fijo, n_participantes_parser, postores_acta, ratio_vs_referencial  # noqa: F401
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def _n_postores_ocds(ocds: dict) -> int | None:
@@ -135,7 +136,7 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
                            if n_participantes else f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y ")
                           + f"oferta ganadora al {pct}% del valor referencial." + nota_igv),
             "norma": _norma_state(state)["competencia"],
-            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+            "fuente_url": proceso_oece(ocid),
         })
         tool_context.state.setdefault("pending_flags", []).append(result)
     elif n_postores == 1:
@@ -181,7 +182,7 @@ def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext,
                 "severidad": "media",
                 "evidencia": f"Tipo de proceso: {tipo}. Invocó una causal de excepción que limita la competencia abierta.",
                 "norma": "Art. 55.1 Ley 32069 — supuestos de selección no competitiva",
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+                "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         return result

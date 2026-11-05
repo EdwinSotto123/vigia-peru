@@ -7,6 +7,7 @@ from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _limpiar_banderas_agente, _montos_alerta,
     _peso, _recalcular_score, _verificar_o_descartar,
 )
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def add_contextual_flag(regla: str, severidad: str, evidencia: str,
@@ -157,7 +158,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                RETURNING id""",
             (codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region, score,
              [b["regla"] for b in banderas], (objeto or "")[:500],
-             ocid.split("-")[-1], f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
+             ocid.split("-")[-1], proceso_oece(ocid)),
         )
         alerta_id = cur.fetchone()[0]
         state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
@@ -171,7 +172,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
         # evaluador determinista cita_evidencia exige norma + fuente_url). Las
         # banderas de reglas duras ya traen su fuente; las contextuales (de
         # add_contextual_flag sin `fuente`) caen a la URL canónica del proceso.
-        _fuente_default = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
+        _fuente_default = proceso_oece(ocid)
         for b in banderas:
             _insert_bandera(cur, alerta_id, b.get("regla", "sin_regla"), b.get("severidad", "media"),
                             b.get("evidencia", ""), b.get("norma", ""),

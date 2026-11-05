@@ -6,6 +6,7 @@ from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _limpiar_banderas_agente, _norma,
     _normalizar_red_flag, _recalcular_score, _verificar_o_descartar,
 )
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext) -> dict:
@@ -65,7 +66,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
         alerta_id = row[0]
         # Toda bandera debe linkear a evidencia oficial (principio innegociable):
         # URL canónica del proceso en OECE Contrataciones Abiertas.
-        _fuente_oficial = f"https://contratacionesabiertas.oece.gob.pe/proceso/{state.get('ocid') or raw_codigo.replace('OECE-', '')}"
+        _fuente_oficial = proceso_oece(state.get('ocid') or raw_codigo.replace('OECE-', ''))
 
         # Borrar previas del mismo agente (idempotente)
         cur.execute(

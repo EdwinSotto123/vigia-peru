@@ -130,7 +130,7 @@ def regla_C2_unico_postor_alto(cur, ocid: str) -> list[dict]:
                          f"todas las ofertas ganadoras al {float(pct_avg or 0):.1f}% "
                          f"del valor referencial — sin competencia real",
             "norma": "Art. 27 Reglamento Ley 32069 — competencia mínima",
-            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/" + ocid,
+            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-" + str(ocid),
         })
     # Caso parcial: la mayoría
     elif total > 0 and unicos_altos >= max(1, total // 2):
@@ -139,7 +139,7 @@ def regla_C2_unico_postor_alto(cur, ocid: str) -> list[dict]:
             "severidad": "media",
             "evidencia": f"{unicos_altos}/{total} ítems con 1 solo postor al ≥95% del referencial",
             "norma": "Art. 27 Reglamento Ley 32069",
-            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/" + ocid,
+            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-" + str(ocid),
         })
     return out
 
@@ -253,7 +253,7 @@ def regla_C8_proc_no_competitivo(cur, ocid: str) -> list[dict]:
             "evidencia": f"Tipo de proceso: {tipo} · invocó una causal de "
                          f"excepción que limita la competencia",
             "norma": "Art. 55.1 Ley 32069 — supuestos de selección no competitiva",
-            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/" + ocid,
+            "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-" + str(ocid),
         }]
     return []
 
@@ -319,7 +319,7 @@ def upsert_alerta_y_banderas(cur, ocid: str, banderas: list[dict]) -> str | None
         """,
         (codigo_alerta, ocid, entidad_ruc, ganador_ruc, float(cuantia or 0),
          fecha_bp, region, score, reglas, objeto[:500] if objeto else "",
-         codigo_conv, f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
+         codigo_conv, f"https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-{ocid}"),
     )
     alerta_id = cur.fetchone()[0]
 

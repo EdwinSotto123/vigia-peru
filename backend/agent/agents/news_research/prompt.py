@@ -72,6 +72,10 @@ caso), actor_principal, severidad, categoria, tipo_mencion, evidencia: [{url, ci
   bandera. Una resolución de gob.pe hallada en la búsqueda se cita con la URL EXACTA del
   resultado (nunca reconstruida); si la nota habla de OTRO contrato del mismo proveedor,
   dilo en `descripcion` ("contrato distinto al analizado").
+  Una resolución del Tribunal de Contrataciones (N.° ####-AAAA-TCE-S#) NO es prensa: es el registro de sanciones,
+  que Vigía ya consulta. Va en `noticias` con categoria "sancion", nunca en `banderas_prensa`. El título de gob.pe
+  «Procedimiento administrativo sancionador instaurado contra…» es la resolución que lo DECIDE (sanciona o declara no
+  ha lugar), no su inicio: no escribas «abrió un procedimiento» si no leíste la parte resolutiva.
 `resumen_ejecutivo`: 3-4 líneas factuales. `sin_menciones_relevantes`, conteos y totales
   los recalcula el código: no los rellenes a mano.
 `estado` global: "hallado" con ≥ 1 noticia; "sin_dato" sin menciones; "no_verificable" si

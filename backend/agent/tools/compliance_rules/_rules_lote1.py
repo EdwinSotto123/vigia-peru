@@ -3,6 +3,7 @@
 from tools._core import *  # noqa: F401,F403
 from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _es_subasta, _f, _fecha_convocatoria_state, _ganador_ocds, _montos_ocds, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _procurement_method, _regla_omitida, _sin_tildes, _to_date, honorario_fijo, postores_acta, ratio_vs_referencial  # noqa: F401
 from tools.compliance_rules._object_matching import coincide_objeto  # noqa: F401
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 _ESTADOS_INVALIDOS = ("descalific", "no admit", "inadmit", "no valid", "invalid", "no invit",
@@ -123,7 +124,7 @@ def check_oferta_igual_valor_referencial_rule(ocid: str, tool_context: ToolConte
     if len(hits) > 1:
         ev += f" Otras ofertas iguales al referencial: {len(hits) - 1}."
     return _flag(state, result, sev, ev, _norma_state(state)["integridad"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def check_ofertas_agrupadas_rule(ocid: str, tool_context: ToolContext,
@@ -158,7 +159,7 @@ def check_ofertas_agrupadas_rule(ocid: str, tool_context: ToolContext,
         ev += "Las bases declaran la cuantía no revelada. "
     ev += "Señal de riesgo de cotización coordinada o de filtración del valor; requiere verificación."
     return _flag(state, result, "media", ev, _norma_state(state)["integridad"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def check_unica_oferta_valida_rule(ocid: str, tool_context: ToolContext,
@@ -203,7 +204,7 @@ def check_unica_oferta_valida_rule(ocid: str, tool_context: ToolContext,
           + "; ".join(f"{_nombre_postor(p)} — {m}" for p, m in invalidas[:4])
           + ". Señal de riesgo de competencia aparente (ofertas de acompañamiento); requiere verificación.")
     return _flag(state, result, sev, ev, _norma_state(state)["competencia"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def check_ganador_no_invitado_rule(ocid: str, tool_context: ToolContext,
@@ -262,7 +263,7 @@ def check_ganador_no_invitado_rule(ocid: str, tool_context: ToolContext,
           f"invitados que publican las bases de la Comparación de Precios (procedimiento de lista cerrada). "
           f"Señal de riesgo: verificar si existió una invitación adicional no publicada en el expediente.")
     return _flag(state, result, sev, ev, _norma_state(state)["comparacion_precios"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 _CARGOS_PUBLICOS = ("jefe", "gerente", "subgerente", "sub gerente", "oficial", "director", "responsable",
@@ -478,7 +479,7 @@ def check_ampliacion_denegada_penalidad_rule(ocid: str, tool_context: ToolContex
           "consignarla con la fecha y la resolución que la sustenta.")
     result["documento"] = fuente_doc
     return _flag(state, result, "media", ev, _norma_state(state)["penalidades"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def _apellidos(nombre: str) -> tuple[str, str] | None:
@@ -583,7 +584,7 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
     if len(pares) > 1:
         ev += f" Pares adicionales: {len(pares) - 1}."
     return _flag(state, result, sev, ev, _norma_state(state)["integridad"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def check_oferta_mas_barata_no_gana_rule(ocid: str, tool_context: ToolContext,
@@ -645,7 +646,7 @@ def check_oferta_mas_barata_no_gana_rule(ocid: str, tool_context: ToolContext,
           f"cuando la evaluación pondera factores técnicos, pero es un dato que el dictamen debe explicar: qué "
           f"factor no económico decidió la adjudicación y si estaba en las bases.")
     return _flag(state, result, "media", ev, _norma_state(state)["competencia"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 def _digits(s) -> str:
@@ -726,7 +727,7 @@ def check_fecha_buena_pro_incoherente_rule(ocid: str, tool_context: ToolContext,
     ev = ("Incoherencia documental en el expediente: " + "; ".join(hechos) +
           ". Puede ser un error material de la entidad; es un dato que un revisor preguntaría y el dictamen debe consignar.")
     return _flag(state, result, "media", ev, _norma_state(state)["transparencia"],
-                 f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}")
+                 proceso_oece(ocid))
 
 
 REGLAS_LOTE1 = {

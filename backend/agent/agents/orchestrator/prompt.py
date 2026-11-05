@@ -495,7 +495,7 @@ PASO 7.7. VERIFICACIÓN DE HALLAZGOS CONTEXTUALES (NUEVO · obligatorio).
           1. `fuente=` SIEMPRE: una URL oficial verificable que respalde la
              bandera. Según el caso: la ficha SUNAT del RUC, el perfil OECE del
              proveedor, la URL del proceso en Contrataciones Abiertas
-             (`https://contratacionesabiertas.oece.gob.pe/proceso/<OCID>`), o la
+             (`https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-<OCID>`), o la
              fuente que devolvió la tool (`fuente_url` del perfil/visitas/etc.).
              Si no tienes una más específica, usa la URL del proceso. NUNCA dejes
              la bandera sin fuente.
@@ -552,7 +552,7 @@ PASO 7.7. VERIFICACIÓN DE HALLAZGOS CONTEXTUALES (NUEVO · obligatorio).
                       el D.S./D.U./Resolución/Acuerdo Regional que la declara.',
                       norma='Art. 27.1 lit. a TUO Ley 30225 — la situación de
                       emergencia debe estar acreditada',
-                      fuente='https://contratacionesabiertas.oece.gob.pe/proceso/<OCID>')
+                      fuente='https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-<OCID>')
 
           7.7.d — VÍNCULO FAMILIAR INDIRECTO detectado por person_network
                   pero NO persistido: si state['person_network'].banderas_red

@@ -64,7 +64,7 @@ MARKET_UMBRAL_MUY_ELEVADO = 50.0
 MARKET_ESTIMACION_DESDE = int(os.getenv("MARKET_ESTIMACION_DESDE", "20"))
 MARKET_CHUNK_SIZE_ESTIMACION = int(os.getenv("MARKET_CHUNK_SIZE_ESTIMACION", "10"))
 
-OECE_PROCESO_URL = "https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
+OECE_PROCESO_URL = "https://contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-{ocid}"  # OCID completo
 
 
 MARKET_ANCLA_MESES = int(os.getenv("MARKET_ANCLA_MESES", "24"))

@@ -4,6 +4,7 @@ from tools._core import *  # noqa: F401,F403
 from tools import verify as _verify  # noqa: F401
 from tools.compliance_rules._base import _as_tool, _es_subasta, _montos_ocds, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida  # noqa: F401
 from tools.compliance_rules._object_matching import coincide_objeto_detalle  # noqa: F401
+from tools.fuentes import proceso_oece  # noqa: E402
 
 
 def _juez_coherencia_dice_coherente(state: dict) -> bool:
@@ -257,7 +258,7 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
                 ),
                 "norma": "Art. 27 TUO Ley 30225 / Art. 55.1 Ley 32069 — causales "
                          "de selección no competitiva deben estar acreditadas",
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+                "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         elif causal["match"] and causal["requiere_acto_resolutivo"] and acto and not acto.get("encontrado"):
@@ -284,7 +285,7 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
                 ),
                 "norma": "Art. 27.1 lit. a) TUO Ley 30225 — la situación de emergencia "
                          "debe estar acreditada por declaratoria oficial",
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+                "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         elif not causal["match"] and tiene_keyword_legal:
@@ -299,7 +300,7 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
                     f"detectado: {fund}"
                 ),
                 "norma": "Art. 27 TUO Ley 30225 / Art. 55.1 Ley 32069",
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+                "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         return result

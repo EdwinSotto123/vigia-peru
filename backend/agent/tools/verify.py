@@ -41,6 +41,7 @@ import urllib.request
 from typing import Any, Iterable
 
 from tools._core import _pg, _safe_parse_json, _table_exists
+from tools.fuentes import arreglar_urls_oece
 
 # ─── Regex ──────────────────────────────────────────────────────────────────
 _RUC_RE = re.compile(r"(?<!\d)(?:10|15|16|17|20)\d{9}(?!\d)")
@@ -736,8 +737,12 @@ def sanitizar_dictamen(md: str, ver: dict | None) -> tuple[str, dict]:
             cambios["urls_eliminadas"].append(u)
     md, n = enmascarar_dnis(md)
     cambios["dnis_enmascarados"] = n
+    # El proceso en Contrataciones Abiertas sólo abre con el OCID completo (/proceso/ocds-dgv273-seacev3-<ocid>).
+    corregido = arreglar_urls_oece(md)
+    cambios["urls_oece_corregidas"] = corregido != md
+    md = corregido
     cambios["modificado"] = bool(cambios["rucs_sustituidos"] or cambios["dnis_sustituidos"]
-                                 or cambios["urls_eliminadas"] or n)
+                                 or cambios["urls_eliminadas"] or n or cambios["urls_oece_corregidas"])
     return md, cambios
 
 

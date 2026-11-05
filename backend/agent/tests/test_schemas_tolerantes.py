@@ -347,7 +347,7 @@ def test_dictamen_url_gob_inventada_se_quita_y_la_real_se_conserva(monkeypatch):
     assert "https://contratacionesabiertas.oece.gob.pe/proceso/1225062" not in llamadas   # host canónico: sin HEAD
     md2, cambios = verify.sanitizar_dictamen(md, ver)
     assert falsa not in md2 and "Res. OGA 326-2026 [URL no verificable]" in md2
-    assert real in md2 and "contratacionesabiertas.oece.gob.pe/proceso/1225062" in md2
+    assert real in md2 and "contratacionesabiertas.oece.gob.pe/proceso/ocds-dgv273-seacev3-1225062" in md2   # OCID completo
     assert sorted(cambios["urls_eliminadas"]) == sorted([falsa, "https://www.gob.pe/institucion/munichumbivilcas/normas-legales/99-otra"])
 
 
