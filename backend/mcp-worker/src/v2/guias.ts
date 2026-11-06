@@ -15,7 +15,7 @@ export const INSTRUCCIONES = [
   "el código. estado_fuentes dice hasta qué fecha llega cada fuente.",
   "Una señal o un puntaje es un indicio para revisar, no una acusación: la denuncia corresponde a la Contraloría o a la Fiscalía.",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
-  "Las herramientas red_empresa, historia, consultar_datos, persona_publica y las de seguimiento piden la cuenta gratis de Gobserva.",
+  "Las herramientas red_empresa, historia, consultar_datos, persona_publica, planilla_entidad, visitas_entidad y las de seguimiento piden la cuenta gratis de Gobserva.",
 ].join(" ");
 
 const COMO_USAR = `# Cómo usar el MCP de Vigía
@@ -23,9 +23,11 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
 1. Con un nombre: buscar → da el OCID, RUC, CUI o clave.
 2. Un contrato: ficha_contrato (datos, postores, documentos del SEACE) y dictamen (puntaje y señales con evidencia).
 3. Una empresa: ficha_empresa (SUNAT, cifras, antecedentes) y red_empresa (socios, empresas vinculadas, clientes).
-4. Una entidad: ficha_entidad (presupuesto, gobierno, Contraloría, señales), proveedores_de_entidad (concentración) y ordenes.
-5. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
-6. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
+4. Una entidad: ficha_entidad (resumen), gasto_entidad (en qué gasta), proveedores_de_entidad (concentración), ordenes, obras_entidad,
+   informes_control (Contraloría con PDF), planilla_entidad y visitas_entidad.
+5. Documentos: documentos_zip arma un ZIP con bases, actas y contratos de hasta 10 procesos.
+6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
+7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
 
 Cita siempre el enlace de Vigía y la fuente oficial que trae cada respuesta, con la fecha de la consulta.`;
 

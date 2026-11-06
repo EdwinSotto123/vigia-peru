@@ -16,6 +16,7 @@
   "dependencies": {
     "@google-cloud/storage": "^7.14.0",
     "@hono/node-server": "^1.13.7",
+    "fflate": "0.8.2",
     "firebase-admin": "^13.0.2",
     "hono": "^4.13.13",
     "jose": "^6.2.12",

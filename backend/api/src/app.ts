@@ -33,6 +33,7 @@ import { financiamientoRouter } from "./routes/financiamiento.js";
 import { contribucionesRouter } from "./routes/contribuciones.js";
 import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
+import { documentosRouter } from "./routes/documentos.js";
 import { contratosRouter } from "./routes/contratos.js";
 import { ordenesRouter } from "./routes/ordenes.js";
 import { menoresRouter } from "./routes/menores.js";
@@ -150,6 +151,8 @@ api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /
 api.route("/financiamiento", financiamientoRouter);
 api.route("/contribuciones", contribucionesRouter);
 api.route("/contratos", contratosRouter);
+// Documentos de varios procesos en un ZIP (MCP y chat del panel), desde R2.
+api.route("/documentos", documentosRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
 api.route("/catalogo", catalogoRouter);

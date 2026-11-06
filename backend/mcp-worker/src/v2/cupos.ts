@@ -74,6 +74,7 @@ export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario 
       ? null
       : `Sin cuenta el tope es de ${CUPOS.anonimoIpPorMinuto} llamadas por minuto. Espera un minuto o conecta tu cuenta gratis de Gobserva.`;
   }
+  if (usuario.planes.includes("interno")) return null; // el chat del panel
   const pago = esDePago(usuario);
   if (!(await contar(env, `mcp2|u|${usuario.uid}|min`, CUPOS.cuentaPorMinuto, MINUTO))) {
     return `Son más de ${CUPOS.cuentaPorMinuto} llamadas en un minuto: espera un momento.`;

@@ -40,7 +40,9 @@ const gzipAsync = promisify(gzip);
 const MIN_GZIP = 1024;
 
 /** Los únicos tipos que el proxy deja pasar al navegador (sin parámetros, en minúsculas). */
-const TIPOS_PERMITIDOS = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf", "application/json", "text/csv"]);
+// application/x-ndjson: el chat de investigación (/admin/chat) manda sus pasos en vivo, una línea JSON por evento; pasa
+// como stream, sin comprimir (lo lee fetch, no se abre como página).
+const TIPOS_PERMITIDOS = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf", "application/json", "text/csv", "application/x-ndjson"]);
 
 /** "text/csv; charset=utf-8" → "text/csv". */
 const tipoBase = (ct: string | null) => (ct ? ct.split(";")[0].trim().toLowerCase() : null);

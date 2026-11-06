@@ -7,12 +7,14 @@ import { HERRAMIENTAS_ACTORES } from "./herramientas/actores";
 import { HERRAMIENTAS_CONTRATOS } from "./herramientas/contratos";
 import { HERRAMIENTAS_CUENTA } from "./herramientas/cuenta";
 import { HERRAMIENTAS_DATOS } from "./herramientas/datos";
+import { HERRAMIENTAS_ENTIDAD } from "./herramientas/entidad";
 import { HERRAMIENTAS_PRODUCTOS } from "./herramientas/productos";
 import { registrar, type Contexto } from "./registro";
 
 export const HERRAMIENTAS = [
   ...HERRAMIENTAS_CONTRATOS,
   ...HERRAMIENTAS_ACTORES,
+  ...HERRAMIENTAS_ENTIDAD,
   ...HERRAMIENTAS_DATOS,
   ...HERRAMIENTAS_CUENTA,
   ...HERRAMIENTAS_PRODUCTOS,

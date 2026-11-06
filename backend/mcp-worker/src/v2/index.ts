@@ -30,8 +30,24 @@ function desafio(env: EnvV2): Response {
   );
 }
 
+/** Comparación en tiempo constante (la cabecera interna es un secreto). */
+function iguales(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 export async function manejarV2(request: Request, env: EnvV2, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
+  // El chat del panel (vigia-api por service binding) entra como la cuenta del equipo: todas las herramientas, sin cupo.
+  const interno = request.headers.get("x-vigia-interno");
+  if (url.pathname === "/mcp" && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
+    return atenderMcp(request, {
+      env, ctx, ip: null,
+      usuario: { uid: "equipo-vigia", planes: ["interno"], planesAl: Date.now(), scope: [...SCOPES] },
+    });
+  }
   if (url.pathname === "/mcp/") {
     url.pathname = "/mcp";
     return new Response(null, { status: 307, headers: { Location: url.toString() } });

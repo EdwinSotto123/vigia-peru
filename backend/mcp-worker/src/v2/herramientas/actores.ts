@@ -271,9 +271,10 @@ export const personaPublica = definir({
   nombre: "persona_publica",
   titulo: "Persona con cargo público",
   descripcion:
-    "Busca por nombre a quien trabaja en la planilla del Estado (cargo, entidad, régimen, sueldo, meses y señales) o a una " +
-    "autoridad electa (gobernador, alcalde: entidad, partido y periodo). Los nombres de la planilla salen con un apellido " +
-    "tapado; no se busca por DNI ni se muestran ciudadanos sin cargo.",
+    "Busca por nombre a una autoridad o a quien trabaja en el Estado. Para una autoridad (alcalde, gobernador, regidor, " +
+    "congresista) da su trayectoria electoral del JNE desde 2014 (cada candidatura con año, cargo, partido, lugar y si salió " +
+    "electa) y el cargo que tiene hoy con su entidad y RUC. En la planilla del Estado da cargo, entidad, régimen, sueldo y " +
+    "señales, con un apellido tapado. No se busca por DNI ni se muestran ciudadanos sin cargo.",
   cuenta: true,
   entrada: {
     nombre: z.string().min(6).max(80).describe("Apellidos y nombres, al menos dos palabras."),
@@ -284,9 +285,10 @@ export const personaPublica = definir({
     if (palabras.length < 2) throw new ErrorUsuario("Escribe al menos un apellido y un nombre.");
     if (/\d{6,}/.test(a.nombre)) throw new ErrorUsuario("No se busca por DNI ni por números: escribe el nombre.");
     const e = enlaces(cx.env);
-    const [pl, au] = await Promise.all([
+    const [pl, au, tr] = await Promise.all([
       a.donde !== "autoridades" ? api<Fila>(cx.env, "/planilla", { q: a.nombre, size: 10 }) : Promise.resolve(null),
       a.donde !== "planilla" ? api<Fila>(cx.env, "/poder/entidades", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))) : Promise.resolve(null),
+      a.donde !== "planilla" ? api<Fila>(cx.env, "/poder/trayectoria", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))) : Promise.resolve(null),
     ]);
     const normal = (t: string) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
     const buscadas = palabras.map(normal);
@@ -301,12 +303,23 @@ export const personaPublica = definir({
             })),
           }
         : undefined,
+      trayectoria: tr
+        ? {
+            personas: ((tr.personas ?? []) as Fila[]).map((x) => ({
+              nombre: x.nombre,
+              veces_electo: x.veces_electo,
+              en_el_cargo: ((x.en_el_cargo ?? []) as Fila[]).map((g) => ({ ...g, enlace: g.entidad_ruc ? e.entidad(g.entidad_ruc) : undefined })),
+              candidaturas: x.candidaturas,
+            })),
+            nota: tr.nota,
+          }
+        : undefined,
       autoridades: au
         ? ((au.data ?? []) as Fila[])
             .filter((x) => buscadas.every((w) => normal(String(x.autoridad ?? "")).includes(w)))
             .map((x) => ({ autoridad: x.autoridad, cargo: x.cargo_gob, entidad: x.entidad, entidad_ruc: x.entidad_ruc, partido: x.partido, desde: x.periodoInicio, hasta: x.periodoFin }))
         : undefined,
-      fuente: "Planilla del Estado (PTE/MEF) y JNE.",
+      fuente: "JNE (candidaturas 2014 a 2022), registro de autoridades vigentes y planillas del Portal de Transparencia Estándar.",
     };
   },
 });

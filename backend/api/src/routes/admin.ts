@@ -54,6 +54,7 @@ import { adminFuentesRouter } from "./admin_fuentes.js";
 import { adminEquipoRouter } from "./admin_equipo.js";
 import { adminPrivacidadRouter } from "./admin_privacidad.js";
 import { adminGobservaRouter } from "./admin_gobserva.js";
+import { adminChatRouter } from "./admin_chat.js";
 
 export const adminRouter = new Hono();
 
@@ -78,6 +79,7 @@ adminRouter.get("/ping", (c) => c.json({ ok: true }));
 
 // U4: cola de revisión humana + umbrales (admin_revision.ts) y operación (admin_operacion.ts).
 adminRouter.route("/", adminRevisionRouter);
+adminRouter.route("/", adminChatRouter);
 adminRouter.route("/", adminOperacionRouter);
 // U6: procesar un lote a nombre de Vigía Perú desde el panel, sin pasarela (admin_procesar.ts).
 adminRouter.route("/", adminProcesarRouter);

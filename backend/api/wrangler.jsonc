@@ -32,7 +32,9 @@
   // "Correr el dispatcher ahora" (lib/dispatcher.ts): un Worker no puede llamar por URL pública a otro
   // workers.dev de la misma cuenta (error 1042), así que va por service binding.
   // SEACE_ZRH: los reportes «ongei» del SEACE por Zúrich (backend/seace-zrh-worker), para el expediente SIAF a pedido.
-  "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }, { "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }],
+  "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }, { "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" },
+    // Chat del panel (routes/admin_chat.ts): el modelo y las herramientas del MCP v2.
+    { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp" }],
 
   // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
   // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
@@ -52,6 +54,7 @@
     "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev,https://vigia.gobserva.cloud,https://empleo.gobserva.cloud,https://licitaciones.gobserva.cloud,https://obras.gobserva.cloud",
     // Zonas de nuestros Workers (cabecera CF-Worker): sus lecturas no cuentan en el límite por IP (lib/antibots.ts).
     "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
+    "MCP_INTERNO_URL": "https://mcp.gobserva.cloud/mcp",
     // Dónde se resuelve el captcha de la gente (lib/antibots.ts → verificarTurnstile): otro hostname queda en el registro;
     // con TURNSTILE_HOSTS_ESTRICTO "si", además se rechaza.
     "TURNSTILE_HOSTS": "vigia.gobserva.cloud,empleo.gobserva.cloud,licitaciones.gobserva.cloud,obras.gobserva.cloud",
@@ -82,7 +85,7 @@
         { "binding": "PRIVADO", "bucket_name": "vigia-peru-privado" },
         { "binding": "DOCUMENTOS_VIEJOS", "bucket_name": "vigia-peru-documentos" }
       ],
-      "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }],
+      "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }, { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp-dev" }],
       "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
       "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
       "vars": {
@@ -91,6 +94,7 @@
         "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev,https://empleo-dev.gobserva.cloud,https://licitaciones-dev.gobserva.cloud,https://obras-dev.gobserva.cloud",
         // La web de DEV también entra por empleo-dev y licitaciones-dev.gobserva.cloud: sus subpedidos llegan con esa zona.
         "WORKERS_PROPIOS": "vigiaperu.workers.dev,gobserva.cloud",
+        "MCP_INTERNO_URL": "https://vigia-mcp-dev.vigiaperu.workers.dev/mcp",
         "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
         "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app",
         "VAPID_PUBLIC_KEY": "BLyYkP_h9_YFRVMIEoBpSAebunN_-kPsaqwQvZ5VnebZ_5sF80jlKd_q6vjhNStTYyKq1uqRWWK9azHqNPJtWHY"

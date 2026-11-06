@@ -168,6 +168,62 @@ poderRouter.get("/entidades", async (c) => {
   return c.json(publicar({ data: r.rows }));
 });
 
+/**
+ * Trayectoria electoral de una autoridad por su nombre (MCP persona_publica y chat del admin): sus candidaturas del JNE
+ * (2014–2022: alcaldías, regiones, Congreso) y el cargo que tiene hoy según el registro de autoridades. Solo personas que
+ * salieron electas alguna vez o que tienen un cargo hoy: son públicas y su nombre sale entero; nunca el DNI. Los demás
+ * candidatos no salen. El resultado de 2022 del JNE no está completo (hay gobernadores en el cargo marcados «no electo»):
+ * `en_el_cargo` viene de poder_entidad, sin el filtro de captura de /entidades.
+ *   GET /poder/trayectoria?q=<apellidos y nombres>   (2 palabras de 3 letras o más; hasta 10 personas)
+ */
+poderRouter.get("/trayectoria", async (c) => {
+  const palabras = (c.req.query("q") ?? "").slice(0, 80).toUpperCase().normalize("NFD").replace(/\p{M}/gu, "")
+    .split(/\s+/).map((w) => w.replace(/[^A-Z]/g, "")).filter((w) => w.length >= 3).slice(0, 6);
+  if (palabras.length < 2) {
+    return c.json({ error: "nombre_corto", detail: "Escribe al menos un apellido y un nombre (dos palabras de 3 letras o más)." }, 400);
+  }
+  const vals = palabras.map((w) => `%${w}%`);
+  const enJne = palabras.map((_, i) => `translate(upper(nombre), 'ÁÉÍÓÚÜ', 'AEIOUU') LIKE $${i + 1}`).join(" AND ");
+  const enPoder = palabras.map((_, i) => `translate(upper(autoridad), 'ÁÉÍÓÚÜ', 'AEIOUU') LIKE $${i + 1}`).join(" AND ");
+  const r = await pool.query(
+    `WITH cand AS (
+       SELECT numero_documento, nombre, partido, "año" AS anio, cargo, resultado, region, provincia, distrito, fuente_url
+         FROM jne_candidaturas WHERE ${enJne}),
+     hoy AS (
+       SELECT autoridad, entidad, entidad_ruc, cargo_gob, partido, periodo_inicio, periodo_fin
+         FROM poder_entidad WHERE autoridad IS NOT NULL AND ${enPoder}),
+     personas AS (
+       SELECT coalesce(numero_documento, 'n:' || nombre) AS clave, max(nombre) AS nombre,
+              count(*) FILTER (WHERE resultado = 'electo')::int AS veces_electo
+         FROM cand GROUP BY 1)
+     SELECT p.nombre, p.veces_electo,
+            (SELECT json_agg(json_build_object('anio', x.anio, 'cargo', x.cargo, 'partido', x.partido, 'resultado', x.resultado,
+                    'region', NULLIF(x.region, ''), 'provincia', NULLIF(x.provincia, ''), 'distrito', NULLIF(x.distrito, ''),
+                    'fuente', x.fuente_url) ORDER BY x.anio, x.cargo)
+               FROM cand x WHERE coalesce(x.numero_documento, 'n:' || x.nombre) = p.clave) AS candidaturas,
+            -- Un gobierno regional son varias unidades ejecutoras con la misma autoridad: una fila por cargo, con la
+            -- entidad de nombre más corto (la sede) y cuántas son.
+            (SELECT json_agg(g) FROM (
+               SELECT h.cargo_gob AS cargo, h.partido, h.periodo_inicio AS desde, h.periodo_fin AS hasta,
+                      (array_agg(h.entidad ORDER BY (h.entidad ILIKE '%SEDE CENTRAL%') DESC, length(h.entidad)))[1] AS entidad,
+                      (array_agg(h.entidad_ruc ORDER BY (h.entidad ILIKE '%SEDE CENTRAL%') DESC, length(h.entidad)))[1] AS entidad_ruc,
+                      count(*)::int AS entidades
+                 FROM hoy h WHERE h.autoridad = p.nombre GROUP BY 1, 2, 3, 4) g) AS en_el_cargo
+       FROM personas p
+      WHERE p.veces_electo > 0 OR EXISTS (SELECT 1 FROM hoy h WHERE h.autoridad = p.nombre)
+      ORDER BY p.veces_electo DESC, p.nombre
+      LIMIT 10`,
+    vals,
+  );
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar({
+    q: palabras.join(" "),
+    personas: r.rows.map((x) => ({ ...x, electo: true })),
+    nota: "Candidaturas del JNE de 2014 a 2022. Los gobernadores elegidos en segunda vuelta pueden figurar como «no_electo» (faltan esas actas): «en_el_cargo» viene del registro de autoridades vigentes y manda.",
+    fuente_oficial: { nombre: "JNE, Plataforma Electoral e Infogob", enlace: "https://infogob.jne.gob.pe/" },
+  }));
+});
+
 /** Un partido: sus totales y las entidades que gobierna, con su captura (las más capturadas primero). */
 poderRouter.get("/partido/:partido", async (c) => {
   const partido = c.req.param("partido");

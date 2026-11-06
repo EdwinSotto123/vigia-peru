@@ -25,6 +25,14 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   LOCAL_DOWNLOADER_URL?: string;
 
+  /** Chat del panel (routes/admin_chat.ts): el modelo por vigia-llm y las herramientas del MCP v2, por service binding. */
+  LLM?: { fetch(input: Request | string, init?: RequestInit): Promise<Response> };
+  MCP?: { fetch(input: Request | string, init?: RequestInit): Promise<Response> };
+  /** URL del MCP v2 que se pide por el binding (el host decide el servidor): https://mcp.gobserva.cloud/mcp */
+  MCP_INTERNO_URL?: string;
+  /** Secretos del chat: el token de vigia-llm y la cabecera interna que el MCP acepta como cuenta del equipo. */
+  LLM_TOKEN?: string;
+  MCP_INTERNO_TOKEN?: string;
   /** Service binding al Worker vigia-dispatcher (lib/dispatcher.ts: "correr el dispatcher ahora"). */
   DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
   /** Service binding al Worker vigia-seace-zrh (routes/ordenes.ts: el expediente SIAF de una orden, a pedido). */

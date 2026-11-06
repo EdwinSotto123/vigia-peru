@@ -19,6 +19,8 @@ export interface EnvV2 extends Env {
   /** Clave web pública de Firebase (va como secreto para no dejarla en el repo público). */
   FIREBASE_API_KEY: string;
   ENTORNO?: string;
+  /** Cabecera `x-vigia-interno` que manda el chat del panel (vigia-api, por service binding): cuenta del equipo. */
+  MCP_INTERNO_TOKEN?: string;
 }
 
 /** Lo que guarda la autorización (props cifradas por la librería) y lee cada herramienta. */
