@@ -20,6 +20,25 @@ def _peso(agente: str | None, severidad: str | None) -> int:
     return _PESOS.get(agente or "", _PESOS_DEFAULT).get(severidad or "", 5)
 
 
+# Reglas que se apoyan en el MISMO hecho: «Único postor con oferta alta» y «Oferta igual al valor referencial» salen de
+# la misma oferta (la del ganador, igual o casi igual al referencial). Las dos se muestran (dicen cosas distintas: poca
+# competencia y posible filtración), pero en el puntaje la de menor peso suma la mitad: antes ese precio contaba dos
+# veces y 1228227 llegaba a 100 con dos señales de precio (pedido del usuario del 2026-11-05).
+_MISMO_HECHO_PUNTAJE: tuple[tuple[str, str], ...] = (("unico_postor_alto", "oferta_igual_valor_referencial"),)
+
+
+def puntaje_de(banderas: list[dict]) -> int:
+    """min(100, Σ peso) de las banderas que puntúan, con el mismo hecho contado una vez y media (no dos)."""
+    pesos = [(b.get("regla"), _peso(b.get("agente_origen"), b.get("severidad"))) for b in banderas if b.get("puntua", True)]
+    total = float(sum(p for _, p in pesos))
+    for a, b in _MISMO_HECHO_PUNTAJE:
+        pa = max((p for r, p in pesos if r == a), default=0)
+        pb = max((p for r, p in pesos if r == b), default=0)
+        if pa and pb:
+            total -= min(pa, pb) / 2
+    return min(int(round(total)), 100)
+
+
 def _norma(state: dict, clave: str) -> str:
     """Norma citada según el régimen del proceso (Ley 32069 desde 22-abr-2025; antes TUO 30225)."""
     try:
@@ -93,13 +112,13 @@ def _leer_banderas(cur, alerta_id) -> list[dict]:
 
 
 def _recalcular_score(cur, alerta_id, state=None) -> tuple[int, list[dict]]:
-    """score = min(100, Σ peso(agente, severidad)) sobre TODAS las banderas de la alerta.
+    """score = min(100, Σ peso(agente, severidad)) sobre TODAS las banderas de la alerta (`puntaje_de`: el mismo hecho
+    de dos reglas cuenta una vez y media).
     Actualiza `alertas.score` y `reglas_disparadas`; deja state['banderas'] con la
     lista completa (todos los agentes) y devuelve (score, banderas)."""
     banderas = _leer_banderas(cur, alerta_id)
     # Los hechos neutros (puntua=false) se muestran pero no suman: no son riesgo, son contexto.
-    score = min(sum(_peso(b.get("agente_origen"), b.get("severidad")) for b in banderas
-                    if b.get("puntua", True)), 100)
+    score = puntaje_de(banderas)
     reglas = sorted({b["regla"] for b in banderas if b.get("regla")})
     cur.execute("UPDATE alertas SET score=%s, reglas_disparadas=%s, updated_at=NOW() WHERE id=%s",
                 (score, reglas, alerta_id))
