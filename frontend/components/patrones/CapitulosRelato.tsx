@@ -278,7 +278,7 @@ export function CapitulosRelato({
                 onClick={() => elegir(c.id)}
                 onKeyDown={(e) => alTeclado(e, i)}
                 className={cn(
-                  "inline-flex min-h-[40px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl pl-1.5 pr-3 text-meta transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
+                  "inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl pl-1.5 pr-2.5 text-meta transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
                   sel ? "bg-granate-50 font-semibold text-granate" : "font-medium text-inkSoft hover:bg-paperSoft hover:text-ink",
                 )}
               >
