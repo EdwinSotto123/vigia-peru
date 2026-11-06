@@ -49,13 +49,16 @@ const cargarTabla = () =>
   memoTabla.obtener("tabla", async () => {
     const [m, cats, gasto, est] = await Promise.all([
       pool.query<Record<string, unknown>>(`SELECT * FROM entidad_metricas`),
-      pool.query<{ clave: string; nombre: string; consulta: string; excluir: string | null }>(
-        `SELECT clave, nombre, consulta, excluir FROM categoria_gasto WHERE refrescado_at IS NOT NULL ORDER BY orden, clave`),
+      // Con *: es_senal (257) llega si la base ya la tiene; sin ella, todos son señal (como en la 256).
+      pool.query<{ clave: string; nombre: string; consulta: string; excluir: string | null; es_senal?: boolean | null }>(
+        `SELECT * FROM categoria_gasto WHERE refrescado_at IS NOT NULL ORDER BY orden, clave`),
       pool.query<{ entidad_ruc: string; categoria: string; monto: number; ordenes: number }>(
         `SELECT entidad_ruc, categoria, monto::float8 AS monto, ordenes FROM entidad_gasto_categoria`),
       pool.query<{ t: string | null }>(`SELECT to_char(refrescado_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS t FROM hallazgos_estado WHERE id`),
     ]);
-    const categorias: Categoria[] = cats.rows.map((c) => ({ clave: c.clave, nombre: c.nombre, terminos: terminosDe(c.consulta), excluir: terminosDe(c.excluir) }));
+    const categorias: Categoria[] = cats.rows.map((c) => ({
+      clave: c.clave, nombre: c.nombre, terminos: terminosDe(c.consulta), excluir: terminosDe(c.excluir), senal: c.es_senal !== false,
+    }));
     const validas = new Set(categorias.map((c) => c.clave));
     const filas: FilaMetricas[] = m.rows.map((r) => ({
       ruc: String(r.ruc), nombre: (r.nombre as string | null) ?? null, grupo: String(r.grupo), banda: NUM(r.banda),
@@ -85,7 +88,9 @@ const NOTA =
   "entidad). Un hallazgo es una cifra en el 10 % más alto de sus pares (en la ejecución del presupuesto, en el 10 % más " +
   "bajo), con al menos 15 pares con el dato y un mínimo propio (por ejemplo 10 procesos, o S/ 50 mil y 1 % en un " +
   "concepto de gasto). Los conceptos de gasto se buscan por palabras en la descripción de cada orden: revisa con " +
-  "«profundizar» las compras que suman. Las personas naturales sólo se cuentan, nunca se nombran.";
+  "«profundizar» las compras que suman. Los conceptos que son gasto normal de operación (tipo «contexto», como " +
+  "telefonía o mantenimiento de vehículos) se comparan, pero nunca se marcan como hallazgo. Las personas naturales " +
+  "sólo se cuentan, nunca se nombran.";
 
 const FUENTES = [
   { nombre: "OECE, CONOSCE: adjudicaciones, postores y órdenes de compra y servicio", enlace: "https://conosce.oece.gob.pe/buscador/" },
@@ -170,7 +175,7 @@ hallazgosRouter.get("/ranking", async (c) => {
       mediana: r.mediana,
       total: r.total,
       filas: r.filas,
-      nota: `${pedido.metrica.senal ? "Sólo entran las entidades que cumplen el mínimo de la cifra (para que un porcentaje sobre muy pocos casos no encabece la lista). " : ""}${NOTA}`,
+      nota: `${pedido.metrica.piso ? "Sólo entran las entidades que cumplen el mínimo de la cifra (para que un porcentaje sobre muy pocos casos no encabece la lista). " : ""}${NOTA}`,
       fuentes: FUENTES,
       calculado: t.calculado,
     }));

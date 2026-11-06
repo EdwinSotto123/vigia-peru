@@ -37,6 +37,8 @@ export interface Env {
   DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
   /** Service binding al Worker vigia-seace-zrh (routes/ordenes.ts: el expediente SIAF de una orden, a pedido). */
   SEACE_ZRH?: { fetch(input: string, init?: RequestInit): Promise<Response> };
+  /** Workers AI (wrangler.jsonc → "ai"): embeddings de @cf/baai/bge-m3 para el RAG de documentos (lib/rag.ts, migración 258). */
+  AI?: Ai;
   /** Límite por IP de lecturas, búsquedas y escrituras (lib/antibots.ts): un Durable Object por clave (workers/limitador.ts). */
   LIMITADOR?: DurableObjectNamespace<import("./limitador.js").Limitador>;
 

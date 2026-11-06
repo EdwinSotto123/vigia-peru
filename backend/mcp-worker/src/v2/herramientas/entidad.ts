@@ -280,7 +280,9 @@ HERRAMIENTAS_ENTIDAD.push(gastoPorConcepto);
 const METRICAS_RANKING = [
   "pct_unico_postor", "pct_directas", "pct_top5_proveedores", "pct_personas_naturales", "pct_diciembre", "pct_borde_tope",
   "pct_ejecucion", "pct_ejecucion_actual", "informes_penal", "pct_obras_paralizadas", "gasto_eventos", "gasto_alimentos",
-  "gasto_publicidad", "gasto_regalos", "monto_adjudicado", "procesos", "monto_ordenes", "pim",
+  "gasto_publicidad", "gasto_regalos", "gasto_viajes", "gasto_asesorias", "gasto_alquiler_vehiculos", "gasto_uniformes",
+  "gasto_telefonia", "gasto_mantenimiento_vehiculos", "gasto_alquiler_maquinaria", "monto_adjudicado", "procesos",
+  "monto_ordenes", "pim",
 ] as const;
 
 export const hallazgosEntidad = definir({
@@ -326,7 +328,7 @@ export const rankingEntidades = definir({
     "presupuesto: por ejemplo «qué municipalidades distritales gastan más en eventos» o «qué gobiernos regionales ejecutan " +
     "menos su presupuesto». Trae valor, percentil y mediana del grupo.",
   entrada: {
-    metrica: z.enum(METRICAS_RANKING),
+    metrica: z.string().max(60).describe(`Clave de la métrica: ${METRICAS_RANKING.join(", ")} o gasto_<concepto> (la lista completa sale en hallazgos_entidad).`),
     grupo: z.string().max(40).describe("municipalidad_distrital, municipalidad_provincial, gobierno_regional, nacional, salud, educacion, universidad, organismo_municipal, empresa_publica u otros."),
     region: z.string().max(40).optional(),
     banda: z.number().int().min(1).max(3).optional().describe("Tercio de presupuesto dentro del grupo: 1 menor, 2 medio, 3 mayor."),
@@ -335,7 +337,7 @@ export const rankingEntidades = definir({
   },
   async ejecutar(a, cx) {
     const d = await api<Fila>(cx.env, "/hallazgos/ranking", {
-      metrica: a.metrica, grupo: a.grupo.toLowerCase().replace(/\s+/g, "_"), region: a.region, banda: a.banda, orden: a.orden, limite: a.limite,
+      metrica: a.metrica.trim().toLowerCase(), grupo: a.grupo.toLowerCase().replace(/\s+/g, "_"), region: a.region, banda: a.banda, orden: a.orden, limite: a.limite,
     });
     return {
       ...d,
@@ -346,3 +348,52 @@ export const rankingEntidades = definir({
 });
 
 HERRAMIENTAS_ENTIDAD.push(hallazgosEntidad, rankingEntidades);
+
+/** Lo que el modelo suele pedir con otro nombre → los `tipo` y `origen` de GET /documentos/buscar (lib/rag.ts). */
+const TIPO_DOCUMENTO: Record<string, { tipo?: string; origen?: string }> = {
+  bases: { tipo: "bases" }, acta: { tipo: "buena_pro" }, buena_pro: { tipo: "buena_pro" }, consultas: { tipo: "consultas" },
+  pliego: { tipo: "consultas" }, contrato: { tipo: "contrato" }, adenda: { tipo: "contrato_anexo" }, anexo: { tipo: "contrato_anexo" },
+  evaluacion: { tipo: "evaluacion" }, dictamen: { origen: "dictamen" }, informe: { origen: "informe_control" },
+  informe_control: { origen: "informe_control" }, contraloria: { origen: "informe_control" }, lectura: { origen: "lectura" },
+  documento: { origen: "documento" },
+};
+function tipoDocumento(t?: string): { tipo?: string; origen?: string } {
+  if (!t) return {};
+  const k = t.trim().toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/\s+/g, "_").replace(/s$/, "");
+  return TIPO_DOCUMENTO[k] ?? TIPO_DOCUMENTO[`${k}s`] ?? {};
+}
+
+export const buscarDocumentos = definir({
+  nombre: "buscar_documentos",
+  titulo: "Buscar en el texto de los documentos",
+  descripcion:
+    "Busca en el TEXTO de los documentos de los contratos (bases, actas de buena pro, contratos, consultas), en las " +
+    "lecturas que la IA hizo de ellos y en los dictámenes de Vigía: por palabras y por significado. Sirve para preguntas " +
+    "sobre su contenido («qué exigían las bases», «por qué descalificaron a un postor», «qué marca pedían», «qué dice el " +
+    "dictamen sobre…»). Filtra por proceso, entidad, tipo o años. Devuelve fragmentos con su documento, página y enlace.",
+  entrada: {
+    pregunta: z.string().min(3).max(300).describe("Lo que buscas, en palabras normales."),
+    ocid: z.string().max(64).optional().describe("Solo en los documentos de este proceso."),
+    entidad_ruc: z.string().optional(),
+    tipo: z.string().max(40).optional()
+      .describe("bases, acta (buena pro), consultas, contrato, evaluacion, dictamen, informe (de la Contraloría) o lectura (lo que leyó la IA)."),
+    desde: z.number().int().min(2015).max(2030).optional(),
+    hasta: z.number().int().min(2015).max(2030).optional(),
+    limite: z.number().int().min(1).max(20).default(8),
+  },
+  async ejecutar(a, cx) {
+    const { tipo, origen } = tipoDocumento(a.tipo);
+    const d = await api<Fila>(cx.env, "/documentos/buscar", {
+      q: a.pregunta, ocid: a.ocid ? aOcid(a.ocid) : undefined, entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined,
+      tipo, origen, desde: a.desde, hasta: a.hasta, limite: a.limite,
+    });
+    const e = enlaces(cx.env);
+    return {
+      ...d,
+      resultados: ((d.resultados ?? []) as Fila[]).map((r) => ({ ...r, ficha: r.ocid ? e.contrato(String(r.ocid)) : undefined })),
+      aviso: "Fragmentos de documentos públicos del SEACE y de análisis de Vigía: cita el documento y la página.",
+    };
+  },
+});
+
+HERRAMIENTAS_ENTIDAD.push(buscarDocumentos);

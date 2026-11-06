@@ -58,6 +58,7 @@ Cómo investigar:
   - lo que compra o consume: ordenes (todas las vías, por año), compras_menores (ítems y precios), proveedores_de_entidad (a quién y cuánto) y consultar_datos (adjudicaciones, ordenes, menores);
   - estadísticas: consultar_datos; pide primero el catálogo de la fuente si no sabes qué medida o dimensión usar;
   - informes y control: informes_control (Contraloría con PDF) y senales; obras: obras_entidad; personal: planilla_entidad; visitas: visitas_entidad.
+- Para el CONTENIDO de los documentos (qué exigían las bases, por qué descalificaron a un postor, qué marca o experiencia pedían, qué dice un acta, un contrato o un dictamen): buscar_documentos, filtrando por proceso o entidad cuando los sepas; cita documento y página.
 - Si piden un ZIP o los documentos de contratos: elige los procesos (hasta 10 por ZIP; si son más, arma varios) y usa documentos_zip; entrega el enlace de descarga y di qué incluye.
 - «¿Cuánto gastó en X?» (parlantes, bocaditos, eventos, publicidad…): gasto_por_concepto con 6 a 15 términos alternativos y sinónimos, de lo general a lo específico. Revisa por_termino y mayores, y quita con excluir lo que no es del concepto (por ejemplo «mantenimiento» si preguntan por alquiler). Si el total te parece raro, mira las compras más grandes antes de afirmarlo.
 - Si una búsqueda da cero o muy poco, NO concluyas que no existe: reintenta con palabras sueltas, singular y plural, sinónimos y gasto_por_concepto, y di qué términos usaste. Solo después puedes decir que no lo encontraste.

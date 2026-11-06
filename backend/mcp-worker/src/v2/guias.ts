@@ -27,6 +27,7 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
    informes_control (Contraloría con PDF), planilla_entidad y visitas_entidad.
 5. Documentos: documentos_zip arma un ZIP con bases, actas y contratos de hasta 10 procesos.
    Lo raro: hallazgos_entidad (la entidad frente a sus pares) y ranking_entidades (quién destaca en una métrica).
+   Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
 6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
 7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
 

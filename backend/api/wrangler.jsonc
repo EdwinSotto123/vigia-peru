@@ -43,6 +43,10 @@
   "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
   "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
 
+  // Workers AI: embeddings de @cf/baai/bge-m3 (1024 dimensiones) para el RAG de documentos (lib/rag.ts, migración 258):
+  // POST /admin/rag/indexar, el cron de 10 min y la pregunta de GET /documentos/buscar. US$ 0,012 por millón de tokens.
+  "ai": { "binding": "AI" },
+
   // Las mismas de infrastructure/deploy/gcp/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY, DISPATCHER_TOKEN, TURNSTILE_SECRET_KEY (copia en
   // Secret Manager: turnstile-secret).
@@ -88,6 +92,7 @@
       "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }, { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp-dev" }],
       "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
       "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
+      "ai": { "binding": "AI" },
       "vars": {
         "VIGIA_ENTORNO": "dev",
         "FIREBASE_PROJECT_ID": "simplia-project",

@@ -4,7 +4,8 @@
  * la frase que la explica. La ruta (routes/hallazgos.ts) sólo lee las tablas y arma la respuesta.
  *
  * Una cifra es un HALLAZGO cuando:
- *   · es una señal (las cifras de volumen, como el monto adjudicado o el PIM, son contexto: nunca hallazgo);
+ *   · es una señal (las cifras de volumen, como el monto adjudicado o el PIM, son contexto: nunca hallazgo; también los
+ *     conceptos de gasto normales de operación, como telefonía o mantenimiento: categoria_gasto.es_senal = false, 257);
  *   · la entidad cumple el piso de su cifra (por ejemplo 10 procesos para un porcentaje de procesos; S/ 50 mil, 1 % y 50
  *     órdenes para un concepto de gasto): un 100 % sobre dos procesos no dice nada;
  *   · al menos MIN_PARES pares tienen el dato;
@@ -66,6 +67,11 @@ export interface Categoria {
   /** Las palabras de `consulta` y `excluir` (to_tsquery) como términos para gasto_por_concepto. */
   terminos: string[];
   excluir: string[];
+  /**
+   * false: gasto normal de operación (telefonía, mantenimiento de vehículos…): se compara con los pares como contexto, pero
+   * nunca es hallazgo (categoria_gasto.es_senal, migración 257). Sin el dato, señal (como en la 256).
+   */
+  senal?: boolean;
 }
 
 // ─── Los grupos ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -112,8 +118,11 @@ export interface DefMetrica {
   /** Qué son el numerador y el denominador. */
   base: string;
   partes: (f: FilaMetricas) => Partes;
-  /** El piso para que cuente como hallazgo (un % sobre muy pocos casos no dice nada). */
-  piso: (f: FilaMetricas) => boolean;
+  /**
+   * El piso para que la cifra diga algo: para ser hallazgo y para entrar al ranking (un % sobre muy pocos casos no dice
+   * nada). Sin piso: una cifra de volumen (el monto adjudicado, el PIM), que vale con cualquier valor.
+   */
+  piso?: (f: FilaMetricas) => boolean;
   /** La primera mitad de la frase: qué es, con su valor. */
   que: (x: Partes, f: FilaMetricas) => string;
   profundizar: (ruc: string) => Profundizar;
@@ -152,7 +161,6 @@ export const METRICAS_FIJAS: DefMetrica[] = [
     clave: "monto_adjudicado", titulo: "Monto adjudicado en procesos", unidad: "S/", direccion: "alto", senal: false,
     base: "soles adjudicados en procesos con buena pro desde 2023 (sin los montos que parecen mal cargados)",
     partes: (f) => cantidad(f.adj_monto, f.adj_procesos > 0),
-    piso: () => false,
     que: (x, f) => `Desde ${DESDE} adjudicó ${fmtSoles(x.valor!)} en ${plural(f.adj_procesos, "proceso", "procesos")} de selección`,
     profundizar: (ruc) => ({ herramienta: "proveedores_de_entidad", argumentos: { ruc, anio_desde: DESDE } }),
   },
@@ -160,7 +168,6 @@ export const METRICAS_FIJAS: DefMetrica[] = [
     clave: "procesos", titulo: "Procesos con buena pro", unidad: "procesos", direccion: "alto", senal: false,
     base: "procesos de selección con buena pro convocados desde 2023",
     partes: (f) => cantidad(f.adj_procesos, f.adj_procesos > 0),
-    piso: () => false,
     que: (x) => `Desde ${DESDE} tuvo ${plural(x.valor!, "proceso", "procesos")} de selección con buena pro`,
     profundizar: (ruc) => datos("adjudicaciones", "procesos", ["anio"], { entidad: ruc, anio_desde: DESDE }),
   },
@@ -192,7 +199,6 @@ export const METRICAS_FIJAS: DefMetrica[] = [
     clave: "monto_ordenes", titulo: "Monto en órdenes de compra y servicio", unidad: "S/", direccion: "alto", senal: false,
     base: "soles en órdenes de compra y de servicio desde 2023 (sin anuladas ni montos dudosos)",
     partes: (f) => cantidad(f.ord_monto, f.ord_ordenes > 0),
-    piso: () => false,
     que: (x, f) => `Desde ${DESDE} emitió ${plural(f.ord_ordenes, "orden", "órdenes")} de compra y de servicio por ${fmtSoles(x.valor!)}`,
     profundizar: (ruc) => datos("ordenes", "monto_ordenes", ["anio"], { entidad: ruc, anio_desde: DESDE }),
   },
@@ -224,7 +230,6 @@ export const METRICAS_FIJAS: DefMetrica[] = [
     clave: "pim", titulo: "Presupuesto (PIM)", unidad: "S/", direccion: "alto", senal: false,
     base: "presupuesto institucional modificado del último año completo (MEF)",
     partes: (f) => cantidad(f.mef_pim, (f.mef_pim ?? 0) > 0),
-    piso: () => false,
     que: (x, f) => `Su presupuesto (PIM) de ${f.anio_completo} fue ${fmtSoles(x.valor!)}`,
     profundizar: (ruc) => datos("presupuesto", "pim", ["anio"], { entidad: ruc }),
   },
@@ -265,10 +270,15 @@ export const METRICAS_FIJAS: DefMetrica[] = [
 /** La cifra de un concepto de gasto: qué parte del monto de sus órdenes fue a ese concepto. */
 export function metricaCategoria(c: Categoria): DefMetrica {
   return {
-    clave: `gasto_${c.clave}`, titulo: `Gasto en ${c.nombre.charAt(0).toLowerCase()}${c.nombre.slice(1)}`, unidad: "%", direccion: "alto", senal: true,
+    clave: `gasto_${c.clave}`, titulo: `Gasto en ${c.nombre.charAt(0).toLowerCase()}${c.nombre.slice(1)}`, unidad: "%", direccion: "alto",
+    // Un gasto normal de operación (es_senal = false) se compara igual, pero como contexto: nunca es hallazgo.
+    senal: c.senal !== false,
     base: `monto de órdenes cuya descripción es de «${c.nombre}» / monto de todas sus órdenes, desde 2023`,
     partes: (f) => {
       const x = f.categorias[c.clave];
+      // Más que el total: el concepto (refrescar_gasto_categoria) y el total (entidad_orden_mes) salieron de cortes
+      // distintos (un año de entidad_orden_mes sin refrescar, una orden que cambió): ese % no es comparable.
+      if (f.ord_monto > 0 && (x?.monto ?? 0) > f.ord_monto) return { valor: null, numerador: x!.monto, denominador: f.ord_monto };
       return f.ord_monto > 0 ? pct(x?.monto ?? 0, f.ord_monto) : { valor: null, numerador: x?.monto ?? null, denominador: null };
     },
     piso: (f) => (f.categorias[c.clave]?.monto ?? 0) >= 50_000 && f.ord_ordenes >= 50 && f.ord_monto > 0 && (100 * (f.categorias[c.clave]?.monto ?? 0)) / f.ord_monto >= 1,
@@ -300,20 +310,32 @@ export function terminosDe(consulta: string | null | undefined): string[] {
     partes.push(actual);
     return partes.map((p) => p.trim()).filter(Boolean);
   };
+  // El paréntesis que abre en la primera letra, ¿cierra en la última? «(a | b) & (c | d)» empieza y termina con
+  // paréntesis, pero no está envuelto.
+  const envuelto = (t: string) => {
+    let nivel = 0;
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] === "(") nivel++;
+      else if (t[i] === ")" && --nivel === 0) return i === t.length - 1;
+    }
+    return false;
+  };
   const sinParentesis = (s: string) => {
     let t = s.trim();
-    while (t.startsWith("(") && t.endsWith(")")) t = t.slice(1, -1).trim();
+    while (t.startsWith("(") && envuelto(t)) t = t.slice(1, -1).trim();
     return t;
   };
   const expandir = (s: string): string[] => {
     const t = sinParentesis(s);
     const o = partir(t, "|");
     if (o.length > 1) return o.flatMap(expandir);
-    // Lo negado («!combustible») no es un término: es lo que saca.
+    // Lo negado («!combustible») no es un término: es lo que saca. «(viatico & !(responsable | auxiliar))» → «viatico».
     const y = partir(t, "&").filter((p) => !p.startsWith("!"));
     if (y.length > 1) {
       return y.map(expandir).reduce<string[]>((acc, xs) => (acc.length ? acc.flatMap((a) => xs.map((x) => `${a} ${x}`)) : xs), []);
     }
+    if (!y.length) return [];
+    if (y[0] !== t) return expandir(y[0]);
     return [t.replace(/[^a-z0-9ñ ]/gi, " ").replace(/\s+/g, " ").trim()].filter(Boolean);
   };
   for (const t of expandir(consulta)) if (!out.includes(t)) out.push(t);
@@ -417,7 +439,7 @@ export function evaluar(e: FilaMetricas, pares: FilaMetricas[], defs: DefMetrica
     const percentil = x.valor == null ? null : percentilDe(x.valor, ordenados);
     const extremo = percentil != null && mediana != null && x.valor != null &&
       (d.direccion === "alto" ? percentil >= PERCENTIL_ALTO && x.valor > mediana : percentil <= PERCENTIL_BAJO && x.valor < mediana);
-    const hallazgo = d.senal && x.valor != null && n >= MIN_PARES && d.piso(e) && extremo;
+    const hallazgo = d.senal && x.valor != null && n >= MIN_PARES && (d.piso?.(e) ?? true) && extremo;
     return {
       clave: d.clave,
       titulo: d.titulo,
@@ -520,7 +542,8 @@ export interface FilaRanking {
 /**
  * Las entidades del grupo (y del tercio, si se pidió) ordenadas por la cifra, con su percentil dentro de ese conjunto;
  * `region` sólo filtra la lista (el percentil y la mediana son contra todo el grupo). Las que no cumplen el piso de la
- * cifra no entran (un 100 % sobre dos órdenes no encabeza nada), salvo en las cifras de contexto, que no tienen piso.
+ * cifra no entran (un 100 % sobre dos órdenes no encabeza nada), tampoco en un concepto de gasto de contexto; las cifras de
+ * volumen no tienen piso.
  */
 export function ranking(todas: FilaMetricas[], p: PedidoRanking): { filas: FilaRanking[]; total: number; mediana: number | null; con_dato: number } {
   const conjunto = todas.filter((f) => f.grupo === p.grupo && (p.banda == null || f.banda === p.banda));
@@ -529,7 +552,7 @@ export function ranking(todas: FilaMetricas[], p: PedidoRanking): { filas: FilaR
   const mediana = cuantil(ordenados, 0.5);
   const candidatas = conValor
     .filter((r) => p.region == null || r.f.departamento === p.region)
-    .filter((r) => !p.metrica.senal || p.metrica.piso(r.f));
+    .filter((r) => !p.metrica.piso || p.metrica.piso(r.f));
   candidatas.sort((a, b) => (p.orden === "desc" ? b.x.valor - a.x.valor : a.x.valor - b.x.valor) || a.f.ruc.localeCompare(b.f.ruc));
   const filas = candidatas.slice(0, p.limite).map(({ f, x }) => {
     const pc = percentilDe(x.valor, ordenados);
@@ -540,7 +563,7 @@ export function ranking(todas: FilaMetricas[], p: PedidoRanking): { filas: FilaR
       veces_mediana: mediana != null && mediana > 0 ? Math.round((100 * x.valor) / mediana) / 100 : null,
       numerador: x.numerador == null ? null : Math.round(x.numerador * 100) / 100,
       denominador: x.denominador == null ? null : Math.round(x.denominador * 100) / 100,
-      cumple_piso: p.metrica.piso(f),
+      cumple_piso: p.metrica.piso ? p.metrica.piso(f) : true,
     };
   });
   return { filas, total: candidatas.length, mediana: redondear(mediana, p.metrica.unidad), con_dato: ordenados.length };

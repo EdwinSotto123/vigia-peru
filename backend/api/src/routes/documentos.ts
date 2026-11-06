@@ -3,6 +3,10 @@
  *
  *   GET /documentos/indice?ocid=1228227&ocid=…   hasta 10 procesos: qué documentos hay guardados, su tamaño y cuáles no
  *   GET /documentos/zip?ocid=1228227&ocid=…      el ZIP en streaming desde R2 (vigia-peru-batch), con indice.csv
+ *   GET /documentos/buscar?q=…[&ocid=…][&entidad=<RUC>][&tipo=bases,buena_pro…][&origen=documento,lectura…][&desde=2024]
+ *        [&hasta=2026][&limite=8]                 el RAG de documentos (migración 258, lib/rag.ts): búsqueda híbrida
+ *                                                 (palabras + significado) en el texto de bases, actas, contratos,
+ *                                                 pliegos, lecturas de IA, dictámenes e informes de control
  *
  * Son copias de documentos públicos del SEACE que Vigía ya guardó (documentos_gcs, la misma fila que usa
  * /contratos/:ocid/documento). Lo que no está guardado va en el índice con su enlace al SEACE. Sin compresión (los PDF ya
@@ -11,9 +15,12 @@
  */
 import { Hono } from "hono";
 import { Zip, ZipPassThrough, strToU8 } from "fflate";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
 import { ambitoPedido } from "../lib/plataforma.js";
-import { dentroDeTope, ipCliente } from "../lib/antibots.js";
+import { claveIp, dentroDeTope, ipCliente, pedidoInterno } from "../lib/antibots.js";
+import { SIN_CACHE, cachePublico } from "../lib/http.js";
+import { buscarRag, type IaWorkers } from "../lib/rag.js";
+import { ErrorBusqueda, validarBusqueda } from "../lib/ragTexto.js";
 
 export const documentosRouter = new Hono();
 
@@ -140,4 +147,37 @@ documentosRouter.get("/zip", async (c) => {
       "X-Content-Type-Options": "nosniff",
     },
   });
+});
+
+// Una búsqueda pide un embedding a Workers AI y recorre dos índices: además del límite general de búsquedas (30 por
+// minuto, lib/antibots.ts), 20 por minuto por IP. Lo interno (la web armando una página, el MCP y el chat por service
+// binding) no cuenta.
+const TOPE_BUSCAR = 20;
+
+documentosRouter.get("/buscar", async (c) => {
+  const url = new URL(c.req.url);
+  let busqueda;
+  try {
+    busqueda = validarBusqueda((k) => url.searchParams.get(k) ?? undefined, (k) => url.searchParams.getAll(k));
+  } catch (e) {
+    if (e instanceof ErrorBusqueda) return c.json({ error: "pedido_invalido", detail: e.message }, 400);
+    throw e;
+  }
+  if (!pedidoInterno(c) && !(await dentroDeTope(`rag|${claveIp(ipCliente(c))}`, TOPE_BUSCAR, 60))) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "demasiados_pedidos", detail: "Son muchas búsquedas seguidas: espera un minuto.", reintentarEn: 60 }, 429);
+  }
+  try {
+    const ia = (c.env as { AI?: IaWorkers } | undefined)?.AI;
+    const r = await buscarRag(busqueda, ia);
+    // Sólo por palabras porque Workers AI falló: que no quede guardada en el borde.
+    c.header("Cache-Control", r.modo === "hibrido" || !ia ? cachePublico(600, { maxAge: 120 }) : SIN_CACHE);
+    return c.json(r);
+  } catch (e) {
+    if (esErrorPg(e, "42P01")) return c.json({ error: "no_disponible", detail: "El índice de documentos todavía no existe en esta base." }, 503);
+    if (/statement timeout|canceling statement/i.test(String((e as Error).message))) {
+      return c.json({ error: "consulta_lenta", detail: "La búsqueda tardó demasiado: acota con ocid, entidad, tipo o años." }, 504);
+    }
+    throw e;
+  }
 });

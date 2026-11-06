@@ -55,11 +55,14 @@ import { adminEquipoRouter } from "./admin_equipo.js";
 import { adminPrivacidadRouter } from "./admin_privacidad.js";
 import { adminGobservaRouter } from "./admin_gobserva.js";
 import { adminChatRouter } from "./admin_chat.js";
+import { adminRagRouter, iaDe } from "./admin_rag.js";
+import { indexarRag } from "../lib/rag.js";
 
 export const adminRouter = new Hono();
 
-// Pedidos que no cambian nada público: no vacían cachés (el último ingreso al panel es sólo una marca).
-const SIN_INVALIDAR = /\/equipo\/ingreso\//;
+// Pedidos que no cambian nada público: no vacían cachés (el último ingreso al panel es sólo una marca; indexar el RAG de
+// documentos, que el llenado inicial llama cada pocos segundos, no cambia ninguna respuesta en memoria).
+const SIN_INVALIDAR = /\/equipo\/ingreso\/|\/rag\//;
 
 adminRouter.use("*", async (c, next) => {
   // Nada del panel se guarda en un navegador ni en el CDN de Firebase Hosting.
@@ -91,6 +94,8 @@ adminRouter.route("/", adminEquipoRouter);
 adminRouter.route("/", adminPrivacidadRouter);
 // Gobserva: clientes, cobros, configuración de los planes y tareas de las alertas (admin_gobserva.ts, migración 230).
 adminRouter.route("/", adminGobservaRouter);
+// RAG de documentos: POST /rag/indexar y GET /rag/estado (admin_rag.ts, migración 258).
+adminRouter.route("/", adminRagRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {
@@ -597,7 +602,18 @@ adminRouter.post("/asignar", async (c) => {
       if (!esErrorPg(e, "42883")) console.warn(`[asignar] refrescar_hallazgos: ${(e as Error).message}`);
       return null;
     });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos });
+  // El RAG de documentos (migración 258, lib/rag.ts): trocea lo nuevo (dictámenes recién publicados, lecturas, textos) y
+  // calcula sus embeddings con Workers AI, con tope de 40 s y 1 500 embeddings por vuelta; una vez al mes recalcula las
+  // líneas del modelo estándar (~75 s, y esa vuelta no hace más). Sin la migración (42P01/42883) o si falla, se anota y
+  // sigue: nunca rompe esta tarea.
+  const rag = await indexarRag(iaDe(c.env), { segundos: 40, embeddings: 1500, fuentes: 300, lineas: "auto" })
+    .then((r) => ({ troceadas: r.troceadas, fragmentosNuevos: r.fragmentosNuevos, embeddings: r.embeddings.calculados + r.embeddings.reusados,
+      pendientes: r.pendientes, error: r.embeddings.error, lineas: r.lineas, segundos: r.segundos }))
+    .catch((e) => {
+      if (!esErrorPg(e, "42P01", "42883")) console.warn(`[asignar] rag: ${(e as Error).message}`);
+      return null;
+    });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos, rag });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

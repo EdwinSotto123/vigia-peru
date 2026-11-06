@@ -146,4 +146,24 @@ los bindings de Rate Limiting de Workers cuentan en cada máquina y, con el plac
 
 Los buscadores (Googlebot, Bingbot), las vistas previas de enlaces (WhatsApp, Telegram, Facebook) y los asistentes que
 abren una página porque una persona lo pidió (ChatGPT-User, Claude-User, Perplexity) siguen entrando. Para revisar o
-volver a aplicar lo de la zona: `CLOUDFLARE_API_TOKEN=… python proteger_zona.py estado` (o `todo`).
+volver a aplicar lo de la zona: `CLOUDFLARE_API_TOKEN=… GOBSERVA_PRUEBA=… python proteger_zona.py estado` (o `todo`).
+
+## Plan Business (desde 2026-11-06)
+
+`proteger_zona.py` usa lo que trae el plan (cada parte se aplica sola: `python proteger_zona.py <parte>`):
+
+| Parte | Qué |
+|-------|-----|
+| `waf` | 11 reglas propias (tope 100, con regex). Bloquea métodos raros y escáneres (lista + regex). Saltos: buscadores verificados, nuestros Workers (`cf.worker.upstream_zone`), MCP y medios (programas: sin SBFM, BIC ni nivel de seguridad), Anthropic en el MCP (sin límite por IP; el MCP cuenta por cuenta), vistas previas, IndexNow y scripts propios, y navegadores de prueba con la cabecera secreta `x-gobserva-prueba`. Siguen las de entrenamiento de IA, scripts y redes de nubes |
+| `bots` | Super Bot Fight Mode: «seguro automatizado» → desafío; «probablemente automatizado» libre (también marca personas y un desafío rompe los `fetch` del navegador); sin detecciones por JS (CSP con hash en la portada) |
+| `administradas` | Reglas administradas de Cloudflare (todas) + OWASP nivel 1, umbral 60, desafío, sólo GET/HEAD de los sitios (el texto libre del MCP, del chat y de los archivos subidos daría falsos positivos) |
+| `limite` | 5 reglas, por visitante con NAT (`cf.unique_visitor_id`): 30 404 por minuto → bloqueo 1 h; OAuth del MCP y POST de la web, 30 por minuto; ráfaga de 150 en 10 s; 600 páginas o `/v1` en 10 min → desafío; MCP fuera de Anthropic, 300 por minuto. Calibradas con 72 h de tráfico (lo máximo de una persona: ~210 páginas en 10 min) |
+| `paginas` | Páginas propias de bloqueo, límite, desafío, modo ataque y errores 5xx/1xxx (`paginas_error.py` → `errores/*.html` → R2 `vigia-peru-reportes/errores/`, servidas por medios.gobserva.cloud). Cloudflare guarda una copia: tras cambiarlas, subirlas, purgar y volver a correr `paginas` |
+| `ajustes`, `cache` | HTTP/3, 0-RTT, Early Hints, Brotli, Polish sin pérdida + WebP, Smart Tiered Cache y un día en el borde para medios (R2) |
+| `escudo` | Page Shield: scripts, conexiones y cookies de cada página; aviso por correo si aparece un dominio nuevo |
+| `salud` | 8 chequeos cada minuto desde Sudamérica y el este de EE. UU. (los 5 sitios por `/robots.txt`, el MCP, medios y la API con su base por `/health`) y avisos por correo: un sitio cae o vuelve, ataque DDoS HTTP, pico de eventos del WAF |
+| `sala` | Sala de espera de vigia.gobserva.cloud (600 nuevos por minuto, 2 000 activos), creada APAGADA. Prender sólo ante una avalancha anunciada: `proteger_zona.py sala on`; en Business no hay respuestas JSON en la cola |
+
+Probar PROD con un navegador sin cabeza: mandar `x-gobserva-prueba` sólo a los dominios de gobserva.cloud (en
+Playwright con `context.route`, no con `extra_http_headers`, que la manda también a Google Fonts). Sin ella, Super Bot
+Fight Mode responde «Just a moment…».

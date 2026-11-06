@@ -140,12 +140,15 @@ test("sin piso o con pocos pares no hay hallazgo, aunque la cifra sea la más al
 test("conceptos de gasto: piso de S/ 50 mil, 1 % del total y 50 órdenes", () => {
   const d = metricaCategoria(EVENTOS);
   assert.equal(d.clave, "gasto_eventos");
-  assert.equal(d.piso(fila("1", { ord_ordenes: 60, ord_monto: 10e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), false); // 0,6 %
-  assert.equal(d.piso(fila("1", { ord_ordenes: 60, ord_monto: 1e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), true);
-  assert.equal(d.piso(fila("1", { ord_ordenes: 40, ord_monto: 1e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), false);
-  assert.equal(d.piso(fila("1", { ord_ordenes: 60, ord_monto: 1e6, categorias: { eventos: { monto: 49_000, ordenes: 4 } } })), false);
+  assert.equal(d.piso!(fila("1", { ord_ordenes: 60, ord_monto: 10e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), false); // 0,6 %
+  assert.equal(d.piso!(fila("1", { ord_ordenes: 60, ord_monto: 1e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), true);
+  assert.equal(d.piso!(fila("1", { ord_ordenes: 40, ord_monto: 1e6, categorias: { eventos: { monto: 60_000, ordenes: 4 } } })), false);
+  assert.equal(d.piso!(fila("1", { ord_ordenes: 60, ord_monto: 1e6, categorias: { eventos: { monto: 49_000, ordenes: 4 } } })), false);
   assert.equal(d.partes(fila("1", { ord_monto: 0 })).valor, null);
   assert.equal(d.partes(fila("1", { ord_monto: 1e6 })).valor, 0);
+  // Más que el total (cortes distintos): sin dato, no un 259 % que encabece el ranking.
+  assert.deepEqual(d.partes(fila("1", { ord_monto: 1e6, categorias: { eventos: { monto: 2e6, ordenes: 3 } } })),
+    { valor: null, numerador: 2e6, denominador: 1e6 });
 });
 
 test("terminosDe: la consulta de to_tsquery como términos para gasto_por_concepto", () => {
@@ -153,6 +156,57 @@ test("terminosDe: la consulta de to_tsquery como términos para gasto_por_concep
   assert.deepEqual(terminosDe("regalo | (tarjeta & consumo & !combustible)"), ["regalo", "tarjeta consumo"]);
   assert.deepEqual(terminosDe(null), []);
   assert.deepEqual(terminosDe("a | a"), ["a"]);
+  // Un grupo con una sola palabra y su negación (257): la palabra sola, sin lo negado.
+  assert.deepEqual(terminosDe("(viatico & !(responsable | auxiliar)) | (combustible & !filtro) | (limpieza & !(publica & !concurso))"),
+    ["viatico", "combustible", "limpieza"]);
+  assert.deepEqual(terminosDe("!a"), []);
+  // Empieza y termina con paréntesis sin estar envuelto.
+  assert.deepEqual(terminosDe("(alquiler | arrendamiento) & (camioneta | (vehiculo & !pesado))"),
+    ["alquiler camioneta", "alquiler vehiculo", "arrendamiento camioneta", "arrendamiento vehiculo"]);
+});
+
+test("concepto de contexto (es_senal = false): se compara con sus pares, nunca es hallazgo y el ranking pide su piso", () => {
+  const COMB: Categoria = { clave: "combustible", nombre: "Combustible y lubricantes", terminos: ["combustible"], excluir: [], senal: false };
+  const defs = definiciones([EVENTOS, COMB]);
+  const d = defs.find((x) => x.clave === "gasto_combustible")!;
+  assert.equal(d.senal, false);
+  assert.equal(metricaCategoria({ ...COMB, senal: undefined }).senal, true); // sin el dato (una base sin la 257): señal
+  const pares = PARES.map((p, i) => ({ ...p, categorias: { ...p.categorias, combustible: { monto: 20_000 + i * 1_000, ordenes: 10 } } }));
+  // 40 % de sus órdenes en combustible contra pares de 1 % a 3 %: lo más alto, pero contexto.
+  const e = fila("20999999990", { ord_ordenes: 500, ord_monto: 3e6, categorias: { combustible: { monto: 1_200_000, ordenes: 300 } } });
+  const m = evaluar(e, pares, defs).find((x) => x.clave === "gasto_combustible")!;
+  assert.deepEqual([m.tipo, m.hallazgo, m.percentil, m.valor], ["contexto", false, 100, 40]);
+  assert.ok(!seleccionarHallazgos(evaluar(e, pares, defs)).some((x) => x.clave === "gasto_combustible"));
+  // En el ranking, un 49 % sobre S/ 49 mil no entra aunque sea contexto: el piso es el de todo concepto de gasto.
+  const chica = fila("20999999991", { ord_monto: 100_000, ord_ordenes: 10, categorias: { combustible: { monto: 49_000, ordenes: 2 } } });
+  const r = ranking([...pares, e, chica], { metrica: d, grupo: "municipalidad_distrital", region: null, banda: null, orden: "desc", limite: 100 });
+  assert.equal(r.filas[0].ruc, e.ruc);
+  assert.ok(!r.filas.some((f) => f.ruc === chica.ruc));
+  assert.ok(r.filas.every((f) => f.cumple_piso));
+});
+
+test("la 257: conceptos sin frases, con es_senal y sin negaciones en excluir", () => {
+  const sql = readFileSync(new URL("../../db/migrations/257_mas_categorias_gasto.sql", import.meta.url), "utf8");
+  const inserts = sql.slice(sql.indexOf("INSERT INTO categoria_gasto"), sql.indexOf("ON CONFLICT (clave)"));
+  assert.ok(!inserts.includes("<->"), "sin <-> (el GIN tendría que recalcular to_tsvector)");
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS es_senal boolean NOT NULL DEFAULT true/);
+  const filas = [...inserts.matchAll(/\('([a-z_]+)', '[^']+',\s*'([^']+)',\s*'([^']+)',\s*(\d+), (true|false)\)/g)];
+  assert.ok(filas.length >= 7, `filas leídas: ${filas.length}`);
+  const claves = filas.map((f) => f[1]);
+  assert.equal(new Set(claves).size, claves.length);
+  for (const [, clave, consulta, excluir] of filas) {
+    // En excluir sólo palabras y grupos con &: lo negado va en consulta, para que profundizar (gasto_por_concepto) no
+    // saque de más (no sabe de condiciones).
+    assert.ok(!excluir.includes("!"), `${clave}: excluir sin «!»`);
+    assert.ok(terminosDe(consulta).length > 0 && terminosDe(consulta).every((t) => !t.includes("!")), clave);
+  }
+  // Los gastos normales de operación son contexto; los discrecionales, señal.
+  const senal = Object.fromEntries(filas.map((f) => [f[1], f[5] === "true"]));
+  for (const c of ["telefonia", "mantenimiento_vehiculos", "alquiler_maquinaria"]) assert.equal(senal[c], false, c);
+  for (const c of ["viajes", "asesorias", "alquiler_vehiculos", "uniformes"]) assert.equal(senal[c], true, c);
+  // El refresco lleva excluir dentro del tsquery (el GIN descarta sin leer el heap) y el cron no empieza lo que no cabe.
+  assert.ok(sql.includes("') & !(' || v.excluir || ')'"));
+  assert.match(sql, /COALESCE\(segundos, 0\) <= 100/);
 });
 
 test("ranking: listas cerradas y 400 con las opciones", () => {
