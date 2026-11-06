@@ -29,9 +29,13 @@ export const BUCKETS_COMPROBANTE: readonly string[] = Array.from(new Set([BUCKET
 
 export const escaparRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 
-/** `https://storage.googleapis.com/<bucket propio>/comprobantes/<archivo>` → {bucket, ruta}; si no, null. */
+/**
+ * `r2://<bucket propio>/comprobantes/<archivo>` (desde el 2026-11-06, la web sube a R2) o, los de antes,
+ * `https://storage.googleapis.com/<bucket propio>/comprobantes/<archivo>` → {bucket, ruta}; si no, null. Los dos se leen
+ * de R2 (las copias tienen la misma ruta).
+ */
 export function ubicarComprobante(url: string): { bucket: string; ruta: string } | null {
-  const m = url.match(/^https:\/\/storage\.googleapis\.com\/([^/]+)\/(comprobantes\/[A-Za-z0-9._-]{1,120})$/);
+  const m = url.match(/^(?:r2:\/\/|https:\/\/storage\.googleapis\.com\/)([^/]+)\/(comprobantes\/[A-Za-z0-9._-]{1,120})$/);
   if (!m || !BUCKETS_COMPROBANTE.includes(m[1])) return null;
   return { bucket: m[1], ruta: m[2] };
 }

@@ -15,7 +15,8 @@
   // pesaría 140 KB en vez de 3). Cloudflare Images: 5000 transformaciones únicas al mes gratis.
   "images": { "binding": "IMAGES" },
   // Caché de páginas (ISR) compartida entre instancias: open-next.config.ts.
-  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache" }],
+  // Subidas (lib/gcs.ts): MEDIOS es lo público (medios.gobserva.cloud), PRIVADO los comprobantes. Antes, GCS.
+  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache" }, { "binding": "MEDIOS", "bucket_name": "vigia-peru-reportes" }, { "binding": "PRIVADO", "bucket_name": "vigia-peru-privado" }],
   "services": [
     // Revalidación ISR: el worker se pide a sí mismo la página vencida (open-next.config.ts).
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
@@ -48,7 +49,7 @@
       // run_worker_first: que los estáticos también pidan usuario y clave (worker-dev.js los busca en ASSETS).
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS", "run_worker_first": true },
       "images": { "binding": "IMAGES" },
-      "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache-dev" }],
+      "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache-dev" }, { "binding": "MEDIOS", "bucket_name": "vigia-peru-reportes" }, { "binding": "PRIVADO", "bucket_name": "vigia-peru-privado" }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web-dev" }],
       "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } }],
       // El freno de páginas y la trampa (worker-comun.js) con el Durable Object de vigia-api-dev; el veto dura un minuto.

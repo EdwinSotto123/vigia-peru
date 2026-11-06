@@ -197,9 +197,10 @@ contribucionesRouter.post("/apoyo", limiteEscritura, exigirCaptcha, optionalAuth
 // PROPIO (auditoría C4): antes aceptaba `<cualquier bucket>/comprobantes/…` y el panel admin lo
 // descargaba y lo servía con el Content-Type que trajera (XSS almacenado). Hoy los comprobantes van
 // al bucket privado (GCS_BUCKET_PRIVADO); se sigue aceptando la ruta vieja del bucket de documentos.
-// El panel los lee con la cuenta de servicio de la API (routes/admin.ts, BUCKETS_COMPROBANTE).
+// El panel los lee de R2 (routes/admin.ts, BUCKETS_COMPROBANTE). Desde el 2026-11-06 la web sube a R2 y devuelve
+// `r2://<bucket>/comprobantes/…`; se sigue aceptando la forma de GCS de antes.
 const URL_COMPROBANTE = new RegExp(
-  `^https://storage\\.googleapis\\.com/(${BUCKETS_COMPROBANTE.map(escaparRegex).join("|")})/comprobantes/[A-Za-z0-9._-]{1,120}$`);
+  `^(?:r2://|https://storage\\.googleapis\\.com/)(${BUCKETS_COMPROBANTE.map(escaparRegex).join("|")})/comprobantes/[A-Za-z0-9._-]{1,120}$`);
 const ComprobanteBody = z.object({
   url: z.string().max(400).regex(URL_COMPROBANTE),
   referencia: z.string().max(80).optional(),

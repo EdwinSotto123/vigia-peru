@@ -32,6 +32,18 @@ export interface OpcionesFirma {
   responseType?: string;
 }
 
+/** Lo que se usa de un bucket de R2 (el tipo R2Bucket de Workers, sin depender de @cloudflare/workers-types acá). */
+export interface ObjetoAlmacen {
+  body: ReadableStream;
+  size: number;
+  httpMetadata?: { contentType?: string };
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+export interface Almacen {
+  get(clave: string): Promise<ObjetoAlmacen | null>;
+  head(clave: string): Promise<{ size: number; httpMetadata?: { contentType?: string } } | null>;
+}
+
 export interface MetadatosObjeto {
   contentType?: string;
   size?: string | number;
@@ -75,6 +87,11 @@ export interface AmbitoPedido {
    */
   servicio?(nombre: "dispatcher" | "seace_zrh"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
   /** Límite por clave exacto entre todas las instancias (Durable Object, workers/limitador.ts); sin él, en memoria. */
+  /**
+   * Un bucket de R2 por el nombre que tenía en GCS (vigia-peru-batch, vigia-peru-privado…): GCP quedó sin facturación y
+   * sus buckets ya no responden; las copias viven en R2 con las mismas rutas (solo en Workers).
+   */
+  almacen?(bucket: string): Almacen | undefined;
   limitador?(): {
     contar(clave: string, tope: number, ventanaS: number, persistente?: boolean): Promise<boolean>;
     cuantas(clave: string, ventanaS: number, persistente?: boolean): Promise<number>;

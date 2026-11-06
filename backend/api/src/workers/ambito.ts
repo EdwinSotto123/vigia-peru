@@ -52,6 +52,15 @@ class Ambito implements AmbitoPedido {
     return nombre === "dispatcher" ? this.env.DISPATCHER : nombre === "seace_zrh" ? this.env.SEACE_ZRH : undefined;
   }
 
+  almacen(bucket: string) {
+    const r2: Record<string, R2Bucket | undefined> = {
+      "vigia-peru-batch": this.env.DOCUMENTOS,
+      "vigia-peru-batch-dev": this.env.DOCUMENTOS,
+      "vigia-peru-privado": this.env.PRIVADO,
+      "vigia-peru-documentos": this.env.DOCUMENTOS_VIEJOS,
+    };
+    return Object.hasOwn(r2, bucket) ? (r2[bucket] as unknown as import("../lib/plataforma.js").Almacen | undefined) : undefined;
+  }
   limitador() {
     const ns = this.env.LIMITADOR;
     if (!ns) return undefined;

@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import { publicar } from "../lib/privacidad.js";
 import { OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { COLS as COLS_PROCESAMIENTO, RESULTADO_SQL } from "./procesamientos.js";
-import { signReadUrl } from "../lib/storage.js";
+import { ambitoPedido } from "../lib/plataforma.js";
 import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publicacion.js";
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
@@ -35,23 +35,65 @@ const cache = (c: { header: (k: string, v: string) => void }, s: number) => c.he
 // ─── GET /contratos/:ocid ────────────────────────────────────────────────────
 // URL firmada (15 min) para ver/descargar un documento guardado en el almacén de Vigía.
 //   GET /contratos/:ocid/documento?url=<url_origen SEACE>
-contratosDetalleRouter.get("/:ocid/documento", async (c) => {
-  const ocid = c.req.param("ocid");
-  const url = c.req.query("url") ?? "";
-  if (!url) return c.json({ error: "falta url" }, 400);
+//
+// Los documentos viven en R2 (vigia-peru-batch, con la ruta que dice `url_gcs`). Hasta el 2026-11-06 se devolvía una URL
+// firmada de GCS; GCP quedó sin facturación y esas URLs dan 403. Ahora `url` apunta a /documento/archivo, que lo sirve
+// desde R2 por la API (relativa: el navegador la pide por el /v1 de la misma web). Misma forma de respuesta que antes.
+const MIME_DOCUMENTO: Record<string, string> = {
+  pdf: "application/pdf", zip: "application/zip", rar: "application/vnd.rar",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+async function documentoGuardado(ocid: string, url: string) {
   const r = await pool.query(
     `SELECT d.url_gcs AS "urlGcs", d.formato, d.titulo, d.bytes, d.expira_at AS "expiraAt"
      FROM documentos_gcs d
      WHERE ocid_corto(d.ocid) = ocid_corto($1) AND d.url_origen = $2 AND d.borrado_at IS NULL AND d.expira_at > now()
      ORDER BY d.creado_at DESC LIMIT 1`, [ocid, url]).catch(() => ({ rows: [] as any[] }));
-  const d = r.rows[0];
-  if (!d) return c.json({ error: "no_disponible", detail: "El documento no está en el almacén de Vigía (se descarga al financiar el análisis)." }, 404);
-  const mime: Record<string, string> = { pdf: "application/pdf", zip: "application/zip", rar: "application/vnd.rar", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+  return r.rows[0] as { urlGcs: string; formato: string | null; titulo: string | null; bytes: number | null; expiraAt: string } | undefined;
+}
+
+const NO_DISPONIBLE = { error: "no_disponible", detail: "El documento no está en el almacén de Vigía (se descarga al financiar el análisis)." };
+
+contratosDetalleRouter.get("/:ocid/documento", async (c) => {
+  const ocid = c.req.param("ocid");
+  const url = c.req.query("url") ?? "";
+  if (!url) return c.json({ error: "falta url" }, 400);
+  if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
+  const d = await documentoGuardado(ocid, url);
+  if (!d) return c.json(NO_DISPONIBLE, 404);
+  const formato = String(d.formato ?? "").toLowerCase();
+  const archivo = `/v1/contratos/${encodeURIComponent(ocid)}/documento/archivo?url=${encodeURIComponent(url)}`;
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ url: archivo, formato, bytes: d.bytes, expiraAt: d.expiraAt, previsualizable: formato === "pdf", venceEnSeg: 900 });
+});
+
+// El archivo mismo, desde R2. Solo lo que está registrado en documentos_gcs para ese proceso (no es un lector de R2
+// abierto): un PDF se muestra en línea; lo demás se descarga, con nosniff y sandbox.
+contratosDetalleRouter.get("/:ocid/documento/archivo", async (c) => {
+  const ocid = c.req.param("ocid");
+  const url = c.req.query("url") ?? "";
+  if (!url || !/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "falta url" }, 400);
+  const d = await documentoGuardado(ocid, url);
+  const m = d ? /^gs:\/\/([^/]+)\/(.+)$/.exec(d.urlGcs) : null;
+  const almacen = m ? ambitoPedido.getStore()?.almacen?.(m[1]) : undefined;
+  if (!d || !m || !almacen) return c.json(NO_DISPONIBLE, 404);
+  const objeto = await almacen.get(m[2]);
+  if (!objeto) return c.json(NO_DISPONIBLE, 404);
   const formato = String(d.formato ?? "").toLowerCase();
   const nombre = `${ocid}-${(d.titulo ?? "documento").replace(/[^\w.-]+/g, "_").slice(0, 80)}.${formato || "bin"}`;
-  const firmada = await signReadUrl(d.urlGcs, { filename: nombre, contentType: mime[formato] });
-  c.header("Cache-Control", "private, no-store");
-  return c.json({ url: firmada, formato, bytes: d.bytes, expiraAt: d.expiraAt, previsualizable: formato === "pdf", venceEnSeg: 900 });
+  const pdf = formato === "pdf";
+  return new Response(objeto.body, {
+    headers: {
+      "Content-Type": MIME_DOCUMENTO[formato] ?? "application/octet-stream",
+      "Content-Length": String(objeto.size),
+      "Content-Disposition": `${pdf ? "inline" : "attachment"}; filename="${nombre}"`,
+      "X-Content-Type-Options": "nosniff",
+      ...(pdf ? {} : { "Content-Security-Policy": "sandbox" }),
+      "Cache-Control": "private, max-age=900",
+    },
+  });
 });
 
 // ─── GET /contratos/:ocid/gobierno — el partido que gobernaba la entidad cuando se convocó ────────

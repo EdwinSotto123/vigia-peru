@@ -48,7 +48,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_ADMIN, cookieAdmin, leerSesion, tokenFirebaseValido } from "@/lib/admin-sesion";
-import { guardarObjeto } from "@/lib/gcs";
+import { bucketR2, guardarObjeto, MEDIOS_URL } from "@/lib/gcs";
 import { ipDelPedido, limitarPorIp, type Limite } from "@/lib/limite-ip";
 import { puede } from "@/lib/permisos";
 import { verificarTurnstile } from "@/lib/turnstile-servidor";
@@ -429,14 +429,17 @@ export async function POST(req: NextRequest) {
       cacheControl: privado ? "private, no-store" : "public, max-age=31536000",
     });
   } catch (e) {
-    console.error("[upload] GCS:", (e as Error).message);
+    console.error("[upload] almacén:", (e as Error).message);
     return fallar("error_al_guardar");
   }
 
   return NextResponse.json({
     ok: true,
-    // En el bucket privado es una referencia interna (la lee la API con su cuenta de servicio), no un enlace.
-    url: `https://storage.googleapis.com/${bucketName}/${path}`,
+    // En el bucket privado es una referencia interna (la lee la API desde R2), no un enlace. Lo público se sirve en el
+    // dominio de R2 (medios.gobserva.cloud); fuera de Workers (next dev) sigue la forma de GCS.
+    url: bucketR2(bucketName)
+      ? privado ? `r2://${bucketName}/${path}` : `${MEDIOS_URL}/${path}`
+      : `https://storage.googleapis.com/${bucketName}/${path}`,
     privado,
     path,
     tipo: formato.tipo,

@@ -12,6 +12,10 @@ export interface Env {
   /** Réplica R2 de documentos (vigia-peru-batch): sirve los requerimientos de contratos menores espejados desde prod6
    * (su WAF bloquea el egress de Cloudflare, así que no se pueden traer en vivo). Lo llena backend/scripts/cargar_seace_menores.py. */
   DOCUMENTOS?: R2Bucket;
+  /** Comprobantes de aportes y de pagos (vigia-peru-privado, antes en GCS): solo los lee el panel. */
+  PRIVADO?: R2Bucket;
+  /** El bucket viejo de documentos (vigia-peru-documentos, antes en GCS): comprobantes con la ruta de antes. */
+  DOCUMENTOS_VIEJOS?: R2Bucket;
 
   // vars
   FIREBASE_PROJECT_ID?: string;

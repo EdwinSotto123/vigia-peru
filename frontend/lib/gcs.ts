@@ -11,7 +11,25 @@
 import "server-only";
 import type { Storage } from "@google-cloud/storage";
 import { accessTokenDeCuenta } from "./cuenta-google";
-import { EN_WORKERS } from "./entorno";
+import { bindingCloudflare, EN_WORKERS } from "./entorno";
+
+/**
+ * Desde el 2026-11-06 GCP está sin facturación (sus buckets responden 403): en Workers se escribe en R2, en el bucket
+ * que tiene el mismo nombre (copias con las mismas rutas). Lo público se sirve en MEDIOS_URL (dominio de R2).
+ */
+const R2_POR_BUCKET: Record<string, string> = { "vigia-peru-reportes": "MEDIOS", "vigia-peru-privado": "PRIVADO" };
+export const MEDIOS_URL = "https://medios.gobserva.cloud";
+
+interface BucketR2 {
+  put(clave: string, valor: ArrayBuffer | ArrayBufferView | string, o?: { httpMetadata?: { contentType?: string; cacheControl?: string }; customMetadata?: Record<string, string> }): Promise<unknown>;
+  get(clave: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
+}
+
+/** El bucket de R2 que reemplaza a `bucket` de GCS, si el worker lo tiene. */
+export function bucketR2(bucket: string): BucketR2 | null {
+  const nombre = R2_POR_BUCKET[bucket];
+  return nombre && EN_WORKERS ? bindingCloudflare<BucketR2>(nombre) : null;
+}
 
 export interface OpcionesObjeto {
   contentType: string;
@@ -38,6 +56,11 @@ async function autorizacion(): Promise<string> {
 
 /** Guarda `datos` en `gs://bucket/ruta` (reemplaza si existe). Lanza si falla. */
 export async function guardarObjeto(bucket: string, ruta: string, datos: Buffer | string, o: OpcionesObjeto): Promise<void> {
+  const r2 = bucketR2(bucket);
+  if (r2) {
+    await r2.put(ruta, datos, { httpMetadata: { contentType: o.contentType, cacheControl: o.cacheControl }, customMetadata: o.metadata });
+    return;
+  }
   if (!EN_WORKERS) {
     const s = await storageNode();
     await s.bucket(bucket).file(ruta).save(datos, {
@@ -70,6 +93,11 @@ export async function guardarObjeto(bucket: string, ruta: string, datos: Buffer 
 
 /** El contenido de `gs://bucket/ruta`, o `null` si no existe. Lanza ante cualquier otro error. */
 export async function leerObjeto(bucket: string, ruta: string): Promise<Buffer | null> {
+  const r2 = bucketR2(bucket);
+  if (r2) {
+    const o = await r2.get(ruta);
+    return o ? Buffer.from(await o.arrayBuffer()) : null;
+  }
   if (!EN_WORKERS) {
     const file = (await storageNode()).bucket(bucket).file(ruta);
     const [existe] = await file.exists();

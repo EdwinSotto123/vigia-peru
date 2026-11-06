@@ -43,6 +43,8 @@ const nextConfig = {
       // logos de aliados y QR de pago: sólo el bucket público de Vigía. Sin `pathname` (y con **.run.app), el
       // optimizador servía y transformaba imágenes de cualquier bucket o servicio ajeno (auditoría 2026-10-21).
       { protocol: "https", hostname: "storage.googleapis.com", pathname: "/vigia-peru-reportes/**" },
+      // Desde el 2026-11-06 (GCP sin facturación) el mismo bucket se sirve desde R2 con su dominio.
+      { protocol: "https", hostname: "medios.gobserva.cloud", pathname: "/**" },
     ],
   },
   // Rutas viejas. Antes eran páginas con `redirect()`: se prerenderizaban, y en Workers salían como un 307 sin Location
