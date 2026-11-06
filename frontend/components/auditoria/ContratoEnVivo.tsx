@@ -384,7 +384,8 @@ function indicadores(p: ProcesamientoDetalle, prog: { hechas: number; aplicables
   // los pasos.
   const adjudicado = p.estado === "procesado" && r?.montoAdjudicado != null && r.montoAdjudicado > 0 ? r.montoAdjudicado : null;
   if (adjudicado != null) {
-    const quien = r?.ganador?.nombre ? tituloNatural(r.ganador.nombre) : r?.ganador?.persona ? "una persona natural" : null;
+    // La razón social tal como la registra la SUNAT, como en el dictamen («RM LOGISTIC S.A.C.»; tituloNatural la volvía «Rm»).
+    const quien = r?.ganador?.nombre ? r.ganador.nombre : r?.ganador?.persona ? "una persona natural" : null;
     items.push({
       valor: solesCompacto(adjudicado),
       etiqueta: "adjudicado",

@@ -83,7 +83,9 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
             descripcion={normaLegible(s.norma)?.texto}
             etiqueta={`Ver la evidencia de la señal: ${reglaLabel(s.regla)}`}
             ancho="md"
-            className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
+            // Del ancho de la fila (más los márgenes negativos): un <button> con `w-auto` toma el ancho de su contenido y
+            // una norma larga (con su URL) desbordaba la página a 2 000 px en vez de recortarse con «…».
+            className="-mx-2 w-[calc(100%+1rem)] rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
             detalle={<DetalleSenal s={s} />}
             pie={
               <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta">
