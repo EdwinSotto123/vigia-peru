@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
  *   la frase lleva a «Qué proceso paga») abre ese capítulo y baja hasta él. Al imprimir salen todos.
  * - El capítulo va a la URL (`?cap=`, con `history.replaceState`): el enlace comparte el capítulo abierto. Las claves son
  *   únicas en la página, así que dos relatos (la historia y la red del proveedor) comparten el parámetro sin pisarse.
- * - Pestañas de WAI-ARIA: `tablist`/`tab`/`tabpanel`, flechas, Inicio y Fin.
+ * - Pestañas de WAI-ARIA: `tablist`/`tab`/`tabpanel`, flechas, Inicio y Fin. Si la barra no entra (el panel de una orden,
+ *   el celular), se desliza y se difumina en el borde por donde hay más capítulos.
+ * - `en="panel"`: dentro de un panel lateral (la orden): el capítulo no va a la URL de la lista y su título es un h3.
  */
 
 type Tono = "alta" | "media" | "baja";
@@ -42,6 +44,14 @@ export interface CapituloRelato {
   contenido: ReactNode;
 }
 
+// Clases literales (Tailwind sólo genera lo que ve escrito entero): difumina el borde por donde hay más capítulos.
+const MASCARA: Record<string, string> = {
+  "true-true": "[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%-2rem),transparent)]",
+  "true-false": "[mask-image:linear-gradient(to_right,transparent,black_2rem)]",
+  "false-true": "[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]",
+  "false-false": "",
+};
+
 const CONTEO_TONO: Record<Tono | "neutro", string> = {
   alta: "bg-crimson-soft text-crimsonTexto",
   media: "bg-amber-soft text-amberTexto",
@@ -53,31 +63,52 @@ export function CapitulosRelato({
   capitulos,
   etiqueta = "Capítulos",
   activa,
-  url = true,
-  nivel = 2,
+  en = "pagina",
   className,
 }: {
   capitulos: CapituloRelato[];
   etiqueta?: string;
   /** El capítulo abierto al cargar (si el servidor lo sabe). Si no, el de `?cap=` o el del `#ancla`, al montar. */
   activa?: string;
-  /** `false` en un panel lateral: el capítulo no va a la URL de la lista. */
-  url?: boolean;
-  /** El nivel del título de cada capítulo: 3 dentro de un panel que ya tiene su h2. */
-  nivel?: 2 | 3;
+  /** `panel`: dentro de un panel lateral (sin URL, título h3, la franja de la barra del color del panel). */
+  en?: "pagina" | "panel";
   className?: string;
 }) {
+  const url = en === "pagina";
   const inicial = capitulos.some((c) => c.id === activa) ? activa! : capitulos[0]?.id;
   const [actual, setActual] = useState(inicial);
   const uid = useId();
   const raiz = useRef<HTMLDivElement>(null);
   const botones = useRef<(HTMLButtonElement | null)[]>([]);
+  const franja = useRef<HTMLDivElement>(null);
+  const riel = useRef<HTMLDivElement>(null);
+  const [desborde, setDesborde] = useState({ izq: false, der: false });
   const ids = capitulos.map((c) => c.id).join("|");
 
   /** El capítulo (de ESTE relato) en que está un elemento de la página, o null. */
   const capituloDe = (el: Element | null): string | null => {
     const panel = el?.closest<HTMLElement>("[data-relato-panel]");
     return panel && panel.dataset.relato === uid ? (panel.dataset.relatoPanel ?? null) : null;
+  };
+
+  /** Lo que tapan arriba las barras fijas (la de la ficha y, desde md, esta): para que lo que se busca no quede debajo. */
+  const tapado = () => {
+    const r = raiz.current;
+    if (!r) return 0;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const v = getComputedStyle(r).getPropertyValue("--alto-barra-fija").trim();
+    const ficha = v.endsWith("rem") ? parseFloat(v) * rem : parseFloat(v) || 0;
+    const f = franja.current;
+    const esta = f && getComputedStyle(f).position === "sticky" ? f.offsetHeight : 0;
+    return ficha + esta + 0.75 * rem;
+  };
+
+  /** Baja hasta `el` dejándolo justo debajo de las barras fijas (en la ventana o en el panel que se desliza). */
+  const bajarA = (el: HTMLElement) => {
+    const antes = el.style.scrollMarginTop;
+    el.style.scrollMarginTop = `${tapado()}px`;
+    el.scrollIntoView({ block: "start" });
+    el.style.scrollMarginTop = antes;
   };
 
   /** Lleva la vista al principio del relato si quedó arriba de la pantalla (se leía el final de un capítulo largo). */
@@ -112,7 +143,7 @@ export function CapitulosRelato({
     if (!cap) return false;
     setActual(cap);
     requestAnimationFrame(() => {
-      destino.scrollIntoView({ block: "start" });
+      bajarA(destino);
       try {
         const u = new URL(window.location.href);
         if (url) {
@@ -170,6 +201,33 @@ export function CapitulosRelato({
     return () => document.removeEventListener("click", alClic, true);
   });
 
+  // ¿Quedan capítulos fuera de la barra, a la izquierda o a la derecha? (el activo, siempre a la vista).
+  const medir = useCallback(() => {
+    const r = riel.current;
+    if (!r) return;
+    const izq = r.scrollLeft > 2;
+    const der = r.scrollLeft + r.clientWidth < r.scrollWidth - 2;
+    setDesborde((d) => (d.izq === izq && d.der === der ? d : { izq, der }));
+  }, []);
+  useEffect(() => {
+    const r = riel.current;
+    if (!r) return;
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(r);
+    return () => ro.disconnect();
+  }, [medir]);
+  useEffect(() => {
+    const r = riel.current;
+    const b = botones.current[capitulos.findIndex((c) => c.id === actual)];
+    if (!r || !b) return;
+    const margen = 32;
+    if (b.offsetLeft - margen < r.scrollLeft) r.scrollLeft = Math.max(0, b.offsetLeft - margen);
+    else if (b.offsetLeft + b.offsetWidth + margen > r.scrollLeft + r.clientWidth) r.scrollLeft = b.offsetLeft + b.offsetWidth + margen - r.clientWidth;
+    medir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actual, ids, medir]);
+
   const alTeclado = (e: React.KeyboardEvent, i: number) => {
     const n = capitulos.length;
     const destino =
@@ -180,16 +238,28 @@ export function CapitulosRelato({
   };
 
   if (capitulos.length === 0) return null;
-  const Titulo = nivel === 3 ? "h3" : "h2";
+  const Titulo = en === "panel" ? "h3" : "h2";
 
   return (
     <div ref={raiz} className={cn("scroll-mt-[calc(var(--alto-barra-fija,0px)+0.5rem)]", className)}>
-      {/* Desde md, pegada arriba (debajo de la barra de pestañas de la ficha, si la hay): se cambia de capítulo sin subir. */}
-      <div className="relative z-[5] md:sticky md:top-[calc(var(--alto-barra-fija,0px)+0.5rem)]">
+      {/* Desde md, pegada arriba (debajo de la barra de pestañas de la ficha, si la hay): se cambia de capítulo sin subir.
+          La franja del color del fondo tapa lo que pasa por detrás entre las dos barras. */}
+      <div
+        ref={franja}
+        className={cn(
+          "relative z-[5] md:sticky md:top-[var(--alto-barra-fija,0px)] md:-mt-2 md:py-2",
+          en === "panel" ? "md:bg-paper" : "md:bg-fondo",
+        )}
+      >
         <div
+          ref={riel}
           role="tablist"
           aria-label={etiqueta}
-          className="flex gap-1 overflow-x-auto rounded-2xl border border-line bg-paper p-1 shadow-[0_1px_2px_rgb(var(--ink)/0.06)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={medir}
+          className={cn(
+            "flex gap-1 overflow-x-auto rounded-2xl border border-line bg-paper p-1 shadow-[0_1px_2px_rgb(var(--ink)/0.06)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            MASCARA[`${desborde.izq}-${desborde.der}`],
+          )}
         >
           {capitulos.map((c, i) => {
             const sel = c.id === actual;
@@ -244,7 +314,7 @@ export function CapitulosRelato({
             data-relato={uid}
             data-relato-panel={c.id}
             hidden={!sel}
-            className="scroll-mt-[calc(var(--alto-barra-fija,0px)+4.5rem)] pt-4 print:!block"
+            className="pt-3 print:!block"
           >
             <div className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-1", (c.tituloLargo || c.bajada || c.accion) && "mb-3")}>
               <div className="min-w-0">

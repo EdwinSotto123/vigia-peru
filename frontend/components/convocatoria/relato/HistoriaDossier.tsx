@@ -92,7 +92,6 @@ export function HistoriaDossier(p: PanelDossierProps) {
       id: "relato-quien",
       titulo: "Quién ganó",
       tituloLargo: "Quién ganó y con quién compite",
-      conteo: nPostores,
       bajada: "Lo que dicen del ganador los registros públicos y quiénes más se presentaron.",
       accion: (
         <button type="button" onClick={() => abrirTab("proveedor")} className={ENLACE_RELATO}>
@@ -107,7 +106,8 @@ export function HistoriaDossier(p: PanelDossierProps) {
     },
     {
       id: "relato-analisis",
-      titulo: "Lo que dice el análisis",
+      titulo: "El análisis",
+      tituloLargo: "Lo que dice el análisis",
       bajada: "El resumen del dictamen que se escribió con toda esta evidencia.",
       contenido: (
         <SeccionSegura nombre="el resumen del dictamen">
@@ -117,7 +117,8 @@ export function HistoriaDossier(p: PanelDossierProps) {
     },
     {
       id: "relato-fuentes",
-      titulo: "De dónde sale cada dato",
+      titulo: "Las fuentes",
+      tituloLargo: "De dónde sale cada dato",
       bajada: "Cada cifra sale de un registro público: aquí está cada parte del detalle y su fuente.",
       contenido: (
         <SeccionSegura nombre="las fuentes">

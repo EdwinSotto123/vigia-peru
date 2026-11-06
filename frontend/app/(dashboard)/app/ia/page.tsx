@@ -91,7 +91,8 @@ function Relato({ r }: { r: ResumenIa }) {
     },
     {
       id: "menores",
-      titulo: "Los contratos menores",
+      titulo: "Contratos menores",
+      tituloLargo: "Los contratos menores",
       conteo: r.menores.conHallazgo,
       tono: "media",
       bajada: "Compras de hasta 8 UIT, sin proceso de selección: lee lo que la entidad pidió y lo que firmó, y los compara con lo que registró en el SEACE.",

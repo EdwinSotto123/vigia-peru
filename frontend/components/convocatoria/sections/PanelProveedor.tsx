@@ -90,7 +90,8 @@ export function PanelProveedor({ result, conv, ganador, banderasArr, nombresPriv
     },
     hayRed && {
       id: "proveedor-red",
-      titulo: "Con quién está vinculado",
+      titulo: "Su red",
+      tituloLargo: "Con quién está vinculado",
       bajada: "Las personas detrás del proveedor, sus otras empresas y lo que las une con la entidad y con los otros postores.",
       contenido: (
         <div className="space-y-4">
@@ -168,7 +169,8 @@ export function PanelProveedor({ result, conv, ganador, banderasArr, nombresPriv
     },
     agente.total > 0 && {
       id: "proveedor-agente",
-      titulo: "Lo que escribió el agente",
+      titulo: "El agente",
+      tituloLargo: "Lo que escribió el agente",
       bajada: "Su lectura, tal como la escribió: sus síntesis, lo que encontró en la web y las fuentes que consultó. Los otros capítulos salen de los registros públicos.",
       contenido: (
         <SeccionSegura nombre="lo que escribió el agente">

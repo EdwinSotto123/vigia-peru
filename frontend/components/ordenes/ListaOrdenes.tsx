@@ -1735,8 +1735,7 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
 
           {/* Los capítulos se leen de a uno («divídelo por subsecciones, menos scroll»): el panel ya no se baja entero. */}
           <CapitulosRelato
-            url={false}
-            nivel={3}
+            en="panel"
             etiqueta="Capítulos de la orden"
             capitulos={[
               {
@@ -1747,7 +1746,8 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
               // Sin señales, una línea (no una caja vacía): qué se revisó y que no salió nada.
               {
                 id: CAP.porQue,
-                titulo: hallazgos.length ? "Por qué llama la atención" : "Qué revisamos",
+                titulo: hallazgos.length ? "Por qué" : "Qué revisamos",
+                tituloLargo: hallazgos.length ? "Por qué llama la atención" : undefined,
                 conteo: hallazgos.length,
                 tono: grave?.severidad,
                 contenido: (
