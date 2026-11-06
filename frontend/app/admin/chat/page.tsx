@@ -23,9 +23,11 @@ import { Nota } from "@/components/patrones/Estructura";
 
 const EJEMPLOS = [
   "Dime todo sobre el alcalde de Wanchaq",
+  "Arma un informe de las compras de la Municipalidad de Ate desde 2023, con tablas para Excel",
+  "¿Qué exigían las bases del proceso 1228227 y por qué no admitieron a los otros postores?",
+  "¿Qué municipalidades gastan en asesorías mucho más que sus pares?",
+  "¿Qué es lo más raro de la Municipalidad Distrital de Jilili?",
   "¿Qué empresas concentran las compras del Gobierno Regional de Cusco desde 2024?",
-  "Explícame el contrato 1228227 y por qué tiene 82 puntos",
-  "¿En qué regiones creció la contratación directa en 2026?",
   "¿Qué obras de saneamiento están paralizadas en Piura?",
   "Compara el gasto de las municipalidades provinciales de Cusco y Arequipa",
 ];
@@ -208,11 +210,20 @@ function Conversacion({ mensajes, onReintentar }: { mensajes: Mensaje[]; onReint
         m.rol === "usuario" ? (
           <BurbujaUsuario key={m.id} texto={m.texto} />
         ) : (
-          <TurnoAsistente key={m.id} m={m} ultimo={i === mensajes.length - 1} onReintentar={onReintentar} />
+          <TurnoAsistente key={m.id} m={m} pregunta={preguntaDe(mensajes, i)} ultimo={i === mensajes.length - 1} onReintentar={onReintentar} />
         ),
       )}
     </div>
   );
+}
+
+/** La última pregunta antes de la respuesta `i` (el título del informe que se baja). */
+function preguntaDe(mensajes: Mensaje[], i: number): string | null {
+  for (let k = i - 1; k >= 0; k--) {
+    const m = mensajes[k];
+    if (m.rol === "usuario") return m.texto;
+  }
+  return null;
 }
 
 /** Sin conversación: qué hace el chat y preguntas de ejemplo que se envían con un toque. */
