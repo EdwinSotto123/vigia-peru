@@ -342,7 +342,7 @@ export const ordenes = definir({
     como: z.enum(["proceso", "catalogo", "menor", "directa", "pago"]).optional().describe("Por qué vía: proceso, catálogo, compra menor, orden directa o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
-    texto: z.string().min(3).max(80).optional(),
+    texto: z.string().min(3).max(80).optional().describe("Busca TODAS estas palabras juntas en la descripción. Para sumar el gasto en un concepto con sinónimos usa gasto_por_concepto."),
     pagina,
     por_pagina: porPagina,
   },

@@ -26,13 +26,13 @@ interface Env {
 export const adminChatRouter = new Hono<{ Bindings: Env }>();
 
 const MODELOS = {
-  rapido: { id: "claude-haiku-5-5", entrada: 0.1, salida: 0.5, max: 4096 },
-  fino: { id: "claude-sonnet-5-5", entrada: 2, salida: 10, max: 8000 },
+  rapido: { id: "claude-haiku-5-5", entrada: 0.1, salida: 0.5, max: 4096, vueltas: 14 },
+  /** «Profundo» en la página: planifica, verifica cada cifra con una segunda herramienta y tiene más vueltas. */
+  fino: { id: "claude-sonnet-5-5", entrada: 2, salida: 10, max: 12000, vueltas: 22 },
 } as const;
 
 /** Escriben o leen la cuenta personal de quien las usa: en el chat interno no tienen sentido. */
 const FUERA_DEL_CHAT = new Set(["seguir", "dejar_de_seguir", "mis_seguimientos"]);
-const MAX_VUELTAS = 14;
 /** Lo que se le pasa al modelo de cada resultado (las respuestas del MCP ya vienen recortadas). */
 const MAX_RESULTADO = 40_000;
 
@@ -44,7 +44,7 @@ const Cuerpo = z.object({
 type Herramienta = { name: string; title?: string; description?: string; inputSchema?: Record<string, unknown> };
 let catalogo: { herramientas: Herramienta[]; vence: number } | null = null;
 
-function sistema(): string {
+function sistema(profundo: boolean): string {
   const hoy = new Date().toLocaleDateString("es-PE", { timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric" });
   return `Eres el asistente de investigación de Vigía (Vigía by Gobserva) para su equipo. Respondes preguntas sobre la contratación pública del Perú usando SOLO las herramientas de Vigía: no inventes datos ni completes con lo que creas saber. Hoy es ${hoy}.
 
@@ -58,15 +58,26 @@ Cómo investigar:
   - estadísticas: consultar_datos; pide primero el catálogo de la fuente si no sabes qué medida o dimensión usar;
   - informes y control: informes_control (Contraloría con PDF) y senales; obras: obras_entidad; personal: planilla_entidad; visitas: visitas_entidad.
 - Si piden un ZIP o los documentos de contratos: elige los procesos (hasta 10 por ZIP; si son más, arma varios) y usa documentos_zip; entrega el enlace de descarga y di qué incluye.
+- «¿Cuánto gastó en X?» (parlantes, bocaditos, eventos, publicidad…): gasto_por_concepto con 6 a 15 términos alternativos y sinónimos, de lo general a lo específico. Revisa por_termino y mayores, y quita con excluir lo que no es del concepto (por ejemplo «mantenimiento» si preguntan por alquiler). Si el total te parece raro, mira las compras más grandes antes de afirmarlo.
+- Si una búsqueda da cero o muy poco, NO concluyas que no existe: reintenta con palabras sueltas, singular y plural, sinónimos y gasto_por_concepto, y di qué términos usaste. Solo después puedes decir que no lo encontraste.
+- No vincules cifras ni hechos porque se parecen (un monto parecido no es el mismo gasto). Si no puedes unirlos con datos, no lo menciones.
+- Si citan un reportaje o una cifra de afuera, compárala con lo que sí encuentras y explica de qué puede venir la diferencia (periodo, fuentes, alcance), sin suponer.
 - Lo que compra una entidad es de la entidad, no de la persona: dilo así («durante su gestión, la municipalidad compró…») y usa el periodo del cargo para filtrar los años.
 
 Cómo responder:
-- En español y directo: primero la respuesta en dos o tres frases, luego el detalle en secciones cortas, con tablas cuando haya cifras.
+- En español y con este orden: «Respuesta corta» (dos o tres frases con la cifra clave), «Hallazgos» numerados (cada uno: qué es, la cifra, la evidencia con enlace), «Lo que no pude verificar» y la fecha de los datos. Tablas cuando haya cifras. Hasta unas 500 palabras, salvo que pidan más detalle.
 - Cita con los enlaces de Vigía y de la fuente oficial que traen las herramientas, y di hasta qué fecha llegan los datos cuando importe.
 - Una señal es un indicio para revisar, no una acusación: no afirmes delitos.
 - Si algo no está en Vigía, dilo y sugiere dónde buscarlo.
 - No nombres las herramientas ni sus parámetros en la respuesta: habla de los datos y de su fuente.
-- Nunca pidas ni busques un DNI. Las personas naturales salen con un apellido tapado: respétalo.`;
+- Nunca pidas ni busques un DNI. Las personas naturales salen con un apellido tapado: respétalo.${profundo ? `
+
+Modo investigación profunda:
+- Antes de la primera herramienta escribe un plan breve (de 3 a 6 pasos) con lo que vas a revisar.
+- Llama en paralelo lo que no depende entre sí. Usa todas las fuentes que apliquen: gasto, compras, proveedores, señales, informes de control, obras, planilla, visitas, historia y cifras comparadas.
+- Verifica cada cifra principal con una segunda herramienta cuando se pueda (por ejemplo gasto_por_concepto contra ordenes, o consultar_datos contra la ficha) y di si coinciden.
+- Compara con entidades parecidas cuando digas que algo es «alto» o «raro» (consultar_datos por entidad o región).
+- Antes de responder, revisa que cada afirmación tenga su cifra y su enlace; lo que no lo tenga va a «Lo que no pude verificar».` : ""}`;
 }
 
 async function mcp(env: Env, metodo: string, params: Record<string, unknown>): Promise<Record<string, any>> {
@@ -157,12 +168,12 @@ adminChatRouter.post("/chat", async (c) => {
       await emitir({ tipo: "inicio", modelo: m.id });
       console.log(JSON.stringify({ chat: "pregunta", actor, modelo: m.id, mensajes: mensajes.length }));
 
-      for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
-        const ultima = vuelta === MAX_VUELTAS - 1;
+      for (let vuelta = 0; vuelta < m.vueltas; vuelta++) {
+        const ultima = vuelta === m.vueltas - 1;
         const r = await llm(env, {
           model: m.id,
           max_tokens: m.max,
-          system: [{ type: "text", text: sistema(), cache_control: { type: "ephemeral" } }],
+          system: [{ type: "text", text: sistema(modelo === "fino"), cache_control: { type: "ephemeral" } }],
           tools,
           ...(ultima ? { tool_choice: { type: "none" } } : {}),
           messages: conversacion,

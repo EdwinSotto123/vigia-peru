@@ -217,3 +217,58 @@ export const documentosZip = definir({
 });
 
 export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, documentosZip];
+
+export const gastoPorConcepto = definir({
+  nombre: "gasto_por_concepto",
+  titulo: "Gasto por concepto",
+  descripcion:
+    "Cuánto gastó una entidad (o le vendió una empresa, o gastaron las entidades de una región) en un concepto dicho con " +
+    "palabras: suma órdenes de compra y servicio, procesos adjudicados y compras menores cuya descripción tiene ALGUNO de " +
+    "los términos (búsqueda en español: plural, prefijo y frases). Devuelve total, monto por año y por proveedor, cuánto " +
+    "aportó cada término y las compras más grandes. Pasa varios términos alternativos y sinónimos (por ejemplo «sonido, " +
+    "parlante, audio, amplificación, luces, escenario, tarima») y usa excluir para quitar lo que no es del concepto.",
+  entrada: {
+    terminos: z.array(z.string().min(3).max(40)).min(1).max(15).describe("Palabras o frases alternativas del concepto (se suman con O)."),
+    excluir: z.array(z.string().min(3).max(40)).max(10).default([]).describe("Palabras que sacan una compra del concepto (por ejemplo «mantenimiento»)."),
+    entidad_ruc: z.string().optional().describe("RUC de la entidad que compra."),
+    proveedor_ruc: z.string().optional().describe("RUC 20 de la empresa que vende."),
+    region: z.string().max(40).optional().describe("Departamento (todas sus entidades; hasta 3 años)."),
+    desde: z.number().int().min(2015).max(2030).optional().describe("Año desde (por defecto, 4 años antes de hasta)."),
+    hasta: z.number().int().min(2015).max(2030).optional().describe("Año hasta (por defecto, el actual)."),
+    fuentes: z.array(z.enum(["ordenes", "procesos", "menores"])).default(["ordenes", "procesos", "menores"]),
+  },
+  async ejecutar(a, cx) {
+    const alcances = [a.entidad_ruc, a.proveedor_ruc, a.region].filter(Boolean).length;
+    if (alcances !== 1) throw new ErrorUsuario("Indica uno: entidad_ruc, proveedor_ruc o region.");
+    const limpiar = (xs: string[]) => xs.map((t) => t.replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim()).filter((t) => t.length >= 3);
+    const d = await api<Fila>(cx.env, "/gasto/concepto", {
+      terminos: limpiar(a.terminos).join(","),
+      excluir: limpiar(a.excluir).join(",") || undefined,
+      entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined,
+      proveedor: a.proveedor_ruc ? rucJuridico(a.proveedor_ruc, "RUC del proveedor") : undefined,
+      region: a.region,
+      desde: a.desde,
+      hasta: a.hasta,
+      fuentes: a.fuentes.join(","),
+    });
+    const e = enlaces(cx.env);
+    const fuentes = Object.fromEntries(
+      Object.entries((d.por_fuente ?? {}) as Record<string, Fila>).map(([k, f]) => [k, {
+        total: f.total,
+        por_anio: f.por_anio,
+        por_termino: f.por_termino,
+        por_proveedor: ((f.por_proveedor ?? []) as Fila[]).map((p) => (p.ruc
+          ? { ...p, enlace: e.empresa(p.ruc) }
+          : { ruc: null, nombre: "Personas naturales y otros", registros: p.registros, monto: p.monto })),
+        mayores: ((f.mayores ?? []) as Fila[]).map((m) => ({
+          fecha: m.fecha, descripcion: m.descripcion, monto: m.monto, referencia: m.ref, entidad: m.entidad, dudoso: m.dudoso || undefined,
+          proveedor: m.ruc ? m.proveedor : "Persona natural u otro", proveedor_ruc: m.ruc ?? undefined,
+          enlace: k === "procesos" && m.ref ? e.contrato(String(m.ref)) : k === "menores" && m.ref ? e.menor(String(m.ref)) : undefined,
+        })),
+      }]),
+    );
+    return { alcance: d.alcance, desde: d.desde, hasta: d.hasta, terminos: d.terminos, excluidos: d.excluidos, total: d.total, por_fuente: fuentes, nota: d.nota, fuente_oficial: d.fuente_oficial };
+  },
+});
+
+HERRAMIENTAS_ENTIDAD.push(gastoPorConcepto);

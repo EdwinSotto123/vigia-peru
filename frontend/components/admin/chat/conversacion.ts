@@ -17,7 +17,7 @@ export type ModeloChat = "rapido" | "fino";
 
 export const MODELOS: { valor: ModeloChat; etiqueta: string }[] = [
   { valor: "rapido", etiqueta: "Rápido (Haiku)" },
-  { valor: "fino", etiqueta: "Fino (Sonnet)" },
+  { valor: "fino", etiqueta: "Profundo (Sonnet)" },
 ];
 
 const esModelo = (x: unknown): x is ModeloChat => x === "rapido" || x === "fino";

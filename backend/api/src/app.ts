@@ -33,6 +33,7 @@ import { financiamientoRouter } from "./routes/financiamiento.js";
 import { contribucionesRouter } from "./routes/contribuciones.js";
 import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
+import { gastoRouter } from "./routes/gasto.js";
 import { documentosRouter } from "./routes/documentos.js";
 import { contratosRouter } from "./routes/contratos.js";
 import { ordenesRouter } from "./routes/ordenes.js";
@@ -153,6 +154,8 @@ api.route("/contribuciones", contribucionesRouter);
 api.route("/contratos", contratosRouter);
 // Documentos de varios procesos en un ZIP (MCP y chat del panel), desde R2.
 api.route("/documentos", documentosRouter);
+// Gasto por concepto (palabras alternativas sobre órdenes, procesos y compras menores): MCP y chat del panel.
+api.route("/gasto", gastoRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
 api.route("/catalogo", catalogoRouter);

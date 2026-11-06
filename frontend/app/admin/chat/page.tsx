@@ -229,7 +229,7 @@ function Bienvenida({ onPregunta }: { onPregunta: (texto: string) => void }) {
             <Ayuda titulo="¿Cómo responde?">
               El asistente consulta las herramientas de datos de Vigía (las mismas del MCP): busca entidades, autoridades,
               contratos, empresas y obras, y arma la respuesta con lo que encuentra. Debajo de cada respuesta ves qué
-              consultó, cuánto tardó y cuánto costó. Rápido usa Haiku; Fino usa Sonnet, más lento y más caro.
+              consultó, cuánto tardó y cuánto costó. Rápido usa Haiku. Profundo usa Sonnet: planifica, cruza cada cifra con otra fuente y compara con entidades parecidas; es más lento y más caro.
             </Ayuda>
           </h2>
           <p className="mt-0.5 text-meta leading-snug text-mute">Escribe tu pregunta abajo o empieza con una de estas.</p>
