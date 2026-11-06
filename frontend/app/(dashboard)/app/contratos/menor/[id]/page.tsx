@@ -68,7 +68,7 @@ export default async function FichaMenorPagina({ params }: { params: { id: strin
     },
     {
       id: "pedido-y-contrato",
-      titulo: "Lo pedido y lo firmado",
+      titulo: "Pedido y contrato",
       tituloLargo: "Lo que se pidió y lo que se firmó",
       bajada: "El requerimiento frente al contrato u orden, leídos por la IA, y lo que la entidad registró en el SEACE.",
       contenido: <PedidoYContrato f={f} />,

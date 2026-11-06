@@ -144,12 +144,12 @@ export function CapitulosRelato({
     setActual(cap);
     requestAnimationFrame(() => {
       bajarA(destino);
+      // En un panel lateral, la URL es la de la lista: no se toca (ni el capítulo ni el ancla).
+      if (!url) return;
       try {
         const u = new URL(window.location.href);
-        if (url) {
-          if (cap === capitulos[0]?.id) u.searchParams.delete("cap");
-          else u.searchParams.set("cap", cap);
-        }
+        if (cap === capitulos[0]?.id) u.searchParams.delete("cap");
+        else u.searchParams.set("cap", cap);
         u.hash = hash;
         window.history.replaceState(window.history.state, "", u);
       } catch {
@@ -174,7 +174,7 @@ export function CapitulosRelato({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
 
-  // Un enlace a un ancla que está en un capítulo cerrado: se abre el capítulo antes de que el navegador busque el ancla
+  // Un enlace a un ancla de un capítulo (cerrado o no): se abre ese capítulo antes de que el navegador busque el ancla
   // (en captura; oculto, el navegador no baja a nada).
   useEffect(() => {
     const alClic = (e: MouseEvent) => {
@@ -191,8 +191,8 @@ export function CapitulosRelato({
       const hash = u.hash.slice(1);
       const destino = document.getElementById(decodeURIComponent(hash));
       if (!destino) return;
-      const cap = capituloDe(destino);
-      if (!cap || cap === actual) return;
+      // También dentro del capítulo abierto: el salto del navegador dejaría el destino debajo de las barras fijas.
+      if (!capituloDe(destino)) return;
       e.preventDefault();
       e.stopPropagation();
       irA(destino, hash);
