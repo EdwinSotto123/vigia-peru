@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
-import { Capitulo, Cronologia, IndiceRelato, irAPestana, type PasoRelato } from "@/components/patrones";
+import { CapitulosRelato, Cronologia, irAPestana, type CapituloRelato, type PasoRelato } from "@/components/patrones";
 import { fechaDossier, montoDossier, contarSeveridades } from "../dossier";
 import { hoyLima, numero, plural, porcentaje } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -29,7 +29,7 @@ import { NombreProveedor, QuienGano } from "./QuienGano";
 /**
  * «La historia», la primera pestaña del informe (pedido del usuario del 2026-11-05: «veo que solo apilamos y demás sin dar
  * orden o contar una historia»). El veredicto en una frase va arriba de las pestañas (FraseDossier); aquí, el relato en
- * capítulos numerados, de lo que pasó a la evidencia:
+ * capítulos numerados que se leen de a uno («divídelo por subsecciones, menos scroll»), de lo que pasó a la evidencia:
  *
  *   1. Qué pasó: la cronología del proceso con cada señal PEGADA al paso donde se ve (tabla regla → paso en ./historia).
  *   2. Por qué llama la atención: las señales por gravedad y por tema, con su evidencia y su norma.
@@ -53,73 +53,73 @@ export function HistoriaDossier(p: PanelDossierProps) {
   const nPostores = typeof conv.n_postores === "number" && conv.n_postores > 0 ? conv.n_postores : null;
   const pasos = pasosDelProceso({ result, conv, ganador, ganadores, senales, nPostores });
 
-  const capitulos = [
-    { id: "relato-que-paso", titulo: "Qué pasó" },
-    { id: "relato-por-que", titulo: conteo.total > 0 ? "Por qué llama la atención" : "Qué encontró el análisis" },
-    { id: "relato-quien", titulo: "Quién ganó" },
-    { id: "relato-analisis", titulo: "Lo que dice el análisis" },
-    { id: "relato-fuentes", titulo: "De dónde sale cada dato" },
-  ];
-
-  return (
-    <div className="space-y-8">
-      <IndiceRelato capitulos={capitulos} />
-
-      <Capitulo
-        n={1}
-        id="relato-que-paso"
-        titulo="Qué pasó"
-        bajada="Los pasos del proceso con las fechas del registro del OECE. Cada señal aparece en el paso donde se ve: tócala para leer su evidencia."
-      >
-        <SeccionSegura nombre="la cronología del proceso">
-          <Cronologia pasos={pasos} etiqueta="Los pasos del proceso" />
-        </SeccionSegura>
-        {result.estado_real?.estado_inconsistente && (
-          <SeccionSegura nombre="el aviso de estado">
-            <EstadoInconsistente er={result.estado_real} className="mt-4" />
+  const tono = conteo.alta > 0 ? "alta" : conteo.media > 0 ? "media" : conteo.total > 0 ? "baja" : undefined;
+  const capitulos: CapituloRelato[] = [
+    {
+      id: "relato-que-paso",
+      titulo: "Qué pasó",
+      bajada: "Los pasos del proceso con las fechas del registro del OECE. Cada señal aparece en el paso donde se ve: tócala para leer su evidencia.",
+      contenido: (
+        <>
+          <SeccionSegura nombre="la cronología del proceso">
+            <Cronologia pasos={pasos} etiqueta="Los pasos del proceso" />
           </SeccionSegura>
-        )}
-      </Capitulo>
-
-      <Capitulo
-        n={2}
-        id="relato-por-que"
-        titulo={capitulos[1].titulo}
-        bajada={
-          conteo.total > 0
-            ? "De la más grave a la más leve, agrupadas por tema: qué se encontró y la norma que lo sostiene. Una señal es una pista para comprobar, no una acusación."
-            : undefined
-        }
-        accion={conteo.total > 0 ? <ConteoSenales conteo={conteo} /> : undefined}
-      >
+          {result.estado_real?.estado_inconsistente && (
+            <SeccionSegura nombre="el aviso de estado">
+              <EstadoInconsistente er={result.estado_real} className="mt-4" />
+            </SeccionSegura>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "relato-por-que",
+      titulo: conteo.total > 0 ? "Por qué llama la atención" : "Qué encontró el análisis",
+      conteo: conteo.total,
+      tono,
+      bajada:
+        conteo.total > 0
+          ? "De la más grave a la más leve, agrupadas por tema: qué se encontró y la norma que lo sostiene. Una señal es una pista para comprobar, no una acusación."
+          : undefined,
+      accion: conteo.total > 0 ? <ConteoSenales conteo={conteo} /> : undefined,
+      contenido: (
         <SeccionSegura nombre="las señales del relato">
           <PorQueLlama senales={senales} contexto={p.contexto} noVerificables={p.noVerificables} corrida={p.corrida} verEvidencia={verEvidencia} />
         </SeccionSegura>
-      </Capitulo>
-
-      <Capitulo
-        n={3}
-        id="relato-quien"
-        titulo="Quién ganó y con quién compite"
-        bajada="Lo que dicen del ganador los registros públicos y quiénes más se presentaron."
-        accion={
-          <button type="button" onClick={() => abrirTab("proveedor")} className={ENLACE_RELATO}>
-            Proveedor y red <ChevronRight size={14} aria-hidden />
-          </button>
-        }
-      >
+      ),
+    },
+    {
+      id: "relato-quien",
+      titulo: "Quién ganó",
+      tituloLargo: "Quién ganó y con quién compite",
+      conteo: nPostores,
+      bajada: "Lo que dicen del ganador los registros públicos y quiénes más se presentaron.",
+      accion: (
+        <button type="button" onClick={() => abrirTab("proveedor")} className={ENLACE_RELATO}>
+          Proveedor y red <ChevronRight size={14} aria-hidden />
+        </button>
+      ),
+      contenido: (
         <SeccionSegura nombre="quién ganó">
           <QuienGano result={result} ganador={ganador} ganadores={ganadores} nPostores={nPostores} />
         </SeccionSegura>
-      </Capitulo>
-
-      <Capitulo n={4} id="relato-analisis" titulo="Lo que dice el análisis" bajada="El resumen del dictamen que se escribió con toda esta evidencia.">
+      ),
+    },
+    {
+      id: "relato-analisis",
+      titulo: "Lo que dice el análisis",
+      bajada: "El resumen del dictamen que se escribió con toda esta evidencia.",
+      contenido: (
         <SeccionSegura nombre="el resumen del dictamen">
           <LoQueDice dict={p.dict} corrida={p.corrida} modelo={result.dictamen?.gen_meta?.model ?? null} abrirTab={abrirTab} />
         </SeccionSegura>
-      </Capitulo>
-
-      <Capitulo n={5} id="relato-fuentes" titulo="De dónde sale cada dato" bajada="Cada cifra sale de un registro público: aquí está cada parte del detalle y su fuente.">
+      ),
+    },
+    {
+      id: "relato-fuentes",
+      titulo: "De dónde sale cada dato",
+      bajada: "Cada cifra sale de un registro público: aquí está cada parte del detalle y su fuente.",
+      contenido: (
         <SeccionSegura nombre="las fuentes">
           <DeDondeSale
             result={result}
@@ -132,9 +132,11 @@ export function HistoriaDossier(p: PanelDossierProps) {
             abrirTab={abrirTab}
           />
         </SeccionSegura>
-      </Capitulo>
-    </div>
-  );
+      ),
+    },
+  ];
+
+  return <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos de la historia" />;
 }
 
 // ─── La cronología del proceso ────────────────────────────────────────────────

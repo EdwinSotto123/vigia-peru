@@ -10,12 +10,14 @@ import { cn } from "@/lib/utils";
  * apilamos y demás sin dar orden o contar una historia»). Una ficha con relato se lee así:
  *
  *   1. `EnUnaFrase`  el veredicto: qué es, quién, cuánto y qué llama la atención, en una o dos oraciones con sus datos.
- *   2. `Capitulo`    capítulos numerados con un título que es una pregunta o una afirmación («Qué pasó», «Por qué llama la
- *                    atención», «Quién ganó», «De dónde sale cada dato»), en ese orden: de lo que pasó a la evidencia.
+ *   2. `CapitulosRelato` (./CapitulosRelato) capítulos numerados que se leen de a uno, con un título que es una pregunta o
+ *                    una afirmación («Qué pasó», «Por qué llama la atención», «Quién ganó», «De dónde sale cada dato»), en
+ *                    ese orden: de lo que pasó a la evidencia. Antes iban apilados con un índice de anclas arriba y la ficha
+ *                    medía hasta 4 900 px («divídelo por subsecciones, menos scroll»).
  *   3. `Cronologia`  la columna vertebral de «Qué pasó»: los pasos en orden, cada uno con su fecha, lo que pasó y, PEGADAS
  *                    A ESE PASO, las señales que se ven ahí (la oferta igual al referencial, en la buena pro; la firma
- *                    meses después, en la firma). Así una señal se entiende en su momento y no en una lista suelta.
- *   4. `IndiceRelato` el índice de los capítulos, para saltar (opcional, en fichas largas).
+ *                    meses después, en la firma). Así una señal se entiende en su momento y no en una lista suelta: su
+ *                    chip abre el capítulo de su evidencia.
  *
  * Server-safe. Usa los tokens del sistema (severidad: crimson/amber/mute; enlaces: granate).
  */
@@ -61,71 +63,6 @@ export function EnUnaFrase({
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * Un capítulo numerado del relato. `titulo` es corto y dice lo que se va a leer («Qué pasó», «Por qué llama la atención»);
- * `bajada`, una línea opcional. El número ordena la lectura y el `id` deja enlazarlo desde el índice.
- */
-export function Capitulo({
-  n,
-  titulo,
-  bajada,
-  id,
-  accion,
-  children,
-  className,
-}: {
-  n: number;
-  titulo: ReactNode;
-  bajada?: ReactNode;
-  id?: string;
-  accion?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section id={id} aria-labelledby={id ? `${id}-titulo` : undefined} className={cn("scroll-mt-[calc(var(--alto-barra-fija,0px)+1rem)] space-y-3", className)}>
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-meta font-bold text-paper" aria-hidden>
-            {n}
-          </span>
-          <div className="min-w-0">
-            <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-seccion font-bold leading-tight text-ink text-balance">
-              <span className="sr-only">{n}. </span>
-              {titulo}
-            </h2>
-            {bajada && <p className="mt-0.5 max-w-prose text-meta text-inkSoft text-pretty">{bajada}</p>}
-          </div>
-        </div>
-        {accion && <div className="shrink-0">{accion}</div>}
-      </div>
-      <div className="sm:pl-10">{children}</div>
-    </section>
-  );
-}
-
-/** El índice de los capítulos: una fila de enlaces numerados (se desliza en el celular). */
-export function IndiceRelato({ capitulos, className }: { capitulos: { id: string; titulo: string }[]; className?: string }) {
-  if (capitulos.length < 2) return null;
-  return (
-    <nav aria-label="Capítulos" className={cn("-mx-1 overflow-x-auto px-1", className)}>
-      <ol className="flex w-max items-center gap-1.5">
-        {capitulos.map((c, i) => (
-          <li key={c.id}>
-            <a
-              href={`#${c.id}`}
-              className="inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3 text-rotulo font-semibold text-inkSoft transition-colors duration-rapido hover:border-paperEdge hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-            >
-              <span className="font-mono text-mute">{i + 1}</span>
-              {c.titulo}
-            </a>
-          </li>
-        ))}
-      </ol>
-    </nav>
   );
 }
 

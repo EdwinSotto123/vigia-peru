@@ -5,7 +5,7 @@ import {
   Ayuda,
   AyudaTermino,
   BloqueDetalle,
-  Capitulo,
+  CapitulosRelato,
   Cronologia,
   CuerpoDetalle,
   DatosClave,
@@ -1201,18 +1201,12 @@ function TarjetasBanderas({ banderas }: { banderas: BanderaOrden[] }) {
  *   4. Los datos de la orden       la referencia: las fichas de la entidad y del proveedor, el expediente SIAF.
  *
  * Los chips que indexaban las banderas arriba se fueron: la frase dice la más grave (y cuántas más hay) y cada señal de la
- * cronología lleva a su tarjeta, así que eran un tercer lugar con lo mismo.
+ * cronología lleva a su tarjeta, así que eran un tercer lugar con lo mismo. Los capítulos se leen de a uno
+ * (CapitulosRelato, sin ir a la URL de la lista): un enlace de la frase a un capítulo lo abre.
  */
 
 /** Los ids de los capítulos del panel: las señales y la frase llevan a ellos sin salir del panel. */
 const CAP = { quePaso: "orden-que-paso", porQue: "orden-por-que", proceso: "orden-proceso", datos: "orden-datos" } as const;
-
-/**
- * Un capítulo en el panel (~36rem): más junto que en una página y con el título del tamaño de un bloque (con el de una
- * sección, 22 px, cada capítulo le ganaba al título del panel y al veredicto). La sangría bajo el número se queda: es lo
- * que ata el contenido a su capítulo.
- */
-const CLASE_CAPITULO = "space-y-2.5 [&>div:first-child_h2]:text-bloque";
 
 /** Un nombre en la frase o en un paso, con su ficha si la tiene (`fichasCompra`: nunca por un RUC 10). */
 const enFrase = (nombre: string, href: string | null): ReactNode =>
@@ -1666,7 +1660,6 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
   ) : undefined;
   const pasos = pasosOrden(o, banderas, extraAntecedentes, { clase, monto: montoTexto });
   // «Qué proceso paga» es el capítulo 3 sólo si la orden paga un proceso; si no, los datos suben al 3.
-  const capDatos = o.procesosPago ? 4 : 3;
   return {
     id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
@@ -1740,125 +1733,140 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
             {grave && ` ${grave.frase}`}
           </EnUnaFrase>
 
-          <Capitulo n={1} id={CAP.quePaso} titulo="Qué pasó" className={CLASE_CAPITULO}>
-            <Cronologia pasos={pasos} etiqueta="Lo que pasó con esta orden, paso a paso" />
-          </Capitulo>
-
-          {/* Sin señales, una línea (no una caja vacía): qué se revisó y que no salió nada. */}
-          <Capitulo
-            n={2}
-            id={CAP.porQue}
-            titulo={hallazgos.length ? "Por qué llama la atención" : "Qué revisamos"}
-            className={CLASE_CAPITULO}
-          >
-            {hallazgos.length ? (
-              <div className="space-y-3">
-                <TarjetasBanderas banderas={banderas} />
-                {/* Las que suma la otra fuente (components/compras) no tienen tarjeta aquí: van como chip. */}
-                {extraAntecedentes.length > 0 && (
-                  <BanderasAntecedentes antecedentes={extraAntecedentes} todas etiqueta="Otras señales de esta compra" />
-                )}
-              </div>
-            ) : o.conNepotismo == null ? (
-              <p className="text-inkSoft">Esta orden llegó sin la revisión de sus antecedentes: no sabemos si tiene señales.</p>
-            ) : (
-              // Sólo lo que de verdad se revisa para este proveedor: el parentesco declarado, sólo en una persona (RUC 10).
-              <p className="text-inkSoft">
-                <span className="font-semibold text-ink">No encontramos señales en esta orden.</span>{" "}
-                {`Revisamos ${/^10\d{9}$/.test(o.rucContratista ?? "") ? "el parentesco con funcionarios de la entidad, " : ""}`}
-                la inhabilitación del Tribunal, las órdenes del mismo día y el tope de 8 UIT.
-              </p>
-            )}
-          </Capitulo>
-
-          {o.procesosPago && (
-            <Capitulo
-              n={3}
-              id={CAP.proceso}
-              titulo={
-                <>
-                  Qué proceso paga <AyudaProcesoPagado />
-                </>
-              }
-              className={CLASE_CAPITULO}
-            >
-              <ProcesoPagado o={o} p={o.procesosPago} />
-            </Capitulo>
-          )}
-
-          <Capitulo n={capDatos} id={CAP.datos} titulo="Los datos de la orden" className={CLASE_CAPITULO}>
-            <div className="space-y-4">
-              {motivo && (
-                <AvisoDato motivo={motivo} fuente="conosce_ordenes">
-                  {`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}
-                </AvisoDato>
-              )}
-              <DatosCompactos
-                items={[
-                  { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion, ancho: true },
-                  { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad), ancho: true },
-                  {
-                    etiqueta: "Proveedor",
-                    valor: proveedor ? (
-                      <>
-                        {conFicha(proveedor, fichas.proveedor)}
-                        {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
-                        {rucEmpresa && <span className="ml-2 whitespace-nowrap font-mono text-rotulo tabular-nums text-mute">RUC {rucEmpresa}</span>}
-                      </>
-                    ) : null,
-                    ancho: true,
-                  },
-                  datoMonto(o, "Monto", !!motivo),
-                  // Si tuvo convocatoria, en su ⓘ: antes era un renglón aparte de una oración entera.
-                  {
-                    etiqueta: "Cómo se contrató",
-                    valor: tipo?.corto ?? null,
-                    ayuda: tipo?.convocatoria ? <Ayuda titulo="¿Tuvo convocatoria?">{tipo.convocatoria}</Ayuda> : undefined,
-                  },
-                  datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
-                  // El estado vuelve aquí: su chip de arriba del panel se fue con el índice de las banderas.
-                  {
-                    etiqueta: "Estado",
-                    valor: o.estado ? oracion(o.estado) : null,
-                    ayuda: explicaEstado ? (
-                      <Ayuda titulo="¿Qué dice el estado?">{`${explicaEstado} Ningún estado de CONOSCE quiere decir que ya se pagó.`}</Ayuda>
-                    ) : undefined,
-                  },
-                  o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
-                  o.fechaCompromiso
-                    ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> }
-                    : null,
-                  o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
-                  // El botón del expediente, como un dato más (antes, un bloque con título para un solo botón).
-                  o.entidadRuc && o.fecha && o.numero
-                    ? {
-                        etiqueta: "Expediente SIAF",
-                        valor: <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />,
-                        ayuda: <AyudaTermino clave="expediente-siaf" />,
-                        ancho: true,
-                      }
-                    : null,
-                ]}
-              />
-              {extra?.bloques}
-              {(soloEntidad || soloProveedor) && (
-                <div className="flex flex-wrap gap-2">
-                  {soloEntidad && (
-                    <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
-                      <ListFilter size={15} aria-hidden />
-                      Ver sólo las órdenes de esta entidad
-                    </EnlaceAccion>
-                  )}
-                  {soloProveedor && (
-                    <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
-                      <ListFilter size={15} aria-hidden />
-                      Ver sólo las órdenes de este proveedor
-                    </EnlaceAccion>
-                  )}
-                </div>
-              )}
-            </div>
-          </Capitulo>
+          {/* Los capítulos se leen de a uno («divídelo por subsecciones, menos scroll»): el panel ya no se baja entero. */}
+          <CapitulosRelato
+            url={false}
+            nivel={3}
+            etiqueta="Capítulos de la orden"
+            capitulos={[
+              {
+                id: CAP.quePaso,
+                titulo: "Qué pasó",
+                contenido: <Cronologia pasos={pasos} etiqueta="Lo que pasó con esta orden, paso a paso" />,
+              },
+              // Sin señales, una línea (no una caja vacía): qué se revisó y que no salió nada.
+              {
+                id: CAP.porQue,
+                titulo: hallazgos.length ? "Por qué llama la atención" : "Qué revisamos",
+                conteo: hallazgos.length,
+                tono: grave?.severidad,
+                contenido: (
+                  <>
+                    {hallazgos.length ? (
+                      <div className="space-y-3">
+                        <TarjetasBanderas banderas={banderas} />
+                        {/* Las que suma la otra fuente (components/compras) no tienen tarjeta aquí: van como chip. */}
+                        {extraAntecedentes.length > 0 && (
+                          <BanderasAntecedentes antecedentes={extraAntecedentes} todas etiqueta="Otras señales de esta compra" />
+                        )}
+                      </div>
+                    ) : o.conNepotismo == null ? (
+                      <p className="text-inkSoft">Esta orden llegó sin la revisión de sus antecedentes: no sabemos si tiene señales.</p>
+                    ) : (
+                      // Sólo lo que de verdad se revisa para este proveedor: el parentesco declarado, sólo en una persona (RUC 10).
+                      <p className="text-inkSoft">
+                        <span className="font-semibold text-ink">No encontramos señales en esta orden.</span>{" "}
+                        {`Revisamos ${/^10\d{9}$/.test(o.rucContratista ?? "") ? "el parentesco con funcionarios de la entidad, " : ""}`}
+                        la inhabilitación del Tribunal, las órdenes del mismo día y el tope de 8 UIT.
+                      </p>
+                    )}
+                  </>
+                ),
+              },
+              ...(o.procesosPago
+                ? [
+                    {
+                      id: CAP.proceso,
+                      titulo: "Qué proceso paga",
+                      tituloLargo: (
+                        <>
+                          Qué proceso paga <AyudaProcesoPagado />
+                        </>
+                      ),
+                      contenido: <ProcesoPagado o={o} p={o.procesosPago} />,
+                    },
+                  ]
+                : []),
+              {
+                id: CAP.datos,
+                titulo: "Los datos",
+                tituloLargo: "Los datos de la orden",
+                contenido: (
+                    <div className="space-y-4">
+                      {motivo && (
+                        <AvisoDato motivo={motivo} fuente="conosce_ordenes">
+                          {`La orden trae ${montoTexto ?? "un monto"} en el archivo oficial de CONOSCE.`}
+                        </AvisoDato>
+                      )}
+                      <DatosCompactos
+                        items={[
+                          { etiqueta: clase === "Orden de compra" ? "Qué se compró" : "Qué se pagó", valor: descripcion, ancho: true },
+                          { etiqueta: "Entidad", valor: conFicha(entidad, fichas.entidad), ancho: true },
+                          {
+                            etiqueta: "Proveedor",
+                            valor: proveedor ? (
+                              <>
+                                {conFicha(proveedor, fichas.proveedor)}
+                                {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
+                                {rucEmpresa && <span className="ml-2 whitespace-nowrap font-mono text-rotulo tabular-nums text-mute">RUC {rucEmpresa}</span>}
+                              </>
+                            ) : null,
+                            ancho: true,
+                          },
+                          datoMonto(o, "Monto", !!motivo),
+                          // Si tuvo convocatoria, en su ⓘ: antes era un renglón aparte de una oración entera.
+                          {
+                            etiqueta: "Cómo se contrató",
+                            valor: tipo?.corto ?? null,
+                            ayuda: tipo?.convocatoria ? <Ayuda titulo="¿Tuvo convocatoria?">{tipo.convocatoria}</Ayuda> : undefined,
+                          },
+                          datoFecha("Emitida", o.fecha, FUENTE_ORDEN),
+                          // El estado vuelve aquí: su chip de arriba del panel se fue con el índice de las banderas.
+                          {
+                            etiqueta: "Estado",
+                            valor: o.estado ? oracion(o.estado) : null,
+                            ayuda: explicaEstado ? (
+                              <Ayuda titulo="¿Qué dice el estado?">{`${explicaEstado} Ningún estado de CONOSCE quiere decir que ya se pagó.`}</Ayuda>
+                            ) : undefined,
+                          },
+                          o.fechaNotificacion ? { etiqueta: "Notificada al proveedor", valor: fechaConAnio(o.fechaNotificacion), mono: true } : null,
+                          o.fechaCompromiso
+                            ? { etiqueta: "Compromiso presupuestal", valor: fechaConAnio(o.fechaCompromiso), mono: true, ayuda: <AyudaTermino clave="compromiso-presupuestal" /> }
+                            : null,
+                          o.objeto ? { etiqueta: "Bien, servicio u obra", valor: tituloNatural(o.objeto) } : null,
+                          // El botón del expediente, como un dato más (antes, un bloque con título para un solo botón).
+                          o.entidadRuc && o.fecha && o.numero
+                            ? {
+                                etiqueta: "Expediente SIAF",
+                                valor: <ExpedienteSiaf entidadRuc={o.entidadRuc} fecha={o.fecha} compra={clase === "Orden de compra"} numero={o.numero} />,
+                                ayuda: <AyudaTermino clave="expediente-siaf" />,
+                                ancho: true,
+                              }
+                            : null,
+                        ]}
+                      />
+                      {extra?.bloques}
+                      {(soloEntidad || soloProveedor) && (
+                        <div className="flex flex-wrap gap-2">
+                          {soloEntidad && (
+                            <EnlaceAccion href={soloEntidad} prefetch={false} variante="secundario">
+                              <ListFilter size={15} aria-hidden />
+                              Ver sólo las órdenes de esta entidad
+                            </EnlaceAccion>
+                          )}
+                          {soloProveedor && (
+                            <EnlaceAccion href={soloProveedor} prefetch={false} variante="secundario">
+                              <ListFilter size={15} aria-hidden />
+                              Ver sólo las órdenes de este proveedor
+                            </EnlaceAccion>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                ),
+              },
+            ]}
+          />
         </CuerpoDetalle>
       ),
       // Una orden no tiene página propia en el OECE: el buscador de CONOSCE la encuentra por entidad y número.

@@ -1,12 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Globe, Network, PenLine, UserRound } from "lucide-react";
-import { plural } from "@/lib/formato";
+import { Globe, Network, UserRound } from "lucide-react";
 import { redactDnis } from "../../../Redact";
 import { FuentesConsultadasSection } from "../FuentesConsultadasSection";
 import { SeccionSegura } from "../SeccionSegura";
-import { Pliegue } from "./Pliegue";
 import { SenalesRed } from "./SenalesRed";
 import { fuentesSinFaltaSunat, sinFaltaSunat } from "./proveedor";
 
@@ -23,13 +21,8 @@ function Texto({ icono, rotulo, children }: { icono: ReactNode; rotulo: string; 
   );
 }
 
-/**
- * Lo que escribió el agente sobre el proveedor, plegado al final de la pestaña: sus síntesis de la web y de la red, lo
- * que encontró en la web que no está en un registro y las fuentes que consultó. Va al final y cerrado porque es su
- * lectura; los capítulos de arriba salen de los registros. Con el padrón SUNAT en la base, la «falta de información
- * SUNAT» no se muestra (era falsa: el agente no la encontraba en decolecta, pero Vigía la tiene).
- */
-export function LoQueEscribioElAgente({ web, person, sunatEnBase }: { web: any; person: any; sunatEnBase: boolean }) {
+/** Lo que escribió el agente: sus síntesis, lo que encontró en la web y las fuentes que consultó (sin la falsa «falta de SUNAT»). */
+export function escritoDelAgente(web: any, person: any, sunatEnBase: boolean) {
   const p = person?.persona_principal ?? {};
   const red = person?.red_empresarial ?? {};
   const sugeridas = sinFaltaSunat((web?.banderas_sugeridas ?? []) as any[], sunatEnBase);
@@ -40,39 +33,36 @@ export function LoQueEscribioElAgente({ web, person, sunatEnBase }: { web: any; 
     p.sintesis_personal && { k: "persona", icono: <UserRound size={13} />, rotulo: "Sobre su representante", texto: p.sintesis_personal },
     red.observaciones && { k: "empresas", icono: <Network size={13} />, rotulo: "Sobre sus otras empresas", texto: red.observaciones },
   ].filter(Boolean) as { k: string; icono: ReactNode; rotulo: string; texto: string }[];
-
-  if (!textos.length && !sugeridas.length && !fuentes.length) return null;
-  const partes = [
-    textos.length && plural(textos.length, "síntesis", "síntesis"),
-    sugeridas.length && plural(sugeridas.length, "hallazgo en la web", "hallazgos en la web"),
-    fuentes.length && plural(fuentes.length, "fuente consultada", "fuentes consultadas"),
-  ].filter(Boolean) as string[];
-
-  return (
-    <Pliegue
-      titulo="Lo que escribió el agente"
-      icono={<PenLine size={16} />}
-      detalle={`Su lectura, tal como la escribió (${partes.join(", ")}). Los capítulos de arriba salen de los registros públicos.`}
-    >
-      <div className="space-y-3">
-        {textos.map((t) => (
-          <Texto key={t.k} icono={t.icono} rotulo={t.rotulo}>
-            {redactDnis(t.texto)}
-          </Texto>
-        ))}
-        {sugeridas.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-cuerpo font-semibold text-ink">Lo que encontró en la web</h3>
-            <SenalesRed banderas={sugeridas} etiqueta="Lo que el agente encontró en la web sobre el proveedor" />
-          </div>
-        )}
-        {fuentes.length > 0 && (
-          <SeccionSegura nombre="las fuentes consultadas">
-            <FuentesConsultadasSection hallazgos={fuentes} />
-          </SeccionSegura>
-        )}
-      </div>
-    </Pliegue>
-  );
+  return { textos, sugeridas, fuentes, total: textos.length + sugeridas.length + fuentes.length };
 }
 
+/**
+ * Lo que escribió el agente sobre el proveedor: sus síntesis de la web y de la red, lo que encontró en la web que no está
+ * en un registro y las fuentes que consultó. Es su lectura; los otros capítulos salen de los registros. Con el padrón SUNAT
+ * en la base, la «falta de información SUNAT» no se muestra (era falsa: el agente no la encontraba en decolecta, pero
+ * Vigía la tiene). Es el último capítulo de la pestaña (el título y la bajada los pone el capítulo).
+ */
+export function LoQueEscribioElAgente({ web, person, sunatEnBase }: { web: any; person: any; sunatEnBase: boolean }) {
+  const { textos, sugeridas, fuentes, total } = escritoDelAgente(web, person, sunatEnBase);
+  if (!total) return null;
+  return (
+    <div className="space-y-3">
+      {textos.map((t) => (
+        <Texto key={t.k} icono={t.icono} rotulo={t.rotulo}>
+          {redactDnis(t.texto)}
+        </Texto>
+      ))}
+      {sugeridas.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-cuerpo font-semibold text-ink">Lo que encontró en la web</h3>
+          <SenalesRed banderas={sugeridas} etiqueta="Lo que el agente encontró en la web sobre el proveedor" />
+        </div>
+      )}
+      {fuentes.length > 0 && (
+        <SeccionSegura nombre="las fuentes consultadas">
+          <FuentesConsultadasSection hallazgos={fuentes} />
+        </SeccionSegura>
+      )}
+    </div>
+  );
+}

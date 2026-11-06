@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Banknote, ChevronRight, Eye, FileSearch, FileText, GitCompare, ListChecks, ScanText, ShieldCheck, UserCheck } from "lucide-react";
 import { canonica } from "@/lib/seo";
-import { Ayuda, Capitulo, EnUnaFrase, EncabezadoPagina, EstadoError, FuenteDato, IndiceRelato, Migas, Nota, Pagina } from "@/components/patrones";
+import { Ayuda, CapitulosRelato, EnUnaFrase, EncabezadoPagina, EstadoError, FuenteDato, Migas, Nota, Pagina, type CapituloRelato } from "@/components/patrones";
 import { BarraPartes } from "@/components/inicio/BarraPartes";
 import { MuestraSerie, colorSerie } from "@/components/charts/BarraSegmentada";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
  * Antes cada cosa vivía suelta en su ficha (el dictamen en la del proceso, la lectura del requerimiento en la del contrato
  * menor) y nadie veía el conjunto.
  *
- * El orden es el de la lectura, de lo que entra a lo que sale y a cómo se vigila:
+ * El orden es el de la lectura, de lo que entra a lo que sale y a cómo se vigila (capítulos que se leen de a uno):
  *   EnUnaFrase  qué hizo en una oración, con sus cifras: lee y compara, no predice.
  *   1 Qué lee           los cuatro pasos (documento, lectura, comparación, señal) y cuánto leyó de cada documento.
  *   2 Los dictámenes    el análisis completo de un proceso: por peso del riesgo y los más recientes con puntaje alto.
@@ -65,17 +65,64 @@ export default async function IaPage() {
   );
 }
 
-const CAPITULOS = [
-  { id: "que-lee", titulo: "Qué lee" },
-  { id: "dictamenes", titulo: "Los dictámenes" },
-  { id: "menores", titulo: "Los contratos menores" },
-  { id: "procesos", titulo: "Actas, bases y consultas" },
-  { id: "control", titulo: "Cómo se controla" },
-];
-
 function Relato({ r }: { r: ResumenIa }) {
   const dictamenes = r.dictamenes.publicados + r.dictamenes.enRevision;
   const conHallazgo = r.procesos.conHallazgo + r.menores.conHallazgo;
+  const p = r.procesos;
+  // Los capítulos se leen de a uno («divídelo por subsecciones, menos scroll»): la página medía casi 5 000 px.
+  const capitulos: CapituloRelato[] = [
+    {
+      id: "que-lee",
+      titulo: "Qué lee",
+      bajada: "Del documento a la señal, siempre en los mismos cuatro pasos.",
+      contenido: <CapituloQueLee r={r} dictamenes={dictamenes} conHallazgo={conHallazgo} />,
+    },
+    {
+      id: "dictamenes",
+      titulo: "Los dictámenes",
+      conteo: dictamenes,
+      bajada: "El análisis completo de un proceso: varios agentes leen el expediente, cruzan los registros y escriben un informe con su puntaje y sus señales.",
+      accion: (
+        <Link href="/app/contratos?lectura=publicado&orden=score" prefetch={false} className={CLASE_ACCION_LISTA}>
+          Ver los {numero(r.dictamenes.publicados)} publicados
+        </Link>
+      ),
+      contenido: <CapituloDictamenes r={r} />,
+    },
+    {
+      id: "menores",
+      titulo: "Los contratos menores",
+      conteo: r.menores.conHallazgo,
+      tono: "media",
+      bajada: "Compras de hasta 8 UIT, sin proceso de selección: lee lo que la entidad pidió y lo que firmó, y los compara con lo que registró en el SEACE.",
+      accion: (
+        <Link href={MENORES_CON_HALLAZGO} prefetch={false} className={CLASE_ACCION_LISTA}>
+          Ver los {numero(r.menores.conHallazgo)} con hallazgo
+        </Link>
+      ),
+      contenido: <CapituloMenores r={r} />,
+    },
+    {
+      id: "procesos",
+      titulo: "Actas, bases y consultas",
+      tituloLargo: "Las actas, las bases y las consultas",
+      conteo: p.conHallazgo,
+      tono: "media",
+      bajada: "En los procesos de selección lee lo que se exigió para competir, lo que reclamaron los participantes y por qué quedó fuera cada postor.",
+      accion: p.hallazgos.length ? (
+        <Link href={`/app/contratos?cruce=${p.hallazgos.map((h) => h.tipo).join(",")}`} prefetch={false} className={CLASE_ACCION_LISTA}>
+          Ver los {numero(p.conHallazgo)} procesos
+        </Link>
+      ) : undefined,
+      contenido: <CapituloProcesos r={r} />,
+    },
+    {
+      id: "control",
+      titulo: "Cómo se controla",
+      bajada: "Lo que hace falta para que una lectura se convierta en una señal, y lo que la IA no hace.",
+      contenido: <CapituloControl r={r} />,
+    },
+  ];
   return (
     <>
       <EnUnaFrase
@@ -94,13 +141,7 @@ function Relato({ r }: { r: ResumenIa }) {
         cuadra. Casi todas sus señales salen sólo si dos lecturas coinciden.
       </EnUnaFrase>
 
-      <IndiceRelato capitulos={CAPITULOS} />
-
-      <CapituloQueLee r={r} dictamenes={dictamenes} conHallazgo={conHallazgo} />
-      <CapituloDictamenes r={r} />
-      <CapituloMenores r={r} />
-      <CapituloProcesos r={r} />
-      <CapituloControl r={r} />
+      <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos de lo que hizo la IA" />
 
       <FuenteDato fuente="Lecturas de Vigía sobre los documentos que las entidades publican en el SEACE" fecha={r.ultimaLectura} />
     </>
@@ -119,7 +160,7 @@ const PASOS: { icono: typeof FileText; titulo: string; texto: string }[] = [
 function CapituloQueLee({ r, dictamenes, conHallazgo }: { r: ResumenIa; dictamenes: number; conHallazgo: number }) {
   const confirmar = Math.max(0, r.totales.lecturas - r.totales.documentos);
   return (
-    <Capitulo n={1} id="que-lee" titulo="Qué lee" bajada="Del documento a la señal, siempre en los mismos cuatro pasos.">
+    <>
       <div className="space-y-5">
         <ol aria-label="Los cuatro pasos de una lectura" className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {PASOS.map((p, i) => (
@@ -170,7 +211,7 @@ function CapituloQueLee({ r, dictamenes, conHallazgo }: { r: ResumenIa; dictamen
           </div>
         </div>
       </div>
-    </Capitulo>
+    </>
   );
 }
 
@@ -219,17 +260,7 @@ function BarrasDocumentos({ titulo, clases, contratos }: { titulo: string; clase
 function CapituloDictamenes({ r }: { r: ResumenIa }) {
   const d = r.dictamenes;
   return (
-    <Capitulo
-      n={2}
-      id="dictamenes"
-      titulo="Los dictámenes"
-      bajada="El análisis completo de un proceso: varios agentes leen el expediente, cruzan los registros y escriben un informe con su puntaje y sus señales."
-      accion={
-        <Link href="/app/contratos?lectura=publicado&orden=score" prefetch={false} className={CLASE_ACCION_LISTA}>
-          Ver los {numero(d.publicados)} publicados
-        </Link>
-      }
-    >
+    <>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-4">
           <h3 className="font-display text-bloque font-bold leading-tight text-ink">Publicados, por peso del riesgo</h3>
@@ -290,7 +321,7 @@ function CapituloDictamenes({ r }: { r: ResumenIa }) {
           )}
         </div>
       </div>
-    </Capitulo>
+    </>
   );
 }
 
@@ -306,17 +337,7 @@ function CapituloMenores({ r }: { r: ResumenIa }) {
   const tdr = m.clases.find((c) => c.clase === "menor_tdr");
   const contrato = m.clases.find((c) => c.clase === "menor_contrato");
   return (
-    <Capitulo
-      n={3}
-      id="menores"
-      titulo="Los contratos menores"
-      bajada="Compras de hasta 8 UIT, sin proceso de selección: lee lo que la entidad pidió y lo que firmó, y los compara con lo que registró en el SEACE."
-      accion={
-        <Link href={MENORES_CON_HALLAZGO} prefetch={false} className={CLASE_ACCION_LISTA}>
-          Ver los {numero(m.conHallazgo)} con hallazgo
-        </Link>
-      }
-    >
+    <>
       <div className="space-y-5">
         <figure className="grid items-stretch gap-2.5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <Extrae titulo="Lo que se pidió" documento={`El requerimiento: ${plural(tdr?.documentos ?? 0, "leído", "leídos")}`} items={SE_PIDIO} />
@@ -371,7 +392,7 @@ function CapituloMenores({ r }: { r: ResumenIa }) {
           </div>
         </div>
       </div>
-    </Capitulo>
+    </>
   );
 }
 
@@ -396,22 +417,9 @@ function Extrae({ titulo, documento, items }: { titulo: string; documento: strin
 
 function CapituloProcesos({ r }: { r: ResumenIa }) {
   const p = r.procesos;
-  const todos = `/app/contratos?cruce=${p.hallazgos.map((h) => h.tipo).join(",")}`;
   const conHallazgos = p.clases.filter((c) => c.clase !== "contrato");
   return (
-    <Capitulo
-      n={4}
-      id="procesos"
-      titulo="Las actas, las bases y las consultas"
-      bajada="En los procesos de selección lee lo que se exigió para competir, lo que reclamaron los participantes y por qué quedó fuera cada postor."
-      accion={
-        p.hallazgos.length ? (
-          <Link href={todos} prefetch={false} className={CLASE_ACCION_LISTA}>
-            Ver los {numero(p.conHallazgo)} procesos
-          </Link>
-        ) : undefined
-      }
-    >
+    <>
       <div className="space-y-5">
         <ol aria-label="Lo que saca de cada documento" className="grid gap-2.5 sm:grid-cols-3">
           {conHallazgos.map((c, i) => (
@@ -472,7 +480,7 @@ function CapituloProcesos({ r }: { r: ResumenIa }) {
           </div>
         </div>
       </div>
-    </Capitulo>
+    </>
   );
 }
 
@@ -509,7 +517,7 @@ function CapituloControl({ r }: { r: ResumenIa }) {
     },
   ];
   return (
-    <Capitulo n={5} id="control" titulo="Cómo se controla" bajada="Lo que hace falta para que una lectura se convierta en una señal, y lo que la IA no hace.">
+    <>
       <div className="space-y-4">
         <ol className="grid gap-2.5 sm:grid-cols-2">
           {controles.map((c, i) => (
@@ -547,7 +555,7 @@ function CapituloControl({ r }: { r: ResumenIa }) {
           </EnlaceAccion>
         </div>
       </div>
-    </Capitulo>
+    </>
   );
 }
 
