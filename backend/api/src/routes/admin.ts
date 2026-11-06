@@ -588,7 +588,16 @@ adminRouter.post("/asignar", async (c) => {
       if (!esErrorPg(e, "42883")) console.warn(`[asignar] mcp_refrescar: ${(e as Error).message}`);
       return null;
     });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp });
+  // Los hallazgos por entidad (migración 256, routes/hallazgos.ts), después de las vistas del MCP (lee mcp_adjudicacion):
+  // las cifras de cada entidad una vez al día (más de 20 h) y los conceptos de gasto una vez por semana, el más viejo
+  // primero, mientras quepan en 90 s (cada concepto tarda de segundos a ~1 min en frío). Casi siempre es una lectura.
+  const hallazgos = await pool.query<{ r: unknown }>("SELECT refrescar_hallazgos(20, 90, 7) AS r")
+    .then((q) => q.rows[0].r)
+    .catch((e) => {
+      if (!esErrorPg(e, "42883")) console.warn(`[asignar] refrescar_hallazgos: ${(e as Error).message}`);
+      return null;
+    });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

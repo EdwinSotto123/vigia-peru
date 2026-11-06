@@ -276,3 +276,73 @@ export const gastoPorConcepto = definir({
 });
 
 HERRAMIENTAS_ENTIDAD.push(gastoPorConcepto);
+
+const METRICAS_RANKING = [
+  "pct_unico_postor", "pct_directas", "pct_top5_proveedores", "pct_personas_naturales", "pct_diciembre", "pct_borde_tope",
+  "pct_ejecucion", "pct_ejecucion_actual", "informes_penal", "pct_obras_paralizadas", "gasto_eventos", "gasto_alimentos",
+  "gasto_publicidad", "gasto_regalos", "monto_adjudicado", "procesos", "monto_ordenes", "pim",
+] as const;
+
+export const hallazgosEntidad = definir({
+  nombre: "hallazgos_entidad",
+  titulo: "Lo raro de una entidad frente a sus pares",
+  descripcion:
+    "Compara una entidad con entidades parecidas (mismo tipo y tamaño de presupuesto) desde 2023 y devuelve lo que se sale " +
+    "de lo normal: único postor, contratación directa, concentración de proveedores, órdenes a personas naturales, gasto en " +
+    "diciembre, órdenes al borde del tope, ejecución del presupuesto, informes de control, obras paralizadas y gasto en " +
+    "eventos, alimentos, publicidad y regalos. Cada hallazgo trae su valor, la mediana y el percentil de los pares, y qué " +
+    "herramienta usar para profundizar. Úsala primero para «¿qué es lo más raro de…?».",
+  entrada: { ruc: rucEntidad },
+  async ejecutar({ ruc }, cx) {
+    const r = rucJuridico(ruc, "RUC de la entidad");
+    const d = await api<Fila>(cx.env, `/entidades/${r}/hallazgos`);
+    const corta = (m: Fila) => ({
+      clave: m.clave, titulo: m.titulo, valor: m.valor, unidad: m.unidad, mediana_pares: m.mediana_pares, p90_pares: m.p90_pares,
+      percentil: m.percentil, veces_mediana: m.veces_mediana, base: m.base, explicacion: m.explicacion, profundizar: m.profundizar,
+    });
+    return {
+      entidad: d.entidad,
+      grupo: d.grupo,
+      banda: d.banda,
+      pares: d.pares,
+      periodo: d.periodo,
+      hallazgos: ((d.hallazgos ?? []) as Fila[]).map(corta),
+      otras_metricas: ((d.metricas ?? []) as Fila[]).filter((m) => !m.hallazgo).map((m) => ({
+        clave: m.clave, titulo: m.titulo, valor: m.valor, unidad: m.unidad, mediana_pares: m.mediana_pares, percentil: m.percentil,
+      })),
+      nota: d.nota,
+      enlace: enlaces(cx.env).entidad(r),
+      aviso: "Salirse de lo normal no prueba una irregularidad: es una pista para revisar.",
+    };
+  },
+});
+
+export const rankingEntidades = definir({
+  nombre: "ranking_entidades",
+  titulo: "Ranking de entidades por una métrica",
+  descripcion:
+    "Las entidades con el valor más alto (o más bajo) de una métrica dentro de su tipo (municipalidades distritales, " +
+    "provinciales, gobiernos regionales, salud, educación, universidades…), opcionalmente en una región o banda de " +
+    "presupuesto: por ejemplo «qué municipalidades distritales gastan más en eventos» o «qué gobiernos regionales ejecutan " +
+    "menos su presupuesto». Trae valor, percentil y mediana del grupo.",
+  entrada: {
+    metrica: z.enum(METRICAS_RANKING),
+    grupo: z.string().max(40).describe("municipalidad_distrital, municipalidad_provincial, gobierno_regional, nacional, salud, educacion, universidad, organismo_municipal, empresa_publica u otros."),
+    region: z.string().max(40).optional(),
+    banda: z.number().int().min(1).max(3).optional().describe("Tercio de presupuesto dentro del grupo: 1 menor, 2 medio, 3 mayor."),
+    orden: z.enum(["desc", "asc"]).default("desc"),
+    limite: z.number().int().min(1).max(50).default(15),
+  },
+  async ejecutar(a, cx) {
+    const d = await api<Fila>(cx.env, "/hallazgos/ranking", {
+      metrica: a.metrica, grupo: a.grupo.toLowerCase().replace(/\s+/g, "_"), region: a.region, banda: a.banda, orden: a.orden, limite: a.limite,
+    });
+    return {
+      ...d,
+      filas: ((d.filas ?? []) as Fila[]).map((f) => ({ ...f, enlace: f.ruc ? enlaces(cx.env).entidad(f.ruc) : undefined })),
+      aviso: "Un valor alto no prueba una irregularidad: es una pista para revisar.",
+    };
+  },
+});
+
+HERRAMIENTAS_ENTIDAD.push(hallazgosEntidad, rankingEntidades);

@@ -11,6 +11,7 @@ import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK 
 import { hayObras } from "./obras.js";
 import { hayCatalogo } from "./catalogo.js";
 import { hayCompras } from "./compras.js";
+import { hallazgosDeEntidad } from "./hallazgos.js";
 
 export const entidadesRouter = new Hono();
 
@@ -703,6 +704,9 @@ export function armarProveedoresEntidad(ruc: string, desde: number, hasta: numbe
   };
 }
 const proveedoresEntidadMemo = new Memo<Record<string, unknown> | null>({ nombre: "entidades:proveedores", ttlMs: 600_000, staleMs: 3_600_000, max: 500 });
+
+// ─── GET /entidades/:ruc/hallazgos — sus cifras frente a las de sus pares (migración 256, routes/hallazgos.ts) ─
+entidadesRouter.get("/:ruc/hallazgos", hallazgosDeEntidad);
 
 entidadesRouter.get("/:ruc/proveedores", async (c) => {
   const ruc = c.req.param("ruc");
