@@ -9,6 +9,17 @@ type Fila = Record<string, any>;
 
 const RESERVADAS = new Set(["fuente", "medida", "por", "orden", "limite"]);
 
+/** Lo que el modelo suele pedir con otro nombre: así no pierde una vuelta en un error de validación. */
+const MEDIDA_POR_DEFECTO: Record<string, Record<string, string>> = {
+  monto: { adjudicaciones: "monto_adjudicado", ordenes: "monto_ordenes", menores: "monto", presupuesto: "devengado", senales: "casos" },
+  total: { adjudicaciones: "monto_adjudicado", ordenes: "monto_ordenes", menores: "monto", presupuesto: "devengado", senales: "casos" },
+  cantidad: { adjudicaciones: "procesos", ordenes: "ordenes", menores: "compras", senales: "casos" },
+  numero: { adjudicaciones: "procesos", ordenes: "ordenes", menores: "compras", senales: "casos" },
+  gasto: { presupuesto: "devengado", ordenes: "monto_ordenes", adjudicaciones: "monto_adjudicado", menores: "monto" },
+  ejecucion: { presupuesto: "pct_ejecucion" },
+};
+const FILTRO_ALIAS: Record<string, string> = { entidad_ruc: "entidad", proveedor_ruc: "proveedor", ruc: "entidad", departamento: "region", anio: "anio_desde" };
+
 export const consultarDatos = definir({
   nombre: "consultar_datos",
   titulo: "Consultar cifras",
@@ -36,9 +47,16 @@ export const consultarDatos = definir({
       const de = Array.isArray(fuentes) ? fuentes.find((f: Fila) => f.clave === a.fuente) : fuentes[a.fuente];
       return { fuente: a.fuente, catalogo: de ?? esquema };
     }
-    const filtros = Object.fromEntries(Object.entries(a.filtros).filter(([k]) => !RESERVADAS.has(k)));
+    const filtros: Record<string, string | number> = {};
+    for (const [k, v] of Object.entries(a.filtros)) {
+      if (RESERVADAS.has(k)) continue;
+      filtros[FILTRO_ALIAS[k] ?? k] = v;
+    }
+    // «anio: 2025» sin rango = solo ese año.
+    if (a.filtros.anio !== undefined && a.filtros.anio_hasta === undefined) filtros.anio_hasta = a.filtros.anio;
+    const medida = MEDIDA_POR_DEFECTO[a.medida.toLowerCase()]?.[a.fuente] ?? a.medida;
     const r = await api<Fila>(cx.env, "/datos/consulta", {
-      fuente: a.fuente, medida: a.medida, por: a.por.join(","), orden: a.orden, limite: a.limite, ...filtros,
+      fuente: a.fuente, medida, por: a.por.join(","), orden: a.orden, limite: a.limite, ...filtros,
     });
     return r;
   },

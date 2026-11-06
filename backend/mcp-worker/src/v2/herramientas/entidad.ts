@@ -228,8 +228,8 @@ export const gastoPorConcepto = definir({
     "aportó cada término y las compras más grandes. Pasa varios términos alternativos y sinónimos (por ejemplo «sonido, " +
     "parlante, audio, amplificación, luces, escenario, tarima») y usa excluir para quitar lo que no es del concepto.",
   entrada: {
-    terminos: z.array(z.string().min(3).max(40)).min(1).max(15).describe("Palabras o frases alternativas del concepto (se suman con O)."),
-    excluir: z.array(z.string().min(3).max(40)).max(10).default([]).describe("Palabras que sacan una compra del concepto (por ejemplo «mantenimiento»)."),
+    terminos: z.array(z.string().max(60)).min(1).max(40).describe("Palabras o frases alternativas del concepto (se suman con O; se usan las 20 primeras)."),
+    excluir: z.array(z.string().max(60)).max(40).default([]).describe("Palabras que sacan una compra del concepto (por ejemplo «mantenimiento»; se usan las 15 primeras)."),
     entidad_ruc: z.string().optional().describe("RUC de la entidad que compra."),
     proveedor_ruc: z.string().optional().describe("RUC 20 de la empresa que vende."),
     region: z.string().max(40).optional().describe("Departamento (todas sus entidades; hasta 3 años)."),
@@ -240,10 +240,14 @@ export const gastoPorConcepto = definir({
   async ejecutar(a, cx) {
     const alcances = [a.entidad_ruc, a.proveedor_ruc, a.region].filter(Boolean).length;
     if (alcances !== 1) throw new ErrorUsuario("Indica uno: entidad_ruc, proveedor_ruc o region.");
-    const limpiar = (xs: string[]) => xs.map((t) => t.replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim()).filter((t) => t.length >= 3);
+    const limpiar = (xs: string[], max: number) =>
+      Array.from(new Set(xs.map((t) => t.replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 40)).filter((t) => t.length >= 3))).slice(0, max);
+    const incl = limpiar(a.terminos, 20);
+    const excl = limpiar(a.excluir, 15);
+    if (!incl.length) throw new ErrorUsuario("Pasa al menos un término de 3 letras o más.");
     const d = await api<Fila>(cx.env, "/gasto/concepto", {
-      terminos: limpiar(a.terminos).join(","),
-      excluir: limpiar(a.excluir).join(",") || undefined,
+      terminos: incl.join(","),
+      excluir: excl.join(",") || undefined,
       entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined,
       proveedor: a.proveedor_ruc ? rucJuridico(a.proveedor_ruc, "RUC del proveedor") : undefined,
       region: a.region,

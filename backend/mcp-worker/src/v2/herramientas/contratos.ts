@@ -330,6 +330,19 @@ export const comprasMenores = definir({
   },
 });
 
+/** «orden directa», «catálogo», «compra menor», «procesos» → la clave de la API; vacío = todas. */
+function viaDeCompra(texto: string | undefined): string | undefined {
+  if (!texto) return undefined;
+  const t = texto.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  if (/catalog|peru compras|acuerdo marco/.test(t)) return "catalogo";
+  if (/menor|8 uit|cotizacion/.test(t)) return "menor";
+  if (/pago|deviene|adelanto/.test(t)) return "pago";
+  if (/direct|orden/.test(t)) return "directa";
+  if (/proces|licitac|concurso|adjudicac|seleccion/.test(t)) return "proceso";
+  if (/todas|todo/.test(t)) return undefined;
+  throw new ErrorUsuario(`como: «${texto}» no es una vía. Usa proceso, catalogo, menor, directa o pago (o nada para todas).`);
+}
+
 export const ordenes = definir({
   nombre: "ordenes",
   titulo: "Compras y órdenes",
@@ -339,7 +352,7 @@ export const ordenes = definir({
   entrada: {
     entidad_ruc: z.string().optional(),
     proveedor_ruc: z.string().optional().describe("RUC 20 de la empresa."),
-    como: z.enum(["proceso", "catalogo", "menor", "directa", "pago"]).optional().describe("Por qué vía: proceso, catálogo, compra menor, orden directa o pago."),
+    como: z.string().max(40).optional().describe("Por qué vía: proceso, catalogo, menor (compra menor), directa (orden directa) o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
     texto: z.string().min(3).max(80).optional().describe("Busca TODAS estas palabras juntas en la descripción. Para sumar el gasto en un concepto con sinónimos usa gasto_por_concepto."),
@@ -348,9 +361,10 @@ export const ordenes = definir({
   },
   async ejecutar(a, cx) {
     if (!!a.entidad_ruc === !!a.proveedor_ruc) throw new ErrorUsuario("Indica entidad_ruc o proveedor_ruc (uno de los dos).");
+    const como = viaDeCompra(a.como);
     const r = await api<Fila>(cx.env, "/compras", {
       entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc) : undefined, proveedor: a.proveedor_ruc ? rucJuridico(a.proveedor_ruc) : undefined,
-      como: a.como, con: a.con ? rucJuridico(a.con) : undefined, anio: a.anio, q: a.texto, page: a.pagina, size: a.por_pagina,
+      como, con: a.con ? rucJuridico(a.con) : undefined, anio: a.anio, q: a.texto, page: a.pagina, size: a.por_pagina,
     });
     const e = enlaces(cx.env);
     const fila = (x: Fila) => {

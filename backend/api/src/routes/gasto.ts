@@ -21,7 +21,8 @@ import { cachePublico } from "../lib/http.js";
 
 export const gastoRouter = new Hono();
 
-const MAX_TERMINOS = 15;
+const MAX_TERMINOS = 20;
+const MAX_EXCLUIR = 15;
 const PLAZO_MS = 20_000;
 /** El mismo texto que indexa la migración 255: minúsculas sin tildes, en español. Tiene que coincidir al carácter. */
 const TSV = (col: string) => `to_tsvector('spanish'::regconfig, translate(lower(coalesce(${col}, '')), 'áéíóúüñ', 'aeiouun'))`;
@@ -136,7 +137,7 @@ gastoRouter.get("/concepto", async (c) => {
     const q = (k: string) => c.req.query(k)?.trim() || undefined;
     const incl = terminos(q("terminos"), "terminos", MAX_TERMINOS);
     if (!incl.length) throw new ErrorPedido("Falta terminos: palabras del concepto separadas por coma, por ejemplo terminos=sonido,parlante,audio.");
-    const excl = terminos(q("excluir"), "excluir", 10);
+    const excl = terminos(q("excluir"), "excluir", MAX_EXCLUIR);
     const anioActual = Number(new Date().toLocaleDateString("en-CA", { timeZone: "America/Lima" }).slice(0, 4));
     const hasta = Number(q("hasta") ?? anioActual);
     const desde = Number(q("desde") ?? hasta - 4);
