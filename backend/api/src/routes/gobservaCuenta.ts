@@ -21,6 +21,7 @@ import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
  * aquí exige sesión (Bearer de Firebase) y filtra por el uid del token: nadie ve ni toca lo de otra persona.
  *
  *   GET    /gobserva/cuenta/me?producto=        perfil, planes, límites y uso en ese producto (crea la cuenta al entrar)
+ *   GET    /gobserva/cuenta/planes              los planes vigentes en todos los productos (para el MCP)
  *   PUT    /gobserva/cuenta/me                  perfil y datos para el comprobante
  *   DELETE /gobserva/cuenta/me                  borra la cuenta (cancela los cobros; los recibos se guardan)
  *   POST   /gobserva/cuenta/checkout/tarjeta    contrata un plan con tarjeta (suscripción mensual de Mercado Pago)
@@ -121,6 +122,21 @@ gobservaCuentaRouter.get("/me", async (c) => {
     pendientes: pendientes.rows,
     producto: delProducto,
     correoActivo: await correoAbierto(),
+  });
+});
+
+// ─── Planes vigentes ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Los planes vigentes de la persona en todos los productos (los de pago: activos y pagados, con los 3 días de gracia de
+ * `planVigente`). Sin crear la cuenta ni exigir correo: lo pregunta el MCP de Gobserva para saber qué cupo le toca, y una
+ * cuenta sin plan recibe la lista vacía.
+ */
+gobservaCuentaRouter.get("/planes", async (c) => {
+  const u = c.get("user");
+  const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(u.uid, producto) })));
+  return c.json({
+    planes: vigentes.flatMap(({ producto, v }) => (v ? [{ producto, plan: v.plan, vigenteHasta: v.vigenteHasta }] : [])),
   });
 });
 

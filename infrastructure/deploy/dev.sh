@@ -4,6 +4,7 @@
 #   bash infrastructure/deploy/dev.sh api            # backend/api (copia de trabajo) → vigia-api-dev
 #   bash infrastructure/deploy/dev.sh web            # frontend (copia de trabajo)    → vigia-web-dev (SIN_BUILD=1: el último build)
 #   bash infrastructure/deploy/dev.sh scrapers       # backend/scrapers-worker        → vigia-scrapers-dev (sin crons)
+#   bash infrastructure/deploy/dev.sh mcp            # backend/mcp-worker             → vigia-mcp-dev (MCP v2)
 #   bash infrastructure/deploy/dev.sh todo           # los tres
 #   bash infrastructure/deploy/dev.sh migrar backend/db/migrations/84_precio_item.sql
 #   bash infrastructure/deploy/dev.sh sql "SELECT count(*) FROM precio_item"
@@ -91,6 +92,7 @@ PY
 case "${1:-}" in
   api) (cd "$REPO_ROOT/backend/api" && wr deploy --env dev) ;;
   scrapers) (cd "$REPO_ROOT/backend/scrapers-worker" && wr deploy --env dev) ;;
+  mcp) (cd "$REPO_ROOT/backend/mcp-worker" && wr deploy --env dev) ;;
   web) web ;;
   todo) "$0" api && "$0" scrapers && "$0" web ;;
   base|secretos|clonar|estado|detener|encender|precalentar) "$PY" "$AYUDA" "$1" ;;

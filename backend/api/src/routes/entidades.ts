@@ -556,6 +556,176 @@ entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
   return c.json(publicar(await fraccionamientoDeEntidad(ruc, limit)));
 });
 
+// ─── GET /entidades/:ruc/proveedores — quién le vende más (MCP de Gobserva, migración 254) ─
+/**
+ * Las empresas que más le vendieron a la entidad entre dos años: lo adjudicado en procesos (mcp_adjudicacion, por año de la
+ * convocatoria) y lo comprado por órdenes (empresa_orden_anual, por año de emisión), de mayor a menor por la suma de los dos.
+ * Un proceso ganado en consorcio cuenta, con su monto entero, para cada integrante RUC 20, como en /empresas/:ruc/clientes
+ * (`procesos_en_consorcio` y `monto_en_consorcio` lo separan): por eso las `pct_del_total` pueden sumar más de 100.
+ * `total` no repite nada (cada proceso y cada orden una vez) y `top5_pct` es la parte del total que se llevaron las cinco
+ * primeras, también sin repetir. Lo que no fue a una empresa (personas naturales, consorcios sin integrante RUC 20, no
+ * domiciliados) va sumado en `personas_naturales`, sin RUC ni nombres: `n` cuenta los proveedores distintos de sus
+ * procesos (las órdenes no se cuentan por proveedor). Montos en soles; los procesos con un monto que parece mal cargado
+ * cuentan como procesos pero no suman.
+ */
+export const ProveedoresEntidadQuery = z.object({
+  anio_desde: z.coerce.number().int().min(2015).max(2100).optional(),
+  anio_hasta: z.coerce.number().int().min(2015).max(2100).optional(),
+  limite: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/** La SQL de GET /entidades/:ruc/proveedores: $1 RUC de la entidad, $2 y $3 los años, $4 cuántas empresas. Sin nada del pedido. */
+export const SQL_PROVEEDORES_ENTIDAD = `
+  WITH a AS MATERIALIZED (
+    SELECT codigo_convocatoria, ruc_proveedor, consorcio, proveedor, monto, dudoso, otra_moneda, unico_postor, es_directa
+      FROM mcp_adjudicacion WHERE entidad_ruc = $1 AND anio BETWEEN $2 AND $3
+  ), em AS MATERIALIZED (
+    -- Los integrantes RUC 20 de sus consorcios (los mismos de refrescar_empresas).
+    SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro
+      FROM conosce_consorcios
+     WHERE ruc_consorcio IN (SELECT consorcio FROM a WHERE consorcio IS NOT NULL) AND ruc_miembro ~ '^20[0-9]{9}$'
+     ORDER BY ruc_consorcio, ruc_miembro, anio DESC
+  ), x AS (
+    SELECT a.*, COALESCE(a.ruc_proveedor, em.ruc_miembro) AS ruc, COALESCE(a.proveedor, em.miembro) AS nombre,
+           em.ruc_miembro IS NOT NULL AS en_consorcio
+      FROM a LEFT JOIN em ON em.ruc_consorcio = a.consorcio
+  ), adj AS (
+    SELECT ruc, max(nombre) AS nombre,
+           COALESCE(sum(monto) FILTER (WHERE NOT dudoso), 0) AS monto_adjudicado,
+           count(DISTINCT codigo_convocatoria) AS procesos,
+           count(DISTINCT codigo_convocatoria) FILTER (WHERE unico_postor) AS unico_postor,
+           count(DISTINCT codigo_convocatoria) FILTER (WHERE es_directa) AS directas,
+           count(DISTINCT codigo_convocatoria) FILTER (WHERE en_consorcio) AS procesos_en_consorcio,
+           COALESCE(sum(monto) FILTER (WHERE en_consorcio AND NOT dudoso), 0) AS monto_en_consorcio
+      FROM x GROUP BY ruc
+  ), ord AS (
+    SELECT ruc, max(nombre) AS nombre, sum(ordenes) AS ordenes, sum(monto) AS monto
+      FROM empresa_orden_anual WHERE entidad_ruc = $1 AND anio BETWEEN $2 AND $3 GROUP BY ruc
+  ), emp AS (
+    SELECT COALESCE(d.ruc, o.ruc) AS ruc, COALESCE(d.nombre, o.nombre) AS nombre,
+           COALESCE(d.monto_adjudicado, 0) AS monto_adjudicado, COALESCE(d.procesos, 0) AS procesos,
+           COALESCE(d.unico_postor, 0) AS unico_postor, COALESCE(d.directas, 0) AS directas,
+           COALESCE(d.procesos_en_consorcio, 0) AS procesos_en_consorcio, COALESCE(d.monto_en_consorcio, 0) AS monto_en_consorcio,
+           COALESCE(o.monto, 0) AS monto_ordenes, COALESCE(o.ordenes, 0) AS ordenes
+      FROM (SELECT * FROM adj WHERE ruc ~ '^20[0-9]{9}$') d FULL JOIN ord o ON o.ruc = d.ruc
+  ), rk AS (
+    SELECT emp.*, row_number() OVER (ORDER BY monto_adjudicado + monto_ordenes DESC, ruc) AS pos FROM emp
+  ), oe AS (
+    -- Las órdenes de la entidad por año (todas, entidad_orden_anual) frente a las de empresas: lo demás es de personas.
+    SELECT COALESCE(sum(greatest(t.ordenes - COALESCE(e.ordenes, 0), 0)), 0)::int AS ordenes,
+           COALESCE(sum(greatest(t.monto - COALESCE(e.monto, 0), 0)), 0)::float AS monto
+      FROM entidad_orden_anual t
+      LEFT JOIN (SELECT anio, sum(ordenes) AS ordenes, sum(monto) AS monto FROM empresa_orden_anual
+                  WHERE entidad_ruc = $1 AND anio BETWEEN $2 AND $3 GROUP BY anio) e ON e.anio = t.anio
+     WHERE t.entidad_ruc = $1 AND t.anio BETWEEN $2 AND $3
+  )
+  SELECT
+    COALESCE((SELECT regexp_replace(btrim(e.nombre), '\\s+', ' ', 'g') FROM entidades e WHERE e.ruc = $1::bpchar),
+             (SELECT m.entidad FROM mcp_adjudicacion m WHERE m.entidad_ruc = $1 LIMIT 1),
+             (SELECT o.entidad FROM empresa_orden_anual o WHERE o.entidad_ruc = $1 LIMIT 1)) AS entidad,
+    COALESCE((SELECT json_agg(json_build_object(
+                'ruc', ruc, 'nombre', nombre, 'monto_adjudicado', round(monto_adjudicado, 2)::float, 'procesos', procesos::int,
+                'unico_postor', unico_postor::int, 'directas', directas::int, 'procesos_en_consorcio', procesos_en_consorcio::int,
+                'monto_en_consorcio', round(monto_en_consorcio, 2)::float, 'monto_ordenes', round(monto_ordenes, 2)::float,
+                'ordenes', ordenes::int) ORDER BY pos)
+                FROM rk WHERE pos <= $4), '[]') AS proveedores,
+    (SELECT count(*) FROM emp)::int AS empresas,
+    (SELECT json_build_object('monto', round(COALESCE(sum(monto) FILTER (WHERE NOT dudoso), 0), 2)::float,
+                              'procesos', count(DISTINCT codigo_convocatoria)::int,
+                              'dudosos', count(DISTINCT codigo_convocatoria) FILTER (WHERE dudoso)::int,
+                              'otra_moneda', count(DISTINCT codigo_convocatoria) FILTER (WHERE otra_moneda)::int) FROM a) AS adjudicado,
+    (SELECT json_build_object('monto', round(COALESCE(sum(monto_ordenes), 0), 2)::float, 'ordenes', COALESCE(sum(ordenes), 0)::int) FROM emp) AS ordenes_empresas,
+    (SELECT row_to_json(oe) FROM oe) AS ordenes_otros,
+    (SELECT json_build_object('monto', round(monto_adjudicado, 2)::float, 'procesos', procesos::int) FROM adj WHERE ruc IS NULL) AS adjudicado_otros,
+    -- Proveedores distintos que no son empresas: sólo el número sale de aquí (de conosce_adjudicaciones, por su llave).
+    (SELECT count(DISTINCT c.ruc_proveedor) FROM conosce_adjudicaciones c
+      WHERE c.entidad_ruc = $1 AND c.anio BETWEEN $2 AND $3 AND c.ruc_proveedor !~ '^20[0-9]{9}$'
+        AND NOT EXISTS (SELECT 1 FROM conosce_consorcios k WHERE k.ruc_consorcio = c.ruc_proveedor AND k.ruc_miembro ~ '^20[0-9]{9}$'))::int AS n_otros,
+    (SELECT round(COALESCE(sum(monto) FILTER (WHERE NOT dudoso), 0), 2)::float FROM a
+      WHERE a.ruc_proveedor IN (SELECT ruc FROM rk WHERE pos <= 5)
+         OR a.consorcio IN (SELECT ruc_consorcio FROM em WHERE ruc_miembro IN (SELECT ruc FROM rk WHERE pos <= 5))) AS top5_adjudicado,
+    (SELECT COALESCE(sum(monto_ordenes), 0)::float FROM rk WHERE pos <= 5) AS top5_ordenes`;
+
+interface FilaProveedoresEntidad {
+  entidad: string | null;
+  proveedores: Record<string, number | string | null>[];
+  empresas: number;
+  adjudicado: { monto: number; procesos: number; dudosos: number; otra_moneda: number };
+  ordenes_empresas: { monto: number; ordenes: number };
+  ordenes_otros: { monto: number; ordenes: number } | null;
+  adjudicado_otros: { monto: number; procesos: number } | null;
+  n_otros: number;
+  top5_adjudicado: number;
+  top5_ordenes: number;
+}
+
+const RUC_EMPRESA_20 = /^20\d{9}$/;
+const pct = (parte: number, todo: number) => (todo > 0 ? Math.round((1000 * parte) / todo) / 10 : null);
+const redondo = (n: number) => Math.round(n * 100) / 100;
+
+/** La respuesta de GET /entidades/:ruc/proveedores con lo que trae SQL_PROVEEDORES_ENTIDAD (sin la base, para probarla). */
+export function armarProveedoresEntidad(ruc: string, desde: number, hasta: number, f: FilaProveedoresEntidad) {
+  const otrosOrd = f.ordenes_otros ?? { monto: 0, ordenes: 0 };
+  const total = {
+    monto_adjudicado: f.adjudicado.monto,
+    procesos: f.adjudicado.procesos,
+    monto_ordenes: redondo(f.ordenes_empresas.monto + otrosOrd.monto),
+    ordenes: f.ordenes_empresas.ordenes + otrosOrd.ordenes,
+  };
+  const base = total.monto_adjudicado + total.monto_ordenes;
+  const notas = [
+    "Un proceso ganado en consorcio cuenta entero para cada empresa del consorcio (por eso las partes pueden sumar más de 100 %); el total y top5_pct no lo repiten.",
+    "Procesos por año de la convocatoria y órdenes por año de emisión, en soles.",
+  ];
+  if (f.adjudicado.dudosos) notas.push(`${f.adjudicado.dudosos} proceso(s) con un monto que parece mal cargado no suman.`);
+  if (f.adjudicado.otra_moneda) notas.push(`${f.adjudicado.otra_moneda} proceso(s) con ítems en otra moneda: esos ítems no suman.`);
+  return {
+    entidad: { ruc, nombre: f.entidad },
+    desde,
+    hasta,
+    total,
+    top5_pct: pct(f.top5_adjudicado + f.top5_ordenes, base),
+    proveedores_total: f.empresas,
+    // Sólo empresas: la SQL ya no deja pasar otro RUC, y esto lo vuelve a mirar.
+    proveedores: f.proveedores
+      .filter((p) => typeof p.ruc === "string" && RUC_EMPRESA_20.test(p.ruc))
+      .map((p) => ({ ...p, pct_del_total: pct(Number(p.monto_adjudicado) + Number(p.monto_ordenes), base) })),
+    personas_naturales: {
+      nombre: "Personas naturales y otros",
+      n: f.n_otros,
+      monto_adjudicado: f.adjudicado_otros?.monto ?? 0,
+      procesos: f.adjudicado_otros?.procesos ?? 0,
+      monto_ordenes: otrosOrd.monto,
+      ordenes: otrosOrd.ordenes,
+    },
+    nota: notas.join(" "),
+    fuente_oficial: { nombre: "OECE, CONOSCE: adjudicaciones y órdenes de compra y de servicio", enlace: "https://conosce.oece.gob.pe/buscador/" },
+  };
+}
+const proveedoresEntidadMemo = new Memo<Record<string, unknown> | null>({ nombre: "entidades:proveedores", ttlMs: 600_000, staleMs: 3_600_000, max: 500 });
+
+entidadesRouter.get("/:ruc/proveedores", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  const parsed = ProveedoresEntidadQuery.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "")));
+  if (!parsed.success) {
+    return c.json({ error: "invalid_query", detail: "anio_desde y anio_hasta: años de 2015 en adelante; limite: de 1 a 50.", issues: parsed.error.issues }, 400);
+  }
+  const q = parsed.data;
+  const hasta = q.anio_hasta ?? new Date().getUTCFullYear();
+  const desde = q.anio_desde ?? 2018;
+  if (desde > hasta) return c.json({ error: "invalid_query", detail: "anio_desde es mayor que anio_hasta." }, 400);
+  const cuerpo = await proveedoresEntidadMemo.obtener(`${ruc}:${desde}:${hasta}:${q.limite}`, async () => {
+    const r = await consultaConPlazo<FilaProveedoresEntidad>(SQL_PROVEEDORES_ENTIDAD, [ruc, desde, hasta, q.limite], 15_000);
+    const f = r.rows[0];
+    if (!f?.entidad) return null;
+    return publicar(armarProveedoresEntidad(ruc, desde, hasta, f));
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", cachePublico(600, { maxAge: 120, swr: 3600 }));
+  return c.json(cuerpo);
+});
+
 // ─── GET /entidades/:ruc/gasto — en qué gasta, según el MEF (migraciones 63 y 64) ─
 // Suma las unidades ejecutoras con que cruzó la entidad (`mef_entity_budget.sec_ejecs`) en su último año con desglose. Si la
 // entidad cruzó con el pliego regional entero (`keyword` 'pliego …'), son las cifras de todo el gobierno regional:

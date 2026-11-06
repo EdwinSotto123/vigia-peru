@@ -18,6 +18,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Env } from "./db";
 import { ejecutarHerramienta, HERRAMIENTAS } from "./herramientas";
+import type { EnvV2 } from "./v2/entorno";
+import { manejarV2 } from "./v2/index";
 
 const RUTA = "/mcp";
 const SERVIDOR = { name: "vigia-peru", version: "1.0.0" };
@@ -79,7 +81,16 @@ function metodoNoPermitido(): Response {
   return Response.json(cuerpo, { status: 405, headers: { Allow: "POST" } });
 }
 
+// Dos servidores en el mismo Worker: el v2 (mcp.gobserva.cloud, src/v2) en el origen de MCP_URL, y el de siempre (las 10
+// herramientas abiertas) en vigia-mcp.vigiaperu.workers.dev, que sigue vivo para quien ya lo usa.
 export default {
+  async fetch(request: Request, env: EnvV2, ctx: ExecutionContext): Promise<Response> {
+    if (env.MCP_URL && new URL(request.url).host === new URL(env.MCP_URL).host) return manejarV2(request, env, ctx);
+    return legado.fetch(request, env, ctx);
+  },
+} satisfies ExportedHandler<EnvV2>;
+
+const legado = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === `${RUTA}/`) {
@@ -100,4 +111,4 @@ export default {
     await crearServidor(env, ctx).connect(transporte);
     return transporte.handleRequest(request);
   },
-} satisfies ExportedHandler<Env>;
+};

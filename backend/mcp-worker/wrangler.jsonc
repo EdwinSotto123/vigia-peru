@@ -1,25 +1,58 @@
-// Vigía Perú · servidor MCP (réplica en Workers de backend/mcp, hoy en Cloud Run como vigia-mcp).
-// URL: https://vigia-mcp.vigiaperu.workers.dev/mcp
+// Vigía Perú · servidor MCP. Dos servidores en el mismo Worker (src/index.ts):
+//   · v2 en https://mcp.gobserva.cloud/mcp (src/v2): 25 herramientas por la API, OAuth con la cuenta de Gobserva, cupos.
+//   · el de siempre en https://vigia-mcp.vigiaperu.workers.dev/mcp: 10 herramientas abiertas, para quien ya lo usa.
+// Secreto (wrangler secret put, en cada entorno): FIREBASE_API_KEY (la clave web pública de Firebase, fuera del repo).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vigia-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public: lo pide la librería OAuth para bajar los Client ID Metadata Documents sin SSRF.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
+  "routes": [{ "pattern": "mcp.gobserva.cloud", "custom_domain": true }],
   "observability": { "enabled": true },
   // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare/base.sh).
   "placement": { "region": "aws:us-east-2" },
-  // Límite por IP (src/index.ts): el Durable Object de vigia-api; se despliega después de la API.
+  // Cupos (src/v2/cupos.ts y el límite por IP del servidor de siempre): el Durable Object de vigia-api.
   "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador", "script_name": "vigia-api" }] },
+  // La API por service binding: el v2 no tiene SQL propio de Vigía (una sola regla de privacidad, publicar()).
+  "services": [{ "binding": "API", "service": "vigia-api" }],
+  // Clientes, autorizaciones y tokens del OAuth (guardados como hash; las props, cifradas).
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "d9be4265bc7944e4a4155051f5d06888" }],
   "minify": true,
   "upload_source_maps": true,
   "hyperdrive": [
     {
-      // Rol vigia_mcp, pooling en modo transacción (equivale al PgBouncer de Cloud Run).
-      // En `wrangler dev` la conexión sale de CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE.
+      // Rol vigia_mcp, pooling en modo transacción: el servidor de siempre y las 7 herramientas de Gobserva.
       "binding": "HYPERDRIVE",
       "id": "d25debb0dc09480797676f8edab64a75"
     }
-  ]
+  ],
+  "vars": {
+    "MCP_URL": "https://mcp.gobserva.cloud",
+    "VIGIA_URL": "https://vigia.gobserva.cloud",
+    "FIREBASE_PROJECT_ID": "simplia-project",
+    "FIREBASE_AUTH_DOMAIN": "simplia-project.firebaseapp.com",
+    "FIREBASE_APP_ID": "1:251807830309:web:94796885da53bc0adbcacc",
+    "ENTORNO": "prod"
+  },
+  "env": {
+    "dev": {
+      "name": "vigia-mcp-dev",
+      "routes": [],
+      "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador", "script_name": "vigia-api-dev" }] },
+      "services": [{ "binding": "API", "service": "vigia-api-dev" }],
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "651f7e5160a24cd480acfb946e57c73e" }],
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "7baa210be4c346a2b74440fbbdb55826" }],
+      "vars": {
+        "MCP_URL": "https://vigia-mcp-dev.vigiaperu.workers.dev",
+        "VIGIA_URL": "https://vigia-web-dev.vigiaperu.workers.dev",
+        "FIREBASE_PROJECT_ID": "simplia-project",
+        "FIREBASE_AUTH_DOMAIN": "simplia-project.firebaseapp.com",
+        "FIREBASE_APP_ID": "1:251807830309:web:94796885da53bc0adbcacc",
+        "ENTORNO": "dev"
+      }
+    }
+  }
 }

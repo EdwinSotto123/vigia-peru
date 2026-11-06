@@ -52,6 +52,7 @@ import { empleoRouter } from "./routes/empleo.js";
 import { licitacionesRouter } from "./routes/licitaciones.js";
 import { proyectosRouter } from "./routes/proyectos.js";
 import { iaRouter } from "./routes/ia.js";
+import { datosRouter } from "./routes/datos.js";
 
 export const app = new Hono();
 
@@ -168,6 +169,8 @@ api.route("/privacidad", privacidadRouter);
 api.route("/mef", mefRouter);
 api.route("/estructura", estructuraRouter);
 api.route("/cadena", cadenaRouter);
+// Cifras a pedido para el MCP de Gobserva (consultar_datos): catálogo y consulta con listas cerradas (migración 254).
+api.route("/datos", datosRouter);
 api.route("/admin", adminRouter);
 
 app.route("/", api);

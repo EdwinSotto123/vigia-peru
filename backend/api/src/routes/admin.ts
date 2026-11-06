@@ -577,7 +577,16 @@ adminRouter.post("/asignar", async (c) => {
     if (!esErrorPg(e, "42P01")) console.warn(`[asignar] agregados del panel: ${(e as Error).message}`);
     return null;
   });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados });
+  // Las vistas de las cifras del MCP (migración 254, routes/datos.ts): una vez al día, cuando tienen más de 20 h. Casi
+  // siempre es una lectura de mcp_estado; el refresco tarda ~40 s en DEV (db.t4g.large), con el plazo de 120 s del panel.
+  // Sin la migración (42883), nada.
+  const mcp = await pool.query<{ r: unknown }>("SELECT mcp_refrescar(20) AS r")
+    .then((q) => q.rows[0].r)
+    .catch((e) => {
+      if (!esErrorPg(e, "42883")) console.warn(`[asignar] mcp_refrescar: ${(e as Error).message}`);
+      return null;
+    });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

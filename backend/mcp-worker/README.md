@@ -1,5 +1,39 @@
 # vigia-mcp (Cloudflare Workers)
 
+Dos servidores MCP en el mismo Worker (`src/index.ts` elige por host):
+
+## v2: `https://mcp.gobserva.cloud/mcp` (`src/v2`, desde 2026-11-06)
+
+El MCP para conectar Vigía a claude.ai (conector personalizado), Claude Desktop, el celular, Cowork y Claude Code
+(`claude mcp add --transport http vigia https://mcp.gobserva.cloud/mcp`). En DEV: `https://vigia-mcp-dev.vigiaperu.workers.dev/mcp`
+(`bash infrastructure/deploy/dev.sh mcp`).
+
+- **Todo por la API** (`src/v2/api.ts`, service binding `API` → vigia-api): sin SQL propio de Vigía, así la regla de
+  privacidad es una sola (`publicar()`: sin DNI, un apellido tapado, sin RUC 10). El pedido sale nuevo, sin
+  `cf-connecting-ip`, y la API lo trata como interno.
+- **26 herramientas** (`src/v2/herramientas`): buscar, buscar_contratos, ficha_contrato, dictamen, compras_menores, ordenes,
+  senales, estado_fuentes, ficha_empresa, ficha_entidad, proveedores_de_entidad, partido; con cuenta: red_empresa,
+  historia, persona_publica, consultar_datos, seguir, dejar_de_seguir, mis_seguimientos; y las 7 de Gobserva (las de
+  siempre, `src/gobserva.ts` y `src/obras.ts`). Cada una con `title` y `readOnlyHint`/`destructiveHint`.
+- **Recursos** (`vigia://guia/…`: cómo usar, puntaje, privacidad, fuentes, señales, catálogo de cifras) y **prompts**
+  (investigar_proveedor, revisar_entidad, explicar_contrato, comparar_entidades, seguir_al_partido, panorama_region).
+- **OAuth** (`src/v2/oauth.ts`, `@cloudflare/workers-oauth-provider`): el Worker es servidor de autorización y recurso.
+  Client ID Metadata Document (lo que usa Claude) y registro dinámico de respaldo, PKCE S256, refresh que rota. En
+  `/authorize` la persona entra con su cuenta de Gobserva (Firebase: correo o Google) y permite; las props (cifradas en
+  `OAUTH_KV`) guardan su uid, su token de refresco de Firebase y sus planes, que se releen en cada refresh.
+- **Autenticación perezosa** (`src/v2/index.ts`): sin token responden initialize, tools/list y las herramientas abiertas;
+  una que pide cuenta recibe `401` con `WWW-Authenticate: Bearer … resource_metadata=…` antes del SDK, y Claude muestra
+  «Conectar» y reintenta.
+- **Cupos** (`src/v2/cupos.ts`, Durable Object `Limitador` de vigia-api): todo claude.ai llega desde 160.79.104.0/21,
+  así que no se cuenta por IP: con cuenta, por persona (300/día gratis, 3 000 con plan; consultar_datos 50/1 000); sin
+  cuenta, un tope total para Anthropic (600/min) y 60/min por IP para el resto.
+- **WAF de gobserva.cloud**: las reglas de clientes sin navegador, redes de nube, rastreadores de IA y el límite por IP
+  excluyen `mcp.gobserva.cloud` (el plan Free no admite una regla más). Firebase: `mcp.gobserva.cloud` y el host de DEV
+  están en los dominios autorizados (para «Entrar con Google»).
+- Secreto: `FIREBASE_API_KEY` (wrangler secret put, en cada entorno). KV: `vigia-mcp-oauth` y `vigia-mcp-oauth-dev`.
+
+## El de siempre: `https://vigia-mcp.vigiaperu.workers.dev/mcp`
+
 Réplica en Workers del servidor MCP de `backend/mcp` (Cloud Run `vigia-mcp`). El de Python sigue igual;
 este expone las mismas 3 tools read-only (`buscar_alertas`, `riesgo_convocatoria`,
 `empresa_sancionada`) con los mismos nombres, descripciones, esquemas, SQL y salida al carácter.

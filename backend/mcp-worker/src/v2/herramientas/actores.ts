@@ -1,0 +1,314 @@
+// Quiénes: empresas, entidades, partidos y personas con cargo público. ficha_empresa, red_empresa, ficha_entidad,
+// proveedores_de_entidad, partido, historia y persona_publica.
+import { z } from "zod";
+import { api, ErrorApi } from "../api";
+import { AVISO, enlaces, ErrorUsuario, recortar, rucJuridico, tomar } from "../formato";
+import { definir } from "../registro";
+import { proveedor } from "./contratos";
+
+type Fila = Record<string, any>;
+
+const rucEntrada = (que: string) => z.string().min(11).max(14).describe(`RUC de ${que} (11 dígitos). Si no lo sabes, usa buscar.`);
+
+export const fichaEmpresa = definir({
+  nombre: "ficha_empresa",
+  titulo: "Ficha de una empresa",
+  descripcion:
+    "Una empresa proveedora del Estado por su RUC 20: estado en SUNAT, actividad, fecha de alta, cuánto ganó en procesos y " +
+    "órdenes, con cuántas entidades, inhabilitaciones, cuántos socios y representantes tiene, sus antecedentes (sanciones, " +
+    "penalidades, señales) con su fuente, y sus cifras por año. Las personas naturales (RUC 10) no se muestran.",
+  entrada: { ruc: rucEntrada("la empresa") },
+  async ejecutar({ ruc }, cx) {
+    const r = rucJuridico(ruc);
+    const [f, ant] = await Promise.all([
+      api<Fila>(cx.env, `/empresas/${r}`),
+      api<Fila>(cx.env, `/empresas/${r}/antecedentes`).catch(() => null),
+    ]);
+    const e = f.empresa ?? {};
+    const orden = { alta: 0, media: 1, baja: 2 } as Record<string, number>;
+    const antecedentes = ((ant?.data ?? []) as Fila[]).sort((x, y) => (orden[x.severidad] ?? 3) - (orden[y.severidad] ?? 3));
+    return {
+      ruc: e.ruc,
+      nombre: e.nombre,
+      estado_sunat: e.estadoSunat,
+      fecha_alta: e.fechaAlta,
+      actividad: e.actividad,
+      domicilio: e.domicilio,
+      departamento: e.departamento,
+      inhabilitada: e.inhabilitada ?? undefined,
+      inhabilitada_hasta: e.inhabilitadaHasta ?? undefined,
+      cifras: tomar(e, ["adjProcesos", "adjMonto", "consProcesos", "consMonto", "ordN", "ordMonto", "entidades", "postulaciones", "ganadas", "primera", "ultima", "visitas"]),
+      personas: tomar(e, ["socios", "representantes", "directivos", "vinculadas"]),
+      senales_por_tipo: (f.antecedentes ?? []).map((x: Fila) => tomar(x, ["etiqueta", "severidad", "n", "tipo"])),
+      antecedentes_total: ant?.total,
+      antecedentes: antecedentes.slice(0, 15).map((x: Fila) => ({
+        etiqueta: x.etiqueta, severidad: x.severidad, fecha: x.fecha, monto_soles: x.montoSoles ?? undefined, entidad: x.entidad ?? undefined,
+        ocid: x.ocid ?? undefined, fuente: x.fuenteUrl ?? x.fuente,
+      })),
+      por_anio: f.anual,
+      solo_compras_menores: f.soloMenores ? true : undefined,
+      leyenda: "adjProcesos/adjMonto: procesos ganados sola y su monto; consProcesos/consMonto: en consorcio; ordN/ordMonto: órdenes de compra o servicio.",
+      enlace: enlaces(cx.env).empresa(r),
+      aviso: AVISO,
+    };
+  },
+});
+
+export const redEmpresa = definir({
+  nombre: "red_empresa",
+  titulo: "Red de una empresa",
+  descripcion:
+    "Con quién está vinculada una empresa (RUC 20): sus socios, representantes y directivos (con un apellido tapado), las " +
+    "otras empresas con las que comparte personas y si también le venden al Estado, empresas socias, y sus clientes del " +
+    "Estado con cuánto le compró cada uno. Sirve para ver concentración y vínculos entre postores.",
+  cuenta: true,
+  entrada: { ruc: rucEntrada("la empresa") },
+  async ejecutar({ ruc }, cx) {
+    const r = rucJuridico(ruc);
+    const e = enlaces(cx.env);
+    const [s, cl] = await Promise.all([api<Fila>(cx.env, `/empresas/${r}/socios`), api<Fila>(cx.env, `/empresas/${r}/clientes`)]);
+    return {
+      ruc: r,
+      personas: (s.socios ?? []).map((p: Fila) => tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"])),
+      empresas_vinculadas: (s.vinculadas ?? []).map((v: Fila) => ({
+        ruc: v.ruc, nombre: v.nombre, le_vende_al_estado: v.vende, antecedentes: v.antecedentes, graves: v.graves, inhabilitada: v.inhabilitada ?? undefined,
+        monto_soles: v.monto, contratos: v.contratos, por: v.socios, enlace: e.empresa(v.ruc),
+      })),
+      empresas_socias: s.empresasSocias,
+      socia_de: s.sociaDe,
+      declarada_en_dji: s.declaradaDji,
+      clientes_total: cl.total,
+      clientes: (cl.data ?? []).slice(0, 25).map((c: Fila) => ({
+        entidad_ruc: c.entidadRuc, entidad: c.entidad, departamento: c.departamento, contratos: c.contratos, adjudicado_soles: c.adjudicado,
+        consorcio: c.consorcio || undefined, ordenes: c.ordenes, ordenado_soles: c.ordenado, visitas: c.visitas || undefined, primera: c.primera, ultima: c.ultima,
+      })),
+      corte_rnp: s.corte,
+      enlace: e.empresa(r),
+      fuente: "RNP (OECE) para socios y representantes; CONOSCE y órdenes del SEACE para clientes; visitas de la plataforma de transparencia.",
+    };
+  },
+});
+
+const SENALES_ENTIDAD: Record<string, string> = {
+  captura: "contratos ganados por empresas ligadas a la gestión",
+  planillaAlta: "personas de su planilla con una señal alta",
+  socioProveedor: "personas de su planilla socias o representantes de una empresa que le vende",
+  doblePlanilla: "personas de su planilla que cobran también en otra entidad del departamento",
+  alBorde: "locadores que reciben casi siempre órdenes justo debajo del tope",
+  alBordeEmpresas: "empresas que reciben casi siempre órdenes justo debajo del tope",
+  sobreprecioCatalogo: "compras por catálogo que pagaron el doble o más que otras entidades por el mismo producto",
+  nepotismoGobierno: "locadores declarados como parientes por un funcionario de otra entidad del mismo gobierno",
+  parientePlanilla: "personas de su planilla declaradas como parientes por un funcionario de la entidad",
+  visitaPariente: "visitas de familiares que sus funcionarios declararon en su DJI",
+  empresaEspejo: "contratos ganados por una empresa mientras su empresa hermana estaba inhabilitada",
+  socioLocador: "locadores socios o representantes de una empresa que también le vende",
+  plazasSaliente: "plazas CAS convocadas después de las elecciones y antes de entregar el cargo",
+  ascensoExpres: "personas que pasaron a una jefatura con un sueldo mucho mayor en pocos meses",
+  plazasSenales: "plazas CAS con señales de plaza a la medida",
+  financioLocadores: "locadores que aportaron a la campaña del partido que gobierna",
+  financioPlanilla: "personas de su planilla que aportaron a la campaña del partido que gobierna",
+};
+
+export const fichaEntidad = definir({
+  nombre: "ficha_entidad",
+  titulo: "Ficha de una entidad",
+  descripcion:
+    "Una entidad pública por su RUC: lugar, contratos, presupuesto del MEF por año (PIA, PIM, devengado y % de ejecución), " +
+    "quién la gobierna y de qué partido, señales sobre su planilla, locadores y proveedores, posible nepotismo, informes " +
+    "de la Contraloría con su PDF y casos de la Procuraduría en su departamento.",
+  entrada: { ruc: rucEntrada("la entidad") },
+  async ejecutar({ ruc }, cx) {
+    const r = rucJuridico(ruc, "RUC de la entidad");
+    const [f, poder, control] = await Promise.all([
+      api<Fila>(cx.env, `/entidades/${r}`),
+      api<Fila>(cx.env, `/poder/entidad/${r}`).catch(() => null),
+      api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { size: 5 }).catch(() => null),
+    ]);
+    const ent = f.entidad ?? {};
+    const anios = ((f.mef?.by_year ?? []) as Fila[]).slice(-6).map((y) => ({
+      anio: y.year, pia: y.pia, pim: y.pim, devengado: y.devengado, ejecucion_pct: y.pim ? Math.round((1000 * y.devengado) / y.pim) / 10 : null,
+    }));
+    const senales = Object.entries((f.senales ?? {}) as Record<string, unknown>)
+      .filter(([k, v]) => typeof v === "number" && v > 0 && SENALES_ENTIDAD[k])
+      .map(([k, v]) => ({ clave: k, n: v, que: SENALES_ENTIDAD[k] }));
+    const inf = control?.informes;
+    return {
+      ruc: ent.ruc ?? r,
+      nombre: ent.nombre,
+      region: ent.region,
+      provincia: ent.provincia,
+      distrito: ent.distrito,
+      contratos: ent.contratos,
+      presupuesto: anios.length ? { fuente: "MEF (Consulta Amigable, SIAF)", por_anio: anios } : undefined,
+      gobierno: poder
+        ? { partido: poder.partido, cargo: poder.cargo_gob, autoridad: poder.autoridad, desde: poder.periodoInicio, hasta: poder.periodoFin,
+            contratos_a_empresas_ligadas: poder.n_captura, monto_ligadas_soles: poder.monto_captura }
+        : undefined,
+      senales,
+      nepotismo: f.nepotismo ? { casos: f.nepotismo.total, monto_soles: f.nepotismo.monto } : undefined,
+      contraloria: inf
+        ? { informes: inf.total, responsabilidad_penal: inf.penal, civil: inf.civil, administrativa: inf.administrativa, desde: inf.desde, hasta: inf.hasta,
+            recientes: (inf.pagina?.filas ?? []).map((x: Fila) => tomar(x, ["numero", "titulo", "fecha", "urlPdf"])) }
+        : undefined,
+      procuraduria_departamento: control?.procuraduria
+        ? tomar(control.procuraduria as Fila, ["corte", "en_tramite", "sentencias", "casos_nuevos", "en_ejecucion", "url_fuente"])
+        : undefined,
+      dictamenes: (Array.isArray(f.alertas) ? f.alertas : []).slice(0, 10).map((x: Fila) => ({
+        codigo: x.codigo, ocid: x.codigo_convocatoria, puntaje: x.score, objeto: recortar(x.objeto, 120), fecha: x.fecha_buena_pro?.slice(0, 10),
+      })),
+      enlace: enlaces(cx.env).entidad(r),
+      aviso: AVISO,
+    };
+  },
+});
+
+export const proveedoresDeEntidad = definir({
+  nombre: "proveedores_de_entidad",
+  titulo: "Proveedores de una entidad",
+  descripcion:
+    "Ranking de las empresas que más le vendieron a una entidad en un rango de años: monto en procesos y en órdenes, " +
+    "procesos ganados como único postor y por contratación directa, su parte del total y la concentración de los cinco " +
+    "primeros. Las personas naturales salen sumadas en un solo grupo.",
+  entrada: {
+    ruc: rucEntrada("la entidad"),
+    anio_desde: z.number().int().min(2015).max(2030).optional(),
+    anio_hasta: z.number().int().min(2015).max(2030).optional(),
+    limite: z.number().int().min(1).max(50).default(20),
+  },
+  async ejecutar(a, cx) {
+    const r = rucJuridico(a.ruc, "RUC de la entidad");
+    const d = await api<Fila>(cx.env, `/entidades/${r}/proveedores`, { anio_desde: a.anio_desde, anio_hasta: a.anio_hasta, limite: a.limite });
+    const e = enlaces(cx.env);
+    return {
+      ...d,
+      proveedores: (d.proveedores ?? []).map((p: Fila) => ({ ...p, enlace: p.ruc ? e.empresa(p.ruc) : undefined })),
+      enlace: e.entidad(r),
+      fuente: "OECE (CONOSCE: procesos adjudicados) y órdenes de compra y servicio del SEACE.",
+    };
+  },
+});
+
+export const partido = definir({
+  nombre: "partido",
+  titulo: "Partido político",
+  descripcion:
+    "Un partido o movimiento: cuántos gobiernos regionales, provinciales y distritales ganó en una elección, cuántos " +
+    "contratos y cuánto adjudicaron esas entidades, en qué regiones, sus entidades con más contratos y quién las gobierna. " +
+    "Con texto busca el partido; con clave trae su ficha.",
+  entrada: {
+    texto: z.string().min(3).max(60).optional().describe("Nombre del partido, por ejemplo «Somos Perú»."),
+    clave: z.string().max(100).optional().describe("Clave del partido (la devuelve buscar o esta misma herramienta)."),
+    eleccion: z.enum(["2014", "2018", "2022"]).default("2022").describe("Elección regional y municipal."),
+  },
+  async ejecutar(a, cx) {
+    const e = enlaces(cx.env);
+    let clave = a.clave;
+    if (!clave) {
+      if (!a.texto) throw new ErrorUsuario("Indica texto (el nombre del partido) o clave.");
+      const r = await api<Fila>(cx.env, "/partidos/ranking", { q: a.texto, anio: a.eleccion, limit: 5 });
+      const lista = (r.data ?? []) as Fila[];
+      if (lista.length !== 1) {
+        return {
+          coincidencias: lista.map((p) => ({ clave: p.clave, nombre: p.nombre, gobiernos_con_contratos: p.gobiernosConContratos, contratos: p.contratos })),
+          nota: lista.length ? "Hay varios: vuelve a llamar con la clave del que buscas." : "No encontré ese partido en esa elección.",
+        };
+      }
+      clave = lista[0].clave as string;
+    }
+    const p = await api<Fila>(cx.env, `/partidos/${encodeURIComponent(clave)}`, { anio: a.eleccion });
+    return {
+      clave: p.partido?.clave,
+      nombre: p.partido?.nombre,
+      tipo: p.partido?.tipo,
+      eleccion: p.anio,
+      periodo: { desde: p.desde, hasta: p.hasta },
+      gobiernos: p.partido?.gobiernos,
+      totales: p.totales,
+      procesos: p.historia ? tomar(p.historia as Fila, ["procesos", "montoAdjudicadoPen", "entidades", "proveedores", "desde", "hasta", "porObjeto"]) : undefined,
+      regiones: (p.regiones ?? []).slice(0, 12).map((x: Fila) => tomar(x, ["nombre", "contratos", "montoPen", "conSenales"])),
+      entidades: (p.entidades ?? []).slice(0, 15).map((x: Fila) => ({ ...tomar(x, ["ruc", "nombre", "nivel", "lugar", "autoridad", "contratos", "montoPen", "conSenales"]), enlace: e.entidad(x.ruc) })),
+      enlace: e.partido(clave),
+      fuente: "JNE (resultados electorales) y OECE (SEACE y CONOSCE).",
+    };
+  },
+});
+
+export const historia = definir({
+  nombre: "historia",
+  titulo: "Línea de tiempo",
+  descripcion:
+    "La historia de una entidad, empresa, partido o contrato: hechos fechados (fundación, socios que entran, contratos, " +
+    "órdenes, cambios de gestión, visitas, informes), patrones que Vigía detectó (por ejemplo órdenes concentradas en " +
+    "diciembre u olas tras un cambio de gestión) y las series por mes.",
+  cuenta: true,
+  entrada: {
+    tipo: z.enum(["entidad", "empresa", "partido", "contrato"]),
+    id: z.string().min(1).max(100).describe("RUC (entidad o empresa), clave del partido u OCID."),
+    max_eventos: z.number().int().min(5).max(120).default(40),
+  },
+  async ejecutar(a, cx) {
+    const id = a.tipo === "entidad" || a.tipo === "empresa" ? rucJuridico(a.id) : a.id.trim();
+    const h = await api<Fila>(cx.env, `/historia/${a.tipo}/${encodeURIComponent(id)}`);
+    const eventos = ((h.eventos ?? []) as Fila[]).sort((x, y) => String(y.fecha).localeCompare(String(x.fecha)));
+    return {
+      sujeto: h.sujeto,
+      desde: h.desde,
+      hasta: h.hasta,
+      patrones: (h.patrones ?? []).map((p: Fila) => tomar(p, ["tipo", "titulo", "explica", "mes", "severidad"])),
+      eventos_total: eventos.length,
+      eventos: eventos.slice(0, a.max_eventos).map((x: Fila) => tomar(x, ["fecha", "tipo", "titulo", "detalle", "fuente", "enlace"])),
+      series: (h.series ?? []).map((s: Fila) => ({
+        titulo: s.titulo, unidad: s.unidad, fuente: s.fuente,
+        puntos: ((s.puntos ?? []) as Fila[]).slice(-36),
+      })),
+      marcas: (h.marcas ?? []).map((m: Fila) => tomar(m, ["fecha", "texto"])),
+      fuentes: h.fuentes,
+    };
+  },
+});
+
+export const personaPublica = definir({
+  nombre: "persona_publica",
+  titulo: "Persona con cargo público",
+  descripcion:
+    "Busca por nombre a quien trabaja en la planilla del Estado (cargo, entidad, régimen, sueldo, meses y señales) o a una " +
+    "autoridad electa (gobernador, alcalde: entidad, partido y periodo). Los nombres de la planilla salen con un apellido " +
+    "tapado; no se busca por DNI ni se muestran ciudadanos sin cargo.",
+  cuenta: true,
+  entrada: {
+    nombre: z.string().min(6).max(80).describe("Apellidos y nombres, al menos dos palabras."),
+    donde: z.enum(["planilla", "autoridades", "ambos"]).default("ambos"),
+  },
+  async ejecutar(a, cx) {
+    const palabras = a.nombre.trim().split(/\s+/).filter((w) => w.length >= 2);
+    if (palabras.length < 2) throw new ErrorUsuario("Escribe al menos un apellido y un nombre.");
+    if (/\d{6,}/.test(a.nombre)) throw new ErrorUsuario("No se busca por DNI ni por números: escribe el nombre.");
+    const e = enlaces(cx.env);
+    const [pl, au] = await Promise.all([
+      a.donde !== "autoridades" ? api<Fila>(cx.env, "/planilla", { q: a.nombre, size: 10 }) : Promise.resolve(null),
+      a.donde !== "planilla" ? api<Fila>(cx.env, "/poder/entidades", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))) : Promise.resolve(null),
+    ]);
+    const normal = (t: string) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+    const buscadas = palabras.map(normal);
+    return {
+      planilla: pl
+        ? {
+            total: pl.total,
+            personas: (pl.data ?? []).map((p: Fila) => ({
+              nombre: p.nombre, entidad: p.entidad, entidad_ruc: p.entidadRuc, cargo: p.cargo, dependencia: p.dependencia, regimen: p.regimen,
+              sueldo_mes_soles: p.total, meses: p.meses, primer_mes: p.primerMes, ultimo_mes: p.ultimoMes,
+              senales: (p.senales ?? []).map((s: Fila) => (typeof s === "string" ? s : s.etiqueta ?? s.tipo)), enlace: p.ficha ? e.planilla(p.ficha) : undefined,
+            })),
+          }
+        : undefined,
+      autoridades: au
+        ? ((au.data ?? []) as Fila[])
+            .filter((x) => buscadas.every((w) => normal(String(x.autoridad ?? "")).includes(w)))
+            .map((x) => ({ autoridad: x.autoridad, cargo: x.cargo_gob, entidad: x.entidad, entidad_ruc: x.entidad_ruc, partido: x.partido, desde: x.periodoInicio, hasta: x.periodoFin }))
+        : undefined,
+      fuente: "Planilla del Estado (PTE/MEF) y JNE.",
+    };
+  },
+});
+
+export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica];
