@@ -55,6 +55,8 @@ def tarifa(model) -> tuple[float, float]:
             return ent, sal
         except ValueError:
             pass
+    if m == "respaldo":   # sin TARIFA_RESPALDO: el respaldo de vigia-llm es Haiku 5.5 (antes caía en la de Gemini, 7,5× más)
+        return TARIFAS["claude-haiku-5-5"]
     for key in sorted(TARIFAS, key=len, reverse=True):
         if m.startswith(key):
             return TARIFAS[key]

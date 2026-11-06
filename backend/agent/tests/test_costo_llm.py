@@ -119,3 +119,20 @@ def test_modelo_de_los_agentes_segun_el_despliegue(monkeypatch):
     monkeypatch.setenv("WORKERS_AI_MODEL", "respaldo")
     assert costo_llm.modelo_agentes() == "respaldo"
     assert costo_llm.metricas_finales({})["modelos"] == {"agentes": "respaldo"}
+
+
+def test_respaldo_cobra_como_haiku(monkeypatch):
+    from tools import costo_llm
+    monkeypatch.delenv("TARIFA_RESPALDO", raising=False)
+    assert costo_llm.tarifa("respaldo") == costo_llm.TARIFAS["claude-haiku-5-5"]
+
+
+def test_la_cache_de_extracciones_usa_el_modelo_que_responde(monkeypatch):
+    from tools._core import modelo_extractor
+    monkeypatch.setenv("LLM_BACKEND", "compatible")
+    monkeypatch.setenv("WORKERS_AI_MODEL", "respaldo")
+    monkeypatch.delenv("LLM_COMPAT_MODEL", raising=False)
+    assert modelo_extractor() == "respaldo"     # no «gemini-3.6-flash»: así no reusa lo que leyó Gemini
+    monkeypatch.setenv("LLM_BACKEND", "")
+    monkeypatch.delenv("PARSER_MODEL", raising=False)
+    assert modelo_extractor().startswith("gemini")

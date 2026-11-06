@@ -346,6 +346,20 @@ def _annotate_future_date(date_str: str | None) -> bool:
     except Exception:
         return False
 
+def modelo_extractor() -> str:
+    """El modelo que RESPONDE las llamadas directas (extractor de documentos, OCR, sanitize): con LLM_BACKEND=compatible
+    el de vigia-llm (LLM_COMPAT_MODEL / WORKERS_AI_MODEL, «respaldo» = Haiku 5.5), con anthropic su modelo; si no,
+    PARSER_MODEL o el de Gemini. Va en la clave de la caché de extracciones: con el nombre PEDIDO (gemini-3.6-flash)
+    Haiku reusaba lo que Gemini leyó en octubre (2026-11-05)."""
+    b = os.getenv("LLM_BACKEND", "").strip().lower()
+    if b == "compatible":
+        from tools.llm_compatible import modelo
+        return modelo()
+    if b == "anthropic":
+        return os.getenv("ANTHROPIC_MODEL") or "claude-haiku-5-5"
+    return os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
+
+
 def _gemini_client():
     """Devuelve un cliente genai apuntando a Gemini API (si GOOGLE_API_KEY está
     configurado) o a Vertex AI (fallback). Permite cambiar de provider con solo
@@ -414,7 +428,7 @@ def _today_iso() -> str:
     return _dt.date.today().isoformat()
 
 __all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool',
-           'FLEX_HEADERS', 'flex_activo', 'thinking_crudo', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
+           'FLEX_HEADERS', 'flex_activo', 'thinking_crudo', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', 'modelo_extractor', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
 
 
 # ── Downloader local (relay residencial PE): cortacircuito ───────────────────

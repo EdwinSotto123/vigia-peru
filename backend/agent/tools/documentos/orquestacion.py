@@ -176,8 +176,10 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
         print(f"[lote] OCR · {label[:60]} · {len(unidades)} unidad(es) · {tx['n_paginas']} págs · {tx['chars']:,} chars · "
               f"{tx['motor']} · {out['tiempos']['ocr_s']}s", flush=True)
     out["tx"] = tx
-    # ── extracción (cacheada por bloque + versión de schema + modelo) ──
-    model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
+    # ── extracción (cacheada por bloque + versión de schema + modelo QUE RESPONDE) ──
+    # Con LLM_BACKEND=compatible el nombre pedido sigue siendo el de Gemini, pero responde vigia-llm: con ese nombre en
+    # la clave, Haiku reusaba las extracciones que Gemini hizo en octubre (2026-11-05: 314 de 382 dictámenes).
+    model = modelo_extractor()
     clave = f"{bloque or 'base'}@{PARSER_SCHEMA_VERSION}@{model}"
     ext = None
     # Una extracción que salió TRUNCADA no se reutiliza para siempre: se reintenta una vez cuando
