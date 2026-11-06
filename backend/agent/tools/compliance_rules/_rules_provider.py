@@ -255,13 +255,14 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
     es_servicio = es_consultoria or "servicio" in _tipo
     # El rubro del objeto: una obra es construcción (aunque sea «un establecimiento de salud») y una consultoría es un
     # servicio profesional; sólo en bienes y servicios generales se infiere por palabras clave.
-    cat_objeto = "servicios" if es_consultoria else "construccion" if es_obra else _categoria_objeto(texto_objeto)
+    cat_objeto = "servicios" if es_consultoria else "construccion" if es_obra else _categoria_objeto(_sin_destino(texto_objeto))
     if not es_consultoria and not es_obra:
         # «Servicio de impresión de historias clínicas para el hospital», «Adquisición de uniformes para el personal de
-        # salud»: el rubro es lo que se hace o se compra, no el destino. Se mira primero lo que sigue al verbo.
-        m = re.search(r"(?:servicios?|adquisici[oó]n|compra|suministro)\s+(?:de|del|para)\s+(.{0,50})",
+        # salud»: el rubro es lo que se hace o se compra, no el destino. Se mira primero lo que sigue al verbo, sin su
+        # «para …» («dos reservorios flexibles para combustible turbo JET A-1» es un recipiente, no combustible).
+        m = re.search(r"(?:servicios?|adquisici[oó]n|compra|suministro)\s+(?:de|del|para)\s+(.{0,80})",
                       _sin_tildes(str(objeto or tender.get("description") or "")).lower())
-        cat_objeto = (_categoria_objeto(m.group(1)) if m else None) or cat_objeto
+        cat_objeto = (_categoria_objeto(_sin_destino(m.group(1))) if m else None) or cat_objeto
 
     evaluados, choques = [], []
     for g, sunat in perfiles:
@@ -337,7 +338,9 @@ _CATEGORIAS_OBJETO: dict[str, tuple[str, ...]] = {
                     "licencia", "monitor", "proyector", "tablet", "router", "switch", "scanner", "computo"),
     "equipos": ("equipo topografico", "topograf", "estacion total", "prisma", "tripode", "gps", "gnss",
                 "instrumento", "medicion", "laboratorio", "analizador", "balanza", "microscopio", "equipamiento",
-                "maquina", "generador", "compresor", "bomba", "motobomba", "soldadora", "electrobomba"),
+                "maquina", "generador", "compresor", "bomba", "motobomba", "soldadora", "electrobomba",
+                # Recipientes: «reservorios flexibles (bladders) para combustible» son equipo, no combustible (1228227).
+                "reservorio", "tanque", "bladder", "blader", "contenedor"),
     "vehiculos": ("vehiculo", "maquinaria", "camion", "volquete", "camioneta", "motocicleta", "ambulancia",
                   "excavadora", "cargador frontal", "retroexcavadora", "tractor", "cisterna", "llanta", "neumatico",
                   "repuesto"),
@@ -399,6 +402,12 @@ def _hay(kw: str, t: str) -> bool:
 
 # Claves que deben ser la palabra entera (si no, «madera» casa con «maderables» y «gps» con «gpsx»).
 _CLAVES_PALABRA_ENTERA = {"madera", "epp", "gps", "glp", "gnv", "perfil", "riel", "acero", "arena", "piedra", "poste"}
+
+
+def _sin_destino(texto: str) -> str:
+    """Quita el destino de cada frase («… para combustible turbo», «… para el personal de salud») hasta la puntuación:
+    el rubro es lo que se compra, no para qué se usa. Sin destino, el texto queda igual."""
+    return re.sub(r"\bpara\s+[^,;.\n]*", " ", texto or "", flags=re.I)
 
 
 def _categoria_objeto(texto: str) -> str | None:

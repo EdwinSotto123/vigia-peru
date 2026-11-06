@@ -65,7 +65,7 @@ const ESTIMADO_SQL = `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT
  * recortes y validaciones pendientes. Todo sale de alertas + banderas + analisis_full.
  */
 export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analizado_en AS "analizadoEn",
-  COALESCE((SELECT json_agg(json_build_object('regla', b.regla, 'severidad', b.severidad, 'evidencia', left(b.evidencia, 320),
+  COALESCE((SELECT json_agg(json_build_object('regla', b.regla, 'severidad', b.severidad, 'evidencia', CASE WHEN length(b.evidencia) > 320 THEN regexp_replace(left(b.evidencia, 321), '\\s+\\S*$', '') || '…' ELSE b.evidencia END,
                                               'norma', b.norma, 'fuenteUrl', b.fuente_url, 'agente', b.agente_origen,
                                               'verificada', (b.verificacion->>'ok')::boolean)
                             ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id)
@@ -100,8 +100,23 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
     'costoUsd', (a.analisis_full->'llm_metrics'->>'cost_usd')::float,
     'llamadas', (a.analisis_full->'llm_metrics'->>'n_llm_calls')::int,
     'tokens', (a.analisis_full->'llm_metrics'->>'tokens_total')::int) ELSE NULL END AS costo,
-  (SELECT u->>'modelo' FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'document_analysis'->'documentos'")}) d,
-          jsonb_array_elements(${LISTA_JSON("d->'usos'")}) u WHERE u->>'modelo' IS NOT NULL LIMIT 1) AS modelo,
+  -- Los modelos de la corrida (2026-11-05: la web decía «gemini-3.6-flash» en análisis que escribió Haiku 5.5).
+  -- Los agentes: lo que guarda el agente (llm_metrics.modelos.agentes); sin ese campo, desde el 18 oct. todas las
+  -- Lambdas corren con Haiku 5.5 por vigia-llm (antes, Gemini en Cloud Run).
+  COALESCE(a.analisis_full->'llm_metrics'->'modelos'->>'agentes',
+           CASE WHEN a.analizado_en >= '2026-10-18' THEN 'claude-haiku-5-5' END) AS "modeloAgentes",
+  -- La lectura de cada documento: su modelo y si se reusó de un análisis anterior (cache.extraccion). Con
+  -- LLM_BACKEND=compatible el extractor anotaba el nombre PEDIDO (gemini-3.6-flash) aunque respondiera vigia-llm: el
+  -- SDK de Google deja «FinishReason.X» y el cliente de vigia-llm «X» a secas; por eso un «gemini…» sin ese formato
+  -- es una lectura de vigia-llm («respaldo»).
+  (SELECT json_agg(json_build_object('modelo', m, 'docs', n, 'guardadas', g) ORDER BY n DESC) FROM (
+     SELECT m, count(*) AS n, count(*) FILTER (WHERE g) AS g FROM (
+       SELECT (SELECT CASE WHEN u->>'finish_reason' LIKE 'FinishReason.%' OR u->>'modelo' NOT LIKE 'gemini%' THEN u->>'modelo'
+                           ELSE 'respaldo' END
+                 FROM jsonb_array_elements(${LISTA_JSON("d->'usos'")}) u WHERE u->>'modelo' IS NOT NULL LIMIT 1) AS m,
+              COALESCE(d->'cache'->>'extraccion', 'false') = 'true' AS g
+         FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'document_analysis'->'documentos'")}) d) y
+     WHERE m IS NOT NULL GROUP BY m) z) AS "modelosDocumentos",
   CASE WHEN jsonb_typeof(a.analisis_full->'compliance_resumen_det') = 'object'
        THEN a.analisis_full->'compliance_resumen_det'->'reglas' ELSE NULL END AS "reglasDisparadas"
   FROM alertas a WHERE a.id = $1`;

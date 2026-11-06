@@ -8,7 +8,9 @@
  */
 
 import { redactDnis } from "@/components/Redact";
+import { limpiarEvidencia } from "@/components/agentes/ListaSenales";
 
+/** Sin las formas de máquina del análisis («(acta (ofertas presentadas): numberOfTenderers/tenderers)», fechas ISO). */
 export function EvidenciaRedactada({ texto }: { texto: string }) {
-  return <>{redactDnis(texto)}</>;
+  return <>{redactDnis(limpiarEvidencia(texto))}</>;
 }

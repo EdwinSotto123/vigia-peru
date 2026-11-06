@@ -290,7 +290,8 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false,
           <span className="inline-flex items-center gap-1 text-inkSoft"><Landmark size={14} aria-hidden /> {p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</span>
           <span>{p.zona}</span>
           <span>OCID <span className="font-mono">{p.ocid}</span></span>
-          {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
+          {/* «Alerta OECE-…» sonaba a alarma: es el código del análisis. */}
+          {p.alertaCodigo && <span>Análisis <span className="font-mono">{p.alertaCodigo}</span></span>}
         </div>
       </header>
 
@@ -298,9 +299,10 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false,
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
-          {/* Estado / veredicto: una tarjeta. Terminado, el resultado; si no, qué pasa ahora. */}
+          {/* Estado / veredicto: una tarjeta. Terminado, el resultado; si no, qué pasa ahora. Sin la duración en el
+              resultado: la franja de arriba ya dice cuánto duró y cuándo terminó. */}
           {terminado ? (
-            <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} />
+            <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} revision={enRevision} />
           ) : sinEjecucion ? (
             <SinEjecucion p={p} ahora={ahora} compacto={false} />
           ) : (

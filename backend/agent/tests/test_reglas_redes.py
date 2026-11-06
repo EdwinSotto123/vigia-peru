@@ -9,7 +9,7 @@ from tools.compliance_rules._rules_lote1 import (check_ampliacion_denegada_penal
                                                  check_fecha_buena_pro_incoherente_rule,
                                                  check_oferta_igual_valor_referencial_rule,
                                                  check_oferta_mas_barata_no_gana_rule, check_unica_oferta_valida_rule)
-from tools.compliance_rules._rules_provider import _categoria_ciiu, _categoria_objeto, _categorias_compatibles
+from tools.compliance_rules._rules_provider import _categoria_ciiu, _categoria_objeto, _categorias_compatibles, _sin_destino
 from tools.lecturas import lecturas_para_legal
 
 
@@ -114,6 +114,17 @@ def test_giro_por_palabra_completa():
     assert _categoria_objeto("raciones de alimentos") == "alimentos"
     assert _categoria_ciiu("activ.de arquitectura e ingenieria") == "servicios"
     assert _categorias_compatibles("construccion", "servicios")
+
+
+def test_giro_mira_lo_que_se_compra_no_su_destino():
+    # 1228227: «dos (02) reservorios flexibles (bladers) para combustible turbo JET A-1» es equipo (un recipiente); la
+    # empresa vende maquinaria y equipo: coherente. Antes salía «combustible» por el destino.
+    assert _sin_destino("reservorios flexibles (bladers) para combustible turbo JET A-1").strip() == "reservorios flexibles (bladers)"
+    assert _categoria_objeto(_sin_destino("dos (02) reservorios flexibles (bladers) para combustible turbo jet a-1")) == "equipos"
+    assert _categorias_compatibles("equipos", _categoria_ciiu("vta. may. maquinaria, equipo y mater."))
+    # El combustible que se compra sigue siendo combustible, aunque tenga destino.
+    assert _categoria_objeto(_sin_destino("combustible diesel b5 para los vehiculos de la entidad")) == "combustible"
+    assert _categoria_objeto(_sin_destino("uniformes para el personal de salud")) == "textil"
 
 
 def test_lecturas_para_legal_compacta():

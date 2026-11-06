@@ -170,6 +170,22 @@ def resumen() -> dict:
     return {**tot, "por_etapa": etapas}
 
 
+def modelo_agentes() -> str:
+    """El modelo con que razonaron los agentes en ESTA corrida, según el despliegue (MOTOR_AGENTES, USAR_WORKERS_AI,
+    LLM_BACKEND). Se guarda con el análisis (`llm_metrics.modelos.agentes`) para que la web no lo adivine: antes mostraba
+    el del lector de documentos («gemini-3.6-flash», a veces de una lectura guardada de octubre) en análisis que escribió
+    Haiku 5.5 (2026-11-05)."""
+    def e(k: str) -> str:
+        return os.getenv(k, "").strip()
+    if e("MOTOR_AGENTES").lower() == "sdk":
+        return e("MOTOR_SDK_MODELO") or "sdk"
+    if e("USAR_WORKERS_AI").lower() in ("1", "true", "yes", "si", "sí", "on"):
+        return e("WORKERS_AI_MODEL") or "@cf/zai-org/glm-5.3-flash"
+    if e("LLM_BACKEND").lower() == "anthropic":
+        return e("ANTHROPIC_MODEL") or "claude-haiku-5-5"
+    return e("GEMINI_MODEL") or "gemini-3.6-flash"
+
+
 def metricas_finales(agentes: dict, extra: dict | None = None) -> dict:
     """`llm_metrics` que se guarda con el análisis. Los campos de siempre (cost_usd, tokens_*,
     n_llm_calls) pasan a ser el TOTAL de todas las llamadas; lo que antes se contaba (solo los
@@ -188,6 +204,7 @@ def metricas_finales(agentes: dict, extra: dict | None = None) -> dict:
         "por_etapa": r["por_etapa"],
         "agentes": {"n_llm_calls": agentes.get("calls", 0), "cost_usd": agentes.get("cost", 0.0),
                     "tokens_prompt": agentes.get("prompt", 0), "tokens_cached": agentes.get("cached", 0)},
+        "modelos": {"agentes": modelo_agentes()},
     }
     out.update(extra or {})
     return out

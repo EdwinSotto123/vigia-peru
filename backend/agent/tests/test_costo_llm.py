@@ -105,3 +105,17 @@ def test_llamadas_de_workers_ai_entran_al_resumen():
     r = c.resumen()
     assert r["llamadas"] == 1 and abs(r["costo_usd"] - 0.65) < 1e-6      # 0,15 + 0,50 por millón
     assert r["por_etapa"][0]["etapa"] == "legal_agent"
+
+
+def test_modelo_de_los_agentes_segun_el_despliegue(monkeypatch):
+    from tools import costo_llm
+    for k in ("MOTOR_AGENTES", "MOTOR_SDK_MODELO", "USAR_WORKERS_AI", "WORKERS_AI_MODEL", "LLM_BACKEND", "ANTHROPIC_MODEL", "GEMINI_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("MOTOR_AGENTES", "sdk")
+    monkeypatch.setenv("MOTOR_SDK_MODELO", "claude-haiku-5-5")
+    assert costo_llm.modelo_agentes() == "claude-haiku-5-5"
+    monkeypatch.delenv("MOTOR_AGENTES")
+    monkeypatch.setenv("USAR_WORKERS_AI", "1")
+    monkeypatch.setenv("WORKERS_AI_MODEL", "respaldo")
+    assert costo_llm.modelo_agentes() == "respaldo"
+    assert costo_llm.metricas_finales({})["modelos"] == {"agentes": "respaldo"}

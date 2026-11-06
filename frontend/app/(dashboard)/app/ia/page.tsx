@@ -16,6 +16,7 @@ import { NOMBRE_CLASE, getResumenIa, type ClaseLeida, type ResumenIa, type Sever
 import { P_MEN, rutaMenor } from "@/lib/menores";
 import { rutaContrato } from "@/lib/rutas";
 import { textoSenal } from "@/lib/senalesMenor";
+import { nombreModelo } from "@/lib/modelos";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 3600;
@@ -488,12 +489,9 @@ function CapituloProcesos({ r }: { r: ResumenIa }) {
 // ─── 5. Cómo se controla ─────────────────────────────────────────────────────
 
 /** «claude-haiku-5-5» → «Claude Haiku 5.5». */
-const nombreModelo = (m: string) =>
-  m.replace(/^claude-/, "claude ").replace(/-(\d+)-(\d+)$/, " $1.$2").replace(/-/g, " ").replace(/(^|\s)(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase("es"));
-
 function CapituloControl({ r }: { r: ResumenIa }) {
   const confirmar = Math.max(0, r.totales.lecturas - r.totales.documentos);
-  const modelos = r.modelos.length ? r.modelos.map(nombreModelo).join(" y ") : "Claude Haiku";
+  const modelos = r.modelos.length ? [...new Set(r.modelos.map((m) => nombreModelo(m) ?? m))].join(" y ") : "Claude Haiku";
   const porLectura = r.totales.lecturas > 0 ? r.totales.costoUsd / r.totales.lecturas : null;
   const controles: { icono: typeof ShieldCheck; titulo: string; texto: ReactNode }[] = [
     {

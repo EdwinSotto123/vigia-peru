@@ -209,7 +209,9 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         except Exception as e:  # noqa: BLE001 — la 2.ª pasada nunca tumba la extracción principal
             print(f"[lote] 2.ª pasada ({descartados}) falló: {str(e)[:120]}", flush=True)
     um = getattr(resp, "usage_metadata", None)
-    uso = {"modelo": model, "segundos": round(dt, 1), "finish_reason": fr,
+    # El modelo que respondió (genai y el cliente compatible lo dicen en `model_version`), no el pedido: con
+    # LLM_BACKEND=compatible el pedido es el nombre por defecto (gemini-3.6-flash) y responde el de vigia-llm.
+    uso = {"modelo": str(getattr(resp, "model_version", None) or model), "segundos": round(dt, 1), "finish_reason": fr,
            "tokens_prompt": int(getattr(um, "prompt_token_count", 0) or 0) if um else 0,
            "tokens_output": int(getattr(um, "candidates_token_count", 0) or 0) if um else 0,
            "tokens_thoughts": int(getattr(um, "thoughts_token_count", 0) or 0) if um else 0}

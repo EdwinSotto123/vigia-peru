@@ -10,6 +10,7 @@ import type { Bandera } from "../types";
 import type { EstadoCorrida } from "../dossier";
 import { AvisoSeccion } from "../sections/AvisoSeccion";
 import { agruparPorTema, type SenalRelato } from "./historia";
+import { normaLegible } from "@/lib/modelos";
 
 const BORDE: Record<SenalRelato["severidad"], string> = { alta: "border-crimson/30", media: "border-amber/30", baja: "border-line" };
 export const ENLACE_RELATO =
@@ -91,6 +92,8 @@ export function PorQueLlama({
 
 /** Una señal del relato: su gravedad, su nombre, lo que se encontró en una oración y la norma; la evidencia entera, en Señales. */
 function TarjetaSenal({ s, verEvidencia }: { s: SenalRelato; verEvidencia: () => void }) {
+  // «Heurística — …» no es una norma: es un criterio de Vigía (alguien de afuera lo buscaba en la ley).
+  const norma = normaLegible(s.norma);
   return (
     <article
       id={s.ancla ?? undefined}
@@ -114,7 +117,9 @@ function TarjetaSenal({ s, verEvidencia }: { s: SenalRelato; verEvidencia: () =>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line/70 pt-2">
         <p className="flex min-w-0 items-start gap-1.5 text-rotulo leading-snug text-mute">
           <Scale size={13} className="mt-0.5 shrink-0" aria-hidden />
-          <span className="min-w-0 break-words">{s.norma ? <>Norma: {s.norma}</> : "No cita una norma: se sostiene en la evidencia."}</span>
+          <span className="min-w-0 break-words">
+            {norma ? (norma.criterio ? <>Criterio de Vigía: {norma.texto}</> : <>Norma: {norma.texto}</>) : "No cita una norma: se sostiene en la evidencia."}
+          </span>
         </p>
         <button type="button" onClick={verEvidencia} className={ENLACE_RELATO}>
           Ver la evidencia completa <ChevronRight size={14} aria-hidden />

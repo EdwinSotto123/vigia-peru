@@ -66,6 +66,12 @@ export function ScoreGauge({ score, size = 132, className = "" }: Props) {
       })}
       <text x={cx} y={cy - 2} textAnchor="middle" fontFamily="'JetBrains Mono', ui-monospace, monospace" fontSize={s == null ? 13 : w * 0.24} fontWeight={s == null ? 500 : 700} className={s == null ? "fill-mute" : "fill-ink"}>
         {s == null ? "Sin dato" : Math.round(s)}
+        {/* «100» solo no se entendía (¿100 qué?): la escala, chica al lado. */}
+        {s != null && (
+          <tspan fontSize={w * 0.09} fontWeight={500} className="fill-mute">
+            /100
+          </tspan>
+        )}
       </text>
       <text x={cx} y={cy + 11} textAnchor="middle" fontSize={11} className="fill-mute">
         {label}

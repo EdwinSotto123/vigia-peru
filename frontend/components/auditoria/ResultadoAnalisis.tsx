@@ -29,6 +29,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, ExternalLink, Ey
 import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado, type SenalRiesgo } from "@/lib/auditoria";
 import { validacionLabel } from "@/lib/contratos";
 import { plural, porcentaje, soles } from "@/lib/formato";
+import { normaLegible } from "@/lib/modelos";
 import { Severidad } from "@/components/ui/Severidad";
 import { Revelar } from "@/components/ui/Revelar";
 import { Ayuda } from "@/components/patrones/Ayuda";
@@ -79,7 +80,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         <>
           <Revelar
             titulo={reglaLabel(s.regla)}
-            descripcion={s.norma ?? undefined}
+            descripcion={normaLegible(s.norma)?.texto}
             etiqueta={`Ver la evidencia de la señal: ${reglaLabel(s.regla)}`}
             ancho="md"
             className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
@@ -207,7 +208,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                 )}
                 {(r?.recortes ?? 0) > 0 && (
                   <div className="inline-flex items-center gap-1.5 text-mute" title="Límites que aplicó el análisis (documentos o ítems que quedaron fuera); el dictamen los lista tal cual.">
-                    <Scissors size={12} aria-hidden /> {r!.recortes} recorte{r!.recortes === 1 ? "" : "s"} declarado{r!.recortes === 1 ? "" : "s"}
+                    <Scissors size={12} aria-hidden /> {r!.recortes === 1 ? "1 parte quedó fuera de la lectura" : `${r!.recortes} partes quedaron fuera de la lectura`}
                   </div>
                 )}
                 {(r?.validacionesPendientes?.length ?? 0) > 0 && (
@@ -253,7 +254,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
       <dd className="mt-1 space-y-1 text-ink">
         {comparables.length === 0 && !loteComparable ? (
           <p className="text-rotulo leading-snug text-inkSoft">
-            No se pudo comparar con el mercado <span className="text-mute">({itemsLeidos})</span>.
+            No encontramos precios de mercado con qué compararlo <span className="text-mute">({itemsLeidos})</span>.
           </p>
         ) : (
           <>
@@ -290,6 +291,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
 
 /** Regla, severidad, cotejo y norma en una fila. Sólo `span`: puede ir dentro del botón de Revelar. */
 function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: boolean }) {
+  const norma = normaLegible(s.norma);
   return (
     <span className="flex items-start gap-2">
       <span className="block min-w-0 flex-1">
@@ -297,15 +299,18 @@ function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: bool
           <span className="text-meta font-semibold text-ink">{reglaLabel(s.regla)}</span>
           <Severidad bandera={s.severidad} formato="linea" className="text-rotulo" />
           {s.verificada === true && (
-            // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada).
-            <span className="inline-flex items-center gap-0.5 text-micro text-mossTexto">
+            // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada). Qué quiere decir, al pasar.
+            <span className="inline-flex items-center gap-0.5 text-micro text-mossTexto" title="Cotejada: otra revisión volvió a la fuente y confirmó el dato.">
               <ShieldCheck size={12} aria-hidden /> cotejada
             </span>
           )}
         </span>
-        {s.norma && (
+        {norma && (
           <span className="mt-0.5 flex items-start gap-1 text-rotulo text-mute">
-            <Scale size={11} className="mt-[2px] shrink-0" aria-hidden /> <span className="min-w-0 truncate" title={s.norma}>{s.norma}</span>
+            <Scale size={11} className="mt-[2px] shrink-0" aria-hidden />{" "}
+            <span className="min-w-0 truncate" title={norma.texto}>
+              {norma.criterio ? `Criterio de Vigía: ${norma.texto}` : norma.texto}
+            </span>
           </span>
         )}
       </span>
@@ -316,6 +321,7 @@ function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: bool
 
 /** El panel de una señal (§14.4): chips, qué se encontró (DNI tras vidrio) y la norma entera. */
 function DetalleSenal({ s }: { s: SenalRiesgo }) {
+  const norma = normaLegible(s.norma);
   return (
     <CuerpoDetalle>
       <ChipsDetalle>
@@ -335,9 +341,12 @@ function DetalleSenal({ s }: { s: SenalRiesgo }) {
           <p className="text-mute">Sin evidencia guardada en este resumen: el dictamen la cita completa.</p>
         )}
       </BloqueDetalle>
-      {s.norma && (
-        <BloqueDetalle titulo="La norma que cita">
-          <p>{s.norma}</p>
+      {norma && (
+        <BloqueDetalle titulo={norma.criterio ? "El criterio de Vigía" : "La norma que cita"}>
+          <p>{norma.texto}</p>
+          {norma.criterio && (
+            <p className="mt-1 text-meta text-mute">No es una norma: es una regla propia de Vigía para encontrar casos que conviene revisar.</p>
+          )}
         </BloqueDetalle>
       )}
     </CuerpoDetalle>

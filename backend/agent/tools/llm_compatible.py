@@ -209,7 +209,11 @@ class _Modelos:
         except Exception:
             pass
         cand = SimpleNamespace(finish_reason=fin, content=None, grounding_metadata=_grounding(texto, fuentes, consultas) if busca else None)
-        return SimpleNamespace(text=texto, usage_metadata=um, candidates=[cand], parsed=None, prompt_feedback=None)
+        # `model_version` como en genai: el modelo que RESPONDIÓ (el que dice el Worker, o el pedido al Worker). El
+        # `model=` de la llamada se ignora aquí; quien lo anotaba como «el modelo» dejaba «gemini-3.6-flash» en lecturas
+        # que hizo Haiku (2026-11-05).
+        return SimpleNamespace(text=texto, usage_metadata=um, candidates=[cand], parsed=None, prompt_feedback=None,
+                               model_version=str(d.get("model") or modelo()))
 
 
 # Modelos que rechazan `temperature` con HTTP 400 ("deprecated for this model"): se aprende en la primera

@@ -34,6 +34,8 @@ import {
   type FasesMap,
   type ProcesamientoDetalle,
 } from "@/lib/auditoria";
+import { plural } from "@/lib/formato";
+import { nombreModelo } from "@/lib/modelos";
 import { Bitacora } from "./Bitacora";
 import { DagCarriles } from "./DagCarriles";
 import { ReplayAnalisis } from "./ReplayAnalisis";
@@ -268,7 +270,7 @@ function FichaTecnica({ p, fases, duro, compacto, conDatos }: { p: Procesamiento
       return { k, estado: f.estado as string, ms, motivo: f.motivo ?? null };
     })
     .filter((x): x is { k: string; estado: string; ms: number | null; motivo: string | null } => !!x);
-  if (!filas.length && !(conDatos && (r?.costo || r?.modelo))) return null;
+  if (!filas.length && !(conDatos && (r?.costo || r?.modeloAgentes || r?.modelosDocumentos?.length))) return null;
   const costo = r?.costo ?? null;
   return (
     <details className={`${compacto ? "mt-3 pt-3" : "mt-4 pt-4"} border-t border-line text-rotulo`}>
@@ -301,25 +303,45 @@ function FichaTecnica({ p, fases, duro, compacto, conDatos }: { p: Procesamiento
   );
 }
 
-/** Tipo, modelo, costo, fecha y versión de reglas: lo que dice cómo se hizo. */
-function DatosTecnicos({ p, className }: { p: ProcesamientoDetalle; className?: string }) {
+/**
+ * Tipo, modelos, costo, fecha y versión de reglas: lo que dice cómo se hizo. Los modelos van por separado (pedido del
+ * usuario del 2026-11-05: decía «Modelo gemini-3.6-flash» en un análisis que escribió Haiku 5.5): quién escribió el
+ * análisis y quién leyó los documentos, que pueden venir de una lectura de un análisis anterior. Sin llamadas ni tokens
+ * (no se entendían y no contaban los turnos de cada agente). `conFecha`: la columna de la ficha ya dice cuándo terminó.
+ */
+function DatosTecnicos({ p, className, conFecha = true }: { p: ProcesamientoDetalle; className?: string; conFecha?: boolean }) {
   const r = p.resultado ?? null;
   const costo = r?.costo ?? null;
+  const agentes = nombreModelo(r?.modeloAgentes);
+  const docs = (r?.modelosDocumentos ?? []).filter((d) => d.docs > 0);
   return (
     <dl className={className}>
       <div><dt className="text-mute">Tipo de contrato</dt><dd className="text-ink">{tipoContratoHumano(r?.perfil) ?? "sin declarar"}</dd></div>
-      {r?.modelo && <div><dt className="text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
-      {costo && (
+      {agentes && <div><dt className="text-mute">Escribió el análisis</dt><dd className="text-ink">{agentes}</dd></div>}
+      {docs.length > 0 && (
         <div>
-          <dt className="text-mute">Costo del análisis</dt>
-          <dd className="flex flex-wrap items-baseline gap-x-3 font-mono text-ink">
-            <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "sin dato"}</span>
-            {costo.llamadas != null && <span className="text-mute">{costo.llamadas} llamadas</span>}
-            {costo.tokens != null && <span className="text-mute">{Math.round(costo.tokens / 1000)}k tokens</span>}
-          </dd>
+          <dt className="text-mute">Leyó los documentos</dt>
+          {docs.map((d) => (
+            <dd key={d.modelo} className="text-ink">
+              {nombreModelo(d.modelo)}, {plural(d.docs, "documento", "documentos")}
+              {d.guardadas > 0 && (
+                <span className="text-mute">
+                  {d.guardadas === d.docs
+                    ? ` (${d.docs === 1 ? "su lectura es" : "sus lecturas son"} de un análisis anterior)`
+                    : ` (${d.guardadas} de un análisis anterior)`}
+                </span>
+              )}
+            </dd>
+          ))}
         </div>
       )}
-      {r?.analizadoEn && <div><dt className="text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
+      {costo && costo.costoUsd != null && (
+        <div>
+          <dt className="text-mute">Costo del análisis</dt>
+          <dd className="font-mono text-ink">US$ {costo.costoUsd.toFixed(2)}</dd>
+        </div>
+      )}
+      {conFecha && r?.analizadoEn && <div><dt className="text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
       <div><dt className="text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
     </dl>
   );
@@ -354,15 +376,15 @@ export function DatosProceso({ p }: { p: ProcesamientoDetalle }) {
             <span className="inline-flex items-center gap-1 font-semibold text-ink">
               <ShieldCheck size={13} className="text-mossTexto" aria-hidden /> {p.financiador}
             </span>
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono text-rotulo text-mute hover:text-granate hover:underline">
-              {p.contribucionCodigo}
+            <Link href={`/impacto/${p.contribucionCodigo}`} className="text-rotulo text-mute hover:text-granate hover:underline">
+              constancia <span className="font-mono">{p.contribucionCodigo}</span>
             </Link>
           </dd>
         </div>
       </dl>
       {p.estado === "procesado" && (
         <div className="mt-3 border-t border-line pt-3">
-          <DatosTecnicos p={p} className="space-y-2.5 text-meta [&_dt]:text-rotulo" />
+          <DatosTecnicos p={p} conFecha={false} className="space-y-2.5 text-meta [&_dt]:text-rotulo" />
         </div>
       )}
     </section>

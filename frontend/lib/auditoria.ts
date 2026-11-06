@@ -125,7 +125,10 @@ export interface ResultadoAnalisis {
   /** U5: perfil del pipeline (bienes · servicios · obras · otros), costo/tokens y modelo. */
   perfil?: string | null;
   costo?: { costoUsd: number | null; llamadas: number | null; tokens: number | null } | null;
-  modelo?: string | null;
+  /** El modelo con que razonaron y escribieron los agentes («claude-haiku-5-5», «respaldo»). */
+  modeloAgentes?: string | null;
+  /** Quién leyó los documentos: su modelo, cuántos y cuántos se reusaron de un análisis anterior. */
+  modelosDocumentos?: { modelo: string; docs: number; guardadas: number }[] | null;
   /** Reglas deterministas que dispararon (compliance_resumen_det.reglas). */
   reglasDisparadas?: string[] | null;
 }
