@@ -65,6 +65,15 @@ const ESTIMADO_SQL = `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT
  * recortes y validaciones pendientes. Todo sale de alertas + banderas + analisis_full.
  */
 export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analizado_en AS "analizadoEn",
+  -- Quién ganó y por cuánto (2026-11-05: la lectura en vivo no lo decía; sólo aparecía dentro de las señales). Una empresa
+  -- (RUC 20) con su razón social; una persona natural (RUC 10) sin nombre ni RUC.
+  a.monto_adjudicado::float AS "montoAdjudicado",
+  CASE WHEN a.proveedor_ruc ~ '^20[0-9]{9}$' THEN json_build_object('ruc', a.proveedor_ruc,
+         'nombre', (SELECT e.razon_social FROM empresas e WHERE e.ruc = a.proveedor_ruc))
+       WHEN a.proveedor_ruc ~ '^10[0-9]{9}$' THEN json_build_object('persona', true) END AS ganador,
+  COALESCE(a.unico_postor, EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id AND b.regla = 'unico_postor_alto')) AS "unicoPostor",
+  -- Las bases declararon la cuantía reservada (lo anota la regla de la oferta igual al referencial).
+  (a.analisis_full->'reglas_lote1'->'oferta_igual_valor_referencial'->>'cuantia_reservada')::boolean AS "cuantiaReservada",
   COALESCE((SELECT json_agg(json_build_object('regla', b.regla, 'severidad', b.severidad, 'evidencia', CASE WHEN length(b.evidencia) > 320 THEN regexp_replace(left(b.evidencia, 321), '\\s+\\S*$', '') || '…' ELSE b.evidencia END,
                                               'norma', b.norma, 'fuenteUrl', b.fuente_url, 'agente', b.agente_origen,
                                               'verificada', (b.verificacion->>'ok')::boolean)

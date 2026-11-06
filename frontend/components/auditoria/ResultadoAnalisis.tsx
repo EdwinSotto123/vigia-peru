@@ -126,6 +126,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
   // El puntaje nunca aparece sin las señales que lo explican (§10.4).
   const scoreVisible = conSenales ? r?.score ?? score ?? null : null;
   const mercado = r?.mercado && ((r.mercado.nItems ?? 0) > 0 || (r.mercado.nConMediana ?? 0) > 0) ? r.mercado : null;
+  const mismaOferta = senales.some((s) => s.regla === "unico_postor_alto") && senales.some((s) => s.regla === "oferta_igual_valor_referencial");
 
   return (
     <section className={`rounded-2xl border bg-paper ${conSenales ? "border-line" : "border-moss/30"} ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
@@ -148,6 +149,10 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           </div>
           {/* El mismo conteo por severidad (color, ícono y palabra) que la cabecera del dossier. */}
           {conSenales && <ConteoSenales conteo={{ total: senales.length, ...porSev }} className="mt-1.5" />}
+          {/* «100» sin más se leía como certeza (pedido del usuario del 2026-11-05): qué es el número. */}
+          {conSenales && scoreVisible != null && !compacto && (
+            <p className="mt-1.5 text-rotulo leading-snug text-mute">El puntaje suma el peso de cada señal, con tope de 100: no es una probabilidad.</p>
+          )}
           {(!conSenales || (duracionMs != null && duracionMs > 0)) && (
             <p className="mt-1.5 text-rotulo leading-snug text-mute">
               {!conSenales && "Ningún patrón de riesgo en lo revisado. El dictamen explica qué se cotejó. "}
@@ -186,6 +191,14 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
             </li>
           )}
         </ol>
+      )}
+
+      {/* Dos señales, una misma oferta: se dice (y en el puntaje la segunda suma la mitad, tools/persistence/shared.py). */}
+      {mismaOferta && !compacto && (
+        <p className="mt-2 text-rotulo leading-snug text-mute">
+          «{reglaLabel("unico_postor_alto")}» y «{reglaLabel("oferta_igual_valor_referencial")}» salen de la misma oferta: en el
+          puntaje, la segunda suma la mitad.
+        </p>
       )}
 
       {/* mercado, documentos y recortes */}

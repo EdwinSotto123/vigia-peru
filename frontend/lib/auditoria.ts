@@ -103,6 +103,12 @@ export interface ResultadoAnalisis {
   score: number | null;
   estado: string;                      // activa · revision · …
   analizadoEn: string | null;
+  /** Por cuánto se adjudicó y a quién: una empresa con su razón social; una persona natural, sin nombre ni RUC. */
+  montoAdjudicado?: number | null;
+  ganador?: { ruc?: string; nombre?: string | null; persona?: boolean } | null;
+  unicoPostor?: boolean | null;
+  /** Las bases declararon la cuantía reservada (no se dio a conocer antes de las ofertas). */
+  cuantiaReservada?: boolean | null;
   banderas: SenalRiesgo[];
   mercado: {
     estado: string | null;

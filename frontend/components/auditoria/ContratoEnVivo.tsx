@@ -352,11 +352,19 @@ function indicadores(p: ProcesamientoDetalle, prog: { hechas: number; aplicables
   const montado = ahora > 0;
   const espera = <Skeleton className="h-6 w-16" />;   // antes de montar: sin reloj en el HTML del servidor
   const monto = p.montoPen != null && p.montoPen > 0 ? p.montoPen : null;
+  const r = p.resultado ?? null;
   const items: Indicador[] = [
     {
       valor: monto != null ? solesCompacto(monto) : null,
       etiqueta: "valor referencial",
-      contexto: monto != null ? `${soles(monto)} según el SEACE` : "el SEACE no publica el valor",
+      // Reservado en las bases y publicado después en el SEACE: dicho, para que no parezca una contradicción con la
+      // señal «Oferta igual al valor referencial» (que lo dice reservado) — pedido del usuario del 2026-11-05.
+      contexto:
+        monto != null
+          ? r?.cuantiaReservada
+            ? `${soles(monto)}; las bases lo declararon reservado y el SEACE lo muestra ahora`
+            : `${soles(monto)} según el SEACE`
+          : "el SEACE no publica el valor",
     },
   ];
   if (p.estado === "esperando_documentos") {
@@ -372,7 +380,19 @@ function indicadores(p: ProcesamientoDetalle, prog: { hechas: number; aplicables
   }
   if (p.estado === "pendiente_de_procesamiento") return items;
 
-  items.push({ valor: numero(prog.hechas), etiqueta: "pasos completados", contexto: `de ${numero(prog.aplicables)} que aplican a este contrato` });
+  // Terminado, quién ganó y por cuánto (antes, «12 pasos completados»: hablaba de la máquina, no del contrato). En curso,
+  // los pasos.
+  const adjudicado = p.estado === "procesado" && r?.montoAdjudicado != null && r.montoAdjudicado > 0 ? r.montoAdjudicado : null;
+  if (adjudicado != null) {
+    const quien = r?.ganador?.nombre ? tituloNatural(r.ganador.nombre) : r?.ganador?.persona ? "una persona natural" : null;
+    items.push({
+      valor: solesCompacto(adjudicado),
+      etiqueta: "adjudicado",
+      contexto: [quien && `a ${quien}`, r?.unicoPostor && "único postor"].filter(Boolean).join(", ") || soles(adjudicado),
+    });
+  } else {
+    items.push({ valor: numero(prog.hechas), etiqueta: "pasos completados", contexto: `de ${numero(prog.aplicables)} que aplican a este contrato` });
+  }
 
   if (p.estado === "procesando") {
     const t = montado && p.iniciadoAt ? ahora - Date.parse(p.iniciadoAt) : null;
