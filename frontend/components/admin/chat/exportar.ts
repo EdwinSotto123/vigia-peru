@@ -103,15 +103,36 @@ function recorrer(nodos: readonly RootContent[], visitar: (n: RootContent, previ
   });
 }
 
-/** Las tablas de la respuesta, cada una con un título: el renglón corto justo antes, el último subtítulo o «Tabla N». */
+/** Lo que presenta a la tabla justo antes: un renglón corto o el último punto de una lista («2. Otras distritales…:»). */
+function presentacion(previo: RootContent | undefined): string {
+  if (previo?.type === "paragraph") return plano(previo.children);
+  if (previo?.type === "list") {
+    const primero = previo.children[previo.children.length - 1]?.children[0];
+    if (primero?.type === "paragraph") return plano(primero.children);
+  }
+  return "";
+}
+
+/** «Tabla 2: Proveedores_2023_2026.» → «Proveedores 2023 2026». */
+const limpiarTitulo = (t: string) =>
+  t
+    .replace(/^tabla\s*\d+\s*[:.\-–]\s*/i, "")
+    .replace(/_/g, " ")
+    .replace(/[:.]\s*$/, "")
+    .trim();
+
+/**
+ * Las tablas de la respuesta, cada una con un título: el renglón corto que la presenta (o el último punto de la lista
+ * de antes), si no el último subtítulo, si no «Tabla N».
+ */
 export function extraerTablas(raiz: Root): TablaExtraida[] {
   const out: TablaExtraida[] = [];
   let subtitulo: string | null = null;
   recorrer(raiz.children, (n, previo) => {
     if (n.type === "heading") subtitulo = plano(n.children);
     if (n.type !== "table" || !n.children.length) return;
-    const antes = previo?.type === "paragraph" ? plano(previo.children) : "";
-    const titulo = (antes && antes.length <= 90 ? antes : subtitulo ?? "").replace(/[:.]\s*$/, "").trim() || `Tabla ${out.length + 1}`;
+    const antes = presentacion(previo);
+    const titulo = limpiarTitulo(antes && antes.length <= 90 ? antes : subtitulo ?? "") || `Tabla ${out.length + 1}`;
     const ancho = Math.max(...n.children.map((f) => f.children.length));
     const celdas = n.children.map((f) =>
       Array.from({ length: ancho }, (_, j) => {
@@ -312,15 +333,28 @@ function anchosWord(t: Table, ancho: number): number[] {
   return peso.map((p) => Math.floor((ANCHO_UTIL * p) / total));
 }
 
+/** ¿La mayoría de las celdas con algo (sin la fila de títulos) son cifras? Esas columnas van a la derecha. */
+function columnasNumericas(filas: string[][], ancho: number): boolean[] {
+  return Array.from({ length: ancho }, (_, j) => {
+    const llenas = filas.map((f) => (f[j] ?? "").trim()).filter((v) => v && v !== "—" && v !== "-");
+    // Un año («2024») es una etiqueta, no una cifra: la columna «Año» queda a la izquierda.
+    return llenas.length > 0 && llenas.filter((v) => comoNumero(v) && !/^(19|20)\d{2}$/.test(v)).length / llenas.length >= 0.6;
+  });
+}
+
 function tablaWord(t: Table, w: Word): string {
   const ancho = Math.max(1, ...t.children.map((f) => f.children.length));
   const anchos = anchosWord(t, ancho);
+  const numericas = columnasNumericas(
+    t.children.slice(1).map((f) => f.children.map((c) => plano(c.children))),
+    ancho,
+  );
   const grid = anchos.map((a) => `<w:gridCol w:w="${a}"/>`).join("");
   const filas = t.children
     .map((fila, i) => {
       const celdas = Array.from({ length: ancho }, (_, j) => {
         const c = fila.children[j];
-        const a = t.align?.[j];
+        const a = t.align?.[j] ?? (numericas[j] ? "right" : null);
         const contenido = c ? enLinea(c.children, i === 0 ? { b: true } : {}, w) : "";
         const fondo = i === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="DAE6E4"/>' : "";
         return `<w:tc><w:tcPr><w:tcW w:w="${anchos[j]}" w:type="dxa"/>${fondo}</w:tcPr>${parrafo(contenido, { estilo: "Celda", alineado: a === "right" || a === "center" ? a : undefined })}</w:tc>`;
@@ -810,7 +844,7 @@ html { background: #fff; }
 body { margin: 0 auto; max-width: 180mm; padding: 8mm 0; font: 10.5pt/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: #${COLOR_TINTA}; background: #fff; }
 @media print { body { padding: 0; max-width: none; } }
 header { border-bottom: 1.5pt solid #${COLOR_ACENTO}; padding-bottom: 8pt; margin-bottom: 12pt; }
-.marca { margin: 0 0 6pt; font: 700 8pt/1 Consolas, "JetBrains Mono", ui-monospace, monospace; letter-spacing: .06em; color: #${COLOR_ACENTO}; text-transform: uppercase; }
+.marca { margin: 0 0 6pt; font: 700 8pt/1 Consolas, "JetBrains Mono", ui-monospace, monospace; letter-spacing: .06em; color: #${COLOR_ACENTO}; }
 h1 { margin: 0 0 4pt; font-size: 19pt; line-height: 1.2; }
 .pregunta { margin: 0 0 6pt; font-size: 12.5pt; font-weight: 600; }
 .meta { margin: 0; font-size: 9pt; color: #${COLOR_GRIS}; }
@@ -844,16 +878,33 @@ export function documentoImpresion(html: string, meta: MetaInforme): string {
   const consultas = resumenConsultas(meta.consultas);
   const titulo = meta.pregunta ? `Vigía: ${meta.pregunta.slice(0, 90)}` : "Informe de investigación de Vigía";
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(titulo)}</title><style>${CSS_IMPRESION}</style></head><body>
-<header><p class="marca">Vigía by Gobserva | Chat de investigación</p><h1>Informe de investigación</h1>${meta.pregunta ? `<p class="pregunta">${esc(meta.pregunta)}</p>` : ""}<p class="meta">Fecha: ${esc(fechaLarga(meta.fecha))} (hora de Lima)</p><p class="meta">Fuente: datos públicos reunidos por Vigía by Gobserva (<a href="${SITIO}">vigia.gobserva.cloud</a>)</p></header>
+<header><p class="marca">VIGÍA BY GOBSERVA | CHAT DE INVESTIGACIÓN</p><h1>Informe de investigación</h1>${meta.pregunta ? `<p class="pregunta">${esc(meta.pregunta)}</p>` : ""}<p class="meta">Fecha: ${esc(fechaLarga(meta.fecha))} (hora de Lima)</p><p class="meta">Fuente: datos públicos reunidos por Vigía by Gobserva (<a href="${SITIO}">vigia.gobserva.cloud</a>)</p></header>
 <main>${html}</main>
 <footer><h2>Cómo se armó este informe</h2><ul>${modelo ? `<li>Modelo: ${esc(modelo)}.</li>` : ""}<li>${consultas.length ? `Consultas a los datos de Vigía (${meta.consultas.length}): ${esc(consultas.join(", "))}.` : "Sin consultas a los datos de Vigía."}</li></ul><p class="nota">${esc(NOTA_SENAL)}</p></footer>
 </body></html>`;
 }
 
-/** El HTML de la respuesta pintada, sin los textos para lector de pantalla («(se abre en otra pestaña)»). */
+/**
+ * El HTML de la respuesta pintada, sin los textos para lector de pantalla («(se abre en otra pestaña)») y con las
+ * columnas de cifras alineadas a la derecha (como en el Word).
+ */
 export function htmlDeRespuesta(el: Element): string {
   const copia = el.cloneNode(true) as Element;
   copia.querySelectorAll(".sr-only").forEach((n) => n.remove());
+  copia.querySelectorAll("table").forEach((tabla) => {
+    const filas = Array.from(tabla.querySelectorAll("tr"));
+    const celdas = filas.map((f) => Array.from(f.children) as HTMLElement[]);
+    const ancho = Math.max(0, ...celdas.map((f) => f.length));
+    const numericas = columnasNumericas(
+      celdas.slice(1).map((f) => f.map((c) => c.textContent ?? "")),
+      ancho,
+    );
+    for (const fila of celdas) {
+      fila.forEach((c, j) => {
+        if (numericas[j] && !c.style.textAlign && !c.getAttribute("align")) c.style.textAlign = "right";
+      });
+    }
+  });
   return copia.innerHTML;
 }
 
