@@ -18,6 +18,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { nombreArchivo } from "@/lib/csv";
+import type { Revision } from "./conversacion";
 
 // ─── Lo común ───────────────────────────────────────────────────────────────
 
@@ -33,6 +34,27 @@ export interface MetaInforme {
   modelo: string | null;
   /** Títulos de las herramientas que respondieron bien, en orden y con repetidas. */
   consultas: string[];
+  /** La revisión automática de enlaces y montos (si llegó): va al anexo «Cómo se armó este informe». */
+  revision?: Revision | null;
+}
+
+/**
+ * La revisión automática en frases para el anexo: la cuenta y, si hay, lo que quedó por revisar (hasta 25 de cada uno).
+ */
+export function lineasRevision(r: Revision | null | undefined): { cuenta: string; dudosos: string[] } | null {
+  if (!r || r.enlaces.total + r.montos.total === 0) return null;
+  const enlaces = r.enlaces.ok + r.enlaces.anteriores;
+  const montos = r.montos.ok + r.montos.sumas + r.montos.anteriores;
+  const partes = [
+    r.enlaces.total ? `${enlaces} de ${r.enlaces.total} enlaces` : null,
+    r.montos.total ? `${montos} de ${r.montos.total} montos en soles` : null,
+  ].filter(Boolean);
+  const cuenta = `Revisión automática: ${partes.join(" y ")} salen de los datos consultados${r.montos.sumas ? ` (${r.montos.sumas} son totales de tabla)` : ""}.`;
+  const dudosos = [
+    ...r.enlaces.dudosos.slice(0, 25).map((d) => `Enlace por revisar: «${d.texto}» (${d.motivo.replace(/\.$/, "")}).`),
+    ...r.montos.dudosos.slice(0, 25).map((d) => `Monto por revisar: ${d.texto}${d.contexto ? `, en «${d.contexto.replace(/^…|…$/g, "")}»` : ""}.`),
+  ];
+  return { cuenta, dudosos };
 }
 
 export interface Celda {
@@ -478,6 +500,7 @@ export function informeWord(texto: string, meta: MetaInforme): Uint8Array {
   w.nivelBase = minimoTitulo(raiz);
   const modelo = nombreModelo(meta.modelo);
   const consultas = resumenConsultas(meta.consultas);
+  const revision = lineasRevision(meta.revision);
 
   const cabecera = [
     parrafo(run("VIGÍA BY GOBSERVA  |  CHAT DE INVESTIGACIÓN", {}), { estilo: "Marca" }),
@@ -495,6 +518,10 @@ export function informeWord(texto: string, meta: MetaInforme): Uint8Array {
     modelo ? parrafo(run(`Modelo: ${modelo}.`, {}), { estilo: "Lista", numero: { id: 1, nivel: 0 } }) : "",
     parrafo(run(consultas.length ? `Consultas a los datos de Vigía: ${meta.consultas.length}.` : "Sin consultas a los datos de Vigía.", {}), { estilo: "Lista", numero: { id: 1, nivel: 0 } }),
     ...consultas.map((c) => parrafo(run(c, {}), { estilo: "Lista", numero: { id: 1, nivel: 1 } })),
+    ...(revision ? [
+      parrafo(run(revision.cuenta, {}), { estilo: "Lista", numero: { id: 1, nivel: 0 } }),
+      ...revision.dudosos.map((d) => parrafo(run(d, {}), { estilo: "Lista", numero: { id: 1, nivel: 1 } })),
+    ] : []),
     parrafo(run(NOTA_SENAL, {}), { estilo: "Nota" }),
   ].join("");
 
@@ -757,6 +784,8 @@ export function informeExcel(texto: string, meta: MetaInforme): Uint8Array {
   fila(null);
   const consultas = resumenConsultas(meta.consultas);
   if (consultas.length) fila({ texto: `Consultas a los datos de Vigía (${meta.consultas.length}): ${consultas.join(", ")}.`, estilo: X.nota });
+  const revision = lineasRevision(meta.revision);
+  if (revision) for (const l of [revision.cuenta, ...revision.dudosos]) fila({ texto: l, estilo: X.nota });
   fila({ texto: NOTA_SENAL, estilo: X.nota });
 
   const hojas = [informe];
@@ -876,11 +905,12 @@ footer ul { margin-bottom: 6pt; }
 export function documentoImpresion(html: string, meta: MetaInforme): string {
   const modelo = nombreModelo(meta.modelo);
   const consultas = resumenConsultas(meta.consultas);
+  const revision = lineasRevision(meta.revision);
   const titulo = meta.pregunta ? `Vigía: ${meta.pregunta.slice(0, 90)}` : "Informe de investigación de Vigía";
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(titulo)}</title><style>${CSS_IMPRESION}</style></head><body>
 <header><p class="marca">VIGÍA BY GOBSERVA | CHAT DE INVESTIGACIÓN</p><h1>Informe de investigación</h1>${meta.pregunta ? `<p class="pregunta">${esc(meta.pregunta)}</p>` : ""}<p class="meta">Fecha: ${esc(fechaLarga(meta.fecha))} (hora de Lima)</p><p class="meta">Fuente: datos públicos reunidos por Vigía by Gobserva (<a href="${SITIO}">vigia.gobserva.cloud</a>)</p></header>
 <main>${html}</main>
-<footer><h2>Cómo se armó este informe</h2><ul>${modelo ? `<li>Modelo: ${esc(modelo)}.</li>` : ""}<li>${consultas.length ? `Consultas a los datos de Vigía (${meta.consultas.length}): ${esc(consultas.join(", "))}.` : "Sin consultas a los datos de Vigía."}</li></ul><p class="nota">${esc(NOTA_SENAL)}</p></footer>
+<footer><h2>Cómo se armó este informe</h2><ul>${modelo ? `<li>Modelo: ${esc(modelo)}.</li>` : ""}<li>${consultas.length ? `Consultas a los datos de Vigía (${meta.consultas.length}): ${esc(consultas.join(", "))}.` : "Sin consultas a los datos de Vigía."}</li>${revision ? `<li>${esc(revision.cuenta)}${revision.dudosos.length ? `<ul>${revision.dudosos.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : ""}</li>` : ""}</ul><p class="nota">${esc(NOTA_SENAL)}</p></footer>
 </body></html>`;
 }
 
@@ -891,6 +921,14 @@ export function documentoImpresion(html: string, meta: MetaInforme): string {
 export function htmlDeRespuesta(el: Element): string {
   const copia = el.cloneNode(true) as Element;
   copia.querySelectorAll(".sr-only").forEach((n) => n.remove());
+  // Las marcas de la revisión automática son de la pantalla: el documento va limpio (la cuenta va en el anexo).
+  copia.querySelectorAll("mark[data-revision]").forEach((n) => n.replaceWith(...Array.from(n.childNodes)));
+  copia.querySelectorAll("a[data-revision]").forEach((a) => {
+    a.removeAttribute("data-revision");
+    a.removeAttribute("title");
+    a.removeAttribute("class");
+    a.querySelectorAll("svg").forEach((n) => n.remove());
+  });
   copia.querySelectorAll("table").forEach((tabla) => {
     const filas = Array.from(tabla.querySelectorAll("tr"));
     const celdas = filas.map((f) => Array.from(f.children) as HTMLElement[]);

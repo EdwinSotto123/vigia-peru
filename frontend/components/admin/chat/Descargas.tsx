@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, FileText, Printer, Table2 } from "lucide-react";
 import { claseBoton } from "@/components/admin/ui";
-import type { Paso } from "./conversacion";
+import type { Paso, Revision } from "./conversacion";
 import {
   bajar,
   contarTablas,
@@ -27,12 +27,15 @@ export function Descargas({
   pregunta,
   modelo,
   pasos,
+  revision,
   contenido,
 }: {
   texto: string;
   pregunta: string | null;
   modelo: string | null;
   pasos: Paso[];
+  /** La revisión automática de enlaces y montos: va al anexo del informe. */
+  revision: Revision | null;
   /** La respuesta ya pintada: de ahí sale el PDF y el «Copiar» con formato. */
   contenido: RefObject<HTMLDivElement | null>;
 }) {
@@ -49,6 +52,7 @@ export function Descargas({
     fecha: new Date(),
     modelo,
     consultas: pasos.flatMap((p) => (p.tipo === "herramienta" && p.estado === "listo" ? [p.titulo] : [])),
+    revision,
   });
 
   const hacer = (accion: () => void) => {

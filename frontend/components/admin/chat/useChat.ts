@@ -82,6 +82,7 @@ export function useChat() {
         pasos: [],
         texto: null,
         fin: null,
+        revision: null,
         error: null,
       };
       const cuerpo = { mensajes: historial([...previos, usuario]), modelo };

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CircleStop, Coins, Cpu, Loader2, MessageSquare, RotateCcw, Timer, Wrench, XCircle } from "lucide-react";
 import { Badge, claseBoton, plural, type Tone } from "@/components/admin/ui";
 import { Dato } from "@/components/ui/Dato";
@@ -8,12 +8,14 @@ import { cn } from "@/lib/utils";
 import { duracion, entero, entradaCompacta, usd, type EstadoPaso, type MensajeAsistente, type Paso, type PasoHerramienta, type Totales } from "./conversacion";
 import { Descargas } from "./Descargas";
 import { Respuesta } from "./Respuesta";
+import { RevisionRespuesta } from "./RevisionRespuesta";
 
 /**
  * Un turno de la conversación. La pregunta, en una burbuja a la derecha. La respuesta, en una tarjeta: mientras corre,
  * «Pensando…» con los segundos y los pasos a la vista según llegan; al terminar, la respuesta en markdown, debajo los
  * pasos plegados («Pasos (N)») y una línea con tiempo, herramientas, tokens y costo. Una respuesta terminada se puede
- * bajar como informe (Word, PDF, Excel, CSV) o copiar con formato (Descargas.tsx).
+ * bajar como informe (Word, PDF, Excel, CSV) o copiar con formato (Descargas.tsx). Debajo de la respuesta, la revisión
+ * automática de sus enlaces y montos (RevisionRespuesta.tsx), que además marca en el texto lo que hay que revisar.
  */
 
 export function BurbujaUsuario({ texto }: { texto: string }) {
@@ -51,6 +53,11 @@ export const TurnoAsistente = memo(function TurnoAsistente({
   const enCurso = [...m.pasos].reverse().find((p): p is PasoHerramienta => p.tipo === "herramienta" && p.estado === "en_curso");
   const sinRespuesta = !corriendo && m.texto == null;
   const pintada = useRef<HTMLDivElement>(null);
+  const enlacesPorRevisar = useMemo(
+    () => new Map((m.revision?.enlaces.dudosos ?? []).flatMap((d) => (d.url ? [[d.url, d.motivo] as const] : []))),
+    [m.revision],
+  );
+  const montosPorRevisar = useMemo(() => new Map((m.revision?.montos.dudosos ?? []).map((d) => [d.texto, d.motivo] as const)), [m.revision]);
 
   return (
     // El margen de arriba deja a la vista el comienzo de la respuesta bajo la barra fija (la fila de secciones en el
@@ -58,9 +65,11 @@ export const TurnoAsistente = memo(function TurnoAsistente({
     <article id={`turno-${m.id}`} aria-label="Respuesta del asistente" aria-busy={corriendo} className="min-w-0 scroll-mt-16 rounded-2xl border border-line bg-paperSoft lg:scroll-mt-28">
       {m.texto != null && (
         <div ref={pintada}>
-          <Respuesta texto={m.texto} className="px-4 py-3.5 sm:px-5" />
+          <Respuesta texto={m.texto} className="px-4 py-3.5 sm:px-5" enlacesPorRevisar={enlacesPorRevisar} montosPorRevisar={montosPorRevisar} />
         </div>
       )}
+
+      {!corriendo && m.texto != null && m.revision && <RevisionRespuesta r={m.revision} />}
 
       {sinRespuesta && (
         <div className="flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
@@ -84,7 +93,7 @@ export const TurnoAsistente = memo(function TurnoAsistente({
         </p>
       )}
 
-      {!corriendo && m.texto != null && <Descargas texto={m.texto} pregunta={pregunta} modelo={m.modelo} pasos={m.pasos} contenido={pintada} />}
+      {!corriendo && m.texto != null && <Descargas texto={m.texto} pregunta={pregunta} modelo={m.modelo} pasos={m.pasos} revision={m.revision} contenido={pintada} />}
 
       {m.pasos.length > 0 && <Pasos pasos={m.pasos} corriendo={corriendo} conRespuesta={m.texto != null} />}
 

@@ -51,6 +51,19 @@ export interface Totales {
   costo_usd: number | null;
 }
 
+/** Lo que la revisión automática no encontró en los datos consultados (evento `revision`, lib/revisionChat.ts del API). */
+export interface PorRevisar {
+  texto: string;
+  motivo: string;
+  url: string | null;
+  contexto: string | null;
+}
+
+export interface Revision {
+  enlaces: { total: number; ok: number; anteriores: number; dudosos: PorRevisar[] };
+  montos: { total: number; ok: number; sumas: number; anteriores: number; dudosos: PorRevisar[] };
+}
+
 /**
  * corriendo: el stream sigue abierto. listo: llegó la respuesta. error: el API dijo que no pudo.
  * detenido: lo cortó quien pregunta («Detener»). cortado: el stream se cerró sin respuesta ni error, o se recargó la
@@ -77,6 +90,8 @@ export interface MensajeAsistente {
   /** La respuesta final en markdown; null mientras no llegue. */
   texto: string | null;
   fin: Totales | null;
+  /** La revisión automática de enlaces y montos; null si no llegó (respuesta vieja o sin respuesta). */
+  revision: Revision | null;
   error: string | null;
 }
 
@@ -89,6 +104,7 @@ export type EventoChat =
   | { tipo: "texto"; texto: string }
   | { tipo: "respuesta"; texto: string }
   | { tipo: "fin"; totales: Totales }
+  | { tipo: "revision"; revision: Revision }
   | { tipo: "error"; mensaje: string };
 
 export function nuevoId(): string {
@@ -103,6 +119,26 @@ export function nuevoId(): string {
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : null);
 const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+
+function leerPorRevisar(x: unknown): PorRevisar | null {
+  const o = obj(x);
+  const texto = o ? str(o.texto) : null;
+  const motivo = o ? str(o.motivo) : null;
+  return o && texto && motivo ? { texto, motivo, url: str(o.url), contexto: str(o.contexto) } : null;
+}
+
+/** La revisión que manda el API (o la guardada), validada; null si no se entiende. */
+export function leerRevision(x: unknown): Revision | null {
+  const o = obj(x);
+  const e = o ? obj(o.enlaces) : null;
+  const m = o ? obj(o.montos) : null;
+  if (!e || !m) return null;
+  const lista = (v: unknown) => (Array.isArray(v) ? v.map(leerPorRevisar).filter((d): d is PorRevisar => !!d) : []);
+  return {
+    enlaces: { total: num(e.total) ?? 0, ok: num(e.ok) ?? 0, anteriores: num(e.anteriores) ?? 0, dudosos: lista(e.dudosos) },
+    montos: { total: num(m.total) ?? 0, ok: num(m.ok) ?? 0, sumas: num(m.sumas) ?? 0, anteriores: num(m.anteriores) ?? 0, dudosos: lista(m.dudosos) },
+  };
+}
 
 /** Una línea del stream ya parseada → evento, o null si no se entiende (se ignora). Un `{error, detail}` suelto es un error. */
 export function comoEvento(crudo: unknown): EventoChat | null {
@@ -132,6 +168,10 @@ export function comoEvento(crudo: unknown): EventoChat | null {
           costo_usd: num(o.costo_usd),
         },
       };
+    }
+    case "revision": {
+      const revision = leerRevision(o);
+      return revision ? { tipo: "revision", revision } : null;
     }
     case "error":
       return { tipo: "error", mensaje: str(o.mensaje) ?? str(o.detail) ?? "El asistente no pudo terminar." };
@@ -173,6 +213,8 @@ export function aplicarEvento(m: MensajeAsistente, e: EventoChat): MensajeAsiste
       return { ...m, texto: e.texto };
     case "fin":
       return { ...m, fin: e.totales };
+    case "revision":
+      return { ...m, revision: e.revision };
     case "error":
       return { ...m, error: e.mensaje };
   }
@@ -250,6 +292,7 @@ function leerMensaje(x: unknown): Mensaje | null {
           costo_usd: num(fin.costo_usd),
         }
       : null,
+    revision: leerRevision(m.revision),
     error: str(m.error),
   };
 }

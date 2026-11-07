@@ -13,6 +13,7 @@
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { z } from "zod";
+import { revisarRespuesta } from "../lib/revisionChat.js";
 
 /** Lo que usa el chat del entorno del Worker (workers/env.ts tiene el tipo completo; acá, sin los tipos de Workers). */
 interface Env {
@@ -73,6 +74,7 @@ Cómo responder:
 - Debajo de cada respuesta hay botones para bajarla en Word, PDF, Excel y CSV: el Word y el PDF llevan la respuesta entera con sus enlaces; el Excel y el CSV, cada tabla en su hoja con las cifras como números. Si piden un informe, un Excel, un CSV, un PDF o un Word, NO digas que no puedes generar archivos: arma la respuesta pensando en ese archivo y al final di en una línea con qué botón bajarla.
 - Si piden un informe: «Resumen» (un párrafo con las cifras clave), una sección por tema con su tabla y lo que muestra, el detalle de cada caso que llame la atención (qué se compró, cuándo, a quién, por cuánto, por qué vía, con su enlace), «Lo que no pude verificar» y «Fuentes». Usa todas las herramientas que apliquen y lista los registros, no sólo los totales: un informe suele tener de 2 000 a 5 000 palabras y varias tablas.
 - ENLACES: todo lo que nombres va enlazado a su página en Vigía: cada proceso u OCID, orden, compra menor, empresa, entidad, obra, dictamen e informe de control. Usa el campo enlace que trae cada herramienta (las órdenes lo traen a la lista de compras de la entidad con esa orden). Si una herramienta no lo trae, ármalo: proceso https://vigia.gobserva.cloud/app/contratos/<OCID>, entidad https://vigia.gobserva.cloud/entidad/<RUC>, empresa https://vigia.gobserva.cloud/empresa/<RUC 20>. Nunca enlaces ni muestres un RUC 10 ni a una persona natural. En las tablas, la celda del código o del nombre lleva el enlace. Además del enlace de Vigía, pon el de la fuente oficial (SEACE, CONOSCE, Contraloría, INFOBRAS) cuando la herramienta lo trae.
+- Una revisión automática compara cada enlace y cada monto en soles de tu respuesta con lo que devolvieron las herramientas, y marca lo que no encuentra. Copia las cifras tal cual vienen (al céntimo) y los enlaces que traen; si un monto es una suma o una cuenta tuya, dilo («suman», «en total») y, en una tabla, ponlo en una fila «Total».
 - Separa con comas, puntos o listas, nunca con «·».
 - Tablas que se puedan llevar a Excel: justo antes de cada tabla, UN subtítulo (###) corto y en palabras, que será el nombre de su hoja («### Proveedores principales»: sin «Tabla 1:», sin guiones bajos y sin repetirlo); una cifra por celda, con S/ o % pegado a la cifra y sin texto extra (nada de «S/ 1.2 M aprox.»: escribe S/ 1,200,000); montos con separador de miles y punto decimal (S/ 1,234,567.89); RUC, OCID y códigos completos y sin separadores; una fila por registro; la columna con el código o el nombre enlazada a su página. Pon todas las filas que traen las herramientas (hasta unas 100 por tabla); si hay más, di cuántas son en total y enlaza la lista completa en Vigía.
 - Cita con los enlaces de Vigía y de la fuente oficial que traen las herramientas, y di hasta qué fecha llegan los datos cuando importe.
@@ -161,6 +163,8 @@ adminChatRouter.post("/chat", async (c) => {
     const inicio = Date.now();
     const tokens = { entrada: 0, salida: 0, cache_leidos: 0, cache_escritos: 0 };
     let usadas = 0;
+    // Lo que devolvió cada herramienta, entero: contra eso se revisan los enlaces y los montos de la respuesta.
+    const fuentes: string[] = [];
     try {
       const lista = await herramientas(env);
       const titulos = new Map(lista.map((h) => [h.name, h.title ?? h.name]));
@@ -199,6 +203,22 @@ adminChatRouter.post("/chat", async (c) => {
         conversacion.push({ role: "assistant", content: bloques });
         if (r.stop_reason !== "tool_use" || !llamadas.length) {
           await emitir({ tipo: "respuesta", texto: texto || "No encontré una respuesta con los datos de Vigía." });
+          if (texto) {
+            // Sin modelo: cada enlace y cada monto en soles contra lo consultado (lib/revisionChat.ts). Si algo falla
+            // acá, la respuesta ya salió: sólo no llega la revisión.
+            try {
+              const t0 = Date.now();
+              const rev = revisarRespuesta(texto, fuentes, mensajes.map((x) => x.texto));
+              await emitir({ tipo: "revision", ...rev, ms: Date.now() - t0 });
+              console.log(JSON.stringify({
+                chat: "revision", actor,
+                enlaces: `${rev.enlaces.ok}/${rev.enlaces.total}`, montos: `${rev.montos.ok + rev.montos.sumas}/${rev.montos.total}`,
+                por_revisar: rev.enlaces.dudosos.length + rev.montos.dudosos.length,
+              }));
+            } catch (e) {
+              console.warn(JSON.stringify({ chat: "revision_error", error: String((e as Error)?.message ?? e).slice(0, 200) }));
+            }
+          }
           break;
         }
         if (texto) await emitir({ tipo: "texto", texto });
@@ -212,6 +232,7 @@ adminChatRouter.post("/chat", async (c) => {
               const res = await mcp(env, "tools/call", { name: l.name, arguments: l.input ?? {} });
               contenido = ((res.content ?? []) as { type: string; text?: string }[]).map((b) => b.text ?? "").join("\n");
               ok = !res.isError;
+              if (ok) fuentes.push(contenido);
             } catch (e) {
               ok = false;
               contenido = `No se pudo usar ${l.name}: ${(e as Error).message}`;

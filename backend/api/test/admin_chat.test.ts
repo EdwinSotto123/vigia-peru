@@ -1,4 +1,4 @@
-/** El chat del panel (routes/admin_chat.ts) con el modelo y el MCP simulados: pasos, resultado, respuesta y fin en NDJSON. */
+/** El chat del panel (routes/admin_chat.ts) con el modelo y el MCP simulados: pasos, resultado, respuesta, revisión y fin en NDJSON. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Hono } from "hono";
@@ -14,7 +14,7 @@ function entorno() {
       vuelta++;
       const contenido = vuelta === 1
         ? [{ type: "text", text: "Busco la entidad." }, { type: "tool_use", id: "t1", name: "buscar", input: { texto: "Wanchaq" } }]
-        : [{ type: "text", text: "## Respuesta\nLa municipalidad de Wanchaq…" }];
+        : [{ type: "text", text: "## Respuesta\nLa [municipalidad de Wanchaq](https://vigia.gobserva.cloud/entidad/20159308881) gastó S/ 1,234.00…" }];
       return Response.json({ content: contenido, stop_reason: vuelta === 1 ? "tool_use" : "end_turn", usage: { input_tokens: 1000, output_tokens: 200 } });
     },
   };
@@ -45,10 +45,13 @@ test("el chat encadena una herramienta y responde en NDJSON", async () => {
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type") ?? "", /application\/x-ndjson/);
   const eventos = (await r.text()).trim().split("\n").map((l) => JSON.parse(l));
-  assert.deepEqual(eventos.map((e) => e.tipo), ["inicio", "texto", "paso", "resultado", "respuesta", "fin"]);
+  assert.deepEqual(eventos.map((e) => e.tipo), ["inicio", "texto", "paso", "resultado", "respuesta", "revision", "fin"]);
   assert.equal(eventos[2].titulo, "Buscar en Vigía");
   assert.equal(eventos[3].ok, true);
-  assert.equal(eventos[5].herramientas, 1);
+  // La revisión: el enlace lleva un RUC que trajo la herramienta; el monto no está en ningún dato.
+  assert.equal(eventos[5].enlaces.ok, 1);
+  assert.deepEqual(eventos[5].montos.dudosos.map((d: { texto: string }) => d.texto), ["S/ 1,234.00"]);
+  assert.equal(eventos[6].herramientas, 1);
   // Las herramientas de la cuenta personal no se le ofrecen al modelo, y el $schema no viaja.
   const nombres = pedidosLlm[0].tools.map((t: any) => t.name);
   assert.deepEqual(nombres, ["buscar"]);
