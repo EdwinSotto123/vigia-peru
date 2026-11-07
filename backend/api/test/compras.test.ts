@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ComprasQuery, claseDeOrden, compararFecha, fuenteFija } from "../src/routes/compras.js";
+import { ComprasQuery, claseDeOrden, compararFecha, condicionHistoria, fuenteFija } from "../src/routes/compras.js";
 import { sqlConteosEntidad } from "../src/routes/entidades.js";
+import { palabrasBusqueda } from "../src/routes/personas.js";
 
 // La lista de compras sin repetidas de una entidad o una empresa (GET /compras, migración 240, 2026-11-03).
 
@@ -46,4 +47,23 @@ test("compras: la clase de una orden sola, como clase_orden() de la migración 2
 test("conteos de la ficha: las compras sin repetidas salen de compra_resumen (migración 240)", () => {
   assert.doesNotMatch(sqlConteosEntidad("20393066386", true, true, true, false), /compra_resumen/);
   assert.match(sqlConteosEntidad("20393066386", true, true, true, true), /FROM compra_resumen cr WHERE cr\.entidad_ruc = '20393066386'/);
+});
+
+test("compras: con texto, la descripción y el número de orden se buscan en toda la historia (índice de la 255)", () => {
+  const cond = (q: string | undefined) => {
+    const vals: unknown[] = [];
+    const sql = condicionHistoria(palabrasBusqueda(q), (v) => { vals.push(v); return `$${vals.length}`; });
+    return { sql, vals };
+  };
+  // Las palabras van todas, por prefijo, sobre la misma expresión que el índice (minúsculas y sin tildes).
+  const a = cond("Aniversario del distrito");
+  assert.equal(a.sql, "to_tsvector('spanish'::regconfig, translate(lower(coalesce(o.descripcion, '')), 'áéíóúüñ', 'aeiouun')) @@ to_tsquery('spanish', $1)");
+  assert.deepEqual(a.vals, ["aniversario:* & distrito:*"]);
+  // Un número solo es un número de orden (los enlaces del chat: ?cq=6076).
+  assert.deepEqual(cond("6076"), { sql: "o.nro_orden = ANY($1::text[])", vals: [["6076"]] });
+  // Con letras, los números van en la descripción.
+  assert.deepEqual(cond("coffee 2025").vals, ["coffee:* & 2025:*"]);
+  // Sólo palabras vacías, o nada: no hay qué buscar en la historia (queda la ventana de siempre).
+  assert.equal(cond("por los").sql, null);
+  assert.equal(cond(undefined).sql, null);
 });

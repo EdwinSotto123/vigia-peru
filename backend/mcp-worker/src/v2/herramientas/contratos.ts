@@ -355,7 +355,10 @@ export const ordenes = definir({
     como: z.string().max(40).optional().describe("Por qué vía: proceso, catalogo, menor (compra menor), directa (orden directa) o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
-    texto: z.string().min(3).max(80).optional().describe("Busca TODAS estas palabras juntas en la descripción. Para sumar el gasto en un concepto con sinónimos usa gasto_por_concepto."),
+    texto: z.string().min(3).max(80).optional().describe(
+      "Busca TODAS estas palabras en lo que se compró, en todos los años (con sus plurales: «aniversario» encuentra «aniversarios»). " +
+      "Un número solo es un número de orden («6076»). El nombre del proveedor sólo se busca en las órdenes más recientes: para " +
+      "todas las de una empresa usa con=<RUC>. Para sumar el gasto en un concepto con sinónimos usa gasto_por_concepto."),
     pagina,
     por_pagina: porPagina,
   },
@@ -389,6 +392,9 @@ export const ordenes = definir({
       pagina: a.pagina,
       hay_mas: r.hayMas,
       compras: (r.data ?? []).map(fila),
+      ...(r.incompleto?.length
+        ? { incompleto: r.incompleto, aviso_incompleto: `Faltan las compras de ${r.incompleto.join(" y ")}: la búsqueda se pasó de tiempo. Prueba con palabras más específicas o filtra por año.` }
+        : {}),
       fuente: "OECE (SEACE y CONOSCE), Perú Compras (catálogo) y órdenes del SEACE.",
     };
   },

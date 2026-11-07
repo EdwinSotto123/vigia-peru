@@ -134,6 +134,16 @@ async function armar(q: FiltrosCompras): Promise<Record<string, unknown>> {
 
   let claves: Clave[];
   let hayMas: boolean;
+  // Una rama que se pasa de su plazo (procesos con «servicio» en Ate: 500 en toda la lista, 2026-11-07) no tumba a las
+  // demás: la lista sale con lo que hubo y `incompleto` dice qué faltó. Otro error sí corta (es un error de verdad).
+  const incompleto: string[] = [];
+  const tolerante = (nombre: string, rama: Promise<Clave[]>): Promise<Clave[]> => medir(nombre, rama).catch((e: unknown) => {
+    const m = String((e as Error)?.message ?? e);
+    if (!/statement timeout|Query read timeout/i.test(m)) throw e;
+    console.warn(`[compras] ${nombre}: ${m}`);
+    incompleto.push(nombre);
+    return [];
+  });
   if (fija === "orden") {
     // Una bandera de la orden (nepotismo, al borde del tope…): la lista de órdenes con esa bandera, cada una como la
     // compra de la que es parte. Su paginación es la de la lista de órdenes.
@@ -142,11 +152,12 @@ async function armar(q: FiltrosCompras): Promise<Record<string, unknown>> {
     const n = offset + q.size + 1;
     const quiere = (cl: ClaseCompra) => !q.como || q.como === cl;
     const ramas: Promise<Clave[]>[] = [];
-    if ((!fija || fija === "proceso") && quiere("proceso")) ramas.push(medir("procesos", ramaProcesos(q, ancla, ruc, n, dir)));
-    if ((!fija || fija === "catalogo") && quiere("catalogo")) ramas.push(medir("catalogo", ramaCatalogo(q, n, dir)));
-    if ((!fija || fija === "menor") && quiere("menor") && (!q.anio || q.anio >= 2024)) ramas.push(medir("menores", ramaMenores(q, n, dir)));
-    if (!fija && (quiere("directa") || quiere("pago") || quiere("catalogo")) && (!q.anio || q.anio >= 2018)) ramas.push(medir("ordenes", ramaOrdenes(q, n, dir)));
+    if ((!fija || fija === "proceso") && quiere("proceso")) ramas.push(tolerante("procesos", ramaProcesos(q, ancla, ruc, n, dir)));
+    if ((!fija || fija === "catalogo") && quiere("catalogo")) ramas.push(tolerante("catalogo", ramaCatalogo(q, n, dir)));
+    if ((!fija || fija === "menor") && quiere("menor") && (!q.anio || q.anio >= 2024)) ramas.push(tolerante("menores", ramaMenores(q, n, dir)));
+    if (!fija && (quiere("directa") || quiere("pago") || quiere("catalogo")) && (!q.anio || q.anio >= 2018)) ramas.push(tolerante("ordenes", ramaOrdenes(q, n, dir)));
     const todas = (await Promise.all(ramas)).flat();
+    if (ramas.length && incompleto.length === ramas.length) throw new Error(`compras: todas las ramas pasaron su plazo (${incompleto.join(", ")})`);
     todas.sort((a, b) => compararFecha(a.fecha, b.fecha, dir) || (dir === "DESC" ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id)));
     claves = todas.slice(offset, offset + q.size);
     hayMas = todas.length > offset + q.size;
@@ -158,6 +169,7 @@ async function armar(q: FiltrosCompras): Promise<Record<string, unknown>> {
     resumen: r ? r.resumen : null,
     facetas: r ? r.facetas : null,
     data,
+    ...(incompleto.length ? { incompleto } : {}),
     tiempos,
   });
 }
@@ -222,13 +234,29 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
   if (q.como === "pago") conds.push(`o.tipo_contratacion ~* '${PAGO}'`);
   else if (q.como === "catalogo") conds.push(`o.tipo_contratacion ~* '${CATALOGO}'`);
   else if (q.como === "directa") conds.push(`COALESCE(o.tipo_contratacion, '') !~* '${PAGO}' AND COALESCE(o.tipo_contratacion, '') !~* '${CATALOGO}'`);
-  const texto = palabrasBusqueda(q.q).map((w) =>
+  const palabras = palabrasBusqueda(q.q);
+  const texto = palabras.map((w) =>
     `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.contratista, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
   const ventana = texto.length ? Math.max(1500, n * 6) : Math.ceil(n * 1.02) + 20;
-  const r = await consultaConPlazo(
-    `WITH c AS (SELECT o.entidad_ruc, o.orden, o.fecha_emision, o.anio, o.mes, o.monto, o.monto_dudoso, o.moneda, o.tipo_contratacion,
-                       o.ruc_contratista, o.descripcion, o.entidad, o.contratista, o.nro_orden
-                  FROM conosce_ordenes o WHERE ${conds.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}),
+  const columnas = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio, o.mes, o.monto, o.monto_dudoso, o.moneda, o.tipo_contratacion,
+                    o.ruc_contratista, o.descripcion, o.entidad, o.contratista, o.nro_orden`;
+  // Con texto, además de la ventana de las más recientes (que es donde se busca el proveedor), lo que se compró y el número
+  // de orden en TODOS los años: antes sólo en la ventana, y en una entidad grande 1 500 órdenes son unos meses (Ate:
+  // «aniversario» daba 2 órdenes, y había 24 desde 2018; el enlace a una orden de 2023 caía en una lista vacía).
+  const historia = condicionHistoria(palabras, p);
+  const r = await consultaConPlazo(historia
+    ? `WITH a AS (SELECT ${columnas}, true AS h FROM conosce_ordenes o WHERE ${conds.join(" AND ")} AND ${historia} LIMIT ${TOPE_HISTORIA}),
+            w AS (SELECT ${columnas}, false AS h FROM conosce_ordenes o WHERE ${conds.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}),
+            c AS (SELECT x.*, bool_or(x.h) OVER (PARTITION BY x.entidad_ruc, x.orden, x.fecha_emision) AS en_historia
+                    FROM (SELECT * FROM a UNION ALL SELECT * FROM w) x),
+            d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o
+                   ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+       SELECT o.entidad_ruc AS e, o.orden AS n, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.ruc_contratista AS p,
+              CASE WHEN o.moneda = 'Nuevos Soles' THEN COALESCE(o.monto, o.monto_dudoso)::float END AS monto,
+              clase_orden(o.tipo_contratacion) AS clase
+         FROM d o WHERE o.en_historia OR (${texto.join(" AND ")})
+        ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${n}`
+    : `WITH c AS (SELECT ${columnas} FROM conosce_ordenes o WHERE ${conds.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}),
           d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o
                  ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
      SELECT o.entidad_ruc AS e, o.orden AS n, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.ruc_contratista AS p,
@@ -240,6 +268,31 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
     clase: x.clase, fuente: "orden", id: `o:${x.e}:${x.fecha}:${x.n}`, fecha: x.fecha, monto: x.monto,
     llave: { entidad: x.e, orden: x.n, fecha: x.fecha, proveedor: x.p },
   }));
+}
+
+/**
+ * Cuántas órdenes que calzan con el texto se miran en toda la historia. Sin ORDER BY: así el planificador elige solo. Con
+ * una palabra rara cruza el índice de texto con el de la entidad (Ate, «aniversario»: 24 órdenes, 0,16 s); con una común
+ * («servicio», 17 mil en Ate) recorre el de la entidad y para en el tope (0,34 s), y las más recientes salen de la ventana.
+ */
+const TOPE_HISTORIA = 3001;
+
+/** El texto que indexa la migración 255 (gasto.ts usa el mismo): tiene que coincidir al carácter para usar el índice. */
+const TSV_DESCRIPCION = "to_tsvector('spanish'::regconfig, translate(lower(coalesce(o.descripcion, '')), 'áéíóúüñ', 'aeiouun'))";
+
+/** Palabras que to_tsquery descarta (y con «:*» dejarían la consulta vacía): no se buscan en la descripción. */
+const VACIAS_TEXTO = new Set(["DEL", "LAS", "LOS", "POR", "CON", "UNA", "SIN", "PARA", "UNOS", "UNAS"]);
+
+/**
+ * La condición para buscar en toda la historia, o null si no hay qué buscar ahí. Las palabras (ya en mayúsculas, sin
+ * tildes y sólo letras y cifras: palabrasBusqueda) van TODAS en la descripción, por prefijo y en español («aniversario»
+ * también encuentra «aniversarios»). Un número solo es un número de orden («6076»: los enlaces a una orden lo usan).
+ */
+export function condicionHistoria(palabras: string[], p: (v: unknown) => string): string | null {
+  const utiles = palabras.filter((w) => !VACIAS_TEXTO.has(w));
+  if (!utiles.length) return null;
+  if (utiles.every((w) => /^\d+$/.test(w))) return `o.nro_orden = ANY(${p(utiles)}::text[])`;
+  return `${TSV_DESCRIPCION} @@ to_tsquery('spanish', ${p(utiles.map((w) => `${w.toLowerCase()}:*`).join(" & "))})`;
 }
 
 /** Cómo se contrató una orden que es pago de un proceso o compra por catálogo (las expresiones de clase_orden, migración 240). */
