@@ -57,11 +57,11 @@ export function MarcoApp({
         <div className="flex min-h-screen min-w-0 flex-col">
           <header className="sticky top-0 z-30 border-b border-line bg-caja/90 backdrop-blur-xl">
             <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-              <Link href={rutaEn(base, "/cuenta")} aria-label={`${p.titulo}, inicio de tu cuenta`} className="min-w-0 rounded-lg lg:hidden">
+              <Link href={rutaEn(base, "/cuenta")} aria-label={`${p.titulo}, inicio de tu cuenta`} className="shrink-0 rounded-lg lg:hidden">
                 <MarcaGobserva producto={producto} tamano="sm" />
               </Link>
               {/* Buscar oportunidades desde cualquier página: un formulario GET, sin JavaScript. */}
-              <form role="search" action={rutaEn(base, "/oportunidades")} className="relative hidden w-full max-w-md md:block">
+              <form role="search" action={rutaEn(base, "/app/bandeja")} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
                 <label htmlFor="app-buscar" className="sr-only">Buscar oportunidades</label>
                 <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
                 <input

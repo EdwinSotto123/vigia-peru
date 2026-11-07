@@ -90,7 +90,7 @@ export function Caja({
             )}
             {descripcion && <p className="mt-0.5 text-pretty text-meta leading-snug text-inkSoft">{descripcion}</p>}
           </div>
-          {accion && <div className="flex shrink-0 flex-wrap items-center gap-2">{accion}</div>}
+          {accion && <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{accion}</div>}
         </div>
       )}
       <div className={cn("min-w-0 flex-1", relleno && "p-4 sm:p-5", cuerpoClassName)}>{children}</div>

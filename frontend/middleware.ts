@@ -25,6 +25,9 @@ export function middleware(req: NextRequest) {
   const aLaApp = req.cookies.get(COOKIE_SESION)?.value === "1" && !req.nextUrl.searchParams.has("portada");
 
   if (producto) {
+    // La app (/app/*) es sólo con sesión: sin la marca, a entrar con la vuelta (307 de verdad, no una redirección del
+    // navegador a mitad de la página).
+    if (esApp(pathname) && !conSesion(req)) return aEntrar(req, "", pathname + search);
     if (aLaApp) {
       const destino = destinoConSesion(producto, pathname);
       if (destino) return NextResponse.redirect(new URL(destino, req.nextUrl), 307);
@@ -39,10 +42,18 @@ export function middleware(req: NextRequest) {
     }
     const url = req.nextUrl.clone();
     url.pathname = `/${producto}${pathname === "/" ? "" : pathname}`;
-    return NextResponse.rewrite(url);
+    // La ruta que se ve en el navegador, para que una página del servidor sepa a dónde volver (la app manda a entrar con
+    // `next`): la reescrita lleva el prefijo del producto.
+    const cabeceras = new Headers(req.headers);
+    cabeceras.set("x-gobserva-ruta", `${pathname}${search}`);
+    return NextResponse.rewrite(url, { request: { headers: cabeceras } });
   }
 
   // En DEV (sin subdominio) los productos van por ruta: /licitaciones, /licitaciones/para-ti.
+  for (const p of PRODUCTOS_CON_RUTA) {
+    const resto = pathname.startsWith(`/${p}/`) ? pathname.slice(p.length + 1) : null;
+    if (resto && esApp(resto) && !conSesion(req)) return aEntrar(req, `/${p}`, resto + search);
+  }
   if (aLaApp) {
     for (const p of PRODUCTOS_CON_RUTA) {
       if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
@@ -73,6 +84,17 @@ export function middleware(req: NextRequest) {
     }
   }
   return NextResponse.next();
+}
+
+const esApp = (ruta: string) => ruta === "/app" || ruta.startsWith("/app/");
+const conSesion = (req: NextRequest) => req.cookies.get(COOKIE_SESION)?.value === "1";
+
+/** A entrar, con `next` a la ruta de la app que se pidió (dentro del producto, sin el prefijo de DEV). */
+function aEntrar(req: NextRequest, prefijo: string, siguiente: string) {
+  const url = req.nextUrl.clone();
+  url.pathname = `${prefijo}/entrar`;
+  url.search = `?next=${encodeURIComponent(siguiente)}`;
+  return NextResponse.redirect(url, 307);
 }
 
 /** A dónde va quien tiene la sesión abierta, desde una ruta del producto (null: se queda). */

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, CalendarDays, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu, Search,
+  ArrowUpRight, Bell, CalendarDays, Inbox, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu, Search,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -20,6 +20,8 @@ interface ItemApp {
   abajo?: boolean;
   /** El nombre en la barra de abajo, si el completo no entra a 390 px. */
   corto?: string;
+  /** Otras rutas en las que también se marca (el detalle de un proceso marca la bandeja). */
+  tambien?: string[];
 }
 
 /** Un grupo de la barra lateral: lo de hoy (sin nombre), lo que se busca y lo que se organiza. */
@@ -41,7 +43,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
       {
         titulo: "Buscar",
         items: [
-          { ruta: "/oportunidades", etiqueta: "Oportunidades", Icono: Search, abajo: true, corto: "Buscar" },
+          { ruta: "/app/bandeja", etiqueta: "Bandeja", Icono: Inbox, abajo: true, tambien: ["/app/oportunidad/"] },
+          { ruta: "/oportunidades", etiqueta: "Oportunidades", Icono: Search },
           { ruta: "/menores", etiqueta: "Contratos menores", Icono: Timer },
           { ruta: "/mercado", etiqueta: "Mercado", Icono: ChartNoAxesColumn },
           { ruta: urlCanonica("obras", "/"), etiqueta: "Obras", Icono: HardHat },
@@ -77,8 +80,9 @@ function useUbicacion(): { camino: string; tab: string | null } | null {
   return u;
 }
 
-function esActual(u: { camino: string; tab: string | null } | null, href: string): boolean {
+function esActual(u: { camino: string; tab: string | null } | null, href: string, tambien: string[] = []): boolean {
   if (!u || externa(href)) return false;
+  if (tambien.some((t) => u.camino.includes(t))) return true;
   const [camino, query] = href.split("?");
   const tab = new URLSearchParams(query ?? "").get("tab");
   if (camino.endsWith("/cuenta")) {
@@ -258,7 +262,7 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
             <ul className="space-y-0.5">
               {g.items.map((item) => (
                 <li key={item.ruta}>
-                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta))} />
+                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien)} />
                 </li>
               ))}
             </ul>
@@ -354,7 +358,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
                 <ul className="space-y-0.5">
                   {g.items.map((item) => (
                     <li key={item.ruta}>
-                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta))} grande onClick={() => setMas(false)} />
+                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien)} grande onClick={() => setMas(false)} />
                     </li>
                   ))}
                 </ul>
