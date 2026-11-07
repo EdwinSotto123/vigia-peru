@@ -20,7 +20,7 @@ import { avisarPush } from "./gobservaPush.js";
 import type { Notificacion } from "./webpush.js";
 import { HOST_PRODUCTO, NOMBRE_PRODUCTO, limitesDe, planVigente, type Frecuencia, type ProductoPago } from "./gobservaPlanes.js";
 import { filasPlazas, filtrosPlazas } from "../routes/empleo.js";
-import { filasOportunidades, filtrosOportunidades } from "../routes/licitaciones.js";
+import { filasBandeja, filasOportunidades, filtrosBandejaAlerta, filtrosOportunidades } from "../routes/licitaciones.js";
 import { condicionesProyectos, type FiltrosProyectos } from "../routes/proyectos.js";
 
 const DEPARTAMENTOS: Record<string, string> = {
@@ -153,9 +153,12 @@ const BUSCADORES: Partial<Record<ProductoPago, Buscador>> = {
     },
   },
   licitaciones: {
-    validar: (f) => filtrosOportunidades(f),
+    // Una alerta de la bandeja de la app (con `bandeja`) filtra como la bandeja; las demás, como /oportunidades.
+    validar: (f) => (f.bandeja ? filtrosBandejaAlerta(f) : filtrosOportunidades(f)),
     async buscar(f, limite, desde) {
-      const filas = await filasOportunidades(f as NonNullable<ReturnType<typeof filtrosOportunidades>>, limite, desde);
+      const filas = esBandeja(f)
+        ? await filasBandeja(f, limite, desde)
+        : await filasOportunidades(f as NonNullable<ReturnType<typeof filtrosOportunidades>>, limite, desde);
       return filas.map((o) => {
         const dias = diasHasta(o.consultasHasta);
         return {
@@ -174,7 +177,7 @@ const BUSCADORES: Partial<Record<ProductoPago, Buscador>> = {
       });
     },
     async csv(f, limite) {
-      const filas = await filasOportunidades(f as NonNullable<ReturnType<typeof filtrosOportunidades>>, limite);
+      const filas = esBandeja(f) ? await filasBandeja(f, limite) : await filasOportunidades(f as NonNullable<ReturnType<typeof filtrosOportunidades>>, limite);
       return {
         columnas: ["Convocada", "Código", "Objeto", "Tipo", "Procedimiento", "Entidad", "RUC de la entidad", "Región", "Valor referencial (S/)", "Consultas hasta", "Ítems", "Enlace"],
         filas: filas.map((o) => [
@@ -225,6 +228,11 @@ const BUSCADORES: Partial<Record<ProductoPago, Buscador>> = {
 };
 
 export const productoConAlertas = (p: ProductoPago) => !!BUSCADORES[p];
+
+/** ¿Son filtros validados de la bandeja de la app? */
+function esBandeja(f: object): f is NonNullable<ReturnType<typeof filtrosBandejaAlerta>> {
+  return (f as { bandeja?: unknown }).bandeja === true;
+}
 
 /** Los filtros válidos de un producto (o null si el producto todavía no tiene alertas o los filtros no sirven). */
 export function validarFiltros(producto: ProductoPago, f: Record<string, unknown>): object | null {

@@ -32,3 +32,14 @@ test("ordenBandeja: cada orden con desempate estable", () => {
   for (const o of ["recientes", "valor_desc", "valor_asc", "vence", "entidad"] as const) assert.match(ordenBandeja(o), /c\.ocid DESC/);
   assert.match(ordenBandeja("valor_asc"), /ASC NULLS LAST/);
 });
+
+test("filtrosBandejaAlerta: con `bandeja`, listas y plazo; sin la marca, null", async () => {
+  const { filtrosBandejaAlerta } = await import("../src/routes/licitaciones.js");
+  const f = filtrosBandejaAlerta({ bandeja: 1, q: "toner", tipo: "bienes,servicios", region: "15,04", cons: "7d", max: 100000 })!;
+  assert.equal(f.bandeja, true);
+  assert.deepEqual(f.tipo, ["bienes", "servicios"]);
+  assert.deepEqual(f.region, ["15", "04"]);
+  assert.equal(f.cons, "7d");
+  assert.equal(f.max, 100000);
+  assert.equal(filtrosBandejaAlerta({ q: "toner" }), null);
+});

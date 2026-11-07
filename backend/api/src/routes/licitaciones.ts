@@ -6,7 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { busquedaOece, procesoOece } from "../lib/fuentes.js";
 import { palabrasBusqueda } from "./personas.js";
-import { PROC_BANDEJA, condicionesBandeja, leerBandeja, ordenBandeja, FIN_CONSULTAS as FIN_BANDEJA, HOY_TEXTO as HOY_BANDEJA } from "../lib/bandeja.js";
+import { PROC_BANDEJA, condicionesBandeja, leerBandeja, ordenBandeja, FIN_CONSULTAS as FIN_BANDEJA, HOY_TEXTO as HOY_BANDEJA, type QBandeja } from "../lib/bandeja.js";
 
 /**
  * licitaciones.gobserva.cloud (Gobserva Licitaciones, 2026-11-01): las convocatorias del SEACE para quien le vende al
@@ -206,6 +206,31 @@ licitacionesRouter.get("/oportunidades", async (c) => {
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });
+
+/**
+ * Una alerta guardada desde la bandeja de la app (filtros con `bandeja`): sus filtros validados como los de la bandeja
+ * (varios tipos y regiones, procedimiento, plazo de consultas), o null si no es de la bandeja o no sirven.
+ */
+export function filtrosBandejaAlerta(f: Record<string, unknown>): (QBandeja & { bandeja: true }) | null {
+  if (!f.bandeja) return null;
+  const q = leerBandeja(Object.fromEntries(Object.entries(f).filter(([k]) => k !== "bandeja").map(([k, v]) => [k, v == null ? undefined : String(v)])));
+  return q ? { ...q, bandeja: true } : null;
+}
+
+/** Las filas de una búsqueda de la bandeja para una alerta o un CSV (lo nuevo desde `nuevasDesde`, en 60 días). */
+export async function filasBandeja(q: QBandeja, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
+  const { conds, vals } = condicionesBandeja(nuevasDesde ? { ...q, pub: 60 } : q, palabrasBusqueda(q.q));
+  if (nuevasDesde) {
+    vals.push(nuevasDesde.toISOString());
+    conds.push(`c.created_at > $${vals.length}::timestamptz`);
+  }
+  const r = await pool.query(
+    `SELECT ${COLS_OPORTUNIDAD} FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+      WHERE ${conds.join(" AND ")} ORDER BY ${ordenBandeja(nuevasDesde ? "recientes" : q.orden)} LIMIT ${Math.max(1, Math.min(5000, Math.floor(limite)))}`,
+    vals,
+  );
+  return publicar(r.rows) as Record<string, unknown>[];
+}
 
 // ─── GET /licitaciones/bandeja ───────────────────────────────────────────────
 /**
