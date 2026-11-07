@@ -107,7 +107,7 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
               <BarrasMes serie={m.serie} />
             </Caja>
             <Caja id="regiones" titulo="Dónde se compra" descripcion="Las regiones con más procesos">
-              <BarrasLista filas={m.regiones.slice(0, 8).map((r) => ({ nombre: r.nombre, valor: r.procesos, detalle: `${numero(r.procesos)}, ${solesCompacto(r.monto)}` }))} />
+              <BarrasLista filas={m.regiones.slice(0, 8).map((r) => ({ nombre: tituloNatural(r.nombre), valor: r.procesos, detalle: `${numero(r.procesos)}, ${solesCompacto(r.monto)}` }))} />
             </Caja>
           </div>
 

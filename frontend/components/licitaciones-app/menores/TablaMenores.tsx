@@ -8,13 +8,28 @@ import { EstrellaSeguir } from "../seguimiento/BotonSeguir";
 import { Insignia, InsigniaTipo } from "../ui/Insignia";
 import { TablaDatos } from "../ui/TablaDatos";
 
+const HORA = new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false });
+const DIA = new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", day: "numeric", month: "short" });
+
+/** Corto, para la columna: «en 45 min», «en 5 h», «mañana 09:00», «9 nov. 13:00». El texto entero va al pasar el mouse. */
+function corto(iso: string, ahora: number): string {
+  const ms = Date.parse(iso) - ahora;
+  const f = new Date(iso);
+  if (ms < 3_600_000) return `en ${Math.max(1, Math.round(ms / 60_000))} min`;
+  if (ms < 12 * 3_600_000) return `en ${Math.round(ms / 3_600_000)} h`;
+  const dia = (d: Date) => DIA.format(d);
+  if (dia(f) === dia(new Date(ahora))) return `hoy ${HORA.format(f)}`;
+  if (dia(f) === dia(new Date(ahora + 86_400_000))) return `mañana ${HORA.format(f)}`;
+  return `${dia(f)} ${HORA.format(f)}`;
+}
+
 /** Cuándo cierra la cotización: rojo con menos de 6 horas, ámbar si cierra hoy o mañana. */
 function Cierre({ iso, ahora }: { iso: string; ahora: number }) {
   const c = cierreMenor(iso, ahora);
   const horas = (Date.parse(iso) - ahora) / 3_600_000;
   return (
-    <Insignia tono={c.cerrada ? "neutro" : c.urgente ? "urgente" : horas <= 36 ? "aviso" : "neutro"} Icono={c.cerrada ? undefined : Clock}>
-      {c.texto}
+    <Insignia tono={c.cerrada ? "neutro" : c.urgente ? "urgente" : horas <= 36 ? "aviso" : "neutro"} Icono={c.cerrada ? undefined : Clock} title={c.texto}>
+      {c.cerrada ? c.texto : corto(iso, ahora)}
     </Insignia>
   );
 }
@@ -62,8 +77,8 @@ export function TablaMenores({ filas, base, ahora }: { filas: Menor[]; base: str
           ),
         },
         { clave: "tipo", titulo: "Tipo", desde: "2xl", className: "w-28", celda: (m) => <InsigniaTipo tipo={m.tipo} /> },
-        { clave: "items", titulo: "Ítems", desde: "lg", alinear: "derecha", className: "w-20", celda: (m) => <span className="tabular-nums text-inkSoft">{numero(m.items)}</span> },
-        { clave: "cierra", titulo: "Cierra la cotización", className: "w-44", celda: (m) => <Cierre iso={m.cierra} ahora={ahora} /> },
+        { clave: "items", titulo: "Ítems", desde: "2xl", alinear: "derecha", className: "w-20", celda: (m) => <span className="tabular-nums text-inkSoft">{numero(m.items)}</span> },
+        { clave: "cierra", titulo: "Cierra", className: "w-36", celda: (m) => <Cierre iso={m.cierra} ahora={ahora} /> },
       ]}
       tarjeta={(m) => (
         <div className="flex gap-2 px-3 py-3.5">

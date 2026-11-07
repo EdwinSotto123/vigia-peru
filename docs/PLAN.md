@@ -44,13 +44,15 @@ En `licitaciones.gobserva.cloud`; en DEV llevan delante `/licitaciones`.
 | `/app/bandeja` | Bandeja: búsqueda, filtros, orden, paginación, búsquedas guardadas, alerta y Excel, todo en la URL | App (`MarcoApp`) |
 | `/app/oportunidad/[id]` | Detalle en pestañas (`?tab=`) | App |
 | `/app/notificaciones` | Centro de notificaciones (`?ver=vence` o `?ver=alertas`) | App |
+| `/app/menores` | Contratos menores abiertos: buscar, tipo y región (varios), cuándo cierran, orden y página en la URL | App |
+| `/app/mercado` | Un rubro en 12 meses: cifras, mes a mes, regiones, quién compra, quién gana y las últimas adjudicaciones | App |
 | `/cuenta?tab=…` | Inicio, Para ti, Seguimiento (tablero), Calendario, Mis alertas, Plan y pagos, Perfil | App |
 
 Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, notas, historial y postulacion.
 `?tab=comentarios`, de los enlaces viejos, abre «notas».
 
-Con la sesión abierta, `/oportunidades` y `/oportunidad/:ocid` llevan a la bandeja y al detalle de la app, con los
-filtros traducidos (middleware). Para los visitantes siguen siendo las páginas públicas.
+Con la sesión abierta, `/oportunidades`, `/oportunidad/:ocid`, `/menores` y `/mercado` llevan a sus páginas de la
+app, con los filtros traducidos (middleware). Para los visitantes siguen siendo las páginas públicas.
 
 Con la sesión abierta, todo `/app/*` usa el marco de la app (`components/gobserva/app/MarcoApp.tsx`): barra lateral,
 cabecera con buscador y pie. La cabecera de la portada nunca aparece ahí. Sin sesión, `/app/*` lleva a
@@ -190,9 +192,14 @@ En producción y probado de punta a punta con usuarios desechables:
 - **Onboarding** (`/app/bienvenida`). Cuatro pasos, con la validación de cada paso y palabras sugeridas. Cada palabra
   muestra cuántas oportunidades abiertas trae, en vivo. Al terminar crea la línea («Para ti»), la alerta y la búsqueda
   «Mi empresa». Quien crea su cuenta llega ahí. Sin perfil, la bandeja y el Inicio lo ofrecen.
-- **Seguimiento coherente.** La estrella, la etapa y las notas escriben en la cuenta (`useSeguimiento`, la API de
-  guardados): lo seguido aparece en el tablero, el calendario y las notificaciones. El navegador guarda sólo las
-  búsquedas guardadas y el checklist, y la UI lo dice.
+- **Seguimiento coherente.** La estrella (licitaciones y contratos menores), la etapa y las notas escriben en la cuenta
+  (`useSeguimiento`, la API de guardados): lo seguido aparece en el tablero, el calendario y las notificaciones.
+- **Búsquedas guardadas y checklist en la cuenta** (migración 266: `gobserva_busquedas`, `gobserva_checklist`; rutas
+  `/busquedas` y `/checklist`). Ya no queda nada en el navegador salvo qué notificaciones leíste. La baja de la cuenta
+  borra también sus líneas, búsquedas y checklist. La migración está aplicada en PROD; en DEV está pendiente.
+- **Contratos menores y Mercado** con la misma estructura que la bandeja. La lista en la URL es una sola pieza
+  (`crearListaUrl`), y `BuscadorTexto` y `FiltroOpciones` son comunes. La API de menores acepta varios tipos y
+  regiones.
 - **Notificaciones.** Campana en la cabecera y `/app/notificaciones`. Las fuentes son reales:
   - los plazos de lo seguido que vencen en 3 días, urgentes si vencen hoy o mañana;
   - lo nuevo de las alertas.
@@ -206,8 +213,6 @@ En producción y probado de punta a punta con usuarios desechables:
 **Lo que falta, o no se hace a propósito:**
 - **Equipo y roles** y el **asistente de IA sobre las bases** no se construyeron. Sin cuentas compartidas en la base,
   serían pantallas simuladas.
-- Las **búsquedas guardadas** y el **checklist** viven en el navegador. Llevarlos a la cuenta necesita una tabla nueva
-  (migración) y su API.
 - **Reportes de marcas y catálogo:** no tenemos esos datos. Mercado (compradores, ganadores y precios por palabra) es
   lo que hay en vivo.
 

@@ -313,6 +313,19 @@ export interface ItemSeguimiento {
 }
 export const cargarSeguimiento = () => api<{ data: ItemSeguimiento[] }>("/seguimiento");
 
+/** Una búsqueda guardada de la bandeja (migración 266): su nombre y la búsqueda como URL. */
+export interface BusquedaGuardada {
+  id: number;
+  nombre: string;
+  query: string;
+  creado: string;
+}
+export const cargarBusquedas = (producto: Producto) => api<{ data: BusquedaGuardada[]; limite: number }>(`/busquedas?producto=${producto}`);
+export const crearBusqueda = (b: { producto: Producto; nombre: string; query: string }) => api<{ ok: true; id: number }>("/busquedas", { method: "POST", ...cuerpo(b) });
+export const borrarBusqueda = (id: number) => api<{ ok: true }>(`/busquedas/${id}`, { method: "DELETE" });
+export const cargarChecklist = (ref: string) => api<{ hechos: string[] }>(`/checklist?ref=${encodeURIComponent(ref)}`);
+export const guardarChecklist = (ref: string, hechos: string[]) => api<{ ok: true; hechos: string[] }>("/checklist", { method: "PUT", ...cuerpo({ ref, hechos }) });
+
 export const cargarGuardados = (producto: Producto) => api<{ data: Guardado[] }>(`/guardados?producto=${producto}`);
 export const guardar = (b: { producto: Producto; tipo: TipoGuardado; ref: string; titulo?: string; datos?: Guardado["datos"]; estado?: EstadoGuardado; nota?: string; recordar?: boolean }) =>
   api<{ ok: true; nuevo: boolean }>("/guardados", { method: "PUT", ...cuerpo(b) });

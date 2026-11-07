@@ -8,8 +8,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { MarcaGobserva } from "@/components/gobserva/MarcaGobserva";
 import { useMe, useSesion } from "@/components/gobserva/cuenta/comun";
 import { rutaEn } from "@/lib/gobserva";
-import { ErrorCuenta, cargarLineas, crearAlerta, crearLinea } from "@/lib/gobserva-cuenta";
-import { getAlmacen } from "@/lib/licitaciones-app/usarAlmacen";
+import { ErrorCuenta, cargarLineas, crearAlerta, crearBusqueda, crearLinea } from "@/lib/gobserva-cuenta";
 import { PASOS, PERFIL_VACIO, aAlerta, aQueryBandeja, validarPaso, type Paso, type PerfilEmpresa } from "@/lib/licitaciones-app/onboarding";
 import { cn } from "@/lib/utils";
 import { PasoAvisos, PasoContratos, PasoEmpresa, PasoLugar } from "./Pasos";
@@ -72,7 +71,7 @@ export function Bienvenida({ base }: { base: string }) {
       }
     }
     try {
-      getAlmacen().guardarPerfil("Mi empresa", aQueryBandeja(p));
+      await crearBusqueda({ producto: "licitaciones", nombre: "Mi empresa", query: aQueryBandeja(p) });
     } catch {
       // Ya había una búsqueda «Mi empresa»: se queda la que estaba.
     }

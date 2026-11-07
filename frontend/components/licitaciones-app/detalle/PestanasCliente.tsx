@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, History, Loader2, NotebookPen } from "lucide-react";
-import { getAlmacen, useEstadoUsuario } from "@/lib/licitaciones-app/usarAlmacen";
+import useSWR from "swr";
 import { fechaHoraLima } from "@/lib/licitaciones-app/formato";
 import { useSeguimiento } from "@/lib/licitaciones-app/useSeguimiento";
-import { ErrorCuenta } from "@/lib/gobserva-cuenta";
+import { ErrorCuenta, cargarChecklist, guardarChecklist } from "@/lib/gobserva-cuenta";
 import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
@@ -136,17 +136,31 @@ const REQUISITOS = [
 
 /** La postulación: la etapa en tu tablero y un checklist de trabajo (no reemplaza a las bases). */
 export function PestanaPostulacion({ id, codigo, titulo }: { id: string; codigo: string | null; titulo: string | null }) {
-  const { checklist } = useEstadoUsuario();
   const { porRef } = useSeguimiento();
   const item = porRef.get(id);
-  const hechos = new Set(checklist[id] ?? []);
+  const avisar = useAvisos();
+  const lista = useSWR(["gobserva-checklist", id], () => cargarChecklist(id), { revalidateOnFocus: false });
+  const hechos = new Set(lista.data?.hechos ?? []);
+  async function marcar(req: string, listo: boolean) {
+    const antes = lista.data;
+    const sig = new Set(hechos);
+    if (listo) sig.add(req);
+    else sig.delete(req);
+    await lista.mutate({ hechos: [...sig] }, { revalidate: false });
+    try {
+      await guardarChecklist(id, [...sig]);
+    } catch (e) {
+      await lista.mutate(antes, { revalidate: false });
+      avisar({ tono: "error", texto: e instanceof ErrorCuenta ? e.message : "No pudimos guardar el checklist. Vuelve a intentarlo." });
+    }
+  }
   const n = REQUISITOS.filter((r) => hechos.has(r.id)).length;
   return (
     <div className="grid items-start gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Caja
         id="checklist"
         titulo="Checklist de la oferta"
-        descripcion="Una guía de trabajo: lo que piden de verdad está en las bases. Se guarda en este navegador."
+        descripcion="Una guía de trabajo: lo que piden de verdad está en las bases. Se guarda en tu cuenta."
         accion={
           <span className="text-meta font-semibold tabular-nums text-inkSoft">
             {n} de {REQUISITOS.length}
@@ -166,7 +180,8 @@ export function PestanaPostulacion({ id, codigo, titulo }: { id: string; codigo:
                 <input
                   type="checkbox"
                   checked={hechos.has(r.id)}
-                  onChange={(e) => getAlmacen().marcarRequisito(id, r.id, e.target.checked)}
+                  disabled={lista.isLoading}
+                  onChange={(e) => void marcar(r.id, e.target.checked)}
                   className="h-4 w-4 shrink-0 accent-[rgb(var(--granate))]"
                 />
                 <span className={cn("text-dato", hechos.has(r.id) ? "text-mute line-through decoration-1" : "text-ink")}>{r.texto}</span>
