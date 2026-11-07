@@ -267,7 +267,11 @@ export const gastoPorConcepto = definir({
         mayores: ((f.mayores ?? []) as Fila[]).map((m) => ({
           fecha: m.fecha, descripcion: m.descripcion, monto: m.monto, referencia: m.ref, entidad: m.entidad, dudoso: m.dudoso || undefined,
           proveedor: m.ruc ? m.proveedor : "Persona natural u otro", proveedor_ruc: m.ruc ?? undefined,
-          enlace: k === "procesos" && m.ref ? e.contrato(String(m.ref)) : k === "menores" && m.ref ? e.menor(String(m.ref)) : undefined,
+          enlace: k === "procesos" && m.ref ? e.contrato(String(m.ref))
+            : k === "menores" && m.ref ? e.menor(String(m.ref))
+            : k === "ordenes" && m.entidad_ruc ? e.orden(String(m.entidad_ruc), m.ref, m.anio ?? m.fecha, m.nro)
+            : undefined,
+          ...(a.region && m.entidad_ruc ? { enlace_entidad: e.entidad(String(m.entidad_ruc)) } : {}),
         })),
       }]),
     );

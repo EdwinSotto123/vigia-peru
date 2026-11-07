@@ -261,7 +261,7 @@ export function leerGuardado(crudo: string | null): Guardado | null {
     const g = obj(JSON.parse(crudo));
     if (!g) return null;
     const mensajes = Array.isArray(g.mensajes) ? g.mensajes.map(leerMensaje).filter((m): m is Mensaje => !!m) : [];
-    return { modelo: esModelo(g.modelo) ? g.modelo : "rapido", mensajes };
+    return { modelo: esModelo(g.modelo) ? g.modelo : "fino", mensajes };
   } catch {
     return null;
   }

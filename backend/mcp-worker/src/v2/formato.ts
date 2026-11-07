@@ -23,6 +23,16 @@ export function enlaces(env: EnvV2) {
     partido: (clave: string) => `${v}/app/partidos/${encodeURIComponent(clave)}`,
     planilla: (codigo: string) => `${v}/app/personas/planilla/${codigo}`,
     obra: (cui: string) => `https://obras.gobserva.cloud/proyecto/${cui}`,
+    /**
+     * Una orden no tiene ficha propia: la lista de compras de la entidad, buscando su número («O/S-6076-2025-…» → 6076)
+     * en el año de la orden. La búsqueda pide 3 caracteres o más: con menos, sólo el año.
+     */
+    orden: (entidadRuc: string, orden?: unknown, anio?: unknown, nro?: unknown) => {
+      const n = (typeof nro === "string" && nro.trim()) || /(\d{1,8})/.exec(String(orden ?? ""))?.[1] || "";
+      const a = /^(\d{4})/.exec(String(anio ?? ""))?.[1];
+      const q = new URLSearchParams({ seccion: "contratos", ...(n.length >= 3 ? { cq: n } : {}), ...(a ? { canio: a } : {}) });
+      return `${v}/entidad/${entidadRuc}?${q}`;
+    },
   };
 }
 

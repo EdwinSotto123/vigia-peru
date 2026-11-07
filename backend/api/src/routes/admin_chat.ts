@@ -26,16 +26,16 @@ interface Env {
 export const adminChatRouter = new Hono<{ Bindings: Env }>();
 
 const MODELOS = {
-  // max: un informe con varias tablas para Excel no entraba en 4096 (la respuesta se cortaba a media tabla).
-  rapido: { id: "claude-haiku-5-5", entrada: 0.1, salida: 0.5, max: 8192, vueltas: 14 },
+  // max: los informes van completos y con todas sus filas (el equipo pidió no recortar por costo el 2026-11-06).
+  rapido: { id: "claude-haiku-5-5", entrada: 0.1, salida: 0.5, max: 16000, vueltas: 20 },
   /** «Profundo» en la página: planifica, verifica cada cifra con una segunda herramienta y tiene más vueltas. */
-  fino: { id: "claude-sonnet-5-5", entrada: 2, salida: 10, max: 16000, vueltas: 22 },
+  fino: { id: "claude-sonnet-5-5", entrada: 2, salida: 10, max: 24000, vueltas: 30 },
 } as const;
 
 /** Escriben o leen la cuenta personal de quien las usa: en el chat interno no tienen sentido. */
 const FUERA_DEL_CHAT = new Set(["seguir", "dejar_de_seguir", "mis_seguimientos"]);
 /** Lo que se le pasa al modelo de cada resultado (las respuestas del MCP ya vienen recortadas). */
-const MAX_RESULTADO = 40_000;
+const MAX_RESULTADO = 60_000;
 
 const Cuerpo = z.object({
   mensajes: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().trim().min(1).max(12_000) })).min(1).max(40),
@@ -68,10 +68,13 @@ Cómo investigar:
 - Lo que compra una entidad es de la entidad, no de la persona: dilo así («durante su gestión, la municipalidad compró…») y usa el periodo del cargo para filtrar los años.
 
 Cómo responder:
-- En español y con este orden: «Respuesta corta» (dos o tres frases con la cifra clave), «Hallazgos» numerados (cada uno: qué es, la cifra, la evidencia con enlace), «Lo que no pude verificar» y la fecha de los datos. Tablas cuando haya cifras. Hasta unas 500 palabras, salvo que pidan más detalle o un informe.
+- En español y con este orden: «Respuesta corta» (dos o tres frases con la cifra clave), «Hallazgos» numerados (cada uno: qué es, la cifra, la evidencia con enlace), «Lo que no pude verificar», «Fuentes» y la fecha de los datos. Tablas cuando haya cifras.
+- No recortes por costo ni por largo: el equipo prefiere una respuesta completa a una corta. Una pregunta puntual se responde entera; un informe lleva todo lo que encontraste.
 - Debajo de cada respuesta hay botones para bajarla en Word, PDF, Excel y CSV: el Word y el PDF llevan la respuesta entera con sus enlaces; el Excel y el CSV, cada tabla en su hoja con las cifras como números. Si piden un informe, un Excel, un CSV, un PDF o un Word, NO digas que no puedes generar archivos: arma la respuesta pensando en ese archivo y al final di en una línea con qué botón bajarla.
-- Si piden un informe: «Resumen» (cinco o seis frases), una sección por tema con su tabla y lo que muestra, «Lo que no pude verificar» y «Fuentes» (los enlaces usados). Hasta unas 1 500 palabras.
-- Tablas que se puedan llevar a Excel: justo antes de cada tabla, UN subtítulo (###) corto y en palabras, que será el nombre de su hoja («### Proveedores principales»: sin «Tabla 1:», sin guiones bajos y sin repetirlo); una cifra por celda, con S/ o % pegado a la cifra y sin texto extra (nada de «S/ 1.2 M aprox.»: escribe S/ 1,200,000); montos con separador de miles y punto decimal (S/ 1,234,567.89); RUC, OCID y códigos completos y sin separadores; una fila por registro; la columna con el nombre enlazada a su ficha cuando la herramienta trae el enlace. Hasta unas 50 filas por tabla: si hay más, di cuántas son en total y dónde ver la lista completa.
+- Si piden un informe: «Resumen» (un párrafo con las cifras clave), una sección por tema con su tabla y lo que muestra, el detalle de cada caso que llame la atención (qué se compró, cuándo, a quién, por cuánto, por qué vía, con su enlace), «Lo que no pude verificar» y «Fuentes». Usa todas las herramientas que apliquen y lista los registros, no sólo los totales: un informe suele tener de 2 000 a 5 000 palabras y varias tablas.
+- ENLACES: todo lo que nombres va enlazado a su página en Vigía: cada proceso u OCID, orden, compra menor, empresa, entidad, obra, dictamen e informe de control. Usa el campo enlace que trae cada herramienta (las órdenes lo traen a la lista de compras de la entidad con esa orden). Si una herramienta no lo trae, ármalo: proceso https://vigia.gobserva.cloud/app/contratos/<OCID>, entidad https://vigia.gobserva.cloud/entidad/<RUC>, empresa https://vigia.gobserva.cloud/empresa/<RUC 20>. Nunca enlaces ni muestres un RUC 10 ni a una persona natural. En las tablas, la celda del código o del nombre lleva el enlace. Además del enlace de Vigía, pon el de la fuente oficial (SEACE, CONOSCE, Contraloría, INFOBRAS) cuando la herramienta lo trae.
+- Separa con comas, puntos o listas, nunca con «·».
+- Tablas que se puedan llevar a Excel: justo antes de cada tabla, UN subtítulo (###) corto y en palabras, que será el nombre de su hoja («### Proveedores principales»: sin «Tabla 1:», sin guiones bajos y sin repetirlo); una cifra por celda, con S/ o % pegado a la cifra y sin texto extra (nada de «S/ 1.2 M aprox.»: escribe S/ 1,200,000); montos con separador de miles y punto decimal (S/ 1,234,567.89); RUC, OCID y códigos completos y sin separadores; una fila por registro; la columna con el código o el nombre enlazada a su página. Pon todas las filas que traen las herramientas (hasta unas 100 por tabla); si hay más, di cuántas son en total y enlaza la lista completa en Vigía.
 - Cita con los enlaces de Vigía y de la fuente oficial que traen las herramientas, y di hasta qué fecha llegan los datos cuando importe.
 - Una señal es un indicio para revisar, no una acusación: no afirmes delitos.
 - Si algo no está en Vigía, dilo y sugiere dónde buscarlo.

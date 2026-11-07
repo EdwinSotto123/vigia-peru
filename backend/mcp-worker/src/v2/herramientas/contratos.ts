@@ -370,7 +370,14 @@ export const ordenes = definir({
     const fila = (x: Fila) => {
       const base = { via: x.clase, fecha: x.fecha, monto_soles: x.monto };
       if (x.proceso) return { ...base, ocid: x.proceso.ocid, objeto: recortar(x.proceso.titulo, 140), entidad: x.proceso.entidad, ...proveedor(x.proceso.proveedor, x.proceso.proveedorRuc), enlace: e.contrato(x.proceso.ocid) };
-      if (x.orden) return { ...base, orden: x.orden.orden, tipo: x.orden.tipoOrden, objeto: recortar(x.orden.descripcion, 140), entidad: x.orden.entidad, ...proveedor(x.orden.contratista, x.orden.rucContratista), estado: x.orden.estado };
+      if (x.orden) {
+        const entidadRuc = a.entidad_ruc ? rucJuridico(a.entidad_ruc) : (x.orden.entidadRuc ?? String(x.id ?? "").split(":")[1]);
+        return {
+          ...base, orden: x.orden.orden, tipo: x.orden.tipoOrden, objeto: recortar(x.orden.descripcion, 140), entidad: x.orden.entidad,
+          ...proveedor(x.orden.contratista, x.orden.rucContratista), estado: x.orden.estado,
+          ...(entidadRuc ? { enlace: e.orden(String(entidadRuc), x.orden.orden, x.fecha, x.orden.nroOrden) } : {}),
+        };
+      }
       if (x.catalogo) return { ...base, orden: x.catalogo.orden, acuerdo: x.catalogo.acuerdo, entidad: x.catalogo.entidad, ...proveedor(x.catalogo.proveedor, x.catalogo.proveedorRuc), estado: x.catalogo.estado, pdf: x.catalogo.pdfOrden };
       if (x.menor) return { ...base, id: x.menor.id, objeto: recortar(x.menor.descripcion, 140), entidad: x.menor.entidad, ...proveedor(x.menor.proveedor, x.menor.proveedorRuc), enlace: e.menor(x.menor.id) };
       return base;

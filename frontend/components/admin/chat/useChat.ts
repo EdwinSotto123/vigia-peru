@@ -23,7 +23,8 @@ import {
  */
 export function useChat() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [modelo, setModelo] = useState<ModeloChat>("rapido");
+  // Profundo por defecto: el equipo prefiere informes completos a ahorrar (2026-11-06). Rápido sigue en el selector.
+  const [modelo, setModelo] = useState<ModeloChat>("fino");
   // Hasta leer sessionStorage no se escribe: si no, el estado vacío inicial pisaba lo guardado.
   const [cargado, setCargado] = useState(false);
   const control = useRef<AbortController | null>(null);

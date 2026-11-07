@@ -65,14 +65,21 @@ interface Fuente {
   soles: string;
   porEntidad: string;
   porProveedor: string;
+  /** El número corto de la orden («6076»): con él se arma el enlace a la lista de compras de la entidad. */
+  nro: string;
+  /** Una fila por registro: CONOSCE vuelve a publicar la misma orden en cortes posteriores (como en /compras). */
+  unico?: { distinto: string; orden: string };
 }
 
 const FUENTES: Fuente[] = [
   {
     clave: "ordenes", desde: "conosce_ordenes o",
     // Por fecha y no por año: el índice es (entidad_ruc, fecha_emision); con anio leía todas las órdenes de la entidad
-    // (13 s con la caché fría en Ate).
-    rango: (d, h) => `o.fecha_emision >= make_date(${d}::int, 1, 1) AND o.fecha_emision < make_date(${h}::int + 1, 1, 1)`, texto: "o.descripcion", anio: "o.anio", fecha: "o.fecha_emision", monto: "o.monto",
+    // (13 s con la caché fría en Ate). El año es el de la fecha de emisión: o.anio es el del archivo publicado (las 3 405
+    // órdenes de Ate de 2023 están con anio 2024) y el desglose por año no mostraba 2023.
+    rango: (d, h) => `o.fecha_emision >= make_date(${d}::int, 1, 1) AND o.fecha_emision < make_date(${h}::int + 1, 1, 1)`, texto: "o.descripcion",
+    anio: "extract(year FROM o.fecha_emision)::int", fecha: "o.fecha_emision", monto: "o.monto", nro: "o.nro_orden",
+    unico: { distinto: "DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)", orden: "ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC" },
     ruc: "o.ruc_contratista", nombre: "o.contratista", ref: "o.orden", entidad: "o.entidad", dudoso: "o.monto_dudoso IS NOT NULL",
     soles: "COALESCE(o.moneda, 'Nuevos Soles') IN ('Nuevos Soles', 'Soles', 'PEN')", porEntidad: "o.entidad_ruc", porProveedor: "o.ruc_contratista",
   },
@@ -80,13 +87,13 @@ const FUENTES: Fuente[] = [
     clave: "procesos", desde: "conosce_adjudicaciones a", rango: (d, h) => `a.anio BETWEEN ${d} AND ${h}`,
     texto: "coalesce(a.descripcion_item, '') || ' ' || coalesce(a.descripcion_proceso, '')", anio: "a.anio",
     fecha: "coalesce(a.fecha_buenapro, a.fecha_convocatoria)", monto: "a.monto_adjudicado", ruc: "a.ruc_proveedor", nombre: "a.proveedor",
-    ref: "a.codigo_convocatoria", entidad: "a.entidad", dudoso: "false",
+    ref: "a.codigo_convocatoria", entidad: "a.entidad", dudoso: "false", nro: "NULL",
     soles: "COALESCE(a.moneda, 'Soles') IN ('Soles', 'Nuevos Soles', 'PEN')", porEntidad: "a.entidad_ruc", porProveedor: "a.ruc_proveedor",
   },
   {
     clave: "menores", desde: "seace_menores m", rango: (d, h) => `m.anio BETWEEN ${d} AND ${h}`, texto: "coalesce(m.descripcion, '') || ' ' || coalesce(m.objeto, '')", anio: "m.anio",
     fecha: "m.fecha_suscripcion", monto: "m.monto", ruc: "m.proveedor_ruc", nombre: "m.proveedor", ref: "m.id_contrato::text",
-    entidad: "m.entidad", dudoso: "false", soles: "COALESCE(m.moneda, 'PEN') = 'PEN'", porEntidad: "m.entidad_ruc", porProveedor: "m.proveedor_ruc",
+    entidad: "m.entidad", dudoso: "false", soles: "COALESCE(m.moneda, 'PEN') = 'PEN'", porEntidad: "m.entidad_ruc", porProveedor: "m.proveedor_ruc", nro: "NULL",
   },
 ];
 
@@ -105,9 +112,11 @@ async function sumar(f: Fuente, alcance: Alcance, desde: number, hasta: number, 
   const empresa = "x.ruc ~ '^20[0-9]{9}$'";
   const sql = `
     WITH x AS MATERIALIZED (
-      SELECT ${f.anio} AS anio, ${f.fecha} AS fecha, ${f.texto} AS descripcion, ${f.monto}::float AS monto, ${f.ruc} AS ruc,
-             ${f.nombre} AS nombre, ${f.ref} AS ref, ${f.entidad} AS entidad, (${f.dudoso}) AS dudoso, ${TSV(f.texto)} AS tsv
+      SELECT ${f.unico?.distinto ?? ""} ${f.anio} AS anio, ${f.fecha} AS fecha, ${f.texto} AS descripcion, ${f.monto}::float AS monto,
+             ${f.ruc} AS ruc, ${f.nombre} AS nombre, ${f.ref} AS ref, ${f.entidad} AS entidad, ${f.porEntidad} AS entidad_ruc,
+             ${f.nro} AS nro, (${f.dudoso}) AS dudoso, ${TSV(f.texto)} AS tsv
         FROM ${f.desde} WHERE ${donde.join(" AND ")}
+      ${f.unico?.orden ?? ""}
       LIMIT 200000)
     SELECT
       (SELECT json_build_object('registros', count(*), 'monto', coalesce(sum(monto) FILTER (WHERE NOT dudoso), 0),
@@ -118,12 +127,12 @@ async function sumar(f: Fuente, alcance: Alcance, desde: number, hasta: number, 
          SELECT z.ruc, max(z.nombre) AS nombre, count(*) AS registros, coalesce(sum(z.monto) FILTER (WHERE NOT z.dudoso), 0) AS monto
            FROM (SELECT CASE WHEN ${empresa} THEN x.ruc END AS ruc, CASE WHEN ${empresa} THEN x.nombre END AS nombre, x.monto, x.dudoso
                    FROM x) z
-          GROUP BY z.ruc ORDER BY 4 DESC NULLS LAST LIMIT 16) y) AS por_proveedor,
+          GROUP BY z.ruc ORDER BY 4 DESC NULLS LAST LIMIT 30) y) AS por_proveedor,
       (SELECT json_agg(y) FROM (
-         SELECT x.fecha, left(x.descripcion, 180) AS descripcion, x.monto, x.ref, x.entidad, x.dudoso,
+         SELECT x.fecha, x.anio, left(x.descripcion, 180) AS descripcion, x.monto, x.ref, x.nro, x.entidad, x.entidad_ruc, x.dudoso,
                 CASE WHEN ${empresa} THEN x.ruc END AS ruc, CASE WHEN ${empresa} THEN x.nombre END AS proveedor,
                 NOT (${empresa}) AS persona_natural_u_otro
-           FROM x ORDER BY x.monto DESC NULLS LAST LIMIT 25) y) AS mayores,
+           FROM x ORDER BY x.monto DESC NULLS LAST LIMIT 60) y) AS mayores,
       (SELECT json_agg(y ORDER BY y.monto DESC NULLS LAST) FROM (
          SELECT t.termino, count(*) AS registros, coalesce(sum(x.monto) FILTER (WHERE NOT x.dudoso), 0) AS monto
            FROM x, unnest(${terms}::text[], ${consultas}::text[]) AS t(termino, q)
