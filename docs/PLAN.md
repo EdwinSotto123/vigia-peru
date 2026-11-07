@@ -197,7 +197,7 @@ En producción y probado de punta a punta con usuarios desechables:
   (`useSeguimiento`, la API de guardados): lo seguido aparece en el tablero, el calendario y las notificaciones.
 - **Búsquedas guardadas y checklist en la cuenta** (migración 266: `gobserva_busquedas`, `gobserva_checklist`; rutas
   `/busquedas` y `/checklist`). Ya no queda nada en el navegador salvo qué notificaciones leíste. La baja de la cuenta
-  borra también sus líneas, búsquedas y checklist. La migración está aplicada en PROD; en DEV está pendiente.
+  borra también sus líneas, búsquedas y checklist. La migración está aplicada en PROD y en DEV.
 - **Asistente del proceso** (pestaña «Asistente», `POST /gobserva/cuenta/asistente`, `lib/asistente.ts`). Responde
   en tus palabras con los datos de la ficha: ítems, plazos (comparados con la fecha de hoy), el comprador, precios de
   compras parecidas y señales. Usa Haiku 5.5 por vigia-llm. Lo que está sólo en las bases (requisitos, experiencia,
