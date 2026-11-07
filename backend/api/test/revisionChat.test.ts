@@ -81,3 +81,19 @@ test("montos: un total de tabla que no da la suma queda por revisar", () => {
   assert.deepEqual(r.montos.dudosos.map((d) => d.texto), ["300,000.00"]);
   assert.match(r.montos.dudosos[0].contexto!, /Fila «Total»/);
 });
+
+test("montos: una columna «Total» que suma las otras columnas de plata de su fila (no la de cantidades ni la de %)", () => {
+  const datos = JSON.stringify({ por_anio: [{ monto: 1126049 }, { monto: 349700 }, { monto: 318088 }, { monto: 58100 }] });
+  const r = revisarRespuesta(
+    [
+      "| Año | Órdenes (S/) | Nº de órdenes | Procesos (S/) | % del total | Total (S/) |",
+      "|---|---|---|---|---|---|",
+      "| 2025 | 1,126,049.00 | 41 | 349,700.00 | 79.7 | 1,475,749.00 |",
+      "| 2026 | 318,088.00 | 15 | 58,100.00 | 20.3 | 376,188.00 |",
+      "| 2027 | 318,088.00 | 15 | 58,100.00 | 20.3 | 999,999.00 |",
+    ].join("\n"),
+    [datos],
+  );
+  assert.equal(r.montos.sumas, 2);
+  assert.deepEqual(r.montos.dudosos.map((d) => d.texto), ["999,999.00"]);
+});

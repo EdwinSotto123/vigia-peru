@@ -287,8 +287,17 @@ export function revisarRespuesta(respuesta: string, fuentes: string[], anteriore
   const { tablas, resto } = partir(respuesta);
   for (const filas of tablas) {
     const [cab, ...cuerpo] = filas;
-    const deMonto = cab.map((h) => RE_COLUMNA_MONTO.test(h));
+    const deMonto = cab.map((h) => RE_COLUMNA_MONTO.test(h) && !/%|porcentaje/i.test(h));
     const esTotal = cuerpo.map((f) => RE_FILA_TOTAL.test(sinMarcas(f[0] ?? "")));
+    // Una columna «Total (S/)» que suma las otras columnas de plata de su fila («Órdenes (S/)» + «Procesos (S/)»).
+    const columnaTotal = cab.map((h, j) => deMonto[j] && RE_FILA_TOTAL.test(sinMarcas(h)));
+    const valorCelda = (texto: string | undefined) => {
+      const v = sinMarcas(texto ?? "");
+      const m = [...v.matchAll(RE_SOLES)][0];
+      return (m ? leerMonto(m[1], m[2]) : /^-?\d[\d.,\s]*$/.test(v) ? leerMonto(v) : null)?.valor ?? 0;
+    };
+    const cuadraSuma = (suma: number, p: { valor: number; tol: number }) =>
+      Math.abs(suma - p.valor) <= Math.max(1, p.tol, Math.abs(p.valor) * 0.0005);
     // Primero las filas comunes; después los totales contra la suma de su columna.
     const orden = [...cuerpo.keys()].sort((a, b) => Number(esTotal[a]) - Number(esTotal[b]));
     for (const i of orden) {
@@ -304,20 +313,14 @@ export function revisarRespuesta(respuesta: string, fuentes: string[], anteriore
         for (const { texto, p } of leidos) {
           if (!p) continue;
           const contexto = `Fila «${sinMarcas(fila[0] ?? "").slice(0, 60)}», columna «${sinMarcas(cab[j] ?? "").slice(0, 40)}»`;
-          if (esTotal[i]) {
-            const suma = cuerpo.reduce((s, f, k) => {
-              if (esTotal[k]) return s;
-              const v = sinMarcas(f[j] ?? "");
-              const m = [...v.matchAll(RE_SOLES)][0];
-              const q = m ? leerMonto(m[1], m[2]) : /^-?\d[\d.,\s]*$/.test(v) ? leerMonto(v) : null;
-              return s + (q?.valor ?? 0);
-            }, 0);
-            if (Math.abs(suma - p.valor) <= Math.max(1, p.tol, Math.abs(p.valor) * 0.0005)) {
-              rev.montos.total++;
-              rev.montos.sumas++;
-              sumas.push(p.valor);
-              continue;
-            }
+          const deLaColumna = esTotal[i] && cuadraSuma(cuerpo.reduce((s, f, k) => (esTotal[k] ? s : s + valorCelda(f[j])), 0), p);
+          const otras = cab.flatMap((_, k) => (k !== j && deMonto[k] && !columnaTotal[k] ? [k] : []));
+          const deLaFila = columnaTotal[j] && otras.length > 1 && cuadraSuma(otras.reduce((s, k) => s + valorCelda(fila[k]), 0), p);
+          if (deLaColumna || deLaFila) {
+            rev.montos.total++;
+            rev.montos.sumas++;
+            sumas.push(p.valor);
+            continue;
           }
           revisar({ texto, valor: p.valor, tol: p.tol, contexto });
         }
