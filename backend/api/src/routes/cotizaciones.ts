@@ -47,8 +47,10 @@ const COLS = `x.id_prod6 AS id, x.codigo, x.objeto AS "objetoSeace", x.descripci
 
 const QMenores = z.object({
   q: z.string().trim().max(120).optional(),
-  region: z.string().regex(/^\d{2}$/).optional(),
-  tipo: z.enum(Object.keys(TIPOS) as [keyof typeof TIPOS, ...(keyof typeof TIPOS)[]]).optional(),
+  /** Una región o varias («15,04»: la app filtra varias a la vez). */
+  region: z.string().regex(/^\d{2}(,\d{2})*$/).optional(),
+  /** Un tipo o varios («bienes,servicios»). */
+  tipo: z.string().regex(/^(bienes|servicios|obras|consultoria)(,(bienes|servicios|obras|consultoria))*$/).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
   /** Un rubro: los primeros 2 a 8 dígitos del CUBSO (segmento, familia o clase). */
   cubso: z.string().regex(/^\d{2,8}$/).optional(),
@@ -64,8 +66,8 @@ function condiciones(q: QM, sin?: "tipo" | "region", nuevasDesde?: Date) {
   const conds = [ABIERTA];
   const vals: unknown[] = [];
   if (nuevasDesde) { vals.push(nuevasDesde.toISOString()); conds.push(`x.primera_vez > $${vals.length}::timestamptz`); }
-  if (q.tipo && sin !== "tipo") { vals.push(TIPOS[q.tipo]); conds.push(`x.objeto = $${vals.length}`); }
-  if (q.region && sin !== "region") { vals.push(q.region); conds.push(`$${vals.length} = ANY(x.departamentos)`); }
+  if (q.tipo && sin !== "tipo") { vals.push(q.tipo.split(",").map((t) => TIPOS[t as keyof typeof TIPOS])); conds.push(`x.objeto = ANY($${vals.length}::text[])`); }
+  if (q.region && sin !== "region") { vals.push(q.region.split(",")); conds.push(`x.departamentos::text[] && $${vals.length}::text[]`); }
   if (q.entidad) { vals.push(q.entidad); conds.push(`x.entidad_ruc = $${vals.length}`); }
   if (q.cubso) { vals.push(`${q.cubso}%`); conds.push(`EXISTS (SELECT 1 FROM unnest(x.cubso8) c WHERE c LIKE $${vals.length})`); }
   if (q.cuando === "hoy") conds.push(`x.fec_fin_cotizacion < ${HOY_FIN}`);
