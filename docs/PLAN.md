@@ -45,17 +45,18 @@ En `licitaciones.gobserva.cloud`; en DEV llevan delante `/licitaciones`.
 | `/app/oportunidad/[id]` | Detalle en pestañas (`?tab=`) | App |
 | `/app/notificaciones` | Centro de notificaciones (`?ver=vence` o `?ver=alertas`) | App |
 | `/app/menores` | Contratos menores abiertos: buscar, tipo y región (varios), cuándo cierran, orden y página en la URL | App |
+| `/app/menor/[id]` | Un contrato menor: seguir con su etapa, requerimiento, cotizar en el SEACE, qué se compra, precios pagados antes, cómo cotizar y el comprador (`?volver=` conserva los filtros) | App |
 | `/app/mercado` | Un rubro en 12 meses: cifras, mes a mes, regiones, quién compra, quién gana y las últimas adjudicaciones | App |
 | `/cuenta?tab=…` | Inicio, Para ti, Seguimiento (tablero), Calendario, Mis alertas, Plan y pagos, Perfil | App |
 
 Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, asistente, notas, historial y postulacion.
 `?tab=comentarios`, de los enlaces viejos, abre «notas».
 
-Con la sesión abierta, `/oportunidades`, `/oportunidad/:ocid`, `/menores` y `/mercado` llevan a sus páginas de la
-app, con los filtros traducidos (middleware). Para los visitantes siguen siendo las páginas públicas.
+Con la sesión abierta, `/oportunidades`, `/oportunidad/:ocid`, `/menores`, `/menor/:id` y `/mercado` llevan a sus
+páginas de la app, con los filtros traducidos (middleware). Para los visitantes siguen siendo las páginas públicas.
 
 Con la sesión abierta, todo `/app/*` usa el marco de la app (`components/gobserva/app/MarcoApp.tsx`): barra lateral,
-cabecera con buscador y pie. La cabecera de la portada nunca aparece ahí. Sin sesión, `/app/*` lleva a
+cabecera con buscador, sin pie. La cabecera y el pie de la portada nunca aparecen ahí. Sin sesión, `/app/*` lleva a
 `/entrar?next=…`.
 
 ## Contrato de datos
@@ -212,6 +213,14 @@ En producción y probado de punta a punta con usuarios desechables:
   Cada aviso lleva a donde actuar. Lo leído se guarda en el navegador. Los avisos breves confirman cada acción.
 - **Alertas desde la bandeja.** «Crear alerta» guarda los filtros de la vista (`bandeja: 1`) y la API las corre como la
   bandeja (`filtrosBandejaAlerta` y `filasBandeja`). «Excel» descarga la misma búsqueda (con plan de pago).
+- **Ficha del contrato menor en la app** (`/app/menor/[id]`), con la misma estructura que el detalle de un proceso:
+  cabecera con acciones, cuatro cifras (cierre con cuánto falta, consultas, publicación, ítems) y cajas. En el
+  seguimiento, el fin de consultas que cae en el mismo minuto que el cierre queda sólo como cierre.
+- **Plan y pagos** en cajas: tu plan con su uso, tus suscripciones (cancelar la renovación), la tabla que compara los
+  planes con los límites del catálogo y «Tu plan» marcado, y tus pagos con su recibo. Mis alertas, los avisos del
+  dispositivo y Perfil usan las mismas cajas.
+- **Tablero.** Las cinco etapas entran a la vista desde 1280 px; en el celular y la tableta las columnas se deslizan.
+  La tabla de menores usa anchos fijos (`TablaDatos fija`) para que «Cierra» nunca quede escondida.
 - **Marco.** Al entrar se hace una carga entera con la marca de sesión puesta: así nunca queda el marco de visitantes
   alrededor de la app. La app no tiene pie. Bajo 400 px, el modo día y noche va en «Más».
 
