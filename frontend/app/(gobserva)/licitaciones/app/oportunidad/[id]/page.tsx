@@ -7,7 +7,7 @@ import { PestanaCronograma } from "@/components/licitaciones-app/detalle/Pestana
 import { PestanaDocumentos } from "@/components/licitaciones-app/detalle/PestanaDocumentos";
 import { PestanaItems } from "@/components/licitaciones-app/detalle/PestanaItems";
 import { PestanaResumen } from "@/components/licitaciones-app/detalle/PestanaResumen";
-import { PestanaComentarios, PestanaHistorial, PestanaPostulacion } from "@/components/licitaciones-app/detalle/PestanasCliente";
+import { PestanaHistorial, PestanaNotas, PestanaPostulacion } from "@/components/licitaciones-app/detalle/PestanasCliente";
 import { Pestanas, leerPestana, type Pestana } from "@/components/licitaciones-app/detalle/Pestanas";
 import { AvisoDemo } from "@/components/licitaciones-app/ui/AvisoDemo";
 import { limpiar } from "@/lib/licitaciones";
@@ -69,7 +69,7 @@ export default async function Detalle({ params, searchParams }: Props) {
         {tab === "documentos" && <PestanaDocumentos o={o} />}
         {tab === "cronograma" && <PestanaCronograma o={o} ahora={ahora} />}
         {tab === "analisis" && <PestanaAnalisis o={o} />}
-        {tab === "comentarios" && <PestanaComentarios id={o.id} />}
+        {tab === "notas" && <PestanaNotas id={o.id} titulo={titulo} />}
         {tab === "historial" && <PestanaHistorial id={o.id} eventos={eventos} />}
         {tab === "postulacion" && <PestanaPostulacion id={o.id} codigo={o.codigo} titulo={titulo} />}
       </div>

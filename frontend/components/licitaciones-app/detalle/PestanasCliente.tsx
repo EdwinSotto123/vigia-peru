@@ -1,112 +1,105 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, History, MessageSquare, Trash2 } from "lucide-react";
-import { ErrorAlmacen, LARGO_COMENTARIO } from "@/lib/licitaciones-app/almacen";
-import { fechaHoraLima } from "@/lib/licitaciones-app/formato";
+import { useEffect, useState } from "react";
+import { CheckCircle2, History, Loader2, NotebookPen } from "lucide-react";
 import { getAlmacen, useEstadoUsuario } from "@/lib/licitaciones-app/usarAlmacen";
+import { fechaHoraLima } from "@/lib/licitaciones-app/formato";
+import { useSeguimiento } from "@/lib/licitaciones-app/useSeguimiento";
+import { ErrorCuenta } from "@/lib/gobserva-cuenta";
+import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
 import { EstadoVacio } from "../ui/Estados";
 import { Insignia } from "../ui/Insignia";
+import { useAvisos } from "../ui/Avisos";
 import { SeguirConEtapa } from "../seguimiento/BotonSeguir";
 
-const NOTA_DEMO = "Demostración: se guarda en este navegador. Con el equipo, lo verán tus compañeros.";
+const LARGO_NOTA = 1000;
 
-/** Los comentarios del equipo sobre el proceso: escribir (con su tope y su error), leer y borrar. */
-export function PestanaComentarios({ id }: { id: string }) {
-  const { comentarios } = useEstadoUsuario();
-  const lista = comentarios[id] ?? [];
+/**
+ * Las notas del proceso, en tu cuenta (la nota de lo que sigues: la misma del tablero de Seguimiento). Guardar una nota
+ * en algo que no sigues lo empieza a seguir, y lo dice.
+ */
+export function PestanaNotas({ id, titulo }: { id: string; titulo: string | null }) {
+  const { porRef, anotar, isLoading } = useSeguimiento();
+  const avisar = useAvisos();
+  const item = porRef.get(id);
   const [texto, setTexto] = useState("");
+  const [tocado, setTocado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [borrando, setBorrando] = useState<string | null>(null);
-  const resta = LARGO_COMENTARIO - texto.length;
+  useEffect(() => {
+    if (!tocado) setTexto(item?.nota ?? "");
+  }, [item?.nota, tocado]);
+  const resta = LARGO_NOTA - texto.length;
+
+  async function guardarNota() {
+    if (resta < 0) return setError(`La nota puede tener hasta ${LARGO_NOTA} caracteres.`);
+    setGuardando(true);
+    setError(null);
+    try {
+      await anotar(id, titulo, texto.trim());
+      setTocado(false);
+      avisar({ tono: "ok", texto: item ? "Nota guardada." : "Nota guardada: ahora sigues este proceso en tu tablero.", accion: { etiqueta: "Ver mi tablero", href: "/cuenta?tab=seguimiento" } });
+    } catch (e) {
+      setError(e instanceof ErrorCuenta ? e.message : "No pudimos guardar la nota. Vuelve a intentarlo.");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   return (
-    <Caja id="comentarios" titulo="Comentarios" descripcion={NOTA_DEMO} relleno={false}>
-      <form
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          try {
-            getAlmacen().comentar(id, texto);
-            setTexto("");
-            setError(null);
-          } catch (err) {
-            setError(err instanceof ErrorAlmacen ? err.message : "No pudimos guardarlo. Vuelve a intentarlo.");
-          }
-        }}
-        className="border-b border-line p-4 sm:p-5"
-      >
-        <label htmlFor="comentario" className="mb-1.5 block text-meta font-semibold text-ink">
-          Nuevo comentario
-        </label>
-        <textarea
-          id="comentario"
-          value={texto}
-          onChange={(e) => {
-            setTexto(e.target.value);
-            if (error) setError(null);
-          }}
-          rows={3}
-          maxLength={LARGO_COMENTARIO + 50}
-          placeholder="Qué falta, qué consultar, quién se encarga…"
-          aria-invalid={!!error}
-          aria-describedby="comentario-ayuda"
-          className="w-full resize-y rounded-lg border border-line bg-caja px-3 py-2.5 text-destacado text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30 aria-[invalid=true]:border-crimson sm:text-dato"
-        />
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p id="comentario-ayuda" className={cn("text-meta", error ? "font-medium text-crimsonTexto" : resta < 0 ? "text-crimsonTexto" : "text-mute")} role={error ? "alert" : undefined}>
-            {error ?? `${resta < 0 ? `Te pasaste por ${-resta}` : `Quedan ${resta}`} caracteres`}
-          </p>
-          <button type="submit" className="min-h-10 rounded-lg bg-granate px-4 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
-            Publicar
-          </button>
-        </div>
-      </form>
-      {lista.length === 0 ? (
-        <EstadoVacio Icono={MessageSquare} titulo="Todavía no hay comentarios" texto="Anota aquí lo que el equipo debe saber de este proceso." className="py-8 sm:py-10" />
+    <Caja id="notas" titulo="Notas" descripcion="Lo que tu equipo debe saber de este proceso. Se guarda en tu cuenta y se ve también en tu tablero.">
+      {isLoading ? (
+        <div aria-hidden className="h-32 animate-pulse rounded-lg bg-ink/[0.06]" />
       ) : (
-        <ul className="divide-y divide-line">
-          {lista.map((c) => (
-            <li key={c.id} className="flex gap-3 px-4 py-3.5 sm:px-5">
-              <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-granate text-meta font-bold text-paper">
-                T
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-meta text-mute">
-                  <b className="font-semibold text-ink">Tú</b> {fechaHoraLima(c.creado)}
-                </p>
-                <p className="mt-1 whitespace-pre-line text-dato leading-relaxed text-ink [overflow-wrap:anywhere]">{c.texto}</p>
-              </div>
-              {borrando === c.id ? (
-                <span className="flex shrink-0 items-start gap-1 text-meta">
-                  <button type="button" onClick={() => getAlmacen().borrarComentario(id, c.id)} className="rounded-md px-2 py-1 font-semibold text-crimsonTexto hover:bg-crimson-soft">
-                    Borrar
-                  </button>
-                  <button type="button" onClick={() => setBorrando(null)} className="rounded-md px-2 py-1 text-inkSoft hover:bg-ink/[0.06]">
-                    No
-                  </button>
-                </span>
-              ) : (
-                <button type="button" onClick={() => setBorrando(c.id)} aria-label="Borrar el comentario" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-mute hover:bg-ink/[0.06] hover:text-crimsonTexto">
-                  <Trash2 size={16} aria-hidden />
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            void guardarNota();
+          }}
+        >
+          <label htmlFor="nota" className="mb-1.5 block text-meta font-semibold text-ink">
+            {item?.nota ? "Tu nota" : "Nueva nota"}
+          </label>
+          <textarea
+            id="nota"
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value);
+              setTocado(true);
+              if (error) setError(null);
+            }}
+            rows={6}
+            placeholder="Qué falta, qué consultar, quién se encarga, qué precio pensamos ofertar…"
+            aria-invalid={!!error}
+            aria-describedby="nota-ayuda"
+            className="w-full resize-y rounded-lg border border-line bg-caja px-3 py-2.5 text-destacado leading-relaxed text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30 aria-[invalid=true]:border-crimson sm:text-dato"
+          />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p id="nota-ayuda" role={error ? "alert" : undefined} className={cn("text-meta", error || resta < 0 ? "font-medium text-crimsonTexto" : "text-mute")}>
+              {error ?? (resta < 0 ? `Te pasaste por ${-resta} caracteres` : item?.actualizado && !tocado && item.nota ? `Guardada el ${fechaHoraLima(item.actualizado)}` : `Quedan ${resta} caracteres`)}
+            </p>
+            <button type="submit" disabled={guardando || !tocado} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-granate px-4 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50">
+              {guardando ? <Loader2 size={15} aria-hidden className="animate-spin" /> : <NotebookPen size={15} aria-hidden />} Guardar nota
+            </button>
+          </div>
+        </form>
       )}
     </Caja>
   );
 }
 
-/** El historial: lo que pasó en el SEACE (del servidor) y lo que hiciste tú, en orden. */
+/** El historial: lo que pasó en el SEACE (del servidor) y lo que hiciste tú (desde tu cuenta), en orden. */
 export function PestanaHistorial({ id, eventos }: { id: string; eventos: { fecha: string; texto: string }[] }) {
-  const { historial } = useEstadoUsuario();
+  const { porRef } = useSeguimiento();
+  const item = porRef.get(id);
+  const etapa = item ? ESTADOS.licitaciones.find((e) => e.valor === item.estado)?.etiqueta ?? item.estado : null;
   const todos = [
     ...eventos.map((e) => ({ ...e, tuyo: false })),
-    ...(historial[id] ?? []).map((e) => ({ ...e, tuyo: true })),
+    ...(item ? [{ fecha: item.creado, texto: "Empezaste a seguirlo.", tuyo: true }] : []),
+    ...(item && item.actualizado !== item.creado ? [{ fecha: item.actualizado, texto: `Último cambio: etapa «${etapa}»${item.nota ? " y nota" : ""}.`, tuyo: true }] : []),
   ].sort((a, b) => b.fecha.localeCompare(a.fecha));
   return (
     <Caja id="historial" titulo="Historial" descripcion="Lo que pasó en el proceso y lo que hizo tu equipo" relleno={false}>
@@ -141,9 +134,11 @@ const REQUISITOS = [
   { id: "presentar", texto: "Presentar la oferta en el SEACE antes del plazo" },
 ] as const;
 
-/** La postulación: la etapa en la que estás y un checklist de trabajo (no reemplaza a las bases). */
+/** La postulación: la etapa en tu tablero y un checklist de trabajo (no reemplaza a las bases). */
 export function PestanaPostulacion({ id, codigo, titulo }: { id: string; codigo: string | null; titulo: string | null }) {
-  const { checklist, seguidos } = useEstadoUsuario();
+  const { checklist } = useEstadoUsuario();
+  const { porRef } = useSeguimiento();
+  const item = porRef.get(id);
   const hechos = new Set(checklist[id] ?? []);
   const n = REQUISITOS.filter((r) => hechos.has(r.id)).length;
   return (
@@ -151,7 +146,7 @@ export function PestanaPostulacion({ id, codigo, titulo }: { id: string; codigo:
       <Caja
         id="checklist"
         titulo="Checklist de la oferta"
-        descripcion="Una guía de trabajo: lo que piden de verdad está en las bases"
+        descripcion="Una guía de trabajo: lo que piden de verdad está en las bases. Se guarda en este navegador."
         accion={
           <span className="text-meta font-semibold tabular-nums text-inkSoft">
             {n} de {REQUISITOS.length}
@@ -180,13 +175,13 @@ export function PestanaPostulacion({ id, codigo, titulo }: { id: string; codigo:
           ))}
         </ul>
       </Caja>
-      <Caja id="etapa" titulo="Tu etapa" descripcion={NOTA_DEMO}>
-        {seguidos[id] ? (
+      <Caja id="etapa" titulo="Tu etapa" descripcion="La misma de tu tablero de Seguimiento">
+        {item ? (
           <p className="mb-3 flex items-center gap-2 text-dato text-inkSoft">
-            <CheckCircle2 size={17} aria-hidden className="text-granate" /> Lo sigues desde el {fechaHoraLima(seguidos[id].desde)}.
+            <CheckCircle2 size={17} aria-hidden className="text-granate" /> Lo sigues desde el {fechaHoraLima(item.creado)}.
           </p>
         ) : (
-          <p className="mb-3 text-dato text-inkSoft">Síguelo para llevarlo en tu seguimiento y marcar su etapa.</p>
+          <p className="mb-3 text-dato text-inkSoft">Síguelo para llevarlo en tu tablero, con su plazo en tu calendario.</p>
         )}
         <SeguirConEtapa id={id} codigo={codigo} titulo={titulo} />
       </Caja>

@@ -6,7 +6,9 @@ import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import { MarcaGobserva } from "../MarcaGobserva";
 import { MenuCuenta } from "../cuenta/MenuCuenta";
 import { ProveedorApp } from "./contexto";
+import { ProveedorAvisos } from "@/components/licitaciones-app/ui/Avisos";
 import { BarraApp, LateralApp } from "./NavApp";
+import { Campana } from "@/components/licitaciones-app/notificaciones/Campana";
 
 /**
  * El marco de la app de un producto de Gobserva, para quien entró (2026-11-07). Tres piezas con los tokens de la app
@@ -32,6 +34,7 @@ export function MarcoApp({
   const p = PRODUCTOS[producto];
   return (
     <ProveedorApp>
+      <ProveedorAvisos>
       <div className="min-h-screen bg-lienzo lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
         <a
           href="#contenido"
@@ -73,7 +76,13 @@ export function MarcoApp({
                 />
               </form>
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                <BotonModo />
+                <Suspense>
+                  <Campana base={base} />
+                </Suspense>
+                {/* Bajo 400 px no entran la marca, la campana, el modo y la cuenta: el modo va en «Más». */}
+                <span className="hidden min-[400px]:block">
+                  <BotonModo />
+                </span>
                 <span className="lg:hidden">
                   <MenuCuenta base={base} compacto />
                 </span>
@@ -91,6 +100,7 @@ export function MarcoApp({
           <BarraApp producto={producto} base={base} />
         </Suspense>
       </div>
+      </ProveedorAvisos>
     </ProveedorApp>
   );
 }

@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
+import { BotonModo } from "@/components/ui/BotonModo";
 import { useMe, useSesion } from "../cuenta/comun";
 
 interface ItemApp {
@@ -54,7 +55,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         items: [
           { ruta: "/cuenta?tab=seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, abajo: true, corto: "Tablero" },
           { ruta: "/cuenta?tab=calendario", etiqueta: "Calendario", Icono: CalendarDays },
-          { ruta: "/cuenta?tab=alertas", etiqueta: "Alertas", Icono: Bell },
+          { ruta: "/app/notificaciones", etiqueta: "Notificaciones", Icono: Bell },
+          { ruta: "/cuenta?tab=alertas", etiqueta: "Mis alertas", Icono: BellPlus },
         ],
       },
     ],
@@ -363,9 +365,14 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
             <span aria-hidden className="mx-auto block h-1.5 w-10 rounded-full bg-ink/15" />
             <div className="mt-3 flex items-center justify-between">
               <p id="app-mas-t" className="font-display text-bloque font-bold text-ink">Más</p>
-              <button type="button" onClick={() => setMas(false)} aria-label="Cerrar" className="grid h-11 w-11 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.045]">
-                <X size={20} aria-hidden />
-              </button>
+              <div className="flex items-center gap-1">
+                <span className="min-[400px]:hidden">
+                  <BotonModo />
+                </span>
+                <button type="button" onClick={() => setMas(false)} aria-label="Cerrar" className="grid h-11 w-11 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.045]">
+                  <X size={20} aria-hidden />
+                </button>
+              </div>
             </div>
             {gruposMas.map((g) => (
               <div key={g.titulo ?? "hoy"} className="mt-3">

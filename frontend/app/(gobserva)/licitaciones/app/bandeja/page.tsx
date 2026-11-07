@@ -7,6 +7,7 @@ import { Buscador } from "@/components/licitaciones-app/bandeja/Buscador";
 import { Chips } from "@/components/licitaciones-app/bandeja/Chips";
 import { Filtros } from "@/components/licitaciones-app/bandeja/Filtros";
 import { Herramientas } from "@/components/licitaciones-app/bandeja/Herramientas";
+import { CrearAlerta } from "@/components/licitaciones-app/bandeja/CrearAlerta";
 import { Perfiles } from "@/components/licitaciones-app/bandeja/Perfiles";
 import { ResultadosVivos } from "@/components/licitaciones-app/bandeja/Resultados";
 import { TablaBandeja } from "@/components/licitaciones-app/bandeja/TablaBandeja";
@@ -87,7 +88,12 @@ export default async function Bandeja({ searchParams }: { searchParams?: Record<
                 <Caja
                   id="resultados"
                   titulo={`${numero(r.total)} ${r.total === 1 ? "oportunidad" : "oportunidades"}`}
-                  accion={<Herramientas />}
+                  accion={
+                    <>
+                      <Herramientas />
+                      <CrearAlerta />
+                    </>
+                  }
                   relleno={false}
                   pie={r.total > 0 ? <Paginacion pagina={r.pagina} paginas={r.paginas} total={r.total} tamano={r.tamano} href={(n) => url({ ...f, pag: n })} nombre="oportunidades" /> : undefined}
                 >

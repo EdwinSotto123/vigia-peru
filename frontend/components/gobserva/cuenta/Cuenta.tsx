@@ -40,7 +40,7 @@ const SECCIONES: InfoSeccion[] = [
   { clave: "para-ti", etiqueta: "Para ti", Icono: Sparkles, solo: "licitaciones", bajada: "Las oportunidades abiertas, de lo más parecido a lo que vende tu empresa a lo menos." },
   { clave: "seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, solo: "licitaciones", bajada: "Tus procesos por etapa, de guardado a ganado, con su próximo plazo y lo que suman." },
   { clave: "calendario", etiqueta: "Calendario", Icono: CalendarDays, solo: "licitaciones", bajada: "Los plazos de lo que sigues: consultas, cierres de cotización y buena pro." },
-  { clave: "alertas", etiqueta: "Alertas", Icono: Bell, bajada: "Te avisamos de lo nuevo que calza con tus búsquedas." },
+  { clave: "alertas", etiqueta: "Mis alertas", Icono: Bell, bajada: "Te avisamos de lo nuevo que calza con tus búsquedas. Créalas aquí o desde la bandeja, con los filtros que estés viendo." },
   { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, menos: "licitaciones", bajada: "Lo que sigues, con su estado y su fecha de cierre." },
   { clave: "pagos", etiqueta: "Plan y pagos", Icono: CreditCard, bajada: "Tu plan, tus pagos y tus comprobantes." },
   { clave: "perfil", etiqueta: "Perfil", Icono: UserRound, bajada: "Tus datos, los de tu empresa para el comprobante y tu cuenta." },

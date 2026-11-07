@@ -12,8 +12,8 @@ export function AvisoDemo({ tomada, total }: { tomada: string | null; total?: nu
       <FlaskConical size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
       <span>
         <b className="font-semibold text-ink">Vista previa con datos de demostración.</b> Una muestra real de {total ? `${total} ` : ""}convocatorias de
-        Gobserva tomada el {fechaHoraLima(tomada)}: la búsqueda, los filtros, el orden y la paginación funcionan sobre ella. Lo que sigas, comentes o
-        guardes queda en este navegador.
+        Gobserva tomada el {fechaHoraLima(tomada)}: la búsqueda, los filtros, el orden y la paginación funcionan sobre ella. Lo que sigas y anotes va a tu
+        cuenta.
       </span>
     </p>
   );

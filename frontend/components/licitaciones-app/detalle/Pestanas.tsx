@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export const PESTANAS = ["resumen", "items", "documentos", "cronograma", "analisis", "comentarios", "historial", "postulacion"] as const;
+export const PESTANAS = ["resumen", "items", "documentos", "cronograma", "analisis", "notas", "historial", "postulacion"] as const;
 export type Pestana = (typeof PESTANAS)[number];
 
 export const NOMBRE_PESTANA: Record<Pestana, string> = {
@@ -10,12 +10,16 @@ export const NOMBRE_PESTANA: Record<Pestana, string> = {
   documentos: "Documentos",
   cronograma: "Cronograma",
   analisis: "Análisis",
-  comentarios: "Comentarios",
+  notas: "Notas",
   historial: "Historial",
   postulacion: "Postulación",
 };
 
-export const leerPestana = (t: string | undefined): Pestana => (PESTANAS as readonly string[]).includes(t ?? "") ? (t as Pestana) : "resumen";
+/** La pestaña de la URL; «comentarios» (los enlaces de antes) es «notas». */
+export const leerPestana = (t: string | undefined): Pestana => {
+  const x = t === "comentarios" ? "notas" : t;
+  return (PESTANAS as readonly string[]).includes(x ?? "") ? (x as Pestana) : "resumen";
+};
 
 /**
  * Las pestañas del detalle como enlaces (?tab=): cada una se puede compartir y el botón Atrás vuelve a la anterior. Van

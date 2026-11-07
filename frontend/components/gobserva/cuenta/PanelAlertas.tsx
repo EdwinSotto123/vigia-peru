@@ -112,7 +112,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
       <Notificaciones producto={producto} />
 
       <section aria-labelledby="bandeja2-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <h2 id="bandeja2-t" className="font-display text-bloque font-bold text-ink">Bandeja</h2>
+        <h2 id="bandeja2-t" className="font-display text-bloque font-bold text-ink">Avisos recibidos</h2>
         <p className="mt-1 text-dato text-inkSoft">Lo que te avisamos, con sus enlaces. Se guardan los últimos 30 avisos.</p>
         {!bandeja.data ? (
           <div aria-hidden className="mt-4 h-20 animate-pulse rounded-2xl bg-paperDeep" />
@@ -165,7 +165,9 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
   const [nota, setNota] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
   const [confirmar, setConfirmar] = useState(false);
   const chips = chipsFiltros(producto, a.filtros);
-  const qs = new URLSearchParams(Object.entries(a.filtros).map(([k, v]) => [k, String(v)])).toString();
+  const deBandeja = producto === "licitaciones" && !!a.filtros.bandeja;
+  const qs = new URLSearchParams(Object.entries(a.filtros).filter(([k]) => k !== "bandeja").map(([k, v]) => [k, String(v)])).toString();
+  const lista = deBandeja ? "/app/bandeja" : COSAS[producto].lista;
 
   async function hacer(que: "activa" | "enviar" | "borrar") {
     setNota(null);
@@ -206,8 +208,8 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
             {a.ultimoEnvio ? `Último aviso: ${a.ultimoEnvio}${a.ultimoConteo != null ? `, con ${a.ultimoConteo} ${a.ultimoConteo === 1 ? COSAS[producto].una : COSAS[producto].varias}` : ""}.` : "Todavía no avisó: el primer aviso sale en la próxima vuelta."}
           </p>
         </div>
-        <Link href={rutaEn(base, `${COSAS[producto].lista}${qs ? `?${qs}` : ""}`)} className="shrink-0 text-dato font-semibold text-granate hover:underline">
-          Ver la búsqueda
+        <Link href={rutaEn(base, `${lista}${qs ? `?${qs}` : ""}`)} className="shrink-0 text-dato font-semibold text-granate hover:underline">
+          {deBandeja ? "Abrir en la bandeja" : "Ver la búsqueda"}
         </Link>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -215,9 +217,11 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
           {ocupado === "activa" ? <Loader2 size={15} aria-hidden className="animate-spin" /> : a.activa ? <BellOff size={15} aria-hidden /> : <Bell size={15} aria-hidden />}
           {a.activa ? "Pausar" : "Reanudar"}
         </button>
-        <button type="button" onClick={onEditar} disabled={!!ocupado} className={claseAccion("fantasma")}>
-          <Pencil size={15} aria-hidden /> Editar
-        </button>
+        {!deBandeja && (
+          <button type="button" onClick={onEditar} disabled={!!ocupado} className={claseAccion("fantasma")}>
+            <Pencil size={15} aria-hidden /> Editar
+          </button>
+        )}
         {a.activa && (
           <button type="button" onClick={() => void hacer("enviar")} disabled={!!ocupado} className={claseAccion("fantasma")}>
             {ocupado === "enviar" ? <Loader2 size={15} aria-hidden className="animate-spin" /> : <Send size={15} aria-hidden />} Enviar ahora

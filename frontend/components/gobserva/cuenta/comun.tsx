@@ -128,9 +128,10 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
     {
       clave: "region", etiqueta: "Región", tipo: "opcion",
       opciones: REGIONES_UBIGEO.map((r) => ({ valor: r.ubigeo, etiqueta: r.nombre })),
-      mostrar: (v) => nombreRegionLic(v),
+      // Las alertas de la bandeja guardan varias: «15,04».
+      mostrar: (v) => v.split(",").map((x) => nombreRegionLic(x)).join(", "),
     },
-    { clave: "tipo", etiqueta: "Tipo", tipo: "opcion", opciones: TIPOS.map((t) => ({ valor: t.clave, etiqueta: t.nombre })), mostrar: (v) => nombreTipo(v) },
+    { clave: "tipo", etiqueta: "Tipo", tipo: "opcion", opciones: TIPOS.map((t) => ({ valor: t.clave, etiqueta: t.nombre })), mostrar: (v) => v.split(",").map((x) => nombreTipo(x)).join(", ") },
     { clave: "min", etiqueta: "Valor desde (S/)", tipo: "numero", placeholder: "50000", mostrar: (v) => `Desde S/ ${MILES.format(Number(v))}` },
     { clave: "max", etiqueta: "Valor hasta (S/)", tipo: "numero", placeholder: "2000000", mostrar: (v) => `Hasta S/ ${MILES.format(Number(v))}` },
     ENTIDAD,
@@ -169,9 +170,16 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
 
 /** Los filtros de una alerta como chips legibles. */
 export function chipsFiltros(producto: Producto, filtros: Record<string, unknown>): string[] {
-  return FILTROS[producto]
+  const chips = FILTROS[producto]
     .filter((c) => filtros[c.clave] != null && filtros[c.clave] !== "")
     .map((c) => (c.mostrar ? c.mostrar(String(filtros[c.clave])) : `${c.etiqueta}: ${String(filtros[c.clave])}`));
+  // Lo que sólo tienen las alertas creadas desde la bandeja de la app.
+  if (producto === "licitaciones" && filtros.bandeja) {
+    const cons: Record<string, string> = { abiertas: "Consultas abiertas", "3d": "Consultas vencen en 3 días", "7d": "Consultas vencen en 7 días", vencidas: "Consultas vencidas" };
+    if (filtros.proc) chips.push(String(filtros.proc));
+    if (filtros.cons && cons[String(filtros.cons)]) chips.push(cons[String(filtros.cons)]);
+  }
+  return chips;
 }
 
 /**
