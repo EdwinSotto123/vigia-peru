@@ -72,6 +72,8 @@ export function baseDe(producto: Producto, host: string | null | undefined): str
 
 /** Una ruta del producto con su base: `rutaEn("", "/plaza/1")` → "/plaza/1"; `rutaEn("/empleo", "/")` → "/empleo". */
 export function rutaEn(base: string, ruta = "/"): string {
+  // Una dirección completa (otro producto: «Obras» desde el menú de Licitaciones) va tal cual.
+  if (/^https?:\/\//.test(ruta)) return ruta;
   const r = ruta.startsWith("/") ? ruta : `/${ruta}`;
   if (!base) return r;
   // La raíz y un ancla o consulta de la raíz («/#mcp», «/?q=») van pegadas a la base: «/licitaciones#mcp».

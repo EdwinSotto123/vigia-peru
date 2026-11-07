@@ -5,7 +5,7 @@ import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { BarrasDobles, CaminoObra, type PasoCamino } from "@/components/gobserva-obras/Graficas";
 import { BarraAvance, Cabecera, FaseInsignia, Paso, iconoSector } from "@/components/gobserva-obras/Piezas";
-import { planesObras } from "@/components/gobserva-obras/planes";
+import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { TarjetaProyecto } from "@/components/gobserva-obras/TarjetaProyecto";
 import { Faq } from "@/components/licitaciones/Faq";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -31,7 +31,8 @@ export const metadata: Metadata = {
  */
 export default async function InicioObras() {
   const base = baseProducto("obras");
-  const [r, cat] = await Promise.all([getResumenObras(), planesServidor("obras")]);
+  // Obras viene incluido en los planes de Gobserva Licitaciones (2026-11-07): sus planes, con enlaces a licitaciones.gobserva.cloud.
+  const [r, cat] = await Promise.all([getResumenObras(), planesServidor("licitaciones")]);
   const ruta = (p: string) => rutaEn(base, p);
   const lista = (qs: string) => `${ruta("/proyectos")}${qs}`;
   const licitaciones = `https://${PRODUCTOS.licitaciones.host}`;
@@ -425,14 +426,14 @@ export default async function InicioObras() {
           <Cabecera
             id="planes-t"
             titulo="Planes"
-            bajada="Buscar y leer las fichas es gratis, y con tu cuenta te avisamos cada semana. Pro te avisa cada mañana de los proyectos nuevos y de los que cambian de fase, y baja tus búsquedas en Excel."
-            accion={{ href: ruta("/planes"), etiqueta: "Comparar planes" }}
+            bajada="Obras viene incluido en Gobserva Licitaciones: con un solo plan tienes las obras que se vienen, las licitaciones y los contratos menores abiertos. Buscar y leer las fichas es gratis; un plan de pago te avisa cada mañana y baja tus búsquedas en Excel."
+            accion={{ href: urlCanonica("licitaciones", "/planes"), etiqueta: "Comparar planes" }}
           />
           {/* En el celular, los planes se deslizan a los lados (uno sobre otro eran 2,400 px de portada); la comparación
               entera, en /planes. Desde md, la rejilla de siempre. */}
           <Planes
             className="-mx-4 mt-6 px-4 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:pb-2 max-md:pt-4 max-md:[scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:px-0 max-md:[&::-webkit-scrollbar]:hidden max-md:[&>li]:w-[86%] max-md:[&>li]:shrink-0 max-md:[&>li]:snap-start max-md:[&>li]:scroll-ml-4 sm:max-md:[&>li]:w-[60%] sm:max-md:[&>li]:scroll-ml-6"
-            planes={planesObras(base, cat)}
+            planes={planesLicitaciones(`https://${PRODUCTOS.licitaciones.host}`, cat)}
           />
           <p className="mt-2 text-meta text-mute md:hidden">Desliza para ver los planes, o compáralos en la página de planes.</p>
         </section>

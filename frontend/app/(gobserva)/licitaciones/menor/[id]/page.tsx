@@ -84,7 +84,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
 
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line xl:grid-cols-4">
             <Clave Icono={CalendarClock} etiqueta="Cotización" valor={cierre.cerrada ? "Cerrada" : fechaHora(m.cierra)} tono={cierre.cerrada ? "text-inkSoft" : undefined}>
-              <CierreMenor cierra={m.cierra} />
+              <CierreMenor cierra={m.cierra} sinRotulo />
             </Clave>
             <Clave Icono={MessageSquareWarning} etiqueta="Consultas" valor={m.consultasHasta ? `Hasta el ${fechaHora(m.consultasHasta)}` : "Sin etapa de consultas"} tono={m.consultasHasta ? undefined : "text-inkSoft"}>
               Las preguntas a la entidad se hacen en el SEACE, antes de cotizar.
@@ -103,12 +103,17 @@ export default async function FichaMenor({ params }: { params: { id: string } })
                 <Layers size={18} aria-hidden className="text-granate" /> Qué se compra
               </h2>
               <ol className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-                {m.items.map((i, k) => (
+                {m.items.map((i, k) => {
+                  // El nombre del catálogo (CUBSO) dice qué es; la descripción de la entidad suele ser «Según EETT» o una
+                  // precisión: va debajo si dice algo distinto.
+                  const titulo = limpiar(i.nombre) || limpiar(i.descripcion) || "Ítem sin descripción";
+                  const detalle = limpiar(i.descripcion);
+                  return (
                   <li key={k} className="grid min-w-0 gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-5">
                     <div className="min-w-0">
-                      <p className="text-dato font-semibold leading-snug text-ink">{limpiar(i.descripcion) || limpiar(i.nombre) || "Ítem sin descripción"}</p>
+                      <p className="text-dato font-semibold leading-snug text-ink">{titulo}</p>
                       <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-meta text-mute">
-                        {i.nombre && limpiar(i.nombre) !== limpiar(i.descripcion) && <span>{limpiar(i.nombre)}</span>}
+                        {detalle && detalle.toLocaleLowerCase("es-PE") !== titulo.toLocaleLowerCase("es-PE") && <span className="text-inkSoft">{detalle}</span>}
                         {i.cubso && <span className="font-mono">CUBSO {i.cubso}</span>}
                         {i.distrito && <Dato tipo="lugar">{tituloNatural(i.distrito.replaceAll("/", ", "))}</Dato>}
                       </p>
@@ -119,7 +124,8 @@ export default async function FichaMenor({ params }: { params: { id: string } })
                       </p>
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ol>
             </section>
           )}
@@ -128,7 +134,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
             <h2 id="precios-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
               <Tag size={18} aria-hidden className="text-granate" /> Lo que se pagó antes por lo mismo
             </h2>
-            {m.precios.length ? (
+            {m.precios.length > 0 && (
               <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                 {m.precios.map((p) => (
                   <li key={p.cubso} className="rounded-2xl border border-line bg-paper p-4">
@@ -142,8 +148,27 @@ export default async function FichaMenor({ params }: { params: { id: string } })
                   </li>
                 ))}
               </ul>
-            ) : (
-              <Nota className="mt-3">Todavía no tenemos precios pagados por estos ítems en contratos menores: los vamos sumando con cada adjudicación.</Nota>
+            )}
+            {m.preciosProcesos.length > 0 && (
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                {m.preciosProcesos.map((p) => {
+                  const item = m.items.find((i) => i.cubso === p.cubso);
+                  return (
+                    <li key={`${p.cubso}-${p.unidad}`} className="rounded-2xl border border-line bg-paper p-4">
+                      <p className="line-clamp-2 text-dato font-semibold leading-snug text-ink">{limpiar(item?.nombre) || `CUBSO ${p.cubso}`}</p>
+                      <p className="mt-2 font-display text-bloque font-bold tabular-nums text-ink">
+                        {soles(p.mediana)} <span className="text-meta font-normal text-mute">por {p.unidad ? p.unidad.toLocaleLowerCase("es-PE") : "unidad"}, mediana</span>
+                      </p>
+                      <p className="mt-1 text-meta text-inkSoft">
+                        La mitad de los precios, entre {soles(p.p25)} y {soles(p.p75)}, en {p.veces === 1 ? "1 proceso" : `${numero(p.veces)} procesos`} del Estado de {p.anio}.
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {m.precios.length === 0 && m.preciosProcesos.length === 0 && (
+              <Nota className="mt-3">Todavía no tenemos precios pagados por estos ítems: los vamos sumando con cada adjudicación.</Nota>
             )}
           </section>
         </div>
@@ -172,7 +197,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
                 <p className="mt-2 text-dato leading-snug text-inkSoft">
                   En los últimos 12 meses firmó {numero(e.contratos)} {e.contratos === 1 ? "contrato menor" : "contratos menores"} por {solesCompacto(e.monto)}, con{" "}
                   {numero(e.proveedores)} {e.proveedores === 1 ? "proveedor" : "proveedores"}
-                  {e.aPersonas > 0 ? ` (${numero(e.aPersonas)} con personas naturales)` : ""}.
+                  {e.aPersonas > 0 ? `; ${e.aPersonas === e.contratos ? (e.contratos === 1 ? "fue" : "todos fueron") : `${numero(e.aPersonas)} fueron`} con personas naturales` : ""}.
                 </p>
                 {e.ganadores.length > 0 && (
                   <>

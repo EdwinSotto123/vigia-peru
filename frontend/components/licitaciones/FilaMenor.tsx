@@ -22,11 +22,11 @@ export function regionesMenor(regiones: string[] | null | undefined): string {
   return regiones.length === 1 ? nombreRegion(regiones[0]) : `${nombreRegion(regiones[0])} y ${numero(regiones.length - 1)} más`;
 }
 
-export function CierreMenor({ cierra, alinear = "inicio", className }: { cierra: string | null; alinear?: "inicio" | "fin"; className?: string }) {
+export function CierreMenor({ cierra, alinear = "inicio", sinRotulo = false, className }: { cierra: string | null; alinear?: "inicio" | "fin"; sinRotulo?: boolean; className?: string }) {
   const c = cierreMenor(cierra);
   return (
     <span className={cn("flex min-w-0 flex-col items-start gap-1", alinear === "fin" && "lg:items-end lg:text-right", className)}>
-      <span className="text-rotulo text-mute">Cotización</span>
+      {!sinRotulo && <span className="text-rotulo text-mute">Cotización</span>}
       <span
         className={cn(
           "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-rotulo font-semibold",

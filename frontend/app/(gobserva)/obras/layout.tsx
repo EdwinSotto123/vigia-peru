@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
+import { urlCanonica } from "@/lib/gobserva";
 import { PRODUCTOS } from "@/lib/gobserva";
 import { CONTRATACIONES_ABIERTAS, INFOBRAS, SEGUIMIENTO_INVERSIONES } from "@/lib/fuentes";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -24,10 +25,11 @@ export default function LayoutObras({ children }: { children: ReactNode }) {
       menu={[
         { ruta: "/proyectos", etiqueta: "Proyectos" },
         { ruta: "/mercado", etiqueta: "Mercado" },
-        { ruta: "/planes", etiqueta: "Planes" },
+        // Obras viene incluido en los planes de Gobserva Licitaciones (2026-11-07).
+        { ruta: urlCanonica("licitaciones", "/planes"), etiqueta: "Planes" },
         { ruta: "/mcp", etiqueta: "API y MCP" },
       ]}
-      accion={{ ruta: "/planes", etiqueta: "Recibir alertas" }}
+      accion={{ ruta: urlCanonica("licitaciones", "/planes"), etiqueta: "Recibir alertas" }}
       fuentes={[
         { nombre: "Invierte.pe, seguimiento de inversiones del MEF", url: SEGUIMIENTO_INVERSIONES },
         { nombre: "INFOBRAS, obras públicas de la Contraloría", url: INFOBRAS },

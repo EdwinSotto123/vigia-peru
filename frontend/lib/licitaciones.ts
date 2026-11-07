@@ -218,6 +218,8 @@ export interface FichaMenor extends Omit<Menor, "items"> {
   entidadMenores: { contratos: number; monto: number; proveedores: number; aPersonas: number; ganadores: Proveedor[] } | null;
   /** Lo que se pagó por los mismos ítems (CUBSO) en contratos menores adjudicados (24 meses). */
   precios: { cubso: string; nombre: string | null; unidad: string | null; veces: number; mediana: number; minimo: number; maximo: number; ultima: string | null }[];
+  /** El precio de referencia del mismo CUBSO en los procesos del Estado (el año más reciente): mediana y rango intercuartil. */
+  preciosProcesos: { cubso: string; unidad: string | null; anio: number; veces: number; p25: number; mediana: number; p75: number }[];
 }
 
 export const getMenores = (params: URLSearchParams) => pedir<PaginaMenores>(`/menores?${params.toString()}`, 120);

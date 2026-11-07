@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
-import { PRODUCTOS } from "@/lib/gobserva";
+import { PRODUCTOS, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { metadatosApp } from "@/lib/gobserva-pwa";
 
@@ -25,6 +25,8 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
       menu={[
         { ruta: "/oportunidades", etiqueta: "Oportunidades" },
         { ruta: "/menores", etiqueta: "Contratos menores" },
+        // Obras viene incluido en Gobserva Licitaciones (2026-11-07); vive en su subdominio.
+        { ruta: urlCanonica("obras", "/"), etiqueta: "Obras" },
         { ruta: "/mercado", etiqueta: "Mercado" },
         { ruta: "/#mcp", etiqueta: "API y MCP" },
       ]}

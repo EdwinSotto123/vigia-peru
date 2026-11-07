@@ -64,20 +64,26 @@ const PRO = (alertas: number, guardados: number, filasCsv: number): Limites => (
   alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true,
 });
 
+/** Los planes para quien le vende al Estado: los de Licitaciones (que se venden) y su espejo en Obras (que no). */
+const PLANES_PROVEEDOR = (activo: boolean): Record<string, PlanBase> => ({
+  inicia: { nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(3, 300, 500), activo },
+  crece: { nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50 }, limites: PRO(15, 1000, 2000), activo },
+  pro: { nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50 }, limites: PRO(50, 3000, 5000), activo },
+});
+
 /** Los planes que se pagan. Gratis no está: es la ausencia de plan. «Institucional» se conversa (no se vende acá). */
 const CATALOGO: Record<ProductoPago, Record<string, PlanBase>> = {
   empleo: {
     alertas: { nombre: "Alertas", precio: 9.9, fundador: { precio: 4.9, meses: 3 }, limites: PRO(5, 300, 500), activo: true },
     institucional: { nombre: "Bolsas de trabajo e institutos", precio: 149, limites: PRO(50, 3000, 2000), activo: true },
   },
-  licitaciones: {
-    pro: { nombre: "Pro", precio: 79, fundador: { precio: 39, cupo: 50 }, limites: PRO(10, 500, 1000), activo: true },
-    empresa: { nombre: "Empresa", precio: 149, limites: PRO(50, 3000, 3000), activo: true },
-  },
-  obras: {
-    pro: { nombre: "Pro", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(10, 500, 1000), activo: true },
-    empresa: { nombre: "Empresa", precio: 199, limites: PRO(50, 3000, 3000), activo: true },
-  },
+  // Una sola plataforma para quien le vende al Estado (2026-11-07): Licitaciones trae Obras, los contratos menores
+  // abiertos y el mercado. Precios por debajo de LicitaLAB Perú (S/ 240, 325 y 480) y de fundador para las primeras 50
+  // empresas de cada plan. Antes: Pro S/ 79 y Empresa S/ 149 (sin clientes).
+  licitaciones: PLANES_PROVEEDOR(true),
+  // Obras ya no se vende aparte: un plan de Licitaciones lo cubre (planVigente). Quedan los mismos planes sin vender, para
+  // que los límites de Obras salgan del plan de Licitaciones.
+  obras: PLANES_PROVEEDOR(false),
 };
 
 export interface Vendedor {
@@ -211,13 +217,15 @@ export async function limitesDe(producto: ProductoPago, plan: string | null): Pr
  * un poco tarde). null = gratis.
  */
 export async function planVigente(uid: string, producto: ProductoPago): Promise<{ codigo: string; plan: string; vigenteHasta: string | null } | null> {
+  // Obras viene con Licitaciones (2026-11-07): un plan de cualquiera de los dos vale para Obras.
+  const productos = producto === "obras" ? ["obras", "licitaciones"] : [producto];
   const r = await pool.query<{ codigo: string; plan: string; vigenteHasta: string | null }>(
     `SELECT codigo, plan, to_char(vigente_hasta AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS "vigenteHasta"
        FROM gobserva_planes_cliente
-      WHERE firebase_uid = $1 AND producto = $2 AND estado = 'activa'
+      WHERE firebase_uid = $1 AND producto = ANY($2::text[]) AND estado = 'activa'
         AND (vigente_hasta IS NULL OR vigente_hasta + interval '3 days' > now())
       ORDER BY creado_at DESC LIMIT 1`,
-    [uid, producto]);
+    [uid, productos]);
   return r.rows[0] ?? null;
 }
 

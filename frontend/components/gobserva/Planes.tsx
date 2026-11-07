@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export interface Plan {
   /** El plan en la suscripción (migración 226): gratis, alertas, pro, empresa, institucional o mcp. */
-  id: "gratis" | "alertas" | "pro" | "empresa" | "institucional" | "mcp";
+  id: "gratis" | "alertas" | "inicia" | "crece" | "pro" | "empresa" | "institucional" | "mcp";
   nombre: string;
   /** Para quién es, en una línea. */
   para: string;
@@ -31,7 +31,7 @@ export interface Plan {
  */
 export function Planes({ planes, className }: { planes: Plan[]; className?: string }) {
   return (
-    <ol className={cn("grid gap-4 md:grid-cols-2", planes.length >= 4 ? "xl:grid-cols-4" : planes.length === 3 ? "lg:grid-cols-3" : "", className)}>
+    <ol className={cn("grid gap-4 md:grid-cols-2", planes.length >= 5 ? "lg:grid-cols-3 2xl:grid-cols-5" : planes.length === 4 ? "xl:grid-cols-4" : planes.length === 3 ? "lg:grid-cols-3" : "", className)}>
       {planes.map((p) => (
         <li
           key={p.id}

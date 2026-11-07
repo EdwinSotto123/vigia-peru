@@ -23,15 +23,15 @@ export const metadata: Metadata = {
 export default async function PlanesLicitaciones() {
   const base = baseProducto("licitaciones");
   const cat = await planesServidor("licitaciones");
-  const cupo = cat.planes.find((p) => p.id === "pro")?.fundador?.cupo;
+  const cupo = cat.planes.find((p) => p.id === "crece")?.fundador?.cupo;
 
   return (
     <div className="container-page space-y-16 py-10 sm:py-14">
       <header className="max-w-3xl">
         <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Elige tu plan para venderle al Estado</h1>
         <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
-          Buscar, leer las fichas y medir tu mercado es gratis. Los planes de pago te traen lo nuevo cada mañana, guardan tus procesos con su estado y
-          bajan cualquier búsqueda en Excel.
+          Licitaciones, contratos menores abiertos y obras que se vienen, en una sola cuenta. Buscar, leer las fichas y medir tu mercado es gratis; los
+          planes de pago te traen lo nuevo cada mañana, guardan tus procesos con su estado y bajan cualquier búsqueda en Excel.
         </p>
         <AvisoPlanes texto={cat.aviso} className="mt-5" />
       </header>
@@ -58,14 +58,14 @@ export default async function PlanesLicitaciones() {
           { titulo: "Busca lo que vendes", texto: "Filtra las convocatorias por palabras, región, tipo y monto, y guarda la búsqueda como alerta." },
           {
             titulo: "Te llega lo nuevo",
-            texto: "Las convocatorias nuevas de tu búsqueda (cada semana gratis; cada mañana con Pro), con el plazo de consultas de cada una y el enlace a sus bases.",
+            texto: "Las convocatorias nuevas de tu búsqueda (cada semana gratis; cada mañana con un plan de pago), con el plazo de consultas de cada una y el enlace a sus bases.",
           },
         ]}
       />
 
       <BloqueMCP
         titulo="API y MCP para tu equipo"
-        bajada="Conecta tu asistente de IA al servidor MCP de Gobserva y pregunta por las licitaciones del día, por tu mercado o por una entidad. Gratis durante la beta; el plan Empresa sumará una API para tu CRM y el Institucional, límites altos y soporte."
+        bajada="Conecta tu asistente de IA al servidor MCP de Gobserva y pregunta por las licitaciones del día, por tu mercado o por una entidad. Gratis durante la beta; el plan Pro sumará una API para tu CRM y el Institucional, límites altos y soporte."
         ejemplos={[
           "Resume las convocatorias de señalización vial de esta semana con su valor referencial.",
           "¿Qué entidades de Arequipa compran más medicamentos y a quién le compran?",
@@ -82,11 +82,11 @@ export default async function PlanesLicitaciones() {
           {
             p: "¿Cómo llegan las alertas?",
             r: cat.correoActivo
-              ? "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una."
-              : "Por ahora en tu cuenta («Lo último que te avisamos») y, si lo activas, como notificación en tu celular o tu computadora; los correos salen en los próximos días. Una vez por semana con la cuenta gratis y cada mañana con Pro o Empresa, con el plazo de consultas de cada convocatoria.",
+              ? "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: una vez por semana con la cuenta gratis y cada mañana con Inicia, Crece o Pro, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una."
+              : "Por ahora en tu cuenta («Lo último que te avisamos») y, si lo activas, como notificación en tu celular o tu computadora; los correos salen en los próximos días. Una vez por semana con la cuenta gratis y cada mañana con Inicia, Crece o Pro, con el plazo de consultas de cada convocatoria.",
           },
           { p: "¿Cómo pago?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez." },
-          { p: "¿Qué es el precio de fundador?", r: "Un precio rebajado para las primeras empresas que contratan Pro. Lo conservas mientras mantengas tu plan, aunque después el precio suba." },
+          { p: "¿Qué es el precio de fundador?", r: "Un precio rebajado para las primeras 50 empresas de cada plan. Lo conservas mientras mantengas tu plan, aunque después el precio suba." },
           { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE. Gobserva te avisa a tiempo y te da contexto; cada ficha enlaza al proceso oficial y a sus bases." },
           { p: "¿Es legal?", r: "Sí: son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva no vende datos personales ni nombra a personas naturales." },
           { p: "¿Puedo cancelar?", r: "Sí, desde tu cuenta y sin penalidad. No se vuelve a cobrar y sigues con tu plan hasta el final de lo que pagaste." },

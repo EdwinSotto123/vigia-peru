@@ -17,7 +17,8 @@ import { palabrasBusqueda } from "./personas.js";
  *                                    la API no puede pedirlo a prod6, cuyo WAF bloquea su salida).
  *   GET /licitaciones/menores/:id    la ficha: los ítems, el requerimiento (si se copió) y la inteligencia: qué compró
  *                                    esa entidad por contratos menores en 12 meses y a quién, y lo que se pagó por los
- *                                    mismos ítems (CUBSO) en contratos menores adjudicados.
+ *                                    mismos ítems (CUBSO) en contratos menores adjudicados y su precio de referencia en los
+ *                                    procesos del Estado (precio_referencia).
  *
  * Lo que prod6 no trae no se inventa: no hay monto referencial (la entidad no lo publica). De los ganadores, nombre y
  * RUC sólo de empresas (RUC 20); una persona natural se cuenta sin nombrarla. Todo sale por `publicar()`.
@@ -134,7 +135,7 @@ cotizacionesRouter.get("/:id", async (c) => {
     const f = r.rows[0];
     if (!f) return null;
     const cubsos = [...new Set(((f.itemsDetalle ?? []) as { cubso?: string }[]).map((i) => i.cubso).filter((x): x is string => !!x && /^\d{16}$/.test(x)))];
-    const [entidad, precios] = await Promise.all([
+    const [entidad, precios, referencia] = await Promise.all([
       f.entidadRuc
         ? pool.query(
             `WITH m AS (SELECT proveedor_ruc AS ruc, proveedor, monto FROM seace_menores
@@ -158,10 +159,19 @@ cotizacionesRouter.get("/:id", async (c) => {
               GROUP BY i.cubso`,
             [cubsos])
         : null,
+      // Y el precio de referencia de los procesos del Estado (OCDS; migración 84): el año más reciente de cada CUBSO.
+      cubsos.length
+        ? pool.query(
+            `SELECT DISTINCT ON (cubso) cubso, unidad, anio, n::int AS veces, p25::float, mediana::float, p75::float
+               FROM precio_referencia WHERE cubso = ANY($1::text[]) AND mediana > 0
+              ORDER BY cubso, anio DESC, n DESC`,
+            [cubsos])
+        : null,
     ]);
     const { itemsDetalle, ...resto } = f as Record<string, unknown>;
     return publicar({
       ...conTipo([resto])[0], items: itemsDetalle ?? [], entidadMenores: entidad?.rows[0] ?? null, precios: precios?.rows ?? [],
+      preciosProcesos: referencia?.rows ?? [],
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

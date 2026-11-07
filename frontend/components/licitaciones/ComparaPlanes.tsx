@@ -15,6 +15,8 @@ interface Columna {
 /** Cada fila de la tabla: qué se compara y el valor en cada plan (true y false se dibujan como sí y no). */
 const FILAS: { que: string; valor: (l: Limites) => string | boolean }[] = [
   { que: "Buscar convocatorias, leer las fichas y medir tu mercado", valor: () => true },
+  { que: "Contratos menores abiertos para cotizar, con su requerimiento", valor: () => true },
+  { que: "Obras que se vienen (Gobserva Obras incluido)", valor: () => true },
   { que: "Alertas", valor: (l) => entero(l.alertas) },
   { que: "Cada cuánto te avisamos", valor: (l) => (l.frecuencias.includes("diaria") ? "Cada mañana o cada semana" : "Cada semana") },
   { que: "Procesos guardados", valor: (l) => `Hasta ${entero(l.guardados)}` },
@@ -23,16 +25,16 @@ const FILAS: { que: string; valor: (l: Limites) => string | boolean }[] = [
 ];
 
 /**
- * La tabla que compara Gratis, Pro y Empresa con los límites del catálogo de la API (los mismos que cobran y aplican las
+ * La tabla que compara Gratis, Inicia, Crece y Pro con los límites del catálogo de la API (los mismos que cobran y aplican las
  * cuentas): nada escrito a mano que pueda quedar desfasado. Lo que todavía no funciona no entra (eso va en las tarjetas,
  * marcado «Pronto»). Server-safe.
  */
 export function ComparaPlanes({ cat, className }: { cat: PlanesServidor; className?: string }) {
-  const pro = cat.planes.find((p) => p.id === "pro");
-  const empresa = cat.planes.find((p) => p.id === "empresa");
   const columnas: Columna[] = [{ id: "gratis", nombre: "Gratis", precio: "S/ 0", limites: cat.gratis }];
-  if (pro) columnas.push({ id: "pro", nombre: pro.nombre, ...precioDe(pro), limites: pro.limites, destacado: true });
-  if (empresa) columnas.push({ id: "empresa", nombre: empresa.nombre, ...precioDe(empresa), limites: empresa.limites });
+  for (const id of ["inicia", "crece", "pro"]) {
+    const p = cat.planes.find((x) => x.id === id);
+    if (p) columnas.push({ id, nombre: p.nombre, ...precioDe(p), limites: p.limites, destacado: id === "crece" });
+  }
   if (columnas.length < 2) return null;
 
   return (
