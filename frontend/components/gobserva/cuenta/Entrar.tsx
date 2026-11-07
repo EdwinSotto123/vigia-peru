@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft, BellRing, Bookmark, Check, ChevronRight, Download, Eye, EyeOff, KeyRound, Loader2, LogOut, Mail, MailCheck, ShieldCheck, Sparkles,
 } from "lucide-react";
@@ -9,7 +8,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import { crearCuentaConCorreo, entrarConCorreo, entrarConGoogle, mensajeAuth, recuperarClave, salir } from "@/lib/gobserva-auth";
 import { cn } from "@/lib/utils";
-import { Aviso, CAMPO, ETIQUETA, useSesion } from "./comun";
+import { Aviso, CAMPO, ETIQUETA, marcarSesion, useSesion } from "./comun";
 
 /** Una ruta interna del producto para volver después de entrar («/checkout?plan=pro»); cualquier otra cosa, a la cuenta. */
 function destino(next: string | null): string {
@@ -63,7 +62,6 @@ type Modo = "entrar" | "crear" | "recuperar";
  * (quien entró así no tiene contraseña) o recibir el enlace para elegir una.
  */
 export function Entrar({ producto, base, next, crear }: { producto: Producto; base: string; next: string | null; crear: boolean }) {
-  const router = useRouter();
   const { user, loading, esVigia, conCuenta } = useSesion();
   const [modo, setModo] = useState<Modo>(crear ? "crear" : "entrar");
   const [email, setEmail] = useState("");
@@ -83,8 +81,14 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
 
   // Con la sesión lista (recién entró o ya tenía una), a donde iba.
   useEffect(() => {
-    if (!loading && conCuenta) router.replace(volver);
-  }, [loading, conCuenta, router, volver]);
+    // Quien acaba de crear su cuenta en Licitaciones arma su perfil primero (el onboarding de la app). Se navega con una
+    // carga entera, con la marca de sesión ya puesta: así el servidor arma el marco de la app (MarcoApp) y no queda el
+    // de visitantes (cabecera y pie de la portada) alrededor, que un cambio de página del cliente conservaría.
+    if (!loading && conCuenta) {
+      marcarSesion(true);
+      window.location.replace(producto === "licitaciones" && modo === "crear" ? rutaEn(base, "/app/bienvenida") : volver);
+    }
+  }, [loading, conCuenta, volver, producto, modo, base]);
 
   const urlVolver = () => `${window.location.origin}${volver}`;
 

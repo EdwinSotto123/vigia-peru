@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu, Search,
+  ArrowUpRight, Bell, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -44,7 +44,6 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         titulo: "Buscar",
         items: [
           { ruta: "/app/bandeja", etiqueta: "Bandeja", Icono: Inbox, abajo: true, tambien: ["/app/oportunidad/"] },
-          { ruta: "/oportunidades", etiqueta: "Oportunidades", Icono: Search },
           { ruta: "/menores", etiqueta: "Contratos menores", Icono: Timer },
           { ruta: "/mercado", etiqueta: "Mercado", Icono: ChartNoAxesColumn },
           { ruta: urlCanonica("obras", "/"), etiqueta: "Obras", Icono: HardHat },

@@ -1,7 +1,8 @@
-import type { Comprador, Conteo, DetalleOportunidad, Hito, Oportunidad, ResultadoBandeja } from "./tipos.ts";
+import type { Conteo, Oportunidad, ResultadoBandeja } from "./tipos.ts";
+import { aDetalle, aOportunidad, comprador, type FichaCruda, type FilaCruda } from "./mapeo.ts";
 import type { FiltrosBandeja } from "./filtros.ts";
 import { normalizar } from "./filtros.ts";
-import { calcularSenales, conRiesgo } from "./senales.ts";
+import { conRiesgo } from "./senales.ts";
 import { instante } from "./formato.ts";
 import type { FuenteLicitaciones } from "./fuente-tipo.ts";
 
@@ -11,49 +12,7 @@ import type { FuenteLicitaciones } from "./fuente-tipo.ts";
  * sabe que es una muestra: el día que el adaptador `gobserva` lea la API en vivo, nada de la UI cambia.
  */
 
-/** Una fila tal como la devuelve GET /licitaciones/oportunidades. */
-export interface FilaCruda {
-  ocid: string;
-  codigo: string | null;
-  objeto: string | null;
-  tipo: string | null;
-  procedimiento: string | null;
-  valor: number | null;
-  fecha: string;
-  entidadRuc: string | null;
-  entidad: string | null;
-  region: string | null;
-  consultasHasta: string | null;
-  items: number;
-}
-
-/** Lo que la muestra guarda de GET /licitaciones/oportunidades/:ocid (recortado). */
-export interface FichaCruda {
-  descripcion?: string | null;
-  etapa?: string | null;
-  consultas?: { desde: string | null; hasta: string | null } | null;
-  entidadProvincia?: string | null;
-  items?: DetalleOportunidad["itemsDetalle"];
-  documentos?: DetalleOportunidad["documentos"];
-  enlaces?: { oece: string; busqueda: string | null } | null;
-  inteligencia?: Partial<Comprador> | null;
-  parecidos?: {
-    ocid: string;
-    codigo: string | null;
-    descripcion: string | null;
-    objeto: string | null;
-    entidad: string | null;
-    departamento: string | null;
-    fecha: string | null;
-    unidad: string | null;
-    cantidad: number | null;
-    unitRef: number | null;
-    unitAdj: number | null;
-    adjudicado: number | null;
-    proveedor: string | null;
-  }[];
-  precios?: DetalleOportunidad["precios"];
-}
+export type { FichaCruda, FilaCruda } from "./mapeo.ts";
 
 export interface Muestra {
   tomada: string;
@@ -62,48 +21,6 @@ export interface Muestra {
 }
 
 const DIA = 86_400_000;
-
-function comprador(i: FichaCruda["inteligencia"]): Comprador | null {
-  if (!i || !i.procesos) return null;
-  return {
-    procesos: i.procesos ?? 0,
-    monto: i.monto ?? 0,
-    adjSobreRef: i.adjSobreRef ?? null,
-    conPostores: i.conPostores ?? 0,
-    postoresPromedio: i.postoresPromedio ?? null,
-    unSoloPostor: i.unSoloPostor ?? 0,
-    proveedores: (i.proveedores ?? []).filter((p) => !String(p.ruc).startsWith("10")),
-  };
-}
-
-function aOportunidad(f: FilaCruda, ficha: FichaCruda | undefined): Oportunidad {
-  const c = comprador(ficha?.inteligencia);
-  return {
-    id: f.ocid,
-    codigo: f.codigo,
-    objeto: f.objeto,
-    tipo: f.tipo,
-    procedimiento: f.procedimiento,
-    valor: f.valor,
-    publicada: f.fecha,
-    consultasHasta: f.consultasHasta ?? ficha?.consultas?.hasta ?? null,
-    entidad: { ruc: f.entidadRuc, nombre: f.entidad },
-    region: f.region && /^\d{2}$/.test(f.region) ? f.region : f.region?.slice(0, 2) ?? null,
-    items: f.items ?? ficha?.items?.length ?? 0,
-    senales: calcularSenales({ valor: f.valor, publicada: f.fecha, consultasHasta: f.consultasHasta, comprador: c }),
-  };
-}
-
-function cronograma(o: Oportunidad, ficha: FichaCruda | undefined): Hito[] {
-  return [
-    { clave: "convocatoria", etiqueta: "Convocatoria", fecha: o.publicada },
-    { clave: "consultas_desde", etiqueta: "Inicio de consultas y observaciones", fecha: ficha?.consultas?.desde ?? null },
-    { clave: "consultas_hasta", etiqueta: "Fin de consultas y observaciones", fecha: o.consultasHasta },
-    { clave: "integracion", etiqueta: "Integración de las bases", fecha: null },
-    { clave: "ofertas", etiqueta: "Presentación de ofertas", fecha: null },
-    { clave: "buena_pro", etiqueta: "Otorgamiento de la buena pro", fecha: null },
-  ];
-}
 
 /** Lo que pasa cada filtro, salvo el que se nombra en `sin` (para contar su faceta con los demás puestos). */
 function pasa(o: Oportunidad, f: FiltrosBandeja, ahora: number, texto: Map<string, string>, sin?: "tipo" | "region" | "proc"): boolean {
@@ -158,7 +75,10 @@ function contar(xs: Oportunidad[], clave: (o: Oportunidad) => string | null): Co
 }
 
 export function crearFuenteDemo(m: Muestra, reloj: () => number = Date.now): FuenteLicitaciones {
-  const todas = m.oportunidades.map((f) => aOportunidad(f, m.fichas[f.ocid]));
+  const todas = m.oportunidades.map((f) => {
+    const ficha = m.fichas[f.ocid];
+    return aOportunidad(f, comprador(ficha?.inteligencia), f.consultasHasta ?? ficha?.consultas?.hasta ?? null);
+  });
   const porId = new Map(todas.map((o) => [o.id, o]));
   const texto = new Map(
     todas.map((o) => [o.id, normalizar([o.objeto, o.codigo, o.entidad.nombre, o.entidad.ruc, m.fichas[o.id]?.descripcion].filter(Boolean).join(" "))]),
@@ -168,6 +88,7 @@ export function crearFuenteDemo(m: Muestra, reloj: () => number = Date.now): Fue
     nombre: "demo",
     tomada: m.tomada,
     registros: todas.length,
+    capacidades: { senal: true },
 
     async buscar(f) {
       const ahora = reloj();
@@ -203,38 +124,7 @@ export function crearFuenteDemo(m: Muestra, reloj: () => number = Date.now): Fue
 
     async oportunidad(id) {
       const o = porId.get(id);
-      if (!o) return null;
-      const ficha = m.fichas[id];
-      const det: DetalleOportunidad = {
-        ...o,
-        descripcion: ficha?.descripcion ?? null,
-        etapa: ficha?.etapa ?? null,
-        provincia: ficha?.entidadProvincia ?? null,
-        itemsDetalle: ficha?.items ?? [],
-        documentos: ficha?.documentos ?? [],
-        cronograma: cronograma(o, ficha),
-        comprador: comprador(ficha?.inteligencia),
-        parecidos: (ficha?.parecidos ?? []).map((p) => ({
-          id: p.ocid,
-          codigo: p.codigo,
-          descripcion: p.descripcion ?? p.objeto,
-          entidad: p.entidad,
-          departamento: p.departamento,
-          fecha: p.fecha,
-          unidad: p.unidad,
-          cantidad: p.cantidad,
-          unitRef: p.unitRef,
-          unitAdj: p.unitAdj,
-          adjudicado: p.adjudicado,
-          proveedor: p.proveedor,
-        })),
-        precios: ficha?.precios ?? [],
-        enlaces: {
-          seace: ficha?.enlaces?.oece ?? `https://contratacionesabiertas.oece.gob.pe/proceso/${encodeURIComponent(id)}`,
-          busqueda: ficha?.enlaces?.busqueda ?? null,
-        },
-      };
-      return det;
+      return o ? aDetalle(o, m.fichas[id]) : null;
     },
   };
 }

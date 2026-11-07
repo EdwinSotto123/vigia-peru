@@ -53,7 +53,8 @@ export interface ResultadoBandeja {
   tamano: number;
   paginas: number;
   facetas: { tipo: Conteo[]; region: Conteo[]; proc: Conteo[] };
-  resumen: { valorTotal: number; conValor: number; entidades: number; conSenales: number; vencenSemana: number };
+  /** conSenales: null cuando el adaptador no lo sabe para todo el resultado (en vivo). */
+  resumen: { valorTotal: number; conValor: number; entidades: number; conSenales: number | null; vencenSemana: number };
 }
 
 export interface Item {

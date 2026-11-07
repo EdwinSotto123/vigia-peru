@@ -15,7 +15,7 @@ import { Desplegable } from "../ui/Desplegable";
  * adaptador, contadas con los demás filtros puestos). Cada cambio se aplica al toque y queda en la URL; el de valor, al
  * pulsar «Aplicar», porque escribir un monto no es elegirlo.
  */
-export function Filtros({ facetas }: { facetas: { tipo: Conteo[]; region: Conteo[]; proc: Conteo[] } }) {
+export function Filtros({ facetas, conSenal = true }: { facetas: { tipo: Conteo[]; region: Conteo[]; proc: Conteo[] }; conSenal?: boolean }) {
   const { filtros, ir, limpiar } = useLista();
   const n = (xs: Conteo[], k: string) => xs.find((x) => x.clave === k)?.n ?? 0;
   const alternar = <T,>(xs: T[], x: T) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
@@ -94,6 +94,7 @@ export function Filtros({ facetas }: { facetas: { tipo: Conteo[]; region: Conteo
         )}
       </Desplegable>
 
+      {conSenal && (
       <button
         type="button"
         aria-pressed={filtros.senal}
@@ -106,6 +107,7 @@ export function Filtros({ facetas }: { facetas: { tipo: Conteo[]; region: Conteo
         <AlertTriangle size={15} aria-hidden className={filtros.senal ? "text-crimsonTexto" : ""} />
         Con señales de riesgo
       </button>
+      )}
 
       {filtrosActivos(filtros) > 0 && (
         <button type="button" onClick={limpiar} className="inline-flex min-h-10 items-center rounded-lg px-2 text-dato font-semibold text-granate underline-offset-4 hover:underline">

@@ -11,6 +11,9 @@ export interface FuenteLicitaciones {
   tomada: string | null;
   /** Cuántos procesos trae la muestra (demo) o null (en vivo). */
   registros: number | null;
+  /** Lo que el adaptador sabe filtrar además de lo común: «con señales de riesgo» necesita las señales de todo el
+   * resultado (en vivo, sólo se calculan para la página que se ve). */
+  capacidades: { senal: boolean };
   /** Filtra, ordena, pagina y cuenta las facetas. */
   buscar(f: FiltrosBandeja): Promise<ResultadoBandeja>;
   oportunidad(id: string): Promise<DetalleOportunidad | null>;

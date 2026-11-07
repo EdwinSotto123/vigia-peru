@@ -29,6 +29,8 @@ export function middleware(req: NextRequest) {
     // navegador a mitad de la página).
     if (esApp(pathname) && !conSesion(req)) return aEntrar(req, "", pathname + search);
     if (aLaApp) {
+      const bandeja = producto === "licitaciones" ? aLaBandeja(pathname, req.nextUrl.searchParams) : null;
+      if (bandeja) return NextResponse.redirect(new URL(bandeja, req.nextUrl), 307);
       const destino = destinoConSesion(producto, pathname);
       if (destino) return NextResponse.redirect(new URL(destino, req.nextUrl), 307);
     }
@@ -55,6 +57,10 @@ export function middleware(req: NextRequest) {
     if (resto && esApp(resto) && !conSesion(req)) return aEntrar(req, `/${p}`, resto + search);
   }
   if (aLaApp) {
+    if (pathname.startsWith("/licitaciones/")) {
+      const bandeja = aLaBandeja(pathname.slice("/licitaciones".length), req.nextUrl.searchParams);
+      if (bandeja) return NextResponse.redirect(new URL(`/licitaciones${bandeja}`, req.nextUrl), 307);
+    }
     for (const p of PRODUCTOS_CON_RUTA) {
       if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
         const destino = destinoConSesion(p, pathname.slice(p.length + 1) || "/");
@@ -95,6 +101,33 @@ function aEntrar(req: NextRequest, prefijo: string, siguiente: string) {
   url.pathname = `${prefijo}/entrar`;
   url.search = `?next=${encodeURIComponent(siguiente)}`;
   return NextResponse.redirect(url, 307);
+}
+
+/**
+ * Con la sesión abierta, la página vieja de Oportunidades y su ficha llevan a la bandeja y al detalle de la app (los
+ * enlaces de los correos y de «Para ti» siguen sirviendo): los filtros se traducen a los de la bandeja.
+ */
+function aLaBandeja(ruta: string, sp: URLSearchParams): string | null {
+  const ficha = ruta.match(/^\/oportunidad\/([^/]+)$/);
+  if (ficha) return `/app/oportunidad/${ficha[1]}`;
+  if (ruta !== "/oportunidades") return null;
+  const q = new URLSearchParams();
+  for (const k of ["q", "region", "tipo", "min", "max"]) {
+    const v = sp.get(k);
+    if (v) q.set(k, v);
+  }
+  const dias = Number(sp.get("dias"));
+  if (dias && dias <= 15) q.set("pub", dias <= 7 ? "7" : "15");
+  const consultas = sp.get("consultas");
+  if (consultas === "abiertas") q.set("cons", "abiertas");
+  if (consultas === "semana") q.set("cons", "7d");
+  const orden = sp.get("orden");
+  if (orden === "valor") q.set("orden", "valor_desc");
+  if (orden === "consultas") q.set("orden", "vence");
+  const pagina = sp.get("page");
+  if (pagina && pagina !== "1") q.set("pag", pagina);
+  const s = q.toString();
+  return `/app/bandeja${s ? `?${s}` : ""}`;
 }
 
 /** A dónde va quien tiene la sesión abierta, desde una ruta del producto (null: se queda). */

@@ -149,7 +149,8 @@ export interface Mercado {
   recientes: { codigo: string; item: string | null; entidad: string | null; fecha: string; monto: number | null; ganador: string | null; ruc: string | null }[];
 }
 
-async function pedir<T>(ruta: string, revalidate = 300): Promise<T | null> {
+/** Un GET a /licitaciones/* de la API (null si falla). Lo usa también el adaptador en vivo de la app. */
+export async function pedir<T>(ruta: string, revalidate = 300): Promise<T | null> {
   try {
     const r = await fetch(`${API_BASE}/licitaciones${ruta}`, { next: { revalidate } } as RequestInit);
     return r.ok ? ((await r.json()) as T) : null;

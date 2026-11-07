@@ -287,9 +287,9 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
       titulo: "Dinos qué vende tu empresa",
       texto: "Con eso ordenamos las licitaciones y los contratos menores abiertos, de lo más parecido a lo que vendes a lo menos.",
       accion: (
-        <button type="button" onClick={() => irA("para-ti")} className={claseAccion("primario")}>
-          <Sparkles size={15} aria-hidden /> Armar mi «Para ti»
-        </button>
+        <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
+          <Sparkles size={15} aria-hidden /> Armar mi perfil
+        </Link>
       ),
     });
   }

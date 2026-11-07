@@ -58,9 +58,9 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
             titulo="Dinos qué vende tu empresa"
             texto="Con eso te mostramos aquí cuántas oportunidades calzan contigo, cuáles cierran esta semana y cuánto hay en juego."
             accion={
-              <button type="button" onClick={() => irA("para-ti")} className={claseAccion("primario")}>
-                <Sparkles size={15} aria-hidden /> Armar mi «Para ti»
-              </button>
+              <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
+                <Sparkles size={15} aria-hidden /> Armar mi perfil (2 minutos)
+              </Link>
             }
           />
         </Caja>

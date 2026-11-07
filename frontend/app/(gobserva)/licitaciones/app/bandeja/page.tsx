@@ -11,6 +11,7 @@ import { Perfiles } from "@/components/licitaciones-app/bandeja/Perfiles";
 import { ResultadosVivos } from "@/components/licitaciones-app/bandeja/Resultados";
 import { TablaBandeja } from "@/components/licitaciones-app/bandeja/TablaBandeja";
 import { AvisoDemo } from "@/components/licitaciones-app/ui/AvisoDemo";
+import { AvisoPerfil } from "@/components/licitaciones-app/bandeja/AvisoPerfil";
 import { EstadoError, EstadoVacio } from "@/components/licitaciones-app/ui/Estados";
 import { Paginacion } from "@/components/licitaciones-app/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -32,8 +33,10 @@ export const dynamic = "force-dynamic";
  */
 export default async function Bandeja({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const base = baseProducto("licitaciones");
-  const f = leerFiltros(searchParams ?? {});
   const fuente = getFuente();
+  const leidos = leerFiltros(searchParams ?? {});
+  // Un filtro que la fuente no sabe aplicar no se finge: se quita (en vivo, «con señales» de todo el resultado).
+  const f = fuente.capacidades.senal ? leidos : { ...leidos, senal: false };
   const ahora = Date.now();
   let r: ResultadoBandeja | null = null;
   try {
@@ -50,6 +53,7 @@ export default async function Bandeja({ searchParams }: { searchParams?: Record<
     <Pagina>
       <CabeceraPagina titulo="Bandeja" bajada="Las convocatorias abiertas del SEACE. Busca lo que vendes, filtra, sigue lo que te sirve y guarda tus búsquedas." />
       <AvisoDemo tomada={fuente.tomada} total={fuente.registros ?? undefined} />
+      <AvisoPerfil base={base} />
 
       <Suspense>
         <ProveedorLista>
@@ -58,7 +62,7 @@ export default async function Bandeja({ searchParams }: { searchParams?: Record<
             <Caja as="div" relleno={false}>
               <div className="space-y-3 p-4 sm:p-5">
                 <Buscador />
-                <Filtros facetas={r?.facetas ?? { tipo: [], region: [], proc: [] }} />
+                <Filtros facetas={r?.facetas ?? { tipo: [], region: [], proc: [] }} conSenal={fuente.capacidades.senal} />
                 <Chips />
               </div>
               <div className="rounded-b-2xl border-t border-line bg-ink/[0.02] px-4 py-2.5 sm:px-5">
@@ -141,7 +145,7 @@ function Resumen({ r, url }: { r: ResultadoBandeja; url: (c: Partial<FiltrosBand
           {numero(e.vencenSemana)} con consultas que vencen en 7 días
         </Link>
       )}
-      {e.conSenales > 0 && (
+      {e.conSenales != null && e.conSenales > 0 && (
         <Link href={url({ senal: true })} className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-ink hover:underline">
           <AlertTriangle size={14} aria-hidden className="text-crimsonTexto" />
           {numero(e.conSenales)} con señales de riesgo
