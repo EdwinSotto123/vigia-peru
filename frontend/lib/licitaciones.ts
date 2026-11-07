@@ -163,6 +163,87 @@ export const getOportunidades = (params: URLSearchParams) => pedir<Pagina>(`/opo
 export const getFicha = (ocid: string) => pedir<Ficha>(`/oportunidades/${encodeURIComponent(ocid)}`);
 export const getMercado = (q: string) => pedir<Mercado>(`/mercado?q=${encodeURIComponent(q)}`, 3600);
 
+// ─── Contrataciones menores abiertas (≤8 UIT, prod6; GET /licitaciones/menores, migración 262) ──────────────────────
+
+/** Una contratación menor que todavía se puede cotizar. Sin monto: la entidad no publica uno referencial. */
+export interface Menor {
+  id: number;
+  codigo: string;
+  tipo: string | null;
+  descripcion: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  area: string | null;
+  invitacion: string | null;
+  publicada: string | null;
+  abreCotizacion: string | null;
+  /** Cuándo cierra la cotización (con hora). */
+  cierra: string;
+  consultasHasta: string | null;
+  regiones: string[] | null;
+  items: number;
+  /** Hasta tres nombres CUBSO de sus ítems. */
+  rubros: string[] | null;
+}
+
+export interface PaginaMenores {
+  total: number;
+  page: number;
+  size: number;
+  resumen: { total: number; entidades: number };
+  cabecera: { abiertas: number; cierranHoy: number; nuevas24h: number; actualizado: string | null };
+  data: Menor[];
+  porTipo: Conteo[];
+  porRegion: Conteo[];
+}
+
+export interface ItemMenor {
+  cubso: string | null;
+  nombre: string | null;
+  descripcion: string | null;
+  cantidad: number | null;
+  unidad: string | null;
+  distrito: string | null;
+}
+
+export interface FichaMenor extends Omit<Menor, "items"> {
+  estado: string;
+  abierta: boolean;
+  distritos: string[] | null;
+  vistaDesde: string;
+  tieneRequerimiento: boolean;
+  requerimientoNombre: string | null;
+  items: ItemMenor[];
+  /** Lo que esa entidad compró por contratos menores en 12 meses (ganadores: sólo empresas). */
+  entidadMenores: { contratos: number; monto: number; proveedores: number; aPersonas: number; ganadores: Proveedor[] } | null;
+  /** Lo que se pagó por los mismos ítems (CUBSO) en contratos menores adjudicados (24 meses). */
+  precios: { cubso: string; nombre: string | null; unidad: string | null; veces: number; mediana: number; minimo: number; maximo: number; ultima: string | null }[];
+}
+
+export const getMenores = (params: URLSearchParams) => pedir<PaginaMenores>(`/menores?${params.toString()}`, 120);
+export const getMenor = (id: string) => pedir<FichaMenor>(`/menores/${encodeURIComponent(id)}`, 120);
+/** El requerimiento (TDR o especificaciones) en PDF, servido por la API desde R2. */
+export const urlRequerimientoMenor = (id: number | string) => `${API_BASE}/licitaciones/menores/${id}/requerimiento`;
+
+/**
+ * Cuánto falta para que cierre una cotización, para leerlo de un vistazo: «cierra en 45 min», «cierra en 5 h»,
+ * «cierra mañana a las 09:00», «cierra el 12 nov.». `urgente` si faltan menos de 6 horas.
+ */
+export function cierreMenor(iso: string | null | undefined, ahora = Date.now()): { texto: string; urgente: boolean; cerrada: boolean } {
+  if (!iso) return { texto: "Sin fecha de cierre", urgente: false, cerrada: false };
+  const fin = new Date(iso).getTime();
+  const min = Math.round((fin - ahora) / 60_000);
+  if (min <= 0) return { texto: "Cerrada", urgente: false, cerrada: true };
+  const hora = new Date(fin).toLocaleTimeString("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false });
+  const dia = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+  if (min < 60) return { texto: `Cierra en ${min} min`, urgente: true, cerrada: false };
+  if (min < 6 * 60) return { texto: `Cierra en ${Math.round(min / 60)} h (${hora})`, urgente: true, cerrada: false };
+  if (dia(fin) === dia(ahora)) return { texto: `Cierra hoy a las ${hora}`, urgente: false, cerrada: false };
+  if (dia(fin) === dia(ahora + 86_400_000)) return { texto: `Cierra mañana a las ${hora}`, urgente: false, cerrada: false };
+  const fecha = new Date(fin).toLocaleDateString("es-PE", { timeZone: "America/Lima", day: "numeric", month: "short" });
+  return { texto: `Cierra el ${fecha} a las ${hora}`, urgente: false, cerrada: false };
+}
+
 /** Los tipos de contratación, como los dice un proveedor. */
 export const TIPOS: { clave: string; nombre: string; detalle: string }[] = [
   { clave: "bienes", nombre: "Bienes", detalle: "Productos y suministros" },

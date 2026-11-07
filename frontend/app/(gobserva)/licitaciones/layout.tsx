@@ -24,6 +24,7 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
       // menú en el celular (a 390 px se cortaba «Inteligencia de mercado»).
       menu={[
         { ruta: "/oportunidades", etiqueta: "Oportunidades" },
+        { ruta: "/menores", etiqueta: "Contratos menores" },
         { ruta: "/mercado", etiqueta: "Mercado" },
         { ruta: "/#mcp", etiqueta: "API y MCP" },
       ]}

@@ -9,13 +9,14 @@ import { BarrasEnlace, type FilaBarra } from "@/components/licitaciones/Graficas
 import { MontoCompacto } from "@/components/licitaciones/Piezas";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { TarjetaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
+import { FilaMenor } from "@/components/licitaciones/FilaMenor";
 import { Nota } from "@/components/patrones/Estructura";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { RUBROS_EJEMPLO, getResumen, nombreRegion, nombreTipo } from "@/lib/licitaciones";
+import { RUBROS_EJEMPLO, getMenores, getResumen, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 
 export const metadata: Metadata = {
   title: { absolute: "Gobserva Licitaciones: las oportunidades para venderle al Estado, cada día" },
@@ -35,7 +36,7 @@ const REGIONES_A_LA_VISTA = 8;
  */
 export default async function InicioLicitaciones() {
   const base = baseProducto("licitaciones");
-  const [r, cat] = await Promise.all([getResumen(), planesServidor("licitaciones")]);
+  const [r, cat, menores] = await Promise.all([getResumen(), planesServidor("licitaciones"), getMenores(new URLSearchParams({ size: "4" }))]);
   const ruta = (p: string) => rutaEn(base, p);
   const comp = r?.competencia ?? {};
   const unSolo = comp.procesos ? (comp.unSoloPostor ?? 0) / comp.procesos : null;
@@ -134,6 +135,25 @@ export default async function InicioLicitaciones() {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* ── Contratos menores abiertos (≤8 UIT, 2026-11-07) ──────────────────── */}
+        {menores && menores.data.length > 0 && (
+          <section aria-labelledby="menores-t">
+            <Cabecera
+              id="menores-t"
+              titulo="Contratos menores: cotiza hoy"
+              bajada={`Compras de hasta 8 UIT que todavía reciben cotizaciones en el SEACE: ${numero(menores.cabecera.abiertas)} abiertas ahora, ${numero(menores.cabecera.cierranHoy)} cierran hoy. Sus plazos son de horas; se actualizan cada hora.`}
+              accion={{ href: ruta("/menores"), etiqueta: "Ver todas" }}
+            />
+            <ol className="mt-6 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+              {menores.data.map((m) => (
+                <li key={m.id} className="min-w-0">
+                  <FilaMenor m={m} base={base} />
+                </li>
+              ))}
+            </ol>
           </section>
         )}
 
