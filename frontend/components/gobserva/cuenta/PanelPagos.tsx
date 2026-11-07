@@ -20,7 +20,7 @@ export function PanelPagos({ producto, base, me, onCambio }: { producto: Product
   const planes = me.planes;
   return (
     <div className="space-y-6">
-      <section aria-labelledby="planes-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+      <section aria-labelledby="planes-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
         <h2 id="planes-t" className="font-display text-seccion font-bold leading-tight text-ink">Tus planes</h2>
         {planes.length === 0 ? (
           <div className="mt-3">
@@ -34,7 +34,7 @@ export function PanelPagos({ producto, base, me, onCambio }: { producto: Product
         )}
       </section>
 
-      <section aria-labelledby="cobros-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+      <section aria-labelledby="cobros-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
         <h2 id="cobros-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
           <Receipt size={20} aria-hidden className="text-granate" /> Pagos y recibos
         </h2>

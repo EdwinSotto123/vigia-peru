@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, BadgePercent, BellRing, Building2, ChartNoAxesCombined, ChevronDown, Handshake, Inbox, Landmark, Search, SearchX, Target, Trophy, Users, type LucideIcon } from "lucide-react";
@@ -11,7 +12,7 @@ import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
-import { baseProducto } from "@/lib/gobserva-servidor";
+import { baseProducto, enLaApp } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { RUBROS_EJEMPLO, getMercado, limpiar } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const DEPARTAMENTOS_A_LA_VISTA = 9;
  */
 export default async function Mercado({ searchParams }: { searchParams?: { q?: string } }) {
   const base = baseProducto("licitaciones");
+  const enApp = enLaApp("licitaciones");
   const ruta = (p: string) => rutaEn(base, p);
   const q = (searchParams?.q ?? "").trim().slice(0, 80);
   const [m, cat] = await Promise.all([q.length >= 3 ? getMercado(q) : Promise.resolve(null), planesServidor("licitaciones")]);
@@ -52,7 +54,7 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
   }));
 
   return (
-    <div className="container-page py-8 sm:py-12">
+    <div className={enApp ? CLASE_PAGINA : "container-page py-8 sm:py-12"}>
       <header className="max-w-3xl">
         <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Inteligencia de mercado</h1>
         <p className="mt-1.5 text-pretty text-cuerpo leading-relaxed text-inkSoft">

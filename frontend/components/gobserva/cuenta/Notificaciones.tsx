@@ -120,7 +120,7 @@ export function Notificaciones({ producto, className }: { producto: Producto; cl
   const nombreApp = PRODUCTOS[producto].titulo;
 
   return (
-    <section id="notificaciones" aria-labelledby="notif-t" className={cn("scroll-mt-24 rounded-3xl border border-line bg-paper p-5 sm:p-6", className)}>
+    <section id="notificaciones" aria-labelledby="notif-t" className={cn("scroll-mt-24 rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6", className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">

@@ -34,7 +34,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="alertas-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+      <section aria-labelledby="alertas-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 id="alertas-t" className="font-display text-seccion font-bold leading-tight text-ink">Tus alertas</h2>
@@ -111,7 +111,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
 
       <Notificaciones producto={producto} />
 
-      <section aria-labelledby="bandeja2-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+      <section aria-labelledby="bandeja2-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
         <h2 id="bandeja2-t" className="font-display text-bloque font-bold text-ink">Bandeja</h2>
         <p className="mt-1 text-dato text-inkSoft">Lo que te avisamos, con sus enlaces. Se guardan los últimos 30 avisos.</p>
         {!bandeja.data ? (
@@ -187,7 +187,7 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
   }
 
   return (
-    <li className={cn("rounded-2xl border p-4", a.activa ? "border-line" : "border-dashed border-line bg-paperSoft")}>
+    <li className={cn("rounded-2xl border p-4", a.activa ? "border-line" : "border-dashed border-line bg-ink/[0.025]")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-destacado font-bold text-ink">

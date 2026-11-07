@@ -13,7 +13,8 @@ import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, Esqueleto } from "./comun";
 import { ESTADOS } from "./PanelGuardados";
-import { cuando, rutaItem } from "./plazos";
+import { ABIERTOS, cuando, eventos, rutaItem } from "./plazos";
+import { Caja, VacioCaja } from "../app/Caja";
 
 /** El color de cada columna: un punto, nunca el fondo (la severidad la carga el sistema semántico). */
 const PUNTO: Partial<Record<EstadoGuardado, string>> = {
@@ -83,16 +84,19 @@ export function PanelSeguimiento({ base }: { base: string }) {
   if (error) return <Aviso tono="error">No pudimos cargar tu seguimiento. Vuelve a intentarlo en un momento.</Aviso>;
   if (!data?.data.length) {
     return (
-      <div className="flex flex-col items-start gap-4 rounded-2xl border border-dashed border-line p-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex max-w-[60ch] items-start gap-3 text-dato leading-relaxed text-inkSoft">
-          <KanbanSquare size={22} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-          Todavía no sigues nada. Guarda una licitación o un contrato menor desde su ficha y aquí lo llevas de etapa en etapa, con sus plazos.
-        </p>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Link href={rutaEn(base, "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
-          <Link href={rutaEn(base, "/menores")} className={claseAccion("secundario")}>Contratos menores</Link>
-        </div>
-      </div>
+      <Caja id="tablero" titulo="Tu tablero">
+        <VacioCaja
+          Icono={KanbanSquare}
+          titulo="Todavía no sigues nada"
+          texto="Guarda una licitación o un contrato menor desde su ficha y aquí lo llevas de etapa en etapa, con sus plazos."
+          accion={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link href={rutaEn(base, "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
+              <Link href={rutaEn(base, "/menores")} className={claseAccion("secundario")}>Contratos menores</Link>
+            </div>
+          }
+        />
+      </Caja>
     );
   }
 
@@ -100,51 +104,68 @@ export function PanelSeguimiento({ base }: { base: string }) {
   const presentadas = todos.filter((i) => i.estado === "presentada");
   const ganadas = todos.filter((i) => i.estado === "ganada");
   const suma = (xs: ItemSeguimiento[]) => xs.reduce((s, i) => s + (i.valor ?? 0), 0);
+  const proximo = eventos(todos.filter((i) => ABIERTOS.has(i.estado))).map((e) => e.plazo).find((p) => !cuando(p.fecha).paso) ?? null;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-dato text-inkSoft">
-          <b className="font-semibold text-ink">{numero(todos.length)}</b> en seguimiento,{" "}
-          <b className="font-semibold text-ink">{numero(presentadas.length)}</b> {presentadas.length === 1 ? "presentada" : "presentadas"}
-          {suma(presentadas) > 0 ? ` (${solesCompacto(suma(presentadas))})` : ""} y <b className="font-semibold text-ink">{numero(ganadas.length)}</b>{" "}
-          {ganadas.length === 1 ? "ganada" : "ganadas"}
-          {suma(ganadas) > 0 ? ` (${solesCompacto(suma(ganadas))})` : ""}.
-        </p>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <div role="group" aria-label="Qué mostrar" className="grid w-full grid-cols-3 gap-1 rounded-full bg-paperDeep p-1 sm:inline-grid sm:w-auto">
-            {(
-              [
-                ["todos", "Todo"],
-                ["oportunidad", "Licitaciones"],
-                ["menor", "Menores"],
-              ] as const
-            ).map(([f, etiqueta]) => (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={fuente === f}
-                onClick={() => setFuente(f)}
-                className={cn(
-                  "min-h-9 rounded-full px-3 text-meta font-semibold transition-colors duration-rapido",
-                  fuente === f ? "bg-paper text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
-                )}
-              >
-                {etiqueta}
-              </button>
-            ))}
-          </div>
-          <label className="relative w-full min-w-0 sm:w-56">
-            <span className="sr-only">Buscar en tu seguimiento</span>
-            <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" className={cn(CAMPO, "min-h-10 py-2 pl-9")} />
-          </label>
-        </div>
+    <div className="grid gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-caja lg:grid-cols-4">
+        <Resumen etiqueta="En seguimiento" valor={numero(todos.length)} detalle={suma(todos) > 0 ? `${solesCompacto(suma(todos))} en total` : "Sin valor publicado"} />
+        <Resumen etiqueta="Presentadas" valor={numero(presentadas.length)} detalle={suma(presentadas) > 0 ? solesCompacto(suma(presentadas)) : "Ofertas enviadas"} />
+        <Resumen etiqueta="Ganadas" valor={numero(ganadas.length)} detalle={suma(ganadas) > 0 ? solesCompacto(suma(ganadas)) : "Buenas pro a tu favor"} />
+        <Resumen
+          etiqueta="Próximo plazo"
+          valor={proximo ? cuando(proximo.fecha).texto : "Ninguno"}
+          detalle={proximo ? proximo.etiqueta : "Nada por vencer"}
+          urgente={!!proximo && cuando(proximo.fecha).urgente}
+        />
       </div>
 
-      {aviso && <Aviso tono="error">{aviso}</Aviso>}
+      <Caja
+        id="tablero"
+        titulo="Tu tablero"
+        descripcion="De guardada a ganada: cada etapa con cuántos procesos hay y cuánto suman."
+        accion={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div role="group" aria-label="Qué mostrar" className="grid w-full grid-cols-3 gap-1 rounded-lg bg-ink/[0.06] p-1 sm:inline-grid sm:w-auto">
+              {(
+                [
+                  ["todos", "Todo"],
+                  ["oportunidad", "Licitaciones"],
+                  ["menor", "Menores"],
+                ] as const
+              ).map(([f, etiqueta]) => (
+                <button
+                  key={f}
+                  type="button"
+                  aria-pressed={fuente === f}
+                  onClick={() => setFuente(f)}
+                  className={cn(
+                    "min-h-8 rounded-md px-3 text-meta font-semibold transition-colors duration-rapido",
+                    fuente === f ? "bg-caja text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
+                  )}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+            <label className="relative w-full min-w-0 sm:w-52">
+              <span className="sr-only">Buscar en tu seguimiento</span>
+              <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" className={cn(CAMPO, "min-h-10 rounded-lg py-2 pl-9")} />
+            </label>
+          </div>
+        }
+        relleno={false}
+        pie={
+          <p className="py-1 text-meta leading-relaxed text-mute">
+            Arrastra una tarjeta para cambiarla de etapa, o usa sus flechas. La presentación de ofertas no viene en los datos abiertos: su fecha está en el
+            cronograma del SEACE, enlazado en cada ficha.
+          </p>
+        }
+      >
+      {aviso && <Aviso tono="error" className="mx-4 mt-4 sm:mx-5">{aviso}</Aviso>}
 
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:p-5">
         {estados.map((e, k) => {
           const col = items.filter((i) => i.estado === e.valor);
           const total = suma(col);
@@ -167,15 +188,15 @@ export function PanelSeguimiento({ base }: { base: string }) {
                 if (i) void mover(i, e.valor);
               }}
               className={cn(
-                "flex w-[82vw] max-w-[19rem] shrink-0 snap-start flex-col rounded-2xl border bg-paperSoft p-2.5 transition-colors duration-rapido sm:w-[17rem]",
-                sobre === e.valor ? "border-granate bg-granate-50" : "border-line",
+                "flex w-[78vw] max-w-[19rem] shrink-0 snap-start flex-col rounded-xl border p-2.5 transition-colors duration-rapido sm:w-[18rem]",
+                sobre === e.valor ? "border-granate bg-granate-50" : "border-line bg-lienzo",
               )}
             >
               <header className="flex items-center justify-between gap-2 px-1.5 pb-2.5 pt-1">
                 <h3 id={`col-${e.valor}`} className="flex items-center gap-2 text-cuerpo font-bold text-ink">
                   <span aria-hidden className={cn("h-2.5 w-2.5 rounded-full", PUNTO[e.valor])} />
                   {e.etiqueta}
-                  <span className="rounded-full bg-paper px-2 text-meta font-semibold tabular-nums text-inkSoft">{col.length}</span>
+                  <span className="rounded-full bg-caja px-2 text-meta font-semibold tabular-nums text-inkSoft">{col.length}</span>
                 </h3>
                 {total > 0 && <span className="text-meta font-semibold tabular-nums text-inkSoft">{solesCompacto(total)}</span>}
               </header>
@@ -204,10 +225,18 @@ export function PanelSeguimiento({ base }: { base: string }) {
           );
         })}
       </div>
-      <p className="text-meta leading-relaxed text-mute">
-        Arrastra una tarjeta para cambiarla de etapa, o usa sus flechas. La presentación de ofertas no viene en los datos abiertos: su fecha está en el
-        cronograma del SEACE, enlazado en cada ficha.
-      </p>
+      </Caja>
+    </div>
+  );
+}
+
+/** Una cifra del tablero: cuántos hay en esa etapa y cuánto suman (o cuándo vence lo próximo). */
+function Resumen({ etiqueta, valor, detalle, urgente = false }: { etiqueta: string; valor: string; detalle: string; urgente?: boolean }) {
+  return (
+    <div className="min-w-0 bg-caja p-4 sm:p-5">
+      <p className="text-meta font-semibold text-inkSoft">{etiqueta}</p>
+      <p className={cn("mt-2 truncate font-display text-seccion font-bold leading-none tabular-nums sm:text-cifra", urgente ? "text-crimsonTexto" : "text-ink")}>{valor}</p>
+      <p className="mt-1.5 truncate text-meta text-mute">{detalle}</p>
     </div>
   );
 }
@@ -242,7 +271,7 @@ function Tarjeta({
         onArrastre(true);
       }}
       onDragEnd={() => onArrastre(false)}
-      className="cursor-grab rounded-xl border border-line bg-paper p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06)] active:cursor-grabbing"
+      className="cursor-grab rounded-xl border border-line bg-caja p-3 shadow-caja active:cursor-grabbing"
     >
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded-full bg-paperDeep px-2 py-0.5 text-rotulo font-semibold text-inkSoft">{i.tipo === "menor" ? "Contrato menor" : "Licitación"}</span>
@@ -293,20 +322,20 @@ function Tarjeta({
           </div>
         </div>
       ) : i.nota ? (
-        <button type="button" onClick={() => setEditando(true)} className="mt-2 flex w-full items-start gap-1.5 rounded-lg bg-paperSoft px-2 py-1.5 text-left text-meta text-inkSoft hover:text-ink">
+        <button type="button" onClick={() => setEditando(true)} className="mt-2 flex w-full items-start gap-1.5 rounded-lg bg-ink/[0.04] px-2 py-1.5 text-left text-meta text-inkSoft hover:text-ink">
           <StickyNote size={13} aria-hidden className="mt-0.5 shrink-0" />
           <span className="line-clamp-2">{i.nota}</span>
         </button>
       ) : null}
 
       <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-line pt-2">
-        <div className="flex items-center gap-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <button
             type="button"
             disabled={!anterior}
             onClick={() => anterior && mover(anterior)}
             aria-label={anterior ? `Mover a ${nombreEstado(anterior)}` : "Primera etapa"}
-            className="grid h-9 w-9 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-ink disabled:opacity-30"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30"
           >
             <ChevronLeft size={17} aria-hidden />
           </button>
@@ -315,7 +344,7 @@ function Tarjeta({
             disabled={!siguiente}
             onClick={() => siguiente && mover(siguiente)}
             aria-label={siguiente ? `Mover a ${nombreEstado(siguiente)}` : "Última etapa"}
-            className="grid h-9 w-9 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-ink disabled:opacity-30"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30"
           >
             <ChevronRight size={17} aria-hidden />
           </button>
@@ -324,14 +353,14 @@ function Tarjeta({
             id={`mover-${i.tipo}-${i.ref}`}
             value={i.estado}
             onChange={(e) => mover(e.target.value as EstadoGuardado)}
-            className="min-h-9 max-w-[7.5rem] rounded-full border border-line bg-paper px-2 text-meta font-semibold text-inkSoft focus:border-granate focus:outline-none"
+            className="min-h-8 min-w-0 flex-1 rounded-lg border border-line bg-caja px-1.5 text-meta font-semibold text-inkSoft focus:border-granate focus:outline-none"
           >
             {estados.map((e) => <option key={e.valor} value={e.valor}>{e.etiqueta}</option>)}
           </select>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           {!editando && (
-            <button type="button" onClick={() => setEditando(true)} aria-label="Escribir una nota" className="grid h-9 w-9 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-ink">
+            <button type="button" onClick={() => setEditando(true)} aria-label="Escribir una nota" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink">
               <StickyNote size={16} aria-hidden />
             </button>
           )}
@@ -341,7 +370,7 @@ function Tarjeta({
               <button type="button" onClick={() => setConfirmar(false)} className="text-inkSoft underline">No</button>
             </span>
           ) : (
-            <button type="button" onClick={() => setConfirmar(true)} aria-label="Dejar de seguir" className="grid h-9 w-9 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-crimsonTexto">
+            <button type="button" onClick={() => setConfirmar(true)} aria-label="Dejar de seguir" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-crimsonTexto">
               <Trash2 size={16} aria-hidden />
             </button>
           )}

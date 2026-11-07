@@ -10,18 +10,22 @@ import { rutaEn } from "@/lib/gobserva";
 import { cargarLineas, cargarParaTi, cargarSeguimiento, type Me } from "@/lib/gobserva-cuenta";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, VacioCaja } from "../app/Caja";
 import type { Seccion } from "./Cuenta";
 import { Esqueleto } from "./comun";
-import { ParaEmpezar, PanelResumen, TituloSeccion } from "./PanelResumen";
+import { CajaAvisos, CajaPlan, PagosPorConfirmar, ParaEmpezar } from "./PanelResumen";
 import { ABIERTOS, cuando, eventos, fechaHora, rutaItem } from "./plazos";
 
 type Ir = (t: Seccion) => void;
 
 /**
- * Inicio de la app de Licitaciones (2026-11-07, al estilo del tablero de LicitaLAB): lo que falta para empezar, cuatro
- * cifras que se tocan (lo que calza contigo, lo que cierra esta semana, el valor en juego y lo que sigues), lo mejor de
- * «Para ti» en dos pestañas (licitaciones y contratos menores), los próximos plazos de lo que sigues y, abajo, el plan y
- * lo último que te avisamos (PanelResumen).
+ * Inicio de la app de Licitaciones (2026-11-07). Un tablero sobre el lienzo, todo en cajas:
+ *
+ *  1. «Para empezar», en una fila, mientras falte algún paso.
+ *  2. «Hoy, para tu empresa»: cuatro cifras en una sola caja (lo que calza contigo, lo que cierra esta semana, el valor
+ *     en juego y lo que sigues), cada una lleva a su detalle.
+ *  3. Dos columnas: a la izquierda lo mejor de «Para ti» (licitaciones o contratos menores); a la derecha tus próximos
+ *     plazos, tu plan y lo último que te avisamos. En el celular, una debajo de otra en ese orden.
  */
 export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me; onCambio: () => void; irA: Ir }) {
   const lineas = useSWR(["gobserva-lineas"], () => cargarLineas(), { revalidateOnFocus: false });
@@ -34,83 +38,98 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
   const items = seg.data?.data ?? [];
   const abiertos = items.filter((i) => ABIERTOS.has(i.estado));
   const presentadas = items.filter((i) => i.estado === "presentada").length;
-  const proximos = eventos(abiertos).filter((e) => !cuando(e.plazo.fecha).paso).slice(0, 6);
+  const proximos = eventos(abiertos).filter((e) => !cuando(e.plazo.fecha).paso).slice(0, 5);
   const r = paraTi.data?.resumen;
   const mejores = (paraTi.data?.data ?? []).filter((o) => o.fuente === fuente).slice(0, 5);
+  const variasLineas = (lineas.data?.data.length ?? 0) > 1;
 
   return (
-    <div className="space-y-10">
+    <div className={cn("grid", ESPACIO_CAJAS)}>
       <ParaEmpezar producto="licitaciones" base={base} me={me} onCambio={onCambio} irA={irA} />
+      <PagosPorConfirmar producto="licitaciones" me={me} onCambio={onCambio} />
 
       {/* Las cifras del día: cada una lleva a donde está el detalle. */}
       {lineas.isLoading ? (
-        <Esqueleto className="h-32" />
+        <Esqueleto className="h-44" />
       ) : !linea ? (
-        <section className="flex flex-col items-start gap-4 rounded-2xl border border-granate/30 bg-granate-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="min-w-0">
-            <h2 className="font-display text-bloque font-bold leading-tight text-ink">Dinos qué vende tu empresa</h2>
-            <p className="mt-1 max-w-[60ch] text-dato leading-relaxed text-inkSoft">
-              Con eso te mostramos aquí cuántas oportunidades calzan contigo, cuáles cierran esta semana y cuánto hay en juego.
-            </p>
-          </div>
-          <button type="button" onClick={() => irA("para-ti")} className={claseAccion("primario", "shrink-0", "md")}>
-            <Sparkles size={16} aria-hidden /> Armar mi «Para ti»
-          </button>
-        </section>
+        <Caja id="hoy" titulo="Hoy, para tu empresa">
+          <VacioCaja
+            Icono={Target}
+            titulo="Dinos qué vende tu empresa"
+            texto="Con eso te mostramos aquí cuántas oportunidades calzan contigo, cuáles cierran esta semana y cuánto hay en juego."
+            accion={
+              <button type="button" onClick={() => irA("para-ti")} className={claseAccion("primario")}>
+                <Sparkles size={15} aria-hidden /> Armar mi «Para ti»
+              </button>
+            }
+          />
+        </Caja>
       ) : (
-        <section aria-labelledby="hoy-t">
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-            <h2 id="hoy-t" className="font-display text-bloque font-bold leading-tight text-ink">Hoy, para tu empresa</h2>
-            {(lineas.data?.data.length ?? 0) > 1 ? (
+        <Caja
+          id="hoy"
+          titulo="Hoy, para tu empresa"
+          descripcion={variasLineas ? undefined : `Según tu línea «${linea.nombre}»`}
+          accion={
+            variasLineas ? (
               <label className="flex items-center gap-2 text-meta text-inkSoft">
                 Línea
                 <select
                   value={linea.id}
                   onChange={(e) => setLineaId(Number(e.target.value))}
-                  className="min-h-10 rounded-full border border-line bg-paper px-3 text-dato font-semibold text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
+                  className="min-h-9 rounded-lg border border-line bg-caja px-2.5 text-dato font-semibold text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
                 >
                   {lineas.data!.data.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
                 </select>
               </label>
             ) : (
-              <p className="text-meta text-inkSoft">Según tu línea «{linea.nombre}»</p>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <button type="button" onClick={() => irA("para-ti")} className={CLASE_ENLACE_PIE}>Editar tu línea</button>
+            )
+          }
+          relleno={false}
+        >
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-2xl bg-line lg:grid-cols-4">
             <Cifra
               Icono={Target}
+              etiqueta="Calzan contigo"
               valor={r ? numero(r.calzan) : null}
-              etiqueta="calzan contigo"
               detalle={r ? `${numero(r.procesos)} ${r.procesos === 1 ? "licitación" : "licitaciones"} y ${numero(r.menores)} ${r.menores === 1 ? "contrato menor" : "contratos menores"}` : ""}
               onClick={() => irA("para-ti")}
-              destacada
             />
-            <Cifra Icono={CalendarClock} valor={r ? numero(r.cierranSemana) : null} etiqueta="cierran esta semana" detalle="Consultas o cotización en 7 días" onClick={() => irA("para-ti")} />
+            <Cifra
+              Icono={CalendarClock}
+              etiqueta="Cierran esta semana"
+              valor={r ? numero(r.cierranSemana) : null}
+              detalle="Consultas o cotización en 7 días"
+              urgente={!!r && r.cierranSemana > 0}
+              onClick={() => irA("para-ti")}
+            />
             <Cifra
               Icono={Coins}
+              etiqueta="En juego"
               valor={r ? (r.valorEnJuego > 0 ? solesCompacto(r.valorEnJuego) : "S/ 0") : null}
-              etiqueta="en juego"
-              detalle="Valor referencial de las licitaciones que calzan"
+              detalle="Valor referencial de lo que calza"
               onClick={() => irA("para-ti")}
             />
             <Cifra
               Icono={KanbanSquare}
+              etiqueta="En seguimiento"
               valor={seg.data ? numero(abiertos.length) : null}
-              etiqueta="en seguimiento"
               detalle={seg.data ? `${numero(presentadas)} ${presentadas === 1 ? "oferta presentada" : "ofertas presentadas"}` : ""}
               onClick={() => irA("seguimiento")}
             />
           </div>
-        </section>
+        </Caja>
       )}
 
       {linea && (
-        <div className="grid gap-10 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-8">
+        <div className={cn("grid items-start", ESPACIO_CAJAS, "xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]")}>
           {/* Lo mejor de «Para ti», en dos pestañas. */}
-          <section aria-labelledby="mejor-t" className="min-w-0">
-            <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-              <h2 id="mejor-t" className="font-display text-bloque font-bold leading-tight text-ink">Lo mejor para ti hoy</h2>
-              <div role="tablist" aria-label="Qué mostrar" className="inline-grid grid-cols-2 gap-1 rounded-full bg-paperDeep p-1">
+          <Caja
+            id="mejor"
+            titulo="Lo mejor para ti hoy"
+            descripcion="De lo más parecido a lo que vendes a lo menos"
+            accion={
+              <div role="tablist" aria-label="Qué mostrar" className="inline-grid grid-cols-2 gap-1 rounded-lg bg-ink/[0.06] p-1">
                 {(
                   [
                     { f: "proceso", etiqueta: "Licitaciones" },
@@ -124,25 +143,40 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
                     aria-selected={fuente === f}
                     onClick={() => setFuente(f)}
                     className={cn(
-                      "min-h-9 whitespace-nowrap rounded-full px-3.5 text-meta font-semibold transition-colors duration-rapido",
-                      fuente === f ? "bg-paper text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
+                      "min-h-8 whitespace-nowrap rounded-md px-3 text-meta font-semibold transition-colors duration-rapido",
+                      fuente === f ? "bg-caja text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
                     )}
                   >
                     {etiqueta}
                   </button>
                 ))}
               </div>
-            </div>
+            }
+            relleno={false}
+            pie={
+              <button type="button" onClick={() => irA("para-ti")} className={CLASE_ENLACE_PIE}>
+                Ver todo en «Para ti» <ArrowRight size={15} aria-hidden />
+              </button>
+            }
+          >
             {paraTi.isLoading ? (
-              <Esqueleto className="mt-4 h-72" />
+              <div aria-hidden className="space-y-3 p-4 sm:p-5">
+                <Esqueleto className="h-20" />
+                <Esqueleto className="h-20" />
+                <Esqueleto className="h-20" />
+              </div>
             ) : mejores.length === 0 ? (
-              <p className="mt-4 rounded-2xl border border-dashed border-line p-5 text-dato leading-relaxed text-inkSoft">
-                {fuente === "menor"
-                  ? "Ahora no hay contratos menores abiertos parecidos a lo que vendes. Se publican nuevos cada hora."
-                  : "Ahora no hay licitaciones abiertas parecidas a lo que vendes. Prueba con otras palabras en tu línea."}
-              </p>
+              <VacioCaja
+                Icono={Sparkles}
+                titulo={fuente === "menor" ? "Sin contratos menores parecidos ahora" : "Sin licitaciones parecidas ahora"}
+                texto={
+                  fuente === "menor"
+                    ? "Se publican nuevos cada hora: vuelve más tarde o suma palabras a tu línea."
+                    : "Prueba con otras palabras en tu línea de negocio."
+                }
+              />
             ) : (
-              <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+              <ol className="divide-y divide-line">
                 {mejores.map((o) => (
                   <li key={`${o.fuente}-${o.id}`} className="min-w-0">
                     <FilaParaTi o={o} base={base} />
@@ -150,78 +184,103 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
                 ))}
               </ol>
             )}
-            <button type="button" onClick={() => irA("para-ti")} className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline">
-              Ver todo en «Para ti» <ArrowRight size={15} aria-hidden />
-            </button>
-          </section>
+          </Caja>
 
-          {/* Los próximos plazos de lo que sigues. */}
-          <section aria-labelledby="plazos-t" className="min-w-0">
-            <TituloSeccion id="plazos-t" titulo="Tus próximos plazos" accion={{ etiqueta: "Calendario", onClick: () => irA("calendario") }} />
-            {seg.isLoading ? (
-              <Esqueleto className="mt-4 h-60" />
-            ) : proximos.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-line p-5">
-                <p className="flex items-start gap-3 text-dato leading-relaxed text-inkSoft">
-                  <CalendarDays size={20} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-                  {abiertos.length ? "Lo que sigues no tiene plazos por venir." : "Guarda licitaciones o contratos menores y aquí verás sus plazos: consultas, cierres y buena pro."}
-                </p>
-              </div>
-            ) : (
-              <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-                {proximos.map(({ item, plazo }) => {
-                  const c = cuando(plazo.fecha);
-                  return (
-                    <li key={`${item.tipo}-${item.ref}-${plazo.clave}`}>
-                      <Link href={rutaEn(base, rutaItem(item))} className="flex gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft">
-                        <span className={cn("mt-0.5 w-20 shrink-0 text-meta font-bold", c.urgente ? "text-crimsonTexto" : "text-ink")}>{c.texto}</span>
-                        <span className="min-w-0">
-                          <span className="block text-meta font-semibold text-inkSoft">{plazo.etiqueta}, {fechaHora(plazo.fecha)}</span>
-                          <span className="mt-0.5 line-clamp-2 block text-dato font-semibold leading-snug text-ink">{item.titulo || "Sin descripción registrada"}</span>
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
+          <div className={cn("grid content-start", ESPACIO_CAJAS)}>
+            {/* Los próximos plazos de lo que sigues. */}
+            <Caja
+              id="plazos"
+              titulo="Tus próximos plazos"
+              accion={<button type="button" onClick={() => irA("calendario")} className={CLASE_ENLACE_PIE}>Calendario</button>}
+              relleno={false}
+            >
+              {seg.isLoading ? (
+                <div aria-hidden className="space-y-3 p-4 sm:p-5">
+                  <Esqueleto className="h-12" />
+                  <Esqueleto className="h-12" />
+                </div>
+              ) : proximos.length === 0 ? (
+                <VacioCaja
+                  Icono={CalendarDays}
+                  titulo={abiertos.length ? "Nada por vencer" : "Todavía no sigues nada"}
+                  texto={
+                    abiertos.length
+                      ? "Lo que sigues no tiene plazos por venir."
+                      : "Guarda licitaciones o contratos menores y aquí verás sus plazos: consultas, cierres y buena pro."
+                  }
+                />
+              ) : (
+                <ol className="divide-y divide-line">
+                  {proximos.map(({ item, plazo }) => {
+                    const c = cuando(plazo.fecha);
+                    return (
+                      <li key={`${item.tipo}-${item.ref}-${plazo.clave}`}>
+                        <Link href={rutaEn(base, rutaItem(item))} className="flex gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-ink/[0.035] sm:px-5">
+                          <span
+                            className={cn(
+                              "mt-0.5 inline-flex h-6 shrink-0 items-center rounded-md px-2 text-rotulo font-bold tabular-nums",
+                              c.urgente ? "bg-crimson-soft text-crimsonTexto" : "bg-ink/[0.06] text-ink",
+                            )}
+                          >
+                            {c.texto}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-meta text-inkSoft">{plazo.etiqueta}, {fechaHora(plazo.fecha)}</span>
+                            <span className="mt-0.5 line-clamp-2 block text-dato font-semibold leading-snug text-ink">{item.titulo || "Sin descripción registrada"}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Caja>
+            <CajaPlan producto="licitaciones" base={base} me={me} irA={irA} angosta />
+            <CajaAvisos producto="licitaciones" me={me} irA={irA} />
+          </div>
         </div>
       )}
 
-      {/* El plan y lo último que te avisamos (lo de siempre del resumen, sin repetir «Para empezar»). */}
-      <PanelResumen producto="licitaciones" base={base} me={me} onCambio={onCambio} irA={irA} sinPasos />
+      {/* Sin línea todavía: el plan y los avisos, igual que en el resumen. */}
+      {!linea && !lineas.isLoading && (
+        <div className={cn("grid", ESPACIO_CAJAS, "xl:grid-cols-2")}>
+          <CajaPlan producto="licitaciones" base={base} me={me} irA={irA} />
+          <CajaAvisos producto="licitaciones" me={me} irA={irA} />
+        </div>
+      )}
     </div>
   );
 }
 
+/** Una cifra del día dentro de la caja: el rótulo con su ícono, el número y de qué se compone. Lleva a su detalle. */
 function Cifra({
-  Icono, valor, etiqueta, detalle, onClick, destacada = false,
+  Icono, valor, etiqueta, detalle, onClick, urgente = false,
 }: {
   Icono: typeof Target;
   valor: string | null;
   etiqueta: string;
   detalle: string;
   onClick: () => void;
-  destacada?: boolean;
+  urgente?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "group flex min-w-0 flex-col rounded-2xl border p-4 text-left transition-colors duration-rapido sm:p-5",
-        destacada ? "border-granate/40 bg-granate-50 hover:border-granate" : "border-line bg-paper hover:border-granate/40 hover:bg-paperSoft",
-      )}
+      className="group flex min-w-0 flex-col bg-caja p-4 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:p-5"
     >
-      <Icono size={18} aria-hidden className="text-granate" />
+      <span className="flex items-center gap-2 text-meta font-semibold text-inkSoft">
+        <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-granate-50 text-granate group-hover:bg-caja">
+          <Icono size={15} />
+        </span>
+        {etiqueta}
+      </span>
       {valor == null ? (
         <span aria-hidden className="mt-3 block h-8 w-16 animate-pulse rounded-lg bg-paperDeep" />
       ) : (
-        <span className="mt-3 block font-display text-seccion font-bold leading-none tabular-nums text-ink sm:text-cifra">{valor}</span>
+        <span className={cn("mt-3 block font-display text-cifra font-bold leading-none tabular-nums", urgente ? "text-crimsonTexto" : "text-ink")}>{valor}</span>
       )}
-      <span className="mt-1.5 block text-dato font-semibold text-ink">{etiqueta}</span>
-      <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{detalle}</span>
+      <span className="mt-1.5 block text-meta leading-snug text-mute">{detalle}</span>
     </button>
   );
 }

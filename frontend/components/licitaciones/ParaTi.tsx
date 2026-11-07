@@ -25,6 +25,7 @@ import { tituloNatural } from "@/lib/landing";
 import { REGIONES_UBIGEO, TIPOS, cierreMenor, limpiar, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
 import { ChipTipo } from "./Piezas";
+import { CLASE_ENLACE_PIE, Caja, VacioCaja } from "@/components/gobserva/app/Caja";
 
 /**
  * «Para ti» (2026-11-07): la empresa dice lo que vende, en sus palabras (una línea de negocio), y ve las licitaciones y
@@ -83,38 +84,77 @@ function ConCuenta({ base }: { base: string }) {
   }
   if (!actual) return null;
 
+  const regiones = actual.regiones.length ? actual.regiones.map(nombreRegion).join(", ") : "Todo el Perú";
+  const tipos = actual.tipos.length ? actual.tipos.map(nombreTipo).join(", ") : "Bienes, servicios y obras";
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-meta font-semibold text-mute">Tus líneas:</span>
-        {lista.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            onClick={() => setElegida(l.id)}
-            aria-pressed={l.id === actual.id}
-            className={cn(
-              "inline-flex min-h-11 items-center rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido sm:min-h-9",
-              l.id === actual.id ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
+    <div className="grid gap-4 sm:gap-6">
+      <Caja
+        id="linea"
+        titulo={lista.length > 1 ? "Tus líneas de negocio" : `Tu línea: ${actual.nombre}`}
+        descripcion="Lo que vendes, en tus palabras: con eso ordenamos lo abierto."
+        accion={
+          <>
+            <button type="button" onClick={() => setEditando(actual)} className={claseAccion("secundario", "min-h-9 px-4")}>
+              <Pencil size={14} aria-hidden /> Editar
+            </button>
+            {puedeSumar ? (
+              <button type="button" onClick={() => setEditando("nueva")} className={claseAccion("secundario", "min-h-9 px-4")}>
+                <Plus size={14} aria-hidden /> Otra línea
+              </button>
+            ) : (
+              <Link href={rutaEn(base, "/planes")} className={CLASE_ENLACE_PIE}>
+                Más líneas con un plan
+              </Link>
             )}
-          >
-            {l.nombre}
-          </button>
-        ))}
-        <button type="button" onClick={() => setEditando(actual)} className={claseAccion("secundario", "min-h-11 sm:min-h-9")}>
-          <Pencil size={14} aria-hidden /> Editar
-        </button>
-        {puedeSumar ? (
-          <button type="button" onClick={() => setEditando("nueva")} className={claseAccion("secundario", "min-h-11 sm:min-h-9")}>
-            <Plus size={14} aria-hidden /> Otra línea
-          </button>
-        ) : (
-          <Link href={rutaEn(base, "/planes")} className="text-meta font-semibold text-granate underline-offset-2 hover:underline">
-            Más líneas con un plan
-          </Link>
+          </>
+        }
+      >
+        {lista.length > 1 && (
+          <div role="tablist" aria-label="Tus líneas" className="mb-4 flex flex-wrap gap-1 rounded-lg bg-ink/[0.06] p-1 sm:inline-flex">
+            {lista.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                role="tab"
+                aria-selected={l.id === actual.id}
+                onClick={() => setElegida(l.id)}
+                className={cn(
+                  "min-h-9 rounded-md px-3 text-meta font-semibold transition-colors duration-rapido",
+                  l.id === actual.id ? "bg-caja text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
+                )}
+              >
+                {l.nombre}
+              </button>
+            ))}
+          </div>
         )}
-      </div>
-      <p className="max-w-[72ch] text-dato leading-relaxed text-inkSoft">{actual.descripcion}</p>
+        <p className="max-w-[72ch] text-pretty text-dato leading-relaxed text-ink">{actual.descripcion}</p>
+        <dl className="mt-4 grid gap-x-8 gap-y-3 text-meta sm:grid-cols-3">
+          <div className="min-w-0">
+            <dt className="font-semibold text-mute">Palabras clave</dt>
+            <dd className="mt-1.5 flex flex-wrap gap-1.5">
+              {actual.palabras.length ? (
+                actual.palabras.map((p) => (
+                  <span key={p} className="inline-flex items-center gap-1 rounded-full bg-maiz/20 px-2.5 py-0.5 text-rotulo font-semibold text-ink">
+                    <Sparkles size={11} aria-hidden /> {p}
+                  </span>
+                ))
+              ) : (
+                <span className="text-inkSoft">Ninguna: sólo pesa lo que vendes</span>
+              )}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-semibold text-mute">Regiones</dt>
+            <dd className="mt-1.5 text-dato text-ink">{regiones}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-semibold text-mute">Qué se compra</dt>
+            <dd className="mt-1.5 text-dato text-ink">{tipos}</dd>
+          </div>
+        </dl>
+      </Caja>
       <Resultados base={base} linea={actual} />
     </div>
   );
@@ -125,36 +165,43 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
   if (r.isLoading) return <Esqueleto className="h-96" />;
   if (r.error || !r.data) return <Aviso tono="error">No pudimos armar tus oportunidades ahora. Vuelve a intentarlo en un momento.</Aviso>;
   const { data, limite, plan } = r.data;
-  if (!data.length) {
-    return (
-      <Aviso>
-        Ahora no hay licitaciones ni contratos menores abiertos parecidos a esta línea{linea.regiones.length || linea.tipos.length ? " con sus regiones y tipos" : ""}.
-        Prueba con otras palabras o con menos filtros; salen nuevas cada hora.
-      </Aviso>
-    );
-  }
+  const tope = !plan && data.length >= limite;
   return (
-    <section aria-labelledby="para-ti-t">
-      <h2 id="para-ti-t" className="font-display text-seccion font-bold leading-tight text-ink">
-        Lo más parecido a lo que vendes
-      </h2>
-      <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-        {data.map((o) => (
-          <li key={`${o.fuente}-${o.id}`} className="min-w-0">
-            <FilaParaTi o={o} base={base} />
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 text-meta leading-snug text-mute">
-        El puntaje dice cuánto se parece lo que se compra a lo que vendes, de 0 a 100; no es la probabilidad de ganar.
-        {!plan && data.length >= limite ? " Con un plan ves hasta 50 por línea y sumas más líneas." : ""}
-      </p>
-      {!plan && data.length >= limite && (
-        <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "mt-3")}>
-          Ver los planes
-        </Link>
+    <Caja
+      id="para-ti"
+      titulo="Lo más parecido a lo que vendes"
+      descripcion={data.length ? `${data.length} ${data.length === 1 ? "oportunidad abierta" : "oportunidades abiertas"}, de lo que más se parece a lo que menos` : undefined}
+      relleno={false}
+      pie={
+        <div className="flex flex-col gap-2 py-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <p className="text-meta leading-snug text-mute">
+            El puntaje dice cuánto se parece lo que se compra a lo que vendes, de 0 a 100; no es la probabilidad de ganar.
+            {tope ? " Con un plan ves hasta 50 por línea y sumas más líneas." : ""}
+          </p>
+          {tope && (
+            <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "shrink-0")}>
+              Ver los planes
+            </Link>
+          )}
+        </div>
+      }
+    >
+      {!data.length ? (
+        <VacioCaja
+          Icono={Sparkles}
+          titulo="Nada abierto parecido a esta línea ahora"
+          texto={`Prueba con otras palabras${linea.regiones.length || linea.tipos.length ? " o con menos regiones y tipos" : ""}: salen nuevas cada hora.`}
+        />
+      ) : (
+        <ol className="divide-y divide-line">
+          {data.map((o) => (
+            <li key={`${o.fuente}-${o.id}`} className="min-w-0">
+              <FilaParaTi o={o} base={base} />
+            </li>
+          ))}
+        </ol>
       )}
-    </section>
+    </Caja>
   );
 }
 
@@ -164,7 +211,7 @@ export function FilaParaTi({ o, base }: { o: OportunidadParaTi; base: string }) 
   return (
     <Link
       href={href}
-      className="group grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-x-4 px-4 py-4 transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5 lg:grid-cols-[3.25rem_minmax(0,1fr)_1rem] lg:items-center"
+      className="group grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-x-4 px-4 py-4 transition-colors duration-rapido hover:bg-ink/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5 lg:grid-cols-[3.25rem_minmax(0,1fr)_1rem] lg:items-center"
     >
       <span
         className={cn(
@@ -258,7 +305,7 @@ function Editor({ linea, primera, onListo, onCancelar }: { linea: Linea | null; 
   };
 
   return (
-    <form onSubmit={enviar} className="space-y-5 rounded-3xl border border-line bg-paperSoft p-5 sm:p-7">
+    <form onSubmit={enviar} className="space-y-5 rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
       <div>
         <h2 className="font-display text-seccion font-bold leading-tight text-ink">{linea ? "Edita tu línea de negocio" : primera ? "¿Qué vende tu empresa?" : "Otra línea de negocio"}</h2>
         <p className="mt-1 text-dato text-inkSoft">Lo que escribas aquí es lo que más pesa: dilo como se lo contarías a un cliente.</p>

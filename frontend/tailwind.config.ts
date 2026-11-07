@@ -36,6 +36,9 @@ const config: Config = {
         inkSoft: "rgb(var(--ink-soft) / <alpha-value>)",
         mute: "rgb(var(--mute) / <alpha-value>)",
         line: "rgb(var(--line) / <alpha-value>)",
+        // La app (MarcoApp): el lienzo y la caja de cada bloque (globals.css, con su versión de día).
+        lienzo: "rgb(var(--lienzo) / <alpha-value>)",
+        caja: "rgb(var(--caja) / <alpha-value>)",
 
         // Color por intención de la navegación (globals.css: [data-intencion]).
         acento: {
@@ -128,6 +131,8 @@ const config: Config = {
         pop: "0 4px 8px -2px rgba(0,0,0,0.4), 0 12px 28px -6px rgba(0,0,0,0.55)",
         drawer: "-8px 0 24px -8px rgba(0,0,0,0.6), -1px 0 0 rgba(255,255,255,0.05)",
         dialog: "0 16px 32px -8px rgba(0,0,0,0.6), 0 40px 80px -24px rgba(0,0,0,0.7)",
+        // La caja de la app: de día, un relieve corto y apretado (no una sombra ancha bajo el borde); de noche, nada.
+        caja: "var(--sombra-caja)",
       },
       // Esquinas más contenidas: la identidad Píxel es de rejilla, no de burbujas.
       // Space Grotesk llega a 700: `font-extrabold` (800) se sintetizaba y apelmazaba los títulos.

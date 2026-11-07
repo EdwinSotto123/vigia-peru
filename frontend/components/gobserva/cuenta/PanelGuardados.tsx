@@ -53,7 +53,7 @@ export function PanelGuardados({ producto, base, me, onCambio }: { producto: Pro
   const lim = me.producto?.limites;
 
   return (
-    <section aria-labelledby="guard-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+    <section aria-labelledby="guard-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="guard-t" className="font-display text-seccion font-bold leading-tight text-ink">Tus guardados</h2>
@@ -133,7 +133,7 @@ function FilaGuardado({ g, producto, base, onCambio }: { g: Guardado; producto: 
   }
 
   return (
-    <li className={cn("rounded-2xl border p-4", cerrada ? "border-dashed border-line bg-paperSoft" : "border-line")}>
+    <li className={cn("rounded-2xl border p-4", cerrada ? "border-dashed border-line bg-ink/[0.025]" : "border-line")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link href={rutaEn(base, ruta(g))} className="text-destacado font-bold text-ink hover:text-granate hover:underline">{g.titulo || g.ref}</Link>

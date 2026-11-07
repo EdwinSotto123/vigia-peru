@@ -19,6 +19,12 @@
   --paper-edge: 44 57 57;     /* #2C3939  borde marcado */
   --line: 33 44 44;           /* #212C2C  borde por defecto */
 
+  /* La app de Gobserva (2026-11-07, MarcoApp): el lienzo donde se apoyan las cajas, la caja (barra lateral, cabecera,
+     cada bloque de una página) y su sombra. De noche la caja es un escalón más clara que el lienzo y no lleva sombra. */
+  --lienzo: 5 8 8;            /* #050808 */
+  --caja: 11 15 15;           /* #0B0F0F, el mismo papel: lo que ya tenía bg-paper queda igual */
+  --sombra-caja: none;
+
   /* Texto */
   --ink: 231 240 238;         /* #E7F0EE  principal  · 15.6:1 sobre paper */
   --ink-soft: 190 205 202;    /* #BECDCA  secundario ·  11.2:1 */
@@ -205,6 +211,10 @@ html[data-modo="dia"] {
   --paper-deep: 236 241 239;  /* #ECF1EF  campos, filtros, hundidos */
   --paper-edge: 190 202 199;  /* #BECAC7  borde marcado */
   --line: 220 228 226;        /* #DCE4E2  borde por defecto */
+
+  --lienzo: 239 243 242;      /* #EFF3F2  el mismo gris verdoso del fondo */
+  --caja: 255 255 255;
+  --sombra-caja: 0 1px 2px rgb(17 24 23 / 0.05), 0 2px 8px -4px rgb(17 24 23 / 0.08);
 
   --ink: 17 24 23;            /* #111817  principal  · 17:1 */
   --ink-soft: 55 68 66;       /* #374442  secundario · 10:1 */

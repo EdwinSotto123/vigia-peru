@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Bookmark, CalendarDays, CreditCard, House, KanbanSquare, Loader2, LogOut, Sparkles, UserRound } from "lucide-react";
+import { Bell, Bookmark, CalendarDays, CreditCard, House, KanbanSquare, Loader2, LogOut, Search, Sparkles, UserRound } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { ParaTi } from "@/components/licitaciones/ParaTi";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
@@ -20,6 +20,7 @@ import { PanelInicio } from "./PanelInicio";
 import { PanelSeguimiento } from "./PanelSeguimiento";
 import { PanelCalendario } from "./PanelCalendario";
 import { useEnApp } from "../app/contexto";
+import { CabeceraPagina, Pagina } from "../app/Caja";
 
 export type Seccion = "resumen" | "para-ti" | "seguimiento" | "calendario" | "alertas" | "guardados" | "pagos" | "perfil";
 
@@ -71,6 +72,18 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
   };
 
   if (loading || (conCuenta && isLoading && !me)) {
+    if (enApp) {
+      return (
+        <Pagina>
+          <Esqueleto className="mb-8 h-14 max-w-md" />
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+            <Esqueleto className="h-40 lg:col-span-3" />
+            <Esqueleto className="h-80 lg:col-span-2" />
+            <Esqueleto className="h-80" />
+          </div>
+        </Pagina>
+      );
+    }
     return (
       <div className="container-page grid gap-8 py-8 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:py-10">
         <Esqueleto className="hidden h-[26rem] lg:block" />
@@ -96,12 +109,45 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
 
   const nombre = me.cuenta.nombre || user.displayName || me.cuenta.email.split("@")[0];
   const info = secciones.find((s) => s.clave === tab) ?? secciones[0];
-  const titulo = tab === "resumen" ? `Hola, ${nombre}` : info.etiqueta;
+  const onCambio = () => void mutate();
+  const panel = (
+    <>
+      {tab === "resumen" &&
+        (producto === "licitaciones" ? (
+          <PanelInicio base={base} me={me} onCambio={onCambio} irA={ir} />
+        ) : (
+          <PanelResumen producto={producto} base={base} me={me} onCambio={onCambio} irA={ir} />
+        ))}
+      {tab === "para-ti" && <ParaTi base={base} />}
+      {tab === "seguimiento" && <PanelSeguimiento base={base} />}
+      {tab === "calendario" && <PanelCalendario base={base} irA={ir} />}
+      {tab === "alertas" && <PanelAlertas producto={producto} base={base} me={me} onCambio={onCambio} />}
+      {tab === "guardados" && <PanelGuardados producto={producto} base={base} me={me} onCambio={onCambio} />}
+      {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={onCambio} />}
+      {tab === "perfil" && <PanelPerfil producto={producto} base={base} me={me} onCambio={onCambio} />}
+    </>
+  );
 
+  // Dentro de la app (MarcoApp), la página lleva su cabecera con las acciones y el panel apoya sus cajas en el lienzo.
+  if (enApp) {
+    const primerNombre = nombre.trim().split(/\s+/)[0] || nombre;
+    return (
+      <Pagina>
+        <CabeceraPagina
+          titulo={tab === "resumen" ? `${saludo()}, ${primerNombre}` : info.etiqueta}
+          bajada={tab === "resumen" ? `${hoyLargo()}. ${info.bajada}` : info.bajada}
+          acciones={<AccionesPagina tab={tab} base={base} ir={ir} />}
+        />
+        {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={onCambio} className="mb-6 mt-0" />}
+        {panel}
+      </Pagina>
+    );
+  }
+
+  const titulo = tab === "resumen" ? `Hola, ${nombre}` : info.etiqueta;
   return (
-    <div className={cn("container-page py-6 sm:py-8 lg:py-10", !enApp && "grid gap-6 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-10")}>
-      {/* Dentro de la app, la barra lateral es la de la app (MarcoApp): no se repite. */}
-      {!enApp && <Lateral producto={producto} base={base} me={me} nombre={nombre} secciones={secciones} tab={tab} ir={ir} />}
+    <div className="container-page grid gap-6 py-6 sm:py-8 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-10 lg:py-10">
+      <Lateral producto={producto} base={base} me={me} nombre={nombre} secciones={secciones} tab={tab} ir={ir} />
 
       <div className="min-w-0">
         <header>
@@ -110,26 +156,43 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
         </header>
 
         {/* En el resumen, verificar el correo es el primer paso de «Para empezar»; en las demás secciones, una franja. */}
-        {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={() => void mutate()} />}
+        {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={onCambio} />}
 
-        <div className="mt-6 sm:mt-8">
-          {tab === "resumen" &&
-            (producto === "licitaciones" ? (
-              <PanelInicio base={base} me={me} onCambio={() => void mutate()} irA={ir} />
-            ) : (
-              <PanelResumen producto={producto} base={base} me={me} onCambio={() => void mutate()} irA={ir} />
-            ))}
-          {tab === "para-ti" && <ParaTi base={base} />}
-          {tab === "seguimiento" && <PanelSeguimiento base={base} />}
-          {tab === "calendario" && <PanelCalendario base={base} irA={ir} />}
-          {tab === "alertas" && <PanelAlertas producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
-          {tab === "guardados" && <PanelGuardados producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
-          {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
-          {tab === "perfil" && <PanelPerfil producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
-        </div>
+        <div className="mt-6 sm:mt-8">{panel}</div>
       </div>
     </div>
   );
+}
+
+/** «Buenos días» a la hora de Lima. */
+function saludo(): string {
+  const h = Number(new Intl.DateTimeFormat("es-PE", { hour: "numeric", hour12: false, timeZone: "America/Lima" }).format(new Date()));
+  return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+}
+
+/** «Sábado 7 de noviembre», a la fecha de Lima. */
+function hoyLargo(): string {
+  const t = new Intl.DateTimeFormat("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Lima" }).format(new Date());
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Las acciones de la cabecera de cada sección: lo que se hace desde ahí sin bajar. */
+function AccionesPagina({ tab, base, ir }: { tab: Seccion; base: string; ir: (t: Seccion) => void }) {
+  if (tab === "resumen" || tab === "seguimiento" || tab === "calendario") {
+    return (
+      <>
+        <Link href={rutaEn(base, "/oportunidades")} className={claseAccion("secundario")}>
+          <Search size={15} aria-hidden /> Buscar oportunidades
+        </Link>
+        {tab === "resumen" && (
+          <button type="button" onClick={() => ir("alertas")} className={claseAccion("primario")}>
+            <Bell size={15} aria-hidden /> Nueva alerta
+          </button>
+        )}
+      </>
+    );
+  }
+  return null;
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BellRing, Building2, ChevronLeft, ChevronRight, CircleDollarSign, Inbox, MessageSquareWarning, RotateCcw, SearchX, X } from "lucide-react";
@@ -11,7 +12,7 @@ import { paginasVisibles } from "@/components/ui/PaginacionNumerada";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
-import { baseProducto } from "@/lib/gobserva-servidor";
+import { baseProducto, enLaApp } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { TIPOS, getOportunidades, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ const PAGINA_BASE =
  */
 export default async function Oportunidades({ searchParams }: { searchParams?: Params }) {
   const base = baseProducto("licitaciones");
+  const enApp = enLaApp("licitaciones");
   const v: ValoresFiltro & { page?: string } = {};
   for (const k of CLAVES) v[k] = uno(searchParams?.[k]);
   // Sólo lo que vale: un filtro vacío o mal escrito no viaja (la API respondería 400).
@@ -120,7 +122,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
   const hasta = d ? Math.min(d.total, pagina * d.size) : 0;
 
   return (
-    <div className="container-page py-8 sm:py-12">
+    <div className={enApp ? CLASE_PAGINA : "container-page py-8 sm:py-12"}>
       <header className="max-w-3xl">
         <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Oportunidades</h1>
         <p className="mt-1.5 text-pretty text-cuerpo leading-relaxed text-inkSoft">
@@ -362,6 +364,8 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
         </section>
       )}
 
+      {/* Dentro de la app no va: el plan y las alertas están en la barra lateral. */}
+      {!enApp && (
       <section aria-labelledby="alerta-t" className="mt-12 grid gap-6 rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">
           <h2 id="alerta-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink">
@@ -395,6 +399,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
           </Link>
         </div>
       </section>
+      )}
     </div>
   );
 }

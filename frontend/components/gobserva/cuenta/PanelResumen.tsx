@@ -11,6 +11,7 @@ import {
 } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 import { Aviso, COSAS, ETIQUETA, CAMPO } from "./comun";
+import { CLASE_ENLACE_PIE, Caja, VacioCaja } from "../app/Caja";
 import type { Seccion } from "./Cuenta";
 import { BotonesVerificacion, NotaVerificacion, useVerificacion } from "./Verificacion";
 
@@ -58,169 +59,191 @@ function TarjetaPlan({ p }: { p: PlanCliente }) {
 }
 
 export function PanelResumen({
-  producto, base, me, onCambio, irA, sinPasos = false,
+  producto, base, me, onCambio, irA,
 }: {
   producto: Producto;
   base: string;
   me: Me;
   onCambio: () => void;
   irA: Ir;
-  /** Sin «Para empezar» (Inicio de Licitaciones lo pone arriba de sus cifras). */
-  sinPasos?: boolean;
 }) {
-  const plan = me.planes.find((p) => p.producto === producto && p.estado === "activa") ?? null;
-  const otros = me.planes.filter((p) => p.producto !== producto && p.estado === "activa");
-  const pendientes = me.pendientes.filter((k) => k.producto === producto);
-  const lim = me.producto?.limites;
-  const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
-  const { data: bandeja } = useSWR(["gobserva-bandeja", producto], () => cargarBandeja(producto), { revalidateOnFocus: false });
-  const cosas = COSAS[producto];
-
   return (
-    <div className="space-y-10">
-      {!sinPasos && <ParaEmpezar producto={producto} base={base} me={me} onCambio={onCambio} irA={irA} />}
-
-      {pendientes.length > 0 && (
-        <section aria-labelledby="pend-t" className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-5 sm:p-6">
-          <h2 id="pend-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-            <QrCode size={18} aria-hidden className="text-amberTexto" /> Pagos por confirmar
-          </h2>
-          <ul className="mt-3 space-y-3">
-            {pendientes.map((k) => <Pendiente key={k.numero} k={k} onCambio={onCambio} />)}
-          </ul>
-        </section>
-      )}
-
-      {/* El plan de este producto y lo que se usa de él. */}
-      <section aria-labelledby="plan-t">
-        <TituloSeccion id="plan-t" titulo="Tu plan" accion={plan ? { etiqueta: "Pagos y recibos", onClick: () => irA("pagos") } : undefined} />
-        <div className="mt-4 grid gap-5 rounded-2xl border border-line bg-paper p-5 sm:p-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-8">
-          <div className="min-w-0">
-            {plan ? (
-              <>
-                <p className="flex flex-wrap items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                  {plan.nombrePlan}
-                  {plan.fundador && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-granate-50 px-2.5 py-0.5 text-meta font-semibold text-granate">
-                      <Sparkles size={13} aria-hidden /> Precio de fundador
-                    </span>
-                  )}
-                </p>
-                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-dato">
-                  <div>
-                    <dt className="text-meta text-mute">Pagas</dt>
-                    <dd className="font-semibold tabular-nums text-ink">{plan.medio === "cortesia" ? "Cortesía" : `${precioCorto(plan.monto)} al mes`}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta text-mute">{plan.renovar && plan.medio === "tarjeta" ? "Próximo cobro" : "Activo hasta"}</dt>
-                    <dd className="font-semibold text-ink">{fechaLarga(plan.vigenteHasta)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta text-mute">Medio</dt>
-                    <dd className="font-semibold text-ink">{NOMBRE_MEDIO[plan.medio]}</dd>
-                  </div>
-                  {plan.fundador && plan.mesesFundador ? (
-                    <div>
-                      <dt className="text-meta text-mute">Después de {plan.mesesFundador} meses</dt>
-                      <dd className="font-semibold tabular-nums text-ink">{precioCorto(plan.regular)} al mes</dd>
-                    </div>
-                  ) : null}
-                </dl>
-                {!plan.renovar && plan.medio === "tarjeta" && (
-                  <Aviso className="mt-3">Cancelaste la renovación: tu plan sigue hasta el {fechaLarga(plan.vigenteHasta)} y no se vuelve a cobrar.</Aviso>
-                )}
-                <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "mt-4")}>Cambiar de plan</Link>
-              </>
-            ) : (
-              <>
-                <p className="font-display text-seccion font-bold leading-tight text-ink">Gratis</p>
-                <p className="mt-2 max-w-[52ch] text-dato leading-relaxed text-inkSoft">
-                  Buscas, lees las fichas y te avisamos una vez por semana. Con un plan de pago, tus alertas llegan cada mañana, guardas más{" "}
-                  {cosas.varias} y descargas tus búsquedas en Excel.
-                </p>
-                <Link href={rutaEn(base, "/planes")} className={claseAccion("primario", "mt-4")}>
-                  Ver los planes <ArrowRight size={15} aria-hidden />
-                </Link>
-              </>
-            )}
-          </div>
-          {lim && (
-            <div className="min-w-0 space-y-4 border-t border-line pt-5 md:border-l md:border-t-0 md:pl-8 md:pt-0">
-              <Uso Icono={Bell} etiqueta="Alertas" usado={usados.alertas} tope={lim.alertas} />
-              <Uso Icono={Bookmark} etiqueta="Guardados" usado={usados.guardados} tope={lim.guardados} />
-              <p className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
-                <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                {lim.frecuencias.includes("diaria") ? "Tus alertas llegan cada mañana, a las 7:00." : "Tus alertas llegan una vez por semana."}
-              </p>
-              <p className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
-                <Download size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                {lim.csv ? `Descargas en Excel hasta ${lim.filasCsv.toLocaleString("es-PE")} filas por búsqueda.` : "La descarga en Excel viene con un plan de pago."}
-              </p>
-            </div>
-          )}
-        </div>
-        {otros.length > 0 && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {otros.map((p) => <TarjetaPlan key={p.codigo} p={p} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Lo último que se avisó. */}
-      <section aria-labelledby="bandeja-t">
-        <TituloSeccion id="bandeja-t" titulo="Lo último que te avisamos" accion={{ etiqueta: "Ver tus alertas", onClick: () => irA("alertas") }} />
-        {!bandeja ? (
-          <div aria-hidden className="mt-4 h-20 animate-pulse rounded-2xl bg-paperDeep" />
-        ) : bandeja.data.length === 0 ? (
-          <div className="mt-4 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-start gap-3 text-dato leading-relaxed text-inkSoft">
-              <Inbox size={20} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-              Aquí verás lo nuevo de tus alertas{me.correoActivo ? ", además de recibirlo en tu correo" : ""}. Todavía no hay avisos.
-            </p>
-            <button type="button" onClick={() => irA("alertas")} className={claseAccion("secundario", "shrink-0")}>
-              <Bell size={15} aria-hidden /> Crear una alerta
-            </button>
-          </div>
-        ) : (
-          <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-            {bandeja.data.slice(0, 4).map((e) => (
-              <li key={e.id} className="px-4 py-3.5 sm:px-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <p className="min-w-0 text-dato font-semibold text-ink">{e.asunto}</p>
-                  <p className="text-meta text-mute">{e.creado}</p>
-                </div>
-                <p className="mt-0.5 text-meta text-inkSoft">
-                  {e.estado === "enviado" ? "Enviado a tu correo" : e.estado === "en_la_web" ? "En tu cuenta" : "No se pudo enviar al correo"}
-                </p>
-                {/* recorte: dos por aviso; el resto, en la bandeja de Alertas («y N más en tu bandeja»). */}
-                {e.items.slice(0, 2).map((i) => (
-                  <a key={i.ref} href={i.enlace} className="mt-1 block truncate text-meta font-medium text-granate hover:underline">{i.titulo}</a>
-                ))}
-                {e.items.length > 2 && <p className="mt-1 text-meta text-mute">y {e.items.length - 2} más en tu bandeja</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {bandeja && bandeja.data.length > 4 && (
-          <button type="button" onClick={() => irA("alertas")} className="mt-3 inline-flex min-h-11 items-center text-dato font-semibold text-granate hover:underline">
-            Ver los {bandeja.data.length - 4} avisos más
-          </button>
-        )}
-      </section>
+    <div className="grid gap-4 sm:gap-6">
+      <ParaEmpezar producto={producto} base={base} me={me} onCambio={onCambio} irA={irA} />
+      <PagosPorConfirmar producto={producto} me={me} onCambio={onCambio} />
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-2">
+        <CajaPlan producto={producto} base={base} me={me} irA={irA} />
+        <CajaAvisos producto={producto} me={me} irA={irA} />
+      </div>
     </div>
   );
 }
 
-export function TituloSeccion({ id, titulo, accion }: { id: string; titulo: string; accion?: { etiqueta: string; onClick: () => void } }) {
+/** Los pagos con QR que esperan su número de operación o la confirmación. */
+export function PagosPorConfirmar({ producto, me, onCambio }: { producto: Producto; me: Me; onCambio: () => void }) {
+  const pendientes = me.pendientes.filter((k) => k.producto === producto);
+  if (pendientes.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-      <h2 id={id} className="font-display text-bloque font-bold leading-tight text-ink">{titulo}</h2>
-      {accion && (
-        <button type="button" onClick={accion.onClick} className="inline-flex min-h-11 items-center text-dato font-semibold text-granate underline-offset-4 hover:underline">
-          {accion.etiqueta}
-        </button>
+    <section aria-labelledby="pend-t" className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-4 sm:p-5">
+      <h2 id="pend-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
+        <QrCode size={18} aria-hidden className="text-amberTexto" /> Pagos por confirmar
+      </h2>
+      <ul className="mt-3 space-y-3">
+        {pendientes.map((k) => <Pendiente key={k.numero} k={k} onCambio={onCambio} />)}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Tu plan en una caja: cuál es (o «Gratis» y el paso a uno de pago) y cuánto usas de él. `angosta`: en la columna de
+ * Inicio, el uso va debajo del plan y no al lado.
+ */
+export function CajaPlan({ producto, base, me, irA, angosta = false }: { producto: Producto; base: string; me: Me; irA: Ir; angosta?: boolean }) {
+  const plan = me.planes.find((p) => p.producto === producto && p.estado === "activa") ?? null;
+  const otros = me.planes.filter((p) => p.producto !== producto && p.estado === "activa");
+  const lim = me.producto?.limites;
+  const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
+  const cosas = COSAS[producto];
+  return (
+    <Caja
+      id="plan"
+      titulo="Tu plan"
+      accion={
+        plan ? (
+          <button type="button" onClick={() => irA("pagos")} className={CLASE_ENLACE_PIE}>Pagos y recibos</button>
+        ) : (
+          <Link href={rutaEn(base, "/planes")} className={CLASE_ENLACE_PIE}>Comparar planes</Link>
+        )
+      }
+    >
+      <div className={cn("grid gap-5", !angosta && "md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-8")}>
+        <div className="min-w-0">
+          {plan ? (
+            <>
+              <p className="flex flex-wrap items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
+                {plan.nombrePlan}
+                {plan.fundador && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-granate-50 px-2.5 py-0.5 text-meta font-semibold text-granate">
+                    <Sparkles size={13} aria-hidden /> Precio de fundador
+                  </span>
+                )}
+              </p>
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-dato">
+                <div>
+                  <dt className="text-meta text-mute">Pagas</dt>
+                  <dd className="font-semibold tabular-nums text-ink">{plan.medio === "cortesia" ? "Cortesía" : `${precioCorto(plan.monto)} al mes`}</dd>
+                </div>
+                <div>
+                  <dt className="text-meta text-mute">{plan.renovar && plan.medio === "tarjeta" ? "Próximo cobro" : "Activo hasta"}</dt>
+                  <dd className="font-semibold text-ink">{fechaLarga(plan.vigenteHasta)}</dd>
+                </div>
+                <div>
+                  <dt className="text-meta text-mute">Medio</dt>
+                  <dd className="font-semibold text-ink">{NOMBRE_MEDIO[plan.medio]}</dd>
+                </div>
+                {plan.fundador && plan.mesesFundador ? (
+                  <div>
+                    <dt className="text-meta text-mute">Después de {plan.mesesFundador} meses</dt>
+                    <dd className="font-semibold tabular-nums text-ink">{precioCorto(plan.regular)} al mes</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {!plan.renovar && plan.medio === "tarjeta" && (
+                <Aviso className="mt-3">Cancelaste la renovación: tu plan sigue hasta el {fechaLarga(plan.vigenteHasta)} y no se vuelve a cobrar.</Aviso>
+              )}
+              <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "mt-4")}>Cambiar de plan</Link>
+            </>
+          ) : (
+            <>
+              <p className="font-display text-seccion font-bold leading-tight text-ink">Gratis</p>
+              <p className="mt-1.5 max-w-[52ch] text-dato leading-relaxed text-inkSoft">
+                Te avisamos una vez por semana. Con un plan de pago, tus alertas llegan cada mañana, guardas más {cosas.varias} y descargas en Excel.
+              </p>
+              <Link href={rutaEn(base, "/planes")} className={claseAccion("primario", "mt-4")}>
+                Ver los planes <ArrowRight size={15} aria-hidden />
+              </Link>
+            </>
+          )}
+        </div>
+        {lim && (
+          <div className={cn("min-w-0 space-y-4 border-t border-line pt-5", !angosta && "md:border-l md:border-t-0 md:pl-8 md:pt-0")}>
+            <Uso Icono={Bell} etiqueta="Alertas" usado={usados.alertas} tope={lim.alertas} />
+            <Uso Icono={Bookmark} etiqueta="Guardados" usado={usados.guardados} tope={lim.guardados} />
+            <ul className="space-y-2">
+              <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
+                <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+                {lim.frecuencias.includes("diaria") ? "Tus alertas llegan cada mañana, a las 7:00." : "Tus alertas llegan una vez por semana."}
+              </li>
+              <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
+                <Download size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+                {lim.csv ? `Descargas en Excel hasta ${lim.filasCsv.toLocaleString("es-PE")} filas por búsqueda.` : "La descarga en Excel viene con un plan de pago."}
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+      {otros.length > 0 && (
+        <div className={cn("mt-5 grid gap-3 border-t border-line pt-5", !angosta && "sm:grid-cols-2")}>
+          {otros.map((p) => <TarjetaPlan key={p.codigo} p={p} />)}
+        </div>
       )}
-    </div>
+    </Caja>
+  );
+}
+
+/** Lo último que se avisó, con lo que trajo cada aviso. */
+export function CajaAvisos({ producto, me, irA }: { producto: Producto; me: Me; irA: Ir }) {
+  const { data: bandeja } = useSWR(["gobserva-bandeja", producto], () => cargarBandeja(producto), { revalidateOnFocus: false });
+  const mas = bandeja ? bandeja.data.length - 4 : 0;
+  return (
+    <Caja
+      id="bandeja"
+      titulo="Lo último que te avisamos"
+      accion={<button type="button" onClick={() => irA("alertas")} className={CLASE_ENLACE_PIE}>Tus alertas</button>}
+      relleno={false}
+      pie={
+        mas > 0 ? (
+          <button type="button" onClick={() => irA("alertas")} className={CLASE_ENLACE_PIE}>
+            Ver los {mas} avisos más <ArrowRight size={15} aria-hidden />
+          </button>
+        ) : undefined
+      }
+    >
+      {!bandeja ? (
+        <div aria-hidden className="m-4 h-20 animate-pulse rounded-xl bg-paperDeep sm:m-5" />
+      ) : bandeja.data.length === 0 ? (
+        <VacioCaja
+          Icono={Inbox}
+          titulo="Todavía no hay avisos"
+          texto={`Aquí verás lo nuevo de tus alertas${me.correoActivo ? ", además de recibirlo en tu correo" : ""}.`}
+          accion={
+            <button type="button" onClick={() => irA("alertas")} className={claseAccion("secundario")}>
+              <Bell size={15} aria-hidden /> Crear una alerta
+            </button>
+          }
+        />
+      ) : (
+        <ul className="divide-y divide-line">
+          {bandeja.data.slice(0, 4).map((e) => (
+            <li key={e.id} className="px-4 py-3.5 sm:px-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="min-w-0 text-dato font-semibold text-ink">{e.asunto}</p>
+                <p className="text-meta text-mute">{e.creado}</p>
+              </div>
+              <p className="mt-0.5 text-meta text-inkSoft">
+                {e.estado === "enviado" ? "Enviado a tu correo" : e.estado === "en_la_web" ? "En tu cuenta" : "No se pudo enviar al correo"}
+              </p>
+              {/* recorte: dos por aviso; el resto, en la bandeja de Alertas («y N más en tu bandeja»). */}
+              {e.items.slice(0, 2).map((i) => (
+                <a key={i.ref} href={i.enlace} className="mt-1 block truncate text-meta font-medium text-granate hover:underline">{i.titulo}</a>
+              ))}
+              {e.items.length > 2 && <p className="mt-1 text-meta text-mute">y {e.items.length - 2} más en tu bandeja</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Caja>
   );
 }
 
@@ -234,7 +257,7 @@ interface Paso {
 
 /**
  * «Para empezar»: los pasos que hacen útil la cuenta (verificar el correo, decir qué vendes, crear una alerta, guardar
- * algo), con cuántos van y la acción del siguiente a un clic. Se va cuando están todos.
+ * algo) en una fila, con cuántos van; debajo, el siguiente con su acción a un clic. Se va cuando están todos.
  */
 export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir }) {
   const conLineas = producto === "licitaciones";
@@ -295,54 +318,53 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
     },
   );
   const hechos = pasos.filter((p) => p.listo).length;
-  if (conLineas && !lineas) return <div aria-hidden className="h-40 animate-pulse rounded-2xl bg-paperDeep" />;
-  if (hechos === pasos.length) return null;
-  const siguiente = pasos.find((p) => !p.listo)?.clave;
+  if (conLineas && !lineas) return <div aria-hidden className="h-36 animate-pulse rounded-2xl bg-paperDeep" />;
+  const siguiente = pasos.find((p) => !p.listo);
+  if (!siguiente) return null;
 
   return (
-    <section aria-labelledby="empezar-t">
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <h2 id="empezar-t" className="font-display text-bloque font-bold leading-tight text-ink">Para empezar</h2>
-        <p className="text-meta font-semibold tabular-nums text-inkSoft">
-          {hechos} de {pasos.length} listos
-        </p>
-      </div>
-      <div className="mt-3 flex gap-1.5" aria-hidden>
-        {pasos.map((p) => (
-          <span key={p.clave} className={cn("h-1.5 flex-1 rounded-full", p.listo ? "bg-granate" : "bg-ink/10")} />
-        ))}
-      </div>
-      <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+    <Caja
+      id="empezar"
+      titulo="Para empezar"
+      descripcion={`${hechos} de ${pasos.length} listos. Con los ${pasos.length}, la cuenta trabaja por ti.`}
+      accion={
+        <div className="flex w-28 gap-1" aria-hidden>
+          {pasos.map((p) => (
+            <span key={p.clave} className={cn("h-1.5 flex-1 rounded-full", p.listo ? "bg-granate" : "bg-ink/10")} />
+          ))}
+        </div>
+      }
+      relleno={false}
+    >
+      <ol className={cn("grid gap-px bg-line sm:grid-cols-2", pasos.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         {pasos.map((p, i) => {
-          const abierto = p.clave === siguiente;
+          const abierto = p.clave === siguiente.clave;
           return (
-            <li key={p.clave} className={cn("flex gap-4 px-4 py-4 sm:px-5", abierto && "bg-paperSoft")}>
+            <li key={p.clave} className={cn("flex items-center gap-3 px-4 py-3 sm:px-5", abierto ? "bg-granate-50" : "bg-caja")}>
               <span
                 aria-hidden
                 className={cn(
-                  "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-meta font-bold tabular-nums",
-                  p.listo ? "bg-granate text-paper" : abierto ? "border-2 border-granate text-ink" : "border border-line text-mute",
+                  "grid h-7 w-7 shrink-0 place-items-center rounded-full text-meta font-bold tabular-nums",
+                  p.listo ? "bg-granate text-paper" : abierto ? "border-2 border-granate bg-caja text-ink" : "border border-line text-mute",
                 )}
               >
                 {p.listo ? <Check size={15} strokeWidth={3} /> : i + 1}
               </span>
-              <div className="min-w-0 flex-1">
-                <p className={cn("text-destacado font-semibold leading-snug", p.listo ? "text-mute line-through decoration-1" : "text-ink")}>
-                  <span className="sr-only">{p.listo ? "Listo: " : "Falta: "}</span>
-                  {p.titulo}
-                </p>
-                {abierto && (
-                  <>
-                    <p className="mt-1 max-w-[62ch] text-dato leading-relaxed text-inkSoft">{p.texto}</p>
-                    <div className="mt-3">{p.accion}</div>
-                  </>
-                )}
-              </div>
+              <p className={cn("min-w-0 text-dato font-semibold leading-snug", p.listo ? "text-mute line-through decoration-1" : "text-ink")}>
+                <span className="sr-only">{p.listo ? "Listo: " : abierto ? "Sigue: " : "Falta: "}</span>
+                {p.titulo}
+              </p>
             </li>
           );
         })}
       </ol>
-    </section>
+      <div className="flex flex-col gap-3 border-t border-line px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <p className="max-w-[72ch] text-pretty text-dato leading-relaxed text-inkSoft">
+          <b className="font-semibold text-ink">{siguiente.titulo}.</b> {siguiente.texto}
+        </p>
+        <div className="shrink-0">{siguiente.accion}</div>
+      </div>
+    </Caja>
   );
 }
 

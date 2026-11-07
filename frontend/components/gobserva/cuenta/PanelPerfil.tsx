@@ -81,7 +81,7 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <form onSubmit={guardar} noValidate className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+      <form onSubmit={guardar} noValidate className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
         <h2 className="font-display text-seccion font-bold leading-tight text-ink">Tus datos</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
@@ -125,7 +125,7 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
       </form>
 
       <aside className="space-y-4">
-        <div className="rounded-3xl border border-line bg-paper p-5">
+        <div className="rounded-2xl border border-line bg-caja p-5 shadow-caja">
           <p className="font-display text-bloque font-bold text-ink">Tu acceso</p>
           <p className="mt-1 break-all text-dato text-inkSoft">{c.email}</p>
           <div className="mt-4 flex flex-col gap-2">
@@ -138,7 +138,7 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
           </div>
           {claveNota && <p className="mt-3 text-meta text-inkSoft">{claveNota}</p>}
         </div>
-        <div className="rounded-3xl border border-crimson/30 bg-crimson-soft/50 p-5">
+        <div className="rounded-2xl border border-crimson/30 bg-crimson-soft/50 p-5">
           <p className="flex items-center gap-2 font-display text-bloque font-bold text-crimsonTexto">
             <ShieldAlert size={18} aria-hidden /> Borrar mi cuenta
           </p>
