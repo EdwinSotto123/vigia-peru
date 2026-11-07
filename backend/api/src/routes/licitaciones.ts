@@ -6,6 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { busquedaOece, procesoOece } from "../lib/fuentes.js";
 import { palabrasBusqueda } from "./personas.js";
+import { PROC_BANDEJA, condicionesBandeja, leerBandeja, ordenBandeja, FIN_CONSULTAS as FIN_BANDEJA, HOY_TEXTO as HOY_BANDEJA } from "../lib/bandeja.js";
 
 /**
  * licitaciones.gobserva.cloud (Gobserva Licitaciones, 2026-11-01): las convocatorias del SEACE para quien le vende al
@@ -201,6 +202,68 @@ licitacionesRouter.get("/oportunidades", async (c) => {
     ]);
     const r = resumen.rows[0] ?? { total: 0 };
     return publicar({ ...q, total: r.total, resumen: r, data: filas.rows, porTipo: porTipo.rows, porRegion: porRegion.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /licitaciones/bandeja ───────────────────────────────────────────────
+/**
+ * La bandeja de la app (2026-11-07, frontend/lib/licitaciones-app): los filtros de su URL tal cual (lib/bandeja.ts),
+ * facetas de tipo, región y procedimiento contadas con los demás filtros, el resumen y, por fila, el comprador en 12
+ * meses (inteligenciaEntidad, en la caché larga) para que la app calcule las señales de riesgo. El comprador de una
+ * página se pide en paralelo con un tope de tiempo: lo que no llega a tiempo sale sin comprador (sin señales), nunca
+ * demora la lista.
+ */
+licitacionesRouter.get("/bandeja", async (c) => {
+  const q = leerBandeja(parametros(c) as Record<string, string | undefined>);
+  if (!q) return c.json({ error: "invalid_query" }, 400);
+  const cuerpo = await memo.obtener(`bandeja:${JSON.stringify(q)}`, async () => {
+    const palabras = palabrasBusqueda(q.q);
+    const todo = condicionesBandeja(q, palabras);
+    const desde = `FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc`;
+    const donde = (x: { conds: string[] }) => x.conds.join(" AND ");
+    const faceta = (sin: "tipo" | "region" | "proc", clave: string, extra = "") => {
+      const x = condicionesBandeja(q, palabras, sin);
+      return pool.query(`SELECT ${clave} AS clave, count(*)::int AS n ${desde} WHERE ${donde(x)} ${extra} GROUP BY 1 ORDER BY 2 DESC LIMIT 40`, x.vals);
+    };
+    const [resumen, porTipo, porRegion, porProc] = await Promise.all([
+      pool.query(
+        `SELECT count(*)::int AS total, count(*) FILTER (WHERE c.cuantia_referencial > 0)::int AS "conValor",
+                COALESCE(sum(c.cuantia_referencial) FILTER (WHERE c.cuantia_referencial > 0), 0)::float AS "valorTotal",
+                count(DISTINCT c.entidad_ruc)::int AS entidades,
+                count(*) FILTER (WHERE ${FIN_BANDEJA} BETWEEN ${HOY_BANDEJA} AND to_char((now() AT TIME ZONE 'America/Lima')::date + 7, 'YYYY-MM-DD'))::int AS "vencenSemana"
+           ${desde} WHERE ${donde(todo)}`,
+        todo.vals,
+      ),
+      faceta("tipo", "c.tipo_contratacion"),
+      faceta("region", "left(c.ubigeo_zona, 2)", "AND c.ubigeo_zona IS NOT NULL"),
+      faceta("proc", PROC_BANDEJA, `AND ${PROC_BANDEJA} IS NOT NULL`),
+    ]);
+    const r = resumen.rows[0] ?? { total: 0 };
+    const paginas = Math.max(1, Math.ceil((r.total ?? 0) / q.tam));
+    const pagina = Math.min(q.pag, paginas);
+    const filas = await pool.query(
+      `SELECT ${COLS_OPORTUNIDAD} ${desde} WHERE ${donde(todo)} ORDER BY ${ordenBandeja(q.orden)} LIMIT ${q.tam} OFFSET ${(pagina - 1) * q.tam}`,
+      todo.vals,
+    );
+    // El comprador de cada fila (una consulta por entidad, en la caché larga), con 2,5 s de tope para toda la página.
+    const rucs = [...new Set(filas.rows.map((f) => f.entidadRuc).filter((x): x is string => typeof x === "string" && /^\d{11}$/.test(x)))];
+    const compradores = new Map<string, Record<string, unknown>>();
+    await Promise.race([
+      Promise.allSettled(rucs.map(async (ruc) => compradores.set(ruc, await inteligenciaEntidad(ruc)))),
+      new Promise((res) => setTimeout(res, 2500)),
+    ]);
+    const data = filas.rows.map((f) => ({ ...f, comprador: compradores.get(f.entidadRuc) ?? null }));
+    return publicar({
+      ...q,
+      pagina,
+      paginas,
+      total: r.total ?? 0,
+      resumen: r,
+      data,
+      facetas: { tipo: porTipo.rows, region: porRegion.rows, proc: porProc.rows },
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
