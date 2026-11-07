@@ -138,3 +138,20 @@ La web llama a un solo agente (`VIGIA_AGENT_URL`, el de bienes) y lee los bucket
 - **Cloudflare** (`wrangler.jsonc`): cambiar `VIGIA_AGENT_URL` y volver a construir y desplegar (`CLOUDFLARE.md`). La cuenta de `GCP_SA_KEY` necesita `run.invoker` en el agente.
 
 Guía: `infrastructure/deploy/gcp/migracion/README.md`.
+
+## La app de Gobserva Licitaciones
+
+La app para proveedores (licitaciones.gobserva.cloud con sesión) está documentada en `docs/PLAN.md`: rutas, contrato de
+datos, decisiones y estado. Lo esencial:
+
+- `lib/licitaciones-app/`: la lógica pura, probada con `npm test` (`node --test`; Node 22.18 corre TypeScript):
+  - filtros en la URL, fechas de Lima y señales;
+  - adaptadores de datos (`fuente-gobserva` en vivo y `fuente-demo` con la muestra);
+  - onboarding, notificaciones e .ics.
+- `components/licitaciones-app/`: la bandeja, el detalle, el onboarding, las notificaciones y las piezas comunes
+  (`TablaDatos`, `Paginacion`, `Insignia`, `Estados`, `Desplegable` y `Avisos`).
+- `components/gobserva/app/`: el marco (`MarcoApp`, `NavApp`) y las piezas de página (`Caja`, `CabeceraPagina`).
+- En desarrollo la bandeja usa la muestra (`LICITACIONES_FUENTE=demo`, por defecto fuera de producción). Para probar con
+  datos en vivo, `LICITACIONES_FUENTE=gobserva` y una API alcanzable.
+
+Antes de publicar: `npx tsc --noEmit -p .`, `npm test`, `npm run auditar:estilo` y `npx next build`.

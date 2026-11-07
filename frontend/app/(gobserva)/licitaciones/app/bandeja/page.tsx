@@ -8,6 +8,7 @@ import { Chips } from "@/components/licitaciones-app/bandeja/Chips";
 import { Filtros } from "@/components/licitaciones-app/bandeja/Filtros";
 import { Herramientas } from "@/components/licitaciones-app/bandeja/Herramientas";
 import { CrearAlerta } from "@/components/licitaciones-app/bandeja/CrearAlerta";
+import { DescargarExcel } from "@/components/licitaciones-app/bandeja/DescargarExcel";
 import { Perfiles } from "@/components/licitaciones-app/bandeja/Perfiles";
 import { ResultadosVivos } from "@/components/licitaciones-app/bandeja/Resultados";
 import { TablaBandeja } from "@/components/licitaciones-app/bandeja/TablaBandeja";
@@ -91,6 +92,7 @@ export default async function Bandeja({ searchParams }: { searchParams?: Record<
                   accion={
                     <>
                       <Herramientas />
+                      <DescargarExcel />
                       <CrearAlerta />
                     </>
                   }
@@ -139,7 +141,10 @@ function Resumen({ r, url }: { r: ResultadoBandeja; url: (c: Partial<FiltrosBand
     <span className="flex flex-wrap gap-x-5 gap-y-1">
       <span className="inline-flex items-center gap-1.5">
         <Coins size={14} aria-hidden className="text-mute" />
-        {solesCompacto(e.valorTotal)} en juego ({numero(e.conValor)} con valor)
+        {/* En el OCDS casi ningún proceso de bienes o servicios publica su valor: se dice así, no «S/ 0 en juego». */}
+        {e.conValor === 0
+          ? "Ninguna publicó su valor referencial"
+          : `${solesCompacto(e.valorTotal)} en juego (${numero(e.conValor)} de ${numero(r.total)} publicaron su valor)`}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <Building2 size={14} aria-hidden className="text-mute" />

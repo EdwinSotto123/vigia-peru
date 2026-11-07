@@ -1,6 +1,7 @@
 # Plan: la app de Gobserva Licitaciones (inspirada en LicitaLAB)
 
-Fecha: 2026-11-07. Estado: etapa 1, la primera parte completa (bandeja y detalle) con datos de demostración.
+Fecha: 2026-11-07. Estado: etapa 2 en producción. Bandeja en vivo, detalle, onboarding, seguimiento en la cuenta,
+notificaciones y alertas desde la bandeja (ver «Estado de la etapa 2»).
 
 ## Qué se construye
 
@@ -15,8 +16,9 @@ los textos y el aspecto son de Gobserva.
 - Notificaciones.
 - Equipo con roles.
 
-**Nombre.** No usamos «Licitalab»: es casi el nombre del competidor. La app es **Gobserva Licitaciones** y hereda el
-logo, los colores y la tipografía de la portada.
+**Nombre.** El usuario pidió «Licita Lab». No se usa: es la marca de un competidor real (LicitaLAB), y publicarla en
+nuestro dominio sería suplantarlo. La app es **Gobserva Licitaciones** y hereda el logo, los colores y la tipografía de
+la portada.
 
 ## Stack detectado
 
@@ -38,11 +40,17 @@ En `licitaciones.gobserva.cloud`; en DEV llevan delante `/licitaciones`.
 | `/login` | Redirige a `/entrar` y conserva `next` | |
 | `/entrar` | Entrar o crear cuenta | Sitio |
 | `/app` | Redirige a `/app/bandeja` | App |
-| `/app/bandeja` | Bandeja: búsqueda, filtros, orden, paginación y búsquedas guardadas, todo en la URL | App (`MarcoApp`) |
+| `/app/bienvenida` | Onboarding en 4 pasos: qué vendes, dónde, qué contratos, cómo avisarte | Pantalla completa |
+| `/app/bandeja` | Bandeja: búsqueda, filtros, orden, paginación, búsquedas guardadas, alerta y Excel, todo en la URL | App (`MarcoApp`) |
 | `/app/oportunidad/[id]` | Detalle en pestañas (`?tab=`) | App |
-| Etapa 2 | `/app/panel`, `/app/seguimiento`, `/app/calendario`, `/app/reportes/[tipo]`, `/app/asistente`, `/app/notificaciones`, `/app/equipo`, `/app/configuracion` | App |
+| `/app/notificaciones` | Centro de notificaciones (`?ver=vence` o `?ver=alertas`) | App |
+| `/cuenta?tab=…` | Inicio, Para ti, Seguimiento (tablero), Calendario, Mis alertas, Plan y pagos, Perfil | App |
 
-Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, comentarios, historial y postulacion.
+Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, notas, historial y postulacion.
+`?tab=comentarios`, de los enlaces viejos, abre «notas».
+
+Con la sesión abierta, `/oportunidades` y `/oportunidad/:ocid` llevan a la bandeja y al detalle de la app, con los
+filtros traducidos (middleware). Para los visitantes siguen siendo las páginas públicas.
 
 Con la sesión abierta, todo `/app/*` usa el marco de la app (`components/gobserva/app/MarcoApp.tsx`): barra lateral,
 cabecera con buscador y pie. La cabecera de la portada nunca aparece ahí. Sin sesión, `/app/*` lleva a
@@ -165,6 +173,43 @@ Hecho y verificado:
 **Etapa 2,** en este orden: el adaptador en vivo (con los filtros nuevos en la API), Panel, Seguimiento (tablero con
 responsables y etiquetas), Calendario, Reportes (compradores, competidores, productos, precios y marcas), Asistente
 (simulado), Notificaciones, Equipo y roles, y Configuración. Todo con las mismas piezas.
+
+## Estado de la etapa 2 (2026-11-07, noche)
+
+En producción y probado de punta a punta con usuarios desechables:
+- **Bandeja en vivo.** Adaptador `gobserva` contra `GET /licitaciones/bandeja`, una API nueva en
+  `backend/api/src/lib/bandeja.ts`. Recibe:
+  - varios tipos y regiones;
+  - procedimiento y plazo de consultas;
+  - cinco órdenes;
+  - páginas sin tope;
+  - facetas, y el comprador de cada fila para las señales.
+
+  La muestra queda para desarrollo (`LICITACIONES_FUENTE`). El filtro «con señales» no se muestra en vivo porque las
+  señales se calculan sólo para la página que se ve.
+- **Onboarding** (`/app/bienvenida`). Cuatro pasos, con la validación de cada paso y palabras sugeridas. Cada palabra
+  muestra cuántas oportunidades abiertas trae, en vivo. Al terminar crea la línea («Para ti»), la alerta y la búsqueda
+  «Mi empresa». Quien crea su cuenta llega ahí. Sin perfil, la bandeja y el Inicio lo ofrecen.
+- **Seguimiento coherente.** La estrella, la etapa y las notas escriben en la cuenta (`useSeguimiento`, la API de
+  guardados): lo seguido aparece en el tablero, el calendario y las notificaciones. El navegador guarda sólo las
+  búsquedas guardadas y el checklist, y la UI lo dice.
+- **Notificaciones.** Campana en la cabecera y `/app/notificaciones`. Las fuentes son reales:
+  - los plazos de lo seguido que vencen en 3 días, urgentes si vencen hoy o mañana;
+  - lo nuevo de las alertas.
+
+  Cada aviso lleva a donde actuar. Lo leído se guarda en el navegador. Los avisos breves confirman cada acción.
+- **Alertas desde la bandeja.** «Crear alerta» guarda los filtros de la vista (`bandeja: 1`) y la API las corre como la
+  bandeja (`filtrosBandejaAlerta` y `filasBandeja`). «Excel» descarga la misma búsqueda (con plan de pago).
+- **Marco.** Al entrar se hace una carga entera con la marca de sesión puesta: así nunca queda el marco de visitantes
+  alrededor de la app. La app no tiene pie. Bajo 400 px, el modo día y noche va en «Más».
+
+**Lo que falta, o no se hace a propósito:**
+- **Equipo y roles** y el **asistente de IA sobre las bases** no se construyeron. Sin cuentas compartidas en la base,
+  serían pantallas simuladas.
+- Las **búsquedas guardadas** y el **checklist** viven en el navegador. Llevarlos a la cuenta necesita una tabla nueva
+  (migración) y su API.
+- **Reportes de marcas y catálogo:** no tenemos esos datos. Mercado (compradores, ganadores y precios por palabra) es
+  lo que hay en vivo.
 
 ## Verificación de cada etapa
 

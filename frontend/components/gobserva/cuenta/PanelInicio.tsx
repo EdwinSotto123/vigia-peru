@@ -106,8 +106,8 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
             <Cifra
               Icono={Coins}
               etiqueta="En juego"
-              valor={r ? (r.valorEnJuego > 0 ? solesCompacto(r.valorEnJuego) : "S/ 0") : null}
-              detalle="Valor referencial de lo que calza"
+              valor={r ? (r.valorEnJuego > 0 ? solesCompacto(r.valorEnJuego) : "Sin dato") : null}
+              detalle={r && r.valorEnJuego === 0 ? "Lo que calza no publicó su valor referencial" : "Valor referencial de lo que calza"}
               onClick={() => irA("para-ti")}
             />
             <Cifra
