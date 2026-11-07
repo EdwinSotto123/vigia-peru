@@ -28,6 +28,7 @@ import { correrPenalidades } from "./fuentes/osce_penalidades.ts";
 import { correrVisitas } from "./fuentes/pnda_visitas.ts";
 import { correrCongresoVisitas } from "./fuentes/congreso_visitas.ts";
 import { correrSeaceMenores } from "./fuentes/seace_menores.ts";
+import { correrSeaceCotizaciones } from "./fuentes/seace_cotizaciones.ts";
 import { correrOeceEntidades } from "./fuentes/oece_entidades.ts";
 import { correrSunatPadron } from "./fuentes/sunat_padron.ts";
 import { correrInviertePe } from "./fuentes/invierte_pe.ts";
@@ -67,6 +68,7 @@ export const FUENTES: Record<string, Corredor> = {
   contraloria_informes: correrContraloria,
   pte_personal: correrPte,
   seace_menores: correrSeaceMenores,
+  seace_cotizaciones: correrSeaceCotizaciones,
 };
 
 /** Los pasos de la bitácora: cortos, y si fallan la corrida sigue (anotar nunca la corta). */

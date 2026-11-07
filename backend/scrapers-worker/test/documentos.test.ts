@@ -22,5 +22,5 @@ test("extension: mime u OCDS → extensión corta", () => {
 });
 
 test("el cron de documentos corre cada hora", () => {
-  assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, Date.parse("2026-10-19T05:40:00Z")), ["documentos"]);
+  assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, Date.parse("2026-10-19T05:40:00Z")), ["documentos", "seace_cotizaciones"]);
 });

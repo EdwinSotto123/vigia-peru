@@ -68,7 +68,8 @@ export const CRON_MENORES = "0 10 * * 2";
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
-  if (cron === CRON_DOCUMENTOS) return new Date(ms - 5 * 3600 * 1000).getUTCHours() === 12 ? ["documentos", "salud_lima"] : ["documentos"];
+  // Cada hora también las contrataciones menores abiertas (seace_cotizaciones): sus ventanas duran horas.
+  if (cron === CRON_DOCUMENTOS) return new Date(ms - 5 * 3600 * 1000).getUTCHours() === 12 ? ["documentos", "salud_lima", "seace_cotizaciones"] : ["documentos", "seace_cotizaciones"];
   if (cron === CRON_MENORES) return ["seace_menores"];
   if (cron !== CRON_DATOS) return [];
   const lima = new Date(ms - 5 * 3600 * 1000);
