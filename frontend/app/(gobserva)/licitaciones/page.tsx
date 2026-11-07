@@ -30,7 +30,7 @@ export default async function InicioLicitaciones() {
   const base = baseProducto("licitaciones");
   const cat = await planesServidor("licitaciones");
   const ruta = (p: string) => rutaEn(base, p);
-  const crear = ruta("/entrar?crear=1&next=/para-ti");
+  const crear = ruta(`/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`);
 
   return (
     <>

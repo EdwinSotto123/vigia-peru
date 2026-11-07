@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { cargarMe, type Me } from "@/lib/gobserva-cuenta";
-import type { Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, type Producto } from "@/lib/gobserva";
 import { NIVEL, NIVELES_ORDEN, REGIONES_EMPLEO, nombreRegion as nombreRegionEmpleo, slugRegion } from "@/lib/empleo";
 import { REGIONES_UBIGEO, TIPOS, nombreRegion as nombreRegionLic, nombreTipo } from "@/lib/licitaciones";
 import { FASES, MODALIDADES, NIVELES, ORDEN_FASES, PESTANAS, SECTORES, TIPOS_PROYECTO, nombreNivel, nombreSector } from "@/lib/gobserva-obras";
@@ -35,6 +35,18 @@ export function Aviso({ tono = "nota", children, className }: { tono?: "error" |
       <span className="min-w-0">{children}</span>
     </p>
   );
+}
+
+/** Pone o borra la marca de sesión (lib/gobserva.ts, COOKIE_SESION) que lee el middleware. */
+export function marcarSesion(abierta: boolean) {
+  try {
+    const seguro = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = abierta
+      ? `${COOKIE_SESION}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${seguro}`
+      : `${COOKIE_SESION}=; Path=/; Max-Age=0; SameSite=Lax${seguro}`;
+  } catch {
+    // Sin cookies: la portada se queda como está.
+  }
 }
 
 /** La sesión de Firebase, con lo que importa para Gobserva: una cuenta de Vigía (correo sintético) no sirve aquí. */

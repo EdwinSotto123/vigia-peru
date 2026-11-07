@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { LogIn, UserRound } from "lucide-react";
 import { rutaEn } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
-import { useSesion } from "./comun";
+import { marcarSesion, useSesion } from "./comun";
 
 /**
  * La cuenta en la cabecera de un producto: «Entrar» sin sesión y la inicial con «Mi cuenta» con ella. No carga Firebase
@@ -15,6 +16,10 @@ import { useSesion } from "./comun";
  */
 export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: { base: string; compacto?: boolean; entrarConTexto?: boolean }) {
   const { user, loading, conCuenta } = useSesion();
+  // La marca para el middleware: con sesión, la portada lleva a la cuenta (está en todas las páginas del producto).
+  useEffect(() => {
+    if (!loading) marcarSesion(conCuenta);
+  }, [loading, conCuenta]);
   if (loading) return <span aria-hidden className={cn("inline-block h-10 animate-pulse rounded-full bg-paperDeep", compacto ? "w-10" : "w-24")} />;
   if (!conCuenta || !user) {
     return (

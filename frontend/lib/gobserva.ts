@@ -55,6 +55,13 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
 };
 
 /** Qué producto sirve cada subdominio (producción y DEV). */
+/**
+ * La marca de que hay una sesión de Gobserva abierta en este navegador y este producto (sólo «1», sin datos de la
+ * cuenta). La pone la cabecera (MenuCuenta) cuando Firebase confirma la sesión y la borra cuando no hay; con ella el
+ * middleware lleva la portada a la cuenta, sin mostrar la portada para visitantes a quien ya entró.
+ */
+export const COOKIE_SESION = "gobserva_sesion";
+
 export const PRODUCTO_POR_HOST: Record<string, Producto> = Object.fromEntries(
   Object.values(PRODUCTOS).flatMap((p) => [
     [p.host, p.clave],

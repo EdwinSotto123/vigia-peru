@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto } from "@/lib/gobserva";
 
 /**
  * Dos trabajos:
@@ -9,6 +9,9 @@ import { PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto } from "@/lib/g
  *     nada de Vigía (la app, el panel) se sirve desde un producto: su ruta reescrita no existe y da 404. Desde
  *     vigia.gobserva.cloud, `/empleo/…` lleva al subdominio; en DEV (sin subdominio propio) se navega por la ruta.
  *     Cada producto tiene su robots.txt y su sitemap.xml.
+ *   · Con la sesión de Gobserva abierta (la marca COOKIE_SESION, que pone la cabecera), la portada de un producto lleva
+ *     a la cuenta y «Para ti» a su sección de la cuenta: quien ya entró va a la app, no a la página para visitantes.
+ *     `?portada` deja ver la portada igual.
  *   · Protege /admin/*: sin la cookie de sesión admin (httpOnly, la pone /api/admin/login tras validar el token contra
  *     el API) redirige al login. La validez real del token la verifica el API en cada request proxeado.
  */
@@ -19,7 +22,13 @@ export function middleware(req: NextRequest) {
   const host = hostLimpio(req.headers.get("host"));
   const producto = PRODUCTO_POR_HOST[host];
 
+  const aLaApp = req.cookies.get(COOKIE_SESION)?.value === "1" && !req.nextUrl.searchParams.has("portada");
+
   if (producto) {
+    if (aLaApp) {
+      const destino = destinoConSesion(producto, pathname);
+      if (destino) return NextResponse.redirect(new URL(destino, req.nextUrl), 307);
+    }
     // La imagen para compartir: Next la publica con su ruta interna (/empleo/opengraph-image-…) y así se sirve, sin
     // redirigir (los que leen el og:image no siempre siguen una redirección).
     if (pathname.startsWith(`/${producto}/opengraph-image`) || pathname.startsWith(`/${producto}/twitter-image`)) return NextResponse.next();
@@ -31,6 +40,16 @@ export function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = `/${producto}${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
+  }
+
+  // En DEV (sin subdominio) los productos van por ruta: /licitaciones, /licitaciones/para-ti.
+  if (aLaApp) {
+    for (const p of PRODUCTOS_CON_RUTA) {
+      if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
+        const destino = destinoConSesion(p, pathname.slice(p.length + 1) || "/");
+        if (destino) return NextResponse.redirect(new URL(`/${p}${destino}`, req.nextUrl), 307);
+      }
+    }
   }
 
   // robots.txt y sitemap.xml pasan por aquí sólo por los subdominios de los productos.
@@ -54,6 +73,13 @@ export function middleware(req: NextRequest) {
     }
   }
   return NextResponse.next();
+}
+
+/** A dónde va quien tiene la sesión abierta, desde una ruta del producto (null: se queda). */
+function destinoConSesion(producto: Producto, ruta: string): string | null {
+  if (ruta === "/") return "/cuenta";
+  if (producto === "licitaciones" && ruta === "/para-ti") return "/cuenta?tab=para-ti";
+  return null;
 }
 
 export const config = {

@@ -43,7 +43,7 @@ export function ParaTi({ base }: { base: string }) {
           contratos menores abiertos de lo más parecido a lo menos. Es gratis con tu cuenta.
         </p>
         {esVigia && <Aviso className="mt-3">Esa es una cuenta de Vigía. Para Gobserva, entra con tu correo o con Google.</Aviso>}
-        <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/para-ti")}`)} className={claseAccion("primario", "mt-5", "md")}>
+        <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`)} className={claseAccion("primario", "mt-5", "md")}>
           <LogIn size={16} aria-hidden /> Crear mi cuenta gratis
         </Link>
       </section>
