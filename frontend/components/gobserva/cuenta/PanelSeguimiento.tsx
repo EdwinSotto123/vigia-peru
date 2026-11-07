@@ -329,8 +329,9 @@ function Tarjeta({
         </button>
       ) : null}
 
-      <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-line pt-2">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+      {/* Desde xl la columna es angosta: la lista de etapas ocupa su renglón y los íconos van debajo, a la derecha. */}
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 border-t border-line pt-2">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 xl:basis-full">
           <button
             type="button"
             disabled={!anterior}
@@ -359,7 +360,7 @@ function Tarjeta({
             {estados.map((e) => <option key={e.valor} value={e.valor}>{e.etiqueta}</option>)}
           </select>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5 xl:ml-auto">
           {!editando && (
             <button type="button" onClick={() => setEditando(true)} aria-label="Escribir una nota" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink">
               <StickyNote size={16} aria-hidden />

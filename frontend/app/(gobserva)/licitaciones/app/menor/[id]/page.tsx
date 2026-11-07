@@ -21,6 +21,14 @@ const BUSCADOR_SEACE = "https://prod6.seace.gob.pe/buscador-publico/contratacion
 const HORA = new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false });
 const fechaHora = (iso: string) => `${fechaCortaLima(iso)}, ${HORA.format(new Date(iso))}`;
 
+/** Cuánto falta para el cierre, corto (la fecha ya está arriba): «Faltan 45 min», «Faltan 5 h», «Faltan 2 días». */
+function faltan(horas: number): string {
+  if (horas < 1) return `Faltan ${Math.max(1, Math.round(horas * 60))} min`;
+  if (horas < 24) return `Faltan ${Math.round(horas)} h`;
+  const dias = Math.floor(horas / 24);
+  return dias === 1 ? "Falta 1 día" : `Faltan ${dias} días`;
+}
+
 type Props = { params: { id: string }; searchParams?: { volver?: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -133,8 +141,8 @@ export default async function DetalleMenor({ params, searchParams }: Props) {
               {cierre.cerrada ? (
                 <span className="text-meta text-mute">El {fechaHora(m.cierra)}</span>
               ) : (
-                <Insignia tono={cierre.urgente ? "urgente" : horasAlCierre <= 36 ? "aviso" : "neutro"} Icono={Clock}>
-                  {cierre.texto}
+                <Insignia tono={cierre.urgente ? "urgente" : horasAlCierre <= 36 ? "aviso" : "neutro"} Icono={Clock} title={cierre.texto}>
+                  {faltan(horasAlCierre)}
                 </Insignia>
               )}
             </dd>
