@@ -93,12 +93,17 @@ export interface MensajeAsistente {
   /** La revisión automática de enlaces y montos; null si no llegó (respuesta vieja o sin respuesta). */
   revision: Revision | null;
   error: string | null;
+  /**
+   * El informe guardado en el servidor (evento `inicio`): su enlace, y por dónde retomarlo si se recarga la página
+   * mientras corre (sigue corriendo en el servidor aunque se cierre la pestaña). null en respuestas sin guardar.
+   */
+  informe: string | null;
 }
 
 export type Mensaje = MensajeUsuario | MensajeAsistente;
 
 export type EventoChat =
-  | { tipo: "inicio"; modelo: string | null }
+  | { tipo: "inicio"; modelo: string | null; informe: string | null }
   | { tipo: "paso"; id: string; herramienta: string; titulo: string | null; entrada: Record<string, unknown> | null }
   | { tipo: "resultado"; id: string; herramienta: string | null; ok: boolean; caracteres: number | null; resumen: string | null }
   | { tipo: "texto"; texto: string }
@@ -146,7 +151,7 @@ export function comoEvento(crudo: unknown): EventoChat | null {
   if (!o) return null;
   switch (o.tipo) {
     case "inicio":
-      return { tipo: "inicio", modelo: str(o.modelo) };
+      return { tipo: "inicio", modelo: str(o.modelo), informe: str(o.informe) };
     case "paso": {
       const herramienta = str(o.herramienta) ?? "herramienta";
       return { tipo: "paso", id: str(o.id) ?? herramienta, herramienta, titulo: str(o.titulo), entrada: obj(o.entrada) };
@@ -184,7 +189,7 @@ export function comoEvento(crudo: unknown): EventoChat | null {
 export function aplicarEvento(m: MensajeAsistente, e: EventoChat): MensajeAsistente {
   switch (e.tipo) {
     case "inicio":
-      return { ...m, modelo: e.modelo ?? m.modelo };
+      return { ...m, modelo: e.modelo ?? m.modelo, informe: e.informe ?? m.informe };
     case "paso": {
       if (m.pasos.some((p) => p.tipo === "herramienta" && p.id === e.id)) return m;
       const paso: PasoHerramienta = { tipo: "herramienta", id: e.id, herramienta: e.herramienta, titulo: e.titulo ?? e.herramienta, entrada: e.entrada, estado: "en_curso", caracteres: null, resumen: null };
@@ -251,7 +256,24 @@ export const CLAVE_GUARDADO = "vigia-admin-chat-v1";
 
 export interface Guardado {
   modelo: ModeloChat;
+  /** El id de la conversación: los informes de sus preguntas lo comparten en el servidor. */
+  conversacion: string;
   mensajes: Mensaje[];
+}
+
+/** Un turno del asistente vacío, listo para recibir eventos. */
+export function turnoVacio(id: string, modeloPedido: ModeloChat, inicio = Date.now()): MensajeAsistente {
+  return { id, rol: "asistente", estado: "corriendo", inicio, modeloPedido, modelo: null, pasos: [], texto: null, fin: null, revision: null, error: null, informe: null };
+}
+
+/** Un turno armado con los eventos guardados de un informe (GET /admin/chat/informes/:id). */
+export function turnoDeEventos(id: string, modeloPedido: ModeloChat, inicio: number, eventos: unknown[], terminado: boolean): MensajeAsistente {
+  let m = turnoVacio(id, modeloPedido, inicio);
+  for (const crudo of eventos) {
+    const e = comoEvento(crudo);
+    if (e) m = aplicarEvento(m, e);
+  }
+  return terminado ? cerrarTurno(m, false) : m;
 }
 
 function leerPaso(x: unknown): Paso | null {
@@ -273,8 +295,17 @@ function leerMensaje(x: unknown): Mensaje | null {
   const texto = typeof m.texto === "string" ? m.texto : null;
   const fin = obj(m.fin);
   const tokens = fin ? obj(fin.tokens) : null;
-  // Un turno que corría cuando se recargó la página ya no tiene stream: queda cortado.
-  const estado: EstadoTurno = m.estado === "listo" || m.estado === "error" || m.estado === "detenido" ? m.estado : texto != null ? "listo" : "cortado";
+  const informe = str(m.informe);
+  // Un turno que corría cuando se recargó la página: si tiene informe en el servidor, sigue corriendo allá y se retoma
+  // (useChat); si no, ya no tiene stream y queda cortado.
+  const estado: EstadoTurno =
+    m.estado === "listo" || m.estado === "error" || m.estado === "detenido"
+      ? m.estado
+      : texto != null
+        ? "listo"
+        : m.estado === "corriendo" && informe
+          ? "corriendo"
+          : "cortado";
   return {
     id: m.id,
     rol: "asistente",
@@ -294,6 +325,7 @@ function leerMensaje(x: unknown): Mensaje | null {
       : null,
     revision: leerRevision(m.revision),
     error: str(m.error),
+    informe,
   };
 }
 
@@ -304,7 +336,7 @@ export function leerGuardado(crudo: string | null): Guardado | null {
     const g = obj(JSON.parse(crudo));
     if (!g) return null;
     const mensajes = Array.isArray(g.mensajes) ? g.mensajes.map(leerMensaje).filter((m): m is Mensaje => !!m) : [];
-    return { modelo: esModelo(g.modelo) ? g.modelo : "fino", mensajes };
+    return { modelo: esModelo(g.modelo) ? g.modelo : "fino", conversacion: str(g.conversacion) ?? nuevoId(), mensajes };
   } catch {
     return null;
   }

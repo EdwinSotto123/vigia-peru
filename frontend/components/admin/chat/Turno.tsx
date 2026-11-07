@@ -93,7 +93,7 @@ export const TurnoAsistente = memo(function TurnoAsistente({
         </p>
       )}
 
-      {!corriendo && m.texto != null && <Descargas texto={m.texto} pregunta={pregunta} modelo={m.modelo} pasos={m.pasos} revision={m.revision} contenido={pintada} />}
+      {!corriendo && m.texto != null && <Descargas texto={m.texto} pregunta={pregunta} modelo={m.modelo} pasos={m.pasos} revision={m.revision} informe={m.informe} contenido={pintada} />}
 
       {m.pasos.length > 0 && <Pasos pasos={m.pasos} corriendo={corriendo} conRespuesta={m.texto != null} />}
 

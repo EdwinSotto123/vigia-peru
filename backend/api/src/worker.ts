@@ -16,6 +16,8 @@ import type { Env } from "./workers/env.js";
 
 // Límite por IP (lib/antibots.ts): la clase del Durable Object se exporta desde la entrada (wrangler.jsonc → durable_objects).
 export { Limitador } from "./workers/limitador.js";
+// Cada informe del chat de investigación corre en su Durable Object (routes/admin_chat.ts).
+export { ChatInforme } from "./workers/chatInforme.js";
 
 /** El cron diario de Gobserva (wrangler.jsonc). */
 const CRON_GOBSERVA = "0 12 * * *";

@@ -41,6 +41,8 @@ export interface Env {
   AI?: Ai;
   /** Límite por IP de lecturas, búsquedas y escrituras (lib/antibots.ts): un Durable Object por clave (workers/limitador.ts). */
   LIMITADOR?: DurableObjectNamespace<import("./limitador.js").Limitador>;
+  /** Un informe del chat de investigación que sigue aunque se cierre la pestaña (workers/chatInforme.ts, migración 261). */
+  CHAT_INFORME?: DurableObjectNamespace<import("./chatInforme.js").ChatInforme>;
 
   // secretos
   ADMIN_TOKEN?: string;

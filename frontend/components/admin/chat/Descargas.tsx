@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, FileText, Printer, Table2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, FileText, Link2, Printer, Table2 } from "lucide-react";
 import { claseBoton } from "@/components/admin/ui";
 import type { Paso, Revision } from "./conversacion";
 import {
@@ -19,7 +19,8 @@ import {
 
 /**
  * «Descargar» debajo de cada respuesta del chat: Word, PDF, Excel y CSV (estos dos sólo si la respuesta trae tablas), y
- * «Copiar», que deja la respuesta con formato para pegarla en Word o Google Docs (y en markdown donde no hay formato).
+ * «Copiar», que deja la respuesta con formato para pegarla en Word o Google Docs (y en markdown donde no hay formato), y
+ * «Enlace», que copia la dirección del informe guardado en el servidor (/admin/chat/informes/:id, para el equipo).
  * Todo se arma en el navegador (exportar.ts) con lo que ya se ve en la pantalla.
  */
 export function Descargas({
@@ -28,6 +29,7 @@ export function Descargas({
   modelo,
   pasos,
   revision,
+  informe = null,
   contenido,
 }: {
   texto: string;
@@ -36,11 +38,14 @@ export function Descargas({
   pasos: Paso[];
   /** La revisión automática de enlaces y montos: va al anexo del informe. */
   revision: Revision | null;
+  /** El id del informe guardado: con él, el botón «Enlace». */
+  informe?: string | null;
   /** La respuesta ya pintada: de ahí sale el PDF y el «Copiar» con formato. */
   contenido: RefObject<HTMLDivElement | null>;
 }) {
   const tablas = useMemo(() => contarTablas(texto), [texto]);
   const [copiado, setCopiado] = useState(false);
+  const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reloj = useRef<number | null>(null);
   useEffect(() => () => {
@@ -114,6 +119,20 @@ export function Descargas({
     }
   };
 
+  const copiarEnlace = async () => {
+    if (!informe) return;
+    setError(null);
+    const url = `${window.location.origin}/admin/chat/informes/${informe}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setEnlaceCopiado(true);
+      if (reloj.current) window.clearTimeout(reloj.current);
+      reloj.current = window.setTimeout(() => setEnlaceCopiado(false), 2000);
+    } catch {
+      setError(`El navegador no dejó copiar. El enlace es ${url}`);
+    }
+  };
+
   return (
     <div className="border-t border-line px-4 py-2.5 sm:px-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +160,13 @@ export function Descargas({
             </button>
           </>
         )}
-        <button type="button" onClick={() => void copiar()} title="Copia la respuesta con formato, para pegarla en Word o Google Docs" className={claseBoton("fantasma", "sm", "sm:ml-auto")}>
+        {informe && (
+          <button type="button" onClick={() => void copiarEnlace()} title="Copia el enlace de este informe (lo abre cualquiera del equipo con su sesión del panel)" className={claseBoton("fantasma", "sm", "sm:ml-auto")}>
+            {enlaceCopiado ? <Check size={13} className="text-mossTexto" aria-hidden /> : <Link2 size={13} aria-hidden />}
+            <span aria-live="polite">{enlaceCopiado ? "Enlace copiado" : "Enlace"}</span>
+          </button>
+        )}
+        <button type="button" onClick={() => void copiar()} title="Copia la respuesta con formato, para pegarla en Word o Google Docs" className={claseBoton("fantasma", "sm", informe ? undefined : "sm:ml-auto")}>
           {copiado ? <Check size={13} className="text-mossTexto" aria-hidden /> : <Copy size={13} aria-hidden />}
           <span aria-live="polite">{copiado ? "Copiada" : "Copiar"}</span>
         </button>

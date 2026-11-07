@@ -39,9 +39,10 @@
   // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
   // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
   // Cuenta un Durable Object por clave (workers/limitador.ts): los bindings de Rate Limiting dejaban pasar casi todo con
-  // el placement de arriba. La web usa la misma clase (frontend/wrangler.jsonc, script_name "vigia-api").
-  "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
-  "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
+  // el placement de arriba. La web usa la misma clase (frontend/wrangler.jsonc, script_name "vigia-api"). CHAT_INFORME:
+  // cada informe del chat de investigación corre en el suyo y sigue aunque se cierre la pestaña (workers/chatInforme.ts).
+  "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }, { "name": "CHAT_INFORME", "class_name": "ChatInforme" }] },
+  "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }, { "tag": "chat-informe-v1", "new_sqlite_classes": ["ChatInforme"] }],
 
   // Workers AI: embeddings de @cf/baai/bge-m3 (1024 dimensiones) para el RAG de documentos (lib/rag.ts, migración 258):
   // POST /admin/rag/indexar, el cron de 10 min y la pregunta de GET /documentos/buscar. US$ 0,012 por millón de tokens.
@@ -90,8 +91,8 @@
         { "binding": "DOCUMENTOS_VIEJOS", "bucket_name": "vigia-peru-documentos" }
       ],
       "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }, { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp-dev" }],
-      "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }] },
-      "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }],
+      "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }, { "name": "CHAT_INFORME", "class_name": "ChatInforme" }] },
+      "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }, { "tag": "chat-informe-v1", "new_sqlite_classes": ["ChatInforme"] }],
       "ai": { "binding": "AI" },
       "vars": {
         "VIGIA_ENTORNO": "dev",

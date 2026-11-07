@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageSquarePlus, MessagesSquare, SendHorizontal, Square } from "lucide-react";
+import Link from "next/link";
+import { FolderOpen, MessageSquarePlus, MessagesSquare, SendHorizontal, Square } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useDialog } from "@/components/admin/Dialog";
 import { claseBoton } from "@/components/admin/ui";
@@ -17,8 +18,9 @@ import { Nota } from "@/components/patrones/Estructura";
  * mostrando cada paso que dio.
  *
  * Fuente: POST /api/admin/chat con la conversación entera (preguntas y respuestas finales, sólo texto) y el modelo
- * («rapido» o «fino»); responde un stream NDJSON (components/admin/chat/conversacion.ts). La conversación vive en la
- * página y en sessionStorage: una recarga no la pierde; cerrar la pestaña o «Nueva conversación», sí.
+ * («rapido» o «fino»); responde un stream NDJSON (components/admin/chat/conversacion.ts). Cada pregunta es un informe que
+ * corre en el servidor y queda guardado (/admin/chat/informes): aunque se cierre la pestaña, sigue. La conversación en
+ * pantalla vive en sessionStorage: una recarga no la pierde (y retoma lo que estaba corriendo).
  */
 
 const EJEMPLOS = [
@@ -37,7 +39,15 @@ const ALTO_MAXIMO_CAMPO = 208;
 
 export default function AdminChatPage() {
   return (
-    <AdminShell title="Chat de investigación" subtitle="Pregunta en palabras: el asistente busca en los datos de Vigía y te muestra cada paso.">
+    <AdminShell
+      title="Chat de investigación"
+      subtitle="Pregunta en palabras: el asistente busca en los datos de Vigía y te muestra cada paso."
+      actions={
+        <Link href="/admin/chat/informes" className={claseBoton("secundario", "sm")}>
+          <FolderOpen size={14} aria-hidden /> Informes guardados
+        </Link>
+      }
+    >
       <Chat />
     </AdminShell>
   );
@@ -121,7 +131,7 @@ function Chat() {
     if (!chat.mensajes.length) return limpiar();
     open({
       title: "¿Empezar una conversación nueva?",
-      body: "Esta conversación se borra de la pantalla y no queda guardada en ningún otro lado.",
+      body: "Esta conversación se borra de la pantalla. Sus respuestas siguen en Informes guardados, y lo que esté corriendo termina igual.",
       confirmLabel: "Empezar de nuevo",
       tone: "danger",
       onConfirm: limpiar,
