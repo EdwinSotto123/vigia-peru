@@ -84,7 +84,7 @@ export function PestanaAsistente({ id }: { id: string }) {
             )}
             <div
               className={cn(
-                "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-dato leading-relaxed",
+                "min-w-0 max-w-[85%] rounded-2xl px-3.5 py-2.5 text-dato leading-relaxed [overflow-wrap:anywhere]",
                 m.rol === "usuario" ? "rounded-br-md bg-granate text-paper" : "rounded-bl-md border border-line bg-ink/[0.025] text-ink",
               )}
             >
@@ -148,15 +148,50 @@ function Texto({ texto }: { texto: string }) {
           return (
             <ul key={i} className={cn("list-disc space-y-1 pl-5", i > 0 && "mt-2")}>
               {lineas.map((l, k) => (
-                <li key={k}>{l.replace(/^[-•*]\s/, "").replace(/\*\*/g, "")}</li>
+                <li key={k}>
+                  <ConEnlaces texto={l.replace(/^[-•*]\s/, "").replace(/\*\*/g, "")} />
+                </li>
               ))}
             </ul>
           );
         }
         return (
           <p key={i} className={cn("whitespace-pre-line", i > 0 && "mt-2")}>
-            {b.replace(/\*\*/g, "")}
+            <ConEnlaces texto={b.replace(/\*\*/g, "")} />
           </p>
+        );
+      })}
+    </>
+  );
+}
+
+/** Dominios oficiales que el asistente puede enlazar (vienen de los enlaces de la ficha). El resto queda como texto. */
+const OFICIALES = /(^|\.)(oece\.gob\.pe|seace\.gob\.pe|gob\.pe|gobserva\.cloud)$/;
+
+/** Las URL de la respuesta como un enlace corto («abrir en el SEACE ↗») en vez de la dirección entera. */
+function ConEnlaces({ texto }: { texto: string }) {
+  const partes = texto.split(/(https?:\/\/[^\s)»"]+)/g);
+  return (
+    <>
+      {partes.map((p, i) => {
+        if (i % 2 === 0) return p;
+        const url = p.replace(/[.,;:]+$/, "");
+        const resto = p.slice(url.length);
+        let host = "";
+        try {
+          host = new URL(url).hostname;
+        } catch {
+          return p;
+        }
+        if (!OFICIALES.test(host)) return <span key={i} className="[overflow-wrap:anywhere]">{p}</span>;
+        const nombre = /oece|seace/.test(host) ? "abrir en el SEACE" : host.replace(/^www\./, "");
+        return (
+          <span key={i}>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate">
+              {nombre} ↗
+            </a>
+            {resto}
+          </span>
         );
       })}
     </>
