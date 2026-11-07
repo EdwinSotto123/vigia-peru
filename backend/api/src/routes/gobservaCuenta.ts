@@ -14,6 +14,8 @@ import {
 import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOperacion } from "../lib/gobservaCobros.js";
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
 import { avisarPush } from "../lib/gobservaPush.js";
+import { embeberLinea, paraTi } from "../lib/afinidad.js";
+import type { IaWorkers } from "../lib/rag.js";
 import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
 
 /**
@@ -34,6 +36,8 @@ import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
  *   GET|PUT|DELETE /gobserva/cuenta/guardados   plazas, oportunidades y proyectos guardados
  *   GET    /gobserva/cuenta/exportar?producto=&…filtros   la búsqueda en CSV (planes de pago)
  *   GET|POST|DELETE /gobserva/cuenta/push, POST /push/probar   notificaciones en el celular o la computadora (migr. 233)
+ *   GET|POST /gobserva/cuenta/lineas, PUT|DELETE /lineas/:id   líneas de negocio de Licitaciones (migr. 264)
+ *   GET    /gobserva/cuenta/para-ti?linea=      las oportunidades abiertas por afinidad con una línea (lib/afinidad.ts)
  */
 export const gobservaCuentaRouter = new Hono();
 
@@ -383,6 +387,94 @@ gobservaCuentaRouter.delete("/alertas/:id", limiteEscritura, async (c) => {
   const u = c.get("user");
   const r = await pool.query(`DELETE FROM gobserva_alertas WHERE id = $1 AND firebase_uid = $2`, [Number(c.req.param("id")) || 0, u.uid]);
   return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+// ─── Líneas de negocio y «Para ti» (Licitaciones, migración 264) ─────────────────────────────────────────────────────
+
+const TIPOS_LINEA = ["bienes", "servicios", "obras", "consultoria"] as const;
+const LineaBody = z.object({
+  nombre: z.string().trim().min(1).max(80),
+  descripcion: z.string().trim().min(3).max(1000),
+  palabras: z.array(z.string().trim().min(2).max(40)).max(20).default([]),
+  regiones: z.array(z.string().regex(/^\d{2}$/)).max(25).default([]),
+  tipos: z.array(z.enum(TIPOS_LINEA)).max(4).default([]),
+  montoMin: z.number().min(0).max(1e12).nullable().optional(),
+  montoMax: z.number().min(0).max(1e12).nullable().optional(),
+});
+
+/** Cuántas líneas y cuántas oportunidades le tocan según su plan de Licitaciones (Obras viene con él). */
+async function limitesLineas(uid: string): Promise<{ lineas: number; paraTi: number; plan: string | null }> {
+  const vigente = await planVigente(uid, "licitaciones");
+  const l = await limitesDe("licitaciones", vigente?.plan ?? null);
+  return { lineas: l.lineas, paraTi: l.paraTi, plan: vigente?.plan ?? null };
+}
+
+gobservaCuentaRouter.get("/lineas", async (c) => {
+  const u = c.get("user");
+  const [r, limites] = await Promise.all([
+    pool.query(
+      `SELECT id, nombre, descripcion, palabras, regiones, tipos, monto_min::float AS "montoMin", monto_max::float AS "montoMax",
+              embedding IS NOT NULL AS lista, to_char(actualizado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS actualizada
+         FROM gobserva_lineas WHERE firebase_uid = $1 ORDER BY creado_at`,
+      [u.uid]),
+    limitesLineas(u.uid),
+  ]);
+  return c.json({ data: r.rows, limites });
+});
+
+/** Guarda una línea (nueva o la `id`) con su embedding. Sin Workers AI no se guarda: sin él, «Para ti» no la puede usar. */
+async function guardarLinea(c: Context, id: number | null): Promise<Response> {
+  const u = c.get("user");
+  const p = LineaBody.safeParse(await c.req.json().catch(() => null));
+  if (!p.success) return c.json({ error: "invalid_body", detail: "Revisa la línea: un nombre y qué vendes, en tus palabras." }, 400);
+  const b = p.data;
+  if (b.montoMin != null && b.montoMax != null && b.montoMin > b.montoMax) return c.json({ error: "invalid_body", detail: "El monto mínimo pasa al máximo." }, 400);
+  const ia = (c.env as { AI?: IaWorkers } | undefined)?.AI;
+  if (!ia) return c.json({ error: "sin_ia", detail: "No pudimos guardar tu línea ahora. Vuelve a intentarlo en un momento." }, 503);
+  await asegurarCuenta(u, "licitaciones");
+  if (id == null) {
+    const lim = await limitesLineas(u.uid);
+    const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_lineas WHERE firebase_uid = $1`, [u.uid])).rows[0].n;
+    if (n >= lim.lineas) {
+      return c.json({ error: "limite", detail: `Tu plan permite ${lim.lineas === 1 ? "1 línea de negocio" : `${lim.lineas} líneas de negocio`}. Con un plan mayor puedes sumar más.` }, 402);
+    }
+  }
+  const emb = await embeberLinea(ia, b).catch(() => null);
+  if (!emb) return c.json({ error: "sin_ia", detail: "No pudimos leer tu línea ahora. Vuelve a intentarlo en un momento." }, 503);
+  const vals = [u.uid, b.nombre, b.descripcion, b.palabras, b.regiones, b.tipos, b.montoMin ?? null, b.montoMax ?? null, emb];
+  if (id == null) {
+    const r = await pool.query<{ id: number }>(
+      `INSERT INTO gobserva_lineas (firebase_uid, nombre, descripcion, palabras, regiones, tipos, monto_min, monto_max, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::halfvec) RETURNING id`, vals);
+    return c.json({ ok: true, id: r.rows[0].id }, 201);
+  }
+  const r = await pool.query(
+    `UPDATE gobserva_lineas SET nombre = $2, descripcion = $3, palabras = $4, regiones = $5, tipos = $6, monto_min = $7, monto_max = $8,
+            embedding = $9::halfvec, actualizado_at = now()
+      WHERE id = $10 AND firebase_uid = $1`, [...vals, id]);
+  return (r.rowCount ?? 0) ? c.json({ ok: true, id }) : c.json({ error: "no_encontrado" }, 404);
+}
+
+gobservaCuentaRouter.post("/lineas", limiteEscritura, (c) => guardarLinea(c, null));
+gobservaCuentaRouter.put("/lineas/:id", limiteEscritura, (c) => {
+  const id = Number(c.req.param("id"));
+  return Number.isInteger(id) && id > 0 ? guardarLinea(c, id) : Promise.resolve(c.json({ error: "no_encontrado" }, 404));
+});
+gobservaCuentaRouter.delete("/lineas/:id", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const r = await pool.query(`DELETE FROM gobserva_lineas WHERE id = $1 AND firebase_uid = $2`, [Number(c.req.param("id")) || 0, u.uid]);
+  return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+/** Las oportunidades abiertas de una línea, de la más parecida a lo que vende la empresa a la menos. */
+gobservaCuentaRouter.get("/para-ti", async (c) => {
+  const u = c.get("user");
+  const linea = Number(c.req.query("linea"));
+  if (!Number.isInteger(linea) || linea <= 0) return c.json({ error: "invalid_query" }, 400);
+  const lim = await limitesLineas(u.uid);
+  const r = await paraTi(u.uid, linea, lim.paraTi);
+  if (!r) return c.json({ error: "no_encontrado" }, 404);
+  return c.json({ ...r, limite: lim.paraTi, plan: lim.plan });
 });
 
 /** «Enviar ahora»: avisa ya lo nuevo de una alerta (una vez por hora), para probarla. */

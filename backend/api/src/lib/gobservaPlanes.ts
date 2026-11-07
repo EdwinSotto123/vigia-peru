@@ -39,6 +39,9 @@ export interface Limites {
   /** Filas por descarga. */
   filasCsv: number;
   recordatorios: boolean;
+  /** Líneas de negocio para «Para ti» (Licitaciones, migración 264): cuántas, y cuántas oportunidades se muestran. */
+  lineas: number;
+  paraTi: number;
 }
 
 export interface Fundador {
@@ -58,17 +61,17 @@ interface PlanBase {
   activo: boolean;
 }
 
-export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true };
+export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true, lineas: 1, paraTi: 10 };
 
-const PRO = (alertas: number, guardados: number, filasCsv: number): Limites => ({
-  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true,
+const PRO = (alertas: number, guardados: number, filasCsv: number, lineas = 1): Limites => ({
+  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, lineas, paraTi: 50,
 });
 
 /** Los planes para quien le vende al Estado: los de Licitaciones (que se venden) y su espejo en Obras (que no). */
 const PLANES_PROVEEDOR = (activo: boolean): Record<string, PlanBase> => ({
-  inicia: { nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(3, 300, 500), activo },
-  crece: { nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50 }, limites: PRO(15, 1000, 2000), activo },
-  pro: { nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50 }, limites: PRO(50, 3000, 5000), activo },
+  inicia: { nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(3, 300, 500, 1), activo },
+  crece: { nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50 }, limites: PRO(15, 1000, 2000, 3), activo },
+  pro: { nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50 }, limites: PRO(50, 3000, 5000, 10), activo },
 });
 
 /** Los planes que se pagan. Gratis no está: es la ausencia de plan. «Institucional» se conversa (no se vende acá). */

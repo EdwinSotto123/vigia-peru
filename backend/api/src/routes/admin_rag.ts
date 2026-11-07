@@ -14,6 +14,7 @@
 import { Hono } from "hono";
 import { esErrorPg, poolAdmin as pool } from "../lib/db.js";
 import { indexarRag, type IaWorkers } from "../lib/rag.js";
+import { indexarOportunidades } from "../lib/afinidad.js";
 
 export const adminRagRouter = new Hono();
 
@@ -37,6 +38,19 @@ adminRagRouter.post("/rag/indexar", async (c) => {
     return c.json(r);
   } catch (e) {
     if (esErrorPg(e, "42P01", "42883")) return c.json({ error: "sin_migracion", detail: "Falta la migración 258 (rag_fragmento)." }, 503);
+    throw e;
+  }
+});
+
+/** El llenado de «Para ti» (migración 264, lib/afinidad.ts): los embeddings de las oportunidades abiertas que faltan. */
+adminRagRouter.post("/afinidad/indexar", async (c) => {
+  try {
+    return c.json(await indexarOportunidades(iaDe(c.env), {
+      segundos: entero(c.req.query("segundos"), 80, 5, 110),
+      maximo: entero(c.req.query("maximo"), 3000, 1, 10000),
+    }));
+  } catch (e) {
+    if (esErrorPg(e, "42P01", "42883")) return c.json({ error: "sin_migracion", detail: "Falta la migración 264 (oportunidad_vector)." }, 503);
     throw e;
   }
 });

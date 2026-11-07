@@ -57,6 +57,7 @@ import { adminGobservaRouter } from "./admin_gobserva.js";
 import { adminChatRouter } from "./admin_chat.js";
 import { adminRagRouter, iaDe } from "./admin_rag.js";
 import { indexarRag } from "../lib/rag.js";
+import { indexarOportunidades } from "../lib/afinidad.js";
 
 export const adminRouter = new Hono();
 
@@ -613,7 +614,14 @@ adminRouter.post("/asignar", async (c) => {
       if (!esErrorPg(e, "42P01", "42883")) console.warn(`[asignar] rag: ${(e as Error).message}`);
       return null;
     });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos, rag });
+  // «Para ti» de Gobserva Licitaciones (migración 264, lib/afinidad.ts): el embedding de las oportunidades abiertas que no
+  // lo tienen (los contratos menores primero), con tope de 20 s y 400 por vuelta. Sin la migración, se anota y sigue.
+  const afinidad = await indexarOportunidades(iaDe(c.env), { segundos: 20, maximo: 400 })
+    .catch((e) => {
+      if (!esErrorPg(e, "42P01", "42883")) console.warn(`[asignar] afinidad: ${(e as Error).message}`);
+      return null;
+    });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos, rag, afinidad });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────
