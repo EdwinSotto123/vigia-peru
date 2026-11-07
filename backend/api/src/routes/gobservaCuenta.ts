@@ -15,6 +15,7 @@ import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOpe
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
 import { avisarPush } from "../lib/gobservaPush.js";
 import { embeberLinea, paraTi } from "../lib/afinidad.js";
+import { seguimiento } from "../lib/seguimiento.js";
 import type { IaWorkers } from "../lib/rag.js";
 import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
 
@@ -38,6 +39,8 @@ import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
  *   GET|POST|DELETE /gobserva/cuenta/push, POST /push/probar   notificaciones en el celular o la computadora (migr. 233)
  *   GET|POST /gobserva/cuenta/lineas, PUT|DELETE /lineas/:id   líneas de negocio de Licitaciones (migr. 264)
  *   GET    /gobserva/cuenta/para-ti?linea=      las oportunidades abiertas por afinidad con una línea (lib/afinidad.ts)
+ *   GET    /gobserva/cuenta/seguimiento         lo guardado en Licitaciones con su etapa, su valor y sus plazos de hoy
+ *                                               (el tablero y el calendario de la cuenta; lib/seguimiento.ts)
  */
 export const gobservaCuentaRouter = new Hono();
 
@@ -477,6 +480,11 @@ gobservaCuentaRouter.get("/para-ti", async (c) => {
   return c.json({ ...r, limite: lim.paraTi, plan: lim.plan });
 });
 
+gobservaCuentaRouter.get("/seguimiento", async (c) => {
+  const u = c.get("user");
+  return c.json({ data: await seguimiento(u.uid) });
+});
+
 /** «Enviar ahora»: avisa ya lo nuevo de una alerta (una vez por hora), para probarla. */
 gobservaCuentaRouter.post("/alertas/:id/enviar", limiteEscritura, async (c) => {
   const u = c.get("user");
@@ -573,7 +581,7 @@ gobservaCuentaRouter.post("/push/probar", limiteEscritura, async (c) => {
 
 const GuardadoBody = z.object({
   producto: Producto,
-  tipo: z.enum(["plaza", "oportunidad", "proyecto", "empresa", "entidad"]),
+  tipo: z.enum(["plaza", "oportunidad", "proyecto", "empresa", "entidad", "menor"]),
   ref: z.string().trim().min(1).max(80),
   titulo: z.string().trim().max(300).optional(),
   datos: z.record(z.union([z.string().max(300), z.number(), z.boolean(), z.null()])).refine((d) => JSON.stringify(d).length <= 1800).optional(),

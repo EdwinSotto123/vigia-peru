@@ -114,13 +114,46 @@ export interface OportunidadParaTi {
   palabras: string[];
 }
 
+/** Desde qué puntaje una oportunidad «calza» (el resumen de Inicio y los conteos). */
+export const PUNTAJE_CALZA = 60;
+
+export interface ResumenParaTi {
+  /** Cuántas oportunidades abiertas calzan (puntaje desde PUNTAJE_CALZA), por fuente. */
+  calzan: number;
+  procesos: number;
+  menores: number;
+  /** De las que calzan, cuántas cierran (o terminan sus consultas) en los próximos 7 días. */
+  cierranSemana: number;
+  /** La suma del valor referencial publicado de las licitaciones que calzan (los menores no lo publican). */
+  valorEnJuego: number;
+}
+
+/** El resumen de «Para ti» sobre todo lo que calza, no sólo lo que muestra el plan. */
+export function resumenParaTi(todas: Pick<OportunidadParaTi, "fuente" | "puntaje" | "valor" | "cierra" | "consultasHasta">[], ahora = new Date()): ResumenParaTi {
+  const calzan = todas.filter((o) => o.puntaje >= PUNTAJE_CALZA);
+  const semana = ahora.getTime() + 7 * 86_400_000;
+  const cierraPronto = (o: (typeof calzan)[number]) =>
+    [o.cierra, o.consultasHasta].some((f) => {
+      if (!f) return false;
+      const t = new Date(f.length === 10 ? `${f}T23:59:00-05:00` : f).getTime();
+      return t >= ahora.getTime() && t <= semana;
+    });
+  return {
+    calzan: calzan.length,
+    procesos: calzan.filter((o) => o.fuente === "proceso").length,
+    menores: calzan.filter((o) => o.fuente === "menor").length,
+    cierranSemana: calzan.filter(cierraPronto).length,
+    valorEnJuego: Math.round(calzan.reduce((s, o) => s + (o.fuente === "proceso" && o.valor ? o.valor : 0), 0)),
+  };
+}
+
 /** Las oportunidades abiertas de una línea de negocio de la cuenta, de la más parecida a la menos (hasta `limite`). */
-export async function paraTi(uid: string, lineaId: number, limite: number): Promise<{ linea: Record<string, unknown>; data: OportunidadParaTi[] } | null> {
+export async function paraTi(uid: string, lineaId: number, limite: number): Promise<{ linea: Record<string, unknown>; data: OportunidadParaTi[]; resumen: ResumenParaTi } | null> {
   const l = await pool.query<{ id: number; nombre: string; palabras: string[]; tiene: boolean }>(
     `SELECT id, nombre, palabras, embedding IS NOT NULL AS tiene FROM gobserva_lineas WHERE id = $1 AND firebase_uid = $2`, [lineaId, uid]);
   const linea = l.rows[0];
   if (!linea) return null;
-  if (!linea.tiene) return { linea, data: [] };
+  if (!linea.tiene) return { linea, data: [], resumen: resumenParaTi([]) };
   const r = await pool.query<Omit<OportunidadParaTi, "puntaje" | "palabras"> & { sim: number; texto: string }>(
     `WITH l AS (SELECT * FROM gobserva_lineas WHERE id = $1),
      c AS (
@@ -156,12 +189,11 @@ export async function paraTi(uid: string, lineaId: number, limite: number): Prom
   // Las palabras clave en mayúsculas sin tildes; una de varias palabras cuenta sólo como frase seguida («papel bond», no
   // «papel» en un ítem y «bond» en otro: así subía «material de difusión» por encima de «útiles de oficina»).
   const claves = linea.palabras.map((p) => ({ p, frase: palabrasBusqueda(p).join(" ") })).filter((x) => x.frase);
-  const data = r.rows
+  const todas = r.rows
     .map(({ sim, texto, ...o }) => {
       const palabras = claves.filter((k) => ` ${texto} `.includes(` ${k.frase}`)).map((k) => k.p);
       return { ...o, puntaje: puntajeDe(Number(sim), palabras.length > 0), palabras };
     })
-    .sort((a, b) => b.puntaje - a.puntaje)
-    .slice(0, limite);
-  return { linea: { id: linea.id, nombre: linea.nombre }, data };
+    .sort((a, b) => b.puntaje - a.puntaje);
+  return { linea: { id: linea.id, nombre: linea.nombre }, data: todas.slice(0, limite), resumen: resumenParaTi(todas) };
 }
