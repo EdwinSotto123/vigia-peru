@@ -23,6 +23,22 @@ test("ordenarPlazos: en orden, sin vacíos ni rotos, y el próximo que no pasó"
   assert.equal(r.proximo?.clave, "consultas");
 });
 
+test("ordenarPlazos: el fin de consultas en el mismo minuto que el cierre de un menor queda sólo como cierre", () => {
+  const r = ordenarPlazos(
+    [
+      { clave: "convocatoria", fecha: "2026-11-06T12:04:00-05:00" },
+      { clave: "consultas", fecha: "2026-11-09T13:00:00-05:00" },
+      { clave: "cierre", fecha: "2026-11-09T13:00:00-05:00" },
+    ],
+    AHORA,
+  );
+  assert.deepEqual(r.plazos.map((p) => p.clave), ["convocatoria", "cierre"]);
+  assert.equal(r.proximo?.clave, "cierre");
+  // Si las consultas cierran antes que la cotización, quedan los dos.
+  const d = ordenarPlazos([{ clave: "consultas", fecha: "2026-11-08T10:00:00-05:00" }, { clave: "cierre", fecha: "2026-11-09T13:00:00-05:00" }], AHORA);
+  assert.deepEqual(d.plazos.map((p) => p.clave), ["consultas", "cierre"]);
+});
+
 test("ordenarPlazos: sin plazos por venir, el próximo es null", () => {
   assert.equal(ordenarPlazos([{ clave: "cierre", fecha: "2026-11-01T10:00:00-05:00" }], AHORA).proximo, null);
 });

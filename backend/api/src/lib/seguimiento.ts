@@ -44,11 +44,17 @@ export const ETIQUETA_PLAZO: Record<ClavePlazo, string> = {
   cierre: "Cierra la cotización",
 };
 
-/** Los plazos con fecha válida, en orden, y el próximo que no pasó. */
+/**
+ * Los plazos con fecha válida, en orden, y el próximo que no pasó. En un contrato menor el fin de consultas suele ser
+ * el mismo minuto que el cierre de la cotización: entonces queda sólo el cierre (dos avisos del mismo plazo confunden).
+ */
 export function ordenarPlazos(crudos: { clave: ClavePlazo; fecha: string | Date | null | undefined }[], ahora = new Date()): { plazos: Plazo[]; proximo: Plazo | null } {
-  const plazos = crudos
+  const validos = crudos
     .map((p) => ({ clave: p.clave, fecha: p.fecha ? new Date(p.fecha) : null }))
-    .filter((p): p is { clave: ClavePlazo; fecha: Date } => !!p.fecha && !Number.isNaN(p.fecha.getTime()))
+    .filter((p): p is { clave: ClavePlazo; fecha: Date } => !!p.fecha && !Number.isNaN(p.fecha.getTime()));
+  const cierre = validos.find((p) => p.clave === "cierre")?.fecha.getTime();
+  const plazos = validos
+    .filter((p) => !(p.clave === "consultas" && cierre !== undefined && Math.abs(p.fecha.getTime() - cierre) < 60_000))
     .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
     .map((p) => ({ clave: p.clave, etiqueta: ETIQUETA_PLAZO[p.clave], fecha: p.fecha.toISOString() }));
   const proximo = plazos.find((p) => new Date(p.fecha).getTime() >= ahora.getTime()) ?? null;
