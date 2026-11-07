@@ -45,8 +45,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         titulo: "Buscar",
         items: [
           { ruta: "/app/bandeja", etiqueta: "Bandeja", Icono: Inbox, abajo: true, tambien: ["/app/oportunidad/"] },
-          { ruta: "/menores", etiqueta: "Contratos menores", Icono: Timer },
-          { ruta: "/mercado", etiqueta: "Mercado", Icono: ChartNoAxesColumn },
+          { ruta: "/app/menores", etiqueta: "Contratos menores", Icono: Timer, tambien: ["/menor/"] },
+          { ruta: "/app/mercado", etiqueta: "Mercado", Icono: ChartNoAxesColumn },
           { ruta: urlCanonica("obras", "/"), etiqueta: "Obras", Icono: HardHat },
         ],
       },

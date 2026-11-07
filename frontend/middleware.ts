@@ -110,6 +110,22 @@ function aEntrar(req: NextRequest, prefijo: string, siguiente: string) {
 function aLaBandeja(ruta: string, sp: URLSearchParams): string | null {
   const ficha = ruta.match(/^\/oportunidad\/([^/]+)$/);
   if (ficha) return `/app/oportunidad/${ficha[1]}`;
+  // Contratos menores y Mercado también tienen su página en la app (con los mismos nombres de filtros).
+  if (ruta === "/menores") {
+    const q = new URLSearchParams();
+    for (const k of ["q", "region", "tipo", "cuando", "orden"]) {
+      const v = sp.get(k);
+      if (v) q.set(k, v);
+    }
+    const pagina = sp.get("page");
+    if (pagina && pagina !== "1") q.set("pag", pagina);
+    const s = q.toString();
+    return `/app/menores${s ? `?${s}` : ""}`;
+  }
+  if (ruta === "/mercado") {
+    const q = sp.get("q");
+    return `/app/mercado${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+  }
   if (ruta !== "/oportunidades") return null;
   const q = new URLSearchParams();
   for (const k of ["q", "region", "tipo", "min", "max"]) {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader2, Star } from "lucide-react";
 import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { ErrorCuenta, type EstadoGuardado } from "@/lib/gobserva-cuenta";
-import { useSeguimiento } from "@/lib/licitaciones-app/useSeguimiento";
+import { useSeguimiento, type TipoSeguido } from "@/lib/licitaciones-app/useSeguimiento";
 import { cn } from "@/lib/utils";
 import { useAvisos } from "../ui/Avisos";
 
@@ -20,17 +20,17 @@ const mensaje = (e: unknown) => (e instanceof ErrorCuenta ? e.message : "No pudi
  * La estrella de una fila: sigue el proceso en tu cuenta (entra al tablero de Seguimiento y al Calendario) o lo deja de
  * seguir. Confirma con un aviso que lleva al tablero; si el plan no deja guardar más, lo dice.
  */
-export function EstrellaSeguir({ id, codigo, titulo }: Datos) {
-  const { porRef, seguir, dejar, isLoading } = useSeguimiento();
+export function EstrellaSeguir({ id, codigo, titulo, tipo = "oportunidad" }: Datos & { tipo?: TipoSeguido }) {
+  const { item, seguir, dejar, isLoading } = useSeguimiento();
   const avisar = useAvisos();
-  const sigue = porRef.has(id);
+  const sigue = !!item(tipo, id);
   async function alternar() {
     try {
       if (sigue) {
-        await dejar(id);
+        await dejar(id, tipo);
         avisar({ tono: "ok", texto: `Dejaste de seguir ${codigo ?? "el proceso"}.` });
       } else {
-        await seguir(id, titulo);
+        await seguir(id, titulo, tipo);
         avisar({ tono: "ok", texto: `Sigues ${codigo ?? "el proceso"}: está en tu tablero y su plazo, en tu calendario.`, accion: { etiqueta: "Ver mi tablero", href: "/cuenta?tab=seguimiento" } });
       }
     } catch (e) {
