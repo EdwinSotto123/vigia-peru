@@ -42,7 +42,7 @@ export function MarcoProducto({
 }) {
   if (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1") {
     return (
-      <MarcoApp producto={producto} base={base} fuentes={fuentes}>
+      <MarcoApp producto={producto} base={base}>
         {children}
       </MarcoApp>
     );

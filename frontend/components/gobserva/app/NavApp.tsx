@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, CalendarDays, Inbox, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu, Search,
+  ArrowUpRight, Bell, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu, Search,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
-import { rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
+import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { useMe, useSesion } from "../cuenta/comun";
 
@@ -151,6 +151,19 @@ function Salir({ className }: { className?: string }) {
   );
 }
 
+/** Escribirnos: el correo de ayuda (lo que antes estaba en el pie). */
+function Ayuda({ className }: { className?: string }) {
+  return (
+    <a
+      href={`mailto:${CORREO_GOBSERVA}`}
+      className={cn("flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-dato font-medium text-inkSoft transition-colors duration-rapido hover:bg-ink/[0.045] hover:text-ink", className)}
+    >
+      <LifeBuoy size={18} aria-hidden className="text-mute" />
+      Ayuda: escríbenos
+    </a>
+  );
+}
+
 /** El plan en la barra lateral: cuánto usas y, si es el gratis, el paso a uno de pago. */
 function PlanLateral({ producto, base }: { producto: Producto; base: string }) {
   const { me } = useMe(producto);
@@ -221,6 +234,9 @@ function UsuarioLateral({ producto, base, items }: { producto: Producto; base: s
                 <Enlace item={item} base={base} actual={false} onClick={() => setAbierto(false)} />
               </li>
             ))}
+            <li>
+              <Ayuda />
+            </li>
             <li className="mt-1 border-t border-line pt-1">
               <Salir />
             </li>
@@ -365,6 +381,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
               </div>
             ))}
             <div className="mt-2 border-t border-line pt-2">
+              <Ayuda className="min-h-12" />
               <Salir className="min-h-12" />
             </div>
           </div>

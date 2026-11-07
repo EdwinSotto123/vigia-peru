@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
-import { ArrowUpRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
-import { CORREO_GOBSERVA, PRODUCTOS, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
+import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import { MarcaGobserva } from "../MarcaGobserva";
 import { MenuCuenta } from "../cuenta/MenuCuenta";
 import { ProveedorApp } from "./contexto";
@@ -16,17 +16,17 @@ import { BarraApp, LateralApp } from "./NavApp";
  *    secciones en grupos (lo de hoy, Buscar, Organizar); tu plan y tu cuenta abajo. En el celular, una barra de cuatro
  *    secciones abajo y «Más».
  *  - la cabecera pegada arriba: el buscador de oportunidades (desde md), el modo y tu cuenta.
- *  - el lienzo gris, donde cada página apoya sus cajas (app/Caja.tsx), y el pie con el producto, las fuentes oficiales y
- *    el contacto.
+ *  - el lienzo gris, donde cada página apoya sus cajas (app/Caja.tsx). Sin pie (2026-11-07, el usuario: el pie de la
+ *    portada «no va dentro de la app»): la ayuda está en el menú de tu cuenta y cada dato enlaza a su fuente oficial donde
+ *    se muestra.
  *
  * MarcoProducto lo elige cuando la marca de sesión (COOKIE_SESION) está puesta. Server-safe.
  */
 export function MarcoApp({
-  producto, base, fuentes, children,
+  producto, base, children,
 }: {
   producto: Producto;
   base: string;
-  fuentes: { nombre: string; url: string }[];
   children: ReactNode;
 }) {
   const p = PRODUCTOS[producto];
@@ -81,11 +81,10 @@ export function MarcoApp({
             </div>
           </header>
 
-          <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">
+          {/* En el celular, el aire de abajo para la barra de la app (fija). */}
+          <main id="contenido" tabIndex={-1} className="flex-1 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] focus:outline-none lg:pb-0">
             {children}
           </main>
-
-          <PieApp producto={producto} base={base} fuentes={fuentes} />
         </div>
 
         <Suspense>
@@ -93,64 +92,5 @@ export function MarcoApp({
         </Suspense>
       </div>
     </ProveedorApp>
-  );
-}
-
-const ENLACE_PIE = "inline-flex min-h-8 items-center gap-1 text-dato text-inkSoft underline-offset-4 transition-colors duration-rapido hover:text-ink hover:underline";
-
-/** El pie de la app: qué es el producto, sus otras piezas, de dónde salen los datos y cómo escribirnos. */
-function PieApp({ producto, base, fuentes }: { producto: Producto; base: string; fuentes: { nombre: string; url: string }[] }) {
-  const p = PRODUCTOS[producto];
-  const otros = otrosProductos(producto);
-  return (
-    <footer className="border-t border-line bg-caja pb-[calc(env(safe-area-inset-bottom)+4.5rem)] lg:pb-0">
-      <div className="mx-auto grid w-full max-w-[84rem] grid-cols-2 gap-x-6 gap-y-8 px-4 py-8 sm:px-6 lg:grid-cols-[1.3fr_1fr_1.2fr_1fr] lg:px-8">
-        <div className="col-span-2 space-y-3 lg:col-span-1">
-          <MarcaGobserva producto={producto} tamano="sm" />
-          <p className="max-w-[38ch] text-meta leading-relaxed text-inkSoft">
-            {p.lema} Ordenamos datos públicos y enlazamos siempre a la fuente oficial.
-          </p>
-        </div>
-        <nav aria-labelledby="pie-producto">
-          <p id="pie-producto" className="text-meta font-bold text-ink">{p.titulo}</p>
-          <ul className="mt-2">
-            <li><Link href={rutaEn(base, "/planes")} className={ENLACE_PIE}>Planes y precios</Link></li>
-            <li><Link href={rutaEn(base, "/?portada#mcp")} className={ENLACE_PIE}>API y MCP</Link></li>
-            {otros.map((o) => (
-              <li key={o.clave}>
-                <a href={`https://${o.host}`} className={ENLACE_PIE}>{o.titulo}</a>
-              </li>
-            ))}
-            <li><a href="https://vigia.gobserva.cloud" className={ENLACE_PIE}>Vigía, la vigilancia cívica</a></li>
-          </ul>
-        </nav>
-        <nav aria-labelledby="pie-fuentes">
-          <p id="pie-fuentes" className="text-meta font-bold text-ink">Fuentes oficiales</p>
-          <ul className="mt-2">
-            {fuentes.map((f) => (
-              <li key={f.url}>
-                <a href={f.url} target="_blank" rel="noopener noreferrer" className={ENLACE_PIE}>
-                  {f.nombre}
-                  <ArrowUpRight size={13} aria-hidden className="shrink-0" />
-                  <span className="sr-only"> (se abre en otra pestaña)</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="col-span-2 sm:col-span-1">
-          <p className="text-meta font-bold text-ink">Ayuda</p>
-          <a href={`mailto:${CORREO_GOBSERVA}`} className={`${ENLACE_PIE} mt-2 font-mono`}>{CORREO_GOBSERVA}</a>
-          <p className="mt-2 max-w-[34ch] text-meta leading-relaxed text-mute">
-            Gobserva no es una entidad del Estado ni intermedia postulaciones ni contrataciones.
-          </p>
-        </div>
-      </div>
-      <div className="border-t border-line">
-        <p className="mx-auto w-full max-w-[84rem] px-4 py-4 text-meta text-mute sm:px-6 lg:px-8">
-          © {new Date().getFullYear()} Gobserva. Datos públicos del Estado peruano.
-        </p>
-      </div>
-    </footer>
   );
 }
