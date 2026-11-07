@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { CORREO_GOBSERVA, PRODUCTOS, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_CON_APP, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
+import { MarcoApp } from "./app/MarcoApp";
 import { MenuCuenta } from "./cuenta/MenuCuenta";
 import { MenuProducto, RielProducto, type EnlaceProducto } from "./NavProducto";
 
@@ -17,6 +19,9 @@ export type { EnlaceProducto };
  * el contacto. Nada de la cabecera ni del menú de Vigía: es otra marca (Vigía sigue gratis, aparte). Server-safe.
  *
  * `base`: la raíz del producto en este host (lib/gobserva-servidor.ts → baseProducto): los enlaces se arman con ella.
+ *
+ * Con la sesión abierta (la marca COOKIE_SESION) y si el producto tiene app (NavApp, hoy Licitaciones), el marco es el
+ * de la app (MarcoApp: barra lateral, sin la cabecera ni el pie para visitantes).
  */
 export function MarcoProducto({
   producto,
@@ -35,6 +40,13 @@ export function MarcoProducto({
   fuentes: { nombre: string; url: string }[];
   children: ReactNode;
 }) {
+  if (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1") {
+    return (
+      <MarcoApp producto={producto} base={base} fuentes={fuentes}>
+        {children}
+      </MarcoApp>
+    );
+  }
   const p = PRODUCTOS[producto];
   const otros = otrosProductos(producto);
   return (

@@ -141,7 +141,7 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
       <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
         {data.map((o) => (
           <li key={`${o.fuente}-${o.id}`} className="min-w-0">
-            <Fila o={o} base={base} />
+            <FilaParaTi o={o} base={base} />
           </li>
         ))}
       </ol>
@@ -158,7 +158,7 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
   );
 }
 
-function Fila({ o, base }: { o: OportunidadParaTi; base: string }) {
+export function FilaParaTi({ o, base }: { o: OportunidadParaTi; base: string }) {
   const href = o.fuente === "menor" ? rutaEn(base, `/menor/${o.id}`) : rutaEn(base, `/oportunidad/${encodeURIComponent(o.id)}`);
   const c = o.fuente === "menor" ? cierreMenor(o.cierra) : null;
   return (

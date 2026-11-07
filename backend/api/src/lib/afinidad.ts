@@ -114,11 +114,14 @@ export interface OportunidadParaTi {
   palabras: string[];
 }
 
-/** Desde qué puntaje una oportunidad «calza» (el resumen de Inicio y los conteos). */
-export const PUNTAJE_CALZA = 60;
+/**
+ * Desde qué puntaje una oportunidad «calza» (el resumen de Inicio). 45 y no 60: en la calibración del 11-07 lo del mismo
+ * rubro quedó entre 38 y 99 según el rubro (útiles de oficina, 38–60), y con 60 un rubro así se veía en cero.
+ */
+export const PUNTAJE_CALZA = 45;
 
 export interface ResumenParaTi {
-  /** Cuántas oportunidades abiertas calzan (puntaje desde PUNTAJE_CALZA), por fuente. */
+  /** Cuántas oportunidades abiertas calzan (puntaje desde PUNTAJE_CALZA, 45), por fuente. */
   calzan: number;
   procesos: number;
   menores: number;

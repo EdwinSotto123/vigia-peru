@@ -62,6 +62,9 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
  */
 export const COOKIE_SESION = "gobserva_sesion";
 
+/** Los productos que, con la sesión abierta, se ven como app (barra lateral, components/gobserva/app). */
+export const PRODUCTOS_CON_APP: readonly Producto[] = ["licitaciones"];
+
 export const PRODUCTO_POR_HOST: Record<string, Producto> = Object.fromEntries(
   Object.values(PRODUCTOS).flatMap((p) => [
     [p.host, p.clave],

@@ -34,7 +34,8 @@ export const ESTADOS: Record<Producto, { valor: EstadoGuardado; etiqueta: string
   ],
 };
 
-const ruta = (g: Guardado) => (g.tipo === "plaza" ? `/plaza/${g.ref}` : g.tipo === "oportunidad" ? `/oportunidad/${encodeURIComponent(g.ref)}` : `/proyecto/${g.ref}`);
+const ruta = (g: Guardado) =>
+  g.tipo === "plaza" ? `/plaza/${g.ref}` : g.tipo === "oportunidad" ? `/oportunidad/${encodeURIComponent(g.ref)}` : g.tipo === "menor" ? `/menor/${g.ref}` : `/proyecto/${g.ref}`;
 
 function diasHasta(iso: unknown): number | null {
   if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;

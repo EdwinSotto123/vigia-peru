@@ -31,7 +31,7 @@ test("resumenParaTi: sólo lo que calza, por fuente, lo que cierra en 7 días y 
   const r = resumenParaTi(
     [
       { fuente: "proceso", puntaje: 90, valor: 100_000, cierra: null, consultasHasta: "2026-11-10" },
-      { fuente: "proceso", puntaje: 70, valor: null, cierra: null, consultasHasta: "2026-12-30" },
+      { fuente: "proceso", puntaje: 50, valor: null, cierra: null, consultasHasta: "2026-12-30" },
       { fuente: "menor", puntaje: PUNTAJE_CALZA, valor: null, cierra: "2026-11-08T17:00:00-05:00", consultasHasta: null },
       { fuente: "menor", puntaje: 40, valor: null, cierra: "2026-11-08T17:00:00-05:00", consultasHasta: null },
       { fuente: "proceso", puntaje: 30, valor: 5_000_000, cierra: null, consultasHasta: "2026-11-09" },

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, CalendarClock, CalendarDays, FileDown, Layers, Lock, MessageSquareWarning, Receipt, Tag, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { CierreMenor, regionesMenor } from "@/components/licitaciones/FilaMenor";
 import { ChipTipo } from "@/components/licitaciones/Piezas";
 import { Nota, Volver } from "@/components/patrones/Estructura";
@@ -186,6 +187,18 @@ export default async function FichaMenor({ params }: { params: { id: string } })
             <p className="text-meta leading-snug text-inkSoft">
               Entra con tu usuario del RNP y busca el código <span className="font-mono font-semibold text-ink">{m.codigo}</span>.
             </p>
+            {/* Guardarlo lo lleva al tablero de Seguimiento y al Calendario, con su cierre. BotonGuardar lee la URL: va en Suspense. */}
+            <Suspense fallback={<span aria-hidden className="inline-block h-11 w-full animate-pulse rounded-full bg-paperDeep" />}>
+              <BotonGuardar
+                producto="licitaciones"
+                base={base}
+                tipo="menor"
+                codigo={String(m.id)}
+                titulo={limpiar(m.descripcion) || m.codigo || String(m.id)}
+                datos={{ cierre: m.cierra ?? null, entidad: m.entidad ?? null }}
+                className="w-full"
+              />
+            </Suspense>
           </div>
 
           <section aria-labelledby="entidad-t" className="rounded-2xl border border-line bg-paper p-4">

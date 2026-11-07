@@ -167,7 +167,7 @@ export interface Envio {
   creado: string;
 }
 
-export type TipoGuardado = "plaza" | "oportunidad" | "proyecto" | "empresa" | "entidad";
+export type TipoGuardado = "plaza" | "oportunidad" | "proyecto" | "empresa" | "entidad" | "menor";
 export type EstadoGuardado = "guardada" | "postule" | "entrevista" | "descartada" | "preparando" | "presentada" | "ganada" | "perdida";
 
 export interface Guardado {
@@ -275,8 +275,43 @@ export const cargarLineas = () => api<{ data: Linea[]; limites: { lineas: number
 export const crearLinea = (b: LineaNueva) => api<{ ok: true; id: number }>("/lineas", { method: "POST", ...cuerpo(b) });
 export const cambiarLinea = (id: number, b: LineaNueva) => api<{ ok: true; id: number }>(`/lineas/${id}`, { method: "PUT", ...cuerpo(b) });
 export const borrarLinea = (id: number) => api<{ ok: true }>(`/lineas/${id}`, { method: "DELETE" });
+/** El resumen de «Para ti» sobre todo lo que calza (puntaje desde 45), no sólo lo que muestra el plan. */
+export interface ResumenParaTi {
+  calzan: number;
+  procesos: number;
+  menores: number;
+  cierranSemana: number;
+  valorEnJuego: number;
+}
+
 export const cargarParaTi = (linea: number) =>
-  api<{ linea: { id: number; nombre: string }; data: OportunidadParaTi[]; limite: number; plan: string | null }>(`/para-ti?linea=${linea}`);
+  api<{ linea: { id: number; nombre: string }; data: OportunidadParaTi[]; resumen?: ResumenParaTi; limite: number; plan: string | null }>(`/para-ti?linea=${linea}`);
+
+export type ClavePlazo = "convocatoria" | "consultas" | "buena_pro" | "cierre";
+export interface Plazo {
+  clave: ClavePlazo;
+  etiqueta: string;
+  fecha: string;
+}
+
+/** Lo guardado en Licitaciones con lo que se sabe hoy de cada uno (GET /seguimiento, backend/api/src/lib/seguimiento.ts). */
+export interface ItemSeguimiento {
+  tipo: "oportunidad" | "menor";
+  ref: string;
+  titulo: string | null;
+  estado: EstadoGuardado;
+  nota: string | null;
+  creado: string;
+  actualizado: string;
+  entidad: string | null;
+  entidadRuc: string | null;
+  valor: number | null;
+  region: string | null;
+  etapa: string | null;
+  plazos: Plazo[];
+  proximo: Plazo | null;
+}
+export const cargarSeguimiento = () => api<{ data: ItemSeguimiento[] }>("/seguimiento");
 
 export const cargarGuardados = (producto: Producto) => api<{ data: Guardado[] }>(`/guardados?producto=${producto}`);
 export const guardar = (b: { producto: Producto; tipo: TipoGuardado; ref: string; titulo?: string; datos?: Guardado["datos"]; estado?: EstadoGuardado; nota?: string; recordar?: boolean }) =>

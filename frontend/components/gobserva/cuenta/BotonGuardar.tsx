@@ -71,8 +71,8 @@ export function BotonGuardar({
         {guardado ? "Guardado" : "Guardar"}
       </button>
       {guardado && (
-        <Link href={rutaEn(base, "/cuenta?tab=guardados")} className="text-center text-meta font-semibold text-granate hover:underline">
-          Ver mis guardados
+        <Link href={rutaEn(base, producto === "licitaciones" ? "/cuenta?tab=seguimiento" : "/cuenta?tab=guardados")} className="text-center text-meta font-semibold text-granate hover:underline">
+          {producto === "licitaciones" ? "Ver mi seguimiento" : "Ver mis guardados"}
         </Link>
       )}
       {error && (

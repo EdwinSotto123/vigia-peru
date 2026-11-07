@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Bookmark, CreditCard, LayoutDashboard, Loader2, LogOut, Sparkles, UserRound } from "lucide-react";
+import { Bell, Bookmark, CalendarDays, CreditCard, House, KanbanSquare, Loader2, LogOut, Sparkles, UserRound } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { ParaTi } from "@/components/licitaciones/ParaTi";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
@@ -16,23 +16,31 @@ import { PanelGuardados } from "./PanelGuardados";
 import { PanelPagos } from "./PanelPagos";
 import { PanelPerfil } from "./PanelPerfil";
 import { VerificarCorreo } from "./Verificacion";
+import { PanelInicio } from "./PanelInicio";
+import { PanelSeguimiento } from "./PanelSeguimiento";
+import { PanelCalendario } from "./PanelCalendario";
+import { useEnApp } from "../app/contexto";
 
-export type Seccion = "resumen" | "para-ti" | "alertas" | "guardados" | "pagos" | "perfil";
+export type Seccion = "resumen" | "para-ti" | "seguimiento" | "calendario" | "alertas" | "guardados" | "pagos" | "perfil";
 
 interface InfoSeccion {
   clave: Seccion;
   etiqueta: string;
   Icono: typeof Bell;
   bajada: string;
-  /** Sólo en este producto: «Para ti» es de Licitaciones. */
+  /** Sólo en este producto: «Para ti», «Seguimiento» y «Calendario» son de Licitaciones. */
   solo?: Producto;
+  /** En este producto no va (en Licitaciones, «Guardados» es el tablero de Seguimiento). */
+  menos?: Producto;
 }
 
 const SECCIONES: InfoSeccion[] = [
-  { clave: "resumen", etiqueta: "Resumen", Icono: LayoutDashboard, bajada: "Lo que te falta para empezar, tu plan y lo último que te avisamos." },
+  { clave: "resumen", etiqueta: "Inicio", Icono: House, bajada: "Lo que calza contigo hoy, lo que cierra pronto y lo que sigues." },
   { clave: "para-ti", etiqueta: "Para ti", Icono: Sparkles, solo: "licitaciones", bajada: "Las oportunidades abiertas, de lo más parecido a lo que vende tu empresa a lo menos." },
+  { clave: "seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, solo: "licitaciones", bajada: "Tus procesos por etapa, de guardado a ganado, con su próximo plazo y lo que suman." },
+  { clave: "calendario", etiqueta: "Calendario", Icono: CalendarDays, solo: "licitaciones", bajada: "Los plazos de lo que sigues: consultas, cierres de cotización y buena pro." },
   { clave: "alertas", etiqueta: "Alertas", Icono: Bell, bajada: "Te avisamos de lo nuevo que calza con tus búsquedas." },
-  { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, bajada: "Lo que sigues, con su estado y su fecha de cierre." },
+  { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, menos: "licitaciones", bajada: "Lo que sigues, con su estado y su fecha de cierre." },
   { clave: "pagos", etiqueta: "Plan y pagos", Icono: CreditCard, bajada: "Tu plan, tus pagos y tus comprobantes." },
   { clave: "perfil", etiqueta: "Perfil", Icono: UserRound, bajada: "Tus datos, los de tu empresa para el comprobante y tu cuenta." },
 ];
@@ -48,8 +56,10 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
   const sp = useSearchParams();
   const router = useRouter();
   const ruta = usePathname();
-  const secciones = SECCIONES.filter((s) => !s.solo || s.solo === producto);
-  const pedida = sp.get("tab");
+  const enApp = useEnApp();
+  const secciones = SECCIONES.filter((s) => (!s.solo || s.solo === producto) && s.menos !== producto);
+  // En Licitaciones, «Guardados» (los enlaces de la ficha y de los correos) es el tablero de Seguimiento.
+  const pedida = producto === "licitaciones" && sp.get("tab") === "guardados" ? "seguimiento" : sp.get("tab");
   const tab: Seccion = secciones.some((s) => s.clave === pedida) ? (pedida as Seccion) : "resumen";
 
   const ir = (t: Seccion) => {
@@ -89,8 +99,9 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
   const titulo = tab === "resumen" ? `Hola, ${nombre}` : info.etiqueta;
 
   return (
-    <div className="container-page grid gap-6 py-6 sm:py-8 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-10 lg:py-10">
-      <Lateral producto={producto} base={base} me={me} nombre={nombre} secciones={secciones} tab={tab} ir={ir} />
+    <div className={cn("container-page py-6 sm:py-8 lg:py-10", !enApp && "grid gap-6 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-10")}>
+      {/* Dentro de la app, la barra lateral es la de la app (MarcoApp): no se repite. */}
+      {!enApp && <Lateral producto={producto} base={base} me={me} nombre={nombre} secciones={secciones} tab={tab} ir={ir} />}
 
       <div className="min-w-0">
         <header>
@@ -102,8 +113,15 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
         {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={() => void mutate()} />}
 
         <div className="mt-6 sm:mt-8">
-          {tab === "resumen" && <PanelResumen producto={producto} base={base} me={me} onCambio={() => void mutate()} irA={ir} />}
+          {tab === "resumen" &&
+            (producto === "licitaciones" ? (
+              <PanelInicio base={base} me={me} onCambio={() => void mutate()} irA={ir} />
+            ) : (
+              <PanelResumen producto={producto} base={base} me={me} onCambio={() => void mutate()} irA={ir} />
+            ))}
           {tab === "para-ti" && <ParaTi base={base} />}
+          {tab === "seguimiento" && <PanelSeguimiento base={base} />}
+          {tab === "calendario" && <PanelCalendario base={base} irA={ir} />}
           {tab === "alertas" && <PanelAlertas producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
           {tab === "guardados" && <PanelGuardados producto={producto} base={base} me={me} onCambio={() => void mutate()} />}
           {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={() => void mutate()} />}

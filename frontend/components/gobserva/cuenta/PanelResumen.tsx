@@ -57,7 +57,17 @@ function TarjetaPlan({ p }: { p: PlanCliente }) {
   );
 }
 
-export function PanelResumen({ producto, base, me, onCambio, irA }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir }) {
+export function PanelResumen({
+  producto, base, me, onCambio, irA, sinPasos = false,
+}: {
+  producto: Producto;
+  base: string;
+  me: Me;
+  onCambio: () => void;
+  irA: Ir;
+  /** Sin «Para empezar» (Inicio de Licitaciones lo pone arriba de sus cifras). */
+  sinPasos?: boolean;
+}) {
   const plan = me.planes.find((p) => p.producto === producto && p.estado === "activa") ?? null;
   const otros = me.planes.filter((p) => p.producto !== producto && p.estado === "activa");
   const pendientes = me.pendientes.filter((k) => k.producto === producto);
@@ -68,7 +78,7 @@ export function PanelResumen({ producto, base, me, onCambio, irA }: { producto: 
 
   return (
     <div className="space-y-10">
-      <ParaEmpezar producto={producto} base={base} me={me} onCambio={onCambio} irA={irA} />
+      {!sinPasos && <ParaEmpezar producto={producto} base={base} me={me} onCambio={onCambio} irA={irA} />}
 
       {pendientes.length > 0 && (
         <section aria-labelledby="pend-t" className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-5 sm:p-6">
@@ -201,7 +211,7 @@ export function PanelResumen({ producto, base, me, onCambio, irA }: { producto: 
   );
 }
 
-function TituloSeccion({ id, titulo, accion }: { id: string; titulo: string; accion?: { etiqueta: string; onClick: () => void } }) {
+export function TituloSeccion({ id, titulo, accion }: { id: string; titulo: string; accion?: { etiqueta: string; onClick: () => void } }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
       <h2 id={id} className="font-display text-bloque font-bold leading-tight text-ink">{titulo}</h2>
@@ -226,7 +236,7 @@ interface Paso {
  * «Para empezar»: los pasos que hacen útil la cuenta (verificar el correo, decir qué vendes, crear una alerta, guardar
  * algo), con cuántos van y la acción del siguiente a un clic. Se va cuando están todos.
  */
-function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir }) {
+export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir }) {
   const conLineas = producto === "licitaciones";
   const { data: lineas } = useSWR(conLineas ? ["gobserva-lineas"] : null, () => cargarLineas(), { revalidateOnFocus: false });
   const verif = useVerificacion(onCambio);
