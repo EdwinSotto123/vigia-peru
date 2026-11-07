@@ -55,6 +55,10 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
   const [enviando, setEnviando] = useState<"correo" | "google" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nota, setNota] = useState<string | null>(null);
+  // El correo ya tiene cuenta o la contraseña no entra. Firebase no dice si esa cuenta se creó con Google (lo protege la
+  // enumeración de correos): quien entró con Google en Vigía o en Gobserva no tiene contraseña, así que se le ofrecen las
+  // dos salidas con un clic, en vez de un «no coinciden» sin camino.
+  const [ayuda, setAyuda] = useState<"existe" | "noCoincide" | null>(null);
   const volver = rutaEn(base, destino(next));
   const p = PRODUCTOS[producto];
 
@@ -65,10 +69,17 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
 
   const urlVolver = () => `${window.location.origin}${volver}`;
 
+  function cambiarModo(m: typeof modo) {
+    setModo(m);
+    setError(null);
+    setAyuda(null);
+  }
+
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setNota(null);
+    setAyuda(null);
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Escribe un correo válido.");
     if (modo !== "recuperar" && clave.length < 6) return setError("La contraseña debe tener al menos 6 caracteres.");
     setEnviando("correo");
@@ -81,6 +92,27 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
         setModo("entrar");
       }
     } catch (err) {
+      const codigo = (err as { code?: string })?.code ?? "";
+      if (modo === "crear" && codigo === "auth/email-already-in-use") {
+        setModo("entrar");
+        setAyuda("existe");
+      } else if (modo === "entrar" && ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-login-credentials"].includes(codigo)) {
+        setAyuda("noCoincide");
+      } else setError(mensajeAuth(err));
+    } finally {
+      setEnviando(null);
+    }
+  }
+
+  /** El enlace para elegir contraseña, al correo ya escrito: sirve también a una cuenta que sólo entraba con Google. */
+  async function enlaceClave() {
+    setError(null);
+    setEnviando("correo");
+    try {
+      await recuperarClave(email, urlVolver());
+      setAyuda(null);
+      setNota(`Te enviamos un correo a ${email.trim()} para elegir tu contraseña. Si no llega en unos minutos, revisa el spam.`);
+    } catch (err) {
       setError(mensajeAuth(err));
     } finally {
       setEnviando(null);
@@ -89,6 +121,7 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
 
   async function google() {
     setError(null);
+    setAyuda(null);
     setEnviando("google");
     try {
       await entrarConGoogle();
@@ -185,6 +218,22 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
             </div>
           )}
           {error && <Aviso tono="error">{error}</Aviso>}
+          {ayuda && (
+            <div className="space-y-3">
+              <Aviso tono={ayuda === "existe" ? "nota" : "error"}>
+                {ayuda === "existe" ? "Ya tienes una cuenta con ese correo. Entra con tu contraseña." : "El correo o la contraseña no coinciden."}{" "}
+                Si antes entraste con Google, en Gobserva o en Vigía, tu cuenta no tiene contraseña: entra con Google o elige una.
+              </Aviso>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={google} disabled={enviando !== null} className={claseAccion("secundario", "", "sm")}>
+                  <LogoGoogle /> Entrar con Google
+                </button>
+                <button type="button" onClick={() => void enlaceClave()} disabled={enviando !== null} className={claseAccion("secundario", "", "sm")}>
+                  <KeyRound size={15} aria-hidden /> Elegir una contraseña
+                </button>
+              </div>
+            </div>
+          )}
           {nota && <Aviso tono="ok">{nota}</Aviso>}
           <button type="submit" disabled={enviando !== null} className={claseAccion("primario", "w-full", "md")}>
             {enviando === "correo" && <Loader2 size={17} aria-hidden className="animate-spin" />}
@@ -195,15 +244,15 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-dato">
           {modo === "entrar" ? (
             <>
-              <button type="button" onClick={() => { setModo("crear"); setError(null); }} className="font-semibold text-granate underline-offset-2 hover:underline">
+              <button type="button" onClick={() => cambiarModo("crear")} className="font-semibold text-granate underline-offset-2 hover:underline">
                 Crear una cuenta
               </button>
-              <button type="button" onClick={() => { setModo("recuperar"); setError(null); }} className="inline-flex items-center gap-1.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline">
+              <button type="button" onClick={() => cambiarModo("recuperar")} className="inline-flex items-center gap-1.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline">
                 <KeyRound size={15} aria-hidden /> Olvidé mi contraseña
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => { setModo("entrar"); setError(null); }} className="font-semibold text-granate underline-offset-2 hover:underline">
+            <button type="button" onClick={() => cambiarModo("entrar")} className="font-semibold text-granate underline-offset-2 hover:underline">
               Ya tengo una cuenta
             </button>
           )}
