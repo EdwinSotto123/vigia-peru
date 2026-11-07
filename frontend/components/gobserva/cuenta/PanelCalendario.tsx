@@ -66,7 +66,7 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
 
   const celdas = celdasDelMes(mes);
   const delDia = porDia.get(dia) ?? [];
-  const tituloMes = new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${mes}-01T12:00:00Z`));
+  const tituloMes = mayuscula(new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${mes}-01T12:00:00Z`)));
 
   return (
     <div className="space-y-8">
@@ -77,7 +77,7 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
               <button type="button" onClick={() => setMes(sumarMes(mes, -1))} aria-label="Mes anterior" className="grid h-10 w-10 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-ink">
                 <ChevronLeft size={18} aria-hidden />
               </button>
-              <h2 id="mes-t" aria-live="polite" className="min-w-[10rem] text-center font-display text-bloque font-bold capitalize text-ink">{tituloMes}</h2>
+              <h2 id="mes-t" aria-live="polite" className="min-w-[10rem] text-center font-display text-bloque font-bold text-ink">{tituloMes}</h2>
               <button type="button" onClick={() => setMes(sumarMes(mes, 1))} aria-label="Mes siguiente" className="grid h-10 w-10 place-items-center rounded-full text-inkSoft hover:bg-paperSoft hover:text-ink">
                 <ChevronRight size={18} aria-hidden />
               </button>
@@ -104,7 +104,7 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
                     type="button"
                     onClick={() => setDia(c.dia)}
                     aria-pressed={elegido}
-                    aria-label={`${fechaHora(`${c.dia}T12:00:00-05:00`)}${evs.length ? `, ${evs.length} ${evs.length === 1 ? "plazo" : "plazos"}` : ""}`}
+                    aria-label={`${diaLargo(c.dia)}${evs.length ? `, ${evs.length} ${evs.length === 1 ? "plazo" : "plazos"}` : ""}`}
                     className={cn(
                       "flex min-h-16 flex-col items-stretch gap-1 border-b border-r border-line p-1.5 text-left transition-colors duration-rapido [&:nth-child(7n)]:border-r-0 sm:min-h-24",
                       !c.delMes && "bg-paperSoft/60 text-mute",
@@ -128,8 +128,12 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
                         <span className="hidden flex-col gap-1 sm:flex">
                           {/* recorte: dos por día; el resto se cuenta («+N») y se ve al elegir el día. */}
                           {evs.slice(0, 2).map((e) => (
-                            <span key={`${e.item.ref}-${e.plazo.clave}`} className={cn("truncate rounded-md px-1.5 py-0.5 text-rotulo font-semibold", TONO[e.plazo.clave])}>
-                              {CORTO[e.plazo.clave]}: {e.item.titulo}
+                            <span
+                              key={`${e.item.ref}-${e.plazo.clave}`}
+                              title={`${e.plazo.etiqueta}: ${e.item.titulo ?? ""}`}
+                              className={cn("truncate rounded-md px-1.5 py-0.5 text-rotulo font-semibold", TONO[e.plazo.clave])}
+                            >
+                              {CORTO[e.plazo.clave]}
                             </span>
                           ))}
                           {evs.length > 2 && <span className="px-1.5 text-rotulo font-semibold text-inkSoft">+{evs.length - 2} más</span>}
@@ -151,7 +155,7 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
         </section>
 
         <section aria-labelledby="dia-t" className="min-w-0">
-          <h2 id="dia-t" className="font-display text-bloque font-bold capitalize leading-tight text-ink">{fechaHora(`${dia}T12:00:00-05:00`)}</h2>
+          <h2 id="dia-t" className="font-display text-bloque font-bold leading-tight text-ink">{diaLargo(dia)}</h2>
           {delDia.length === 0 ? (
             <p className="mt-3 rounded-2xl border border-dashed border-line p-4 text-dato text-inkSoft">Ningún plazo este día.</p>
           ) : (
@@ -207,6 +211,13 @@ function ListaEventos({ evs, base, conDia = false }: { evs: Evento[]; base: stri
       })}
     </ol>
   );
+}
+
+const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** «Sábado 7 de noviembre» (un día YYYY-MM-DD, sin hora). */
+function diaLargo(dia: string): string {
+  return mayuscula(new Intl.DateTimeFormat("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${dia}T12:00:00Z`)));
 }
 
 /** Las celdas del mes (YYYY-MM): de lunes a domingo, con los días del mes anterior y el siguiente para completar. */
