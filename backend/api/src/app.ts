@@ -52,6 +52,7 @@ import { gobservaRouter } from "./routes/gobserva.js";
 import { gobservaCuentaRouter } from "./routes/gobservaCuenta.js";
 import { empleoRouter } from "./routes/empleo.js";
 import { licitacionesRouter } from "./routes/licitaciones.js";
+import { cotizacionesRouter } from "./routes/cotizaciones.js";
 import { proyectosRouter } from "./routes/proyectos.js";
 import { iaRouter } from "./routes/ia.js";
 import { datosRouter } from "./routes/datos.js";
@@ -167,6 +168,8 @@ api.route("/obras", obrasRouter);
 api.route("/gobserva/cuenta", gobservaCuentaRouter);
 api.route("/gobserva", gobservaRouter);
 api.route("/empleo", empleoRouter);
+// Las contrataciones menores abiertas (migración 262), antes que las demás rutas de /licitaciones.
+api.route("/licitaciones/menores", cotizacionesRouter);
 api.route("/licitaciones", licitacionesRouter);
 // Gobserva Obras (obras.gobserva.cloud): /obras ya es de Vigía.
 api.route("/proyectos", proyectosRouter);
