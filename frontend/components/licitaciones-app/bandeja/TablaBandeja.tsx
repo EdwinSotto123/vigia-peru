@@ -33,7 +33,7 @@ export function TablaBandeja({ filas, filtros, base, ahora }: { filas: Oportunid
     {
       clave: "proceso",
       titulo: "Proceso",
-      className: "min-w-[18rem]",
+      className: "min-w-[14rem] xl:min-w-[16rem] 2xl:min-w-[18rem]",
       celda: (o) => (
         <div className="min-w-0 max-w-[44rem]">
           <Link href={detalle(o)} className="line-clamp-2 text-dato font-semibold leading-snug text-ink underline-offset-4 hover:text-granate hover:underline">
@@ -43,18 +43,24 @@ export function TablaBandeja({ filas, filtros, base, ahora }: { filas: Oportunid
             <span className="font-mono">{o.codigo ?? o.id}</span>
             <span>{o.procedimiento ?? "Procedimiento sin dato"}</span>
           </p>
-          {/* Hasta lg la entidad va aquí (su columna aparece desde lg). */}
-          <p className="mt-0.5 truncate text-meta text-inkSoft lg:hidden">
+          {/* La entidad va aquí hasta xl y las señales hasta lg (sus columnas aparecen después). line-clamp y no truncate:
+              en una tabla, un texto sin cortes fija el ancho mínimo de la columna. */}
+          <p className="mt-0.5 line-clamp-1 text-meta text-inkSoft xl:hidden">
             {o.entidad.nombre ? tituloNatural(o.entidad.nombre) : "Entidad sin nombre"}, {nombreRegion(o.region)}
           </p>
+          {o.senales.length > 0 && (
+            <div className="mt-1.5 lg:hidden">
+              <Senales o={o} />
+            </div>
+          )}
         </div>
       ),
     },
     {
       clave: "entidad",
       titulo: "Entidad",
-      desde: "lg",
-      className: "w-[15rem]",
+      desde: "xl",
+      className: "w-[11rem] xl:w-[13rem] 2xl:w-[15rem]",
       orden: { href: lista("entidad"), activa: filtros.orden === "entidad", dir: "asc", etiqueta: "entidad" },
       celda: (o) => (
         <div className="min-w-0">
@@ -63,7 +69,7 @@ export function TablaBandeja({ filas, filtros, base, ahora }: { filas: Oportunid
         </div>
       ),
     },
-    { clave: "tipo", titulo: "Tipo", desde: "xl", className: "w-28", celda: (o) => <InsigniaTipo tipo={o.tipo} /> },
+    { clave: "tipo", titulo: "Tipo", desde: "2xl", className: "w-28", celda: (o) => <InsigniaTipo tipo={o.tipo} /> },
     {
       clave: "valor",
       titulo: "Valor ref.",
@@ -85,7 +91,7 @@ export function TablaBandeja({ filas, filtros, base, ahora }: { filas: Oportunid
     {
       clave: "publicado",
       titulo: "Publicado",
-      desde: "xl",
+      desde: "2xl",
       className: "w-28",
       orden: { href: lista("recientes"), activa: filtros.orden === "recientes", dir: "desc", etiqueta: "fecha de publicación" },
       celda: (o) => (
@@ -104,6 +110,7 @@ export function TablaBandeja({ filas, filtros, base, ahora }: { filas: Oportunid
     {
       clave: "senales",
       titulo: "Señales",
+      desde: "lg",
       className: "w-28 whitespace-nowrap",
       celda: (o) => <Senales o={o} />,
     },

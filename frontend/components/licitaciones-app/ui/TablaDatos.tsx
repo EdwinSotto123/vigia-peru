@@ -15,7 +15,7 @@ export interface Columna<T> {
   titulo: ReactNode;
   celda: (fila: T) => ReactNode;
   /** Desde qué ancho se muestra (por defecto, siempre que hay tabla). */
-  desde?: "lg" | "xl";
+  desde?: "lg" | "xl" | "2xl";
   alinear?: "derecha" | "centro";
   /** Ancho fijo o mínimo de la columna. */
   className?: string;
@@ -23,7 +23,7 @@ export interface Columna<T> {
   orden?: { href: string; activa: boolean; dir: "asc" | "desc"; etiqueta: string };
 }
 
-const DESDE = { lg: "hidden lg:table-cell", xl: "hidden xl:table-cell" } as const;
+const DESDE = { lg: "hidden lg:table-cell", xl: "hidden xl:table-cell", "2xl": "hidden 2xl:table-cell" } as const;
 const ALINEAR = { derecha: "text-right", centro: "text-center" } as const;
 
 export function TablaDatos<T>({
