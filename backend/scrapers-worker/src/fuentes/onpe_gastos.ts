@@ -20,7 +20,7 @@ import { registrarCarga, yaCargado } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima, refrescarCasosCruce } from "./comun.ts";
+import { CARGA, cadenaCruces, crucesDe, fechaLima, refrescar } from "./comun.ts";
 import { PORTAL_URL, conPortal, slug } from "./onpe_claridad.ts";
 
 const FUENTE = "onpe_gastos";
@@ -148,11 +148,9 @@ export async function correrGastos(env: Env, p: ParamsCorrida, step: WorkflowSte
     if ((resumen[proceso] as { cargado?: boolean }).cargado) cargados++;
   }
   if (p.seco || !cargados) return resumen;
-  resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
-    conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
-  // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts). Antes llamaba sólo a
-  // refrescar_casos_cruce(): el sobreprecio (que refrescar_cruces() borra y rehace refrescar_precio_item()) quedaba en
-  // cero cada miércoles hasta la corrida diaria del OECE.
-  await refrescarCasosCruce(env, step);
+  // Los cruces y los casos cruzados (migraciones 48 y 57), desde la cola de la base (comun.ts: refrescar). Antes llamaba
+  // sólo a refrescar_casos_cruce(): el sobreprecio (que refrescar_cruces() borra y rehace refrescar_precio_item())
+  // quedaba en cero cada miércoles hasta la corrida diaria del OECE.
+  resumen.cruces = crucesDe(await refrescar(env, step, id, cadenaCruces()));
   return resumen;
 }

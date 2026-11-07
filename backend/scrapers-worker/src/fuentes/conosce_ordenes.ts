@@ -34,7 +34,7 @@ import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { UA } from "../http.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima, refrescarCasosCruce } from "./comun.ts";
+import { CARGA, cadenaCruces, crucesDe, fechaLima, numeroDe, refrescar, type Refresco } from "./comun.ts";
 import { BASE, copiarATemporal, describirArreglos, selectDestino } from "./conosce.ts";
 import type { Mapa } from "./conosce.ts";
 import { mesesEntre } from "./pnda_visitas.ts";
@@ -232,68 +232,62 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
   const [aHoy, mHoy] = aMes(fechaLima(), false);
   const antepenultimo: [number, number] = mHoy > 2 ? [aHoy, mHoy - 2] : [aHoy - 1, mHoy + 10];
   const desde = desdeRefresco(!p.desde && !p.hasta && menor(primero, antepenultimo) ? antepenultimo : primero);
-  const uno = (nombre: string, sql: string, params: unknown[] = []) => step.do(nombre, CARGA, () =>
-    conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql, params))[0]?.n ?? 0)));
-  // Una función de una migración que puede no estar aplicada todavía en esa base (despliegue previo a la migración): si
-  // falta, el paso devuelve null en vez de tumbar la corrida. Se pregunta antes en otra sentencia: un CASE con
-  // to_regprocedure no alcanza, Postgres resuelve el nombre de la función al analizar la consulta y falla igual.
-  const siExiste = (nombre: string, firma: string, sql: string) => step.do(nombre, CARGA, () =>
-    conDb(env.HYPERDRIVE, async (db) => {
-      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [firma]);
-      if (!existe) {
-        registrar("WARNING", `   ${firma} no existe en esta base: no se rehace`, { fuente: FUENTE, instancia: id });
-        return null;
-      }
-      return Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0);
-    }));
-  resumen.fraccionamiento = await uno("refrescar_fraccionamiento", "SELECT refrescar_fraccionamiento($1::date) AS n", [desde]);
-  resumen.personas_ordenes = await uno("refrescar_personas_ordenes", "SELECT refrescar_personas_ordenes($1::date) AS n", [desde]);
-  // Sólo las personas con órdenes desde ese año (migración 94) y, en otro paso, el resumen de cada alcance.
-  resumen.personas = await uno("refrescar_personas_senales", "SELECT refrescar_personas_senales($1::date) AS n", [desde]);
-  // Nepotismo (migración 137): la señal se rehace entera (es barata) tras las señales de persona, y parcha persona_entidad.
-  await siExiste("refrescar_nepotismo_senal", "refrescar_nepotismo_senal()", "SELECT refrescar_nepotismo_senal() AS n");
-  // Los pares del indicio que leen las listas de entidades y de planilla (migración 235): antes se calculaban en cada
-  // Worker nuevo de la API (8 s); ahora una vez por carga.
-  await siExiste("refrescar_dji_nepotismo_pares", "refrescar_dji_nepotismo_pares()", "SELECT refrescar_dji_nepotismo_pares() AS n");
-  // Financió la campaña del que gobierna, y lo nacional (el partido del Presidente en el Ejecutivo) para locadores y
-  // planilla (migración 177): también tras las señales de persona, y antes del resumen, que las cuenta.
-  resumen.senales_politicas = await siExiste("refrescar_senales_politicas", "refrescar_senales_politicas()", "SELECT refrescar_senales_politicas() AS n");
-  // Doble planilla, socio de un proveedor, pariente locador, nepotismo en el mismo gobierno y órdenes al borde del tope
-  // (migración 179).
-  resumen.senales_extra = await siExiste("refrescar_senales_extra", "refrescar_senales_extra()", "SELECT refrescar_senales_extra() AS n");
-  // Familia en el Estado: un funcionario de otra entidad lo declaró como pariente (migración 180).
-  resumen.familia_estado = await siExiste("refrescar_familia_estado", "refrescar_familia_estado()", "SELECT refrescar_familia_estado() AS n");
-  // La gestión actual de cada entidad (filtro «entró con la gestión») y el locador socio de un proveedor (migración 181).
-  await siExiste("refrescar_entidad_gestion", "refrescar_entidad_gestion()", "SELECT refrescar_entidad_gestion() AS n");
-  resumen.socio_proveedor = await siExiste("refrescar_socio_proveedor_locador", "refrescar_socio_proveedor_locador()", "SELECT refrescar_socio_proveedor_locador() AS n");
-  // Y cuántos de ellos trabajan en cada entidad, para su bandera (migración 178).
-  await siExiste("refrescar_entidad_senal_politica", "refrescar_entidad_senal_politica()", "SELECT refrescar_entidad_senal_politica() AS n");
-  resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
-  // Órdenes de cada entidad por año (migración 148): el año en curso, y en enero y febrero también el anterior (las
-  // órdenes llegan con atraso; por eso 62 días atrás).
-  resumen.entidad_ordenes = await siExiste("refrescar_entidad_ordenes", "refrescar_entidad_ordenes(date,date)",
-    "SELECT refrescar_entidad_ordenes(current_date - 62) AS n");
-  // Y por mes, de cada entidad y de cada empresa, para su línea de tiempo (migración 187): los mismos dos meses atrás.
-  resumen.ordenes_mes = await siExiste("refrescar_ordenes_mes", "refrescar_ordenes_mes(date,date)",
-    "SELECT refrescar_ordenes_mes(current_date - 62) AS n");
-  // Y el año anterior entero, en su paso: los archivos del año traen órdenes emitidas el anterior (758 mil de 2025 en los
-  // de 2026) que no entraban en su conteo (auditoría del 2026-10-29: 92 entidades con 17 mil órdenes de 2025 de menos).
+  // Todo lo que se arma sobre las órdenes, en orden, desde la cola de la base (migración 260; comun.ts: refrescar). Cada uno
+  // era un paso del Workflow y varios ya pasaban el corte de Hyperdrive (refrescar_personas_senales tarda ~30 min): el
+  // del 1 de noviembre cayó ahí y dejó sin rehacer todo lo de después.
+  const f = (nombre: string, sql = `SELECT ${nombre}()`, requiere?: string): Refresco => ({ nombre, sql, ...(requiere ? { requiere } : {}) });
+  const opcional = (nombre: string): Refresco => f(nombre, `SELECT ${nombre}()`, `${nombre}()`);
   const anterior = "make_date(extract(year FROM current_date)::int - 1, 1, 1), make_date(extract(year FROM current_date)::int - 1, 12, 31)";
-  resumen.entidad_ordenes_anterior = await siExiste("refrescar_entidad_ordenes_anterior", "refrescar_entidad_ordenes(date,date)",
-    `SELECT refrescar_entidad_ordenes(${anterior}) AS n`);
-  resumen.ordenes_mes_anterior = await siExiste("refrescar_ordenes_mes_anterior", "refrescar_ordenes_mes(date,date)",
-    `SELECT refrescar_ordenes_mes(${anterior}) AS n`);
-  // Las compras sin repetidas (migración 240): cada orden junta con su catálogo, su contrato menor o el proceso que paga,
-  // y el resumen de cada entidad. El año en curso y, en su paso, el anterior. Los menores del martes quedan juntos acá.
-  resumen.compras = await siExiste("refrescar_compras", "refrescar_compras(date,date)",
-    "SELECT (refrescar_compras(current_date, current_date)->>'resumen')::int AS n");
-  resumen.compras_anterior = await siExiste("refrescar_compras_anterior", "refrescar_compras(date,date)",
-    `SELECT (refrescar_compras(${anterior})->>'resumen')::int AS n`);
-  // La ola de órdenes a personas tras cada cambio de gestión, sobre lo recién contado (migración 188).
-  resumen.ola_gestion = await siExiste("refrescar_ola_gestion", "refrescar_ola_gestion()", "SELECT refrescar_ola_gestion() AS n");
-  resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
-    conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
-  // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).
-  await refrescarCasosCruce(env, step);
+  const r = await refrescar(env, step, id, [
+    f("refrescar_fraccionamiento", `SELECT refrescar_fraccionamiento(DATE '${desde}')`),
+    f("refrescar_personas_ordenes", `SELECT refrescar_personas_ordenes(DATE '${desde}')`),
+    // Sólo las personas con órdenes desde ese año (migración 94) y, más abajo, el resumen de cada alcance.
+    f("refrescar_personas_senales", `SELECT refrescar_personas_senales(DATE '${desde}')`),
+    // Nepotismo (migración 137): la señal se rehace entera (es barata) tras las señales de persona, y parcha persona_entidad.
+    opcional("refrescar_nepotismo_senal"),
+    // Los pares del indicio que leen las listas de entidades y de planilla (migración 235), una vez por carga.
+    opcional("refrescar_dji_nepotismo_pares"),
+    // Financió la campaña del que gobierna, y lo nacional para locadores y planilla (migración 177): antes del resumen.
+    opcional("refrescar_senales_politicas"),
+    // Doble planilla, socio de un proveedor, pariente locador, nepotismo en el mismo gobierno y órdenes al borde del tope
+    // (migración 179).
+    opcional("refrescar_senales_extra"),
+    // Familia en el Estado: un funcionario de otra entidad lo declaró como pariente (migración 180).
+    opcional("refrescar_familia_estado"),
+    // La gestión actual de cada entidad (filtro «entró con la gestión») y el locador socio de un proveedor (migración 181).
+    opcional("refrescar_entidad_gestion"),
+    opcional("refrescar_socio_proveedor_locador"),
+    // Y cuántos de ellos trabajan en cada entidad, para su bandera (migración 178).
+    opcional("refrescar_entidad_senal_politica"),
+    f("refrescar_personas_resumen"),
+    // Órdenes de cada entidad por año (migración 148) y por mes, de cada entidad y de cada empresa (187): el año en curso,
+    // y en enero y febrero también el anterior (las órdenes llegan con atraso; por eso 62 días atrás).
+    f("refrescar_entidad_ordenes", "SELECT refrescar_entidad_ordenes(current_date - 62)", "refrescar_entidad_ordenes(date,date)"),
+    f("refrescar_ordenes_mes", "SELECT refrescar_ordenes_mes(current_date - 62)", "refrescar_ordenes_mes(date,date)"),
+    // Y el año anterior entero: los archivos del año traen órdenes emitidas el anterior (758 mil de 2025 en los de 2026)
+    // que no entraban en su conteo (auditoría del 2026-10-29: 92 entidades con 17 mil órdenes de 2025 de menos).
+    f("refrescar_entidad_ordenes_anterior", `SELECT refrescar_entidad_ordenes(${anterior})`, "refrescar_entidad_ordenes(date,date)"),
+    f("refrescar_ordenes_mes_anterior", `SELECT refrescar_ordenes_mes(${anterior})`, "refrescar_ordenes_mes(date,date)"),
+    // Las compras sin repetidas (migración 240): cada orden junta con su catálogo, su contrato menor o el proceso que paga,
+    // y el resumen de cada entidad. El año en curso y el anterior. Los menores del martes quedan juntos acá.
+    f("refrescar_compras", "SELECT refrescar_compras(current_date, current_date)->>'resumen'", "refrescar_compras(date,date)"),
+    f("refrescar_compras_anterior", `SELECT refrescar_compras(${anterior})->>'resumen'`, "refrescar_compras(date,date)"),
+    // La ola de órdenes a personas tras cada cambio de gestión, sobre lo recién contado (migración 188).
+    opcional("refrescar_ola_gestion"),
+    // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).
+    ...cadenaCruces(),
+  ]);
+  for (const [clave, nombre] of [
+    ["fraccionamiento", "refrescar_fraccionamiento"], ["personas_ordenes", "refrescar_personas_ordenes"],
+    ["personas", "refrescar_personas_senales"], ["senales_politicas", "refrescar_senales_politicas"],
+    ["senales_extra", "refrescar_senales_extra"], ["familia_estado", "refrescar_familia_estado"],
+    ["socio_proveedor", "refrescar_socio_proveedor_locador"], ["personas_resumen", "refrescar_personas_resumen"],
+    ["entidad_ordenes", "refrescar_entidad_ordenes"], ["ordenes_mes", "refrescar_ordenes_mes"],
+    ["entidad_ordenes_anterior", "refrescar_entidad_ordenes_anterior"], ["ordenes_mes_anterior", "refrescar_ordenes_mes_anterior"],
+    ["compras", "refrescar_compras"], ["compras_anterior", "refrescar_compras_anterior"], ["ola_gestion", "refrescar_ola_gestion"],
+  ] as const) {
+    resumen[clave] = numeroDe(r, nombre);
+  }
+  resumen.cruces = crucesDe(r);
   return resumen;
 }

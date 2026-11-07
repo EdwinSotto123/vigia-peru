@@ -100,99 +100,176 @@ export function sumarDias(fecha: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Un refresco de la base: una sentencia que devuelve una fila con una columna (o ninguna). */
+export interface Refresco {
+  nombre: string;
+  sql: string;
+  /** Firma de una función de una migración que puede faltar en esta base (DEV va antes que PROD): sin ella, se salta. */
+  requiere?: string;
+}
+
+/** Cómo terminó un refresco: `resultado` es la primera columna de la primera fila, como texto (JSON si era un objeto). */
+export interface Refrescado {
+  nombre: string;
+  estado: "ok" | "error" | "saltado";
+  resultado: string | null;
+  error: string | null;
+  segundos: number | null;
+}
+
+/** Cada cuánto se mira la cola y hasta cuándo: 2 min × 180 = 6 h (la cadena de órdenes, la más larga, tarda ~3 h). */
+const ESPERA_COLA = "2 minutes";
+const VUELTAS_COLA = 180;
+
+function comoTexto(v: unknown): string | null {
+  return v == null ? null : typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
 /**
- * Lo que hacía `refrescar_casos_cruce()` en una sola sentencia, en cuatro pasos: con la historia del OECE en la base
- * la cadena tardaba ~21 min y Hyperdrive corta una sentencia a los ~10. Cada paso es su propia sentencia (contrato ↔
- * partido ~3,5 min, otro postor ~40 s con la migración 77, adjudicado vigente ~1,5 min, casos cruzados ~2,5 min).
- * Antes va el precio por ítem (migración 84): rehace precio_item y el cruce `sobreprecio`, que refrescar_cruces() borra.
- * Devuelve cuántos casos cruzados quedaron.
+ * Corre una lista de refrescos, en orden, y devuelve cómo terminó cada uno.
+ *
+ * Con la cola de la migración 260 (pg_cron), los deja en `refresco_cola` como un lote y espera a que la base los termine:
+ * nadie queda esperando del otro lado de Hyperdrive, que suelta una sentencia a los 10 min sin respuesta (la base la
+ * seguía, la deshacía al no poder avisar y el reintento lanzaba otra igual: así se perdieron oece_ocds del 1, 2, 3 y 6 de
+ * noviembre y conosce_ordenes del 1). Los lotes de distintas fuentes no se enciman: la cola es una sola. Un refresco con
+ * error no frena a los que siguen; al final, si alguno falló, la corrida termina en error y dice cuáles.
+ *
+ * Sin la 260 (una base que no la tiene todavía), cada refresco es un paso como antes: un error corta la corrida.
  */
-export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise<number> {
-  const uno = (nombre: string, sql: string) =>
-    step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0)));
-  // Un cruce de una migración que puede no estar aplicada todavía en esta base (DEV va antes que PROD): sin su función se
-  // salta con un aviso en vez de cortar la cadena entera (casos_cruce, empresas y poder van después).
-  const siExiste = (nombre: string) =>
-    step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
-      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${nombre}()`]);
-      if (!existe) {
-        registrar("WARNING", `   ${nombre}() no existe en esta base: se salta`, { fuente: "cruces" });
-        return 0;
-      }
-      return Number((await db.filas<{ n: number }>(`SELECT ${nombre}() AS n`))[0]?.n ?? 0);
-    }));
-  await uno("refrescar_precio_item", "SELECT refrescar_precio_item() AS n");
-  await uno("refrescar_contrato_partido", "SELECT refrescar_contrato_partido() AS n");
-  await uno("refrescar_cruce_otro_postor", "SELECT refrescar_cruce_otro_postor() AS n");
-  // "Ganó recién fundada" como cruce del contrato (migración 118): la brecha entre la fecha de alta en la SUNAT y la
-  // buena pro de ese proceso. Va con los otros post-pasos de cruces_proveedor, antes de casos_cruce_base.
-  await uno("refrescar_cruce_recien_fundada", "SELECT refrescar_cruce_recien_fundada() AS n");
-  // Dos cruces del contrato de la migración 122: "único postor" (el proceso tuvo un solo postor, OCDS) y "socio del
-  // proveedor contratado por la entidad" (puerta giratoria, RNP × persona_entidad). Van con los otros post-pasos.
-  await uno("refrescar_cruce_unico_postor", "SELECT refrescar_cruce_unico_postor() AS n");
-  await uno("refrescar_cruce_socio_en_entidad", "SELECT refrescar_cruce_socio_en_entidad() AS n");
-  // Dos cruces más de la migración 123: mismo domicilio fiscal que otro postor, y proveedor cautivo de una entidad.
-  await uno("refrescar_cruce_domicilio_compartido", "SELECT refrescar_cruce_domicilio_compartido() AS n");
-  await uno("refrescar_cruce_proveedor_cautivo", "SELECT refrescar_cruce_proveedor_cautivo() AS n");
-  // Un funcionario declaró en su DJI acciones, un poder, un directorio o un empleo en la empresa que le ganó a su entidad
-  // (migración 170; las secciones 1 a 6 las carga backend/scripts/procesar_dji_intereses.py desde la PC).
-  await siExiste("refrescar_cruce_interes_dji");
-  // La empresa que ganó mientras su empresa hermana (comparten socio o representante) estaba inhabilitada, y cada proceso
-  // de CONOSCE ya juntado para la pestaña «Postulaciones» de las empresas (migración 184).
-  await siExiste("refrescar_cruce_empresa_espejo");
-  await siExiste("refrescar_proceso_resumen");
-  // La obra de INFOBRAS que ejecuta o supervisa cada contrato y la inversión de su CUI (migración 160): sus banderas
-  // (paralizada, atrasada, adicionales, sobrecosto…) como cruces del contrato. Antes lee el CUI de los procesos nuevos.
-  // Las obras y las inversiones las carga backend/scripts/cargar_obras.py desde la PC (la Contraloría no responde afuera).
-  await siExiste("refrescar_cruce_obras");
-  // «Visitó la entidad antes de ganar» reconociendo a la entidad por todos sus nombres (migración 174): rehace el tipo que
-  // refrescar_cruces() deja con la regla vieja (el nombre letra por letra: 46 cruces en todo el país).
-  await siExiste("refrescar_cruce_visita_previa");
-  // Redes y conflictos (migración 189): el familiar declarado de un funcionario, socio del ganador; y los postores
-  // vinculados (una persona o el domicilio) que compiten juntos y se reparten las buenas pro.
-  await siExiste("refrescar_cruce_pariente_funcionario");
-  await siExiste("refrescar_cruce_turno_postores");
-  // Lo que dicen el acta de buena pro y el pliego de consultas, leídos con Claude (migraciones 245-246): sólo las
-  // banderas que salen de reglas sobre los hechos extraídos. Lee documento_lectura (backend/lector/leer.py, desde la PC).
-  await siExiste("refrescar_cruce_acta");
-  // Quita cruces duplicados que algún JOIN de refrescar_cruces multiplica (migración 120), antes de agregarlos a
-  // casos_cruce: si no, el mismo "financió al partido" cuenta 3 veces e infla el riesgo y repite el bloque en el dossier.
-  await uno("dedup_cruces_proveedor", "SELECT dedup_cruces_proveedor() AS n");
-  await uno("refrescar_adjudicado_vigente", "SELECT refrescar_adjudicado_vigente() AS n");
-  // Adjudicaciones de 20 veces su valor referencial o con un valor de S/ 1 (migración 102): la web las marca como
-  // posible error de carga. ~30 s en producción.
-  await uno("refrescar_contratos_dudosos", "SELECT refrescar_contratos_dudosos() AS n");
-  const n = await uno("refrescar_casos_cruce_base", "SELECT refrescar_casos_cruce_base() AS n");
-  // Cuántos contratos con antecedentes tiene cada entidad, para su lista (migración 175): sale de casos_cruce recién hecho.
-  await siExiste("refrescar_entidad_antecedentes");
-  // Empresas (migración 109): sus órdenes por entidad y año (~3 min en producción) y después el resumen con el puntaje de
-  // antecedentes, que lee los cruces y los casos recién rehechos.
-  await uno("refrescar_empresa_ordenes", "SELECT refrescar_empresa_ordenes() AS n");
-  // Las empresas con la mitad o más de las órdenes de una entidad al borde del tope (migración 207): la franja de montos
-  // por su índice parcial y el denominador de empresa_orden_anual, recién rehecha. ~2 min en producción.
-  await siExiste("refrescar_borde_empresas");
-  // refrescar_empresas reconstruye empresa_resumen y, al final (migración 117), vuelve a calcular las señales SUNAT de
-  // estado (dada de baja, suspendida, no habida); así nunca quedan sin ellas. "Recién fundada" ya llega como cruce del
-  // contrato (migración 118), por cruces_proveedor. Las visitas ya no las atribuye aquí (migración 241: se rehacen tras
-  // cada carga de visitas, refrescarVisitasEmpresas); sólo las cuenta. ~3 min (antes 10-26 y la conexión lo cortaba).
-  await uno("refrescar_empresas", "SELECT refrescar_empresas() AS n");
-  // Las empresas cuya gente (socio, representante, directivo o quien dijo venir de ella) visitó cada entidad y lo que la
-  // entidad les dio después (migración 203): lee las visitas ya atribuidas (empresa_visita) y las órdenes y contratos
-  // del día. Con las visitas nacionales, todo junto tarda ~9 min: va en partes por empresa (migración 243), una por paso.
-  for (let parte = 0; parte < PARTES_VISITA_EMPRESA; parte++) {
-    await step.do(`refrescar_visita_empresa ${parte + 1}/${PARTES_VISITA_EMPRESA}`, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
-      const [f] = await db.filas<{ partes: boolean; todo: boolean }>(
-        `SELECT to_regprocedure('refrescar_visita_empresa_parte(integer,integer)') IS NOT NULL AS partes,
-                to_regprocedure('refrescar_visita_empresa()') IS NOT NULL AS todo`);
-      if (f.partes) {
-        return Number((await db.filas<{ n: number }>("SELECT refrescar_visita_empresa_parte($1, $2) AS n",
-          [parte, PARTES_VISITA_EMPRESA]))[0]?.n ?? 0);
-      }
-      // Sin la 243: la función entera, una sola vez.
-      return parte === 0 && f.todo ? Number((await db.filas<{ n: number }>("SELECT refrescar_visita_empresa() AS n"))[0]?.n ?? 0) : 0;
-    }));
+export async function refrescar(env: Env, step: WorkflowStep, lote: string, lista: Refresco[]): Promise<Record<string, Refrescado>> {
+  const conCola = await step.do("cola de refrescos: ¿está?", LECTURA, () => conDb(env.HYPERDRIVE, async (db) =>
+    (await db.filas<{ hay: boolean }>("SELECT to_regprocedure('correr_refrescos()') IS NOT NULL AS hay"))[0]?.hay === true));
+  if (!conCola) {
+    const out: Record<string, Refrescado> = {};
+    for (const r of lista) {
+      out[r.nombre] = await step.do(r.nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db): Promise<Refrescado> => {
+        if (r.requiere) {
+          const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [r.requiere]);
+          if (!existe) {
+            registrar("WARNING", `   ${r.requiere} no existe en esta base: se salta`, { fuente: "refrescos", instancia: lote });
+            return { nombre: r.nombre, estado: "saltado", resultado: null, error: `${r.requiere} no existe en esta base`, segundos: null };
+          }
+        }
+        const t0 = Date.now();
+        const [fila] = await db.filas<Record<string, unknown>>(r.sql);
+        return {
+          nombre: r.nombre, estado: "ok", resultado: comoTexto(fila ? Object.values(fila)[0] : null), error: null,
+          segundos: Math.round((Date.now() - t0) / 1000),
+        };
+      }));
+    }
+    return out;
   }
-  // Mapa de poder (migración 125): captura por partido/entidad. Lee casos_cruce + entidad_gobierno_amplia + jne, ya listos.
-  await uno("refrescar_poder", "SELECT refrescar_poder() AS n");
-  return n;
+
+  // ON CONFLICT: si el paso se reintenta (o el Workflow se reanuda), el lote no se duplica.
+  const encolados = await step.do("cola de refrescos: encolar", LECTURA, () => conDb(env.HYPERDRIVE, (db) => db.ejecutar(
+    `INSERT INTO refresco_cola (lote, nombre, sql, requiere)
+     SELECT $1, x.nombre, x.sql, x.requiere
+       FROM jsonb_to_recordset($2::jsonb) AS x(nombre text, sql text, requiere text, orden int)
+      ORDER BY x.orden
+     ON CONFLICT (lote, nombre) DO NOTHING`,
+    [lote, JSON.stringify(lista.map((r, orden) => ({ nombre: r.nombre, sql: r.sql, requiere: r.requiere ?? null, orden })))])));
+  registrar("INFO", `   ${encolados} refrescos en la cola (lote ${lote}): los corre la base con pg_cron`, { fuente: "refrescos", instancia: lote });
+
+  for (let i = 1; ; i++) {
+    const { faltan, ahora } = await step.do(`cola de refrescos: ¿terminó? (${i})`, LECTURA, () => conDb(env.HYPERDRIVE, async (db) =>
+      (await db.filas<{ faltan: number; ahora: string | null }>(
+        `SELECT count(*) FILTER (WHERE estado IN ('pendiente', 'corriendo'))::int AS faltan,
+                max(nombre) FILTER (WHERE estado = 'corriendo') AS ahora
+           FROM refresco_cola WHERE lote = $1`, [lote]))[0]));
+    if (faltan === 0) break;
+    if (i >= VUELTAS_COLA) {
+      throw new Error(`la cola de refrescos no terminó en 6 h: faltan ${faltan} (SELECT * FROM refresco_cola WHERE lote = '${lote}')`);
+    }
+    if (i % 15 === 1) {
+      registrar("INFO", `   cola de refrescos: faltan ${faltan}${ahora ? `, ahora ${ahora}` : " (esperando su turno)"}`,
+        { fuente: "refrescos", instancia: lote });
+    }
+    await step.sleep(`cola de refrescos: espera (${i})`, ESPERA_COLA);
+  }
+
+  const filas = await step.do("cola de refrescos: resultado", LECTURA, () => conDb(env.HYPERDRIVE, (db) => db.filas<Refrescado>(
+    `SELECT nombre, estado, resultado, error, round(extract(epoch FROM fin - inicio))::int AS segundos
+       FROM refresco_cola WHERE lote = $1 ORDER BY id`, [lote])));
+  const out: Record<string, Refrescado> = Object.fromEntries(filas.map((f) => [f.nombre, f]));
+  const malos = filas.filter((f) => f.estado === "error");
+  registrar(malos.length ? "WARNING" : "INFO",
+    `   refrescos: ${filas.filter((f) => f.estado === "ok").length} bien, ${malos.length} con error, ` +
+    `${filas.filter((f) => f.estado === "saltado").length} saltados`, { fuente: "refrescos", instancia: lote });
+  if (malos.length) {
+    throw new Error(`refrescos con error: ${malos.map((m) => `${m.nombre} (${m.error})`).join("; ")}`.slice(0, 1500));
+  }
+  return out;
+}
+
+/** El número que devolvió un refresco (null si se saltó o no devolvió nada). */
+export function numeroDe(r: Record<string, Refrescado>, nombre: string): number | null {
+  const v = r[nombre]?.resultado;
+  return v == null || v === "" ? null : Number(v);
+}
+
+/** Lo que devolvió refrescar_cruces(): cuántos cruces quedaron de cada tipo. */
+export function crucesDe(r: Record<string, Refrescado>): { tipo: string; filas: number }[] {
+  const v = r.refrescar_cruces?.resultado;
+  return v ? (JSON.parse(v) as { tipo: string; filas: number }[]) : [];
+}
+
+/**
+ * Los cruces de los ganadores (refrescar_cruces, migración 48) y todo lo que se arma sobre ellos, en orden: lo que hacía
+ * `refrescar_casos_cruce()` en una sola sentencia, separado en refrescos (con la historia del OECE en la base la cadena
+ * tardaba ~21 min). Antes va el precio por ítem (migración 84): rehace precio_item y el cruce `sobreprecio`, que
+ * refrescar_cruces() borra. Lo usan las cargas que traen procesos, órdenes o aportes nuevos.
+ */
+export function cadenaCruces(): Refresco[] {
+  const f = (nombre: string, opcional = false): Refresco =>
+    ({ nombre, sql: `SELECT ${nombre}()`, ...(opcional ? { requiere: `${nombre}()` } : {}) });
+  return [
+    { nombre: "refrescar_cruces", sql: "SELECT jsonb_agg(c) FROM refrescar_cruces() c" },
+    f("refrescar_precio_item"),
+    f("refrescar_contrato_partido"),
+    f("refrescar_cruce_otro_postor"),
+    // «Ganó recién fundada» (migración 118): la brecha entre el alta en la SUNAT y la buena pro de ese proceso.
+    f("refrescar_cruce_recien_fundada"),
+    // «Único postor» y «socio del proveedor contratado por la entidad» (migración 122).
+    f("refrescar_cruce_unico_postor"),
+    f("refrescar_cruce_socio_en_entidad"),
+    // Mismo domicilio fiscal que otro postor y proveedor cautivo (migración 123).
+    f("refrescar_cruce_domicilio_compartido"),
+    f("refrescar_cruce_proveedor_cautivo"),
+    // Un funcionario declaró en su DJI un interés en la empresa que le ganó a su entidad (migración 170).
+    f("refrescar_cruce_interes_dji", true),
+    // La empresa espejo de una inhabilitada y las postulaciones de cada empresa (migración 184).
+    f("refrescar_cruce_empresa_espejo", true),
+    f("refrescar_proceso_resumen", true),
+    // La obra de INFOBRAS de cada contrato y sus banderas (migración 160).
+    f("refrescar_cruce_obras", true),
+    // «Visitó la entidad antes de ganar» con todos los nombres de la entidad (migración 174).
+    f("refrescar_cruce_visita_previa", true),
+    // Familiar de un funcionario socio del ganador, y postores que se turnan (migración 189).
+    f("refrescar_cruce_pariente_funcionario", true),
+    f("refrescar_cruce_turno_postores", true),
+    // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
+    f("refrescar_cruce_acta", true),
+    // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.
+    f("dedup_cruces_proveedor"),
+    f("refrescar_adjudicado_vigente"),
+    // Adjudicaciones de 20 veces su valor referencial o de S/ 1: posible error de carga (migración 102).
+    f("refrescar_contratos_dudosos"),
+    f("refrescar_casos_cruce_base"),
+    // Cuántos contratos con antecedentes tiene cada entidad (migración 175), de casos_cruce recién hecho.
+    f("refrescar_entidad_antecedentes", true),
+    // Las órdenes de cada empresa por entidad y año (migración 109) y las que están al borde del tope (207).
+    f("refrescar_empresa_ordenes"),
+    f("refrescar_borde_empresas", true),
+    // empresa_resumen con sus antecedentes y las señales SUNAT de estado (migraciones 109 y 117).
+    f("refrescar_empresas"),
+    // Las empresas cuya gente visitó cada entidad y lo que la entidad les dio después (migraciones 203 y 243), por partes.
+    ...Array.from({ length: PARTES_VISITA_EMPRESA }, (_, parte): Refresco => ({
+      nombre: `refrescar_visita_empresa ${parte + 1}/${PARTES_VISITA_EMPRESA}`,
+      sql: `SELECT refrescar_visita_empresa_parte(${parte}, ${PARTES_VISITA_EMPRESA})`,
+      requiere: "refrescar_visita_empresa_parte(integer,integer)",
+    })),
+    // Mapa de poder (migración 125): lee casos_cruce y los gobiernos, ya listos.
+    f("refrescar_poder"),
+  ];
 }

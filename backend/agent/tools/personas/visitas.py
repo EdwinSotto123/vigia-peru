@@ -36,18 +36,41 @@ def query_visitas_de_persona(dni_o_nombre: str, tool_context: ToolContext) -> di
             match_type = "exacto_dni"
         else:
             qn = _normalize_persona(q)
-            cur.execute("SET pg_trgm.similarity_threshold = 0.45")
+            # Primero el nombre exacto (índice btree, milisegundos). Por parecido sólo si no está: con 10,5 M de visitas
+            # un nombre común (QUISPE, MAMANI) trae cientos de miles de candidatos del índice de trigramas, y la base lee
+            # media tabla por cada uno. El 2026-11-06 decenas de estas consultas a la vez (30 s a 6 min cada una) dejaron
+            # el disco en su techo y se cayeron los refrescos de la carga diaria. Umbral más alto (menos candidatos) y tope
+            # de 20 s: si no alcanza, se dice que la búsqueda por parecido no se pudo hacer.
             cur.execute(
                 """SELECT visitante, numero_documento, entidad_visitada, tipo_entidad_visitante,
                           entidad_visitante, funcionario_nombre, funcionario_cargo,
-                          fecha_visita, motivo, duracion_min,
-                          similarity(visitante_norm, %s)::float
+                          fecha_visita, motivo, duracion_min, 1.0::float
                      FROM visitas_entidades
-                    WHERE visitante_norm %% %s
-                    ORDER BY 11 DESC, fecha_visita DESC LIMIT 50""",
-                (qn, qn),
+                    WHERE visitante_norm = %s
+                    ORDER BY fecha_visita DESC LIMIT 50""",
+                (qn,),
             )
-            match_type = "fuzzy_trigram"
+            match_type = "exacto_nombre"
+            if cur.rowcount == 0:
+                cur.execute("SET statement_timeout = '20s'")
+                cur.execute("SET pg_trgm.similarity_threshold = 0.6")
+                try:
+                    cur.execute(
+                        """SELECT visitante, numero_documento, entidad_visitada, tipo_entidad_visitante,
+                                  entidad_visitante, funcionario_nombre, funcionario_cargo,
+                                  fecha_visita, motivo, duracion_min,
+                                  similarity(visitante_norm, %s)::float
+                             FROM visitas_entidades
+                            WHERE visitante_norm %% %s
+                            ORDER BY 11 DESC, fecha_visita DESC LIMIT 50""",
+                        (qn, qn),
+                    )
+                except Exception as e:  # noqa: BLE001 — statement_timeout: el nombre es demasiado común
+                    conn.rollback()
+                    return {"found": False, "match_type": "fuzzy_trigram", "busqueda_incompleta": True,
+                            "nota": "No hay visitas con ese nombre exacto y la búsqueda por parecido excedió 20 s "
+                                    f"(nombre muy común): {str(e).splitlines()[0][:120]}. Busca por DNI."}
+                match_type = "fuzzy_trigram"
         visitas = [
             {"visitante": r[0], "dni": r[1], "entidad_visitada": r[2],
              "tipo_visitante": r[3], "entidad_visitante": r[4],
