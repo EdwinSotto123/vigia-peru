@@ -317,7 +317,19 @@ const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(
 licitacionesRouter.get("/oportunidades/:ocid", async (c) => {
   const ocid = c.req.param("ocid");
   if (!/^[A-Za-z0-9-]{4,80}$/.test(ocid)) return c.json({ error: "not_found" }, 404);
-  const cuerpo = await memoFicha.obtener(`ficha:${ocid}`, async () => {
+  const cuerpo = await fichaOportunidad(ocid);
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/**
+ * La ficha de una convocatoria (la del detalle): ítems, documentos, consultas, el comprador en 12 meses, procesos
+ * parecidos con precio y precios de referencia. La usan GET /oportunidades/:ocid y el asistente de la cuenta.
+ */
+export async function fichaOportunidad(ocid: string): Promise<Record<string, unknown> | null> {
+  if (!/^[A-Za-z0-9-]{4,80}$/.test(ocid)) return null;
+  return memoFicha.obtener(`ficha:${ocid}`, async () => {
     const r = await pool.query(
       `SELECT c.ocid, c.codigo, c.objeto, c.tipo_contratacion AS tipo, c.etapa, NULLIF(c.cuantia_referencial, 0)::float AS valor,
               to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, c.entidad_ruc::text AS "entidadRuc", e.nombre AS entidad,
@@ -397,10 +409,7 @@ licitacionesRouter.get("/oportunidades/:ocid", async (c) => {
       precios: precios.rows,
     });
   });
-  if (!cuerpo) return c.json({ error: "not_found" }, 404);
-  c.header("Cache-Control", CACHE);
-  return c.json(cuerpo);
-});
+}
 
 /** La entidad en los últimos 12 meses (CONOSCE): procesos adjudicados, monto, sus proveedores (RUC 20) y la competencia. */
 async function inteligenciaEntidad(ruc: string) {

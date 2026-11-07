@@ -13,6 +13,8 @@ import {
 } from "../lib/gobservaPlanes.js";
 import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOperacion } from "../lib/gobservaCobros.js";
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
+import { LARGO_PREGUNTA, preguntarAsistente } from "../lib/asistente.js";
+import { fichaOportunidad } from "./licitaciones.js";
 import { avisarPush } from "../lib/gobservaPush.js";
 import { embeberLinea, paraTi } from "../lib/afinidad.js";
 import { seguimiento } from "../lib/seguimiento.js";
@@ -545,6 +547,31 @@ gobservaCuentaRouter.put("/checklist", limiteEscritura, async (c) => {
     [u.uid, p.data.ref, hechos],
   );
   return c.json({ ok: true, hechos });
+});
+
+// ─── Asistente de un proceso ───────────────────────────────────────────────────────────────────────────────────────
+
+const AsistenteBody = z.object({
+  ocid: z.string().regex(/^[A-Za-z0-9-]{4,80}$/),
+  pregunta: z.string().trim().min(2, "Escribe tu pregunta.").max(LARGO_PREGUNTA, `La pregunta puede tener hasta ${LARGO_PREGUNTA} caracteres.`),
+  historial: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().max(3000) })).max(20).default([]),
+});
+
+/** Una pregunta sobre un proceso, respondida con los datos de su ficha (lib/asistente.ts). */
+gobservaCuentaRouter.post("/asistente", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const p = AsistenteBody.safeParse(await c.req.json().catch(() => null));
+  if (!p.success) return c.json({ error: "invalid_body", detail: p.error.issues[0]?.message ?? "Revisa la pregunta." }, 400);
+  const ficha = await fichaOportunidad(p.data.ocid);
+  if (!ficha) return c.json({ error: "no_encontrado", detail: "No encontramos ese proceso." }, 404);
+  try {
+    const r = await preguntarAsistente(c.env as Parameters<typeof preguntarAsistente>[0], ficha, p.data.historial, p.data.pregunta);
+    console.log(JSON.stringify({ asistente: "respuesta", uid: u.uid.slice(0, 6), entrada: r.entrada, salida: r.salida }));
+    return c.json({ respuesta: r.texto || "No tengo una respuesta con los datos de esta ficha." });
+  } catch (e) {
+    registrar("WARNING", `[gobserva] asistente: ${(e as Error).message}`);
+    return c.json({ error: "asistente_no_disponible", detail: "El asistente no está disponible ahora. Vuelve a intentarlo en un momento." }, 503);
+  }
 });
 
 /** Las oportunidades abiertas de una línea, de la más parecida a lo que vende la empresa a la menos. */
