@@ -275,6 +275,8 @@ export const cargarLineas = () => api<{ data: Linea[]; limites: { lineas: number
 export const crearLinea = (b: LineaNueva) => api<{ ok: true; id: number }>("/lineas", { method: "POST", ...cuerpo(b) });
 export const cambiarLinea = (id: number, b: LineaNueva) => api<{ ok: true; id: number }>(`/lineas/${id}`, { method: "PUT", ...cuerpo(b) });
 export const borrarLinea = (id: number) => api<{ ok: true }>(`/lineas/${id}`, { method: "DELETE" });
+/** Desde qué puntaje de parecido algo «calza» con tu línea (el mismo umbral que la API, lib/afinidad.ts). */
+export const PUNTAJE_CALZA = 45;
 /** El resumen de «Para ti» sobre todo lo que calza (puntaje desde 45), no sólo lo que muestra el plan. */
 export interface ResumenParaTi {
   calzan: number;

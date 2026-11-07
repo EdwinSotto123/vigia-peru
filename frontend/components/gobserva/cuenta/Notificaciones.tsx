@@ -1,5 +1,6 @@
 "use client";
 
+import { Caja } from "@/components/gobserva/app/Caja";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { BellOff, BellRing, CheckCircle2, Loader2, Send, Share, Smartphone, SquarePlus } from "lucide-react";
@@ -120,27 +121,20 @@ export function Notificaciones({ producto, className }: { producto: Producto; cl
   const nombreApp = PRODUCTOS[producto].titulo;
 
   return (
-    <section id="notificaciones" aria-labelledby="notif-t" className={cn("scroll-mt-24 rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">
-            <BellRing size={20} aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h2 id="notif-t" className="font-display text-bloque font-bold leading-tight text-ink">Avisos en este dispositivo</h2>
-            <p className="mt-1 text-dato leading-relaxed text-inkSoft">
-              Una notificación en tu celular o tu computadora apenas una alerta traiga algo nuevo, o dos días antes de que cierre algo que guardaste.
-            </p>
-          </div>
-        </div>
-        {estado === "activo" && (
+    <Caja
+      id="notificaciones"
+      titulo="Avisos en este dispositivo"
+      descripcion="Una notificación en tu celular o tu computadora apenas una alerta traiga algo nuevo, o dos días antes de que cierre algo que guardaste."
+      accion={
+        estado === "activo" ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-granate-50 px-3 py-1 text-meta font-semibold text-granate">
             <CheckCircle2 size={14} aria-hidden /> Activas aquí
           </span>
-        )}
-      </div>
-
-      <div className="mt-4">
+        ) : undefined
+      }
+      className={cn("scroll-mt-24", className)}
+    >
+      <div>
         {estado === "cargando" && <div aria-hidden className="h-11 w-56 animate-pulse rounded-full bg-paperDeep" />}
         {estado === "apagado" && (
           <button type="button" onClick={() => void activar()} disabled={!!ocupado || !data} className={claseAccion("primario")}>
@@ -207,6 +201,6 @@ export function Notificaciones({ producto, className }: { producto: Producto; cl
           ))}
         </ul>
       )}
-    </section>
+    </Caja>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
+import { Caja, ESPACIO_CAJAS, VacioCaja } from "@/components/gobserva/app/Caja";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Bell, BellOff, Eye, Loader2, Mail, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Bell, BellOff, Eye, Inbox, Loader2, Mail, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, type Producto } from "@/lib/gobserva";
 import {
@@ -33,40 +34,39 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
   }
 
   return (
-    <div className="space-y-6">
-      <section aria-labelledby="alertas-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 id="alertas-t" className="font-display text-seccion font-bold leading-tight text-ink">Tus alertas</h2>
-            <p className="mt-1 flex items-start gap-2 text-dato leading-relaxed text-inkSoft">
-              <Mail size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-              {me.correoActivo
-                ? me.cuenta.emailVerificado
-                  ? `Te escribimos a ${me.cuenta.email} con lo nuevo, a las 7:00 de la mañana.`
-                  : "Verifica tu correo para recibirlas por correo. Mientras tanto quedan en tu bandeja, aquí abajo."
-                : "Lo nuevo de cada alerta queda en tu bandeja, aquí abajo, y en tus notificaciones si las activas."}
-            </p>
-          </div>
+    <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
+      <Caja
+        id="alertas"
+        titulo="Tus alertas"
+        descripcion={
+          me.correoActivo
+            ? me.cuenta.emailVerificado
+              ? `Te escribimos a ${me.cuenta.email} con lo nuevo, a las 7:00 de la mañana.`
+              : "Verifica tu correo para recibirlas por correo. Mientras tanto quedan en «Avisos recibidos», aquí abajo."
+            : "Lo nuevo de cada alerta queda en «Avisos recibidos», aquí abajo, y en tus notificaciones si las activas."
+        }
+        accion={
           <button
             type="button"
             onClick={() => { setNueva(true); setEditando(null); }}
             disabled={lleno}
-            className={claseAccion("primario")}
+            className={claseAccion("primario", "min-h-10")}
           >
             <Plus size={16} aria-hidden /> Nueva alerta
           </button>
-        </div>
-        {lim && (
-          <p className="mt-3 text-meta text-mute">
-            Usas {alertas.length} de {lim.alertas} {lim.alertas === 1 ? "alerta" : "alertas"}.
-            {lleno && (
-              <>
-                {" "}
+        }
+        pie={
+          lim ? (
+            <p className="flex flex-wrap items-center gap-x-2 text-meta text-mute">
+              <Mail size={14} aria-hidden className="text-granate" />
+              Usas {alertas.length} de {lim.alertas} {lim.alertas === 1 ? "alerta" : "alertas"}.
+              {lleno && (
                 <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate hover:underline">Con un plan de pago tienes más.</Link>
-              </>
-            )}
-          </p>
-        )}
+              )}
+            </p>
+          ) : undefined
+        }
+      >
 
         {nueva && (
           <FormAlerta
@@ -79,16 +79,15 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
         )}
 
         {isLoading ? (
-          <div aria-hidden className="mt-5 h-24 animate-pulse rounded-2xl bg-paperDeep" />
+          <div aria-hidden className="h-24 animate-pulse rounded-xl bg-ink/[0.05]" />
         ) : alertas.length === 0 && !nueva ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-line p-6 text-center">
-            <Bell size={28} aria-hidden className="mx-auto text-mute" />
-            <p className="mt-2 text-dato text-inkSoft">
-              Todavía no tienes alertas. Crea una aquí o desde la lista de {COSAS[producto].varias} con «Crear alerta con esta búsqueda».
-            </p>
-          </div>
+          <VacioCaja
+            Icono={Bell}
+            titulo="Todavía no tienes alertas"
+            texto={`Crea una aquí o desde la lista de ${COSAS[producto].varias} con «Crear alerta con esta búsqueda»: te avisamos de lo nuevo que calce.`}
+          />
         ) : (
-          <ul className="mt-5 space-y-3">
+          <ul className={cn("space-y-3", nueva && "mt-5")}>
             {alertas.map((a) =>
               editando === a.id ? (
                 <li key={a.id}>
@@ -107,19 +106,17 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
             )}
           </ul>
         )}
-      </section>
+      </Caja>
 
       <Notificaciones producto={producto} />
 
-      <section aria-labelledby="bandeja2-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <h2 id="bandeja2-t" className="font-display text-bloque font-bold text-ink">Avisos recibidos</h2>
-        <p className="mt-1 text-dato text-inkSoft">Lo que te avisamos, con sus enlaces. Se guardan los últimos 30 avisos.</p>
+      <Caja id="avisos" titulo="Avisos recibidos" descripcion="Lo que te avisamos, con sus enlaces. Se guardan los últimos 30 avisos.">
         {!bandeja.data ? (
-          <div aria-hidden className="mt-4 h-20 animate-pulse rounded-2xl bg-paperDeep" />
+          <div aria-hidden className="h-20 animate-pulse rounded-xl bg-ink/[0.05]" />
         ) : bandeja.data.data.length === 0 ? (
-          <p className="mt-4 text-dato text-mute">Sin avisos todavía.</p>
+          <VacioCaja Icono={Inbox} titulo="Sin avisos todavía" texto="Cuando una alerta encuentre algo nuevo, el aviso queda aquí con sus enlaces." />
         ) : (
-          <ul className="mt-4 space-y-3">
+          <ul className="space-y-3">
             {bandeja.data.data.map((e) => (
               <li key={e.id} className="rounded-2xl border border-line">
                 <details className="group">
@@ -127,9 +124,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
                     <span className="min-w-0">
                       <span className="block text-dato font-semibold text-ink">{e.asunto}</span>
                       <span className="block text-meta text-mute">
-                        {e.creado}
-                        {" | "}
-                        {e.estado === "enviado" ? "Enviado a tu correo" : e.estado === "en_la_web" ? "En tu cuenta" : "No se pudo enviar al correo"}
+                        {e.creado}, {e.estado === "enviado" ? "enviado a tu correo" : e.estado === "en_la_web" ? "en tu cuenta" : "no se pudo enviar al correo"}
                       </span>
                     </span>
                     <span className="text-meta font-semibold text-granate group-open:hidden">Ver</span>
@@ -141,7 +136,7 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
             ))}
           </ul>
         )}
-      </section>
+      </Caja>
     </div>
   );
 }

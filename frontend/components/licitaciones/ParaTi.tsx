@@ -205,8 +205,14 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
   );
 }
 
+/** Si el fin de consultas (un día de Lima, o una hora) ya pasó: entonces no es un plazo por cumplir. */
+function consultasCerradas(hasta: string): boolean {
+  const fin = /^\d{4}-\d{2}-\d{2}$/.test(hasta) ? Date.parse(`${hasta}T23:59:59-05:00`) : Date.parse(hasta);
+  return Number.isFinite(fin) && fin < Date.now();
+}
+
 export function FilaParaTi({ o, base }: { o: OportunidadParaTi; base: string }) {
-  const href = o.fuente === "menor" ? rutaEn(base, `/menor/${o.id}`) : rutaEn(base, `/oportunidad/${encodeURIComponent(o.id)}`);
+  const href = o.fuente === "menor" ? rutaEn(base, `/app/menor/${o.id}`) : rutaEn(base, `/app/oportunidad/${encodeURIComponent(o.id)}`);
   const c = o.fuente === "menor" ? cierreMenor(o.cierra) : null;
   return (
     <Link
@@ -246,7 +252,11 @@ export function FilaParaTi({ o, base }: { o: OportunidadParaTi; base: string }) 
               {c.texto}
             </Dato>
           ) : o.consultasHasta ? (
-            <Dato icono={Hourglass}>Consultas hasta el {fechaCorta(o.consultasHasta)}</Dato>
+            consultasCerradas(o.consultasHasta) ? (
+              <Dato icono={Hourglass} className="text-mute">Consultas cerradas el {fechaCorta(o.consultasHasta)}</Dato>
+            ) : (
+              <Dato icono={Hourglass}>Consultas hasta el {fechaCorta(o.consultasHasta)}</Dato>
+            )
           ) : null}
           {o.valor ? <Dato icono={Sparkles}>{solesCompacto(o.valor)} referencial</Dato> : null}
         </p>

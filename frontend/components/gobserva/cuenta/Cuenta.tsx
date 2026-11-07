@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlanesServidor } from "@/lib/gobserva-planes";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -51,7 +52,8 @@ const SECCIONES: InfoSeccion[] = [
  * (en el celular, la misma lista en una fila que se desliza, nada escondido en un menú), y a la derecha la sección
  * abierta con su título. Las secciones van en ?tab= (se pueden enlazar, como en los correos: ?tab=alertas).
  */
-export function Cuenta({ producto, base }: { producto: Producto; base: string }) {
+/** `catalogo`: los planes del producto (del servidor), para comparar en «Plan y pagos». */
+export function Cuenta({ producto, base, catalogo }: { producto: Producto; base: string; catalogo?: PlanesServidor }) {
   const { user, loading, conCuenta, esVigia } = useSesion();
   const { me, error, isLoading, mutate } = useMe(producto);
   const sp = useSearchParams();
@@ -123,7 +125,7 @@ export function Cuenta({ producto, base }: { producto: Producto; base: string })
       {tab === "calendario" && <PanelCalendario base={base} irA={ir} />}
       {tab === "alertas" && <PanelAlertas producto={producto} base={base} me={me} onCambio={onCambio} />}
       {tab === "guardados" && <PanelGuardados producto={producto} base={base} me={me} onCambio={onCambio} />}
-      {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={onCambio} />}
+      {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={onCambio} irA={ir} catalogo={catalogo} />}
       {tab === "perfil" && <PanelPerfil producto={producto} base={base} me={me} onCambio={onCambio} />}
     </>
   );

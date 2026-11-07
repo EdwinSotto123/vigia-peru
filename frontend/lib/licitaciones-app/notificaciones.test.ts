@@ -23,7 +23,7 @@ test("vencimientos: sólo lo abierto, por venir y en 3 días; urgente hoy o mañ
     ahora: AHORA,
   });
   assert.deepEqual(ns.map((n) => [n.titulo, n.urgente, n.href]), [
-    ["Cierra la cotización: vence mañana", true, "/menor/b"],
+    ["Cierra la cotización: vence mañana", true, "/app/menor/b"],
     ["Fin de consultas y observaciones: vence en 3 días", false, "/app/oportunidad/a?tab=cronograma"],
   ]);
 });

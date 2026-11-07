@@ -9,41 +9,64 @@ import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import {
   ESTADO_PLAN, ErrorCuenta, NOMBRE_MEDIO, cancelarPlan, cargarCobros, fechaLarga, precioCorto, soles2, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
+import type { PlanesServidor } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
+import { Caja, ESPACIO_CAJAS, VacioCaja } from "@/components/gobserva/app/Caja";
+import { ComparaPlanes } from "@/components/licitaciones/ComparaPlanes";
 import { Aviso } from "./comun";
+import { CajaPlan } from "./PanelResumen";
+import type { Seccion } from "./Cuenta";
+
+type Ir = (t: Seccion) => void;
 
 const ESTADO_COBRO = { pendiente: "Por confirmar", pagado: "Pagado", rechazado: "No se completó", reembolsado: "Devuelto" } as const;
 
-export function PanelPagos({ producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
+/**
+ * Plan y pagos, en cajas: tu plan con lo que usas (CajaPlan), tus suscripciones con su medio y cómo cancelar la
+ * renovación, la tabla que compara los planes con los límites reales del catálogo (con «Tu plan» marcado) y tus pagos con
+ * sus recibos.
+ */
+export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir; catalogo?: PlanesServidor }) {
   const { data, mutate, isLoading } = useSWR("gobserva-cobros", () => cargarCobros());
   const cobros = data?.data ?? [];
   const planes = me.planes;
+  const actual = planes.find((p) => p.producto === producto && p.estado === "activa")?.plan ?? "gratis";
   return (
-    <div className="space-y-6">
-      <section aria-labelledby="planes-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <h2 id="planes-t" className="font-display text-seccion font-bold leading-tight text-ink">Tus planes</h2>
-        {planes.length === 0 ? (
-          <div className="mt-3">
-            <p className="text-dato text-inkSoft">Estás en el plan gratis de los tres productos.</p>
-            <Link href={rutaEn(base, "/planes")} className={claseAccion("primario", "mt-4")}>Ver los planes de {PRODUCTOS[producto].titulo}</Link>
-          </div>
-        ) : (
-          <ul className="mt-4 space-y-3">
+    <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
+      <CajaPlan producto={producto} base={base} me={me} irA={irA} />
+
+      {planes.length > 0 && (
+        <Caja id="suscripciones" titulo="Tus suscripciones" descripcion="Cada plan con su medio de pago. Cancelas la renovación cuando quieras." relleno={false}>
+          <ul className="divide-y divide-line">
             {planes.map((p) => <FilaPlan key={p.codigo} p={p} onCambio={() => { onCambio(); void mutate(); }} />)}
           </ul>
-        )}
-      </section>
+        </Caja>
+      )}
 
-      <section aria-labelledby="cobros-t" className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <h2 id="cobros-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-          <Receipt size={20} aria-hidden className="text-granate" /> Pagos y recibos
-        </h2>
+      {catalogo && (
+        <Caja
+          id="comparar"
+          titulo="Compara los planes"
+          descripcion="Los límites de cada plan, los mismos que aplica tu cuenta."
+          accion={<Link href={rutaEn(base, "/planes")} className={claseAccion(actual === "gratis" ? "primario" : "secundario", "min-h-10")}>{actual === "gratis" ? "Elegir un plan" : "Cambiar de plan"}</Link>}
+          relleno={false}
+        >
+          <ComparaPlanes cat={catalogo} enCaja actual={actual} />
+        </Caja>
+      )}
+
+      <Caja
+        id="cobros"
+        titulo="Pagos y recibos"
+        relleno={isLoading || cobros.length > 0}
+        pie={<p className="text-meta leading-relaxed text-mute">Los cobros con tarjeta los procesa Mercado Pago: Gobserva nunca ve ni guarda los datos de tu tarjeta.</p>}
+      >
         {isLoading ? (
-          <div aria-hidden className="mt-4 h-24 animate-pulse rounded-2xl bg-paperDeep" />
+          <div aria-hidden className="h-24 animate-pulse rounded-xl bg-ink/[0.05]" />
         ) : cobros.length === 0 ? (
-          <p className="mt-3 text-dato text-inkSoft">Todavía no hay pagos.</p>
+          <VacioCaja Icono={Receipt} titulo="Todavía no hay pagos" texto="Cuando pagues un plan, aquí verás cada cobro con su estado y su recibo." />
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-dato">
               <thead>
                 <tr className="border-b border-line text-meta text-mute">
@@ -83,10 +106,7 @@ export function PanelPagos({ producto, base, me, onCambio }: { producto: Product
             </table>
           </div>
         )}
-        <p className="mt-4 text-meta leading-relaxed text-mute">
-          Los cobros con tarjeta los procesa Mercado Pago: Gobserva nunca ve ni guarda los datos de tu tarjeta.
-        </p>
-      </section>
+      </Caja>
     </div>
   );
 }
@@ -112,7 +132,7 @@ function FilaPlan({ p, onCambio }: { p: PlanCliente; onCambio: () => void }) {
   }
 
   return (
-    <li className="rounded-2xl border border-line p-4">
+    <li className="px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-destacado font-bold text-ink">

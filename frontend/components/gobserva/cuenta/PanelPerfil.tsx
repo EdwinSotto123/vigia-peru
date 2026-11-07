@@ -1,12 +1,14 @@
 "use client";
 
+import { Caja, ESPACIO_CAJAS } from "@/components/gobserva/app/Caja";
+import { cn } from "@/lib/utils";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, LogOut, ShieldAlert } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, type Producto } from "@/lib/gobserva";
 import { ErrorCuenta, borrarCuenta, guardarPerfil, type Me } from "@/lib/gobserva-cuenta";
-import { Aviso, CAMPO, ETIQUETA } from "./comun";
+import { CAMPO, ETIQUETA } from "./comun";
 
 export function PanelPerfil({ producto: _producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
   const router = useRouter();
@@ -80,10 +82,22 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <form onSubmit={guardar} noValidate className="rounded-2xl border border-line bg-caja p-5 shadow-caja sm:p-6">
-        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Tus datos</h2>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start lg:grid-cols-[minmax(0,1fr)_20rem]", ESPACIO_CAJAS)}>
+      <Caja
+        id="datos"
+        titulo="Tus datos"
+        descripcion="Cómo te llamamos y, si pagas como empresa, lo que sale en tus recibos."
+        pie={
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" form="perfil-form" disabled={guardando} className={claseAccion("primario", "min-h-10")}>
+              {guardando && <Loader2 size={15} aria-hidden className="animate-spin" />} Guardar
+            </button>
+            {nota && <span role="status" className={cn("text-meta font-medium", nota.tono === "error" ? "text-crimsonTexto" : "text-mossTexto")}>{nota.texto}</span>}
+          </div>
+        }
+      >
+      <form id="perfil-form" onSubmit={guardar} noValidate>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="p-nombre" className={ETIQUETA}>Nombre</label>
             <input id="p-nombre" {...campo("nombre")} maxLength={120} autoComplete="name" className={CAMPO} />
@@ -98,7 +112,7 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
           </div>
         </div>
 
-        <h3 className="mt-7 font-display text-bloque font-bold text-ink">Para tu comprobante</h3>
+        <h3 className="mt-6 border-t border-line pt-5 font-display text-destacado font-bold text-ink">Para tu comprobante</h3>
         <p className="mt-1 text-meta text-mute">Si pagas como empresa o con tu RUC, sale en tus recibos.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
@@ -118,17 +132,12 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
           <input type="checkbox" checked={f.boletin} onChange={(e) => setF((x) => ({ ...x, boletin: e.target.checked }))} className="mt-1 h-4 w-4 accent-[rgb(var(--granate))]" />
           Quiero novedades de Gobserva (una vez al mes como mucho)
         </label>
-        {nota && <Aviso tono={nota.tono} className="mt-4">{nota.texto}</Aviso>}
-        <button type="submit" disabled={guardando} className={claseAccion("primario", "mt-5")}>
-          {guardando && <Loader2 size={15} aria-hidden className="animate-spin" />} Guardar
-        </button>
       </form>
+      </Caja>
 
-      <aside className="space-y-4">
-        <div className="rounded-2xl border border-line bg-caja p-5 shadow-caja">
-          <p className="font-display text-bloque font-bold text-ink">Tu acceso</p>
-          <p className="mt-1 break-all text-dato text-inkSoft">{c.email}</p>
-          <div className="mt-4 flex flex-col gap-2">
+      <aside className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
+        <Caja id="acceso" titulo="Tu acceso" descripcion={<span className="break-all">{c.email}</span>}>
+          <div className="flex flex-col gap-2">
             <button type="button" onClick={() => void cambiarClave()} className={claseAccion("secundario")}>
               <KeyRound size={15} aria-hidden /> Cambiar mi contraseña
             </button>
@@ -137,20 +146,26 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
             </button>
           </div>
           {claveNota && <p className="mt-3 text-meta text-inkSoft">{claveNota}</p>}
-        </div>
-        <div className="rounded-2xl border border-crimson/30 bg-crimson-soft/50 p-5">
-          <p className="flex items-center gap-2 font-display text-bloque font-bold text-crimsonTexto">
-            <ShieldAlert size={18} aria-hidden /> Borrar mi cuenta
-          </p>
-          <p className="mt-1 text-meta leading-relaxed text-crimsonTexto">
-            Cancela tus cobros y borra tus alertas, guardados y datos de contacto. Tus recibos se conservan por ley. Escribe BORRAR para confirmar.
+        </Caja>
+        <Caja
+          id="borrar"
+          titulo={
+            <span className="inline-flex items-center gap-2 text-crimsonTexto">
+              <ShieldAlert size={18} aria-hidden /> Borrar mi cuenta
+            </span>
+          }
+          className="border-crimson/30"
+        >
+          <p className="text-meta leading-relaxed text-inkSoft">
+            Cancela tus cobros y borra tus alertas, guardados, seguimiento y datos de contacto. Tus recibos se conservan por ley. Escribe BORRAR para
+            confirmar.
           </p>
           <label htmlFor="p-borrar" className="sr-only">Escribe BORRAR</label>
           <input id="p-borrar" value={borrar} onChange={(e) => setBorrar(e.target.value)} className={`${CAMPO} mt-3`} autoComplete="off" />
           <button type="button" onClick={() => void borrarTodo()} disabled={borrar.trim().toUpperCase() !== "BORRAR" || borrando} className={claseAccion("secundario", "mt-3 w-full text-crimsonTexto")}>
             {borrando && <Loader2 size={15} aria-hidden className="animate-spin" />} Borrar mi cuenta para siempre
           </button>
-        </div>
+        </Caja>
       </aside>
     </div>
   );

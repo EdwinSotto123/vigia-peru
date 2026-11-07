@@ -7,7 +7,7 @@ import { ArrowRight, CalendarClock, CalendarDays, Coins, KanbanSquare, Sparkles,
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { FilaParaTi } from "@/components/licitaciones/ParaTi";
 import { rutaEn } from "@/lib/gobserva";
-import { cargarLineas, cargarParaTi, cargarSeguimiento, type Me } from "@/lib/gobserva-cuenta";
+import { PUNTAJE_CALZA, cargarLineas, cargarParaTi, cargarSeguimiento, type Me } from "@/lib/gobserva-cuenta";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, VacioCaja } from "../app/Caja";
@@ -92,7 +92,7 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
               Icono={Target}
               etiqueta="Calzan contigo"
               valor={r ? numero(r.calzan) : null}
-              detalle={r ? `${numero(r.procesos)} ${r.procesos === 1 ? "licitación" : "licitaciones"} y ${numero(r.menores)} ${r.menores === 1 ? "contrato menor" : "contratos menores"}` : ""}
+              detalle={r ? `Con ${PUNTAJE_CALZA} o más de parecido: ${numero(r.procesos)} ${r.procesos === 1 ? "licitación" : "licitaciones"} y ${numero(r.menores)} ${r.menores === 1 ? "contrato menor" : "contratos menores"}` : ""}
               onClick={() => irA("para-ti")}
             />
             <Cifra

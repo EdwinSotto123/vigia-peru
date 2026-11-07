@@ -56,11 +56,11 @@ export function EstrellaSeguir({ id, codigo, titulo, tipo = "oportunidad" }: Dat
 }
 
 /** En el detalle: «Seguir» y, si ya lo sigues, su etapa (la del tablero: guardada, preparando, presentada, ganada, perdida). */
-export function SeguirConEtapa({ id, codigo, titulo }: Datos) {
-  const { porRef, seguir, dejar, etapa, isLoading } = useSeguimiento();
+export function SeguirConEtapa({ id, codigo, titulo, tipo = "oportunidad" }: Datos & { tipo?: TipoSeguido }) {
+  const { item, seguir, dejar, etapa, isLoading } = useSeguimiento();
   const avisar = useAvisos();
   const [ocupado, setOcupado] = useState(false);
-  const s = porRef.get(id);
+  const s = item(tipo, id);
   async function hacer(f: () => Promise<unknown>, ok: string, conTablero = false) {
     setOcupado(true);
     try {
@@ -78,7 +78,7 @@ export function SeguirConEtapa({ id, codigo, titulo }: Datos) {
       <button
         type="button"
         disabled={ocupado}
-        onClick={() => void hacer(() => seguir(id, titulo), `Sigues ${codigo ?? "el proceso"}: está en tu tablero.`, true)}
+        onClick={() => void hacer(() => seguir(id, titulo, tipo), `Sigues ${codigo ?? "el proceso"}: está en tu tablero.`, true)}
         className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-granate px-4 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-70"
       >
         {ocupado ? <Loader2 size={16} aria-hidden className="animate-spin" /> : <Star size={16} aria-hidden />} Seguir
@@ -90,7 +90,7 @@ export function SeguirConEtapa({ id, codigo, titulo }: Datos) {
       <button
         type="button"
         disabled={ocupado}
-        onClick={() => void hacer(() => dejar(id), `Dejaste de seguir ${codigo ?? "el proceso"}.`)}
+        onClick={() => void hacer(() => dejar(id, tipo), `Dejaste de seguir ${codigo ?? "el proceso"}.`)}
         aria-label="Dejar de seguir"
         title="Dejar de seguir"
         className="grid h-8 w-8 place-items-center rounded-md text-granate hover:bg-caja"
@@ -106,7 +106,7 @@ export function SeguirConEtapa({ id, codigo, titulo }: Datos) {
         disabled={ocupado}
         onChange={(e) => {
           const nombre = ESTADOS.licitaciones.find((x) => x.valor === e.target.value)?.etiqueta ?? e.target.value;
-          void hacer(() => etapa(id, titulo, e.target.value as EstadoGuardado), `Pasó a «${nombre}» en tu tablero.`, true);
+          void hacer(() => etapa(id, titulo, e.target.value as EstadoGuardado, tipo), `Pasó a «${nombre}» en tu tablero.`, true);
         }}
         className="h-8 rounded-md border border-line bg-caja px-2 text-dato font-semibold text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
       >

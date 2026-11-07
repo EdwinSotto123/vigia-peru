@@ -51,7 +51,7 @@ const ABIERTOS = new Set(["guardada", "preparando", "presentada"]);
 const AVISA_DIAS = 3;
 
 const cuando = (dias: number) => (dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`);
-const ruta = (i: ItemN) => (i.tipo === "menor" ? `/menor/${encodeURIComponent(i.ref)}` : `/app/oportunidad/${encodeURIComponent(i.ref)}?tab=cronograma`);
+const ruta = (i: ItemN) => (i.tipo === "menor" ? `/app/menor/${encodeURIComponent(i.ref)}` : `/app/oportunidad/${encodeURIComponent(i.ref)}?tab=cronograma`);
 const isoLima = (creado: string) => (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(creado) ? `${creado.replace(" ", "T")}:00-05:00` : creado);
 
 export function armarNotificaciones({ seguimiento, envios, ahora = Date.now() }: { seguimiento: ItemN[]; envios: EnvioN[]; ahora?: number }): Notificacion[] {

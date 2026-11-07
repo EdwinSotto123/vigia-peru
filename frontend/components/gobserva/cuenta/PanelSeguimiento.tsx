@@ -158,14 +158,15 @@ export function PanelSeguimiento({ base }: { base: string }) {
         relleno={false}
         pie={
           <p className="py-1 text-meta leading-relaxed text-mute">
-            Arrastra una tarjeta para cambiarla de etapa, o usa sus flechas. La presentación de ofertas no viene en los datos abiertos: su fecha está en el
+            Arrastra una tarjeta para cambiarla de etapa, o elígela en su lista. La presentación de ofertas no viene en los datos abiertos: su fecha está en el
             cronograma del SEACE, enlazado en cada ficha.
           </p>
         }
       >
       {aviso && <Aviso tono="error" className="mx-4 mt-4 sm:mx-5">{aviso}</Aviso>}
 
-      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:p-5">
+      {/* Celular y tableta: columnas que se deslizan. Desde xl, las cinco entran a la vista (sin barra escondida). */}
+      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:p-5 xl:grid xl:snap-none xl:grid-cols-5 xl:overflow-visible">
         {estados.map((e, k) => {
           const col = items.filter((i) => i.estado === e.valor);
           const total = suma(col);
@@ -188,11 +189,11 @@ export function PanelSeguimiento({ base }: { base: string }) {
                 if (i) void mover(i, e.valor);
               }}
               className={cn(
-                "flex w-[78vw] max-w-[19rem] shrink-0 snap-start flex-col rounded-xl border p-2.5 transition-colors duration-rapido sm:w-[18rem]",
+                "flex w-[78vw] max-w-[19rem] shrink-0 snap-start flex-col rounded-xl border p-2.5 transition-colors duration-rapido sm:w-[18rem] xl:w-auto xl:min-w-0 xl:max-w-none",
                 sobre === e.valor ? "border-granate bg-granate-50" : "border-line bg-lienzo",
               )}
             >
-              <header className="flex items-center justify-between gap-2 px-1.5 pb-2.5 pt-1">
+              <header className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 px-1.5 pb-2.5 pt-1">
                 <h3 id={`col-${e.valor}`} className="flex items-center gap-2 text-cuerpo font-bold text-ink">
                   <span aria-hidden className={cn("h-2.5 w-2.5 rounded-full", PUNTO[e.valor])} />
                   {e.etiqueta}
@@ -335,7 +336,7 @@ function Tarjeta({
             disabled={!anterior}
             onClick={() => anterior && mover(anterior)}
             aria-label={anterior ? `Mover a ${nombreEstado(anterior)}` : "Primera etapa"}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30 xl:hidden"
           >
             <ChevronLeft size={17} aria-hidden />
           </button>
@@ -344,7 +345,7 @@ function Tarjeta({
             disabled={!siguiente}
             onClick={() => siguiente && mover(siguiente)}
             aria-label={siguiente ? `Mover a ${nombreEstado(siguiente)}` : "Última etapa"}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-inkSoft hover:bg-ink/[0.06] hover:text-ink disabled:opacity-30 xl:hidden"
           >
             <ChevronRight size={17} aria-hidden />
           </button>

@@ -27,7 +27,7 @@ const DESDE = { lg: "hidden lg:table-cell", xl: "hidden xl:table-cell", "2xl": "
 const ALINEAR = { derecha: "text-right", centro: "text-center" } as const;
 
 export function TablaDatos<T>({
-  filas, columnas, claveFila, tarjeta, titulo,
+  filas, columnas, claveFila, tarjeta, titulo, fija = false,
 }: {
   filas: T[];
   columnas: Columna<T>[];
@@ -36,12 +36,17 @@ export function TablaDatos<T>({
   tarjeta: (f: T) => ReactNode;
   /** El título de la tabla, para el lector de pantalla. */
   titulo: string;
+  /**
+   * Anchos fijos (table-layout: fixed): las columnas con ancho lo respetan y la que no tiene se queda con el resto. Sirve
+   * cuando una celda con line-clamp empuja la tabla: en una tabla automática su mínimo es el texto entero.
+   */
+  fija?: boolean;
 }) {
   return (
     <>
       {/* relative: los textos sólo para el lector de pantalla (sr-only, absolutos) se quedan dentro y no ensanchan la página. */}
       <div className="relative hidden overflow-x-auto md:block">
-        <table className="w-full border-collapse text-left text-dato">
+        <table className={cn("w-full border-collapse text-left text-dato", fija && "table-fixed")}>
           <caption className="sr-only">{titulo}</caption>
           <thead>
             <tr className="border-b border-line bg-ink/[0.025]">

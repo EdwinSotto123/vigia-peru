@@ -35,12 +35,14 @@ function Cierre({ iso, ahora }: { iso: string; ahora: number }) {
 }
 
 /** Los contratos menores abiertos como tabla (desde md) o tarjetas (celular). Cada uno abre su ficha y se puede seguir. */
-export function TablaMenores({ filas, base, ahora }: { filas: Menor[]; base: string; ahora: number }) {
-  const ficha = (m: Menor) => rutaEn(base, `/menor/${m.id}`);
+/** `volver`: la búsqueda de la lista (los filtros), para que la ficha vuelva a la misma página. */
+export function TablaMenores({ filas, base, ahora, volver = "" }: { filas: Menor[]; base: string; ahora: number; volver?: string }) {
+  const ficha = (m: Menor) => rutaEn(base, `/app/menor/${m.id}${volver ? `?volver=${encodeURIComponent(volver)}` : ""}`);
   const lugar = (m: Menor) => (m.regiones?.length ? m.regiones.map(nombreRegion).join(", ") : "Sin región");
   return (
     <TablaDatos<Menor>
       titulo="Contratos menores abiertos"
+      fija
       filas={filas}
       claveFila={(m) => String(m.id)}
       columnas={[
@@ -48,9 +50,8 @@ export function TablaMenores({ filas, base, ahora }: { filas: Menor[]; base: str
         {
           clave: "que",
           titulo: "Qué piden",
-          className: "min-w-[14rem] xl:min-w-[16rem]",
           celda: (m) => (
-            <div className="min-w-0 max-w-[44rem]">
+            <div className="min-w-0">
               <Link href={ficha(m)} className="line-clamp-2 text-dato font-semibold leading-snug text-ink underline-offset-4 hover:text-granate hover:underline">
                 {limpiar(m.descripcion) || "Sin descripción registrada"}
               </Link>

@@ -38,7 +38,7 @@ export function fechaHora(fecha: string): string {
 
 /** La ruta de la ficha de algo que se sigue. */
 export function rutaItem(i: Pick<ItemSeguimiento, "tipo" | "ref">): string {
-  return i.tipo === "menor" ? `/menor/${i.ref}` : `/oportunidad/${encodeURIComponent(i.ref)}`;
+  return i.tipo === "menor" ? `/app/menor/${i.ref}` : `/app/oportunidad/${encodeURIComponent(i.ref)}`;
 }
 
 export interface Evento {

@@ -91,7 +91,7 @@ export default async function Menores({ searchParams }: { searchParams?: Record<
                       }
                     />
                   ) : (
-                    <TablaMenores filas={r.data} base={base} ahora={ahora} />
+                    <TablaMenores filas={r.data} base={base} ahora={ahora} volver={aParamsMenores(f).toString()} />
                   )}
                 </Caja>
               )}

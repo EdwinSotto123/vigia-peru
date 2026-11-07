@@ -110,6 +110,8 @@ function aEntrar(req: NextRequest, prefijo: string, siguiente: string) {
 function aLaBandeja(ruta: string, sp: URLSearchParams): string | null {
   const ficha = ruta.match(/^\/oportunidad\/([^/]+)$/);
   if (ficha) return `/app/oportunidad/${ficha[1]}`;
+  const menor = ruta.match(/^\/menor\/(\d{1,9})$/);
+  if (menor) return `/app/menor/${menor[1]}`;
   // Contratos menores y Mercado también tienen su página en la app (con los mismos nombres de filtros).
   if (ruta === "/menores") {
     const q = new URLSearchParams();
