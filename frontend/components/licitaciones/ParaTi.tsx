@@ -37,7 +37,7 @@ export function ParaTi({ base }: { base: string }) {
   if (!conCuenta) {
     return (
       <section className="rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-8">
-        <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Dinos qué vendes y te mostramos qué comprar te conviene</h2>
+        <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Dinos qué vendes y te mostramos qué te conviene cotizar</h2>
         <p className="mt-2 max-w-[60ch] text-dato leading-relaxed text-inkSoft">
           Escribe lo que vende tu empresa en tus palabras («útiles de oficina y tóner», «alquiler de camionetas 4x4») y ordenamos las licitaciones y los
           contratos menores abiertos de lo más parecido a lo menos. Es gratis con tu cuenta.
