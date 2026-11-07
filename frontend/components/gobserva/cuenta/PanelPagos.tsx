@@ -66,7 +66,7 @@ export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { pr
         ) : cobros.length === 0 ? (
           <VacioCaja Icono={Receipt} titulo="Todavía no hay pagos" texto="Cuando pagues un plan, aquí verás cada cobro con su estado y su recibo." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-dato">
               <thead>
                 <tr className="border-b border-line text-meta text-mute">

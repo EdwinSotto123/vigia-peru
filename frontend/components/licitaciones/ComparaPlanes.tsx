@@ -39,7 +39,8 @@ export function ComparaPlanes({ cat, className, enCaja = false, actual }: { cat:
 
   // Dentro de una caja de la app (Plan y pagos): sólo la tabla, sin título ni borde propios, con «Tu plan» marcado.
   const tabla = (
-      <div className={cn("overflow-x-auto", !enCaja && "mt-5 rounded-2xl border border-line bg-paper")}>
+      // relative: los «Sí» y «No» para el lector de pantalla (sr-only, absolutos) se quedan dentro y no ensanchan la página.
+      <div className={cn("relative overflow-x-auto", !enCaja && "mt-5 rounded-2xl border border-line bg-paper")}>
         <table className="w-full min-w-[36rem] border-collapse text-left">
           <caption className="sr-only">Qué incluye cada plan de Gobserva Licitaciones</caption>
           <thead>

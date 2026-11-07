@@ -20,14 +20,15 @@ export function Cabecera({ o, volver, ahora }: { o: DetalleOportunidad; volver: 
       <Link href={volver} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-dato font-semibold text-inkSoft underline-offset-4 hover:text-ink hover:underline">
         <ArrowLeft size={16} aria-hidden /> Bandeja
       </Link>
-      <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* Las insignias y las acciones se envuelven: lado a lado sólo desde xl, y aun ahí los botones pasan de línea antes que desbordar. */}
+      <div className="mt-3 flex flex-col-reverse gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 xl:pt-2.5">
           <span className="font-mono text-meta font-semibold text-inkSoft">{o.codigo ?? o.id}</span>
           <InsigniaTipo tipo={o.tipo} />
           {o.procedimiento && <Insignia>{o.procedimiento}</Insignia>}
           {o.etapa && <Insignia tono="acento">{o.etapa === "convocada" ? "Convocada" : limpiar(o.etapa)}</Insignia>}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
           <SeguirConEtapa id={o.id} codigo={o.codigo} titulo={limpiar(o.objeto)} />
           <a
             href={o.enlaces.seace}

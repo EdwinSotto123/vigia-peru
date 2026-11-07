@@ -59,8 +59,9 @@ export default async function DetalleMenor({ params, searchParams }: Props) {
         <Link href={volver} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-dato font-semibold text-inkSoft underline-offset-4 hover:text-ink hover:underline">
           <ArrowLeft size={16} aria-hidden /> Contratos menores
         </Link>
-        <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-1.5">
+        {/* Las insignias y las acciones se envuelven: lado a lado sólo desde xl, y aun ahí los botones pasan de línea antes que desbordar. */}
+        <div className="mt-3 flex flex-col-reverse gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 xl:pt-2.5">
             <span className="font-mono text-meta font-semibold text-inkSoft">{m.codigo}</span>
             <InsigniaTipo tipo={m.tipo} />
             <Insignia>Contrato menor</Insignia>
@@ -71,7 +72,7 @@ export default async function DetalleMenor({ params, searchParams }: Props) {
               </Insignia>
             )}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
             <SeguirConEtapa id={String(m.id)} codigo={m.codigo} titulo={titulo} tipo="menor" />
             {m.tieneRequerimiento && (
               <a
