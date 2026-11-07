@@ -87,6 +87,9 @@ export default async function InicioLicitaciones() {
                 </li>
               ))}
             </ul>
+            <Link href={ruta("/para-ti")} className="mt-5 inline-flex min-h-11 items-center gap-1.5 text-dato font-semibold text-maiz underline-offset-4 hover:underline">
+              Mejor aún: dinos qué vende tu empresa y te ordenamos todo por afinidad <ArrowRight size={15} aria-hidden />
+            </Link>
           </div>
 
           {/* El SEACE hoy: cifras vivas. */}

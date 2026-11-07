@@ -23,6 +23,7 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
       // «Planes» no va en el menú: es la acción de la cabecera («Ver planes»), y repetida no dejaba entrar la fila del
       // menú en el celular (a 390 px se cortaba «Inteligencia de mercado»).
       menu={[
+        { ruta: "/para-ti", etiqueta: "Para ti" },
         { ruta: "/oportunidades", etiqueta: "Oportunidades" },
         { ruta: "/menores", etiqueta: "Contratos menores" },
         // Obras viene incluido en Gobserva Licitaciones (2026-11-07); vive en su subdominio.

@@ -129,7 +129,7 @@ export async function paraTi(uid: string, lineaId: number, limite: number): Prom
               to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, NULL::timestamptz AS cierra,
               substr(c.ocds_payload->'tender'->'enquiryPeriod'->>'endDate', 1, 10) AS "consultasHasta",
               1 - (v.embedding <=> l.embedding) AS sim,
-              immutable_unaccent(upper(concat_ws(' ', c.objeto, (c.ocds_payload->'tender'->'items')::text))) AS texto
+              regexp_replace(immutable_unaccent(upper(concat_ws(' ', c.objeto, (c.ocds_payload->'tender'->'items')::text))), '[^A-Z0-9]+', ' ', 'g') AS texto
          FROM l, convocatorias c
          JOIN oportunidad_vector v ON v.fuente = 'proceso' AND v.id = c.ocid
          LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
@@ -139,7 +139,7 @@ export async function paraTi(uid: string, lineaId: number, limite: number): Prom
               CASE x.objeto WHEN 'Bien' THEN 'bienes' WHEN 'Servicio' THEN 'servicios' WHEN 'Obra' THEN 'obras' ELSE 'consultoria' END,
               x.departamentos, NULL::float, to_char(x.fec_publica AT TIME ZONE 'America/Lima', 'YYYY-MM-DD'), x.fec_fin_cotizacion, NULL,
               1 - (v.embedding <=> l.embedding),
-              immutable_unaccent(upper(coalesce(x.descripcion, '') || ' ' || coalesce(x.items::text, '')))
+              regexp_replace(immutable_unaccent(upper(coalesce(x.descripcion, '') || ' ' || coalesce(x.items::text, ''))), '[^A-Z0-9]+', ' ', 'g')
          FROM l, seace_cotizacion x
          JOIN oportunidad_vector v ON v.fuente = 'menor' AND v.id = x.id_prod6::text
         WHERE ${MENOR_ABIERTO}
@@ -153,11 +153,12 @@ export async function paraTi(uid: string, lineaId: number, limite: number): Prom
       LIMIT 300`,
     [lineaId],
   );
-  // Las palabras clave, como las busca la lista (mayúsculas sin tildes).
-  const claves = linea.palabras.map((p) => ({ p, w: palabrasBusqueda(p) })).filter((x) => x.w.length);
+  // Las palabras clave en mayúsculas sin tildes; una de varias palabras cuenta sólo como frase seguida («papel bond», no
+  // «papel» en un ítem y «bond» en otro: así subía «material de difusión» por encima de «útiles de oficina»).
+  const claves = linea.palabras.map((p) => ({ p, frase: palabrasBusqueda(p).join(" ") })).filter((x) => x.frase);
   const data = r.rows
     .map(({ sim, texto, ...o }) => {
-      const palabras = claves.filter((k) => k.w.every((w) => texto.includes(w))).map((k) => k.p);
+      const palabras = claves.filter((k) => ` ${texto} `.includes(` ${k.frase}`)).map((k) => k.p);
       return { ...o, puntaje: puntajeDe(Number(sim), palabras.length > 0), palabras };
     })
     .sort((a, b) => b.puntaje - a.puntaje)

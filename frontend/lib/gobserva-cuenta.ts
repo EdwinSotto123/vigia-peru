@@ -235,6 +235,49 @@ export const probarAlerta = (producto: Producto, filtros: Alerta["filtros"]) =>
 export const enviarAlertaAhora = (id: number) => api<{ ok: true; conNovedades: number; correos: number; enLaWeb: number }>(`/alertas/${id}/enviar`, { method: "POST" });
 export const cargarBandeja = (producto: Producto) => api<{ data: Envio[] }>(`/bandeja?producto=${producto}`);
 
+// ─── Líneas de negocio y «Para ti» (Licitaciones, migración 264) ────────────────────────────────────────────────────
+
+export type TipoLinea = "bienes" | "servicios" | "obras" | "consultoria";
+
+/** Lo que vende la empresa, en sus palabras, con sus regiones, tipos y palabras clave. */
+export interface Linea {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  palabras: string[];
+  regiones: string[];
+  tipos: TipoLinea[];
+  montoMin: number | null;
+  montoMax: number | null;
+  lista: boolean;
+  actualizada: string;
+}
+export type LineaNueva = Omit<Linea, "id" | "lista" | "actualizada">;
+
+export interface OportunidadParaTi {
+  fuente: "proceso" | "menor";
+  id: string;
+  titulo: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  tipo: string | null;
+  regiones: string[] | null;
+  valor: number | null;
+  fecha: string | null;
+  cierra: string | null;
+  consultasHasta: string | null;
+  /** De 0 a 100: cuánto se parece lo que se compra a lo que vende la empresa (no es la probabilidad de ganar). */
+  puntaje: number;
+  palabras: string[];
+}
+
+export const cargarLineas = () => api<{ data: Linea[]; limites: { lineas: number; paraTi: number; plan: string | null } }>("/lineas");
+export const crearLinea = (b: LineaNueva) => api<{ ok: true; id: number }>("/lineas", { method: "POST", ...cuerpo(b) });
+export const cambiarLinea = (id: number, b: LineaNueva) => api<{ ok: true; id: number }>(`/lineas/${id}`, { method: "PUT", ...cuerpo(b) });
+export const borrarLinea = (id: number) => api<{ ok: true }>(`/lineas/${id}`, { method: "DELETE" });
+export const cargarParaTi = (linea: number) =>
+  api<{ linea: { id: number; nombre: string }; data: OportunidadParaTi[]; limite: number; plan: string | null }>(`/para-ti?linea=${linea}`);
+
 export const cargarGuardados = (producto: Producto) => api<{ data: Guardado[] }>(`/guardados?producto=${producto}`);
 export const guardar = (b: { producto: Producto; tipo: TipoGuardado; ref: string; titulo?: string; datos?: Guardado["datos"]; estado?: EstadoGuardado; nota?: string; recordar?: boolean }) =>
   api<{ ok: true; nuevo: boolean }>("/guardados", { method: "PUT", ...cuerpo(b) });
