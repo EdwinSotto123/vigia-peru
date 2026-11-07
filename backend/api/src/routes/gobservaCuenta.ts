@@ -187,6 +187,10 @@ gobservaCuentaRouter.delete("/me", limiteEscritura, async (c) => {
   await pool.query(`DELETE FROM gobserva_alertas WHERE firebase_uid = $1`, [u.uid]);
   await pool.query(`DELETE FROM gobserva_guardados WHERE firebase_uid = $1`, [u.uid]);
   await pool.query(`DELETE FROM gobserva_push WHERE firebase_uid = $1`, [u.uid]);
+  await pool.query(`DELETE FROM gobserva_lineas WHERE firebase_uid = $1`, [u.uid]);
+  // Migración 266: si todavía no está, la baja no se cae por eso.
+  await pool.query(`DELETE FROM gobserva_busquedas WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
+  await pool.query(`DELETE FROM gobserva_checklist WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
   await poolAdmin.query(`DELETE FROM gobserva_envios WHERE firebase_uid = $1`, [u.uid]);
   await poolAdmin.query(
     `UPDATE gobserva_cuentas SET email = 'baja-' || md5(firebase_uid) || '@gobserva.invalid', email_verificado = false, nombre = NULL,
@@ -467,6 +471,80 @@ gobservaCuentaRouter.delete("/lineas/:id", limiteEscritura, async (c) => {
   const u = c.get("user");
   const r = await pool.query(`DELETE FROM gobserva_lineas WHERE id = $1 AND firebase_uid = $2`, [Number(c.req.param("id")) || 0, u.uid]);
   return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+// ─── Búsquedas guardadas y checklist (migración 266) ─────────────────────────────────────────────────────────────────
+
+const MAX_BUSQUEDAS = 12;
+const BusquedaBody = z.object({
+  producto: Producto,
+  nombre: z.string().trim().min(2, "Ponle un nombre de al menos 2 letras.").max(60, "El nombre puede tener hasta 60 letras."),
+  query: z.string().max(600),
+});
+
+/** Las búsquedas guardadas de un producto (la bandeja: «Mi empresa», «Tóner en Lima»). */
+gobservaCuentaRouter.get("/busquedas", async (c) => {
+  const u = c.get("user");
+  const producto = Producto.safeParse(c.req.query("producto"));
+  if (!producto.success) return c.json({ error: "invalid_query" }, 400);
+  const r = await pool.query(
+    `SELECT id::int, nombre, query, to_char(creado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI:SS-05:00') AS creado
+       FROM gobserva_busquedas WHERE firebase_uid = $1 AND producto = $2 ORDER BY creado_at`,
+    [u.uid, producto.data],
+  );
+  return c.json({ data: r.rows, limite: MAX_BUSQUEDAS });
+});
+
+gobservaCuentaRouter.post("/busquedas", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const p = BusquedaBody.safeParse(await c.req.json().catch(() => null));
+  if (!p.success) return c.json({ error: "invalid_body", detail: p.error.issues[0]?.message ?? "Revisa el nombre." }, 400);
+  const b = p.data;
+  const n = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_busquedas WHERE firebase_uid = $1 AND producto = $2`, [u.uid, b.producto]);
+  if ((n.rows[0]?.n ?? 0) >= MAX_BUSQUEDAS) return c.json({ error: "limite", detail: `Puedes guardar hasta ${MAX_BUSQUEDAS} búsquedas. Borra una para guardar esta.` }, 409);
+  try {
+    const r = await pool.query(
+      `INSERT INTO gobserva_busquedas (firebase_uid, producto, nombre, query) VALUES ($1, $2, $3, $4) RETURNING id::int`,
+      [u.uid, b.producto, b.nombre, b.query],
+    );
+    return c.json({ ok: true, id: r.rows[0].id });
+  } catch (e) {
+    if ((e as { code?: string }).code === "23505") return c.json({ error: "repetida", detail: "Ya tienes una búsqueda con ese nombre." }, 409);
+    throw e;
+  }
+});
+
+gobservaCuentaRouter.delete("/busquedas/:id", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const r = await pool.query(`DELETE FROM gobserva_busquedas WHERE id = $1 AND firebase_uid = $2`, [Number(c.req.param("id")) || 0, u.uid]);
+  return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+const ChecklistBody = z.object({
+  ref: z.string().min(1).max(80),
+  hechos: z.array(z.string().regex(/^[a-z_]{2,30}$/)).max(30),
+});
+
+/** Lo que ya hiciste del checklist de postulación de un proceso. */
+gobservaCuentaRouter.get("/checklist", async (c) => {
+  const u = c.get("user");
+  const ref = c.req.query("ref") ?? "";
+  if (!ref || ref.length > 80) return c.json({ error: "invalid_query" }, 400);
+  const r = await pool.query<{ hechos: string[] }>(`SELECT hechos FROM gobserva_checklist WHERE firebase_uid = $1 AND ref = $2`, [u.uid, ref]);
+  return c.json({ hechos: r.rows[0]?.hechos ?? [] });
+});
+
+gobservaCuentaRouter.put("/checklist", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const p = ChecklistBody.safeParse(await c.req.json().catch(() => null));
+  if (!p.success) return c.json({ error: "invalid_body" }, 400);
+  const hechos = [...new Set(p.data.hechos)];
+  await pool.query(
+    `INSERT INTO gobserva_checklist (firebase_uid, ref, hechos) VALUES ($1, $2, $3)
+     ON CONFLICT (firebase_uid, ref) DO UPDATE SET hechos = EXCLUDED.hechos, actualizado_at = now()`,
+    [u.uid, p.data.ref, hechos],
+  );
+  return c.json({ ok: true, hechos });
 });
 
 /** Las oportunidades abiertas de una línea, de la más parecida a lo que vende la empresa a la menos. */
