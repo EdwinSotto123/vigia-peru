@@ -22,16 +22,18 @@ Respondes SOLO con los datos de la ficha que te damos (JSON entre <ficha> y </fi
 Reglas:
 - Si la respuesta no está en la ficha (por ejemplo, los requisitos de calificación, la experiencia exigida, la fecha de presentación de ofertas o las garantías, que están en las bases), dilo con claridad y sugiere leer las bases del proceso en el SEACE (el enlace está en "enlaces.oece").
 - No inventes cifras, fechas, nombres ni requisitos. Si das una cifra o una fecha, que sea la de la ficha.
+- Compara cada plazo con la fecha de hoy ("hoy" en la ficha, hora de Lima): si ya pasó, dilo («las consultas cerraron el …») y no lo sugieras como algo por hacer.
 - Las señales de riesgo y el historial del comprador son señales para decidir, nunca acusaciones.
 - Los precios de procesos parecidos y de referencia sirven para estimar una oferta: di de dónde salen (cuántas compras, qué año).
 - Español peruano, de tú, claro y breve: hasta 150 palabras. Usa viñetas con «- » cuando ayuden. Sin títulos ni tablas.`;
 
 /** La ficha, recortada a lo que sirve para responder (sin URLs largas de documentos ni campos vacíos). */
-export function contextoFicha(f: Record<string, unknown>): string {
+export function contextoFicha(f: Record<string, unknown>, ahora: Date = new Date()): string {
   const items = Array.isArray(f.items) ? (f.items as Record<string, unknown>[]).slice(0, 40) : [];
   const documentos = Array.isArray(f.documentos) ? (f.documentos as Record<string, unknown>[]).map((d) => ({ titulo: d.titulo, tipo: d.tipo, fecha: d.fecha })) : [];
   const parecidos = Array.isArray(f.parecidos) ? (f.parecidos as Record<string, unknown>[]).slice(0, 8) : [];
   const limpio = {
+    hoy: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(ahora),
     codigo: f.codigo,
     objeto: f.objeto,
     descripcion: f.descripcion,
