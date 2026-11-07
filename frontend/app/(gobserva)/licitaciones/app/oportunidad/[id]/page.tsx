@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Pagina } from "@/components/gobserva/app/Caja";
 import { Cabecera } from "@/components/licitaciones-app/detalle/Cabecera";
 import { PestanaAnalisis } from "@/components/licitaciones-app/detalle/PestanaAnalisis";
+import { PestanaAsistente } from "@/components/licitaciones-app/detalle/PestanaAsistente";
 import { PestanaCronograma } from "@/components/licitaciones-app/detalle/PestanaCronograma";
 import { PestanaDocumentos } from "@/components/licitaciones-app/detalle/PestanaDocumentos";
 import { PestanaItems } from "@/components/licitaciones-app/detalle/PestanaItems";
@@ -69,6 +70,7 @@ export default async function Detalle({ params, searchParams }: Props) {
         {tab === "documentos" && <PestanaDocumentos o={o} />}
         {tab === "cronograma" && <PestanaCronograma o={o} ahora={ahora} />}
         {tab === "analisis" && <PestanaAnalisis o={o} />}
+        {tab === "asistente" && <PestanaAsistente id={o.id} />}
         {tab === "notas" && <PestanaNotas id={o.id} titulo={titulo} />}
         {tab === "historial" && <PestanaHistorial id={o.id} eventos={eventos} />}
         {tab === "postulacion" && <PestanaPostulacion id={o.id} codigo={o.codigo} titulo={titulo} />}

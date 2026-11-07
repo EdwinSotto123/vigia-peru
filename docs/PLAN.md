@@ -48,7 +48,7 @@ En `licitaciones.gobserva.cloud`; en DEV llevan delante `/licitaciones`.
 | `/app/mercado` | Un rubro en 12 meses: cifras, mes a mes, regiones, quién compra, quién gana y las últimas adjudicaciones | App |
 | `/cuenta?tab=…` | Inicio, Para ti, Seguimiento (tablero), Calendario, Mis alertas, Plan y pagos, Perfil | App |
 
-Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, notas, historial y postulacion.
+Las pestañas del detalle son resumen, items, documentos, cronograma, analisis, asistente, notas, historial y postulacion.
 `?tab=comentarios`, de los enlaces viejos, abre «notas».
 
 Con la sesión abierta, `/oportunidades`, `/oportunidad/:ocid`, `/menores` y `/mercado` llevan a sus páginas de la
@@ -197,6 +197,11 @@ En producción y probado de punta a punta con usuarios desechables:
 - **Búsquedas guardadas y checklist en la cuenta** (migración 266: `gobserva_busquedas`, `gobserva_checklist`; rutas
   `/busquedas` y `/checklist`). Ya no queda nada en el navegador salvo qué notificaciones leíste. La baja de la cuenta
   borra también sus líneas, búsquedas y checklist. La migración está aplicada en PROD; en DEV está pendiente.
+- **Asistente del proceso** (pestaña «Asistente», `POST /gobserva/cuenta/asistente`, `lib/asistente.ts`). Responde
+  en tus palabras con los datos de la ficha: ítems, plazos (comparados con la fecha de hoy), el comprador, precios de
+  compras parecidas y señales. Usa Haiku 5.5 por vigia-llm. Lo que está sólo en las bases (requisitos, experiencia,
+  ofertas) lo dice y manda al SEACE. No lee el PDF: de las 5.150 convocatorias abiertas, ninguna tiene el texto de sus
+  documentos indexado. Indexar las bases de lo abierto es el paso siguiente para que responda sobre requisitos.
 - **Contratos menores y Mercado** con la misma estructura que la bandeja. La lista en la URL es una sola pieza
   (`crearListaUrl`), y `BuscadorTexto` y `FiltroOpciones` son comunes. La API de menores acepta varios tipos y
   regiones.
@@ -211,8 +216,10 @@ En producción y probado de punta a punta con usuarios desechables:
   alrededor de la app. La app no tiene pie. Bajo 400 px, el modo día y noche va en «Más».
 
 **Lo que falta, o no se hace a propósito:**
-- **Equipo y roles** y el **asistente de IA sobre las bases** no se construyeron. Sin cuentas compartidas en la base,
-  serían pantallas simuladas.
+- **Equipo y roles** no se construyeron: hacen falta cuentas compartidas en la base (equipos, miembros, invitaciones
+  y un seguimiento por equipo). Sin eso serían pantallas simuladas.
+- **El asistente no lee las bases en PDF** de lo abierto. Hay que bajar e indexar sus documentos (documentos_texto y el
+  RAG de la migración 258). Hoy responde con la ficha y lo dice.
 - **Reportes de marcas y catálogo:** no tenemos esos datos. Mercado (compradores, ganadores y precios por palabra) es
   lo que hay en vivo.
 

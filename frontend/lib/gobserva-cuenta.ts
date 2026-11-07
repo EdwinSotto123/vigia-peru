@@ -323,6 +323,14 @@ export interface BusquedaGuardada {
 export const cargarBusquedas = (producto: Producto) => api<{ data: BusquedaGuardada[]; limite: number }>(`/busquedas?producto=${producto}`);
 export const crearBusqueda = (b: { producto: Producto; nombre: string; query: string }) => api<{ ok: true; id: number }>("/busquedas", { method: "POST", ...cuerpo(b) });
 export const borrarBusqueda = (id: number) => api<{ ok: true }>(`/busquedas/${id}`, { method: "DELETE" });
+
+/** Una pregunta al asistente de un proceso (responde con los datos de su ficha). */
+export interface MensajeAsistente {
+  rol: "usuario" | "asistente";
+  texto: string;
+}
+export const preguntarAsistente = (ocid: string, pregunta: string, historial: MensajeAsistente[]) =>
+  api<{ respuesta: string }>("/asistente", { method: "POST", ...cuerpo({ ocid, pregunta, historial }) });
 export const cargarChecklist = (ref: string) => api<{ hechos: string[] }>(`/checklist?ref=${encodeURIComponent(ref)}`);
 export const guardarChecklist = (ref: string, hechos: string[]) => api<{ ok: true; hechos: string[] }>("/checklist", { method: "PUT", ...cuerpo({ ref, hechos }) });
 

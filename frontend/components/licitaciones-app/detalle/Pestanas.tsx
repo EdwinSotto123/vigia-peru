@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export const PESTANAS = ["resumen", "items", "documentos", "cronograma", "analisis", "notas", "historial", "postulacion"] as const;
+export const PESTANAS = ["resumen", "items", "documentos", "cronograma", "analisis", "asistente", "notas", "historial", "postulacion"] as const;
 export type Pestana = (typeof PESTANAS)[number];
 
 export const NOMBRE_PESTANA: Record<Pestana, string> = {
@@ -10,6 +10,7 @@ export const NOMBRE_PESTANA: Record<Pestana, string> = {
   documentos: "Documentos",
   cronograma: "Cronograma",
   analisis: "Análisis",
+  asistente: "Asistente",
   notas: "Notas",
   historial: "Historial",
   postulacion: "Postulación",
