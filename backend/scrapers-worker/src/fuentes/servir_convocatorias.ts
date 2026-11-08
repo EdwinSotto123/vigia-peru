@@ -25,6 +25,13 @@
  * publicado renueva `ultima_vez`) y deja el crudo limpio en R2. Al final, refrescar_plazas() y refrescar_plazas_extra()
  * (migración 183), y la carga en datasets_cargas. Con `seco` no escribe en la base.
  *
+ * Cada día, INCREMENTAL (2026-11-08, el usuario aprobó leer SERVIR a diario): la fila del listado ya dice título,
+ * entidad, número de convocatoria, ubicación, vacantes, sueldo y fechas. Con eso (`huellaFila`) se reconoce la plaza que
+ * ya está en la base y NO se abre su detalle (el ~90 % del tiempo: ~1,7 s por plaza); sólo renueva `ultima_vez`. Se abre
+ * el de las nuevas y el de las que cambiaron algo de eso. Las huellas repetidas (plazas idénticas salvo el aviso: ~13 %)
+ * se cuentan: si el listado trae más que la base, se abre la que sobra. Los jueves (y con `forzar`), la lectura COMPLETA
+ * de siempre, que también ve lo que cambia sólo en el detalle (requisitos).
+ *
  * `desde` y `hasta` son PÁGINAS de SERVIR (para probar o para retomar): {"fuente":"servir_convocatorias","seco":true,
  * "hasta":"0003"} lee las 3 primeras, como `--seco --paginas 3` del script. Con 4 cifras porque POST /correr sólo deja
  * pasar `desde`/`hasta` con forma de fecha (AAAA, AAAA-MM o AAAA-MM-DD); en el Workflow también vale «3».
@@ -283,6 +290,67 @@ export function paginaParcial(xml: string, vistaAnterior: string): string {
 }
 
 // ── Lo que el port agrega ───────────────────────────────────────────────────────────────────────────────────────────
+/** Lo que una fila del listado dice de su plaza sin abrir el detalle. */
+export interface FilaListado {
+  titulo: string | null;
+  entidad: string | null;
+  ubicacion: string | null;
+  numero: string | null;
+  vacantes: number | null;
+  remuneracion: number | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+}
+
+/** Las filas del listado, en orden: cada «cuadro-vacantes» con su título, su entidad y sus datos. */
+export function filasDelListado(h: string): FilaListado[] {
+  return h.split('cuadro-vacantes"').slice(1).map((b) => {
+    // «Fecha Inicio de⏎Publicación:»: la etiqueta puede venir partida en renglones.
+    const dato = (et: string) => limpio(new RegExp(`${et}\\s*:\\s*</span>\\s*<span[^>]*>(.*?)</span>`, "s").exec(b)?.[1]);
+    const remuneracion = monto(dato("Remuneraci.n"));
+    return {
+      titulo: limpio(/titulo-vacante[^>]*><label>(.*?)<\/label>/s.exec(b)?.[1]),
+      entidad: limpio(/nombre-entidad[^>]*>.*?<b>(.*?)<\/b>/s.exec(b)?.[1]),
+      ubicacion: dato("Ubicaci.n"),
+      numero: dato("N.mero\\s+de\\s+Convocatoria"),
+      vacantes: vacantesDe(dato("Cantidad\\s+de\\s+Vacantes"), remuneracion),
+      remuneracion,
+      fecha_inicio: fecha(dato("Fecha\\s+Inicio\\s+de\\s+Publicaci.n")),
+      fecha_fin: fecha(dato("Fecha\\s+Fin\\s+de\\s+Publicaci.n")),
+    };
+  });
+}
+
+const normal = (t: string | null | undefined) =>
+  (t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+
+/**
+ * La huella de una plaza con lo que se ve en el listado: la misma desde una fila del listado o desde la fila de la base
+ * (que se cargó del detalle). Si cambia cualquiera de esos datos, la plaza se vuelve a leer entera.
+ */
+export function huellaFila(f: FilaListado): string {
+  return [normal(f.titulo), normal(f.entidad), normal(f.numero), normal(f.ubicacion), f.vacantes ?? "",
+    f.remuneracion == null ? "" : Number(f.remuneracion).toFixed(2), f.fecha_inicio ?? "", f.fecha_fin ?? ""].join("|");
+}
+
+/** Las plazas de la base que el listado puede traer (las que no vencieron hace más de 3 días), por su huella. */
+export const SQL_CONOCIDAS = `
+  SELECT aviso, titulo, entidad, numero, ubicacion, vacantes, remuneracion::float8 AS remuneracion,
+         to_char(fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio, to_char(fecha_fin, 'YYYY-MM-DD') AS fecha_fin
+    FROM servir_convocatoria WHERE fecha_fin >= (now() AT TIME ZONE 'America/Lima')::date - 3`;
+
+/** Huella → los avisos de la base con esa huella (más de uno: plazas idénticas salvo el aviso). */
+export function mapaConocidas(filas: (FilaListado & { aviso: number })[]): Map<string, number[]> {
+  const m = new Map<string, number[]>();
+  for (const f of filas) {
+    const h = huellaFila(f);
+    const xs = m.get(h);
+    if (xs) xs.push(f.aviso);
+    else m.set(h, [f.aviso]);
+  }
+  return m;
+}
+
 /** Lo que hace falta de una página del listado para pedir sus plazas y moverse: chico y serializable. */
 export interface Listado {
   pagina: number;
@@ -293,6 +361,8 @@ export interface Listado {
   ubicaciones: (string | null)[];
   /** El título de cada fila: para comprobar que el detalle que llega es el de esa fila. */
   titulos: (string | null)[];
+  /** La huella de cada fila (huellaFila): para no abrir el detalle de una plaza que ya está en la base. */
+  huellas: string[];
   botones: Partial<Record<Boton, string>>;
   /** «3299 puesto(s) encontrado(s) en total.»: sólo lo trae el GET. */
   puestos: number | null;
@@ -312,6 +382,7 @@ export function parsearListado(h: string): Listado | null {
   return {
     pagina: pg[0], paginas: pg[1], vista, campos: campos(h), verMas: botonesVerMas(h), ubicaciones: ubicacionesDelListado(h),
     titulos: [...h.matchAll(/titulo-vacante[^>]*><label>(.*?)<\/label>/gs)].map((m) => limpio(m[1])), botones,
+    huellas: filasDelListado(h).map(huellaFila),
     puestos: puestos ? Number(puestos[1]) : null,
   };
 }
@@ -580,6 +651,10 @@ export interface Estado {
   cookies: Record<string, string>;
   pagina: number;
   dia: string;
+  /** Sin abrir el detalle de las plazas que ya están en la base (todos los días salvo los jueves). */
+  incremental?: boolean;
+  /** De las huellas repetidas en la base, cuántas filas ya se reconocieron (para abrir la que sobre). */
+  repetidas?: Record<string, number>;
 }
 
 export interface Tanda {
@@ -590,6 +665,8 @@ export interface Tanda {
   paginasServir: number;
   puestos: number | null;
   avisos: number[];
+  /** Plazas reconocidas por su huella, sin abrir el detalle. */
+  conocidas: number;
   sinDatos: number;
   quitados: number;
   nuevas: number;
@@ -602,13 +679,17 @@ export interface Tanda {
 export interface OpcionesCorrida extends OpcionesSesion {
   /** Para las pruebas: otra SERVIR en vez del relay de Lima. */
   transporte?: Transporte;
+  /** Para las pruebas: las huellas de la base (si no, SQL_CONOCIDAS). */
+  conocidas?: Map<string, number[]>;
+  /** Para las pruebas: el instante que decide si hoy toca la lectura completa (jueves). */
+  ahora?: number;
 }
 
 /** Un paso: de la página `estado.pagina` hasta `hasta` (o la última), sus plazas a la base y el crudo limpio a R2. */
 export async function leerTanda(env: Env, p: ParamsCorrida, estado: Estado, hasta: number, op: OpcionesCorrida = {}): Promise<Tanda> {
   const ses = new SesionServir(op.transporte ?? transporteLima(env), estado.cookies, op);
   const abierta = await ses.abrir();
-  const vacia = { avisos: [], sinDatos: 0, quitados: 0, nuevas: 0, actualizadas: 0, conCambios: 0, pedidos: ses.pedidos, resincronizaciones: 0 };
+  const vacia = { avisos: [], conocidas: 0, sinDatos: 0, quitados: 0, nuevas: 0, actualizadas: 0, conCambios: 0, pedidos: ses.pedidos, resincronizaciones: 0 };
   if (estado.pagina > abierta.paginas) {
     // La lista se achicó entre un paso y otro (una sesión nueva ve las plazas de ese momento): ya no queda nada por leer.
     return { estado: { ...estado, cookies: ses.cookies }, terminado: true, desde: estado.pagina, hasta: estado.pagina - 1,
@@ -620,8 +701,28 @@ export async function leerTanda(env: Env, p: ParamsCorrida, estado: Estado, hast
   const plazas = new Map<number, Plaza>();
   let sinDatos = 0;
   let quitados = 0;
+  // Incremental: las huellas de la base y las plazas que se reconocen sin abrir su detalle.
+  const conocidas = estado.incremental
+    ? (op.conocidas ?? mapaConocidas(await conDb(env.HYPERDRIVE, (db) => db.filas<FilaListado & { aviso: number }>(SQL_CONOCIDAS))))
+    : null;
+  const repetidas = { ...(estado.repetidas ?? {}) };
+  const reconocidos = new Set<number>();
+  let nReconocidas = 0;
   for (;;) {
-    for (let k = 0; k < ses.listado!.verMas.length; k++) {
+    const pagina = ses.listado!;
+    for (let k = 0; k < pagina.verMas.length; k++) {
+      if (conocidas) {
+        const fila = Number(/:idPnlRepeatPuestos:(\d+):/.exec(pagina.verMas[k])?.[1] ?? k);
+        const h = pagina.huellas[fila];
+        const avisos = h ? conocidas.get(h) : undefined;
+        const vistas = avisos && avisos.length > 1 ? (repetidas[h] ?? 0) : 0;
+        if (avisos && vistas < avisos.length) {
+          if (avisos.length > 1) repetidas[h] = vistas + 1;
+          for (const a of avisos) reconocidos.add(a);
+          nReconocidas++;
+          continue;
+        }
+      }
       const d = await ses.plaza(k);
       if (!d) {
         sinDatos++;
@@ -636,22 +737,32 @@ export async function leerTanda(env: Env, p: ParamsCorrida, estado: Estado, hast
     l = await ses.irA(l.pagina + 1);
   }
   const lista = [...plazas.values()];
+  for (const x of lista) reconocidos.delete(x.aviso);
   const terminado = l.pagina >= l.paginas;
   const clave = `raw/${FUENTE}/${estado.dia}/paginas-${String(desde).padStart(3, "0")}-${String(l.pagina).padStart(3, "0")}.json`;
   await env.CRUDOS.put(clave, JSON.stringify({ url: URL_SERVIR, desde, hasta: l.pagina, paginas: l.paginas, puestos: ses.puestos,
-    descargado_at: new Date().toISOString(), plazas: lista }), { httpMetadata: { contentType: "application/json" } });
+    descargado_at: new Date().toISOString(), plazas: lista, ...(conocidas ? { reconocidas: [...reconocidos] } : {}) }),
+    { httpMetadata: { contentType: "application/json" } });
   let cuentas = { nuevas: 0, actualizadas: 0, conCambios: 0 };
-  if (!p.seco && lista.length) {
-    cuentas = await conDb(env.HYPERDRIVE, async (db) => (await db.filas<typeof cuentas>(SQL_UPSERT, [JSON.stringify(lista)]))[0]);
+  if (!p.seco && (lista.length || reconocidos.size)) {
+    cuentas = await conDb(env.HYPERDRIVE, async (db) => {
+      // Las reconocidas siguen publicadas: renuevan `ultima_vez` como si se hubieran vuelto a leer.
+      if (reconocidos.size) await db.filas("UPDATE servir_convocatoria SET ultima_vez = now() WHERE aviso = ANY($1::int[])", [[...reconocidos]]);
+      return lista.length ? (await db.filas<typeof cuentas>(SQL_UPSERT, [JSON.stringify(lista)]))[0] : cuentas;
+    });
   }
   return {
-    estado: { cookies: ses.cookies, pagina: l.pagina + 1, dia: estado.dia }, terminado, desde, hasta: l.pagina, paginasServir: l.paginas,
-    puestos: ses.puestos, avisos: lista.map((x) => x.aviso), sinDatos, quitados, ...cuentas, pedidos: ses.pedidos,
+    estado: { cookies: ses.cookies, pagina: l.pagina + 1, dia: estado.dia, incremental: estado.incremental, repetidas },
+    terminado, desde, hasta: l.pagina, paginasServir: l.paginas, puestos: ses.puestos,
+    avisos: [...lista.map((x) => x.aviso), ...reconocidos], conocidas: nReconocidas, sinDatos, quitados, ...cuentas, pedidos: ses.pedidos,
     resincronizaciones: ses.resincronizaciones,
   };
 }
 
 /** `desde`/`hasta` como página de SERVIR (un entero desde 1, «3» o «0003»); null si no viene o no lo es. */
+/** ¿Hoy es jueves en Lima? (el día de la lectura completa). */
+export const esJuevesLima = (ms: number = Date.now()) => new Date(ms - 5 * 3600 * 1000).getUTCDay() === 4;
+
 export function paginaParam(v: unknown): number | null {
   const t = typeof v === "string" || typeof v === "number" ? String(v).trim() : "";
   return /^\d{1,4}$/.test(t) && Number(t) >= 1 ? Number(t) : null;
@@ -661,10 +772,12 @@ export async function correrServir(env: Env, p: ParamsCorrida, step: WorkflowSte
   await esperarRelayLima(env, step, FUENTE);
   const primera = paginaParam(p.desde) ?? 1;
   const ultima = paginaParam(p.hasta);
-  let estado: Estado = { cookies: {}, pagina: primera, dia: fechaLima() };
+  // Completa los jueves (la de siempre) o con `forzar`; los demás días, incremental (ver la cabecera).
+  const completa = !!p.forzar || esJuevesLima(op.ahora);
+  let estado: Estado = { cookies: {}, pagina: primera, dia: fechaLima(), incremental: !completa, repetidas: {} };
   const avisos = new Set<number>();
-  const r = { paginas: 0, paginas_servir: 0, puestos_servir: null as number | null, sin_datos: 0, contactos_quitados: 0, nuevas: 0,
-    actualizadas: 0, con_cambios: 0, pedidos: 0, resincronizaciones: 0 };
+  const r = { modo: completa ? "completa" : "incremental", paginas: 0, paginas_servir: 0, puestos_servir: null as number | null, conocidas: 0,
+    detalles: 0, sin_datos: 0, contactos_quitados: 0, nuevas: 0, actualizadas: 0, con_cambios: 0, pedidos: 0, resincronizaciones: 0 };
   let error: unknown = null;
   for (let ini = primera; ; ini = estado.pagina) {
     const fin = Math.min(ini + PAGINAS_POR_PASO - 1, ultima ?? Number.MAX_SAFE_INTEGER);
@@ -682,6 +795,8 @@ export async function correrServir(env: Env, p: ParamsCorrida, step: WorkflowSte
     r.paginas += t.hasta - t.desde + 1;
     r.paginas_servir = t.paginasServir;
     if (t.puestos !== null) r.puestos_servir = t.puestos;
+    r.conocidas += t.conocidas;
+    r.detalles += t.avisos.length - t.conocidas;
     r.sin_datos += t.sinDatos;
     r.contactos_quitados += t.quitados;
     r.nuevas += t.nuevas;
@@ -690,7 +805,8 @@ export async function correrServir(env: Env, p: ParamsCorrida, step: WorkflowSte
     r.pedidos += t.pedidos;
     r.resincronizaciones += t.resincronizaciones;
     registrar("INFO", `   páginas ${t.desde}-${t.hasta} de ${t.paginasServir}: ${t.avisos.length} plazas` +
-      (p.seco ? "" : `, ${t.nuevas} nuevas`) + (t.resincronizaciones ? `, ${t.resincronizaciones} resincronizaciones` : ""), { fuente: FUENTE, instancia: id });
+      (t.conocidas ? ` (${t.conocidas} reconocidas sin abrir)` : "") + (p.seco ? "" : `, ${t.nuevas} nuevas`) +
+      (t.resincronizaciones ? `, ${t.resincronizaciones} resincronizaciones` : ""), { fuente: FUENTE, instancia: id });
     if (t.terminado || (ultima !== null && t.hasta >= ultima)) break;
   }
   const resumen: Record<string, unknown> = { ...r, plazas: avisos.size, seco: !!p.seco };

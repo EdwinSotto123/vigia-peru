@@ -48,18 +48,18 @@ test("cp1252 con errors='replace' igual que Python en los 256 bytes", () => {
 test("calendario: mismas agendas que Cloud Scheduler (hora de Lima)", () => {
   const en = (iso: string) => Date.parse(iso);
   assert.deepEqual(fuentesDelCron(CRON_DIARIO, en("2026-10-14T11:00:00Z")), ["oece_ocds"]);
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-14T13:00:00Z")), ["onpe_claridad", "onpe_gastos"]);  // miércoles 14
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-13T13:00:00Z")), ["mef_opds_etes", "sunat_padron"]);  // martes 13 (migraciones 152 y 224)
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-19T13:00:00Z")), ["mef_presupuesto"]);     // lunes 19
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-18T13:00:00Z")), ["pnda_sancionados", "osce_penalidades", "conosce_ordenes"]);    // domingo
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-17T13:00:00Z")), ["conosce"]);             // sábado: sin las órdenes
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-01T13:00:00Z")), ["pnda_sancionados", "osce_penalidades", "conosce_ordenes", "pnda_visitas", "pnda_oece"]);  // domingo 1
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-14T13:00:00Z")), ["onpe_claridad", "onpe_gastos", "servir_convocatorias"]);  // miércoles 14
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-13T13:00:00Z")), ["mef_opds_etes", "sunat_padron", "servir_convocatorias"]);  // martes 13 (migraciones 152 y 224)
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-19T13:00:00Z")), ["mef_presupuesto", "servir_convocatorias"]);     // lunes 19
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-18T13:00:00Z")), ["pnda_sancionados", "osce_penalidades", "conosce_ordenes", "servir_convocatorias"]);    // domingo
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-17T13:00:00Z")), ["conosce", "servir_convocatorias"]);             // sábado: sin las órdenes
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-01T13:00:00Z")), ["pnda_sancionados", "osce_penalidades", "conosce_ordenes", "servir_convocatorias", "pnda_visitas", "pnda_oece"]);  // domingo 1
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-15T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras", "pnda_visitas"]);  // jueves 15
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-22T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras"]);                 // jueves
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-05T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras", "pnda_dji", "jne_infogob"]);  // jueves 5
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-16T13:00:00Z")), ["invierte_pe"]);                      // viernes
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-02T13:00:00Z")), ["mef_presupuesto", "oece_entidades"]);  // lunes 2
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-10T13:00:00Z")), ["mef_opds_etes", "sunat_padron", "contraloria_informes"]);  // martes 10
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-16T13:00:00Z")), ["invierte_pe", "servir_convocatorias"]);                      // viernes
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-02T13:00:00Z")), ["mef_presupuesto", "servir_convocatorias", "oece_entidades"]);  // lunes 2
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-10T13:00:00Z")), ["mef_opds_etes", "sunat_padron", "servir_convocatorias", "contraloria_informes"]);  // martes 10
   assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, en("2026-11-03T17:40:00Z")), ["documentos", "salud_lima", "seace_cotizaciones"]);  // 12:40 en Lima
   assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, en("2026-11-03T18:40:00Z")), ["documentos", "seace_cotizaciones"]);
   assert.deepEqual(fuentesDelCron("*/5 * * * *", en("2026-11-05T13:00:00Z")), []);

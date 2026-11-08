@@ -32,8 +32,10 @@
  *   congreso_visitas   jueves 08:00: las visitas al Congreso de los últimos 14 días (su registro propio, sin captcha;
  *                      el relleno desde 2020 lo hizo backend/scripts/cargar_visitas_congreso.py).
  *
- *   servir_convocatorias  jueves 08:00 (~1,5 h: ~1,7 s por plaza, medido en PROD el 31-oct): las plazas CAS de SERVIR Talento Perú, por el relay de Lima (403 desde
- *                      Cloudflare y por Zúrich). Respaldo: backend/scripts/cargar_servir_convocatorias.py.
+ *   servir_convocatorias  TODOS LOS DÍAS 08:00 (desde el 2026-11-08): las plazas CAS de SERVIR Talento Perú, por el relay de
+ *                      Lima (403 desde Cloudflare y por Zúrich). Incremental (~15-25 min: el listado entero y sólo el detalle
+ *                      de las plazas nuevas o cambiadas); los jueves, la lectura completa (~1,5 h: ~1,7 s por plaza, medido
+ *                      en PROD el 31-oct). Respaldo: backend/scripts/cargar_servir_convocatorias.py.
  *
  *   infobras           jueves 08:00: las obras de INFOBRAS (Contraloría), por el relay de Lima (522 fuera del Perú). No el
  *                      viernes de invierte_pe (las dos terminan en refrescar_obras) ni el miércoles (la cadena de cruces de
@@ -82,6 +84,8 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   if (lima.getUTCDay() === 4) out.push("congreso_visitas", "servir_convocatorias", "infobras");
   if (lima.getUTCDay() === 5) out.push("invierte_pe");
   if (lima.getUTCDay() === 6) out.push("conosce");
+  // SERVIR todos los días (la corrida decide: completa los jueves, arriba; incremental los demás).
+  if (lima.getUTCDay() !== 4) out.push("servir_convocatorias");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");

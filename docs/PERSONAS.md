@@ -6,7 +6,7 @@ Vigía vigila cómo el Estado contrata **personas**, no sólo empresas. Tres fue
 |---|---|---|---|
 | Por **órdenes de servicio** de hasta 8 UIT, sin concurso (locadores, asesores, choferes…) | OECE, CONOSCE: órdenes de compra y de servicio (persona natural = RUC 10) | `conosce_ordenes` → `persona_orden_anual`, `persona_senal`, `persona_entidad` (migración 91) | `conosce_ordenes` de vigia-scrapers, los sábados |
 | En **planilla** (CAS, 276, 728, funcionarios, Ley Servir) | Portal de Transparencia Estándar de cada entidad, rubro Personal | `planilla_pte` → `planilla_persona`, `cargo_referencia` (migración 92) | `pte_personal` de vigia-scrapers, el día 20 |
-| Por **concurso CAS** | SERVIR Talento Perú, ofertas laborales | `servir_convocatoria` (migración 93) | `backend/scripts/cargar_servir_convocatorias.py`, semanal, desde una PC en el Perú (SERVIR da 403 a Cloudflare) |
+| Por **concurso CAS** | SERVIR Talento Perú, ofertas laborales | `servir_convocatoria` (migración 93) | Worker `vigia-scrapers` (`servir_convocatorias`) por el relay de Lima, diario desde 2026-11-08 (incremental; completa los jueves); respaldo `backend/scripts/cargar_servir_convocatorias.py` desde una PC en el Perú (SERVIR da 403 a Cloudflare) |
 
 En la web: `/app/personas` (tres pestañas: por órdenes, en planilla, plazas CAS), la ficha de cada persona
 (`/app/personas/<código>`) y las pestañas «Personas contratadas», «Planilla» y «Plazas CAS» de cada entidad; la de

@@ -99,7 +99,7 @@ Toda señal tiene una de tres severidades, con tres canales (color + ícono + pa
 | pte_personal | 3 días | planilla mensual |
 | onpe_gastos / onpe_claridad | 4 días | gastos y aportes de campaña |
 | contraloria_informes | 4 días | informes de control (responsabilidad presunta) |
-| servir_convocatorias | 4 días | plazas CAS (SERVIR) |
+| servir_convocatorias | 4 días (diaria desde el 8-nov) | plazas CAS (SERVIR) |
 | mef_presupuesto | 6 días | ejecución de gasto (MEF, 20.5 M filas) |
 | jne_infogob, pnda_sancionados, pnda_dji, pnda_visitas | re-corridos hoy | autoridades, inhabilitados, DJI, visitas |
 

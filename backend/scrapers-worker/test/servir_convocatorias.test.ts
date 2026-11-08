@@ -11,7 +11,8 @@ import { test } from "node:test";
 import type { WorkflowStep } from "cloudflare:workers";
 import type { Env, ParamsCorrida } from "../src/config.ts";
 import {
-  botonesVerMas, botonSiguiente, caminoA, campos, correrServir, desescapar, fecha, leerTanda, monto, OMITIDO, paginaDe, paginaParam,
+  botonesVerMas, botonSiguiente, caminoA, campos, correrServir, desescapar, esJuevesLima, fecha, filasDelListado, huellaFila, leerTanda,
+  mapaConocidas, monto, OMITIDO, paginaDe, paginaParam,
   paginaParcial, paraGuardar, parsearDetalle, parsearListado, SesionServir, sinContactos, TiempoAgotado, ubicacionesDelListado, URL_SERVIR,
   vacantesDe, viewState,
 } from "../src/fuentes/servir_convocatorias.ts";
@@ -291,6 +292,9 @@ function entorno(servir: ServirSimulada) {
   return { env, crudos, relay };
 }
 
+const JUEVES = Date.UTC(2026, 10, 5, 15);
+const DOMINGO = Date.UTC(2026, 10, 8, 15);
+
 const plazasDe = (crudos: Map<string, string>) => [...crudos.values()].flatMap((v) => (JSON.parse(v) as { plazas: Plaza[] }).plazas);
 const sinPausa = { pausaMs: 0 };
 
@@ -394,7 +398,7 @@ test("correrServir en seco: pasos de 10 páginas por el relay de Lima, sin tocar
       return ((typeof a === "function" ? a : b) as () => Promise<unknown>)();
     },
   } as unknown as WorkflowStep;
-  const r = await correrServir(env, P, step, "prueba", sinPausa) as Record<string, unknown>;
+  const r = await correrServir(env, P, step, "prueba", { ...sinPausa, ahora: JUEVES }) as Record<string, unknown>;
   assert.deepEqual(nombres, ["relay de Lima: ¿responde? (1)", "páginas 1-10", "páginas 11-20", "páginas 21-30"]);
   assert.equal(r.plazas, 50);
   assert.equal(r.paginas, 25);
@@ -416,7 +420,7 @@ test("correrServir en seco: pasos de 10 páginas por el relay de Lima, sin tocar
   const otra = new ServirSimulada(25);
   const e2 = entorno(otra);
   const nombres2: string[] = [];
-  const r2 = await correrServir(e2.env, { ...P, desde: "0002", hasta: "0003" }, { do: async (n: string, _c: unknown, f: () => Promise<unknown>) => (nombres2.push(n), f()) } as unknown as WorkflowStep, "p", sinPausa) as Record<string, unknown>;
+  const r2 = await correrServir(e2.env, { ...P, desde: "0002", hasta: "0003" }, { do: async (n: string, _c: unknown, f: () => Promise<unknown>) => (nombres2.push(n), f()) } as unknown as WorkflowStep, "p", { ...sinPausa, ahora: JUEVES }) as Record<string, unknown>;
   assert.deepEqual(nombres2, ["relay de Lima: ¿responde? (1)", "páginas 2-3"]);
   assert.equal(r2.plazas, 4);
   assert.deepEqual([paginaParam("3"), paginaParam("0003"), paginaParam(3), paginaParam("2026-10"), paginaParam("0"), paginaParam(undefined)], [3, 3, 3, null, null, null]);
@@ -452,4 +456,79 @@ test("pedirLima: método, cabeceras y cuerpo al relay; cookies y URL final de vu
   assert.equal((await pedirLima(caido, { url: "https://x.gob.pe/", sinReintentos: true })).origen, null);
   assert.deepEqual(cookiesDelRelay("no es json"), {});
   assert.deepEqual(cookiesDelRelay('{"a":1,"b":"2"}'), { b: "2" });
+});
+
+// ── Lectura diaria incremental (2026-11-08) ──────────────────────────────────────────────────────────────────────────
+
+test("la fila del listado: lo que dice de su plaza sin abrir el detalle, y su huella igual a la de la base", () => {
+  const filas = filasDelListado(LISTADO);
+  assert.equal(filas.length, botonesVerMas(LISTADO).length);
+  assert.deepEqual(filas[0], {
+    titulo: "ASISTENTE JURISDICCIONAL", entidad: "PODER JUDICIAL", ubicacion: "AREQUIPA - AREQUIPA", numero: "D.LEG 1057 - DETERMINADO (SUPLENCIA)-023",
+    vacantes: 1, remuneracion: 2572, fecha_inicio: "2026-10-30", fecha_fin: "2026-11-12",
+  });
+  // La misma plaza como la guarda la base (desde el detalle: otra puntuación, tildes, el sueldo como NUMERIC).
+  const base = { ...filas[0], titulo: "Asistente Jurisdiccional", numero: "D.LEG 1057 - DETERMINADO (SUPLENCIA) - 023", remuneracion: 2572.0 };
+  assert.equal(huellaFila(base), huellaFila(filas[0]));
+  assert.notEqual(huellaFila({ ...filas[0], fecha_fin: "2026-11-20" }), huellaFila(filas[0]), "si amplían el plazo, se vuelve a leer");
+  assert.deepEqual(parsearListado(LISTADO)!.huellas, filas.map(huellaFila));
+  assert.deepEqual([...mapaConocidas([{ ...filas[0], aviso: 1 }, { ...filas[0], aviso: 2 }]).values()], [[1, 2]]);
+  assert.equal(esJuevesLima(JUEVES), true);
+  assert.equal(esJuevesLima(DOMINGO), false);
+  // El jueves a las 21:00 de Lima ya es viernes en UTC: cuenta la hora de Lima.
+  assert.equal(esJuevesLima(Date.UTC(2026, 10, 6, 2)), true);
+});
+
+/** Las huellas «de la base» de la SERVIR simulada: por el título de la plaza (las páginas cambian el resto de la fila). */
+class PorTitulo extends Map<string, number[]> {
+  readonly titulos: Map<string, number[]>;
+  constructor(titulos: Map<string, number[]>) {
+    super();
+    this.titulos = titulos;
+  }
+  override get(h: string) {
+    return this.titulos.get(h.split("|")[0]);
+  }
+}
+
+test("incremental: las plazas que ya están en la base no abren su detalle; los jueves (o con forzar) se leen todas", async () => {
+  const conocidas = new PorTitulo(new Map([3, 4, 5].flatMap((n) => [0, 1].map((k) => [tituloDe(n, k), [avisoDe(n, k)]] as [string, number[]]))));
+  const correr = async (p: ParamsCorrida, ahora: number) => {
+    const servir = new ServirSimulada(5);
+    const { env, crudos } = entorno(servir);
+    const step = { do: async (_n: string, _c: unknown, f: () => Promise<unknown>) => f() } as unknown as WorkflowStep;
+    const r = (await correrServir(env, p, step, "p", { ...sinPausa, conocidas, ahora })) as Record<string, unknown>;
+    return { r, detalles: servir.pedidos.filter((x) => x.tipo === "detalle").length, crudos };
+  };
+  const dia = await correr(P, DOMINGO);
+  assert.equal(dia.r.modo, "incremental");
+  assert.equal(dia.detalles, 4, "sólo las 4 de las páginas 1 y 2");
+  assert.equal(dia.r.conocidas, 6);
+  assert.equal(dia.r.detalles, 4);
+  assert.equal(dia.r.plazas, 10, "las reconocidas cuentan como leídas");
+  const reconocidas = [...dia.crudos.values()].flatMap((v) => (JSON.parse(v) as { reconocidas?: number[] }).reconocidas ?? []);
+  assert.deepEqual(reconocidas.sort(), [3, 4, 5].flatMap((n) => [avisoDe(n, 0), avisoDe(n, 1)]).sort());
+
+  const jueves = await correr(P, JUEVES);
+  assert.equal(jueves.r.modo, "completa");
+  assert.equal(jueves.detalles, 10);
+  const forzada = await correr({ ...P, forzar: true }, DOMINGO);
+  assert.equal(forzada.r.modo, "completa");
+  assert.equal(forzada.detalles, 10);
+});
+
+test("incremental: una huella repetida en la base se reconoce tantas veces como avisos tenga; la que sobra se abre", async () => {
+  // Todas las filas de la página 1 (2) con la misma huella y UN aviso en la base de esa huella repetida dos veces.
+  const titulos = new Map<string, number[]>([[tituloDe(1, 0), [11, 12]], [tituloDe(1, 1), [11, 12]]]);
+  const servir = new ServirSimulada(1);
+  const { env } = entorno(servir);
+  const step = { do: async (_n: string, _c: unknown, f: () => Promise<unknown>) => f() } as unknown as WorkflowStep;
+  const r = (await correrServir(env, P, step, "p", { ...sinPausa, conocidas: new PorTitulo(titulos), ahora: DOMINGO })) as Record<string, unknown>;
+  // Dos filas, dos avisos: las dos se reconocen (no se sabe cuál es cuál, y no hace falta).
+  assert.equal(r.conocidas, 2);
+  assert.equal(servir.pedidos.filter((x) => x.tipo === "detalle").length, 0);
+  const servir2 = new ServirSimulada(1);
+  const e2 = entorno(servir2);
+  const r2 = (await correrServir(e2.env, P, step, "p", { ...sinPausa, conocidas: new PorTitulo(new Map([[tituloDe(1, 0), [11]], [tituloDe(1, 1), [11]]])), ahora: DOMINGO })) as Record<string, unknown>;
+  assert.equal(r2.conocidas, 2, "con un solo aviso por huella cada fila se reconoce sola");
 });
