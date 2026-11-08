@@ -197,7 +197,7 @@ export function ParaTiEmpleo({ base }: { base: string }) {
             <VacioCaja
               Icono={UserRoundSearch}
               titulo="Hoy no hay plazas abiertas que calcen"
-              texto="Salen plazas nuevas cada semana y tu alerta te avisa. Mientras, prueba con otra carrera afín o un sueldo mínimo más bajo en tu perfil."
+              texto="Salen plazas nuevas cada día y tu alerta te avisa. Mientras, prueba con otra carrera afín o un sueldo mínimo más bajo en tu perfil."
               accion={<Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>Editar mi perfil</Link>}
             />
           </Caja>

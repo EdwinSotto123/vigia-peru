@@ -188,7 +188,7 @@ export default async function InicioEmpleo() {
             },
             {
               p: "¿De dónde salen las plazas?",
-              r: "De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee cada semana. Cada plaza enlaza a su publicación oficial, donde están las bases completas.",
+              r: "De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee cada día. Cada plaza enlaza a su publicación oficial, donde están las bases completas.",
             },
             {
               p: "¿Qué significa «lo que nadie te dice»?",

@@ -98,7 +98,7 @@ export default async function PlanesEmpleo() {
           },
           {
             p: "¿De dónde salen los datos?",
-            r: "De las ofertas laborales que las entidades publican en SERVIR, que leemos cada semana, cruzadas con lo que Vigía sabe de cada entidad (órdenes de servicio, cambios de gestión).",
+            r: "De las ofertas laborales que las entidades publican en SERVIR, que leemos cada día, cruzadas con lo que Vigía sabe de cada entidad (órdenes de servicio, cambios de gestión).",
           },
           {
             p: "¿Qué hacen con mis datos?",
