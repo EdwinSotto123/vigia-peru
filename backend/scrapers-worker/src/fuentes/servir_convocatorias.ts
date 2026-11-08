@@ -187,7 +187,10 @@ export function monto(t: string | null | undefined): number | null {
   if (!m) return null;
   const s = m[1];
   const n = /^\d+(?:,\d{3})*,\d{2}$/.test(s) ? Number(`${s.slice(0, -3).replaceAll(",", "")}.${s.slice(-2)}`) : Number(s.replaceAll(",", ""));
-  return Number.isFinite(n) && n < 1e12 ? n : null;
+  if (!Number.isFinite(n) || n >= 1e12) return null;
+  // Un sueldo CAS mensual no pasa de ~S/ 20 mil (el tope es S/ 15,600). 100 mil o más que entre 100 da un sueldo posible
+  // son céntimos leídos como soles, en un formato que todavía no reconocemos (2026-11-08: 836419, 320019, 300019).
+  return n >= 100_000 && n / 100 <= 30_000 ? Math.round(n) / 100 : n;
 }
 
 const ETIQUETAS = {

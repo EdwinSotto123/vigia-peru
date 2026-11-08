@@ -112,6 +112,10 @@ test("monto: la coma de los decimales no multiplica el sueldo por cien", () => {
   assert.equal(monto("S/. 15,600"), 15600);
   assert.equal(monto("S/ 1.500,50 MENSUALES"), 1.5);   // así lo sigue leyendo Python
   assert.equal(monto("A TRATAR"), null);
+  // Céntimos leídos como soles en un formato desconocido: 100 mil o más que entre 100 da un sueldo posible.
+  assert.equal(monto("S/. 320019"), 3200.19);
+  assert.equal(monto("S/. 836,419.00"), 8364.19);
+  assert.equal(monto("S/. 15,600.00"), 15600);
 });
 
 test("vacantes: el sueldo puesto en la celda de vacantes no cuenta", () => {
