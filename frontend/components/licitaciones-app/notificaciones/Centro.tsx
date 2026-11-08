@@ -120,7 +120,10 @@ export function Centro({ base }: { base: string }) {
             <li className="flex gap-3">
               <CalendarClock size={18} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
               <span>
-                <b className="font-semibold text-ink">Vencimientos.</b> Tres días antes del fin de consultas, del cierre de una cotización o de la buena pro de lo que sigues.
+                <b className="font-semibold text-ink">Vencimientos.</b>{" "}
+                {producto === "empleo"
+                  ? "Tres días antes de que cierre la postulación de una plaza que guardaste."
+                  : "Tres días antes del fin de consultas, del cierre de una cotización o de la buena pro de lo que sigues."}
               </span>
             </li>
             <li className="flex gap-3">
