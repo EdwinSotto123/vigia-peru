@@ -14,6 +14,12 @@ está el plan (AWS Cognito, `src/v2/cognito.ts`, `COGNITO_GOBSERVA` en `wrangler
 plegada, con la de Vigía (Firebase) si tiene un plan (cortesía por uid desde el panel: `POST /admin/gobserva/cortesia`
 con `uid`). initialize, tools/list, los recursos y los prompts siguen abiertos.
 
+**Una dirección por producto (2026-11-08):** `/mcp/empleo` (plazas CAS, `estado_fuentes` y `mi_cupo`) y
+`/mcp/licitaciones` (alias `/mcp/obras`: licitaciones, menores, obras, mercado, compradores y competidores, documentos),
+cada una con su nombre e instrucciones (`servidor.ts` → `perfilDeRuta`, `herramientasDe`; `guias.ts`); `/mcp` sigue con
+todas, las guías y los prompts de Vigía. El OAuth es uno: el recurso es `/mcp` y la librería acepta su token en las
+subrutas; si el cliente manda `resource=…/mcp/empleo`, la página de autorización marca la cuenta de Empleo.
+
 **Créditos (2026-11-08):** cada plan trae créditos al mes (`limites.mcp` en backend/api/src/lib/gobservaPlanes.ts: Empleo
 Alertas 300, Institucional 5 000; Licitaciones Inicia 1 500, Crece 5 000, Pro 15 000) y cada llamada que sale bien descuenta
 lo que pesa su herramienta (`PESOS` en `src/v2/cupos.ts`: 0 lo de la cuenta y `mi_cupo`, 1 búsquedas y fichas, 3 análisis,

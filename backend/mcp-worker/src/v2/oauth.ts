@@ -56,7 +56,7 @@ function paginaError(mensaje: string, estado = 400): Response {
   });
 }
 
-function paginaConsentimiento(env: EnvV2, d: ConsentDescription, handle: string): string {
+function paginaConsentimiento(env: EnvV2, d: ConsentDescription, handle: string, preferida: AppCuenta = "licitaciones"): string {
   const quien = d.clientDomain
     ? `<strong>${escapar(d.clientName)}</strong> <span class="suave">(publicado por ${escapar(d.clientDomain)})</span>`
     : `<strong>${escapar(d.clientName)}</strong> <span class="suave">(se registró solo: su nombre no está verificado)</span>`;
@@ -75,8 +75,8 @@ ${d.redirectIsLoopback ? '<p class="alerta"><strong>El acceso va a una aplicaci�
   <p style="margin-top:0"><strong>1. Entra con la cuenta donde tienes tu plan</strong></p>
   <p class="suave" style="margin:.25rem 0 0">El MCP viene con los planes de pago de Gobserva.</p>
   <div class="apps" role="radiogroup" aria-label="Tu cuenta">
-    <label><input type="radio" name="app" value="licitaciones" checked> Gobserva Licitaciones (y Obras)</label>
-    <label><input type="radio" name="app" value="empleo"> Gobserva Empleo</label>
+    <label><input type="radio" name="app" value="licitaciones"${preferida === "licitaciones" ? " checked" : ""}> Gobserva Licitaciones (y Obras)</label>
+    <label><input type="radio" name="app" value="empleo"${preferida === "empleo" ? " checked" : ""}> Gobserva Empleo</label>
   </div>
   <form id="correo">
     <label for="email">Correo</label><input id="email" type="email" autocomplete="email" required>
@@ -178,7 +178,9 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
       const detalle = await oauth.describeConsent(solicitud);
       const consentimiento = await oauth.beginConsent(solicitud);
       consentimiento.headers.set("Content-Type", "text/html; charset=utf-8");
-      return new Response(paginaConsentimiento(env, detalle, consentimiento.handle), { headers: consentimiento.headers });
+      const recurso = new URL(request.url).searchParams.get("resource") ?? "";
+      const preferida: AppCuenta = /\/mcp\/empleo\/?$/.test(recurso) ? "empleo" : "licitaciones";
+      return new Response(paginaConsentimiento(env, detalle, consentimiento.handle, preferida), { headers: consentimiento.headers });
     }
     if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "GET, POST" } });
     const form = await request.formData();
@@ -232,9 +234,13 @@ function inicio(env: EnvV2): Response {
 <p>Adquiere un plan en <a href="${PLANES.empleo}">Gobserva Empleo</a> o en <a href="${PLANES.licitaciones}">Gobserva Licitaciones</a> y conecta tu IA con esa cuenta.</p></div>
 <div class="caja"><p style="margin-top:0"><strong>En claude.ai</strong></p><ol>
 <li>Abre <strong>Customize &gt; Connectors</strong> y elige <strong>Add custom connector</strong>.</li>
-<li>Pega <code>${escapar(url)}</code> y pulsa <strong>Connect</strong>: entras con tu cuenta de Gobserva.</li>
+<li>Pega la dirección de tu producto y pulsa <strong>Connect</strong>: entras con tu cuenta de Gobserva.</li>
 <li>En un chat, abre <strong>+ &gt; Connectors</strong> y enciende Gobserva.</li></ol></div>
-<div class="caja"><p style="margin-top:0"><strong>En Claude Code</strong></p><p><code>claude mcp add --transport http gobserva ${escapar(url)}</code></p></div>
+<div class="caja"><p style="margin-top:0"><strong>Las direcciones</strong></p><ul>
+<li>Empleo (plazas CAS): <code>${escapar(url)}/empleo</code></li>
+<li>Licitaciones y Obras: <code>${escapar(url)}/licitaciones</code></li>
+<li>Todo, con lo de Vigía: <code>${escapar(url)}</code></li></ul>
+<p class="suave">En Claude Code: <code>claude mcp add --transport http gobserva ${escapar(url)}/licitaciones</code></p></div>
 <p class="suave">Una señal no es una acusación. Sin DNI, personas naturales con un apellido tapado. <a href="https://gobserva.cloud">gobserva.cloud</a></p>`;
   return new Response(pagina("El MCP de Gobserva", cuerpo), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 }

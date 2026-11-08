@@ -25,9 +25,9 @@ import { manejarV2 } from "./v2/index";
 
 const RUTA = "/mcp";
 const MUDANZA =
-  "El MCP de Gobserva se mudó a https://mcp.gobserva.cloud/mcp y ahora viene con los planes de pago. Agrega esa dirección a tu " +
-  "asistente y entra con tu cuenta de Gobserva Empleo o Gobserva Licitaciones que tenga un plan vigente. Planes: " +
-  "https://empleo.gobserva.cloud/planes y https://licitaciones.gobserva.cloud/planes.";
+  "El MCP de Gobserva se mudó y ahora viene con los planes de pago. Agrega a tu asistente https://mcp.gobserva.cloud/mcp/empleo " +
+  "(plazas CAS) o https://mcp.gobserva.cloud/mcp/licitaciones (licitaciones y obras) y entra con tu cuenta de Gobserva que " +
+  "tenga un plan vigente. Planes: https://empleo.gobserva.cloud/planes y https://licitaciones.gobserva.cloud/planes.";
 const SERVIDOR = { name: "vigia-peru", version: "1.0.0" };
 
 // Las mismas capacidades que anuncia FastMCP (prompts y resources vacíos incluidos).

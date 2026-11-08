@@ -1,5 +1,5 @@
 import { Bot, Cable, MessageSquareText, Wrench } from "lucide-react";
-import { URL_MCP } from "@/lib/gobserva";
+import { URL_MCP_EMPLEO, URL_MCP_LICITACIONES } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { Copiar } from "./Copiar";
 
@@ -25,14 +25,16 @@ export function BloqueMCP({
   ejemplos: string[];
   /** Las herramientas del MCP que usa este producto: nombre y qué responde. */
   herramientas: { nombre: string; descripcion: string }[];
-  /** La cuenta con la que se entra al MCP: «Gobserva Empleo» o «Gobserva Licitaciones». */
-  cuenta: string;
+  /** La cuenta con la que se entra al MCP: «Gobserva Empleo» o «Gobserva Licitaciones» (y su dirección del MCP). */
+  cuenta: "Gobserva Empleo" | "Gobserva Licitaciones";
   /** La página de planes del producto. */
   planes: string;
   id?: string;
   className?: string;
 }) {
-  const configuracion = JSON.stringify({ mcpServers: { gobserva: { type: "http", url: URL_MCP } } }, null, 2);
+  const empleo = cuenta === "Gobserva Empleo";
+  const direccion = empleo ? URL_MCP_EMPLEO : URL_MCP_LICITACIONES;
+  const configuracion = JSON.stringify({ mcpServers: { [empleo ? "gobserva-empleo" : "gobserva-licitaciones"]: { type: "http", url: direccion } } }, null, 2);
   return (
     // El borde claro y tenue separa la banda del fondo de noche, que es casi del mismo carbón.
     <section id={id} aria-labelledby={`${id}-t`} className={cn("sobre-oscuro scroll-mt-20 overflow-hidden rounded-3xl border border-paper/10 bg-ink text-paper", className)}>
@@ -54,7 +56,7 @@ export function BloqueMCP({
               </a>
             </Paso>
             <Paso n={2} titulo="Copia la dirección del servidor">
-              <Copiar texto={URL_MCP} className="mt-2 border-paper/15 bg-paper/5 [&_code]:text-paper" />
+              <Copiar texto={direccion} className="mt-2 border-paper/15 bg-paper/5 [&_code]:text-paper" />
             </Paso>
             <Paso n={3} titulo="Agrégala a tu asistente y entra con tu cuenta">
               <ol className="mt-2 space-y-3">

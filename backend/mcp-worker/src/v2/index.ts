@@ -6,7 +6,7 @@
 // por OAuthProvider, que lo valida y entrega las props de la cuenta.
 import type { EnvV2, PropsCuenta } from "./entorno";
 import { proveedorOAuth, SCOPES } from "./oauth";
-import { atenderMcp, llamaProtegida } from "./servidor";
+import { atenderMcp, llamaProtegida, perfilDeRuta } from "./servidor";
 
 async function conCuenta(request: Request, env: EnvV2, ctx: ExecutionContext): Promise<Response> {
   const c = ctx as ExecutionContext & { props?: PropsCuenta; auth?: { scope?: string[] } };
@@ -17,6 +17,7 @@ async function conCuenta(request: Request, env: EnvV2, ctx: ExecutionContext): P
     ctx,
     usuario: { ...props, planes: props.planes ?? [], scope: c.auth?.scope ?? [] },
     ip: request.headers.get("cf-connecting-ip"),
+    perfil: perfilDeRuta(new URL(request.url).pathname) ?? "todo",
   });
 }
 
@@ -42,22 +43,27 @@ export async function manejarV2(request: Request, env: EnvV2, ctx: ExecutionCont
   const url = new URL(request.url);
   // El chat del panel (vigia-api por service binding) entra como la cuenta del equipo: todas las herramientas, sin cupo.
   const interno = request.headers.get("x-vigia-interno");
-  if (url.pathname === "/mcp" && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
+  const perfil = perfilDeRuta(url.pathname);
+  if (perfil === "todo" && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
     return atenderMcp(request, {
       env, ctx, ip: null,
       usuario: { uid: "equipo-vigia", planes: ["interno"], planesAl: Date.now(), scope: [...SCOPES] },
     });
   }
-  if (url.pathname === "/mcp/") {
-    url.pathname = "/mcp";
+  // /mcp/ y /mcp/empleo/ → sin la barra final (307 conserva el método y el cuerpo).
+  if (url.pathname.length > 4 && url.pathname.endsWith("/") && perfilDeRuta(url.pathname.slice(0, -1))) {
+    url.pathname = url.pathname.slice(0, -1);
     return new Response(null, { status: 307, headers: { Location: url.toString() } });
   }
-  if (url.pathname === "/mcp" && !request.headers.has("authorization")) {
+  if (url.pathname.startsWith("/mcp/") && !perfil) {
+    return Response.json({ error: "no_encontrado", detail: "Las direcciones son /mcp, /mcp/empleo y /mcp/licitaciones." }, { status: 404 });
+  }
+  if (perfil && !request.headers.has("authorization")) {
     if (request.method === "POST") {
       const cuerpo = await request.clone().json().catch(() => null);
       if (llamaProtegida(cuerpo)) return desafio(env);
     }
-    return atenderMcp(request, { env, ctx, usuario: null, ip: request.headers.get("cf-connecting-ip") });
+    return atenderMcp(request, { env, ctx, usuario: null, ip: request.headers.get("cf-connecting-ip"), perfil });
   }
   return proveedorOAuth(env, conCuenta).fetch(request, env, ctx);
 }

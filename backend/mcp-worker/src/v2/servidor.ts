@@ -2,14 +2,14 @@
 // arma su servidor y su transporte; nada depende de la sesión).
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { INSTRUCCIONES, registrarGuias } from "./guias";
+import { INSTRUCCIONES, INSTRUCCIONES_EMPLEO, INSTRUCCIONES_LICITACIONES, registrarGuias } from "./guias";
 import { HERRAMIENTAS_ACTORES } from "./herramientas/actores";
 import { HERRAMIENTAS_CONTRATOS } from "./herramientas/contratos";
 import { HERRAMIENTAS_CUENTA } from "./herramientas/cuenta";
 import { HERRAMIENTAS_DATOS } from "./herramientas/datos";
 import { HERRAMIENTAS_ENTIDAD } from "./herramientas/entidad";
 import { HERRAMIENTAS_PRODUCTOS } from "./herramientas/productos";
-import { registrar, type Contexto } from "./registro";
+import { registrar, type Contexto, type Perfil } from "./registro";
 
 export const HERRAMIENTAS = [
   ...HERRAMIENTAS_CONTRATOS,
@@ -27,13 +27,44 @@ export const HERRAMIENTAS = [
  */
 export const PROTEGIDAS = new Set(HERRAMIENTAS.map((h) => h.nombre));
 
+/**
+ * Una dirección por producto (2026-11-08): la IA elige mejor entre pocas herramientas, el conector se llama como el
+ * producto y cada portada da la suya. /mcp sigue con todas (el plan Institucional, Vigía).
+ */
+const DE_EMPLEO = new Set(["buscar_plazas_cas", "ficha_plaza_cas", "estado_fuentes", "mi_cupo"]);
+const DE_LICITACIONES = new Set([
+  "buscar", "buscar_licitaciones", "compras_menores", "mercado_rubro", "buscar_proyectos_inversion", "ficha_proyecto", "mercado_obras",
+  "buscar_contratos", "ficha_contrato", "ficha_empresa", "ficha_entidad", "proveedores_de_entidad", "ordenes", "buscar_documentos",
+  "documentos_zip", "estado_fuentes", "mi_cupo",
+]);
+
+/** El perfil de una ruta: /mcp, /mcp/empleo, /mcp/licitaciones (o /mcp/obras, que es parte de Licitaciones). */
+export function perfilDeRuta(ruta: string): Perfil | null {
+  if (ruta === "/mcp") return "todo";
+  if (ruta === "/mcp/empleo") return "empleo";
+  if (ruta === "/mcp/licitaciones" || ruta === "/mcp/obras") return "licitaciones";
+  return null;
+}
+
+export const herramientasDe = (p: Perfil = "todo") =>
+  p === "todo" ? HERRAMIENTAS : HERRAMIENTAS.filter((h) => (p === "empleo" ? DE_EMPLEO : DE_LICITACIONES).has(h.nombre));
+
+const SERVIDOR: Record<Perfil, { name: string; title: string; instrucciones: string; web: (cx: Contexto) => string }> = {
+  todo: { name: "vigia", title: "Vigía by Gobserva", instrucciones: INSTRUCCIONES, web: (cx) => cx.env.VIGIA_URL },
+  empleo: { name: "gobserva-empleo", title: "Gobserva Empleo", instrucciones: INSTRUCCIONES_EMPLEO, web: () => "https://empleo.gobserva.cloud" },
+  licitaciones: { name: "gobserva-licitaciones", title: "Gobserva Licitaciones", instrucciones: INSTRUCCIONES_LICITACIONES, web: () => "https://licitaciones.gobserva.cloud" },
+};
+
 export function crearServidor(cx: Contexto): McpServer {
+  const perfil = cx.perfil ?? "todo";
+  const s = SERVIDOR[perfil];
   const server = new McpServer(
-    { name: "vigia", title: "Vigía by Gobserva", version: "2.0.0", websiteUrl: cx.env.VIGIA_URL },
-    { instructions: INSTRUCCIONES, capabilities: { tools: { listChanged: false }, resources: { listChanged: false }, prompts: { listChanged: false } } },
+    { name: s.name, title: s.title, version: "2.1.0", websiteUrl: s.web(cx) },
+    { instructions: s.instrucciones, capabilities: { tools: { listChanged: false }, resources: { listChanged: false }, prompts: { listChanged: false } } },
   );
-  for (const h of HERRAMIENTAS) registrar(server, h, cx);
-  registrarGuias(server, cx);
+  for (const h of herramientasDe(perfil)) registrar(server, h, cx);
+  // Las guías y los prompts de investigación son de Vigía.
+  if (perfil === "todo") registrarGuias(server, cx);
   return server;
 }
 

@@ -103,6 +103,9 @@ export const otrosProductos = (p: Producto): InfoProducto[] => Object.values(PRO
 /** El servidor MCP público de Gobserva (backend/mcp-worker): lo que se pega en Claude, ChatGPT o Cursor. */
 /** El MCP de Gobserva (backend/mcp-worker/src/v2): viene con los planes de pago desde 2026-11-08. */
 export const URL_MCP = "https://mcp.gobserva.cloud/mcp";
+/** Una dirección por producto, con sus herramientas (las de Obras van en la de Licitaciones). */
+export const URL_MCP_EMPLEO = `${URL_MCP}/empleo`;
+export const URL_MCP_LICITACIONES = `${URL_MCP}/licitaciones`;
 
 /**
  * La ficha de una empresa en Vigía (sus contratos, sus antecedentes y su gente): sólo con un RUC 20, el de una persona

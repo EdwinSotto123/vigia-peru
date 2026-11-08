@@ -19,6 +19,26 @@ export const INSTRUCCIONES = [
   "Cada llamada descuenta créditos del mes de ese plan: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
 ].join(" ");
 
+/** /mcp/empleo: las plazas CAS para quien busca trabajo en el Estado. */
+export const INSTRUCCIONES_EMPLEO = [
+  "Gobserva Empleo: las plazas CAS que el Estado peruano publica en SERVIR, abiertas hoy (se leen cada día).",
+  "buscar_plazas_cas busca por puesto o carrera, región, sueldo mínimo y experiencia; ficha_plaza_cas trae los requisitos,",
+  "el sueldo frente a otras entidades, las señales de Vigía y el enlace oficial para postular.",
+  "Responde con plazas reales y su enlace; no inventes plazas ni requisitos. Cada llamada descuenta créditos del plan de",
+  "Empleo (1 por búsqueda o ficha); mi_cupo dice cuántos quedan. Pide solo lo necesario.",
+].join(" ");
+
+/** /mcp/licitaciones (y /mcp/obras): lo que necesita quien le vende al Estado. */
+export const INSTRUCCIONES_LICITACIONES = [
+  "Gobserva Licitaciones: lo que necesita quien le vende al Estado peruano.",
+  "buscar_licitaciones (convocatorias del SEACE), compras_menores (hasta 8 UIT), buscar_proyectos_inversion, ficha_proyecto y",
+  "mercado_obras (las obras que se vienen y quién las gana), mercado_rubro (quién compra, quién gana y a qué precio).",
+  "Para conocer a un comprador o a un competidor: buscar (da el RUC u OCID), ficha_entidad, proveedores_de_entidad, ordenes,",
+  "ficha_empresa, buscar_contratos y ficha_contrato; buscar_documentos busca dentro de bases y actas, y documentos_zip las baja.",
+  "Cada resultado trae su fuente oficial y su enlace. Una señal es un indicio, no una acusación. Sin DNI ni RUC 10.",
+  "Cada llamada descuenta créditos del plan (1 búsquedas y fichas, 3 análisis, 10 documentos_zip); mi_cupo dice cuántos quedan.",
+].join(" ");
+
 const COMO_USAR = `# Cómo usar el MCP de Vigía
 
 1. Con un nombre: buscar → da el OCID, RUC, CUI o clave.

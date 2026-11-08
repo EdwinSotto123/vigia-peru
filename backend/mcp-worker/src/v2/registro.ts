@@ -16,7 +16,12 @@ export interface Contexto {
   ctx: ExecutionContext;
   usuario: Usuario | null;
   ip: string | null;
+  /** La dirección por la que entró (servidor.ts → perfilDeRuta): qué herramientas ve. Sin perfil, todas. */
+  perfil?: Perfil;
 }
+
+/** «todo» (/mcp), «empleo» (/mcp/empleo) o «licitaciones» (/mcp/licitaciones, con Obras). */
+export type Perfil = "todo" | "empleo" | "licitaciones";
 
 export interface Herramienta<S extends z.ZodRawShape = z.ZodRawShape> {
   nombre: string;
