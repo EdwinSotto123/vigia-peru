@@ -157,7 +157,7 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
             </dd>
           </div>
           <Cifra etiqueta="Experiencia" valor={expCorta ?? "Según el aviso"} detalle={p.expGeneral === 0 ? "No pide experiencia" : "Experiencia general que pide"} />
-          <Cifra etiqueta="Publicada" valor={p.fechaInicio ? fechaDia(p.fechaInicio) : "Sin fecha"} detalle={p.numero ?? `Aviso ${p.aviso} en SERVIR`} />
+          <Cifra etiqueta="Publicada" valor={p.fechaInicio ? fechaDia(p.fechaInicio) : "Sin fecha"} detalle={hace(p.fechaInicio)} />
         </dl>
       </header>
 
@@ -250,7 +250,7 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
                 <Paso n={2} titulo="Marca lo que cumples">Usa «¿Cumples los requisitos?» y junta lo que piden: CV documentado, DNI, declaraciones juradas.</Paso>
                 <Paso n={3} titulo="Guárdala y llévala en tu tablero">Con «Guardar» queda en tus postulaciones y en tu calendario; te avisamos antes de que cierre.</Paso>
                 <Paso n={4} titulo="Postula antes del cierre">
-                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin)}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado.
+                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin).replace(/\.$/, "")}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado.
                 </Paso>
               </ol>
             )}
@@ -301,6 +301,14 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
       </div>
     </Pagina>
   );
+}
+
+/** «Hoy», «Ayer», «Hace 5 días»: cuándo se publicó en SERVIR. */
+function hace(fecha: string | null): string {
+  const d = diasParaCierre(fecha);
+  if (d == null) return "SERVIR no trae la fecha";
+  if (d >= 0) return "Publicada hoy";
+  return d === -1 ? "Ayer, en SERVIR" : `Hace ${-d} días, en SERVIR`;
 }
 
 function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle: string }) {

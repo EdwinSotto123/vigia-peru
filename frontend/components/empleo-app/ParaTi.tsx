@@ -12,7 +12,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { nombreRegion, puesto } from "@/lib/empleo";
 import { numero } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
-import { PREGUNTAS_EMPLEO, textoRespuestaEmpleo, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import { textoRespuestaEmpleo, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
 import { useCalceEmpleo, usePerfilEmpleo } from "./usePerfilEmpleo";
 
@@ -94,10 +94,13 @@ export function ParaTiEmpleo({ base }: { base: string }) {
 
   const total = calce.data?.total ?? null;
   const paginas = total ? Math.max(1, Math.ceil(total / POR_PAGINA)) : 1;
-  const resumen = PREGUNTAS_EMPLEO.filter((q) => q === "estudios" || q === "experiencia" || q === "lugar" || q === "sueldo").map((q) => ({
-    q,
-    texto: textoRespuestaEmpleo(q, perfil, regionDeSlug, null, ""),
-  }));
+  // El perfil en cuatro datos con su nombre (sin filtro, «cualquiera»).
+  const resumen = [
+    { q: "estudios", nombre: "Estudios", texto: perfil.tengo ? textoRespuestaEmpleo("estudios", perfil, regionDeSlug, null, "") : "cualquiera" },
+    { q: "experiencia", nombre: "Experiencia", texto: textoRespuestaEmpleo("experiencia", perfil, regionDeSlug, null, "") },
+    { q: "lugar", nombre: "Dónde", texto: textoRespuestaEmpleo("lugar", perfil, regionDeSlug, null, "") },
+    { q: "sueldo", nombre: "Sueldo", texto: perfil.sueldo == null ? "cualquiera" : textoRespuestaEmpleo("sueldo", perfil, regionDeSlug, null, "").replace(/^Desde/, "desde") },
+  ];
 
   return (
     <Pagina>
@@ -124,7 +127,15 @@ export function ParaTiEmpleo({ base }: { base: string }) {
       <Caja
         id="filtros"
         titulo="Tu perfil"
-        descripcion={resumen.map((r) => r.texto).join(", ")}
+        descripcion={
+          <span className="flex flex-wrap gap-x-4 gap-y-0.5">
+            {resumen.map((r) => (
+              <span key={r.q}>
+                <span className="text-mute">{r.nombre}:</span> {r.texto}
+              </span>
+            ))}
+          </span>
+        }
         relleno={false}
         accion={
           <label className="inline-flex min-w-0 items-center gap-2 text-meta text-inkSoft">
