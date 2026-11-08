@@ -43,7 +43,22 @@ export function tonoCierre(dias: number | null): "urgente" | "pronto" | "neutro"
  * final, una etiqueta por señal. La tarjeta entera es el enlace. `compacta` (portada): sólo puesto, entidad, sueldo,
  * cierre y lugar. Server-safe; los íconos viajan como referencias (./iconos).
  */
-export function TarjetaPlaza({ p, base, compacta = false }: { p: PlazaEmpleo; base: string; compacta?: boolean }) {
+/**
+ * `ruta`: dónde está la ficha («/plaza» en la portada, «/app/plaza» en la app). `accion`: un botón propio (guardar la
+ * plaza) sobre la tarjeta, por encima del enlace que la cubre entera.
+ */
+export function TarjetaPlaza({
+  p, base, compacta = false, ruta = "/plaza", accion, enApp = false, volver,
+}: {
+  p: PlazaEmpleo;
+  base: string;
+  compacta?: boolean;
+  ruta?: string;
+  accion?: ReactNode;
+  enApp?: boolean;
+  /** Los filtros de la lista, para que la ficha vuelva a ellos (?volver=). */
+  volver?: string;
+}) {
   const dias = diasParaCierre(p.fechaFin);
   const desde = diasParaCierre(p.fechaInicio);
   const nueva = desde != null && desde <= 0 && desde >= -2;
@@ -53,12 +68,17 @@ export function TarjetaPlaza({ p, base, compacta = false }: { p: PlazaEmpleo; ba
   const vacantes = p.vacantes ?? 1;
   const entidad = entidadNombre(p.entidad);
   return (
-    <article className="group relative flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 hover:bg-paperSoft focus-within:ring-2 focus-within:ring-granate sm:p-5">
+    <article
+      className={cn(
+        "group relative flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-within:ring-2 focus-within:ring-granate sm:p-5",
+        enApp ? "shadow-caja" : "hover:bg-paperSoft",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className={cn("font-semibold leading-snug text-ink", compacta ? "line-clamp-2 text-cuerpo" : "line-clamp-3 text-cuerpo sm:text-destacado")}>
             <Link
-              href={rutaEn(base, `/plaza/${p.aviso}`)}
+              href={rutaEn(base, `${ruta}/${p.aviso}${volver ? `?volver=${encodeURIComponent(volver)}` : ""}`)}
               className="outline-none transition-colors duration-rapido after:absolute after:inset-0 after:rounded-2xl group-hover:text-granate"
             >
               {puesto(p.titulo)}
@@ -70,6 +90,7 @@ export function TarjetaPlaza({ p, base, compacta = false }: { p: PlazaEmpleo; ba
             </Dato>
           </p>
         </div>
+        <div className="flex shrink-0 items-start gap-1">
         <p className="shrink-0 text-right">
           {p.remuneracion ? (
             <>
@@ -82,6 +103,8 @@ export function TarjetaPlaza({ p, base, compacta = false }: { p: PlazaEmpleo; ba
             <span className="block max-w-[8ch] text-rotulo leading-snug text-mute">Sueldo sin dato</span>
           )}
         </p>
+        {accion && <div className="relative z-10 -mr-1.5 -mt-1.5">{accion}</div>}
+        </div>
       </div>
 
       <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-meta text-inkSoft">

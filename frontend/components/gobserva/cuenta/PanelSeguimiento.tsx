@@ -6,8 +6,9 @@ import useSWR, { useSWRConfig } from "swr";
 import { CalendarClock, ChevronLeft, ChevronRight, KanbanSquare, Loader2, Search, StickyNote, Trash2 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
-import { ErrorCuenta, cargarSeguimiento, guardar, quitarGuardado, type EstadoGuardado, type ItemSeguimiento } from "@/lib/gobserva-cuenta";
-import { numero, solesCompacto } from "@/lib/formato";
+import { ErrorCuenta, cargarSeguimiento, claveSeguimiento, guardar, quitarGuardado, type EstadoGuardado, type ItemSeguimiento, type ProductoSeguido } from "@/lib/gobserva-cuenta";
+import { numero, soles, solesCompacto } from "@/lib/formato";
+import { nombreRegion as regionEmpleo } from "@/lib/empleo";
 import { nombreRegion } from "@/lib/licitaciones";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,9 @@ const PUNTO: Partial<Record<EstadoGuardado, string>> = {
   presentada: "bg-granate",
   ganada: "bg-moss",
   perdida: "bg-crimson",
+  postule: "bg-amber",
+  entrevista: "bg-granate",
+  descartada: "bg-crimson",
 };
 
 type Fuente = "todos" | "oportunidad" | "menor";
@@ -30,17 +34,19 @@ type Fuente = "todos" | "oportunidad" | "menor";
 /**
  * Seguimiento (2026-11-07, el tablero de LicitaLAB y Stotles): lo guardado en columnas por etapa (guardada, preparando,
  * presentada, ganada, perdida), cada una con cuántos son y cuánto suman; cada tarjeta con su próximo plazo y su nota.
- * Se mueve arrastrando (computadora) o con las flechas y «Mover a» (teclado y celular).
+ * Se mueve arrastrando (computadora) o con las flechas y «Mover a» (teclado y celular). En Empleo (2026-11-07), las
+ * plazas guardadas: guardada, postulé, entrevista, me eligieron y descartada, con su sueldo y el día en que cierran.
  */
-export function PanelSeguimiento({ base }: { base: string }) {
-  const { data, error, isLoading, mutate } = useSWR(["gobserva-seguimiento"], () => cargarSeguimiento());
+export function PanelSeguimiento({ base, producto = "licitaciones" }: { base: string; producto?: ProductoSeguido }) {
+  const { data, error, isLoading, mutate } = useSWR(claveSeguimiento(producto), () => cargarSeguimiento(producto));
+  const empleo = producto === "empleo";
   const { mutate: mutarGlobal } = useSWRConfig();
   const [fuente, setFuente] = useState<Fuente>("todos");
   const [q, setQ] = useState("");
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<EstadoGuardado | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const estados = ESTADOS.licitaciones;
+  const estados = ESTADOS[producto];
 
   const items = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -56,8 +62,8 @@ export function PanelSeguimiento({ base }: { base: string }) {
     // Se mueve ya en la pantalla; si la API no lo acepta, vuelve a su columna.
     await mutate({ data: (data?.data ?? []).map((x) => (x.tipo === i.tipo && x.ref === i.ref ? { ...x, estado } : x)) }, { revalidate: false });
     try {
-      await guardar({ producto: "licitaciones", tipo: i.tipo, ref: i.ref, estado });
-      void mutarGlobal(["gobserva-guardados", "licitaciones"]);
+      await guardar({ producto, tipo: i.tipo, ref: i.ref, estado });
+      void mutarGlobal(["gobserva-guardados", producto]);
     } catch (e) {
       await mutate(antes, { revalidate: false });
       setAviso(e instanceof ErrorCuenta ? e.message : "No pudimos moverlo ahora. Vuelve a intentarlo.");
@@ -67,16 +73,16 @@ export function PanelSeguimiento({ base }: { base: string }) {
   async function quitar(i: ItemSeguimiento) {
     setAviso(null);
     try {
-      await quitarGuardado("licitaciones", i.tipo, i.ref);
+      await quitarGuardado(producto, i.tipo, i.ref);
       await mutate();
-      void mutarGlobal(["gobserva-guardados", "licitaciones"]);
+      void mutarGlobal(["gobserva-guardados", producto]);
     } catch {
       setAviso("No pudimos quitarlo ahora. Vuelve a intentarlo.");
     }
   }
 
   async function anotar(i: ItemSeguimiento, nota: string) {
-    await guardar({ producto: "licitaciones", tipo: i.tipo, ref: i.ref, nota });
+    await guardar({ producto, tipo: i.tipo, ref: i.ref, nota });
     await mutate();
   }
 
@@ -87,12 +93,16 @@ export function PanelSeguimiento({ base }: { base: string }) {
       <Caja id="tablero" titulo="Tu tablero">
         <VacioCaja
           Icono={KanbanSquare}
-          titulo="Todavía no sigues nada"
-          texto="Guarda una licitación o un contrato menor desde su ficha y aquí lo llevas de etapa en etapa, con sus plazos."
+          titulo={empleo ? "Todavía no guardas plazas" : "Todavía no sigues nada"}
+          texto={
+            empleo
+              ? "Guarda una plaza desde su ficha y aquí llevas tus postulaciones: postulaste, te llamaron a entrevista o te eligieron."
+              : "Guarda una licitación o un contrato menor desde su ficha y aquí lo llevas de etapa en etapa, con sus plazos."
+          }
           accion={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href={rutaEn(base, "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
-              <Link href={rutaEn(base, "/menores")} className={claseAccion("secundario")}>Contratos menores</Link>
+              <Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
+              <Link href={rutaEn(base, empleo ? "/app/plazas" : "/menores")} className={claseAccion("secundario")}>{empleo ? "Buscar plazas" : "Contratos menores"}</Link>
             </div>
           }
         />
@@ -109,9 +119,19 @@ export function PanelSeguimiento({ base }: { base: string }) {
   return (
     <div className="grid gap-4 sm:gap-6">
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-caja lg:grid-cols-4">
-        <Resumen etiqueta="En seguimiento" valor={numero(todos.length)} detalle={suma(todos) > 0 ? `${solesCompacto(suma(todos))} en total` : "Sin valor publicado"} />
-        <Resumen etiqueta="Presentadas" valor={numero(presentadas.length)} detalle={suma(presentadas) > 0 ? solesCompacto(suma(presentadas)) : "Ofertas enviadas"} />
-        <Resumen etiqueta="Ganadas" valor={numero(ganadas.length)} detalle={suma(ganadas) > 0 ? solesCompacto(suma(ganadas)) : "Buenas pro a tu favor"} />
+        {empleo ? (
+          <>
+            <Resumen etiqueta="Guardadas" valor={numero(todos.length)} detalle={`${numero(todos.filter((i) => i.etapa === "abierta").length)} siguen abiertas`} />
+            <Resumen etiqueta="Postulaste" valor={numero(todos.filter((i) => i.estado === "postule").length)} detalle="Esperando resultados" />
+            <Resumen etiqueta="Entrevistas" valor={numero(todos.filter((i) => i.estado === "entrevista").length)} detalle={`${numero(ganadas.length)} ${ganadas.length === 1 ? "te eligió" : "te eligieron"}`} />
+          </>
+        ) : (
+          <>
+            <Resumen etiqueta="En seguimiento" valor={numero(todos.length)} detalle={suma(todos) > 0 ? `${solesCompacto(suma(todos))} en total` : "Sin valor publicado"} />
+            <Resumen etiqueta="Presentadas" valor={numero(presentadas.length)} detalle={suma(presentadas) > 0 ? solesCompacto(suma(presentadas)) : "Ofertas enviadas"} />
+            <Resumen etiqueta="Ganadas" valor={numero(ganadas.length)} detalle={suma(ganadas) > 0 ? solesCompacto(suma(ganadas)) : "Buenas pro a tu favor"} />
+          </>
+        )}
         <Resumen
           etiqueta="Próximo plazo"
           valor={proximo ? cuando(proximo.fecha).texto : "Ninguno"}
@@ -123,10 +143,10 @@ export function PanelSeguimiento({ base }: { base: string }) {
       <Caja
         id="tablero"
         titulo="Tu tablero"
-        descripcion="De guardada a ganada: cada etapa con cuántos procesos hay y cuánto suman."
+        descripcion={empleo ? "De guardada a «me eligieron»: cada postulación en su etapa, con el día en que cierra." : "De guardada a ganada: cada etapa con cuántos procesos hay y cuánto suman."}
         accion={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <div role="group" aria-label="Qué mostrar" className="grid w-full grid-cols-3 gap-1 rounded-lg bg-ink/[0.06] p-1 sm:inline-grid sm:w-auto">
+            {!empleo && <div role="group" aria-label="Qué mostrar" className="grid w-full grid-cols-3 gap-1 rounded-lg bg-ink/[0.06] p-1 sm:inline-grid sm:w-auto">
               {(
                 [
                   ["todos", "Todo"],
@@ -147,7 +167,7 @@ export function PanelSeguimiento({ base }: { base: string }) {
                   {etiqueta}
                 </button>
               ))}
-            </div>
+            </div>}
             <label className="relative w-full min-w-0 sm:w-52">
               <span className="sr-only">Buscar en tu seguimiento</span>
               <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
@@ -158,8 +178,9 @@ export function PanelSeguimiento({ base }: { base: string }) {
         relleno={false}
         pie={
           <p className="py-1 text-meta leading-relaxed text-mute">
-            Arrastra una tarjeta para cambiarla de etapa, o elígela en su lista. La presentación de ofertas no viene en los datos abiertos: su fecha está en el
-            cronograma del SEACE, enlazado en cada ficha.
+            {empleo
+              ? "Arrastra una tarjeta para cambiarla de etapa, o elígela en su lista. Las fechas de evaluación y entrevista las publica cada entidad en sus bases."
+              : "Arrastra una tarjeta para cambiarla de etapa, o elígela en su lista. La presentación de ofertas no viene en los datos abiertos: su fecha está en el cronograma del SEACE, enlazado en cada ficha."}
           </p>
         }
       >
@@ -199,7 +220,7 @@ export function PanelSeguimiento({ base }: { base: string }) {
                   {e.etiqueta}
                   <span className="rounded-full bg-caja px-2 text-meta font-semibold tabular-nums text-inkSoft">{col.length}</span>
                 </h3>
-                {total > 0 && <span className="text-meta font-semibold tabular-nums text-inkSoft">{solesCompacto(total)}</span>}
+                {total > 0 && !empleo && <span className="text-meta font-semibold tabular-nums text-inkSoft">{solesCompacto(total)}</span>}
               </header>
               <ul className="flex min-h-24 flex-1 flex-col gap-2">
                 {col.map((i) => (
@@ -275,8 +296,8 @@ function Tarjeta({
       className="cursor-grab rounded-xl border border-line bg-caja p-3 shadow-caja active:cursor-grabbing"
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-paperDeep px-2 py-0.5 text-rotulo font-semibold text-inkSoft">{i.tipo === "menor" ? "Contrato menor" : "Licitación"}</span>
-        {i.region && <span className="text-rotulo text-mute">{nombreRegion(i.region) ?? i.region}</span>}
+        <span className="rounded-full bg-paperDeep px-2 py-0.5 text-rotulo font-semibold text-inkSoft">{i.tipo === "plaza" ? (i.etapa === "cerrada" ? "Plaza cerrada" : "Plaza CAS") : i.tipo === "menor" ? "Contrato menor" : "Licitación"}</span>
+        {i.region && <span className="text-rotulo text-mute">{i.tipo === "plaza" ? regionEmpleo(i.region) : nombreRegion(i.region) ?? i.region}</span>}
       </div>
       <Link href={rutaEn(base, rutaItem(i))} className="mt-1.5 line-clamp-3 block text-dato font-semibold leading-snug text-ink hover:text-granate hover:underline">
         {i.titulo || "Sin descripción registrada"}
@@ -284,11 +305,11 @@ function Tarjeta({
       {i.entidad && <p className="mt-1 truncate text-meta text-inkSoft">{tituloNatural(i.entidad)}</p>}
       {(i.valor || (p && c)) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
-          {i.valor ? <span className="font-semibold tabular-nums text-ink">{solesCompacto(i.valor)}</span> : null}
+          {i.valor ? <span className="font-semibold tabular-nums text-ink">{i.tipo === "plaza" ? `${soles(i.valor)} al mes` : solesCompacto(i.valor)}</span> : null}
           {p && c && (
             <span className={cn("inline-flex items-center gap-1", c.urgente ? "font-semibold text-crimsonTexto" : "text-inkSoft")}>
               <CalendarClock size={13} aria-hidden />
-              {p.clave === "cierre" ? "Cierra" : p.clave === "consultas" ? "Consultas" : p.etiqueta}: {c.texto.toLowerCase()}
+              {p.clave === "cierre" || p.clave === "postulacion" ? "Cierra" : p.clave === "consultas" ? "Consultas" : p.clave === "abre" ? "Abre" : p.etiqueta}: {c.texto.toLowerCase()}
             </span>
           )}
         </div>
@@ -304,7 +325,7 @@ function Tarjeta({
             rows={3}
             maxLength={1000}
             className={cn(CAMPO, "text-meta")}
-            placeholder="Qué falta, con quién hablaste, a qué precio piensas ofertar"
+            placeholder={i.tipo === "plaza" ? "Qué documentos te faltan, cuándo es tu entrevista, con quién hablaste" : "Qué falta, con quién hablaste, a qué precio piensas ofertar"}
           />
           <div className="mt-1.5 flex gap-2">
             <button

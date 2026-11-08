@@ -7,8 +7,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Bookmark, CalendarDays, CreditCard, House, KanbanSquare, Loader2, LogOut, Search, Sparkles, UserRound } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { ParaTi } from "@/components/licitaciones/ParaTi";
+import { InicioEmpleo } from "@/components/empleo-app/InicioEmpleo";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
-import type { Me } from "@/lib/gobserva-cuenta";
+import { seguidoDe, type Me } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 import { Aviso, Esqueleto, useMe, useSesion } from "./comun";
 import { PanelResumen } from "./PanelResumen";
@@ -30,19 +31,27 @@ interface InfoSeccion {
   etiqueta: string;
   Icono: typeof Bell;
   bajada: string;
-  /** Sólo en este producto: «Para ti», «Seguimiento» y «Calendario» son de Licitaciones. */
-  solo?: Producto;
-  /** En este producto no va (en Licitaciones, «Guardados» es el tablero de Seguimiento). */
-  menos?: Producto;
+  /** Sólo en estos productos: «Para ti» es de Licitaciones; «Seguimiento» y «Calendario», de Licitaciones y Empleo. */
+  solo?: Producto[];
+  /** En estos productos no va (en Licitaciones y Empleo, «Guardados» es el tablero de Seguimiento). */
+  menos?: Producto[];
+  /** Cómo se dice en Empleo. */
+  empleo?: { etiqueta?: string; bajada: string };
 }
 
 const SECCIONES: InfoSeccion[] = [
   { clave: "resumen", etiqueta: "Inicio", Icono: House, bajada: "Lo que calza contigo hoy, lo que cierra pronto y lo que sigues." },
-  { clave: "para-ti", etiqueta: "Para ti", Icono: Sparkles, solo: "licitaciones", bajada: "Las oportunidades abiertas, de lo más parecido a lo que vende tu empresa a lo menos." },
-  { clave: "seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, solo: "licitaciones", bajada: "Tus procesos por etapa, de guardado a ganado, con su próximo plazo y lo que suman." },
-  { clave: "calendario", etiqueta: "Calendario", Icono: CalendarDays, solo: "licitaciones", bajada: "Los plazos de lo que sigues: consultas, cierres de cotización y buena pro." },
+  { clave: "para-ti", etiqueta: "Para ti", Icono: Sparkles, solo: ["licitaciones"], bajada: "Las oportunidades abiertas, de lo más parecido a lo que vende tu empresa a lo menos." },
+  {
+    clave: "seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, solo: ["licitaciones", "empleo"], bajada: "Tus procesos por etapa, de guardado a ganado, con su próximo plazo y lo que suman.",
+    empleo: { etiqueta: "Postulaciones", bajada: "Tus plazas por etapa: guardada, postulaste, entrevista, te eligieron o la descartaste, con el día en que cierran." },
+  },
+  {
+    clave: "calendario", etiqueta: "Calendario", Icono: CalendarDays, solo: ["licitaciones", "empleo"], bajada: "Los plazos de lo que sigues: consultas, cierres de cotización y buena pro.",
+    empleo: { bajada: "Los días en que cierran las plazas que guardaste, para postular a tiempo. Se bajan a tu calendario." },
+  },
   { clave: "alertas", etiqueta: "Mis alertas", Icono: Bell, bajada: "Te avisamos de lo nuevo que calza con tus búsquedas. Créalas aquí o desde la bandeja, con los filtros que estés viendo." },
-  { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, menos: "licitaciones", bajada: "Lo que sigues, con su estado y su fecha de cierre." },
+  { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, menos: ["licitaciones", "empleo"], bajada: "Lo que sigues, con su estado y su fecha de cierre." },
   { clave: "pagos", etiqueta: "Plan y pagos", Icono: CreditCard, bajada: "Tu plan, tus pagos y tus comprobantes." },
   { clave: "perfil", etiqueta: "Perfil", Icono: UserRound, bajada: "Tus datos, los de tu empresa para el comprobante y tu cuenta." },
 ];
@@ -60,9 +69,11 @@ export function Cuenta({ producto, base, catalogo }: { producto: Producto; base:
   const router = useRouter();
   const ruta = usePathname();
   const enApp = useEnApp();
-  const secciones = SECCIONES.filter((s) => (!s.solo || s.solo === producto) && s.menos !== producto);
-  // En Licitaciones, «Guardados» (los enlaces de la ficha y de los correos) es el tablero de Seguimiento.
-  const pedida = producto === "licitaciones" && sp.get("tab") === "guardados" ? "seguimiento" : sp.get("tab");
+  const secciones = SECCIONES.filter((s) => (!s.solo || s.solo.includes(producto)) && !s.menos?.includes(producto)).map((s) =>
+    producto === "empleo" && s.empleo ? { ...s, etiqueta: s.empleo.etiqueta ?? s.etiqueta, bajada: s.empleo.bajada } : s,
+  );
+  // En Licitaciones y Empleo, «Guardados» (los enlaces de la ficha y de los correos) es el tablero de Seguimiento.
+  const pedida = (producto === "licitaciones" || producto === "empleo") && sp.get("tab") === "guardados" ? "seguimiento" : sp.get("tab");
   const tab: Seccion = secciones.some((s) => s.clave === pedida) ? (pedida as Seccion) : "resumen";
 
   const ir = (t: Seccion) => {
@@ -117,12 +128,14 @@ export function Cuenta({ producto, base, catalogo }: { producto: Producto; base:
       {tab === "resumen" &&
         (producto === "licitaciones" ? (
           <PanelInicio base={base} me={me} onCambio={onCambio} irA={ir} />
+        ) : producto === "empleo" && enApp ? (
+          <InicioEmpleo base={base} me={me} onCambio={onCambio} irA={ir} />
         ) : (
           <PanelResumen producto={producto} base={base} me={me} onCambio={onCambio} irA={ir} />
         ))}
       {tab === "para-ti" && <ParaTi base={base} />}
-      {tab === "seguimiento" && <PanelSeguimiento base={base} />}
-      {tab === "calendario" && <PanelCalendario base={base} irA={ir} />}
+      {tab === "seguimiento" && <PanelSeguimiento base={base} producto={seguidoDe(producto)} />}
+      {tab === "calendario" && <PanelCalendario base={base} irA={ir} producto={seguidoDe(producto)} />}
       {tab === "alertas" && <PanelAlertas producto={producto} base={base} me={me} onCambio={onCambio} />}
       {tab === "guardados" && <PanelGuardados producto={producto} base={base} me={me} onCambio={onCambio} />}
       {tab === "pagos" && <PanelPagos producto={producto} base={base} me={me} onCambio={onCambio} irA={ir} catalogo={catalogo} />}
@@ -138,7 +151,7 @@ export function Cuenta({ producto, base, catalogo }: { producto: Producto; base:
         <CabeceraPagina
           titulo={tab === "resumen" ? `${saludo()}, ${primerNombre}` : info.etiqueta}
           bajada={tab === "resumen" ? `${hoyLargo()}. ${info.bajada}` : info.bajada}
-          acciones={<AccionesPagina tab={tab} base={base} ir={ir} />}
+          acciones={<AccionesPagina tab={tab} base={base} ir={ir} producto={producto} />}
         />
         {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={onCambio} className="mb-6 mt-0" />}
         {panel}
@@ -179,12 +192,12 @@ function hoyLargo(): string {
 }
 
 /** Las acciones de la cabecera de cada sección: lo que se hace desde ahí sin bajar. */
-function AccionesPagina({ tab, base, ir }: { tab: Seccion; base: string; ir: (t: Seccion) => void }) {
+function AccionesPagina({ tab, base, ir, producto }: { tab: Seccion; base: string; ir: (t: Seccion) => void; producto: Producto }) {
   if (tab === "resumen" || tab === "seguimiento" || tab === "calendario") {
     return (
       <>
-        <Link href={rutaEn(base, "/oportunidades")} className={claseAccion("secundario")}>
-          <Search size={15} aria-hidden /> Buscar oportunidades
+        <Link href={rutaEn(base, producto === "empleo" ? "/app/plazas" : "/oportunidades")} className={claseAccion("secundario")}>
+          <Search size={15} aria-hidden /> {producto === "empleo" ? "Buscar plazas" : "Buscar oportunidades"}
         </Link>
         {tab === "resumen" && (
           <button type="button" onClick={() => ir("alertas")} className={claseAccion("primario")}>

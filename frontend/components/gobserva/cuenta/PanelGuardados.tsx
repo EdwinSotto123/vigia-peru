@@ -16,6 +16,7 @@ export const ESTADOS: Record<Producto, { valor: EstadoGuardado; etiqueta: string
     { valor: "guardada", etiqueta: "Guardada" },
     { valor: "postule", etiqueta: "Postulé" },
     { valor: "entrevista", etiqueta: "Entrevista" },
+    { valor: "ganada", etiqueta: "Me eligieron" },
     { valor: "descartada", etiqueta: "Descartada" },
   ],
   licitaciones: [

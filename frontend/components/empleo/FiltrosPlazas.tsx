@@ -66,7 +66,15 @@ function Campo({ etiqueta, htmlFor, children }: { etiqueta: string; htmlFor: str
  * (`group-has-[#ver-filtros:checked]`). Cada región y cada nivel dice cuántas plazas tiene con los demás filtros puestos;
  * una región sin plazas no se puede elegir (sería una lista vacía). El orden va aparte (OrdenPlazas), sobre la lista.
  */
-export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtros: FiltrosEmpleo; facetas: { region: Conteo[]; nivel: Conteo[] } }) {
+export function FiltrosPlazas({
+  base, filtros, facetas, ruta = "/plazas",
+}: {
+  base: string;
+  filtros: FiltrosEmpleo;
+  facetas: { region: Conteo[]; nivel: Conteo[] };
+  /** La lista que filtra: «/plazas» (portada) o «/app/plazas» (la app). */
+  ruta?: string;
+}) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
   const [abierto, setAbierto] = useState(false);
@@ -76,7 +84,7 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
   useEffect(() => {
     if (!buscando) setAbierto(false);
   }, [buscando]);
-  const lista = rutaEn(base, "/plazas");
+  const lista = rutaEn(base, ruta);
   const porRegion = new Map(facetas.region.map((f) => [f.clave, f.n]));
   const conFacetas = facetas.region.length > 0;
   const n = filtrosPuestos(filtros);
@@ -242,10 +250,10 @@ export function FiltrosPlazas({ base, filtros, facetas }: { base: string; filtro
  * «Ordenar» sobre la lista: cambiar el orden vuelve a la primera página con los mismos filtros. Va aparte del panel de
  * filtros para que en el celular se cambie sin abrirlo.
  */
-export function OrdenPlazas({ base, filtros }: { base: string; filtros: FiltrosEmpleo }) {
+export function OrdenPlazas({ base, filtros, ruta = "/plazas" }: { base: string; filtros: FiltrosEmpleo; ruta?: string }) {
   const router = useRouter();
   const [ordenando, iniciar] = useTransition();
-  const lista = rutaEn(base, "/plazas");
+  const lista = rutaEn(base, ruta);
   return (
     <label className="ml-auto inline-flex min-w-0 items-center gap-2 text-meta text-inkSoft" aria-busy={ordenando}>
       {ordenando ? <Loader2 size={15} aria-hidden className="shrink-0 animate-spin text-mute" /> : <ArrowDownUp size={15} aria-hidden className="shrink-0 text-mute" />}

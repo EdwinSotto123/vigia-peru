@@ -29,7 +29,7 @@ export function middleware(req: NextRequest) {
     // navegador a mitad de la página).
     if (esApp(pathname) && !conSesion(req)) return aEntrar(req, "", pathname + search);
     if (aLaApp) {
-      const bandeja = producto === "licitaciones" ? aLaBandeja(pathname, req.nextUrl.searchParams) : null;
+      const bandeja = producto === "licitaciones" ? aLaBandeja(pathname, req.nextUrl.searchParams) : producto === "empleo" ? aLaAppEmpleo(pathname, search) : null;
       if (bandeja) return NextResponse.redirect(new URL(bandeja, req.nextUrl), 307);
       const destino = destinoConSesion(producto, pathname);
       if (destino) return NextResponse.redirect(new URL(destino, req.nextUrl), 307);
@@ -60,6 +60,10 @@ export function middleware(req: NextRequest) {
     if (pathname.startsWith("/licitaciones/")) {
       const bandeja = aLaBandeja(pathname.slice("/licitaciones".length), req.nextUrl.searchParams);
       if (bandeja) return NextResponse.redirect(new URL(`/licitaciones${bandeja}`, req.nextUrl), 307);
+    }
+    if (pathname.startsWith("/empleo/")) {
+      const app = aLaAppEmpleo(pathname.slice("/empleo".length), search);
+      if (app) return NextResponse.redirect(new URL(`/empleo${app}`, req.nextUrl), 307);
     }
     for (const p of PRODUCTOS_CON_RUTA) {
       if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
@@ -149,9 +153,21 @@ function aLaBandeja(ruta: string, sp: URLSearchParams): string | null {
 }
 
 /** A dónde va quien tiene la sesión abierta, desde una ruta del producto (null: se queda). */
+/**
+ * Con la sesión abierta, la lista y la ficha de Gobserva Empleo para visitantes llevan a las de la app (2026-11-07): los
+ * filtros son los mismos, así que la consulta pasa tal cual (los enlaces de los correos y de las alertas siguen sirviendo).
+ */
+function aLaAppEmpleo(ruta: string, search: string): string | null {
+  const ficha = ruta.match(/^\/plaza\/(\d{1,9})$/);
+  if (ficha) return `/app/plaza/${ficha[1]}`;
+  if (ruta === "/plazas") return `/app/plazas${search}`;
+  return null;
+}
+
 function destinoConSesion(producto: Producto, ruta: string): string | null {
   if (ruta === "/") return "/cuenta";
   if (producto === "licitaciones" && ruta === "/para-ti") return "/cuenta?tab=para-ti";
+  if (producto === "empleo" && ruta === "/para-ti") return "/app/para-ti";
   return null;
 }
 

@@ -8,6 +8,7 @@ import { Notificaciones as AvisosDispositivo } from "@/components/gobserva/cuent
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
 import { useNotificaciones } from "@/lib/licitaciones-app/useNotificaciones";
+import { useProductoApp } from "@/components/gobserva/app/contexto";
 import { cn } from "@/lib/utils";
 import { EstadoError, EstadoVacio } from "../ui/Estados";
 import { ItemNotificacion } from "./Item";
@@ -27,6 +28,7 @@ export function Centro({ base }: { base: string }) {
   const router = useRouter();
   const ver = (FILTROS.find((f) => f.clave === sp.get("ver"))?.clave ?? "todas") as (typeof FILTROS)[number]["clave"];
   const { lista, leidas, noLeidas, marcar, marcarTodas, cargando, error, reintentar } = useNotificaciones();
+  const producto = useProductoApp() ?? "licitaciones";
   const vista = lista.filter((n) => ver === "todas" || (ver === "vence" ? n.tipo === "vence" : n.tipo === "alerta"));
   const cuantas = (c: string) => lista.filter((n) => c === "todas" || (c === "vence" ? n.tipo === "vence" : n.tipo === "alerta")).length;
 
@@ -85,13 +87,15 @@ export function Centro({ base }: { base: string }) {
             titulo={ver === "vence" ? "Ningún plazo vence en los próximos 3 días" : ver === "alertas" ? "Tus alertas no trajeron nada nuevo todavía" : "Nada nuevo por ahora"}
             texto={
               ver === "alertas"
-                ? "Cuando una alerta encuentre oportunidades nuevas, llegan aquí y a tu correo."
-                : "Sigue procesos desde la bandeja y te avisamos aquí cuando se acerque su fin de consultas, su cierre o su buena pro."
+                ? `Cuando una alerta encuentre ${producto === "empleo" ? "plazas" : "oportunidades"} nuevas, llegan aquí y a tu correo.`
+                : producto === "empleo"
+                  ? "Guarda plazas y te avisamos aquí cuando falten pocos días para que cierre su postulación."
+                  : "Sigue procesos desde la bandeja y te avisamos aquí cuando se acerque su fin de consultas, su cierre o su buena pro."
             }
             acciones={
               <>
-                <Link href={rutaEn(base, "/app/bandeja")} className={claseAccion("primario")}>
-                  Ir a la bandeja
+                <Link href={rutaEn(base, producto === "empleo" ? "/app/plazas" : "/app/bandeja")} className={claseAccion("primario")}>
+                  {producto === "empleo" ? "Buscar plazas" : "Ir a la bandeja"}
                 </Link>
                 <Link href={rutaEn(base, "/cuenta?tab=alertas")} className={claseAccion("secundario")}>
                   <BellPlus size={15} aria-hidden /> Crear una alerta
@@ -130,7 +134,7 @@ export function Centro({ base }: { base: string }) {
             </li>
           </ul>
         </Caja>
-        <AvisosDispositivo producto="licitaciones" />
+        <AvisosDispositivo producto={producto} />
       </div>
     </div>
   );

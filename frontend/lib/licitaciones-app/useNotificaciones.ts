@@ -4,6 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import useSWR from "swr";
 import { useSesion } from "@/components/gobserva/cuenta/comun";
 import { cargarBandeja } from "@/lib/gobserva-cuenta";
+import { useProductoApp } from "@/components/gobserva/app/contexto";
 import { armarNotificaciones, sinLeer, type Notificacion } from "./notificaciones";
 import { useSeguimiento } from "./useSeguimiento";
 
@@ -39,8 +40,9 @@ function escribir(s: Set<string>) {
 
 export function useNotificaciones() {
   const { conCuenta } = useSesion();
-  const seg = useSeguimiento();
-  const bandeja = useSWR(conCuenta ? ["gobserva-bandeja", "licitaciones"] : null, () => cargarBandeja("licitaciones"), { revalidateOnFocus: true, refreshInterval: 5 * 60_000 });
+  const producto = useProductoApp() === "empleo" ? "empleo" : "licitaciones";
+  const seg = useSeguimiento(producto);
+  const bandeja = useSWR(conCuenta ? ["gobserva-bandeja", producto] : null, () => cargarBandeja(producto), { revalidateOnFocus: true, refreshInterval: 5 * 60_000 });
   const leidas = useSyncExternalStore(
     (o) => {
       oyentes.add(o);
@@ -50,8 +52,8 @@ export function useNotificaciones() {
     () => VACIO,
   );
   const lista: Notificacion[] = useMemo(
-    () => armarNotificaciones({ seguimiento: seg.data?.data ?? [], envios: bandeja.data?.data ?? [] }),
-    [seg.data, bandeja.data],
+    () => armarNotificaciones({ seguimiento: seg.data?.data ?? [], envios: bandeja.data?.data ?? [], cosa: producto === "empleo" ? ["plaza", "plazas"] : undefined }),
+    [seg.data, bandeja.data, producto],
   );
   return {
     lista,

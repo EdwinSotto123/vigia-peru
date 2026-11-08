@@ -21,6 +21,7 @@ import {
   LIMA_CALLAO, NOMBRE_TIPO, PREGUNTAS, RANGOS, RUBROS, alternarPalabra, candidatas, perfilDesdeRubro, perfilDesdeTexto, siguientePendiente, textoRespuesta,
   type Pregunta, type Rubro,
 } from "@/lib/licitaciones-app/entrevista";
+import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 
 /** Lo que devuelve GET /licitaciones/bandeja/calce. */
@@ -381,6 +382,11 @@ export function Entrevista({ base }: { base: string }) {
                 ))}
               </ol>
               <span className="shrink-0 text-meta font-semibold tabular-nums text-inkSoft">{progreso} de {PREGUNTAS.length}</span>
+              {p.palabras.length > 0 && calce.data && (
+                <span className="shrink-0 rounded-full bg-granate-50 px-2.5 py-0.5 text-meta font-semibold tabular-nums text-ink lg:hidden">
+                  {numero(calce.data.total)} calzan
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -436,7 +442,7 @@ export function Entrevista({ base }: { base: string }) {
             )}
           </div>
 
-          {!tiene && estado === "entrevista" && (
+          {!tiene && estado === "entrevista" && actual !== null && (
             <div className="sticky bottom-0 z-10 -mx-4 bg-gradient-to-t from-lienzo via-lienzo to-lienzo/0 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:-mx-6 sm:px-6">
               <Compositor
                 valor={texto}
@@ -604,7 +610,7 @@ const Final = forwardRef<HTMLDivElement, {
                 <li key={o.ocid} className="bg-lienzo/50 px-3.5 py-3">
                   <p className="line-clamp-2 text-dato font-semibold text-ink">{limpiar(o.objeto) || "Sin descripción"}</p>
                   <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-inkSoft">
-                    <span className="min-w-0 truncate">{limpiar(o.entidad) || "Entidad sin nombre"}</span>
+                    <span className="min-w-0 truncate">{o.entidad ? tituloNatural(o.entidad) : "Entidad sin nombre"}</span>
                     <span className={cn("inline-flex shrink-0 items-center gap-1 font-semibold", v.estado === "hoy" || v.estado === "pronto" ? "text-amberTexto" : "text-inkSoft")}>
                       <CalendarClock size={13} aria-hidden /> Consultas: {v.texto.toLowerCase()}
                     </span>

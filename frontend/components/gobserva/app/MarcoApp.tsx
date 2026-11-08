@@ -32,8 +32,9 @@ export function MarcoApp({
   children: ReactNode;
 }) {
   const p = PRODUCTOS[producto];
+  const empleo = producto === "empleo";
   return (
-    <ProveedorApp>
+    <ProveedorApp producto={producto}>
       <ProveedorAvisos>
       <div className="min-h-screen bg-lienzo lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
         <a
@@ -64,14 +65,14 @@ export function MarcoApp({
                 <MarcaGobserva producto={producto} tamano="sm" />
               </Link>
               {/* Buscar oportunidades desde cualquier página: un formulario GET, sin JavaScript. */}
-              <form role="search" action={rutaEn(base, "/app/bandeja")} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
-                <label htmlFor="app-buscar" className="sr-only">Buscar oportunidades</label>
+              <form role="search" action={rutaEn(base, empleo ? "/app/plazas" : "/app/bandeja")} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
+                <label htmlFor="app-buscar" className="sr-only">{empleo ? "Buscar plazas" : "Buscar oportunidades"}</label>
                 <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
                 <input
                   id="app-buscar"
                   name="q"
                   type="search"
-                  placeholder="Busca lo que vendes: tóner, cemento, consultoría…"
+                  placeholder={empleo ? "Busca tu puesto: contador, enfermera, chofer…" : "Busca lo que vendes: tóner, cemento, consultoría…"}
                   className="h-10 w-full rounded-lg border border-line bg-lienzo/70 pl-10 pr-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido focus:border-granate focus:bg-caja focus:outline-none focus:ring-2 focus:ring-granate/30"
                 />
               </form>

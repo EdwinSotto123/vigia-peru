@@ -289,16 +289,19 @@ export interface ResumenParaTi {
 export const cargarParaTi = (linea: number) =>
   api<{ linea: { id: number; nombre: string }; data: OportunidadParaTi[]; resumen?: ResumenParaTi; limite: number; plan: string | null }>(`/para-ti?linea=${linea}`);
 
-export type ClavePlazo = "convocatoria" | "consultas" | "buena_pro" | "cierre";
+export type ClavePlazo = "convocatoria" | "consultas" | "buena_pro" | "cierre" | "abre" | "postulacion";
 export interface Plazo {
   clave: ClavePlazo;
   etiqueta: string;
   fecha: string;
 }
 
-/** Lo guardado en Licitaciones con lo que se sabe hoy de cada uno (GET /seguimiento, backend/api/src/lib/seguimiento.ts). */
+/**
+ * Lo guardado en Licitaciones (licitaciones y contratos menores) o en Empleo (plazas CAS) con lo que se sabe hoy de cada
+ * uno (GET /seguimiento, backend/api/src/lib/seguimiento.ts). En una plaza, `valor` es el sueldo mensual.
+ */
 export interface ItemSeguimiento {
-  tipo: "oportunidad" | "menor";
+  tipo: "oportunidad" | "menor" | "plaza";
   ref: string;
   titulo: string | null;
   estado: EstadoGuardado;
@@ -313,7 +316,13 @@ export interface ItemSeguimiento {
   plazos: Plazo[];
   proximo: Plazo | null;
 }
-export const cargarSeguimiento = () => api<{ data: ItemSeguimiento[] }>("/seguimiento");
+/** Los productos con tablero de seguimiento. */
+export type ProductoSeguido = "licitaciones" | "empleo";
+export const seguidoDe = (p: Producto | null | undefined): ProductoSeguido => (p === "empleo" ? "empleo" : "licitaciones");
+/** La clave de SWR del seguimiento (la de Licitaciones es la de siempre: la comparten el tablero, el inicio y la campana). */
+export const claveSeguimiento = (p: ProductoSeguido = "licitaciones") => (p === "empleo" ? ["gobserva-seguimiento", "empleo"] : ["gobserva-seguimiento"]);
+export const cargarSeguimiento = (p: ProductoSeguido = "licitaciones") =>
+  api<{ data: ItemSeguimiento[] }>(p === "empleo" ? "/seguimiento?producto=empleo" : "/seguimiento");
 
 /** Una búsqueda guardada de la bandeja (migración 266): su nombre y la búsqueda como URL. */
 export interface BusquedaGuardada {

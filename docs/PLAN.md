@@ -1,7 +1,8 @@
 # Plan: la app de Gobserva Licitaciones (inspirada en LicitaLAB)
 
-Fecha: 2026-11-07. Estado: etapa 2 en producción. Bandeja en vivo, detalle, onboarding, seguimiento en la cuenta,
-notificaciones y alertas desde la bandeja (ver «Estado de la etapa 2»).
+Fecha: 2026-11-07. Estado: etapa 2 en producción. Bandeja en vivo, detalle, onboarding como entrevista en un chat,
+seguimiento en la cuenta, notificaciones y alertas desde la bandeja (ver «Estado de la etapa 2»). La misma app existe
+también para Gobserva Empleo (ver «La app de Gobserva Empleo»).
 
 ## Qué se construye
 
@@ -40,7 +41,7 @@ En `licitaciones.gobserva.cloud`; en DEV llevan delante `/licitaciones`.
 | `/login` | Redirige a `/entrar` y conserva `next` | |
 | `/entrar` | Entrar o crear cuenta | Sitio |
 | `/app` | Redirige a `/app/bandeja` | App |
-| `/app/bienvenida` | Onboarding en 4 pasos: qué vendes, dónde, qué contratos, cómo avisarte | Pantalla completa |
+| `/app/bienvenida` | Onboarding como entrevista en un chat: seis preguntas que se tocan (rubro, palabras, tipos, regiones, tamaño, avisos), cada una se puede cambiar, y el perfil al lado con cuántas calzan hoy | Pantalla completa |
 | `/app/bandeja` | Bandeja: búsqueda, filtros, orden, paginación, búsquedas guardadas, alerta y Excel, todo en la URL | App (`MarcoApp`) |
 | `/app/oportunidad/[id]` | Detalle en pestañas (`?tab=`) | App |
 | `/app/notificaciones` | Centro de notificaciones (`?ver=vence` o `?ver=alertas`) | App |
@@ -190,9 +191,14 @@ En producción y probado de punta a punta con usuarios desechables:
 
   La muestra queda para desarrollo (`LICITACIONES_FUENTE`). El filtro «con señales» no se muestra en vivo porque las
   señales se calculan sólo para la página que se ve.
-- **Onboarding** (`/app/bienvenida`). Cuatro pasos, con la validación de cada paso y palabras sugeridas. Cada palabra
-  muestra cuántas oportunidades abiertas trae, en vivo. Al terminar crea la línea («Para ti»), la alerta y la búsqueda
-  «Mi empresa». Quien crea su cuenta llega ahí. Sin perfil, la bandeja y el Inicio lo ofrecen.
+- **Onboarding como entrevista** (`/app/bienvenida`, `components/licitaciones-app/onboarding/Entrevista.tsx`). El
+  asistente pregunta de a una, con «escribiendo…» entre preguntas: rubro (12 rubros o texto libre), palabras clave (se
+  tocan, se suman escribiendo, y cada una dice cuántas hay abiertas hoy), tipos, regiones, tamaño y avisos. Cada
+  respuesta tiene «Cambiar» y vuelve al cierre. Al lado (desde lg) el perfil se arma con cuántas convocatorias calzan; en
+  el celular, ese número va junto al avance. El cierre muestra tres que calzan, deja nombrar el perfil y crea la línea
+  («Para ti»), la alerta y la búsqueda «Mi empresa». Los conteos salen de `GET /licitaciones/bandeja/calce` (cada
+  palabra, el total y el vistazo en UNA consulta: una por palabra hacía saltar el límite por IP). Las piezas del chat son
+  de todos los productos: `components/gobserva/app/chat/Chat.tsx`. Quien crea su cuenta llega ahí.
 - **Seguimiento coherente.** La estrella (licitaciones y contratos menores), la etapa y las notas escriben en la cuenta
   (`useSeguimiento`, la API de guardados): lo seguido aparece en el tablero, el calendario y las notificaciones.
 - **Búsquedas guardadas y checklist en la cuenta** (migración 266: `gobserva_busquedas`, `gobserva_checklist`; rutas
@@ -231,6 +237,30 @@ En producción y probado de punta a punta con usuarios desechables:
   RAG de la migración 258). Hoy responde con la ficha y lo dice.
 - **Reportes de marcas y catálogo:** no tenemos esos datos. Mercado (compradores, ganadores y precios por palabra) es
   lo que hay en vivo.
+
+## La app de Gobserva Empleo (2026-11-07)
+
+`empleo.gobserva.cloud`, con el mismo marco (`MarcoApp`, `NavApp` con su barra: Inicio, Para ti, Plazas, Licitaciones,
+Postulaciones, Calendario, Notificaciones, Mis alertas). El producto de la app va en el contexto (`useProductoApp`): el
+seguimiento, la campana y las notificaciones leen de qué producto son.
+
+| Ruta | Qué es |
+|---|---|
+| `/app/bienvenida` | La entrevista de Empleo (`components/empleo-app/Entrevista.tsx`): qué trabajo buscas (12 áreas o texto), palabras, estudios, experiencia, dónde, sueldo mínimo y avisos. Guarda la búsqueda «Mi perfil» y la alerta |
+| `/app/para-ti` | Las plazas abiertas que calzan con el perfil (`GET /empleo/calce`): filtro por palabra, orden y página en la URL; cada una con su estrella |
+| `/app/plazas` | La lista con los filtros de la portada (texto, región, estudios, sueldo, experiencia, cierre), chips que se quitan, orden, alerta y Excel |
+| `/app/plaza/[aviso]` | La ficha: guardar con su etapa, postular, SERVIR, cuatro cifras, «¿Cumples?», lo que pagan otras, lo que nadie te dice, cómo postular (`?volver=` conserva los filtros) |
+| `/app/notificaciones` | Las plazas guardadas que cierran pronto y lo nuevo de tus alertas |
+| `/cuenta?tab=…` | Inicio (`InicioEmpleo`), Postulaciones (el tablero: guardada, postulé, entrevista, me eligieron, descartada), Calendario (.ics), Mis alertas, Plan y pagos, Perfil |
+
+Con la sesión abierta, `/plazas` y `/plaza/:aviso` llevan a la app (los filtros pasan tal cual) y `/para-ti` a
+`/app/para-ti`. Quien crea su cuenta en Empleo llega a la entrevista.
+
+API: `GET /empleo/calce` (palabras del perfil, sugeridas que sólo se cuentan, región, estudios, sueldo y experiencia;
+total, conteo por palabra y la página de plazas) y `GET /gobserva/cuenta/seguimiento?producto=empleo` (las plazas
+guardadas con su sueldo, su región y los plazos «Abre la postulación» y «Cierra la postulación», el último día a las
+23:59 de Lima). Sin migraciones: el perfil es una búsqueda guardada (migración 266) y las etapas usan los estados que
+los guardados ya tenían.
 
 ## Verificación de cada etapa
 

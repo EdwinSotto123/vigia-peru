@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, BellPlus, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Landmark, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -31,7 +31,7 @@ interface GrupoApp {
   items: ItemApp[];
 }
 
-/** La app de cada producto. Sólo Licitaciones tiene app por ahora. */
+/** La app de cada producto: Licitaciones y Empleo (2026-11-07). */
 const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> = {
   licitaciones: {
     grupos: [
@@ -54,6 +54,36 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         titulo: "Organizar",
         items: [
           { ruta: "/cuenta?tab=seguimiento", etiqueta: "Seguimiento", Icono: KanbanSquare, abajo: true, corto: "Tablero" },
+          { ruta: "/cuenta?tab=calendario", etiqueta: "Calendario", Icono: CalendarDays },
+          { ruta: "/app/notificaciones", etiqueta: "Notificaciones", Icono: Bell },
+          { ruta: "/cuenta?tab=alertas", etiqueta: "Mis alertas", Icono: BellPlus },
+        ],
+      },
+    ],
+    cuenta: [
+      { ruta: "/cuenta?tab=pagos", etiqueta: "Plan y pagos", Icono: CreditCard },
+      { ruta: "/cuenta?tab=perfil", etiqueta: "Perfil", Icono: UserRound },
+    ],
+  },
+  empleo: {
+    grupos: [
+      {
+        items: [
+          { ruta: "/cuenta", etiqueta: "Inicio", Icono: House, abajo: true },
+          { ruta: "/app/para-ti", etiqueta: "Para ti", Icono: Sparkles, abajo: true },
+        ],
+      },
+      {
+        titulo: "Buscar",
+        items: [
+          { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/"] },
+          { ruta: urlCanonica("licitaciones", "/"), etiqueta: "Licitaciones", Icono: Landmark },
+        ],
+      },
+      {
+        titulo: "Organizar",
+        items: [
+          { ruta: "/cuenta?tab=seguimiento", etiqueta: "Postulaciones", Icono: KanbanSquare, abajo: true, corto: "Tablero" },
           { ruta: "/cuenta?tab=calendario", etiqueta: "Calendario", Icono: CalendarDays },
           { ruta: "/app/notificaciones", etiqueta: "Notificaciones", Icono: Bell },
           { ruta: "/cuenta?tab=alertas", etiqueta: "Mis alertas", Icono: BellPlus },

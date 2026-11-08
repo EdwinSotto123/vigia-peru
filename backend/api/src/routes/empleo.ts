@@ -5,6 +5,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
+import { MAX_FRASES_CALCE, condicionesFrases } from "../lib/bandeja.js";
 
 /**
  * empleo.gobserva.cloud (Gobserva Empleo, 2026-11-01): las plazas CAS que el Estado publica en SERVIR
@@ -16,6 +17,8 @@ import { palabrasBusqueda } from "./personas.js";
  *                         primero y las mejor pagadas.
  *   GET /empleo/plazas    la lista con filtros (texto, región, nivel de estudios, sueldo mínimo, años de experiencia,
  *                         cierre, señal) y sus facetas: cuántas hay en cada región y en cada nivel con los demás filtros.
+ *   GET /empleo/calce     la app (onboarding y «Para ti»): con las palabras del perfil, cuántas plazas calzan con cada
+ *                         una y con alguna, y la página de las que calzan.
  *   GET /empleo/sitemap   los avisos abiertos (para el sitemap del producto).
  *
  * La región sale de `ubicacion` («DEPARTAMENTO - PROVINCIA»): llega en mayúsculas sin tildes (mef_norm) y la URL la pide
@@ -196,6 +199,64 @@ empleoRouter.get("/plazas", async (c) => {
       medianaSueldo: f.medianaSueldo,
       facetas: { region: f.porRegion, nivel: f.porNivel },
       data: f.data.map(({ pos: _p, ...d }) => d),
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /empleo/calce ───────────────────────────────────────────────────────────────────────────
+/** El texto donde busca una palabra (el mismo de la lista: lo que cuenta el calce es lo que la lista encuentra). */
+const TEXTO_PLAZA = `mef_norm(concat_ws(' ', s.titulo, s.entidad, s.ubicacion, s.servicio, s.formacion))`;
+
+const Calce = z.object({
+  palabras: z.string().max(600).optional(),
+  otras: z.string().max(400).optional(),
+  region: Lista.shape.region,
+  tengo: Lista.shape.tengo,
+  sueldo: Lista.shape.sueldo,
+  exp: Lista.shape.exp,
+  orden: z.enum(["cierre", "sueldo", "reciente"]).catch("cierre").default("cierre"),
+  page: z.coerce.number().int().min(1).max(100).catch(1).default(1),
+  size: z.coerce.number().int().min(1).max(30).catch(3).default(3),
+});
+
+/**
+ * La app de Empleo (2026-11-07): la entrevista del onboarding y «Para ti». Con las palabras del perfil (`palabras`,
+ * separadas por «|»; `otras`, las sugeridas aún sin elegir, sólo se cuentan) y sus filtros (región, estudios, sueldo
+ * mínimo y experiencia, como la lista), cuántas plazas abiertas calzan con cada palabra y con alguna, y la página de
+ * las que calzan (por cierre, sueldo o recientes). UNA consulta por respuesta.
+ */
+empleoRouter.get("/calce", async (c) => {
+  const p = Calce.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const separar = (t: string | undefined) => (t ?? "").split("|").map((x) => x.trim().slice(0, 40)).filter(Boolean);
+  const elegidas = [...new Set(separar(q.palabras))].slice(0, 10);
+  const otras = [...new Set(separar(q.otras))].filter((w) => !elegidas.includes(w)).slice(0, MAX_FRASES_CALCE - elegidas.length);
+  const todas = [...elegidas, ...otras];
+  const cuerpo = await memo.obtener(`calce:${JSON.stringify([q, elegidas, otras])}`, async () => {
+    if (!todas.length) return { total: 0, porPalabra: [], page: q.page, size: q.size, data: [] };
+    const filtros: FiltrosPlazas = { region: q.region, tengo: q.tengo, sueldo: q.sueldo, exp: q.exp, orden: "cierre", page: 1, size: 12 };
+    const { conds, vals, rc, nc } = condicionesPlazas(filtros);
+    const { porFrase, alguna } = condicionesFrases(todas.map((w) => palabrasBusqueda(w)), elegidas.length, vals, "b.t");
+    const r = await pool.query(
+      `WITH base AS MATERIALIZED (SELECT ${FILA}, ${TEXTO_PLAZA} AS t ${DESDE} WHERE ${conds.join(" AND ")}),
+            b AS MATERIALIZED (SELECT * FROM base WHERE ${rc} AND ${nc})
+       SELECT (SELECT count(*) FROM b WHERE ${alguna})::int AS total,
+              ${porFrase.map((x, i) => `(SELECT count(*) FROM b WHERE ${x})::int AS f${i}`).join(", ")},
+              COALESCE((SELECT json_agg(d ORDER BY d.pos) FROM (
+                SELECT b.*, row_number() OVER (ORDER BY ${ORDEN[q.orden]}) AS pos FROM b WHERE ${alguna}
+                 ORDER BY pos LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}) d), '[]') AS data`,
+      vals,
+    );
+    const f = r.rows[0] as Record<string, unknown> & { total: number; data: Record<string, unknown>[] };
+    return publicar({
+      total: f.total,
+      porPalabra: todas.map((palabra, i) => ({ palabra, n: (f[`f${i}`] as number) ?? 0 })),
+      page: q.page,
+      size: q.size,
+      data: f.data.map(({ pos: _p, t: _t, ...d }) => d),
     });
   });
   c.header("Cache-Control", CACHE);

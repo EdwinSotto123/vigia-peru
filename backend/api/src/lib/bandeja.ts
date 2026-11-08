@@ -106,15 +106,25 @@ export const MAX_FRASES_CALCE = 16;
  */
 export function sqlCalce(q: QBandeja, frases: string[][], delPerfil = frases.length) {
   const { conds, vals } = condicionesBandeja(q, []);
+  const { porFrase, alguna } = condicionesFrases(frases, delPerfil, vals, "b.t");
+  const base = `SELECT c.ocid, ${TEXTO_BANDEJA} AS t FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE ${conds.join(" AND ")}`;
+  return { base, porFrase, alguna, vals };
+}
+
+/**
+ * Las condiciones de cada palabra clave sobre una columna de texto ya normalizado (`columna`): una frase pide todas sus
+ * palabras (LIKE por palabra, con sus parámetros al final de `vals`). `alguna`: el OR de las `delPerfil` primeras. La
+ * usan el calce de Licitaciones (sqlCalce) y el de Empleo (routes/empleo.ts).
+ */
+export function condicionesFrases(frases: string[][], delPerfil: number, vals: unknown[], columna: string) {
   const poner = (v: unknown) => {
     vals.push(v);
     return `$${vals.length}`;
   };
-  const porFrase = frases.slice(0, MAX_FRASES_CALCE).map((ws) => (ws.length ? ws.map((w) => `b.t LIKE ${poner(`%${w}%`)}`).join(" AND ") : "false"));
+  const porFrase = frases.slice(0, MAX_FRASES_CALCE).map((ws) => (ws.length ? ws.map((w) => `${columna} LIKE ${poner(`%${w}%`)}`).join(" AND ") : "false"));
   const elegidas = porFrase.slice(0, delPerfil);
   const alguna = elegidas.length ? elegidas.map((x) => `(${x})`).join(" OR ") : "false";
-  const base = `SELECT c.ocid, ${TEXTO_BANDEJA} AS t FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE ${conds.join(" AND ")}`;
-  return { base, porFrase, alguna, vals };
+  return { porFrase, alguna };
 }
 
 /** El orden: siempre con desempate, para que una página no repita ni salte filas. */

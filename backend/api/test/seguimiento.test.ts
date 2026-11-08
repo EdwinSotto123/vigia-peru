@@ -60,3 +60,15 @@ test("resumenParaTi: sólo lo que calza, por fuente, lo que cierra en 7 días y 
 test("resumenParaTi: vacío, todo en cero", () => {
   assert.deepEqual(resumenParaTi([], AHORA), { calzan: 0, procesos: 0, menores: 0, cierranSemana: 0, valorEnJuego: 0 });
 });
+
+test("ordenarPlazos: una plaza de Empleo abre y cierra la postulación (el último día a las 23:59 de Lima)", () => {
+  const { plazos, proximo } = ordenarPlazos(
+    [
+      { clave: "abre", fecha: "2026-11-03T05:00:00Z" },
+      { clave: "postulacion", fecha: "2026-11-10T04:59:00Z" },
+    ],
+    new Date("2026-11-07T15:00:00Z"),
+  );
+  assert.deepEqual(plazos.map((p) => p.etiqueta), ["Abre la postulación", "Cierra la postulación"]);
+  assert.equal(proximo?.clave, "postulacion");
+});

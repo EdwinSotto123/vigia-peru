@@ -47,14 +47,18 @@ export interface Notificacion {
   items?: { titulo: string; enlace: string }[];
 }
 
-const ABIERTOS = new Set(["guardada", "preparando", "presentada"]);
+const ABIERTOS = new Set(["guardada", "preparando", "presentada", "postule", "entrevista"]);
 const AVISA_DIAS = 3;
 
 const cuando = (dias: number) => (dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`);
-const ruta = (i: ItemN) => (i.tipo === "menor" ? `/app/menor/${encodeURIComponent(i.ref)}` : `/app/oportunidad/${encodeURIComponent(i.ref)}?tab=cronograma`);
+const ruta = (i: ItemN) =>
+  i.tipo === "plaza" ? `/app/plaza/${encodeURIComponent(i.ref)}` : i.tipo === "menor" ? `/app/menor/${encodeURIComponent(i.ref)}` : `/app/oportunidad/${encodeURIComponent(i.ref)}?tab=cronograma`;
 const isoLima = (creado: string) => (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(creado) ? `${creado.replace(" ", "T")}:00-05:00` : creado);
 
-export function armarNotificaciones({ seguimiento, envios, ahora = Date.now() }: { seguimiento: ItemN[]; envios: EnvioN[]; ahora?: number }): Notificacion[] {
+/** `cosa`: cómo se llama lo que avisa una alerta («oportunidad» en Licitaciones, «plaza» en Empleo). */
+export function armarNotificaciones({
+  seguimiento, envios, ahora = Date.now(), cosa = ["oportunidad", "oportunidades"],
+}: { seguimiento: ItemN[]; envios: EnvioN[]; ahora?: number; cosa?: [string, string] }): Notificacion[] {
   const vencen: Notificacion[] = [];
   for (const i of seguimiento) {
     if (!ABIERTOS.has(i.estado)) continue;
@@ -68,7 +72,7 @@ export function armarNotificaciones({ seguimiento, envios, ahora = Date.now() }:
         id: `vence:${i.tipo}:${i.ref}:${p.clave}:${p.fecha}`,
         tipo: "vence",
         titulo: `${p.etiqueta}: ${cuando(dias)}`,
-        texto: i.titulo || "Proceso sin descripción",
+        texto: i.titulo || (i.tipo === "plaza" ? "Plaza sin título" : "Proceso sin descripción"),
         fecha: p.fecha,
         href: ruta(i),
         urgente: dias <= 1,
@@ -83,7 +87,7 @@ export function armarNotificaciones({ seguimiento, envios, ahora = Date.now() }:
       id: `alerta:${e.id}`,
       tipo: "alerta" as const,
       titulo: e.asunto || "Lo nuevo de tu alerta",
-      texto: e.nItems === 1 ? "1 oportunidad nueva que calza con tu alerta" : `${e.nItems} oportunidades nuevas que calzan con tu alerta`,
+      texto: e.nItems === 1 ? `1 ${cosa[0]} nueva que calza con tu alerta` : `${e.nItems} ${cosa[1]} nuevas que calzan con tu alerta`,
       fecha: isoLima(e.creado),
       href: "/app/notificaciones?ver=alertas",
       urgente: false,

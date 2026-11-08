@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
-import { cargarSeguimiento, type ClavePlazo } from "@/lib/gobserva-cuenta";
+import { cargarSeguimiento, claveSeguimiento, type ClavePlazo, type ProductoSeguido } from "@/lib/gobserva-cuenta";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 import type { Seccion } from "./Cuenta";
@@ -20,9 +20,11 @@ const TONO: Record<ClavePlazo, string> = {
   consultas: "bg-amber-soft text-amberTexto",
   buena_pro: "bg-moss/15 text-mossTexto",
   convocatoria: "bg-paperDeep text-inkSoft",
+  abre: "bg-paperDeep text-inkSoft",
+  postulacion: "bg-crimson-soft text-crimsonTexto",
 };
-const PUNTO: Record<ClavePlazo, string> = { cierre: "bg-crimson", consultas: "bg-amber", buena_pro: "bg-moss", convocatoria: "bg-mute" };
-const CORTO: Record<ClavePlazo, string> = { cierre: "Cierra", consultas: "Consultas", buena_pro: "Buena pro", convocatoria: "Convocatoria" };
+const PUNTO: Record<ClavePlazo, string> = { cierre: "bg-crimson", consultas: "bg-amber", buena_pro: "bg-moss", convocatoria: "bg-mute", abre: "bg-mute", postulacion: "bg-crimson" };
+const CORTO: Record<ClavePlazo, string> = { cierre: "Cierra", consultas: "Consultas", buena_pro: "Buena pro", convocatoria: "Convocatoria", abre: "Abre", postulacion: "Cierra" };
 const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 
 /**
@@ -30,8 +32,9 @@ const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
  * cierre de una cotización, la buena pro), el día elegido con su lista y los próximos 30 días; todo se descarga como
  * .ics para Google Calendar, Outlook o el calendario del celular, con un aviso un día antes.
  */
-export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion) => void }) {
-  const { data, error, isLoading } = useSWR(["gobserva-seguimiento"], () => cargarSeguimiento());
+export function PanelCalendario({ base, irA, producto = "licitaciones" }: { base: string; irA: (t: Seccion) => void; producto?: ProductoSeguido }) {
+  const { data, error, isLoading } = useSWR(claveSeguimiento(producto), () => cargarSeguimiento(producto));
+  const empleo = producto === "empleo";
   const hoy = diaLima(new Date());
   const [mes, setMes] = useState(() => hoy.slice(0, 7));
   const [dia, setDia] = useState<string>(hoy);
@@ -58,8 +61,8 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
         <VacioCaja
           Icono={CalendarDays}
           titulo="Todavía no hay plazos"
-          texto="Guarda una licitación o un contrato menor y aquí verás su fin de consultas, su cierre y su buena pro."
-          accion={<Link href={rutaEn(base, "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>}
+          texto={empleo ? "Guarda una plaza y aquí verás el día en que cierra su postulación." : "Guarda una licitación o un contrato menor y aquí verás su fin de consultas, su cierre y su buena pro."}
+          accion={<Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>}
         />
       </Caja>
     );
@@ -95,7 +98,7 @@ export function PanelCalendario({ base, irA }: { base: string; irA: (t: Seccion)
                   <ChevronRight size={17} aria-hidden />
                 </button>
               </div>
-              <button type="button" onClick={() => descargarIcs(todos, base)} disabled={!todos.length} className={claseAccion("secundario", "min-h-9 px-4")}>
+              <button type="button" onClick={() => descargarIcs(todos, base, producto)} disabled={!todos.length} className={claseAccion("secundario", "min-h-9 px-4")}>
                 <CalendarPlus size={15} aria-hidden /> Añadir a mi calendario
               </button>
             </>
@@ -256,7 +259,8 @@ function sumarMes(mes: string, n: number): string {
 }
 
 /** El .ics de los plazos que vienen (con un aviso un día antes), para Google Calendar, Outlook o el celular. */
-function descargarIcs(evs: Evento[], base: string) {
+function descargarIcs(evs: Evento[], base: string, producto: ProductoSeguido) {
+  const marca = producto === "empleo" ? "Empleo" : "Licitaciones";
   const utc = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   const esc = (t: string) => t.replace(/\\/g, "\\\\").replace(/[;,]/g, (x) => `\\${x}`).replace(/\r?\n/g, "\\n");
   const ahora = utc(new Date().toISOString());
@@ -264,9 +268,9 @@ function descargarIcs(evs: Evento[], base: string) {
   const lineas = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Gobserva//Licitaciones//ES",
+    `PRODID:-//Gobserva//${marca}//ES`,
     "CALSCALE:GREGORIAN",
-    "X-WR-CALNAME:Gobserva Licitaciones",
+    `X-WR-CALNAME:Gobserva ${marca}`,
     ...futuros.flatMap(({ item, plazo }) => {
       const url = `${window.location.origin}${rutaEn(base, rutaItem(item))}`;
       const inicio = utc(plazo.fecha);
@@ -277,7 +281,7 @@ function descargarIcs(evs: Evento[], base: string) {
         `DTSTAMP:${ahora}`,
         `DTSTART:${inicio}`,
         `DTEND:${fin}`,
-        `SUMMARY:${esc(`${CORTO[plazo.clave]}: ${item.titulo ?? "Proceso guardado"}`)}`,
+        `SUMMARY:${esc(`${CORTO[plazo.clave]}: ${item.titulo ?? (item.tipo === "plaza" ? "Plaza guardada" : "Proceso guardado")}`)}`,
         `DESCRIPTION:${esc(`${plazo.etiqueta}. ${item.entidad ? `${tituloNatural(item.entidad)}. ` : ""}${url}`)}`,
         `URL:${url}`,
         "BEGIN:VALARM",

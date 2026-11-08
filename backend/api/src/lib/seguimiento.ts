@@ -1,7 +1,9 @@
 /**
  * El seguimiento de Gobserva Licitaciones (2026-11-07): lo guardado (licitaciones y contratos menores) con lo que se
  * sabe hoy de cada uno — la entidad, el valor referencial, la región, la etapa y sus plazos — para el tablero
- * (Seguimiento) y el calendario de la cuenta.
+ * (Seguimiento) y el calendario de la cuenta. En Gobserva Empleo (2026-11-07), lo mismo con las plazas CAS guardadas:
+ * el sueldo como valor, la región de su ubicación y dos plazos, cuándo abre y cuándo cierra la postulación (el último
+ * día, a las 23:59 de Lima: SERVIR sólo publica el día).
  *
  * Plazos que se conocen: de una licitación, la convocatoria, el fin de consultas y observaciones (enquiryPeriod del
  * OCDS) y la buena pro (CONOSCE); de un contrato menor, el fin de consultas y el cierre de la cotización (prod6). La
@@ -10,7 +12,7 @@
  */
 import { pool } from "./db.js";
 
-export type ClavePlazo = "convocatoria" | "consultas" | "buena_pro" | "cierre";
+export type ClavePlazo = "convocatoria" | "consultas" | "buena_pro" | "cierre" | "abre" | "postulacion";
 
 export interface Plazo {
   clave: ClavePlazo;
@@ -19,7 +21,7 @@ export interface Plazo {
 }
 
 export interface ItemSeguimiento {
-  tipo: "oportunidad" | "menor";
+  tipo: "oportunidad" | "menor" | "plaza";
   ref: string;
   titulo: string | null;
   estado: string;
@@ -28,9 +30,10 @@ export interface ItemSeguimiento {
   actualizado: string;
   entidad: string | null;
   entidadRuc: string | null;
+  /** El valor referencial (licitación) o el sueldo mensual (plaza). */
   valor: number | null;
   region: string | null;
-  /** «convocada», «adjudicada»… (licitación) o «Vigente», «Cerrado»… (contrato menor). */
+  /** «convocada», «adjudicada»… (licitación), «Vigente», «Cerrado»… (contrato menor) o «abierta», «cerrada» (plaza). */
   etapa: string | null;
   plazos: Plazo[];
   /** El próximo plazo que todavía no pasó (null si ya pasaron todos). */
@@ -42,6 +45,8 @@ export const ETIQUETA_PLAZO: Record<ClavePlazo, string> = {
   consultas: "Fin de consultas y observaciones",
   buena_pro: "Buena pro",
   cierre: "Cierra la cotización",
+  abre: "Abre la postulación",
+  postulacion: "Cierra la postulación",
 };
 
 /**
@@ -62,7 +67,7 @@ export function ordenarPlazos(crudos: { clave: ClavePlazo; fecha: string | Date 
 }
 
 interface Fila {
-  tipo: "oportunidad" | "menor";
+  tipo: "oportunidad" | "menor" | "plaza";
   ref: string;
   titulo: string | null;
   estado: string;
@@ -78,11 +83,33 @@ interface Fila {
   consultas: string | null;
   buena_pro: string | null;
   cierre: string | null;
+  abre?: string | null;
+  postulacion?: string | null;
 }
 
-/** Lo guardado en Licitaciones con su estado de hoy (hasta 3000, lo más reciente primero). */
-export async function seguimiento(uid: string, ahora = new Date()): Promise<ItemSeguimiento[]> {
-  const r = await pool.query<Fila>(
+/** La región de una plaza desde su ubicación («LA LIBERTAD - TRUJILLO» → «LA LIBERTAD»), como la lista de Empleo. */
+const REGION_PLAZA = `NULLIF(mef_norm(split_part(s.ubicacion, ' - ', 1)), '')`;
+
+/** Las plazas CAS guardadas en Empleo, con su sueldo, su región y los días en que abre y cierra la postulación. */
+const SQL_PLAZAS = `WITH g AS (
+       SELECT tipo, ref, titulo, estado, nota, creado_at, actualizado_at
+         FROM gobserva_guardados
+        WHERE firebase_uid = $1 AND producto = 'empleo' AND tipo = 'plaza'
+        ORDER BY creado_at DESC LIMIT 3000
+     )
+     SELECT g.tipo, g.ref, COALESCE(g.titulo, s.titulo) AS titulo, g.estado, g.nota,
+            to_json(g.creado_at)#>>'{}' AS creado, to_json(g.actualizado_at)#>>'{}' AS actualizado,
+            s.entidad, s.entidad_ruc::text AS entidad_ruc, NULLIF(s.remuneracion, 0)::float AS valor,
+            ${REGION_PLAZA} AS region,
+            CASE WHEN s.fecha_fin >= (now() AT TIME ZONE 'America/Lima')::date THEN 'abierta' ELSE 'cerrada' END AS etapa,
+            NULL::text AS convocatoria, NULL::text AS consultas, NULL::text AS buena_pro, NULL::text AS cierre,
+            to_json(s.fecha_inicio::timestamp AT TIME ZONE 'America/Lima')#>>'{}' AS abre,
+            to_json((s.fecha_fin + time '23:59') AT TIME ZONE 'America/Lima')#>>'{}' AS postulacion
+       FROM g LEFT JOIN servir_convocatoria s ON s.aviso = CASE WHEN g.ref ~ '^[0-9]{1,9}$' THEN g.ref::int END`;
+
+/** Lo guardado en un producto (Licitaciones o Empleo) con su estado de hoy (hasta 3000, lo más reciente primero). */
+export async function seguimiento(uid: string, ahora = new Date(), producto: "licitaciones" | "empleo" = "licitaciones"): Promise<ItemSeguimiento[]> {
+  const r = producto === "empleo" ? await pool.query<Fila>(SQL_PLAZAS, [uid]) : await pool.query<Fila>(
     `WITH g AS (
        SELECT tipo, ref, titulo, estado, nota, creado_at, actualizado_at
          FROM gobserva_guardados
@@ -117,6 +144,8 @@ export async function seguimiento(uid: string, ahora = new Date()): Promise<Item
           { clave: "consultas", fecha: f.consultas },
           { clave: "buena_pro", fecha: f.buena_pro },
           { clave: "cierre", fecha: f.cierre },
+          { clave: "abre", fecha: f.abre },
+          { clave: "postulacion", fecha: f.postulacion },
         ],
         ahora,
       );

@@ -86,7 +86,7 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
     // de visitantes (cabecera y pie de la portada) alrededor, que un cambio de página del cliente conservaría.
     if (!loading && conCuenta) {
       marcarSesion(true);
-      window.location.replace(producto === "licitaciones" && modo === "crear" ? rutaEn(base, "/app/bienvenida") : volver);
+      window.location.replace((producto === "licitaciones" || producto === "empleo") && modo === "crear" ? rutaEn(base, "/app/bienvenida") : volver);
     }
   }, [loading, conCuenta, volver, producto, modo, base]);
 

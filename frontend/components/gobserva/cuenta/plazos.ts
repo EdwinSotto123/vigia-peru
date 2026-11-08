@@ -38,6 +38,7 @@ export function fechaHora(fecha: string): string {
 
 /** La ruta de la ficha de algo que se sigue. */
 export function rutaItem(i: Pick<ItemSeguimiento, "tipo" | "ref">): string {
+  if (i.tipo === "plaza") return `/app/plaza/${encodeURIComponent(i.ref)}`;
   return i.tipo === "menor" ? `/app/menor/${i.ref}` : `/app/oportunidad/${encodeURIComponent(i.ref)}`;
 }
 
@@ -53,5 +54,5 @@ export function eventos(items: ItemSeguimiento[], { conConvocatoria = false } = 
     .sort((a, b) => a.plazo.fecha.localeCompare(b.plazo.fecha));
 }
 
-/** Lo que sigue abierto (ni ganado, ni perdido, ni descartado). */
-export const ABIERTOS = new Set(["guardada", "preparando", "presentada"]);
+/** Lo que sigue abierto (ni ganado, ni perdido, ni descartado): en Empleo, guardada, postulé y entrevista. */
+export const ABIERTOS = new Set(["guardada", "preparando", "presentada", "postule", "entrevista"]);

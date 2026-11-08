@@ -10,6 +10,7 @@ import {
   ESTADO_PLAN, NOMBRE_MEDIO, cargarBandeja, cargarLineas, enviarOperacion, fechaLarga, precioCorto, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
+import { usePerfilEmpleo } from "@/components/empleo-app/usePerfilEmpleo";
 import { Aviso, COSAS, ETIQUETA, CAMPO } from "./comun";
 import { CLASE_ENLACE_PIE, Caja, VacioCaja } from "../app/Caja";
 import type { Seccion } from "./Cuenta";
@@ -262,6 +263,7 @@ interface Paso {
 export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir }) {
   const conLineas = producto === "licitaciones";
   const { data: lineas } = useSWR(conLineas ? ["gobserva-lineas"] : null, () => cargarLineas(), { revalidateOnFocus: false });
+  const perfilEmpleo = usePerfilEmpleo(producto === "empleo");
   const verif = useVerificacion(onCambio);
   const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
   const cosas = COSAS[producto];
@@ -286,6 +288,19 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
       listo: (lineas?.data.length ?? 0) > 0,
       titulo: "Dinos qué vende tu empresa",
       texto: "Con eso ordenamos las licitaciones y los contratos menores abiertos, de lo más parecido a lo que vendes a lo menos.",
+      accion: (
+        <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
+          <Sparkles size={15} aria-hidden /> Armar mi perfil
+        </Link>
+      ),
+    });
+  }
+  if (producto === "empleo") {
+    pasos.push({
+      clave: "perfil",
+      listo: !!perfilEmpleo.perfil,
+      titulo: "Dinos qué trabajo buscas",
+      texto: "Siete preguntas en un chat: con eso te mostramos las plazas que calzan contigo, de las que cierran primero a las últimas.",
       accion: (
         <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
           <Sparkles size={15} aria-hidden /> Armar mi perfil

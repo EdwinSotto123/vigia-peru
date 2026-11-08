@@ -41,8 +41,9 @@ import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
  *   GET|POST|DELETE /gobserva/cuenta/push, POST /push/probar   notificaciones en el celular o la computadora (migr. 233)
  *   GET|POST /gobserva/cuenta/lineas, PUT|DELETE /lineas/:id   líneas de negocio de Licitaciones (migr. 264)
  *   GET    /gobserva/cuenta/para-ti?linea=      las oportunidades abiertas por afinidad con una línea (lib/afinidad.ts)
- *   GET    /gobserva/cuenta/seguimiento         lo guardado en Licitaciones con su etapa, su valor y sus plazos de hoy
- *                                               (el tablero y el calendario de la cuenta; lib/seguimiento.ts)
+ *   GET    /gobserva/cuenta/seguimiento         lo guardado en Licitaciones (o, con ?producto=empleo, las plazas de
+ *                                               Empleo) con su etapa, su valor y sus plazos de hoy (el tablero y el
+ *                                               calendario de la cuenta; lib/seguimiento.ts)
  */
 export const gobservaCuentaRouter = new Hono();
 
@@ -587,7 +588,8 @@ gobservaCuentaRouter.get("/para-ti", async (c) => {
 
 gobservaCuentaRouter.get("/seguimiento", async (c) => {
   const u = c.get("user");
-  return c.json({ data: await seguimiento(u.uid) });
+  const producto = c.req.query("producto") === "empleo" ? "empleo" : "licitaciones";
+  return c.json({ data: await seguimiento(u.uid, new Date(), producto) });
 });
 
 /** «Enviar ahora»: avisa ya lo nuevo de una alerta (una vez por hora), para probarla. */
