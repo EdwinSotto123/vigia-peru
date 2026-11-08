@@ -178,8 +178,8 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
       const detalle = await oauth.describeConsent(solicitud);
       const consentimiento = await oauth.beginConsent(solicitud);
       consentimiento.headers.set("Content-Type", "text/html; charset=utf-8");
-      const recurso = new URL(request.url).searchParams.get("resource") ?? "";
-      const preferida: AppCuenta = /\/mcp\/empleo\/?$/.test(recurso) ? "empleo" : "licitaciones";
+      // index.ts → traducirRecurso deja la app de la dirección pedida (/mcp/empleo) en `gobserva_app`.
+      const preferida: AppCuenta = new URL(request.url).searchParams.get("gobserva_app") === "empleo" ? "empleo" : "licitaciones";
       return new Response(paginaConsentimiento(env, detalle, consentimiento.handle, preferida), { headers: consentimiento.headers });
     }
     if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "GET, POST" } });

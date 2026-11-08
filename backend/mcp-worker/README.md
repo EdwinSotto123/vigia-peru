@@ -18,7 +18,9 @@ con `uid`). initialize, tools/list, los recursos y los prompts siguen abiertos.
 `/mcp/licitaciones` (alias `/mcp/obras`: licitaciones, menores, obras, mercado, compradores y competidores, documentos),
 cada una con su nombre e instrucciones (`servidor.ts` → `perfilDeRuta`, `herramientasDe`; `guias.ts`); `/mcp` sigue con
 todas, las guías y los prompts de Vigía. El OAuth es uno: el recurso es `/mcp` y la librería acepta su token en las
-subrutas; si el cliente manda `resource=…/mcp/empleo`, la página de autorización marca la cuenta de Empleo.
+subrutas. Un cliente que pide el token para su dirección (RFC 8707: `resource=…/mcp/empleo`) encuentra sus metadatos en
+`/.well-known/oauth-protected-resource/mcp/empleo` (el 401 apunta ahí) y `index.ts → traducirRecurso` lo pasa a `/mcp`
+antes de la librería (que exige el recurso exacto); la página de autorización marca la cuenta de esa app.
 
 **Créditos (2026-11-08):** cada plan trae créditos al mes (`limites.mcp` en backend/api/src/lib/gobservaPlanes.ts: Empleo
 Alertas 300, Institucional 5 000; Licitaciones Inicia 1 500, Crece 5 000, Pro 15 000) y cada llamada que sale bien descuenta
