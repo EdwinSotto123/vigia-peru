@@ -6,6 +6,9 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
+import { huellaPlaza, resumirPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
+import { limiteLectura } from "../lib/antibots.js";
+import { registrar } from "../lib/registro.js";
 
 /**
  * empleo.gobserva.cloud (Gobserva Empleo, 2026-11-01): las plazas CAS que el Estado publica en SERVIR
@@ -326,6 +329,49 @@ empleoRouter.get("/calce", async (c) => {
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
+});
+
+// ─── GET /empleo/plazas/:aviso/resumen ───────────────────────────────────────────────────────────
+
+/**
+ * «Lo esencial» de una plaza (migración 270, lib/resumenPlaza.ts): el guardado si la plaza no cambió; si no, Haiku lo
+ * arma (sólo para plazas abiertas: las cerradas casi no se miran) y queda guardado. Con el límite de lecturas por IP.
+ */
+const generando = new Map<number, Promise<unknown>>();
+empleoRouter.get("/plazas/:aviso/resumen", limiteLectura, async (c) => {
+  const aviso = Number.parseInt(c.req.param("aviso"), 10);
+  if (!Number.isInteger(aviso) || aviso <= 0) return c.json({ error: "no_encontrado" }, 404);
+  const fila = (await pool.query<PlazaParaResumen & { abierta: boolean }>(
+    `SELECT aviso, titulo, entidad, ubicacion, numero, vacantes, remuneracion::float AS remuneracion, to_char(fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
+            experiencia, formacion, especializacion, conocimiento, competencias, (fecha_fin >= ${HOY}) AS abierta
+       FROM servir_convocatoria WHERE aviso = $1`, [aviso])).rows[0];
+  if (!fila) return c.json({ error: "no_encontrado" }, 404);
+  const huella = huellaPlaza(fila);
+  const guardado = (await pool.query<{ resumen: unknown; huella: string }>(`SELECT resumen, huella FROM servir_resumen WHERE aviso = $1`, [aviso])).rows[0];
+  c.header("Cache-Control", "public, max-age=600, s-maxage=3600");
+  if (guardado && (guardado.huella === huella || !fila.abierta)) return c.json({ aviso, resumen: guardado.resumen });
+  if (!fila.abierta) return c.json({ error: "cerrada", detail: "Esta plaza ya cerró." }, 404);
+  // Dos pedidos a la vez de la misma plaza esperan el mismo resumen (no se paga dos veces).
+  let tarea = generando.get(aviso);
+  if (!tarea) {
+    tarea = resumirPlaza(c.env as Parameters<typeof resumirPlaza>[0], fila)
+      .then(async (resumen) => {
+        await pool.query(
+          `INSERT INTO servir_resumen (aviso, huella, resumen, modelo) VALUES ($1, $2, $3::jsonb, 'claude-haiku-5-5')
+           ON CONFLICT (aviso) DO UPDATE SET huella = EXCLUDED.huella, resumen = EXCLUDED.resumen, modelo = EXCLUDED.modelo, creado_at = now()`,
+          [aviso, huella, JSON.stringify(resumen)]);
+        return resumen;
+      })
+      .finally(() => generando.delete(aviso));
+    generando.set(aviso, tarea);
+  }
+  try {
+    return c.json({ aviso, resumen: await tarea });
+  } catch (e) {
+    registrar("WARNING", `[empleo] sin resumen de la plaza ${aviso}: ${(e as Error).message.slice(0, 80)}`);
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "sin_resumen", detail: "No pudimos armar el resumen ahora." }, 503);
+  }
 });
 
 // ─── GET /empleo/sitemap ─────────────────────────────────────────────────────────────────────────

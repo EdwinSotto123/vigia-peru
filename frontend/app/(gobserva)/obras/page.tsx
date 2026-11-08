@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, BellRing, Building2, ChartNoAxesCombined, ClipboardList, Compass, HardHat, Landmark, Megaphone, PackageSearch, Ruler, Search, Sparkles, Truck } from "lucide-react";
 import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
-import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
+import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { BarrasDobles, CaminoObra, type PasoCamino } from "@/components/gobserva-obras/Graficas";
 import { BarraAvance, Cabecera, FaseInsignia, Paso, iconoSector } from "@/components/gobserva-obras/Piezas";
@@ -455,24 +455,8 @@ export default async function InicioObras() {
           planes={ruta("/planes")}
         />
 
-        {/* ── MCP ─────────────────────────────────────────────────────────────── */}
-        <BloqueMCP
-          id="mcp"
-          titulo="Pregúntale a tu IA por las obras que se vienen"
-          bajada="Adquiere un plan de Licitaciones, que trae Obras, y te damos tu MCP: conecta Claude, ChatGPT o Cursor y pregunta en tus palabras. Tu asistente consulta los proyectos, su avance y el mercado de obras en vivo, con la fuente oficial de cada dato."
-          cuenta="Gobserva Licitaciones"
-          planes={ruta("/planes")}
-          ejemplos={[
-            "¿Qué proyectos de agua potable de más de S/ 5 millones tienen expediente técnico en Puno?",
-            "Dame las obras paralizadas de Cusco, desde cuándo y por qué.",
-            "¿Qué empresas ganan más obras en Arequipa y por cuánto?",
-          ]}
-          herramientas={[
-            { nombre: "buscar_proyectos_inversion", descripcion: "Los proyectos que se vienen, en marcha o paralizados, con filtros por texto, región, sector, fase y monto." },
-            { nombre: "ficha_proyecto", descripcion: "Un proyecto por su CUI: montos, fase, sus obras con su avance, sus procesos del SEACE y quién los ganó." },
-            { nombre: "mercado_obras", descripcion: "El mercado de obras de una región y un sector: pipeline, ejecución, paralizadas y quién gana." },
-          ]}
-        />
+        {/* ── Tu IA (MCP): la franja; los pasos están en /mcp ─────────────────── */}
+        <FranjaMCP que="obras, licitaciones y tu mercado" href={ruta("/mcp")} />
 
         <Faq
           preguntas={[

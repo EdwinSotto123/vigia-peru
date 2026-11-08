@@ -1,4 +1,5 @@
-import { Bot, Cable, MessageSquareText, Wrench } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Bot, Cable, MessageSquareText, Wrench } from "lucide-react";
 import { URL_MCP_EMPLEO, URL_MCP_LICITACIONES } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { Copiar } from "./Copiar";
@@ -126,5 +127,32 @@ function Paso({ n, titulo, children }: { n: number; titulo: string; children: Re
         {children}
       </div>
     </li>
+  );
+}
+
+/**
+ * El MCP en una franja (2026-11-08): en las portadas va después del asistente y sin el JSON ni los pasos (eso queda en su
+ * página): a quien busca trabajo o le vende al Estado le basta saber que su IA también se conecta con su plan.
+ */
+export function FranjaMCP({ que, href, id = "mcp", className }: { que: string; href: string; id?: string; className?: string }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-t`} className={cn("scroll-mt-20 rounded-3xl border border-line bg-paper p-6 sm:p-8", className)}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
+        <div className="flex min-w-0 items-start gap-4">
+          <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+            <Cable size={20} />
+          </span>
+          <div className="min-w-0">
+            <h2 id={`${id}-t`} className="text-balance font-display text-seccion font-bold leading-tight text-ink">¿Usas Claude, ChatGPT o Cursor?</h2>
+            <p className="mt-2 max-w-[60ch] text-pretty text-dato leading-relaxed text-inkSoft">
+              Con tu plan, conecta tu IA a Gobserva y pregúntale por {que} desde ahí, con los mismos créditos del asistente. Te toma un minuto.
+            </p>
+          </div>
+        </div>
+        <Link href={href} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 self-start rounded-full border border-line bg-caja px-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/50 md:self-center">
+          Ver cómo conectarla <ArrowRight size={15} aria-hidden />
+        </Link>
+      </div>
+    </section>
   );
 }

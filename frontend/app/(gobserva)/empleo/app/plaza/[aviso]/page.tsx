@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, BellRing, Building2, CircleCheckBig, Clock, Eye, FileText, Lock, MapPin, ScrollText, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BellRing, Bot, Building2, CircleCheckBig, Clock, Eye, FileText, Lock, MapPin, MessageSquareText, ScrollText, ShieldCheck, Users } from "lucide-react";
+import { LoEsencial } from "@/components/empleo/LoEsencial";
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, Pagina } from "@/components/gobserva/app/Caja";
 import { CumplesRequisitos, type Requisito } from "@/components/empleo/CumplesRequisitos";
 import { RangoSueldo, fraseSueldo } from "@/components/empleo/RangoSueldo";
@@ -110,10 +111,9 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
                 <span className="sr-only"> (se abre en otra pestaña)</span>
               </a>
             )}
-            <a href={SERVIR} target="_blank" rel="noopener noreferrer" className={boton}>
-              <FileText size={15} aria-hidden /> Ver en SERVIR
-              <span className="sr-only"> (se abre en otra pestaña)</span>
-            </a>
+            <Link href={rutaEn(base, `/app/asistente?pregunta=${encodeURIComponent(`Explícame la plaza ${p.aviso} (${titulo} en ${entidad}): qué piden, si me conviene y qué documentos preparo.`)}`)} className={boton}>
+              <Bot size={15} aria-hidden /> Preguntarle al asistente
+            </Link>
             <CopiarEnlace />
           </div>
         </div>
@@ -163,6 +163,7 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
 
       <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]", ESPACIO_CAJAS)}>
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
+          <LoEsencial aviso={p.aviso} />
           <Caja
             id="cumples"
             titulo="¿Cumples los requisitos?"
@@ -230,10 +231,17 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
             id="postular"
             titulo={cerrada ? "Esta plaza ya cerró" : "Cómo postular"}
             pie={
-              <a href={p.detalleUrl ?? SERVIR} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_PIE}>
-                {p.detalleUrl ? "Abrir la web de la entidad" : "Abrir SERVIR"} <ArrowUpRight size={14} aria-hidden />
-                <span className="sr-only"> (se abre en otra pestaña)</span>
-              </a>
+              <span className="flex flex-wrap gap-x-4 gap-y-1">
+                {p.detalleUrl && (
+                  <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_PIE}>
+                    Web de la entidad <ArrowUpRight size={14} aria-hidden />
+                    <span className="sr-only"> (se abre en otra pestaña)</span>
+                  </a>
+                )}
+                <a href={SERVIR} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_PIE}>
+                  <FileText size={14} aria-hidden /> Buscarla en SERVIR <span className="sr-only">(aviso {p.aviso}, se abre en otra pestaña)</span>
+                </a>
+              </span>
             }
           >
             {cerrada ? (
@@ -242,23 +250,58 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
                 <Link href={parecidas} className="font-semibold text-granate underline-offset-4 hover:underline">ver plazas parecidas</Link>.
               </p>
             ) : (
+              <>
               <ol className="space-y-4">
-                <Paso n={1} titulo="Lee las bases">
-                  {p.numero ? <>Busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b> en la web de la entidad: </> : <>En SERVIR, busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b>: </>}
-                  ahí están el perfil completo, el cronograma y cómo se presenta.
+                <Paso n={1} titulo="Junta tus documentos">
+                  Tu CV documentado: una copia simple de cada título, certificado y constancia que pruebe lo que piden (la experiencia, con fechas de
+                  inicio y fin). Tu DNI y las declaraciones juradas, en los formatos de las bases.
                 </Paso>
-                <Paso n={2} titulo="Marca lo que cumples">Usa «¿Cumples los requisitos?» y junta lo que piden: CV documentado, DNI, declaraciones juradas.</Paso>
-                <Paso n={3} titulo="Guárdala y llévala en tu tablero">Con «Guardar» queda en tus postulaciones y en tu calendario; te avisamos antes de que cierre.</Paso>
-                <Paso n={4} titulo="Postula antes del cierre">
-                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin).replace(/\.$/, "")}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado.
+                <Paso n={2} titulo="Revisa las bases">
+                  {p.numero ? <>Busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b> en la web de la entidad: </> : <>Busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b>: </>}
+                  ahí están el cronograma, las funciones y si se postula en línea, por correo o en mesa de partes.
+                </Paso>
+                <Paso n={3} titulo="Postula antes del cierre">
+                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin).replace(/\.$/, "")}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado. Con «Guardar» la llevas en tu
+                  tablero y en tu calendario, y te avisamos antes de que cierre.
+                </Paso>
+                <Paso n={4} titulo="Las etapas">
+                  Primero revisan tu CV contra el perfil; quien pasa va a una entrevista. Algunas entidades suman un examen de conocimientos. Los resultados
+                  se publican en la web de la entidad, en las fechas del cronograma.
                 </Paso>
               </ol>
+              <p className="mt-4 rounded-lg bg-granate-50/60 px-3 py-2.5 text-meta leading-relaxed text-inkSoft">
+                <b className="font-semibold text-ink">Puntaje extra por ley.</b> Si tienes una discapacidad acreditada (15%), eres licenciado de las Fuerzas Armadas
+                (10%) o deportista calificado, decláralo y adjunta el documento que lo prueba.
+              </p>
+              </>
             )}
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-ink/[0.035] px-3 py-2.5 text-meta leading-relaxed text-inkSoft">
               <ShieldCheck size={15} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
               Postular es siempre en la entidad. Gobserva no recibe postulaciones.
             </p>
           </Caja>
+
+          {!cerrada && (
+            <Caja id="asistente" titulo="Pregúntale al asistente" descripcion="Conoce esta plaza y tu perfil. Cada pregunta usa 5 créditos de tu plan.">
+              <ul className="space-y-2">
+                {[
+                  `¿Cumplo con la plaza ${p.aviso}? Revisa sus requisitos contra mi perfil y dime qué me falta.`,
+                  `¿Qué documentos preparo para postular a la plaza ${p.aviso} y cómo pruebo la experiencia que pide?`,
+                  `¿Hay plazas parecidas a la ${p.aviso} que paguen más o pidan menos experiencia?`,
+                ].map((q) => (
+                  <li key={q}>
+                    <Link
+                      href={rutaEn(base, `/app/asistente?pregunta=${encodeURIComponent(q)}`)}
+                      className="flex items-start gap-2.5 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-dato leading-snug text-ink transition-colors duration-rapido hover:border-granate/50"
+                    >
+                      <MessageSquareText size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+                      {q}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Caja>
+          )}
 
           {d.mismoTitulo.length > 0 && (
             <Caja

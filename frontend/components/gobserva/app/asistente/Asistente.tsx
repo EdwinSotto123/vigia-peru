@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import {
   AlertTriangle, ArrowUp, BadgeCheck, Check, ClipboardList, Coins, Copy, FileSearch, History, Landmark, Loader2, MapPin, MessageSquarePlus,
-  Pencil, RotateCcw, Scale, Search, Square, TrendingUp, X,
+  Pencil, RotateCcw, Scale, Search, Square, TrendingUp,
 } from "lucide-react";
 import { Respuesta } from "@/components/admin/chat/Respuesta";
 import { Descargas } from "@/components/admin/chat/Descargas";
@@ -79,6 +79,17 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
     const h = hilo.current;
     if (h) h.scrollTo({ top: h.scrollHeight, behavior: "smooth" });
   }, [largo, ultimoTexto]);
+  // Desde una ficha (?pregunta=): una conversación nueva con la pregunta escrita, para que la mandes tú.
+  const nuevaRef = useRef(a.nueva);
+  nuevaRef.current = a.nueva;
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("pregunta");
+    if (!q) return;
+    nuevaRef.current();
+    setTexto(q.slice(0, 4000));
+    window.history.replaceState(null, "", window.location.pathname);
+    requestAnimationFrame(() => campo.current?.focus());
+  }, []);
   // El campo crece con lo que se escribe (hasta 6 líneas).
   useEffect(() => {
     const c = campo.current;
@@ -110,21 +121,21 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
     await a.abrir(id);
   }
 
-  const historial = (
-    <Historial
-      conversaciones={lista.data?.data}
-      cargando={lista.isLoading}
-      activa={a.conversacion?.id ?? null}
-      onAbrir={(id) => void abrir(id)}
-      onNueva={nueva}
-      onCambio={(borrada) => {
-        void lista.mutate();
-        if (borrada && borrada === a.conversacion?.id) a.nueva();
-      }}
-      usoHref={rutaEn(base, "/cuenta?tab=pagos#uso")}
-      producto={app}
-    />
-  );
+  const propsHistorial = {
+    conversaciones: lista.data?.data,
+    cargando: lista.isLoading,
+    activa: a.conversacion?.id ?? null,
+    onAbrir: (id: string) => void abrir(id),
+    onNueva: nueva,
+    onCambio: (borrada?: string) => {
+      void lista.mutate();
+      if (borrada && borrada === a.conversacion?.id) a.nueva();
+    },
+    usoHref: rutaEn(base, "/cuenta?tab=pagos#uso"),
+    producto: app,
+  };
+  const historial = <Historial {...propsHistorial} />;
+  const historialHoja = <Historial {...propsHistorial} onCerrar={() => setHistorialAbierto(false)} />;
 
   if (sinPlan) {
     return (
@@ -154,10 +165,7 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Historial del asistente">
           <button type="button" aria-label="Cerrar el historial" onClick={() => setHistorialAbierto(false)} className="absolute inset-0 bg-ink/40" />
           <div className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col bg-caja shadow-xl">
-            <button type="button" onClick={() => setHistorialAbierto(false)} aria-label="Cerrar" className="absolute right-2 top-2.5 z-10 grid h-8 w-8 place-items-center rounded-full text-mute hover:bg-ink/[0.05]">
-              <X size={16} aria-hidden />
-            </button>
-            {historial}
+            {historialHoja}
           </div>
         </div>
       )}
@@ -183,7 +191,7 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
           ) : a.mensajes.length === 0 ? (
             <Bienvenida textos={t} base={base} onEjemplo={(x) => void mandar(x)} />
           ) : (
-            <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+            <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6">
               {a.mensajes.map((m, i) =>
                 m.rol === "usuario" ? (
                   <p key={m.id} className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-granate-50 px-4 py-2.5 text-dato leading-relaxed text-ink [overflow-wrap:anywhere]">
@@ -206,7 +214,7 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
         </div>
 
         <div className="border-t border-line bg-caja px-3 pb-3 pt-2.5 sm:px-5">
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-4xl">
             {a.aviso && (
               <p role="alert" className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-crimson/30 bg-crimson-soft px-3.5 py-2.5 text-dato text-crimsonTexto">
                 <AlertTriangle size={15} aria-hidden className="shrink-0" />
@@ -271,7 +279,7 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
               ) : (
                 <p className="text-meta text-mute">Cada pregunta usa 5 créditos.</p>
               )}
-              <p className="text-meta text-mute">
+              <p className="hidden text-meta text-mute sm:block">
                 {uso.data?.renueva ? `Tus créditos se renuevan el ${fechaLarga(uso.data.renueva)}. ` : ""}Tus conversaciones quedan en tu cuenta y puedes borrarlas.
               </p>
             </div>
@@ -375,7 +383,8 @@ function Cabecera({
 /** Antes de la primera pregunta: qué hace, con qué datos y cuatro preguntas para empezar. */
 function Bienvenida({ textos, base, onEjemplo }: { textos: (typeof TEXTOS)[AppAsistente]; base: string; onEjemplo: (x: string) => void }) {
   return (
-    <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-4 py-8 sm:px-6">
+    <div className="flex min-h-full flex-col">
+    <div className="mx-auto my-auto w-full max-w-2xl px-4 py-8 sm:px-6">
       <span aria-hidden className="grid h-12 w-12 place-items-center rounded-full border border-line bg-paper">
         <IsotipoGobserva tamano={24} />
       </span>
@@ -401,6 +410,7 @@ function Bienvenida({ textos, base, onEjemplo }: { textos: (typeof TEXTOS)[AppAs
       <p className="mt-4 flex items-center gap-1.5 text-meta text-mute">
         <Scale size={13} aria-hidden /> Responde con datos públicos de hoy y el enlace oficial de cada uno.
       </p>
+    </div>
     </div>
   );
 }

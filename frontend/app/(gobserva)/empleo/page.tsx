@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bot, CalendarDays, Check, EyeOff, Map, Search, Sparkles, Timer } from "lucide-react";
 import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
-import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
+import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { AvisosDeLaManana } from "@/components/empleo/portada/AvisosDeLaManana";
 import { MaquetaAviso, MaquetaEntrevista, MaquetaFicha, MaquetaParaTi, MaquetaTablero } from "@/components/empleo/portada/Maquetas";
@@ -117,7 +117,22 @@ export default async function InicioEmpleo() {
           </ol>
         </section>
 
-        {/* ── 4. Tus postulaciones y lo que trae la cuenta ───────────────────── */}
+        {/* ── 4. El asistente (con un plan) ──────────────────────────────────── */}
+        <BloqueAsistente
+          titulo="Pregúntale a tu asistente"
+          bajada="Dentro de la app, un asistente con IA busca por ti en las plazas abiertas de hoy. Le cuentas tu carrera, tu experiencia y dónde quieres trabajar, y te responde con las que te calzan, lo que piden y el enlace para postular."
+          pregunta="Soy contadora con 3 años de experiencia: ¿a qué puedo postular en Arequipa?"
+          respuesta="Hay 4 plazas que te calzan. La primera cierra en 2 días:"
+          filas={[
+            { titulo: "Contador", quien: "Una UGEL de Arequipa", cifra: "S/ 3,200", nota: "Cierra en 2 días" },
+            { titulo: "Analista en presupuesto", quien: "Un gobierno regional", cifra: "S/ 3,500", nota: "Cierra en 5 días" },
+            { titulo: "Asistente contable", quien: "Una municipalidad", cifra: "S/ 2,600", nota: "Cierra en 6 días" },
+          ]}
+          creditos="300 créditos al mes con Alertas"
+          planes={ruta("/planes")}
+        />
+
+        {/* ── 5. Tus postulaciones y lo que trae la cuenta ───────────────────── */}
         <section aria-labelledby="cuenta-t">
           <Cabecera id="cuenta-t" titulo="Tu búsqueda, ordenada" bajada="Todo lo que necesitas para postular, en una cuenta gratis." />
           <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -149,7 +164,7 @@ export default async function InicioEmpleo() {
           </div>
         </section>
 
-        {/* ── 5. Planes ──────────────────────────────────────────────────────── */}
+        {/* ── 6. Planes ──────────────────────────────────────────────────────── */}
         <section aria-labelledby="planes-t">
           <Cabecera
             id="planes-t"
@@ -160,38 +175,8 @@ export default async function InicioEmpleo() {
           <Planes className="mt-8" planes={planesEmpleo(base, cat)} />
         </section>
 
-        {/* ── 6. El asistente (con un plan) ──────────────────────────────────── */}
-        <BloqueAsistente
-          titulo="Pregúntale a tu asistente"
-          bajada="Dentro de la app, un asistente con IA busca por ti en las plazas abiertas de hoy. Le cuentas tu carrera, tu experiencia y dónde quieres trabajar, y te responde con las que te calzan, lo que piden y el enlace para postular."
-          pregunta="Soy contadora con 3 años de experiencia: ¿a qué puedo postular en Arequipa?"
-          respuesta="Hay 4 plazas que te calzan. La primera cierra en 2 días:"
-          filas={[
-            { titulo: "Contador", quien: "Una UGEL de Arequipa", cifra: "S/ 3,200", nota: "Cierra en 2 días" },
-            { titulo: "Analista en presupuesto", quien: "Un gobierno regional", cifra: "S/ 3,500", nota: "Cierra en 5 días" },
-            { titulo: "Asistente contable", quien: "Una municipalidad", cifra: "S/ 2,600", nota: "Cierra en 6 días" },
-          ]}
-          creditos="300 créditos al mes con Alertas"
-          planes={ruta("/planes")}
-        />
-
-        {/* ── 7. MCP ─────────────────────────────────────────────────────────── */}
-        <BloqueMCP
-          id="mcp"
-          titulo="Busca trabajo hablando con tu IA"
-          bajada="Adquiere un plan y te damos tu MCP: conecta Claude, ChatGPT o Cursor a Gobserva y pregúntale por plazas en tus palabras. Te responde con las convocatorias abiertas de hoy, lo que pagan y el enlace oficial de cada una: tu asistente consulta los datos en vivo en vez de inventarlos."
-          cuenta="Gobserva Empleo"
-          planes={ruta("/planes")}
-          ejemplos={[
-            "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
-            "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",
-            "¿Cuáles cierran mañana y no piden estudios universitarios?",
-          ]}
-          herramientas={[
-            { nombre: "buscar_plazas_cas", descripcion: "Las plazas abiertas con filtros: puesto, región, sueldo, estudios, experiencia y cierre." },
-            { nombre: "ficha_plaza_cas", descripcion: "Una plaza completa: requisitos, sueldo frente a otras entidades, señales y enlace oficial." },
-          ]}
-        />
+        {/* ── 7. Tu IA (MCP): la franja; los pasos están en /mcp ─────────────── */}
+        <FranjaMCP que="plazas" href={ruta("/mcp")} />
 
         {/* ── 8. Preguntas ───────────────────────────────────────────────────── */}
         <Faq

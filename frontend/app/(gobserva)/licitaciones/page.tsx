@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bot, Check, EyeOff, HardHat, Landmark, LineChart, Megaphone, Timer } from "lucide-react";
 import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
-import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
+import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { Faq } from "@/components/licitaciones/Faq";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
@@ -119,7 +119,23 @@ export default async function InicioLicitaciones() {
           </ol>
         </section>
 
-        {/* ── 4. Todo en una cuenta ──────────────────────────────────────────── */}
+        {/* ── 4. El asistente (con un plan) ──────────────────────────────────── */}
+        <BloqueAsistente
+          titulo="Pregúntale a tu asistente"
+          bajada="Dentro de la app, un asistente con IA busca licitaciones, contratos menores y obras, lee las bases y te dice quién compra, quién gana y a qué precio. Le preguntas como a un colega."
+          pregunta="¿Qué licitaciones de uniformes hay esta semana en Cusco y quién suele ganarlas?"
+          respuesta="Hay 3 convocatorias abiertas. La primera cierra consultas el jueves:"
+          filas={[
+            { titulo: "Uniformes para el personal", quien: "Una municipalidad de Cusco", cifra: "S/ 180,000", nota: "Consultas hasta el jueves" },
+            { titulo: "Vestuario institucional", quien: "Un hospital regional", cifra: "S/ 95,400", nota: "Consultas hasta el lunes" },
+            { titulo: "Ropa de trabajo", quien: "Una unidad ejecutora", cifra: "S/ 62,000", nota: "Cotiza en 5 días" },
+          ]}
+          creditos="1,500 créditos al mes con Inicia"
+          descargas
+          planes={ruta("/planes#comparar")}
+        />
+
+        {/* ── 5. Todo en una cuenta ──────────────────────────────────────────── */}
         <section aria-labelledby="todo-t">
           <Cabecera
             id="todo-t"
@@ -161,7 +177,7 @@ export default async function InicioLicitaciones() {
           </div>
         </section>
 
-        {/* ── 5. Planes ──────────────────────────────────────────────────────── */}
+        {/* ── 6. Planes ──────────────────────────────────────────────────────── */}
         <section aria-labelledby="planes-t">
           <Cabecera
             id="planes-t"
@@ -172,39 +188,8 @@ export default async function InicioLicitaciones() {
           <Planes className="mt-8" planes={planesLicitaciones(base, cat)} />
         </section>
 
-        {/* ── 6. El asistente (con un plan) ──────────────────────────────────── */}
-        <BloqueAsistente
-          titulo="Pregúntale a tu asistente"
-          bajada="Dentro de la app, un asistente con IA busca licitaciones, contratos menores y obras, lee las bases y te dice quién compra, quién gana y a qué precio. Le preguntas como a un colega."
-          pregunta="¿Qué licitaciones de uniformes hay esta semana en Cusco y quién suele ganarlas?"
-          respuesta="Hay 3 convocatorias abiertas. La primera cierra consultas el jueves:"
-          filas={[
-            { titulo: "Uniformes para el personal", quien: "Una municipalidad de Cusco", cifra: "S/ 180,000", nota: "Consultas hasta el jueves" },
-            { titulo: "Vestuario institucional", quien: "Un hospital regional", cifra: "S/ 95,400", nota: "Consultas hasta el lunes" },
-            { titulo: "Ropa de trabajo", quien: "Una unidad ejecutora", cifra: "S/ 62,000", nota: "Cotiza en 5 días" },
-          ]}
-          creditos="1,500 créditos al mes con Inicia"
-          descargas
-          planes={ruta("/planes#comparar")}
-        />
-
-        {/* ── 7. MCP ─────────────────────────────────────────────────────────── */}
-        <BloqueMCP
-          id="mcp"
-          titulo="Pregúntale a tu IA por las licitaciones del día"
-          bajada="Adquiere un plan y te damos tu MCP: conecta Claude, ChatGPT o Cursor a Gobserva y pregunta en tus palabras. Tu asistente consulta las convocatorias, las obras y el mercado en vivo, con la fuente oficial de cada dato."
-          cuenta="Gobserva Licitaciones"
-          planes={ruta("/planes#comparar")}
-          ejemplos={[
-            "¿Qué licitaciones de combustible se convocaron esta semana en Puno y Cusco?",
-            "Dame las obras de saneamiento de más de S/ 5 millones convocadas en los últimos 15 días.",
-            "¿Quién le gana más contratos de uniformes al Estado y a qué precio?",
-          ]}
-          herramientas={[
-            { nombre: "buscar_licitaciones", descripcion: "Las convocatorias recientes del SEACE, con filtros por palabras, región, tipo y valor referencial." },
-            { nombre: "mercado_rubro", descripcion: "El mercado de un rubro en 12 meses: procesos, monto adjudicado, quién compra, quién gana y cuántos compiten." },
-          ]}
-        />
+        {/* ── 7. Tu IA (MCP): la franja; los pasos están en los planes ───────── */}
+        <FranjaMCP que="licitaciones, obras y tu mercado" href={ruta("/planes#mcp")} />
 
         {/* ── 8. Preguntas ───────────────────────────────────────────────────── */}
         <Faq

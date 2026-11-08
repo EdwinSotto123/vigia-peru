@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Loader2, MessageSquarePlus, Search, Trash2 } from "lucide-react";
+import { BarChart3, Loader2, MessageSquarePlus, Search, Trash2, X } from "lucide-react";
 import { borrarConversacion, borrarHistorial, type ConversacionResumen } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +24,10 @@ function grupo(actualizado: string): string {
  * abre una, se borra una (con confirmación en la misma fila) o se borra todo el historial.
  */
 export function Historial({
-  conversaciones, cargando, activa, onAbrir, onNueva, onCambio, usoHref, producto,
+  conversaciones, cargando, activa, onAbrir, onNueva, onCambio, usoHref, producto, onCerrar,
 }: {
+  /** En la hoja del celular: el botón para cerrarla, en la cabecera. */
+  onCerrar?: () => void;
   conversaciones: ConversacionResumen[] | undefined;
   cargando: boolean;
   activa: string | null;
@@ -79,7 +81,7 @@ export function Historial({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-        <h2 className="font-display text-bloque font-bold text-ink">Conversaciones</h2>
+        <h2 className="mr-auto font-display text-bloque font-bold text-ink">Conversaciones</h2>
         <button
           type="button"
           onClick={onNueva}
@@ -87,6 +89,11 @@ export function Historial({
         >
           <MessageSquarePlus size={15} aria-hidden className="text-granate" /> Nueva
         </button>
+        {onCerrar && (
+          <button type="button" onClick={onCerrar} aria-label="Cerrar el historial" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-mute hover:bg-ink/[0.05]">
+            <X size={16} aria-hidden />
+          </button>
+        )}
       </div>
       {hay && (
         <div className="px-3 pt-3">
