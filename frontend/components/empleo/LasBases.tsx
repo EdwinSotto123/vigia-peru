@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUpRight, CalendarDays, CheckCircle2, Copy, Download, Eye, FileSearch, FileText, Sparkles, Target } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Copy, Download, Eye, FileSearch, FileText, Sparkles } from "lucide-react";
 import { Caja } from "@/components/gobserva/app/Caja";
-import { etapaDePostular } from "@/lib/empleo-app/cumplo";
 import { cn } from "@/lib/utils";
 import { urlDocumento, useBasesPlaza, type BasesPlaza, type LecturaBases } from "./datosPlaza";
 import { VisorBases, abrirDocumento } from "./VisorBases";
@@ -20,8 +19,8 @@ const PASOS_ESPERA = ["Buscando la convocatoria en la web de la entidad…", "Ba
 /**
  * «Las bases» (2026-11-08): las buscamos en la web de la entidad, las guardamos y una IA las lee (GET
  * /empleo/plazas/:aviso/bases, lib/basesPlaza.ts). Cada documento se ve aquí mismo (VisorBases) o se descarga; en
- * pestañas, el cronograma entero (con el día en que se postula marcado), cómo te evalúan y el puesto. Lo que hay que
- * hacer (por dónde se postula, qué presentar, lo que te deja fuera) va arriba, en «Qué tienes que hacer». Sin bases,
+ * pestañas, cómo te evalúan y el puesto. Lo que hay que hacer (el cronograma, por dónde se postula, qué presentar, lo
+ * que te deja fuera) va arriba, en «Qué tienes que hacer». Sin bases,
  * el número para buscarlas (con botón para copiarlo) y la web de la entidad.
  */
 export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero: string | null; web: string | null; servir: string }) {
@@ -199,7 +198,6 @@ function SinBases({ numero, web, servir, aviso, error }: { numero: string | null
 function Pestanas({ lectura: l }: { lectura: LecturaBases }) {
   const id = useId();
   const pestanas = [
-    { clave: "cronograma", titulo: "Cronograma", n: l.cronograma.length, contenido: <Cronograma filas={l.cronograma} /> },
     { clave: "evaluacion", titulo: "Cómo te evalúan", n: l.evaluacion.length, contenido: <Evaluacion filas={l.evaluacion} /> },
     {
       clave: "puesto",
@@ -254,35 +252,6 @@ function Pestanas({ lectura: l }: { lectura: LecturaBases }) {
         {actual.contenido}
       </div>
     </div>
-  );
-}
-
-function Cronograma({ filas }: { filas: LecturaBases["cronograma"] }) {
-  const iPostula = etapaDePostular(filas);
-  return (
-    <ol className="relative space-y-0">
-      {filas.map((f, i) => {
-        const postula = i === iPostula;
-        return (
-          <li key={`${f.etapa}-${i}`} className="relative grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 pb-3.5 last:pb-0">
-            {i < filas.length - 1 && <span aria-hidden className="absolute left-[0.5625rem] top-5 h-[calc(100%-0.75rem)] w-px bg-line" />}
-            <span aria-hidden className={cn("relative mt-1 grid h-5 w-5 place-items-center rounded-full border", postula ? "border-granate bg-granate text-paper" : "border-line bg-caja")}>
-              {postula ? <Target size={11} /> : <span className="block h-1.5 w-1.5 rounded-full bg-mute" />}
-            </span>
-            <div className={cn("min-w-0", postula && "rounded-lg bg-granate-50/60 px-3 py-2")}>
-              <p className="flex items-start gap-2 text-meta font-semibold tabular-nums text-ink">
-                <CalendarDays size={13} aria-hidden className="mt-[0.2rem] shrink-0 text-mute" />
-                <span className="min-w-0">
-                  {f.fecha}
-                  {postula && <span className="ml-2 inline-block rounded-full bg-granate px-2 py-px align-middle text-rotulo font-semibold text-paper">Aquí postulas</span>}
-                </span>
-              </p>
-              <p className="mt-0.5 text-pretty text-dato leading-snug text-inkSoft">{f.etapa}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

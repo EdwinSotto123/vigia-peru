@@ -138,7 +138,9 @@ function rangoExp(exp: number | null): [number, number] {
 }
 const etiquetaExp = (exp: number | null) => (EXPERIENCIAS.find((e) => e.valor === exp)?.etiqueta ?? "5 años o más").toLowerCase();
 
-const ESPECIFICA = /(especific|en la funcion|en el puesto|en el cargo|en la materia|en el area|como (asistente|especialista|analista|auxiliar|jefe|coordinador|responsable|tecnico|profesional))/;
+/** La experiencia que pide en algo (la función, el puesto, el sector público): ésa la confirmas tú. */
+const ESPECIFICA =
+  /(especific|en la funcion|en (el )?puestos?|en (el |los )?cargos?|cargos? de|en la materia|en el area|en el sector publico|como (asistente|especialista|analista|auxiliar|jefe|coordinador|responsable|tecnico|profesional))/;
 
 // ─── El juicio ───────────────────────────────────────────────────────────────────────────────────
 const PEOR: Record<EstadoRequisito, number> = { cumples: 0, confirma: 1, no: 2 };
@@ -190,21 +192,21 @@ function juzgarFormacion(r: RequisitoPlaza, p: PerfilEmpleo | null): Pick<Juicio
 
 function juzgarExperiencia(r: RequisitoPlaza, p: PerfilEmpleo | null, expGeneral: number | null): Pick<Juicio, "estado" | "porque"> {
   const s = plano(r.que);
-  const especifica = ESPECIFICA.test(s) && !/general/.test(s);
+  const especifica = ESPECIFICA.test(s) && !/general|privado/.test(s);
   const anios = aniosQuePide(r.que) ?? (especifica ? null : expGeneral);
   if (anios == null) return { estado: "confirma", porque: null };
   if (anios === 0) return { estado: "cumples", porque: "No pide experiencia" };
   if (!p) return { estado: "confirma", porque: `Pide ${textoAnios(anios)}` };
   const [min, max] = rangoExp(p.exp);
   const tienes = etiquetaExp(p.exp);
-  if (max < anios) return { estado: "no", porque: `Pide ${textoAnios(anios)}; tienes ${tienes}` };
+  if (max < anios) return { estado: "no", porque: `Pide ${textoAnios(anios)} de experiencia; tienes ${tienes}` };
   if (especifica) return { estado: "confirma", porque: `Tienes ${tienes} en total: confirma que ${textoAnios(anios)} sean en eso` };
   if (min >= anios) {
     // El texto entero del aviso trae también la específica: ésa la confirmas tú.
     if (/especific/.test(s)) return { estado: "confirma", porque: `Pide ${textoAnios(anios)} en total; tienes ${tienes}. Confirma la experiencia específica` };
-    return { estado: "cumples", porque: `Pide ${textoAnios(anios)}; tienes ${tienes}` };
+    return { estado: "cumples", porque: `Pide ${textoAnios(anios)} de experiencia; tienes ${tienes}` };
   }
-  return { estado: "confirma", porque: `Pide ${textoAnios(anios)}; tienes ${tienes}: confírmalo` };
+  return { estado: "confirma", porque: `Pide ${textoAnios(anios)} de experiencia; tienes ${tienes}: confírmalo` };
 }
 
 /** Cada requisito contra tu perfil (null: sin perfil, todo queda para confirmar). */

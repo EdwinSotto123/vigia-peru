@@ -187,7 +187,9 @@ function Veredicto({
 }) {
   const t = TONO[v.estado];
   const total = juicios.length;
-  const malos = juicios.filter((j) => j.estado === "no" && j.porque).map((j) => j.porque as string);
+  // Lo que te descarta; de la experiencia, sólo la primera que falta (la general, o la mayor): las demás repiten.
+  const sinCumplir = juicios.filter((j) => j.estado === "no" && j.porque);
+  const malos = sinCumplir.filter((j, i) => j.tipo !== "experiencia" || sinCumplir.findIndex((x) => x.tipo === "experiencia") === i).map((j) => j.porque as string);
   const titulo = !perfil
     ? "Revisa los requisitos uno por uno"
     : v.estado === "no"

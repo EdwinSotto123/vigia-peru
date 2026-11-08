@@ -45,7 +45,7 @@ test("un contador con título y 2 años en la plaza del MIDIS: no cumple carrera
   assert.deepEqual(j.map((x) => x.estado), ["no", "no", "no", "no", "confirma", "confirma"]);
   assert.match(j[0].porque ?? "", /Tu carrera \(Contabilidad\) no está/);
   assert.match(j[1].porque ?? "", /Pide maestría; tienes título profesional/);
-  assert.match(j[2].porque ?? "", /Pide 6 años; tienes 2 años/);
+  assert.match(j[2].porque ?? "", /Pide 6 años de experiencia; tienes 2 años/);
   assert.equal(veredicto(j, new Set()).estado, "no");
   assert.equal(veredicto(j, new Set()).no, 4);
 });
@@ -68,9 +68,24 @@ test("sin perfil: nada se descarta, todo se confirma", () => {
 });
 
 test("la experiencia general del aviso cuando el texto no dice años", () => {
-  const j = juzgar([{ tipo: "experiencia", que: "Experiencia en el sector público" }], { ...contador, exp: 4 }, { expGeneral: 1 });
+  const j = juzgar([{ tipo: "experiencia", que: "Experiencia laboral en general" }], { ...contador, exp: 4 }, { expGeneral: 1 });
   assert.equal(j[0].estado, "cumples");
-  assert.match(j[0].porque ?? "", /Pide 1 año; tienes 3 a 4 años/);
+  assert.match(j[0].porque ?? "", /Pide 1 año de experiencia; tienes 3 a 4 años/);
+});
+
+test("la experiencia en un puesto o en el sector público es específica: se confirma", () => {
+  const p2 = { ...contador, exp: 4 };
+  const j = juzgar(
+    [
+      { tipo: "experiencia", que: "Cuatro (04) años de experiencia laboral general en el sector público y/o privado" },
+      { tipo: "experiencia", que: "Dos (02) años de experiencia en puesto o cargos de especialista, coordinador o similares" },
+      { tipo: "experiencia", que: "Tres (03) años de experiencia en el sector público" },
+    ],
+    p2,
+    { expGeneral: 4 },
+  );
+  assert.deepEqual(j.map((x) => x.estado), ["confirma", "confirma", "confirma"]);
+  assert.equal(juzgar([{ tipo: "experiencia", que: "Dos años en el sector público o privado" }], p2, { expGeneral: null })[0].estado, "cumples");
 });
 
 test("carreras afines y colegiatura quedan para confirmar", () => {
