@@ -23,6 +23,17 @@ export interface PedidoChat {
   actor: string;
   /** El id del informe guardado (admin_chat_informe), si se guarda. */
   informe?: string;
+  /**
+   * El chat de una app de Gobserva (2026-11-08, lib/chatApp.ts): la dirección del MCP de su producto (sus herramientas),
+   * sus instrucciones y sus topes. Sin esto, el chat del panel con todas las herramientas.
+   */
+  app?: { ruta: string; sistema: string; vueltas: number; max: number };
+}
+
+/** Cómo terminó: `ok` si hubo respuesta; `costo` en US$ (lo que se cobra en créditos lo decide quien llama). */
+export interface FinChat {
+  ok: boolean;
+  costo: number;
 }
 export type Emitir = (e: Record<string, unknown>) => unknown;
 
@@ -51,7 +62,8 @@ const FUERA_DEL_CHAT = new Set(["seguir", "dejar_de_seguir", "mis_seguimientos"]
 const MAX_RESULTADO = 60_000;
 
 type Herramienta = { name: string; title?: string; description?: string; inputSchema?: Record<string, unknown> };
-let catalogo: { herramientas: Herramienta[]; vence: number } | null = null;
+/** Las herramientas de cada dirección del MCP («» = la de siempre), 10 minutos. */
+const catalogos = new Map<string, { herramientas: Herramienta[]; vence: number }>();
 
 function sistema(profundo: boolean): string {
   const hoy = new Date().toLocaleDateString("es-PE", { timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric" });
@@ -98,9 +110,9 @@ Modo investigación profunda:
 - Antes de responder, revisa que cada afirmación tenga su cifra y su enlace; lo que no lo tenga va a «Lo que no pude verificar».` : ""}`;
 }
 
-async function mcp(env: EnvChat, metodo: string, params: Record<string, unknown>): Promise<Record<string, any>> {
+async function mcp(env: EnvChat, metodo: string, params: Record<string, unknown>, ruta = ""): Promise<Record<string, any>> {
   if (!env.MCP || !env.MCP_INTERNO_URL || !env.MCP_INTERNO_TOKEN) throw new Error("El chat no tiene configurado el MCP.");
-  const r = await env.MCP.fetch(new Request(env.MCP_INTERNO_URL, {
+  const r = await env.MCP.fetch(new Request(ruta ? new URL(ruta, env.MCP_INTERNO_URL).toString() : env.MCP_INTERNO_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -117,11 +129,12 @@ async function mcp(env: EnvChat, metodo: string, params: Record<string, unknown>
   return d.result;
 }
 
-async function herramientas(env: EnvChat): Promise<Herramienta[]> {
-  if (catalogo && catalogo.vence > Date.now()) return catalogo.herramientas;
-  const r = await mcp(env, "tools/list", {});
+async function herramientas(env: EnvChat, ruta = ""): Promise<Herramienta[]> {
+  const c = catalogos.get(ruta);
+  if (c && c.vence > Date.now()) return c.herramientas;
+  const r = await mcp(env, "tools/list", {}, ruta);
   const lista = ((r.tools ?? []) as Herramienta[]).filter((h) => !FUERA_DEL_CHAT.has(h.name));
-  catalogo = { herramientas: lista, vence: Date.now() + 10 * 60_000 };
+  catalogos.set(ruta, { herramientas: lista, vence: Date.now() + 10 * 60_000 });
   return lista;
 }
 
@@ -153,16 +166,22 @@ async function llm(env: EnvChat, cuerpo: Record<string, unknown>, senal?: AbortS
 const resumen = (t: string) => t.replace(/\s+/g, " ").slice(0, 240);
 
 /** Corre una pregunta de punta a punta y va emitiendo sus eventos. No lanza: un error sale como evento `error`. */
-export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, senal?: AbortSignal): Promise<void> {
+export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, senal?: AbortSignal): Promise<FinChat> {
   const { mensajes, modelo, actor } = p;
   const m = MODELOS[modelo];
+  const ruta = p.app?.ruta ?? "";
+  const vueltas = p.app?.vueltas ?? m.vueltas;
+  const maxTokens = p.app?.max ?? m.max;
+  const textoSistema = p.app?.sistema ?? sistema(modelo === "fino");
+  let costo = 0;
+  let respondio = false;
   const inicio = Date.now();
   const tokens = { entrada: 0, salida: 0, cache_leidos: 0, cache_escritos: 0 };
   let usadas = 0;
   // Lo que devolvió cada herramienta, entero: contra eso se revisan los enlaces y los montos de la respuesta.
   const fuentes: string[] = [];
   try {
-    const lista = await herramientas(env);
+    const lista = await herramientas(env, ruta);
     const titulos = new Map(lista.map((h) => [h.name, h.title ?? h.name]));
     const tools = paraElModelo(lista);
     // El historial alterna usuario/asistente; dos seguidos del mismo rol se juntan.
@@ -177,13 +196,13 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
     await emitir({ tipo: "inicio", modelo: m.id, ...(p.informe ? { informe: p.informe } : {}) });
     console.log(JSON.stringify({ chat: "pregunta", actor, modelo: m.id, mensajes: mensajes.length }));
 
-    for (let vuelta = 0; vuelta < m.vueltas; vuelta++) {
+    for (let vuelta = 0; vuelta < vueltas; vuelta++) {
       if (senal?.aborted) throw new Detenido();
-      const ultima = vuelta === m.vueltas - 1;
+      const ultima = vuelta === vueltas - 1;
       const r = await llm(env, {
         model: m.id,
-        max_tokens: m.max,
-        system: [{ type: "text", text: sistema(modelo === "fino"), cache_control: { type: "ephemeral" } }],
+        max_tokens: maxTokens,
+        system: [{ type: "text", text: textoSistema, cache_control: { type: "ephemeral" } }],
         tools,
         ...(ultima ? { tool_choice: { type: "none" } } : {}),
         messages: conversacion,
@@ -193,6 +212,7 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
       tokens.salida += u.output_tokens ?? 0;
       tokens.cache_leidos += u.cache_read_input_tokens ?? 0;
       tokens.cache_escritos += u.cache_creation_input_tokens ?? 0;
+      costo = ((tokens.entrada + tokens.cache_escritos * 1.25 + tokens.cache_leidos * 0.1) * m.entrada + tokens.salida * m.salida) / 1_000_000;
       const bloques = (r.content ?? []) as Record<string, any>[];
       const texto = bloques.filter((b) => b.type === "text").map((b) => b.text as string).join("\n").trim();
       const llamadas = bloques.filter((b) => b.type === "tool_use");
@@ -200,6 +220,7 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
       conversacion.push({ role: "assistant", content: bloques });
       if (r.stop_reason !== "tool_use" || !llamadas.length) {
         await emitir({ tipo: "respuesta", texto: texto || "No encontré una respuesta con los datos de Vigía." });
+        respondio = !!texto;
         if (texto) {
           // Sin modelo: cada enlace y cada monto en soles contra lo consultado (lib/revisionChat.ts). Si algo falla
           // acá, la respuesta ya salió: sólo no llega la revisión.
@@ -226,7 +247,7 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
           let contenido = "";
           let ok = true;
           try {
-            const res = await mcp(env, "tools/call", { name: l.name, arguments: l.input ?? {} });
+            const res = await mcp(env, "tools/call", { name: l.name, arguments: l.input ?? {} }, ruta);
             contenido = ((res.content ?? []) as { type: string; text?: string }[]).map((b) => b.text ?? "").join("\n");
             ok = !res.isError;
             if (ok) fuentes.push(contenido);
@@ -240,17 +261,17 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
       );
       conversacion.push({ role: "user", content: resultados });
     }
-    const costo =
-      ((tokens.entrada + tokens.cache_escritos * 1.25 + tokens.cache_leidos * 0.1) * m.entrada + tokens.salida * m.salida) / 1_000_000;
     await emitir({ tipo: "fin", ms: Date.now() - inicio, herramientas: usadas, tokens, costo_usd: Math.round(costo * 10_000) / 10_000 });
     console.log(JSON.stringify({ chat: "fin", actor, modelo: m.id, herramientas: usadas, ms: Date.now() - inicio, costo_usd: costo }));
+    return { ok: respondio, costo };
   } catch (e) {
     if (e instanceof Detenido || senal?.aborted) {
       console.log(JSON.stringify({ chat: "detenido", actor, ms: Date.now() - inicio }));
-      await emitir({ tipo: "error", mensaje: "Detuviste la respuesta antes de que terminara." });
-      return;
+      await Promise.resolve(emitir({ tipo: "error", mensaje: "Detuviste la respuesta antes de que terminara." })).catch(() => undefined);
+      return { ok: false, costo };
     }
     console.error(JSON.stringify({ chat: "error", actor, error: String((e as Error)?.message ?? e).slice(0, 300) }));
-    await emitir({ tipo: "error", mensaje: (e as Error)?.message ?? "Falló el chat." });
+    await Promise.resolve(emitir({ tipo: "error", mensaje: p.app ? "El asistente no pudo terminar. Vuelve a preguntar en un momento." : (e as Error)?.message ?? "Falló el chat." })).catch(() => undefined);
+    return { ok: false, costo };
   }
 }

@@ -81,7 +81,9 @@ adminChatRouter.post("/chat", async (c) => {
   }
   c.header("Content-Type", NDJSON["content-type"]);
   c.header("Cache-Control", "no-store");
-  return stream(c, (s) => correrChat(env, pedido, (o) => s.write(`${JSON.stringify(o)}\n`)));
+  return stream(c, async (s) => {
+    await correrChat(env, pedido, (o) => s.write(`${JSON.stringify(o)}\n`));
+  });
 });
 
 const Lista = z.object({

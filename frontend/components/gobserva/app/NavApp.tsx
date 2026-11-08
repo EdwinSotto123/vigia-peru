@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowUpRight, Bell, BellPlus, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Landmark, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Landmark, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -45,6 +45,7 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         titulo: "Buscar",
         items: [
           { ruta: "/app/bandeja", etiqueta: "Bandeja", Icono: Inbox, abajo: true, tambien: ["/app/oportunidad/"] },
+          { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot },
           { ruta: "/app/menores", etiqueta: "Contratos menores", Icono: Timer, tambien: ["/menor/", "/app/menor/"] },
           { ruta: "/app/mercado", etiqueta: "Mercado", Icono: ChartNoAxesColumn },
           { ruta: urlCanonica("obras", "/"), etiqueta: "Obras", Icono: HardHat },
@@ -77,6 +78,7 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         titulo: "Buscar",
         items: [
           { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/"] },
+          { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot },
           { ruta: urlCanonica("licitaciones", "/"), etiqueta: "Licitaciones", Icono: Landmark },
         ],
       },

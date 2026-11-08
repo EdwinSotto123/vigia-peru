@@ -44,7 +44,7 @@ export function planesEmpleo(base: string, cat: PlanesServidor): Plan[] {
         `Hasta ${alertas.limites.alertas} alertas, cada mañana o cada semana`,
         `Guarda hasta ${entero(alertas.limites.guardados)} plazas`,
         `Descarga tus búsquedas en Excel, hasta ${entero(alertas.limites.filasCsv)} filas`,
-        `Tu MCP con ${entero(alertas.limites.mcp ?? 300)} créditos al mes: pregúntale a Claude, ChatGPT o Cursor por plazas (cada búsqueda o ficha usa 1)`,
+        `${entero(alertas.limites.mcp ?? 300)} créditos al mes para el asistente y tu MCP: pregúntale por plazas en tus palabras, aquí o desde Claude, ChatGPT o Cursor`,
       ],
       pronto: ["Historial de lo que pagaba cada puesto"],
       accion: { href: pagar("alertas"), etiqueta: `Empezar por ${precioHoy(alertas)}` },
@@ -61,7 +61,7 @@ export function planesEmpleo(base: string, cat: PlanesServidor): Plan[] {
         "Todo lo del plan Alertas",
         `Hasta ${inst.limites.alertas} alertas, una por carrera o por región`,
         `Descargas de hasta ${entero(inst.limites.filasCsv)} filas`,
-        `Tu MCP con ${entero(inst.limites.mcp ?? 5000)} créditos al mes para tu equipo`,
+        `${entero(inst.limites.mcp ?? 5000)} créditos al mes para el asistente y el MCP de tu equipo`,
       ],
       pronto: [
         "API con todas las plazas y sus requisitos",

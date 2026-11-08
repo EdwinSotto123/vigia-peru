@@ -100,9 +100,9 @@ export async function manejarV2(request: Request, env: EnvV2, ctx: ExecutionCont
   // El chat del panel (vigia-api por service binding) entra como la cuenta del equipo: todas las herramientas, sin cupo.
   const interno = request.headers.get("x-vigia-interno");
   const perfil = perfilDeRuta(url.pathname);
-  if (perfil === "todo" && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
+  if (perfil && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
     return atenderMcp(request, {
-      env, ctx, ip: null,
+      env, ctx, ip: null, perfil,
       usuario: { uid: "equipo-vigia", planes: ["interno"], planesAl: Date.now(), scope: [...SCOPES] },
     });
   }

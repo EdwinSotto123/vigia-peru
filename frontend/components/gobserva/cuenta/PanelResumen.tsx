@@ -173,7 +173,7 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
           <div className={cn("min-w-0 space-y-4 border-t border-line pt-5", !angosta && "md:border-l md:border-t-0 md:pl-8 md:pt-0")}>
             <Uso Icono={Bell} etiqueta="Alertas" usado={usados.alertas} tope={lim.alertas} />
             <Uso Icono={Bookmark} etiqueta="Guardados" usado={usados.guardados} tope={lim.guardados} />
-            {mcp.data && mcp.data.creditos > 0 && <Uso Icono={Bot} etiqueta="Créditos del MCP este mes" usado={mcp.data.usados} tope={mcp.data.creditos} />}
+            {mcp.data && mcp.data.creditos > 0 && <Uso Icono={Bot} etiqueta="Créditos del asistente y el MCP" usado={mcp.data.usados} tope={mcp.data.creditos} />}
             <ul className="space-y-2">
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
@@ -186,8 +186,8 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <Bot size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
                 {lim.mcp
-                  ? `Tu MCP trae ${lim.mcp.toLocaleString("es-PE")} créditos al mes${mcp.data ? `, se renuevan el ${fechaLarga(mcp.data.renueva)}` : ""}: una búsqueda o una ficha usa 1, un análisis 3.`
-                  : "El MCP para preguntarle a tu IA viene con un plan de pago."}
+                  ? `Tu plan trae ${lim.mcp.toLocaleString("es-PE")} créditos al mes${mcp.data ? `, se renuevan el ${fechaLarga(mcp.data.renueva)}` : ""}: una pregunta rápida al asistente usa 5; en el MCP, una búsqueda usa 1.`
+                  : "El asistente y el MCP para preguntarle a tu IA vienen con un plan de pago."}
               </li>
             </ul>
           </div>

@@ -70,6 +70,8 @@ class Ambito implements AmbitoPedido {
       cuantas: (clave: string, ventanaS: number, persistente = false) => ns.get(ns.idFromName(clave)).cuantas(ventanaS * 1000, persistente),
       // La misma clave que usa el MCP (backend/mcp-worker/src/v2/cupos.ts).
       usoMcp: (uid: string, mes: string, dia: string) => ns.get(ns.idFromName(`mcp2|u|${uid}|creditos`)).creditos(mes, dia),
+      gastarMcp: (uid: string, mes: string, dia: string, creditos: number, filas: number) =>
+        ns.get(ns.idFromName(`mcp2|u|${uid}|creditos`)).gastar(mes, dia, creditos, filas),
     };
   }
 

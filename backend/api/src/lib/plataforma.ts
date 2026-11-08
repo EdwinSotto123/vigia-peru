@@ -99,6 +99,8 @@ export interface AmbitoPedido {
     cuantas(clave: string, ventanaS: number, persistente?: boolean): Promise<number>;
     /** Lo usado del MCP por una cuenta en el mes y el día de Lima (workers/limitador.ts). */
     usoMcp?(uid: string, mes: string, dia: string): Promise<{ mes: number; dia: number; filas: number }>;
+    /** Suma créditos (y filas) a la cuenta: lo usa el chat de cada app (routes/gobservaCuenta.ts). */
+    gastarMcp?(uid: string, mes: string, dia: string, creditos: number, filas: number): Promise<{ mes: number; dia: number; filas: number }>;
   } | undefined;
 }
 

@@ -22,7 +22,7 @@ const FILAS: { que: string; valor: (l: Limites) => string | boolean }[] = [
   { que: "Procesos guardados", valor: (l) => `Hasta ${entero(l.guardados)}` },
   { que: "Recordatorio antes de que cierren las consultas", valor: (l) => l.recordatorios },
   { que: "Descarga en Excel (CSV)", valor: (l) => (l.csv ? `Hasta ${entero(l.filasCsv)} filas` : false) },
-  { que: "Tu MCP: créditos al mes para preguntarle a tu IA", valor: (l) => (l.mcp ? entero(l.mcp) : false) },
+  { que: "Créditos al mes para el asistente y tu MCP", valor: (l) => (l.mcp ? entero(l.mcp) : false) },
 ];
 
 /**

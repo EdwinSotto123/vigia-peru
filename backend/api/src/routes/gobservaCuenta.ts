@@ -24,6 +24,9 @@ import type { IaWorkers } from "../lib/rag.js";
 import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
 import { diaLima, mesLima, renuevaMcp, topesMcp, type TopesMcp } from "../lib/creditosMcp.js";
 import { ambitoPedido } from "../lib/plataforma.js";
+import { stream } from "hono/streaming";
+import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
+import { CREDITOS_MODO, MODOS_APP, creditosCobrados, modeloDe, pedidoApp } from "../lib/chatApp.js";
 
 /**
  * La cuenta de Gobserva (2026-11-01): una persona de Firebase con su correo real, para los tres productos. Todo lo de
@@ -45,6 +48,8 @@ import { ambitoPedido } from "../lib/plataforma.js";
  *   GET|POST|DELETE /gobserva/cuenta/push, POST /push/probar   notificaciones en el celular o la computadora (migr. 233)
  *   GET|POST /gobserva/cuenta/lineas, PUT|DELETE /lineas/:id   líneas de negocio de Licitaciones (migr. 264)
  *   GET    /gobserva/cuenta/para-ti?linea=      las oportunidades abiertas por afinidad con una línea (lib/afinidad.ts)
+ *   GET    /gobserva/cuenta/planes, /mcp        los planes vigentes con los créditos del mes (lib/creditosMcp.ts) y lo usado
+ *   POST   /gobserva/cuenta/chat                el asistente de la app (lib/chatApp.ts): NDJSON, cobra créditos, no guarda
  *   GET    /gobserva/cuenta/seguimiento         lo guardado en Licitaciones (o, con ?producto=empleo, las plazas de
  *                                               Empleo) con su etapa, su valor y sus plazos de hoy (el tablero y el
  *                                               calendario de la cuenta; lib/seguimiento.ts)
@@ -183,6 +188,69 @@ async function topesDeCuenta(uid: string): Promise<{ planes: { producto: Product
 
 gobservaCuentaRouter.get("/planes", async (c) => {
   return c.json(await topesDeCuenta(c.get("user").uid));
+});
+
+// ─── El asistente de cada app (lib/chatApp.ts) ────────────────────────────────────────────────────────────────────────
+
+const ChatBody = z.object({
+  producto: z.enum(["empleo", "licitaciones", "obras"]),
+  modo: z.enum(["rapido", "fino", "profundo"]).default("rapido"),
+  mensajes: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().trim().min(1).max(8000) })).min(1).max(30),
+});
+const NUM_PE = new Intl.NumberFormat("es-PE");
+
+/**
+ * POST /gobserva/cuenta/chat → NDJSON en vivo (los mismos eventos del chat del panel) y, al final, `creditos` con lo que
+ * se cobró y lo que queda. Pide un plan vigente del producto y créditos para lo más que puede costar la pregunta; sólo se
+ * cobra si hubo respuesta. La conversación no se guarda.
+ */
+gobservaCuentaRouter.post("/chat", async (c) => {
+  const u = c.get("user");
+  const b = ChatBody.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body", detail: "Manda { producto, modo, mensajes }." }, 400);
+  const { producto, modo, mensajes } = b.data;
+  if (mensajes[mensajes.length - 1].rol !== "usuario") return c.json({ error: "invalid_body", detail: "El último mensaje tiene que ser tuyo." }, 400);
+  if (mensajes.reduce((n, m) => n + m.texto.length, 0) > 40_000) {
+    return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
+  }
+  const app = producto === "empleo" ? "empleo" : "licitaciones";
+  if (!MODOS_APP[app].includes(modo)) return c.json({ error: "modo_no_disponible", detail: "Ese modo no está en este asistente." }, 400);
+  if (!(await planVigente(u.uid, producto))) {
+    return c.json({ error: "sin_plan", detail: "El asistente viene con los planes de pago: adquiere uno para preguntarle." }, 402);
+  }
+  const { mcp: topes } = await topesDeCuenta(u.uid);
+  const lim = ambitoPedido.getStore()?.limitador?.();
+  const mes = mesLima();
+  const dia = diaLima();
+  if (lim && !(await lim.contar(`chat|${u.uid}`, 6, 60).catch(() => true))) {
+    return c.json({ error: "muy_seguido", detail: "Hiciste varias preguntas seguidas. Espera un minuto." }, 429);
+  }
+  const reserva = CREDITOS_MODO[modo];
+  const uso = await (lim?.usoMcp?.(u.uid, mes, dia) ?? Promise.resolve(null)).catch(() => null);
+  if (uso && uso.mes + reserva > topes.creditos) {
+    const quedan = Math.max(0, topes.creditos - uso.mes);
+    return c.json({
+      error: "sin_creditos",
+      detail: quedan
+        ? `Esta pregunta puede usar hasta ${reserva} créditos y te quedan ${NUM_PE.format(quedan)}. Prueba el modo rápido o sube de plan.`
+        : `Usaste los ${NUM_PE.format(topes.creditos)} créditos de este mes. Se renuevan el 1 del mes que viene; para más, sube de plan.`,
+    }, 402);
+  }
+  if (uso && uso.dia + reserva > topes.topeDia) {
+    return c.json({ error: "tope_dia", detail: `Hoy ya usaste ${NUM_PE.format(uso.dia)} créditos, el tope de un día. Mañana sigues.` }, 429);
+  }
+  const env = (c.env ?? {}) as EnvChat;
+  c.header("Content-Type", "application/x-ndjson; charset=utf-8");
+  c.header("Cache-Control", "no-store");
+  return stream(c, async (s) => {
+    const escribir = (o: Record<string, unknown>) => s.write(`${JSON.stringify(o)}\n`);
+    const fin = await correrChat(env, { mensajes, modelo: modeloDe(modo), actor: `app:${app}:${u.uid.slice(0, 8)}`, app: pedidoApp(app, modo) }, escribir);
+    if (!fin.ok || !lim?.gastarMcp) return;
+    const cobrados = creditosCobrados(modo, fin.costo);
+    const nuevo = await lim.gastarMcp(u.uid, mes, dia, cobrados, 0).catch(() => null);
+    await Promise.resolve(escribir({ tipo: "creditos", usados: cobrados, quedan: nuevo ? Math.max(0, topes.creditos - nuevo.mes) : null, del_mes: topes.creditos }))
+      .catch(() => undefined);
+  });
 });
 
 /** Lo usado del MCP este mes (la cuenta lo muestra): créditos del mes y de hoy, filas de hoy y cuándo se renuevan. */
