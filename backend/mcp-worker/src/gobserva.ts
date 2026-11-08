@@ -117,7 +117,10 @@ export const DEFINICIONES_GOBSERVA: Record<string, Definicion> = {
       description:
         "La ficha completa de una plaza CAS por su número de aviso (el que devuelve buscar_plazas_cas): requisitos " +
         "(formación, experiencia, especialización, conocimientos, competencias), sueldo frente a lo que pagan otras " +
-        "entidades por el mismo puesto, señales de transparencia y enlaces oficiales. Args: aviso: número del aviso.",
+        "entidades por el mismo puesto, señales de transparencia y enlaces oficiales; además «lo_esencial» (la plaza en " +
+        "palabras simples) y «bases»: las bases de la convocatoria buscadas en la web de la entidad y leídas (cronograma, " +
+        "cómo evalúan, qué presentar, cómo se postula, funciones), con enlace a la copia guardada. La primera vez puede " +
+        "tardar hasta medio minuto. Args: aviso: número del aviso.",
       inputSchema: esquema("ficha_plaza_cas", { aviso: { title: "Aviso", type: "integer" } }, ["aviso"]),
     },
   },
@@ -170,6 +173,45 @@ export const DEFINICIONES_GOBSERVA: Record<string, Definicion> = {
 
 // ─── Ejecución ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+interface BasesApi {
+  estado: string;
+  pagina: string | null;
+  documentos: { titulo: string; url: string; copia: string | null; leido: boolean }[];
+  lectura: Record<string, unknown> | null;
+  sin_lectura: string | null;
+}
+
+/** Un GET a la API de Vigía por el service binding, con tiempo límite. null si falla o tarda. */
+async function deLaApi<T>(env: Env, ruta: string, ms: number): Promise<T | null> {
+  const servicio = (env as Env & { API?: { fetch(r: Request): Promise<Response> } }).API;
+  if (!servicio) return null;
+  try {
+    const r = await servicio.fetch(
+      new Request(`https://vigia-api.interno/v1${ruta}`, { headers: { accept: "application/json", "user-agent": "vigia-mcp/2" }, signal: AbortSignal.timeout(ms) }),
+    );
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Las bases para la IA: lo leído, los documentos con su copia y una nota de dónde salen. */
+function basesParaIa(b: BasesApi | null): unknown {
+  if (!b) return { estado: "no_disponible", nota: "No pudimos buscar las bases ahora. Están en la web de la entidad (publicacion_oficial)." };
+  if (b.estado !== "encontradas") {
+    return { estado: b.estado, nota: "No encontramos las bases publicadas en la web de la entidad: algunas las ponen sólo en su sistema de postulación." };
+  }
+  return {
+    estado: "encontradas",
+    pagina_de_la_convocatoria: b.pagina,
+    documentos: b.documentos.map((d) => ({ titulo: d.titulo, original: d.url, copia_en_gobserva: d.copia ? `${EMPLEO}/v1${d.copia}` : null, leido: d.leido })),
+    lectura: b.lectura,
+    nota: b.lectura
+      ? "Leídas por IA (Haiku) desde los PDF de la entidad: cronograma, evaluación, documentos a presentar y cómo se postula. Recomienda confirmarlas en el documento."
+      : "Encontramos los documentos pero no los leímos todavía: compártelos para que la persona los abra.",
+  };
+}
+
 export async function ejecutarGobserva(nombre: string, v: Record<string, unknown>, env: Env, ctx: ExecutionContext): Promise<unknown> {
   const entero = (x: unknown, min: number, max: number, def: number) => {
     const n = Number(x ?? def);
@@ -220,7 +262,7 @@ export async function ejecutarGobserva(nombre: string, v: Record<string, unknown
   }
   if (nombre === "ficha_plaza_cas") {
     const aviso = entero(v.aviso, 0, 999_999_999, 0);
-    return conConexion(env, ctx, async (c) => {
+    const ficha = await conConexion(env, ctx, async (c) => {
       const [r] = await filas(
         c,
         `SELECT s.aviso, s.titulo, s.entidad, s.ubicacion, s.numero, s.vacantes, s.remuneracion::float, to_char(s.fecha_inicio, 'YYYY-MM-DD'),
@@ -262,6 +304,14 @@ export async function ejecutarGobserva(nombre: string, v: Record<string, unknown
         nota: NOTA_EMPLEO,
       };
     });
+    if (!ficha.encontrada) return ficha;
+    // Lo esencial y las bases leídas, por la API (la misma caché y el mismo tope que la ficha web; si nadie las había
+    // buscado, se buscan ahora). Fuera de la conexión: la lectura de las bases toma hasta medio minuto.
+    const [esencial, bases] = await Promise.all([
+      deLaApi<{ resumen?: unknown }>(env, `/empleo/plazas/${aviso}/resumen`, 15_000),
+      deLaApi<BasesApi>(env, `/empleo/plazas/${aviso}/bases`, 50_000),
+    ]);
+    return { ...ficha, lo_esencial: esencial?.resumen ?? null, bases: basesParaIa(bases) };
   }
   if (nombre === "buscar_licitaciones") {
     const texto = String(v.texto ?? "");
