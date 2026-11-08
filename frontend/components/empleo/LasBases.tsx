@@ -297,9 +297,12 @@ function Cronograma({ filas }: { filas: Lectura["cronograma"] }) {
               {postula ? <Target size={11} /> : <span className="block h-1.5 w-1.5 rounded-full bg-mute" />}
             </span>
             <div className={cn("min-w-0", postula && "rounded-lg bg-granate-50/60 px-3 py-2")}>
-              <p className="flex flex-wrap items-center gap-x-2 text-meta font-semibold tabular-nums text-ink">
-                <CalendarDays size={13} aria-hidden className="text-mute" /> {f.fecha}
-                {postula && <span className="rounded-full bg-granate px-2 py-px text-rotulo font-semibold text-paper">Aquí postulas</span>}
+              <p className="flex items-start gap-2 text-meta font-semibold tabular-nums text-ink">
+                <CalendarDays size={13} aria-hidden className="mt-[0.2rem] shrink-0 text-mute" />
+                <span className="min-w-0">
+                  {f.fecha}
+                  {postula && <span className="ml-2 inline-block rounded-full bg-granate px-2 py-px align-middle text-rotulo font-semibold text-paper">Aquí postulas</span>}
+                </span>
               </p>
               <p className="mt-0.5 text-pretty text-dato leading-snug text-inkSoft">{f.etapa}</p>
             </div>
