@@ -275,6 +275,12 @@ palabra «arquitecto» se buscaba como texto suelto en el título y en la formac
   calza «ARQUITECTURA»). Orden «Más afines»: carrera y puesto, después sólo carrera, y dentro por cierre.
 - Un perfil de antes (sin carrera) sigue funcionando: calza el puesto en el título o su raíz en la formación, y «Para ti»
   le pide sumar la carrera.
+- **«Más afines»** suma: tu puesto en el título (+2) y que la plaza pida pocas carreras con la tuya entre ellas (+1,
+  la formación partida por comas, «o», «y» y barras en 3 partes o menos). Cada plaza dice por qué calza («Pide
+  Arquitectura», «Tu puesto: …»).
+- **Puestos reales** (`sugerir=1`): los títulos de las plazas abiertas que piden tu carrera, agrupados sin género ni
+  nivel, con tildes y sin repetir. Las de Arquitectura se llaman «especialista en infraestructura» o «en catastro», casi
+  nunca «arquitecto». Los puestos del CV quedan marcados, pero la pregunta se hace igual.
 
 **CV** (`backend/api/src/lib/cv.ts`): la entrevista empieza ofreciendo leerlo. Haiku 5.5 (por vigia-llm, `/nativo`) lee
 el PDF o la foto y devuelve sólo carreras, grado, años de experiencia (total y en el Estado), puestos y región. El archivo

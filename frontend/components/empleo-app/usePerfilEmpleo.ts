@@ -5,7 +5,7 @@ import { useSesion } from "@/components/gobserva/cuenta/comun";
 import { API_PUBLICA } from "@/lib/api-client";
 import { cargarBusquedas } from "@/lib/gobserva-cuenta";
 import type { PlazaEmpleo } from "@/lib/empleo";
-import { NOMBRE_PERFIL, conQueBuscar, dePerfilQuery, paramsCalce, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import { NOMBRE_PERFIL, conQueBuscar, dePerfilQuery, paramsCalce, type MotivoCalce, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 
 /** Lo que devuelve GET /empleo/calce (backend/api/src/routes/empleo.ts). */
 export interface CalceEmpleo {
@@ -16,9 +16,11 @@ export interface CalceEmpleo {
   otrasCarreras: { variantes: string[]; n: number }[];
   /** Cuántas tienen cada puesto en el título (entre las de tu carrera, si hay). */
   porPalabra: { palabra: string; n: number }[];
+  /** Con `sugerir=1`: cómo se llaman hoy las plazas de tu carrera, las más frecuentes primero. */
+  sugeridos: { puesto: string; n: number }[];
   page: number;
   size: number;
-  data: PlazaEmpleo[];
+  data: (PlazaEmpleo & { motivo?: MotivoCalce })[];
 }
 
 export async function pedirCalce(query: string): Promise<CalceEmpleo> {

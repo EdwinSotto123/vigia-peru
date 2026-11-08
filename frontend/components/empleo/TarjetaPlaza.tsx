@@ -45,10 +45,11 @@ export function tonoCierre(dias: number | null): "urgente" | "pronto" | "neutro"
  */
 /**
  * `ruta`: dónde está la ficha («/plaza» en la portada, «/app/plaza» en la app). `accion`: un botón propio (guardar la
- * plaza) sobre la tarjeta, por encima del enlace que la cubre entera.
+ * plaza) sobre la tarjeta, por encima del enlace que la cubre entera. `motivo`: por qué te calza (en «Para ti»), en verde
+ * debajo de lo que pide.
  */
 export function TarjetaPlaza({
-  p, base, compacta = false, ruta = "/plaza", accion, enApp = false, volver,
+  p, base, compacta = false, ruta = "/plaza", accion, enApp = false, volver, motivo,
 }: {
   p: PlazaEmpleo;
   base: string;
@@ -58,6 +59,8 @@ export function TarjetaPlaza({
   enApp?: boolean;
   /** Los filtros de la lista, para que la ficha vuelva a ellos (?volver=). */
   volver?: string;
+  /** Por qué te calza: «Pide Arquitectura», «Tu puesto: …». */
+  motivo?: string[];
 }) {
   const dias = diasParaCierre(p.fechaFin);
   const desde = diasParaCierre(p.fechaInicio);
@@ -141,6 +144,18 @@ export function TarjetaPlaza({
             </Dato>
           )}
         </p>
+      )}
+
+      {!compacta && motivo && motivo.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5 [&>li]:min-w-0 [&>li]:max-w-full" aria-label="Por qué te calza">
+          {motivo.map((m) => (
+            <li key={m}>
+              <Chip tono="bien" icono={<BadgeCheck size={13} aria-hidden />}>
+                {m}
+              </Chip>
+            </li>
+          ))}
+        </ul>
       )}
 
       {!compacta && p.tipos?.length > 0 && (

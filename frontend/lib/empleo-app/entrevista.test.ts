@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PERFIL_EMPLEO_VACIO, aAlertaEmpleo, aQueryPerfil, agregarCarrera, agregarPalabrasEmpleo, carreraDe, dePerfilQuery, experienciaDe, paramsCalce,
+  PERFIL_EMPLEO_VACIO, aAlertaEmpleo, aQueryPerfil, agregarCarrera, agregarPalabrasEmpleo, carreraDe, dePerfilQuery, experienciaDe, nombreDeVariante, paramsCalce, textosMotivo,
   perfilDesdeCv, puestosSugeridos, respondidasPorCv, siguienteEmpleo, textoRespuestaEmpleo, type PreguntaEmpleo,
 } from "./entrevista.ts";
 
@@ -17,7 +17,14 @@ test("carreraDe y agregarCarrera: el nombre del catálogo por cualquiera de sus 
   assert.deepEqual(agregarCarrera(["A", "B", "C"], "Derecho"), ["A", "B", "C"]);
 });
 
-test("puestosSugeridos: los de tus carreras, o los de quien no tiene carrera", () => {
+test("puestosSugeridos: los tuyos, los reales de las plazas y los del catálogo, sin repetir", () => {
+  const r = puestosSugeridos(["Arquitectura"], ["residente de obra"], ["especialista en infraestructura", "Arquitecto"]);
+  assert.deepEqual(r.slice(0, 3), ["residente de obra", "especialista en infraestructura", "Arquitecto"]);
+  assert.equal(r.filter((x) => x.toLowerCase() === "arquitecto").length, 1);
+  assert.equal(nombreDeVariante("arquitectura", ["Arquitectura"]), "Arquitectura");
+  assert.equal(nombreDeVariante("ingeniería pesquera", []), "Ingeniería pesquera");
+  assert.deepEqual(textosMotivo({ carreras: ["arquitectura"], puestos: ["catastro"] }, ["Arquitectura"]), ["Pide Arquitectura", "Tu puesto: catastro"]);
+  assert.deepEqual(textosMotivo(undefined, []), []);
   assert.deepEqual(puestosSugeridos(["Arquitectura"]).slice(0, 2), ["arquitecto", "proyectista"]);
   assert.ok(puestosSugeridos([]).includes("chofer"));
   assert.equal(puestosSugeridos(["Arquitectura", "Ingeniería civil"]).filter((x) => x === "supervisor de obra").length, 1);
@@ -49,7 +56,7 @@ test("perfilDesdeCv y respondidasPorCv: lo que el CV ya dice se responde solo", 
   assert.equal(p.tengo, "posgrado");
   assert.equal(p.exp, null);
   assert.equal(experienciaDe(3), 4);
-  assert.deepEqual(respondidasPorCv(cv), ["cv", "carrera", "estudios", "experiencia", "puestos"]);
+  assert.deepEqual(respondidasPorCv(cv), ["cv", "carrera", "estudios", "experiencia"]);
   assert.deepEqual(respondidasPorCv({ ...cv, carreras: [], estudios: null, anosExperiencia: null, puestos: [] }), ["cv"]);
 });
 

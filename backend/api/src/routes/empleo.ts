@@ -5,7 +5,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
-import { condicionesCalce, leerCarreras } from "../lib/calceEmpleo.js";
+import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
 
 /**
  * empleo.gobserva.cloud (Gobserva Empleo, 2026-11-01): las plazas CAS que el Estado publica en SERVIR
@@ -217,6 +217,8 @@ const Calce = z.object({
   puesto: z.string().trim().max(40).optional(),
   /** Carreras que sólo se cuentan (las fichas de la entrevista), con el mismo formato que `carreras`. */
   contar: z.string().max(1500).optional(),
+  /** «1»: también los puestos para sugerir (los títulos reales de las plazas de tu carrera). */
+  sugerir: z.enum(["1"]).optional(),
   region: Lista.shape.region,
   tengo: Lista.shape.tengo,
   sueldo: Lista.shape.sueldo,
@@ -242,7 +244,8 @@ empleoRouter.get("/calce", async (c) => {
   const otros = [...new Set(separar(q.otras))].filter((w) => !puestos.includes(w)).slice(0, 12);
   const contar = leerCarreras(q.contar, 20);
   const cuerpo = await memo.obtener(`calce2:${JSON.stringify([q, carreras, puestos, otros, contar])}`, async () => {
-    if (!carreras.length && !puestos.length && !otros.length && !contar.length) return { total: 0, porCarrera: [], otrasCarreras: [], porPalabra: [], page: q.page, size: q.size, data: [] };
+    if (!carreras.length && !puestos.length && !otros.length && !contar.length && !q.sugerir)
+      return { total: 0, porCarrera: [], otrasCarreras: [], porPalabra: [], sugeridos: [], page: q.page, size: q.size, data: [] };
     const filtros: FiltrosPlazas = { region: q.region, tengo: q.tengo, sueldo: q.sueldo, exp: q.exp, orden: "cierre", page: 1, size: 12 };
     const { conds, vals, rc, nc } = condicionesPlazas(filtros);
     const k = condicionesCalce({ carreras, puestos, otros }, vals);
@@ -251,27 +254,47 @@ empleoRouter.get("/calce", async (c) => {
     const deCarrera = k.carrera ?? "true";
     const orden = q.orden === "calce" ? `puntaje DESC, ${ORDEN.cierre}` : ORDEN[q.orden];
     const r = await pool.query(
-      `WITH base AS MATERIALIZED (SELECT ${FILA}, mef_norm(s.formacion) AS fo, mef_norm(s.titulo) AS ti ${DESDE} WHERE ${conds.join(" AND ")}),
+      `WITH base AS MATERIALIZED (SELECT ${FILA}, mef_norm(s.formacion) AS fo, mef_norm(s.titulo) AS ti, ${PARTES_FORMACION} AS es
+                                    ${DESDE} WHERE ${conds.join(" AND ")}),
             b AS MATERIALIZED (SELECT * FROM base WHERE ${rc} AND ${nc}),
-            cz AS MATERIALIZED (SELECT b.*, ${k.puntaje} AS puntaje FROM b WHERE ${k.calza}${solo ? ` AND (${solo})` : ""})
+            cz AS MATERIALIZED (SELECT b.*, ${k.puntaje} AS puntaje, ${k.motivo} FROM b WHERE ${k.calza}${solo ? ` AND (${solo})` : ""})
        SELECT (SELECT count(*) FROM cz)::int AS total,
               ${k.porCarrera.map((x, i) => `(SELECT count(*) FROM b WHERE ${x})::int AS c${i}`).concat("0 AS c_").join(", ")},
               ${kc.porCarrera.map((x, i) => `(SELECT count(*) FROM b WHERE ${x})::int AS o${i}`).concat("0 AS o_").join(", ")},
               ${k.porPuesto.map((x, i) => `(SELECT count(*) FROM b WHERE (${deCarrera}) AND ${x})::int AS p${i}`).concat("0 AS p_").join(", ")},
+              ${q.sugerir ? `(SELECT COALESCE(json_agg(g), '[]') FROM (${SUGERIDOS_SQL(`b WHERE ${deCarrera}`)}) g)` : `'[]'::json`} AS sugeridos,
               COALESCE((SELECT json_agg(d ORDER BY d.pos) FROM (
                 SELECT cz.*, row_number() OVER (ORDER BY ${orden}) AS pos FROM cz
                  ORDER BY pos LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}) d), '[]') AS data`,
       vals,
     );
-    const f = r.rows[0] as Record<string, unknown> & { total: number; data: Record<string, unknown>[] };
+    const f = r.rows[0] as Record<string, unknown> & { total: number; data: Record<string, unknown>[]; sugeridos: { t: string; n: number }[] };
+    // Los sugeridos como puestos legibles, sin repetir («enfermera» y «enfermero» son uno) ni los que ya tienes.
+    const vistos = new Set(puestos.map(clavePuesto));
+    const sugeridos: { puesto: string; n: number }[] = [];
+    for (const g of f.sugeridos ?? []) {
+      const puesto = puestoDeTitulo(g.t);
+      const clave = clavePuesto(puesto);
+      if (puesto.length < 4 || !clave || vistos.has(clave)) continue;
+      vistos.add(clave);
+      sugeridos.push({ puesto, n: g.n });
+    }
     return publicar({
       total: f.total,
       porCarrera: carreras.map((variantes, i) => ({ variantes, n: (f[`c${i}`] as number) ?? 0 })),
       otrasCarreras: contar.map((variantes, i) => ({ variantes, n: (f[`o${i}`] as number) ?? 0 })),
       porPalabra: [...puestos, ...otros].map((palabra, i) => ({ palabra, n: (f[`p${i}`] as number) ?? 0 })),
+      sugeridos: sugeridos.slice(0, 10),
       page: q.page,
       size: q.size,
-      data: f.data.map(({ pos: _p, fo: _f, ti: _t, ...d }) => d),
+      // Por qué calza cada una: las carreras (su primera variante) y los puestos tuyos que tiene.
+      data: f.data.map(({ pos: _p, fo: _f, ti: _t, es: _e, puntaje: _s, mc, mp, ...d }) => ({
+        ...d,
+        motivo: {
+          carreras: carreras.filter((_, i) => (mc as boolean[] | null)?.[i]).map((v) => v[0]),
+          puestos: puestos.filter((_, i) => (mp as boolean[] | null)?.[i]),
+        },
+      })),
     });
   });
   c.header("Cache-Control", CACHE);

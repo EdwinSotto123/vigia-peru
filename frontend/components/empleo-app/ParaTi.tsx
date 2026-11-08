@@ -13,7 +13,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { nombreRegion, puesto } from "@/lib/empleo";
 import { numero } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
-import { igualEmpleo, textoRespuestaEmpleo, variantesDe, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import { igualEmpleo, textoRespuestaEmpleo, textosMotivo, variantesDe, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
 import { useCalceEmpleo, usePerfilEmpleo } from "./usePerfilEmpleo";
 
@@ -206,7 +206,14 @@ export function ParaTiEmpleo({ base }: { base: string }) {
             <ol className={cn("grid grid-cols-1 gap-3 transition-opacity duration-rapido", calce.isValidating && "opacity-60")} aria-label="Plazas para ti" aria-busy={calce.isValidating}>
               {calce.data.data.map((p) => (
                 <li key={p.aviso} className="min-w-0">
-                  <TarjetaPlaza p={p} base={base} ruta="/app/plaza" enApp accion={<EstrellaSeguir id={String(p.aviso)} codigo={null} titulo={puesto(p.titulo)} tipo="plaza" />} />
+                  <TarjetaPlaza
+                    p={p}
+                    base={base}
+                    ruta="/app/plaza"
+                    enApp
+                    motivo={textosMotivo(p.motivo, perfil.carreras)}
+                    accion={<EstrellaSeguir id={String(p.aviso)} codigo={null} titulo={puesto(p.titulo)} tipo="plaza" />}
+                  />
                 </li>
               ))}
             </ol>

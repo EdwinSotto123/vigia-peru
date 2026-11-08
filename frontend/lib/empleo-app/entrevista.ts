@@ -87,12 +87,35 @@ export function carreraDe(texto: string): Carrera | null {
 /** Cómo se busca una carrera en la formación: sus variantes del catálogo o, si es escrita, ella misma. */
 export const variantesDe = (texto: string) => carreraDe(texto)?.variantes ?? [texto.trim()];
 
-/** Los puestos para sugerir: los de tus carreras (o los de quien no tiene carrera), sin repetir, hasta 10. */
-export function puestosSugeridos(carreras: string[], ya: string[] = []): string[] {
-  const base = carreras.length ? carreras.flatMap((c) => carreraDe(c)?.puestos ?? []) : PUESTOS_SIN_CARRERA;
+/** Cuántos puestos sugeridos se muestran (y se cuentan) además de los tuyos. */
+export const MAX_SUGERIDOS = 12;
+
+/**
+ * Los puestos para elegir: los tuyos, después los REALES (cómo se llaman hoy las plazas que piden tu carrera, de
+ * GET /empleo/calce?sugerir=1) y al final los del catálogo de tus carreras (o los de quien no tiene carrera); sin repetir.
+ */
+export function puestosSugeridos(carreras: string[], ya: string[] = [], reales: string[] = []): string[] {
+  const catalogo = carreras.length ? carreras.flatMap((c) => carreraDe(c)?.puestos ?? []) : PUESTOS_SIN_CARRERA;
   const r = [...ya];
-  for (const x of base) if (!r.some((y) => normalizar(y) === normalizar(x))) r.push(x);
-  return r.slice(0, Math.max(10, ya.length));
+  for (const x of [...reales, ...catalogo]) if (!r.some((y) => normalizar(y) === normalizar(x))) r.push(x);
+  return r.slice(0, ya.length + MAX_SUGERIDOS);
+}
+
+/** Por qué calza una plaza (GET /empleo/calce): las carreras que pide (su primera variante) y tus puestos que tiene. */
+export interface MotivoCalce {
+  carreras: string[];
+  puestos: string[];
+}
+
+/** El nombre de tu carrera para una variante que devolvió la API («arquitectura» → «Arquitectura»). */
+export const nombreDeVariante = (v: string, carreras: string[]) => carreras.find((c) => igualEmpleo(variantesDe(c)[0], v)) ?? mayuscula(v);
+
+/** Por qué calza una plaza, en palabras: «Pide Arquitectura», «Tu puesto: especialista en infraestructura». */
+export function textosMotivo(m: MotivoCalce | undefined, carreras: string[]): string[] {
+  if (!m) return [];
+  const r = m.carreras.map((v) => `Pide ${nombreDeVariante(v, carreras)}`);
+  if (m.puestos.length) r.push(`Tu puesto: ${m.puestos.join(", ")}`);
+  return r;
 }
 
 /** Suma una carrera escrita (con su nombre del catálogo si lo es), sin repetir y hasta el tope. */
@@ -171,13 +194,13 @@ export function perfilDesdeCv(p: PerfilEmpleo, cv: CvLeido): PerfilEmpleo {
   };
 }
 
-/** Las preguntas que el CV ya respondió (las demás se preguntan igual). */
+/** Las preguntas que el CV ya respondió (las demás se preguntan igual; los puestos, siempre). */
 export function respondidasPorCv(cv: CvLeido): PreguntaEmpleo[] {
   const r: PreguntaEmpleo[] = ["cv"];
   if (cv.carreras.length) r.push("carrera");
   if (cv.estudios) r.push("estudios");
   if (cv.anosExperiencia != null) r.push("experiencia");
-  if (cv.puestos.length) r.push("puestos");
+  // Los puestos del CV quedan marcados, pero se pregunta igual: los del CV suelen tener otro nombre en las plazas.
   return r;
 }
 

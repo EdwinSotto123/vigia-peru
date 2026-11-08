@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
-  ArrowRight, Bell, BellOff, BriefcaseBusiness, CalendarClock, Check, FileUp, GraduationCap, Loader2, MapPin, MessageSquareText, RotateCcw, School, ShieldCheck, Sparkles, Timer, Wallet,
+  ArrowRight, BadgeCheck, Bell, BellOff, BriefcaseBusiness, CalendarClock, Check, FileUp, GraduationCap, Loader2, MapPin, MessageSquareText, RotateCcw, School, ShieldCheck, Sparkles, Timer, Wallet,
 } from "lucide-react";
 import { MarcaGobserva } from "@/components/gobserva/MarcaGobserva";
 import { Compositor, Conversacion, Escribiendo, MensajeBot, MensajeTuyo, Opcion, Respuestas, useEscribiendo, useMenosMovimiento, useRetrasado } from "@/components/gobserva/app/chat/Chat";
@@ -16,7 +16,7 @@ import { numero, soles } from "@/lib/formato";
 import {
   CARRERAS, ESTUDIOS, EXPERIENCIAS, MAX_CARRERAS, MAX_PALABRAS_EMPLEO, NOMBRE_PERFIL, PERFIL_EMPLEO_VACIO, PREGUNTAS_EMPLEO, SUELDOS, aAlertaEmpleo, aQueryPerfil,
   agregarCarrera, agregarPalabrasEmpleo, carrerasParaContar, conQueBuscar, igualEmpleo, nombrePerfilEmpleo, paramsCalce, perfilDesdeCv, puestosSugeridos, respondidasPorCv,
-  siguienteEmpleo, textoRespuestaEmpleo, variantesDe, type PerfilEmpleo, type PreguntaEmpleo,
+  siguienteEmpleo, textoRespuestaEmpleo, textosMotivo, variantesDe, type PerfilEmpleo, type PreguntaEmpleo,
 } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
 import { pedirCalce, usePerfilEmpleo, type CalceEmpleo } from "./usePerfilEmpleo";
@@ -95,16 +95,29 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
   const nombre = nombreTocado ? p.puesto : nombrePerfilEmpleo(p);
 
   // Una consulta por respuesta: el calce del perfil y, según la pregunta, cuántas hay de cada carrera o de cada puesto.
-  const sugeridos = actual === "puestos" ? puestosSugeridos(p.carreras, p.palabras) : [];
-  const otras = sugeridos.filter((w) => !p.palabras.includes(w));
+  // En los puestos, también cómo se llaman hoy las plazas de tu carrera (sugerir=1): la primera respuesta los trae y la
+  // siguiente los cuenta con la misma regla que tus puestos.
   const extra: Record<string, string | number> = { size: 3 };
   if (actual === "carrera") extra.contar = carrerasParaContar(p.carreras);
+  if (actual === "puestos") extra.sugerir = "1";
+  const [reales, setReales] = useState<string[]>([]);
+  const sugeridos = actual === "puestos" ? puestosSugeridos(p.carreras, p.palabras, reales) : [];
+  const otras = sugeridos.filter((w) => !p.palabras.includes(w));
   const clave = useRetrasado(paramsCalce(p, otras, extra).toString(), 350);
-  const calce = useSWR<CalceEmpleo>(/(^|&)(carreras|palabras|otras|contar)=/.test(clave) ? ["onb-calce-empleo", clave] : null, () => pedirCalce(clave), {
+  const calce = useSWR<CalceEmpleo>(/(^|&)(carreras|palabras|otras|contar|sugerir)=/.test(clave) ? ["onb-calce-empleo", clave] : null, () => pedirCalce(clave), {
     keepPreviousData: true,
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   });
+  const nuevosReales = calce.data?.sugeridos?.map((x) => x.puesto).join("|") ?? "";
+  useEffect(() => {
+    // Se suman (no se reemplazan): elegir uno lo saca de los sugeridos de la API, pero queda en la lista.
+    if (actual === "puestos" && nuevosReales) setReales((xs) => [...new Set([...xs, ...nuevosReales.split("|")])]);
+  }, [actual, nuevosReales]);
+  useEffect(() => {
+    // Otra carrera, otros puestos reales.
+    setReales([]);
+  }, [p.carreras.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
   const nPuesto = (w: string) => calce.data?.porPalabra.find((x) => x.palabra === w)?.n;
   const nCarrera = (c: string) => {
     const v = variantesDe(c)[0];
@@ -248,7 +261,8 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
       case "puestos":
         return p.carreras.length ? (
           <>
-            <strong className="font-semibold">¿Qué puestos te interesan?</strong> Los busco en el nombre de la plaza y los pongo primero. Es opcional: si no eliges, te muestro todas las de tu carrera.
+            <strong className="font-semibold">¿Qué puestos te interesan?</strong> Así se llaman hoy las plazas que piden tu carrera; los que elijas van primero.
+            {conCv && p.palabras.length > 0 && " Marqué los de tu CV."} Es opcional: si no eliges, te muestro todas las de tu carrera.
           </>
         ) : (
           <>
@@ -638,6 +652,12 @@ const Final = forwardRef<HTMLDivElement, {
                 <div className="min-w-0">
                   <p className="line-clamp-2 text-dato font-semibold text-ink">{puestoLegible(x.titulo)}</p>
                   <p className="mt-1 truncate text-meta text-inkSoft">{entidadNombre(x.entidad)}</p>
+                  {textosMotivo(x.motivo, p.carreras).length > 0 && (
+                    <p className="mt-1 inline-flex max-w-full items-center gap-1 text-meta font-medium text-granate">
+                      <BadgeCheck size={13} aria-hidden className="shrink-0" />
+                      <span className="min-w-0 truncate">{textosMotivo(x.motivo, p.carreras).join(". ")}</span>
+                    </p>
+                  )}
                   <p className="mt-1 inline-flex items-center gap-1 text-meta font-semibold text-amberTexto">
                     <Timer size={13} aria-hidden /> {textoCierre(diasParaCierre(x.fechaFin))}
                   </p>
