@@ -18,8 +18,16 @@ export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: {
   const { user, loading, conCuenta } = useSesion();
   // La marca para el middleware: con sesión, la portada lleva a la cuenta (está en todas las páginas del producto).
   useEffect(() => {
-    if (!loading) marcarSesion(conCuenta);
-  }, [loading, conCuenta]);
+    if (loading) return;
+    marcarSesion(conCuenta);
+    // Dentro de la app sin sesión (venció, o era la cuenta de antes, cuando las apps compartían cuenta): a entrar, con
+    // la vuelta a donde estaba.
+    const camino = window.location.pathname;
+    if (!conCuenta && /\/app\//.test(camino)) {
+      const aqui = (base && camino.startsWith(base) ? camino.slice(base.length) : camino) + window.location.search;
+      window.location.replace(rutaEn(base, `/entrar?next=${encodeURIComponent(aqui)}`));
+    }
+  }, [loading, conCuenta, base]);
   if (loading) return <span aria-hidden className={cn("inline-block h-10 animate-pulse rounded-full bg-paperDeep", compacto ? "w-10" : "w-24")} />;
   if (!conCuenta || !user) {
     return (

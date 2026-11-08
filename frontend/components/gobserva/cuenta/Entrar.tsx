@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
-  ArrowLeft, BellRing, Bookmark, Check, ChevronRight, Download, Eye, EyeOff, KeyRound, Loader2, LogOut, Mail, MailCheck, ShieldCheck, Sparkles,
+  ArrowLeft, BellRing, Bookmark, Check, ChevronRight, Download, Eye, EyeOff, KeyRound, Loader2, Mail, MailCheck, ShieldCheck, Sparkles,
 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
-import { crearCuentaConCorreo, entrarConCorreo, entrarConGoogle, mensajeAuth, recuperarClave, salir } from "@/lib/gobserva-auth";
+import { PRODUCTOS, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
+import { NOMBRE_APP, appDelProducto } from "@/lib/apps-gobserva";
+import { confirmarCuenta, crearCuentaConCorreo, elegirClave, entrarConCorreo, mensajeAuth, recuperarClave, reenviarCodigo, tipoError } from "@/lib/gobserva-auth";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, ETIQUETA, marcarSesion, useSesion } from "./comun";
 
@@ -53,253 +54,279 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
   },
 };
 
-type Modo = "entrar" | "crear" | "recuperar";
+type Modo = "entrar" | "crear" | "codigo" | "recuperar" | "nueva";
+
+const MIN_CLAVE = 8;
 
 /**
- * Entrar, crear la cuenta o recuperar la contraseña (rediseño 2026-11-07): una sola pieza con el formulario a la
- * izquierda (Entrar y Crear cuenta como pestañas) y, a la derecha, lo que se gana con la cuenta y un ejemplo de aviso.
- * Cuando el correo ya tiene cuenta o la contraseña no entra, ofrece las dos salidas con un clic: entrar con Google
- * (quien entró así no tiene contraseña) o recibir el enlace para elegir una.
+ * Entrar a una app de Gobserva, crear la cuenta o recuperar la contraseña (2026-11-07: cada app con su cuenta, en AWS
+ * Cognito). Una sola pieza con el formulario a la izquierda (Entrar y Crear cuenta como pestañas) y, a la derecha, lo
+ * que se gana con la cuenta. Crear la cuenta pide confirmar el correo con un código de 6 dígitos; olvidar la contraseña
+ * manda otro código para elegir una nueva. Abajo, que la otra app tiene su propia cuenta.
  */
 export function Entrar({ producto, base, next, crear }: { producto: Producto; base: string; next: string | null; crear: boolean }) {
-  const { user, loading, esVigia, conCuenta } = useSesion();
+  const { loading, conCuenta } = useSesion();
   const [modo, setModo] = useState<Modo>(crear ? "crear" : "entrar");
   const [email, setEmail] = useState("");
   const [clave, setClave] = useState("");
   const [nombre, setNombre] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [verClave, setVerClave] = useState(false);
-  const [enviando, setEnviando] = useState<"correo" | "google" | "enlace" | null>(null);
+  const [enviando, setEnviando] = useState<"correo" | "otro" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // El correo ya tiene cuenta o la contraseña no entra. Firebase no dice si esa cuenta se creó con Google (lo protege la
-  // enumeración de correos): quien entró con Google en Vigía o en Gobserva no tiene contraseña, así que se le ofrecen las
-  // dos salidas con un clic, en vez de un «no coinciden» sin camino.
-  const [ayuda, setAyuda] = useState<"existe" | "noCoincide" | null>(null);
-  // El correo al que se mandó el enlace para elegir contraseña: con él, la pantalla de «Revisa tu correo».
-  const [enviadoA, setEnviadoA] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [noCoincide, setNoCoincide] = useState(false);
+  // Quien acaba de crear su cuenta va al onboarding de la app; quien entra, a donde iba.
+  const [recienCreada, setRecienCreada] = useState(false);
   const volver = rutaEn(base, destino(next));
   const p = PRODUCTOS[producto];
+  const app = appDelProducto(producto);
+  const otra = app === "empleo" ? "licitaciones" : "empleo";
 
-  // Con la sesión lista (recién entró o ya tenía una), a donde iba.
+  // Con la sesión lista (recién entró o ya tenía una), a donde iba. Carga entera, con la marca de sesión ya puesta: así el
+  // servidor arma el marco de la app (MarcoApp) y no queda el de visitantes alrededor.
   useEffect(() => {
-    // Quien acaba de crear su cuenta en Licitaciones arma su perfil primero (el onboarding de la app). Se navega con una
-    // carga entera, con la marca de sesión ya puesta: así el servidor arma el marco de la app (MarcoApp) y no queda el
-    // de visitantes (cabecera y pie de la portada) alrededor, que un cambio de página del cliente conservaría.
     if (!loading && conCuenta) {
       marcarSesion(true);
-      window.location.replace((producto === "licitaciones" || producto === "empleo") && modo === "crear" ? rutaEn(base, "/app/bienvenida") : volver);
+      window.location.replace((producto === "licitaciones" || producto === "empleo") && recienCreada ? rutaEn(base, "/app/bienvenida") : volver);
     }
-  }, [loading, conCuenta, volver, producto, modo, base]);
-
-  const urlVolver = () => `${window.location.origin}${volver}`;
+  }, [loading, conCuenta, volver, producto, recienCreada, base]);
 
   function cambiarModo(m: Modo) {
     setModo(m);
     setError(null);
-    setAyuda(null);
-    setEnviadoA(null);
+    setAviso(null);
+    setNoCoincide(false);
+    setCodigo("");
   }
 
-  async function enviar(e: FormEvent) {
-    e.preventDefault();
+  async function hacer(f: () => Promise<unknown>, cual: "correo" | "otro" = "correo") {
     setError(null);
-    setAyuda(null);
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Escribe un correo válido.");
-    if (modo !== "recuperar" && clave.length < 6) return setError("La contraseña debe tener al menos 6 caracteres.");
-    if (modo === "recuperar") return enlaceClave();
-    setEnviando("correo");
+    setNoCoincide(false);
+    setEnviando(cual);
     try {
-      if (modo === "entrar") await entrarConCorreo(email, clave);
-      else await crearCuentaConCorreo(email, clave, nombre, urlVolver());
+      await f();
     } catch (err) {
-      const codigo = (err as { code?: string })?.code ?? "";
-      if (modo === "crear" && codigo === "auth/email-already-in-use") {
+      const tipo = tipoError(err);
+      if (modo === "entrar" && tipo === "UserNotConfirmedException") {
+        // Creó la cuenta y no la confirmó: otro código y a confirmarla, con la contraseña que ya escribió.
+        await reenviarCodigo(email).catch(() => undefined);
+        setRecienCreada(true);
+        setModo("codigo");
+        setAviso(`Falta confirmar tu correo. Te mandamos un código nuevo a ${email.trim()}.`);
+      } else if (modo === "entrar" && tipo === "NotAuthorizedException") {
+        setNoCoincide(true);
+      } else if (modo === "entrar" && tipo === "PasswordResetRequiredException") {
+        await pedirCodigoClave();
+      } else if (modo === "crear" && tipo === "UsernameExistsException") {
         setModo("entrar");
         setClave("");
-        setAyuda("existe");
-      } else if (modo === "entrar" && ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-login-credentials"].includes(codigo)) {
-        setAyuda("noCoincide");
+        setError("Ya tienes una cuenta en esta app con ese correo. Entra con tu contraseña.");
       } else setError(mensajeAuth(err));
     } finally {
       setEnviando(null);
     }
   }
 
-  /** El enlace para elegir contraseña, al correo ya escrito: sirve también a una cuenta que sólo entraba con Google. */
-  async function enlaceClave() {
-    setError(null);
-    setEnviando("enlace");
-    try {
-      await recuperarClave(email, urlVolver());
-      setAyuda(null);
-      setEnviadoA(email.trim());
-    } catch (err) {
-      setError(mensajeAuth(err));
-    } finally {
-      setEnviando(null);
-    }
+  /** Olvidé mi contraseña: el código al correo ya escrito, y a elegir la nueva. */
+  async function pedirCodigoClave() {
+    await recuperarClave(email);
+    setModo("nueva");
+    setClave("");
+    setCodigo("");
+    setNoCoincide(false);
+    setAviso(`Si ${email.trim()} tiene una cuenta en ${NOMBRE_APP[app]}, te llegó un código de 6 dígitos. Escríbelo con tu contraseña nueva.`);
   }
 
-  async function google() {
-    setError(null);
-    setAyuda(null);
-    setEnviando("google");
-    try {
-      await entrarConGoogle();
-    } catch (err) {
-      setError(mensajeAuth(err));
-    } finally {
-      setEnviando(null);
-    }
-  }
-
-  if (!loading && esVigia && user) {
-    return (
-      <div className="container-page max-w-xl py-12">
-        <div className="rounded-3xl border border-line bg-paper p-6 sm:p-8">
-          <h1 className="font-display text-seccion font-bold leading-tight text-ink">Tu sesión es de Vigía</h1>
-          <p className="mt-2 text-cuerpo leading-relaxed text-inkSoft">
-            Entraste con un usuario de Vigía. {p.titulo} necesita tu correo de verdad, porque ahí llegan tus alertas y tus recibos. Sal y entra con tu
-            correo o con Google.
-          </p>
-          <button type="button" onClick={() => void salir()} className={claseAccion("primario", "mt-5")}>
-            <LogOut size={16} aria-hidden /> Salir de la cuenta de Vigía
-          </button>
-        </div>
-      </div>
-    );
+  function enviar(e: FormEvent) {
+    e.preventDefault();
+    setAviso(null);
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Escribe un correo válido.");
+    if ((modo === "crear" || modo === "nueva") && clave.length < MIN_CLAVE) return setError(`La contraseña debe tener al menos ${MIN_CLAVE} caracteres.`);
+    if (modo === "entrar" && !clave) return setError("Escribe tu contraseña.");
+    if ((modo === "codigo" || modo === "nueva") && !/^\d{6}$/.test(codigo.trim())) return setError("Escribe los 6 números del código.");
+    if (modo === "entrar") return void hacer(() => entrarConCorreo(email, clave));
+    if (modo === "crear")
+      return void hacer(async () => {
+        await crearCuentaConCorreo(email, clave, nombre);
+        setRecienCreada(true);
+        setModo("codigo");
+        setAviso(`Te mandamos un código de 6 dígitos a ${email.trim()}. Si no llega en unos minutos, revisa el spam.`);
+      });
+    if (modo === "codigo") return void hacer(() => confirmarCuenta(email, codigo, clave));
+    if (modo === "recuperar") return void hacer(pedirCodigoClave);
+    return void hacer(() => elegirClave(email, codigo, clave));
   }
 
   const ocupado = enviando !== null;
-  const titulo = modo === "crear" ? "Crea tu cuenta gratis" : modo === "recuperar" ? "Elige una contraseña nueva" : "Entra a tu cuenta";
-  const bajada =
-    modo === "crear"
-      ? "Sirve para los tres productos de Gobserva. Es gratis y no pide tarjeta."
-      : modo === "recuperar"
-        ? "Escribe tu correo y te mandamos un enlace para elegirla. Sirve también si antes entrabas con Google."
-        : `Tus alertas, tus guardados y tu plan de ${p.titulo}.`;
+  const nombreApp = NOMBRE_APP[app];
+  const titulo = {
+    crear: `Crea tu cuenta de ${nombreApp}`,
+    entrar: `Entra a tu cuenta de ${nombreApp}`,
+    codigo: "Confirma tu correo",
+    recuperar: "¿Olvidaste tu contraseña?",
+    nueva: "Elige tu contraseña nueva",
+  }[modo];
+  const bajada = {
+    crear: `Es sólo para ${app === "empleo" ? "Empleo" : producto === "obras" ? "Obras y Licitaciones" : "Licitaciones"}. Es gratis y no pide tarjeta.`,
+    entrar: `Tus alertas, tus guardados y tu plan de ${p.titulo}.`,
+    codigo: "Escribe el código que te mandamos para terminar de crear tu cuenta.",
+    recuperar: "Escribe tu correo y te mandamos un código para elegir una nueva.",
+    nueva: "Escribe el código que te llegó y tu contraseña nueva.",
+  }[modo];
+  const conClave = modo === "entrar" || modo === "crear" || modo === "nueva";
+  const conCodigo = modo === "codigo" || modo === "nueva";
 
   return (
     <div className="container-page py-6 sm:py-10 lg:py-14">
       <div className="mx-auto grid max-w-5xl overflow-hidden rounded-3xl border border-line bg-paper lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
         <section aria-labelledby="entrar-t" className="min-w-0 px-5 py-7 sm:px-10 sm:py-10">
           <div className="mx-auto max-w-[26rem]">
-            {enviadoA ? (
-              <Revisa
-                correo={enviadoA}
-                ocupado={enviando === "enlace"}
-                onReenviar={() => void enlaceClave()}
-                onVolver={() => cambiarModo("entrar")}
-              />
+            {modo === "entrar" || modo === "crear" ? (
+              <Pestanas modo={modo} onCambio={cambiarModo} />
             ) : (
-              <>
-                {modo === "recuperar" ? (
-                  <button
-                    type="button"
-                    onClick={() => cambiarModo("entrar")}
-                    className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-dato font-semibold text-inkSoft hover:text-ink"
-                  >
-                    <ArrowLeft size={16} aria-hidden /> Volver a entrar
-                  </button>
-                ) : (
-                  <Pestanas modo={modo} onCambio={cambiarModo} />
-                )}
+              <button
+                type="button"
+                onClick={() => cambiarModo(modo === "codigo" ? "crear" : "entrar")}
+                className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-dato font-semibold text-inkSoft hover:text-ink"
+              >
+                <ArrowLeft size={16} aria-hidden /> {modo === "codigo" ? "Cambiar el correo" : "Volver a entrar"}
+              </button>
+            )}
 
-                <h1 id="entrar-t" className="mt-6 text-balance font-display text-titulo font-bold leading-tight tracking-tight text-ink">{titulo}</h1>
-                <p className="mt-2 text-pretty text-dato leading-relaxed text-inkSoft">{bajada}</p>
+            {conCodigo ? (
+              <span aria-hidden className="mt-6 grid h-14 w-14 place-items-center rounded-full bg-granate-50 text-granate">
+                <MailCheck size={26} />
+              </span>
+            ) : null}
+            <h1 id="entrar-t" className="mt-6 text-balance font-display text-titulo font-bold leading-tight tracking-tight text-ink">{titulo}</h1>
+            <p className="mt-2 text-pretty text-dato leading-relaxed text-inkSoft">{bajada}</p>
+            {aviso && (
+              <p role="status" className="mt-4 rounded-xl border border-granate/30 bg-granate-50 px-3.5 py-3 text-meta leading-relaxed text-ink [overflow-wrap:anywhere]">
+                {aviso}
+              </p>
+            )}
 
-                {modo !== "recuperar" && (
-                  <>
+            <form onSubmit={enviar} noValidate className="mt-6 space-y-4">
+              {modo === "crear" && (
+                <div>
+                  <label htmlFor="g-nombre" className={ETIQUETA}>Tu nombre</label>
+                  <input id="g-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" className={CAMPO} maxLength={80} />
+                </div>
+              )}
+              {modo !== "codigo" && (
+                <div>
+                  <label htmlFor="g-email" className={ETIQUETA}>Correo</label>
+                  <input
+                    id="g-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete={modo === "nueva" ? "username" : "email"}
+                    inputMode="email"
+                    required
+                    readOnly={modo === "nueva"}
+                    className={cn(CAMPO, modo === "nueva" && "bg-paperDeep")}
+                    placeholder="tu@correo.pe"
+                  />
+                </div>
+              )}
+              {conCodigo && (
+                <div>
+                  <label htmlFor="g-codigo" className={ETIQUETA}>Código de 6 dígitos</label>
+                  <input
+                    id="g-codigo"
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    required
+                    className={cn(CAMPO, "text-center font-mono text-cifra tracking-[0.4em]")}
+                    placeholder="000000"
+                  />
+                </div>
+              )}
+              {conClave && (
+                <div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <label htmlFor="g-clave" className={ETIQUETA}>{modo === "nueva" ? "Contraseña nueva" : "Contraseña"}</label>
+                    {modo === "entrar" && (
+                      <button type="button" onClick={() => cambiarModo("recuperar")} className="mb-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline">
+                        ¿La olvidaste?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="g-clave"
+                      type={verClave ? "text" : "password"}
+                      value={clave}
+                      onChange={(e) => setClave(e.target.value)}
+                      autoComplete={modo === "entrar" ? "current-password" : "new-password"}
+                      minLength={modo === "entrar" ? undefined : MIN_CLAVE}
+                      required
+                      aria-describedby={modo !== "entrar" ? "g-clave-ayuda" : undefined}
+                      className={cn(CAMPO, "pr-12")}
+                    />
                     <button
                       type="button"
-                      onClick={google}
-                      disabled={ocupado}
-                      className="mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-line bg-paper px-5 text-destacado font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft disabled:opacity-60"
+                      onClick={() => setVerClave((v) => !v)}
+                      aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+                      className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-mute hover:text-ink"
                     >
-                      {enviando === "google" ? <Loader2 size={18} aria-hidden className="animate-spin" /> : <LogoGoogle />}
-                      Continuar con Google
+                      {verClave ? <EyeOff size={17} aria-hidden /> : <Eye size={17} aria-hidden />}
                     </button>
-                    <p className="my-5 flex items-center gap-3 text-meta text-mute">
-                      <span aria-hidden className="h-px flex-1 bg-line" /> o con tu correo <span aria-hidden className="h-px flex-1 bg-line" />
-                    </p>
-                  </>
-                )}
-
-                <form onSubmit={enviar} noValidate className={cn("space-y-4", modo === "recuperar" && "mt-6")}>
-                  {modo === "crear" && (
-                    <div>
-                      <label htmlFor="g-nombre" className={ETIQUETA}>Tu nombre</label>
-                      <input id="g-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" className={CAMPO} maxLength={80} />
-                    </div>
-                  )}
-                  <div>
-                    <label htmlFor="g-email" className={ETIQUETA}>Correo</label>
-                    <input
-                      id="g-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                      inputMode="email"
-                      required
-                      className={CAMPO}
-                      placeholder="tu@empresa.pe"
-                    />
                   </div>
-                  {modo !== "recuperar" && (
-                    <div>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <label htmlFor="g-clave" className={ETIQUETA}>Contraseña</label>
-                        {modo === "entrar" && (
-                          <button type="button" onClick={() => cambiarModo("recuperar")} className="mb-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline">
-                            ¿La olvidaste?
-                          </button>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          id="g-clave"
-                          type={verClave ? "text" : "password"}
-                          value={clave}
-                          onChange={(e) => setClave(e.target.value)}
-                          autoComplete={modo === "crear" ? "new-password" : "current-password"}
-                          minLength={6}
-                          required
-                          aria-describedby={modo === "crear" ? "g-clave-ayuda" : undefined}
-                          className={cn(CAMPO, "pr-12")}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setVerClave((v) => !v)}
-                          aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
-                          className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-mute hover:text-ink"
-                        >
-                          {verClave ? <EyeOff size={17} aria-hidden /> : <Eye size={17} aria-hidden />}
-                        </button>
-                      </div>
-                      {modo === "crear" && (
-                        <p id="g-clave-ayuda" className={cn("mt-1.5 flex items-center gap-1.5 text-meta", clave.length >= 6 ? "text-mossTexto" : "text-mute")}>
-                          <Check size={14} aria-hidden className={clave.length >= 6 ? "" : "opacity-40"} /> Al menos 6 caracteres
-                        </p>
-                      )}
-                    </div>
+                  {modo !== "entrar" && (
+                    <p id="g-clave-ayuda" className={cn("mt-1.5 flex items-center gap-1.5 text-meta", clave.length >= MIN_CLAVE ? "text-mossTexto" : "text-mute")}>
+                      <Check size={14} aria-hidden className={clave.length >= MIN_CLAVE ? "" : "opacity-40"} /> Al menos {MIN_CLAVE} caracteres
+                    </p>
                   )}
+                </div>
+              )}
 
-                  {error && <Aviso tono="error">{error}</Aviso>}
-                  {ayuda && <AyudaCuenta caso={ayuda} ocupado={ocupado} google={google} enlace={() => void enlaceClave()} enviandoEnlace={enviando === "enlace"} />}
+              {error && <Aviso tono="error">{error}</Aviso>}
+              {noCoincide && <AyudaCuenta ocupado={ocupado} onElegir={() => void hacer(pedirCodigoClave, "otro")} />}
 
-                  <button type="submit" disabled={ocupado} className={claseAccion("primario", "w-full", "md")}>
-                    {(enviando === "correo" || (modo === "recuperar" && enviando === "enlace")) && <Loader2 size={17} aria-hidden className="animate-spin" />}
-                    {modo === "crear" ? "Crear mi cuenta" : modo === "recuperar" ? "Mandarme el enlace" : "Entrar"}
-                  </button>
-                </form>
+              <button type="submit" disabled={ocupado} className={claseAccion("primario", "w-full", "md")}>
+                {enviando === "correo" && <Loader2 size={17} aria-hidden className="animate-spin" />}
+                {{ crear: "Crear mi cuenta", entrar: "Entrar", codigo: "Confirmar y entrar", recuperar: "Mandarme el código", nueva: "Guardar y entrar" }[modo]}
+              </button>
+              {conCodigo && (
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  onClick={() =>
+                    void hacer(async () => {
+                      if (modo === "codigo") await reenviarCodigo(email);
+                      else await recuperarClave(email);
+                      setAviso(`Te mandamos otro código a ${email.trim()}.`);
+                    }, "otro")
+                  }
+                  className={claseAccion("fantasma", "w-full", "md")}
+                >
+                  {enviando === "otro" && <Loader2 size={16} aria-hidden className="animate-spin" />} Mandarme otro código
+                </button>
+              )}
+            </form>
 
-                {modo === "crear" && (
-                  <p className="mt-5 flex items-start gap-2 text-meta leading-relaxed text-mute">
-                    <ShieldCheck size={15} aria-hidden className="mt-0.5 shrink-0" />
-                    Tu correo sólo se usa para tus alertas, tus recibos y avisos de tu cuenta. No lo vendemos ni lo compartimos.
-                  </p>
-                )}
-              </>
+            {modo === "crear" && (
+              <p className="mt-5 flex items-start gap-2 text-meta leading-relaxed text-mute">
+                <ShieldCheck size={15} aria-hidden className="mt-0.5 shrink-0" />
+                Tu correo sólo se usa para tus alertas, tus recibos y avisos de tu cuenta. No lo vendemos ni lo compartimos.
+              </p>
+            )}
+            {(modo === "entrar" || modo === "crear") && (
+              <p className="mt-4 flex items-start gap-2 rounded-xl bg-ink/[0.035] px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
+                <KeyRound size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+                <span>
+                  {producto === "obras" ? <>Obras usa tu cuenta de {NOMBRE_APP.licitaciones}. </> : null}
+                  {NOMBRE_APP[otra]} tiene su propia cuenta, con su correo y su contraseña.{" "}
+                  <a href={urlCanonica(otra, "/entrar")} className="font-semibold text-ink underline-offset-4 hover:underline">
+                    Ir a {otra === "empleo" ? "Empleo" : "Licitaciones"}
+                  </a>
+                </span>
+              </p>
             )}
           </div>
         </section>
@@ -336,80 +363,31 @@ function Pestanas({ modo, onCambio }: { modo: Modo; onCambio: (m: Modo) => void 
   );
 }
 
-/** Las dos salidas cuando el correo ya tiene cuenta o la contraseña no entra, como opciones de un clic. */
-function AyudaCuenta({
-  caso, ocupado, google, enlace, enviandoEnlace,
-}: {
-  caso: "existe" | "noCoincide";
-  ocupado: boolean;
-  google: () => void;
-  enlace: () => void;
-  enviandoEnlace: boolean;
-}) {
+/** Cuando la contraseña no entra: elegir una nueva con un clic (las cuentas de antes del cambio la necesitan). */
+function AyudaCuenta({ ocupado, onElegir }: { ocupado: boolean; onElegir: () => void }) {
   return (
-    <div role={caso === "noCoincide" ? "alert" : "status"} className="overflow-hidden rounded-2xl border border-line">
-      <div className={cn("px-4 py-3", caso === "noCoincide" ? "bg-crimson-soft" : "bg-paperSoft")}>
-        <p className={cn("text-dato font-semibold", caso === "noCoincide" ? "text-crimsonTexto" : "text-ink")}>
-          {caso === "existe" ? "Ya tienes una cuenta con ese correo." : "El correo o la contraseña no coinciden."}
-        </p>
-        <p className={cn("mt-0.5 text-meta leading-relaxed", caso === "noCoincide" ? "text-crimsonTexto" : "text-inkSoft")}>
-          {caso === "existe" ? "Escribe tu contraseña arriba. " : ""}Si antes entraste con Google, en Gobserva o en Vigía, tu cuenta no tiene contraseña.
+    <div role="alert" className="overflow-hidden rounded-2xl border border-line">
+      <div className="bg-crimson-soft px-4 py-3">
+        <p className="text-dato font-semibold text-crimsonTexto">El correo o la contraseña no coinciden.</p>
+        <p className="mt-0.5 text-meta leading-relaxed text-crimsonTexto">
+          Desde el 8 de noviembre cada app de Gobserva tiene su propia cuenta. Si tu cuenta es de antes, elige una contraseña nueva: tus datos siguen ahí.
         </p>
       </div>
-      <ul className="divide-y divide-line">
-        <li>
-          <Salida onClick={google} disabled={ocupado} icono={<LogoGoogle />} titulo="Entrar con Google" texto="Con la misma cuenta de Google de antes." />
-        </li>
-        <li>
-          <Salida
-            onClick={enlace}
-            disabled={ocupado}
-            icono={enviandoEnlace ? <Loader2 size={18} aria-hidden className="animate-spin text-granate" /> : <KeyRound size={18} aria-hidden className="text-granate" />}
-            titulo="Elegir una contraseña"
-            texto="Te mandamos un enlace a tu correo para elegirla."
-          />
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-function Salida({ onClick, disabled, icono, titulo, texto }: { onClick: () => void; disabled: boolean; icono: ReactNode; titulo: string; texto: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex min-h-14 w-full items-center gap-3 bg-paper px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft disabled:opacity-60"
-    >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-paper">{icono}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-dato font-semibold text-ink">{titulo}</span>
-        <span className="block text-meta text-inkSoft">{texto}</span>
-      </span>
-      <ChevronRight size={17} aria-hidden className="shrink-0 text-mute" />
-    </button>
-  );
-}
-
-/** Después de mandar el enlace: a qué correo fue, qué hacer y cómo reenviarlo. */
-function Revisa({ correo, ocupado, onReenviar, onVolver }: { correo: string; ocupado: boolean; onReenviar: () => void; onVolver: () => void }) {
-  return (
-    <div role="status" className="py-4 text-center">
-      <span aria-hidden className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-granate-50 text-granate">
-        <MailCheck size={30} />
-      </span>
-      <h1 id="entrar-t" className="mt-5 font-display text-titulo font-bold leading-tight tracking-tight text-ink">Revisa tu correo</h1>
-      <p className="mx-auto mt-2 max-w-[34ch] text-pretty text-dato leading-relaxed text-inkSoft">
-        Te mandamos un enlace a <b className="font-semibold text-ink [overflow-wrap:anywhere]">{correo}</b> para elegir tu contraseña. Si no llega en unos
-        minutos, revisa el spam.
-      </p>
-      <div className="mt-6 flex flex-col gap-2">
-        <button type="button" onClick={onVolver} className={claseAccion("primario", "w-full", "md")}>Volver a entrar</button>
-        <button type="button" onClick={onReenviar} disabled={ocupado} className={claseAccion("fantasma", "w-full", "md")}>
-          {ocupado && <Loader2 size={16} aria-hidden className="animate-spin" />} Mandarlo otra vez
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onElegir}
+        disabled={ocupado}
+        className="flex min-h-14 w-full items-center gap-3 bg-paper px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft disabled:opacity-60"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-paper">
+          {ocupado ? <Loader2 size={18} aria-hidden className="animate-spin text-granate" /> : <KeyRound size={18} aria-hidden className="text-granate" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-dato font-semibold text-ink">Elegir una contraseña nueva</span>
+          <span className="block text-meta text-inkSoft">Te mandamos un código a tu correo.</span>
+        </span>
+        <ChevronRight size={17} aria-hidden className="shrink-0 text-mute" />
+      </button>
     </div>
   );
 }
@@ -461,17 +439,5 @@ function Ganas({ producto }: { producto: Producto }) {
         </figure>
       </div>
     </aside>
-  );
-}
-
-/** La «G» de Google en sus colores (lo que la gente reconoce en ese botón). */
-function LogoGoogle() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
-    </svg>
   );
 }

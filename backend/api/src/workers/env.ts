@@ -19,6 +19,10 @@ export interface Env {
 
   // vars
   FIREBASE_PROJECT_ID?: string;
+  /** Los grupos de Cognito de las apps de Gobserva: «app|pool|cliente,…» (lib/cuentasApps.ts). */
+  COGNITO_GOBSERVA?: string;
+  /** «todas» (transición) o «planes»: qué puede pedir una cuenta de Vigía en /gobserva/cuenta. */
+  GOBSERVA_CUENTAS_VIGIA?: string;
   GCS_PROJECT_ID?: string;
   GCS_BUCKET_DOCUMENTOS?: string;
   GCS_BUCKET_REPORTES?: string;

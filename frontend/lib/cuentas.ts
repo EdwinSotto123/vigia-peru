@@ -143,6 +143,11 @@ async function usuarioActual(): Promise<User | null> {
 }
 
 export async function idToken(): Promise<string | null> {
+  // En una app de Gobserva (Empleo, Licitaciones, Obras), el token de su cuenta en Cognito (lib/cognito.ts).
+  if (typeof window !== "undefined") {
+    const cognito = await import("./cognito");
+    if (cognito.appActual()) return cognito.tokenActual().catch(() => null);
+  }
   const u = await usuarioActual();
   if (!u) return null;
   try { return await u.getIdToken(); } catch { return null; }

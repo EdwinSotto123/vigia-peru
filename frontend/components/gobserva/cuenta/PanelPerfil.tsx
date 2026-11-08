@@ -10,7 +10,7 @@ import { rutaEn, type Producto } from "@/lib/gobserva";
 import { ErrorCuenta, borrarCuenta, guardarPerfil, type Me } from "@/lib/gobserva-cuenta";
 import { CAMPO, ETIQUETA } from "./comun";
 
-export function PanelPerfil({ producto: _producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
+export function PanelPerfil({ producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
   const router = useRouter();
   const c = me.cuenta;
   const [f, setF] = useState({
@@ -25,7 +25,9 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
   });
   const [guardando, setGuardando] = useState(false);
   const [nota, setNota] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
-  const [claveNota, setClaveNota] = useState<string | null>(null);
+  const [claveNota, setClaveNota] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
+  const [cambiando, setCambiando] = useState(false);
+  const [claves, setClaves] = useState({ actual: "", nueva: "" });
   const [borrar, setBorrar] = useState("");
   const [borrando, setBorrando] = useState(false);
 
@@ -50,14 +52,19 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
     }
   }
 
-  async function cambiarClave() {
+  /** Cambia la contraseña de esta app (pide la de ahora; la otra app tiene la suya). */
+  async function cambiarClave(e: FormEvent) {
+    e.preventDefault();
     setClaveNota(null);
+    if (claves.nueva.length < 8) return setClaveNota({ tono: "error", texto: "La contraseña nueva debe tener al menos 8 caracteres." });
+    const { cambiarClave: cambiar, mensajeAuth } = await import("@/lib/gobserva-auth");
     try {
-      const { recuperarClave } = await import("@/lib/gobserva-auth");
-      await recuperarClave(c.email, window.location.href);
-      setClaveNota(`Te enviamos un enlace a ${c.email} para elegir una contraseña nueva.`);
-    } catch {
-      setClaveNota("No pudimos enviarlo. Si entras con Google, tu contraseña es la de Google.");
+      await cambiar(claves.actual, claves.nueva);
+      setClaves({ actual: "", nueva: "" });
+      setCambiando(false);
+      setClaveNota({ tono: "ok", texto: "Listo: ya entras con tu contraseña nueva." });
+    } catch (err) {
+      setClaveNota({ tono: "error", texto: mensajeAuth(err).replace("El correo o la contraseña no coinciden.", "Tu contraseña de ahora no es esa.") });
     }
   }
 
@@ -71,9 +78,9 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
     setBorrando(true);
     try {
       await borrarCuenta();
-      const { auth } = await import("@/lib/firebase");
-      // Borrar el usuario de Firebase pide un ingreso reciente; si no lo es, sólo se sale (la cuenta ya quedó borrada).
-      await auth.currentUser?.delete().catch(() => auth.signOut());
+      // Después de sus datos, la cuenta misma (en el Cognito de esta app; la otra app no se toca).
+      const { borrarUsuario } = await import("@/lib/gobserva-auth");
+      await borrarUsuario();
       router.replace(rutaEn(base, "/"));
     } catch (e) {
       setNota({ tono: "error", texto: e instanceof ErrorCuenta ? e.message : "No pudimos borrar tu cuenta. Escríbenos a hello@gobserva.cloud." });
@@ -138,27 +145,45 @@ export function PanelPerfil({ producto: _producto, base, me, onCambio }: { produ
       <aside className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
         <Caja id="acceso" titulo="Tu acceso" descripcion={<span className="break-all">{c.email}</span>}>
           <div className="flex flex-col gap-2">
-            <button type="button" onClick={() => void cambiarClave()} className={claseAccion("secundario")}>
-              <KeyRound size={15} aria-hidden /> Cambiar mi contraseña
-            </button>
+            {cambiando ? (
+              <form onSubmit={(e) => void cambiarClave(e)} className="space-y-3">
+                <div>
+                  <label htmlFor="p-clave-actual" className={ETIQUETA}>Tu contraseña de ahora</label>
+                  <input id="p-clave-actual" type="password" autoComplete="current-password" value={claves.actual} onChange={(e) => setClaves((x) => ({ ...x, actual: e.target.value }))} className={CAMPO} />
+                </div>
+                <div>
+                  <label htmlFor="p-clave-nueva" className={ETIQUETA}>La nueva (8 o más caracteres)</label>
+                  <input id="p-clave-nueva" type="password" autoComplete="new-password" value={claves.nueva} onChange={(e) => setClaves((x) => ({ ...x, nueva: e.target.value }))} className={CAMPO} />
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className={claseAccion("primario", "flex-1")}>Guardar</button>
+                  <button type="button" onClick={() => { setCambiando(false); setClaveNota(null); }} className={claseAccion("fantasma")}>Cancelar</button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setCambiando(true)} className={claseAccion("secundario")}>
+                <KeyRound size={15} aria-hidden /> Cambiar mi contraseña
+              </button>
+            )}
             <button type="button" onClick={() => void salirDe()} className={claseAccion("fantasma")}>
               <LogOut size={15} aria-hidden /> Salir
             </button>
           </div>
-          {claveNota && <p className="mt-3 text-meta text-inkSoft">{claveNota}</p>}
+          {claveNota && <p role={claveNota.tono === "error" ? "alert" : "status"} className={cn("mt-3 text-meta", claveNota.tono === "error" ? "font-medium text-crimsonTexto" : "text-mossTexto")}>{claveNota.texto}</p>}
         </Caja>
         <Caja
           id="borrar"
           titulo={
             <span className="inline-flex items-center gap-2 text-crimsonTexto">
-              <ShieldAlert size={18} aria-hidden /> Borrar mi cuenta
+              <ShieldAlert size={18} aria-hidden /> Borrar esta cuenta
             </span>
           }
           className="border-crimson/30"
         >
           <p className="text-meta leading-relaxed text-inkSoft">
-            Cancela tus cobros y borra tus alertas, guardados, seguimiento y datos de contacto. Tus recibos se conservan por ley. Escribe BORRAR para
-            confirmar.
+            Borra tu cuenta de {producto === "empleo" ? "Gobserva Empleo" : "Gobserva Licitaciones"}: cancela sus cobros y borra sus alertas, guardados,
+            seguimiento y datos de contacto. {producto === "empleo" ? "Tu cuenta de Licitaciones" : "Tu cuenta de Empleo"}, si la tienes, no se toca. Tus
+            recibos se conservan por ley. Escribe BORRAR para confirmar.
           </p>
           <label htmlFor="p-borrar" className="sr-only">Escribe BORRAR</label>
           <input id="p-borrar" value={borrar} onChange={(e) => setBorrar(e.target.value)} className={`${CAMPO} mt-3`} autoComplete="off" />

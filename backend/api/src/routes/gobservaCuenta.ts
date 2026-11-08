@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { pool, poolAdmin } from "../lib/db.js";
 import { requireAuth, type AuthedUser } from "../lib/auth.js";
+import { appDeRuta, appDelProducto, revisarApp } from "../lib/cuentasApps.js";
 import { limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { registrar } from "../lib/registro.js";
@@ -53,6 +54,25 @@ gobservaCuentaRouter.use("*", async (c, next) => {
   c.res.headers.set("Cache-Control", SIN_CACHE);
 });
 gobservaCuentaRouter.use("*", requireAuth);
+
+/**
+ * Cada cuenta en su app (lib/cuentasApps.ts): el producto que pide el pedido (?producto=, el cuerpo o la ruta) tiene que
+ * ser el de la cuenta. Una cuenta de Vigía (el MCP) sólo lee sus planes, salvo en la transición (GOBSERVA_CUENTAS_VIGIA).
+ */
+gobservaCuentaRouter.use("*", async (c, next) => {
+  const u = c.get("user");
+  let pedido: unknown = c.req.query("producto");
+  if (!pedido && /json/i.test(c.req.header("content-type") ?? "") && c.req.method !== "GET") {
+    pedido = ((await c.req.json().catch(() => null)) as { producto?: unknown } | null)?.producto;
+  }
+  const no = revisarApp(u.app, appDelProducto(pedido) ?? appDeRuta(c.req.path), {
+    vigia: process.env.GOBSERVA_CUENTAS_VIGIA === "planes" ? "planes" : "todas",
+    metodo: c.req.method,
+    ruta: c.req.path,
+  });
+  if (no) return c.json(no, 403);
+  await next();
+});
 
 const Producto = z.enum(["empleo", "licitaciones", "obras"]);
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : typeof v === "string" ? v.trim() : v);

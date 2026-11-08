@@ -20,6 +20,8 @@ export const EN_WORKERS = (globalThis as { navigator?: { userAgent?: string } })
 export interface TokenVerificado {
   uid: string;
   email?: string;
+  /** El proyecto de Firebase que lo firmó: el de Vigía o el de una app de Gobserva (lib/cuentasApps.ts). */
+  proyecto?: string;
   [claim: string]: unknown;
 }
 

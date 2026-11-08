@@ -9,6 +9,19 @@
 
 import { ambitoPedido, fijarPlataforma, type MetadatosObjeto } from "../lib/plataforma.js";
 import { verificarIdTokenFirebase } from "./firebase.js";
+import { grupoDelToken, leerCognito } from "../lib/cuentasApps.js";
+import { verificarIdTokenCognito } from "../lib/cognito.js";
+
+/**
+ * El ID token de una app de Gobserva (Empleo, Licitaciones) es de su grupo de Cognito (COGNITO_GOBSERVA); el de Vigía,
+ * de su Firebase (FIREBASE_PROJECT_ID). El emisor sólo elige con qué se verifica; la firma y todo lo demás, después.
+ */
+async function verificarConSuProyecto(token: string) {
+  const grupo = grupoDelToken(token, leerCognito(process.env.COGNITO_GOBSERVA));
+  if (grupo) return verificarIdTokenCognito(token, grupo);
+  const vigia = process.env.FIREBASE_PROJECT_ID ?? "simplia-project";
+  return { ...(await verificarIdTokenFirebase(token, vigia)), proyecto: vigia };
+}
 import { descargarObjeto, firmarUrlV4, metadatosObjeto } from "./gcs.js";
 import { idTokenCuenta, tokenAccesoCuenta } from "./google.js";
 
@@ -31,7 +44,7 @@ async function descargar(bucket: string, ruta: string): Promise<Uint8Array<Array
 }
 
 fijarPlataforma({
-  verificarIdToken: (token) => verificarIdTokenFirebase(token, process.env.FIREBASE_PROJECT_ID ?? "simplia-project"),
+  verificarIdToken: (token) => verificarConSuProyecto(token),
   firmarUrl: (bucket, ruta, opciones) => firmarUrlV4(bucket, ruta, opciones),
   metadatosObjeto: metadatos,
   descargarObjeto: descargar,

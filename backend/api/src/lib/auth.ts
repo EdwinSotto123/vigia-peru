@@ -11,7 +11,8 @@
  */
 
 import type { MiddlewareHandler } from "hono";
-import { plataforma } from "./plataforma.js";
+import { plataforma, type TokenVerificado } from "./plataforma.js";
+import type { AppCuenta } from "./cuentasApps.js";
 
 export interface AuthedUser {
   uid: string;
@@ -19,6 +20,21 @@ export interface AuthedUser {
   email: string | null;
   /** Firebase verificó que el correo es de quien inició sesión (claim email_verified). */
   emailVerificado: boolean;
+  /** De dónde es la cuenta («cognito:empleo» o el proyecto de Firebase de Vigía) y su app de Gobserva (null: Vigía). */
+  proyecto: string | null;
+  app: AppCuenta | null;
+}
+
+function usuario(decoded: TokenVerificado): AuthedUser {
+  const proyecto = typeof decoded.proyecto === "string" ? decoded.proyecto : null;
+  return {
+    uid: decoded.uid,
+    userId: (decoded as { name?: string }).name ?? null,
+    email: decoded.email ?? null,
+    emailVerificado: (decoded as { email_verified?: unknown }).email_verified === true,
+    proyecto,
+    app: proyecto === "cognito:empleo" ? "empleo" : proyecto === "cognito:licitaciones" ? "licitaciones" : null,
+  };
 }
 
 declare module "hono" {
@@ -35,12 +51,7 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
 
   try {
     const decoded = await plataforma().verificarIdToken(m[1]);
-    c.set("user", {
-      uid: decoded.uid,
-      userId: (decoded as any).name ?? null,
-      email: decoded.email ?? null,
-      emailVerificado: (decoded as any).email_verified === true,
-    });
+    c.set("user", usuario(decoded));
     await next();
   } catch {
     // Sin el mensaje de Firebase en la respuesta (auditoría M2): vencido, mal firmado o de otro proyecto dan lo mismo.
@@ -55,12 +66,7 @@ export const optionalAuth: MiddlewareHandler = async (c, next) => {
   if (m) {
     try {
       const decoded = await plataforma().verificarIdToken(m[1]);
-      c.set("user", {
-        uid: decoded.uid,
-        userId: (decoded as any).name ?? null,
-        email: decoded.email ?? null,
-        emailVerificado: (decoded as any).email_verified === true,
-      });
+      c.set("user", usuario(decoded));
     } catch {
       // sigue como anónimo
     }

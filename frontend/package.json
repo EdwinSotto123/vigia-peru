@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test \"lib/licitaciones-app/*.test.ts\" \"lib/empleo-app/*.test.ts\"",
+    "test": "node --test \"lib/licitaciones-app/*.test.ts\" \"lib/empleo-app/*.test.ts\" lib/apps-gobserva.test.ts",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview -- --port 8788",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
