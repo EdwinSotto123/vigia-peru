@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import {
-  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Landmark, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { useMe, useSesion } from "../cuenta/comun";
+import { cargarUsoMcp } from "@/lib/gobserva-cuenta";
 
 interface ItemApp {
   /** Ruta dentro del producto ("/oportunidades", "/cuenta?tab=para-ti") o URL absoluta (otro producto). */
@@ -79,7 +81,6 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         items: [
           { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/"] },
           { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot },
-          { ruta: urlCanonica("licitaciones", "/"), etiqueta: "Licitaciones", Icono: Landmark },
         ],
       },
       {
@@ -197,33 +198,43 @@ function Ayuda({ className }: { className?: string }) {
   );
 }
 
-/** El plan en la barra lateral: cuánto usas y, si es el gratis, el paso a uno de pago. */
+/**
+ * El plan en la barra lateral: con un plan de pago, los créditos del mes (del asistente y el MCP) que quedan; con el
+ * gratis, los guardados y el paso a uno de pago. Cada cifra dice qué cuenta.
+ */
 function PlanLateral({ producto, base }: { producto: Producto; base: string }) {
   const { me } = useMe(producto);
+  const pagado = !!me?.producto?.plan;
+  const mcp = useSWR(pagado ? ["gobserva-mcp", producto] : null, () => cargarUsoMcp(producto), { revalidateOnFocus: false });
   if (!me) return <span aria-hidden className="block h-[5.5rem] animate-pulse rounded-xl bg-ink/[0.05]" />;
   const lim = me.producto?.limites;
   const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
-  const pagado = !!me.producto?.plan;
-  const pct = lim && lim.guardados > 0 ? Math.min(100, Math.round((usados.guardados / lim.guardados) * 100)) : 0;
+  const conCreditos = pagado && mcp.data && mcp.data.creditos > 0;
+  const etiqueta = conCreditos ? "Créditos del mes" : "Guardados";
+  const valor = conCreditos ? Math.max(0, mcp.data!.creditos - mcp.data!.usados) : usados.guardados;
+  const tope = conCreditos ? mcp.data!.creditos : lim?.guardados ?? 0;
+  const pct = tope > 0 ? Math.min(100, Math.round((valor / tope) * 100)) : 0;
+  const alerta = conCreditos ? pct <= 10 : pct >= 100;
   return (
     <div className="rounded-xl border border-line bg-lienzo/70 p-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-meta font-bold text-ink">Plan {me.producto?.nombrePlan ?? "Gratis"}</p>
-        {lim && (
-          <p className="text-rotulo tabular-nums text-mute">
-            {usados.guardados} de {lim.guardados}
-            <span className="sr-only"> guardados</span>
+      <p className="text-meta font-bold text-ink">Plan {me.producto?.nombrePlan ?? "Gratis"}</p>
+      {(conCreditos || lim) && (
+        <>
+          <p className="mt-1.5 flex items-baseline justify-between gap-2 text-rotulo text-mute">
+            <span>{conCreditos ? "Te quedan" : etiqueta}</span>
+            <span className="tabular-nums">
+              <b className="font-semibold text-ink">{valor.toLocaleString("es-PE")}</b> de {tope.toLocaleString("es-PE")}
+              {conCreditos && <span className="sr-only"> créditos este mes</span>}
+            </span>
           </p>
-        )}
-      </div>
-      {lim && (
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-ink/10" role="progressbar" aria-valuenow={usados.guardados} aria-valuemin={0} aria-valuemax={lim.guardados} aria-label="Guardados de tu plan">
-          <div className={cn("h-full rounded-full", pct >= 100 ? "bg-crimson" : "bg-granate")} style={{ width: `${pct}%` }} />
-        </div>
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/10" role="progressbar" aria-valuenow={valor} aria-valuemin={0} aria-valuemax={tope} aria-label={conCreditos ? "Créditos que te quedan este mes" : "Guardados de tu plan"}>
+            <div className={cn("h-full rounded-full", alerta ? "bg-crimson" : "bg-granate")} style={{ width: `${pct}%` }} />
+          </div>
+        </>
       )}
       {pagado ? (
-        <Link href={rutaEn(base, "/cuenta?tab=pagos")} className="mt-2.5 inline-flex min-h-8 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
-          Ver tu plan y tus recibos
+        <Link href={rutaEn(base, "/cuenta?tab=pagos#uso")} className="mt-2.5 inline-flex min-h-8 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
+          Tu plan y tu uso
         </Link>
       ) : (
         <Link

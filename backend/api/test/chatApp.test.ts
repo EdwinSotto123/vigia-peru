@@ -30,3 +30,22 @@ test("cada app pregunta con las herramientas de la dirección de su producto", (
   assert.doesNotMatch(pedidoApp("licitaciones", "fino").sistema, /Modo profundo/);
   assert.ok(l.vueltas > e.vueltas);
 });
+
+test("el título de una conversación: su primera pregunta en una línea, sin pasar de 80 letras", async () => {
+  const { tituloDe } = await import("../src/lib/conversaciones.js");
+  assert.equal(tituloDe("  ¿Qué plazas   hay\nen Cusco?  "), "¿Qué plazas hay en Cusco?");
+  const largo = tituloDe("¿Qué licitaciones de uniformes institucionales para damas y caballeros se convocaron esta semana en Cusco y Puno?");
+  assert.ok(largo.length <= 81 && largo.endsWith("…"));
+  assert.equal(tituloDe("   "), "Conversación");
+});
+
+test("el perfil de quien pregunta, en palabras, para el asistente", async () => {
+  const { perfilEmpleoTexto, lineasTexto, pedidoApp } = await import("../src/lib/chatApp.js");
+  const t = perfilEmpleoTexto("carreras=Contabilidad&palabras=contador%7Canalista+contable&tengo=titulo&region=la-libertad&sueldo=3000&puesto=Contabilidad");
+  assert.match(t ?? "", /Carrera: Contabilidad\. Puestos que le interesan: contador, analista contable\. Estudios: título profesional\..*la libertad.*S\/ 3000/);
+  assert.equal(perfilEmpleoTexto("puesto=Mi+perfil"), null);
+  const l = lineasTexto([{ nombre: "Uniformes", descripcion: "Confección de uniformes", palabras: ["uniformes"], regiones: ["15"], tipos: ["bienes"] }], { "15": "Lima" });
+  assert.match(l ?? "", /Línea «Uniformes»: Confección de uniformes\. Palabras: uniformes\. Regiones: Lima\. Compra de: bienes\./);
+  assert.match(pedidoApp("empleo", "rapido", t).sistema, /guardó en su cuenta/);
+  assert.doesNotMatch(pedidoApp("empleo", "rapido", null).sistema, /guardó en su cuenta/);
+});

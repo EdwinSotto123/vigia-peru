@@ -83,10 +83,45 @@ Modo profundo:
 - Termina con «Recomendación» (qué haría la empresa, con sus riesgos) y «Lo que no pude verificar».` : ""}`;
 }
 
-export function pedidoApp(app: AppChat, modo: ModoChat): { ruta: string; sistema: string; vueltas: number; max: number } {
+/** `perfil`: lo que quien pregunta guardó en su cuenta (perfilParaChat), para buscar sin que lo repita. */
+export function pedidoApp(app: AppChat, modo: ModoChat, perfil?: string | null): { ruta: string; sistema: string; vueltas: number; max: number } {
+  const base = app === "empleo" ? sistemaEmpleo() : sistemaLicitaciones(modo === "profundo");
+  const conPerfil = perfil
+    ? `${base}\n\nLo que quien pregunta guardó en su cuenta de Gobserva (úsalo para buscar y ordenar sin pedírselo de nuevo; si pregunta por otra cosa, responde eso):\n${perfil}`
+    : base;
   return {
     ruta: app === "empleo" ? "/mcp/empleo" : "/mcp/licitaciones",
-    sistema: app === "empleo" ? sistemaEmpleo() : sistemaLicitaciones(modo === "profundo"),
+    sistema: conPerfil,
     ...TOPES[modo],
   };
+}
+
+const ESTUDIOS_TEXTO: Record<string, string> = {
+  secundaria: "secundaria", tecnica: "técnica", egresado: "egresado o estudiante", bachiller: "bachiller", titulo: "título profesional", posgrado: "posgrado",
+};
+
+/** El perfil de Empleo («Mi perfil», la query que guarda la entrevista) en palabras. */
+export function perfilEmpleoTexto(query: string): string | null {
+  const q = new URLSearchParams(query);
+  const lista = (k: string) => (q.get(k) ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+  const partes = [
+    lista("carreras").length ? `Carrera: ${lista("carreras").join(", ")}.` : "",
+    lista("palabras").length ? `Puestos que le interesan: ${lista("palabras").join(", ")}.` : "",
+    q.get("tengo") ? `Estudios: ${ESTUDIOS_TEXTO[q.get("tengo")!] ?? q.get("tengo")}.` : "",
+    q.get("exp") ? `Experiencia: ${q.get("exp")} años o más.` : "",
+    q.get("region") ? `Dónde quiere trabajar: ${q.get("region")!.replace(/-/g, " ")}.` : "Dónde quiere trabajar: cualquier región.",
+    q.get("sueldo") ? `Sueldo mínimo: S/ ${q.get("sueldo")}.` : "",
+  ].filter(Boolean);
+  return partes.length > 1 ? partes.join(" ") : null;
+}
+
+/** Las líneas de negocio de Licitaciones en palabras. */
+export function lineasTexto(lineas: { nombre: string; descripcion: string; palabras: string[]; regiones: string[]; tipos: string[] }[], departamentos: Record<string, string>): string | null {
+  if (!lineas.length) return null;
+  return lineas
+    .map((l) => {
+      const regiones = l.regiones.map((r) => departamentos[r] ?? r).join(", ");
+      return `Línea «${l.nombre}»: ${l.descripcion.slice(0, 300)}${l.palabras.length ? `. Palabras: ${l.palabras.join(", ")}` : ""}${regiones ? `. Regiones: ${regiones}` : ""}${l.tipos.length ? `. Compra de: ${l.tipos.join(", ")}` : ""}.`;
+    })
+    .join("\n");
 }

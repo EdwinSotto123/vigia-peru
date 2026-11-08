@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/cuentas";
+import { cargarConversacion, type TurnoConversacion } from "@/lib/gobserva-cuenta";
 import {
-  aplicarEvento, cerrarTurno, comoEvento, historial, nuevoId, turnoVacio, type EventoChat, type Mensaje, type MensajeUsuario,
+  aplicarEvento, cerrarTurno, comoEvento, historial, nuevoId, turnoVacio, type EventoChat, type Mensaje, type MensajeAsistente,
+  type MensajeUsuario, type PasoHerramienta,
 } from "@/components/admin/chat/conversacion";
 
 /**
- * El asistente de cada app (2026-11-08): la conversación, el pedido a POST /gobserva/cuenta/chat con su stream NDJSON
- * (los mismos eventos del chat del panel, más `creditos` al final) y una copia en sessionStorage (una recarga no la
- * pierde; cerrar la pestaña, sí). El servidor no guarda la conversación.
+ * El asistente de cada app (2026-11-08): la conversación en pantalla, el pedido a POST /gobserva/cuenta/chat con su
+ * stream NDJSON (los eventos del chat del panel, más `creditos` y `conversacion` al final) y el historial: cada pregunta
+ * con respuesta queda en una conversación guardada en la cuenta (migración 269), que se puede abrir, seguir, renombrar y
+ * borrar. sessionStorage sólo recuerda cuál estaba abierta y lo que se veía (una recarga no la pierde).
  */
 
 export type AppAsistente = "empleo" | "licitaciones";
@@ -29,7 +32,12 @@ export interface AvisoAsistente {
   texto: string;
 }
 
-async function leer(r: Response, aplicar: (e: EventoChat) => void, alCobrar: (c: { usados: number; quedan: number | null }) => void) {
+interface Extra {
+  creditos?: (c: { usados: number; quedan: number | null }) => void;
+  conversacion?: (c: { id: string; titulo: string }) => void;
+}
+
+async function leer(r: Response, aplicar: (e: EventoChat) => void, extra: Extra) {
   const procesar = (linea: string) => {
     const t = linea.trim();
     if (!t) return;
@@ -39,11 +47,9 @@ async function leer(r: Response, aplicar: (e: EventoChat) => void, alCobrar: (c:
     } catch {
       return;
     }
-    const o = crudo as { tipo?: unknown; usados?: unknown; quedan?: unknown };
-    if (o?.tipo === "creditos") {
-      alCobrar({ usados: Number(o.usados) || 0, quedan: typeof o.quedan === "number" ? o.quedan : null });
-      return;
-    }
+    const o = crudo as { tipo?: unknown; usados?: unknown; quedan?: unknown; id?: unknown; titulo?: unknown };
+    if (o?.tipo === "creditos") return extra.creditos?.({ usados: Number(o.usados) || 0, quedan: typeof o.quedan === "number" ? o.quedan : null });
+    if (o?.tipo === "conversacion" && typeof o.id === "string") return extra.conversacion?.({ id: o.id, titulo: typeof o.titulo === "string" ? o.titulo : "" });
     const e = comoEvento(crudo);
     if (e) aplicar(e);
   };
@@ -68,23 +74,50 @@ async function leer(r: Response, aplicar: (e: EventoChat) => void, alCobrar: (c:
   procesar(bufer + deco.decode());
 }
 
+/** Los turnos guardados → la conversación en pantalla (cada respuesta, ya terminada, con lo que consultó). */
+function desdeGuardados(turnos: TurnoConversacion[]): { mensajes: Mensaje[]; creditos: Record<string, number> } {
+  const mensajes: Mensaje[] = [];
+  const creditos: Record<string, number> = {};
+  for (const t of turnos) {
+    if (t.rol === "usuario") {
+      mensajes.push({ id: nuevoId(), rol: "usuario", texto: t.texto });
+      continue;
+    }
+    const m: MensajeAsistente = { ...turnoVacio(nuevoId(), t.modo === "rapido" ? "rapido" : "fino", Date.parse(t.fecha) || Date.now()), estado: "listo", texto: t.texto };
+    m.pasos = (t.consultas ?? []).map((titulo, i): PasoHerramienta => ({
+      tipo: "herramienta", id: `g${i}`, herramienta: titulo, titulo, entrada: null, estado: "listo", caracteres: null, resumen: null,
+    }));
+    if (typeof t.creditos === "number") creditos[m.id] = t.creditos;
+    mensajes.push(m);
+  }
+  return { mensajes, creditos };
+}
+
 export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
   const clave = `gobserva-asistente-${app}`;
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [modo, setModo] = useState<ModoAsistente>("rapido");
   const [aviso, setAviso] = useState<AvisoAsistente | null>(null);
-  const [cobro, setCobro] = useState<{ usados: number; quedan: number | null } | null>(null);
+  const [conversacion, setConversacion] = useState<{ id: string; titulo: string } | null>(null);
+  const [creditos, setCreditos] = useState<Record<string, number>>({});
+  const [abriendo, setAbriendo] = useState(false);
   const [cargado, setCargado] = useState(false);
   const control = useRef<AbortController | null>(null);
   const ultimos = useRef(mensajes);
   ultimos.current = mensajes;
+  const actual = useRef(conversacion);
+  actual.current = conversacion;
 
-  // La conversación de esta pestaña (lo que estaba corriendo al recargar queda cortado).
+  // Lo que se veía en esta pestaña (lo que estaba corriendo al recargar queda cortado).
   useEffect(() => {
     try {
-      const g = JSON.parse(sessionStorage.getItem(clave) ?? "null") as { mensajes?: Mensaje[]; modo?: ModoAsistente } | null;
+      const g = JSON.parse(sessionStorage.getItem(clave) ?? "null") as
+        | { mensajes?: Mensaje[]; modo?: ModoAsistente; conversacion?: { id: string; titulo: string } | null; creditos?: Record<string, number> }
+        | null;
       if (g?.mensajes) setMensajes(g.mensajes.map((m) => (m.rol === "asistente" ? cerrarTurno(m, false) : m)));
       if (g?.modo && MODOS_DE[app].includes(g.modo)) setModo(g.modo);
+      if (g?.conversacion) setConversacion(g.conversacion);
+      if (g?.creditos) setCreditos(g.creditos);
     } catch {
       /* sin sessionStorage: empieza vacía */
     }
@@ -93,11 +126,11 @@ export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
   useEffect(() => {
     if (!cargado) return;
     try {
-      sessionStorage.setItem(clave, JSON.stringify({ mensajes: mensajes.slice(-30), modo }));
+      sessionStorage.setItem(clave, JSON.stringify({ mensajes: mensajes.slice(-40), modo, conversacion, creditos }));
     } catch {
       /* lleno o bloqueado: no se guarda */
     }
-  }, [mensajes, modo, cargado, clave]);
+  }, [mensajes, modo, conversacion, creditos, cargado, clave]);
   useEffect(() => () => control.current?.abort(), []);
 
   const enviar = useCallback(
@@ -109,17 +142,18 @@ export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
       const asistente = turnoVacio(nuevoId(), modo === "rapido" ? "rapido" : "fino");
       setMensajes([...previos, usuario, asistente]);
       setAviso(null);
-      setCobro(null);
       const ac = new AbortController();
       control.current = ac;
-      const cambiar = (fn: (m: Extract<Mensaje, { rol: "asistente" }>) => Extract<Mensaje, { rol: "asistente" }>) =>
+      const cambiar = (fn: (m: MensajeAsistente) => MensajeAsistente) =>
         setMensajes((ms) => ms.map((m) => (m.id === asistente.id && m.rol === "asistente" ? fn(m) : m)));
       const aplicar = (e: EventoChat) => cambiar((m) => aplicarEvento(m, e));
       try {
         const r = await authFetch("/gobserva/cuenta/chat", {
           method: "POST",
           headers: { Accept: "application/x-ndjson" },
-          body: JSON.stringify({ producto: app, modo, mensajes: historial([...previos, usuario]) }),
+          body: JSON.stringify({
+            producto: app, modo, mensajes: historial([...previos, usuario]), ...(actual.current ? { conversacion: actual.current.id } : {}),
+          }),
           signal: ac.signal,
         });
         if (!r.ok) {
@@ -129,7 +163,10 @@ export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
           aplicar({ tipo: "error", mensaje });
           return true;
         }
-        await leer(r, aplicar, setCobro);
+        await leer(r, aplicar, {
+          creditos: (c) => setCreditos((x) => ({ ...x, [asistente.id]: c.usados })),
+          conversacion: (c) => setConversacion(c),
+        });
       } catch {
         if (!ac.signal.aborted) aplicar({ tipo: "error", mensaje: "Se perdió la conexión. Vuelve a preguntar." });
       } finally {
@@ -147,7 +184,27 @@ export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
     control.current?.abort();
     setMensajes([]);
     setAviso(null);
-    setCobro(null);
+    setConversacion(null);
+    setCreditos({});
+  }, []);
+  /** Abre una conversación guardada para leerla o seguirla. */
+  const abrir = useCallback(async (id: string) => {
+    control.current?.abort();
+    setAbriendo(true);
+    setAviso(null);
+    try {
+      const c = await cargarConversacion(id);
+      const g = desdeGuardados(c.mensajes);
+      setMensajes(g.mensajes);
+      setCreditos(g.creditos);
+      setConversacion({ id: c.id, titulo: c.titulo });
+      return true;
+    } catch {
+      setAviso({ codigo: "no_abre", texto: "No pudimos abrir esa conversación. Vuelve a intentarlo." });
+      return false;
+    } finally {
+      setAbriendo(false);
+    }
   }, []);
   /** Vuelve a hacer la última pregunta (la que no tuvo respuesta). */
   const reintentar = useCallback(() => {
@@ -158,5 +215,5 @@ export function useAsistente(app: AppAsistente, alTerminar?: () => void) {
   }, [enviar]);
 
   const corriendo = mensajes.some((m) => m.rol === "asistente" && m.estado === "corriendo");
-  return { mensajes, modo, setModo, enviar, detener, nueva, reintentar, corriendo, aviso, cobro };
+  return { mensajes, modo, setModo, enviar, detener, nueva, abrir, abriendo, reintentar, corriendo, aviso, conversacion, setConversacion, creditos };
 }

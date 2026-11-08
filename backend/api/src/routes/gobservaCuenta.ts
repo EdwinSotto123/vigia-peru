@@ -26,8 +26,10 @@ import { diaLima, mesLima, renuevaMcp, topesMcp, type TopesMcp } from "../lib/cr
 import { ambitoPedido } from "../lib/plataforma.js";
 import { stream } from "hono/streaming";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
-import { CREDITOS_MODO, MODOS_APP, creditosCobrados, modeloDe, pedidoApp } from "../lib/chatApp.js";
+import { CREDITOS_MODO, MODOS_APP, creditosCobrados, lineasTexto, modeloDe, pedidoApp, perfilEmpleoTexto } from "../lib/chatApp.js";
+import { DEPARTAMENTOS } from "../lib/gobservaAlertas.js";
 import { registrarConsumo } from "../lib/consumo.js";
+import { guardarTurno } from "../lib/conversaciones.js";
 
 /**
  * La cuenta de Gobserva (2026-11-01): una persona de Firebase con su correo real, para los tres productos. Todo lo de
@@ -197,6 +199,8 @@ const ChatBody = z.object({
   producto: z.enum(["empleo", "licitaciones", "obras"]),
   modo: z.enum(["rapido", "fino", "profundo"]).default("rapido"),
   mensajes: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().trim().min(1).max(8000) })).min(1).max(30),
+  /** La conversación guardada a la que se suma (migración 269); sin ella, se abre una. */
+  conversacion: z.string().uuid().optional(),
 });
 const NUM_PE = new Intl.NumberFormat("es-PE");
 
@@ -209,7 +213,7 @@ gobservaCuentaRouter.post("/chat", async (c) => {
   const u = c.get("user");
   const b = ChatBody.safeParse(await c.req.json().catch(() => null));
   if (!b.success) return c.json({ error: "invalid_body", detail: "Manda { producto, modo, mensajes }." }, 400);
-  const { producto, modo, mensajes } = b.data;
+  const { producto, modo, mensajes, conversacion } = b.data;
   if (mensajes[mensajes.length - 1].rol !== "usuario") return c.json({ error: "invalid_body", detail: "El último mensaje tiene que ser tuyo." }, 400);
   if (mensajes.reduce((n, m) => n + m.texto.length, 0) > 40_000) {
     return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
@@ -241,19 +245,106 @@ gobservaCuentaRouter.post("/chat", async (c) => {
     return c.json({ error: "tope_dia", detail: `Hoy ya usaste ${NUM_PE.format(uso.dia)} créditos, el tope de un día. Mañana sigues.` }, 429);
   }
   const env = (c.env ?? {}) as EnvChat;
+  // Lo que guardó en su cuenta: el asistente busca con eso sin pedírselo de nuevo.
+  const perfil = await (app === "empleo"
+    ? pool.query<{ query: string }>(`SELECT query FROM gobserva_busquedas WHERE firebase_uid = $1 AND producto = 'empleo' AND nombre = 'Mi perfil' LIMIT 1`, [u.uid])
+        .then((r) => (r.rows[0] ? perfilEmpleoTexto(r.rows[0].query) : null))
+    : pool.query<{ nombre: string; descripcion: string; palabras: string[]; regiones: string[]; tipos: string[] }>(
+        `SELECT nombre, descripcion, palabras, regiones, tipos FROM gobserva_lineas WHERE firebase_uid = $1 ORDER BY id LIMIT 5`, [u.uid])
+        .then((r) => lineasTexto(r.rows, DEPARTAMENTOS))).catch(() => null);
   c.header("Content-Type", "application/x-ndjson; charset=utf-8");
   c.header("Cache-Control", "no-store");
   return stream(c, async (s) => {
-    const escribir = (o: Record<string, unknown>) => s.write(`${JSON.stringify(o)}\n`);
-    const fin = await correrChat(env, { mensajes, modelo: modeloDe(modo), actor: `app:${app}:${u.uid.slice(0, 8)}`, app: pedidoApp(app, modo) }, escribir);
+    // Lo que se guarda en el historial: la respuesta y lo que consultó para darla.
+    let respuesta = "";
+    const consultas: string[] = [];
+    const escribir = (o: Record<string, unknown>) => {
+      if (o.tipo === "respuesta" && typeof o.texto === "string") respuesta = o.texto;
+      if (o.tipo === "paso" && typeof o.titulo === "string" && !consultas.includes(o.titulo)) consultas.push(o.titulo);
+      return s.write(`${JSON.stringify(o)}\n`);
+    };
+    const fin = await correrChat(env, { mensajes, modelo: modeloDe(modo), actor: `app:${app}:${u.uid.slice(0, 8)}`, app: pedidoApp(app, modo, perfil) }, escribir);
     if (!fin.ok || !lim?.gastarMcp) return;
     const cobrados = creditosCobrados(modo, fin.costo);
     const nuevo = await lim.gastarMcp(u.uid, mes, dia, cobrados, 0).catch(() => null);
     await registrarConsumo({ uid: u.uid, canal: "asistente", detalle: modo, app, creditos: cobrados, costoUsd: fin.costo })
       .catch((e) => registrar("WARNING", `[chat] consumo sin guardar: ${(e as Error).message}`));
+    const guardada = await guardarTurno({
+      uid: u.uid, app, id: conversacion ?? null, pregunta: mensajes[mensajes.length - 1].texto, respuesta, modo, creditos: cobrados, consultas,
+    }).catch((e) => {
+      registrar("WARNING", `[chat] historial sin guardar: ${(e as Error).message.slice(0, 80)}`);
+      return null;
+    });
+    if (guardada) await Promise.resolve(escribir({ tipo: "conversacion", id: guardada.id, titulo: guardada.titulo })).catch(() => undefined);
     await Promise.resolve(escribir({ tipo: "creditos", usados: cobrados, quedan: nuevo ? Math.max(0, topes.creditos - nuevo.mes) : null, del_mes: topes.creditos }))
       .catch(() => undefined);
   });
+});
+
+// ─── El historial del asistente (migración 269) y el uso de créditos ────────────────────────────────────────────────
+
+const appDe = (c: Context) => (c.req.query("producto") === "empleo" ? "empleo" : "licitaciones");
+
+gobservaCuentaRouter.get("/conversaciones", async (c) => {
+  const u = c.get("user");
+  const r = await pool.query(
+    `SELECT id, titulo, creditos, jsonb_array_length(mensajes) / 2 AS preguntas,
+            to_char(actualizado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI') AS actualizado
+       FROM gobserva_conversaciones WHERE firebase_uid = $1 AND app = $2 ORDER BY actualizado_at DESC LIMIT 100`,
+    [u.uid, appDe(c)]);
+  return c.json({ data: r.rows });
+});
+
+gobservaCuentaRouter.get("/conversaciones/:id", async (c) => {
+  const u = c.get("user");
+  const id = z.string().uuid().safeParse(c.req.param("id"));
+  if (!id.success) return c.json({ error: "no_encontrado" }, 404);
+  const r = await pool.query(
+    `SELECT id, titulo, creditos, mensajes, to_char(actualizado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI') AS actualizado
+       FROM gobserva_conversaciones WHERE id = $1 AND firebase_uid = $2`, [id.data, u.uid]);
+  return r.rows[0] ? c.json(r.rows[0]) : c.json({ error: "no_encontrado" }, 404);
+});
+
+gobservaCuentaRouter.put("/conversaciones/:id", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const id = z.string().uuid().safeParse(c.req.param("id"));
+  const b = z.object({ titulo: z.string().trim().min(1).max(120) }).safeParse(await c.req.json().catch(() => null));
+  if (!id.success || !b.success) return c.json({ error: "invalid_body", detail: "El nombre puede tener hasta 120 letras." }, 400);
+  const r = await pool.query(`UPDATE gobserva_conversaciones SET titulo = $3 WHERE id = $1 AND firebase_uid = $2`, [id.data, u.uid, b.data.titulo]);
+  return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+gobservaCuentaRouter.delete("/conversaciones/:id", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const id = z.string().uuid().safeParse(c.req.param("id"));
+  if (!id.success) return c.json({ error: "no_encontrado" }, 404);
+  const r = await pool.query(`DELETE FROM gobserva_conversaciones WHERE id = $1 AND firebase_uid = $2`, [id.data, u.uid]);
+  return (r.rowCount ?? 0) ? c.json({ ok: true }) : c.json({ error: "no_encontrado" }, 404);
+});
+
+/** Borra todo el historial de la app. */
+gobservaCuentaRouter.delete("/conversaciones", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const r = await pool.query(`DELETE FROM gobserva_conversaciones WHERE firebase_uid = $1 AND app = $2`, [u.uid, appDe(c)]);
+  return c.json({ ok: true, borradas: r.rowCount ?? 0 });
+});
+
+/** El uso de créditos de la cuenta por día y por modo o herramienta (migración 268), de los últimos `dias` días. */
+gobservaCuentaRouter.get("/uso", async (c) => {
+  const u = c.get("user");
+  const dias = Math.min(90, Math.max(7, Number.parseInt(c.req.query("dias") ?? "30", 10) || 30));
+  const desde = `(now() AT TIME ZONE 'America/Lima')::date - ${dias - 1}`;
+  const [porDia, porDetalle] = await Promise.all([
+    pool.query(
+      `SELECT to_char(dia, 'YYYY-MM-DD') AS dia,
+              COALESCE(sum(llamadas) FILTER (WHERE canal = 'asistente'), 0)::int AS preguntas,
+              COALESCE(sum(llamadas) FILTER (WHERE canal = 'mcp'), 0)::int AS mcp, sum(creditos)::int AS creditos
+         FROM gobserva_consumo WHERE firebase_uid = $1 AND dia >= ${desde} GROUP BY dia ORDER BY dia`, [u.uid]),
+    pool.query(
+      `SELECT canal, detalle, sum(llamadas)::int AS usos, sum(creditos)::int AS creditos
+         FROM gobserva_consumo WHERE firebase_uid = $1 AND dia >= ${desde} GROUP BY 1, 2 ORDER BY 4 DESC`, [u.uid]),
+  ]);
+  return c.json({ dias, porDia: porDia.rows, porDetalle: porDetalle.rows });
 });
 
 /** Lo usado del MCP este mes (la cuenta lo muestra): créditos del mes y de hoy, filas de hoy y cuándo se renuevan. */
@@ -310,6 +401,9 @@ gobservaCuentaRouter.delete("/me", limiteEscritura, async (c) => {
   await pool.query(`DELETE FROM gobserva_busquedas WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
   await pool.query(`DELETE FROM gobserva_checklist WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
   await poolAdmin.query(`DELETE FROM gobserva_envios WHERE firebase_uid = $1`, [u.uid]);
+  // Migraciones 268 y 269: el historial del asistente y el consumo de la cuenta.
+  await pool.query(`DELETE FROM gobserva_conversaciones WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
+  await pool.query(`DELETE FROM gobserva_consumo WHERE firebase_uid = $1`, [u.uid]).catch(() => undefined);
   await poolAdmin.query(
     `UPDATE gobserva_cuentas SET email = 'baja-' || md5(firebase_uid) || '@gobserva.invalid', email_verificado = false, nombre = NULL,
             empresa = NULL, telefono = NULL, whatsapp = false, boletin = false, baja_at = now(), actualizado_at = now()

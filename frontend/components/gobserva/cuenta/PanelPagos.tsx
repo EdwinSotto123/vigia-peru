@@ -15,6 +15,7 @@ import { Caja, ESPACIO_CAJAS, VacioCaja } from "@/components/gobserva/app/Caja";
 import { ComparaPlanes } from "@/components/licitaciones/ComparaPlanes";
 import { Aviso } from "./comun";
 import { CajaPlan } from "./PanelResumen";
+import { UsoCreditos } from "./UsoCreditos";
 import type { Seccion } from "./Cuenta";
 
 type Ir = (t: Seccion) => void;
@@ -34,6 +35,7 @@ export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { pr
   return (
     <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
       <CajaPlan producto={producto} base={base} me={me} irA={irA} />
+      <UsoCreditos producto={producto} />
 
       {planes.length > 0 && (
         <Caja id="suscripciones" titulo="Tus suscripciones" descripcion="Cada plan con su medio de pago. Cancelas la renovación cuando quieras." relleno={false}>

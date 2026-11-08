@@ -23,7 +23,7 @@ import { filasPlazas, filtrosPlazas } from "../routes/empleo.js";
 import { filasBandeja, filasOportunidades, filtrosBandejaAlerta, filtrosOportunidades } from "../routes/licitaciones.js";
 import { condicionesProyectos, type FiltrosProyectos } from "../routes/proyectos.js";
 
-const DEPARTAMENTOS: Record<string, string> = {
+export const DEPARTAMENTOS: Record<string, string> = {
   "01": "Amazonas", "02": "Áncash", "03": "Apurímac", "04": "Arequipa", "05": "Ayacucho", "06": "Cajamarca", "07": "Callao",
   "08": "Cusco", "09": "Huancavelica", "10": "Huánuco", "11": "Ica", "12": "Junín", "13": "La Libertad", "14": "Lambayeque",
   "15": "Lima", "16": "Loreto", "17": "Madre de Dios", "18": "Moquegua", "19": "Pasco", "20": "Piura", "21": "Puno",

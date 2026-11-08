@@ -241,6 +241,40 @@ export const cargarCobros = () => api<{ data: Cobro[] }>("/cobros");
 export const cargarRecibo = (numero: string) => api<Recibo>(`/cobros/${encodeURIComponent(numero)}`);
 
 export const cargarUsoMcp = (producto: Producto) => api<UsoMcp>(`/mcp?producto=${producto}`);
+
+/** Una conversación del asistente en el historial (migración 269). */
+export interface ConversacionResumen {
+  id: string;
+  titulo: string;
+  creditos: number;
+  preguntas: number;
+  /** «2026-11-08T14:05» (hora de Lima). */
+  actualizado: string;
+}
+/** Un turno guardado de una conversación. */
+export interface TurnoConversacion {
+  rol: "usuario" | "asistente";
+  texto: string;
+  modo?: string;
+  creditos?: number;
+  consultas?: string[];
+  fecha: string;
+}
+export const cargarConversaciones = (producto: Producto) => api<{ data: ConversacionResumen[] }>(`/conversaciones?producto=${producto}`);
+export const cargarConversacion = (id: string) =>
+  api<{ id: string; titulo: string; creditos: number; mensajes: TurnoConversacion[]; actualizado: string }>(`/conversaciones/${encodeURIComponent(id)}`);
+export const renombrarConversacion = (id: string, titulo: string) =>
+  api<{ ok: true }>(`/conversaciones/${encodeURIComponent(id)}`, { method: "PUT", ...cuerpo({ titulo }) });
+export const borrarConversacion = (id: string) => api<{ ok: true }>(`/conversaciones/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const borrarHistorial = (producto: Producto) => api<{ ok: true; borradas: number }>(`/conversaciones?producto=${producto}`, { method: "DELETE" });
+
+/** El uso de créditos de la cuenta por día y por modo o herramienta (GET /gobserva/cuenta/uso). */
+export interface UsoCuenta {
+  dias: number;
+  porDia: { dia: string; preguntas: number; mcp: number; creditos: number }[];
+  porDetalle: { canal: "asistente" | "mcp"; detalle: string; usos: number; creditos: number }[];
+}
+export const cargarUso = (producto: Producto, dias = 30) => api<UsoCuenta>(`/uso?producto=${producto}&dias=${dias}`);
 export const cargarAlertas = (producto: Producto) => api<{ data: Alerta[] }>(`/alertas?producto=${producto}`);
 export const crearAlerta = (b: { producto: Producto; nombre: string; filtros: Alerta["filtros"]; frecuencia: Frecuencia }) =>
   api<{ ok: true; id: number }>("/alertas", { method: "POST", ...cuerpo(b) });
