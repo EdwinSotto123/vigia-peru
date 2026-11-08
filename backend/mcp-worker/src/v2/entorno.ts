@@ -21,15 +21,21 @@ export interface EnvV2 extends Env {
   ENTORNO?: string;
   /** Cabecera `x-vigia-interno` que manda el chat del panel (vigia-api, por service binding): cuenta del equipo. */
   MCP_INTERNO_TOKEN?: string;
+  /** Los grupos de Cognito de las apps de Gobserva, como en la API: «empleo|pool|cliente,licitaciones|pool|cliente». */
+  COGNITO_GOBSERVA?: string;
 }
 
 /** Lo que guarda la autorización (props cifradas por la librería) y lee cada herramienta. */
 export interface PropsCuenta {
   uid: string;
   nombre?: string;
+  /** Con qué cuenta entró: la de una app de Gobserva (Cognito) o, sin `app`, la de Vigía (Firebase). */
+  app?: "empleo" | "licitaciones";
   /** Token de refresco de Firebase: con él se pide un ID token para escribir en la API (seguir) y para releer el plan. */
   frt?: string;
-  /** Planes activos de Gobserva («licitaciones:pro», …); vacío = gratis. */
+  /** Token de refresco de Cognito (cuentas de las apps): lo mismo que `frt`. */
+  crt?: string;
+  /** Planes activos de Gobserva («licitaciones:pro», …); vacío = sin plan (desde 2026-11-08 no usa el MCP). */
   planes: string[];
   planesAl: number;
 }
@@ -39,3 +45,15 @@ export interface Usuario extends PropsCuenta {
 }
 
 export const esDePago = (u: Usuario | null) => !!u && u.planes.length > 0;
+
+/**
+ * El MCP es de los planes de pago (2026-11-08). Las herramientas de un producto piden el plan de ese producto
+ * (Obras viene con Licitaciones); las de Vigía, cualquier plan. «interno» es el chat del panel.
+ */
+export function tienePlanPara(planes: string[], producto: "empleo" | "licitaciones" | undefined): boolean {
+  if (planes.includes("interno")) return true;
+  const de = (p: string) => p.split(":")[0];
+  if (producto === "empleo") return planes.some((p) => de(p) === "empleo");
+  if (producto === "licitaciones") return planes.some((p) => de(p) === "licitaciones" || de(p) === "obras");
+  return planes.some((p) => p.includes(":"));
+}

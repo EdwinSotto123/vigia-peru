@@ -202,18 +202,33 @@ export async function rechazarCobroManual(numero: string, actor: string, motivo:
 }
 
 /** El panel regala meses de un plan a una cuenta (prensa, aliados, pruebas). La persona tiene que haber creado su cuenta. */
-export async function darCortesia(a: { email: string; producto: ProductoPago; plan: string; meses: number; actor: string }): Promise<{ codigo: string; numero: string }> {
-  const cuenta = (await poolAdmin.query<{ uid: string }>(
-    `SELECT firebase_uid AS uid FROM gobserva_cuentas WHERE lower(email) = lower($1) AND baja_at IS NULL ORDER BY ultimo_ingreso_at DESC NULLS LAST LIMIT 1`,
-    [a.email.trim()])).rows[0];
-  if (!cuenta) throw new ErrorCobro(404, "sin_cuenta", "Esa persona todavía no creó su cuenta de Gobserva con ese correo.");
-  const p = await prepararPlan(cuenta.uid, a.producto, a.plan, "cortesia");
+/**
+ * Un plan regalado desde el panel. Por correo: la cuenta de la app del producto (desde 2026-11-08 cada app tiene la suya
+ * y el mismo correo puede tener una en Empleo y otra en Licitaciones; Obras va con Licitaciones). Por `uid`: cualquier
+ * cuenta que exista, también una de Vigía (Firebase), que sólo usa el plan para el MCP.
+ */
+export async function darCortesia(a: { email?: string; uid?: string; producto: ProductoPago; plan: string; meses: number; actor: string }): Promise<{ codigo: string; numero: string }> {
+  let uid: string | null = null;
+  if (a.uid) {
+    const existe = await poolAdmin.query(
+      `SELECT 1 FROM gobserva_cuentas WHERE firebase_uid = $1 AND baja_at IS NULL UNION ALL SELECT 1 FROM usuarios WHERE firebase_uid = $1 LIMIT 1`, [a.uid]);
+    if (existe.rowCount) uid = a.uid;
+  } else if (a.email) {
+    const app = a.producto === "empleo" ? "empleo" : "licitaciones";
+    uid = (await poolAdmin.query<{ uid: string }>(
+      `SELECT firebase_uid AS uid FROM gobserva_cuentas WHERE lower(email) = lower($1) AND baja_at IS NULL
+        ORDER BY (CASE WHEN producto_origen = 'obras' THEN 'licitaciones' ELSE producto_origen END = $2) DESC, ultimo_ingreso_at DESC NULLS LAST
+        LIMIT 1`,
+      [a.email.trim(), app])).rows[0]?.uid ?? null;
+  }
+  if (!uid) throw new ErrorCobro(404, "sin_cuenta", "Esa persona todavía no creó su cuenta de Gobserva con ese correo.");
+  const p = await prepararPlan(uid, a.producto, a.plan, "cortesia");
   const r = await enTransaccion(async (c) => {
     const numero = await nuevoRecibo(c);
     const k = await c.query<{ id: number }>(
       `INSERT INTO gobserva_cobros (numero, plan_id, firebase_uid, medio, monto_pen, meses, estado, pagado_at, validado_por, motivo)
        VALUES ($1, $2, $3, 'cortesia', 0, $4, 'pagado', now(), left($5, 120), 'Cortesía') RETURNING id`,
-      [numero, p.id, cuenta.uid, a.meses, a.actor]);
+      [numero, p.id, uid, a.meses, a.actor]);
     await c.query(`UPDATE gobserva_planes_cliente SET cobros = cobros + $2, renovar = false WHERE id = $1`, [p.id, a.meses]);
     const cancelar = await activar(c, p.id, `now() + make_interval(months => $2::int)`, [a.meses]);
     return { numero, cancelar, cobro: k.rows[0].id };

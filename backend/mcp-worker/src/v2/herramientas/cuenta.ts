@@ -1,17 +1,18 @@
 // Lo de la cuenta de Gobserva: seguir, dejar_de_seguir y mis_seguimientos. Escriben y leen en la API COMO esa persona:
-// con el token de refresco de Firebase que dio al conectar se pide un ID token nuevo (firebase.ts) y la API lo verifica
+// con el token de refresco que dio al conectar (Firebase o Cognito) se pide un ID token nuevo (acceso.ts) y la API lo verifica
 // igual que en la web (requireAuth). Nada de esto existe sin cuenta.
 import { z } from "zod";
 import { api } from "../api";
-import { ErrorSesion, renovarIdToken } from "../firebase";
+import { idTokenDe } from "../acceso";
+import { ErrorSesion } from "../firebase";
 import { enlaces, ErrorUsuario, recortar, region, rucJuridico } from "../formato";
 import { definir, type Contexto } from "../registro";
 
 type Fila = Record<string, any>;
 
 async function tokenDe(cx: Contexto): Promise<string> {
-  if (!cx.usuario?.frt) throw new ErrorSesion("sin token de refresco");
-  return (await renovarIdToken(cx.env, cx.usuario.frt)).idToken;
+  if (!cx.usuario) throw new ErrorSesion("sin cuenta");
+  return idTokenDe(cx.env, cx.usuario);
 }
 
 function destino(tipo: "entidad" | "empresa" | "partido" | "region", id: string): { tipo: string; id: string } {

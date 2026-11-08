@@ -1,4 +1,6 @@
-// Vigía Perú · servidor MCP remoto en Cloudflare Workers (réplica de backend/mcp/server.py).
+// Vigía Perú · servidor MCP remoto en Cloudflare Workers (réplica de backend/mcp/server.py). Desde 2026-11-08 el MCP es de
+// los planes de pago (src/v2, mcp.gobserva.cloud): este servidor abierto sólo lista sus herramientas y, al llamarlas,
+// dice adónde se mudó.
 //
 // Expone datos PÚBLICOS de Vigía (alertas de riesgo, banderas con su evidencia, sanciones OSCE) a
 // cualquier cliente LLM como tools read-only. Abierto como el de Cloud Run (--allow-unauthenticated):
@@ -17,11 +19,15 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Env } from "./db";
-import { ejecutarHerramienta, HERRAMIENTAS } from "./herramientas";
+import { HERRAMIENTAS } from "./herramientas";
 import type { EnvV2 } from "./v2/entorno";
 import { manejarV2 } from "./v2/index";
 
 const RUTA = "/mcp";
+const MUDANZA =
+  "El MCP de Gobserva se mudó a https://mcp.gobserva.cloud/mcp y ahora viene con los planes de pago. Agrega esa dirección a tu " +
+  "asistente y entra con tu cuenta de Gobserva Empleo o Gobserva Licitaciones que tenga un plan vigente. Planes: " +
+  "https://empleo.gobserva.cloud/planes y https://licitaciones.gobserva.cloud/planes.";
 const SERVIDOR = { name: "vigia-peru", version: "1.0.0" };
 
 // Las mismas capacidades que anuncia FastMCP (prompts y resources vacíos incluidos).
@@ -35,9 +41,8 @@ const CAPACIDADES = {
 function crearServidor(env: Env, ctx: ExecutionContext): Server {
   const server = new Server(SERVIDOR, { capabilities: CAPACIDADES });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: HERRAMIENTAS }));
-  server.setRequestHandler(CallToolRequestSchema, async (req) =>
-    ejecutarHerramienta(req.params.name, req.params.arguments ?? {}, env, ctx),
-  );
+  // Desde 2026-11-08 el MCP es de los planes de pago: este servidor abierto ya no responde herramientas, dice adónde ir.
+  server.setRequestHandler(CallToolRequestSchema, async () => ({ content: [{ type: "text" as const, text: MUDANZA }], isError: true }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
   server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));

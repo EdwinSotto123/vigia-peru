@@ -35,9 +35,21 @@ function esquemaZod(tool: Tool): z.ZodRawShape {
   return forma as z.ZodRawShape;
 }
 
+/** El plan que pide cada una: las plazas, el de Empleo; licitaciones, mercado y obras, el de Licitaciones (trae Obras). */
+const PRODUCTO: Record<string, "empleo" | "licitaciones"> = {
+  buscar_plazas_cas: "empleo",
+  ficha_plaza_cas: "empleo",
+  buscar_licitaciones: "licitaciones",
+  mercado_rubro: "licitaciones",
+  buscar_proyectos_inversion: "licitaciones",
+  ficha_proyecto: "licitaciones",
+  mercado_obras: "licitaciones",
+};
+
 function envolver(nombre: string, def: { tool: Tool; campos: Campo[] }, ejecutar: typeof ejecutarGobserva): Herramienta {
   return definir({
     nombre,
+    producto: PRODUCTO[nombre] ?? "licitaciones",
     titulo: TITULOS[nombre] ?? nombre,
     descripcion: def.tool.description ?? "",
     entrada: esquemaZod(def.tool),

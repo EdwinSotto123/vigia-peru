@@ -142,7 +142,7 @@ export default async function InicioEmpleo() {
                 Los días en que cierran tus plazas guardadas, para bajarlos a Google Calendar o a tu celular.
               </Incluye>
               <Incluye href={ruta("/#mcp")} Icono={Bot} titulo="Tu IA, conectada">
-                Pregúntale a Claude o a ChatGPT por plazas en tus palabras, con el servidor MCP de Gobserva.
+                Con un plan, pregúntale a Claude o a ChatGPT por plazas en tus palabras: el MCP de Gobserva viene incluido.
               </Incluye>
             </ul>
           </div>
@@ -163,7 +163,9 @@ export default async function InicioEmpleo() {
         <BloqueMCP
           id="mcp"
           titulo="Busca trabajo hablando con tu IA"
-          bajada="Conecta Claude, ChatGPT o Cursor a Gobserva y pregúntale por plazas en tus palabras: te responde con las convocatorias abiertas de hoy, lo que pagan y el enlace oficial de cada una. Tu asistente consulta los datos en vivo en vez de inventarlos."
+          bajada="Adquiere un plan y te damos tu MCP: conecta Claude, ChatGPT o Cursor a Gobserva y pregúntale por plazas en tus palabras. Te responde con las convocatorias abiertas de hoy, lo que pagan y el enlace oficial de cada una: tu asistente consulta los datos en vivo en vez de inventarlos."
+          cuenta="Gobserva Empleo"
+          planes={ruta("/planes")}
           ejemplos={[
             "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
             "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",

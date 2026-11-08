@@ -442,7 +442,9 @@ export default async function InicioObras() {
         <BloqueMCP
           id="mcp"
           titulo="Pregúntale a tu IA por las obras que se vienen"
-          bajada="Conecta Claude, ChatGPT o Cursor al servidor MCP de Gobserva y pregunta en tus palabras: tu asistente consulta los proyectos, su avance y el mercado de obras en vivo, con la fuente oficial de cada dato. Gratis durante la beta."
+          bajada="Adquiere un plan de Licitaciones, que trae Obras, y te damos tu MCP: conecta Claude, ChatGPT o Cursor y pregunta en tus palabras. Tu asistente consulta los proyectos, su avance y el mercado de obras en vivo, con la fuente oficial de cada dato."
+          cuenta="Gobserva Licitaciones"
+          planes={ruta("/planes")}
           ejemplos={[
             "¿Qué proyectos de agua potable de más de S/ 5 millones tienen expediente técnico en Puno?",
             "Dame las obras paralizadas de Cusco, desde cuándo y por qué.",

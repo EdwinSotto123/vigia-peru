@@ -4,6 +4,16 @@ Dos servidores MCP en el mismo Worker (`src/index.ts` elige por host):
 
 ## v2: `https://mcp.gobserva.cloud/mcp` (`src/v2`, desde 2026-11-06)
 
+**Desde 2026-11-08 el MCP es de los planes de pago** (el usuario: «el MCP debe ser activo para gente con plan activo»).
+Toda llamada a una herramienta pide cuenta conectada y un plan vigente (`src/v2/acceso.ts`, `tienePlanPara` en
+`entorno.ts`): las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones (trae Obras);
+las de Vigía, cualquier plan. Sin plan, `/authorize` no conecta (página «El MCP viene con los planes de pago», 402) y una
+herramienta responde dónde se adquiere. El plan se relee en cada refresh (cada hora) y, si no alcanza, al momento (un
+minuto de memoria por cuenta): quien acaba de contratar no tiene que reconectar. Se entra con la cuenta de la app donde
+está el plan (AWS Cognito, `src/v2/cognito.ts`, `COGNITO_GOBSERVA` en `wrangler.jsonc`, los mismos grupos de la API) o,
+plegada, con la de Vigía (Firebase) si tiene un plan (cortesía por uid desde el panel: `POST /admin/gobserva/cortesia`
+con `uid`). initialize, tools/list, los recursos y los prompts siguen abiertos.
+
 El MCP para conectar Vigía a claude.ai (conector personalizado), Claude Desktop, el celular, Cowork y Claude Code
 (`claude mcp add --transport http vigia https://mcp.gobserva.cloud/mcp`). En DEV: `https://vigia-mcp-dev.vigiaperu.workers.dev/mcp`
 (`bash infrastructure/deploy/dev.sh mcp`).
@@ -52,7 +62,9 @@ este expone las mismas 3 tools read-only (`buscar_alertas`, `riesgo_convocatoria
   pasan. Para probar con urllib, mandar otro User-Agent.
 - Transporte: MCP Streamable HTTP **sin estado** (sin `Mcp-Session-Id` ni Durable Objects), sólo `POST /mcp`;
   respuestas en SSE como FastMCP. `GET`/`DELETE` → 405, `/mcp/` → 307 a `/mcp`, otra ruta → 404.
-- Autenticación: **ninguna**, igual que Cloud Run (`--allow-unauthenticated`). Son datos públicos.
+- Autenticación: **ninguna**, igual que Cloud Run (`--allow-unauthenticated`). **Desde 2026-11-08 ya no responde
+  herramientas**: lista las de siempre y, al llamarlas, dice que el MCP se mudó a `https://mcp.gobserva.cloud/mcp` y
+  viene con los planes de pago.
 
 ## Bindings, variables y secretos
 

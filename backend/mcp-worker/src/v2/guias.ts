@@ -15,7 +15,7 @@ export const INSTRUCCIONES = [
   "el código. estado_fuentes dice hasta qué fecha llega cada fuente.",
   "Una señal o un puntaje es un indicio para revisar, no una acusación: la denuncia corresponde a la Contraloría o a la Fiscalía.",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
-  "Las herramientas red_empresa, historia, consultar_datos, persona_publica, planilla_entidad, visitas_entidad y las de seguimiento piden la cuenta gratis de Gobserva.",
+  "Todas las herramientas piden conectar una cuenta de Gobserva con un plan de pago vigente: las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones; las demás, cualquier plan.",
 ].join(" ");
 
 const COMO_USAR = `# Cómo usar el MCP de Vigía

@@ -4,16 +4,18 @@ import { cn } from "@/lib/utils";
 import { Copiar } from "./Copiar";
 
 /**
- * «Pregúntale a tu IA»: el servidor MCP de Gobserva (backend/mcp-worker, público y gratis durante la beta) explicado para
- * quien no sabe qué es un MCP: qué hace, cómo se conecta en tres pasos (Claude, ChatGPT, Cursor) y qué preguntarle, con
- * las herramientas que responden. Banda oscura de marca, la misma de día y de noche. Server-safe (el botón de copiar es
- * de cliente).
+ * «Pregúntale a tu IA»: el servidor MCP de Gobserva (backend/mcp-worker/src/v2) explicado para quien no sabe qué es un
+ * MCP: qué hace, cómo se activa (viene con los planes de pago desde 2026-11-08: adquieres un plan y conectas tu IA con esa
+ * cuenta), cómo se conecta (Claude, ChatGPT, Cursor) y qué preguntarle, con las herramientas que responden. Banda oscura de
+ * marca, la misma de día y de noche. Server-safe (el botón de copiar es de cliente).
  */
 export function BloqueMCP({
   titulo = "Pregúntale a tu IA, con datos del Estado en vivo",
   bajada,
   ejemplos,
   herramientas,
+  cuenta,
+  planes,
   id = "mcp",
   className,
 }: {
@@ -23,6 +25,10 @@ export function BloqueMCP({
   ejemplos: string[];
   /** Las herramientas del MCP que usa este producto: nombre y qué responde. */
   herramientas: { nombre: string; descripcion: string }[];
+  /** La cuenta con la que se entra al MCP: «Gobserva Empleo» o «Gobserva Licitaciones». */
+  cuenta: string;
+  /** La página de planes del producto. */
+  planes: string;
   id?: string;
   className?: string;
 }) {
@@ -38,31 +44,38 @@ export function BloqueMCP({
           <p className="mt-4 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-paper/75">{bajada}</p>
           {/* Lo que cuesta, después del título y de lo que es (encima del título sería una etiqueta de adorno). */}
           <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-maiz/40 bg-maiz/10 px-3 py-1 text-meta font-semibold text-maiz">
-            <Cable size={14} aria-hidden /> MCP, gratis durante la beta
+            <Cable size={14} aria-hidden /> Viene con los planes de pago
           </p>
           <ol className="mt-6 space-y-4">
-            <Paso n={1} titulo="Copia la dirección del servidor">
+            <Paso n={1} titulo="Adquiere un plan">
+              Con cualquier plan de pago de {cuenta} se activa tu MCP.{" "}
+              <a href={planes} className="font-semibold text-maiz underline underline-offset-2 hover:text-paper">
+                Ver los planes
+              </a>
+            </Paso>
+            <Paso n={2} titulo="Copia la dirección del servidor">
               <Copiar texto={URL_MCP} className="mt-2 border-paper/15 bg-paper/5 [&_code]:text-paper" />
             </Paso>
-            <Paso n={2} titulo="Agrégala a tu asistente">
+            <Paso n={3} titulo="Agrégala a tu asistente y entra con tu cuenta">
               <ol className="mt-2 space-y-3">
                 <li className="flex gap-2.5">
                   <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-maiz/50 font-mono text-rotulo font-bold text-maiz">a</span>
                   <span className="min-w-0">
                     <b className="font-semibold text-paper">En Claude:</b> abre Configuración, entra a Conectores, elige «Agregar conector
-                    personalizado» y pega la dirección.
+                    personalizado», pega la dirección y pulsa «Conectar»: entras con tu cuenta de {cuenta}.
                   </span>
                 </li>
                 <li className="flex gap-2.5">
                   <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-maiz/50 font-mono text-rotulo font-bold text-maiz">b</span>
                   <span className="min-w-0 flex-1">
-                    <b className="font-semibold text-paper">En ChatGPT, Cursor u otro cliente</b> que lea un archivo de configuración, pega esto:
+                    <b className="font-semibold text-paper">En ChatGPT, Cursor u otro cliente</b> que lea un archivo de configuración, pega
+                    esto. Te pedirá entrar con tu cuenta la primera vez:
                     <Copiar texto={configuracion} bloque className="mt-2 border-paper/15 bg-paper/5 [&_pre]:text-paper" />
                   </span>
                 </li>
               </ol>
             </Paso>
-            <Paso n={3} titulo="Pregunta en tus palabras">
+            <Paso n={4} titulo="Pregunta en tus palabras">
               Tu asistente consulta los datos de Gobserva y te responde con la fuente oficial de cada dato.
             </Paso>
           </ol>

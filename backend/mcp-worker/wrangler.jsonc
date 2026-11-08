@@ -1,6 +1,7 @@
 // Vigía Perú · servidor MCP. Dos servidores en el mismo Worker (src/index.ts):
-//   · v2 en https://mcp.gobserva.cloud/mcp (src/v2): 25 herramientas por la API, OAuth con la cuenta de Gobserva, cupos.
-//   · el de siempre en https://vigia-mcp.vigiaperu.workers.dev/mcp: 10 herramientas abiertas, para quien ya lo usa.
+//   · v2 en https://mcp.gobserva.cloud/mcp (src/v2): las herramientas por la API, OAuth con la cuenta de Gobserva (Cognito
+//     de Empleo o Licitaciones; la de Vigía con Firebase) y, desde 2026-11-08, sólo con un plan de pago vigente.
+//   · el de siempre en https://vigia-mcp.vigiaperu.workers.dev/mcp: ya no responde herramientas; dice adónde se mudó.
 // Secreto (wrangler secret put, en cada entorno): FIREBASE_API_KEY (la clave web pública de Firebase, fuera del repo).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -35,6 +36,8 @@
     "FIREBASE_PROJECT_ID": "simplia-project",
     "FIREBASE_AUTH_DOMAIN": "simplia-project.firebaseapp.com",
     "FIREBASE_APP_ID": "1:251807830309:web:94796885da53bc0adbcacc",
+    // Las cuentas de las apps de Gobserva (donde se compran los planes): las mismas de la API (backend/api/wrangler.jsonc).
+    "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic",
     "ENTORNO": "prod"
   },
   "env": {
@@ -51,6 +54,7 @@
         "FIREBASE_PROJECT_ID": "simplia-project",
         "FIREBASE_AUTH_DOMAIN": "simplia-project.firebaseapp.com",
         "FIREBASE_APP_ID": "1:251807830309:web:94796885da53bc0adbcacc",
+        "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic",
         "ENTORNO": "dev"
       }
     }

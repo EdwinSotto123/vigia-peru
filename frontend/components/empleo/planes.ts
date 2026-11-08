@@ -44,6 +44,7 @@ export function planesEmpleo(base: string, cat: PlanesServidor): Plan[] {
         `Hasta ${alertas.limites.alertas} alertas, cada mañana o cada semana`,
         `Guarda hasta ${entero(alertas.limites.guardados)} plazas`,
         `Descarga tus búsquedas en Excel, hasta ${entero(alertas.limites.filasCsv)} filas`,
+        "Tu MCP: pregúntale a Claude, ChatGPT o Cursor por plazas en tus palabras",
       ],
       pronto: ["Historial de lo que pagaba cada puesto"],
       accion: { href: pagar("alertas"), etiqueta: `Empezar por ${precioHoy(alertas)}` },

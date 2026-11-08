@@ -20,8 +20,12 @@ export const HERRAMIENTAS = [
   ...HERRAMIENTAS_PRODUCTOS,
 ];
 
-/** Las que piden cuenta: sin token, el pedido HTTP se responde 401 y Claude muestra «Conectar» (autenticación perezosa). */
-export const PROTEGIDAS = new Set(HERRAMIENTAS.filter((h) => h.cuenta).map((h) => h.nombre));
+/**
+ * Las que piden cuenta: TODAS desde 2026-11-08 (el MCP es de los planes de pago). Sin token, el pedido HTTP se responde
+ * 401 y Claude muestra «Conectar» (autenticación perezosa); initialize, tools/list, los recursos y los prompts siguen
+ * abiertos para que el cliente sepa qué hay.
+ */
+export const PROTEGIDAS = new Set(HERRAMIENTAS.map((h) => h.nombre));
 
 export function crearServidor(cx: Contexto): McpServer {
   const server = new McpServer(
@@ -45,12 +49,12 @@ export async function atenderMcp(request: Request, cx: Contexto): Promise<Respon
   return transporte.handleRequest(request);
 }
 
-/** ¿El cuerpo JSON-RPC (uno o un lote) llama a una herramienta que pide cuenta? */
+/** ¿El cuerpo JSON-RPC (uno o un lote) llama a una herramienta? (todas piden cuenta: PROTEGIDAS) */
 export function llamaProtegida(cuerpo: unknown): boolean {
   const mensajes = Array.isArray(cuerpo) ? cuerpo : [cuerpo];
   return mensajes.some((m) => {
     if (!m || typeof m !== "object") return false;
     const x = m as { method?: unknown; params?: { name?: unknown } };
-    return x.method === "tools/call" && typeof x.params?.name === "string" && PROTEGIDAS.has(x.params.name);
+    return x.method === "tools/call";
   });
 }

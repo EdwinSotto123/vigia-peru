@@ -65,7 +65,9 @@ export default async function PlanesLicitaciones() {
 
       <BloqueMCP
         titulo="API y MCP para tu equipo"
-        bajada="Conecta tu asistente de IA al servidor MCP de Gobserva y pregunta por las licitaciones del día, por tu mercado o por una entidad. Gratis durante la beta; el plan Pro sumará una API para tu CRM y el Institucional, límites altos y soporte."
+        bajada="Cualquier plan de pago trae tu MCP: conecta tu asistente de IA y pregunta por las licitaciones del día, las obras, tu mercado o una entidad. El plan Pro sumará una API para tu CRM y el Institucional, límites altos y soporte."
+        cuenta="Gobserva Licitaciones"
+        planes="#comparar"
         ejemplos={[
           "Resume las convocatorias de señalización vial de esta semana con su valor referencial.",
           "¿Qué entidades de Arequipa compran más medicamentos y a quién le compran?",

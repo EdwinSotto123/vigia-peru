@@ -10,7 +10,7 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 export const metadata: Metadata = {
   title: "API y MCP: las obras públicas en tu IA",
   description:
-    "Conecta Claude, ChatGPT o Cursor a Gobserva Obras por MCP y pregúntale por los proyectos que se vienen, el avance de una obra o el mercado de tu región. Gratis durante la beta.",
+    "Conecta Claude, ChatGPT o Cursor a Gobserva Obras por MCP y pregúntale por los proyectos que se vienen, el avance de una obra o el mercado de tu región. Viene con los planes de Licitaciones.",
   alternates: { canonical: urlCanonica("obras", "/mcp") },
 };
 
@@ -28,16 +28,18 @@ export default function McpObras() {
         <Beneficios
           className="mt-6"
           items={[
-            { icono: <KeyRound size={16} aria-hidden />, titulo: "Sin cuenta y sin llaves", texto: "Pegas la dirección del servidor en tu asistente y ya puedes preguntar." },
+            { icono: <KeyRound size={16} aria-hidden />, titulo: "Con tu cuenta", texto: "Pegas la dirección del servidor en tu asistente y entras con tu cuenta de Gobserva Licitaciones." },
             { icono: <BadgeCheck size={16} aria-hidden />, titulo: "Con la fuente de cada dato", texto: "Las respuestas salen de Invierte.pe, INFOBRAS y el SEACE, con su enlace." },
-            { icono: <Sparkles size={16} aria-hidden />, titulo: "Gratis durante la beta", texto: "Pruébalo con tu equipo; los planes Empresa e Institucional sumarán más." },
+            { icono: <Sparkles size={16} aria-hidden />, titulo: "Viene con tu plan", texto: "Cualquier plan de pago de Licitaciones, que trae Obras, activa tu MCP. El Institucional sumará más." },
           ]}
         />
       </header>
       <BloqueMCP
         id="mcp"
         titulo="Conéctalo en un minuto"
-        bajada="MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. Gobserva publica uno gratis durante la beta: sin cuenta y sin llaves."
+        bajada="MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. El de Gobserva viene con los planes de pago: adquieres uno y conectas tu asistente con tu cuenta."
+        cuenta="Gobserva Licitaciones"
+        planes={rutaEn(base, "/planes")}
         ejemplos={[
           "¿Qué proyectos de agua potable de más de S/ 5 millones tienen expediente técnico en Puno?",
           "Arma una tabla con las 10 obras paralizadas más grandes de Cusco, desde cuándo y por qué.",

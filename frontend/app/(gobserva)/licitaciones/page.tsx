@@ -154,7 +154,7 @@ export default async function InicioLicitaciones() {
                 Quién compra, quién gana y a qué precio en los últimos 12 meses.
               </Incluye>
               <Incluye href={ruta("/#mcp")} Icono={Bot} titulo="Tu IA, conectada">
-                Pregúntale a Claude o a ChatGPT por las licitaciones del día, con el servidor MCP de Gobserva.
+                Con un plan, pregúntale a Claude o a ChatGPT por las licitaciones del día: el MCP de Gobserva viene incluido.
               </Incluye>
             </ul>
           </div>
@@ -175,7 +175,9 @@ export default async function InicioLicitaciones() {
         <BloqueMCP
           id="mcp"
           titulo="Pregúntale a tu IA por las licitaciones del día"
-          bajada="Conecta Claude, ChatGPT o Cursor al servidor MCP de Gobserva y pregunta en tus palabras: tu asistente consulta las convocatorias y el mercado en vivo, con la fuente oficial de cada dato. Gratis durante la beta; el plan Empresa suma una API para tu CRM."
+          bajada="Adquiere un plan y te damos tu MCP: conecta Claude, ChatGPT o Cursor a Gobserva y pregunta en tus palabras. Tu asistente consulta las convocatorias, las obras y el mercado en vivo, con la fuente oficial de cada dato."
+          cuenta="Gobserva Licitaciones"
+          planes={ruta("/planes#comparar")}
           ejemplos={[
             "¿Qué licitaciones de combustible se convocaron esta semana en Puno y Cusco?",
             "Dame las obras de saneamiento de más de S/ 5 millones convocadas en los últimos 15 días.",

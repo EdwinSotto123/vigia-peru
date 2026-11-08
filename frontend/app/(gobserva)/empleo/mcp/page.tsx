@@ -9,7 +9,7 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
   title: "Busca trabajo con tu IA (MCP)",
-  description: "Conecta Claude, ChatGPT o Cursor a Gobserva Empleo por MCP y pregúntale por plazas CAS abiertas en tus palabras. Gratis durante la beta.",
+  description: "Conecta Claude, ChatGPT o Cursor a Gobserva Empleo por MCP y pregúntale por plazas CAS abiertas en tus palabras. Viene con los planes de pago.",
   alternates: { canonical: urlCanonica("empleo", "/mcp") },
 };
 
@@ -31,7 +31,9 @@ export default function McpEmpleo() {
       <BloqueMCP
         id="mcp"
         titulo="Conéctalo en un minuto"
-        bajada="MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. Gobserva publica uno gratis durante la beta: sin cuenta y sin llaves."
+        bajada="MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. El de Gobserva viene con los planes de pago: adquieres uno y conectas tu asistente con tu cuenta."
+        cuenta="Gobserva Empleo"
+        planes={rutaEn(base, "/planes")}
         ejemplos={[
           "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
           "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",

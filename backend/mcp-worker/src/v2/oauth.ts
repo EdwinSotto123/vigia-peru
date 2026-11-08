@@ -3,30 +3,28 @@
 //   · metadatos del recurso (RFC 9728) y del servidor (RFC 8414), que la librería sirve en /.well-known/…;
 //   · Client ID Metadata Document (Claude lo usa si se anuncia `client_id_metadata_document_supported` y `none`) y, de
 //     respaldo, registro dinámico en /oauth/register; PKCE S256; refresh token que rota; `invalid_grant` al revocar.
-// La identidad es la cuenta de Gobserva (Firebase): /authorize muestra a quién se le da acceso, la persona entra con su
-// correo o con Google en esta misma página, y al permitir se guarda (cifrado) su uid, su token de refresco de Firebase y
-// sus planes. Cada refresh del token del MCP relee el plan; si Firebase dice que la sesión ya no vale, se revoca.
+// La identidad es la cuenta de Gobserva donde está el plan (2026-11-08: el MCP es de los planes de pago): la de Empleo o
+// la de Licitaciones (AWS Cognito, cognito.ts) y, para las de antes, la de Vigía (Firebase). /authorize muestra a quién
+// se le da acceso, la persona entra en esta misma página y, si su cuenta tiene un plan vigente, al permitir se guarda
+// (cifrado) su uid, su app, su token de refresco y sus planes. Cada refresh del token del MCP relee el plan; si la
+// sesión ya no vale, se revoca.
 import OAuthProvider, { AuthorizationError, CimdFetchError, OAuthError, type ConsentDescription } from "@cloudflare/workers-oauth-provider";
-import { api } from "./api";
+import { idTokenDe, planesDe } from "./acceso";
+import { leerCognito, NOMBRE_APP, verificarIdTokenCognito, type AppCuenta } from "./cognito";
 import type { EnvV2, PropsCuenta } from "./entorno";
 import { ErrorSesion, renovarIdToken, verificarIdToken } from "./firebase";
 
 export const SCOPES = ["datos", "seguimiento"];
 
 const QUE_PERMITE: Record<string, string> = {
-  datos: "Usar las herramientas que piden cuenta (red de una empresa, línea de tiempo, cifras, personas con cargo público) con tu cupo.",
+  datos: "Usar las herramientas del MCP (plazas, licitaciones, obras, contratos, empresas y entidades) con el cupo de tu plan.",
   seguimiento: "Seguir y dejar de seguir entidades, empresas, partidos y regiones, y ver lo nuevo de lo que sigues.",
 };
 
-/** Los planes activos de la cuenta («licitaciones:pro»); si la ruta no está o falla, gratis. */
-export async function planesDe(env: EnvV2, idToken: string): Promise<string[]> {
-  try {
-    const r = await api<{ planes?: { producto?: string; plan?: string }[] }>(env, "/gobserva/cuenta/planes", {}, { token: idToken });
-    return (r.planes ?? []).filter((p) => p.plan && p.plan !== "gratis").map((p) => `${p.producto}:${p.plan}`);
-  } catch {
-    return [];
-  }
-}
+const PLANES: Record<AppCuenta, string> = {
+  empleo: "https://empleo.gobserva.cloud/planes",
+  licitaciones: "https://licitaciones.gobserva.cloud/planes",
+};
 
 const escapar = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -46,7 +44,9 @@ label{display:block;font-size:.9rem;margin:.6rem 0 .2rem}input[type=email],input
 button{font:inherit;border-radius:.5rem;padding:.6rem 1rem;border:1px solid var(--borde);background:var(--papel);color:var(--tinta);cursor:pointer;width:100%;margin-top:.6rem}
 button.principal{background:var(--acento);border-color:var(--acento);color:var(--papel);font-weight:600}button:disabled{opacity:.5;cursor:default}
 .fila{display:flex;gap:.5rem}.fila button{margin-top:.75rem}a{color:var(--acento)}[hidden]{display:none!important}
-</style></head><body><main><div class="marca">vigía_ by gobserva</div>${cuerpo}</main>${extra}</body></html>`;
+.apps{display:grid;gap:.5rem;margin:.75rem 0}.apps label{display:flex;gap:.6rem;align-items:center;margin:0;padding:.6rem .75rem;border:1px solid var(--borde);border-radius:.5rem;cursor:pointer;font-size:1rem}
+.apps label:has(input:checked){border-color:var(--acento);outline:1px solid var(--acento)}details{margin-top:1rem}summary{cursor:pointer;color:var(--suave);font-size:.9rem}
+</style></head><body><main><div class="marca">gobserva_</div>${cuerpo}</main>${extra}</body></html>`;
 }
 
 function paginaError(mensaje: string, estado = 400): Response {
@@ -62,76 +62,112 @@ function paginaConsentimiento(env: EnvV2, d: ConsentDescription, handle: string)
     : `<strong>${escapar(d.clientName)}</strong> <span class="suave">(se registró solo: su nombre no está verificado)</span>`;
   const permisos = SCOPES.map((s) => `<li><input type="hidden" name="scope" value="${escapar(s)}">${escapar(QUE_PERMITE[s] ?? s)}</li>`)
     .join("");
+  const grupos = Object.fromEntries(leerCognito(env.COGNITO_GOBSERVA).map((g) => [g.app, { region: g.region, cliente: g.cliente }]));
   const config = JSON.stringify({
-    apiKey: env.FIREBASE_API_KEY,
-    authDomain: env.FIREBASE_AUTH_DOMAIN,
-    projectId: env.FIREBASE_PROJECT_ID,
-    appId: env.FIREBASE_APP_ID,
+    firebase: { apiKey: env.FIREBASE_API_KEY, authDomain: env.FIREBASE_AUTH_DOMAIN, projectId: env.FIREBASE_PROJECT_ID, appId: env.FIREBASE_APP_ID },
+    cognito: grupos,
   }).replace(/</g, "\\u003c");
   const cuerpo = `
-<h1>Conectar Vigía con tu cuenta de Gobserva</h1>
-<p>${quien} pide acceso a Vigía con tu cuenta. El acceso irá a <strong>${escapar(d.redirectHost)}</strong>.</p>
+<h1>Conecta tu IA con Gobserva</h1>
+<p>${quien} pide acceso a Gobserva con tu cuenta. El acceso irá a <strong>${escapar(d.redirectHost)}</strong>.</p>
 ${d.redirectIsLoopback ? '<p class="alerta"><strong>El acceso va a una aplicación de tu computadora.</strong> Sigue solo si acabas de pedir conectar desde ahí (por ejemplo Claude Code).</p>' : ""}
 <div class="caja" id="entrar">
-  <p style="margin-top:0"><strong>1. Entra con tu cuenta</strong></p>
-  <button type="button" id="google">Entrar con Google</button>
+  <p style="margin-top:0"><strong>1. Entra con la cuenta donde tienes tu plan</strong></p>
+  <p class="suave" style="margin:.25rem 0 0">El MCP viene con los planes de pago de Gobserva.</p>
+  <div class="apps" role="radiogroup" aria-label="Tu cuenta">
+    <label><input type="radio" name="app" value="licitaciones" checked> Gobserva Licitaciones (y Obras)</label>
+    <label><input type="radio" name="app" value="empleo"> Gobserva Empleo</label>
+  </div>
   <form id="correo">
     <label for="email">Correo</label><input id="email" type="email" autocomplete="email" required>
     <label for="clave">Contraseña</label><input id="clave" type="password" autocomplete="current-password" required minlength="6">
-    <div id="campoNombre" hidden><label for="nombre">Tu nombre</label><input id="nombre" type="text" autocomplete="name" maxlength="80"></div>
-    <button type="submit" id="botonCorreo">Entrar con correo</button>
+    <button type="submit" id="botonCorreo" class="principal">Entrar</button>
   </form>
-  <p class="suave">¿No tienes cuenta? <a href="#" id="crear">Créala aquí</a>. Es gratis.</p>
+  <p class="suave">¿Todavía no tienes plan? Adquiérelo en <a href="${PLANES.licitaciones}" target="_blank" rel="noopener">Licitaciones</a> o en <a href="${PLANES.empleo}" target="_blank" rel="noopener">Empleo</a> y vuelve a conectar.</p>
+  <details><summary>Entrar con una cuenta de Vigía</summary>
+    <p class="suave">Solo sirve si esa cuenta tiene un plan.</p>
+    <button type="button" id="google">Entrar con Google</button>
+    <form id="correoVigia">
+      <label for="emailV">Correo</label><input id="emailV" type="email" autocomplete="email" required>
+      <label for="claveV">Contraseña</label><input id="claveV" type="password" autocomplete="current-password" required minlength="6">
+      <button type="submit" id="botonVigia">Entrar con la cuenta de Vigía</button>
+    </form>
+  </details>
   <p class="alerta" id="error" role="alert" hidden></p>
 </div>
 <form method="post" class="caja" id="permitir" hidden>
   <p style="margin-top:0"><strong>2. Permite el acceso</strong></p>
-  <p>Entraste como <strong id="quien"></strong>. Vigía podrá:</p>
+  <p>Entraste como <strong id="quien"></strong>. Tu IA podrá:</p>
   <ul>${permisos}</ul>
-  <p class="suave">Solo lee datos públicos y lo que sigues. No ve tus conversaciones con Claude. Puedes quitar el acceso desconectando el conector.</p>
+  <p class="suave">Solo lee datos públicos y lo que sigues. No ve tus conversaciones. Puedes quitar el acceso desconectando el conector.</p>
   <input type="hidden" name="handle" value="${escapar(handle)}">
-  <input type="hidden" name="id_token" id="idToken"><input type="hidden" name="refresh_token" id="refreshToken">
+  <input type="hidden" name="app" id="appElegida"><input type="hidden" name="id_token" id="idToken"><input type="hidden" name="refresh_token" id="refreshToken">
   <div class="fila"><button type="submit" name="decision" value="deny">Cancelar</button><button type="submit" name="decision" value="approve" class="principal">Permitir</button></div>
 </form>
-<p class="suave">Vigía by Gobserva: datos públicos de la contratación del Estado peruano. <a href="${escapar(env.VIGIA_URL)}" target="_blank" rel="noopener">vigia.gobserva.cloud</a></p>`;
+<p class="suave">Gobserva: datos públicos del Estado peruano para quien busca trabajo, le vende al Estado o lo vigila. <a href="https://gobserva.cloud" target="_blank" rel="noopener">gobserva.cloud</a></p>`;
   const script = `<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-const auth = getAuth(initializeApp(${config}));
-auth.languageCode = "es";
+const CONFIG = ${config};
 const $ = (id) => document.getElementById(id);
-let creando = false;
-const MENSAJES = { "auth/invalid-credential": "El correo o la contraseña no coinciden.", "auth/wrong-password": "El correo o la contraseña no coinciden.",
-  "auth/user-not-found": "El correo o la contraseña no coinciden.", "auth/email-already-in-use": "Ese correo ya tiene cuenta: entra con él.",
-  "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.", "auth/popup-closed-by-user": "Cerraste la ventana de Google antes de terminar.",
+const MENSAJES = { NotAuthorizedException: "El correo o la contraseña no coinciden.", UserNotFoundException: "El correo o la contraseña no coinciden.",
+  UserNotConfirmedException: "Primero confirma tu correo: entra una vez en la web de Gobserva.",
+  PasswordResetRequiredException: "Elige tu contraseña en la web de Gobserva («¿La olvidaste?») y vuelve.",
+  TooManyRequestsException: "Demasiados intentos. Espera un momento.", LimitExceededException: "Demasiados intentos. Espera un momento.",
+  "auth/invalid-credential": "El correo o la contraseña no coinciden.", "auth/wrong-password": "El correo o la contraseña no coinciden.",
+  "auth/user-not-found": "El correo o la contraseña no coinciden.", "auth/popup-closed-by-user": "Cerraste la ventana de Google antes de terminar.",
   "auth/too-many-requests": "Demasiados intentos. Espera un momento.", "auth/unauthorized-domain": "Este dominio todavía no está habilitado para entrar con Google." };
-function error(e) { const el = $("error"); el.textContent = MENSAJES[e?.code] || "No se pudo entrar. Intenta de nuevo."; el.hidden = false; }
-async function listo(user) {
-  $("idToken").value = await user.getIdToken(true);
-  $("refreshToken").value = user.refreshToken;
-  $("quien").textContent = user.email || user.displayName || "tu cuenta";
+function error(codigo) { const el = $("error"); el.textContent = MENSAJES[codigo] || "No se pudo entrar. Intenta de nuevo."; el.hidden = false; }
+function listo(app, idToken, refresco, quien) {
+  $("appElegida").value = app; $("idToken").value = idToken; $("refreshToken").value = refresco; $("quien").textContent = quien;
   $("entrar").hidden = true; $("permitir").hidden = false;
 }
-$("google").addEventListener("click", async () => {
-  try { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" }); await listo((await signInWithPopup(auth, p)).user); } catch (e) { error(e); }
-});
-$("crear").addEventListener("click", (ev) => { ev.preventDefault(); creando = !creando; $("campoNombre").hidden = !creando;
-  $("botonCorreo").textContent = creando ? "Crear cuenta" : "Entrar con correo"; $("crear").textContent = creando ? "Ya tengo cuenta" : "Créala aquí"; });
 $("correo").addEventListener("submit", async (ev) => {
   ev.preventDefault(); $("error").hidden = true; $("botonCorreo").disabled = true;
   try {
-    const email = $("email").value.trim(), clave = $("clave").value;
-    let user;
-    if (creando) {
-      user = (await createUserWithEmailAndPassword(auth, email, clave)).user;
-      const nombre = $("nombre").value.trim(); if (nombre) await updateProfile(user, { displayName: nombre.slice(0, 80) });
-      await sendEmailVerification(user).catch(() => {});
-    } else user = (await signInWithEmailAndPassword(auth, email, clave)).user;
-    await listo(user);
-  } catch (e) { error(e); } finally { $("botonCorreo").disabled = false; }
+    const app = document.querySelector('input[name="app"]:checked').value, g = CONFIG.cognito[app];
+    const email = $("email").value.trim().toLowerCase();
+    const r = await fetch("https://cognito-idp." + g.region + ".amazonaws.com/", { method: "POST",
+      headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth" },
+      body: JSON.stringify({ AuthFlow: "USER_PASSWORD_AUTH", ClientId: g.cliente, AuthParameters: { USERNAME: email, PASSWORD: $("clave").value } }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return error(String(j.__type || "").split("#").pop());
+    if (!j.AuthenticationResult) return error(j.ChallengeName === "NEW_PASSWORD_REQUIRED" ? "PasswordResetRequiredException" : "NotAuthorizedException");
+    listo(app, j.AuthenticationResult.IdToken, j.AuthenticationResult.RefreshToken, email + " (" + (app === "empleo" ? "Gobserva Empleo" : "Gobserva Licitaciones") + ")");
+  } catch (e) { error(""); } finally { $("botonCorreo").disabled = false; }
+});
+let fb = null;
+async function firebase() {
+  if (fb) return fb;
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js");
+  const m = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js");
+  fb = { m, a: m.getAuth(initializeApp(CONFIG.firebase)) };
+  fb.a.languageCode = "es";
+  return fb;
+}
+async function listoVigia(user) { listo("", await user.getIdToken(true), user.refreshToken, (user.email || "tu cuenta") + " (Vigía)"); }
+$("google").addEventListener("click", async () => {
+  try {
+    const { m, a } = await firebase(); const p = new m.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" });
+    await listoVigia((await m.signInWithPopup(a, p)).user);
+  } catch (e) { error(e?.code); }
+});
+$("correoVigia").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); $("error").hidden = true; $("botonVigia").disabled = true;
+  try { const { m, a } = await firebase(); await listoVigia((await m.signInWithEmailAndPassword(a, $("emailV").value.trim(), $("claveV").value)).user); }
+  catch (e) { error(e?.code); } finally { $("botonVigia").disabled = false; }
 });
 </script>`;
-  return pagina("Conectar Vigía", cuerpo, script);
+  return pagina("Conectar Gobserva", cuerpo, script);
+}
+
+/** La cuenta no tiene plan: no se conecta (el MCP es de los planes de pago) y se dice dónde se adquiere. */
+function paginaSinPlan(app: AppCuenta | null): Response {
+  const donde = app
+    ? `<p>Tu cuenta de ${escapar(NOMBRE_APP[app])} no tiene un plan vigente. <a href="${PLANES[app]}">Adquiere uno aquí</a> y vuelve a conectar desde tu asistente.</p>`
+    : `<p>Esa cuenta de Vigía no tiene un plan. Adquiere uno en <a href="${PLANES.licitaciones}">Gobserva Licitaciones</a> o en <a href="${PLANES.empleo}">Gobserva Empleo</a> y conecta con esa cuenta.</p>`;
+  return new Response(
+    pagina("Falta un plan", `<h1>El MCP viene con los planes de pago</h1>${donde}<p class="suave">Si ya lo adquiriste, espera a que se active y vuelve a intentar.</p>`),
+    { status: 402, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+  );
 }
 
 async function autorizar(request: Request, env: EnvV2): Promise<Response> {
@@ -152,20 +188,28 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
       return new Response(null, { status: 302, headers: negado.headers });
     }
     const idToken = String(form.get("id_token") ?? "");
-    const frt = String(form.get("refresh_token") ?? "");
-    let cuenta;
+    const refresco = String(form.get("refresh_token") ?? "");
+    const pedida = String(form.get("app") ?? "");
+    const grupo = leerCognito(env.COGNITO_GOBSERVA).find((g) => g.app === pedida) ?? null;
+    if (pedida && !grupo) return paginaError("Esa cuenta no es de una app de Gobserva.");
+    let uid: string;
+    let nombre: string | undefined;
     try {
-      cuenta = await verificarIdToken(idToken, env.FIREBASE_PROJECT_ID);
+      if (grupo) uid = (await verificarIdTokenCognito(idToken, grupo)).uid;
+      else ({ uid, nombre } = await verificarIdToken(idToken, env.FIREBASE_PROJECT_ID));
     } catch {
       return paginaError("No pudimos verificar tu sesión de Gobserva.");
     }
     const planes = await planesDe(env, idToken);
+    if (!planes.length) return paginaSinPlan(grupo?.app ?? null);
     const elegidos = form.getAll("scope").map(String).filter((s) => SCOPES.includes(s));
     const aprobado = await oauth.approveConsent(request, handle, { scope: elegidos.length ? elegidos : ["datos"] });
-    const props: PropsCuenta = { uid: cuenta.uid, nombre: cuenta.nombre, frt: frt || undefined, planes, planesAl: Date.now() };
+    const props: PropsCuenta = grupo
+      ? { uid, app: grupo.app, crt: refresco || undefined, planes, planesAl: Date.now() }
+      : { uid, nombre, frt: refresco || undefined, planes, planesAl: Date.now() };
     const { redirectTo } = await oauth.completeAuthorization({
       request: aprobado.request,
-      userId: cuenta.uid,
+      userId: uid,
       metadata: {},
       scope: aprobado.request.scope,
       props,
@@ -182,16 +226,17 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
 
 function inicio(env: EnvV2): Response {
   const url = `${env.MCP_URL}/mcp`;
-  const cuerpo = `<h1>El MCP de Vigía</h1>
-<p>Conecta Claude con los datos públicos de la contratación del Estado peruano: contratos, empresas, entidades, presupuesto, señales y dictámenes.</p>
+  const cuerpo = `<h1>El MCP de Gobserva</h1>
+<p>Conecta Claude, ChatGPT o Cursor con los datos públicos del Estado peruano: plazas CAS, licitaciones, obras, contratos, empresas, entidades y presupuesto.</p>
+<div class="caja"><p style="margin-top:0"><strong>Viene con los planes de pago</strong></p>
+<p>Adquiere un plan en <a href="${PLANES.empleo}">Gobserva Empleo</a> o en <a href="${PLANES.licitaciones}">Gobserva Licitaciones</a> y conecta tu IA con esa cuenta.</p></div>
 <div class="caja"><p style="margin-top:0"><strong>En claude.ai</strong></p><ol>
 <li>Abre <strong>Customize &gt; Connectors</strong> y elige <strong>Add custom connector</strong>.</li>
-<li>Pega <code>${escapar(url)}</code>.</li>
-<li>En un chat, abre <strong>+ &gt; Connectors</strong> y enciende Vigía.</li></ol>
-<p class="suave">Muchas herramientas funcionan sin cuenta. Las que la piden muestran «Conectar» la primera vez: entras con tu cuenta gratis de Gobserva.</p></div>
-<div class="caja"><p style="margin-top:0"><strong>En Claude Code</strong></p><p><code>claude mcp add --transport http vigia ${escapar(url)}</code></p></div>
-<p class="suave">Una señal no es una acusación. Sin DNI, personas naturales con un apellido tapado. <a href="${escapar(env.VIGIA_URL)}">vigia.gobserva.cloud</a></p>`;
-  return new Response(pagina("El MCP de Vigía", cuerpo), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
+<li>Pega <code>${escapar(url)}</code> y pulsa <strong>Connect</strong>: entras con tu cuenta de Gobserva.</li>
+<li>En un chat, abre <strong>+ &gt; Connectors</strong> y enciende Gobserva.</li></ol></div>
+<div class="caja"><p style="margin-top:0"><strong>En Claude Code</strong></p><p><code>claude mcp add --transport http gobserva ${escapar(url)}</code></p></div>
+<p class="suave">Una señal no es una acusación. Sin DNI, personas naturales con un apellido tapado. <a href="https://gobserva.cloud">gobserva.cloud</a></p>`;
+  return new Response(pagina("El MCP de Gobserva", cuerpo), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 }
 
 /** Lo que no es /mcp ni lo que sirve la librería (/.well-known, /oauth/token, /oauth/register). */
@@ -220,21 +265,27 @@ export function proveedorOAuth(env: EnvV2, conCuenta: Manejador): OAuthProvider<
     clientRegistrationEndpoint: "/oauth/register",
     scopesSupported: [...SCOPES, "offline_access"],
     requiredScopes: ["datos"],
-    resourceMetadata: { resource: `${env.MCP_URL}/mcp`, authorization_servers: [env.MCP_URL], resource_name: "Vigía by Gobserva" },
+    resourceMetadata: { resource: `${env.MCP_URL}/mcp`, authorization_servers: [env.MCP_URL], resource_name: "Gobserva" },
     clientIdMetadataDocumentEnabled: true,
     accessTokenTTL: 3600,
     refreshTokenTTL: 90 * 86_400,
     refreshTokenIdleTTL: 30 * 86_400,
     async tokenExchangeCallback({ grantType, props, env: e }) {
       const actual = props as PropsCuenta | undefined;
-      if (grantType !== "refresh_token" || !actual?.frt) return;
+      if (grantType !== "refresh_token" || !actual || (!actual.frt && !actual.crt)) return;
       try {
-        const { idToken, frt } = await renovarIdToken(e as EnvV2, actual.frt);
-        const nuevas: PropsCuenta = { ...actual, frt, planes: await planesDe(e as EnvV2, idToken), planesAl: Date.now() };
+        let nuevas: PropsCuenta;
+        if (actual.app) {
+          // Cognito no rota el token de refresco: queda el mismo.
+          nuevas = { ...actual, planes: await planesDe(e as EnvV2, await idTokenDe(e as EnvV2, actual)), planesAl: Date.now() };
+        } else {
+          const { idToken, frt } = await renovarIdToken(e as EnvV2, actual.frt!);
+          nuevas = { ...actual, frt, planes: await planesDe(e as EnvV2, idToken), planesAl: Date.now() };
+        }
         return { newProps: nuevas, accessTokenProps: nuevas };
       } catch (err) {
         if (err instanceof ErrorSesion) throw new OAuthError("invalid_grant", { description: "La sesión de Gobserva ya no es válida: vuelve a conectar." });
-        return; // un fallo pasajero de Firebase no corta el acceso: sigue con el plan que tenía
+        return; // un fallo pasajero no corta el acceso: sigue con el plan que tenía
       }
     },
     onError({ code, description, status }) {

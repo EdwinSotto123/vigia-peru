@@ -122,12 +122,16 @@ adminGobservaRouter.post("/gobserva/cobros/:numero/rechazar", async (c) => {
   return c.json({ ok: true });
 });
 
-const CortesiaBody = z.object({
-  email: z.string().trim().email().max(254),
-  producto: z.enum(["empleo", "licitaciones", "obras"]),
-  plan: z.string().regex(/^[a-z]{3,15}$/),
-  meses: z.number().int().min(1).max(24),
-});
+const CortesiaBody = z
+  .object({
+    email: z.string().trim().email().max(254).optional(),
+    /** Una cuenta por su uid (la de Vigía no está en gobserva_cuentas: su plan sirve para el MCP). */
+    uid: z.string().regex(/^[A-Za-z0-9-]{10,128}$/).optional(),
+    producto: z.enum(["empleo", "licitaciones", "obras"]),
+    plan: z.string().regex(/^[a-z]{3,15}$/),
+    meses: z.number().int().min(1).max(24),
+  })
+  .refine((b) => !!b.email !== !!b.uid, { message: "email o uid, uno de los dos" });
 adminGobservaRouter.post("/gobserva/cortesia", async (c) => {
   const b = CortesiaBody.safeParse(await c.req.json().catch(() => null));
   if (!b.success) return c.json({ error: "invalid_body" }, 400);

@@ -67,12 +67,12 @@ export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario 
     if (esDeAnthropic(ip)) {
       return (await contar(env, "mcp2|anthropic", CUPOS.anonimoAnthropicPorMinuto, MINUTO))
         ? null
-        : "Hay mucho uso sin cuenta en este momento. Conecta tu cuenta gratis de Gobserva (en la configuración del conector) para tener tu propio cupo, o intenta en un minuto.";
+        : "Hay mucho uso sin cuenta en este momento. Conecta tu cuenta de Gobserva (en la configuración del conector) o intenta en un minuto.";
     }
     if (!ip) return null;
     return (await contar(env, `mcp2|ip|${claveIp(ip)}`, CUPOS.anonimoIpPorMinuto, MINUTO))
       ? null
-      : `Sin cuenta el tope es de ${CUPOS.anonimoIpPorMinuto} llamadas por minuto. Espera un minuto o conecta tu cuenta gratis de Gobserva.`;
+      : `Sin cuenta el tope es de ${CUPOS.anonimoIpPorMinuto} llamadas por minuto. Espera un minuto o conecta tu cuenta de Gobserva.`;
   }
   if (usuario.planes.includes("interno")) return null; // el chat del panel
   const pago = esDePago(usuario);
