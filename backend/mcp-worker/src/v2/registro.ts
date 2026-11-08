@@ -6,7 +6,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ErrorApi } from "./api";
 import { revisarPlan } from "./acceso";
-import { cobrar, filasDe, pasarCupo } from "./cupos";
+import { avisarConsumo, cobrar, filasDe, pasarCupo } from "./cupos";
 import type { EnvV2, Usuario } from "./entorno";
 import { ErrorSesion } from "./firebase";
 import { ErrorUsuario, fallo, resultado } from "./formato";
@@ -75,6 +75,9 @@ export function registrar(server: McpServer, h: Herramienta, cx: Contexto): void
         // Se cobra sólo lo que salió bien (una consulta que falla o se corta no descuenta créditos).
         const aviso = await cobrar(cx.env, cx.usuario, h.nombre, acceso.mcp, esResultado(r) ? 0 : filasDe(r));
         if (aviso) salida.content.push({ type: "text", text: aviso });
+        if (cx.usuario && acceso.mcp && !cx.usuario.planes.includes("interno")) {
+          cx.ctx.waitUntil(avisarConsumo(cx.env, cx.usuario.uid, h.nombre, cx.perfil ?? "todo"));
+        }
         return salida;
       } catch (e) {
         if (e instanceof ErrorUsuario) return fallo(e.message);

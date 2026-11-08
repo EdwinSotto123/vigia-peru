@@ -238,7 +238,7 @@ export function Checkout({ producto, base, plan: planPedido }: { producto: Produ
                       {PRODUCTOS[producto].titulo}, plan {plan.nombre}, hasta que lo cancele.
                     </label>
                     <div className="mt-4">
-                      <PagoTarjeta key={`${plan.id}-${precio.hoy}`} clavePublica={cat.medios.tarjeta.publicKey} monto={precio.hoy} email={me?.cuenta.email} onPagar={conTarjeta} />
+                      <PagoTarjeta key={`${plan.id}-${precio.hoy}`} clavePublica={cat.medios.tarjeta.publicKey} monto={precio.hoy} email={me?.cuenta.email} onPagar={conTarjeta} alternativa="paga con Yape o Plin" />
                     </div>
                     <p className="mt-3 flex items-center gap-1.5 text-meta text-mute"><Lock size={13} aria-hidden /> Tu tarjeta la procesa Mercado Pago: Gobserva no ve ni guarda sus datos.</p>
                   </div>

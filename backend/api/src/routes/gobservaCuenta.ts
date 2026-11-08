@@ -27,6 +27,7 @@ import { ambitoPedido } from "../lib/plataforma.js";
 import { stream } from "hono/streaming";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
 import { CREDITOS_MODO, MODOS_APP, creditosCobrados, modeloDe, pedidoApp } from "../lib/chatApp.js";
+import { registrarConsumo } from "../lib/consumo.js";
 
 /**
  * La cuenta de Gobserva (2026-11-01): una persona de Firebase con su correo real, para los tres productos. Todo lo de
@@ -248,6 +249,8 @@ gobservaCuentaRouter.post("/chat", async (c) => {
     if (!fin.ok || !lim?.gastarMcp) return;
     const cobrados = creditosCobrados(modo, fin.costo);
     const nuevo = await lim.gastarMcp(u.uid, mes, dia, cobrados, 0).catch(() => null);
+    await registrarConsumo({ uid: u.uid, canal: "asistente", detalle: modo, app, creditos: cobrados, costoUsd: fin.costo })
+      .catch((e) => registrar("WARNING", `[chat] consumo sin guardar: ${(e as Error).message}`));
     await Promise.resolve(escribir({ tipo: "creditos", usados: cobrados, quedan: nuevo ? Math.max(0, topes.creditos - nuevo.mes) : null, del_mes: topes.creditos }))
       .catch(() => undefined);
   });

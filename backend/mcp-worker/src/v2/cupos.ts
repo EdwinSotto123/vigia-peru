@@ -171,6 +171,24 @@ export async function cobrar(env: EnvV2, usuario: Usuario | null, herramienta: s
   return null;
 }
 
+/**
+ * Le avisa a la API una llamada que cobró créditos (POST /gobserva/interno/consumo, migración 268), para el panel de
+ * consumo. En segundo plano (ctx.waitUntil): si falla, la llamada ya se atendió.
+ */
+export async function avisarConsumo(env: EnvV2, uid: string, herramienta: string, app: string): Promise<void> {
+  const creditos = pesoDe(herramienta);
+  if (!creditos || !env.MCP_INTERNO_TOKEN) return;
+  try {
+    await env.API.fetch(new Request("https://vigia-api.interno/v1/gobserva/interno/consumo", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-vigia-interno": env.MCP_INTERNO_TOKEN },
+      body: JSON.stringify({ uid, detalle: herramienta, app, creditos }),
+    }));
+  } catch {
+    // sin el registro del panel; el cobro ya quedó en el contador
+  }
+}
+
 /** El cupo de antes (por llamadas en 24 horas), para una cuenta cuyo token no trae créditos. */
 async function cupoDiarioDeAntes(env: EnvV2, usuario: Usuario, herramienta: string): Promise<string | null> {
   const pago = esDePago(usuario);

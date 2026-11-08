@@ -122,6 +122,43 @@ adminGobservaRouter.post("/gobserva/cobros/:numero/rechazar", async (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * GET /admin/gobserva/consumo?dias=30: el asistente y el MCP en el periodo (migración 268): por modo o herramienta, por
+ * día y por cuenta (con sus planes), con los créditos y lo que costó el modelo; y lo que entró por planes en el mes.
+ */
+adminGobservaRouter.get("/gobserva/consumo", async (c) => {
+  const dias = Math.min(120, Math.max(1, Number.parseInt(c.req.query("dias") ?? "30", 10) || 30));
+  const desde = `(now() AT TIME ZONE 'America/Lima')::date - ${dias - 1}`;
+  const [porDetalle, porDia, porCuenta, mes] = await Promise.all([
+    pool.query(
+      `SELECT canal, detalle, sum(llamadas)::int AS llamadas, sum(creditos)::int AS creditos, sum(costo_usd)::float AS costo,
+              count(DISTINCT firebase_uid)::int AS cuentas
+         FROM gobserva_consumo WHERE dia >= ${desde} GROUP BY 1, 2 ORDER BY 1, 4 DESC`),
+    pool.query(
+      `SELECT to_char(dia, 'YYYY-MM-DD') AS dia,
+              COALESCE(sum(llamadas) FILTER (WHERE canal = 'asistente'), 0)::int AS preguntas,
+              COALESCE(sum(llamadas) FILTER (WHERE canal = 'mcp'), 0)::int AS mcp,
+              sum(creditos)::int AS creditos, sum(costo_usd)::float AS costo, count(DISTINCT firebase_uid)::int AS cuentas
+         FROM gobserva_consumo WHERE dia >= ${desde} GROUP BY dia ORDER BY dia DESC`),
+    pool.query(
+      `SELECT k.firebase_uid AS uid, g.email, g.producto_origen AS app,
+              COALESCE(sum(k.llamadas) FILTER (WHERE k.canal = 'asistente'), 0)::int AS preguntas,
+              COALESCE(sum(k.llamadas) FILTER (WHERE k.canal = 'mcp'), 0)::int AS mcp,
+              sum(k.creditos)::int AS creditos, sum(k.costo_usd)::float AS costo,
+              (SELECT string_agg(p.producto || ':' || p.plan, ', ' ORDER BY p.producto) FROM gobserva_planes_cliente p
+                WHERE p.firebase_uid = k.firebase_uid AND p.estado = 'activa' AND (p.vigente_hasta IS NULL OR p.vigente_hasta > now())) AS planes
+         FROM gobserva_consumo k LEFT JOIN gobserva_cuentas g USING (firebase_uid)
+        WHERE k.dia >= ${desde} GROUP BY 1, 2, 3 ORDER BY creditos DESC, costo DESC LIMIT 100`),
+    pool.query(
+      `SELECT COALESCE(sum(monto_pen) FILTER (WHERE pagado_at >= date_trunc('month', now() AT TIME ZONE 'America/Lima') AT TIME ZONE 'America/Lima'), 0)::float AS ingresos,
+              (SELECT COALESCE(sum(costo_usd), 0)::float FROM gobserva_consumo WHERE dia >= date_trunc('month', now() AT TIME ZONE 'America/Lima')::date) AS costo,
+              (SELECT count(DISTINCT firebase_uid)::int FROM gobserva_planes_cliente WHERE estado = 'activa' AND medio <> 'cortesia'
+                  AND (vigente_hasta IS NULL OR vigente_hasta > now())) AS pagando
+         FROM gobserva_cobros WHERE estado = 'pagado'`),
+  ]);
+  return c.json({ dias, porDetalle: porDetalle.rows, porDia: porDia.rows, porCuenta: porCuenta.rows, mes: mes.rows[0] });
+});
+
 const CortesiaBody = z
   .object({
     email: z.string().trim().email().max(254).optional(),

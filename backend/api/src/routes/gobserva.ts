@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+import { registrarConsumo } from "../lib/consumo.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
@@ -19,6 +21,28 @@ import { getPagosConfig } from "./contribuciones.js";
  * lista la lee el panel (GET /admin/gobserva/suscripciones). Del RUC, sólo el de una empresa (20…).
  */
 export const gobservaRouter = new Hono();
+
+/**
+ * POST /gobserva/interno/consumo: el MCP (backend/mcp-worker, por service binding) avisa cada llamada que cobró créditos,
+ * para el panel (lib/consumo.ts). Sólo con la cabecera interna (`x-vigia-interno` = MCP_INTERNO_TOKEN, la misma que el
+ * chat del panel le manda al MCP).
+ */
+const ConsumoMcp = z.object({
+  uid: z.string().min(6).max(128),
+  detalle: z.string().min(1).max(60),
+  app: z.string().max(20).default(""),
+  creditos: z.number().int().min(0).max(1000),
+});
+gobservaRouter.post("/interno/consumo", async (c) => {
+  const esperado = (c.env as { MCP_INTERNO_TOKEN?: string } | undefined)?.MCP_INTERNO_TOKEN ?? process.env.MCP_INTERNO_TOKEN ?? "";
+  const llega = Buffer.from(c.req.header("x-vigia-interno") ?? "");
+  const clave = Buffer.from(esperado);
+  if (!esperado || llega.length !== clave.length || !timingSafeEqual(llega, clave)) return c.json({ error: "forbidden" }, 403);
+  const b = ConsumoMcp.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body" }, 400);
+  await registrarConsumo({ ...b.data, canal: "mcp" });
+  return c.json({ ok: true });
+});
 
 const PLANES = ["gratis", "alertas", "pro", "empresa", "institucional", "mcp"] as const;
 const opcional = (max: number) => z.string().trim().max(max).optional().transform((v) => (v ? v : undefined));

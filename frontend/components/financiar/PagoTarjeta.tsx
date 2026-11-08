@@ -102,6 +102,13 @@ function estiloVigia(caja: HTMLElement): Record<string, string> {
   return { ...listos, formPadding: "0px", borderRadiusSmall: "8px", borderRadiusMedium: "12px", borderRadiusLarge: "12px" };
 }
 
+/**
+ * Un formulario a la vez (2026-11-08): si el correo o el modo cambian mientras Mercado Pago arma el formulario, el efecto
+ * se vuelve a correr y el segundo `create` chocaba con el primero en el mismo contenedor («No se pudo cargar el
+ * formulario»). Cada armado espera a que el anterior termine (y se desmonte si ya no sirve).
+ */
+let cola: Promise<unknown> = Promise.resolve();
+
 function cargarSdk(): Promise<void> {
   if (window.MercadoPago) return Promise.resolve();
   cargaSdk ??= new Promise<void>((resolver, rechazar) => {
@@ -123,11 +130,14 @@ export function PagoTarjeta({
   monto,
   email,
   onPagar,
+  alternativa = "aporta con Yape o Plin",
 }: {
   clavePublica: string;
   monto: number;
   email?: string;
   onPagar: (datos: DatosTarjeta) => Promise<void>;
+  /** Lo que se ofrece si el formulario falla: «aporta con Yape o Plin» (Vigía) o «paga con Yape o Plin» (Gobserva). */
+  alternativa?: string;
 }) {
   const modo = useModo();
   const [listo, setListo] = useState(false);
@@ -143,7 +153,8 @@ export function PagoTarjeta({
     setListo(false);
     setFalla(null);
     void cargarSeguridad();
-    cargarSdk()
+    const turno = cola
+      .then(() => cargarSdk())
       .then(async () => {
         if (!vivo || !window.MercadoPago) return;
         const mp = new window.MercadoPago(clavePublica, { locale: "es-PE" });
@@ -173,17 +184,21 @@ export function PagoTarjeta({
                   : undefined,
                 dispositivo: window.MP_DEVICE_SESSION_ID,
               }),
-            onError: () => vivo && setFalla("El formulario de la tarjeta tuvo un problema. Recarga la página o aporta con Yape o Plin."),
+            onError: () => vivo && setFalla(`El formulario de la tarjeta tuvo un problema. Recarga la página o ${alternativa}.`),
           },
         });
-        if (!vivo) control.unmount();
+        if (!vivo) {
+          control.unmount();
+          control = null;
+        }
       })
-      .catch(() => vivo && setFalla("No se pudo cargar el formulario de Mercado Pago. Revisa tu conexión o aporta con Yape o Plin."));
+      .catch(() => vivo && setFalla(`No se pudo cargar el formulario de Mercado Pago. Revisa tu conexión o ${alternativa}.`));
+    cola = turno.catch(() => undefined);
     return () => {
       vivo = false;
       control?.unmount();
     };
-  }, [clavePublica, monto, email, modo]);
+  }, [clavePublica, monto, email, modo, alternativa]);
 
   return (
     <div className="min-w-0">

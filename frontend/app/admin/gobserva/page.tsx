@@ -6,13 +6,14 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { ClientesGobserva } from "@/components/admin/gobserva/Clientes";
 import { CobrosGobserva } from "@/components/admin/gobserva/Cobros";
 import { ConfiguracionGobserva } from "@/components/admin/gobserva/Configuracion";
+import { ConsumoGobserva } from "@/components/admin/gobserva/Consumo";
 import { EnviosGobserva } from "@/components/admin/gobserva/Envios";
 import { InscritosGobserva } from "@/components/admin/gobserva/Inscritos";
 import { soles, type Resumen } from "@/components/admin/gobserva/tipos";
 import { ErrorBanner, PanelPestana, Pestanas, SkeletonPanel, StatCard, StatGrid, claseBoton, plural, usePestana } from "@/components/admin/ui";
 import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 
-const PESTANAS = ["cobros", "clientes", "envios", "config", "inscritos"] as const;
+const PESTANAS = ["cobros", "clientes", "consumo", "envios", "config", "inscritos"] as const;
 type Pestana = (typeof PESTANAS)[number];
 
 /**
@@ -50,6 +51,7 @@ function Contenido() {
   const panel: Record<Pestana, React.ReactNode> = {
     cobros: <CobrosGobserva />,
     clientes: <ClientesGobserva />,
+    consumo: <ConsumoGobserva />,
     envios: <EnviosGobserva correo={r?.correo} />,
     config: <ConfiguracionGobserva />,
     inscritos: <InscritosGobserva />,
@@ -105,6 +107,7 @@ function Contenido() {
         pestanas={[
           { clave: "cobros", etiqueta: "Cobros", conteo: pendientes, tono: pendientes ? "warn" : undefined },
           { clave: "clientes", etiqueta: "Clientes", conteo: r ? activos : null },
+          { clave: "consumo", etiqueta: "Consumo" },
           { clave: "envios", etiqueta: "Avisos", conteo: r ? r.envios.enviados + r.envios.enLaWeb : null, tono: r?.envios.fallidos ? "danger" : undefined },
           { clave: "config", etiqueta: "Configuración", tono: r && !r.correoActivo ? "warn" : undefined },
           { clave: "inscritos", etiqueta: "Lista de espera" },
