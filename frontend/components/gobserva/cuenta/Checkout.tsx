@@ -39,6 +39,7 @@ function loQueTrae(p: PlanCatalogo, producto: Producto): string[] {
     `${l.alertas} alertas con lo nuevo, ${l.frecuencias.includes("diaria") ? "cada mañana" : "cada semana"}`,
     `Hasta ${l.guardados.toLocaleString("es-PE")} ${cosas.varias} guardadas, con recordatorio antes del cierre`,
     l.csv ? `Descarga en Excel (CSV) de hasta ${l.filasCsv.toLocaleString("es-PE")} filas por búsqueda` : "",
+    l.mcp ? `${l.mcp.toLocaleString("es-PE")} créditos al mes para el asistente de la app y tu MCP (Claude, ChatGPT o Cursor)` : "",
     "Todo lo del plan gratis",
   ].filter(Boolean);
 }
