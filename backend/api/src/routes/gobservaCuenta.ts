@@ -332,7 +332,8 @@ gobservaCuentaRouter.get("/cobros/:numero", async (c) => {
 const AlertaBody = z.object({
   producto: Producto,
   nombre: z.string().trim().min(1).max(80),
-  filtros: z.record(z.union([z.string().max(120), z.number(), z.boolean()])).refine((f) => Object.keys(f).length <= 15),
+  // Hasta 600: las carreras de una alerta de «Mi perfil» de Empleo van con sus variantes («arquitectura;arquitecto|…»).
+  filtros: z.record(z.union([z.string().max(600), z.number(), z.boolean()])).refine((f) => Object.keys(f).length <= 15),
   frecuencia: z.enum(["diaria", "semanal"]).default("semanal"),
 });
 const AlertaCambio = z.object({

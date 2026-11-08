@@ -112,6 +112,12 @@ const Lista = z.object({
   cierra: z.enum(["hoy", "2dias", "semana"]).optional(),
   senal: z.enum(SENALES).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
+  /**
+   * El perfil de la app, como en /empleo/calce: carreras (grupos «|», variantes «;») y puestos («|»). Sólo lo usan las
+   * alertas de «Mi perfil» y su CSV (filasPlazas): calzan como en «Para ti», no como texto suelto.
+   */
+  carreras: z.string().max(600).optional(),
+  palabras: z.string().max(600).optional(),
   orden: z.enum(["cierre", "sueldo", "reciente", "vacantes"]).default("cierre"),
   page: z.coerce.number().int().min(1).max(300).default(1),
   size: z.coerce.number().int().min(1).max(30).default(12),
@@ -160,16 +166,37 @@ export function filtrosPlazas(f: Record<string, unknown>): FiltrosPlazas | null 
   return p.success ? p.data : null;
 }
 
-/** Las plazas de una búsqueda, hasta `limite` (para alertas y CSV): las columnas de la lista, ya publicables. */
+/** Los puestos de un perfil («|»), sin repetir y hasta 10 (como /empleo/calce). */
+const puestosDe = (t: string | undefined) => [...new Set((t ?? "").split("|").map((x) => x.trim().slice(0, 40)).filter(Boolean))].slice(0, 10);
+
+/**
+ * Las plazas de una búsqueda, hasta `limite` (para alertas y CSV): las columnas de la lista, ya publicables. Con el
+ * perfil de la app (`carreras`, `palabras`), sólo las que calzan con él y las más afines primero (lib/calceEmpleo.ts):
+ * una alerta de Arquitectura no avisa «Analista en arquitectura Java», que pide Ingeniería de sistemas.
+ */
 export async function filasPlazas(q: FiltrosPlazas, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
   const { conds, vals, rc, nc } = condicionesPlazas(q, nuevasDesde);
   const orden = nuevasDesde ? ORDEN.reciente : ORDEN[q.orden];
+  const tope = Math.max(1, Math.min(5000, Math.floor(limite)));
+  const carreras = leerCarreras(q.carreras);
+  const puestos = puestosDe(q.palabras);
+  if (!carreras.length && !puestos.length) {
+    const r = await pool.query(
+      `WITH base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})
+       SELECT * FROM base WHERE ${rc} AND ${nc} ORDER BY ${orden} LIMIT ${tope}`,
+      vals,
+    );
+    return publicar(r.rows) as Record<string, unknown>[];
+  }
+  const k = condicionesCalce({ carreras, puestos, otros: [] }, vals);
   const r = await pool.query(
-    `WITH base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})
-     SELECT * FROM base WHERE ${rc} AND ${nc} ORDER BY ${orden} LIMIT ${Math.max(1, Math.min(5000, Math.floor(limite)))}`,
+    `WITH base AS MATERIALIZED (SELECT ${FILA}, mef_norm(s.formacion) AS fo, mef_norm(s.titulo) AS ti, ${PARTES_FORMACION} AS es
+                                  ${DESDE} WHERE ${conds.join(" AND ")})
+     SELECT * FROM (SELECT base.*, ${k.puntaje} AS puntaje FROM base WHERE ${rc} AND ${nc} AND ${k.calza}) cz
+      ORDER BY puntaje DESC, ${orden} LIMIT ${tope}`,
     vals,
   );
-  return publicar(r.rows) as Record<string, unknown>[];
+  return publicar(r.rows.map(({ fo: _f, ti: _t, es: _e, puntaje: _p, ...d }) => d)) as Record<string, unknown>[];
 }
 
 empleoRouter.get("/plazas", async (c) => {
@@ -240,7 +267,7 @@ empleoRouter.get("/calce", async (c) => {
   const q = p.data;
   const separar = (t: string | undefined) => (t ?? "").split("|").map((x) => x.trim().slice(0, 40)).filter(Boolean);
   const carreras = leerCarreras(q.carreras);
-  const puestos = [...new Set(separar(q.palabras))].slice(0, 10);
+  const puestos = puestosDe(q.palabras);
   const otros = [...new Set(separar(q.otras))].filter((w) => !puestos.includes(w)).slice(0, 12);
   const contar = leerCarreras(q.contar, 20);
   const cuerpo = await memo.obtener(`calce2:${JSON.stringify([q, carreras, puestos, otros, contar])}`, async () => {

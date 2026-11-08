@@ -161,8 +161,10 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
   const [confirmar, setConfirmar] = useState(false);
   const chips = chipsFiltros(producto, a.filtros);
   const deBandeja = producto === "licitaciones" && !!a.filtros.bandeja;
-  const qs = new URLSearchParams(Object.entries(a.filtros).filter(([k]) => k !== "bandeja").map(([k, v]) => [k, String(v)])).toString();
-  const lista = deBandeja ? "/app/bandeja" : COSAS[producto].lista;
+  // La alerta de «Mi perfil» de Empleo calza como «Para ti»: la lista pública de plazas no sabe de carreras.
+  const dePerfil = producto === "empleo" && (!!a.filtros.carreras || !!a.filtros.palabras);
+  const qs = dePerfil ? "" : new URLSearchParams(Object.entries(a.filtros).filter(([k]) => k !== "bandeja").map(([k, v]) => [k, String(v)])).toString();
+  const lista = deBandeja ? "/app/bandeja" : dePerfil ? "/app/para-ti" : COSAS[producto].lista;
 
   async function hacer(que: "activa" | "enviar" | "borrar") {
     setNota(null);
@@ -204,7 +206,7 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
           </p>
         </div>
         <Link href={rutaEn(base, `${lista}${qs ? `?${qs}` : ""}`)} className="shrink-0 text-dato font-semibold text-granate hover:underline">
-          {deBandeja ? "Abrir en la bandeja" : "Ver la búsqueda"}
+          {deBandeja ? "Abrir en la bandeja" : dePerfil ? "Ver «Para ti»" : "Ver la búsqueda"}
         </Link>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

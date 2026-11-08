@@ -298,19 +298,23 @@ export function dePerfilQuery(query: string): PerfilEmpleo {
 }
 
 /**
- * La alerta del perfil, con los filtros de la lista de plazas (el texto pide TODAS sus palabras en el aviso): va la
- * primera carrera (como la piden los avisos) o el primer puesto, y los demás filtros; lo demás lo ordena «Para ti».
+ * La alerta del perfil: avisa lo nuevo que calza como en «Para ti» (la API la arma con lib/calceEmpleo.ts), con las
+ * carreras con sus variantes y los puestos, no como texto suelto (con «arquitectura» avisaba «Analista en arquitectura
+ * Java»).
  */
 export function aAlertaEmpleo(p: PerfilEmpleo): { nombre: string; filtros: Record<string, string | number> } {
-  const filtros: Record<string, string | number> = {};
-  const texto = p.carreras.length ? variantesDe(p.carreras[0])[0] : p.palabras[0];
-  if (texto) filtros.q = texto;
-  if (p.region) filtros.region = p.region;
-  if (p.tengo) filtros.tengo = p.tengo;
-  if (p.sueldo != null) filtros.sueldo = p.sueldo;
-  if (p.exp != null) filtros.exp = p.exp;
+  const filtros: Record<string, string | number> = Object.fromEntries(paramsCalce(p));
+  for (const k of ["sueldo", "exp"] as const) if (p[k] != null) filtros[k] = p[k] as number;
   return { nombre: `${p.puesto.trim() || "Mi perfil"} (mi perfil)`.slice(0, 80), filtros };
 }
+
+/** ¿Es la alerta de «Mi perfil»? (la que lleva el perfil; las de la lista de plazas buscan texto, `q`). */
+export const esAlertaDePerfil = (a: { nombre: string; filtros: Record<string, unknown> }) =>
+  !!a.filtros.carreras || !!a.filtros.palabras || / \(mi perfil\)$/.test(a.nombre);
+
+/** Las carreras de una alerta («arquitectura;arquitecto|derecho;abogado») con su nombre: «Arquitectura», «Derecho». */
+export const carrerasDeAlerta = (v: string) =>
+  v.split("|").map((g) => g.split(";")[0].trim()).filter(Boolean).map((x) => carreraDe(x)?.nombre ?? mayuscula(x));
 
 /** La primera pregunta sin responder después de `desde` (o antes, si todas las siguientes están); null: todas listas. */
 export function siguienteEmpleo(respondidas: ReadonlySet<PreguntaEmpleo>, desde: PreguntaEmpleo | null = null): PreguntaEmpleo | null {

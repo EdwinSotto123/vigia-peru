@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PERFIL_EMPLEO_VACIO, aAlertaEmpleo, aQueryPerfil, agregarCarrera, agregarPalabrasEmpleo, carreraDe, dePerfilQuery, experienciaDe, nombreDeVariante, paramsCalce, textosMotivo,
+  PERFIL_EMPLEO_VACIO, aAlertaEmpleo, aQueryPerfil, agregarCarrera, carrerasDeAlerta, esAlertaDePerfil, agregarPalabrasEmpleo, carreraDe, dePerfilQuery, experienciaDe, nombreDeVariante, paramsCalce, textosMotivo,
   perfilDesdeCv, puestosSugeridos, respondidasPorCv, siguienteEmpleo, textoRespuestaEmpleo, type PreguntaEmpleo,
 } from "./entrevista.ts";
 
@@ -62,7 +62,15 @@ test("perfilDesdeCv y respondidasPorCv: lo que el CV ya dice se responde solo", 
 
 test("aAlertaEmpleo, textoRespuestaEmpleo y siguienteEmpleo", () => {
   const p = { ...PERFIL_EMPLEO_VACIO, puesto: "Arquitectura", carreras: ["Arquitectura"], palabras: [], region: "lima" };
-  assert.deepEqual(aAlertaEmpleo(p), { nombre: "Arquitectura (mi perfil)", filtros: { q: "arquitectura", region: "lima" } });
+  assert.deepEqual(aAlertaEmpleo(p), { nombre: "Arquitectura (mi perfil)", filtros: { carreras: "arquitectura;arquitecto", region: "lima" } });
+  const completo = { ...p, carreras: ["Arquitectura", "Derecho"], palabras: ["especialista en infraestructura"], tengo: "titulo" as const, sueldo: 3000, exp: 2 };
+  assert.deepEqual(aAlertaEmpleo(completo).filtros, {
+    carreras: "arquitectura;arquitecto|derecho;abogado", palabras: "especialista en infraestructura", region: "lima", tengo: "titulo", sueldo: 3000, exp: 2,
+  });
+  assert.deepEqual(carrerasDeAlerta("arquitectura;arquitecto|derecho;abogado|gastronomía"), ["Arquitectura", "Derecho", "Gastronomía"]);
+  assert.equal(esAlertaDePerfil({ nombre: "Salud (mi perfil)", filtros: { q: "enfermera" } }), true);
+  assert.equal(esAlertaDePerfil({ nombre: "Abogado en Cusco", filtros: { q: "abogado", region: "cusco" } }), false);
+  assert.equal(esAlertaDePerfil({ nombre: "Lo mío", filtros: { carreras: "derecho;abogado" } }), true);
   assert.equal(textoRespuestaEmpleo("carrera", p, region, false), "Arquitectura");
   assert.equal(textoRespuestaEmpleo("puestos", p, region, false), "Cualquiera de mi carrera");
   assert.equal(textoRespuestaEmpleo("cv", p, region, true), "Te paso mi CV");

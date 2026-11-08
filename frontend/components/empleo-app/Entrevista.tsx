@@ -10,12 +10,12 @@ import { MarcaGobserva } from "@/components/gobserva/MarcaGobserva";
 import { Compositor, Conversacion, Escribiendo, MensajeBot, MensajeTuyo, Opcion, Respuestas, useEscribiendo, useMenosMovimiento, useRetrasado } from "@/components/gobserva/app/chat/Chat";
 import { useMe, useSesion } from "@/components/gobserva/cuenta/comun";
 import { rutaEn } from "@/lib/gobserva";
-import { ErrorCuenta, borrarBusqueda, crearAlerta, crearBusqueda, leerCvEmpleo } from "@/lib/gobserva-cuenta";
+import { ErrorCuenta, borrarBusqueda, cambiarAlerta, cargarAlertas, crearAlerta, crearBusqueda, leerCvEmpleo } from "@/lib/gobserva-cuenta";
 import { REGIONES_EMPLEO, diasParaCierre, entidadNombre, nombreRegion, puesto as puestoLegible, slugRegion, textoCierre } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import {
   CARRERAS, ESTUDIOS, EXPERIENCIAS, MAX_CARRERAS, MAX_PALABRAS_EMPLEO, NOMBRE_PERFIL, PERFIL_EMPLEO_VACIO, PREGUNTAS_EMPLEO, SUELDOS, aAlertaEmpleo, aQueryPerfil,
-  agregarCarrera, agregarPalabrasEmpleo, carrerasParaContar, conQueBuscar, igualEmpleo, nombrePerfilEmpleo, paramsCalce, perfilDesdeCv, puestosSugeridos, respondidasPorCv,
+  agregarCarrera, agregarPalabrasEmpleo, carrerasParaContar, conQueBuscar, esAlertaDePerfil, igualEmpleo, nombrePerfilEmpleo, paramsCalce, perfilDesdeCv, puestosSugeridos, respondidasPorCv,
   siguienteEmpleo, textoRespuestaEmpleo, textosMotivo, variantesDe, type PerfilEmpleo, type PreguntaEmpleo,
 } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
@@ -212,7 +212,11 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
     if (perfil.alerta && conQueBuscar(perfil)) {
       try {
         const a = aAlertaEmpleo(perfil);
-        await crearAlerta({ producto: "empleo", nombre: a.nombre, filtros: a.filtros, frecuencia: conDiaria ? perfil.frecuencia : "semanal" });
+        const frecuencia = conDiaria ? perfil.frecuencia : "semanal";
+        // Al rehacer el perfil, su alerta se pone al día (no queda la de antes ni se crea otra que no entra en el plan).
+        const previa = (await cargarAlertas("empleo").catch(() => ({ data: [] }))).data.find(esAlertaDePerfil);
+        if (previa) await cambiarAlerta(previa.id, { nombre: a.nombre, filtros: a.filtros, frecuencia, activa: true });
+        else await crearAlerta({ producto: "empleo", nombre: a.nombre, filtros: a.filtros, frecuencia });
       } catch {
         // Sin cupo de alertas (el plan gratis tiene una): el perfil igual queda; la alerta se arma desde Alertas.
       }

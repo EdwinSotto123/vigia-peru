@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { cargarMe, type Me } from "@/lib/gobserva-cuenta";
 import { COOKIE_SESION, type Producto } from "@/lib/gobserva";
 import { NIVEL, NIVELES_ORDEN, REGIONES_EMPLEO, nombreRegion as nombreRegionEmpleo, slugRegion } from "@/lib/empleo";
+import { carrerasDeAlerta } from "@/lib/empleo-app/entrevista";
 import { REGIONES_UBIGEO, TIPOS, nombreRegion as nombreRegionLic, nombreTipo } from "@/lib/licitaciones";
 import { FASES, MODALIDADES, NIVELES, ORDEN_FASES, PESTANAS, SECTORES, TIPOS_PROYECTO, nombreNivel, nombreSector } from "@/lib/gobserva-obras";
 import { SENAL_PLAZA, TIPOS_PLAZA, type TipoPlaza } from "@/lib/planilla";
@@ -96,6 +97,9 @@ const MILES = new Intl.NumberFormat("es-PE");
 export const FILTROS: Record<Producto, CampoFiltro[]> = {
   empleo: [
     { clave: "q", etiqueta: "Palabras", tipo: "texto", placeholder: "Abogado, enfermera, chofer", mostrar: (v) => `«${v}»` },
+    // Los de la alerta de «Mi perfil» (se cambian rehaciendo el perfil): calzan como en «Para ti».
+    { clave: "carreras", etiqueta: "Carrera", tipo: "texto", oculto: true, mostrar: (v) => `Carrera: ${carrerasDeAlerta(v).join(", ")}` },
+    { clave: "palabras", etiqueta: "Puestos", tipo: "texto", oculto: true, mostrar: (v) => `Puestos: ${v.split("|").join(", ")}` },
     {
       clave: "region", etiqueta: "Región", tipo: "opcion",
       opciones: REGIONES_EMPLEO.map((r) => ({ valor: slugRegion(r), etiqueta: nombreRegionEmpleo(r) })),

@@ -86,3 +86,17 @@ test("conTildes y clavePuesto: los sugeridos con tildes y sin repetir por géner
   assert.equal(clavePuesto("técnica en enfermería"), clavePuesto("tecnico en enfermeria"));
   assert.notEqual(clavePuesto("abogado"), clavePuesto("especialista legal"));
 });
+
+test("alertas de «Mi perfil»: los filtros guardan carreras y puestos (hasta 600 letras) y la calza no busca texto suelto", async () => {
+  const { filtrosPlazas } = await import("../src/routes/empleo.js");
+  const f = filtrosPlazas({ carreras: "arquitectura;arquitecto|derecho;abogado", palabras: "especialista en infraestructura", region: "lima", sueldo: 3000 });
+  assert.equal(f?.carreras, "arquitectura;arquitecto|derecho;abogado");
+  assert.equal(f?.palabras, "especialista en infraestructura");
+  assert.equal(f?.q, undefined);
+  assert.equal(filtrosPlazas({ carreras: "x".repeat(601) }), null);
+  // «Arquitectura» se busca en la formación, por su raíz: no calza con «Analista en arquitectura Java» que pide Sistemas.
+  const vals: unknown[] = [];
+  const k = condicionesCalce({ carreras: leerCarreras(f?.carreras), puestos: [], otros: [] }, vals);
+  assert.equal(k.calza, "(((fo ~ $1) OR (fo ~ $2)) OR ((fo ~ $3) OR (fo ~ $4)))");
+  assert.deepEqual(vals, ["(^| )ARQUITECT", "(^| )ARQUITE", "(^| )DERECH", "(^| )ABOGAD"]);
+});
